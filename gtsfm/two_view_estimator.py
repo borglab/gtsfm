@@ -8,14 +8,6 @@ import timeit
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
-from gtsam import (
-    PinholeCameraCal3Bundler,
-    Pose3,
-    Rot3,
-    SfmTrack,
-    Unit3,
-)
-import numpy as np
 from gtsam import PinholeCameraCal3Bundler, Pose3, Rot3, SfmTrack, Unit3
 
 import gtsfm.common.types as gtsfm_types
@@ -26,8 +18,8 @@ from gtsfm.bundle.two_view_ba import TwoViewBundleAdjustment
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
-from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 from gtsfm.common.sfm_track import SfmMeasurement, SfmTrack2d
+from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 from gtsfm.data_association.point3d_initializer import Point3dInitializer, TriangulationOptions
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.frontend.inlier_support_processor import InlierSupportProcessor

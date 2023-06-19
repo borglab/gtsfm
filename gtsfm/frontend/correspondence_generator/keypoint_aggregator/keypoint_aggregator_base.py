@@ -26,7 +26,7 @@ class KeypointAggregatorBase(GTSFMProcess):
         )
 
     @abc.abstractmethod
-    def run(
+    def aggregate(
         self, keypoints_dict: Dict[Tuple[int, int], Tuple[Keypoints, Keypoints]]
     ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
         """Aggregates per-pair image keypoints into a set of keypoints per image.

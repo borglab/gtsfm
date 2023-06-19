@@ -223,7 +223,7 @@ class GtsfmRunnerBase:
         process_graph_generator.save_graph()
 
         # TODO: Use futures
-        image_pair_indices = self.scene_optimizer.retriever.run(
+        image_pair_indices = self.scene_optimizer.retriever.get_image_pairs(
             self.loader, plots_output_dir=self.scene_optimizer._plot_base_path
         )
 

@@ -107,7 +107,7 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
             pairwise_correspondence_futures
         )
 
-        keypoints_list, putative_corr_idxs_dict = self._aggregator.run(keypoints_dict=pairwise_correspondences)
+        keypoints_list, putative_corr_idxs_dict = self._aggregator.aggregate(keypoints_dict=pairwise_correspondences)
 
         two_view_output_futures = {
             (i1, i2): client.submit(

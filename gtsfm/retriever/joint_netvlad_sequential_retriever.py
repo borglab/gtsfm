@@ -42,9 +42,9 @@ class JointNetVLADSequentialRetriever(RetrieverBase):
         Return:
             pair_indices: (i1,i2) image pairs.
         """
-        return self.run(loader=loader)
+        return self.get_image_pairs(loader=loader)
 
-    def run(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> Delayed:
+    def get_image_pairs(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> Delayed:
         """Compute potential image pairs.
 
         Args:

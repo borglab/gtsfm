@@ -19,7 +19,7 @@ class TestNetVLADRetriever(unittest.TestCase):
         loader = OlssonLoader(folder=DOOR_DATA_ROOT, image_extension="JPG")
         retriever = ExhaustiveRetriever()
 
-        pairs = retriever.run(loader=loader)
+        pairs = retriever.get_image_pairs(loader=loader)
 
         # {12 \choose 2} = (12 * 11) / 2 = 66
         self.assertEqual(len(pairs), 66)

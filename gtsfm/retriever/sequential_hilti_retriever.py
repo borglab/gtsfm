@@ -49,7 +49,9 @@ class SequentialHiltiRetriever(RetrieverBase):
         elif rig_idx_i1 < rig_idx_i2 and rig_idx_i2 - rig_idx_i1 <= self._max_frame_lookahead:
             return (cam_idx_i1, cam_idx_i2) in INTER_RIG_VALID_PAIRS
 
-    def run(self, loader: HiltiLoader, plots_output_dir: Optional[Path] = None) -> List[Tuple[int, int]]:
+        return False
+
+    def get_image_pairs(self, loader: HiltiLoader, plots_output_dir: Optional[Path] = None) -> List[Tuple[int, int]]:
         """Compute potential image pairs.
 
         Args:

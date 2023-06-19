@@ -43,7 +43,7 @@ class RetrieverBase(GTSFMProcess):
         )
 
     @abc.abstractmethod
-    def run(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> List[Tuple[int, int]]:
+    def get_image_pairs(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> List[Tuple[int, int]]:
         """Compute potential image pairs.
 
         Args:

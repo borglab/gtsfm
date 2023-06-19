@@ -63,7 +63,7 @@ class KeypointAggregatorDedup(KeypointAggregatorBase):
         per_image_kpt_coordinates[i] = np.vstack([per_image_kpt_coordinates[i], unique_keypoints_i_coordinates])
         return per_image_kpt_coordinates, np.array(i_indices)
 
-    def run(
+    def aggregate(
         self, keypoints_dict: Dict[Tuple[int, int], Tuple[Keypoints, Keypoints]]
     ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
         """Aggregates per-pair image keypoints into a set of keypoints per image, with de-duplication.

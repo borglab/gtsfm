@@ -111,7 +111,7 @@ class DetDescCorrespondenceGenerator(CorrespondenceGeneratorBase):
         }
 
         two_view_output_dict = client.gather(two_view_output_futures)
-        keypoints_futures = [client.submit(lambda f: f[0], f) for f in features_futures]
+        keypoints_futures = client.map(lambda f: f[0], features_futures)
         keypoints_list = client.gather(keypoints_futures)
 
         return keypoints_list, two_view_output_dict

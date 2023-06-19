@@ -44,7 +44,6 @@ class SuperPointDetectorDescriptor(DetectorDescriptorBase):
         super().__init__(max_keypoints=max_keypoints)
         self._use_cuda = use_cuda
         self._config = {"weights_path": weights_path}
-        # TODO(Ayush): Can we add GPU support
         self._model = SuperPoint(self._config).eval()
 
     def detect_and_describe(self, image: Image) -> Tuple[Keypoints, np.ndarray]:
