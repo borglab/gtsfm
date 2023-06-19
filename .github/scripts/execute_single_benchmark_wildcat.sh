@@ -30,8 +30,6 @@ else
   export SHARE_INTRINSICS_ARG=""
 fi
 
-echo "Share intrinsics CLI argument: ${SHARE_INTRINSICS_ARG}"
-
 # Run GTSFM on the dataset.
 if [ "$LOADER_NAME" == "olsson-loader" ]; then
   python gtsfm/runner/run_scene_optimizer_olssonloader.py \
