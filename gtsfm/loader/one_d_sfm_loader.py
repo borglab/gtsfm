@@ -6,7 +6,7 @@ Authors: Yanwei Du
 import glob
 import os
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 from gtsam import Cal3Bundler, Pose3
 
@@ -38,7 +38,8 @@ class OneDSFMLoader(LoaderBase):
         folder: str,
         image_extension: str = "jpg",
         max_resolution: int = 640,
-        default_focal_length_factor: float = 0.0,
+        enable_no_exif: bool = False,
+        default_focal_length_factor: float = 1.2,
     ) -> None:
         """Initializes to load from a specified folder on disk.
 
@@ -49,8 +50,10 @@ class OneDSFMLoader(LoaderBase):
                 the smaller of the height/width of the image. e.g. for 1080p (1920 x 1080),
                 max_resolution would be 1080. If the image resolution max(height, width) is
                 greater than the max_resolution, it will be downsampled to match the max_resolution.
+            enable_no_exif: flag to whether to read images without exif.
             default_focal_length_factor: focal length is initialized to default_focal_length_factor * largest dimension
-            of image if EXIF data is not available. Non-positive value means exif required.
+            of image if exif data is not available. The value has not been tuned for performance, 1.2 would be a
+            good start.
         """
         super().__init__(max_resolution=max_resolution)
         self._default_focal_length_factor = default_focal_length_factor
@@ -58,7 +61,7 @@ class OneDSFMLoader(LoaderBase):
         # Fetch all the file names in /images folder.
         search_path = os.path.join(folder, "images", f"*.{image_extension}")
 
-        if self._default_focal_length_factor > 0.0:
+        if enable_no_exif:
             self._image_paths = glob.glob(search_path)
         else:
             (self._image_paths, num_all_imgs) = self.get_images_with_exif(search_path)
