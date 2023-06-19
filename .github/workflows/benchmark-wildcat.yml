@@ -26,7 +26,7 @@ jobs:
               jpg,
               wget,
               colmap-loader,
-              700,
+              720,
               true,
             ],
           ]
