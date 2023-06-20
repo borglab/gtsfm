@@ -40,6 +40,8 @@ if [ "$LOADER_NAME" == "olsson-loader" ]; then
     --max_resolution ${MAX_RESOLUTION} \
     ${SHARE_INTRINSICS_ARG}
 
+#     --correspondence_generator_config_name loftr.yaml \
+
 elif [ "$LOADER_NAME" == "colmap-loader" ]; then
   python gtsfm/runner/run_scene_optimizer_colmaploader.py \
     --images_dir $DATASET_PREFIX/${IMAGES_DIR} \
@@ -48,7 +50,6 @@ elif [ "$LOADER_NAME" == "colmap-loader" ]; then
     --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
     --max_resolution ${MAX_RESOLUTION} \
     ${SHARE_INTRINSICS_ARG} \
-    --correspondence_generator_config_name loftr.yaml \
     --num_workers 1 \
     --mvs_off
 
