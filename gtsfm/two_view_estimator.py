@@ -304,7 +304,9 @@ class TwoViewEstimator:
                 pre_ba_i2Ui1,
                 i2Ti1_prior,
             )
-            post_ba_inlier_ratio_wrt_estimate = float(len(post_ba_v_corr_idxs)) / len(putative_corr_idxs)
+            post_ba_inlier_ratio_wrt_estimate = (
+                0.0 if len(putative_corr_idxs) == 0 else float(len(post_ba_v_corr_idxs)) / len(putative_corr_idxs)
+            )
 
             # TODO: Remove this hack once we can handle the lower post_ba_inlier_ratio_wrt_estimate downstream.
             post_ba_inlier_ratio_wrt_estimate = pre_ba_inlier_ratio_wrt_estimate
