@@ -1,4 +1,4 @@
-# Default deep front-end configuration.
+# Default configuration for the Skydio crane mast dataset.
 
 SceneOptimizer:
   _target_: gtsfm.scene_optimizer.SceneOptimizer
@@ -8,26 +8,16 @@ SceneOptimizer:
   pose_angular_error_thresh: 5 # degrees
 
   retriever:
-    _target_: gtsfm.retriever.netvlad_retriever.NetVLADRetriever
-    num_matched: 10
-    min_score: 0.3
+    _target_: gtsfm.retriever.joint_netvlad_sequential_retriever.JointNetVLADSequentialRetriever
+    num_matched: 20
+    min_score: 0.2
+    max_frame_lookahead: 25
 
   correspondence_generator:
-    _target_: gtsfm.frontend.correspondence_generator.det_desc_correspondence_generator.DetDescCorrespondenceGenerator
-
-    feature_extractor:
-      _target_: gtsfm.feature_extractor.FeatureExtractor
-      detector_descriptor:
-        _target_: gtsfm.frontend.cacher.detector_descriptor_cacher.DetectorDescriptorCacher
-        detector_descriptor_obj:
-          _target_: gtsfm.frontend.detector_descriptor.superpoint.SuperPointDetectorDescriptor
-          max_keypoints: 5000
+    _target_: gtsfm.frontend.correspondence_generator.image_correspondence_generator.ImageCorrespondenceGenerator
 
     matcher:
-      _target_: gtsfm.frontend.cacher.matcher_cacher.MatcherCacher
-      matcher_obj:
-        _target_: gtsfm.frontend.matcher.superglue_matcher.SuperGlueMatcher
-        use_outdoor_model: True
+      _target_: gtsfm.frontend.matcher.loftr.LOFTR
 
   two_view_estimator:
     _target_: gtsfm.two_view_estimator.TwoViewEstimator
@@ -70,7 +60,7 @@ SceneOptimizer:
 
     data_association_module:
       _target_: gtsfm.data_association.data_assoc.DataAssociation
-      min_track_len: 2
+      min_track_len: 3
       triangulation_options:
         _target_: gtsfm.data_association.point3d_initializer.TriangulationOptions
         reproj_error_threshold: 10
@@ -88,7 +78,3 @@ SceneOptimizer:
       cam_pose3_prior_noise_sigma: 0.1
       calibration_prior_noise_sigma: 1e-5
       measurement_noise_sigma: 1.0
-
-  # comment out to not run
-  dense_multiview_optimizer:
-    _target_: gtsfm.densify.mvs_patchmatchnet.MVSPatchmatchNet

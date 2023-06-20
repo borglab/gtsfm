@@ -1,5 +1,10 @@
-import subprocess
+"""Script for downoading the NetVLAD weights.
+
+Note: Copied from NetVLAD.__init__.
+"""
+
 import logging
+import subprocess
 from pathlib import Path
 
 
