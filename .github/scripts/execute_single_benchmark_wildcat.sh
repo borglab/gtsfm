@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# Datasets are stored in ~/sfm_datasets in order to reduce runtimes by not 
+# redownloading each (very large) dataset every CI run. Any new datasets must be
+# downloaded and stored in ~/sfm_datasets before running this action.
+DATASET_PREFIX=/home/tdriver6/sfm_datasets
+
 DATASET_NAME=$1
 CONFIG_NAME=$2
 MAX_FRAME_LOOKAHEAD=$3
@@ -9,24 +14,9 @@ MAX_RESOLUTION=$6
 SHARE_INTRINSICS=$7
 
 # Extract the data, configure arguments for runner.
-if [ "$DATASET_NAME" == "door-12" ]; then
-  DATASET_ROOT=tests/data/set1_lund_door
-elif [ "$DATASET_NAME" == "palace-fine-arts-281" ]; then
-  DATASET_ROOT="palace-fine-arts-281"
-elif [ "$DATASET_NAME" == "2011205_rc3" ]; then
-  DATASET_ROOT="2011205_rc3"
-elif [ "$DATASET_NAME" == "skydio-8" ]; then
-  IMAGES_DIR=skydio_crane_mast_8imgs_with_exif/images
-  COLMAP_FILES_DIRPATH=skydio_crane_mast_8imgs_with_exif/crane_mast_8imgs_colmap_output
-elif [ "$DATASET_NAME" == "skydio-32" ]; then
-  IMAGES_DIR=skydio-32/images
-  COLMAP_FILES_DIRPATH=skydio-32/colmap_crane_mast_32imgs
-elif [ "$DATASET_NAME" == "skydio-501" ]; then
+if [ "$DATASET_NAME" == "skydio-501" ]; then
   IMAGES_DIR="skydio-crane-mast-501-images"
   COLMAP_FILES_DIRPATH="skydio-501-colmap-pseudo-gt"
-elif [ "$DATASET_NAME" == "notre-dame-20" ]; then
-  IMAGES_DIR=notre-dame-20/images
-  COLMAP_FILES_DIRPATH=notre-dame-20/notre-dame-20-colmap
 fi
 
 echo "Config: ${CONFIG_NAME}, Loader: ${LOADER_NAME}"
@@ -43,25 +33,29 @@ fi
 # Run GTSFM on the dataset.
 if [ "$LOADER_NAME" == "olsson-loader" ]; then
   python gtsfm/runner/run_scene_optimizer_olssonloader.py \
-    --dataset_root $DATASET_ROOT \
+    --dataset_root $DATASET_PREFIX/$DATASET_ROOT \
     --image_extension $IMAGE_EXTENSION \
     --config_name ${CONFIG_NAME}.yaml \
     --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
     --max_resolution ${MAX_RESOLUTION} \
     ${SHARE_INTRINSICS_ARG}
 
+#     --correspondence_generator_config_name loftr.yaml \
+
 elif [ "$LOADER_NAME" == "colmap-loader" ]; then
   python gtsfm/runner/run_scene_optimizer_colmaploader.py \
-    --images_dir ${IMAGES_DIR} \
-    --colmap_files_dirpath $COLMAP_FILES_DIRPATH \
+    --images_dir $DATASET_PREFIX/${IMAGES_DIR} \
+    --colmap_files_dirpath $DATASET_PREFIX/$COLMAP_FILES_DIRPATH \
     --config_name ${CONFIG_NAME}.yaml \
     --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
     --max_resolution ${MAX_RESOLUTION} \
-    ${SHARE_INTRINSICS_ARG}
+    ${SHARE_INTRINSICS_ARG} \
+    --num_workers 1 \
+    --mvs_off
 
 elif [ "$LOADER_NAME" == "astrovision" ]; then
   python gtsfm/runner/run_scene_optimizer_astrovision.py \
-    --data_dir $DATASET_ROOT \
+    --data_dir $DATASET_PREFIX/$DATASET_ROOT \
     --config_name ${CONFIG_NAME}.yaml \
     --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
     --max_resolution ${MAX_RESOLUTION} \

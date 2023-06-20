@@ -40,3 +40,7 @@ D2NET_WEIGHTS_DIR="./thirdparty/d2net/weights"
 mkdir -p $D2NET_WEIGHTS_DIR
 
 wget $D2NET_CKPT_URL -O $D2NET_WEIGHTS_DIR/d2_tf.pth
+
+##################### NetVLAD #############################
+
+python thirdparty/hloc/download_netvlad.py
