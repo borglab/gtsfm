@@ -14,12 +14,12 @@ MAX_RESOLUTION=$6
 SHARE_INTRINSICS=$7
 
 # Extract the data, configure arguments for runner.
-if [ "$DATASET_NAME" == "skydio-501" ]; then
-  IMAGES_DIR="skydio-crane-mast-501-images"
-  COLMAP_FILES_DIRPATH="skydio-501-colmap-pseudo-gt"
-
 if [ "$DATASET_NAME" == "gendarmenmarkt" ]; then
   IMAGES_DIR=Gendarmenmarkt/images
+
+elif [ "$DATASET_NAME" == "skydio-501" ]; then
+  IMAGES_DIR="skydio-crane-mast-501-images"
+  COLMAP_FILES_DIRPATH="skydio-501-colmap-pseudo-gt"
 fi
 
 echo "Config: ${CONFIG_NAME}, Loader: ${LOADER_NAME}"
