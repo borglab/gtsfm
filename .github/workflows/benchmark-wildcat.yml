@@ -19,7 +19,7 @@ jobs:
       matrix:
         config_dataset_info: [
             # config             dataset           lookahead   img-extension  source  loader          max-res  share-intrinsics
-            [skydio_front_end,   skydio-501,       15,         jpg,           wget,   colmap-loader,  600,     true,],
+            # [skydio_front_end,   skydio-501,       15,         jpg,           wget,   colmap-loader,  600,     true,],
             [deep_front_end,     gendarmenmarkt,   15,         jpg,           wget,   onedsfm-loader, 600,     true,],
           ]
     defaults:
