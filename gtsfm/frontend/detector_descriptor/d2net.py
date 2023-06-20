@@ -5,7 +5,6 @@ https://github.com/mihaidusmanu/d2-net
 
 Authors: John Lambert
 """
-import copy
 from pathlib import Path
 from typing import Tuple
 
@@ -59,7 +58,7 @@ class D2NetDetDesc(DetectorDescriptorBase):
             Corr. descriptors, of shape (N, D) where D is the dimension of each descriptor.
         """
         device = torch.device("cuda" if self.use_cuda and torch.cuda.is_available() else "cpu")
-        model_copy = copy.deepcopy(self._model).to(device)
+        self._model.to(device)
 
         # Resize image, and obtain re-scaling factors to postprocess keypoint coordinates.
         resized_image, fact_i, fact_j = resize_image(image.value_array)
@@ -70,7 +69,7 @@ class D2NetDetDesc(DetectorDescriptorBase):
         with torch.no_grad():
             keypoints, scores, descriptors = d2net_pyramid.process_multiscale(
                 image=torch.tensor(input_image[np.newaxis, :, :, :].astype(np.float32)).to(device),
-                model=model_copy,
+                model=self._model,
                 scales=scales,
             )
 
