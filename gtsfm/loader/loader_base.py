@@ -4,6 +4,7 @@ Authors: Frank Dellaert and Ayush Baid
 """
 
 import abc
+import glob
 import logging
 from typing import Dict, List, Optional, Tuple
 
@@ -13,6 +14,7 @@ from gtsam import Cal3Bundler, Pose3
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.images as img_utils
+import gtsfm.utils.io as io_utils
 from gtsfm.common.image import Image
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
@@ -418,3 +420,24 @@ class LoaderBase(GTSFMProcess):
                     pairs.append((idx1, idx2))
 
         return pairs
+
+    def get_images_with_exif(self, search_path: str) -> Tuple[List[str], int]:
+        """Return images with exif.
+        Args:
+            search_path: image sequence search path.
+        Returns:
+            Tuple[
+                List of image with exif paths.
+                The number of all the images.
+            ]
+        """
+        all_image_paths = glob.glob(search_path)
+        num_all_imgs = len(all_image_paths)
+        exif_image_paths = []
+        for single_img_path in all_image_paths:
+            # Drop images without exif.
+            if io_utils.load_image(single_img_path).get_intrinsics_from_exif() is None:
+                continue
+            exif_image_paths.append(single_img_path)
+
+        return (exif_image_paths, num_all_imgs)

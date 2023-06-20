@@ -17,9 +17,6 @@ from gtsfm.loader.loader_base import LoaderBase
 
 logger = logger_utils.get_logger()
 
-# Focal length is initialized to 1.2 * largest dimension of image if EXIF data is not available.
-NO_EXIF_DEFAULT_FOCAL_LENGTH_FACTOR = 1.2
-
 
 class OneDSFMLoader(LoaderBase):
     """Loader for datasets used in 1DSFM and Colmap papers.
@@ -41,6 +38,8 @@ class OneDSFMLoader(LoaderBase):
         folder: str,
         image_extension: str = "jpg",
         max_resolution: int = 640,
+        enable_no_exif: bool = False,
+        default_focal_length_factor: float = 1.2,
     ) -> None:
         """Initializes to load from a specified folder on disk.
 
@@ -51,15 +50,24 @@ class OneDSFMLoader(LoaderBase):
                 the smaller of the height/width of the image. e.g. for 1080p (1920 x 1080),
                 max_resolution would be 1080. If the image resolution max(height, width) is
                 greater than the max_resolution, it will be downsampled to match the max_resolution.
+            enable_no_exif: flag to whether to read images without exif.
+            default_focal_length_factor: focal length is initialized to default_focal_length_factor * largest dimension
+            of image if exif data is not available. The value has not been tuned for performance, 1.2 would be a
+            good start.
         """
         super().__init__(max_resolution=max_resolution)
+        self._default_focal_length_factor = default_focal_length_factor
 
         # Fetch all the file names in /images folder.
         search_path = os.path.join(folder, "images", f"*.{image_extension}")
 
-        self._image_paths = glob.glob(search_path)
-        self._num_imgs = len(self._image_paths)
+        if enable_no_exif:
+            self._image_paths = glob.glob(search_path)
+        else:
+            (self._image_paths, num_all_imgs) = self.get_images_with_exif(search_path)
+            logger.info("Read %d images with exif out of %d in total.", len(self._image_paths), num_all_imgs)
 
+        self._num_imgs = len(self._image_paths)
         if self._num_imgs == 0:
             raise RuntimeError(f"Loader could not find any images with the specified file extension in {search_path}")
 
@@ -100,11 +108,10 @@ class OneDSFMLoader(LoaderBase):
         Returns:
             Intrinsics for the given camera.
         """
-        # Get intrinsics from exif.
-        intrinsics = io_utils.load_image(self._image_paths[index]).get_intrinsics_from_exif(
-            default_focal_length_factor=NO_EXIF_DEFAULT_FOCAL_LENGTH_FACTOR
+        # Get intrinsics.
+        return io_utils.load_image(self._image_paths[index]).get_intrinsics(
+            default_focal_length_factor=self._default_focal_length_factor
         )
-        return intrinsics
 
     def get_camera_pose(self, index: int) -> Optional[Pose3]:
         """Get the camera pose (in world coordinates) at the given index.
