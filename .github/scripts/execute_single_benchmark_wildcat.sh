@@ -15,7 +15,7 @@ SHARE_INTRINSICS=$7
 
 # Extract the data, configure arguments for runner.
 if [ "$DATASET_NAME" == "gendarmenmarkt" ]; then
-  IMAGES_DIR=Gendarmenmarkt/images
+  IMAGES_DIR=Gendarmenmarkt
 
 elif [ "$DATASET_NAME" == "skydio-501" ]; then
   IMAGES_DIR="skydio-crane-mast-501-images"
