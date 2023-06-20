@@ -81,7 +81,7 @@ class TriangulationOptions(NamedTuple):
 
     mode: TriangulationSamplingMode
     reproj_error_threshold: float = np.inf  # defaults to no filtering unless specified
-    min_triangulation_angle: float = 1.0
+    min_triangulation_angle: float = 0.0
 
     # RANSAC parameters
     min_inlier_ratio: float = 0.1
