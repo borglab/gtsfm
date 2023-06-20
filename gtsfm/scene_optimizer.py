@@ -187,6 +187,7 @@ class SceneOptimizer:
                 )
             )
 
+            # TODO(Ayush): pass only image name instead of the whole image. And delete images from memory.
             delayed_results.append(
                 dask.delayed(save_full_frontend_metrics)(
                     two_view_reports_post_viewgraph_estimator,
