@@ -14,6 +14,8 @@ conda info --envs
 
 cd $GITHUB_WORKSPACE
 pip install -e .
+wget https://www.dropbox.com/s/ukadst2l367z8qy/pytheia-0.1.22-cp38-cp38-manylinux_2_17_x86_64.whl
+pip install pytheia-0.1.22-cp38-cp38-manylinux_2_17_x86_64.whl
 
 ##########################################################
 # Download pre-trained model weights

@@ -54,7 +54,13 @@ class DetectorDescriptorCacher(DetectorDescriptorBase):
         cached_data = io_utils.read_from_bz2_file(cache_path)
         if cached_data is None:
             return None
-        return cached_data["keypoints"], cached_data["descriptors"]
+
+        # Temporary solution until cache is updated on CI.
+        keypoints = cached_data["keypoints"]
+        descriptors = cached_data["descriptors"]
+        keypoints.descriptors = descriptors
+
+        return keypoints, descriptors
 
     def __save_result_to_cache(self, image: Image, keypoints: Keypoints, descriptors: np.ndarray) -> None:
         """Save the results to the cache."""

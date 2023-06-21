@@ -86,7 +86,8 @@ class D2NetDetDesc(DetectorDescriptorBase):
 
         # Convert (y,x) tuples that represented (i, j) indices of image matrix, into (u, v) coordinates.
         keypoints = keypoints[:, [1, 0]]
-        return Keypoints(coordinates=keypoints, responses=scores), descriptors
+
+        return Keypoints(coordinates=keypoints, responses=scores, descriptors=descriptors), descriptors
 
 
 def resize_image(

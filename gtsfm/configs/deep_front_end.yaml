@@ -37,9 +37,9 @@ SceneOptimizer:
     bundle_adjust_2view_maxiters: 100
 
     verifier:
-      _target_: gtsfm.frontend.verifier.ransac.Ransac
+      _target_: gtsfm.frontend.verifier.pytheia_verifier.PyTheiaVerifier
       use_intrinsics_in_verification: True
-      estimation_threshold_px: 4 # for H/E/F estimators
+      estimation_threshold_px: 6.0 # for H/E/F estimators
 
     triangulation_options:
       _target_: gtsfm.data_association.point3d_initializer.TriangulationOptions
@@ -73,7 +73,7 @@ SceneOptimizer:
       min_track_len: 2
       triangulation_options:
         _target_: gtsfm.data_association.point3d_initializer.TriangulationOptions
-        reproj_error_threshold: 10
+        reproj_error_threshold: 5.0
         mode:
           _target_: gtsfm.data_association.point3d_initializer.TriangulationSamplingMode
           value: RANSAC_SAMPLE_UNIFORM

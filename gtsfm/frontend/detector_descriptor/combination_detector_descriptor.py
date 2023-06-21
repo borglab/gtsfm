@@ -42,5 +42,6 @@ class CombinationDetectorDescriptor(DetectorDescriptorBase):
         """
         keypoints = self.detector.detect(image)
         descriptors = self.descriptor.describe(image, keypoints)
+        keypoints.descriptors = descriptors
 
         return keypoints, descriptors
