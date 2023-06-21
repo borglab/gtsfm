@@ -66,7 +66,6 @@ class OneDSFMLoader(LoaderBase):
         else:
             (self._image_paths, num_all_imgs) = self.get_images_with_exif(search_path)
             logger.info("Read %d images with exif out of %d in total.", len(self._image_paths), num_all_imgs)
-            assert False
 
         self._num_imgs = len(self._image_paths)
         if self._num_imgs == 0:
