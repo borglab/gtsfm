@@ -98,7 +98,7 @@ class TriangulationOptions(NamedTuple):
         """Compute maximum number of hypotheses.
 
         The RANSAC module defaults to 2749 iterations, computed as:
-            np.log(1-0.9999) / np.log( 1 - 0.1 **2) * 3 = 2749.3
+            np.log(1 - 0.9999) / np.log(1 - 0.1**2) * 3 = 2749.3
         """
         self.__check_ransac_params()
         dyn_num_hypotheses = int(
@@ -117,10 +117,8 @@ class Point3dInitializer:
         https://github.com/mapillary/OpenSfM/blob/master/opensfm/reconstruction.py#L755
 
     Args:
-        track_cameras: Dict of cameras and their indices.
-        mode: triangulation mode, which dictates whether or not to use robust estimation.
-        reproj_error_thresh: threshold on reproj errors for inliers.
-        num_ransac_hypotheses (optional): desired number of RANSAC hypotheses.
+        track_camera_dict: Dict of cameras and their indices.
+        options: options for triangulation.
     """
 
     def __init__(self, track_camera_dict: Dict[int, gtsfm_types.CAMERA_TYPE], options: TriangulationOptions) -> None:

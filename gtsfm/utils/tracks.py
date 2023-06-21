@@ -2,10 +2,11 @@
 
 Authors: Ayush Baid
 """
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from gtsam import PinholeCameraCal3Bundler, SfmTrack
 
+import thirdparty.colmap.scripts.python.read_write_model as colmap_model
 from gtsfm.common.sfm_track import SfmMeasurement, SfmTrack2d
 from gtsfm.data_association.point3d_initializer import (
     Point3dInitializer,
@@ -74,3 +75,11 @@ def classify_tracks3d_with_gt_cameras(
         tracks_2d.append(SfmTrack2d(measurements))
 
     return classify_tracks2d_with_gt_cameras(tracks_2d, cameras_gt, reproj_error_thresh_px)
+
+
+def colmap_point3d_to_sfmtrack(
+    point3d: colmap_model.Point3D,
+    images: Dict[int, colmap_model.Image],
+    cameras: Optional[Dict[int, colmap_model.Camera]] = None,
+) -> SfmTrack:
+    """Convert COLMAP's Point3D object to an SfMTrack."""
