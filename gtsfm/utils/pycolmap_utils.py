@@ -90,12 +90,12 @@ def point3d_to_sfmtrack(
         and all([isinstance(image, pycolmap.Image) for image in images.values()])
         and all([isinstance(camera, pycolmap.Camera) for camera in cameras.values()])
     ):
-        raise TypeError("pycolmap types not supported.")
+        track, gtsfm_cameras = pycolmap_point3d_to_sfmtrack(point3d, images, cameras, invert_pose)
     else:
         raise TypeError(
             "Incompatible function arguments. The following argument types are supported:\n"
             + "\t 1. point3d_to_sfmtrack(colmap.Point3D, Dict[int, colmap.Image], Dict[int, colmap.Camera])\n"
-            + "\t 2. point3d_to_sfmtrack(pycolmap.Point3D, Dict[int, pycolmap.Image], Dict[int, pycolmap.Camera])\n"
+            # + "\t 2. point3d_to_sfmtrack(pycolmap.Point3D, Dict[int, pycolmap.Image], Dict[int, pycolmap.Camera])\n"
         )
 
     return track, gtsfm_cameras
@@ -120,5 +120,28 @@ def colmap_point3d_to_sfmtrack(
         if invert_pose:
             T = T.inverse()  # wTc
         gtsfm_cameras[image_id] = camera_class(T, calibration)
+
+    return track, gtsfm_cameras
+
+
+def pycolmap_point3d_to_sfmtrack(
+    point3d: pycolmap.Point3D,
+    images: Dict[int, pycolmap.Image],
+    cameras: Dict[int, pycolmap.Camera],
+    invert_pose: bool = False,
+) -> Tuple[gtsam.SfmTrack, Dict[int, gtsfm_types.CAMERA_TYPE]]:
+    """Convert COLMAP's Point3D object to an SfMTrack."""
+    # TODO (travisdriver): Add RGB values to GTSAM constructor.
+    track = gtsam.SfmTrack(point3d.xyz)
+    gtsfm_cameras = {}
+    for ele in zip(point3d.track.elements):
+        image = images[ele.image_id]
+        track.addMeasurement(ele.image_id, image.xys[ele.point2d_idx])
+        calibration = get_calibration_from_colmap(cameras[image.camera_id])
+        camera_class = gtsfm_types.get_camera_class_for_calibration(calibration)
+        T = gtsam.Pose3(gtsam.Rot3(image.rotmat()), gtsam.Point3(image.tvec))  # cTw
+        if invert_pose:
+            T = T.inverse()  # wTc
+        gtsfm_cameras[ele.image_id] = camera_class(T, calibration)
 
     return track, gtsfm_cameras
