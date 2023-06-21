@@ -10,11 +10,11 @@ Authors: Sushmita Warrier, Xiaolong Wu, John Lambert, Travis Driver
 import itertools
 import sys
 from enum import Enum
-from typing import Dict, List, NamedTuple, Optional, Tuple, Union
+from typing import Dict, List, NamedTuple, Optional, Tuple
 
 import gtsam
 import numpy as np
-from gtsam import CameraSetCal3Bundler, CameraSetCal3Fisheye, PinholeCameraCal3Bundler, Point2Vector, SfmTrack
+from gtsam import Point2Vector, SfmTrack
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.logger as logger_utils
@@ -330,9 +330,7 @@ class Point3dInitializer:
 
         return sample_indices.tolist()
 
-    def extract_measurements(
-        self, track: SfmTrack2d
-    ) -> Tuple[Union[CameraSetCal3Bundler, CameraSetCal3Fisheye], Point2Vector]:
+    def extract_measurements(self, track: SfmTrack2d) -> Tuple[gtsfm_types.CAMERA_SET_TYPE, Point2Vector]:
         """Convert measurements in a track into GTSAM primitive types for triangulation arguments.
 
         Returns None, None if less than 2 measurements were found with estimated camera poses after averaging.

@@ -18,7 +18,8 @@ from gtsam import (
 
 
 CALIBRATION_TYPE = Union[Cal3Bundler, Cal3Fisheye, Cal3_S2]
-CAMERA_TYPE = Union[PinholeCameraCal3Bundler, PinholeCameraCal3Fisheye]
+CAMERA_TYPE = Union[PinholeCameraCal3Bundler, PinholeCameraCal3Fisheye, PinholeCameraCal3_S2]
+CAMERA_SET_TYPE = Union[CameraSetCal3Bundler, CameraSetCal3Fisheye, CameraSetCal3_S2]
 
 
 def get_camera_class_for_calibration(calibration: CALIBRATION_TYPE):

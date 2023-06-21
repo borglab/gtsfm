@@ -3,24 +3,18 @@
 Author: Travis Driver
 """
 import unittest
+import os
+from pathlib import Path
 
 import numpy as np
 import gtsam
+import pycolmap
 
 import gtsfm.utils.pycolmap_utils as pycolmap_utils  # this needs to be imported before
 import thirdparty.colmap.scripts.python.read_write_model as colmap
 
 
-def make_dummy_colmap_image(image_id: int, camera_id: int) -> colmap.Image:
-    return colmap.Image(
-        id=image_id,
-        qvec=np.array([1.0, 0.0, 0.0, 0.0]),
-        tvec=np.zeros(3),
-        camera_id=camera_id,
-        name="dummy",
-        xys=np.random.randint(0, 100, (5, 2)).astype(float),
-        point3D_ids=np.array([0]),  # not currently used
-    )
+TEST_DATA_ROOT = Path(__file__).resolve().parent.parent / "data"
 
 
 class TestPyColmapUtils(unittest.TestCase):
@@ -28,26 +22,28 @@ class TestPyColmapUtils(unittest.TestCase):
 
     def test_point3d_to_sfmtrack_colmap_pinhole(self) -> None:
         """Test conversion of COLMAP's Point3D to SfmTrack with `PINHOLE` camera model."""
-        point3d = colmap.Point3D(
-            id=0,
-            xyz=np.zeros(3),
-            rgb=np.zeros(3),
-            error=0,
-            image_ids=np.array([0, 2, 7]),
-            point2D_idxs=np.random.randint(0, 5, 3),
+        cameras, images, points3d = colmap.read_model(
+            os.path.join(TEST_DATA_ROOT, "astrovision", "test_2011212_opnav_022")
         )
-        cameras = {0: colmap.Camera(id=0, model="PINHOLE", width=100, height=100, params=[1.0, 2.0, 3.0, 4.0])}
-        images = {
-            0: make_dummy_colmap_image(0, 0),
-            2: make_dummy_colmap_image(2, 0),
-            7: make_dummy_colmap_image(7, 0),
-        }
-
+        point3d = points3d[14]  # chosen because it is seen in all images
         track, gtsfm_cameras = pycolmap_utils.point3d_to_sfmtrack(point3d, images, cameras)
         for meas in track.measurements:
             image_id = meas[0]
             point2d_idx = point3d.point2D_idxs[np.where(point3d.image_ids == image_id)[0]]
             assert np.linalg.norm(images[image_id].xys[point2d_idx] - meas[1]) == 0
+            assert all([isinstance(camera, gtsam.PinholeCameraCal3_S2) for camera in gtsfm_cameras.values()])
+
+    def test_point3d_to_sfmtrack_pycolmap_pinhole(self) -> None:
+        """Test conversion of COLMAP's Point3D to SfmTrack with `PINHOLE` camera model."""
+        recon = pycolmap.Reconstruction(os.path.join(TEST_DATA_ROOT, "astrovision", "test_2011212_opnav_022"))
+        point3d = recon.points3D[14]  # chosen because it is seen in all images
+        track, gtsfm_cameras = pycolmap_utils.point3d_to_sfmtrack(point3d, recon.images, recon.cameras)
+        point3d_image_ids = np.array([ele.image_id for ele in point3d.track.elements])
+        print(point3d_image_ids)
+        for meas in track.measurements:
+            image_id = int(meas[0])
+            point2d_idx = point3d.track.elements[np.where(point3d_image_ids == image_id)[0][0]].point2D_idx
+            assert np.linalg.norm(recon.images[image_id].points2D[point2d_idx].xy - meas[1]) == 0
             assert all([isinstance(camera, gtsam.PinholeCameraCal3_S2) for camera in gtsfm_cameras.values()])
 
 
