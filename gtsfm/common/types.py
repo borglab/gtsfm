@@ -11,6 +11,9 @@ from gtsam import (
     PinholeCameraCal3Bundler,
     PinholeCameraCal3Fisheye,
     PinholeCameraCal3_S2,
+    CameraSetCal3Bundler,
+    CameraSetCal3Fisheye,
+    CameraSetCal3_S2,
 )
 
 
@@ -35,3 +38,22 @@ def get_camera_class_for_calibration(calibration: CALIBRATION_TYPE):
         return PinholeCameraCal3_S2
     else:
         raise TypeError(f"Unsupported calibration type {type(calibration)}.")
+
+
+def get_camera_set_class_for_camera(camera: CAMERA_TYPE):
+    """Get the camera set class corresponding to the camera.
+
+    Args:
+        camera: the camera object for which track is required.
+
+    Returns:
+        Camera set class needed for the camera object.
+    """
+    if isinstance(camera, PinholeCameraCal3Bundler):
+        return CameraSetCal3Bundler
+    elif isinstance(camera, PinholeCameraCal3Fisheye):
+        return CameraSetCal3Fisheye
+    elif isinstance(camera, PinholeCameraCal3_S2):
+        return CameraSetCal3_S2
+    else:
+        raise TypeError(f"Unsupported camera type {type(camera)}.")

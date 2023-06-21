@@ -122,13 +122,14 @@ class Point3dInitializer:
     """
 
     def __init__(self, track_camera_dict: Dict[int, gtsfm_types.CAMERA_TYPE], options: TriangulationOptions) -> None:
-        self.track_camera_dict = track_camera_dict
         self.options = options
 
-        sample_camera = list(self.track_camera_dict.values())[0]
-        self._camera_set_class = (
-            CameraSetCal3Bundler if isinstance(sample_camera, PinholeCameraCal3Bundler) else CameraSetCal3Fisheye
-        )
+        # Verify cameras.
+        sample_camera = list(track_camera_dict.values())[0]
+        if not all([type(camera) is type(sample_camera) for camera in track_camera_dict.values()]):
+            raise TypeError("All cameras must be the same type.")
+        self.track_camera_dict = track_camera_dict
+        self._camera_set_class = gtsfm_types.get_camera_set_class_for_camera(sample_camera)
 
     def execute_ransac_variant(self, track_2d: SfmTrack2d) -> np.ndarray:
         """Execute RANSAC algorithm to find best subset 2d measurements for a 3d point.
