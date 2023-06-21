@@ -2,7 +2,7 @@
 
 Authors: John Lambert
 """
-from typing import Dict, Optional, Union, Tuple
+from typing import Dict, Union, Tuple
 
 import pycolmap
 import gtsam
@@ -81,17 +81,16 @@ def point3d_to_sfmtrack(
     """
     if (
         isinstance(point3d, colmap.Point3D)
-        and all([isinstance(image, colmap.Image) for image in images])
-        and all([isinstance(camera, colmap.Camera) for camera in cameras])
+        and all([isinstance(image, colmap.Image) for image in images.values()])
+        and all([isinstance(camera, colmap.Camera) for camera in cameras.values()])
     ):
         track, gtsfm_cameras = colmap_point3d_to_sfmtrack(point3d, images, cameras, invert_pose)
     elif (
         isinstance(point3d, pycolmap.Point3D)
-        and all([isinstance(image, pycolmap.Image) for image in images])
-        and all([isinstance(camera, pycolmap.Camera) for camera in cameras])
+        and all([isinstance(image, pycolmap.Image) for image in images.values()])
+        and all([isinstance(camera, pycolmap.Camera) for camera in cameras.values()])
     ):
-        # TODO (travisdriver): add support.
-        assert False
+        raise TypeError("pycolmap types not supported.")
     else:
         raise TypeError(
             "Incompatible function arguments. The following argument types are supported:\n"
@@ -109,11 +108,12 @@ def colmap_point3d_to_sfmtrack(
     invert_pose: bool = False,
 ) -> Tuple[gtsam.SfmTrack, Dict[int, gtsfm_types.CAMERA_TYPE]]:
     """Convert COLMAP's Point3D object to an SfMTrack."""
-    track = gtsam.SfmTrack(point3d.xyz, r=point3d.rgb[0], g=point3d.rgb[1], b=point3d.rgb[2])
+    # TODO (travisdriver): Add RGB values to GTSAM constructor.
+    track = gtsam.SfmTrack(point3d.xyz)
     gtsfm_cameras = {}
-    for image_id, point2d_idx in (point3d.image_ids, point3d.point2D_idxs):
+    for image_id, point2d_idx in zip(point3d.image_ids, point3d.point2D_idxs):
         image = images[image_id]
-        track.add_measurement(image_id, image.xys[point2d_idx])
+        track.addMeasurement(image_id, image.xys[point2d_idx])
         calibration = get_calibration_from_colmap(cameras[image.camera_id])
         camera_class = gtsfm_types.get_camera_class_for_calibration(calibration)
         T = gtsam.Pose3(gtsam.Rot3(image.qvec2rotmat()), gtsam.Point3(image.tvec))  # cTw
