@@ -42,7 +42,7 @@ class TriangulationExitCode(Enum):
     INLIERS_UNDERCONSTRAINED = 2  # insufficent number of inlier measurements
     POSES_UNDERCONSTRAINED = 3  # insufficent number of estimated camera poses
     EXCEEDS_REPROJ_THRESH = 4  # estimated 3d point exceeds reprojection threshold
-    LOW_TRIANGULATION_ANGLE = 5  # estimated 3d point exceeds reprojection threshold
+    LOW_TRIANGULATION_ANGLE = 5  # maximum triangulation angle lower than threshold
 
 
 class TriangulationSamplingMode(str, Enum):
@@ -71,7 +71,8 @@ class TriangulationOptions(NamedTuple):
     Args:
         mode: triangulation mode, which dictates whether or not to use robust estimation.
         reproj_error_threshold: the maximum reprojection error allowed.
-        min_triangulation_angle: the minimum angle (in degrees) subtended at the triangulated point from 2 cameras.
+        min_triangulation_angle: threshold for the minimum angle (in degrees) subtended at the triangulated track from 2
+            cameras. Tracks for which the maximum angle at any two cameras is less then this threshold will be rejected.
         min_inlier_ratio: a priori assumed minimum probability that a point is an inlier.
         confidence: desired confidence that at least one hypothesis is outlier free.
         dyn_num_hypotheses_multiplier: multiplication factor for dynamically computed hyptheses based on confidence.
