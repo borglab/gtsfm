@@ -38,7 +38,7 @@ SceneOptimizer:
 
     verifier:
       _target_: gtsfm.frontend.verifier.ransac.Ransac
-      use_intrinsics_in_verification: True
+      use_intrinsics_in_verification: False
       estimation_threshold_px: 4 # for H/E/F estimators
 
     triangulation_options:
