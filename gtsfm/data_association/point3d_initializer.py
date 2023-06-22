@@ -284,7 +284,7 @@ class Point3dInitializer:
 
         # Check that there is a sufficient triangulation angle.
         if (
-            track_utils.get_triangulation_angle(track_3d, cameras=self.track_camera_dict)
+            track_utils.get_max_triangulation_angle(track_3d, cameras=self.track_camera_dict)
             < self.options.min_triangulation_angle
         ):
             return None, avg_track_reproj_error, TriangulationExitCode.LOW_TRIANGULATION_ANGLE

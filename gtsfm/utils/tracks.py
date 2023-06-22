@@ -10,6 +10,7 @@ from gtsam import PinholeCameraCal3Bundler, SfmTrack
 
 import gtsfm.common.types as gtsfm_types
 from gtsfm.common.sfm_track import SfmMeasurement, SfmTrack2d
+from gtsfm.densify.mvs_utils import calculate_triangulation_angle_in_degrees
 from gtsfm.data_association.point3d_initializer import (
     Point3dInitializer,
     TriangulationExitCode,
@@ -79,15 +80,15 @@ def classify_tracks3d_with_gt_cameras(
     return classify_tracks2d_with_gt_cameras(tracks_2d, cameras_gt, reproj_error_thresh_px)
 
 
-def get_triangulation_angle(track3d: SfmTrack, cameras: Dict[int, gtsfm_types.CAMERA_TYPE]) -> float:
-    """Get the angle subtended by the cameras at the 3D landmark of the track.
+def get_max_triangulation_angle(track3d: SfmTrack, cameras: Dict[int, gtsfm_types.CAMERA_TYPE]) -> float:
+    """Get the angle (in degrees) subtended by the cameras at the 3D landmark of the track.
 
     Args:
         track3d: the track with the landmark.
         cameras: cameras which have been used to triangulate the landmark.
 
     Returns:
-        float: the triangulation angle (max over all pairs of cameras associated with the track).
+        The maximum triangulation angle over all pairs of cameras associated with the track.
     """
     assert cameras is not None
     camera_ind: List[int] = []
@@ -97,8 +98,6 @@ def get_triangulation_angle(track3d: SfmTrack, cameras: Dict[int, gtsfm_types.CA
 
     angles: List[float] = []
     for i1, i2 in itertools.combinations(camera_ind, 2):
-        ray1 = track3d.point3() - cameras[i1].pose().translation()
-        ray2 = track3d.point3() - cameras[i2].pose().translation()
-        angles.append(np.rad2deg(np.arccos(np.dot(ray1, ray2) / (np.linalg.norm(ray1) * np.linalg.norm(ray2)))))
+        angles.append(calculate_triangulation_angle_in_degrees(cameras[i1], cameras[i2], track3d.point3()))
 
     return max(angles)

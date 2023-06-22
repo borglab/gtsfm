@@ -16,7 +16,7 @@ DUMMY_KEYPOINT = np.array([0, 0], dtype=np.float64)
 class TestTrackUtils(unittest.TestCase):
     """Unit tests for track utility functions."""
 
-    def test_get_triangulation_angle_with_2_measurements(self) -> None:
+    def test_get_max_triangulation_angle_with_2_measurements(self) -> None:
         """Test the angle computation with just two measurements."""
 
         camera_center_i1 = np.array([0, 0, 0], dtype=np.float64)
@@ -37,10 +37,10 @@ class TestTrackUtils(unittest.TestCase):
         track.addMeasurement(i1, DUMMY_KEYPOINT)
         track.addMeasurement(i2, DUMMY_KEYPOINT)
 
-        computed = track_utils.get_triangulation_angle(track3d=track, cameras=cameras)
+        computed = track_utils.get_max_triangulation_angle(track3d=track, cameras=cameras)
         self.assertAlmostEqual(computed, expected)
 
-    def test_get_triangulation_angle_with_3_measurements(self) -> None:
+    def test_get_max_triangulation_angle_with_3_measurements(self) -> None:
         """Test the angle computation with just two measurements."""
 
         camera_center_i1 = np.array([0, 0, 0], dtype=np.float64)
@@ -65,7 +65,7 @@ class TestTrackUtils(unittest.TestCase):
         track.addMeasurement(i2, DUMMY_KEYPOINT)
         track.addMeasurement(i3, DUMMY_KEYPOINT)
 
-        computed = track_utils.get_triangulation_angle(track3d=track, cameras=cameras)
+        computed = track_utils.get_max_triangulation_angle(track3d=track, cameras=cameras)
         self.assertAlmostEqual(computed, expected)
 
 
