@@ -5,7 +5,6 @@ Authors: Ayush Baid, Travis Driver
 import itertools
 from typing import Dict, List
 
-import numpy as np
 from gtsam import PinholeCameraCal3Bundler, SfmTrack
 
 import gtsfm.common.types as gtsfm_types
