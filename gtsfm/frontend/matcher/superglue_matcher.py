@@ -70,7 +70,7 @@ class SuperGlueMatcher(MatcherBase):
             Match indices (sorted by confidence), as matrix of shape (N, 2), where N < min(N1, N2).
         """
         device = torch.device("cuda" if self._use_cuda and torch.cuda.is_available() else "cpu")
-        model_copy = copy.deepcopy(self._model).to(device)
+        self._model.to(device)
 
         if keypoints_i1.responses is None or keypoints_i2.responses is None:
             raise ValueError("Responses for keypoints required for SuperGlue")
@@ -99,7 +99,7 @@ class SuperGlueMatcher(MatcherBase):
         }
 
         with torch.no_grad():
-            pred = model_copy(input_data)
+            pred = self._model(input_data)
             matches = pred["matches0"][0].detach().cpu().numpy()
 
             num_kps_i1 = len(keypoints_i1)
