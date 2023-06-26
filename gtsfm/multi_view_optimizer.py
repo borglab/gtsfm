@@ -62,15 +62,16 @@ class MultiViewOptimizer:
         """Creates a computation graph for multi-view optimization.
 
         Args:
+            images: list of all images in the scene.
             num_images: number of images in the scene.
-            keypoints_graph: keypoints for images, each wrapped up as Delayed.
-            i2Ri1_graph: relative rotations for image pairs, each value wrapped up as Delayed.
-            i2Ui1_graph: relative unit-translations for image pairs, each value wrapped up as Delayed.
-            v_corr_idxs_graph: indices of verified correspondences for image pairs, wrapped up as Delayed.
+            keypoints_list: keypoints for images.
+            i2Ri1_dict: relative rotations for image pairs.
+            i2Ui1_dict: relative unit-translations for image pairs.
+            v_corr_idxs_dict: indices of verified correspondences for image pairs.
             all_intrinsics: intrinsics for images.
-            absolute_pose_priors: priors on the camera poses (not delayed).
-            relative_pose_priors: priors on the pose between camera pairs (not delayed)
-            two_view_reports_dict: Dict of TwoViewEstimationReports after inlier support processor.
+            absolute_pose_priors: priors on the camera poses.
+            relative_pose_priors: priors on the pose between camera pairs.
+            two_view_reports_dict: Dict of TwoViewEstimationReports from the front-end.
             cameras_gt: list of GT cameras (if they exist), ordered by camera index.
             gt_wTi_list: list of GT poses of the camera.
             output_root: path where output should be saved.
