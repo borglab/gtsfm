@@ -32,7 +32,7 @@ class JointNetVLADSequentialRetriever(RetrieverBase):
         self._similarity_retriever = NetVLADRetriever(num_matched=num_matched, min_score=min_score)
         self._seq_retriever = SequentialRetriever(max_frame_lookahead=max_frame_lookahead)
 
-    def create_computation_graph(self, loader: LoaderBase) -> Delayed:
+    def create_computation_graph(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> Delayed:
         """Compute potential image pairs.
 
         Args:
@@ -42,7 +42,7 @@ class JointNetVLADSequentialRetriever(RetrieverBase):
         Return:
             pair_indices: (i1,i2) image pairs.
         """
-        return self.get_image_pairs(loader=loader)
+        return self.get_image_pairs(loader=loader, plots_output_dir=plots_output_dir)
 
     def get_image_pairs(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> Delayed:
         """Compute potential image pairs.

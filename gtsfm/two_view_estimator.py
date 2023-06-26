@@ -300,7 +300,7 @@ class TwoViewEstimator:
         )
 
         # Optionally, do two-view bundle adjustment
-        if self._bundle_adjust_2view:
+        if self._bundle_adjust_2view and len(pre_ba_v_corr_idxs) >= self.processor._min_num_inliers_est_model:
             post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs = self.bundle_adjust(
                 keypoints_i1,
                 keypoints_i2,
