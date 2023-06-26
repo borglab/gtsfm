@@ -13,8 +13,7 @@ logger = logger_utils.get_logger()
 
 
 class GtsfmRunnerAstrovisionLoader(GtsfmRunnerBase):
-    def __init__(self):
-        super(GtsfmRunnerAstrovisionLoader, self).__init__(tag="Run GTSfM on AstroVision segment")
+    tag = "Run GTSfM on AstroVision segment"
 
     def construct_argparser(self) -> argparse.ArgumentParser:
         parser = super(GtsfmRunnerAstrovisionLoader, self).construct_argparser()

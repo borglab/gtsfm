@@ -3,9 +3,9 @@
 import argparse
 import os
 import time
-from abc import abstractmethod
+from abc import abstractmethod, abstractproperty
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Any, Dict, Tuple
 
 import dask
 import hydra
@@ -21,7 +21,7 @@ from gtsfm.frontend.correspondence_generator.image_correspondence_generator impo
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.scene_optimizer import SceneOptimizer
-from gtsfm.two_view_estimator import TwoViewEstimationReport, TWO_VIEW_OUTPUT
+from gtsfm.two_view_estimator import TWO_VIEW_OUTPUT, TwoViewEstimationReport
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
 
 logger = logger_utils.get_logger()
@@ -30,10 +30,13 @@ DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
 class GtsfmRunnerBase:
-    def __init__(self, tag: str) -> None:
-        self._tag: str = tag
+    @abstractproperty
+    def tag(self):
+        pass
+
+    def __init__(self, override_args: Any = None) -> None:
         argparser: argparse.ArgumentParser = self.construct_argparser()
-        self.parsed_args: argparse.Namespace = argparser.parse_args()
+        self.parsed_args: argparse.Namespace = argparser.parse_args(args=override_args)
         if self.parsed_args.dask_tmpdir:
             dask.config.set({"temporary_directory": DEFAULT_OUTPUT_ROOT / self.parsed_args.dask_tmpdir})
 
@@ -41,7 +44,7 @@ class GtsfmRunnerBase:
         self.scene_optimizer: SceneOptimizer = self.construct_scene_optimizer()
 
     def construct_argparser(self) -> argparse.ArgumentParser:
-        parser = argparse.ArgumentParser(description=self._tag)
+        parser = argparse.ArgumentParser(description=self.tag)
 
         parser.add_argument(
             "--num_workers",
@@ -186,7 +189,7 @@ class GtsfmRunnerBase:
         logger.info("\n\nSceneOptimizer: " + str(scene_optimizer))
         return scene_optimizer
 
-    def run(self) -> None:
+    def run(self) -> GtsfmData:
         """Run the SceneOptimizer."""
         start_time = time.time()
 
@@ -221,13 +224,13 @@ class GtsfmRunnerBase:
             process_graph_generator.is_image_correspondence = True
         process_graph_generator.save_graph()
 
-        # TODO: Use futures
+        # TODO(Ayush): Use futures
         image_pair_indices = self.scene_optimizer.retriever.get_image_pairs(
             self.loader, plots_output_dir=self.scene_optimizer._plot_base_path
         )
 
-        images = [self.loader.get_image(i) for i in range(len(self.loader))]
-        intrinsics = [self.loader.get_camera_intrinsics(i) for i in range(len(self.loader))]
+        images = self.loader.get_all_images()
+        intrinsics = self.loader.get_all_intrinsics()
 
         with performance_report(filename="correspondence-generator-dask-report.html"):
             (
@@ -269,6 +272,8 @@ class GtsfmRunnerBase:
         end_time = time.time()
         duration_sec = end_time - start_time
         logger.info("GTSFM took %.2f minutes to compute sparse multi-view result.", duration_sec / 60)
+
+        return sfm_result
 
 
 def unzip_two_view_results(

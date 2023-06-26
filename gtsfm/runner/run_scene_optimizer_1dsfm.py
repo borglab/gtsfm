@@ -15,8 +15,7 @@ logger = logger_utils.get_logger()
 class GtsfmRunnerOneDSFMLoader(GtsfmRunnerBase):
     """Runner for datasets used in 1DSFM and Colmap papers."""
 
-    def __init__(self):
-        super(GtsfmRunnerOneDSFMLoader, self).__init__(tag="Run GTSFM on dataset from 1DSFM.")
+    tag = "Run GTSFM on dataset from 1DSFM."
 
     def construct_argparser(self) -> argparse.ArgumentParser:
         parser = super(GtsfmRunnerOneDSFMLoader, self).construct_argparser()
