@@ -11,7 +11,6 @@ References:
 
 Authors: Ayush Baid, John Lambert
 """
-import copy
 from typing import Tuple
 
 import numpy as np
