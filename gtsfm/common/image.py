@@ -115,7 +115,7 @@ class Image(NamedTuple):
             # Compute sensor width, either from database or from EXIF.
             sensor_width_mm = 0.0
             try:
-                sensor_width_mm = Image.sensor_width_db.lookup(
+                sensor_width_mm = self.sensor_width_db.lookup(
                     self.exif_data.get("Make"),
                     self.exif_data.get("Model"),
                 )
