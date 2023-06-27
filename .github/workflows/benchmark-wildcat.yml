@@ -20,7 +20,7 @@ jobs:
         config_dataset_info: [
             # config             dataset           lookahead   img-extension  source  loader          max-res  share-intrinsics
             # [skydio_front_end,   skydio-501,       15,         jpg,           wget,   colmap-loader,  600,     true,],
-            [onedsfm_front_end,     gendarmenmarkt,   15,         jpg,           wget,   onedsfm-loader, 600,     false,],
+            [onedsfm_front_end,     gendarmenmarkt,   15,         jpg,           wget,   onedsfm-loader, 640,     false,],
           ]
     defaults:
       run:
