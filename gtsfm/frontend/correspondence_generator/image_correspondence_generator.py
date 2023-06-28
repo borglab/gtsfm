@@ -38,6 +38,43 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
             KeypointAggregatorDedup() if deduplicate else KeypointAggregatorUnique()
         )
 
+    def generate_correspondences(
+        self,
+        client: Client,
+        images: List[Image],
+        image_pairs: List[Tuple[int, int]],
+    ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
+        """Apply the correspondence generator to generate putative correspondences.
+
+        Args:
+            client: dask client, used to execute the front-end as futures.
+            images: list of all images.
+            image_pairs: indices of the pairs of images to estimate two-view pose and correspondences.
+
+        Returns:
+            List of keypoints, one entry for each input images.
+            Putative correspondence as indices of keypoints, for pairs of images.
+        """
+
+        def apply_image_matcher(
+            image_matcher: ImageMatcherBase, image_i1: Image, image_i2: Image
+        ) -> Tuple[Keypoints, Keypoints]:
+            return image_matcher.match(image_i1=image_i1, image_i2=image_i2)
+
+        image_matcher_future = client.scatter(self._matcher, broadcast=False)
+        pairwise_correspondence_futures = {
+            (i1, i2): client.submit(apply_image_matcher, image_matcher_future, images[i1], images[i2])
+            for i1, i2 in image_pairs
+        }
+
+        pairwise_correspondences: Dict[Tuple[int, int], Tuple[Keypoints, Keypoints]] = client.gather(
+            pairwise_correspondence_futures
+        )
+
+        keypoints_list, putative_corr_idxs_dict = self._aggregator.aggregate(keypoints_dict=pairwise_correspondences)
+
+        return keypoints_list, putative_corr_idxs_dict
+
     def generate_correspondences_and_estimate_two_view(
         self,
         client: Client,

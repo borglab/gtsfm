@@ -21,7 +21,7 @@ from gtsfm.frontend.correspondence_generator.image_correspondence_generator impo
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.scene_optimizer import SceneOptimizer
-from gtsfm.two_view_estimator import TWO_VIEW_OUTPUT, TwoViewEstimationReport
+from gtsfm.two_view_estimator import TWO_VIEW_OUTPUT, TwoViewEstimationReport, run_two_view_estimator_as_futures
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
 
 logger = logger_utils.get_logger()
@@ -235,16 +235,22 @@ class GtsfmRunnerBase:
         with performance_report(filename="correspondence-generator-dask-report.html"):
             (
                 keypoints_list,
-                two_view_results_dict,
-            ) = self.scene_optimizer.correspondence_generator.generate_correspondences_and_estimate_two_view(
+                putative_corr_idxs_dict,
+            ) = self.scene_optimizer.correspondence_generator.generate_correspondences(
                 client,
                 images,
                 image_pair_indices,
+            )
+
+            two_view_results_dict = run_two_view_estimator_as_futures(
+                client,
+                self.scene_optimizer.two_view_estimator,
+                keypoints_list,
+                putative_corr_idxs_dict,
                 intrinsics,
                 self.loader.get_relative_pose_priors(image_pair_indices),
                 self.loader.get_gt_cameras(),
                 gt_scene_mesh=self.loader.get_gt_scene_trimesh(),
-                two_view_estimator=self.scene_optimizer.two_view_estimator,
             )
 
         i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, two_view_reports_dict = unzip_two_view_results(two_view_results_dict)

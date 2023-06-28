@@ -24,6 +24,60 @@ class DetDescCorrespondenceGenerator(CorrespondenceGeneratorBase):
         self._detector_descriptor = detector_descriptor
         self._matcher = matcher
 
+    def generate_correspondences(
+        self,
+        client: Client,
+        images: List[Image],
+        image_pairs: List[Tuple[int, int]],
+    ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
+        """Apply the correspondence generator to generate putative correspondences.
+
+        Args:
+            client: dask client, used to execute the front-end as futures.
+            images: list of all images.
+            image_pairs: indices of the pairs of images to estimate two-view pose and correspondences.
+
+        Returns:
+            List of keypoints, one entry for each input images.
+            Putative correspondence as indices of keypoints, for pairs of images.
+        """
+
+        def apply_det_desc(det_desc: DetectorDescriptorBase, image: Image) -> Tuple[Keypoints, np.ndarray]:
+            return det_desc.detect_and_describe(image)
+
+        def apply_matcher_and_two_view_estimator(
+            feature_matcher: MatcherBase,
+            features_i1: Tuple[Keypoints, np.ndarray],
+            features_i2: Tuple[Keypoints, np.ndarray],
+            im_shape_i1: Tuple[int, int, int],
+            im_shape_i2: Tuple[int, int, int],
+        ) -> np.ndarray:
+            return feature_matcher.match(
+                features_i1[0], features_i2[0], features_i1[1], features_i2[1], im_shape_i1, im_shape_i2
+            )
+
+        det_desc_future = client.scatter(self._detector_descriptor, broadcast=False)
+        feature_matcher_future = client.scatter(self._matcher, broadcast=False)
+        features_futures = [client.submit(apply_det_desc, det_desc_future, image) for image in images]
+
+        putative_corr_idxs_futures = {
+            (i1, i2): client.submit(
+                apply_matcher_and_two_view_estimator,
+                feature_matcher_future,
+                features_futures[i1],
+                features_futures[i2],
+                images[i1].shape,
+                images[i2].shape,
+            )
+            for (i1, i2) in image_pairs
+        }
+
+        putative_corr_idxs_dict = client.gather(putative_corr_idxs_futures)
+        keypoints_futures = client.map(lambda f: f[0], features_futures)
+        keypoints_list = client.gather(keypoints_futures)
+
+        return keypoints_list, putative_corr_idxs_dict
+
     def generate_correspondences_and_estimate_two_view(
         self,
         client: Client,

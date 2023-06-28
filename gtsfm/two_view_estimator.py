@@ -7,6 +7,7 @@ import logging
 import timeit
 from typing import Any, Dict, List, Optional, Tuple
 
+from dask.distributed import Client
 import numpy as np
 from gtsam import PinholeCameraCal3Bundler, Pose3, Rot3, SfmTrack, Unit3
 
@@ -269,14 +270,7 @@ class TwoViewEstimator:
         gt_camera_i1: Optional[gtsfm_types.CAMERA_TYPE],
         gt_camera_i2: Optional[gtsfm_types.CAMERA_TYPE],
         gt_scene_mesh: Optional[Any] = None,
-    ) -> Tuple[
-        Optional[Rot3],
-        Optional[Unit3],
-        np.ndarray,
-        TwoViewEstimationReport,
-        TwoViewEstimationReport,
-        TwoViewEstimationReport,
-    ]:
+    ) -> TWO_VIEW_OUTPUT:
         """Estimate relative pose between two views, using verification."""
         # verification on putative correspondences to obtain relative pose and verified correspondences
         (pre_ba_i2Ri1, pre_ba_i2Ui1, pre_ba_v_corr_idxs, pre_ba_inlier_ratio_wrt_estimate) = self._verifier.verify(
@@ -518,3 +512,63 @@ def aggregate_frontend_metrics(
         ],
     )
     return frontend_metrics
+
+
+def run_two_view_estimator_as_futures(
+    client: Client,
+    two_view_estimator: TwoViewEstimator,
+    keypoints_list: List[Keypoints],
+    putative_corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
+    camera_intrinsics: List[gtsfm_types.CALIBRATION_TYPE],
+    relative_pose_priors: Dict[Tuple[int, int], PosePrior],
+    gt_cameras: List[Optional[gtsfm_types.CAMERA_TYPE]],
+    gt_scene_mesh: Optional[Any],
+) -> Dict[Tuple[int, int], TWO_VIEW_OUTPUT]:
+    """Run two-view estimator for all image pairs."""
+
+    def apply_two_view_estimator(
+        two_view_estimator: TwoViewEstimator,
+        keypoints_i1: Keypoints,
+        keypoints_i2: Keypoints,
+        putative_corr_idxs: np.ndarray,
+        camera_intrinsics_i1: gtsfm_types.CALIBRATION_TYPE,
+        camera_intrinsics_i2: gtsfm_types.CALIBRATION_TYPE,
+        i2Ti1_prior: Optional[PosePrior],
+        gt_camera_i1: Optional[gtsfm_types.CAMERA_TYPE],
+        gt_camera_i2: Optional[gtsfm_types.CAMERA_TYPE],
+        gt_scene_mesh: Optional[Any] = None,
+    ) -> TWO_VIEW_OUTPUT:
+        return two_view_estimator.run_2view(
+            keypoints_i1=keypoints_i1,
+            keypoints_i2=keypoints_i2,
+            putative_corr_idxs=putative_corr_idxs,
+            camera_intrinsics_i1=camera_intrinsics_i1,
+            camera_intrinsics_i2=camera_intrinsics_i2,
+            i2Ti1_prior=i2Ti1_prior,
+            gt_camera_i1=gt_camera_i1,
+            gt_camera_i2=gt_camera_i2,
+            gt_scene_mesh=gt_scene_mesh,
+        )
+
+    two_view_estimator_future = client.scatter(two_view_estimator, broadcast=False)
+
+    two_view_output_futures = {
+        (i1, i2): client.submit(
+            apply_two_view_estimator,
+            two_view_estimator_future,
+            keypoints_list[i1],
+            keypoints_list[i2],
+            putative_corr_idxs,
+            camera_intrinsics[i1],
+            camera_intrinsics[i2],
+            relative_pose_priors.get((i1, i2)),
+            gt_cameras[i1],
+            gt_cameras[i2],
+            gt_scene_mesh,
+        )
+        for (i1, i2), putative_corr_idxs in putative_corr_idxs_dict.items()
+    }
+
+    two_view_output_dict = client.gather(two_view_output_futures)
+
+    return two_view_output_dict
