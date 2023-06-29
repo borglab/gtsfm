@@ -335,7 +335,10 @@ class LoaderBase(GTSFMProcess):
         return delayed_images
 
     def get_all_images_as_futures(self, client: Client) -> List[Future]:
-        return [client.submit(self.get_image, i) for i in range(len(self))]
+        return [
+            client.submit(self.get_image, i, workers=[self._input_worker] if self._input_worker else None)
+            for i in range(len(self))
+        ]
 
     def get_all_intrinsics(self) -> List[Optional[gtsfm_types.CALIBRATION_TYPE]]:
         """Return all the camera intrinsics.
