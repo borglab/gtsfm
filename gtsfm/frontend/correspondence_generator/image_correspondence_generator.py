@@ -4,7 +4,7 @@ Authors: John Lambert
 """
 from typing import Any, Dict, List, Optional, Tuple
 
-from dask.distributed import Client
+from dask.distributed import Client, Future
 import numpy as np
 
 from gtsfm.common.image import Image
@@ -41,14 +41,14 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
     def generate_correspondences(
         self,
         client: Client,
-        images: List[Image],
+        images: List[Future],
         image_pairs: List[Tuple[int, int]],
     ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
         """Apply the correspondence generator to generate putative correspondences.
 
         Args:
             client: dask client, used to execute the front-end as futures.
-            images: list of all images.
+            images: list of all images, as futures.
             image_pairs: indices of the pairs of images to estimate two-view pose and correspondences.
 
         Returns:

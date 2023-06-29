@@ -277,7 +277,7 @@ class DataAssociation(GTSFMProcess):
         tracks_2d: Delayed,
         cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
-        images: Optional[List[Image]] = None,
+        images: List[Delayed],
     ) -> Tuple[Delayed, Delayed]:
         """Creates a computation graph for performing data association.
 

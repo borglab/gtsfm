@@ -8,6 +8,9 @@ import glob
 import logging
 from typing import Dict, List, Optional, Tuple
 
+import dask
+from dask.delayed import Delayed
+from dask.distributed import Client, Future
 from gtsam import Cal3Bundler, Pose3
 from trimesh import Trimesh
 
@@ -319,13 +322,20 @@ class LoaderBase(GTSFMProcess):
         N = len(self)
         return [self.get_absolute_pose_prior(i) for i in range(N)]
 
-    def get_all_images(self) -> List[Image]:
+    def create_computation_graph_for_images(self) -> List[Delayed]:
         """Creates the computation graph for image fetches.
 
         Returns:
             List of delayed tasks for images.
         """
-        return [self.get_image(i) for i in range(len(self))]
+        N = len(self)
+        annotation = dask.annotate(workers=self._input_worker) if self._input_worker else dask.annotate()
+        with annotation:
+            delayed_images = [dask.delayed(self.get_image)(i) for i in range(N)]
+        return delayed_images
+
+    def get_all_images_as_futures(self, client: Client) -> List[Future]:
+        return [client.submit(self.get_image, i) for i in range(len(self))]
 
     def get_all_intrinsics(self) -> List[Optional[gtsfm_types.CALIBRATION_TYPE]]:
         """Return all the camera intrinsics.

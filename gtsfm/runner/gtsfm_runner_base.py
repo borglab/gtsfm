@@ -229,7 +229,6 @@ class GtsfmRunnerBase:
             self.loader, plots_output_dir=self.scene_optimizer._plot_base_path
         )
 
-        images = self.loader.get_all_images()
         intrinsics = self.loader.get_all_intrinsics()
 
         with performance_report(filename="correspondence-generator-dask-report.html"):
@@ -238,7 +237,7 @@ class GtsfmRunnerBase:
                 putative_corr_idxs_dict,
             ) = self.scene_optimizer.correspondence_generator.generate_correspondences(
                 client,
-                images,
+                self.loader.get_all_images_as_futures(client),
                 image_pair_indices,
             )
 
@@ -262,12 +261,13 @@ class GtsfmRunnerBase:
             v_corr_idxs_dict=v_corr_idxs_dict,
             two_view_reports=two_view_reports_dict,
             num_images=len(self.loader),
-            images=images,
+            images=self.loader.create_computation_graph_for_images(),
             camera_intrinsics=intrinsics,
             relative_pose_priors=self.loader.get_relative_pose_priors(image_pair_indices),
             absolute_pose_priors=self.loader.get_absolute_pose_priors(),
             cameras_gt=self.loader.get_gt_cameras(),
             gt_wTi_list=self.loader.get_gt_poses(),
+            gt_scene_mesh=self.loader.get_gt_scene_trimesh(),
         )
 
         with performance_report(filename="scene-optimizer-dask-report.html"):

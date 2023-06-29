@@ -18,7 +18,6 @@ from gtsfm.averaging.translation.translation_averaging_base import TranslationAv
 from gtsfm.bundle.global_ba import GlobalBundleAdjustment
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
-from gtsfm.common.image import Image
 from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.data_association.data_assoc import DataAssociation
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
@@ -45,7 +44,7 @@ class MultiViewOptimizer:
 
     def create_computation_graph(
         self,
-        images: List[Image],
+        images: List[Delayed],
         num_images: int,
         keypoints_list: List[Keypoints],
         i2Ri1_dict: Dict[Tuple[int, int], Rot3],
@@ -62,7 +61,7 @@ class MultiViewOptimizer:
         """Creates a computation graph for multi-view optimization.
 
         Args:
-            images: list of all images in the scene.
+            images: list of all images in the scene, as delayed.
             num_images: number of images in the scene.
             keypoints_list: keypoints for images.
             i2Ri1_dict: relative rotations for image pairs.

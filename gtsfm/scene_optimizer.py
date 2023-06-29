@@ -127,7 +127,7 @@ class SceneOptimizer:
         v_corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
         two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
         num_images: int,
-        images: List[Image],
+        images: List[Delayed],
         camera_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
         absolute_pose_priors: List[Optional[PosePrior]],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
