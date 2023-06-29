@@ -6,8 +6,6 @@ Authors: John Lambert
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-import dask
-
 import gtsfm.utils.logger as logger_utils
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.retriever.netvlad_retriever import NetVLADRetriever
@@ -45,7 +43,7 @@ class JointNetVLADSequentialRetriever(RetrieverBase):
         sim_pairs = self._similarity_retriever.get_image_pairs(loader, plots_output_dir=plots_output_dir)
         seq_pairs = self._seq_retriever.get_image_pairs(loader)
 
-        return dask.delayed(self.aggregate_pairs)(sim_pairs=sim_pairs, seq_pairs=seq_pairs)
+        return self.aggregate_pairs(sim_pairs=sim_pairs, seq_pairs=seq_pairs)
 
     def aggregate_pairs(
         self, sim_pairs: List[Tuple[int, int]], seq_pairs: List[Tuple[int, int]]
