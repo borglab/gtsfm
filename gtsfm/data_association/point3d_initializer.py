@@ -155,8 +155,9 @@ class Point3dInitializer:
 
         # Initialize the best output containers
         best_num_votes = 0
-        best_error = MAX_TRACK_REPROJ_ERROR
         best_inliers = np.zeros(len(track_2d.measurements), dtype=bool)
+        best_errors = np.ones(len(track_2d.measurements)) * MAX_TRACK_REPROJ_ERROR
+        best_avg_error = MAX_TRACK_REPROJ_ERROR
         for sample_idxs in samples:
             k1, k2 = measurement_pairs[sample_idxs]
 
@@ -207,7 +208,7 @@ class Point3dInitializer:
                 avg_error = inlier_errors.mean()
                 num_votes = is_inlier.astype(int).sum()
 
-                if (num_votes > best_num_votes) or (num_votes == best_num_votes and avg_error < best_error):
+                if (num_votes > best_num_votes) or (num_votes == best_num_votes and avg_error < best_avg_error):
                     best_num_votes = num_votes
                     best_avg_error = avg_error
                     best_errors = inlier_errors
