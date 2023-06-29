@@ -132,7 +132,7 @@ class Point3dInitializer:
             CameraSetCal3Bundler if isinstance(sample_camera, PinholeCameraCal3Bundler) else CameraSetCal3Fisheye
         )
 
-    def execute_ransac_variant(self, track_2d: SfmTrack2d) -> np.ndarray:
+    def execute_ransac_variant(self, track_2d: SfmTrack2d) -> Tuple[np.ndarray, np.ndarray, float]:
         """Execute RANSAC algorithm to find best subset 2d measurements for a 3d point.
         RANSAC chooses one of 3 different sampling schemes to execute.
 
@@ -209,10 +209,11 @@ class Point3dInitializer:
 
                 if (num_votes > best_num_votes) or (num_votes == best_num_votes and avg_error < best_error):
                     best_num_votes = num_votes
-                    best_error = avg_error
+                    best_avg_error = avg_error
+                    best_errors = inlier_errors
                     best_inliers = is_inlier
 
-        return best_inliers
+        return best_inliers, best_errors, best_avg_error
 
     def triangulate(self, track_2d: SfmTrack2d) -> Tuple[Optional[SfmTrack], Optional[float], TriangulationExitCode]:
         """Triangulates 3D point according to the configured triangulation mode.
@@ -234,7 +235,7 @@ class Point3dInitializer:
             TriangulationSamplingMode.RANSAC_SAMPLE_BIASED_BASELINE,
             TriangulationSamplingMode.RANSAC_TOPK_BASELINES,
         ]:
-            best_inliers = self.execute_ransac_variant(track_2d)
+            best_inliers, reproj_errors, avg_track_reproj_error = self.execute_ransac_variant(track_2d)
         elif self.options.mode == TriangulationSamplingMode.NO_RANSAC:
             best_inliers = np.ones(len(track_2d.measurements), dtype=bool)  # all marked as inliers
 
@@ -262,13 +263,13 @@ class Point3dInitializer:
         except RuntimeError:
             return None, None, TriangulationExitCode.CHEIRALITY_FAILURE
 
-        # Compute reprojection errors for each measurement.
-        reproj_errors, avg_track_reproj_error = reproj_utils.compute_point_reprojection_errors(
-            self.track_camera_dict, triangulated_pt, inlier_track.measurements
-        )
+        # Compute reprojection errors for each measurement if they haven't already.
+        if self.options.mode == TriangulationSamplingMode.NO_RANSAC:
+            reproj_errors, avg_track_reproj_error = reproj_utils.compute_point_reprojection_errors(
+                self.track_camera_dict, triangulated_pt, inlier_track.measurements
+            )
 
         # Check that all measurements are within reprojection error threshold.
-        # TODO (travisdriver): Should we throw an error here if we're using RANSAC variant?
         if not np.all(reproj_errors.flatten() < self.options.reproj_error_threshold):
             return None, avg_track_reproj_error, TriangulationExitCode.EXCEEDS_REPROJ_THRESH
 
