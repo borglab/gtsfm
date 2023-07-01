@@ -37,7 +37,8 @@ class SuperGlueMatcher(MatcherBase):
             "weights": "outdoor" if use_outdoor_model else "indoor",
             "sinkhorn_iterations": DEFAULT_NUM_SINKHORN_ITERATIONS,
         }
-        self._use_cuda = use_cuda and torch.cuda.is_available()
+        self._use_cuda = use_cuda
+        self._model = SuperGlue(self._config).eval()
 
     def match(
         self,
@@ -45,8 +46,8 @@ class SuperGlueMatcher(MatcherBase):
         keypoints_i2: Keypoints,
         descriptors_i1: np.ndarray,
         descriptors_i2: np.ndarray,
-        im_shape_i1: Tuple[int, int],
-        im_shape_i2: Tuple[int, int],
+        im_shape_i1: Tuple[int, int, int],
+        im_shape_i2: Tuple[int, int, int],
     ) -> np.ndarray:
         """Match keypoints using their 2d positions and descriptor vectors.
 
@@ -67,20 +68,20 @@ class SuperGlueMatcher(MatcherBase):
         Returns:
             Match indices (sorted by confidence), as matrix of shape (N, 2), where N < min(N1, N2).
         """
+        device = torch.device("cuda" if self._use_cuda and torch.cuda.is_available() else "cpu")
+        self._model.to(device)
+
         if keypoints_i1.responses is None or keypoints_i2.responses is None:
             raise ValueError("Responses for keypoints required for SuperGlue")
 
         if descriptors_i1.shape[1] != SUPERGLUE_DESC_DIM or descriptors_i2.shape[1] != SUPERGLUE_DESC_DIM:
             raise Exception("Superglue pretrained network only works on 256 dimensional descriptors")
 
-        device = torch.device("cuda" if self._use_cuda else "cpu")
-        model = SuperGlue(self._config).to(device).eval()
-
         # batch size and number of channels
         B, C = 1, 1
 
-        H1, W1 = im_shape_i1
-        H2, W2 = im_shape_i2
+        H1, W1, _ = im_shape_i1
+        H2, W2, _ = im_shape_i2
         # feed in dummy arguments, as they are only needed to determine image dimensions for normalization
         empty_image_i1 = torch.empty((B, C, H1, W1))
         empty_image_i2 = torch.empty((B, C, H2, W2))
@@ -92,12 +93,12 @@ class SuperGlueMatcher(MatcherBase):
             "descriptors1": torch.from_numpy(descriptors_i2).T.unsqueeze(0).float().to(device),
             "scores0": torch.from_numpy(keypoints_i1.responses).unsqueeze(0).float().to(device),
             "scores1": torch.from_numpy(keypoints_i2.responses).unsqueeze(0).float().to(device),
-            "image0": empty_image_i1,
-            "image1": empty_image_i2,
+            "image0": empty_image_i1.to(device),
+            "image1": empty_image_i2.to(device),
         }
 
         with torch.no_grad():
-            pred = model(input_data)
+            pred = self._model(input_data)
             matches = pred["matches0"][0].detach().cpu().numpy()
 
             num_kps_i1 = len(keypoints_i1)

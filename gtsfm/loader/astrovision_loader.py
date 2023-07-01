@@ -11,6 +11,7 @@ import cv2 as cv
 import numpy as np
 import trimesh
 from gtsam import Cal3Bundler, Pose3, SfmTrack
+from trimesh import Trimesh
 
 import gtsfm.utils.images as image_utils
 import gtsfm.utils.io as io_utils
@@ -86,14 +87,14 @@ class AstrovisionLoader(LoaderBase):
         if gt_scene_mesh_path is not None:
             if not Path(gt_scene_mesh_path).exists():
                 raise FileNotFoundError(f"No mesh found at {gt_scene_mesh_path}")
-            self.gt_scene_trimesh = trimesh.load(gt_scene_mesh_path, process=False, maintain_order=True)
+            self._gt_scene_trimesh = trimesh.load(gt_scene_mesh_path, process=False, maintain_order=True)
             logger.info(
                 "AstroVision loader read in mesh with %d vertices and %d faces.",
-                self.gt_scene_trimesh.vertices.shape[0],
-                self.gt_scene_trimesh.faces.shape[0],
+                self._gt_scene_trimesh.vertices.shape[0],
+                self._gt_scene_trimesh.faces.shape[0],
             )
         else:
-            self.gt_scene_trimesh = None
+            self._gt_scene_trimesh = None
 
         # Camera intrinsics are currently required due to absence of EXIF data and diffculty in approximating focal
         # length (usually 10000 to 100000 pixels).
@@ -224,6 +225,14 @@ class AstrovisionLoader(LoaderBase):
             validation result.
         """
         return super().is_valid_pair(idx1, idx2) and abs(idx1 - idx2) <= self._max_frame_lookahead
+
+    def get_gt_scene_trimesh(self) -> Optional[Trimesh]:
+        """Getter for the ground truth mesh for the scene.
+
+        Returns:
+            Trimesh object, if available
+        """
+        return self._gt_scene_trimesh
 
 
 def get_nonzero_intensity_mask(img: Image, eps: int = 5, kernel_size: Tuple[int, int] = (15, 15)) -> np.ndarray:

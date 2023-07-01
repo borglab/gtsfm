@@ -307,7 +307,7 @@ class BundleAdjustmentOptimizer:
                 threshold.
         """
         logger.info(
-            f"Input: {initial_data.number_tracks()} tracks on {len(initial_data.get_valid_camera_indices())} cameras\n"
+            "Input: %d tracks on %d cameras", initial_data.number_tracks(), len(initial_data.get_valid_camera_indices())
         )
         if initial_data.number_tracks() == 0 or len(initial_data.get_valid_camera_indices()) == 0:
             # no cameras or tracks to optimize, so bundle adjustment is not possible

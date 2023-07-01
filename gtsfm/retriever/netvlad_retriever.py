@@ -13,11 +13,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-import dask
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from dask.delayed import Delayed
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.frontend.cacher.global_descriptor_cacher import GlobalDescriptorCacher
@@ -52,20 +50,7 @@ class NetVLADRetriever(RetrieverBase):
         self._blocksize = blocksize
         self._min_score = min_score
 
-    def create_computation_graph(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> Delayed:
-        """Compute potential image pairs.
-
-        Args:
-            loader: image loader. The length of this loader will provide the total number of images
-                for exhaustive global descriptor matching.
-            plots_output_dir: Directory to save plots to. If None, plots are not saved.
-
-        Return:
-            Delayed task that evaluates to a list of (i1,i2) image pairs.
-        """
-        return self.run(loader=loader, plots_output_dir=plots_output_dir)
-
-    def run(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> Delayed:
+    def get_image_pairs(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> List[Tuple[int, int]]:
         """Compute potential image pairs.
 
         Args:
@@ -78,11 +63,9 @@ class NetVLADRetriever(RetrieverBase):
         """
         num_images = len(loader)
         sim = self.compute_similarity_matrix(loader, num_images)
-        return dask.delayed(self.compute_pairs_from_similarity_matrix)(
-            sim=sim, loader=loader, plots_output_dir=plots_output_dir
-        )
+        return self.compute_pairs_from_similarity_matrix(sim=sim, loader=loader, plots_output_dir=plots_output_dir)
 
-    def compute_similarity_matrix(self, loader: LoaderBase, num_images: int) -> Delayed:
+    def compute_similarity_matrix(self, loader: LoaderBase, num_images: int) -> torch.Tensor:
         """Compute a similarity matrix between all pairs of images.
 
         We use block matching, to avoid excessive memory usage.
@@ -103,18 +86,18 @@ class NetVLADRetriever(RetrieverBase):
         if num_images > MAX_NUM_IMAGES:
             raise RuntimeError("Cannot construct similarity matrix of this size.")
 
-        subblock_results: List[Delayed] = []
+        subblock_results: List[SubBlockSimilarityResult] = []
         num_blocks = math.ceil(num_images / self._blocksize)
 
         for block_i in range(num_blocks):
             for block_j in range(block_i, num_blocks):
                 subblock_results.append(
-                    dask.delayed(self._compute_similarity_subblock)(
+                    self._compute_similarity_subblock(
                         num_images=num_images, loader=loader, block_i=block_i, block_j=block_j
                     )
                 )
 
-        sim = dask.delayed(self._aggregate_subblocks)(subblock_results=subblock_results, num_images=num_images)
+        sim = self._aggregate_subblocks(subblock_results=subblock_results, num_images=num_images)
         return sim
 
     def _compute_similarity_subblock(self, num_images: int, loader: LoaderBase, block_i: int, block_j: int):
@@ -226,7 +209,7 @@ class NetVLADRetriever(RetrieverBase):
 
             # Save named pairs and scores.
             with open(plots_output_dir / "netvlad_named_pairs.txt", "w") as fid:
-                for (_named_pair, _pair_ind) in zip(named_pairs, pairs):
+                for _named_pair, _pair_ind in zip(named_pairs, pairs):
                     fid.write("%.4f %s %s\n" % (sim[_pair_ind[0], _pair_ind[1]], _named_pair[0], _named_pair[1]))
 
         logger.info("Found %d pairs from the NetVLAD Retriever.", len(pairs))

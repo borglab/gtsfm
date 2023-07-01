@@ -8,9 +8,6 @@ from enum import Enum
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-import dask
-from dask.delayed import Delayed
-
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
@@ -34,6 +31,7 @@ class RetrieverBase(GTSFMProcess):
         """
         self._matching_regime = matching_regime
 
+    @staticmethod
     def get_ui_metadata() -> UiMetadata:
         """Returns data needed to display node and edge info for this process in the process graph."""
 
@@ -45,7 +43,7 @@ class RetrieverBase(GTSFMProcess):
         )
 
     @abc.abstractmethod
-    def run(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> List[Tuple[int, int]]:
+    def get_image_pairs(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> List[Tuple[int, int]]:
         """Compute potential image pairs.
 
         Args:
@@ -56,16 +54,3 @@ class RetrieverBase(GTSFMProcess):
         Return:
             pair_indices: (i1,i2) image pairs.
         """
-
-    def create_computation_graph(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> Delayed:
-        """Create Dask graph for image retriever.
-
-        Args:
-            loader: image loader. The length of this loader will provide the total number of images
-                for exhaustive global descriptor matching.
-            plots_output_dir: Directory to save plots to.
-
-        Return:
-            Delayed task that evaluates to a list of (i1,i2) image pairs.
-        """
-        return dask.delayed(self.run)(loader=loader, plots_output_dir=plots_output_dir)

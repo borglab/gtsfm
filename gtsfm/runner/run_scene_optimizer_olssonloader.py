@@ -13,8 +13,7 @@ logger = logger_utils.get_logger()
 
 
 class GtsfmRunnerOlssonLoader(GtsfmRunnerBase):
-    def __init__(self):
-        super(GtsfmRunnerOlssonLoader, self).__init__(tag="GTSFM on Dataset in Olsson's Lund format")
+    tag = "GTSFM on Dataset in Olsson's Lund format"
 
     def construct_argparser(self) -> argparse.ArgumentParser:
         parser = super(GtsfmRunnerOlssonLoader, self).construct_argparser()

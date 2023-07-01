@@ -41,22 +41,21 @@ class SuperPointDetectorDescriptor(DetectorDescriptorBase):
             weights_path (optional): Path to the model weights. Defaults to MODEL_WEIGHT_PATH.
         """
         super().__init__(max_keypoints=max_keypoints)
-        self._use_cuda = use_cuda and torch.cuda.is_available()
+        self._use_cuda = use_cuda
         self._config = {"weights_path": weights_path}
+        self._model = SuperPoint(self._config).eval()
 
     def detect_and_describe(self, image: Image) -> Tuple[Keypoints, np.ndarray]:
         """Jointly generate keypoint detections and their associated descriptors from a single image."""
-        # TODO(ayushbaid): fix inference issue #110
-        device = torch.device("cuda" if self._use_cuda else "cpu")
-        model = SuperPoint(self._config).to(device)
-        model.eval()
+        device = torch.device("cuda" if self._use_cuda and torch.cuda.is_available() else "cpu")
+        self._model.to(device)
 
         # Compute features.
         image_tensor = torch.from_numpy(
             np.expand_dims(image_utils.rgb_to_gray_cv(image).value_array.astype(np.float32) / 255.0, (0, 1))
         ).to(device)
         with torch.no_grad():
-            model_results = model({"image": image_tensor})
+            model_results = self._model({"image": image_tensor})
         torch.cuda.empty_cache()
 
         # Unpack results.

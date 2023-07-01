@@ -26,7 +26,6 @@ class TestImageMatchers(unittest.TestCase):
         self.loader = OlssonLoader(TEST_DATA_PATH, image_extension="JPG", max_resolution=128)
 
     def test_number_of_keypoints_match(self):
-
         image_i0 = self.loader.get_image(0)
         image_i1 = self.loader.get_image(1)
 

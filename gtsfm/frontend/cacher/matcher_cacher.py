@@ -43,8 +43,8 @@ class MatcherCacher(MatcherBase):
         keypoints_i2: Keypoints,
         descriptors_i1: np.ndarray,
         descriptors_i2: np.ndarray,
-        im_shape_i1: Tuple[int, int],
-        im_shape_i2: Tuple[int, int],
+        im_shape_i1: Tuple[int, int, int],
+        im_shape_i2: Tuple[int, int, int],
     ) -> str:
         """Generates the cache key from the input detections, image shapes, and underlying matcher.
 
@@ -64,9 +64,9 @@ class MatcherCacher(MatcherBase):
             numpy_arrays_to_hash.append(descriptors_i[:NUM_KEYPOINTS_TO_SAMPLE_FOR_HASH].flatten())
 
         # add the shapes as a numpy array
-        h1, w1 = im_shape_i1
-        h2, w2 = im_shape_i2
-        numpy_arrays_to_hash.append(np.array([h1, w1, h2, w2]))
+        h1, w1, c1 = im_shape_i1
+        h2, w2, c2 = im_shape_i2
+        numpy_arrays_to_hash.append(np.array([h1, w1, c1, h2, w2, c2]))
 
         # hash the concatenation of all the numpy arrays
         input_key = cache_utils.generate_hash_for_numpy_array(np.concatenate(numpy_arrays_to_hash))
@@ -79,8 +79,8 @@ class MatcherCacher(MatcherBase):
         keypoints_i2: Keypoints,
         descriptors_i1: np.ndarray,
         descriptors_i2: np.ndarray,
-        im_shape_i1: Tuple[int, int],
-        im_shape_i2: Tuple[int, int],
+        im_shape_i1: Tuple[int, int, int],
+        im_shape_i2: Tuple[int, int, int],
     ) -> Optional[np.ndarray]:
         """Load cached result, if it exists. The cached result will be a 2D numpy array with 2 columns."""
         cache_path = self.__get_cache_path(
@@ -124,8 +124,8 @@ class MatcherCacher(MatcherBase):
         keypoints_i2: Keypoints,
         descriptors_i1: np.ndarray,
         descriptors_i2: np.ndarray,
-        im_shape_i1: Tuple[int, int],
-        im_shape_i2: Tuple[int, int],
+        im_shape_i1: Tuple[int, int, int],
+        im_shape_i2: Tuple[int, int, int],
     ) -> np.ndarray:
         """Match descriptor vectors.
 
@@ -146,8 +146,8 @@ class MatcherCacher(MatcherBase):
             keypoints_i2: keypoints for image #i2, of length N2.
             descriptors_i1: descriptors corr. to keypoints_i1.
             descriptors_i2: descriptors corr. to keypoints_i2.
-            im_shape_i1: shape of image #i1, as (height,width).
-            im_shape_i2: shape of image #i2, as (height,width).
+            im_shape_i1: shape of image #i1, as (height,width,channel).
+            im_shape_i2: shape of image #i2, as (height,width,channel).
 
         Returns:
             Match indices (sorted by confidence), as matrix of shape (N, 2), where N < min(N1, N2).
