@@ -72,14 +72,14 @@ class TanksAndTemplesLoader(LoaderBase):
         self._image_paths = list(Path(img_dir).glob("*.jpg"))
 
         T = np.loadtxt(fname=ply_alignment_fpath)
-        self.T = Pose3(r=Rot3(T[:3,:3]), t=T[:3,3])
-        print(self.T)
+        self.lidar_T_colmap = Pose3(r=Rot3(T[:3,:3]), t=T[:3,3])
+        print(self.lidar_T_colmap)
 
         self._use_gt_extrinsics = True
         # The reconstructions are made with an "out of the box" COLMAP configuration and are available as *.ply
         # files together with the camera poses (stored in *.log file format).
         colmapTi_gt_dict = _parse_redwood_data_log_file(poses_fpath)
-        self.wTi_gt_dict = {k: self.T.compose(colmapTi) for k, colmapTi in colmapTi_gt_dict.items() }
+        self.wTi_gt_dict = {k: self.lidar_T_colmap.compose(colmapTi) for k, colmapTi in colmapTi_gt_dict.items() }
 
         self._num_imgs = len(self.wTi_gt_dict)
 
@@ -182,15 +182,15 @@ class TanksAndTemplesLoader(LoaderBase):
         """Reconstructs mesh from LiDAR PLY file.
 
         Args:
-        point_downsample_factor
-        crop_by_polyhedron: Whether to crop by a manually specified polyhedron, vs. simply
-        by range from global origin.
+            point_downsample_factor
+            crop_by_polyhedron: Whether to crop by a manually specified polyhedron, vs. simply
+                by range from global origin.
 
         Returns:
-        Reconstructed mesh.
+            Reconstructed mesh.
         """
         pcd = self.get_lidar_point_cloud()
-        pcd = pcd.transform(self.T)
+        #pcd = pcd.transform(self.lidar_T_colmap)
         if crop_by_polyhedron:
             pass
             pcd = crop_points_to_bounding_polyhedron(pcd, self.bounding_polyhedron_json_fpath)
@@ -257,7 +257,7 @@ class TanksAndTemplesLoader(LoaderBase):
             points = np.asarray(pcd.points)
 
             wTi_list = [camera_dict[i1].pose(), camera_dict[i2].pose()]
-            calibrations = [camera_dict[i1].calibration(), camera_dict[i1].calibration()]
+            calibrations = [camera_dict[i1].calibration(), camera_dict[i2].calibration()]
 
             # TODO(johnwlambert): Vectorize this code.
             for point in points:
@@ -267,31 +267,33 @@ class TanksAndTemplesLoader(LoaderBase):
                 rgb = np.array([255,0,0]).reshape(1,3).astype(np.uint8)
 
                 # Visualize two frustums, point, and mesh
-                frustums = open3d_vis_utils.create_all_frustums_open3d(wTi_list, calibrations, frustum_ray_len=10)
+                frustums = open3d_vis_utils.create_all_frustums_open3d(wTi_list, calibrations, frustum_ray_len=0.3)
                 spheres = open3d_vis_utils.create_colored_spheres_open3d(
-                    point_cloud, rgb, sphere_radius=4.0
+                    point_cloud, rgb, sphere_radius=0.5
                 )
-                open3d.visualization.draw_geometries([mesh, frustums, points])
+                open3d.visualization.draw_geometries([mesh] + frustums + spheres)
 
                 # Try projecting into each camera. If inside FOV of both, keep.
                 for i in [i1,i2]:
                     # Get the camera associated with the measurement.
                     camera = camera_dict[i]
                     # Project to camera.
-                    uv_reprojected, success_flag = camera.projectSafe(point3d)
+                    uv_reprojected, success_flag = camera.projectSafe(point)
                     # Check for projection error in camera.
                     if not success_flag:
                         continue
+                    import pdb; pdb.set_trace()
 
-            # Raytrace backwards.
-            src = np.repeat(gt_camera.pose().translation().reshape((-1, 3)), num_kpts, axis=0)  # At_i1A
-            drc = np.asarray([gt_camera.backproject(keypoints.coordinates[i], depth=1.0) - src[i, :] for i in range(num_kpts)])
+            # Cast ray through keypoint back towards scene.
+            cam_center = np.repeat(camera.pose().translation().reshape((-1, 3)), num_kpts, axis=0)
+            # Choose an arbitrary depth for the ray direction.
+            ray_dirs = np.asarray([camera.backproject(keypoints.coordinates[i], depth=1.0) - cam_center[i, :] for i in range(num_kpts)])
             # Return unique cartesian locations where rays hit the mesh.
             # keypoint_ind: (M,) array of keypoint indices whose corresponding ray intersected the ground truth mesh.
             # intersections_locations: (M, 3), array of ray intersection locations.
             intersections, keypoint_ind, _ = gt_scene_mesh.ray.intersects_location(
-                ray_origins=src,
-                ray_directions=drc,
+                ray_origins=cam_center,
+                ray_directions=ray_dirs,
                 multiple_hits=False
             )
             
@@ -418,11 +420,11 @@ intrinsics = loader.get_camera_intrinsics_full_res(index=0)
 import gtsfm.utils.io as io_utils
 
 
-# result = loader.generate_synthetic_correspondences(
-#     images = [],
-#     image_pairs = [(0,1)]
-# ) 
-
+result = loader.generate_synthetic_correspondences(
+    images = [],
+    image_pairs = [(0,1)]
+) 
+exit()
 
 
 # pcd = io_utils.read_point_cloud_from_ply(ply_fpath)
@@ -443,17 +445,9 @@ for index in loader.wTi_gt_dict.keys():
     line_sets = open3d_vis_utils.draw_coordinate_frame(wTc=wTc, axis_length=1.0)
     geometries.extend(line_sets)
 
-    if index % 10 == 0:
-        open3d.visualization.draw_geometries(geometries)
+    # if index % 10 == 0:
+open3d.visualization.draw_geometries(geometries)
 
-"""
-Unit Test
-(Pdb) p wTi_gt[0]
-array([[-0.43321999, -0.05555365, -0.89957447,  3.24710662],
-[ 0.05678138,  0.99443357, -0.08875668,  0.14032715],
-[ 0.89949781, -0.08953024, -0.42765409,  0.55723886],
-[ 0.        ,  0.        ,  0.        ,  1.        ]])
-"""
 
 
 i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, two_view_reports_dict = {}, {}, {}, {}
@@ -470,9 +464,4 @@ two_view_results_dict = run_two_view_estimator_as_futures(
     gt_scene_mesh=self.loader.get_gt_scene_trimesh(),
 )
 """
-
-# 
-
-
-
 
