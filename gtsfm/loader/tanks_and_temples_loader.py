@@ -15,7 +15,7 @@ from gtsam import Cal3Bundler, Rot3, Pose3
 from dask.distributed import Client, Future
 from trimesh import Trimesh
 
-
+import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
@@ -153,12 +153,8 @@ class TanksAndTemplesLoader(LoaderBase):
         fx = 0.7 * W
 
         # if not self._use_gt_intrinsics:
-        # # get intrinsics from exif
-        # TODO(johnwlambert): Add Sony A7SM2 to sensor DB.
+        # TODO(johnwlambert): Add Sony A7SM2 to sensor DB, and get intrinsics from exif.
         #intrinsics = io_utils.load_image(self._image_paths[index]).get_intrinsics_from_exif()
-        #import pdb; pdb.set_trace()
-        # else:
-        # intrinsics = self._calibrations[index]
 
         intrinsics = Cal3Bundler(fx, k1=0.0, k2=0.0, u0=cx, v0=cy)
         return intrinsics
@@ -228,7 +224,7 @@ class TanksAndTemplesLoader(LoaderBase):
         elif reconstruction_algorithm == MeshReconstructionType.BALL_PIVOTING:
             radii = [0.005, 0.01, 0.02, 0.04]
             rec_mesh = open3d.geometry.TriangleMesh.create_from_point_cloud_ball_pivoting(
-            pcd, open3d.utility.DoubleVector(radii)
+                pcd, open3d.utility.DoubleVector(radii)
             )
 
         elif reconstruction_algorithm == MeshReconstructionType.POISSION_SURFACE:
@@ -259,7 +255,7 @@ class TanksAndTemplesLoader(LoaderBase):
         camera_dict = {}
         import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
 
-        aggregator = KeypointAggregatorBase = (
+        aggregator: KeypointAggregatorBase = (
             KeypointAggregatorDedup() if deduplicate else KeypointAggregatorUnique()
         )
         keypoints_dict = {}
@@ -277,18 +273,30 @@ class TanksAndTemplesLoader(LoaderBase):
             )
             keypoints_dict[(i1,i2)] = (keypoints_i1, keypoints_i2)
             putative_corr_idxs_dict[(i1,i2)] = putative_corr_idxs
+            print(f"Number of keypoints in {i1}: ", len(keypoints_i1))
 
         keypoints_list, putative_corr_idxs_dict = aggregator.aggregate(keypoints_dict=keypoints_dict)
         return keypoints_list, putative_corr_idxs_dict
 
-    def generate_synthetic_correspondences_for_image_pair(self, camera_i1, camera_i2, mesh: open3d.geometry.TriangleMesh) -> Keypoints:
-        """ """
+    def generate_synthetic_correspondences_for_image_pair(
+        self, camera_i1: gtsfm_types.CAMERA_TYPE, camera_i2: gtsfm_types.CAMERA_TYPE, mesh: open3d.geometry.TriangleMesh
+    ) -> Keypoints:
+        """Generates synthetic correspondences for image pair.
+
+        Args:
+          camera_i1: First camera.
+          camera_i2: Second camera.
+          mesh:
+
+        Returns:
+          Tuple of keypoints, and putative correspondence indices.
+        """
         mesh_path = '/Users/johnlambert/Downloads/barn_trimesh.obj'
         open3d.io.write_triangle_mesh(filename=mesh_path, mesh=mesh)
         trimesh_mesh = load_from_trimesh(mesh_path)
 
         # Sample random 3d points.
-        pcd = mesh.sample_points_uniformly(number_of_points=20)
+        pcd = mesh.sample_points_uniformly(number_of_points=500)
         #pcd = mesh.sample_points_poisson_disk(number_of_points=500, pcl=pcd)
         points = np.asarray(pcd.points)
 
@@ -301,7 +309,7 @@ class TanksAndTemplesLoader(LoaderBase):
         # TODO(johnwlambert): Vectorize this code.
         for point in points:
 
-            # Try projecting into each camera. If inside FOV of both, keep.
+            # Try projecting into each camera. If inside FOV of both and unoccluded by mesh, keep.
             uv_i1 = verify_camera_fov_and_occlusion(camera_i1, point, trimesh_mesh, wTi_list, calibrations, mesh)
             uv_i2 = verify_camera_fov_and_occlusion(camera_i2, point, trimesh_mesh, wTi_list, calibrations, mesh)
             if uv_i1 is not None and uv_i2 is not None:
@@ -310,19 +318,24 @@ class TanksAndTemplesLoader(LoaderBase):
                     
         num_kpts = len(keypoints_i1)
         putative_corr_idxs = np.stack([np.arange(num_kpts), np.arange(num_kpts)], axis=-1)
-        import pdb; pdb.set_trace()
 
-        keypoints_i1 = Keypoints(np.array(keypoints_i1))
-        keypoints_i2 = Keypoints(np.array(keypoints_i2))
+        keypoints_i1 = Keypoints(coordinates=np.array(keypoints_i1))
+        keypoints_i2 = Keypoints(coordinates=np.array(keypoints_i2))
         return keypoints_i1, keypoints_i2, putative_corr_idxs
 
 
-def verify_camera_fov_and_occlusion(camera, point: np.ndarray, trimesh_mesh, wTi_list, calibrations, mesh) -> Optional[np.ndarray]:
+def verify_camera_fov_and_occlusion(
+    camera: gtsfm_types.CAMERA_TYPE, point: np.ndarray, trimesh_mesh, wTi_list, calibrations, mesh
+) -> Optional[np.ndarray]:
     """Verifies point lies within camera FOV and is unoccluded by mesh faces.
 
     Args:
-      camera
+      camera: Camera to use.
       point: 3d point as (3,) array.
+      trimesh_mesh: Trimesh mesh object to raycast against.
+      wTi_list:
+      calibrations
+      mesh:
 
     Returns:
       2d keypoint as (2,) array.
@@ -335,17 +348,13 @@ def verify_camera_fov_and_occlusion(camera, point: np.ndarray, trimesh_mesh, wTi
         print("Skip failed: ", uv_reprojected, ", success: ", success_flag)
         return None
 
-    # keypoints.coordinates[i]
     # Cast ray through keypoint back towards scene.
     # cam_center = np.repeat(camera.pose().translation().reshape((-1, 3)), num_kpts, axis=0)
     cam_center = camera.pose().translation()
     # Choose an arbitrary depth for the ray direction.
     #ray_dirs = np.asarray([camera.backproject(uv_reprojected, depth=1.0) - cam_center[i, :] for i in range(num_kpts)])
     ray_dirs = point - camera.pose().translation()
-    line_set = _make_line_plot(cam_center, cam_center + ray_dirs)
-    # line_set = _make_line_plot(cam_center, camera.backproject(uv_reprojected, depth=1.0))
 
-    visualize: bool = False
     # Return unique cartesian locations where rays hit the mesh.
     # keypoint_ind: (M,) array of keypoint indices whose corresponding ray intersected the ground truth mesh.
     # intersections_locations: (M, 3), array of ray intersection locations.
@@ -354,16 +363,19 @@ def verify_camera_fov_and_occlusion(camera, point: np.ndarray, trimesh_mesh, wTi
         ray_directions=ray_dirs.reshape(1,3),
         multiple_hits=False
     )
-    print("Point vs. intersect: ", point, intersections)
+    
     if intersections.shape[0] > 1 or intersections.shape[0] == 0:
         import pdb; pdb.set_trace()
 
+    # TODO(johnwlambert): Tune this tolerance threshold to allow looser matches.
     if not np.allclose(intersections[0], point):
         # There was a closer intersection along the ray than `point`, meaning `point` is occluded by the mesh.
-        return False
+        return None
 
-    visualize = True # False
+    visualize = False
     if visualize:
+        line_set = _make_line_plot(cam_center, cam_center + ray_dirs)
+        # line_set = _make_line_plot(cam_center, camera.backproject(uv_reprojected, depth=1.0))
         point_cloud = np.reshape(point, (1,3))
         rgb = np.array([255,0,0]).reshape(1,3).astype(np.uint8)
 
@@ -376,7 +388,6 @@ def verify_camera_fov_and_occlusion(camera, point: np.ndarray, trimesh_mesh, wTi
 
 
     return uv_reprojected
-
 
 
 def crop_points_to_bounding_polyhedron(pcd: open3d.geometry.PointCloud, json_fpath: str) -> open3d.geometry.PointCloud:
