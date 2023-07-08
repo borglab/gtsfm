@@ -10,14 +10,27 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import open3d
+import trimesh
 from gtsam import Cal3Bundler, Rot3, Pose3
 from dask.distributed import Client, Future
+from trimesh import Trimesh
+
 
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.loader.loader_base import LoaderBase
+from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_base import KeypointAggregatorBase
+from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_dedup import (
+    KeypointAggregatorDedup,
+)
+from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_unique import (
+    KeypointAggregatorUnique,
+)
+import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
+
+logger = logger_utils.get_logger()
 
 
 _DEFAULT_IMAGE_HEIGHT_PX = 1080
@@ -226,10 +239,14 @@ class TanksAndTemplesLoader(LoaderBase):
         self,
         images: List[Future],
         image_pairs: List[Tuple[int, int]],
+        deduplicate: bool = False
     ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
         """Generates synthetic correspondences from virtual cameras and a ground-truth mesh.
 
         TODO: Make this a CorrespondenceGenerator class.
+
+        Args:
+            deduplicate: whether to de-duplicate with a single image the detections received from each image pair.
 
         Returns:
             List of keypoints, one entry for each input image.
@@ -242,7 +259,10 @@ class TanksAndTemplesLoader(LoaderBase):
         camera_dict = {}
         import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
 
-        keypoints_list = []
+        aggregator = KeypointAggregatorBase = (
+            KeypointAggregatorDedup() if deduplicate else KeypointAggregatorUnique()
+        )
+        keypoints_dict = {}
         putative_corr_idxs_dict = {}
 
         for (i1, i2) in image_pairs:
@@ -250,56 +270,113 @@ class TanksAndTemplesLoader(LoaderBase):
                 camera_dict[i1] = self.get_camera(index=i1)
             if i2 not in camera_dict:
                 camera_dict[i2] = self.get_camera(index=i2)
-
-            # Sample a random 3d point.
-            pcd = mesh.sample_points_uniformly(number_of_points=2500)
-            #pcd = mesh.sample_points_poisson_disk(number_of_points=500, pcl=pcd)
-            points = np.asarray(pcd.points)
-
-            wTi_list = [camera_dict[i1].pose(), camera_dict[i2].pose()]
-            calibrations = [camera_dict[i1].calibration(), camera_dict[i2].calibration()]
-
-            # TODO(johnwlambert): Vectorize this code.
-            for point in points:
-
-                import pdb; pdb.set_trace()
-                point_cloud = np.reshape(point, (1,3))
-                rgb = np.array([255,0,0]).reshape(1,3).astype(np.uint8)
-
-                # Visualize two frustums, point, and mesh
-                frustums = open3d_vis_utils.create_all_frustums_open3d(wTi_list, calibrations, frustum_ray_len=0.3)
-                spheres = open3d_vis_utils.create_colored_spheres_open3d(
-                    point_cloud, rgb, sphere_radius=0.5
-                )
-                open3d.visualization.draw_geometries([mesh] + frustums + spheres)
-
-                # Try projecting into each camera. If inside FOV of both, keep.
-                for i in [i1,i2]:
-                    # Get the camera associated with the measurement.
-                    camera = camera_dict[i]
-                    # Project to camera.
-                    uv_reprojected, success_flag = camera.projectSafe(point)
-                    # Check for projection error in camera.
-                    if not success_flag:
-                        continue
-                    import pdb; pdb.set_trace()
-
-            # Cast ray through keypoint back towards scene.
-            cam_center = np.repeat(camera.pose().translation().reshape((-1, 3)), num_kpts, axis=0)
-            # Choose an arbitrary depth for the ray direction.
-            ray_dirs = np.asarray([camera.backproject(keypoints.coordinates[i], depth=1.0) - cam_center[i, :] for i in range(num_kpts)])
-            # Return unique cartesian locations where rays hit the mesh.
-            # keypoint_ind: (M,) array of keypoint indices whose corresponding ray intersected the ground truth mesh.
-            # intersections_locations: (M, 3), array of ray intersection locations.
-            intersections, keypoint_ind, _ = gt_scene_mesh.ray.intersects_location(
-                ray_origins=cam_center,
-                ray_directions=ray_dirs,
-                multiple_hits=False
+            keypoints_i1, keypoints_i2, putative_corr_idxs = self.generate_synthetic_correspondences_for_image_pair(
+                camera_i1=camera_dict[i1],
+                camera_i2=camera_dict[i2],
+                mesh=mesh
             )
-            
-            putative_corr_idxs_dict[(i1,i2)] = None
+            keypoints_dict[(i1,i2)] = (keypoints_i1, keypoints_i2)
+            putative_corr_idxs_dict[(i1,i2)] = putative_corr_idxs
 
+        keypoints_list, putative_corr_idxs_dict = aggregator.aggregate(keypoints_dict=keypoints_dict)
         return keypoints_list, putative_corr_idxs_dict
+
+    def generate_synthetic_correspondences_for_image_pair(self, camera_i1, camera_i2, mesh: open3d.geometry.TriangleMesh) -> Keypoints:
+        """ """
+        mesh_path = '/Users/johnlambert/Downloads/barn_trimesh.obj'
+        open3d.io.write_triangle_mesh(filename=mesh_path, mesh=mesh)
+        trimesh_mesh = load_from_trimesh(mesh_path)
+
+        # Sample random 3d points.
+        pcd = mesh.sample_points_uniformly(number_of_points=20)
+        #pcd = mesh.sample_points_poisson_disk(number_of_points=500, pcl=pcd)
+        points = np.asarray(pcd.points)
+
+        wTi_list = [camera_i1.pose(), camera_i2.pose()]
+        calibrations = [camera_i1.calibration(), camera_i2.calibration()]
+
+        keypoints_i1 = []
+        keypoints_i2 = []
+
+        # TODO(johnwlambert): Vectorize this code.
+        for point in points:
+
+            # Try projecting into each camera. If inside FOV of both, keep.
+            uv_i1 = verify_camera_fov_and_occlusion(camera_i1, point, trimesh_mesh, wTi_list, calibrations, mesh)
+            uv_i2 = verify_camera_fov_and_occlusion(camera_i2, point, trimesh_mesh, wTi_list, calibrations, mesh)
+            if uv_i1 is not None and uv_i2 is not None:
+                keypoints_i1.append(uv_i1)
+                keypoints_i2.append(uv_i2)
+                    
+        num_kpts = len(keypoints_i1)
+        putative_corr_idxs = np.stack([np.arange(num_kpts), np.arange(num_kpts)], axis=-1)
+        import pdb; pdb.set_trace()
+
+        keypoints_i1 = Keypoints(np.array(keypoints_i1))
+        keypoints_i2 = Keypoints(np.array(keypoints_i2))
+        return keypoints_i1, keypoints_i2, putative_corr_idxs
+
+
+def verify_camera_fov_and_occlusion(camera, point: np.ndarray, trimesh_mesh, wTi_list, calibrations, mesh) -> Optional[np.ndarray]:
+    """Verifies point lies within camera FOV and is unoccluded by mesh faces.
+
+    Args:
+      camera
+      point: 3d point as (3,) array.
+
+    Returns:
+      2d keypoint as (2,) array.
+    """
+    # Get the camera associated with the measurement.
+    # Project to camera.
+    uv_reprojected, success_flag = camera.projectSafe(point)
+    # Check for projection error in camera.
+    if not success_flag:
+        print("Skip failed: ", uv_reprojected, ", success: ", success_flag)
+        return None
+
+    # keypoints.coordinates[i]
+    # Cast ray through keypoint back towards scene.
+    # cam_center = np.repeat(camera.pose().translation().reshape((-1, 3)), num_kpts, axis=0)
+    cam_center = camera.pose().translation()
+    # Choose an arbitrary depth for the ray direction.
+    #ray_dirs = np.asarray([camera.backproject(uv_reprojected, depth=1.0) - cam_center[i, :] for i in range(num_kpts)])
+    ray_dirs = point - camera.pose().translation()
+    line_set = _make_line_plot(cam_center, cam_center + ray_dirs)
+    # line_set = _make_line_plot(cam_center, camera.backproject(uv_reprojected, depth=1.0))
+
+    visualize: bool = False
+    # Return unique cartesian locations where rays hit the mesh.
+    # keypoint_ind: (M,) array of keypoint indices whose corresponding ray intersected the ground truth mesh.
+    # intersections_locations: (M, 3), array of ray intersection locations.
+    intersections, keypoint_ind, _ = trimesh_mesh.ray.intersects_location(
+        ray_origins=cam_center.reshape(1,3),
+        ray_directions=ray_dirs.reshape(1,3),
+        multiple_hits=False
+    )
+    print("Point vs. intersect: ", point, intersections)
+    if intersections.shape[0] > 1 or intersections.shape[0] == 0:
+        import pdb; pdb.set_trace()
+
+    if not np.allclose(intersections[0], point):
+        # There was a closer intersection along the ray than `point`, meaning `point` is occluded by the mesh.
+        return False
+
+    visualize = True # False
+    if visualize:
+        point_cloud = np.reshape(point, (1,3))
+        rgb = np.array([255,0,0]).reshape(1,3).astype(np.uint8)
+
+        # Visualize two frustums, point, and mesh
+        frustums = open3d_vis_utils.create_all_frustums_open3d(wTi_list, calibrations, frustum_ray_len=0.3)
+        spheres = open3d_vis_utils.create_colored_spheres_open3d(
+            point_cloud, rgb, sphere_radius=0.5
+        )
+        open3d.visualization.draw_geometries([mesh] + frustums + spheres + [line_set])
+
+
+    return uv_reprojected
+
 
 
 def crop_points_to_bounding_polyhedron(pcd: open3d.geometry.PointCloud, json_fpath: str) -> open3d.geometry.PointCloud:
@@ -356,6 +433,22 @@ def _parse_redwood_data_log_file(log_fpath: str) -> Dict[int, Pose3]:
     return wTi_gt_dict
 
 
+def _make_line_plot(point1, point2):
+    """ """
+    verts_worldfr = np.array([point1, point2])
+    lines = [[0, 1]]
+    # color is in range [0,1]
+    color = (0,0,1)
+    colors = [color for i in range(len(lines))]
+
+    line_set = open3d.geometry.LineSet(
+        points=open3d.utility.Vector3dVector(verts_worldfr),
+        lines=open3d.utility.Vector2iVector(lines),
+    )
+    line_set.colors = open3d.utility.Vector3dVector(colors)
+    return line_set
+
+
 def create_colored_point_cloud_open3d(point_cloud: np.ndarray, rgb: np.ndarray) -> open3d.geometry.PointCloud:
     """Render a point cloud as individual colored points, using Open3d.
 
@@ -394,6 +487,20 @@ pointcloud: open3d.geometry.PointCloud,
     return points, rgb
 
 
+def load_from_trimesh(mesh_path: str):
+    # Read in scene mesh as Trimesh object
+    if not Path(mesh_path).exists():
+        raise FileNotFoundError(f"No mesh found at {mesh_path}")
+    mesh = trimesh.load(mesh_path, process=False, maintain_order=True)
+    logger.info(
+        "AstroVision loader read in mesh with %d vertices and %d faces.",
+        mesh.vertices.shape[0],
+        mesh.faces.shape[0],
+    )
+    return mesh
+
+
+
 img_dir = '/Users/johnlambert/Downloads/Barn'
 log_fpath = '/Users/johnlambert/Downloads/Barn_COLMAP_SfM.log'
 ply_fpath = '/Users/johnlambert/Downloads/Barn.ply'
@@ -419,6 +526,10 @@ intrinsics = loader.get_camera_intrinsics_full_res(index=0)
 
 import gtsfm.utils.io as io_utils
 
+# Generate random image pairs.
+# image_pairs = 
+
+# Could enforce that they are roughly on the same side of an object.
 
 result = loader.generate_synthetic_correspondences(
     images = [],
@@ -436,7 +547,7 @@ pcd = loader.get_lidar_point_cloud()
 #open3d.visualization.draw_geometries([mesh], mesh_show_back_face=True)
 
 
-import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
+
 
 geometries = [pcd] # [mesh]
 for index in loader.wTi_gt_dict.keys():
