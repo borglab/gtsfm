@@ -27,6 +27,8 @@ elif [ "$DATASET_NAME" == "skydio-501" ]; then
 elif [ "$DATASET_NAME" == "notre-dame-20" ]; then
   IMAGES_DIR=notre-dame-20/images
   COLMAP_FILES_DIRPATH=notre-dame-20/notre-dame-20-colmap
+elif [ "$DATASET_NAME" == "tanks-and-temples-barn-410"]; then
+  DATASET_ROOT="tanks_and_temples_barn"
 fi
 
 echo "Config: ${CONFIG_NAME}, Loader: ${LOADER_NAME}"
@@ -66,4 +68,8 @@ elif [ "$LOADER_NAME" == "astrovision" ]; then
     --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
     --max_resolution ${MAX_RESOLUTION} \
     ${SHARE_INTRINSICS_ARG}
+elif [ "$LOADER_NAME" == "tanks-and-temples" ]; then
+  python gtsfm/runner/run_scene_optimizer_synthetic_tanks_and_temples.py \
+    --config_name ${CONFIG_NAME}.yaml \
+    --dataset_root $DATASET_ROOT
 fi
