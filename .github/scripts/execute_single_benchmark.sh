@@ -27,8 +27,8 @@ elif [ "$DATASET_NAME" == "skydio-501" ]; then
 elif [ "$DATASET_NAME" == "notre-dame-20" ]; then
   IMAGES_DIR=notre-dame-20/images
   COLMAP_FILES_DIRPATH=notre-dame-20/notre-dame-20-colmap
-elif [ "$DATASET_NAME" == "tanks-and-temples-barn-410"]; then
-  DATASET_ROOT="tanks_and_temples_barn"
+elif [ "$DATASET_NAME" == "tanks-and-temples-barn-410" ]; then
+  DATASET_ROOT="Tanks_and_Temples_Barn_410.zip"
 fi
 
 echo "Config: ${CONFIG_NAME}, Loader: ${LOADER_NAME}"
