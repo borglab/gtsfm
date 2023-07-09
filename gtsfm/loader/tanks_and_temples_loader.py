@@ -4,6 +4,7 @@ See https://www.tanksandtemples.org/download/ for more information.
 """
 
 import os
+import tempfile
 from enum import auto, Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -62,9 +63,11 @@ class TanksAndTemplesLoader(LoaderBase):
         self,
         img_dir: str,
         poses_fpath: str,
-        ply_fpath: str,
+        lidar_ply_fpath: str,
         ply_alignment_fpath: str,
         bounding_polyhedron_json_fpath: str,
+        colmap_ply_fpath: str,
+        max_resolution: int = 1080,
     ) -> None:
         """Initializes image file paths and GT camera poses.
 
@@ -74,19 +77,21 @@ class TanksAndTemplesLoader(LoaderBase):
         Args:
             img_dir: Path to where images of a single scene are stored.
             poses_fpath: Path to .log file containing COLMAP-reconstructed camera poses.
-            ply_fpath:
+            lidar_ply_fpath:
             ply_alignment_fpath: The alignment text file contains the transformation matrix to align the COLMAP
                 reconstruction to the corresponding ground-truth point cloud.
             bounding_polyhedron_json_fpath: Path to JSON file containing specification of bounding polyhedron
                 to crop the COLMAP reconstructed point cloud.
+            colmap_ply_fpath: 
         """
-        self.ply_fpath = ply_fpath
+        super().__init__(max_resolution)
+        self.ply_fpath = lidar_ply_fpath
         self.bounding_polyhedron_json_fpath = bounding_polyhedron_json_fpath
         self._image_paths = list(Path(img_dir).glob("*.jpg"))
 
+        # Load the transform between LiDAR global coordinate frame and COLMAP global coordinate frame.
         T = np.loadtxt(fname=ply_alignment_fpath)
         self.lidar_T_colmap = Pose3(r=Rot3(T[:3,:3]), t=T[:3,3])
-        print(self.lidar_T_colmap)
 
         self._use_gt_extrinsics = True
         # The reconstructions are made with an "out of the box" COLMAP configuration and are available as *.ply
@@ -239,8 +244,6 @@ class TanksAndTemplesLoader(LoaderBase):
     ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
         """Generates synthetic correspondences from virtual cameras and a ground-truth mesh.
 
-        TODO: Make this a CorrespondenceGenerator class.
-
         Args:
             deduplicate: whether to de-duplicate with a single image the detections received from each image pair.
 
@@ -251,6 +254,8 @@ class TanksAndTemplesLoader(LoaderBase):
                 are represented by an array of shape (K,2), for K correspondences.
         """
         mesh = self.reconstruct_mesh()
+        open3d_mesh_path = tempfile.NamedTemporaryFile(suffix='.obj').name
+        open3d.io.write_triangle_mesh(filename=open3d_mesh_path, mesh=mesh)
 
         camera_dict = {}
         import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
@@ -269,8 +274,10 @@ class TanksAndTemplesLoader(LoaderBase):
             keypoints_i1, keypoints_i2, putative_corr_idxs = self.generate_synthetic_correspondences_for_image_pair(
                 camera_i1=camera_dict[i1],
                 camera_i2=camera_dict[i2],
-                mesh=mesh
+                open3d_mesh_fpath=open3d_mesh_path
             )
+            num_kpts = len(keypoints_i1)
+            putative_corr_idxs = np.stack([np.arange(num_kpts), np.arange(num_kpts)], axis=-1)
             keypoints_dict[(i1,i2)] = (keypoints_i1, keypoints_i2)
             putative_corr_idxs_dict[(i1,i2)] = putative_corr_idxs
             print(f"Number of keypoints in {i1}: ", len(keypoints_i1))
@@ -279,8 +286,11 @@ class TanksAndTemplesLoader(LoaderBase):
         return keypoints_list, putative_corr_idxs_dict
 
     def generate_synthetic_correspondences_for_image_pair(
-        self, camera_i1: gtsfm_types.CAMERA_TYPE, camera_i2: gtsfm_types.CAMERA_TYPE, mesh: open3d.geometry.TriangleMesh
-    ) -> Keypoints:
+        self,
+        camera_i1: gtsfm_types.CAMERA_TYPE,
+        camera_i2: gtsfm_types.CAMERA_TYPE,
+        open3d_mesh_fpath: str
+    ) -> Tuple[Keypoints, Keypoints]:
         """Generates synthetic correspondences for image pair.
 
         Args:
@@ -289,11 +299,11 @@ class TanksAndTemplesLoader(LoaderBase):
           mesh:
 
         Returns:
-          Tuple of keypoints, and putative correspondence indices.
+          Tuple of keypoints.
         """
-        mesh_path = '/Users/johnlambert/Downloads/barn_trimesh.obj'
-        open3d.io.write_triangle_mesh(filename=mesh_path, mesh=mesh)
-        trimesh_mesh = load_from_trimesh(mesh_path)
+        mesh = open3d.io.read_triangle_mesh(filename=open3d_mesh_fpath)
+
+        trimesh_mesh = load_from_trimesh(open3d_mesh_fpath)
 
         # Sample random 3d points.
         pcd = mesh.sample_points_uniformly(number_of_points=500)
@@ -316,12 +326,9 @@ class TanksAndTemplesLoader(LoaderBase):
                 keypoints_i1.append(uv_i1)
                 keypoints_i2.append(uv_i2)
                     
-        num_kpts = len(keypoints_i1)
-        putative_corr_idxs = np.stack([np.arange(num_kpts), np.arange(num_kpts)], axis=-1)
-
         keypoints_i1 = Keypoints(coordinates=np.array(keypoints_i1))
         keypoints_i2 = Keypoints(coordinates=np.array(keypoints_i2))
-        return keypoints_i1, keypoints_i2, putative_corr_idxs
+        return keypoints_i1, keypoints_i2
 
 
 def verify_camera_fov_and_occlusion(
@@ -509,81 +516,4 @@ def load_from_trimesh(mesh_path: str):
         mesh.faces.shape[0],
     )
     return mesh
-
-
-
-img_dir = '/Users/johnlambert/Downloads/Barn'
-log_fpath = '/Users/johnlambert/Downloads/Barn_COLMAP_SfM.log'
-ply_fpath = '/Users/johnlambert/Downloads/Barn.ply'
-#ply_fpath = '/Users/johnlambert/Downloads/Barn_COLMAP.ply'
-ply_alignment_fpath = '/Users/johnlambert/Downloads/Barn_trans.txt'
-bounding_polyhedron_json_fpath = '/Users/johnlambert/Downloads/Barn.json'
-
-# img_dir = "/Users/johnlambert/Downloads/Truck"
-# log_fpath = "/Users/johnlambert/Downloads/Truck_COLMAP_SfM.log"
-# ply_fpath = "/Users/johnlambert/Downloads/Truck.ply"
-# ply_alignment_fpath = "/Users/johnlambert/Downloads/Truck_trans.txt"
-# bounding_polyhedron_json_fpath = "/Users/johnlambert/Downloads/Truck.json"
-
-loader = TanksAndTemplesLoader(
-    img_dir=img_dir,
-    poses_fpath=log_fpath,
-    ply_fpath=ply_fpath,
-    ply_alignment_fpath=ply_alignment_fpath,
-    bounding_polyhedron_json_fpath=bounding_polyhedron_json_fpath,
-)
-
-intrinsics = loader.get_camera_intrinsics_full_res(index=0)
-
-import gtsfm.utils.io as io_utils
-
-# Generate random image pairs.
-# image_pairs = 
-
-# Could enforce that they are roughly on the same side of an object.
-
-result = loader.generate_synthetic_correspondences(
-    images = [],
-    image_pairs = [(0,1)]
-) 
-exit()
-
-
-# pcd = io_utils.read_point_cloud_from_ply(ply_fpath)
-
-pcd = loader.get_lidar_point_cloud()
-#open3d.visualization.draw_geometries([pcd])
-
-# mesh = loader.reconstruct_mesh()
-#open3d.visualization.draw_geometries([mesh], mesh_show_back_face=True)
-
-
-
-
-geometries = [pcd] # [mesh]
-for index in loader.wTi_gt_dict.keys():
-    wTc = loader.get_camera_pose(index)
-    #import pdb; pdb.set_trace()
-    line_sets = open3d_vis_utils.draw_coordinate_frame(wTc=wTc, axis_length=1.0)
-    geometries.extend(line_sets)
-
-    # if index % 10 == 0:
-open3d.visualization.draw_geometries(geometries)
-
-
-
-i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, two_view_reports_dict = {}, {}, {}, {}
-
-"""
-two_view_results_dict = run_two_view_estimator_as_futures(
-    client,
-    scene_optimizer.two_view_estimator,
-    keypoints_list,
-    putative_corr_idxs_dict,
-    intrinsics,
-    loader.get_relative_pose_priors(image_pair_indices),
-    loader.get_gt_cameras(),
-    gt_scene_mesh=self.loader.get_gt_scene_trimesh(),
-)
-"""
 
