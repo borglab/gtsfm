@@ -64,8 +64,8 @@ function download_and_unzip_dataset_files {
     ZIP_FNAME=2011205_rc3.zip
   elif [ "$DATASET_NAME" == "tanks-and-temples-barn-410" ]; then 
     # Tanks and Temples Dataset, "Barn" scene.
-    WGET_URL1=https://github.com/johnwlambert/gtsfm-datasets-mirror/releases/download/tanks-and-temples-barn/Tanks_and_Temples_Barn.zip
-    ZIP_FNAME=Tanks_and_Temples_Barn.zip
+    WGET_URL1=https://github.com/johnwlambert/gtsfm-datasets-mirror/releases/download/tanks-and-temples-barn/Tanks_and_Temples_Barn_410.zip
+    ZIP_FNAME=Tanks_and_Temples_Barn_410.zip
   fi
 
   # Download the data.
@@ -130,7 +130,7 @@ function download_and_unzip_dataset_files {
     unzip -qq 2011205_rc3.zip
     tar -xvf cache_rc3_deep.tar.gz
   elif [ "$DATASET_NAME" == "tanks-and-temples-barn-410" ]; then
-    unzip -qq Tanks_and_Temples_Barn.zip
+    unzip -qq Tanks_and_Temples_Barn_410.zip
     ls -ltrh .
   fi
 }
