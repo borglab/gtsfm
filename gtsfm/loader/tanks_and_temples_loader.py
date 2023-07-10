@@ -362,7 +362,7 @@ def verify_camera_fov_and_occlusion(
     #ray_dirs = np.asarray([camera.backproject(uv_reprojected, depth=1.0) - cam_center[i, :] for i in range(num_kpts)])
     ray_dirs = point - camera.pose().translation()
 
-    # Return unique cartesian locations where rays hit the mesh.
+    # Returns the location of where a ray hits a surface mesh.
     # keypoint_ind: (M,) array of keypoint indices whose corresponding ray intersected the ground truth mesh.
     # intersections_locations: (M, 3), array of ray intersection locations.
     intersections, keypoint_ind, _ = trimesh_mesh.ray.intersects_location(

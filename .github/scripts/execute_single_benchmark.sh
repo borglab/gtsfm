@@ -28,7 +28,8 @@ elif [ "$DATASET_NAME" == "notre-dame-20" ]; then
   IMAGES_DIR=notre-dame-20/images
   COLMAP_FILES_DIRPATH=notre-dame-20/notre-dame-20-colmap
 elif [ "$DATASET_NAME" == "tanks-and-temples-barn-410" ]; then
-  DATASET_ROOT="Tanks_and_Temples_Barn_410.zip"
+  DATASET_ROOT="Tanks_and_Temples_Barn_410"
+  SCENE_NAME="Barn"
 fi
 
 echo "Config: ${CONFIG_NAME}, Loader: ${LOADER_NAME}"
@@ -71,5 +72,6 @@ elif [ "$LOADER_NAME" == "astrovision" ]; then
 elif [ "$LOADER_NAME" == "tanks-and-temples" ]; then
   python gtsfm/runner/run_scene_optimizer_synthetic_tanks_and_temples.py \
     --config_name ${CONFIG_NAME}.yaml \
-    --dataset_root $DATASET_ROOT
+    --dataset_root $DATASET_ROOT \
+    --scene_name $SCENE_NAME
 fi
