@@ -1,6 +1,8 @@
 """Loader for the Tanks & Temples dataset.
 
 See https://www.tanksandtemples.org/download/ for more information.
+
+Author: John Lambert
 """
 
 import os
@@ -21,7 +23,6 @@ import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_base import KeypointAggregatorBase
 from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_dedup import (
     KeypointAggregatorDedup,
@@ -29,6 +30,7 @@ from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggreg
 from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_unique import (
     KeypointAggregatorUnique,
 )
+from gtsfm.loader.loader_base import LoaderBase
 import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
 
 logger = logger_utils.get_logger()
@@ -209,7 +211,7 @@ class TanksAndTemplesLoader(LoaderBase):
             pass
             pcd = crop_points_to_bounding_polyhedron(pcd, self.bounding_polyhedron_json_fpath)
 
-        points, rgb = convert_colored_open3d_point_cloud_to_numpy(pcd)
+        points, rgb = open3d_vis_utils.convert_colored_open3d_point_cloud_to_numpy(pcd)
         if not crop_by_polyhedron:
             max_radius = 4.0
             valid = np.linalg.norm(points, axis=1) < max_radius
@@ -217,7 +219,7 @@ class TanksAndTemplesLoader(LoaderBase):
             rgb = rgb[valid]
         points = points[::point_downsample_factor]
         rgb = rgb[::point_downsample_factor]
-        pcd = create_colored_point_cloud_open3d(points, rgb)
+        pcd = open3d_vis_utils.create_colored_point_cloud_open3d(points, rgb)
         pcd.estimate_normals()
 
         if reconstruction_algorithm == MeshReconstructionType.ALPHA_SHAPE:
@@ -258,7 +260,6 @@ class TanksAndTemplesLoader(LoaderBase):
         open3d.io.write_triangle_mesh(filename=open3d_mesh_path, mesh=mesh)
 
         camera_dict = {}
-        import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
 
         aggregator: KeypointAggregatorBase = (
             KeypointAggregatorDedup() if deduplicate else KeypointAggregatorUnique()
@@ -451,7 +452,7 @@ def _parse_redwood_data_log_file(log_fpath: str) -> Dict[int, Pose3]:
     return wTi_gt_dict
 
 
-def _make_line_plot(point1, point2):
+def _make_line_plot(point1: np.ndarray, point2: np.ndarray) -> open3d.geometry.LineSet:
     """ """
     verts_worldfr = np.array([point1, point2])
     lines = [[0, 1]]
@@ -465,44 +466,6 @@ def _make_line_plot(point1, point2):
     )
     line_set.colors = open3d.utility.Vector3dVector(colors)
     return line_set
-
-
-def create_colored_point_cloud_open3d(point_cloud: np.ndarray, rgb: np.ndarray) -> open3d.geometry.PointCloud:
-    """Render a point cloud as individual colored points, using Open3d.
-
-    Args:
-    point_cloud: array of shape (N,3) representing 3d points.
-    rgb: uint8 array of shape (N,3) representing colors in RGB order, in the range [0,255].
-
-    Returns:
-    pcd: Open3d geometry object representing a colored 3d point cloud.
-    """
-    colors = rgb.astype(np.float64) / 255
-
-    pcd = open3d.geometry.PointCloud()
-    pcd.points = open3d.utility.Vector3dVector(point_cloud)
-    pcd.colors = open3d.utility.Vector3dVector(colors)
-
-    return pcd
-
-
-def convert_colored_open3d_point_cloud_to_numpy(
-pointcloud: open3d.geometry.PointCloud,
-) -> Tuple[np.ndarray, np.ndarray]:
-    """
-
-    Args:
-    pointcloud
-
-    Returns:
-    points
-    rgb
-    """
-    points = np.asarray(pointcloud.points)
-    rgb = np.asarray(pointcloud.colors)
-    # open3d stores the colors as [0,1] floats.
-    rgb = (rgb * 255).astype(np.uint8)
-    return points, rgb
 
 
 def load_from_trimesh(mesh_path: str):

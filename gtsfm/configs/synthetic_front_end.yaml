@@ -9,7 +9,7 @@ SceneOptimizer:
 
   retriever:
     _target_: gtsfm.retriever.sequential_retriever.SequentialRetriever
-    max_frame_lookahead: 2
+    max_frame_lookahead: 4
 
   correspondence_generator:
     _target_: gtsfm.frontend.correspondence_generator.synthetic_correspondence_generator.SyntheticCorrespondenceGenerator
