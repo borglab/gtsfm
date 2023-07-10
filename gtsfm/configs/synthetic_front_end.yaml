@@ -14,8 +14,8 @@ SceneOptimizer:
   correspondence_generator:
     _target_: gtsfm.frontend.correspondence_generator.synthetic_correspondence_generator.SyntheticCorrespondenceGenerator
     #dataset_root: /Users/johnlambert/Downloads/Tanks_and_Temples_Barn_410
-    dataset_root: Tanks_and_Temples_Barn_410
-    #dataset_root: /home/runner/work/gtsfm/gtsfm/Tanks_and_Temples_Barn_410
+    #dataset_root: Tanks_and_Temples_Barn_410
+    dataset_root: /home/runner/work/gtsfm/gtsfm/Tanks_and_Temples_Barn_410
     scene_name: Barn
 
   two_view_estimator:

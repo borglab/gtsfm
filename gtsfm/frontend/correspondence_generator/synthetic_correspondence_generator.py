@@ -24,6 +24,7 @@ from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggreg
 from gtsfm.frontend.matcher.image_matcher_base import ImageMatcherBase
 from gtsfm.two_view_estimator import TWO_VIEW_OUTPUT, TwoViewEstimator
 from gtsfm.loader.tanks_and_temples_loader import TanksAndTemplesLoader
+from gtsfm.loader.loader_base import LoaderBase
 
 
 class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
@@ -77,7 +78,7 @@ class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
             colmap_ply_fpath=colmap_ply_fpath,
         )
 
-        loader_future = client.scatter(loader, broadcast=False)
+        
         mesh = loader.reconstruct_mesh()
         # TODO(jolambert): File Open3d bug to add pickle support for TriangleMesh.
         open3d_mesh_path = tempfile.NamedTemporaryFile(suffix='.obj').name
@@ -88,9 +89,16 @@ class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
         # ) -> Tuple[Keypoints, Keypoints]:
         #     return image_matcher.match(image_i1=image_i1, image_i2=image_i2)
 
-        
+
+        loader_future = client.scatter(loader, broadcast=False)
+        def apply_synthetic_corr_generator(
+            loader_: LoaderBase, camera_i1, camera_i2, open3d_mesh_fpath: str
+        ) -> Tuple[Keypoints, Keypoints]:
+            return loader_.generate_synthetic_correspondences_for_image_pair(camera_i1, camera_i2, open3d_mesh_fpath)
+
         pairwise_correspondence_futures = {
-            (i1, i2): client.submit(loader_future.generate_synthetic_correspondences_for_image_pair,
+            (i1, i2): client.submit(apply_synthetic_corr_generator,
+                loader_future,
                 loader.get_camera(index=i1),
                 loader.get_camera(index=i2),
                 open3d_mesh_path
