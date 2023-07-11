@@ -375,52 +375,6 @@ def visualize_ray_to_sampled_mesh_point(
     open3d.visualization.draw_geometries([mesh] + frustums + spheres + [line_set])
 
 
-
-# def compute_points_in_camera_fov(points: np.ndarray, camera: gtsfm_types.CAMERA_TYPE) -> Tuple[np.ndarray, np.ndarray]:
-#     """Project all 3d points to check if each lies within the camera field of view..
-
-#     Args:
-#         points: (N,3) array of 3d points.
-
-#     Returns:
-#         Keypoints array of shape (N,2) and boolean mask array of shape (N,).
-#     """
-#     N = points.shape[0]
-#     mask = np.zeros(N, dtype=bool)
-#     keypoints = np.zeros((N,2), dtype=np.float32)
-
-#     for k, point in enumerate(points):
-#         # Project to camera.
-#         uv_reprojected, success_flag = camera.projectSafe(point)
-#         # Check for projection error in camera.
-#         mask[k] = success_flag
-#         keypoints[k] = uv_reprojected
-
-#     return keypoints, mask
-
-
-# def calculate_point_occlusion_mask(points: np.ndarray, camera: gtsfm_types.CAMERA_TYPE, trimesh_mesh) -> np.ndarray:
-#     """ """
-#     N = points.shape[0]
-#     # Cast ray through keypoint back towards scene point.
-#     #cam_center = camera.pose().translation()
-#     cam_center = np.repeat(camera.pose().translation().reshape((-1, 3)), N, axis=0)
-#     ray_dirs = points - camera.pose().translation().reshape(1,3)
-
-#     # Returns the location of where a ray hits a surface mesh.
-#     # keypoint_ind: (M,) array of keypoint indices whose corresponding ray intersected the ground truth mesh.
-#     # intersections_locations: (M, 3), array of ray intersection locations.
-#     intersections, keypoint_ind, _ = trimesh_mesh.ray.intersects_location(
-#         ray_origins=cam_center,
-#         ray_directions=ray_dirs,
-#         multiple_hits=False
-#     )
-#     if intersections.shape[0] != N:
-#         raise ValueError(f"Invalid number of intersections {intersections.shape[0]} vs. {N}")
-#     unoccluded_mask = np.linalg.norm(intersections - points, axis=1) < 0.01
-#     return unoccluded_mask
-
-
 def verify_camera_fov_and_occlusion(
     camera: gtsfm_types.CAMERA_TYPE, point: np.ndarray, trimesh_mesh,
 ) -> Optional[np.ndarray]:
