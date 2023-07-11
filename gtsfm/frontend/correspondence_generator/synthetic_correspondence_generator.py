@@ -1,9 +1,9 @@
-"""Correspondence generator that utilizes direct matching of keypoints across an image pair, without descriptors.
+"""Correspondence generator that creates synthetic keypoint correspondences using a 3d mesh.
 
 Authors: John Lambert
 """
 import tempfile
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 from dask.distributed import Client, Future
 import numpy as np
@@ -11,7 +11,6 @@ import open3d
 
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.types import CALIBRATION_TYPE, CAMERA_TYPE
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
 from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_base import KeypointAggregatorBase
@@ -21,21 +20,19 @@ from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggreg
 from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_unique import (
     KeypointAggregatorUnique,
 )
-from gtsfm.frontend.matcher.image_matcher_base import ImageMatcherBase
-from gtsfm.two_view_estimator import TWO_VIEW_OUTPUT, TwoViewEstimator
-from gtsfm.loader.tanks_and_temples_loader import TanksAndTemplesLoader
 from gtsfm.loader.loader_base import LoaderBase
+from gtsfm.loader.tanks_and_temples_loader import TanksAndTemplesLoader
 
 
 class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
-    """Pair-wise direct matching of images (e.g. transformer-based)."""
+    """Pair-wise synthetic keypoint correspondence generator."""
 
     def __init__(self, dataset_root: str, scene_name: str, deduplicate: bool = True) -> None:
         """
         Args:
             dataset_root: str
-            scene_name
-            deduplicate: whether to de-duplicate with a single image the detections received from each image pair.
+            scene_name: Name of scene from Tanks & Temples dataset.
+            deduplicate: Whether to de-duplicate with a single image the detections received from each image pair.
         """
         self._dataset_root = dataset_root
         self._scene_name = scene_name
@@ -52,9 +49,9 @@ class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
         """Apply the correspondence generator to generate putative correspondences.
 
         Args:
-            client: dask client, used to execute the front-end as futures.
-            images: list of all images, as futures.
-            image_pairs: indices of the pairs of images to estimate two-view pose and correspondences.
+            client: Dask client, used to execute the front-end as futures.
+            images: List of all images, as futures.
+            image_pairs: Indices of the pairs of images to estimate two-view pose and correspondences.
 
         Returns:
             List of keypoints, one entry for each input images.
@@ -84,12 +81,6 @@ class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
         open3d_mesh_path = tempfile.NamedTemporaryFile(suffix='.obj').name
         open3d.io.write_triangle_mesh(filename=open3d_mesh_path, mesh=mesh)
 
-        # def apply_image_matcher(
-        #     image_matcher: ImageMatcherBase, image_i1: Image, image_i2: Image
-        # ) -> Tuple[Keypoints, Keypoints]:
-        #     return image_matcher.match(image_i1=image_i1, image_i2=image_i2)
-
-
         loader_future = client.scatter(loader, broadcast=False)
         def apply_synthetic_corr_generator(
             loader_: LoaderBase, camera_i1, camera_i2, open3d_mesh_fpath: str
@@ -111,5 +102,4 @@ class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
         )
 
         keypoints_list, putative_corr_idxs_dict = self._aggregator.aggregate(keypoints_dict=pairwise_correspondences)
-
         return keypoints_list, putative_corr_idxs_dict

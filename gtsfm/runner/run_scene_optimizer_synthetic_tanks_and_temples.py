@@ -19,7 +19,9 @@ class GtsfmRunnerSyntheticTanksAndTemplesLoader(GtsfmRunnerBase):
     def construct_argparser(self) -> argparse.ArgumentParser:
         parser = super().construct_argparser()
 
-        parser.add_argument("--dataset_root", type=str, required=True, help="Path to zip file containing packaged data.")
+        parser.add_argument(
+            "--dataset_root", type=str, required=True, help="Path to zip file containing packaged data."
+        )
         parser.add_argument("--scene_name", type=str, required=True, help="Name of dataset scene.")
 
         return parser
@@ -28,12 +30,12 @@ class GtsfmRunnerSyntheticTanksAndTemplesLoader(GtsfmRunnerBase):
         dataset_root = self.parsed_args.dataset_root
         scene_name = self.parsed_args.scene_name
 
-        img_dir = f'{dataset_root}/{scene_name}'
-        poses_fpath = f'{dataset_root}/{scene_name}_COLMAP_SfM.log'
-        lidar_ply_fpath = f'{dataset_root}/{scene_name}.ply'
-        colmap_ply_fpath = f'{dataset_root}/{scene_name}_COLMAP.ply'
-        ply_alignment_fpath = f'{dataset_root}/{scene_name}_trans.txt'
-        bounding_polyhedron_json_fpath = f'{dataset_root}/{scene_name}.json'
+        img_dir = f"{dataset_root}/{scene_name}"
+        poses_fpath = f"{dataset_root}/{scene_name}_COLMAP_SfM.log"
+        lidar_ply_fpath = f"{dataset_root}/{scene_name}.ply"
+        colmap_ply_fpath = f"{dataset_root}/{scene_name}_COLMAP.ply"
+        ply_alignment_fpath = f"{dataset_root}/{scene_name}_trans.txt"
+        bounding_polyhedron_json_fpath = f"{dataset_root}/{scene_name}.json"
         loader = TanksAndTemplesLoader(
             img_dir=img_dir,
             poses_fpath=poses_fpath,
