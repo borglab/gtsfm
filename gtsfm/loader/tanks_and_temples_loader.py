@@ -272,7 +272,7 @@ class TanksAndTemplesLoader(LoaderBase):
                 camera_dict[i1] = self.get_camera(index=i1)
             if i2 not in camera_dict:
                 camera_dict[i2] = self.get_camera(index=i2)
-            keypoints_i1, keypoints_i2, putative_corr_idxs = self.generate_synthetic_correspondences_for_image_pair(
+            keypoints_i1, keypoints_i2 = self.generate_synthetic_correspondences_for_image_pair(
                 camera_i1=camera_dict[i1],
                 camera_i2=camera_dict[i2],
                 open3d_mesh_fpath=open3d_mesh_path
@@ -290,24 +290,25 @@ class TanksAndTemplesLoader(LoaderBase):
         self,
         camera_i1: gtsfm_types.CAMERA_TYPE,
         camera_i2: gtsfm_types.CAMERA_TYPE,
-        open3d_mesh_fpath: str
+        open3d_mesh_fpath: str,
+        num_sampled_3d_points: int = 1000
     ) -> Tuple[Keypoints, Keypoints]:
         """Generates synthetic correspondences for image pair.
 
         Args:
-          camera_i1: First camera.
-          camera_i2: Second camera.
-          mesh:
+            camera_i1: First camera.
+            camera_i2: Second camera.
+            open3d_mesh_fpath
 
         Returns:
-          Tuple of keypoints.
+            Tuple of `Keypoints` objects, one for each image in the input image pair.
         """
         mesh = open3d.io.read_triangle_mesh(filename=open3d_mesh_fpath)
 
         trimesh_mesh = load_from_trimesh(open3d_mesh_fpath)
 
         # Sample random 3d points.
-        pcd = mesh.sample_points_uniformly(number_of_points=700)
+        pcd = mesh.sample_points_uniformly(number_of_points=num_sampled_3d_points)
         #pcd = mesh.sample_points_poisson_disk(number_of_points=500, pcl=pcd)
         points = np.asarray(pcd.points)
 
@@ -317,36 +318,121 @@ class TanksAndTemplesLoader(LoaderBase):
         keypoints_i1 = []
         keypoints_i2 = []
 
-        # TODO(johnwlambert): Vectorize this code.
+        # keypoints_i1, cam_i1_valid = compute_points_in_camera_fov(points, camera_i1)
+        # keypoints_i2, cam_i2_valid = compute_points_in_camera_fov(points, camera_i2)
+        # import pdb; pdb.set_trace()
+        # unoccluded_mask_i1 = calculate_point_occlusion_mask(points, camera_i1, trimesh_mesh)
+        # unoccluded_mask_i2 = calculate_point_occlusion_mask(points, camera_i2, trimesh_mesh)
+        # import pdb; pdb.set_trace()
+        # valid = cam_i1_valid & cam_i2_valid & unoccluded_mask_i1 & unoccluded_mask_i2
+        # keypoints_i1 = keypoints_i1[valid]
+        # keypoints_i2 = keypoints_i2[valid]
+
+        # TODO(johnwlambert): Vectorize this code. On CPU, rays cannot be simultaneously cast against mesh
+        # due to RAM limitations.
         for point in points:
 
             # Try projecting into each camera. If inside FOV of both and unoccluded by mesh, keep.
-            uv_i1 = verify_camera_fov_and_occlusion(camera_i1, point, trimesh_mesh, wTi_list, calibrations, mesh)
-            uv_i2 = verify_camera_fov_and_occlusion(camera_i2, point, trimesh_mesh, wTi_list, calibrations, mesh)
+            uv_i1 = verify_camera_fov_and_occlusion(camera_i1, point, trimesh_mesh)
+            uv_i2 = verify_camera_fov_and_occlusion(camera_i2, point, trimesh_mesh)
             if uv_i1 is not None and uv_i2 is not None:
                 keypoints_i1.append(uv_i1)
                 keypoints_i2.append(uv_i2)
+
+                visualize = True
+                if visualize:
+                    visualize_ray_to_sampled_mesh_point(camera_i1, point, wTi_list, calibrations, mesh)
                     
         keypoints_i1 = Keypoints(coordinates=np.array(keypoints_i1))
         keypoints_i2 = Keypoints(coordinates=np.array(keypoints_i2))
+        print(f"Generated {len(keypoints_i1)} keypoints from sampled {num_sampled_3d_points} 3d points.")
         return keypoints_i1, keypoints_i2
 
 
+def visualize_ray_to_sampled_mesh_point(
+    camera: gtsfm_types.CAMERA_TYPE, point: np.ndarray, wTi_list: List[Pose3], calibrations, mesh
+) -> None:
+    """
+    Args:
+        camera: Camera to use.
+        point: 3d point as (3,) array.
+        wTi_list:
+        calibrations
+        mesh:
+    """
+    cam_center = camera.pose().translation()
+    ray_dirs = point - camera.pose().translation()
+    line_set = _make_line_plot(cam_center, cam_center + ray_dirs)
+    # line_set = _make_line_plot(cam_center, camera.backproject(uv_reprojected, depth=1.0))
+    point_cloud = np.reshape(point, (1,3))
+    rgb = np.array([255,0,0]).reshape(1,3).astype(np.uint8)
+
+    # Visualize two frustums, point, and mesh
+    frustums = open3d_vis_utils.create_all_frustums_open3d(wTi_list, calibrations, frustum_ray_len=0.3)
+    spheres = open3d_vis_utils.create_colored_spheres_open3d(
+        point_cloud, rgb, sphere_radius=0.5
+    )
+    open3d.visualization.draw_geometries([mesh] + frustums + spheres + [line_set])
+
+
+
+# def compute_points_in_camera_fov(points: np.ndarray, camera: gtsfm_types.CAMERA_TYPE) -> Tuple[np.ndarray, np.ndarray]:
+#     """Project all 3d points to check if each lies within the camera field of view..
+
+#     Args:
+#         points: (N,3) array of 3d points.
+
+#     Returns:
+#         Keypoints array of shape (N,2) and boolean mask array of shape (N,).
+#     """
+#     N = points.shape[0]
+#     mask = np.zeros(N, dtype=bool)
+#     keypoints = np.zeros((N,2), dtype=np.float32)
+
+#     for k, point in enumerate(points):
+#         # Project to camera.
+#         uv_reprojected, success_flag = camera.projectSafe(point)
+#         # Check for projection error in camera.
+#         mask[k] = success_flag
+#         keypoints[k] = uv_reprojected
+
+#     return keypoints, mask
+
+
+# def calculate_point_occlusion_mask(points: np.ndarray, camera: gtsfm_types.CAMERA_TYPE, trimesh_mesh) -> np.ndarray:
+#     """ """
+#     N = points.shape[0]
+#     # Cast ray through keypoint back towards scene point.
+#     #cam_center = camera.pose().translation()
+#     cam_center = np.repeat(camera.pose().translation().reshape((-1, 3)), N, axis=0)
+#     ray_dirs = points - camera.pose().translation().reshape(1,3)
+
+#     # Returns the location of where a ray hits a surface mesh.
+#     # keypoint_ind: (M,) array of keypoint indices whose corresponding ray intersected the ground truth mesh.
+#     # intersections_locations: (M, 3), array of ray intersection locations.
+#     intersections, keypoint_ind, _ = trimesh_mesh.ray.intersects_location(
+#         ray_origins=cam_center,
+#         ray_directions=ray_dirs,
+#         multiple_hits=False
+#     )
+#     if intersections.shape[0] != N:
+#         raise ValueError(f"Invalid number of intersections {intersections.shape[0]} vs. {N}")
+#     unoccluded_mask = np.linalg.norm(intersections - points, axis=1) < 0.01
+#     return unoccluded_mask
+
+
 def verify_camera_fov_and_occlusion(
-    camera: gtsfm_types.CAMERA_TYPE, point: np.ndarray, trimesh_mesh, wTi_list, calibrations, mesh
+    camera: gtsfm_types.CAMERA_TYPE, point: np.ndarray, trimesh_mesh,
 ) -> Optional[np.ndarray]:
     """Verifies point lies within camera FOV and is unoccluded by mesh faces.
 
     Args:
-      camera: Camera to use.
-      point: 3d point as (3,) array.
-      trimesh_mesh: Trimesh mesh object to raycast against.
-      wTi_list:
-      calibrations
-      mesh:
+        camera: Camera to use.
+        point: 3d point as (3,) array.
+        trimesh_mesh: Trimesh mesh object to raycast against.
 
     Returns:
-      2d keypoint as (2,) array.
+        2d keypoint as (2,) array.
     """
     # Get the camera associated with the measurement.
     # Project to camera.
@@ -380,21 +466,6 @@ def verify_camera_fov_and_occlusion(
         # There was a closer intersection along the ray than `point`, meaning `point` is occluded by the mesh.
         return None
 
-    visualize = False
-    if visualize:
-        line_set = _make_line_plot(cam_center, cam_center + ray_dirs)
-        # line_set = _make_line_plot(cam_center, camera.backproject(uv_reprojected, depth=1.0))
-        point_cloud = np.reshape(point, (1,3))
-        rgb = np.array([255,0,0]).reshape(1,3).astype(np.uint8)
-
-        # Visualize two frustums, point, and mesh
-        frustums = open3d_vis_utils.create_all_frustums_open3d(wTi_list, calibrations, frustum_ray_len=0.3)
-        spheres = open3d_vis_utils.create_colored_spheres_open3d(
-            point_cloud, rgb, sphere_radius=0.5
-        )
-        open3d.visualization.draw_geometries([mesh] + frustums + spheres + [line_set])
-
-
     return uv_reprojected
 
 
@@ -420,10 +491,10 @@ def _parse_redwood_data_log_file(log_fpath: str) -> Dict[int, Pose3]:
     Trajectory File (.log) format reference: http://redwood-data.org/indoor/fileformat.html
 
     Args:
-    log_fpath: Path to .log file containing COLMAP-reconstructed camera poses.
+        log_fpath: Path to .log file containing COLMAP-reconstructed camera poses.
 
     Returns:
-    Mapping from camera index to camera pose.
+        Mapping from camera index to camera pose.
     """
     wTi_gt_dict = {}
     with open(log_fpath, "r") as f:
