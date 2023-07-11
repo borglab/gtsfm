@@ -5,18 +5,16 @@ See https://www.tanksandtemples.org/download/ for more information.
 Author: John Lambert
 """
 
-import os
 import tempfile
 from enum import auto, Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import open3d
 import trimesh
 from gtsam import Cal3Bundler, Rot3, Pose3
 from dask.distributed import Client, Future
-from trimesh import Trimesh
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.io as io_utils
@@ -223,14 +221,14 @@ class TanksAndTemplesLoader(LoaderBase):
         pcd.estimate_normals()
 
         if reconstruction_algorithm == MeshReconstructionType.ALPHA_SHAPE:
-            alpha = 0.5 # 0.1  # 0.03
+            alpha = 0.5  # 0.1  # 0.03
             print(f"alpha={alpha:.3f}")
             mesh = open3d.geometry.TriangleMesh.create_from_point_cloud_alpha_shape(pcd, alpha)
             mesh.compute_vertex_normals()
 
         elif reconstruction_algorithm == MeshReconstructionType.BALL_PIVOTING:
             radii = [0.005, 0.01, 0.02, 0.04]
-            rec_mesh = open3d.geometry.TriangleMesh.create_from_point_cloud_ball_pivoting(
+            mesh = open3d.geometry.TriangleMesh.create_from_point_cloud_ball_pivoting(
                 pcd, open3d.utility.DoubleVector(radii)
             )
 
@@ -247,7 +245,9 @@ class TanksAndTemplesLoader(LoaderBase):
         """Generates synthetic correspondences from virtual cameras and a ground-truth mesh.
 
         Args:
-            deduplicate: whether to de-duplicate with a single image the detections received from each image pair.
+            images:
+            image_pairs: Tuples (i1,i2) indicating image indices to use as image pairs.
+            deduplicate: Whether to de-duplicate with a single image the detections received from each image pair.
 
         Returns:
             List of keypoints, one entry for each input image.
@@ -281,7 +281,7 @@ class TanksAndTemplesLoader(LoaderBase):
             putative_corr_idxs = np.stack([np.arange(num_kpts), np.arange(num_kpts)], axis=-1)
             keypoints_dict[(i1,i2)] = (keypoints_i1, keypoints_i2)
             putative_corr_idxs_dict[(i1,i2)] = putative_corr_idxs
-            print(f"Number of keypoints in {i1}: ", len(keypoints_i1))
+            print(f"Number of keypoints in image {i1}: ", len(keypoints_i1))
 
         keypoints_list, putative_corr_idxs_dict = aggregator.aggregate(keypoints_dict=keypoints_dict)
         return keypoints_list, putative_corr_idxs_dict
@@ -291,7 +291,7 @@ class TanksAndTemplesLoader(LoaderBase):
         camera_i1: gtsfm_types.CAMERA_TYPE,
         camera_i2: gtsfm_types.CAMERA_TYPE,
         open3d_mesh_fpath: str,
-        num_sampled_3d_points: int = 1000
+        num_sampled_3d_points: int = 700
     ) -> Tuple[Keypoints, Keypoints]:
         """Generates synthetic correspondences for image pair.
 
@@ -299,6 +299,7 @@ class TanksAndTemplesLoader(LoaderBase):
             camera_i1: First camera.
             camera_i2: Second camera.
             open3d_mesh_fpath
+            num_sampled_3d_points: Number of 3d points to sample from the mesh surface and to project.
 
         Returns:
             Tuple of `Keypoints` objects, one for each image in the input image pair.
@@ -318,31 +319,20 @@ class TanksAndTemplesLoader(LoaderBase):
         keypoints_i1 = []
         keypoints_i2 = []
 
-        # keypoints_i1, cam_i1_valid = compute_points_in_camera_fov(points, camera_i1)
-        # keypoints_i2, cam_i2_valid = compute_points_in_camera_fov(points, camera_i2)
-        # import pdb; pdb.set_trace()
-        # unoccluded_mask_i1 = calculate_point_occlusion_mask(points, camera_i1, trimesh_mesh)
-        # unoccluded_mask_i2 = calculate_point_occlusion_mask(points, camera_i2, trimesh_mesh)
-        # import pdb; pdb.set_trace()
-        # valid = cam_i1_valid & cam_i2_valid & unoccluded_mask_i1 & unoccluded_mask_i2
-        # keypoints_i1 = keypoints_i1[valid]
-        # keypoints_i2 = keypoints_i2[valid]
-
         # TODO(johnwlambert): Vectorize this code. On CPU, rays cannot be simultaneously cast against mesh
         # due to RAM limitations.
         for point in points:
-
-            # Try projecting into each camera. If inside FOV of both and unoccluded by mesh, keep.
+            # Try projecting point into each camera. If inside FOV of both and unoccluded by mesh, keep.
             uv_i1 = verify_camera_fov_and_occlusion(camera_i1, point, trimesh_mesh)
             uv_i2 = verify_camera_fov_and_occlusion(camera_i2, point, trimesh_mesh)
             if uv_i1 is not None and uv_i2 is not None:
                 keypoints_i1.append(uv_i1)
                 keypoints_i2.append(uv_i2)
 
-                visualize = True
-                if visualize:
-                    visualize_ray_to_sampled_mesh_point(camera_i1, point, wTi_list, calibrations, mesh)
-                    
+            visualize = False
+            if visualize:
+                visualize_ray_to_sampled_mesh_point(camera_i1, point, wTi_list, calibrations, mesh)
+                
         keypoints_i1 = Keypoints(coordinates=np.array(keypoints_i1))
         keypoints_i2 = Keypoints(coordinates=np.array(keypoints_i2))
         print(f"Generated {len(keypoints_i1)} keypoints from sampled {num_sampled_3d_points} 3d points.")
@@ -350,13 +340,17 @@ class TanksAndTemplesLoader(LoaderBase):
 
 
 def visualize_ray_to_sampled_mesh_point(
-    camera: gtsfm_types.CAMERA_TYPE, point: np.ndarray, wTi_list: List[Pose3], calibrations, mesh
+    camera: gtsfm_types.CAMERA_TYPE,
+    point: np.ndarray,
+    wTi_list: List[Pose3],
+    calibrations,
+    mesh: open3d.geometry.TriangleMesh,
 ) -> None:
     """
     Args:
         camera: Camera to use.
         point: 3d point as (3,) array.
-        wTi_list:
+        wTi_list: All camera poses.
         calibrations
         mesh:
     """
@@ -376,7 +370,7 @@ def visualize_ray_to_sampled_mesh_point(
 
 
 def verify_camera_fov_and_occlusion(
-    camera: gtsfm_types.CAMERA_TYPE, point: np.ndarray, trimesh_mesh,
+    camera: gtsfm_types.CAMERA_TYPE, point: np.ndarray, trimesh_mesh: trimesh.Trimesh,
 ) -> Optional[np.ndarray]:
     """Verifies point lies within camera FOV and is unoccluded by mesh faces.
 
@@ -413,10 +407,13 @@ def verify_camera_fov_and_occlusion(
     )
     
     if intersections.shape[0] > 1 or intersections.shape[0] == 0:
-        import pdb; pdb.set_trace()
+        print(f"Unknown failure: intersections= {intersections} with shape {intersections.shape}")
+        return None
 
     # TODO(johnwlambert): Tune this tolerance threshold to allow looser matches.
-    if not np.allclose(intersections[0], point):
+    eps = 0.1
+    if not np.linalg.norm(intersections[0] - point) < eps:
+        # print("Skip occluded: ", intersections[0], ", vs. : ", point)
         # There was a closer intersection along the ray than `point`, meaning `point` is occluded by the mesh.
         return None
 
@@ -493,13 +490,13 @@ def _make_line_plot(point1: np.ndarray, point2: np.ndarray) -> open3d.geometry.L
     return line_set
 
 
-def load_from_trimesh(mesh_path: str):
-    # Read in scene mesh as Trimesh object
+def load_from_trimesh(mesh_path: str) -> trimesh.Trimesh:
+    """Read in scene mesh as Trimesh object."""
     if not Path(mesh_path).exists():
         raise FileNotFoundError(f"No mesh found at {mesh_path}")
     mesh = trimesh.load(mesh_path, process=False, maintain_order=True)
     logger.info(
-        "AstroVision loader read in mesh with %d vertices and %d faces.",
+        "Tanks & Temples loader read in mesh with %d vertices and %d faces.",
         mesh.vertices.shape[0],
         mesh.faces.shape[0],
     )
