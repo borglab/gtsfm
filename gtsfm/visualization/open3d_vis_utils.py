@@ -43,8 +43,8 @@ def convert_colored_open3d_point_cloud_to_numpy(
         pointcloud
 
     Returns:
-        points
-        rgb
+        points: (N,3) float array representing 3d points.
+        rgb: (N,3) uint8 array representing per-point RGB colors.
     """
     points = np.asarray(pointcloud.points)
     rgb = np.asarray(pointcloud.colors)
@@ -61,12 +61,12 @@ def create_colored_spheres_open3d(
     Note: this is quite computationally expensive.
 
     Args:
-        point_cloud: array of shape (N,3) representing 3d points.
+        point_cloud: Array of shape (N,3) representing 3d points.
         rgb: uint8 array of shape (N,3) representing colors in RGB order, in the range [0,255].
-        sphere_radius: radius of each rendered sphere.
+        sphere_radius: Radius of each rendered sphere.
 
     Returns:
-        spheres: list of Open3d geometry objects, where each element (a sphere) represents a 3d point.
+        spheres: List of Open3d geometry objects, where each element (a sphere) represents a 3d point.
     """
     colors = rgb.astype(np.float64) / 255
 
@@ -154,7 +154,7 @@ def draw_coordinate_frame(wTc: Pose3, axis_length: float = 1.0) -> List[open3d.g
     BLUE = np.array([0, 0, 1])  # z-axis
     colors = (RED, GREEN, BLUE)
 
-    # line segment on each axis will connect just 2 vertices.
+    # Line segment on each axis will connect just 2 vertices.
     lines = [[0, 1]]
 
     line_sets = []
