@@ -87,7 +87,7 @@ class TanksAndTemplesLoader(LoaderBase):
         super().__init__(max_resolution)
         self.ply_fpath = lidar_ply_fpath
         self.bounding_polyhedron_json_fpath = bounding_polyhedron_json_fpath
-        self._image_paths = list(Path(img_dir).glob("*.jpg"))
+        self._image_paths = sorted(list(Path(img_dir).glob("*.jpg")))
 
         # Load the transform between LiDAR global coordinate frame and COLMAP global coordinate frame.
         T = np.loadtxt(fname=ply_alignment_fpath)
@@ -109,6 +109,10 @@ class TanksAndTemplesLoader(LoaderBase):
         """
         return self._num_imgs
 
+    def get_image_fpath(self, index: int = 0) -> Path:
+        """ """
+        return self._image_paths[index]
+
     def get_image_full_res(self, index: int) -> Image:
         """Gets the image at the given index, at full resolution.
 
@@ -124,14 +128,17 @@ class TanksAndTemplesLoader(LoaderBase):
         if index < 0 or index >= len(self):
             raise IndexError(f"Image index {index} is invalid")
 
-        # All should have shape (1080, 1920, 3)
-
         img = io_utils.load_image(self._image_paths[index])
 
+        # All should have shape (1080, 1920, 3)
         if img.height != _DEFAULT_IMAGE_HEIGHT_PX:
-            raise ValueError('')
+            raise ValueError(
+                f'Images from the Tanks&Temples dataset should have height {_DEFAULT_IMAGE_HEIGHT_PX} px.'
+            )
         if img.width != _DEFAULT_IMAGE_WIDTH_PX:
-            raise ValueError('')
+            raise ValueError(
+                f'Images from the Tanks&Temples dataset should have width {_DEFAULT_IMAGE_WIDTH_PX} px.'
+            )
         return img
 
     def get_camera_intrinsics_full_res(self, index: int) -> Optional[Cal3Bundler]:
@@ -282,6 +289,11 @@ class TanksAndTemplesLoader(LoaderBase):
             keypoints_dict[(i1,i2)] = (keypoints_i1, keypoints_i2)
             putative_corr_idxs_dict[(i1,i2)] = putative_corr_idxs
             print(f"Number of keypoints in image {i1}: ", len(keypoints_i1))
+            # import matplotlib.pyplot as plt
+            # img = self.get_image_full_res(index=0)
+            # plt.imshow(img.value_array.astype(np.uint8))
+            # plt.scatter(keypoints_i1.coordinates[:,0], keypoints_i1.coordinates[:,1], 10, color='r', marker='.')
+            # plt.show()
 
         keypoints_list, putative_corr_idxs_dict = aggregator.aggregate(keypoints_dict=keypoints_dict)
         return keypoints_list, putative_corr_idxs_dict
@@ -305,7 +317,6 @@ class TanksAndTemplesLoader(LoaderBase):
             Tuple of `Keypoints` objects, one for each image in the input image pair.
         """
         mesh = open3d.io.read_triangle_mesh(filename=open3d_mesh_fpath)
-
         trimesh_mesh = load_from_trimesh(open3d_mesh_fpath)
 
         # Sample random 3d points.
@@ -346,7 +357,8 @@ def visualize_ray_to_sampled_mesh_point(
     calibrations,
     mesh: open3d.geometry.TriangleMesh,
 ) -> None:
-    """
+    """Visualizes ray from camera center to 3d point, along with camera frustum, mesh, and 3d point as ball.
+
     Args:
         camera: Camera to use.
         point: 3d point as (3,) array.
@@ -354,18 +366,22 @@ def visualize_ray_to_sampled_mesh_point(
         calibrations
         mesh:
     """
+    frustums = open3d_vis_utils.create_all_frustums_open3d(wTi_list, calibrations, frustum_ray_len=0.3)
+
+    # Create line segment to represent ray.
     cam_center = camera.pose().translation()
     ray_dirs = point - camera.pose().translation()
     line_set = _make_line_plot(cam_center, cam_center + ray_dirs)
     # line_set = _make_line_plot(cam_center, camera.backproject(uv_reprojected, depth=1.0))
+
+    # Plot 3d point as red sphere.
     point_cloud = np.reshape(point, (1,3))
     rgb = np.array([255,0,0]).reshape(1,3).astype(np.uint8)
-
-    # Visualize two frustums, point, and mesh
-    frustums = open3d_vis_utils.create_all_frustums_open3d(wTi_list, calibrations, frustum_ray_len=0.3)
     spheres = open3d_vis_utils.create_colored_spheres_open3d(
         point_cloud, rgb, sphere_radius=0.5
     )
+
+    # Plot all camera frustums and mesh, with sphere and ray line segment.
     open3d.visualization.draw_geometries([mesh] + frustums + spheres + [line_set])
 
 
@@ -389,6 +405,14 @@ def verify_camera_fov_and_occlusion(
     if not success_flag:
         print("Skip failed: ", uv_reprojected, ", success: ", success_flag)
         return None
+
+    if (uv_reprojected[0] < 0) or \
+        (uv_reprojected[0] > _DEFAULT_IMAGE_WIDTH_PX) or \
+        (uv_reprojected[1] < 0) or \
+        (uv_reprojected[1] > _DEFAULT_IMAGE_HEIGHT_PX):
+        # Outside of synthetic camera's FOV.
+        return None
+    #     import pdb; pdb.set_trace()
 
     # Cast ray through keypoint back towards scene.
     # cam_center = np.repeat(camera.pose().translation().reshape((-1, 3)), num_kpts, axis=0)
