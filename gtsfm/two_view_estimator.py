@@ -228,6 +228,7 @@ class TwoViewEstimator:
             R_error_deg, U_error_deg = compute_relative_pose_metrics(
                 i2Ri1_computed, i2Ui1_computed, gt_camera_i1.pose(), gt_camera_i2.pose()
             )
+            print(f"Two view estimator: [R error deg] {R_error_deg}, [U error deg] {U_error_deg}")
             # TODO: add support for other camera models
             if isinstance(gt_camera_i1, PinholeCameraCal3Bundler) and isinstance(
                 gt_camera_i2, PinholeCameraCal3Bundler
