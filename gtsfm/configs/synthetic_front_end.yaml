@@ -1,4 +1,4 @@
-# Default deep front-end configuration.
+# Synthetic front-end configuration specifically for the Tanks & Temples dataset.
 
 SceneOptimizer:
   _target_: gtsfm.scene_optimizer.SceneOptimizer
