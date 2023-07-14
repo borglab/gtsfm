@@ -112,11 +112,10 @@ class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
                 camera_intrinsics_i1,
                 camera_intrinsics_i2,
             )
-
-            rot_angular_err = geom_comp_utils.compute_relative_rotation_angle(i2Ri1_expected, i2Ri1_computed)
-            direction_angular_err = geom_comp_utils.compute_relative_unit_translation_angle(i2Ui1_expected, i2Ui1_computed)
-
-            print(f"Errors ({i1},{i2}): rotation {rot_angular_err:.4f}, direction {direction_angular_err:.4f}")
+            if i2Ri1_computed is not None and i2Ui1_computed is not None:
+                rot_angular_err = geom_comp_utils.compute_relative_rotation_angle(i2Ri1_expected, i2Ri1_computed)
+                direction_angular_err = geom_comp_utils.compute_relative_unit_translation_angle(i2Ui1_expected, i2Ui1_computed)
+                print(f"Errors ({i1},{i2}): rotation {rot_angular_err:.4f}, direction {direction_angular_err:.4f}")
             ################
             return keypoints_i1, keypoints_i2
 
