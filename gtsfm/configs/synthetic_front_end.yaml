@@ -19,15 +19,15 @@ SceneOptimizer:
 
   two_view_estimator:
     _target_: gtsfm.two_view_estimator.TwoViewEstimator
-    bundle_adjust_2view: True
+    bundle_adjust_2view: False
     eval_threshold_px: 4 # in px
     ba_reproj_error_thresholds: [0.5]
     bundle_adjust_2view_maxiters: 100
 
     verifier:
-      _target_: gtsfm.frontend.verifier.ransac.Ransac
+      _target_: gtsfm.frontend.verifier.loransac.LoRansac
       use_intrinsics_in_verification: True
-      estimation_threshold_px: 4 # for H/E/F estimators
+      estimation_threshold_px: 0.5 # for H/E/F estimators
 
     triangulation_options:
       _target_: gtsfm.data_association.point3d_initializer.TriangulationOptions
