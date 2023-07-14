@@ -3,9 +3,11 @@
 Author: John Lambert
 """
 
+import open3d
 import unittest
 from pathlib import Path
 
+import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
 from gtsfm.loader.tanks_and_temples_loader import TanksAndTemplesLoader
 
 _TEST_DATA_ROOT = Path(__file__).resolve().parent.parent / "data" / "tanks_and_temples_barn"
@@ -47,6 +49,12 @@ class TanksAndTemplesLoaderTest(unittest.TestCase):
         [ 0.        ,  0.        ,  0.        ,  1.        ]])
         """
 
+    def test_get_image_fpath(self) -> None:
+        """ """
+        fpath = self.loader.get_image_fpath(index = 0)
+        expected_fpath = '/Users/johnlambert/Downloads/Tanks_and_Temples_Barn_410/Barn/000001.jpg'
+        assert fpath == expected_fpath
+
 
 
 dataset_root = '/Users/johnlambert/Downloads/Tanks_and_Temples_Barn_410'
@@ -76,22 +84,45 @@ import gtsfm.utils.io as io_utils
 
 # Could enforce that they are roughly on the same side of an object.
 
+# import numpy as np
+# # Project LiDAR point cloud into image 1.
+# pcd = loader.get_lidar_point_cloud()
+# points = np.asarray(pcd.points)
+
+# # Project mesh vertices into image 1.
+# mesh = loader.reconstruct_mesh()
+# points = np.asarray(mesh.vertices)
+
+# camera_i1 = loader.get_camera(index=0)
+
+# keypoints_i1 = []
+# for point in points:
+#     keypoints_i1.append(camera_i1.projectSafe(point)[0])
+
+# keypoints_i1 = np.array(keypoints_i1)
+
+# import matplotlib.pyplot as plt
+# img = loader.get_image_full_res(index=0)
+# plt.imshow(img.value_array.astype(np.uint8))
+# plt.scatter(keypoints_i1[:,0], keypoints_i1[:,1], 10, color='r', marker='.', alpha=0.007)
+# plt.show()
+
 result = loader.generate_synthetic_correspondences(
     images = [],
     image_pairs = [(0,1)]
 ) 
 exit()
 
-
+exit()
 # pcd = io_utils.read_point_cloud_from_ply(ply_fpath)
 
-pcd = loader.get_lidar_point_cloud()
+
 #open3d.visualization.draw_geometries([pcd])
 
-# mesh = loader.reconstruct_mesh()
+# 
 #open3d.visualization.draw_geometries([mesh], mesh_show_back_face=True)
 
-
+loader.get_image_full_res(index=0)
 
 
 geometries = [pcd] # [mesh]
@@ -100,6 +131,9 @@ for index in loader.wTi_gt_dict.keys():
     #import pdb; pdb.set_trace()
     line_sets = open3d_vis_utils.draw_coordinate_frame(wTc=wTc, axis_length=1.0)
     geometries.extend(line_sets)
+
+    if index == 0:
+        break
 
     # if index % 10 == 0:
 open3d.visualization.draw_geometries(geometries)
