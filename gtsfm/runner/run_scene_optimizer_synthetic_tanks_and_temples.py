@@ -13,6 +13,9 @@ from gtsfm.runner.gtsfm_runner_base import GtsfmRunnerBase
 logger = logger_utils.get_logger()
 
 
+_TANKS_AND_TEMPLES_RESOLUTION_PX = 1080
+
+
 class GtsfmRunnerSyntheticTanksAndTemplesLoader(GtsfmRunnerBase):
     tag = "GTSFM with LiDAR scans, COLMAP camera poses, and image names stored in Tanks and Temples format"
 
@@ -43,7 +46,7 @@ class GtsfmRunnerSyntheticTanksAndTemplesLoader(GtsfmRunnerBase):
             ply_alignment_fpath=ply_alignment_fpath,
             bounding_polyhedron_json_fpath=bounding_polyhedron_json_fpath,
             colmap_ply_fpath=colmap_ply_fpath,
-            max_resolution=self.parsed_args.max_resolution,
+            max_resolution=_TANKS_AND_TEMPLES_RESOLUTION_PX,
         )
         return loader
 
