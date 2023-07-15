@@ -274,11 +274,6 @@ class TwoViewEstimator:
     ) -> TWO_VIEW_OUTPUT:
         """Estimate relative pose between two views, using verification."""
         # verification on putative correspondences to obtain relative pose and verified correspondences
-        print("Keypoints i1", keypoints_i1)
-        print("Keypoints i2", keypoints_i2)
-        print("putative corr idxs: ", putative_corr_idxs)
-        print("camera intrinsics i1: ", camera_intrinsics_i1)
-        print("camera intrinsics i2: ", camera_intrinsics_i2)
         (pre_ba_i2Ri1, pre_ba_i2Ui1, pre_ba_v_corr_idxs, pre_ba_inlier_ratio_wrt_estimate) = self._verifier.verify(
             keypoints_i1,
             keypoints_i2,
@@ -286,7 +281,6 @@ class TwoViewEstimator:
             camera_intrinsics_i1,
             camera_intrinsics_i2,
         )
-        print("pre_ba_i2Ri1, pre_ba_i2Ui1, pre_ba_v_corr_idxs: ", pre_ba_i2Ri1, pre_ba_i2Ui1, pre_ba_v_corr_idxs)
 
         pre_ba_report = self.__get_2view_report_from_results(
             i2Ri1_computed=pre_ba_i2Ri1,
