@@ -101,7 +101,6 @@ class KeypointAggregatorDedup(KeypointAggregatorBase):
             )
             putative_corr_idxs = np.stack([i1_indices, i2_indices], axis=-1).astype(np.uint16)
             putative_corr_idxs_dict[(i1, i2)] = putative_corr_idxs
-            print(f"putative_corr_idxs_dict: {i1} {i2}", putative_corr_idxs_dict)
 
         logger.info(f"Merged {self.duplicates_found} duplicates during de-duplication.")
         # Reset global state.
@@ -110,5 +109,4 @@ class KeypointAggregatorDedup(KeypointAggregatorBase):
         keypoints_list: List[Keypoints] = [Keypoints(coordinates=np.array([]))] * (max_img_idx + 1)
         for i in per_image_kpt_coordinates.keys():
             keypoints_list[i] = Keypoints(coordinates=per_image_kpt_coordinates[i])
-            print(f"keypoint agg {i}: ", keypoints_list[i].coordinates)
         return keypoints_list, putative_corr_idxs_dict
