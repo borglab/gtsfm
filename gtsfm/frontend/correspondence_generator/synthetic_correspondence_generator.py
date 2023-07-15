@@ -103,11 +103,6 @@ class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
 
             camera_intrinsics_i1 = loader_.get_camera_intrinsics_full_res(index=i1)
             camera_intrinsics_i2 = loader_.get_camera_intrinsics_full_res(index=i2)
-            print("camera_intrinsics_i1: ", camera_intrinsics_i1)
-            print("camera_intrinsics_i2: ", camera_intrinsics_i2)
-            print(f"{i1} keypoints", keypoints_i1.coordinates)
-            print(f"{i2} keypoints", keypoints_i2.coordinates)
-            print(f"{i1} {i2}, match indices: ", match_indices)
             verifier = LoRansac(use_intrinsics_in_verification=True, estimation_threshold_px=0.5)
             i2Ri1_computed, i2Ui1_computed, verified_indices_computed, _ = verifier.verify(
                 keypoints_i1,
@@ -116,7 +111,6 @@ class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
                 camera_intrinsics_i1,
                 camera_intrinsics_i2,
             )
-            print(f"{i1} {i2}, Verified indices: ", verified_indices_computed)
             if i2Ri1_computed is not None and i2Ui1_computed is not None:
                 rot_angular_err = geom_comp_utils.compute_relative_rotation_angle(i2Ri1_expected, i2Ri1_computed)
                 direction_angular_err = geom_comp_utils.compute_relative_unit_translation_angle(i2Ui1_expected, i2Ui1_computed)
