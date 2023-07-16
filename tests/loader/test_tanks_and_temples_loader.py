@@ -9,7 +9,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import open3d
-from gtsam import Cal3Bundler, Rot3, Unit3
+from gtsam import Cal3Bundler, Unit3
 
 import gtsfm.utils.geometry_comparisons as geom_comp_utils
 import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
@@ -18,18 +18,22 @@ from gtsfm.loader.tanks_and_temples_loader import TanksAndTemplesLoader
 from gtsfm.frontend.verifier.loransac import LoRansac
 
 
-
 _TEST_DATA_ROOT = Path(__file__).resolve().parent.parent / "data" / "tanks_and_temples_barn"
 
 
 class TanksAndTemplesLoaderTest(unittest.TestCase):
-
     def setUp(self) -> None:
 
-        img_dir = _TEST_DATA_ROOT / 'Barn'
-        poses_fpath = _TEST_DATA_ROOT / 'Barn_COLMAP_SfM.log'
-        ply_alignment_fpath = _TEST_DATA_ROOT / 'Barn_trans.txt'
-        bounding_polyhedron_json_fpath = _TEST_DATA_ROOT / 'Barn.json'
+        # _TEST_DATA_ROOT = Path('/Users/johnlambert/Downloads/Tanks_and_Temples_Barn_410')
+        scene_name = "Barn"  # 'Truck'
+
+        # lidar_ply_fpath = f'{dataset_root}/{scene_name}.ply'
+        # colmap_ply_fpath = f'{dataset_root}/{scene_name}_COLMAP.ply'
+
+        img_dir = _TEST_DATA_ROOT / scene_name
+        poses_fpath = _TEST_DATA_ROOT / f"{scene_name}_COLMAP_SfM.log"
+        ply_alignment_fpath = _TEST_DATA_ROOT / f"{scene_name}_trans.txt"
+        bounding_polyhedron_json_fpath = _TEST_DATA_ROOT / f"{scene_name}.json"
 
         # Note: PLY files are not provided here, as they are too large to include as test data (300 MB each).
         self.loader = TanksAndTemplesLoader(
@@ -62,21 +66,19 @@ class TanksAndTemplesLoaderTest(unittest.TestCase):
         wRi = wTi.rotation().matrix()
         assert np.allclose(wRi @ wRi.T, np.eye(3))
 
-        expected_wRi = np.array([
-            [-0.43322, -0.0555537, -0.899574],
-            [0.0567814, 0.994434, -0.0887567],
-            [0.899498, -0.0895302, -0.427654]
-        ])
+        expected_wRi = np.array(
+            [[-0.43322, -0.0555537, -0.899574], [0.0567814, 0.994434, -0.0887567], [0.899498, -0.0895302, -0.427654]]
+        )
         assert np.allclose(wTi.rotation().matrix(), expected_wRi)
 
-        expected_wti = np.array([ 3.24711, 0.140327, 0.557239 ])
+        expected_wti = np.array([3.24711, 0.140327, 0.557239])
         assert np.allclose(wTi.translation(), expected_wti)
 
     def test_get_image_fpath(self) -> None:
         """Tests that index 0 maps to image '0000001.jpg', which is the zero'th image in the Barn dataset."""
-        fpath = self.loader.get_image_fpath(index = 0)
+        fpath = self.loader.get_image_fpath(index=0)
         assert isinstance(fpath, Path)
-        assert fpath.parts[-4:] == ('data', 'tanks_and_temples_barn', 'Barn', '000001.jpg')
+        assert fpath.parts[-4:] == ("data", "tanks_and_temples_barn", "Barn", "000001.jpg")
 
     def test_get_image_full_res(self) -> None:
         """Verifies that the zero'th image has expected image dimensions."""
@@ -95,9 +97,8 @@ class TanksAndTemplesLoaderTest(unittest.TestCase):
         i1 = 0
         i2 = 1
 
-        keypoints_list, match_indices_dict = loader.generate_synthetic_correspondences(
-            images = [],
-            image_pairs = [(i1,i2)]
+        keypoints_list, match_indices_dict = self.loader.generate_synthetic_correspondences(
+            images=[], image_pairs=[(i1, i2)]
         )
         keypoints_i1, keypoints_i2 = keypoints_list
 
@@ -114,7 +115,7 @@ class TanksAndTemplesLoaderTest(unittest.TestCase):
         i2Ri1_computed, i2Ui1_computed, verified_indices_computed, _ = verifier.verify(
             keypoints_i1,
             keypoints_i2,
-            match_indices_dict[(i1,i2)],
+            match_indices_dict[(i1, i2)],
             camera_intrinsics_i1,
             camera_intrinsics_i2,
         )
@@ -148,10 +149,10 @@ class TanksAndTemplesLoaderTest(unittest.TestCase):
         points = np.asarray(pcd.points)
 
         # Project mesh vertices into image 1.
-        mesh = loader.reconstruct_mesh()
+        mesh = self.loader.reconstruct_mesh()
         points = np.asarray(mesh.vertices)
 
-        camera_i1 = loader.get_camera(index=0)
+        camera_i1 = self.loader.get_camera(index=0)
 
         keypoints_i1 = []
         for point in points:
@@ -161,7 +162,7 @@ class TanksAndTemplesLoaderTest(unittest.TestCase):
 
         img = self.loader.get_image_full_res(index=0)
         plt.imshow(img.value_array.astype(np.uint8))
-        plt.scatter(keypoints_i1[:,0], keypoints_i1[:,1], 10, color='r', marker='.', alpha=0.007)
+        plt.scatter(keypoints_i1[:, 0], keypoints_i1[:, 1], 10, color="r", marker=".", alpha=0.007)
         plt.show()
         open3d.visualization.draw_geometries([mesh], mesh_show_back_face=True)
 
@@ -171,50 +172,10 @@ class TanksAndTemplesLoaderTest(unittest.TestCase):
         calibrations = [self.loader.get_camera_intrinsics_full_res(index) for index in range(len(self.loader))]
 
         frustums = open3d_vis_utils.create_all_frustums_open3d(
-            wTi_list=wTi_list, calibrations=calibrations, frustum_ray_len= 0.3
+            wTi_list=wTi_list, calibrations=calibrations, frustum_ray_len=0.3
         )
         geometries = frustums
         lidar_pcd = self.loader.get_lidar_point_cloud()
         colmap_pcd = self.loader.get_colmap_point_cloud()
 
         open3d.visualization.draw_geometries(geometries + [lidar_pcd] + [colmap_pcd])
-
-
-
-dataset_root = '/Users/johnlambert/Downloads/Tanks_and_Temples_Barn_410'
-scene_name = 'Barn' # 'Truck'
-
-img_dir = f'{dataset_root}/{scene_name}'
-poses_fpath = f'{dataset_root}/{scene_name}_COLMAP_SfM.log'
-lidar_ply_fpath = f'{dataset_root}/{scene_name}.ply'
-colmap_ply_fpath = f'{dataset_root}/{scene_name}_COLMAP.ply'
-ply_alignment_fpath = f'{dataset_root}/{scene_name}_trans.txt'
-bounding_polyhedron_json_fpath = f'{dataset_root}/{scene_name}.json'
-loader = TanksAndTemplesLoader(
-    img_dir=img_dir,
-    poses_fpath=poses_fpath,
-    lidar_ply_fpath=lidar_ply_fpath,
-    ply_alignment_fpath=ply_alignment_fpath,
-    bounding_polyhedron_json_fpath=bounding_polyhedron_json_fpath,
-    colmap_ply_fpath=colmap_ply_fpath,
-)
-
-
-
-"""
-conda install -c conda-forge embree=2.17.7
-
-pip install pyembree
-print(trimesh.ray.ray_pyembree.error)
-
-In [1]: import pyembree
-
-In [2]: import trimesh
-
-In [3]: m = trimesh.creation.icosphere
-
-In [5]: m = trimesh.creation.icosphere()
-
-# check for `ray_pyembree` instead of `ray_triangle`
-In [6]: m.ray
-"""
