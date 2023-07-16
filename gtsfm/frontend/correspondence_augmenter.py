@@ -83,6 +83,9 @@ class CorrespondenceAugmenter:
             triangulation_options: TriangulationOptions,
             ba_optimizer: BundleAdjustmentOptimizer,
         ) -> np.ndarray:
+            if i2Ri1 is None or i2Ui1 is None:
+                return np.array([], dtype=np.uint64)
+
             i2Ti1_prior = PosePrior(
                 value=Pose3(i2Ri1, i2Ui1.point3()),
                 covariance=RELATIVE_POSE_PRIOR_SIGMA,
