@@ -13,6 +13,8 @@ from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggreg
 
 logger = logger_utils.get_logger()
 
+KEYPOINT_DEDUP_THRESHOLD_PX = 0.5
+
 
 class KeypointAggregatorDedup(KeypointAggregatorBase):
     """Keypoint aggregator with de-duplication."""
@@ -46,7 +48,7 @@ class KeypointAggregatorDedup(KeypointAggregatorBase):
         for k, uv in enumerate(keypoints.coordinates):
             diff_norms = np.linalg.norm(per_image_kpt_coordinates[i] - uv, axis=1)
             # TODO(johnwlambert,ayushbaid): test loosening threshold below to some epsilon.
-            is_identical = np.any(diff_norms == 0)
+            is_identical = np.any(diff_norms < KEYPOINT_DEDUP_THRESHOLD_PX)
             if len(per_image_kpt_coordinates[i]) > 0 and is_identical:
                 self.duplicates_found += 1
                 i_indices[k] = np.argmin(diff_norms)
