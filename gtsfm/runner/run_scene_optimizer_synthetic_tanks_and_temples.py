@@ -32,7 +32,6 @@ class GtsfmRunnerSyntheticTanksAndTemplesLoader(GtsfmRunnerBase):
             default=None,
             help="Optionally specifies the maximum number of images from the dataset to use for reconstruction.",
         )
-
         return parser
 
     def construct_loader(self) -> LoaderBase:
