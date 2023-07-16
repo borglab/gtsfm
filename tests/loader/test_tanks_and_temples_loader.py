@@ -55,15 +55,22 @@ class TanksAndTemplesLoaderTest(unittest.TestCase):
     def test_get_camera_pose(self) -> None:
         """ """
         wTi = self.loader.get_camera_pose(index=0)
-        # import pdb; pdb.set_trace()
-        """
-        Unit Test
-        (Pdb) p wTi_gt[0]
-        array([[-0.43321999, -0.05555365, -0.89957447,  3.24710662],
-        [ 0.05678138,  0.99443357, -0.08875668,  0.14032715],
-        [ 0.89949781, -0.08953024, -0.42765409,  0.55723886],
-        [ 0.        ,  0.        ,  0.        ,  1.        ]])
-        """
+
+        det = np.linalg.det(wTi.rotation().matrix())
+        assert np.isclose(det, 1.0)
+
+        wRi = wTi.rotation().matrix()
+        assert np.allclose(wRi @ wRi.T, np.eye(3))
+
+        expected_wRi = np.array([
+            [-0.43322, -0.0555537, -0.899574],
+            [0.0567814, 0.994434, -0.0887567],
+            [0.899498, -0.0895302, -0.427654]
+        ])
+        assert np.allclose(wTi.rotation().matrix(), expected_wRi)
+
+        expected_wti = np.array([ 3.24711, 0.140327, 0.557239 ])
+        assert np.allclose(wTi.translation(), expected_wti)
 
     def test_get_image_fpath(self) -> None:
         """Tests that index 0 maps to image '0000001.jpg', which is the zero'th image in the Barn dataset."""
@@ -79,20 +86,20 @@ class TanksAndTemplesLoaderTest(unittest.TestCase):
         assert image.height == 1080
         assert image.width == 1920
 
-    def test_get_synthetic_correspondences(self) -> None:
+    def test_synthetic_correspondences_have_zero_two_view_error(self) -> None:
         # Skip this test in the CI, and only uncomment it to run it locally, since it requires PLY.
         return
         # Compute 2-view error using a front-end.
         verifier = LoRansac(use_intrinsics_in_verification=True, estimation_threshold_px=0.5)
+
+        i1 = 0
+        i2 = 1
 
         keypoints_list, match_indices_dict = loader.generate_synthetic_correspondences(
             images = [],
             image_pairs = [(i1,i2)]
         )
         keypoints_i1, keypoints_i2 = keypoints_list
-
-        i1 = 0
-        i2 = 1
 
         wTi1 = self.loader.get_camera_pose(index=i1)
         wTi2 = self.loader.get_camera_pose(index=i2)
@@ -116,6 +123,22 @@ class TanksAndTemplesLoaderTest(unittest.TestCase):
         direction_angular_err = geom_comp_utils.compute_relative_unit_translation_angle(i2Ui1_expected, i2Ui1_computed)
 
         print(f"Errors: rotation {rot_angular_err:.2f}, direction {direction_angular_err:.2f}")
+        # if i2Ri1_expected is None:
+        #     self.assertIsNone(i2Ri1_computed)
+        # else:
+        #     angular_err = geom_comp_utils.compute_relative_rotation_angle(i2Ri1_expected, i2Ri1_computed)
+        #     self.assertLess(
+        #         angular_err,
+        #         ROTATION_ANGULAR_ERROR_DEG_THRESHOLD,
+        #         msg=f"Angular error {angular_err:.1f} vs. tol. {ROTATION_ANGULAR_ERROR_DEG_THRESHOLD:.1f}",
+        #     )
+        # if i2Ui1_expected is None:
+        #     self.assertIsNone(i2Ui1_computed)
+        # else:
+        #     self.assertLess(
+        #         geom_comp_utils.compute_relative_unit_translation_angle(i2Ui1_expected, i2Ui1_computed),
+        #         DIRECTION_ANGULAR_ERROR_DEG_THRESHOLD,
+        #     )
 
     def test_project_synthetic_correspondences_to_image(self) -> None:
         # Skip this test in the CI, and only uncomment it to run it locally, since it requires PLY.
@@ -175,31 +198,6 @@ loader = TanksAndTemplesLoader(
     bounding_polyhedron_json_fpath=bounding_polyhedron_json_fpath,
     colmap_ply_fpath=colmap_ply_fpath,
 )
-
-
-# View frustums
-# for index in loader.wTi_gt_dict.keys():
-#     wTc = loader.get_camera_pose(index)
-
-
-# if i2Ri1_expected is None:
-#     self.assertIsNone(i2Ri1_computed)
-# else:
-#     angular_err = geom_comp_utils.compute_relative_rotation_angle(i2Ri1_expected, i2Ri1_computed)
-#     self.assertLess(
-#         angular_err,
-#         ROTATION_ANGULAR_ERROR_DEG_THRESHOLD,
-#         msg=f"Angular error {angular_err:.1f} vs. tol. {ROTATION_ANGULAR_ERROR_DEG_THRESHOLD:.1f}",
-#     )
-# if i2Ui1_expected is None:
-#     self.assertIsNone(i2Ui1_computed)
-# else:
-#     self.assertLess(
-#         geom_comp_utils.compute_relative_unit_translation_angle(i2Ui1_expected, i2Ui1_computed),
-#         DIRECTION_ANGULAR_ERROR_DEG_THRESHOLD,
-#     )
-# np.testing.assert_array_equal(verified_indices_computed, verified_indices_expected)
-
 
 
 
