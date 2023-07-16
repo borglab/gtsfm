@@ -14,7 +14,7 @@ import numpy as np
 import open3d
 import trimesh
 from gtsam import Cal3Bundler, Rot3, Pose3
-from dask.distributed import Client, Future
+from dask.distributed import Future
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.io as io_utils
@@ -69,6 +69,7 @@ class TanksAndTemplesLoader(LoaderBase):
         bounding_polyhedron_json_fpath: str,
         colmap_ply_fpath: str,
         max_resolution: int = 1080,
+        max_num_images: Optional[int] = None,
     ) -> None:
         """Initializes image file paths and GT camera poses.
 
@@ -84,6 +85,7 @@ class TanksAndTemplesLoader(LoaderBase):
             bounding_polyhedron_json_fpath: Path to JSON file containing specification of bounding polyhedron
                 to crop the COLMAP reconstructed point cloud.
             colmap_ply_fpath: Path to COLMAP reconstructed point cloud, in PLY format.
+            max_num_images: Maximum number of images to use for reconstruction.
         """
         super().__init__(max_resolution)
         self.lidar_ply_fpath = lidar_ply_fpath
@@ -94,13 +96,18 @@ class TanksAndTemplesLoader(LoaderBase):
         # Load the Sim(3), not SE(3), transform between LiDAR global coordinate frame and COLMAP global coordinate
         # frame.
         self.lidar_Sim3_colmap = np.loadtxt(fname=ply_alignment_fpath)
-      
+
         self._use_gt_extrinsics = True
         # The reconstructions are made with an "out of the box" COLMAP configuration and are available as *.ply
         # files together with the camera poses (stored in *.log file format).
         colmapTi_gt_dict = _parse_redwood_data_log_file(poses_fpath)
-        self.wTi_gt_dict = {k: (colmapTi) for k, colmapTi in colmapTi_gt_dict.items() }
-        self._num_imgs = 3 # len(self.wTi_gt_dict)
+        self.wTi_gt_dict = {k: (colmapTi) for k, colmapTi in colmapTi_gt_dict.items()}
+
+        if max_num_images is not None:
+            # Optionally artificially truncate the size of the dataset.
+            self._num_imgs = max_num_images
+        else:
+            self._num_imgs = len(self.wTi_gt_dict)
 
     def __len__(self) -> int:
         """The number of images in the dataset.
@@ -133,19 +140,15 @@ class TanksAndTemplesLoader(LoaderBase):
 
         # All should have shape (1080, 1920, 3)
         if img.height != _DEFAULT_IMAGE_HEIGHT_PX:
-            raise ValueError(
-                f'Images from the Tanks&Temples dataset should have height {_DEFAULT_IMAGE_HEIGHT_PX} px.'
-            )
+            raise ValueError(f"Images from the Tanks&Temples dataset should have height {_DEFAULT_IMAGE_HEIGHT_PX} px.")
         if img.width != _DEFAULT_IMAGE_WIDTH_PX:
-            raise ValueError(
-                f'Images from the Tanks&Temples dataset should have width {_DEFAULT_IMAGE_WIDTH_PX} px.'
-            )
+            raise ValueError(f"Images from the Tanks&Temples dataset should have width {_DEFAULT_IMAGE_WIDTH_PX} px.")
         return img
 
     def get_camera_intrinsics_full_res(self, index: int) -> Optional[Cal3Bundler]:
         """Gets the camera intrinsics at the given index, valid for a full-resolution image.
 
-        Sony A7SM2, 35.6 x 23.8 mm
+        Note: Tanks & Temples does not release the intrinsics from the COLMAP reconstruction.
 
         Args:
             The index to fetch.
@@ -165,9 +168,8 @@ class TanksAndTemplesLoader(LoaderBase):
         # Focal length:
         fx = 0.7 * W
 
-        # if not self._use_gt_intrinsics:
-        # TODO(johnwlambert): Add Sony A7SM2 to sensor DB, and get intrinsics from exif.
-        #intrinsics = io_utils.load_image(self._image_paths[index]).get_intrinsics_from_exif()
+        # TODO(johnwlambert): Add Sony A7SM2 to sensor DB (35.6 x 23.8 mm), and get intrinsics from exif.
+        # intrinsics = io_utils.load_image(self._image_paths[index]).get_intrinsics_from_exif()
 
         intrinsics = Cal3Bundler(fx, k1=0.0, k2=0.0, u0=cx, v0=cy)
         return intrinsics
@@ -190,7 +192,7 @@ class TanksAndTemplesLoader(LoaderBase):
         # wTi = self._wTi_list[index]
         wTi = self.wTi_gt_dict[index]
         if not geom_comp_utils.is_valid_SO3(wTi.rotation()):
-            raise ValueError('Given GT rotation is not a member of SO(3) and GT metrics will be incorrect.')
+            raise ValueError("Given GT rotation is not a member of SO(3) and GT metrics will be incorrect.")
         return wTi
 
     def get_lidar_point_cloud(self, downsample_factor: int = 1) -> open3d.geometry.PointCloud:
@@ -203,31 +205,22 @@ class TanksAndTemplesLoader(LoaderBase):
         points = points[::downsample_factor]
 
         lidar_Sim3_colmap = _create_Sim3_from_tt_dataset_alignment_transform(self.lidar_Sim3_colmap)
-        colmap_Sim3_lidar = np.linalg.inv(T)
+        colmap_Sim3_lidar = np.linalg.inv(lidar_Sim3_colmap)
         # Transform LiDAR points to COLMAP coordinate frame.
         points = transform_point_cloud_vectorized(points, colmap_Sim3_lidar)
 
-        rgb  = rgb[::downsample_factor]
+        rgb = rgb[::downsample_factor]
         pcd = open3d_vis_utils.create_colored_point_cloud_open3d(point_cloud=points, rgb=rgb)
         return pcd
-
 
     def get_colmap_point_cloud(self, downsample_factor: int = 1) -> open3d.geometry.PointCloud:
         """Returns COLMAP-reconstructed point cloud."""
         pcd = open3d.io.read_point_cloud(self.colmap_ply_fpath)
         points, rgb = open3d_vis_utils.convert_colored_open3d_point_cloud_to_numpy(pointcloud=pcd)
-        # N, _ = points.shape
-        # points = np.concatenate([points, np.ones((N,1))], axis=1)
-        # points = self.lidar_Sim3_colmap @ points.T
-        # points = points.T
-        # points = points[:,:3]
-        # rgb = np.zeros((N,3), dtype=np.uint8)
-        # rgb[:,0] = 255
         points = points[::downsample_factor]
-        rgb  = rgb[::downsample_factor]
+        rgb = rgb[::downsample_factor]
         pcd = open3d_vis_utils.create_colored_point_cloud_open3d(point_cloud=points, rgb=rgb)
         return pcd
-
 
     def reconstruct_mesh(
         self,
@@ -246,10 +239,10 @@ class TanksAndTemplesLoader(LoaderBase):
             Reconstructed mesh.
         """
         pcd = self.get_lidar_point_cloud()
-        #pcd = pcd.transform(self.lidar_T_colmap)
+        # pcd = pcd.transform(self.lidar_T_colmap)
         if crop_by_polyhedron:
             pass
-            #pcd = crop_points_to_bounding_polyhedron(pcd, self.bounding_polyhedron_json_fpath)
+            # pcd = crop_points_to_bounding_polyhedron(pcd, self.bounding_polyhedron_json_fpath)
 
         points, rgb = open3d_vis_utils.convert_colored_open3d_point_cloud_to_numpy(pcd)
         if not crop_by_polyhedron:
@@ -279,10 +272,7 @@ class TanksAndTemplesLoader(LoaderBase):
         return mesh
 
     def generate_synthetic_correspondences(
-        self,
-        images: List[Future],
-        image_pairs: List[Tuple[int, int]],
-        deduplicate: bool = False
+        self, images: List[Future], image_pairs: List[Tuple[int, int]], deduplicate: bool = False
     ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
         """Generates synthetic correspondences from virtual cameras and a ground-truth mesh.
 
@@ -298,14 +288,12 @@ class TanksAndTemplesLoader(LoaderBase):
                 are represented by an array of shape (K,2), for K correspondences.
         """
         mesh = self.reconstruct_mesh()
-        open3d_mesh_path = tempfile.NamedTemporaryFile(suffix='.obj').name
+        open3d_mesh_path = tempfile.NamedTemporaryFile(suffix=".obj").name
         open3d.io.write_triangle_mesh(filename=open3d_mesh_path, mesh=mesh)
 
         camera_dict = {}
 
-        aggregator: KeypointAggregatorBase = (
-            KeypointAggregatorDedup() if deduplicate else KeypointAggregatorUnique()
-        )
+        aggregator: KeypointAggregatorBase = KeypointAggregatorDedup() if deduplicate else KeypointAggregatorUnique()
         keypoints_dict = {}
         putative_corr_idxs_dict = {}
 
@@ -315,14 +303,12 @@ class TanksAndTemplesLoader(LoaderBase):
             if i2 not in camera_dict:
                 camera_dict[i2] = self.get_camera(index=i2)
             keypoints_i1, keypoints_i2 = self.generate_synthetic_correspondences_for_image_pair(
-                camera_i1=camera_dict[i1],
-                camera_i2=camera_dict[i2],
-                open3d_mesh_fpath=open3d_mesh_path
+                camera_i1=camera_dict[i1], camera_i2=camera_dict[i2], open3d_mesh_fpath=open3d_mesh_path
             )
             num_kpts = len(keypoints_i1)
             putative_corr_idxs = np.stack([np.arange(num_kpts), np.arange(num_kpts)], axis=-1)
-            keypoints_dict[(i1,i2)] = (keypoints_i1, keypoints_i2)
-            putative_corr_idxs_dict[(i1,i2)] = putative_corr_idxs
+            keypoints_dict[(i1, i2)] = (keypoints_i1, keypoints_i2)
+            putative_corr_idxs_dict[(i1, i2)] = putative_corr_idxs
             print(f"Number of keypoints in image {i1}: ", len(keypoints_i1))
             # import matplotlib.pyplot as plt
             # img = self.get_image_full_res(index=0)
@@ -338,7 +324,7 @@ class TanksAndTemplesLoader(LoaderBase):
         camera_i1: gtsfm_types.CAMERA_TYPE,
         camera_i2: gtsfm_types.CAMERA_TYPE,
         open3d_mesh_fpath: str,
-        num_sampled_3d_points: int = 200
+        num_sampled_3d_points: int = 200,
     ) -> Tuple[Keypoints, Keypoints]:
         """Generates synthetic correspondences for image pair.
 
@@ -356,7 +342,7 @@ class TanksAndTemplesLoader(LoaderBase):
 
         # Sample random 3d points.
         pcd = mesh.sample_points_uniformly(number_of_points=num_sampled_3d_points)
-        #pcd = mesh.sample_points_poisson_disk(number_of_points=500, pcl=pcd)
+        # pcd = mesh.sample_points_poisson_disk(number_of_points=500, pcl=pcd)
         points = np.asarray(pcd.points)
 
         wTi_list = [camera_i1.pose(), camera_i2.pose()]
@@ -378,7 +364,7 @@ class TanksAndTemplesLoader(LoaderBase):
             visualize = False
             if visualize:
                 visualize_ray_to_sampled_mesh_point(camera_i1, point, wTi_list, calibrations, mesh)
-                
+
         keypoints_i1 = Keypoints(coordinates=np.array(keypoints_i1))
         keypoints_i2 = Keypoints(coordinates=np.array(keypoints_i2))
         print(f"Generated {len(keypoints_i1)} keypoints from sampled {num_sampled_3d_points} 3d points.")
@@ -389,7 +375,7 @@ def visualize_ray_to_sampled_mesh_point(
     camera: gtsfm_types.CAMERA_TYPE,
     point: np.ndarray,
     wTi_list: List[Pose3],
-    calibrations,
+    calibrations: List[gtsfm_types.CALIBRATION_TYPE],
     mesh: open3d.geometry.TriangleMesh,
 ) -> None:
     """Visualizes ray from camera center to 3d point, along with camera frustum, mesh, and 3d point as ball.
@@ -398,7 +384,7 @@ def visualize_ray_to_sampled_mesh_point(
         camera: Camera to use.
         point: 3d point as (3,) array.
         wTi_list: All camera poses.
-        calibrations
+        calibrations: Calibration for each camera.
         mesh:
     """
     frustums = open3d_vis_utils.create_all_frustums_open3d(wTi_list, calibrations, frustum_ray_len=0.3)
@@ -410,18 +396,18 @@ def visualize_ray_to_sampled_mesh_point(
     # line_set = _make_line_plot(cam_center, camera.backproject(uv_reprojected, depth=1.0))
 
     # Plot 3d point as red sphere.
-    point_cloud = np.reshape(point, (1,3))
-    rgb = np.array([255,0,0]).reshape(1,3).astype(np.uint8)
-    spheres = open3d_vis_utils.create_colored_spheres_open3d(
-        point_cloud, rgb, sphere_radius=0.5
-    )
+    point_cloud = np.reshape(point, (1, 3))
+    rgb = np.array([255, 0, 0]).reshape(1, 3).astype(np.uint8)
+    spheres = open3d_vis_utils.create_colored_spheres_open3d(point_cloud, rgb, sphere_radius=0.5)
 
     # Plot all camera frustums and mesh, with sphere and ray line segment.
     open3d.visualization.draw_geometries([mesh] + frustums + spheres + [line_set])
 
 
 def verify_camera_fov_and_occlusion(
-    camera: gtsfm_types.CAMERA_TYPE, point: np.ndarray, trimesh_mesh: trimesh.Trimesh,
+    camera: gtsfm_types.CAMERA_TYPE,
+    point: np.ndarray,
+    trimesh_mesh: trimesh.Trimesh,
 ) -> Optional[np.ndarray]:
     """Verifies point lies within camera FOV and is unoccluded by mesh faces.
 
@@ -433,38 +419,33 @@ def verify_camera_fov_and_occlusion(
     Returns:
         2d keypoint as (2,) array.
     """
-    # Get the camera associated with the measurement.
     # Project to camera.
     uv_reprojected, success_flag = camera.projectSafe(point)
     # Check for projection error in camera.
     if not success_flag:
-        print("Skip failed: ", uv_reprojected, ", success: ", success_flag)
         return None
 
-    if (uv_reprojected[0] < 0) or \
-        (uv_reprojected[0] > _DEFAULT_IMAGE_WIDTH_PX) or \
-        (uv_reprojected[1] < 0) or \
-        (uv_reprojected[1] > _DEFAULT_IMAGE_HEIGHT_PX):
+    if (
+        (uv_reprojected[0] < 0)
+        or (uv_reprojected[0] > _DEFAULT_IMAGE_WIDTH_PX)
+        or (uv_reprojected[1] < 0)
+        or (uv_reprojected[1] > _DEFAULT_IMAGE_HEIGHT_PX)
+    ):
         # Outside of synthetic camera's FOV.
         return None
-    #     import pdb; pdb.set_trace()
 
     # Cast ray through keypoint back towards scene.
-    # cam_center = np.repeat(camera.pose().translation().reshape((-1, 3)), num_kpts, axis=0)
     cam_center = camera.pose().translation()
     # Choose an arbitrary depth for the ray direction.
-    #ray_dirs = np.asarray([camera.backproject(uv_reprojected, depth=1.0) - cam_center[i, :] for i in range(num_kpts)])
     ray_dirs = point - camera.pose().translation()
 
     # Returns the location of where a ray hits a surface mesh.
     # keypoint_ind: (M,) array of keypoint indices whose corresponding ray intersected the ground truth mesh.
     # intersections_locations: (M, 3), array of ray intersection locations.
     intersections, keypoint_ind, _ = trimesh_mesh.ray.intersects_location(
-        ray_origins=cam_center.reshape(1,3),
-        ray_directions=ray_dirs.reshape(1,3),
-        multiple_hits=False
+        ray_origins=cam_center.reshape(1, 3), ray_directions=ray_dirs.reshape(1, 3), multiple_hits=False
     )
-    
+
     if intersections.shape[0] > 1 or intersections.shape[0] == 0:
         print(f"Unknown failure: intersections= {intersections} with shape {intersections.shape}")
         return None
@@ -538,7 +519,7 @@ def _make_line_plot(point1: np.ndarray, point2: np.ndarray) -> open3d.geometry.L
     verts_worldfr = np.array([point1, point2])
     lines = [[0, 1]]
     # color is in range [0,1]
-    color = (0,0,1)
+    color = (0, 0, 1)
     colors = [color for i in range(len(lines))]
 
     line_set = open3d.geometry.LineSet(
@@ -561,30 +542,31 @@ def load_from_trimesh(mesh_path: str) -> trimesh.Trimesh:
     )
     return mesh
 
+
 def _create_Sim3_from_tt_dataset_alignment_transform(lidar_Sim3_colmap: np.ndarray) -> np.ndarray:
     """Create member of Sim(3) matrix group given Tanks & Temples dataset alignment transform.
 
     Args:
-        lidar_Sim3_colmap: Sim(3) transformation in non-standard form.
+        lidar_Sim3_colmap: Sim(3) transformation in non-standard form (invalid, non-group form).
 
     Returns:
         Sim(3) transformation matrix in group form. See Section 6.1 of https://www.ethaneade.com/lie.pdf
     """
     T = lidar_Sim3_colmap
     # Disentangle scale factor from 3d rotation.
-    R = Rot3.ClosestTo(lidar_Sim3_colmap[:3,:3]).matrix()
-    s = self.lidar_Sim3_colmap[0,0] / R[0,0]
-    t = self.lidar_Sim3_colmap[:3,3] / s
+    R = Rot3.ClosestTo(lidar_Sim3_colmap[:3, :3]).matrix()
+    s = lidar_Sim3_colmap[0, 0] / R[0, 0]
+    t = lidar_Sim3_colmap[:3, 3] / s
 
     # Create 4x4 matrix in group notation.
-    T = np.zeros((4,4))
-    T[:3,:3] = R
-    T[:3,3] = t
-    T[3,3] = 1 / s
+    T = np.zeros((4, 4))
+    T[:3, :3] = R
+    T[:3, 3] = t
+    T[3, 3] = 1 / s
     return T
 
 
-def transform_point_cloud_vectorized(points_b: np.ndarray, aTb: np.ndarray) -> np.ndarray
+def transform_point_cloud_vectorized(points_b: np.ndarray, aTb: np.ndarray) -> np.ndarray:
     """Given points in `b` frame, transform them to `a `frame.
 
     Args:
@@ -595,9 +577,9 @@ def transform_point_cloud_vectorized(points_b: np.ndarray, aTb: np.ndarray) -> n
         (N,3) points in `a` frame.
     """
     N, _ = points_b.shape
-    points_b = np.concatenate([points_b, np.ones((N,1))], axis=1)
+    points_b = np.concatenate([points_b, np.ones((N, 1))], axis=1)
     points_a = aTb @ points_b.T
     points_a = points_a.T
     # Remove homogeonous coordinate.
-    points_a = points_a[:,:3] / points_a[:,3][:,np.newaxis]
+    points_a = points_a[:, :3] / points_a[:, 3][:, np.newaxis]
     return points_a
