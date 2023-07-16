@@ -29,6 +29,7 @@ from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggreg
     KeypointAggregatorUnique,
 )
 from gtsfm.loader.loader_base import LoaderBase
+import gtsfm.utils.geometry_comparisons as geom_comp_utils
 import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
 
 logger = logger_utils.get_logger()
@@ -72,34 +73,34 @@ class TanksAndTemplesLoader(LoaderBase):
         """Initializes image file paths and GT camera poses.
 
         There are two coordinate frames -- the COLMAP coordinate frame, and the GT LiDAR coordinate frame.
-        We move everything to the GT LiDAR coordinate frame.
+        We move everything to the COLMAP coordinate frame.
 
         Args:
             img_dir: Path to where images of a single scene are stored.
             poses_fpath: Path to .log file containing COLMAP-reconstructed camera poses.
-            lidar_ply_fpath:
+            lidar_ply_fpath: Path to LiDAR scan, in PLY format.
             ply_alignment_fpath: The alignment text file contains the transformation matrix to align the COLMAP
                 reconstruction to the corresponding ground-truth point cloud.
             bounding_polyhedron_json_fpath: Path to JSON file containing specification of bounding polyhedron
                 to crop the COLMAP reconstructed point cloud.
-            colmap_ply_fpath: 
+            colmap_ply_fpath: Path to COLMAP reconstructed point cloud, in PLY format.
         """
         super().__init__(max_resolution)
-        self.ply_fpath = lidar_ply_fpath
+        self.lidar_ply_fpath = lidar_ply_fpath
+        self.colmap_ply_fpath = colmap_ply_fpath
         self.bounding_polyhedron_json_fpath = bounding_polyhedron_json_fpath
         self._image_paths = sorted(list(Path(img_dir).glob("*.jpg")))
 
-        # Load the transform between LiDAR global coordinate frame and COLMAP global coordinate frame.
-        T = np.loadtxt(fname=ply_alignment_fpath)
-        self.lidar_T_colmap = Pose3(r=Rot3(T[:3,:3]), t=T[:3,3])
-
+        # Load the Sim(3), not SE(3), transform between LiDAR global coordinate frame and COLMAP global coordinate
+        # frame.
+        self.lidar_Sim3_colmap = np.loadtxt(fname=ply_alignment_fpath)
+      
         self._use_gt_extrinsics = True
         # The reconstructions are made with an "out of the box" COLMAP configuration and are available as *.ply
         # files together with the camera poses (stored in *.log file format).
         colmapTi_gt_dict = _parse_redwood_data_log_file(poses_fpath)
-        self.wTi_gt_dict = {k: self.lidar_T_colmap.compose(colmapTi) for k, colmapTi in colmapTi_gt_dict.items() }
-
-        self._num_imgs = len(self.wTi_gt_dict)
+        self.wTi_gt_dict = {k: (colmapTi) for k, colmapTi in colmapTi_gt_dict.items() }
+        self._num_imgs = 3 # len(self.wTi_gt_dict)
 
     def __len__(self) -> int:
         """The number of images in the dataset.
@@ -172,7 +173,7 @@ class TanksAndTemplesLoader(LoaderBase):
         return intrinsics
 
     def get_camera_pose(self, index: int) -> Optional[Pose3]:
-        """Gets the camera pose (in world coordinates) at the given index.
+        """Gets the GT camera pose (in world coordinates) at the given index.
 
         Args:
             index: The index to fetch.
@@ -188,11 +189,45 @@ class TanksAndTemplesLoader(LoaderBase):
 
         # wTi = self._wTi_list[index]
         wTi = self.wTi_gt_dict[index]
+        if not geom_comp_utils.is_valid_SO3(wTi.rotation()):
+            raise ValueError('Given GT rotation is not a member of SO(3) and GT metrics will be incorrect.')
         return wTi
 
-    def get_lidar_point_cloud(self) -> open3d.geometry.PointCloud:
-        """Returns ground-truth point cloud, captured using an industrial laser scanner."""
-        return open3d.io.read_point_cloud(self.ply_fpath)
+    def get_lidar_point_cloud(self, downsample_factor: int = 1) -> open3d.geometry.PointCloud:
+        """Returns ground-truth point cloud, captured using an industrial laser scanner.
+
+        Move all LiDAR points to the COLMAP frame.
+        """
+        pcd = open3d.io.read_point_cloud(self.lidar_ply_fpath)
+        points, rgb = open3d_vis_utils.convert_colored_open3d_point_cloud_to_numpy(pointcloud=pcd)
+        points = points[::downsample_factor]
+
+        lidar_Sim3_colmap = _create_Sim3_from_tt_dataset_alignment_transform(self.lidar_Sim3_colmap)
+        colmap_Sim3_lidar = np.linalg.inv(T)
+        # Transform LiDAR points to COLMAP coordinate frame.
+        points = transform_point_cloud_vectorized(points, colmap_Sim3_lidar)
+
+        rgb  = rgb[::downsample_factor]
+        pcd = open3d_vis_utils.create_colored_point_cloud_open3d(point_cloud=points, rgb=rgb)
+        return pcd
+
+
+    def get_colmap_point_cloud(self, downsample_factor: int = 1) -> open3d.geometry.PointCloud:
+        """Returns COLMAP-reconstructed point cloud."""
+        pcd = open3d.io.read_point_cloud(self.colmap_ply_fpath)
+        points, rgb = open3d_vis_utils.convert_colored_open3d_point_cloud_to_numpy(pointcloud=pcd)
+        # N, _ = points.shape
+        # points = np.concatenate([points, np.ones((N,1))], axis=1)
+        # points = self.lidar_Sim3_colmap @ points.T
+        # points = points.T
+        # points = points[:,:3]
+        # rgb = np.zeros((N,3), dtype=np.uint8)
+        # rgb[:,0] = 255
+        points = points[::downsample_factor]
+        rgb  = rgb[::downsample_factor]
+        pcd = open3d_vis_utils.create_colored_point_cloud_open3d(point_cloud=points, rgb=rgb)
+        return pcd
+
 
     def reconstruct_mesh(
         self,
@@ -214,7 +249,7 @@ class TanksAndTemplesLoader(LoaderBase):
         #pcd = pcd.transform(self.lidar_T_colmap)
         if crop_by_polyhedron:
             pass
-            pcd = crop_points_to_bounding_polyhedron(pcd, self.bounding_polyhedron_json_fpath)
+            #pcd = crop_points_to_bounding_polyhedron(pcd, self.bounding_polyhedron_json_fpath)
 
         points, rgb = open3d_vis_utils.convert_colored_open3d_point_cloud_to_numpy(pcd)
         if not crop_by_polyhedron:
@@ -303,7 +338,7 @@ class TanksAndTemplesLoader(LoaderBase):
         camera_i1: gtsfm_types.CAMERA_TYPE,
         camera_i2: gtsfm_types.CAMERA_TYPE,
         open3d_mesh_fpath: str,
-        num_sampled_3d_points: int = 700
+        num_sampled_3d_points: int = 200
     ) -> Tuple[Keypoints, Keypoints]:
         """Generates synthetic correspondences for image pair.
 
@@ -526,3 +561,43 @@ def load_from_trimesh(mesh_path: str) -> trimesh.Trimesh:
     )
     return mesh
 
+def _create_Sim3_from_tt_dataset_alignment_transform(lidar_Sim3_colmap: np.ndarray) -> np.ndarray:
+    """Create member of Sim(3) matrix group given Tanks & Temples dataset alignment transform.
+
+    Args:
+        lidar_Sim3_colmap: Sim(3) transformation in non-standard form.
+
+    Returns:
+        Sim(3) transformation matrix in group form. See Section 6.1 of https://www.ethaneade.com/lie.pdf
+    """
+    T = lidar_Sim3_colmap
+    # Disentangle scale factor from 3d rotation.
+    R = Rot3.ClosestTo(lidar_Sim3_colmap[:3,:3]).matrix()
+    s = self.lidar_Sim3_colmap[0,0] / R[0,0]
+    t = self.lidar_Sim3_colmap[:3,3] / s
+
+    # Create 4x4 matrix in group notation.
+    T = np.zeros((4,4))
+    T[:3,:3] = R
+    T[:3,3] = t
+    T[3,3] = 1 / s
+    return T
+
+
+def transform_point_cloud_vectorized(points_b: np.ndarray, aTb: np.ndarray) -> np.ndarray
+    """Given points in `b` frame, transform them to `a `frame.
+
+    Args:
+        points_b: (N,3) points in `b` frame.
+        aTb: 4x4 transformation matrix, a member of either SE(3) or Sim(3).
+
+    Returns:
+        (N,3) points in `a` frame.
+    """
+    N, _ = points_b.shape
+    points_b = np.concatenate([points_b, np.ones((N,1))], axis=1)
+    points_a = aTb @ points_b.T
+    points_a = points_a.T
+    # Remove homogeonous coordinate.
+    points_a = points_a[:,:3] / points_a[:,3][:,np.newaxis]
+    return points_a
