@@ -64,10 +64,10 @@ class TanksAndTemplesLoader(LoaderBase):
         self,
         img_dir: str,
         poses_fpath: str,
-        lidar_ply_fpath: str,
-        ply_alignment_fpath: str,
         bounding_polyhedron_json_fpath: str,
-        colmap_ply_fpath: str,
+        ply_alignment_fpath: str,
+        lidar_ply_fpath: Optional[str] = None,
+        colmap_ply_fpath: Optional[str] = None,
         max_resolution: int = 1080,
         max_num_images: Optional[int] = None,
     ) -> None:
@@ -79,12 +79,12 @@ class TanksAndTemplesLoader(LoaderBase):
         Args:
             img_dir: Path to where images of a single scene are stored.
             poses_fpath: Path to .log file containing COLMAP-reconstructed camera poses.
-            lidar_ply_fpath: Path to LiDAR scan, in PLY format.
-            ply_alignment_fpath: The alignment text file contains the transformation matrix to align the COLMAP
-                reconstruction to the corresponding ground-truth point cloud.
             bounding_polyhedron_json_fpath: Path to JSON file containing specification of bounding polyhedron
                 to crop the COLMAP reconstructed point cloud.
-            colmap_ply_fpath: Path to COLMAP reconstructed point cloud, in PLY format.
+            ply_alignment_fpath: The alignment text file contains the transformation matrix to align the COLMAP
+                reconstruction to the corresponding ground-truth point cloud.
+            lidar_ply_fpath: Path to LiDAR scan, in PLY format. Omitted for unit tests.
+            colmap_ply_fpath: Path to COLMAP reconstructed point cloud, in PLY format. Omitted for unit tests.
             max_num_images: Maximum number of images to use for reconstruction.
         """
         super().__init__(max_resolution)
