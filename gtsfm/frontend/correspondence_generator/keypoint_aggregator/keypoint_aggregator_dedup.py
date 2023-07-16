@@ -29,13 +29,13 @@ class KeypointAggregatorDedup(KeypointAggregatorBase):
         If duplicate keypoints are found, the index of the previously existing keypoint is recorded.
 
         Args:
-           i: image frame index.
-           keypoints: keypoints detected in single image, from direct image pair feature matching.
-           per_image_kpt_coordinates: running list of global keypoints, per image.
+           i: Image frame index.
+           keypoints: Keypoints detected in single image, from direct image pair feature matching.
+           per_image_kpt_coordinates: Running list of global keypoints, per image.
 
         Returns:
-            per_image_kpt_coordinates: running list of global keypoints, per image.
-            i_indices: single column of putative correspondence indices, for pair. These represent indices
+            per_image_kpt_coordinates: Running list of global keypoints, per image.
+            i_indices: Single column of putative correspondence indices, for pair. These represent indices
                 into the global table of keypoints per image.
         """
         N_to_add = keypoints.coordinates.shape[0]
@@ -71,11 +71,11 @@ class KeypointAggregatorDedup(KeypointAggregatorBase):
         Keypoints are computed per image pair, instead of per image, so they are aggregated per image here.
 
         Args:
-            keypoints_dict: key (i1,i2) maps to (keypoints_i1, keypoints_i2) representing matches (correspondences).
+            keypoints_dict: Key (i1,i2) maps to (keypoints_i1, keypoints_i2) representing matches (correspondences).
 
         Returns:
-            keypoints_list: list of N Keypoints objects for N images.
-            putative_corr_idxs_dict: mapping from image pair (i1,i2) to putative correspondence indices.
+            keypoints_list: List of N Keypoints objects for N images.
+            putative_corr_idxs_dict: Mapping from image pair (i1,i2) to putative correspondence indices.
               Correspondence indices are represented by an array of shape (K,2), for K correspondences.
         """
         image_indices = set()
