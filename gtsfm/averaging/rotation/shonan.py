@@ -102,7 +102,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         here in a sort of "wrapper". See https://github.com/borglab/gtsam/issues/784 for more details.
 
         Args:
-            num_connected_nodes: number of unique connected nodes (i.e. images) in the graph
+            num_connected_nodes: Number of unique connected nodes (i.e. images) in the graph
                 (<= the number of images in the dataset)
             between_factors: BetweenFactorPose3s created from relative rotations from 2-view estimator and the priors.
 
@@ -159,9 +159,9 @@ class ShonanRotationAveraging(RotationAveragingBase):
         camera in a single, global coordinate frame.
 
         Args:
-            num_images: number of images. Since we have one pose per image, it is also the number of poses.
-            i2Ri1_dict: relative rotations for each image pair-edge as dictionary (i1, i2): i2Ri1.
-            i1Ti2_priors: priors on relative poses.
+            num_images: Number of images. Since we have one pose per image, it is also the number of poses.
+            i2Ri1_dict: Relative rotations for each image pair-edge as dictionary (i1, i2): i2Ri1.
+            i1Ti2_priors: Priors on relative poses.
 
         Returns:
             Global rotations for each camera pose, i.e. wRi, as a list. The number of entries in the list is
