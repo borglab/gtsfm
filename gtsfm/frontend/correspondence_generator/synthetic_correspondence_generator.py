@@ -85,39 +85,7 @@ class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
         def apply_synthetic_corr_generator(
             loader_: LoaderBase, camera_i1, camera_i2, open3d_mesh_fpath: str, i1: int, i2: int
         ) -> Tuple[Keypoints, Keypoints]:
-            keypoints_i1, keypoints_i2 = loader_.generate_synthetic_correspondences_for_image_pair(camera_i1, camera_i2, open3d_mesh_fpath)
-
-            ###########
-            import numpy as np
-            from gtsam import Unit3
-            from gtsfm.frontend.verifier.loransac import LoRansac
-            import gtsfm.utils.geometry_comparisons as geom_comp_utils
-            num_kpts = len(keypoints_i1)
-            match_indices = np.stack([np.arange(num_kpts), np.arange(num_kpts)], axis=-1)
-            wTi1 = loader_.get_camera_pose(index=i1)
-            wTi2 = loader_.get_camera_pose(index=i2)
-
-            i2Ti1 = wTi2.between(wTi1)
-            i2Ri1_expected = i2Ti1.rotation()
-            i2Ui1_expected = Unit3(i2Ti1.translation())
-
-            camera_intrinsics_i1 = loader_.get_camera_intrinsics_full_res(index=i1)
-            camera_intrinsics_i2 = loader_.get_camera_intrinsics_full_res(index=i2)
-            verifier = LoRansac(use_intrinsics_in_verification=True, estimation_threshold_px=0.5)
-            i2Ri1_computed, i2Ui1_computed, verified_indices_computed, _ = verifier.verify(
-                keypoints_i1,
-                keypoints_i2,
-                match_indices,
-                camera_intrinsics_i1,
-                camera_intrinsics_i2,
-            )
-            if i2Ri1_computed is not None and i2Ui1_computed is not None:
-                rot_angular_err = geom_comp_utils.compute_relative_rotation_angle(i2Ri1_expected, i2Ri1_computed)
-                direction_angular_err = geom_comp_utils.compute_relative_unit_translation_angle(i2Ui1_expected, i2Ui1_computed)
-                print(f"Errors ({i1},{i2}): rotation {rot_angular_err:.4f}, direction {direction_angular_err:.4f}")
-            ################
-            return keypoints_i1, keypoints_i2
-
+            return loader_.generate_synthetic_correspondences_for_image_pair(camera_i1, camera_i2, open3d_mesh_fpath)
 
         pairwise_correspondence_futures = {
             (i1, i2): client.submit(apply_synthetic_corr_generator,
