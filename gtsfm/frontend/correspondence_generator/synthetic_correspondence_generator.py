@@ -3,15 +3,14 @@
 Authors: John Lambert
 """
 import tempfile
-from typing import Any, Dict, List, Tuple
+from typing import Dict, List, Tuple
 
 from dask.distributed import Client, Future
 import numpy as np
 import open3d
 
-from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.common.types import CALIBRATION_TYPE, CAMERA_TYPE
+from gtsfm.common.types import CAMERA_TYPE
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
 from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_base import KeypointAggregatorBase
 from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_dedup import (
@@ -60,12 +59,12 @@ class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
         dataset_root = self._dataset_root
         scene_name = self._scene_name
 
-        img_dir = f'{dataset_root}/{scene_name}'
-        poses_fpath = f'{dataset_root}/{scene_name}_COLMAP_SfM.log'
-        lidar_ply_fpath = f'{dataset_root}/{scene_name}.ply'
-        colmap_ply_fpath = f'{dataset_root}/{scene_name}_COLMAP.ply'
-        ply_alignment_fpath = f'{dataset_root}/{scene_name}_trans.txt'
-        bounding_polyhedron_json_fpath = f'{dataset_root}/{scene_name}.json'
+        img_dir = f"{dataset_root}/{scene_name}"
+        poses_fpath = f"{dataset_root}/{scene_name}_COLMAP_SfM.log"
+        lidar_ply_fpath = f"{dataset_root}/{scene_name}.ply"
+        colmap_ply_fpath = f"{dataset_root}/{scene_name}_COLMAP.ply"
+        ply_alignment_fpath = f"{dataset_root}/{scene_name}_trans.txt"
+        bounding_polyhedron_json_fpath = f"{dataset_root}/{scene_name}.json"
         loader = TanksAndTemplesLoader(
             img_dir=img_dir,
             poses_fpath=poses_fpath,
@@ -75,26 +74,28 @@ class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
             colmap_ply_fpath=colmap_ply_fpath,
         )
 
-        
         mesh = loader.reconstruct_mesh()
         # TODO(jolambert): File Open3d bug to add pickle support for TriangleMesh.
-        open3d_mesh_path = tempfile.NamedTemporaryFile(suffix='.obj').name
+        open3d_mesh_path = tempfile.NamedTemporaryFile(suffix=".obj").name
         open3d.io.write_triangle_mesh(filename=open3d_mesh_path, mesh=mesh)
 
         loader_future = client.scatter(loader, broadcast=False)
+
         def apply_synthetic_corr_generator(
-            loader_: LoaderBase, camera_i1, camera_i2, open3d_mesh_fpath: str, i1: int, i2: int
+            loader_: LoaderBase,
+            camera_i1: CAMERA_TYPE,
+            camera_i2: CAMERA_TYPE,
+            open3d_mesh_fpath: str,
         ) -> Tuple[Keypoints, Keypoints]:
             return loader_.generate_synthetic_correspondences_for_image_pair(camera_i1, camera_i2, open3d_mesh_fpath)
 
         pairwise_correspondence_futures = {
-            (i1, i2): client.submit(apply_synthetic_corr_generator,
+            (i1, i2): client.submit(
+                apply_synthetic_corr_generator,
                 loader_future,
                 loader.get_camera(index=i1),
                 loader.get_camera(index=i2),
                 open3d_mesh_path,
-                i1,
-                i2
             )
             for i1, i2 in image_pairs
         }
