@@ -213,15 +213,16 @@ class GtsfmRunnerBase:
                 logger.info(f"Using {workers} as workers")
                 try:
                     cluster = SSHCluster(
-                            [scheduler] + workers,
-                            scheduler_options={"dashboard_address": self.parsed_args.dashboard_port},
-                            worker_options={
-                                "n_workers": self.parsed_args.num_workers,
-                                "nthreads": self.parsed_args.threads_per_worker,
-                            },
-                        )
+                        [scheduler] + workers,
+                        scheduler_options={"dashboard_address": self.parsed_args.dashboard_port},
+                        worker_options={
+                            "n_workers": self.parsed_args.num_workers,
+                            "nthreads": self.parsed_args.threads_per_worker,
+                        },
+                    )
                     connected = True
-                except:
+                except Exception as e:
+                    logger.info("Worker failed to start:", str(e))
                     retry_count += 1
             client = Client(cluster)
             # getting first worker's IP address and port to do IO
