@@ -195,7 +195,7 @@ class TanksAndTemplesLoader(LoaderBase):
             raise ValueError("Given GT rotation is not a member of SO(3) and GT metrics will be incorrect.")
         return wTi
 
-    def get_lidar_point_cloud(self, downsample_factor: int = 1) -> open3d.geometry.PointCloud:
+    def get_lidar_point_cloud(self, downsample_factor: int = 10) -> open3d.geometry.PointCloud:
         """Returns ground-truth point cloud, captured using an industrial laser scanner.
 
         Move all LiDAR points to the COLMAP frame.
@@ -203,13 +203,12 @@ class TanksAndTemplesLoader(LoaderBase):
         pcd = open3d.io.read_point_cloud(self.lidar_ply_fpath)
         points, rgb = open3d_vis_utils.convert_colored_open3d_point_cloud_to_numpy(pointcloud=pcd)
         points = points[::downsample_factor]
+        rgb = rgb[::downsample_factor]
 
         lidar_Sim3_colmap = _create_Sim3_from_tt_dataset_alignment_transform(self.lidar_Sim3_colmap)
         colmap_Sim3_lidar = np.linalg.inv(lidar_Sim3_colmap)
         # Transform LiDAR points to COLMAP coordinate frame.
         points = transform_point_cloud_vectorized(points, colmap_Sim3_lidar)
-
-        rgb = rgb[::downsample_factor]
         pcd = open3d_vis_utils.create_colored_point_cloud_open3d(point_cloud=points, rgb=rgb)
         return pcd
 
@@ -224,16 +223,15 @@ class TanksAndTemplesLoader(LoaderBase):
 
     def reconstruct_mesh(
         self,
-        point_downsample_factor: int = 10,
         crop_by_polyhedron: bool = True,
         reconstruction_algorithm: MeshReconstructionType = MeshReconstructionType.ALPHA_SHAPE,
     ) -> open3d.geometry.TriangleMesh:
         """Reconstructs mesh from LiDAR PLY file.
 
         Args:
-            point_downsample_factor
             crop_by_polyhedron: Whether to crop by a manually specified polyhedron, vs. simply
                 by range from global origin.
+            reconstruction_algorithm: Mesh reconstruction algorithm to use, given input point cloud.
 
         Returns:
             Reconstructed mesh.
@@ -250,13 +248,11 @@ class TanksAndTemplesLoader(LoaderBase):
             valid = np.linalg.norm(points, axis=1) < max_radius
             points = points[valid]
             rgb = rgb[valid]
-        points = points[::point_downsample_factor]
-        rgb = rgb[::point_downsample_factor]
         pcd = open3d_vis_utils.create_colored_point_cloud_open3d(points, rgb)
         pcd.estimate_normals()
 
         if reconstruction_algorithm == MeshReconstructionType.ALPHA_SHAPE:
-            alpha = 0.5  # 0.1  # 0.03
+            alpha = 0.1  # 0.03
             print(f"alpha={alpha:.3f}")
             mesh = open3d.geometry.TriangleMesh.create_from_point_cloud_alpha_shape(pcd, alpha)
             mesh.compute_vertex_normals()
