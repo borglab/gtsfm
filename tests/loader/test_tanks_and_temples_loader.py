@@ -23,12 +23,14 @@ _TEST_DATA_ROOT = Path(__file__).resolve().parent.parent / "data" / "tanks_and_t
 
 class TanksAndTemplesLoaderTest(unittest.TestCase):
     def setUp(self) -> None:
-
-        # _TEST_DATA_ROOT = Path('/Users/johnlambert/Downloads/Tanks_and_Temples_Barn_410')
         scene_name = "Barn"  # 'Truck'
 
+        # Uncomment lines below to run locally.
+        # _TEST_DATA_ROOT = Path('/Users/johnlambert/Downloads/Tanks_and_Temples_Barn_410')
         # lidar_ply_fpath = f'{dataset_root}/{scene_name}.ply'
         # colmap_ply_fpath = f'{dataset_root}/{scene_name}_COLMAP.ply'
+        lidar_ply_fpath = None
+        colmap_ply_fpath = None
 
         img_dir = _TEST_DATA_ROOT / scene_name
         poses_fpath = _TEST_DATA_ROOT / f"{scene_name}_COLMAP_SfM.log"
@@ -41,12 +43,12 @@ class TanksAndTemplesLoaderTest(unittest.TestCase):
             poses_fpath=poses_fpath,
             bounding_polyhedron_json_fpath=bounding_polyhedron_json_fpath,
             ply_alignment_fpath=ply_alignment_fpath,
-            lidar_ply_fpath=None,
-            colmap_ply_fpath=None,
+            lidar_ply_fpath=lidar_ply_fpath,
+            colmap_ply_fpath=colmap_ply_fpath,
         )
 
     def test_get_camera_intrinsics_full_res(self) -> None:
-        """ """
+        """Tests that expected camera intrinsics for zero'th image are returned."""
         intrinsics = self.loader.get_camera_intrinsics_full_res(index=0)
         assert isinstance(intrinsics, Cal3Bundler)
 
@@ -57,7 +59,7 @@ class TanksAndTemplesLoaderTest(unittest.TestCase):
         assert np.isclose(intrinsics.py(), 540.0)
 
     def test_get_camera_pose(self) -> None:
-        """ """
+        """Tests that expected GT camera pose for zero'th image are returned."""
         wTi = self.loader.get_camera_pose(index=0)
 
         det = np.linalg.det(wTi.rotation().matrix())

@@ -238,8 +238,8 @@ class TanksAndTemplesLoader(LoaderBase):
         Returns:
             Reconstructed mesh.
         """
+        # Get LiDAR point cloud, in camera coordinate frame.
         pcd = self.get_lidar_point_cloud()
-        # pcd = pcd.transform(self.lidar_T_colmap)
         if crop_by_polyhedron:
             pass
             # pcd = crop_points_to_bounding_polyhedron(pcd, self.bounding_polyhedron_json_fpath)
