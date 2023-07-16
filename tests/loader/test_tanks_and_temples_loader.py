@@ -3,12 +3,18 @@
 Author: John Lambert
 """
 
-import open3d
 import unittest
 from pathlib import Path
 
+import numpy as np
+import open3d
+from gtsam import Rot3, Unit3
+
 import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
 from gtsfm.loader.tanks_and_temples_loader import TanksAndTemplesLoader
+from gtsfm.frontend.verifier.loransac import LoRansac
+import gtsfm.utils.geometry_comparisons as geom_comp_utils
+
 
 _TEST_DATA_ROOT = Path(__file__).resolve().parent.parent / "data" / "tanks_and_temples_barn"
 
@@ -56,6 +62,20 @@ class TanksAndTemplesLoaderTest(unittest.TestCase):
         assert fpath == expected_fpath
 
 
+R = Rot3(np.eye(3))
+result = geom_comp_utils.is_valid_SO3(R)
+assert result
+
+R = Rot3(np.array([
+    [3.85615, 0.0483263, 1.5018],
+    [-1.50233, 0.199159, 3.8511],
+    [-0.0273012, -4.13347, 0.203112]
+    ]))
+result = geom_comp_utils.is_valid_SO3(R)
+assert not result
+
+print("success")
+exit()
 
 dataset_root = '/Users/johnlambert/Downloads/Tanks_and_Temples_Barn_410'
 scene_name = 'Barn' # 'Truck'
@@ -76,6 +96,89 @@ loader = TanksAndTemplesLoader(
 )
 
 intrinsics = loader.get_camera_intrinsics_full_res(index=0)
+
+# View frustums
+# for index in loader.wTi_gt_dict.keys():
+#     wTc = loader.get_camera_pose(index)
+
+wTi_list = [loader.get_camera_pose(index) for index in range(len(loader))]
+calibrations = [loader.get_camera_intrinsics_full_res(index) for index in range(len(loader))]
+
+frustums = open3d_vis_utils.create_all_frustums_open3d(
+    wTi_list=wTi_list, calibrations=calibrations, frustum_ray_len= 0.3
+)
+geometries = frustums
+lidar_pcd = loader.get_lidar_point_cloud()
+colmap_pcd = loader.get_colmap_point_cloud()
+
+open3d.visualization.draw_geometries(geometries + [lidar_pcd] + [colmap_pcd])
+exit()
+
+# Compute 2-view error using a front-end.
+verifier = LoRansac(use_intrinsics_in_verification=True, estimation_threshold_px=0.5)
+
+
+
+
+import time
+start = time.time()
+keypoints_list, match_indices_dict = loader.generate_synthetic_correspondences(
+    images = [],
+    image_pairs = [(i1,i2)]
+)
+end = time.time()
+duration = end - start
+print(f"Took {duration} sec.")
+keypoints_i1, keypoints_i2 = keypoints_list
+
+
+i1 = 0
+i2 = 1
+
+
+wTi1 = loader.get_camera_pose(index=i1)
+wTi2 = loader.get_camera_pose(index=i2)
+
+i2Ti1 = wTi2.between(wTi1)
+i2Ri1_expected = i2Ti1.rotation()
+i2Ui1_expected = Unit3(i2Ti1.translation())
+
+camera_intrinsics_i1 = loader.get_camera_intrinsics_full_res(index=i1)
+camera_intrinsics_i2 = loader.get_camera_intrinsics_full_res(index=i2)
+
+i2Ri1_computed, i2Ui1_computed, verified_indices_computed, _ = verifier.verify(
+    keypoints_i1,
+    keypoints_i2,
+    match_indices_dict[(i1,i2)],
+    camera_intrinsics_i1,
+    camera_intrinsics_i2,
+)
+
+rot_angular_err = geom_comp_utils.compute_relative_rotation_angle(i2Ri1_expected, i2Ri1_computed)
+direction_angular_err = geom_comp_utils.compute_relative_unit_translation_angle(i2Ui1_expected, i2Ui1_computed)
+
+print(f"Errors: rotation {rot_angular_err:.2f}, direction {direction_angular_err:.2f}")
+
+
+# if i2Ri1_expected is None:
+#     self.assertIsNone(i2Ri1_computed)
+# else:
+#     angular_err = geom_comp_utils.compute_relative_rotation_angle(i2Ri1_expected, i2Ri1_computed)
+#     self.assertLess(
+#         angular_err,
+#         ROTATION_ANGULAR_ERROR_DEG_THRESHOLD,
+#         msg=f"Angular error {angular_err:.1f} vs. tol. {ROTATION_ANGULAR_ERROR_DEG_THRESHOLD:.1f}",
+#     )
+# if i2Ui1_expected is None:
+#     self.assertIsNone(i2Ui1_computed)
+# else:
+#     self.assertLess(
+#         geom_comp_utils.compute_relative_unit_translation_angle(i2Ui1_expected, i2Ui1_computed),
+#         DIRECTION_ANGULAR_ERROR_DEG_THRESHOLD,
+#     )
+# np.testing.assert_array_equal(verified_indices_computed, verified_indices_expected)
+
+
 
 import gtsfm.utils.io as io_utils
 
@@ -107,13 +210,10 @@ import gtsfm.utils.io as io_utils
 # plt.scatter(keypoints_i1[:,0], keypoints_i1[:,1], 10, color='r', marker='.', alpha=0.007)
 # plt.show()
 
-result = loader.generate_synthetic_correspondences(
-    images = [],
-    image_pairs = [(0,1)]
-) 
-exit()
 
 exit()
+
+
 # pcd = io_utils.read_point_cloud_from_ply(ply_fpath)
 
 
@@ -155,3 +255,21 @@ two_view_results_dict = run_two_view_estimator_as_futures(
 )
 """
 
+
+"""
+conda install -c conda-forge embree=2.17.7
+
+pip install pyembree
+print(trimesh.ray.ray_pyembree.error)
+
+In [1]: import pyembree
+
+In [2]: import trimesh
+
+In [3]: m = trimesh.creation.icosphere
+
+In [5]: m = trimesh.creation.icosphere()
+
+# check for `ray_pyembree` instead of `ray_triangle`
+In [6]: m.ray
+"""
