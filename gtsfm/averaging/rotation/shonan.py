@@ -169,6 +169,17 @@ class ShonanRotationAveraging(RotationAveragingBase):
                 underconstrained system or ill-constrained system), or where the camera pose had no valid observation
                 in the input to run_rotation_averaging().
         """
+        i2Ri1_quaternion_list = []
+        for (i1,i2), i2Ri1 in i2Ri1_dict.items():
+            i2Ri1_quaternion = i2Ri1.toQuaternion()
+            qw, qx, qy, qz = i2Ri1_quaternion.w(), i2Ri1_quaternion.x(), i2Ri1_quaternion.y(), i2Ri1_quaternion.z()
+            i2Ri1_quaternion_list.append({"i1": i1, "i2": i2, "quaternion": {"qw": qw, "qx": qx, "qy": qy, "qz": qz}})
+
+        serialization_data = {"i2Ri1": i2Ri1_quaternion_list}
+        import gtsfm.utils.io as io_utils
+        json_fpath = "result_metrics/shonan_input.json"
+        io_utils.save_json_file(json_fpath, data=serialization_data)
+
         if len(i2Ri1_dict) == 0:
             logger.warning("Shonan cannot proceed: No cycle-consistent triplets found after filtering.")
             wRi_list = [None] * num_images
