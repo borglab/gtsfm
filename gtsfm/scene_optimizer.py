@@ -25,6 +25,7 @@ import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.viz as viz_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
+from gtsfm.frontend.correspondence_augmenter import CorrespondenceAugmenter
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.densify.mvs_base import MVSBase
@@ -32,8 +33,7 @@ from gtsfm.frontend.correspondence_generator.correspondence_generator_base impor
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.retriever.retriever_base import RetrieverBase, ImageMatchingRegime
 from gtsfm.two_view_estimator import (
-    POST_ISP_REPORT_TAG,
-    VIEWGRAPH_REPORT_TAG,
+    TWO_VIEW_REPORT_TAG,
     TwoViewEstimationReport,
     TwoViewEstimator,
 )
@@ -68,6 +68,7 @@ class SceneOptimizer:
         correspondence_generator: CorrespondenceGeneratorBase,
         two_view_estimator: TwoViewEstimator,
         multiview_optimizer: MultiViewOptimizer,
+        correspondence_augmenter: Optional[CorrespondenceAugmenter] = None,
         dense_multiview_optimizer: Optional[MVSBase] = None,
         save_two_view_correspondences_viz: bool = False,
         save_3d_viz: bool = True,
@@ -80,6 +81,7 @@ class SceneOptimizer:
         self.retriever = retriever
         self.correspondence_generator = correspondence_generator
         self.two_view_estimator = two_view_estimator
+        self.correspondence_augmenter = correspondence_augmenter
         self.multiview_optimizer = multiview_optimizer
         self.dense_multiview_optimizer = dense_multiview_optimizer
 
@@ -169,11 +171,12 @@ class SceneOptimizer:
         metrics_graph_list: List[Delayed] = []
         annotation = dask.annotate(workers=self._output_worker) if self._output_worker else dask.annotate()
         with annotation:
+            # TODO(Ayush): save correspondence generator metrics too. Ideally move this to the runner.
             delayed_results.append(
                 dask.delayed(save_full_frontend_metrics)(
                     two_view_reports,
                     images,
-                    filename="two_view_report_{}.json".format(POST_ISP_REPORT_TAG),
+                    filename="two_view_report_{}.json".format(TWO_VIEW_REPORT_TAG.POST_ISP),
                     matching_regime=self.retriever._matching_regime,
                     metrics_path=self._metrics_path,
                     plot_base_path=self._plot_base_path,
@@ -183,7 +186,7 @@ class SceneOptimizer:
                 dask.delayed(two_view_estimator.aggregate_frontend_metrics)(
                     two_view_reports,
                     self._pose_angular_error_thresh,
-                    metric_group_name="verifier_summary_{}".format(POST_ISP_REPORT_TAG),
+                    metric_group_name="verifier_summary_{}".format(TWO_VIEW_REPORT_TAG.POST_ISP),
                 )
             )
 
@@ -192,7 +195,7 @@ class SceneOptimizer:
                 dask.delayed(save_full_frontend_metrics)(
                     two_view_reports_post_viewgraph_estimator,
                     images,
-                    filename="two_view_report_{}.json".format(VIEWGRAPH_REPORT_TAG),
+                    filename="two_view_report_{}.json".format(TWO_VIEW_REPORT_TAG.VIEWGRAPH),
                     matching_regime=self.retriever._matching_regime,
                     metrics_path=self._metrics_path,
                     plot_base_path=self._plot_base_path,
@@ -202,7 +205,7 @@ class SceneOptimizer:
                 dask.delayed(two_view_estimator.aggregate_frontend_metrics)(
                     two_view_reports_post_viewgraph_estimator,
                     self._pose_angular_error_thresh,
-                    metric_group_name="verifier_summary_{}".format(VIEWGRAPH_REPORT_TAG),
+                    metric_group_name="verifier_summary_{}".format(TWO_VIEW_REPORT_TAG.VIEWGRAPH),
                 )
             )
 

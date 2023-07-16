@@ -21,7 +21,12 @@ from gtsfm.frontend.correspondence_generator.image_correspondence_generator impo
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.scene_optimizer import SceneOptimizer
-from gtsfm.two_view_estimator import TWO_VIEW_OUTPUT, TwoViewEstimationReport, run_two_view_estimator_as_futures
+from gtsfm.two_view_estimator import (
+    TWO_VIEW_OUTPUT,
+    TwoViewEstimationReport,
+    run_two_view_estimator_as_futures,
+    TWO_VIEW_REPORT_TAG,
+)
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
 
 logger = logger_utils.get_logger()
@@ -232,12 +237,13 @@ class GtsfmRunnerBase:
         intrinsics = self.loader.get_all_intrinsics()
 
         with performance_report(filename="correspondence-generator-dask-report.html"):
+            images_as_futures = self.loader.get_all_images_as_futures(client)
             (
                 keypoints_list,
                 putative_corr_idxs_dict,
             ) = self.scene_optimizer.correspondence_generator.generate_correspondences(
                 client,
-                self.loader.get_all_images_as_futures(client),
+                images_as_futures,
                 image_pair_indices,
             )
 
@@ -251,6 +257,20 @@ class GtsfmRunnerBase:
                 self.loader.get_gt_cameras(),
                 gt_scene_mesh=self.loader.get_gt_scene_trimesh(),
             )
+
+            if self.scene_optimizer.correspondence_augmenter:
+                (
+                    keypoints_list,
+                    two_view_results_dict,
+                ) = self.scene_optimizer.correspondence_augmenter.augment_correspondences(
+                    client=client,
+                    images=images_as_futures,
+                    keypoints_list=keypoints_list,
+                    camera_intrinsics=[self.loader.get_gt_camera_intrinsics(i) for i in range(len(self.loader))],
+                    two_view_outputs=two_view_results_dict,
+                    gt_cameras=self.loader.get_gt_cameras(),
+                    gt_scene_mesh=self.loader.get_gt_scene_trimesh(),
+                )
 
         i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, two_view_reports_dict = unzip_two_view_results(two_view_results_dict)
 
@@ -305,6 +325,11 @@ def unzip_two_view_results(
         i2Ri1_dict[(i1, i2)] = i2Ri1
         i2Ui1_dict[(i1, i2)] = i2Ui1
         v_corr_idxs_dict[(i1, i2)] = two_view_output[2]
-        two_view_reports_dict[(i1, i2)] = two_view_output[5]
+        two_view_reports = two_view_output[3]
+        two_view_reports_dict[(i1, i2)] = (
+            two_view_reports[TWO_VIEW_REPORT_TAG.CORRESPONDENCE_AUGMENTED]
+            if TWO_VIEW_REPORT_TAG.CORRESPONDENCE_AUGMENTED in two_view_reports
+            else two_view_reports[TWO_VIEW_REPORT_TAG.POST_ISP]
+        )
 
     return i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, two_view_reports_dict
