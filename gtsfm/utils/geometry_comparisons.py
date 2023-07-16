@@ -397,3 +397,11 @@ def get_points_within_radius_of_cameras(
     is_nearby_to_any_cam = np.any(is_nearby_matrix, axis=1)
     nearby_points_3d = points_3d[is_nearby_to_any_cam]
     return nearby_points_3d
+
+
+def is_valid_SO3(R: Rot3) -> bool:
+    """Verifies that provided rotation matrix is a valid member of SO(3)."""
+    R = R.matrix()
+    is_unit_det = np.isclose(np.linalg.det(R), 1.0)
+    is_orthogonal = np.allclose(R @ R.T, np.eye(3))
+    return is_unit_det and is_orthogonal
