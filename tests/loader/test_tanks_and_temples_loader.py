@@ -27,8 +27,8 @@ class TanksAndTemplesLoaderTest(unittest.TestCase):
 
         # Uncomment lines below to run locally.
         # _TEST_DATA_ROOT = Path('/Users/johnlambert/Downloads/Tanks_and_Temples_Barn_410')
-        # lidar_ply_fpath = f'{dataset_root}/{scene_name}.ply'
-        # colmap_ply_fpath = f'{dataset_root}/{scene_name}_COLMAP.ply'
+        # lidar_ply_fpath = _TEST_DATA_ROOT / f'{scene_name}.ply'
+        # colmap_ply_fpath = _TEST_DATA_ROOT / f'{scene_name}_COLMAP.ply'
         lidar_ply_fpath = None
         colmap_ply_fpath = None
 
@@ -39,12 +39,12 @@ class TanksAndTemplesLoaderTest(unittest.TestCase):
 
         # Note: PLY files are not provided here, as they are too large to include as test data (300 MB each).
         self.loader = TanksAndTemplesLoader(
-            img_dir=img_dir,
-            poses_fpath=poses_fpath,
-            bounding_polyhedron_json_fpath=bounding_polyhedron_json_fpath,
-            ply_alignment_fpath=ply_alignment_fpath,
-            lidar_ply_fpath=lidar_ply_fpath,
-            colmap_ply_fpath=colmap_ply_fpath,
+            img_dir=str(img_dir),
+            poses_fpath=str(poses_fpath),
+            bounding_polyhedron_json_fpath=str(bounding_polyhedron_json_fpath),
+            ply_alignment_fpath=str(ply_alignment_fpath),
+            lidar_ply_fpath=str(lidar_ply_fpath),
+            colmap_ply_fpath=str(colmap_ply_fpath),
         )
 
     def test_get_camera_intrinsics_full_res(self) -> None:
@@ -170,6 +170,7 @@ class TanksAndTemplesLoaderTest(unittest.TestCase):
 
     def visualize_overlapping_point_clouds(self) -> None:
         """Visualize overlaid LiDAR and COLMAP point clouds."""
+        return
         wTi_list = [self.loader.get_camera_pose(index) for index in range(len(self.loader))]
         calibrations = [self.loader.get_camera_intrinsics_full_res(index) for index in range(len(self.loader))]
 
