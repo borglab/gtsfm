@@ -125,6 +125,12 @@ class GtsfmRunnerBase:
             default=":8787",
             help="dask dashboard port number",
         )
+        parser.add_argument(
+            "--num_retry_cluster_connection",
+            type=int,
+            default=3,
+            help="number of times to retry cluster connection if it fails",
+        )
         return parser
 
     @abstractmethod
@@ -199,14 +205,24 @@ class GtsfmRunnerBase:
                 os.path.join(self.parsed_args.output_root, "gtsfm", "configs", self.parsed_args.cluster_config)
             )["workers"]
             scheduler = workers[0]
-            cluster = SSHCluster(
-                [scheduler] + workers,
-                scheduler_options={"dashboard_address": self.parsed_args.dashboard_port},
-                worker_options={
-                    "n_workers": self.parsed_args.num_workers,
-                    "nthreads": self.parsed_args.threads_per_worker,
-                },
-            )
+            connected = False
+            retry_count = 0
+            while retry_count < self.parsed_args.num_retry_cluster_connection and not connected:
+                logger.info(f"Connecting to the cluster: attempt {retry_count + 1}")
+                logger.info(f"Using {scheduler} as scheduler")
+                logger.info(f"Using {workers} as workers")
+                try:
+                    cluster = SSHCluster(
+                            [scheduler] + workers,
+                            scheduler_options={"dashboard_address": self.parsed_args.dashboard_port},
+                            worker_options={
+                                "n_workers": self.parsed_args.num_workers,
+                                "nthreads": self.parsed_args.threads_per_worker,
+                            },
+                        )
+                    connected = True
+                except:
+                    retry_count += 1
             client = Client(cluster)
             # getting first worker's IP address and port to do IO
             io_worker = list(client.scheduler_info()["workers"].keys())[0]
