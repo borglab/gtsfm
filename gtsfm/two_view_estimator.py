@@ -429,7 +429,7 @@ def aggregate_frontend_metrics(
     """
     num_image_pairs = len(two_view_reports_dict.keys())
 
-    # all rotational errors in degrees
+    # All rotational errors in degrees.
     rot3_angular_errors_list: List[float] = []
     trans_angular_errors_list: List[float] = []
 
@@ -437,7 +437,7 @@ def aggregate_frontend_metrics(
     inlier_ratio_est_model_all_pairs = []
     num_inliers_gt_model_all_pairs = []
     num_inliers_est_model_all_pairs = []
-    # populate the distributions
+    # Populate the distributions.
     for report in two_view_reports_dict.values():
         if report.R_error_deg is not None:
             rot3_angular_errors_list.append(report.R_error_deg)
