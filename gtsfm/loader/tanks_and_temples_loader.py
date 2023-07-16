@@ -324,14 +324,14 @@ class TanksAndTemplesLoader(LoaderBase):
         camera_i1: gtsfm_types.CAMERA_TYPE,
         camera_i2: gtsfm_types.CAMERA_TYPE,
         open3d_mesh_fpath: str,
-        num_sampled_3d_points: int = 200,
+        num_sampled_3d_points: int = 700,
     ) -> Tuple[Keypoints, Keypoints]:
         """Generates synthetic correspondences for image pair.
 
         Args:
             camera_i1: First camera.
             camera_i2: Second camera.
-            open3d_mesh_fpath
+            open3d_mesh_fpath: Path to saved Open3d mesh.
             num_sampled_3d_points: Number of 3d points to sample from the mesh surface and to project.
 
         Returns:
