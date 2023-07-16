@@ -222,7 +222,7 @@ class GtsfmRunnerBase:
                     )
                     connected = True
                 except Exception as e:
-                    logger.info("Worker failed to start:", str(e))
+                    logger.info(f"Worker failed to start: {str(e)}")
                     retry_count += 1
             client = Client(cluster)
             # getting first worker's IP address and port to do IO
