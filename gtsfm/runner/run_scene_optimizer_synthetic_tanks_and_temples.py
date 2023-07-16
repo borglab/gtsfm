@@ -26,6 +26,12 @@ class GtsfmRunnerSyntheticTanksAndTemplesLoader(GtsfmRunnerBase):
             "--dataset_root", type=str, required=True, help="Path to zip file containing packaged data."
         )
         parser.add_argument("--scene_name", type=str, required=True, help="Name of dataset scene.")
+        parser.add_argument(
+            "--max_num_images",
+            type=int,
+            default=None,
+            help="Optionally specifies the maximum number of images from the dataset to use for reconstruction.",
+        )
 
         return parser
 
@@ -47,6 +53,7 @@ class GtsfmRunnerSyntheticTanksAndTemplesLoader(GtsfmRunnerBase):
             bounding_polyhedron_json_fpath=bounding_polyhedron_json_fpath,
             colmap_ply_fpath=colmap_ply_fpath,
             max_resolution=_TANKS_AND_TEMPLES_RESOLUTION_PX,
+            max_num_images=self.parsed_args.max_num_images,
         )
         return loader
 
