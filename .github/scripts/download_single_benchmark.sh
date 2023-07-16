@@ -131,8 +131,6 @@ function download_and_unzip_dataset_files {
     tar -xvf cache_rc3_deep.tar.gz
   elif [ "$DATASET_NAME" == "tanks-and-temples-barn-410" ]; then
     unzip -qq Tanks_and_Temples_Barn_410.zip
-    pwd
-    pwd .
   fi
 }
 

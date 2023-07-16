@@ -29,7 +29,7 @@ class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
     def __init__(self, dataset_root: str, scene_name: str, deduplicate: bool = True) -> None:
         """
         Args:
-            dataset_root: str
+            dataset_root: Path to where Tanks & Temples dataset is stored.
             scene_name: Name of scene from Tanks & Temples dataset.
             deduplicate: Whether to de-duplicate with a single image the detections received from each image pair.
         """
@@ -53,8 +53,8 @@ class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
             image_pairs: Indices of the pairs of images to estimate two-view pose and correspondences.
 
         Returns:
-            List of keypoints, one entry for each input images.
-            Putative correspondence as indices of keypoints, for pairs of images.
+            List of keypoints, with one entry for each input image.
+            Putative correspondences as indices of keypoints (N,2), for pairs of images (i1,i2).
         """
         dataset_root = self._dataset_root
         scene_name = self._scene_name
