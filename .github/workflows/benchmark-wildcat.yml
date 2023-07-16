@@ -8,7 +8,7 @@ name: Benchmark GTSFM on select datasets on the wildcat machine
 # one machine.
 ################################################################################
 
-on: [workflow_dispatch]
+on: [pull_request, workflow_dispatch]
 jobs:
   benchmark:
     name: Benchmark
@@ -18,8 +18,9 @@ jobs:
       fail-fast: false
       matrix:
         config_dataset_info: [
-            # config             dataset       lookahead   img-extension  source  loader         max-res  share-intrinsics
-            [skydio_front_end,   skydio-501,   15,         jpg,           wget,   colmap-loader, 600,     true,],
+            # config             dataset           lookahead   img-extension  source  loader          max-res  share-intrinsics
+            # [skydio_front_end,   skydio-501,       15,         jpg,           wget,   colmap-loader,  600,     true,],
+            [onedsfm_front_end,     gendarmenmarkt,   15,         jpg,           wget,   onedsfm-loader, 640,     false,],
           ]
     defaults:
       run:
