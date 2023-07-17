@@ -320,7 +320,7 @@ class TanksAndTemplesLoader(LoaderBase):
         camera_i1: gtsfm_types.CAMERA_TYPE,
         camera_i2: gtsfm_types.CAMERA_TYPE,
         open3d_mesh_fpath: str,
-        num_sampled_3d_points: int = 700,
+        num_sampled_3d_points: int = 200,
     ) -> Tuple[Keypoints, Keypoints]:
         """Generates synthetic correspondences for image pair.
 
