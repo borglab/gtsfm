@@ -137,10 +137,13 @@ class CorrespondenceAugmenter:
         results: Dict[Tuple[int, int], TWO_VIEW_OUTPUT] = {}
         for (i1, i2), two_view_output in two_view_outputs.items():
             new_corr_idxs = verified_corr_idxs_dict[(i1, i2)]
-            new_corr_idxs[:, 0] += keypoint_idx_offsets[i1]
-            new_corr_idxs[:, 1] += keypoint_idx_offsets[i2]
+            if len(new_corr_idxs) > 0:
+                new_corr_idxs[:, 0] += keypoint_idx_offsets[i1]
+                new_corr_idxs[:, 1] += keypoint_idx_offsets[i2]
 
-            augmented_v_corr_idxs = np.append(two_view_output[2], new_corr_idxs, axis=0)
+                augmented_v_corr_idxs = np.append(two_view_output[2], new_corr_idxs, axis=0)
+            else:
+                augmented_v_corr_idxs = two_view_output[2]
 
             two_view_reports = two_view_output[3]
             two_view_report_before_augmentation = two_view_reports[TWO_VIEW_REPORT_TAG.POST_ISP]
