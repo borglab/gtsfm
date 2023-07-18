@@ -337,7 +337,7 @@ class TanksAndTemplesLoader(LoaderBase):
         trimesh_mesh = load_from_trimesh(open3d_mesh_fpath)
 
         # Sample random 3d points.
-        # pcd = mesh.sample_points_uniformly(number_of_points=num_sampled_3d_points)
+        pcd = mesh.sample_points_uniformly(number_of_points=50)
         pcd = mesh.sample_points_poisson_disk(number_of_points=num_sampled_3d_points, pcl=pcd)
         points = np.asarray(pcd.points)
 
