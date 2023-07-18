@@ -7,27 +7,27 @@ SceneOptimizer:
   save_3d_viz: True
   pose_angular_error_thresh: 5 # degrees
 
-  # retriever:
-  #   _target_: gtsfm.retriever.sequential_retriever.SequentialRetriever
-  #   max_frame_lookahead: 4
+  retriever:
+    _target_: gtsfm.retriever.sequential_retriever.SequentialRetriever
+    max_frame_lookahead: 4
 
   # retriever:
   #   _target_: gtsfm.retriever.netvlad_retriever.NetVLADRetriever
   #   num_matched: 50
   #   min_score: 0.3
 
-  retriever:
-    _target_: gtsfm.retriever.joint_netvlad_sequential_retriever.JointNetVLADSequentialRetriever
-    num_matched: 20
-    min_score: 0.2
-    max_frame_lookahead: 10
+  # retriever:
+  #   _target_: gtsfm.retriever.joint_netvlad_sequential_retriever.JointNetVLADSequentialRetriever
+  #   num_matched: 20
+  #   min_score: 0.2
+  #   max_frame_lookahead: 10
 
 
   correspondence_generator:
     _target_: gtsfm.frontend.correspondence_generator.synthetic_correspondence_generator.SyntheticCorrespondenceGenerator
     #dataset_root: /Users/johnlambert/Downloads/Tanks_and_Temples_Barn_410
-    #dataset_root: /home/runner/work/gtsfm/gtsfm/Tanks_and_Temples_Barn_410
-    dataset_root: /home/tdriver6/sfm_datasets/Tanks_and_Temples_Barn_410
+    dataset_root: /home/runner/work/gtsfm/gtsfm/Tanks_and_Temples_Barn_410
+    # dataset_root: /home/tdriver6/sfm_datasets/Tanks_and_Temples_Barn_410
     scene_name: Barn
 
   two_view_estimator:
