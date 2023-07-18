@@ -451,18 +451,18 @@ def aggregate_frontend_metrics(
 
     rot3_angular_errors = np.array(rot3_angular_errors_list, dtype=float)
     trans_angular_errors = np.array(trans_angular_errors_list, dtype=float)
-    # count number of rot3 errors which are not None. Should be same in rot3/unit3
+    # Count number of rot3 errors which are not None. Should be same in rot3/unit3.
     num_valid_image_pairs = np.count_nonzero(~np.isnan(rot3_angular_errors))
 
-    # compute pose errors by picking the max error from rot3 and unit3 errors
+    # Compute pose errors by picking the max error from rot3 and unit3 errors.
     pose_errors = np.maximum(rot3_angular_errors, trans_angular_errors)
 
-    # check errors against the threshold
+    # Check errors against the threshold.
     success_count_rot3 = np.sum(rot3_angular_errors < angular_err_threshold_deg)
     success_count_unit3 = np.sum(trans_angular_errors < angular_err_threshold_deg)
     success_count_pose = np.sum(pose_errors < angular_err_threshold_deg)
 
-    # count image pair entries where inlier ratio w.r.t. GT model == 1.
+    # Count image pair entries where inlier ratio w.r.t. GT model == 1.
     all_correct = np.count_nonzero(
         [report.inlier_ratio_gt_model == 1.0 for report in two_view_reports_dict.values() if report is not None]
     )
