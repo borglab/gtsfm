@@ -28,7 +28,6 @@ import gtsfm.utils.logger as logger_utils
 from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
 from gtsfm.common.pose_prior import PosePrior
 
-TWOVIEW_ROTATION_SIGMA = 1
 POSE3_DOF = 6
 
 logger = logger_utils.get_logger()
@@ -37,10 +36,15 @@ logger = logger_utils.get_logger()
 class ShonanRotationAveraging(RotationAveragingBase):
     """Performs Shonan rotation averaging."""
 
-    def __init__(self) -> None:
-        """
+    def __init__(self, two_view_rotation_sigma: float = 1.0) -> None:
+        """Initializes module.
+
         Note: `p_min` and `p_max` describe the minimum and maximum relaxation rank.
+
+        Args:
+            two_view_rotation_sigma: Covariance to use (lower values -> more strictly adhere to input measurements).
         """
+        self._two_view_rotation_sigma = two_view_rotation_sigma
         self._p_min = 5
         self._p_max = 30
 
@@ -56,7 +60,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
     ) -> BetweenFactorPose3s:
         """Create between factors from relative rotations computed by the 2-view estimator."""
         # TODO: how to weight the noise model on relative rotations compared to priors?
-        noise_model = gtsam.noiseModel.Isotropic.Sigma(POSE3_DOF, TWOVIEW_ROTATION_SIGMA)
+        noise_model = gtsam.noiseModel.Isotropic.Sigma(POSE3_DOF, self._two_view_rotation_sigma)
 
         between_factors = BetweenFactorPose3s()
 

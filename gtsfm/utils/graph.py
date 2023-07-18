@@ -21,7 +21,7 @@ def get_nodes_in_largest_connected_component(edges: List[Tuple[int, int]]) -> Li
     """Finds the nodes in the largest connected component of the bidirectional graph defined by the input edges.
 
     Args:
-        edges: edges of the bi-directional graph.
+        edges: Edges of the bi-directional graph.
 
     Returns:
         Nodes in the largest connected component of the input graph.
@@ -32,9 +32,13 @@ def get_nodes_in_largest_connected_component(edges: List[Tuple[int, int]]) -> Li
     input_graph = nx.Graph()
     input_graph.add_edges_from(edges)
 
-    # get the largest connected component
-    largest_cc = max(nx.connected_components(input_graph), key=len)
-    subgraph = input_graph.subgraph(largest_cc).copy()
+    # Log the sizes of the connected components.
+    cc_sizes = [len(x) for x in sorted(list(nx.connected_components(input_graph)))]
+    print("Connected component sizes: ", cc_sizes, " nodes.")
+
+    # Get the largest connected component.
+    largest_cc_nodes = max(nx.connected_components(input_graph), key=len)
+    subgraph = input_graph.subgraph(largest_cc_nodes).copy()
 
     return list(subgraph.nodes())
 
