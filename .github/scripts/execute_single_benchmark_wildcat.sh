@@ -23,14 +23,14 @@ elif [ "$DATASET_NAME" == "tanks-and-temples-barn-410" ]; then
 fi
 
 ## Download the Tanks & Temples dataset. ################
-WGET_URL1=https://github.com/johnwlambert/gtsfm-datasets-mirror/releases/download/tanks-and-temples-barn/Tanks_and_Temples_Barn_410.zip
-ZIP_FNAME=Tanks_and_Temples_Barn_410.zip
-echo "Downloading ${ZIP_FNAME} with WGET"
-wget -O $DATASET_PREFIX/Tanks_and_Temples_Barn_410.zip $WGET_URL1
-unzip -qq $DATASET_PREFIX/$ZIP_FNAME -d $DATASET_PREFIX
-pwd $DATASET_PREFIX
-ls -ltrh $DATASET_PREFIX
-ls -ltrh $DATASET_PREFIX/$DATASET_ROOT
+# WGET_URL1=https://github.com/johnwlambert/gtsfm-datasets-mirror/releases/download/tanks-and-temples-barn/Tanks_and_Temples_Barn_410.zip
+# ZIP_FNAME=Tanks_and_Temples_Barn_410.zip
+# echo "Downloading ${ZIP_FNAME} with WGET"
+# wget -O $DATASET_PREFIX/Tanks_and_Temples_Barn_410.zip $WGET_URL1
+# unzip -qq $DATASET_PREFIX/$ZIP_FNAME -d $DATASET_PREFIX
+# pwd $DATASET_PREFIX
+# ls -ltrh $DATASET_PREFIX
+# ls -ltrh $DATASET_PREFIX/$DATASET_ROOT
 #########################################
 
 
