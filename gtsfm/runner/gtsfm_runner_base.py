@@ -194,6 +194,33 @@ class GtsfmRunnerBase:
 
         logger.info("\n\nSceneOptimizer: " + str(scene_optimizer))
         return scene_optimizer
+    
+    def setup_ssh_cluster_with_retries(self):
+        """Sets up SSH Cluster allowing multiple retries upon connection failures."""
+        workers = OmegaConf.load(
+            os.path.join(self.parsed_args.output_root, "gtsfm", "configs", self.parsed_args.cluster_config)
+        )["workers"]
+        scheduler = workers[0]
+        connected = False
+        retry_count = 0
+        while retry_count < self.parsed_args.num_retry_cluster_connection and not connected:
+            logger.info(f"Connecting to the cluster: attempt {retry_count + 1}")
+            logger.info(f"Using {scheduler} as scheduler")
+            logger.info(f"Using {workers} as workers")
+            try:
+                cluster = SSHCluster(
+                    [scheduler] + workers,
+                    scheduler_options={"dashboard_address": self.parsed_args.dashboard_port},
+                    worker_options={
+                        "n_workers": self.parsed_args.num_workers,
+                        "nthreads": self.parsed_args.threads_per_worker,
+                    },
+                )
+                connected = True
+            except Exception as e:
+                logger.info(f"Worker failed to start: {str(e)}")
+                retry_count += 1
+        return cluster
 
     def run(self) -> GtsfmData:
         """Run the SceneOptimizer."""
@@ -201,29 +228,7 @@ class GtsfmRunnerBase:
 
         # create dask cluster
         if self.parsed_args.cluster_config:
-            workers = OmegaConf.load(
-                os.path.join(self.parsed_args.output_root, "gtsfm", "configs", self.parsed_args.cluster_config)
-            )["workers"]
-            scheduler = workers[0]
-            connected = False
-            retry_count = 0
-            while retry_count < self.parsed_args.num_retry_cluster_connection and not connected:
-                logger.info(f"Connecting to the cluster: attempt {retry_count + 1}")
-                logger.info(f"Using {scheduler} as scheduler")
-                logger.info(f"Using {workers} as workers")
-                try:
-                    cluster = SSHCluster(
-                        [scheduler] + workers,
-                        scheduler_options={"dashboard_address": self.parsed_args.dashboard_port},
-                        worker_options={
-                            "n_workers": self.parsed_args.num_workers,
-                            "nthreads": self.parsed_args.threads_per_worker,
-                        },
-                    )
-                    connected = True
-                except Exception as e:
-                    logger.info(f"Worker failed to start: {str(e)}")
-                    retry_count += 1
+            cluster = self.setup_ssh_cluster_with_retries()
             client = Client(cluster)
             # getting first worker's IP address and port to do IO
             io_worker = list(client.scheduler_info()["workers"].keys())[0]
