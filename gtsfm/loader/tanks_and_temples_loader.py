@@ -200,6 +200,8 @@ class TanksAndTemplesLoader(LoaderBase):
 
         Move all LiDAR points to the COLMAP frame.
         """
+        if not Path(self.lidar_ply_fpath).exists():
+            raise ValueError('')
         pcd = open3d.io.read_point_cloud(self.lidar_ply_fpath)
         points, rgb = open3d_vis_utils.convert_colored_open3d_point_cloud_to_numpy(pointcloud=pcd)
         points = points[::downsample_factor]
@@ -214,6 +216,8 @@ class TanksAndTemplesLoader(LoaderBase):
 
     def get_colmap_point_cloud(self, downsample_factor: int = 1) -> open3d.geometry.PointCloud:
         """Returns COLMAP-reconstructed point cloud."""
+        if not Path(self.colmap_ply_fpath).exists():
+            raise ValueError('')
         pcd = open3d.io.read_point_cloud(self.colmap_ply_fpath)
         points, rgb = open3d_vis_utils.convert_colored_open3d_point_cloud_to_numpy(pointcloud=pcd)
         points = points[::downsample_factor]
@@ -337,7 +341,7 @@ class TanksAndTemplesLoader(LoaderBase):
         trimesh_mesh = load_from_trimesh(open3d_mesh_fpath)
 
         # Sample random 3d points.
-        pcd = mesh.sample_points_uniformly(number_of_points=50)
+        pcd = mesh.sample_points_uniformly(number_of_points=num_sampled_3d_points)
         pcd = mesh.sample_points_poisson_disk(number_of_points=num_sampled_3d_points, pcl=pcd)
         points = np.asarray(pcd.points)
 
