@@ -570,7 +570,7 @@ def compute_metrics(
             GtsfmMetric("1dsfm_outlier_angular_errors_deg", outlier_angular_errors),
             metrics_utils.compute_relative_translation_angle_metric(measured_gt_i2Ui1_dict, wTi_aligned_list),
             metrics_utils.compute_translation_distance_metric(wti_aligned_list, gt_wti_list),
-            metrics_utils.compute_translation_angle_metric(gt_wTi_list,  wTi_aligned_list)
+            metrics_utils.compute_translation_angle_metric(gt_wTi_list, wTi_aligned_list),
         ]
     )
 
