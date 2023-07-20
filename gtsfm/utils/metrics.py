@@ -305,7 +305,7 @@ def compute_translation_angle_metric(
 def compute_pose_auc_metric(
     rotation_angular_errors: Sequence[float],
     translation_angular_errors: Sequence[float],
-    thresholds: Tuple[float] = (0, 1, 2.5, 5, 10, 20),
+    thresholds: Tuple[float] = (1, 2.5, 5, 10, 20),
 ) -> List[GtsfmMetric]:
     """Computes "Pose AUC" metric from rotation & translation angular errors.
 
