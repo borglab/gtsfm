@@ -274,7 +274,7 @@ def compute_relative_translation_angle_metric(
 def compute_translation_angle_metric(
     gt_wTi_list: List[Optional[Pose3]], wTi_list: List[Optional[Pose3]]
 ) -> GtsfmMetric:
-    """Compute from aligned pose graphs.
+    """Compute global translation angular errors from aligned pose graphs.
 
     Args:
         gt_wTi_list: List of ground truth camera poses:
@@ -327,6 +327,7 @@ def compute_pose_auc_metric(
 
     pose_errors = np.maximum(rotation_angular_errors, translation_angular_errors)
     aucs = pose_auc(pose_errors, thresholds)
+    metrics = []
     for threshold, auc in zip(thresholds, aucs):
         metrics.append(GtsfmMetric(f"pose_auc_@{threshold}_deg", auc))
     return metrics
