@@ -268,7 +268,7 @@ def compute_relative_translation_angle_metric(
     for (i1, i2) in i2Ui1_dict:
         i2Ui1 = i2Ui1_dict[(i1, i2)]
         angles.append(comp_utils.compute_translation_to_direction_angle(i2Ui1, wTi_list[i2], wTi_list[i1]))
-    return GtsfmMetric("relative_translation_angle_error_deg", np.array(angles, dtype=np.float))
+    return GtsfmMetric("relative_translation_angle_error_deg", np.array(angles, dtype=np.float32))
 
 
 def compute_translation_angle_metric(
@@ -299,7 +299,7 @@ def compute_translation_angle_metric(
         else:
             angle = np.nan
         angles.append(angle)
-    return GtsfmMetric("translation_angle_error_deg", np.array(angles, dtype=np.float))
+    return GtsfmMetric("translation_angle_error_deg", np.array(angles, dtype=np.float32))
 
 
 def compute_pose_auc_metric(
