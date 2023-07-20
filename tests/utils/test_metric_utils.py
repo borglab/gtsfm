@@ -217,5 +217,38 @@ def test_compute_percentage_change_regression() -> None:
     assert np.isclose(change_percent, -99)
 
 
+def test_pose_auc1() -> None:
+    """Area under curve resembles one triangle on the left, and then a rectangle to its right."""
+    errors = np.ones(5) * 5.0
+    thresholds = [5, 10, 20]
+
+    aucs = metric_utils.pose_auc(errors, thresholds)
+
+    # Sum triangles and rectangles.
+    # AUC @ 5 deg thresh: 0. (no cameras under this threshold).
+    # AUC @ 10 deg thresh: (5 * 0.2 * (1/2) + 1 * 5.0) / 10
+    # AUC @ 20 deg thresh: (5 * 0.2 * (1/2) + 1 * 15.0) / 20
+    expected_aucs = [0.0, 0.55, 0.775]
+    print("AUCs: ", aucs)
+    assert np.allclose(aucs, expected_aucs)
+
+
+def test_pose_auc_all_zero_errors_perfect_auc() -> None:
+    errors = np.zeros(5)
+
+    thresholds = [5, 10, 20]
+    aucs = metric_utils.pose_auc(errors, thresholds)
+    expected_aucs = [1.0, 1.0, 1.0]
+    assert np.allclose(aucs, expected_aucs)
+    
+
+def test_pose_auc_all_errors_exceed_threshold_zero_auc() -> None:
+    errors = np.ones(5) * 25.0
+    thresholds = [5, 10, 20]
+    aucs = metric_utils.pose_auc(errors, thresholds)
+    expected_aucs = [0.0, 0.0, 0.0]
+    assert np.allclose(aucs, expected_aucs)
+
+
 if __name__ == "__main__":
     unittest.main()
