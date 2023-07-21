@@ -364,8 +364,6 @@ def compute_ba_pose_metrics(
 
     rotation_angular_errors = metrics[0]._data
     translation_angular_errors = metrics[3]._data
-    print("Translation angular errors: ", translation_angular_errors)
-    print("Rotation angular errors: ", rotation_angular_errors)
     metrics.extend(compute_pose_auc_metric(rotation_angular_errors, translation_angular_errors))
 
     return GtsfmMetricsGroup(name="ba_pose_error_metrics", metrics=metrics)
