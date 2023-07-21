@@ -217,16 +217,18 @@ def compute_rotation_angle_metric(wRi_list: List[Optional[Rot3]], gt_wRi_list: L
     have a gauge freedom.
 
     Args:
-        wRi_list: List of estimated camera rotations.
-        gt_wRi_list: List of ground truth camera rotations.
+        wRi_list: List of N estimated camera rotations.
+        gt_wRi_list: List of N ground truth camera rotations.
 
     Returns:
-        A GtsfmMetric for the rotation angle errors, in degrees.
+        A GtsfmMetric for the N rotation angle errors, in degrees.
     """
     errors = []
     for (wRi, gt_wRi) in zip(wRi_list, gt_wRi_list):
         if wRi is not None and gt_wRi is not None:
             errors.append(comp_utils.compute_relative_rotation_angle(wRi, gt_wRi))
+        else:
+            errors.append(np.nan)
     return GtsfmMetric("rotation_angle_error_deg", errors)
 
 
@@ -277,11 +279,11 @@ def compute_translation_angle_metric(
     """Compute global translation angular errors from aligned pose graphs.
 
     Args:
-        gt_wTi_list: List of ground truth camera poses:
-        wTi_list: List of aligned, estimated camera poses.
+        gt_wTi_list: List of N ground truth camera poses:
+        wTi_list: List of N aligned, estimated camera poses.
 
     Returns:
-        A GtsfmMetric for the relative translation angle errors, in degrees.
+        A GtsfmMetric for the N global translation angle errors, in degrees.
     """
     if len(wTi_list) != len(gt_wTi_list):
         N1 = len(wTi_list)
@@ -305,13 +307,13 @@ def compute_translation_angle_metric(
 def compute_pose_auc_metric(
     rotation_angular_errors: Sequence[float],
     translation_angular_errors: Sequence[float],
-    thresholds: Tuple[float] = (1, 2.5, 5, 10, 20),
+    thresholds_deg: Tuple[float] = (1, 2.5, 5, 10, 20),
 ) -> List[GtsfmMetric]:
     """Computes "Pose AUC" metric from rotation & translation angular errors.
 
     Args:
-        rotation_angular_errors: Rotation angular errors, in degrees.
-        translation_angular_errors: Translation angular errors, in degrees.
+        rotation_angular_errors: N rotation angular errors, in degrees.
+        translation_angular_errors: N translation angular errors, in degrees.
 
     Returns:
         One GtsfmMetric for each angular error threshold.
@@ -326,9 +328,9 @@ def compute_pose_auc_metric(
         raise ValueError("# of rotation and translation angular errors must match.")
 
     pose_errors = np.maximum(rotation_angular_errors, translation_angular_errors)
-    aucs = pose_auc(pose_errors, thresholds)
+    aucs = pose_auc(pose_errors, thresholds_deg)
     metrics = []
-    for threshold, auc in zip(thresholds, aucs):
+    for threshold, auc in zip(thresholds_deg, aucs):
         metrics.append(GtsfmMetric(f"pose_auc_@{threshold}_deg", auc))
     return metrics
 
@@ -526,7 +528,7 @@ def pose_auc(errors: np.ndarray, thresholds: Sequence[float], save_plot: bool = 
         r = np.r_[recall[:last_index], recall[last_index - 1]]
         e = np.r_[errors[:last_index], t]
         if save_plot:
-            plt.scatter(e, r, 10, color="r", marker=".")
+            plt.scatter(e, r, 20, color="k", marker=".")
             plt.plot(e, r, color="r")
             plt.ylabel("Recall")
             plt.xlabel("Pose Error (deg.)")
