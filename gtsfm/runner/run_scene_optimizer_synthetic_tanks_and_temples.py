@@ -1,4 +1,4 @@
-"""Runs GTSfM on a Tanks and Temple dataset, using synthetic correspondences.
+"""Runs GTSfM on a Tanks and Temples dataset, using synthetic correspondences.
 
 Author: John Lambert
 """
