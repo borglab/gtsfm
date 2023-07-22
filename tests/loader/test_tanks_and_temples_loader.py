@@ -26,11 +26,11 @@ class TanksAndTemplesLoaderTest(unittest.TestCase):
         scene_name = "Barn"  # 'Truck'
 
         # Uncomment lines below to run locally.
-        _TEST_DATA_ROOT = Path('/Users/johnlambert/Downloads/Tanks_and_Temples_Barn_410')
-        lidar_ply_fpath = _TEST_DATA_ROOT / f'{scene_name}.ply'
-        colmap_ply_fpath = _TEST_DATA_ROOT / f'{scene_name}_COLMAP.ply'
-        # lidar_ply_fpath = None
-        # colmap_ply_fpath = None
+        # _TEST_DATA_ROOT = Path('/Users/johnlambert/Downloads/Tanks_and_Temples_Barn_410')
+        # lidar_ply_fpath = _TEST_DATA_ROOT / f'{scene_name}.ply'
+        # colmap_ply_fpath = _TEST_DATA_ROOT / f'{scene_name}_COLMAP.ply'
+        lidar_ply_fpath = None
+        colmap_ply_fpath = None
 
         img_dir = _TEST_DATA_ROOT / scene_name
         poses_fpath = _TEST_DATA_ROOT / f"{scene_name}_COLMAP_SfM.log"
@@ -144,6 +144,8 @@ class TanksAndTemplesLoaderTest(unittest.TestCase):
         #     )
 
     def test_mesh(self) -> None:
+        # Skip this test in the CI, and only uncomment it to run it locally, since it requires PLY.
+        return
         mesh = self.loader.reconstruct_mesh()
         num_sampled_3d_points = 20000
         pcd = mesh.sample_points_uniformly(number_of_points=num_sampled_3d_points)
@@ -177,6 +179,7 @@ class TanksAndTemplesLoaderTest(unittest.TestCase):
 
     def visualize_overlapping_point_clouds(self) -> None:
         """Visualize overlaid LiDAR and COLMAP point clouds."""
+        # Skip this test in the CI, and only uncomment it to run it locally, since it opens a GUI.
         return
         wTi_list = [self.loader.get_camera_pose(index) for index in range(len(self.loader))]
         calibrations = [self.loader.get_camera_intrinsics_full_res(index) for index in range(len(self.loader))]
