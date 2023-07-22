@@ -341,8 +341,8 @@ def compute_points_distance_l2(wti1: Optional[Point3], wti2: Optional[Point3]) -
     point is None.
 
     Args:
-        wti1: Point1 in world frame
-        wti2: Point2 in world frame
+        wti1: Point1 in world frame.
+        wti2: Point2 in world frame.
 
     Returns:
         L2 norm of wti1 - wti2
@@ -405,3 +405,5 @@ def is_valid_SO3(R: Rot3) -> bool:
     is_unit_det = np.isclose(np.linalg.det(R), 1.0)
     is_orthogonal = np.allclose(R @ R.T, np.eye(3))
     return is_unit_det and is_orthogonal
+
+
