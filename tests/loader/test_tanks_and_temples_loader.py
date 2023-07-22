@@ -149,8 +149,8 @@ class TanksAndTemplesLoaderTest(unittest.TestCase):
         mesh = self.loader.reconstruct_mesh()
         num_sampled_3d_points = 20000
         pcd = mesh.sample_points_uniformly(number_of_points=num_sampled_3d_points)
-        #pcd = mesh.sample_points_poisson_disk(number_of_points=num_sampled_3d_points, pcl=pcd)
-        open3d.visualization.draw_geometries([pcd]) #[mesh], mesh_show_back_face=True)
+        # pcd = mesh.sample_points_poisson_disk(number_of_points=num_sampled_3d_points, pcl=pcd)
+        open3d.visualization.draw_geometries([pcd])  # [mesh], mesh_show_back_face=True)
 
     def test_project_synthetic_correspondences_to_image(self) -> None:
         # Skip this test in the CI, and only uncomment it to run it locally, since it requires PLY.
