@@ -11,7 +11,7 @@
 GTSfM is an end-to-end SfM pipeline based on [GTSAM](https://github.com/borglab/gtsam). GTSfM was designed from the ground-up to natively support parallel computation using [Dask](https://dask.org/).
 
 <p align="left">
-  <img src="https://dask.org/_images/dask_horizontal_white_no_pad_dark_bg.png" height="50">
+  <img src="https://mma.prnewswire.com/media/1832641/Dask_Logo_lockup_primary_Logo.jpg?p=facebook" height="50">
 </p>
 
 <p align="left">
