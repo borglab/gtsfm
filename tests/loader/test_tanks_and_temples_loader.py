@@ -26,11 +26,11 @@ class TanksAndTemplesLoaderTest(unittest.TestCase):
         scene_name = "Barn"  # 'Truck'
 
         # Uncomment lines below to run locally.
-        # _TEST_DATA_ROOT = Path('/Users/johnlambert/Downloads/Tanks_and_Temples_Barn_410')
-        # lidar_ply_fpath = _TEST_DATA_ROOT / f'{scene_name}.ply'
-        # colmap_ply_fpath = _TEST_DATA_ROOT / f'{scene_name}_COLMAP.ply'
-        lidar_ply_fpath = None
-        colmap_ply_fpath = None
+        _TEST_DATA_ROOT = Path('/Users/johnlambert/Downloads/Tanks_and_Temples_Barn_410')
+        lidar_ply_fpath = _TEST_DATA_ROOT / f'{scene_name}.ply'
+        colmap_ply_fpath = _TEST_DATA_ROOT / f'{scene_name}_COLMAP.ply'
+        # lidar_ply_fpath = None
+        # colmap_ply_fpath = None
 
         img_dir = _TEST_DATA_ROOT / scene_name
         poses_fpath = _TEST_DATA_ROOT / f"{scene_name}_COLMAP_SfM.log"
@@ -142,6 +142,13 @@ class TanksAndTemplesLoaderTest(unittest.TestCase):
         #         geom_comp_utils.compute_relative_unit_translation_angle(i2Ui1_expected, i2Ui1_computed),
         #         DIRECTION_ANGULAR_ERROR_DEG_THRESHOLD,
         #     )
+
+    def test_mesh(self) -> None:
+        mesh = self.loader.reconstruct_mesh()
+        num_sampled_3d_points = 20000
+        pcd = mesh.sample_points_uniformly(number_of_points=num_sampled_3d_points)
+        #pcd = mesh.sample_points_poisson_disk(number_of_points=num_sampled_3d_points, pcl=pcd)
+        open3d.visualization.draw_geometries([pcd]) #[mesh], mesh_show_back_face=True)
 
     def test_project_synthetic_correspondences_to_image(self) -> None:
         # Skip this test in the CI, and only uncomment it to run it locally, since it requires PLY.
