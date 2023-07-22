@@ -2,12 +2,14 @@
 
 Authors: Ayush Baid, Akshay Krishnan
 """
+import datetime
 import itertools
 import os
 import timeit
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple, Union
+from typing import Dict, List, Optional, Sequence, Set, Tuple, Union
 
+import matplotlib.pyplot as plt
 import numpy as np
 from gtsam import Cal3Bundler, EssentialMatrix, PinholeCameraCal3Bundler, Point3, Pose3, Rot3, Unit3
 from trimesh import Trimesh
@@ -45,16 +47,16 @@ def compute_correspondence_metrics(
 
     Args:
         keypoints_i1: keypoints in image i1.
-        keypoints_i2: corr. keypoints in image i2.
-        intrinsics_i1: intrinsics for i1.
-        intrinsics_i2: intrinsics for i2.
-        dist_threshold: max acceptable distance for a correct correspondence.
-        gt_wTi1: ground truth pose of image i1.
-        gt_wTi2: ground truth pose of image i2.
-        gt_scene_mesh: ground truth triangular surface mesh of the scene in the world frame.
+        keypoints_i2: Corr. keypoints in image i2.
+        intrinsics_i1: Intrinsics for i1.
+        intrinsics_i2: Intrinsics for i2.
+        dist_threshold: Max acceptable distance for a correct correspondence.
+        gt_wTi1: Ground truth pose of image i1.
+        gt_wTi2: Ground truth pose of image i2.
+        gt_scene_mesh: Ground truth triangular surface mesh of the scene in the world frame.
 
     Raises:
-        ValueError: when the number of keypoints do not match.
+        ValueError: When the number of keypoints do not match.
 
     Returns:
         Boolean mask of which verified correspondences are classified as correct under Sampson error
@@ -104,16 +106,16 @@ def epipolar_inlier_correspondences(
     """Compute inlier correspondences using epipolar geometry and the ground truth relative pose.
 
     Args:
-        keypoints_i1: keypoints in image i1.
+        keypoints_i1: Keypoints in image i1.
         keypoints_i2: corr. keypoints in image i2.
-        intrinsics_i1: intrinsics for i1.
-        intrinsics_i2: intrinsics for i2.
-        i2Ti1: relative pose
-        dist_threshold: max acceptable distance for a correct correspondence.
+        intrinsics_i1: Intrinsics for i1.
+        intrinsics_i2: Intrinsics for i2.
+        i2Ti1: Relative pose
+        dist_threshold: Max acceptable distance for a correct correspondence.
 
     Returns:
         is_inlier: (N, ) mask of inlier correspondences.
-        distance_squared: squared sampson distance between corresponding keypoints.
+        distance_squared: Squared sampson distance between corresponding keypoints.
     """
     i2Ei1 = EssentialMatrix(i2Ti1.rotation(), Unit3(i2Ti1.translation()))
     i2Fi1 = verification_utils.essential_to_fundamental_matrix(i2Ei1, intrinsics_i1, intrinsics_i2)
@@ -141,18 +143,18 @@ def mesh_inlier_correspondences(
     Args:
         keypoints_i1: N keypoints in image i1.
         keypoints_i2: N corresponding keypoints in image i2.
-        gt_camera_i1: ground truth camera for image i1, i.e., wTi1 and intrinsics.
-        gt_camera_i1: ground truth camera for image i2, i.e., wTi2 and intrinsics.
-        gt_scene_mesh: ground truth triangular surface mesh of the scene in the world frame.
-        dist_threshold: max acceptable reprojection error (in pixels) between image coordinates of ground truth landmark
+        gt_camera_i1: Ground truth camera for image i1, i.e., wTi1 and intrinsics.
+        gt_camera_i1: Ground truth camera for image i2, i.e., wTi2 and intrinsics.
+        gt_scene_mesh: Ground truth triangular surface mesh of the scene in the world frame.
+        dist_threshold: Max acceptable reprojection error (in pixels) between image coordinates of ground truth landmark
             and keypoint.
 
     Returns:
         is_inlier: (N, ) mask of inlier correspondences.
-        reproj_err: maximum error between forward-projected ground truth landmark and corresponding keypoints
+        reproj_err: Maximum error between forward-projected ground truth landmark and corresponding keypoints
 
     Raises:
-        ValueError if the number of keypoints do not match.
+        ValueError: If the number of keypoints do not match.
     """
     if len(keypoints_i1) != len(keypoints_i2):
         raise ValueError("Keypoints must have same counts")
@@ -190,8 +192,8 @@ def compute_keypoint_intersections(
 
     Args:
         keypoints: N keypoints computed in image.
-        gt_camera: ground truth camera.
-        gt_scene_mesh: ground truth triangular surface mesh.
+        gt_camera: Ground truth camera.
+        gt_scene_mesh: Ground truth triangular surface mesh.
 
     Returns:
         keypoint_ind: (M,) array of keypoint indices whose corresponding ray intersected the ground truth mesh.
@@ -215,16 +217,18 @@ def compute_rotation_angle_metric(wRi_list: List[Optional[Rot3]], gt_wRi_list: L
     have a gauge freedom.
 
     Args:
-        wRi_list: List of estimated camera rotations.
-        gt_wRi_list: List of ground truth camera rotations.
+        wRi_list: List of N estimated camera rotations.
+        gt_wRi_list: List of N ground truth camera rotations.
 
     Returns:
-        A GtsfmMetric for the rotation angle errors, in degrees.
+        A GtsfmMetric for the N rotation angle errors, in degrees.
     """
     errors = []
     for (wRi, gt_wRi) in zip(wRi_list, gt_wRi_list):
         if wRi is not None and gt_wRi is not None:
             errors.append(comp_utils.compute_relative_rotation_angle(wRi, gt_wRi))
+        else:
+            errors.append(np.nan)
     return GtsfmMetric("rotation_angle_error_deg", errors)
 
 
@@ -250,7 +254,7 @@ def compute_translation_distance_metric(
     return GtsfmMetric("translation_error_distance", errors)
 
 
-def compute_translation_angle_metric(
+def compute_relative_translation_angle_metric(
     i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]], wTi_list: List[Optional[Pose3]]
 ) -> GtsfmMetric:
     """Computes statistics for angle between translations and direction measurements.
@@ -260,13 +264,75 @@ def compute_translation_angle_metric(
         wTi_list: List of estimated camera poses.
 
     Returns:
-        A GtsfmMetric for the translation angle errors, in degrees.
+        A GtsfmMetric for the relative translation angle errors, in degrees.
     """
     angles: List[Optional[float]] = []
     for (i1, i2) in i2Ui1_dict:
         i2Ui1 = i2Ui1_dict[(i1, i2)]
         angles.append(comp_utils.compute_translation_to_direction_angle(i2Ui1, wTi_list[i2], wTi_list[i1]))
+    return GtsfmMetric("relative_translation_angle_error_deg", np.array(angles, dtype=np.float32))
+
+
+def compute_translation_angle_metric(
+    gt_wTi_list: List[Optional[Pose3]], wTi_list: List[Optional[Pose3]]
+) -> GtsfmMetric:
+    """Compute global translation angular errors from aligned pose graphs.
+
+    Args:
+        gt_wTi_list: List of N ground truth camera poses:
+        wTi_list: List of N aligned, estimated camera poses.
+
+    Returns:
+        A GtsfmMetric for the N global translation angle errors, in degrees.
+    """
+    if len(wTi_list) != len(gt_wTi_list):
+        N1 = len(wTi_list)
+        N2 = len(gt_wTi_list)
+        raise ValueError(
+            f"Lists of ground truth camera poses {N1} and estimated camera poses {N2} must have the same cardinality."
+        )
+
+    angles = []
+    for wTi, wTi_gt in zip(wTi_list, gt_wTi_list):
+        if wTi is not None:
+            wUi_est = Unit3(wTi.translation())
+            wUi_gt = Unit3(wTi_gt.translation())
+            angle = comp_utils.compute_relative_unit_translation_angle(wUi_est, wUi_gt)
+        else:
+            angle = np.nan
+        angles.append(angle)
     return GtsfmMetric("translation_angle_error_deg", np.array(angles, dtype=np.float32))
+
+
+def compute_pose_auc_metric(
+    rotation_angular_errors: Sequence[float],
+    translation_angular_errors: Sequence[float],
+    thresholds_deg: Tuple[float] = (1, 2.5, 5, 10, 20),
+) -> List[GtsfmMetric]:
+    """Computes "Pose AUC" metric from rotation & translation angular errors.
+
+    Args:
+        rotation_angular_errors: N rotation angular errors, in degrees.
+        translation_angular_errors: N translation angular errors, in degrees.
+
+    Returns:
+        One GtsfmMetric for each angular error threshold.
+    """
+    if not isinstance(rotation_angular_errors, np.ndarray):
+        rotation_angular_errors = np.array(rotation_angular_errors)
+
+    if not isinstance(translation_angular_errors, np.ndarray):
+        translation_angular_errors = np.array(translation_angular_errors)
+
+    if len(rotation_angular_errors) != len(translation_angular_errors):
+        raise ValueError("# of rotation and translation angular errors must match.")
+
+    pose_errors = np.maximum(rotation_angular_errors, translation_angular_errors)
+    aucs = pose_auc(pose_errors, thresholds_deg)
+    metrics = []
+    for threshold, auc in zip(thresholds_deg, aucs):
+        metrics.append(GtsfmMetric(f"pose_auc_@{threshold}_deg", auc))
+    return metrics
 
 
 def compute_ba_pose_metrics(
@@ -279,7 +345,7 @@ def compute_ba_pose_metrics(
 
     Args:
         gt_wTi_list: List of ground truth poses.
-        ba_output: sparse multi-view result, as output of bundle adjustment.
+        ba_output: Sparse multi-view result, as output of bundle adjustment.
 
     Returns:
         A group of metrics that describe errors associated with a bundle adjustment result (w.r.t. GT).
@@ -293,7 +359,13 @@ def compute_ba_pose_metrics(
     metrics = []
     metrics.append(compute_rotation_angle_metric(wRi_aligned_list, gt_wRi_list))
     metrics.append(compute_translation_distance_metric(wti_aligned_list, gt_wti_list))
-    metrics.append(compute_translation_angle_metric(i2Ui1_dict_gt, wTi_aligned_list))
+    metrics.append(compute_relative_translation_angle_metric(i2Ui1_dict_gt, wTi_aligned_list))
+    metrics.append(compute_translation_angle_metric(gt_wTi_list, wTi_aligned_list))
+
+    rotation_angular_errors = metrics[0]._data
+    translation_angular_errors = metrics[3]._data
+    metrics.extend(compute_pose_auc_metric(rotation_angular_errors, translation_angular_errors))
+
     return GtsfmMetricsGroup(name="ba_pose_error_metrics", metrics=metrics)
 
 
@@ -393,11 +465,11 @@ def compute_percentage_change(x: float, y: float) -> float:
     """Return percentage in representing the regression or improvement of a value x, for new value y.
 
     Args:
-        x: original value to compare against.
-        y: new value.
+        x: Original value to compare against.
+        y: New value.
 
     Returns:
-        percentage change (may be positive or negative).
+        Percentage change (may be positive or negative).
     """
     return (y - x) / (x + EPSILON) * 100
 
@@ -428,3 +500,46 @@ def get_measurement_angle_errors(
                 raise ValueError("Unexpected `None` when computing relative translation angle metric.")
             errors.append(error)
     return errors
+
+
+def pose_auc(errors: np.ndarray, thresholds: Sequence[float], save_plot: bool = False) -> Sequence[float]:
+    """Computes area under the Recall (y) vs. Pose Error (x) curve, the pose AUC.
+
+    If recall is defined as TP / # actual positives, then every camera is a TP if one can register it.
+
+    Args:
+        errors: Array of shape (n,) representing angular errors.
+        thresholds: Angular error thresholds.
+
+    Returns:
+        List of AUC values, one per threshold.
+    """
+    errors = np.sort(errors)
+    # Determine recall points, from [0,1].
+    # Prepend `0` value to each array.
+    recall = (np.arange(len(errors) + 1)) / len(errors)
+    errors = np.array([0.0, *errors.tolist()])
+    aucs = []
+    for t in thresholds:
+        # Find indices where elements should be inserted to maintain order.
+        last_index = np.searchsorted(errors, t)
+        r = np.r_[recall[:last_index], recall[last_index - 1]]
+        e = np.r_[errors[:last_index], t]
+        if save_plot:
+            plt.scatter(e, r, 20, color="k", marker=".")
+            plt.plot(e, r, color="r")
+            plt.ylabel("Recall")
+            plt.xlabel("Pose Error (deg.)")
+            uuid = datetime.datetime.utcnow().strftime("%Y_%m_%d_%H_%M_%S_%f")
+            save_fpath = f"{uuid}_recall_vs_pose_error_curve_auc.jpg"
+            plt.savefig(save_fpath)
+            plt.close("all")
+
+        # Integrate along the given axis using the composite trapezoidal rule.
+        # As AUC = \int y(x) dx.
+        auc_nonunit = np.trapz(y=r, x=e)
+        # Divide by length of x-axis, as recall & precision usually would be [0,1],
+        # but here x-axis (error) extends up to threshold `t`.
+        auc_unit = auc_nonunit / t
+        aucs.append(auc_unit)
+    return aucs
