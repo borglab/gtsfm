@@ -29,7 +29,9 @@ from gtsfm.retriever.image_pairs_generator import ImagePairsGenerator
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.densify.mvs_base import MVSBase
-from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
+from gtsfm.frontend.correspondence_generator.correspondence_generator_base import (
+    CorrespondenceGeneratorBase,
+)
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.two_view_estimator import (
@@ -44,8 +46,12 @@ matplotlib.use("Agg")
 DEFAULT_OUTPUT_ROOT = str(Path(__file__).resolve().parent.parent)
 
 # Paths to Save Output in React Folders.
-REACT_METRICS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "src" / "result_metrics"
-REACT_RESULTS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "public" / "results"
+REACT_METRICS_PATH = (
+    Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "src" / "result_metrics"
+)
+REACT_RESULTS_PATH = (
+    Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "public" / "results"
+)
 
 logger = logger_utils.get_logger()
 
@@ -63,7 +69,7 @@ class SceneOptimizer:
     def __init__(
         self,
         image_pairs_generator: ImagePairsGenerator,
-        correspondence_generator: CorrespondenceGeneratorBase,
+        correspondence_generators: List[CorrespondenceGeneratorBase],
         two_view_estimator: TwoViewEstimator,
         multiview_optimizer: MultiViewOptimizer,
         dense_multiview_optimizer: Optional[MVSBase] = None,
@@ -75,7 +81,7 @@ class SceneOptimizer:
         output_worker: Optional[str] = None,
     ) -> None:
         self.image_pairs_generator = image_pairs_generator
-        self.correspondence_generator = correspondence_generator
+        self.correspondence_generators = correspondence_generators
         self.two_view_estimator = two_view_estimator
         self.multiview_optimizer = multiview_optimizer
         self.dense_multiview_optimizer = dense_multiview_optimizer
@@ -111,7 +117,9 @@ class SceneOptimizer:
         self._plot_correspondence_path = self._plot_base_path / "correspondences"
         self._plot_ba_input_path = self._plot_base_path / "ba_input"
         self._plot_results_path = self._plot_base_path / "results"
-        self._mvs_ply_save_fpath = self._results_path / "mvs_output" / "dense_pointcloud.ply"
+        self._mvs_ply_save_fpath = (
+            self._results_path / "mvs_output" / "dense_pointcloud.ply"
+        )
 
         # make directories for persisting data
         os.makedirs(self._plot_base_path, exist_ok=True)
@@ -174,11 +182,18 @@ class SceneOptimizer:
         # Persist all front-end metrics and their summaries.
         # TODO(akshay-krishnan): this delays saving the frontend reports until MVO has completed, not ideal.
         metrics_graph_list: List[Delayed] = []
-        save_retrieval_metrics = self.image_pairs_generator._retriever._matching_regime in [
-            ImageMatchingRegime.RETRIEVAL,
-            ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL,
-        ]
-        annotation = dask.annotate(workers=self._output_worker) if self._output_worker else dask.annotate()
+        save_retrieval_metrics = (
+            self.image_pairs_generator._retriever._matching_regime
+            in [
+                ImageMatchingRegime.RETRIEVAL,
+                ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL,
+            ]
+        )
+        annotation = (
+            dask.annotate(workers=self._output_worker)
+            if self._output_worker
+            else dask.annotate()
+        )
         with annotation:
             delayed_results.append(
                 dask.delayed(save_full_frontend_metrics)(
@@ -206,7 +221,9 @@ class SceneOptimizer:
                 dask.delayed(two_view_estimator.aggregate_frontend_metrics)(
                     two_view_reports_post_viewgraph_estimator,
                     self._pose_angular_error_thresh,
-                    metric_group_name="verifier_summary_{}".format(VIEWGRAPH_REPORT_TAG),
+                    metric_group_name="verifier_summary_{}".format(
+                        VIEWGRAPH_REPORT_TAG
+                    ),
                 )
             )
 
@@ -215,11 +232,15 @@ class SceneOptimizer:
             metrics_graph_list.extend(optimizer_metrics_graph)
 
         # Modify BA input, BA output, and GT poses to have point clouds and frustums aligned with x,y,z axes.
-        ba_input_graph, ba_output_graph, gt_wTi_list = dask.delayed(align_estimated_gtsfm_data, nout=3)(
-            ba_input_graph, ba_output_graph, gt_wTi_list
-        )
+        ba_input_graph, ba_output_graph, gt_wTi_list = dask.delayed(
+            align_estimated_gtsfm_data, nout=3
+        )(ba_input_graph, ba_output_graph, gt_wTi_list)
 
-        annotation = dask.annotate(workers=self._output_worker) if self._output_worker else dask.annotate()
+        annotation = (
+            dask.annotate(workers=self._output_worker)
+            if self._output_worker
+            else dask.annotate()
+        )
         with annotation:
             if self._save_gtsfm_data:
                 delayed_results.append(
@@ -249,10 +270,16 @@ class SceneOptimizer:
                 dense_point_colors_graph,
                 densify_metrics_graph,
                 downsampling_metrics_graph,
-            ) = self.dense_multiview_optimizer.create_computation_graph(img_dict_graph, ba_output_graph)
+            ) = self.dense_multiview_optimizer.create_computation_graph(
+                img_dict_graph, ba_output_graph
+            )
 
             # Cast to string as Open3d cannot use PosixPath's for I/O -- only string file paths are accepted.
-            annotation = dask.annotate(workers=self._output_worker) if self._output_worker else dask.annotate()
+            annotation = (
+                dask.annotate(workers=self._output_worker)
+                if self._output_worker
+                else dask.annotate()
+            )
             with annotation:
                 delayed_results.append(
                     dask.delayed(io_utils.save_point_cloud_as_ply)(
@@ -269,7 +296,11 @@ class SceneOptimizer:
                 metrics_graph_list.append(downsampling_metrics_graph)
 
         # Save metrics to JSON and generate HTML report.
-        annotation = dask.annotate(workers=self._output_worker) if self._output_worker else dask.annotate()
+        annotation = (
+            dask.annotate(workers=self._output_worker)
+            if self._output_worker
+            else dask.annotate()
+        )
 
         # return the entry with just the sfm result
         return ba_output_graph, delayed_results, metrics_graph_list
@@ -304,7 +335,10 @@ def align_estimated_gtsfm_data(
     walignedSw = Similarity3(R=walignedTw.rotation(), t=walignedTw.translation(), s=1.0)
     ba_input = ba_input.apply_Sim3(walignedSw)
     ba_output = ba_output.apply_Sim3(walignedSw)
-    gt_wTi_list = [walignedSw.transformFrom(wTi) if wTi is not None else None for wTi in gt_wTi_list]
+    gt_wTi_list = [
+        walignedSw.transformFrom(wTi) if wTi is not None else None
+        for wTi in gt_wTi_list
+    ]
     return ba_input, ba_output, gt_wTi_list
 
 
@@ -331,11 +365,22 @@ def save_matplotlib_visualizations(
         A list of Delayed objects after saving the different visualizations.
     """
     viz_graph_list = []
-    viz_graph_list.append(dask.delayed(viz_utils.save_sfm_data_viz)(aligned_ba_input_graph, plot_ba_input_path))
-    viz_graph_list.append(dask.delayed(viz_utils.save_sfm_data_viz)(aligned_ba_output_graph, plot_results_path))
+    viz_graph_list.append(
+        dask.delayed(viz_utils.save_sfm_data_viz)(
+            aligned_ba_input_graph, plot_ba_input_path
+        )
+    )
+    viz_graph_list.append(
+        dask.delayed(viz_utils.save_sfm_data_viz)(
+            aligned_ba_output_graph, plot_results_path
+        )
+    )
     viz_graph_list.append(
         dask.delayed(viz_utils.save_camera_poses_viz)(
-            aligned_ba_input_graph, aligned_ba_output_graph, gt_pose_graph, plot_results_path
+            aligned_ba_input_graph,
+            aligned_ba_output_graph,
+            gt_pose_graph,
+            plot_results_path,
         )
     )
     return viz_graph_list
@@ -397,7 +442,9 @@ def save_gtsfm_data(
 
     # Save the ground truth in the same format, for visualization.
     # We use the estimated tracks here, with ground truth camera poses.
-    gt_gtsfm_data = get_gtsfm_data_with_gt_cameras_and_est_tracks(cameras_gt, ba_output_data)
+    gt_gtsfm_data = get_gtsfm_data_with_gt_cameras_and_est_tracks(
+        cameras_gt, ba_output_data
+    )
 
     io_utils.export_model_as_colmap_text(
         gtsfm_data=gt_gtsfm_data,
@@ -433,7 +480,9 @@ def save_full_frontend_metrics(
         metrics_path: Path to directory where metrics will be saved.
         plot_base_path: Path to directory where plots will be saved.
     """
-    metrics_list = two_view_estimator.get_two_view_reports_summary(two_view_report_dict, images)
+    metrics_list = two_view_estimator.get_two_view_reports_summary(
+        two_view_report_dict, images
+    )
 
     io_utils.save_json_file(os.path.join(metrics_path, filename), metrics_list)
 
@@ -441,7 +490,9 @@ def save_full_frontend_metrics(
     io_utils.save_json_file(os.path.join(REACT_METRICS_PATH, filename), metrics_list)
 
     # All retreival metrics need GT, no need to save them if GT is not available.
-    gt_available = any([report.R_error_deg is not None for report in two_view_report_dict.values()])
+    gt_available = any(
+        [report.R_error_deg is not None for report in two_view_report_dict.values()]
+    )
 
     if save_retrieval_metrics and "VIEWGRAPH_2VIEW_REPORT" in filename and gt_available:
         # must come after two-view report file is written to disk in the Dask dependency graph.
@@ -452,11 +503,15 @@ def _save_retrieval_two_view_metrics(metrics_path: Path, plot_base_path: Path) -
     """Compare 2-view similarity scores with their 2-view pose errors after viewgraph estimation."""
     sim_fpath = plot_base_path / "netvlad_similarity_matrix.txt"
     if not sim_fpath.exists():
-        logger.warning(msg="NetVLAD similarity matrix not found. Skipping retrieval metrics.")
+        logger.warning(
+            msg="NetVLAD similarity matrix not found. Skipping retrieval metrics."
+        )
         return
 
     sim = np.loadtxt(str(sim_fpath), delimiter=",")
-    json_data = io_utils.read_json_file(metrics_path / "two_view_report_VIEWGRAPH_2VIEW_REPORT.json")
+    json_data = io_utils.read_json_file(
+        metrics_path / "two_view_report_VIEWGRAPH_2VIEW_REPORT.json"
+    )
 
     sim_scores = []
     R_errors = []
@@ -478,18 +533,24 @@ def _save_retrieval_two_view_metrics(metrics_path: Path, plot_base_path: Path) -
     plt.scatter(sim_scores, R_errors, 10, color="r", marker=".")
     plt.xlabel("Similarity score")
     plt.ylabel("Rotation error w.r.t. GT (deg.)")
-    plt.savefig(os.path.join(plot_base_path, "gt_rot_error_vs_similarity_score.jpg"), dpi=500)
+    plt.savefig(
+        os.path.join(plot_base_path, "gt_rot_error_vs_similarity_score.jpg"), dpi=500
+    )
     plt.close("all")
 
     plt.scatter(sim_scores, U_errors, 10, color="r", marker=".")
     plt.xlabel("Similarity score")
     plt.ylabel("Translation direction error w.r.t. GT (deg.)")
-    plt.savefig(os.path.join(plot_base_path, "gt_trans_error_vs_similarity_score.jpg"), dpi=500)
+    plt.savefig(
+        os.path.join(plot_base_path, "gt_trans_error_vs_similarity_score.jpg"), dpi=500
+    )
     plt.close("all")
 
     pose_errors = np.maximum(np.array(R_errors), np.array(U_errors))
     plt.scatter(sim_scores, pose_errors, 10, color="r", marker=".")
     plt.xlabel("Similarity score")
     plt.ylabel("Pose error w.r.t. GT (deg.)")
-    plt.savefig(os.path.join(plot_base_path, "gt_pose_error_vs_similarity_score.jpg"), dpi=500)
+    plt.savefig(
+        os.path.join(plot_base_path, "gt_pose_error_vs_similarity_score.jpg"), dpi=500
+    )
     plt.close("all")
