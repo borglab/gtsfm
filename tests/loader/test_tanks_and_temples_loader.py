@@ -76,6 +76,13 @@ class TanksAndTemplesLoaderTest(unittest.TestCase):
         expected_wti = np.array([3.24711, 0.140327, 0.557239])
         assert np.allclose(wTi.translation(), expected_wti)
 
+    def test_image_filenames(self) -> None:
+        """Verify that image file names are provided correctly (used in NetVLAD)."""
+        filenames = self.loader.image_filenames()
+
+        expected_filenames = ['000001.jpg', '000002.jpg', '000003.jpg']
+        assert filenames == expected_filenames
+
     def test_get_image_fpath(self) -> None:
         """Tests that index 0 maps to image '0000001.jpg', which is the zero'th image in the Barn dataset."""
         fpath = self.loader.get_image_fpath(index=0)

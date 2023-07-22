@@ -117,6 +117,10 @@ class TanksAndTemplesLoader(LoaderBase):
         """
         return self._num_imgs
 
+    def image_filenames(self) -> List[str]:
+        """Return the file names corresponding to each image index."""
+        return [Path(fpath).name for fpath in self._image_paths]
+
     def get_image_fpath(self, index: int = 0) -> Path:
         """ """
         return self._image_paths[index]
