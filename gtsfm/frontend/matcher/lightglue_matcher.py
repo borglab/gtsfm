@@ -74,14 +74,14 @@ class LightGlueMatcher(MatcherBase):
         feats_i1 = {
             "keypoints": torch.from_numpy(keypoints_i1.coordinates).unsqueeze(0).float().to(device),
             "keypoint_scores": torch.from_numpy(keypoints_i1.responses).unsqueeze(0).float().to(device),
-            "descriptors": torch.from_numpy(descriptors_i1).T.unsqueeze(0).float().to(device),
-            "image_size": empty_image_i1.to(device),
+            "descriptors": torch.from_numpy(descriptors_i1).unsqueeze(0).float().to(device),
+            "image": empty_image_i1.to(device),
         }
         feats_i2 = {
             "keypoints": torch.from_numpy(keypoints_i2.coordinates).unsqueeze(0).float().to(device),
             "keypoint_scores": torch.from_numpy(keypoints_i2.responses).unsqueeze(0).float().to(device),
-            "descriptors": torch.from_numpy(descriptors_i2).T.unsqueeze(0).float().to(device),
-            "image_size": empty_image_i2.to(device),
+            "descriptors": torch.from_numpy(descriptors_i2).unsqueeze(0).float().to(device),
+            "image": empty_image_i2.to(device),
         }
 
         # Match!
@@ -89,5 +89,6 @@ class LightGlueMatcher(MatcherBase):
             matches = self._model({"image0": feats_i1, "image1": feats_i2})
         feats_i1, feats_i2, matches = [rbd(x) for x in [feats_i1, feats_i2, matches]]  # remove batch dimension
         matches = matches["matches"].detach().cpu().numpy()  # indices with shape (N, 2)
+        print(matches.shape)
 
         return matches

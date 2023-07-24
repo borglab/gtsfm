@@ -54,14 +54,14 @@ class DiskDetectorDescriptor(DetectorDescriptorBase):
             np.expand_dims(image_utils.rgb_to_gray_cv(image).value_array.astype(np.float32) / 255.0, (0, 1))
         ).to(device)
         with torch.no_grad():
-            model_results = self._model({"image": image_tensor})
+            model_results = self._model.extract(image_tensor)
         torch.cuda.empty_cache()
 
         # Unpack results.
         coordinates = model_results["keypoints"][0].detach().cpu().numpy()
-        scores = model_results["scores"][0].detach().cpu().numpy()
+        scores = model_results["keypoint_scores"][0].detach().cpu().numpy()
         keypoints = Keypoints(coordinates, scales=None, responses=scores)
-        descriptors = model_results["descriptors"][0].detach().cpu().numpy().T
+        descriptors = model_results["descriptors"][0].detach().cpu().numpy()
 
         # Filter features.
         if image.mask is not None:
