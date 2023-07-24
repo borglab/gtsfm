@@ -3,7 +3,7 @@
 # Datasets are stored in ~/sfm_datasets in order to reduce runtimes by not 
 # redownloading each (very large) dataset every CI run. Any new datasets must be
 # downloaded and stored in ~/sfm_datasets before running this action.
-DATASET_PREFIX=/home/tdriver6/sfm_datasets
+DATASET_PREFIX=/usr/local/gtsfm-data
 
 DATASET_NAME=$1
 CONFIG_NAME=$2
