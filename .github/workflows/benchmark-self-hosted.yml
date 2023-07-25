@@ -8,7 +8,7 @@ name: Benchmark GTSFM on select datasets using our self-hosted instances
 # one machine.
 ################################################################################
 
-on: [workflow_dispatch]
+on: [workflow_dispatch, pull_request]
 jobs:
   benchmark:
     name: Benchmark
@@ -20,7 +20,7 @@ jobs:
         config_dataset_info: [
             # config                                 dataset  lookahead   img-extension  source      loader         max-res  share-intrinsics
             #[skydio_front_end,                    skydio-501,   15,         jpg,           wget,     colmap-loader,   600,    true,],
-            # [synthetic_front_end, tanks-and-temples-barn-410,    4,         jpg,           wget,  tanks-and-temples, 1080,    true],
+            [synthetic_front_end, tanks-and-temples-barn-410,    4,         jpg,           wget,  tanks-and-temples, 1080,    true],
           ]
     defaults:
       run:
