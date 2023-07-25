@@ -74,6 +74,7 @@ jobs:
           pwd
           micromamba activate gtsfm-v1
           micromamba list
+          which python
           bash .github/scripts/execute_single_benchmark_self_hosted.sh \
             $DATASET_NAME \
             $CONFIG_NAME \

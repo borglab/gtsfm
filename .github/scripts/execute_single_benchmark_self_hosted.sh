@@ -1,5 +1,7 @@
 #!/bin/bash
 
+which python
+
 # Datasets are stored in /usr/local/gtsfm-data in order to reduce runtimes by not 
 # redownloading each (very large) dataset every CI run. Any new datasets must be
 # downloaded and stored in /usr/local/gtsfm-data before running this action.
