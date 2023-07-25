@@ -5,7 +5,7 @@ which python
 # Datasets are stored in /usr/local/gtsfm-data in order to reduce runtimes by not 
 # redownloading each (very large) dataset every CI run. Any new datasets must be
 # downloaded and stored in /usr/local/gtsfm-data before running this action.
-DATASET_PREFIX=/usr/local/gtsfm-data
+DATASET_PREFIX=/home/tdriver6/sfm_datasets
 
 DATASET_NAME=$1
 CONFIG_NAME=$2
