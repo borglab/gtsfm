@@ -7,6 +7,8 @@ Reference: https://github.com/cvlab-epfl/disk
 
 Authors: Travis Driver
 """
+from typing import Tuple
+
 import numpy as np
 import torch
 
