@@ -8,7 +8,7 @@ name: Benchmark GTSFM on select datasets using our self-hosted instances
 # one machine.
 ################################################################################
 
-on: [workflow_dispatch, pull_request]
+on: [workflow_dispatch]
 jobs:
   benchmark:
     name: Benchmark

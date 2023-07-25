@@ -437,10 +437,10 @@ def values_to_gtsfm_data(values: Values, initial_data: GtsfmData, shared_calib: 
     """Cast results from the optimization to GtsfmData object.
 
     Args:
-        values: results of factor graph optimization.
-        initial_data: data used to generate the factor graph; used to extract information about poses and 3d points in
+        values: Results of factor graph optimization.
+        initial_data: Data used to generate the factor graph; used to extract information about poses and 3d points in
                       the graph.
-        shared_calib: flag indicating if calibrations were shared between the cameras.
+        shared_calib: Flag indicating if calibrations were shared between the cameras.
 
     Returns:
         optimized poses and landmarks.
