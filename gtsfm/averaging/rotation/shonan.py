@@ -28,19 +28,25 @@ import gtsfm.utils.logger as logger_utils
 from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
 from gtsfm.common.pose_prior import PosePrior
 
-TWOVIEW_ROTATION_SIGMA = 1
 POSE3_DOF = 6
 
 logger = logger_utils.get_logger()
+
+_DEFAULT_TWO_VIEW_ROTATION_SIGMA = 1.0
 
 
 class ShonanRotationAveraging(RotationAveragingBase):
     """Performs Shonan rotation averaging."""
 
-    def __init__(self) -> None:
-        """
+    def __init__(self, two_view_rotation_sigma: float = _DEFAULT_TWO_VIEW_ROTATION_SIGMA) -> None:
+        """Initializes module.
+
         Note: `p_min` and `p_max` describe the minimum and maximum relaxation rank.
+
+        Args:
+            two_view_rotation_sigma: Covariance to use (lower values -> more strictly adhere to input measurements).
         """
+        self._two_view_rotation_sigma = two_view_rotation_sigma
         self._p_min = 5
         self._p_max = 30
 
@@ -56,7 +62,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
     ) -> BetweenFactorPose3s:
         """Create between factors from relative rotations computed by the 2-view estimator."""
         # TODO: how to weight the noise model on relative rotations compared to priors?
-        noise_model = gtsam.noiseModel.Isotropic.Sigma(POSE3_DOF, TWOVIEW_ROTATION_SIGMA)
+        noise_model = gtsam.noiseModel.Isotropic.Sigma(POSE3_DOF, self._two_view_rotation_sigma)
 
         between_factors = BetweenFactorPose3s()
 
@@ -102,7 +108,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         here in a sort of "wrapper". See https://github.com/borglab/gtsam/issues/784 for more details.
 
         Args:
-            num_connected_nodes: number of unique connected nodes (i.e. images) in the graph
+            num_connected_nodes: Number of unique connected nodes (i.e. images) in the graph
                 (<= the number of images in the dataset)
             between_factors: BetweenFactorPose3s created from relative rotations from 2-view estimator and the priors.
 
@@ -159,9 +165,9 @@ class ShonanRotationAveraging(RotationAveragingBase):
         camera in a single, global coordinate frame.
 
         Args:
-            num_images: number of images. Since we have one pose per image, it is also the number of poses.
-            i2Ri1_dict: relative rotations for each image pair-edge as dictionary (i1, i2): i2Ri1.
-            i1Ti2_priors: priors on relative poses.
+            num_images: Number of images. Since we have one pose per image, it is also the number of poses.
+            i2Ri1_dict: Relative rotations for each image pair-edge as dictionary (i1, i2): i2Ri1.
+            i1Ti2_priors: Priors on relative poses.
 
         Returns:
             Global rotations for each camera pose, i.e. wRi, as a list. The number of entries in the list is

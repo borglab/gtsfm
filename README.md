@@ -4,7 +4,7 @@
 
 | Platform     | Build Status  |
 |:------------:| :-------------:|
-| Ubuntu 20.04.3 |  ![Linux CI](https://github.com/borglab/gtsfm/workflows/Unit%20tests%20and%20python%20checks/badge.svg) |
+| Ubuntu 20.04.3 |  ![Linux CI](https://github.com/borglab/gtsfm/actions/workflows/test-python.yml/badge.svg?branch=master) |
 
 ### What is GTSfM?
 
