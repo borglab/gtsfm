@@ -1,4 +1,4 @@
-name: Benchmark GTSFM on select datasets on the wildcat machine
+name: Benchmark GTSFM on select datasets using our self-hosted instances
 
 ################################################################################
 # Please only run this action after making sure that the shorter benchmarks
@@ -59,10 +59,10 @@ jobs:
           ./download_model_weights.sh
       - name: Prepare dataset
         run: |
-          echo "Datasets are stored in /home/tdriver6/sfm_datasets in order to" 
+          echo "Datasets are stored in /usr/local/gtsfm-data in order to" 
           echo "reduce runtimes by not redownloading each (very large) dataset"
           echo "every CI run. Any new datasets must be downloaded and stored in"
-          echo "/home/tdriver6/sfm_datasets before running this action."
+          echo "/usr/local/gtsfm-data before running this action."
       - name: Run GTSfM
         run: |
           DATASET_NAME=${{ matrix.config_dataset_info[1] }}
@@ -75,7 +75,7 @@ jobs:
           pwd
           micromamba activate gtsfm-v1
           micromamba list
-          bash .github/scripts/execute_single_benchmark_wildcat.sh \
+          bash .github/scripts/execute_single_benchmark_self_hosted.sh \
             $DATASET_NAME \
             $CONFIG_NAME \
             $MAX_FRAME_LOOKAHEAD \

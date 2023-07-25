@@ -17,5 +17,5 @@ class PosePriorType(str, Enum):
 class PosePrior(NamedTuple):
     # prior values for the camera poses
     value: Pose3
-    covariance: np.ndarray
+    covariance: np.ndarray  # its actually sigma
     type: PosePriorType
