@@ -7,9 +7,6 @@ Reference: https://github.com/cvlab-epfl/disk
 
 Authors: Travis Driver
 """
-from pathlib import Path
-from typing import Tuple, Union
-
 import numpy as np
 import torch
 
@@ -20,20 +17,14 @@ from gtsfm.frontend.detector_descriptor.detector_descriptor_base import Detector
 
 from thirdparty.LightGlue.lightglue.disk import DISK
 
-ROOT_PATH = Path(__file__).resolve().parent.parent.parent.parent
-MODEL_WEIGHTS_PATH = (
-    ROOT_PATH / "thirdparty" / "SuperGluePretrainedNetwork" / "models" / "weights" / "superpoint_v1.pth"
-)
-
 
 class DiskDetectorDescriptor(DetectorDescriptorBase):
-    """Superpoint Detector+Descriptor implementation."""
+    """DISK Detector+Descriptor implementation."""
 
     def __init__(
         self,
-        max_keypoints: int = 5000,
+        max_keypoints: int = 8000,
         use_cuda: bool = True,
-        weights_path: Union[Path, str] = MODEL_WEIGHTS_PATH,
     ) -> None:
         """Configures the object.
 
