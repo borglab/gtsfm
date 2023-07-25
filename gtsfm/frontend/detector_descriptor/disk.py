@@ -30,7 +30,10 @@ class DiskDetectorDescriptor(DetectorDescriptorBase):
     """Superpoint Detector+Descriptor implementation."""
 
     def __init__(
-        self, max_keypoints: int = 5000, use_cuda: bool = True, weights_path: Union[Path, str] = MODEL_WEIGHTS_PATH
+        self,
+        max_keypoints: int = 5000,
+        use_cuda: bool = True,
+        weights_path: Union[Path, str] = MODEL_WEIGHTS_PATH,
     ) -> None:
         """Configures the object.
 
@@ -54,7 +57,7 @@ class DiskDetectorDescriptor(DetectorDescriptorBase):
             np.expand_dims(image_utils.rgb_to_gray_cv(image).value_array.astype(np.float32) / 255.0, (0, 1))
         ).to(device)
         with torch.no_grad():
-            model_results = self._model.extract(image_tensor)
+            model_results = self._model.extract(image_tensor, resize=None)
         torch.cuda.empty_cache()
 
         # Unpack results.
