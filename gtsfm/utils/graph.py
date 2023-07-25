@@ -2,7 +2,6 @@
 
 Authors: Ayush Baid, John Lambert, Akshay Krishnan
 """
-import logging
 from collections import defaultdict
 from typing import DefaultDict, Dict, List, Optional, Set, Tuple
 
@@ -11,10 +10,11 @@ import networkx as nx
 import numpy as np
 from gtsam import PinholeCameraCal3Bundler, Rot3, Unit3
 
+import gtsfm.utils.logger as logger_utils
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 
-logger = logging.getLogger(__name__)
+logger = logger_utils.get_logger()
 
 GREEN = [0, 1, 0]
 RED = [1, 0, 0]
