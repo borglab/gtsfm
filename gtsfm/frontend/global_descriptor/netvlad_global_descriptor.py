@@ -41,9 +41,10 @@ class NetVLADGlobalDescriptor(GlobalDescriptorBase):
         device = torch.device("cuda" if self._use_cuda and torch.cuda.is_available() else "cpu")
         self._model.to(device)
 
-        img_tensor = (
-            torch.from_numpy(image.value_array).permute(2, 0, 1).unsqueeze(0).type(torch.float32).to(device) / 255
-        )
-        img_desc = self._model({"image": img_tensor})
+        with torch.no_grad():
+            img_tensor = (
+                torch.from_numpy(image.value_array).permute(2, 0, 1).unsqueeze(0).type(torch.float32).to(device) / 255
+            )
+            img_desc = self._model({"image": img_tensor})
 
         return img_desc["global_descriptor"].detach().squeeze().cpu().numpy()
