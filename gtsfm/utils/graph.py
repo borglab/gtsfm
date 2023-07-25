@@ -37,7 +37,7 @@ def get_nodes_in_largest_connected_component(edges: List[Tuple[int, int]]) -> Li
 
     # Log the sizes of the connected components.
     cc_sizes = [len(x) for x in sorted(list(nx.connected_components(input_graph)))]
-    logger.info("Connected component sizes: %d nodes.", cc_sizes)
+    logger.info("Connected component sizes: %s nodes.", str(cc_sizes))
 
     # Get the largest connected component.
     largest_cc_nodes = max(nx.connected_components(input_graph), key=len)
