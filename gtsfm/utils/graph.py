@@ -2,6 +2,7 @@
 
 Authors: Ayush Baid, John Lambert, Akshay Krishnan
 """
+import logging
 from collections import defaultdict
 from typing import DefaultDict, Dict, List, Optional, Set, Tuple
 
@@ -13,6 +14,8 @@ from gtsam import PinholeCameraCal3Bundler, Rot3, Unit3
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 
+logger = logging.getLogger(__name__)
+
 GREEN = [0, 1, 0]
 RED = [1, 0, 0]
 
@@ -21,7 +24,7 @@ def get_nodes_in_largest_connected_component(edges: List[Tuple[int, int]]) -> Li
     """Finds the nodes in the largest connected component of the bidirectional graph defined by the input edges.
 
     Args:
-        edges: edges of the bi-directional graph.
+        edges: Edges of the bi-directional graph.
 
     Returns:
         Nodes in the largest connected component of the input graph.
@@ -32,9 +35,13 @@ def get_nodes_in_largest_connected_component(edges: List[Tuple[int, int]]) -> Li
     input_graph = nx.Graph()
     input_graph.add_edges_from(edges)
 
-    # get the largest connected component
-    largest_cc = max(nx.connected_components(input_graph), key=len)
-    subgraph = input_graph.subgraph(largest_cc).copy()
+    # Log the sizes of the connected components.
+    cc_sizes = [len(x) for x in sorted(list(nx.connected_components(input_graph)))]
+    logger.info("Connected component sizes: %d nodes.", cc_sizes)
+
+    # Get the largest connected component.
+    largest_cc_nodes = max(nx.connected_components(input_graph), key=len)
+    subgraph = input_graph.subgraph(largest_cc_nodes).copy()
 
     return list(subgraph.nodes())
 
@@ -83,10 +90,10 @@ def create_adjacency_list(edges: List[Tuple[int, int]]) -> DefaultDict[int, Set[
     vertices in the graph, which may be significantly higher than the degree.
 
     Args:
-        edges: indices of edges in the graph as a list of tuples.
+        edges: Indices of edges in the graph as a list of tuples.
 
     Returns:
-        adj_list: adjacency list representation of the graph, mapping an image index to its neighbors
+        adj_list: Adjacency list representation of the graph, mapping an image index to its neighbors
     """
     adj_list = defaultdict(set)
 
@@ -109,7 +116,7 @@ def extract_cyclic_triplets_from_edges(edges: List[Tuple[int, int]]) -> List[Tup
     connected to `a` and the nodes connected to `b`.
 
     Args:
-        edges: indices of edges in the graph as a list of tuples.
+        edges: Indices of edges in the graph as a list of tuples.
 
     Returns:
         triplets: 3-tuples of nodes that form a cycle. Nodes of each triplet are provided in sorted order.
@@ -150,10 +157,10 @@ def draw_view_graph_topology(
 
     Args:
         edges: List of (i1,i2) pairs.
-        two_view_reports: two-view estimation report per edge.
-        title: desired title of figure.
-        save_fpath: file path where plot should be saved to disk.
-        cameras_gt: ground truth camera parameters (including their poses).
+        two_view_reports: Two-view estimation report per edge.
+        title: Desired title of figure.
+        save_fpath: File path where plot should be saved to disk.
+        cameras_gt: Ground truth camera parameters (including their poses).
     """
     M = len(edges)
 
