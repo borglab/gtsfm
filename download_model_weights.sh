@@ -1,4 +1,3 @@
-
 # Download model weights for different modules available for use in GTSFM
 # Note: SuperPoint and SuperGlue code and checkpoints may *not* be used for commercial purposes
 
@@ -43,4 +42,7 @@ wget $D2NET_CKPT_URL -O $D2NET_WEIGHTS_DIR/d2_tf.pth
 
 ##################### NetVLAD #############################
 
-python thirdparty/hloc/download_netvlad.py
+NETVLAD_WEIGHTS_DIR="./thirdparty/hloc/weights"
+NETVLAD_CKPT_URL="https://cvg-data.inf.ethz.ch/hloc/netvlad/Pitts30K_struct.mat"
+mkdir $NETVLAD_WEIGHTS_DIR
+wget $NETVLAD_CKPT_URL -O $NETVLAD_WEIGHTS_DIR/VGG16-NetVLAD-Pitts30K.mat
