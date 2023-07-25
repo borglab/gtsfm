@@ -19,7 +19,16 @@ jobs:
       matrix:
         config_dataset_info: [
             # config             dataset       lookahead   img-extension  source  loader         max-res  share-intrinsics
-            [skydio_front_end,   skydio-501,   15,         jpg,           wget,   colmap-loader, 600,     true,],
+            [
+              skydio_front_end,
+              skydio-501,
+              15,
+              jpg,
+              wget,
+              colmap-loader,
+              600,
+              true,
+            ],
           ]
     defaults:
       run:
@@ -72,6 +81,7 @@ jobs:
           MAX_RESOLUTION=${{ matrix.config_dataset_info[6] }}
           SHARE_INTRINSICS=${{ matrix.config_dataset_info[7] }}
           pwd
+          eval "$(micromamba shell hook --shell bash)"
           micromamba activate gtsfm-v1
           micromamba list
           which python
