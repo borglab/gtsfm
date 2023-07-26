@@ -192,8 +192,8 @@ class GtsfmRunnerBase:
         if self.parsed_args.mvs_off:
             scene_optimizer.run_dense_optimizer = False
 
-        logger.info("\n\nSceneOptimizer: " + str(scene_optimizer))
         assert False
+        logger.info("\n\nSceneOptimizer: " + str(scene_optimizer))
         return scene_optimizer
 
     def setup_ssh_cluster_with_retries(self):
