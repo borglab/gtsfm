@@ -37,7 +37,6 @@ class DiskDetectorDescriptor(DetectorDescriptorBase):
         """
         super().__init__(max_keypoints=max_keypoints)
         self._use_cuda = use_cuda
-        # self._config = {"weights_path": weights_path}
         self._model = DISK(max_num_keypoints=max_keypoints).eval()
 
     def detect_and_describe(self, image: Image) -> Tuple[Keypoints, np.ndarray]:
