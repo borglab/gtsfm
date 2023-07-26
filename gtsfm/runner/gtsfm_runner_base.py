@@ -225,6 +225,7 @@ class GtsfmRunnerBase:
 
     def run(self) -> GtsfmData:
         """Run the SceneOptimizer."""
+        assert False
         start_time = time.time()
 
         # create dask cluster
