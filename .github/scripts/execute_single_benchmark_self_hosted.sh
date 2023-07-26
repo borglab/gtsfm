@@ -54,6 +54,7 @@ elif [ "$LOADER_NAME" == "colmap-loader" ]; then
     ${SHARE_INTRINSICS_ARG} \
     --num_workers 2 \
     --mvs_off
+  ls
 
 elif [ "$LOADER_NAME" == "astrovision" ]; then
   python gtsfm/runner/run_scene_optimizer_astrovision.py \

@@ -111,6 +111,10 @@ class SceneOptimizer:
         os.makedirs(self._metrics_path, exist_ok=True)
         os.makedirs(self._results_path, exist_ok=True)
 
+        assert os.path.isdir(self._plot_base_path)
+        assert os.path.isdir(self._metrics_path)
+        assert os.path.isdir(self._results_path)
+
         os.makedirs(self._plot_correspondence_path, exist_ok=True)
         os.makedirs(self._plot_ba_input_path, exist_ok=True)
         os.makedirs(self._plot_results_path, exist_ok=True)
