@@ -72,10 +72,8 @@ jobs:
           MAX_RESOLUTION=${{ matrix.config_dataset_info[6] }}
           SHARE_INTRINSICS=${{ matrix.config_dataset_info[7] }}
           pwd
-          eval "$(micromamba shell hook --shell bash)"
           micromamba activate gtsfm-v1
           micromamba list
-          which python
           bash .github/scripts/execute_single_benchmark_self_hosted.sh \
             $DATASET_NAME \
             $CONFIG_NAME \
@@ -84,7 +82,6 @@ jobs:
             $LOADER_NAME \
             $MAX_RESOLUTION \
             $SHARE_INTRINSICS
-          ls
       - name: Archive dataset metrics, plots, and output data (camera poses + points)
         uses: actions/upload-artifact@v3
         with:

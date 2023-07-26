@@ -21,12 +21,6 @@ SceneOptimizer:
         _target_: gtsfm.frontend.detector_descriptor.superpoint.SuperPointDetectorDescriptor
         max_keypoints: 5000
 
-    # detector_descriptor:
-    #   _target_: gtsfm.frontend.cacher.detector_descriptor_cacher.DetectorDescriptorCacher
-    #   detector_descriptor_obj:
-    #     _target_: gtsfm.frontend.detector_descriptor.disk.DiskDetectorDescriptor
-    #     max_keypoints: 8000
-
     matcher:
       _target_: gtsfm.frontend.cacher.matcher_cacher.MatcherCacher
       matcher_obj:
