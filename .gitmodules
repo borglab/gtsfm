@@ -1,0 +1,3 @@
+[submodule "thirdparty/LightGlue"]
+	path = thirdparty/LightGlue
+	url = https://github.com/cvg/LightGlue.git

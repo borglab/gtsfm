@@ -17,9 +17,7 @@ SceneOptimizer:
     _target_: gtsfm.frontend.correspondence_generator.image_correspondence_generator.ImageCorrespondenceGenerator
 
     matcher:
-      _target_: gtsfm.frontend.cacher.image_matcher_cacher
-      matcher_obj:
-        _target_: gtsfm.frontend.matcher.loftr.LOFTR
+      _target_: gtsfm.frontend.matcher.loftr.LOFTR
 
   two_view_estimator:
     _target_: gtsfm.two_view_estimator.TwoViewEstimator
