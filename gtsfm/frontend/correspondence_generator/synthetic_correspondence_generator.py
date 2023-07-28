@@ -93,8 +93,11 @@ class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
             camera_i1: CAMERA_TYPE,
             camera_i2: CAMERA_TYPE,
             open3d_mesh_fpath: str,
+            points: np.ndarray,
         ) -> Tuple[Keypoints, Keypoints]:
-            return loader_.generate_synthetic_correspondences_for_image_pair(camera_i1, camera_i2, open3d_mesh_fpath)
+            return loader_.generate_synthetic_correspondences_for_image_pair(
+                camera_i1, camera_i2, open3d_mesh_fpath, points
+            )
 
         pairwise_correspondence_futures = {
             (i1, i2): client.submit(

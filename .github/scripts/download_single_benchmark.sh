@@ -62,10 +62,17 @@ function download_and_unzip_dataset_files {
     WGET_URL1=https://www.dropbox.com/s/q02mgq1unbw068t/2011205_rc3.zip
     WGET_URL2=https://github.com/johnwlambert/gtsfm-cache/releases/download/2011205_rc3_deep_front_end_cache/cache_rc3_deep.tar.gz
     ZIP_FNAME=2011205_rc3.zip
+<<<<<<< HEAD
   elif [ "$DATASET_NAME" == "tanks-and-temples-barn-410" ]; then 
     # Tanks and Temples Dataset, "Barn" scene.
     WGET_URL1=https://github.com/johnwlambert/gtsfm-datasets-mirror/releases/download/tanks-and-temples-barn/Tanks_and_Temples_Barn_410.zip
     ZIP_FNAME=Tanks_and_Temples_Barn_410.zip
+=======
+
+  elif [ "$DATASET_NAME" == "gerrard-hall-100" ]; then
+    WGET_URL1=https://github.com/johnwlambert/gtsfm-datasets-mirror/releases/download/gerrard-hall-100/gerrard-hall-100.zip
+    ZIP_FNAME=gerrard-hall-100.zip
+>>>>>>> 11748048e369f09a3ae131477569c674d2f985e6
   fi
 
   # Download the data.
@@ -129,6 +136,11 @@ function download_and_unzip_dataset_files {
   elif [ "$DATASET_NAME" == "2011205_rc3" ]; then
     unzip -qq 2011205_rc3.zip
     tar -xvf cache_rc3_deep.tar.gz
+
+  elif [ "$DATASET_NAME" == "gerrard-hall-100" ]; then
+    unzip gerrard-hall-100.zip
+    ls -ltrh gerrard-hall-100
+
   elif [ "$DATASET_NAME" == "tanks-and-temples-barn-410" ]; then
     unzip -qq Tanks_and_Temples_Barn_410.zip
   fi
