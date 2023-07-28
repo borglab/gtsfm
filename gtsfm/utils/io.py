@@ -206,7 +206,7 @@ def colmap2gtsfm(
         sfmtracks_gtsfm = []
         for point3D in points3D.values():
             sfmtrack = SfmTrack(point3D.xyz)
-            for (image_id, point2d_idx) in zip(point3D.image_ids, point3D.point2D_idxs):
+            for image_id, point2d_idx in zip(point3D.image_ids, point3D.point2D_idxs):
                 sfmtrack.addMeasurement(image_id_to_idx[image_id], images[image_id].xys[point2d_idx])
             sfmtracks_gtsfm.append(sfmtrack)
 
@@ -236,12 +236,11 @@ def read_cameras_txt(fpath: str) -> Optional[List[Cal3Bundler]]:
 
     calibrations = []
     for line in lines[3:]:
-
         cam_params = line.split()
         # Note that u0 is px, and v0 is py
         model = cam_params[1]
         # Currently only handles SIMPLE RADIAL and RADIAL camera models
-        assert model in ["SIMPLE_RADIAL", "RADIAL"]
+        assert model in ["SIMPLE_RADIAL", "RADIAL", "OPENCV"]
         if model == "SIMPLE_RADIAL":
             _, _, img_w, img_h, fx, u0, v0, k1 = cam_params[:8]
             img_w, img_h, fx, u0, v0, k1 = int(img_w), int(img_h), float(fx), float(u0), float(v0), float(k1)
@@ -249,7 +248,7 @@ def read_cameras_txt(fpath: str) -> Optional[List[Cal3Bundler]]:
             # Add second radial distortion coefficient of value zero.
             k2 = 0
             calibrations.append(Cal3Bundler(fx, k1, k2, u0, v0))
-        elif model == "RADIAL":
+        elif model in ["RADIAL", "OPENCV"]:
             _, _, img_w, img_h, fx, u0, v0, k1, k2 = cam_params[:9]
             img_w, img_h, fx, u0, v0, k1, k2 = (
                 int(img_w),
