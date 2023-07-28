@@ -27,6 +27,9 @@ elif [ "$DATASET_NAME" == "skydio-501" ]; then
 elif [ "$DATASET_NAME" == "notre-dame-20" ]; then
   IMAGES_DIR=notre-dame-20/images
   COLMAP_FILES_DIRPATH=notre-dame-20/notre-dame-20-colmap
+elif [ "$DATASET_NAME" == "gerrard-hall-100" ]; then
+  IMAGES_DIR=gerrard-hall-100/images
+  COLMAP_FILES_DIRPATH=gerrard-hall-100/colmap-3.7-sparse-txt-2023-07-27
 fi
 
 echo "Config: ${CONFIG_NAME}, Loader: ${LOADER_NAME}"
