@@ -132,6 +132,8 @@ function download_and_unzip_dataset_files {
 
   elif [ "$DATASET_NAME" == "gerrard-hall-100" ]; then
     tar -xvzf gerrard-hall-100.tar.gz
+    pwd .
+    ls -ltrh
   fi
 }
 
