@@ -194,7 +194,7 @@ class GtsfmRunnerBase:
 
         logger.info("\n\nSceneOptimizer: " + str(scene_optimizer))
         return scene_optimizer
-    
+
     def setup_ssh_cluster_with_retries(self):
         """Sets up SSH Cluster allowing multiple retries upon connection failures."""
         workers = OmegaConf.load(

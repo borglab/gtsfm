@@ -51,7 +51,8 @@ if [ "$LOADER_NAME" == "olsson-loader" ]; then
     --config_name ${CONFIG_NAME}.yaml \
     --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
     --max_resolution ${MAX_RESOLUTION} \
-    ${SHARE_INTRINSICS_ARG}
+    ${SHARE_INTRINSICS_ARG} \
+    --mvs_off
 
 elif [ "$LOADER_NAME" == "colmap-loader" ]; then
   python gtsfm/runner/run_scene_optimizer_colmaploader.py \
@@ -60,7 +61,8 @@ elif [ "$LOADER_NAME" == "colmap-loader" ]; then
     --config_name ${CONFIG_NAME}.yaml \
     --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
     --max_resolution ${MAX_RESOLUTION} \
-    ${SHARE_INTRINSICS_ARG}
+    ${SHARE_INTRINSICS_ARG} \
+    --mvs_off
 
 elif [ "$LOADER_NAME" == "astrovision" ]; then
   python gtsfm/runner/run_scene_optimizer_astrovision.py \
@@ -68,7 +70,9 @@ elif [ "$LOADER_NAME" == "astrovision" ]; then
     --config_name ${CONFIG_NAME}.yaml \
     --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
     --max_resolution ${MAX_RESOLUTION} \
-    ${SHARE_INTRINSICS_ARG}
+    ${SHARE_INTRINSICS_ARG} \
+    --mvs_off
+
 elif [ "$LOADER_NAME" == "tanks-and-temples" ]; then
   python gtsfm/runner/run_scene_optimizer_synthetic_tanks_and_temples.py \
     --config_name ${CONFIG_NAME}.yaml \
