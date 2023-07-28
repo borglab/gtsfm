@@ -225,6 +225,7 @@ class GtsfmRunnerBase:
     def run(self) -> GtsfmData:
         """Run the SceneOptimizer."""
         start_time = time.time()
+
         # create dask cluster
         if self.parsed_args.cluster_config:
             cluster = self.setup_ssh_cluster_with_retries()
