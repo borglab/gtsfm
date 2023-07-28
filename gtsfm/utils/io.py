@@ -14,7 +14,7 @@ import h5py
 import numpy as np
 import open3d
 import simplejson as json
-from gtsam import Cal3Bundler, Point3, Pose3, Rot3, SfmTrack
+from gtsam import Cal3Bundler, Point3, Pose3, Rot3, SfmTrack, Cal3Unified
 from PIL import Image as PILImage
 from PIL.ExifTags import GPSTAGS, TAGS
 
@@ -248,7 +248,7 @@ def read_cameras_txt(fpath: str) -> Optional[List[Cal3Bundler]]:
             # Add second radial distortion coefficient of value zero.
             k2 = 0
             calibrations.append(Cal3Bundler(fx, k1, k2, u0, v0))
-        elif model in ["RADIAL", "OPENCV"]:
+        elif model == "RADIAL":
             _, _, img_w, img_h, fx, u0, v0, k1, k2 = cam_params[:9]
             img_w, img_h, fx, u0, v0, k1, k2 = (
                 int(img_w),
@@ -260,6 +260,23 @@ def read_cameras_txt(fpath: str) -> Optional[List[Cal3Bundler]]:
                 float(k2),
             )
             calibrations.append(Cal3Bundler(fx, k1, k2, u0, v0))
+        elif model == "OPENCV":
+            _, _, fx, fy, u0, v0, k1, k2, p1, p2 = cam_params[:10]
+
+            calibrations.append(
+                Cal3Unified(
+                    fx=float(fx),
+                    fy=float(fy),
+                    s=0,
+                    u0=float(u0),
+                    v0=float(v0),
+                    k1=float(k1),
+                    k2=float(k2),
+                    p1=float(p1),
+                    p2=float(p2),
+                    xi=0,
+                )
+            )
 
     assert len(calibrations) == num_cams
     return calibrations
