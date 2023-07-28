@@ -62,6 +62,10 @@ function download_and_unzip_dataset_files {
     WGET_URL1=https://www.dropbox.com/s/q02mgq1unbw068t/2011205_rc3.zip
     WGET_URL2=https://github.com/johnwlambert/gtsfm-cache/releases/download/2011205_rc3_deep_front_end_cache/cache_rc3_deep.tar.gz
     ZIP_FNAME=2011205_rc3.zip
+
+  elif [ "$DATASET_NAME" == "gerrard-hall-100" ]; then
+    WGET_URL1=https://github.com/johnwlambert/gtsfm-datasets-mirror/releases/download/gerrard-hall-100/gerrard-hall-100.zip
+    ZIP_FNAME=gerrard-hall-100.zip
   fi
 
   # Download the data.
@@ -125,6 +129,10 @@ function download_and_unzip_dataset_files {
   elif [ "$DATASET_NAME" == "2011205_rc3" ]; then
     unzip -qq 2011205_rc3.zip
     tar -xvf cache_rc3_deep.tar.gz
+
+  elif [ "$DATASET_NAME" == "gerrard-hall-100" ]; then
+    unzip gerrard-hall-100.zip
+    ls -ltrh gerrard-hall-100
   fi
 }
 
