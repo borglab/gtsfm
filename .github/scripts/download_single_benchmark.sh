@@ -131,9 +131,8 @@ function download_and_unzip_dataset_files {
     tar -xvf cache_rc3_deep.tar.gz
 
   elif [ "$DATASET_NAME" == "gerrard-hall-100" ]; then
-    tar -xvzf gerrard-hall-100.zip
-    pwd .
-    ls -ltrh
+    unzip gerrard-hall-100.zip
+    ls -ltrh gerrard-hall-100
   fi
 }
 
