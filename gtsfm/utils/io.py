@@ -317,11 +317,11 @@ def read_images_txt(fpath: str) -> Tuple[Optional[List[Pose3]], Optional[List[st
         to the bottom, and the Z axis to the front as seen from the image."
 
     Args:
-        fpath: path to images.txt file
+        fpath: Path to images.txt file
 
     Returns:
-        wTi_list: list of camera poses for each image, or None if file path invalid
-        img_fnames: name of image file, for each image, or None if file path invalid
+        wTi_list: List of camera poses for each image, or None if file path invalid
+        img_fnames: Name of image file, for each image, or None if file path invalid
     """
     if not Path(fpath).exists():
         logger.info("%s does not exist", fpath)
@@ -550,9 +550,9 @@ def save_point_cloud_as_ply(save_fpath: str, points: np.ndarray, rgb: Optional[n
     """Save a point cloud as a .ply file.
 
     Args:
-        save_fpath: absolute file path where PLY file should be saved.
-        points: float array of shape (N,3) representing a 3d point cloud.
-        rgb: uint8 array of shape (N,3) representing an RGB color per point.
+        save_fpath: Absolute file path where PLY file should be saved.
+        points: Float array of shape (N,3) representing a 3d point cloud.
+        rgb: Uint8 array of shape (N,3) representing an RGB color per point.
     """
     if rgb is None:
         # If no colors are provided, then color all points uniformly as black.
@@ -568,11 +568,11 @@ def read_point_cloud_from_ply(ply_fpath: str) -> Tuple[np.ndarray, np.ndarray]:
     """Read a point cloud from a .ply file.
 
     Args:
-        ply_fpath: absolute file path where PLY file is located on disk.
+        ply_fpath: Absolute file path where PLY file is located on disk.
 
     Returns:
-        points: float array of shape (N,3) representing a 3d point cloud.
-        rgb: uint8 array of shape (N,3) representing an RGB color per point.
+        points: Float array of shape (N,3) representing a 3d point cloud.
+        rgb: Uint8 array of shape (N,3) representing an RGB color per point.
     """
     pointcloud = open3d.io.read_point_cloud(ply_fpath)
     return open3d_vis_utils.convert_colored_open3d_point_cloud_to_numpy(pointcloud)

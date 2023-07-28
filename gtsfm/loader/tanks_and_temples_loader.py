@@ -205,7 +205,7 @@ class TanksAndTemplesLoader(LoaderBase):
         Move all LiDAR points to the COLMAP frame.
         """
         if not Path(self.lidar_ply_fpath).exists():
-            raise ValueError('')
+            raise ValueError("")
         pcd = open3d.io.read_point_cloud(self.lidar_ply_fpath)
         points, rgb = open3d_vis_utils.convert_colored_open3d_point_cloud_to_numpy(pointcloud=pcd)
         points = points[::downsample_factor]
@@ -221,7 +221,7 @@ class TanksAndTemplesLoader(LoaderBase):
     def get_colmap_point_cloud(self, downsample_factor: int = 1) -> open3d.geometry.PointCloud:
         """Returns COLMAP-reconstructed point cloud."""
         if not Path(self.colmap_ply_fpath).exists():
-            raise ValueError('')
+            raise ValueError("")
         pcd = open3d.io.read_point_cloud(self.colmap_ply_fpath)
         points, rgb = open3d_vis_utils.convert_colored_open3d_point_cloud_to_numpy(pointcloud=pcd)
         points = points[::downsample_factor]
@@ -276,7 +276,11 @@ class TanksAndTemplesLoader(LoaderBase):
         return mesh
 
     def generate_synthetic_correspondences(
-        self, images: List[Future], image_pairs: List[Tuple[int, int]], deduplicate: bool = False
+        self,
+        images: List[Future],
+        image_pairs: List[Tuple[int, int]],
+        deduplicate: bool = False,
+        num_sampled_3d_points: int = 2000,
     ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
         """Generates synthetic correspondences from virtual cameras and a ground-truth mesh.
 
@@ -284,6 +288,7 @@ class TanksAndTemplesLoader(LoaderBase):
             images:
             image_pairs: Tuples (i1,i2) indicating image indices to use as image pairs.
             deduplicate: Whether to de-duplicate with a single image the detections received from each image pair.
+            num_sampled_3d_points: Number of 3d points to sample from the mesh surface and to project.
 
         Returns:
             List of keypoints, one entry for each input image.
@@ -292,6 +297,12 @@ class TanksAndTemplesLoader(LoaderBase):
                 are represented by an array of shape (K,2), for K correspondences.
         """
         mesh = self.reconstruct_mesh()
+
+        # Sample random 3d points. This sampling must occur only once, to avoid clusters from repeated sampling.
+        pcd = mesh.sample_points_uniformly(number_of_points=num_sampled_3d_points)
+        pcd = mesh.sample_points_poisson_disk(number_of_points=num_sampled_3d_points, pcl=pcd)
+        points = np.asarray(pcd.points)
+
         open3d_mesh_path = tempfile.NamedTemporaryFile(suffix=".obj").name
         open3d.io.write_triangle_mesh(filename=open3d_mesh_path, mesh=mesh)
 
@@ -307,7 +318,7 @@ class TanksAndTemplesLoader(LoaderBase):
             if i2 not in camera_dict:
                 camera_dict[i2] = self.get_camera(index=i2)
             keypoints_i1, keypoints_i2 = self.generate_synthetic_correspondences_for_image_pair(
-                camera_i1=camera_dict[i1], camera_i2=camera_dict[i2], open3d_mesh_fpath=open3d_mesh_path
+                camera_i1=camera_dict[i1], camera_i2=camera_dict[i2], open3d_mesh_fpath=open3d_mesh_path, points=points
             )
             num_kpts = len(keypoints_i1)
             putative_corr_idxs = np.stack([np.arange(num_kpts), np.arange(num_kpts)], axis=-1)
@@ -328,7 +339,7 @@ class TanksAndTemplesLoader(LoaderBase):
         camera_i1: gtsfm_types.CAMERA_TYPE,
         camera_i2: gtsfm_types.CAMERA_TYPE,
         open3d_mesh_fpath: str,
-        num_sampled_3d_points: int = 200,
+        points: np.ndarray,
     ) -> Tuple[Keypoints, Keypoints]:
         """Generates synthetic correspondences for image pair.
 
@@ -336,18 +347,13 @@ class TanksAndTemplesLoader(LoaderBase):
             camera_i1: First camera.
             camera_i2: Second camera.
             open3d_mesh_fpath: Path to saved Open3d mesh.
-            num_sampled_3d_points: Number of 3d points to sample from the mesh surface and to project.
+            points: 3d points sampled from mesh surface.
 
         Returns:
             Tuple of `Keypoints` objects, one for each image in the input image pair.
         """
         mesh = open3d.io.read_triangle_mesh(filename=open3d_mesh_fpath)
         trimesh_mesh = load_from_trimesh(open3d_mesh_fpath)
-
-        # Sample random 3d points.
-        pcd = mesh.sample_points_uniformly(number_of_points=num_sampled_3d_points)
-        pcd = mesh.sample_points_poisson_disk(number_of_points=num_sampled_3d_points, pcl=pcd)
-        points = np.asarray(pcd.points)
 
         wTi_list = [camera_i1.pose(), camera_i2.pose()]
         calibrations = [camera_i1.calibration(), camera_i2.calibration()]

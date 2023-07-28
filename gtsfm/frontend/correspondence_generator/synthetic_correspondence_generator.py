@@ -44,6 +44,7 @@ class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
         client: Client,
         images: List[Future],
         image_pairs: List[Tuple[int, int]],
+        num_sampled_3d_points: int = 500,
     ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
         """Apply the correspondence generator to generate putative correspondences.
 
@@ -75,6 +76,12 @@ class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
         )
 
         mesh = loader.reconstruct_mesh()
+
+        # Sample random 3d points. This sampling must occur only once, to avoid clusters from repeated sampling.
+        pcd = mesh.sample_points_uniformly(number_of_points=num_sampled_3d_points)
+        pcd = mesh.sample_points_poisson_disk(number_of_points=num_sampled_3d_points, pcl=pcd)
+        sampled_points = np.asarray(pcd.points)
+
         # TODO(jolambert): File Open3d bug to add pickle support for TriangleMesh.
         open3d_mesh_path = tempfile.NamedTemporaryFile(suffix=".obj").name
         open3d.io.write_triangle_mesh(filename=open3d_mesh_path, mesh=mesh)
@@ -96,6 +103,7 @@ class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
                 loader.get_camera(index=i1),
                 loader.get_camera(index=i2),
                 open3d_mesh_path,
+                sampled_points,
             )
             for i1, i2 in image_pairs
         }
