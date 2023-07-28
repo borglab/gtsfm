@@ -377,7 +377,7 @@ class TanksAndTemplesLoader(LoaderBase):
 
         keypoints_i1 = Keypoints(coordinates=np.array(keypoints_i1))
         keypoints_i2 = Keypoints(coordinates=np.array(keypoints_i2))
-        print(f"Generated {len(keypoints_i1)} keypoints from sampled {num_sampled_3d_points} 3d points.")
+        print(f"Generated {len(keypoints_i1)} keypoints from sampled {points.shape[0]} 3d points.")
         return keypoints_i1, keypoints_i2
 
 
