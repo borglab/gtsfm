@@ -20,6 +20,7 @@ SceneOptimizer:
       _target_: gtsfm.frontend.cacher.image_matcher_cacher.ImageMatcherCacher
       matcher_obj: 
         _target_: gtsfm.frontend.matcher.loftr.LOFTR
+        min_confidence: 0.5
 
   two_view_estimator:
     _target_: gtsfm.two_view_estimator.TwoViewEstimator
