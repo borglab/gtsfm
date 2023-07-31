@@ -48,7 +48,6 @@ class OlssonLoader(LoaderBase):
 
         Args:
             folder: the base folder for a given scene
-            image_extension: file extension for the image files. Defaults to 'jpg'.
             use_gt_intrinsics: whether to use ground truth intrinsics
             use_gt_extrinsics: whether to use ground truth extrinsics
             max_resolution: integer representing maximum length of image's short side, i.e.

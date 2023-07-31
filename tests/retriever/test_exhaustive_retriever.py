@@ -16,7 +16,7 @@ DOOR_DATA_ROOT = DATA_ROOT_PATH / "set1_lund_door"
 class TestNetVLADRetriever(unittest.TestCase):
     def test_exhaustive_retriever_door(self) -> None:
         """Test the Exhaustive retriever on 12 frames of the Lund Door Dataset."""
-        loader = OlssonLoader(folder=DOOR_DATA_ROOT, image_extension="JPG")
+        loader = OlssonLoader(folder=DOOR_DATA_ROOT)
         retriever = ExhaustiveRetriever()
 
         pairs = retriever.get_image_pairs(loader=loader)
