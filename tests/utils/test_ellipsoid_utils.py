@@ -22,7 +22,7 @@ class TestEllipsoidUtils(unittest.TestCase):
     """Class containing all unit tests for ellipsoid utils."""
 
     def setUp(self) -> None:
-        self.loader = OlssonLoader(str(DATA_ROOT_PATH / "set1_lund_door"), image_extension="JPG")
+        self.loader = OlssonLoader(str(DATA_ROOT_PATH / "set1_lund_door"))
         assert len(self.loader)
 
     def test_get_ortho_axis_alignment_transform(self) -> None:
