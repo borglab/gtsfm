@@ -153,7 +153,7 @@ class TestTranslationAveraging1DSFM(unittest.TestCase):
 
     def test_lund_door(self):
         """Unit Test on the door dataset."""
-        loader = OlssonLoader(str(DATA_ROOT_PATH / "set1_lund_door"), image_extension="JPG")
+        loader = OlssonLoader(str(DATA_ROOT_PATH / "set1_lund_door"))
 
         # We will use ground truth poses to generate relative rotations and relative unit translations
         wTi_expected_list = [loader.get_camera_pose(x) for x in range(len(loader))]
@@ -161,7 +161,7 @@ class TestTranslationAveraging1DSFM(unittest.TestCase):
         wti_expected_list = [x.translation() for x in wTi_expected_list]
 
         i2Ui1_dict = dict()
-        for (i1, i2) in loader.get_valid_pairs():
+        for i1, i2 in loader.get_valid_pairs():
             i2Ti1 = wTi_expected_list[i2].between(wTi_expected_list[i1])
 
             i2Ui1_dict[(i1, i2)] = Unit3((i2Ti1.translation()))

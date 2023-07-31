@@ -22,7 +22,7 @@ class TestDetectorBase(unittest.TestCase):
     def setUp(self):
         super().setUp()
         self.detector = DummyDetector()
-        self.loader = OlssonLoader(TEST_DATA_PATH, image_extension="JPG")
+        self.loader = OlssonLoader(TEST_DATA_PATH)
 
     def test_number_of_detections(self):
         """Tests that the number of detections is less than the maximum number configured."""

@@ -25,7 +25,7 @@ class TestDescriptorBase(unittest.TestCase):
 
     def setUp(self):
         self.descriptor = DummyDescriptor()
-        self.loader = OlssonLoader(str(TEST_DATA_PATH), image_extension="JPG")
+        self.loader = OlssonLoader(str(TEST_DATA_PATH))
 
     def test_result_size(self):
         """Check if the number of descriptors are same as number of features."""
