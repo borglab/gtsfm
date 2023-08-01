@@ -28,7 +28,13 @@ CONFIDENCE_KEY = "confidence"
 class LOFTR(ImageMatcherBase):
     """LOFTR image matcher."""
 
-    def __init__(self, use_outdoor_model: bool = True, use_cuda: bool = True, min_confidence: float = 0.95) -> None:
+    def __init__(
+        self,
+        use_outdoor_model: bool = True,
+        use_cuda: bool = True,
+        min_confidence: float = 0.95,
+        max_correspondences: int = 5000,
+    ) -> None:
         """Initialize the matcher.
 
         Args:
@@ -40,6 +46,7 @@ class LOFTR(ImageMatcherBase):
         self._model_type = "outdoor" if use_outdoor_model else "indoor"
         self._use_cuda: bool = use_cuda
         self._min_confidence = min_confidence
+        self._max_correspondences = max_correspondences
         self._matcher = LoFTRKornia(pretrained=self._model_type).eval()
 
     def match(self, image_i1: Image, image_i2: Image) -> Tuple[Keypoints, Keypoints]:
@@ -86,6 +93,7 @@ class LOFTR(ImageMatcherBase):
         self, coordinates_i1: np.ndarray, coordinates_i2: np.ndarray, match_confidence: np.ndarray
     ) -> Tuple[np.ndarray, np.ndarray]:
         idxs = np.argsort(-match_confidence)
+        idxs = idxs[: self._max_correspondences]
         sorted_confs = match_confidence[idxs]
 
         num_vals_greater_than_threshold = (sorted_confs > self._min_confidence).sum()
