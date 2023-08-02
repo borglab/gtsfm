@@ -250,6 +250,10 @@ class GtsfmRunnerBase:
         image_pair_indices = self.scene_optimizer.retriever.get_image_pairs(
             self.loader, plots_output_dir=self.scene_optimizer._plot_base_path
         )
+        retriever_metrics = self.scene_optimizer.retriever.evaluate(self.loader, image_pair_indices)
+        retriever_metrics.save_to_json(
+            os.path.join(self.parsed_args.output_root, "result_metrics", "retriever_metrics" + ".json")
+        )
 
         intrinsics = self.loader.get_all_intrinsics()
 
