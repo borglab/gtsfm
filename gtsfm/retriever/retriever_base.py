@@ -8,6 +8,7 @@ from enum import Enum
 from pathlib import Path
 from typing import List, Optional, Tuple
 
+from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
@@ -54,3 +55,24 @@ class RetrieverBase(GTSFMProcess):
         Return:
             pair_indices: (i1,i2) image pairs.
         """
+
+    def evaluate(self, loader: LoaderBase, image_pair_indices: List[Tuple[int, int]]) -> GtsfmMetricsGroup:
+        """Evaluates the retriever result.
+
+        Args:
+            loader: Image loader. The length of this loader will provide the total number of images
+                for exhaustive global descriptor matching.
+            image_pair_indices: (i1,i2) image pairs.
+
+        Returns:
+            Retriever metrics group.
+        """
+        metric_group_name = "retriever_metrics"
+        retriever_metrics = GtsfmMetricsGroup(
+            metric_group_name,
+            [
+                GtsfmMetric("num_input_images", len(loader)),
+                GtsfmMetric("num_retrieved_image_pairs", len(image_pair_indices)),
+            ],
+        )
+        return retriever_metrics
