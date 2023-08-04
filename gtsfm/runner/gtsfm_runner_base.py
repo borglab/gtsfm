@@ -195,7 +195,7 @@ class GtsfmRunnerBase:
         logger.info("\n\nSceneOptimizer: " + str(scene_optimizer))
         return scene_optimizer
 
-    def setup_ssh_cluster_with_retries(self):
+    def setup_ssh_cluster_with_retries(self) -> SSHCluster:
         """Sets up SSH Cluster allowing multiple retries upon connection failures."""
         workers = OmegaConf.load(
             os.path.join(self.parsed_args.output_root, "gtsfm", "configs", self.parsed_args.cluster_config)
@@ -250,6 +250,10 @@ class GtsfmRunnerBase:
         image_pair_indices = self.scene_optimizer.retriever.get_image_pairs(
             self.loader, plots_output_dir=self.scene_optimizer._plot_base_path
         )
+        retriever_metrics = self.scene_optimizer.retriever.evaluate(self.loader, image_pair_indices)
+        retriever_metrics.save_to_json(
+            os.path.join(self.parsed_args.output_root, "result_metrics", "retriever_metrics" + ".json")
+        )
 
         intrinsics = self.loader.get_all_intrinsics()
 
@@ -274,7 +278,7 @@ class GtsfmRunnerBase:
                 gt_scene_mesh=self.loader.get_gt_scene_trimesh(),
             )
 
-        i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, two_view_reports_dict = unzip_two_view_results(two_view_results_dict)
+        i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, _, two_view_reports_dict = unzip_two_view_results(two_view_results_dict)
 
         delayed_sfm_result, delayed_io = self.scene_optimizer.create_computation_graph(
             keypoints_list=keypoints_list,
@@ -311,22 +315,28 @@ def unzip_two_view_results(
     Dict[Tuple[int, int], Unit3],
     Dict[Tuple[int, int], np.ndarray],
     Dict[Tuple[int, int], TwoViewEstimationReport],
+    Dict[Tuple[int, int], TwoViewEstimationReport],
 ]:
     """Unzip the tuple TWO_VIEW_OUTPUT into 1 dictionary for 1 element in the tuple."""
     i2Ri1_dict: Dict[Tuple[int, int], Rot3] = {}
     i2Ui1_dict: Dict[Tuple[int, int], Unit3] = {}
     v_corr_idxs_dict: Dict[Tuple[int, int], np.ndarray] = {}
-    two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport] = {}
+    pre_ba_two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport] = {}
+    post_isp_two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport] = {}
 
     for (i1, i2), two_view_output in two_view_results.items():
+        # Value is ordered as (post_isp_i2Ri1, post_isp_i2Ui1, post_isp_v_corr_idxs,
+        # pre_ba_report, post_ba_report, post_isp_report).
         i2Ri1 = two_view_output[0]
         i2Ui1 = two_view_output[1]
         if i2Ri1 is None or i2Ui1 is None:
+            print(f"Skip {i1},{i2} since None")
             continue
 
         i2Ri1_dict[(i1, i2)] = i2Ri1
         i2Ui1_dict[(i1, i2)] = i2Ui1
         v_corr_idxs_dict[(i1, i2)] = two_view_output[2]
-        two_view_reports_dict[(i1, i2)] = two_view_output[5]
+        pre_ba_two_view_reports_dict[(i1, i2)] = two_view_output[3]
+        post_isp_two_view_reports_dict[(i1, i2)] = two_view_output[5]
 
-    return i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, two_view_reports_dict
+    return i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, pre_ba_two_view_reports_dict, post_isp_two_view_reports_dict
