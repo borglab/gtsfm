@@ -502,7 +502,7 @@ def get_measurement_angle_errors(
     return errors
 
 
-def pose_auc(errors: np.ndarray, thresholds: Sequence[float], save_plot: bool = False) -> Sequence[float]:
+def pose_auc(errors: np.ndarray, thresholds: Sequence[float], save_plot: bool = True) -> Sequence[float]:
     """Computes area under the Recall (y) vs. Pose Error (x) curve, the pose AUC.
 
     If recall is defined as TP / # actual positives, then every camera is a TP if one can register it.
@@ -531,7 +531,8 @@ def pose_auc(errors: np.ndarray, thresholds: Sequence[float], save_plot: bool = 
             plt.ylabel("Recall")
             plt.xlabel("Pose Error (deg.)")
             uuid = datetime.datetime.utcnow().strftime("%Y_%m_%d_%H_%M_%S_%f")
-            save_fpath = f"{uuid}_recall_vs_pose_error_curve_auc.jpg"
+            Path("pose_auc").mkdir(parents=True, exist_ok=True)
+            save_fpath = Path("pose_auc", f"{uuid}_recall_vs_pose_error_curve_auc_{t}_deg_threshold.jpg")
             plt.savefig(save_fpath)
             plt.close("all")
 
