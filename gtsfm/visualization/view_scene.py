@@ -44,7 +44,7 @@ def view_scene(args: argparse.Namespace) -> None:
     """
     # Read in data.
     wTi_list, img_fnames, calibrations, point_cloud, rgb = io_utils.read_scene_data_from_colmap_format(
-        data_dir=args.output_dir, file_format=args.file_format
+        data_dir=args.output_dir
     )
     if args.show_mvs_result:
         point_cloud, rgb = io_utils.read_point_cloud_from_ply(args.ply_fpath)
@@ -76,12 +76,6 @@ if __name__ == "__main__":
         help="Path to a directory containing GTSFM output. "
         "This directory should contain 3 files: either `cameras.txt`, `images.txt`, and `points3D.txt`"
         " or `cameras.bin`, `images.bin`, and `points3D.bin`.",
-    )
-    parser.add_argument(
-        "--file_format",
-        type=str,
-        default="txt",
-        help="File format for data in `output_dir`, indicating if stored as text (txt) or binary data (bin).",
     )
     parser.add_argument(
         "--rendering_style",
