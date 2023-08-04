@@ -392,5 +392,24 @@ def test_compute_cyclic_rotation_error() -> None:
     assert np.isclose(cycle_error, 5)
 
 
+def test_is_valid_SO3() -> None:
+    """Ensures that rotation matrices are accurately checked for SO(3) membership."""
+    R = Rot3(np.eye(3))
+    assert geometry_comparisons.is_valid_SO3(R)
+
+    # fmt: off
+    # Determinant and diagonal are obviously not unit-sized.
+    R = np.array(
+        [
+            [3.85615, 0.0483263, 1.5018],
+            [-1.50233, 0.199159, 3.8511],
+            [-0.0273012, -4.13347, 0.203112]
+        ]
+    )
+    R = Rot3(R)
+    # fmt: on
+    assert not geometry_comparisons.is_valid_SO3(R)
+
+
 if __name__ == "__main__":
     unittest.main()
