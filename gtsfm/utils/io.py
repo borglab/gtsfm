@@ -458,7 +458,7 @@ def read_points_txt(fpath: str) -> Tuple[Optional[np.ndarray], Optional[np.ndarr
 
 
 def read_scene_data_from_colmap_format(
-    data_dir: str, file_format: str = "txt"
+    data_dir: str
 ) -> Tuple[List[Pose3], List[str], List[Cal3Bundler], np.ndarray, np.ndarray]:
     """Reads in full scene reconstruction model from scene data stored in the COLMAP file format.
 
@@ -467,7 +467,6 @@ def read_scene_data_from_colmap_format(
     Args:
         data_dir: This directory should contain 3 files: either `cameras.txt`, `images.txt`, and `points3D.txt`, or
             `cameras.bin`, `images.bin`, and `points3D.bin`.
-        file_format: Whether data is stored in a text (txt) or binary (bin) file format.
 
     Returns:
         5-tuple of:
@@ -477,6 +476,16 @@ def read_scene_data_from_colmap_format(
             point_cloud: Float array of shape (N,3) representing per-point x/y/z coordinates.
             rgb: Uint8 array of shape (N,3) representing per-point colors.
     """
+    # Determine whether scene data is stored in a text (txt) or binary (bin) file format.
+    if Path(data_dir, "images.txt").exists():
+        file_format = "txt"
+    elif Path(data_dir, "images.bin").exists():
+        file_format = "bin"
+    else:
+        raise ValueError(
+            f"Unknown file format, as neither `{data_dir}/images.txt` or `{data_dir}/images.bin` could be found."
+        )
+
     if file_format == "txt":
         points_fpath = f"{data_dir}/points3D.txt"
         images_fpath = f"{data_dir}/images.txt"
