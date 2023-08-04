@@ -295,9 +295,9 @@ class BundleAdjustmentOptimizer:
         """Run the bundle adjustment by forming factor graph and optimizing using Levenberg–Marquardt optimization.
 
         Args:
-            initial_data: initialized cameras, tracks w/ their 3d landmark from triangulation.
-            absolute_pose_priors: priors to be used on cameras.
-            relative_pose_priors: priors on the pose between two cameras.
+            initial_data: Initialized cameras, tracks w/ their 3d landmark from triangulation.
+            absolute_pose_priors: Priors to be used on cameras.
+            relative_pose_priors: Priors on the pose between two cameras.
             verbose: Boolean flag to print out additional info for debugging.
 
         Results:
@@ -366,9 +366,9 @@ class BundleAdjustmentOptimizer:
     ) -> GtsfmMetricsGroup:
         """
         Args:
-            unfiltered_data: optimized BA result, before filtering landmarks by reprojection error.
-            filtered_data: optimized BA result, after filtering landmarks and cameras.
-            cameras_gt: cameras with GT intrinsics and GT extrinsics.
+            unfiltered_data: Optimized BA result, before filtering landmarks by reprojection error.
+            filtered_data: Optimized BA result, after filtering landmarks and cameras.
+            cameras_gt: Cameras with GT intrinsics and GT extrinsics.
 
         Returns:
             Metrics group containing metrics for both filtered and unfiltered BA results.
@@ -443,7 +443,7 @@ def values_to_gtsfm_data(values: Values, initial_data: GtsfmData, shared_calib: 
         shared_calib: Flag indicating if calibrations were shared between the cameras.
 
     Returns:
-        optimized poses and landmarks.
+        Optimized poses and landmarks.
     """
     result = GtsfmData(initial_data.number_images())
 
