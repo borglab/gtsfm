@@ -26,7 +26,7 @@ class TestFolderLoader(unittest.TestCase):
         """Set up the loader for the test."""
         super().setUp()
 
-        self.loader = OlssonLoader(str(DEFAULT_FOLDER), image_extension="JPG", max_frame_lookahead=4)
+        self.loader = OlssonLoader(str(DEFAULT_FOLDER), max_frame_lookahead=4)
 
     def test_len(self) -> None:
         """Test the number of entries in the loader."""
@@ -81,7 +81,7 @@ class TestFolderLoader(unittest.TestCase):
 
     def test_get_camera_pose_missing(self):
         """Tests that the camera pose is None, because it is missing on disk."""
-        loader = OlssonLoader(str(NO_EXTRINSICS_FOLDER), image_extension="JPG")
+        loader = OlssonLoader(str(NO_EXTRINSICS_FOLDER))
         fetched_pose = loader.get_camera_pose(5)
         self.assertIsNone(fetched_pose)
 
@@ -101,7 +101,7 @@ class TestFolderLoader(unittest.TestCase):
 
     def test_get_camera_intrinsics_exif(self) -> None:
         """Tests getter for intrinsics when explicit numpy arrays are absent and we fall back on exif."""
-        loader = OlssonLoader(EXIF_FOLDER, image_extension="JPG", use_gt_intrinsics=False)
+        loader = OlssonLoader(EXIF_FOLDER, use_gt_intrinsics=False)
         computed = loader.get_camera_intrinsics_full_res(5)
         expected = Cal3Bundler(fx=2378.514, k1=0, k2=0, u0=648.0, v0=968.0)
         self.assertTrue(expected.equals(computed, 1e-3))

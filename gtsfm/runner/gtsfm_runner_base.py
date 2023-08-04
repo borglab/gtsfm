@@ -214,6 +214,7 @@ class GtsfmRunnerBase:
                     worker_options={
                         "n_workers": self.parsed_args.num_workers,
                         "nthreads": self.parsed_args.threads_per_worker,
+                        "memory_limit": "8GB",
                     },
                 )
                 connected = True

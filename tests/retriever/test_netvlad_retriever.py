@@ -38,7 +38,7 @@ class TestNetVLADRetriever(unittest.TestCase):
 
     def test_netvlad_retriever_door(self) -> None:
         """Test the NetVLAD retriever on 12 frames of the Lund Door Dataset."""
-        loader = OlssonLoader(folder=DOOR_DATA_ROOT, image_extension="JPG")
+        loader = OlssonLoader(folder=DOOR_DATA_ROOT)
         retriever = NetVLADRetriever(num_matched=2)
 
         pairs = retriever.get_image_pairs(loader=loader)

@@ -50,7 +50,6 @@ fi
 if [ "$LOADER_NAME" == "olsson-loader" ]; then
   python gtsfm/runner/run_scene_optimizer_olssonloader.py \
     --dataset_root $DATASET_PREFIX/$DATASET_ROOT \
-    --image_extension $IMAGE_EXTENSION \
     --config_name ${CONFIG_NAME}.yaml \
     --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
     --max_resolution ${MAX_RESOLUTION} \
