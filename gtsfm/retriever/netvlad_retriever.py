@@ -41,8 +41,9 @@ class NetVLADRetriever(RetrieverBase):
     def __init__(self, num_matched: int, min_score: float = 0.1, blocksize: int = 50) -> None:
         """
         Args:
-            num_matched: number of K potential matches to provide per query. These are the top "K" matches per query.
-            blocksize: size of matching sub-blocks when creating similarity matrix.
+            num_matched: Number of K potential matches to provide per query. These are the top "K" matches per query.
+            min_score: Minimum allowed similarity score to accept a match.
+            blocksize: Size of matching sub-blocks when creating similarity matrix.
         """
         super().__init__(matching_regime=ImageMatchingRegime.RETRIEVAL)
         self._num_matched = num_matched
@@ -54,7 +55,7 @@ class NetVLADRetriever(RetrieverBase):
         """Compute potential image pairs.
 
         Args:
-            loader: image loader. The length of this loader will provide the total number of images
+            loader: Image loader. The length of this loader will provide the total number of images
                 for exhaustive global descriptor matching.
             plots_output_dir: Directory to save plots to. If None, plots are not saved.
 
@@ -75,9 +76,9 @@ class NetVLADRetriever(RetrieverBase):
         https://github.com/colmap/colmap/blob/dev/src/feature/matching.cc#L899
 
         Args:
-            loader: image loader. The length of this loader will provide the total number of images
+            loader: Image loader. The length of this loader will provide the total number of images
                 for exhaustive global descriptor matching.
-            num_images: number of images to compare for matching.
+            num_images: Number of images to compare for matching.
 
         Returns:
             Delayed task which evaluates to a tensor of shape (num_images, num_images) representing
