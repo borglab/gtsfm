@@ -405,5 +405,3 @@ def is_valid_SO3(R: Rot3) -> bool:
     is_unit_det = np.isclose(np.linalg.det(R), 1.0)
     is_orthogonal = np.allclose(R @ R.T, np.eye(3))
     return is_unit_det and is_orthogonal
-
-
