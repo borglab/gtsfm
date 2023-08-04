@@ -458,7 +458,7 @@ def read_points_txt(fpath: str) -> Tuple[Optional[np.ndarray], Optional[np.ndarr
 
 
 def read_scene_data_from_colmap_format(
-    data_dir: str
+    data_dir: str,
 ) -> Tuple[List[Pose3], List[str], List[Cal3Bundler], np.ndarray, np.ndarray]:
     """Reads in full scene reconstruction model from scene data stored in the COLMAP file format.
 
