@@ -141,9 +141,8 @@ class MultiViewOptimizer:
             relative_pose_priors,
             images,
         )
-
         ba_result_graph, ba_metrics_graph = self.ba_optimizer.create_computation_graph(
-            ba_input_graph, absolute_pose_priors, relative_pose_priors, cameras_gt
+            ba_input_graph, absolute_pose_priors, relative_pose_priors, cameras_gt, save_dir=output_root
         )
 
         multiview_optimizer_metrics_graph = [
