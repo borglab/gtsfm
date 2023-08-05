@@ -1,0 +1,106 @@
+"""Decorator which implements a cache for the two-view-estimator class
+
+Authors: Ayush Baid
+"""
+import logging
+from pathlib import Path
+from typing import Any, List, Optional
+
+import numpy as np
+
+import gtsfm.common.types as gtsfm_types
+import gtsfm.utils.cache as cache_utils
+import gtsfm.utils.logger as logger_utils
+import gtsfm.utils.io as io_utils
+from gtsfm.common.keypoints import Keypoints
+from gtsfm.common.pose_prior import PosePrior
+from gtsfm.two_view_estimator import TwoViewEstimator, TWO_VIEW_OUTPUT
+
+NUM_KEYPOINTS_TO_SAMPLE_FOR_HASH = 10
+NUM_CORRESPONDENCES_TO_SAMPLE_FOR_HASH = 10
+CACHE_ROOT_PATH = Path(__file__).resolve().parent.parent / "cache"
+
+logger = logger_utils.get_logger()
+
+mpl_logger = logging.getLogger("matplotlib")
+mpl_logger.setLevel(logging.WARNING)
+
+pil_logger = logging.getLogger("PIL")
+pil_logger.setLevel(logging.INFO)
+
+
+class TwoViewEstimatorCacher(TwoViewEstimator):
+    """Wrapper for running two-view relative pose estimation on image pairs in the dataset."""
+
+    def __init__(self, two_view_estimator_obj: TwoViewEstimator) -> None:
+        self._two_view_estimator = two_view_estimator_obj
+
+    def __get_cache_path(self, cache_key: str) -> Path:
+        """Gets the file path to the cache bz2 file from the cache key."""
+        return CACHE_ROOT_PATH / "two_view_estimator" / "{}.pbz2".format(cache_key)
+
+    def __generate_cache_key(
+        self, keypoints_i1: Keypoints, keypoints_i2: Keypoints, putative_corr_idxs: np.ndarray
+    ) -> str:
+        # Subsample correspondence indices
+        sampled_idxs = putative_corr_idxs[:NUM_CORRESPONDENCES_TO_SAMPLE_FOR_HASH]
+
+        # Get the coordinates of the sampled idxs
+        numpy_arrays_to_hash: List[np.ndarray] = []
+        numpy_arrays_to_hash.append(keypoints_i1.coordinates[sampled_idxs[:, 0]].flatten())
+        numpy_arrays_to_hash.append(keypoints_i2.coordinates[sampled_idxs[:, 1]].flatten())
+
+        # hash the concatenation of all the numpy arrays
+        return cache_utils.generate_hash_for_numpy_array(np.concatenate(numpy_arrays_to_hash))
+
+    def __load_result_from_cache(
+        self, keypoints_i1: Keypoints, keypoints_i2: Keypoints, putative_corr_idxs: np.ndarray
+    ) -> Optional[TWO_VIEW_OUTPUT]:
+        """Load cached result, if they exist."""
+        cache_path = self.__get_cache_path(
+            cache_key=self.__generate_cache_key(keypoints_i1, keypoints_i2, putative_corr_idxs)
+        )
+        cached_data = io_utils.read_from_bz2_file(cache_path)
+        return cached_data
+
+    def __save_result_to_cache(
+        self, keypoints_i1: Keypoints, keypoints_i2: Keypoints, putative_corr_idxs: np.ndarray, result: TWO_VIEW_OUTPUT
+    ) -> None:
+        """Save the results (match indices) to the cache."""
+        cache_path = self.__get_cache_path(
+            cache_key=self.__generate_cache_key(keypoints_i1, keypoints_i2, putative_corr_idxs)
+        )
+        io_utils.write_to_bz2_file(result, cache_path)
+
+    def run_2view(
+        self,
+        keypoints_i1: Keypoints,
+        keypoints_i2: Keypoints,
+        putative_corr_idxs: np.ndarray,
+        camera_intrinsics_i1: Optional[gtsfm_types.CALIBRATION_TYPE],
+        camera_intrinsics_i2: Optional[gtsfm_types.CALIBRATION_TYPE],
+        i2Ti1_prior: Optional[PosePrior],
+        gt_camera_i1: Optional[gtsfm_types.CAMERA_TYPE],
+        gt_camera_i2: Optional[gtsfm_types.CAMERA_TYPE],
+        gt_scene_mesh: Optional[Any] = None,
+    ) -> TWO_VIEW_OUTPUT:
+        result = self.__load_result_from_cache(keypoints_i1, keypoints_i2, putative_corr_idxs)
+
+        if result is not None:
+            return result
+
+        result = self._two_view_estimator.run_2view(
+            keypoints_i1=keypoints_i1,
+            keypoints_i2=keypoints_i2,
+            putative_corr_idxs=putative_corr_idxs,
+            camera_intrinsics_i1=camera_intrinsics_i1,
+            camera_intrinsics_i2=camera_intrinsics_i2,
+            i2Ti1_prior=i2Ti1_prior,
+            gt_camera_i1=gt_camera_i1,
+            gt_camera_i2=gt_camera_i2,
+            gt_scene_mesh=gt_scene_mesh,
+        )
+
+        self.__save_result_to_cache(keypoints_i1, keypoints_i2, putative_corr_idxs, result)
+
+        return result
