@@ -362,7 +362,11 @@ class BundleAdjustmentOptimizer:
         return optimized_data, filtered_result, valid_mask
 
     def evaluate(
-        self, unfiltered_data: GtsfmData, filtered_data: GtsfmData, cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]]
+        self,
+        unfiltered_data: GtsfmData,
+        filtered_data: GtsfmData,
+        cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
+        save_dir: Optional[str] = None,
     ) -> GtsfmMetricsGroup:
         """
         Args:
@@ -386,7 +390,7 @@ class BundleAdjustmentOptimizer:
         # align the sparse multi-view estimate after BA to the ground truth pose graph.
         aligned_filtered_data = filtered_data.align_via_Sim3_to_poses(wTi_list_ref=poses_gt)
         ba_pose_error_metrics = metrics_utils.compute_ba_pose_metrics(
-            gt_wTi_list=poses_gt, ba_output=aligned_filtered_data
+            gt_wTi_list=poses_gt, ba_output=aligned_filtered_data, save_dir=save_dir
         )
         ba_metrics.extend(metrics_group=ba_pose_error_metrics)
 
@@ -414,6 +418,7 @@ class BundleAdjustmentOptimizer:
         absolute_pose_priors: List[Optional[PosePrior]],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
+        save_dir: Optional[str] = None,
     ) -> Tuple[Delayed, Delayed]:
         """Create the computation graph for performing bundle adjustment.
 
@@ -429,7 +434,9 @@ class BundleAdjustmentOptimizer:
         optimized_sfm_data, filtered_sfm_data, _ = dask.delayed(self.run_ba, nout=3)(
             sfm_data_graph, absolute_pose_priors, relative_pose_priors
         )
-        metrics_graph = dask.delayed(self.evaluate)(optimized_sfm_data, filtered_sfm_data, cameras_gt)
+        metrics_graph = dask.delayed(self.evaluate)(
+            optimized_sfm_data, filtered_sfm_data, cameras_gt, save_dir=save_dir
+        )
         return filtered_sfm_data, metrics_graph
 
 

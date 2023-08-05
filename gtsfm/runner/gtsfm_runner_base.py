@@ -230,7 +230,7 @@ class GtsfmRunnerBase:
         """Run the SceneOptimizer."""
         start_time = time.time()
 
-        # create dask cluster
+        # Create dask cluster.
         if self.parsed_args.cluster_config:
             cluster = self.setup_ssh_cluster_with_retries()
             client = Client(cluster)
@@ -246,7 +246,7 @@ class GtsfmRunnerBase:
             )
             client = Client(cluster)
 
-        # create process graph
+        # Create process graph.
         process_graph_generator = ProcessGraphGenerator()
         if isinstance(self.scene_optimizer.correspondence_generator, ImageCorrespondenceGenerator):
             process_graph_generator.is_image_correspondence = True
