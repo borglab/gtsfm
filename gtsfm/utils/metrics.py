@@ -539,8 +539,10 @@ def pose_auc(
             plt.ylabel("Recall")
             plt.xlabel("Pose Error (deg.)")
             uuid = datetime.datetime.utcnow().strftime("%Y_%m_%d_%H_%M_%S_%f")
-            Path(save_dir, "pose_auc").mkdir(parents=True, exist_ok=True)
-            save_fpath = Path(save_dir, "pose_auc", f"{uuid}_recall_vs_pose_error_curve_auc_{t}_deg_threshold.jpg")
+            Path(save_dir, "plots", "pose_auc").mkdir(parents=True, exist_ok=True)
+            save_fpath = Path(
+                save_dir, "plots", "pose_auc", f"{uuid}_recall_vs_pose_error_curve_auc_{t}_deg_threshold.jpg"
+            )
             plt.savefig(save_fpath)
             plt.close("all")
 
