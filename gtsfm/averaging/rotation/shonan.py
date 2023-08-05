@@ -58,11 +58,14 @@ class ShonanRotationAveraging(RotationAveragingBase):
         return shonan_params
 
     def __between_factors_from_2view_relative_rotations(
-        self, i2Ri1_dict: Dict[Tuple[int, int], Rot3], old_to_new_idxs: Dict[int, int]
+        self,
+        i2Ri1_dict: Dict[Tuple[int, int], Rot3],
+        old_to_new_idxs: Dict[int, int],
+        frontend_uncertainty_dict: Dict[Tuple[int, int], float],
     ) -> BetweenFactorPose3s:
         """Create between factors from relative rotations computed by the 2-view estimator."""
         # TODO: how to weight the noise model on relative rotations compared to priors?
-        noise_model = gtsam.noiseModel.Isotropic.Sigma(POSE3_DOF, self._two_view_rotation_sigma)
+        
 
         between_factors = BetweenFactorPose3s()
 
@@ -72,6 +75,11 @@ class ShonanRotationAveraging(RotationAveragingBase):
                 i2Ti1 = Pose3(i2Ri1, np.zeros(3))
                 i2_ = old_to_new_idxs[i2]
                 i1_ = old_to_new_idxs[i1]
+
+                if frontend_uncertainty_dict[i1, i2] is None:
+                    raise ValueError('')
+                uncertainty = frontend_uncertainty_dict[i1, i2]
+                noise_model = gtsam.noiseModel.Isotropic.Sigma(POSE3_DOF, uncertainty)
                 between_factors.append(BetweenFactorPose3(i2_, i1_, i2Ti1, noise_model))
 
         return between_factors
@@ -157,6 +165,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         num_images: int,
         i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]],
         i1Ti2_priors: Dict[Tuple[int, int], PosePrior],
+        frontend_uncertainty_dict: Dict[Tuple[int, int], float],
     ) -> List[Optional[Rot3]]:
         """Run the rotation averaging on a connected graph with arbitrary keys, where each key is a image/pose index.
 
@@ -184,7 +193,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         old_to_new_idxes = {old_idx: i for i, old_idx in enumerate(nodes_with_edges)}
 
         between_factors: BetweenFactorPose3s = self.__between_factors_from_2view_relative_rotations(
-            i2Ri1_dict, old_to_new_idxes
+            i2Ri1_dict, old_to_new_idxes, frontend_uncertainty_dict=frontend_uncertainty_dict
         )
         between_factors.extend(self._between_factors_from_pose_priors(i1Ti2_priors, old_to_new_idxes))
 

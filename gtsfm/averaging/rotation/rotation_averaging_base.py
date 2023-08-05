@@ -83,6 +83,7 @@ class RotationAveragingBase(GTSFMProcess):
         num_images: int,
         i2Ri1_graph: Delayed,
         i1Ti2_priors: Dict[Tuple[int, int], PosePrior],
+        frontend_uncertainty_dict: Dict[Tuple[int, int], float],
         gt_wTi_list: List[Optional[Pose3]],
     ) -> Tuple[Delayed, Delayed]:
         """Create the computation graph for performing rotation averaging.
@@ -97,7 +98,7 @@ class RotationAveragingBase(GTSFMProcess):
             global rotations wrapped using dask.delayed.
         """
 
-        wRis = dask.delayed(self.run_rotation_averaging)(num_images, i2Ri1_graph, i1Ti2_priors)
+        wRis = dask.delayed(self.run_rotation_averaging)(num_images, i2Ri1_graph, i1Ti2_priors, frontend_uncertainty_dict=frontend_uncertainty_dict)
         metrics = dask.delayed(self.evaluate)(wRis, gt_wTi_list)
 
         return wRis, metrics

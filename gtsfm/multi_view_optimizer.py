@@ -49,6 +49,7 @@ class MultiViewOptimizer:
         keypoints_list: List[Keypoints],
         i2Ri1_dict: Dict[Tuple[int, int], Rot3],
         i2Ui1_dict: Dict[Tuple[int, int], Unit3],
+        frontend_uncertainty_dict: Dict[Tuple[int, int], float],
         v_corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
         all_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
         absolute_pose_priors: List[Optional[PosePrior]],
@@ -117,7 +118,11 @@ class MultiViewOptimizer:
         )
 
         delayed_wRi, rot_avg_metrics = self.rot_avg_module.create_computation_graph(
-            num_images, pruned_i2Ri1_graph, i1Ti2_priors=relative_pose_priors, gt_wTi_list=gt_wTi_list
+            num_images,
+            pruned_i2Ri1_graph,
+            i1Ti2_priors=relative_pose_priors,
+            gt_wTi_list=gt_wTi_list,
+            frontend_uncertainty_dict=frontend_uncertainty_dict,
         )
         tracks2d_graph = dask.delayed(get_2d_tracks)(viewgraph_v_corr_idxs_graph, keypoints_list)
 

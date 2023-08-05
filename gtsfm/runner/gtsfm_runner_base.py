@@ -279,12 +279,13 @@ class GtsfmRunnerBase:
                 gt_scene_mesh=self.loader.get_gt_scene_trimesh(),
             )
 
-        i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, two_view_reports_dict = unzip_two_view_results(two_view_results_dict)
+        i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, two_view_reports_dict, frontend_uncertainty_dict = unzip_two_view_results(two_view_results_dict)
 
         delayed_sfm_result, delayed_io = self.scene_optimizer.create_computation_graph(
             keypoints_list=keypoints_list,
             i2Ri1_dict=i2Ri1_dict,
             i2Ui1_dict=i2Ui1_dict,
+            frontend_uncertainty_dict=frontend_uncertainty_dict,
             v_corr_idxs_dict=v_corr_idxs_dict,
             two_view_reports=two_view_reports_dict,
             num_images=len(self.loader),
@@ -316,12 +317,14 @@ def unzip_two_view_results(
     Dict[Tuple[int, int], Unit3],
     Dict[Tuple[int, int], np.ndarray],
     Dict[Tuple[int, int], TwoViewEstimationReport],
+    Dict[Tuple[int, int], float],
 ]:
     """Unzip the tuple TWO_VIEW_OUTPUT into 1 dictionary for 1 element in the tuple."""
     i2Ri1_dict: Dict[Tuple[int, int], Rot3] = {}
     i2Ui1_dict: Dict[Tuple[int, int], Unit3] = {}
     v_corr_idxs_dict: Dict[Tuple[int, int], np.ndarray] = {}
     two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport] = {}
+    frontend_uncertainty_dict: Dict[Tuple[int, int], float] = {}
 
     for (i1, i2), two_view_output in two_view_results.items():
         i2Ri1 = two_view_output[0]
@@ -333,5 +336,8 @@ def unzip_two_view_results(
         i2Ui1_dict[(i1, i2)] = i2Ui1
         v_corr_idxs_dict[(i1, i2)] = two_view_output[2]
         two_view_reports_dict[(i1, i2)] = two_view_output[5]
+        uncertainty = two_view_output[6]
+        frontend_uncertainty_dict[(i1, i2)] = uncertainty
+        print(f"{i1},{i2}: Uncertainty={uncertainty:.1f}, R_error_deg {two_view_output[5].R_error_deg:.1f}, U_error_deg {two_view_output[5].U_error_deg:.1f}", " num corr: ", v_corr_idxs_dict[(i1, i2)].shape)
 
-    return i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, two_view_reports_dict
+    return i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, two_view_reports_dict, frontend_uncertainty_dict

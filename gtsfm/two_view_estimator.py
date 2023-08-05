@@ -46,6 +46,7 @@ TWO_VIEW_OUTPUT = Tuple[
     TwoViewEstimationReport,
     TwoViewEstimationReport,
     TwoViewEstimationReport,
+    float
 ]
 
 
@@ -178,7 +179,7 @@ class TwoViewEstimator:
         relative_pose_prior_for_ba = {(0, 1): i2Ti1_prior} if i2Ti1_prior is not None else {}
 
         # Optimize!
-        _, ba_output, valid_mask = self._ba_optimizer.run_ba(
+        _, ba_output, valid_mask, uncertainty = self._ba_optimizer.run_ba(
             ba_input, absolute_pose_priors=[], relative_pose_priors=relative_pose_prior_for_ba, verbose=False
         )
 
@@ -191,7 +192,9 @@ class TwoViewEstimator:
         i2Ti1_optimized = wTi2.between(wTi1)
         logger.debug("Performed 2-view BA in %.6f seconds.", timeit.default_timer() - start_time)
 
-        return i2Ti1_optimized.rotation(), Unit3(i2Ti1_optimized.translation()), valid_corr_idxs
+        uncertainty = 1 / (valid_corr_idxs.shape[0] / 200)
+
+        return i2Ti1_optimized.rotation(), Unit3(i2Ti1_optimized.translation()), valid_corr_idxs, uncertainty
 
     def __get_2view_report_from_results(
         self,
@@ -293,9 +296,10 @@ class TwoViewEstimator:
             gt_scene_mesh=gt_scene_mesh,
         )
 
+        uncertainty = 1.0
         # Optionally, do two-view bundle adjustment
         if self._bundle_adjust_2view and len(pre_ba_v_corr_idxs) >= self.processor._min_num_inliers_est_model:
-            post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs = self.bundle_adjust(
+            post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs, uncertainty = self.bundle_adjust(
                 keypoints_i1,
                 keypoints_i2,
                 pre_ba_v_corr_idxs,
@@ -305,6 +309,8 @@ class TwoViewEstimator:
                 pre_ba_i2Ui1,
                 i2Ti1_prior,
             )
+
+
             post_ba_inlier_ratio_wrt_estimate = float(len(post_ba_v_corr_idxs)) / len(putative_corr_idxs)
 
             # TODO: Remove this hack once we can handle the lower post_ba_inlier_ratio_wrt_estimate downstream.
@@ -327,6 +333,8 @@ class TwoViewEstimator:
             post_ba_v_corr_idxs = pre_ba_v_corr_idxs
             post_ba_report = dataclasses.replace(pre_ba_report)
 
+        print("Report: R error deg: ", post_ba_report.R_error_deg, ", U error deg: ", post_ba_report.U_error_deg)
+
         (
             post_isp_i2Ri1,
             post_isp_i2Ui1,
@@ -334,7 +342,7 @@ class TwoViewEstimator:
             post_isp_report,
         ) = self.processor.run_inlier_support(post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs, post_ba_report)
 
-        return post_isp_i2Ri1, post_isp_i2Ui1, post_isp_v_corr_idxs, pre_ba_report, post_ba_report, post_isp_report
+        return post_isp_i2Ri1, post_isp_i2Ui1, post_isp_v_corr_idxs, pre_ba_report, post_ba_report, post_isp_report, uncertainty
 
 
 def generate_two_view_report(

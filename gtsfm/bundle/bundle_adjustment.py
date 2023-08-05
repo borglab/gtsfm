@@ -114,11 +114,11 @@ class BundleAdjustmentOptimizer:
         sfm_factor_class = GeneralSFMFactor2Cal3Fisheye if is_fisheye_calibration else GeneralSFMFactor2Cal3Bundler
         for j in range(initial_data.number_tracks()):
             track = initial_data.get_track(j)  # SfmTrack
-            # retrieve the SfmMeasurement objects
+            # Retrieve the SfmMeasurement objects
             for m_idx in range(track.numberMeasurements()):
                 # i represents the camera index, and uv is the 2d measurement
                 i, uv = track.measurement(m_idx)
-                # note use of shorthand symbols C and P
+                # Note use of shorthand symbols `X` and `P`.
                 graph.push_back(
                     sfm_factor_class(
                         uv,
@@ -218,7 +218,7 @@ class BundleAdjustmentOptimizer:
 
         graph = NonlinearFactorGraph()
 
-        # Create a factor graph
+        # Create a factor graph.
         graph.push_back(
             self.__reprojection_factors(initial_data=initial_data, is_fisheye_calibration=is_fisheye_calibration)
         )
@@ -247,15 +247,15 @@ class BundleAdjustmentOptimizer:
         """Initialize all the variables in the factor graph."""
         initial_values = gtsam.Values()
 
-        # add each camera
+        # Add each camera.
         for loop_idx, i in enumerate(initial_data.get_valid_camera_indices()):
             camera = initial_data.get_camera(i)
             initial_values.insert(X(i), camera.pose())
             if not self._shared_calib or loop_idx == 0:
-                # add only one value if calibrations are shared
+                # Add only one value if calibrations are shared.
                 initial_values.insert(K(self.__map_to_calibration_variable(i)), camera.calibration())
 
-        # add each SfmTrack
+        # Add each SfmTrack.
         for j in range(initial_data.number_tracks()):
             track = initial_data.get_track(j)
             initial_values.insert(P(j), track.point3())
@@ -284,6 +284,24 @@ class BundleAdjustmentOptimizer:
         cameras: Set[int] = set(initial_data.get_valid_camera_indices())
 
         return sorted(list(cameras))
+
+
+    def get_graph_keys(self, initial_data: GtsfmData):
+        """ """
+        # pose_keys = []
+        # landmark_keys = []
+        # for j in range(initial_data.number_tracks()):
+        #     track = initial_data.get_track(j)  # SfmTrack
+        #     # Retrieve the SfmMeasurement objects
+        #     for m_idx in range(track.numberMeasurements()):
+        #         # i represents the camera index, and uv is the 2d measurement
+        #         i, _ = track.measurement(m_idx)
+        #         pose_keys.append(X(i))
+        #         landmark_keys.append(P(j))
+
+        pose_keys = [ X(0), X(1) ]
+                
+        return pose_keys #+ landmark_keys + 
 
     def run_ba(
         self,
@@ -330,6 +348,28 @@ class BundleAdjustmentOptimizer:
 
             # Print error.
             final_error = graph.error(result_values)
+
+            # try:
+            #     # Calculate marginal covariances for all variables.
+            #     marginals = gtsam.Marginals(graph, result_values)
+
+            #     print("Num. tracks:", initial_data.number_tracks())
+            #     graph_keys = self.get_graph_keys(initial_data)
+            #     print(f"Num. graph keys: {len(graph_keys)}")
+            #     print("Number cameras: ", initial_data.get_valid_camera_indices())
+            #     uncertainty = 0.0
+            #     for key in graph_keys:
+            #         cov = marginals.marginalCovariance(key)
+            #         print(f"covariance:\n{np.round(cov,1)}\n", "trace: ", np.round(np.trace(cov), 2))
+            #         #print("\ttrace: ", np.round(np.trace(cov), 2))
+            #         uncertainty += np.trace(cov)
+
+            # except:
+            #     print("ILS exception.")
+            #     uncertainty = 999
+            # print(f"Uncertainty {uncertainty:.1f} vs. error {final_error:.1f}")
+            uncertainty = 1.0
+
             if verbose:
                 logger.info(f"initial error: {graph.error(initial_values):.2f}")
                 logger.info(f"final error: {final_error:.2f}")
@@ -359,7 +399,7 @@ class BundleAdjustmentOptimizer:
                     % (step + 1, num_ba_steps, final_error, filtered_result.number_tracks())
                 )
 
-        return optimized_data, filtered_result, valid_mask
+        return optimized_data, filtered_result, valid_mask, uncertainty
 
     def evaluate(
         self, unfiltered_data: GtsfmData, filtered_data: GtsfmData, cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]]
