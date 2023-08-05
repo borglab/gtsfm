@@ -235,6 +235,7 @@ def draw_scene_with_gt_open3d(
     )
 
     # spheres = create_colored_spheres_open3d(point_cloud, rgb, args.sphere_radius)
-    geometries = frustums + gt_frustums  # + spheres
+    pcd = create_colored_point_cloud_open3d(point_cloud, rgb)
+    geometries = frustums + gt_frustums + [pcd]  # + spheres
 
     open3d.visualization.draw_geometries(geometries)
