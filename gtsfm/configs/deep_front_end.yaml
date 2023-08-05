@@ -60,8 +60,6 @@ SceneOptimizer:
 
     rot_avg_module:
       _target_: gtsfm.averaging.rotation.shonan.ShonanRotationAveraging
-      # Use a very low value.
-      two_view_rotation_sigma: 0.1
 
     trans_avg_module:
       _target_: gtsfm.averaging.translation.averaging_1dsfm.TranslationAveraging1DSFM
