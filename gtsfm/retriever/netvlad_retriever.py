@@ -51,6 +51,15 @@ class NetVLADRetriever(RetrieverBase):
         self._blocksize = blocksize
         self._min_score = min_score
 
+    def __repr__(self) -> str:
+        return f"""
+        NetVLADRetriever:
+            Num. frames matched: {self._num_matched}
+            Global descriptor: {self._global_descriptor_model}
+            Block size: {self._blocksize}
+            Minimum score: {self._min_score}
+        """
+
     def get_image_pairs(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> List[Tuple[int, int]]:
         """Compute potential image pairs.
 

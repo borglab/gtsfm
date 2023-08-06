@@ -29,6 +29,14 @@ class JointNetVLADSequentialRetriever(RetrieverBase):
         self._similarity_retriever = NetVLADRetriever(num_matched=num_matched, min_score=min_score)
         self._seq_retriever = SequentialRetriever(max_frame_lookahead=max_frame_lookahead)
 
+    def __repr__(self) -> str:
+        return f"""
+        JointNetVLADSequentialRetriever:
+            Num. frames matched: {self._num_matched}
+            Similarity retriever: {self._similarity_retriever}
+            Sequential retriever: {self._seq_retriever}
+        """
+
     def get_image_pairs(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> List[Tuple[int, int]]:
         """Compute potential image pairs.
 

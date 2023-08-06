@@ -96,6 +96,7 @@ class SceneOptimizer:
     def __repr__(self) -> str:
         """Returns string representation of class."""
         return f"""
+        {self.retriever}
         {self.correspondence_generator}
         {self.two_view_estimator}
         {self.multiview_optimizer}
