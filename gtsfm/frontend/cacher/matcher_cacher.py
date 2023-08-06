@@ -33,6 +33,12 @@ class MatcherCacher(MatcherBase):
         # TODO(ayushbaid): make the obj cache key dependent on the code
         self._matcher_obj_key = type(self._matcher).__name__
 
+    def __repr__(self) -> str:
+        return f"""
+        MatcherCacher:
+           {self._matcher}
+        """
+
     def __get_cache_path(self, cache_key: str) -> Path:
         """Gets the file path to the cache bz2 file from the cache key."""
         return CACHE_ROOT_PATH / "matcher" / "{}.pbz2".format(cache_key)

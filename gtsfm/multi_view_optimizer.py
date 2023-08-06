@@ -42,6 +42,14 @@ class MultiViewOptimizer:
         self.ba_optimizer = bundle_adjustment_module
         self._run_view_graph_estimator: bool = self.view_graph_estimator is not None
 
+    def __repr__(self) -> str:
+        return f"""
+        MultiviewOptimizer: 
+            ViewGraphEstimator: {self.view_graph_estimator}
+            RotationAveraging: {self.rot_avg_module}
+            TranslationAveraging: {self.trans_avg_module}
+        """
+
     def create_computation_graph(
         self,
         images: List[Delayed],
