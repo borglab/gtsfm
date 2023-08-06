@@ -59,6 +59,9 @@ class GtsfmRunnerBase:
             help="Number of threads per each worker",
         )
         parser.add_argument(
+            "--worker_memory_limit", type=str, default="auto", help="Memory limit per worker, e.g. `8GB`"
+        )
+        parser.add_argument(
             "--config_name",
             type=str,
             default="sift_front_end.yaml",
@@ -227,7 +230,7 @@ class GtsfmRunnerBase:
         """Run the SceneOptimizer."""
         start_time = time.time()
 
-        # create dask cluster
+        # Create dask cluster.
         if self.parsed_args.cluster_config:
             cluster = self.setup_ssh_cluster_with_retries()
             client = Client(cluster)
@@ -237,11 +240,13 @@ class GtsfmRunnerBase:
             self.scene_optimizer._output_worker = io_worker
         else:
             cluster = LocalCluster(
-                n_workers=self.parsed_args.num_workers, threads_per_worker=self.parsed_args.threads_per_worker
+                n_workers=self.parsed_args.num_workers,
+                threads_per_worker=self.parsed_args.threads_per_worker,
+                memory_limit=self.parsed_args.worker_memory_limit,
             )
             client = Client(cluster)
 
-        # create process graph
+        # Create process graph.
         process_graph_generator = ProcessGraphGenerator()
         if isinstance(self.scene_optimizer.correspondence_generator, ImageCorrespondenceGenerator):
             process_graph_generator.is_image_correspondence = True
