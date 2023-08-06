@@ -17,9 +17,16 @@ from gtsfm.frontend.matcher.matcher_base import MatcherBase
 class DetDescCorrespondenceGenerator(CorrespondenceGeneratorBase):
     """Traditional pair-wise matching of descriptors."""
 
-    def __init__(self, matcher: MatcherBase, detector_descriptor: DetectorDescriptorBase):
+    def __init__(self, matcher: MatcherBase, detector_descriptor: DetectorDescriptorBase) -> None:
         self._detector_descriptor = detector_descriptor
         self._matcher = matcher
+
+    def __repr__(self) -> str:
+        return f"""
+        DetDescCorrespondenceGenerator:
+           {self._detector_descriptor}
+           {self._matcher}
+        """
 
     def generate_correspondences(
         self,

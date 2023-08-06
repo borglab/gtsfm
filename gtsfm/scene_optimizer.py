@@ -93,6 +93,16 @@ class SceneOptimizer:
         self._output_worker = output_worker
         self._create_output_directories()
 
+    def __repr__(self) -> str:
+        """Returns string representation of class."""
+        return f"""
+        {self.retriever}
+        {self.correspondence_generator}
+        {self.two_view_estimator}
+        {self.multiview_optimizer}
+        DenseMultiviewOptimizer: {self.dense_multiview_optimizer}
+        """
+
     def _create_output_directories(self) -> None:
         """Create various output directories for GTSFM results, metrics, and plots."""
         # base paths for storage
