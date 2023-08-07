@@ -139,7 +139,6 @@ function download_and_unzip_dataset_files {
 
   elif [ "$DATASET_NAME" == "south-building-128" ]; then
     unzip south-building-128.zip
-
   fi
 }
 

@@ -32,8 +32,8 @@ elif [ "$DATASET_NAME" == "gerrard-hall-100" ]; then
   COLMAP_FILES_DIRPATH=gerrard-hall-100/colmap-3.7-sparse-txt-2023-07-27
 elif [ "$DATASET_NAME" == "south-building-128" ]; then
   IMAGES_DIR=south-building-128/images
-  #COLMAP_FILES_DIRPATH=south-building-128/colmap-official-2016-10-05
-  COLMAP_FILES_DIRPATH=south-building-128/colmap-2023-07-28-txt
+  COLMAP_FILES_DIRPATH=south-building-128/colmap-official-2016-10-05
+  #COLMAP_FILES_DIRPATH=south-building-128/colmap-2023-07-28-txt
 fi
 
 echo "Config: ${CONFIG_NAME}, Loader: ${LOADER_NAME}"
