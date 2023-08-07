@@ -25,7 +25,8 @@ jobs:
             [deep_front_end_astrovision, 2011205_rc3,           65,         png,           wget,       astrovision,    1024,    true],
             [sift_front_end,             gerrard-hall-100,      0,          jpg,           wget,       colmap-loader,  760,     true],
             [deep_front_end,             gerrard-hall-100,      0,          jpg,           wget,       colmap-loader,  760,     true],
-            [synthetic_front_end,   tanks-and-temples-barn-410, 4,          jpg,           wget,    tanks-and-temples, 1080,    true],
+            [sift_front_end,             south-building-128,    0,          jpg,           wget,       colmap-loader,  760,     true],
+            [deep_front_end,             south-building-128,    0,          jpg,           wget,       colmap-loader,  760,     true],  
           ]
     defaults:
       run:
