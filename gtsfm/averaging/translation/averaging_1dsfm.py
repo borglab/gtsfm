@@ -35,9 +35,7 @@ import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.sampling as sampling_utils
-from gtsfm.averaging.translation.translation_averaging_base import (
-    TranslationAveragingBase,
-)
+from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
@@ -467,10 +465,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 or ill-constrained system).
             A GtsfmMetricsGroup of 1DSfM metrics.
         """
-        logger.info(
-            "Running translation averaging on %d unit translations",
-            len(i2Ui1_dict),
-        )
+        logger.info("Running translation averaging on %d unit translations", len(i2Ui1_dict))
 
         w_i2Ui1_dict, valid_cameras = get_valid_measurements_in_world_frame(i2Ui1_dict, wRi_list)
 
@@ -488,11 +483,9 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             w_i2Ui1_dict_tracks = {}
 
         inlier_computation_start_time = time.time()
-        (
-            w_i2Ui1_dict_inliers,
-            w_i2Ui1_dict_tracks_inliers,
-            inlier_cameras,
-        ) = self.compute_inliers(w_i2Ui1_dict, w_i2Ui1_dict_tracks)
+        (w_i2Ui1_dict_inliers, w_i2Ui1_dict_tracks_inliers, inlier_cameras) = self.compute_inliers(
+            w_i2Ui1_dict, w_i2Ui1_dict_tracks
+        )
         inlier_computation_time = time.time() - inlier_computation_start_time
 
         averaging_start_time = time.time()
@@ -508,20 +501,10 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         averaging_time = time.time() - averaging_start_time
 
         # Compute the metrics.
-        ta_metrics = compute_metrics(
-            set(w_i2Ui1_dict_inliers.keys()),
-            i2Ui1_dict,
-            wRi_list,
-            wti_list,
-            gt_wTi_list,
-        )
+        ta_metrics = compute_metrics(set(w_i2Ui1_dict_inliers.keys()), i2Ui1_dict, wRi_list, wti_list, gt_wTi_list)
 
         num_translations = sum([1 for wti in wti_list if wti is not None])
-        logger.info(
-            "Estimated %d translations out of %d images.",
-            num_translations,
-            num_images,
-        )
+        logger.info("Estimated %d translations out of %d images.", num_translations, num_images)
 
         # Combine estimated global rotations and global translations to Pose(3) objects.
         wTi_list = [
@@ -564,10 +547,7 @@ def compute_metrics(
         GtsfmMetric("num_total_1dsfm_measurements", num_total_measurements),
         GtsfmMetric("num_inlier_1dsfm_measurements", len(inlier_i1_i2_pairs)),
         GtsfmMetric("num_outlier_1dsfm_measurements", len(outlier_i1_i2_pairs)),
-        GtsfmMetric(
-            "num_translations_estimated",
-            len([wti for wti in wti_list if wti is not None]),
-        ),
+        GtsfmMetric("num_translations_estimated", len([wti for wti in wti_list if wti is not None])),
     ]
 
     # Remaining metrics require ground truth, so return if GT is not available.
@@ -582,9 +562,7 @@ def compute_metrics(
     inlier_angular_errors = metrics_utils.get_measurement_angle_errors(inlier_i1_i2_pairs, i2Ui1_dict, gt_i2Ui1_dict)
     outlier_angular_errors = metrics_utils.get_measurement_angle_errors(outlier_i1_i2_pairs, i2Ui1_dict, gt_i2Ui1_dict)
     precision, recall = metrics_utils.get_precision_recall_from_errors(
-        inlier_angular_errors,
-        outlier_angular_errors,
-        MAX_INLIER_MEASUREMENT_ERROR_DEG,
+        inlier_angular_errors, outlier_angular_errors, MAX_INLIER_MEASUREMENT_ERROR_DEG
     )
 
     measured_gt_i2Ui1_dict = {}
@@ -619,8 +597,7 @@ def compute_metrics(
 
 
 def get_valid_measurements_in_world_frame(
-    i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]],
-    wRi_list: List[Optional[Rot3]],
+    i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]], wRi_list: List[Optional[Rot3]]
 ) -> Tuple[RelativeDirectionsDict, Set[int]]:
     """Returns measurements for which both cameras have valid rotations, transformed to the world frame.
 
