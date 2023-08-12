@@ -129,6 +129,8 @@ class RotationAveragingBase(GTSFMProcess):
             global rotations wrapped using dask.delayed.
         """
 
-        wRis, metrics = dask.delayed(self._run_rotation_averaging_base, nout=2)(num_images, i2Ri1_graph, i1Ti2_priors)
+        wRis, metrics = dask.delayed(self._run_rotation_averaging_base, nout=2)(
+            num_images, i2Ri1_dict=i2Ri1_graph, i1Ti2_priors=i1Ti2_priors, wTi_gt=gt_wTi_list
+        )
 
         return wRis, metrics

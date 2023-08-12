@@ -423,7 +423,7 @@ class BundleAdjustmentOptimizer:
 
         return ba_metrics
 
-    def _run_ba_instrumented(
+    def _run_ba_with_profiling(
         self,
         initial_data: GtsfmData,
         absolute_pose_priors: List[Optional[PosePrior]],
@@ -439,15 +439,11 @@ class BundleAdjustmentOptimizer:
             len(initial_data.get_valid_camera_indices()),
         )
         if initial_data.number_tracks() == 0 or len(initial_data.get_valid_camera_indices()) == 0:
-            # no cameras or tracks to optimize, so bundle adjustment is not possible
+            # No cameras or tracks to optimize, so bundle adjustment is not possible.
             logger.error(
                 "Bundle adjustment aborting, optimization cannot be performed without any tracks or any cameras."
             )
-            return (
-                initial_data,
-                initial_data,
-                [False] * initial_data.number_tracks(),
-            )
+            return initial_data, initial_data, [False] * initial_data.number_tracks()
         step_times = []
         start_time = time.time()
 
@@ -480,7 +476,7 @@ class BundleAdjustmentOptimizer:
         metrics = self.evaluate(optimized_data, filtered_result, cameras_gt, save_dir)
         for i, step_time in enumerate(step_times):
             metrics.add_metric(GtsfmMetric(f"step_{i}_run_duration_sec", step_time))
-        metrics.add_metric(GtsfmMetric(f"total_run_duration_sec", total_time))
+        metrics.add_metric(GtsfmMetric("total_run_duration_sec", total_time))
 
         return optimized_data, filtered_result, valid_mask, metrics
 
@@ -504,7 +500,7 @@ class BundleAdjustmentOptimizer:
             Metrics group for BA results, wrapped up using dask.delayed
         """
 
-        _, filtered_sfm_data, _, metrics_graph = dask.delayed(self._run_ba_instrumented, nout=4)(
+        _, filtered_sfm_data, _, metrics_graph = dask.delayed(self._run_ba_with_profiling, nout=4)(
             sfm_data_graph,
             absolute_pose_priors,
             relative_pose_priors,
