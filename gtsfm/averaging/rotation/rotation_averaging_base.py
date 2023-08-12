@@ -80,9 +80,7 @@ class RotationAveragingBase(GTSFMProcess):
             Metrics on global rotations.
         """
         start_time = time.time()
-        wRis = self.run_rotation_averaging(
-            num_images, i2Ri1_dict, i1Ti2_priors
-        )
+        wRis = self.run_rotation_averaging(num_images, i2Ri1_dict, i1Ti2_priors)
         run_time = time.time() - start_time
 
         metrics = self.evaluate(wRis, wTi_gt)
@@ -90,9 +88,7 @@ class RotationAveragingBase(GTSFMProcess):
 
         return wRis, metrics
 
-    def evaluate(
-        self, wRi_computed: List[Optional[Rot3]], wTi_gt: List[Optional[Pose3]]
-    ) -> GtsfmMetricsGroup:
+    def evaluate(self, wRi_computed: List[Optional[Rot3]], wTi_gt: List[Optional[Pose3]]) -> GtsfmMetricsGroup:
         """Evaluate the global rotations computed by the rotation averaging implementation.
 
         Args:
@@ -104,14 +100,10 @@ class RotationAveragingBase(GTSFMProcess):
         Returns:
             Metrics on global rotations.
         """
-        wRi_gt = [
-            wTi.rotation() if wTi is not None else None for wTi in wTi_gt
-        ]
+        wRi_gt = [wTi.rotation() if wTi is not None else None for wTi in wTi_gt]
 
         if len(wRi_computed) != len(wRi_gt):
-            raise ValueError(
-                "Lengths of wRi_list and gt_wRi_list should be the same."
-            )
+            raise ValueError("Lengths of wRi_list and gt_wRi_list should be the same.")
 
         wRi_aligned = comp_utils.align_rotations(wRi_gt, wRi_computed)
 
@@ -122,12 +114,8 @@ class RotationAveragingBase(GTSFMProcess):
                 data=len([x for x in wRi_computed if x is not None]),
             )
         )
-        metrics.append(
-            metric_utils.compute_rotation_angle_metric(wRi_aligned, wRi_gt)
-        )
-        return GtsfmMetricsGroup(
-            name="rotation_averaging_metrics", metrics=metrics
-        )
+        metrics.append(metric_utils.compute_rotation_angle_metric(wRi_aligned, wRi_gt))
+        return GtsfmMetricsGroup(name="rotation_averaging_metrics", metrics=metrics)
 
     def create_computation_graph(
         self,
@@ -148,8 +136,6 @@ class RotationAveragingBase(GTSFMProcess):
             global rotations wrapped using dask.delayed.
         """
 
-        wRis, metrics = dask.delayed(
-            self._run_rotation_averaging_base, nout=2
-        )(num_images, i2Ri1_graph, i1Ti2_priors)
+        wRis, metrics = dask.delayed(self._run_rotation_averaging_base, nout=2)(num_images, i2Ri1_graph, i1Ti2_priors)
 
         return wRis, metrics

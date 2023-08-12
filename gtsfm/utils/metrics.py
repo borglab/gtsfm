@@ -535,9 +535,9 @@ def pose_auc(
         if save_plot:
             if save_dir is None:
                 raise ValueError("If `save_plot` is True, then `save_dir` must be provided.")
-            _ = plt.figure(dpi=200, facecolor='white')
-            plt.style.use('ggplot')
-            sns.set_style({'font.family': 'Times New Roman'})
+            _ = plt.figure(dpi=200, facecolor="white")
+            plt.style.use("ggplot")
+            sns.set_style({"font.family": "Times New Roman"})
             plt.scatter(e, r, 20, color="k", marker=".")
             plt.plot(e, r, color="r")
             plt.ylabel("Recall")

@@ -103,26 +103,16 @@ class BundleAdjustmentOptimizer:
     def __map_to_calibration_variable(self, camera_idx: int) -> int:
         return 0 if self._shared_calib else camera_idx
 
-    def __reprojection_factors(
-        self, initial_data: GtsfmData, is_fisheye_calibration: bool
-    ) -> NonlinearFactorGraph:
+    def __reprojection_factors(self, initial_data: GtsfmData, is_fisheye_calibration: bool) -> NonlinearFactorGraph:
         """Generate reprojection factors using the tracks."""
         graph = NonlinearFactorGraph()
 
         # noise model for measurements -- one pixel in u and v
-        measurement_noise = gtsam.noiseModel.Isotropic.Sigma(
-            IMG_MEASUREMENT_DIM, self._measurement_noise_sigma
-        )
+        measurement_noise = gtsam.noiseModel.Isotropic.Sigma(IMG_MEASUREMENT_DIM, self._measurement_noise_sigma)
         if self._robust_measurement_noise:
-            measurement_noise = gtsam.noiseModel.Robust(
-                gtsam.noiseModel.mEstimator.Huber(1.345), measurement_noise
-            )
+            measurement_noise = gtsam.noiseModel.Robust(gtsam.noiseModel.mEstimator.Huber(1.345), measurement_noise)
 
-        sfm_factor_class = (
-            GeneralSFMFactor2Cal3Fisheye
-            if is_fisheye_calibration
-            else GeneralSFMFactor2Cal3Bundler
-        )
+        sfm_factor_class = GeneralSFMFactor2Cal3Fisheye if is_fisheye_calibration else GeneralSFMFactor2Cal3Bundler
         for j in range(initial_data.number_tracks()):
             track = initial_data.get_track(j)  # SfmTrack
             # retrieve the SfmMeasurement objects
@@ -183,9 +173,7 @@ class BundleAdjustmentOptimizer:
                 PriorFactorPose3(
                     X(camera_for_origin),
                     initial_data.get_camera(camera_for_origin).pose(),
-                    gtsam.noiseModel.Isotropic.Sigma(
-                        CAM_POSE3_DOF, self._cam_pose3_prior_noise_sigma
-                    ),
+                    gtsam.noiseModel.Isotropic.Sigma(CAM_POSE3_DOF, self._cam_pose3_prior_noise_sigma),
                 )
             )
 
@@ -200,16 +188,8 @@ class BundleAdjustmentOptimizer:
         """Generate prior factors on calibration parameters of the cameras."""
         graph = NonlinearFactorGraph()
 
-        calibration_prior_factor_class = (
-            PriorFactorCal3Fisheye
-            if is_fisheye_calibration
-            else PriorFactorCal3Bundler
-        )
-        calibration_prior_factor_dof = (
-            CAM_CAL3FISHEYE_DOF
-            if is_fisheye_calibration
-            else CAM_CAL3BUNDLER_DOF
-        )
+        calibration_prior_factor_class = PriorFactorCal3Fisheye if is_fisheye_calibration else PriorFactorCal3Bundler
+        calibration_prior_factor_dof = CAM_CAL3FISHEYE_DOF if is_fisheye_calibration else CAM_CAL3BUNDLER_DOF
         if self._shared_calib:
             graph.push_back(
                 calibration_prior_factor_class(
@@ -271,11 +251,7 @@ class BundleAdjustmentOptimizer:
                 camera_for_origin=cameras_to_model[0],
             )
         )
-        graph.push_back(
-            self.__calibration_priors(
-                initial_data, cameras_to_model, is_fisheye_calibration
-            )
-        )
+        graph.push_back(self.__calibration_priors(initial_data, cameras_to_model, is_fisheye_calibration))
 
         # Also add a prior on the position of the first landmark to fix the scale
         graph.push_back(
@@ -310,9 +286,7 @@ class BundleAdjustmentOptimizer:
 
         return initial_values
 
-    def __optimize_factor_graph(
-        self, graph: NonlinearFactorGraph, initial_values: Values
-    ) -> Values:
+    def __optimize_factor_graph(self, graph: NonlinearFactorGraph, initial_values: Values) -> Values:
         """Optimize the factor graph."""
         params = gtsam.LevenbergMarquardtParams()
         params.setVerbosityLM("ERROR")
@@ -343,9 +317,7 @@ class BundleAdjustmentOptimizer:
         reproj_error_thresh: Optional[float],
         verbose: bool = True,
     ):
-        cameras_to_model = self.__cameras_to_model(
-            initial_data, absolute_pose_priors, relative_pose_priors
-        )
+        cameras_to_model = self.__cameras_to_model(initial_data, absolute_pose_priors, relative_pose_priors)
         graph = self.__construct_factor_graph(
             cameras_to_model=cameras_to_model,
             initial_data=initial_data,
@@ -362,9 +334,7 @@ class BundleAdjustmentOptimizer:
             logger.info(f"final error: {final_error:.2f}")
 
         # Construct the results.
-        optimized_data = values_to_gtsfm_data(
-            result_values, initial_data, self._shared_calib
-        )
+        optimized_data = values_to_gtsfm_data(result_values, initial_data, self._shared_calib)
 
         # Filter landmarks by reprojection error.
         if reproj_error_thresh is not None:
@@ -373,9 +343,7 @@ class BundleAdjustmentOptimizer:
                     "[Result] Number of tracks before filtering: %d",
                     optimized_data.number_tracks(),
                 )
-            filtered_result, valid_mask = optimized_data.filter_landmarks(
-                reproj_error_thresh
-            )
+            filtered_result, valid_mask = optimized_data.filter_landmarks(reproj_error_thresh)
             if verbose:
                 logger.info(
                     "[Result] Number of tracks after filtering: %d",
@@ -411,15 +379,8 @@ class BundleAdjustmentOptimizer:
                 threshold.
         """
         num_ba_steps = len(self._reproj_error_thresholds)
-        for step, reproj_error_thresh in enumerate(
-            self._reproj_error_thresholds
-        ):
-            (
-                optimized_data,
-                filtered_result,
-                valid_mask,
-                final_error,
-            ) = self.run_ba_step(
+        for step, reproj_error_thresh in enumerate(self._reproj_error_thresholds):
+            (optimized_data, filtered_result, valid_mask, final_error,) = self.run_ba_step(
                 initial_data,
                 absolute_pose_priors,
                 relative_pose_priors,
@@ -459,23 +420,17 @@ class BundleAdjustmentOptimizer:
         """
         ba_metrics = GtsfmMetricsGroup(
             name=METRICS_GROUP,
-            metrics=metrics_utils.get_stats_for_sfmdata(
-                unfiltered_data, suffix="_unfiltered"
-            ),
+            metrics=metrics_utils.get_stats_for_sfmdata(unfiltered_data, suffix="_unfiltered"),
         )
 
-        poses_gt = [
-            cam.pose() if cam is not None else None for cam in cameras_gt
-        ]
+        poses_gt = [cam.pose() if cam is not None else None for cam in cameras_gt]
 
         valid_poses_gt_count = len(poses_gt) - poses_gt.count(None)
         if valid_poses_gt_count == 0:
             return ba_metrics
 
         # align the sparse multi-view estimate after BA to the ground truth pose graph.
-        aligned_filtered_data = filtered_data.align_via_Sim3_to_poses(
-            wTi_list_ref=poses_gt
-        )
+        aligned_filtered_data = filtered_data.align_via_Sim3_to_poses(wTi_list_ref=poses_gt)
         ba_pose_error_metrics = metrics_utils.compute_ba_pose_metrics(
             gt_wTi_list=poses_gt,
             ba_output=aligned_filtered_data,
@@ -483,29 +438,17 @@ class BundleAdjustmentOptimizer:
         )
         ba_metrics.extend(metrics_group=ba_pose_error_metrics)
 
-        output_tracks_exit_codes = (
-            track_utils.classify_tracks3d_with_gt_cameras(
-                tracks=aligned_filtered_data.get_tracks(),
-                cameras_gt=cameras_gt,
-            )
+        output_tracks_exit_codes = track_utils.classify_tracks3d_with_gt_cameras(
+            tracks=aligned_filtered_data.get_tracks(),
+            cameras_gt=cameras_gt,
         )
-        output_tracks_exit_codes_distribution = Counter(
-            output_tracks_exit_codes
-        )
+        output_tracks_exit_codes_distribution = Counter(output_tracks_exit_codes)
 
         for exit_code, count in output_tracks_exit_codes_distribution.items():
-            metric_name = (
-                "Filtered tracks triangulated with GT cams: {}".format(
-                    exit_code.name
-                )
-            )
+            metric_name = "Filtered tracks triangulated with GT cams: {}".format(exit_code.name)
             ba_metrics.add_metric(GtsfmMetric(name=metric_name, data=count))
 
-        ba_metrics.add_metrics(
-            metrics_utils.get_stats_for_sfmdata(
-                aligned_filtered_data, suffix="_filtered"
-            )
-        )
+        ba_metrics.add_metrics(metrics_utils.get_stats_for_sfmdata(aligned_filtered_data, suffix="_filtered"))
         # ba_metrics.save_to_json(os.path.join(METRICS_PATH, "bundle_adjustment_metrics.json"))
 
         logger.info(
@@ -534,10 +477,7 @@ class BundleAdjustmentOptimizer:
             initial_data.number_tracks(),
             len(initial_data.get_valid_camera_indices()),
         )
-        if (
-            initial_data.number_tracks() == 0
-            or len(initial_data.get_valid_camera_indices()) == 0
-        ):
+        if initial_data.number_tracks() == 0 or len(initial_data.get_valid_camera_indices()) == 0:
             # no cameras or tracks to optimize, so bundle adjustment is not possible
             logger.error(
                 "Bundle adjustment aborting, optimization cannot be performed without any tracks or any cameras."
@@ -551,16 +491,9 @@ class BundleAdjustmentOptimizer:
         start_time = time.time()
 
         num_ba_steps = len(self._reproj_error_thresholds)
-        for step, reproj_error_thresh in enumerate(
-            self._reproj_error_thresholds
-        ):
+        for step, reproj_error_thresh in enumerate(self._reproj_error_thresholds):
             step_start_time = time.time()
-            (
-                optimized_data,
-                filtered_result,
-                valid_mask,
-                final_error,
-            ) = self.run_ba_step(
+            (optimized_data, filtered_result, valid_mask, final_error,) = self.run_ba_step(
                 initial_data,
                 absolute_pose_priors,
                 relative_pose_priors,
@@ -582,13 +515,9 @@ class BundleAdjustmentOptimizer:
                 )
         total_time = time.time() - start_time
 
-        metrics = self.evaluate(
-            optimized_data, filtered_result, cameras_gt, save_dir
-        )
+        metrics = self.evaluate(optimized_data, filtered_result, cameras_gt, save_dir)
         for i, step_time in enumerate(step_times):
-            metrics.add_metric(
-                GtsfmMetric(f"step_{i}_run_duration_sec", step_time)
-            )
+            metrics.add_metric(GtsfmMetric(f"step_{i}_run_duration_sec", step_time))
         metrics.add_metric(GtsfmMetric(f"total_run_duration_sec", total_time))
 
         return optimized_data, filtered_result, valid_mask, metrics
@@ -613,9 +542,7 @@ class BundleAdjustmentOptimizer:
             Metrics group for BA results, wrapped up using dask.delayed
         """
 
-        _, filtered_sfm_data, _, metrics_graph = dask.delayed(
-            self._run_ba_instrumented, nout=4
-        )(
+        _, filtered_sfm_data, _, metrics_graph = dask.delayed(self._run_ba_instrumented, nout=4)(
             sfm_data_graph,
             absolute_pose_priors,
             relative_pose_priors,
@@ -625,9 +552,7 @@ class BundleAdjustmentOptimizer:
         return filtered_sfm_data, metrics_graph
 
 
-def values_to_gtsfm_data(
-    values: Values, initial_data: GtsfmData, shared_calib: bool
-) -> GtsfmData:
+def values_to_gtsfm_data(values: Values, initial_data: GtsfmData, shared_calib: bool) -> GtsfmData:
     """Cast results from the optimization to GtsfmData object.
 
     Args:
@@ -641,30 +566,18 @@ def values_to_gtsfm_data(
     """
     result = GtsfmData(initial_data.number_images())
 
-    is_fisheye_calibration = isinstance(
-        initial_data.get_camera(0), PinholeCameraCal3Fisheye
-    )
+    is_fisheye_calibration = isinstance(initial_data.get_camera(0), PinholeCameraCal3Fisheye)
     if is_fisheye_calibration:
-        cal3_value_extraction_lambda = lambda i: values.atCal3Fisheye(
-            K(0 if shared_calib else i)
-        )
+        cal3_value_extraction_lambda = lambda i: values.atCal3Fisheye(K(0 if shared_calib else i))
     else:
-        cal3_value_extraction_lambda = lambda i: values.atCal3Bundler(
-            K(0 if shared_calib else i)
-        )
-    camera_class = (
-        PinholeCameraCal3Fisheye
-        if is_fisheye_calibration
-        else PinholeCameraCal3Bundler
-    )
+        cal3_value_extraction_lambda = lambda i: values.atCal3Bundler(K(0 if shared_calib else i))
+    camera_class = PinholeCameraCal3Fisheye if is_fisheye_calibration else PinholeCameraCal3Bundler
 
     # add cameras
     for i in initial_data.get_valid_camera_indices():
         result.add_camera(
             i,
-            camera_class(
-                values.atPose3(X(i)), cal3_value_extraction_lambda(i)
-            ),
+            camera_class(values.atPose3(X(i)), cal3_value_extraction_lambda(i)),
         )
 
     # add tracks
