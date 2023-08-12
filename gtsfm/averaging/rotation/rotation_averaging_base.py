@@ -3,6 +3,7 @@
 Authors: Jing Wu, Ayush Baid
 """
 import abc
+import time
 from typing import Dict, List, Optional, Tuple
 
 import dask
@@ -28,7 +29,10 @@ class RotationAveragingBase(GTSFMProcess):
 
         return UiMetadata(
             display_name="Rotation Averaging",
-            input_products=("View-Graph Relative Rotations", "Relative Pose Priors"),
+            input_products=(
+                "View-Graph Relative Rotations",
+                "Relative Pose Priors",
+            ),
             output_products="Global Rotations",
             parent_plate="Sparse Reconstruction",
         )
@@ -54,7 +58,41 @@ class RotationAveragingBase(GTSFMProcess):
                 underconstrained system or ill-constrained system).
         """
 
-    def evaluate(self, wRi_computed: List[Optional[Rot3]], wTi_gt: List[Optional[Pose3]]) -> GtsfmMetricsGroup:
+    def _run_rotation_averaging_base(
+        self,
+        num_images: int,
+        i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]],
+        i1Ti2_priors: Dict[Tuple[int, int], PosePrior],
+        wTi_gt: List[Optional[Pose3]],
+    ) -> Tuple[List[Optional[Rot3]], GtsfmMetricsGroup]:
+        """Run rotation averaging and computes metrics.
+
+        Args:
+            num_images: number of poses.
+            i2Ri1_dict: relative rotations as dictionary (i1, i2): i2Ri1.
+            i1Ti2_priors: priors on relative poses as dictionary(i1, i2): PosePrior on i1Ti2.
+            wTi_gt: ground truth global rotations to compare against.
+
+        Returns:
+            Global rotations for each camera pose, i.e. wRi, as a list. The number of entries in the list is
+                `num_images`. The list may contain `None` where the global rotation could not be computed (either
+                underconstrained system or ill-constrained system).
+            Metrics on global rotations.
+        """
+        start_time = time.time()
+        wRis = self.run_rotation_averaging(
+            num_images, i2Ri1_dict, i1Ti2_priors
+        )
+        run_time = time.time() - start_time
+
+        metrics = self.evaluate(wRis, wTi_gt)
+        metrics.add_metric(GtsfmMetric("total_duration_sec", run_time))
+
+        return wRis, metrics
+
+    def evaluate(
+        self, wRi_computed: List[Optional[Rot3]], wTi_gt: List[Optional[Pose3]]
+    ) -> GtsfmMetricsGroup:
         """Evaluate the global rotations computed by the rotation averaging implementation.
 
         Args:
@@ -66,17 +104,30 @@ class RotationAveragingBase(GTSFMProcess):
         Returns:
             Metrics on global rotations.
         """
-        wRi_gt = [wTi.rotation() if wTi is not None else None for wTi in wTi_gt]
+        wRi_gt = [
+            wTi.rotation() if wTi is not None else None for wTi in wTi_gt
+        ]
 
         if len(wRi_computed) != len(wRi_gt):
-            raise ValueError("Lengths of wRi_list and gt_wRi_list should be the same.")
+            raise ValueError(
+                "Lengths of wRi_list and gt_wRi_list should be the same."
+            )
 
         wRi_aligned = comp_utils.align_rotations(wRi_gt, wRi_computed)
 
         metrics = []
-        metrics.append(GtsfmMetric(name="num_rotations_computed", data=len([x for x in wRi_computed if x is not None])))
-        metrics.append(metric_utils.compute_rotation_angle_metric(wRi_aligned, wRi_gt))
-        return GtsfmMetricsGroup(name="rotation_averaging_metrics", metrics=metrics)
+        metrics.append(
+            GtsfmMetric(
+                name="num_rotations_computed",
+                data=len([x for x in wRi_computed if x is not None]),
+            )
+        )
+        metrics.append(
+            metric_utils.compute_rotation_angle_metric(wRi_aligned, wRi_gt)
+        )
+        return GtsfmMetricsGroup(
+            name="rotation_averaging_metrics", metrics=metrics
+        )
 
     def create_computation_graph(
         self,
@@ -97,7 +148,8 @@ class RotationAveragingBase(GTSFMProcess):
             global rotations wrapped using dask.delayed.
         """
 
-        wRis = dask.delayed(self.run_rotation_averaging)(num_images, i2Ri1_graph, i1Ti2_priors)
-        metrics = dask.delayed(self.evaluate)(wRis, gt_wTi_list)
+        wRis, metrics = dask.delayed(
+            self._run_rotation_averaging_base, nout=2
+        )(num_images, i2Ri1_graph, i1Ti2_priors)
 
         return wRis, metrics
