@@ -156,9 +156,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         return w_i1Ui2_measurements
 
     def _binary_measurements_from_priors(
-        self,
-        i2Ti1_priors: Dict[Tuple[int, int], PosePrior],
-        wRi_list: List[Rot3],
+        self, i2Ti1_priors: Dict[Tuple[int, int], PosePrior], wRi_list: List[Rot3]
     ) -> BinaryMeasurementsPoint3:
         """Converts the priors from relative Pose3 priors to relative Point3 measurements in world frame.
 
@@ -243,10 +241,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         inlier_w_iUj_dict_tracks = {}
         inlier_cameras: Set[int] = set()
         for i1, i2 in w_i2Ui1_dict:
-            if (
-                C(i2),
-                C(i1),
-            ) in inliers:  # there is a flip in indices from w_i2Ui1_dict to inliers.
+            if (C(i2), C(i1)) in inliers:  # there is a flip in indices from w_i2Ui1_dict to inliers.
                 inlier_w_i2Ui1_dict[(i1, i2)] = w_i2Ui1_dict[(i1, i2)]
                 inlier_cameras.add(i1)
                 inlier_cameras.add(i2)
@@ -400,9 +395,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             List of camera translations in world frame, with as many entries as the number of images.
         """
         logger.info(
-            "Using %d track measurements and %d camera measurements",
-            len(w_i2Ui1_dict_tracks),
-            len(w_i2Ui1_dict),
+            "Using %d track measurements and %d camera measurements", len(w_i2Ui1_dict_tracks), len(w_i2Ui1_dict)
         )
 
         noise_model = gtsam.noiseModel.Isotropic.Sigma(NOISE_MODEL_DIMENSION, NOISE_MODEL_SIGMA)

@@ -105,12 +105,7 @@ class RotationAveragingBase(GTSFMProcess):
         wRi_aligned = comp_utils.align_rotations(wRi_gt, wRi_computed)
 
         metrics = []
-        metrics.append(
-            GtsfmMetric(
-                name="num_rotations_computed",
-                data=len([x for x in wRi_computed if x is not None]),
-            )
-        )
+        metrics.append(GtsfmMetric(name="num_rotations_computed", data=len([x for x in wRi_computed if x is not None])))
         metrics.append(metric_utils.compute_rotation_angle_metric(wRi_aligned, wRi_gt))
         return GtsfmMetricsGroup(name="rotation_averaging_metrics", metrics=metrics)
 
