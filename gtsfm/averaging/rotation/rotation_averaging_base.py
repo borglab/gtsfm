@@ -62,13 +62,13 @@ class RotationAveragingBase(GTSFMProcess):
         i1Ti2_priors: Dict[Tuple[int, int], PosePrior],
         wTi_gt: List[Optional[Pose3]],
     ) -> Tuple[List[Optional[Rot3]], GtsfmMetricsGroup]:
-        """Run rotation averaging and computes metrics.
+        """Runs rotation averaging and computes metrics.
 
         Args:
-            num_images: number of poses.
-            i2Ri1_dict: relative rotations as dictionary (i1, i2): i2Ri1.
-            i1Ti2_priors: priors on relative poses as dictionary(i1, i2): PosePrior on i1Ti2.
-            wTi_gt: ground truth global rotations to compare against.
+            num_images: Number of poses.
+            i2Ri1_dict: Relative rotations as dictionary (i1, i2): i2Ri1.
+            i1Ti2_priors: Priors on relative poses as dictionary(i1, i2): PosePrior on i1Ti2.
+            wTi_gt: Ground truth global rotations to compare against.
 
         Returns:
             Global rotations for each camera pose, i.e. wRi, as a list. The number of entries in the list is
@@ -86,13 +86,14 @@ class RotationAveragingBase(GTSFMProcess):
         return wRis, metrics
 
     def evaluate(self, wRi_computed: List[Optional[Rot3]], wTi_gt: List[Optional[Pose3]]) -> GtsfmMetricsGroup:
-        """Evaluate the global rotations computed by the rotation averaging implementation.
+        """Evaluates the global rotations computed by the rotation averaging implementation.
 
         Args:
-            wRi_computed: list of global rotations computed.
-            wTi_gt: ground truth global rotations to compare against.
+            wRi_computed: List of global rotations computed.
+            wTi_gt: Ground truth global rotations to compare against.
+
         Raises:
-            ValueError: if the length of the computed and GT list differ.
+            ValueError: If the length of the computed and GT list differ.
 
         Returns:
             Metrics on global rotations.

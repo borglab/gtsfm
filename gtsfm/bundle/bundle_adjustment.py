@@ -133,9 +133,7 @@ class BundleAdjustmentOptimizer:
         return graph
 
     def _between_factors(
-        self,
-        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
-        cameras_to_model: List[int]
+        self, relative_pose_priors: Dict[Tuple[int, int], PosePrior], cameras_to_model: List[int]
     ) -> NonlinearFactorGraph:
         """Generate BetweenFactors on relative poses for pose variables."""
         graph = NonlinearFactorGraph()
@@ -180,10 +178,7 @@ class BundleAdjustmentOptimizer:
         return graph
 
     def __calibration_priors(
-        self,
-        initial_data: GtsfmData,
-        cameras_to_model: List[int],
-        is_fisheye_calibration: bool
+        self, initial_data: GtsfmData, cameras_to_model: List[int], is_fisheye_calibration: bool
     ) -> NonlinearFactorGraph:
         """Generate prior factors on calibration parameters of the cameras."""
         graph = NonlinearFactorGraph()
@@ -195,10 +190,7 @@ class BundleAdjustmentOptimizer:
                 calibration_prior_factor_class(
                     K(self.__map_to_calibration_variable(cameras_to_model[0])),
                     initial_data.get_camera(cameras_to_model[0]).calibration(),
-                    gtsam.noiseModel.Isotropic.Sigma(
-                        calibration_prior_factor_dof,
-                        self._calibration_prior_noise_sigma
-                    ),
+                    gtsam.noiseModel.Isotropic.Sigma(calibration_prior_factor_dof, self._calibration_prior_noise_sigma),
                 )
             )
         else:
@@ -208,8 +200,7 @@ class BundleAdjustmentOptimizer:
                         K(self.__map_to_calibration_variable(i)),
                         initial_data.get_camera(i).calibration(),
                         gtsam.noiseModel.Isotropic.Sigma(
-                            calibration_prior_factor_dof,
-                            self._calibration_prior_noise_sigma
+                            calibration_prior_factor_dof, self._calibration_prior_noise_sigma
                         ),
                     )
                 )
@@ -224,10 +215,7 @@ class BundleAdjustmentOptimizer:
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
     ) -> NonlinearFactorGraph:
         """Construct the factor graph with reprojection factors, BetweenFactors, and prior factors."""
-        is_fisheye_calibration = isinstance(
-            initial_data.get_camera(cameras_to_model[0]),
-            PinholeCameraCal3Fisheye
-        )
+        is_fisheye_calibration = isinstance(initial_data.get_camera(cameras_to_model[0]), PinholeCameraCal3Fisheye)
 
         graph = NonlinearFactorGraph()
 
@@ -239,10 +227,7 @@ class BundleAdjustmentOptimizer:
             )
         )
         graph.push_back(
-            self._between_factors(
-                relative_pose_priors=relative_pose_priors,
-                cameras_to_model=cameras_to_model
-            )
+            self._between_factors(relative_pose_priors=relative_pose_priors, cameras_to_model=cameras_to_model)
         )
         graph.push_back(
             self.__pose_priors(
@@ -432,15 +417,12 @@ class BundleAdjustmentOptimizer:
         # align the sparse multi-view estimate after BA to the ground truth pose graph.
         aligned_filtered_data = filtered_data.align_via_Sim3_to_poses(wTi_list_ref=poses_gt)
         ba_pose_error_metrics = metrics_utils.compute_ba_pose_metrics(
-            gt_wTi_list=poses_gt,
-            ba_output=aligned_filtered_data,
-            save_dir=save_dir
+            gt_wTi_list=poses_gt, ba_output=aligned_filtered_data, save_dir=save_dir
         )
         ba_metrics.extend(metrics_group=ba_pose_error_metrics)
 
         output_tracks_exit_codes = track_utils.classify_tracks3d_with_gt_cameras(
-            tracks=aligned_filtered_data.get_tracks(),
-            cameras_gt=cameras_gt
+            tracks=aligned_filtered_data.get_tracks(), cameras_gt=cameras_gt
         )
         output_tracks_exit_codes_distribution = Counter(output_tracks_exit_codes)
 
@@ -451,14 +433,8 @@ class BundleAdjustmentOptimizer:
         ba_metrics.add_metrics(metrics_utils.get_stats_for_sfmdata(aligned_filtered_data, suffix="_filtered"))
         # ba_metrics.save_to_json(os.path.join(METRICS_PATH, "bundle_adjustment_metrics.json"))
 
-        logger.info(
-            "[Result] Mean track length %.3f",
-            np.mean(aligned_filtered_data.get_track_lengths())
-        )
-        logger.info(
-            "[Result] Median track length %.3f",
-            np.median(aligned_filtered_data.get_track_lengths())
-        )
+        logger.info("[Result] Mean track length %.3f", np.mean(aligned_filtered_data.get_track_lengths()))
+        logger.info("[Result] Median track length %.3f", np.median(aligned_filtered_data.get_track_lengths()))
         aligned_filtered_data.log_scene_reprojection_error_stats()
 
         return ba_metrics
