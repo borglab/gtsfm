@@ -121,6 +121,9 @@ def create_all_frustums_open3d(
         img_h = py * 2
         frustum_obj = ViewFrustum(fx, img_w, img_h, frustum_ray_len=frustum_ray_len)
 
+        if np.linalg.norm(wTi.translation()) > 100:
+            continue
+
         edges_worldfr = frustum_obj.get_mesh_edges_worldframe(wTi)
         for verts_worldfr in edges_worldfr:
 
@@ -196,6 +199,7 @@ def draw_scene_open3d(
         calibrations: Calibration object for each camera.
         args: Rendering options.
     """
+    #import pdb; pdb.set_trace()
     frustums = create_all_frustums_open3d(wTi_list, calibrations, args.frustum_ray_len)
     if args.rendering_style == "point":
         pcd = create_colored_point_cloud_open3d(point_cloud, rgb)

@@ -307,8 +307,12 @@ def write_cameras(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> 
             k1 = calibration.k1()
             k2 = calibration.k2()
 
-            image_height = images[i].height
-            image_width = images[i].width
+            # if i >= len(images):
+            #     raise ValueError(f'Invalid number of images provided ({len(images)}) for index i={i}.')
+            # image_height = images[i].height
+            # image_width = images[i].width
+            image_height = 500
+            image_width = 1000
 
             f.write(f"{i} {camera_model} {image_width} {image_height} {fx} {u0} {v0} {k1} {k2}\n")
 
@@ -352,6 +356,36 @@ def read_images_txt(fpath: str) -> Tuple[Optional[List[Pose3]], Optional[List[st
     return wTi_list, img_fnames
 
 
+def read_1dsfm_image_list(fpath: str) -> List[str]:
+    """Reads in image filenames from a `list.txt` file containing image metadata per row.
+
+    A `list.txt` file should contain a list of all of the images in a dataset, as well as image focal lengths in
+    pixels. The format per line is `<image name> 0 <focal length>`, although when the focal length is unknown the
+    latter two fields are omitted. SfM Init ignores photos with unknown focal length. The line number of an image
+    in this file is its identifying index in the rest of the 1dsfm toolkit. (Note that this list typically includes
+    many more images than are in the connected component file also supplied by 1dsfm.)
+
+    See https://github.com/wilsonkl/SfM_Init/blob/fd012ef93462b8623e8d65fa0c6fa95b32270a3c/README.md?plain=1#L128
+
+    Args:
+        fpath: Path to file containing image filenames for all images.
+
+    Returns:
+        List of image filenames.
+    """
+    if Path(fpath).name != "list.txt":
+        raise ValueError(f"File path to 1dsfm image list should end in `list.txt`, but found {fpath}.")
+
+    image_fnames = []
+    with open(fpath) as f:
+        for line in f:
+            # Remove carriage return.
+            image_fname, *_ = line.rstrip().split(" ")
+            image_fnames.append(image_fname)
+
+    return image_fnames
+
+
 def write_images(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> None:
     """Writes the image data file in the COLMAP format.
 
@@ -381,6 +415,10 @@ def write_images(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> N
         else 0
     )
 
+
+    image_list_fpath = "/Users/johnlambert/Downloads/Gendarmenmark-gt-2023-08-07/Gendarmenmarkt/list.txt"
+    image_file_names = read_1dsfm_image_list(fpath=image_list_fpath)
+
     file_path = os.path.join(save_dir, "images.txt")
     with open(file_path, "w") as f:
         f.write("# Image list with two lines of data per image:\n")
@@ -389,7 +427,7 @@ def write_images(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> N
         f.write(f"# Number of images: {num_imgs}, mean observations per image: {mean_obs_per_img:.3f}\n")
 
         for i in gtsfm_data.get_valid_camera_indices():
-            img_fname = images[i].file_name
+            img_fname = image_file_names[i]
             camera = gtsfm_data.get_camera(i)
             # COLMAP exports camera extrinsics (cTw), not the poses (wTc), so must invert
             iTw = camera.pose().inverse()
@@ -533,8 +571,8 @@ def write_points(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> N
         for j in range(num_pts):
             track = gtsfm_data.get_track(j)
 
-            r, g, b = image_utils.get_average_point_color(track, images)
-            _, avg_track_reproj_error = reproj_utils.compute_track_reprojection_errors(gtsfm_data._cameras, track)
+            r, g, b = 0, 0, 0 # image_utils.get_average_point_color(track, images)
+            _, avg_track_reproj_error = 0, 0 # reproj_utils.compute_track_reprojection_errors(gtsfm_data._cameras, track)
             x, y, z = track.point3()
             f.write(f"{j} {x} {y} {z} {r} {g} {b} {np.round(avg_track_reproj_error, 2)} ")
 

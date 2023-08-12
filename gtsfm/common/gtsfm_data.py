@@ -134,7 +134,7 @@ class GtsfmData:
         """Getter for camera.
 
         Args:
-            index: the image index to fetch the camera for.
+            index: The image index to fetch the camera for.
 
         Returns:
             The camera if it is a valid one, None otherwise.
@@ -148,7 +148,7 @@ class GtsfmData:
         computed by the pipeline.
 
         Returns:
-            camera poses as a list, each representing wTi
+            Camera poses as a list, each representing wTi
         """
         cameras = [self.get_camera(i) for i in range(self.number_images())]
         poses = [camera.pose() if camera is not None else None for camera in cameras]
@@ -159,7 +159,7 @@ class GtsfmData:
         """Getter for the track.
 
         Args:
-            index: track index to fetch.
+            index: Track index to fetch.
 
         Returns:
             Requested track.
@@ -170,7 +170,7 @@ class GtsfmData:
         """Add a track, after checking if all the cameras in the track are already added.
 
         Args:
-            track: track to add.
+            track: Track to add.
 
         Returns:
             Flag indicating the success of adding operation.

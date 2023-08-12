@@ -46,11 +46,12 @@ def view_scene(args: argparse.Namespace) -> None:
     wTi_list, img_fnames, calibrations, point_cloud, rgb = io_utils.read_scene_data_from_colmap_format(
         data_dir=args.output_dir
     )
-    if args.show_mvs_result:
-        point_cloud, rgb = io_utils.read_point_cloud_from_ply(args.ply_fpath)
+    # if args.show_mvs_result:
+    #     point_cloud, rgb = io_utils.read_point_cloud_from_ply(args.ply_fpath)
 
     if len(calibrations) == 1:
         calibrations = calibrations * len(img_fnames)
+    import pdb; pdb.set_trace()
     mean_pt = compute_point_cloud_center_robust(point_cloud)
 
     # Zero-center the point cloud (about estimated center).
