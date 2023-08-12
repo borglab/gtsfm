@@ -241,13 +241,13 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         inlier_w_i2Ui1_dict = {}
         inlier_w_iUj_dict_tracks = {}
         inlier_cameras: Set[int] = set()
-        for i1, i2 in w_i2Ui1_dict:
+        for (i1, i2) in w_i2Ui1_dict:
             if (C(i2), C(i1)) in inliers:  # there is a flip in indices from w_i2Ui1_dict to inliers.
                 inlier_w_i2Ui1_dict[(i1, i2)] = w_i2Ui1_dict[(i1, i2)]
                 inlier_cameras.add(i1)
                 inlier_cameras.add(i2)
 
-        for j, i in w_iUj_dict_tracks:
+        for (j, i) in w_iUj_dict_tracks:
             # Same as above, `inliers` contains symbols that are flipped - C(i), L(j).
             # Only add an inlier camera-track measurements if the camera has other camera-camera inliers.
             if (C(i), L(j)) in inliers and i in inlier_cameras:

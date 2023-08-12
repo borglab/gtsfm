@@ -10,7 +10,6 @@ References:
 
 Authors: Jing Wu, Ayush Baid, John Lambert
 """
-import time
 from typing import Dict, List, Optional, Set, Tuple
 
 import gtsam

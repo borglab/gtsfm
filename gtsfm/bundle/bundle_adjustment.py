@@ -241,9 +241,7 @@ class BundleAdjustmentOptimizer:
         # Also add a prior on the position of the first landmark to fix the scale
         graph.push_back(
             gtsam.PriorFactorPoint3(
-                P(0),
-                initial_data.get_track(0).point3(),
-                gtsam.noiseModel.Isotropic.Sigma(POINT3_DOF, 0.1),
+                P(0), initial_data.get_track(0).point3(), gtsam.noiseModel.Isotropic.Sigma(POINT3_DOF, 0.1)
             )
         )
 
@@ -259,10 +257,7 @@ class BundleAdjustmentOptimizer:
             initial_values.insert(X(i), camera.pose())
             if not self._shared_calib or loop_idx == 0:
                 # add only one value if calibrations are shared
-                initial_values.insert(
-                    K(self.__map_to_calibration_variable(i)),
-                    camera.calibration(),
-                )
+                initial_values.insert(K(self.__map_to_calibration_variable(i)), camera.calibration())
 
         # add each SfmTrack
         for j in range(initial_data.number_tracks()):
@@ -302,6 +297,7 @@ class BundleAdjustmentOptimizer:
         reproj_error_thresh: Optional[float],
         verbose: bool = True,
     ) -> Tuple[GtsfmData, GtsfmData, List[bool], float]:
+        """TODO"""
         cameras_to_model = self.__cameras_to_model(initial_data, absolute_pose_priors, relative_pose_priors)
         graph = self.__construct_factor_graph(
             cameras_to_model=cameras_to_model,
@@ -377,12 +373,7 @@ class BundleAdjustmentOptimizer:
             if num_ba_steps > 1:
                 logger.info(
                     "[BA Step %d/%d] Error: %.2f, Number of tracks: %d"
-                    % (
-                        step + 1,
-                        num_ba_steps,
-                        final_error,
-                        filtered_result.number_tracks(),
-                    )
+                    % (step + 1, num_ba_steps, final_error, filtered_result.number_tracks())
                 )
 
         return optimized_data, filtered_result, valid_mask
@@ -404,8 +395,7 @@ class BundleAdjustmentOptimizer:
             Metrics group containing metrics for both filtered and unfiltered BA results.
         """
         ba_metrics = GtsfmMetricsGroup(
-            name=METRICS_GROUP,
-            metrics=metrics_utils.get_stats_for_sfmdata(unfiltered_data, suffix="_unfiltered"),
+            name=METRICS_GROUP, metrics=metrics_utils.get_stats_for_sfmdata(unfiltered_data, suffix="_unfiltered")
         )
 
         poses_gt = [cam.pose() if cam is not None else None for cam in cameras_gt]
@@ -447,7 +437,7 @@ class BundleAdjustmentOptimizer:
         cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
         save_dir: Optional[str] = None,
         verbose: bool = True,
-    ):
+    ) -> Tuple[GtsfmData, GtsfmData, List[bool], GtsfmMetricsGroup]:
         """TODO"""
         logger.info(
             "Input: %d tracks on %d cameras",
@@ -524,7 +514,7 @@ class BundleAdjustmentOptimizer:
             absolute_pose_priors,
             relative_pose_priors,
             cameras_gt,
-            save_dir,
+            save_dir=save_dir,
         )
         return filtered_sfm_data, metrics_graph
 
