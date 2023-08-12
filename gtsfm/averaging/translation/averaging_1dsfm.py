@@ -207,7 +207,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             inlier_cameras: Set of inlier cameras.
         """
 
-        # Sample directions for projection
+        # Sample directions for projection.
         combined_measurements = list(w_i2Ui1_dict.values()) + list(w_iUj_dict_tracks.values())
         projection_directions = self.__sample_projection_directions(combined_measurements)
 
@@ -382,13 +382,13 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         """Runs the averaging optimization.
 
         Args:
-            num_images: number of images.
+            num_images: Number of images.
             w_i2Ui1_dict: Unit directions from i2 to i1 in world frame indexed by (i1, i2).
             w_i2Ui1_dict_tracks: Directions from camera to track in world frame indexed by (track_id, camera_id).
-            wRi_list: camera rotations in world frame.
-            i2Ti1_priors: relative pose priors.
-            absolute_pose_priors: absolute pose priors.
-            scale_factor: scale factor for the esimated translations.
+            wRi_list: Camera rotations in world frame.
+            i2Ti1_priors: Relative pose priors.
+            absolute_pose_priors: Absolute pose priors.
+            scale_factor: Scale factor for the esimated translations.
 
         Returns:
             List of camera translations in world frame, with as many entries as the number of images.
@@ -457,6 +457,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 or ill-constrained system).
             A GtsfmMetricsGroup of 1DSfM metrics.
         """
+        start_inlier_computation = time.time()
         logger.info("Running translation averaging on %d unit translations", len(i2Ui1_dict))
 
         w_i2Ui1_dict, valid_cameras = get_valid_measurements_in_world_frame(i2Ui1_dict, wRi_list)
@@ -476,7 +477,10 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         w_i2Ui1_dict_inliers, w_i2Ui1_dict_tracks_inliers, inlier_cameras = self.compute_inliers(
             w_i2Ui1_dict, w_i2Ui1_dict_tracks
         )
+        end_inlier_computation = time.time()
+        inlier_computation_duration_sec = end_inlier_computation - start_inlier_computation
 
+        start_lm_sec = time.time()
         wti_list = self.__run_averaging(
             num_images=num_images,
             w_i2Ui1_dict=w_i2Ui1_dict_inliers,
@@ -486,9 +490,19 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             absolute_pose_priors=absolute_pose_priors,
             scale_factor=scale_factor,
         )
+        end_lm_sec = time.time()
+        lm_duration_sec = end_lm_sec - start_lm_sec
 
         # Compute the metrics.
-        ta_metrics = compute_metrics(set(w_i2Ui1_dict_inliers.keys()), i2Ui1_dict, wRi_list, wti_list, gt_wTi_list)
+        ta_metrics = compute_metrics(
+            set(w_i2Ui1_dict_inliers.keys()),
+            i2Ui1_dict,
+            wRi_list,
+            wti_list,
+            gt_wTi_list,
+            inlier_computation_duration_sec,
+            lm_duration_sec,
+        )
 
         num_translations = sum([1 for wti in wti_list if wti is not None])
         logger.info("Estimated %d translations out of %d images.", num_translations, num_images)
@@ -506,6 +520,8 @@ def compute_metrics(
     wRi_list: List[Optional[Rot3]],
     wti_list: List[Optional[Point3]],
     gt_wTi_list: List[Optional[Pose3]],
+    inlier_computation_duration_sec: float,
+    lm_duration_sec: float,
 ) -> GtsfmMetricsGroup:
     """Computes the translation averaging metrics as a metrics group.
     Args:
@@ -514,6 +530,10 @@ def compute_metrics(
         wRi_list: Estimated camera rotations from rotation averaging.
         wti_list: Estimated camera translations from translation averaging.
         gt_wTi_list: List of ground truth camera poses.
+        inlier_computation_duration_sec: Time required to perform inlier computation.
+        lm_duration_sec: Time required to solve the translation recovery factor graph optimization problem using
+            Levenberg-Marquardt.
+
     Returns:
         Translation averaging metrics as a metrics group. Includes the following metrics:
         - Number of inlier, outlier and total measurements.
@@ -525,6 +545,8 @@ def compute_metrics(
     )
     num_total_measurements = len(inlier_i1_i2_pairs) + len(outlier_i1_i2_pairs)
     ta_metrics = [
+        GtsfmMetric("inlier_computation_duration_sec", inlier_computation_duration_sec),
+        GtsfmMetric("lm_duration_sec", lm_duration_sec),
         GtsfmMetric("num_total_1dsfm_measurements", num_total_measurements),
         GtsfmMetric("num_inlier_1dsfm_measurements", len(inlier_i1_i2_pairs)),
         GtsfmMetric("num_outlier_1dsfm_measurements", len(outlier_i1_i2_pairs)),
