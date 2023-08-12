@@ -115,11 +115,11 @@ class BundleAdjustmentOptimizer:
         sfm_factor_class = GeneralSFMFactor2Cal3Fisheye if is_fisheye_calibration else GeneralSFMFactor2Cal3Bundler
         for j in range(initial_data.number_tracks()):
             track = initial_data.get_track(j)  # SfmTrack
-            # retrieve the SfmMeasurement objects
+            # Retrieve the SfmMeasurement objects.
             for m_idx in range(track.numberMeasurements()):
-                # i represents the camera index, and uv is the 2d measurement
+                # `i` represents the camera index, and `uv` is the 2d measurement
                 i, uv = track.measurement(m_idx)
-                # note use of shorthand symbols C and P
+                # Note use of shorthand symbols `X` and `P`.
                 graph.push_back(
                     sfm_factor_class(
                         uv,
@@ -219,7 +219,7 @@ class BundleAdjustmentOptimizer:
 
         graph = NonlinearFactorGraph()
 
-        # Create a factor graph
+        # Create a factor graph.
         graph.push_back(
             self.__reprojection_factors(
                 initial_data=initial_data,
@@ -251,7 +251,7 @@ class BundleAdjustmentOptimizer:
         """Initialize all the variables in the factor graph."""
         initial_values = gtsam.Values()
 
-        # add each camera
+        # Add each camera.
         for loop_idx, i in enumerate(initial_data.get_valid_camera_indices()):
             camera = initial_data.get_camera(i)
             initial_values.insert(X(i), camera.pose())
@@ -259,7 +259,7 @@ class BundleAdjustmentOptimizer:
                 # add only one value if calibrations are shared
                 initial_values.insert(K(self.__map_to_calibration_variable(i)), camera.calibration())
 
-        # add each SfmTrack
+        # Add each SfmTrack.
         for j in range(initial_data.number_tracks()):
             track = initial_data.get_track(j)
             initial_values.insert(P(j), track.point3())
@@ -491,9 +491,9 @@ class BundleAdjustmentOptimizer:
         """Create the computation graph for performing bundle adjustment.
 
         Args:
-            sfm_data_graph: an GtsfmData object wrapped up using dask.delayed
-            absolute_pose_priors: priors on the poses of the cameras (not delayed).
-            relative_pose_priors: priors on poses between cameras (not delayed).
+            sfm_data_graph: An GtsfmData object wrapped up using dask.delayed.
+            absolute_pose_priors: Priors on the poses of the cameras (not delayed).
+            relative_pose_priors: Priors on poses between cameras (not delayed).
 
         Returns:
             GtsfmData aligned to GT (if provided), wrapped up using dask.delayed
