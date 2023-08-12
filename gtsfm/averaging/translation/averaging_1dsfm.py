@@ -10,9 +10,11 @@ References:
 
 Authors: Jing Wu, Ayush Baid, Akshay Krishnan
 """
+import time
 from collections import defaultdict
 from enum import Enum
 from typing import DefaultDict, Dict, List, Optional, Set, Tuple
+
 import gtsam
 import numpy as np
 from gtsam import (
