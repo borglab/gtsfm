@@ -289,7 +289,7 @@ class BundleAdjustmentOptimizer:
 
         return sorted(list(cameras))
 
-    def run_ba_at_threshold(
+    def run_ba_stage_with_filtering(
         self,
         initial_data: GtsfmData,
         absolute_pose_priors: List[Optional[PosePrior]],
@@ -297,7 +297,7 @@ class BundleAdjustmentOptimizer:
         reproj_error_thresh: Optional[float],
         verbose: bool = True,
     ) -> Tuple[GtsfmData, GtsfmData, List[bool], float]:
-        """Run bundle adjustment and filter the resulting tracks by reprojection error."""
+        """Runs bundle adjustment and optionally filters the resulting tracks by reprojection error."""
         cameras_to_model = self.__cameras_to_model(initial_data, absolute_pose_priors, relative_pose_priors)
         graph = self.__construct_factor_graph(
             cameras_to_model=cameras_to_model,
@@ -338,7 +338,7 @@ class BundleAdjustmentOptimizer:
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         verbose: bool = True,
     ) -> Tuple[GtsfmData, GtsfmData, List[bool]]:
-        """Run the bundle adjustment by forming factor graph and optimizing using Levenberg–Marquardt optimization.
+        """Runs bundle adjustment by forming a factor graph and optimizing it using Levenberg–Marquardt optimization.
 
         Args:
             initial_data: Initialized cameras, tracks w/ their 3d landmark from triangulation.
@@ -355,14 +355,13 @@ class BundleAdjustmentOptimizer:
         num_ba_steps = len(self._reproj_error_thresholds)
         for step, reproj_error_thresh in enumerate(self._reproj_error_thresholds):
             # Use intermediate result as initial condition for next step.
-            (optimized_data, filtered_result, valid_mask, final_error) = self.run_ba_at_threshold(
+            (optimized_data, filtered_result, valid_mask, final_error) = self.run_ba_stage_with_filtering(
                 initial_data,
                 absolute_pose_priors,
                 relative_pose_priors,
                 reproj_error_thresh,
                 verbose,
             )
-
             # Print intermediate results.
             if num_ba_steps > 1:
                 logger.info(
@@ -372,6 +371,61 @@ class BundleAdjustmentOptimizer:
 
         return optimized_data, filtered_result, valid_mask
 
+    def _run_ba_and_evaluate(
+        self,
+        initial_data: GtsfmData,
+        absolute_pose_priors: List[Optional[PosePrior]],
+        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
+        cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
+        save_dir: Optional[str] = None,
+        verbose: bool = True,
+    ) -> Tuple[GtsfmData, GtsfmData, List[bool], GtsfmMetricsGroup]:
+        """Runs the equivalent of `run_ba()` and `evaluate()` in a single function, to enable time profiling."""
+        logger.info(
+            "Input: %d tracks on %d cameras", initial_data.number_tracks(), len(initial_data.get_valid_camera_indices())
+        )
+        if initial_data.number_tracks() == 0 or len(initial_data.get_valid_camera_indices()) == 0:
+            # No cameras or tracks to optimize, so bundle adjustment is not possible.
+            logger.error(
+                "Bundle adjustment aborting, optimization cannot be performed without any tracks or any cameras."
+            )
+            return initial_data, initial_data, [False] * initial_data.number_tracks()
+        step_times = []
+        start_time = time.time()
+
+        num_ba_steps = len(self._reproj_error_thresholds)
+        for step, reproj_error_thresh in enumerate(self._reproj_error_thresholds):
+            step_start_time = time.time()
+            (optimized_data, filtered_result, valid_mask, final_error) = self.run_ba_stage_with_filtering(
+                initial_data=initial_data,
+                absolute_pose_priors=absolute_pose_priors,
+                relative_pose_priors=relative_pose_priors,
+                reproj_error_thresh=reproj_error_thresh,
+                verbose=verbose,
+            )
+            step_times.append(time.time() - step_start_time)
+
+            # Print intermediate results.
+            if num_ba_steps > 1:
+                logger.info(
+                    "[BA Stage @ thresh=%.2f px %d/%d] Error: %.2f, Number of tracks: %d"
+                    % (
+                        reproj_error_thresh,
+                        step + 1,
+                        num_ba_steps,
+                        final_error,
+                        filtered_result.number_tracks(),
+                    )
+                )
+        total_time = time.time() - start_time
+
+        metrics = self.evaluate(optimized_data, filtered_result, cameras_gt, save_dir)
+        for i, step_time in enumerate(step_times):
+            metrics.add_metric(GtsfmMetric(f"step_{i}_run_duration_sec", step_time))
+        metrics.add_metric(GtsfmMetric("total_run_duration_sec", total_time))
+
+        return optimized_data, filtered_result, valid_mask, metrics
+
     def evaluate(
         self,
         unfiltered_data: GtsfmData,
@@ -379,7 +433,8 @@ class BundleAdjustmentOptimizer:
         cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
         save_dir: Optional[str] = None,
     ) -> GtsfmMetricsGroup:
-        """
+        """Computes metrics on the bundle adjustment result, and packages them in a GtsfmMetricsGroup object.
+
         Args:
             unfiltered_data: Optimized BA result, before filtering landmarks by reprojection error.
             filtered_data: Optimized BA result, after filtering landmarks and cameras.
@@ -494,13 +549,15 @@ class BundleAdjustmentOptimizer:
             sfm_data_graph: An GtsfmData object wrapped up using dask.delayed.
             absolute_pose_priors: Priors on the poses of the cameras (not delayed).
             relative_pose_priors: Priors on poses between cameras (not delayed).
+            cameras_gt: Ground truth camera calibration & pose for each image/camera.
+            save_dir: Directory where artifacts and plots should be saved to disk.
 
         Returns:
             GtsfmData aligned to GT (if provided), wrapped up using dask.delayed
             Metrics group for BA results, wrapped up using dask.delayed
         """
 
-        _, filtered_sfm_data, _, metrics_graph = dask.delayed(self._run_ba_with_profiling, nout=4)(
+        _, filtered_sfm_data, _, metrics_graph = dask.delayed(self._run_ba_and_evaluate, nout=4)(
             sfm_data_graph,
             absolute_pose_priors,
             relative_pose_priors,
