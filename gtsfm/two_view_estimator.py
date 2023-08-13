@@ -154,6 +154,7 @@ class TwoViewEstimator:
             i2Ri1_initial: The relative rotation to be used as initial rotation between cameras.
             i2Ui1_initial: The relative unit direction, to be used to initialize initial translation between cameras.
             i2Ti1_prior: Prior on the relative pose for cameras (i1, i2).
+
         Returns:
             Optimized relative rotation i2Ri1.
             Optimized unit translation i2Ui1.
