@@ -17,6 +17,7 @@ import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metric_utils
 from gtsfm.bundle.two_view_ba import TwoViewBundleAdjustment
 from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.sfm_track import SfmMeasurement, SfmTrack2d
@@ -425,7 +426,7 @@ def aggregate_frontend_metrics(
     two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
     angular_err_threshold_deg: float,
     metric_group_name: str,
-) -> None:
+) -> GtsfmMetricsGroup:
     """Aggregate the front-end metrics to log summary statistics.
 
     We define "pose error" as the maximum of the angular errors in rotation and translation, per:
@@ -585,3 +586,55 @@ def run_two_view_estimator_as_futures(
     two_view_output_dict = client.gather(two_view_output_futures)
 
     return two_view_output_dict
+
+
+def get_two_view_reports_summary(
+    two_view_report_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
+    images: List[Image],
+) -> List[Dict[str, Any]]:
+    """Converts the TwoViewEstimationReports for all image pairs to a Dict and saves it as JSON.
+
+    Args:
+        two_view_report_dict: Front-end metrics for pairs of images.
+        images: List of all images for this scene, in order of image/frame index.
+    
+    Returns:
+        List of dictionaries, where each dictionary contains the metrics for an image pair.
+    """    
+    def round_fn(x):
+        return round(x, 2) if x else None
+
+    metrics_list = []
+
+    for (i1, i2), report in two_view_report_dict.items():
+        # Note: if GT is unknown, then R_error_deg, U_error_deg, and inlier_ratio_gt_model will be None
+        metrics_list.append(
+            {
+                "i1": int(i1),
+                "i2": int(i2),
+                "i1_filename": images[i1].file_name,
+                "i2_filename": images[i2].file_name,
+                "rotation_angular_error": round_fn(report.R_error_deg),
+                "translation_angular_error": round_fn(report.U_error_deg),
+                "num_inliers_gt_model": int(report.num_inliers_gt_model)
+                if report.num_inliers_gt_model is not None
+                else None,
+                "inlier_ratio_gt_model": round_fn(report.inlier_ratio_gt_model),
+                "inlier_avg_reproj_error_gt_model": round_fn(
+                    np.nanmean(report.reproj_error_gt_model[report.v_corr_idxs_inlier_mask_gt])
+                )
+                if report.reproj_error_gt_model is not None and report.v_corr_idxs_inlier_mask_gt is not None
+                else None,
+                "outlier_avg_reproj_error_gt_model": round_fn(
+                    np.nanmean(report.reproj_error_gt_model[np.logical_not(report.v_corr_idxs_inlier_mask_gt)])
+                )
+                if report.reproj_error_gt_model is not None and report.v_corr_idxs_inlier_mask_gt is not None
+                else None,
+                "inlier_ratio_est_model": round_fn(report.inlier_ratio_est_model),
+                "num_inliers_est_model": int(report.num_inliers_est_model)
+                if report.num_inliers_est_model is not None
+                else None,
+            }
+        )
+    return metrics_list
+    

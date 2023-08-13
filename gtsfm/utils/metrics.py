@@ -16,6 +16,7 @@ from gtsam import Cal3Bundler, EssentialMatrix, PinholeCameraCal3Bundler, Point3
 from trimesh import Trimesh
 
 import gtsfm.utils.geometry_comparisons as comp_utils
+import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.verification as verification_utils
 from gtsfm.common.gtsfm_data import GtsfmData
@@ -34,6 +35,8 @@ EPSILON = 1e-12
 
 logger = logger_utils.get_logger()
 
+# number of digits (significant figures) to include in each entry of error metrics
+PRINT_NUM_SIG_FIGS = 2
 
 def compute_correspondence_metrics(
     keypoints_i1: Keypoints,
