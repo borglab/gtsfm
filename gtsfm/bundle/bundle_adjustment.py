@@ -221,10 +221,7 @@ class BundleAdjustmentOptimizer:
 
         # Create a factor graph.
         graph.push_back(
-            self.__reprojection_factors(
-                initial_data=initial_data,
-                is_fisheye_calibration=is_fisheye_calibration,
-            )
+            self.__reprojection_factors(initial_data=initial_data, is_fisheye_calibration=is_fisheye_calibration)
         )
         graph.push_back(
             self._between_factors(relative_pose_priors=relative_pose_priors, cameras_to_model=cameras_to_model)
@@ -392,9 +389,7 @@ class BundleAdjustmentOptimizer:
     ) -> Tuple[GtsfmData, GtsfmData, List[bool], GtsfmMetricsGroup]:
         """Runs the equivalent of `run_ba()` and `evaluate()` in a single function, to enable time profiling."""
         logger.info(
-            "Input: %d tracks on %d cameras",
-            initial_data.number_tracks(),
-            len(initial_data.get_valid_camera_indices()),
+            "Input: %d tracks on %d cameras", initial_data.number_tracks(), len(initial_data.get_valid_camera_indices())
         )
         if initial_data.number_tracks() == 0 or len(initial_data.get_valid_camera_indices()) == 0:
             # No cameras or tracks to optimize, so bundle adjustment is not possible.
