@@ -390,7 +390,7 @@ class BundleAdjustmentOptimizer:
         save_dir: Optional[str] = None,
         verbose: bool = True,
     ) -> Tuple[GtsfmData, GtsfmData, List[bool], GtsfmMetricsGroup]:
-        """Run the equivalent of `run_ba()` and `evaluate()` in a single function, to enable time profiling."""
+        """Runs the equivalent of `run_ba()` and `evaluate()` in a single function, to enable time profiling."""
         logger.info(
             "Input: %d tracks on %d cameras",
             initial_data.number_tracks(),
