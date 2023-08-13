@@ -211,7 +211,7 @@ def colmap2gtsfm(
         sfmtracks_gtsfm = []
         for point3D in points3D.values():
             sfmtrack = SfmTrack(point3D.xyz)
-            for (image_id, point2d_idx) in zip(point3D.image_ids, point3D.point2D_idxs):
+            for image_id, point2d_idx in zip(point3D.image_ids, point3D.point2D_idxs):
                 sfmtrack.addMeasurement(image_id_to_idx[image_id], images[image_id].xys[point2d_idx])
             sfmtracks_gtsfm.append(sfmtrack)
 
@@ -243,7 +243,6 @@ def read_cameras_txt(fpath: str) -> Optional[List[Cal3Bundler]]:
 
     calibrations = []
     for line in lines[3:]:
-
         cam_params = line.split()
         # Note that u0 is px, and v0 is py
         model = cam_params[1]

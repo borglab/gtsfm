@@ -296,8 +296,12 @@ class GtsfmRunnerBase:
             angular_err_threshold_deg=self.scene_optimizer._pose_angular_error_thresh,
             metric_group_name="verifier_summary_{}".format(two_view_estimator.POST_ISP_REPORT_TAG),
         )
-        two_view_metrics.add_metric(GtsfmMetric('total_correspondence_generation_duration_sec', correspondence_generation_duration_sec))
-        two_view_metrics.add_metric(GtsfmMetric('total_two_view_estimation_duration_sec', two_view_estimation_duration_sec))
+        two_view_metrics.add_metric(
+            GtsfmMetric("total_correspondence_generation_duration_sec", correspondence_generation_duration_sec)
+        )
+        two_view_metrics.add_metric(
+            GtsfmMetric("total_two_view_estimation_duration_sec", two_view_estimation_duration_sec)
+        )
         all_metrics_groups = [retriever_metrics, two_view_metrics]
 
         delayed_sfm_result, delayed_io, delayed_mvo_metrics_groups = self.scene_optimizer.create_computation_graph(
@@ -336,7 +340,7 @@ def unzip_two_view_results(
 ) -> Tuple[
     Dict[Tuple[int, int], Rot3],
     Dict[Tuple[int, int], Unit3],
-    Dict[Tuple[int, int], np.ndarray],
+    Dict[Tuple[int, int], np.ndarray],ptwo
     Dict[Tuple[int, int], TwoViewEstimationReport],
 ]:
     """Unzip the tuple TWO_VIEW_OUTPUT into 1 dictionary for 1 element in the tuple."""
@@ -374,4 +378,6 @@ def save_metrics_reports(metrics_group_list: List[GtsfmMetricsGroup], metrics_pa
     metrics_utils.save_metrics_as_json(metrics_group_list, metrics_path)
     metrics_utils.save_metrics_as_json(metrics_group_list, str(REACT_METRICS_PATH))
 
-    metrics_report.generate_metrics_report_html(metrics_group_list, os.path.join(metrics_path, "gtsfm_metrics_report.html"), None)
+    metrics_report.generate_metrics_report_html(
+        metrics_group_list, os.path.join(metrics_path, "gtsfm_metrics_report.html"), None
+    )

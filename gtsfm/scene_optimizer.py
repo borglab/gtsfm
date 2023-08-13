@@ -172,7 +172,10 @@ class SceneOptimizer:
         # Persist all front-end metrics and their summaries.
         # TODO(akshay-krishnan): this delays saving the frontend reports until MVO has completed, not ideal.
         metrics_graph_list: List[Delayed] = []
-        save_retrieval_metrics = self.retriever._matching_regime in [ImageMatchingRegime.RETRIEVAL, ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL]
+        save_retrieval_metrics = self.retriever._matching_regime in [
+            ImageMatchingRegime.RETRIEVAL,
+            ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL,
+        ]
         annotation = dask.annotate(workers=self._output_worker) if self._output_worker else dask.annotate()
         with annotation:
             delayed_results.append(
@@ -408,6 +411,7 @@ def save_gtsfm_data(
         )
 
     return saving_graph_list
+
 
 def save_full_frontend_metrics(
     two_view_report_dict: Dict[Tuple[int, int], TwoViewEstimationReport],

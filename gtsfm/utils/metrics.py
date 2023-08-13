@@ -35,6 +35,7 @@ EPSILON = 1e-12
 
 logger = logger_utils.get_logger()
 
+
 def compute_correspondence_metrics(
     keypoints_i1: Keypoints,
     keypoints_i2: Keypoints,
@@ -225,7 +226,7 @@ def compute_rotation_angle_metric(wRi_list: List[Optional[Rot3]], gt_wRi_list: L
         A GtsfmMetric for the N rotation angle errors, in degrees.
     """
     errors = []
-    for (wRi, gt_wRi) in zip(wRi_list, gt_wRi_list):
+    for wRi, gt_wRi in zip(wRi_list, gt_wRi_list):
         if wRi is not None and gt_wRi is not None:
             errors.append(comp_utils.compute_relative_rotation_angle(wRi, gt_wRi))
         else:
@@ -249,7 +250,7 @@ def compute_translation_distance_metric(
         A statistics dict of the metrics errors in degrees.
     """
     errors = []
-    for (wti, gt_wti) in zip(wti_list, gt_wti_list):
+    for wti, gt_wti in zip(wti_list, gt_wti_list):
         if wti is not None and gt_wti is not None:
             errors.append(comp_utils.compute_points_distance_l2(wti, gt_wti))
     return GtsfmMetric("translation_error_distance", errors)
@@ -268,7 +269,7 @@ def compute_relative_translation_angle_metric(
         A GtsfmMetric for the relative translation angle errors, in degrees.
     """
     angles: List[Optional[float]] = []
-    for (i1, i2) in i2Ui1_dict:
+    for i1, i2 in i2Ui1_dict:
         i2Ui1 = i2Ui1_dict[(i1, i2)]
         angles.append(comp_utils.compute_translation_to_direction_angle(i2Ui1, wTi_list[i2], wTi_list[i1]))
     return GtsfmMetric("relative_translation_angle_error_deg", np.array(angles, dtype=np.float32))
@@ -386,7 +387,7 @@ def get_twoview_translation_directions(wTi_list: List[Optional[Pose3]]) -> Dict[
     # check against all possible image pairs -- compute unit translation directions
     i2Ui1_dict = {}
     possible_img_pair_idxs = list(itertools.combinations(range(number_images), 2))
-    for (i1, i2) in possible_img_pair_idxs:
+    for i1, i2 in possible_img_pair_idxs:
         # compute the exact relative pose
         if wTi_list[i1] is None or wTi_list[i2] is None:
             i2Ui1 = None
@@ -494,7 +495,7 @@ def get_measurement_angle_errors(
         List of angles between the measured and ground truth translation directions.
     """
     errors: List[float] = []
-    for (i1, i2) in i1_i2_pairs:
+    for i1, i2 in i1_i2_pairs:
         if (i1, i2) in i2Ui1_measurements and (i1, i2) in gt_i2Ui1_measurements:
             error = comp_utils.compute_relative_unit_translation_angle(
                 i2Ui1_measurements[(i1, i2)], gt_i2Ui1_measurements[(i1, i2)]

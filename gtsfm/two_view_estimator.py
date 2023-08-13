@@ -597,10 +597,11 @@ def get_two_view_reports_summary(
     Args:
         two_view_report_dict: Front-end metrics for pairs of images.
         images: List of all images for this scene, in order of image/frame index.
-    
+
     Returns:
         List of dictionaries, where each dictionary contains the metrics for an image pair.
-    """    
+    """
+
     def round_fn(x):
         return round(x, 2) if x else None
 
@@ -637,4 +638,3 @@ def get_two_view_reports_summary(
             }
         )
     return metrics_list
-    
