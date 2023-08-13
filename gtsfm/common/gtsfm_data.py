@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 EQUALITY_TOLERANCE = 1e-5
 
+
 class GtsfmData:
     """Class containing cameras and tracks, essentially describing the complete 3D scene.
 
