@@ -69,13 +69,13 @@ To run SfM with a dataset with only an image directory and EXIF, with image file
 and run
 
 ```python
-python gtsfm/runner/run_scene_optimizer_olssonloader.py --config_name {CONFIG_NAME} --dataset_root {DATASET_ROOT} --image_extension jpg --num_workers {NUM_WORKERS}
+python gtsfm/runner/run_scene_optimizer_olssonloader.py --config_name {CONFIG_NAME} --dataset_root {DATASET_ROOT} --num_workers {NUM_WORKERS}
 ```
 
 For example, if you had 4 cores available and wanted to use the Deep Front-End (recommended) on the "door" dataset, you should run:
 
 ```bash
-python gtsfm/runner/run_scene_optimizer_olssonloader.py --dataset_root tests/data/set1_lund_door --image_extension JPG --config_name deep_front_end.yaml --num_workers 4
+python gtsfm/runner/run_scene_optimizer_olssonloader.py --dataset_root tests/data/set1_lund_door --config_name deep_front_end.yaml --num_workers 4
 ```
 
 (or however many workers you desire).
@@ -87,7 +87,7 @@ Currently we require EXIF data embedded into your images (or you can provide gro
 If you would like to compare GTSfM output with COLMAP output, please run:
 
 ```python
-python gtsfm/runner/run_scene_optimizer_colmaploader.py --config_name {CONFIG_NAME} --images_dir {IMAGES_DIR} --colmap_files_dirpath {COLMAP_FILES_DIRPATH} --image_extension jpg --num_workers {NUM_WORKERS} --max_frame_lookahead {MAX_FRAME_LOOKAHEAD}
+python gtsfm/runner/run_scene_optimizer_colmaploader.py --config_name {CONFIG_NAME} --images_dir {IMAGES_DIR} --colmap_files_dirpath {COLMAP_FILES_DIRPATH} --num_workers {NUM_WORKERS} --max_frame_lookahead {MAX_FRAME_LOOKAHEAD}
 ```
 
 where `COLMAP_FILES_DIRPATH` is a directory where .txt files such as `cameras.txt`, `images.txt`, etc have been saved.
