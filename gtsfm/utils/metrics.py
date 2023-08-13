@@ -35,9 +35,6 @@ EPSILON = 1e-12
 
 logger = logger_utils.get_logger()
 
-# number of digits (significant figures) to include in each entry of error metrics
-PRINT_NUM_SIG_FIGS = 2
-
 def compute_correspondence_metrics(
     keypoints_i1: Keypoints,
     keypoints_i2: Keypoints,
