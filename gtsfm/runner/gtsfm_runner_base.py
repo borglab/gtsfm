@@ -340,7 +340,7 @@ def unzip_two_view_results(
 ) -> Tuple[
     Dict[Tuple[int, int], Rot3],
     Dict[Tuple[int, int], Unit3],
-    Dict[Tuple[int, int], np.ndarray],ptwo
+    Dict[Tuple[int, int], np.ndarray],
     Dict[Tuple[int, int], TwoViewEstimationReport],
 ]:
     """Unzip the tuple TWO_VIEW_OUTPUT into 1 dictionary for 1 element in the tuple."""
