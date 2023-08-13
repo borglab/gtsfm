@@ -59,10 +59,10 @@ class OneDSFMLoader(LoaderBase):
         self._default_focal_length_factor = default_focal_length_factor
 
         # Fetch all the file names in /images folder.
-        search_path = os.path.join(folder, "images", f"*.{image_extension}")
+        search_path = os.path.join(folder, "images")
 
         if enable_no_exif:
-            self._image_paths = glob.glob(search_path)
+            self._image_paths = io_utils.get_sorted_image_names_in_dir(search_path)
         else:
             (self._image_paths, num_all_imgs) = self.get_images_with_exif(search_path)
             logger.info("Read %d images with exif out of %d in total.", len(self._image_paths), num_all_imgs)

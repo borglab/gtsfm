@@ -17,6 +17,7 @@ from trimesh import Trimesh
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.images as img_utils
 import gtsfm.utils.io as io_utils
+import gtsfm.utils.io as io_utils
 from gtsfm.common.image import Image
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
@@ -415,7 +416,7 @@ class LoaderBase(GTSFMProcess):
                 The number of all the images.
             ]
         """
-        all_image_paths = glob.glob(search_path)
+        all_image_paths = io_utils.get_sorted_image_names_in_dir(search_path)
         num_all_imgs = len(all_image_paths)
         exif_image_paths = []
         for single_img_path in all_image_paths:
