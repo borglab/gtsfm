@@ -16,7 +16,6 @@ from gtsam import Cal3Bundler, EssentialMatrix, PinholeCameraCal3Bundler, Point3
 from trimesh import Trimesh
 
 import gtsfm.utils.geometry_comparisons as comp_utils
-import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.verification as verification_utils
 from gtsfm.common.gtsfm_data import GtsfmData
