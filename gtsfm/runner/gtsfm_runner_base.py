@@ -59,7 +59,7 @@ class GtsfmRunnerBase:
             help="Number of threads per each worker",
         )
         parser.add_argument(
-            "--worker_memory_limit", type=str, default="auto", help="Memory limit per worker, e.g. `8GB`"
+            "--worker_memory_limit", type=str, default=None, help="Memory limit per worker, e.g. `8GB`"
         )
         parser.add_argument(
             "--config_name",
@@ -239,11 +239,13 @@ class GtsfmRunnerBase:
             self.loader._input_worker = io_worker
             self.scene_optimizer._output_worker = io_worker
         else:
-            cluster = LocalCluster(
-                n_workers=self.parsed_args.num_workers,
-                threads_per_worker=self.parsed_args.threads_per_worker,
-                memory_limit=self.parsed_args.worker_memory_limit,
-            )
+            local_cluster_kwargs = {
+                "n_workers": self.parsed_args.num_workers,
+                "threads_per_worker": self.parsed_args.threads_per_worker,
+            }
+            if self.parsed_args.worker_memory_limit is not None:
+                local_cluster_kwargs["memory_limit"] = self.parsed_args.worker_memory_limit
+            cluster = LocalCluster(**local_cluster_kwargs)
             client = Client(cluster)
 
         # Create process graph.
