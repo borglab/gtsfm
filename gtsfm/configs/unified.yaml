@@ -1,4 +1,4 @@
-# Default deep front-end configuration.
+# Default front-end configuration.
 
 SceneOptimizer:
   _target_: gtsfm.scene_optimizer.SceneOptimizer
