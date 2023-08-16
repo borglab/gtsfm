@@ -58,9 +58,7 @@ class GtsfmRunnerBase:
             default=1,
             help="Number of threads per each worker",
         )
-        parser.add_argument(
-            "--worker_memory_limit", type=str, default=None, help="Memory limit per worker, e.g. `8GB`"
-        )
+        parser.add_argument("--worker_memory_limit", type=str, default=None, help="Memory limit per worker, e.g. `8GB`")
         parser.add_argument(
             "--config_name",
             type=str,
@@ -102,7 +100,7 @@ class GtsfmRunnerBase:
             "--num_matched",
             type=int,
             default=None,
-            help="Number of K potential matches to provide per query. These are the top `K` matches per query."
+            help="Number of K potential matches to provide per query. These are the top `K` matches per query.",
         )
         parser.add_argument(
             "--share_intrinsics", action="store_true", help="Shares the intrinsics between all the cameras"
