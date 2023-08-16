@@ -233,7 +233,7 @@ class TestIoUtils(unittest.TestCase):
             np.testing.assert_allclose(data["data"][1:], data_from_json["data"][1:])
 
     def test_sort_image_filenames_lexigraphically(self) -> None:
-        """Tests that 5 image-camera pose pairs are sorted jointly according tp file name."""
+        """Tests that 5 image-camera pose pairs are sorted jointly according to file name."""
         wTi_list = [
             Pose3(Rot3(), np.array([0,0,34])),
             Pose3(Rot3(), np.array([0,0,35])),
