@@ -51,7 +51,8 @@ fi
 if [ "$LOADER_NAME" == "olsson-loader" ]; then
   python gtsfm/runner/run_scene_optimizer_olssonloader.py \
     --dataset_root $DATASET_ROOT \
-    --config_name ${CONFIG_NAME}.yaml \
+    --config_name unified \
+    --correspondence_generator_config_name ${CONFIG_NAME} \
     --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
     --max_resolution ${MAX_RESOLUTION} \
     ${SHARE_INTRINSICS_ARG} \
@@ -61,7 +62,8 @@ elif [ "$LOADER_NAME" == "colmap-loader" ]; then
   python gtsfm/runner/run_scene_optimizer_colmaploader.py \
     --images_dir ${IMAGES_DIR} \
     --colmap_files_dirpath $COLMAP_FILES_DIRPATH \
-    --config_name ${CONFIG_NAME}.yaml \
+    --config_name unified \
+    --correspondence_generator_config_name ${CONFIG_NAME} \
     --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
     --max_resolution ${MAX_RESOLUTION} \
     ${SHARE_INTRINSICS_ARG} \
@@ -70,7 +72,8 @@ elif [ "$LOADER_NAME" == "colmap-loader" ]; then
 elif [ "$LOADER_NAME" == "astrovision" ]; then
   python gtsfm/runner/run_scene_optimizer_astrovision.py \
     --data_dir $DATASET_ROOT \
-    --config_name ${CONFIG_NAME}.yaml \
+    --config_name unified \
+    --correspondence_generator_config_name ${CONFIG_NAME} \
     --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
     --max_resolution ${MAX_RESOLUTION} \
     ${SHARE_INTRINSICS_ARG} \

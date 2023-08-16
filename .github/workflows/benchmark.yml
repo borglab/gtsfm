@@ -13,20 +13,20 @@ jobs:
         config_dataset_info:
           [
             # config              dataset                lookahead   img-extension  source      loader          max-res  share-intrinsics
-            [unified,             door-12,               10,         JPG,           test_data,  olsson-loader,  1296,    true],
-            [unified,             door-12,               10,         JPG,           test_data,  olsson-loader,  1296,    true],
-            [unified,             skydio-8,              10,         jpg,           gdrive ,    colmap-loader,  760,     true],
-            [unified,             skydio-8,              10,         jpg,           gdrive,     colmap-loader,  760,     true],
-            [unified,             skydio-32,             10,         jpg,           gdrive,     colmap-loader,  760,     true],
-            [unified,             skydio-32,             10,         jpg,           gdrive,     colmap-loader,  760,     true],
-            [unified,             palace-fine-arts-281,  10,         jpg,           wget,       olsson-loader,  320,     true],
-            [unified,             notre-dame-20,         10,         jpg,           gdrive,     colmap-loader,  760,     false],
-            [unified,             2011205_rc3,           10,         png,           wget,       astrovision,    1024,    true],
-            [unified,             2011205_rc3,           10,         png,           wget,       astrovision,    1024,    true],
-            [unified,             gerrard-hall-100,      10,         jpg,           wget,       colmap-loader,  760,     true],
-            [unified,             gerrard-hall-100,      10,         jpg,           wget,       colmap-loader,  760,     true],
-            [unified,             south-building-128,    10,         jpg,           wget,       colmap-loader,  760,     true],
-            [unified,             south-building-128,    10,         jpg,           wget,       colmap-loader,  760,     true],  
+            [sift,                door-12,               10,         JPG,           test_data,  olsson-loader,  1296,    true],
+            [lightglue,           door-12,               10,         JPG,           test_data,  olsson-loader,  1296,    true],
+            [sift,                skydio-8,              10,         jpg,           gdrive ,    colmap-loader,  760,     true],
+            [lightglue,           skydio-8,              10,         jpg,           gdrive,     colmap-loader,  760,     true],
+            [sift,                skydio-32,             10,         jpg,           gdrive,     colmap-loader,  760,     true],
+            [lightglue,           skydio-32,             10,         jpg,           gdrive,     colmap-loader,  760,     true],
+            [sift,                palace-fine-arts-281,  10,         jpg,           wget,       olsson-loader,  320,     true],
+            [lightglue,           notre-dame-20,         10,         jpg,           gdrive,     colmap-loader,  760,     false],
+            [sift,                2011205_rc3,           10,         png,           wget,       astrovision,    1024,    true],
+            [lightglue,           2011205_rc3,           10,         png,           wget,       astrovision,    1024,    true],
+            [sift,                gerrard-hall-100,      10,         jpg,           wget,       colmap-loader,  760,     true],
+            [lightglue,           gerrard-hall-100,      10,         jpg,           wget,       colmap-loader,  760,     true],
+            [sift,                south-building-128,    10,         jpg,           wget,       colmap-loader,  760,     true],
+            [lightglue,           south-building-128,    10,         jpg,           wget,       colmap-loader,  760,     true],  
           ]
     defaults:
       run:
