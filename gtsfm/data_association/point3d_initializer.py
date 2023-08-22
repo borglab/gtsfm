@@ -10,11 +10,11 @@ Authors: Sushmita Warrier, Xiaolong Wu, John Lambert, Travis Driver
 import itertools
 import sys
 from enum import Enum
-from typing import Dict, List, NamedTuple, Optional, Tuple, Union
+from typing import Dict, List, NamedTuple, Optional, Tuple
 
 import gtsam
 import numpy as np
-from gtsam import CameraSetCal3Bundler, CameraSetCal3Fisheye, PinholeCameraCal3Bundler, Point2Vector, SfmTrack
+from gtsam import Point2Vector, SfmTrack
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.logger as logger_utils
@@ -103,7 +103,7 @@ class TriangulationOptions(NamedTuple):
         """Compute maximum number of hypotheses.
 
         The RANSAC module defaults to 2749 iterations, computed as:
-            np.log(1-0.9999) / np.log( 1 - 0.1 **2) * 3 = 2749.3
+            np.log(1 - 0.9999) / np.log(1 - 0.1**2) * 3 = 2749.3
         """
         self.__check_ransac_params()
         dyn_num_hypotheses = int(
@@ -122,20 +122,19 @@ class Point3dInitializer:
         https://github.com/mapillary/OpenSfM/blob/master/opensfm/reconstruction.py#L755
 
     Args:
-        track_cameras: Dict of cameras and their indices.
-        mode: triangulation mode, which dictates whether or not to use robust estimation.
-        reproj_error_thresh: threshold on reproj errors for inliers.
-        num_ransac_hypotheses (optional): desired number of RANSAC hypotheses.
+        track_camera_dict: Dict of cameras and their indices.
+        options: options for triangulation.
     """
 
     def __init__(self, track_camera_dict: Dict[int, gtsfm_types.CAMERA_TYPE], options: TriangulationOptions) -> None:
-        self.track_camera_dict = track_camera_dict
         self.options = options
 
-        sample_camera = list(self.track_camera_dict.values())[0]
-        self._camera_set_class = (
-            CameraSetCal3Bundler if isinstance(sample_camera, PinholeCameraCal3Bundler) else CameraSetCal3Fisheye
-        )
+        # Verify cameras.
+        sample_camera = list(track_camera_dict.values())[0]
+        if not all([type(camera) is type(sample_camera) for camera in track_camera_dict.values()]):
+            raise TypeError("All cameras must be the same type.")
+        self.track_camera_dict = track_camera_dict
+        self._camera_set_class = gtsfm_types.get_camera_set_class_for_camera(sample_camera)
 
     def execute_ransac_variant(self, track_2d: SfmTrack2d) -> np.ndarray:
         """Execute RANSAC algorithm to find best subset 2d measurements for a 3d point.
@@ -343,9 +342,7 @@ class Point3dInitializer:
 
         return sample_indices.tolist()
 
-    def extract_measurements(
-        self, track: SfmTrack2d
-    ) -> Tuple[Union[CameraSetCal3Bundler, CameraSetCal3Fisheye], Point2Vector]:
+    def extract_measurements(self, track: SfmTrack2d) -> Tuple[gtsfm_types.CAMERA_SET_TYPE, Point2Vector]:
         """Convert measurements in a track into GTSAM primitive types for triangulation arguments.
 
         Returns None, None if less than 2 measurements were found with estimated camera poses after averaging.
