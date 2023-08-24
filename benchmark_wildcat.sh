@@ -8,7 +8,7 @@ now=$(date +"%Y%m%d_%H%M%S")
 datasets=(
 	palace-fine-arts-281
 	skydio-crane-mast-501
-	#2011205_rc3
+	2011205_rc3
 	south-building-128
 	gerrard-hall-100
 	)
@@ -31,6 +31,7 @@ correspondence_generator_config_names=(
 	sift
 	lightglue
 	superglue
+	loftr
 	)
 
 
@@ -44,6 +45,17 @@ for num_matched in ${num_matched_sizes[@]}; do
 				echo "Max frame lookahead: "${max_frame_lookahead}
 				echo "Correspondence Generator: "${correspondence_generator_config_name}
 
+				if [[ $correspondence_generator_config_name == *"sift"* ]]
+				then
+					num_workers=10
+				elif [[ $correspondence_generator_config_name == *"lightglue"* ]]
+				then
+					num_workers=1
+				elif [[ $correspondence_generator_config_name == *"loftr"* ]]
+				then
+					num_workers=1
+				fi
+
 				if [[ $dataset == *"palace-fine-arts-281"* ]]
 				then
 					loader=olsson
@@ -56,6 +68,7 @@ for num_matched in ${num_matched_sizes[@]}; do
 				elif [[ $dataset == *"2011205_rc3"* ]]
 				then
 					loader=astrovision
+					data_dir=/usr/local/gtsfm-data/2011205_rc3
 				elif [[ $dataset == *"south-building-128"* ]]
 				then
 					loader=colmap
@@ -79,14 +92,15 @@ for num_matched in ${num_matched_sizes[@]}; do
 					--correspondence_generator_config_name $correspondence_generator_config_name \
 					--share_intrinsics \
 					--dataset_root $dataset_root \
-					--num_workers 10 \
+					--num_workers $num_workers \
 					--num_matched $num_matched \
 					--max_frame_lookahead $max_frame_lookahead \
 					--worker_memory_limit "32GB" \
 					--output_root $OUTPUT_ROOT \
 					--max_resolution 760 \
 					2>&1 | tee $OUTPUT_ROOT/out.log
-				else
+				elif [[ $loader == *"olsson"* ]]
+				then
 					python gtsfm/runner/run_scene_optimizer_colmaploader.py \
 					--mvs_off \
 					--config unified \
@@ -94,14 +108,28 @@ for num_matched in ${num_matched_sizes[@]}; do
 					--share_intrinsics \
 					--images_dir $images_dir \
 					--colmap_files_dirpath $colmap_files_dirpath \
-					--num_workers 10 \
+					--num_workers $num_workers \
 					--num_matched $num_matched \
 					--max_frame_lookahead $max_frame_lookahead \
 					--worker_memory_limit "32GB" \
 					--output_root $OUTPUT_ROOT \
 					--max_resolution 760 \
 					2>&1 | tee $OUTPUT_ROOT/out.log
-
+				elif [[ $loader == *"astrovision"* ]]
+				then
+					python gtsfm/runner/run_scene_optimizer_astrovision.py \
+					--mvs_off \
+					--config unified \
+					--correspondence_generator_config_name $correspondence_generator_config_name \
+					--share_intrinsics \
+					--data_dir $data_dir \
+					--num_workers $num_workers \
+					--num_matched $num_matched \
+					--max_frame_lookahead $max_frame_lookahead \
+					--worker_memory_limit "32GB" \
+					--output_root $OUTPUT_ROOT \
+					--max_resolution 760 \
+					2>&1 | tee $OUTPUT_ROOT/out.log
 				fi
 			done
 		done
