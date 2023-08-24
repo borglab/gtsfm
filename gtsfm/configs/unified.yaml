@@ -9,9 +9,9 @@ SceneOptimizer:
 
   retriever:
     _target_: gtsfm.retriever.joint_netvlad_sequential_retriever.JointNetVLADSequentialRetriever
-    num_matched: 20
+    num_matched: 5
     min_score: 0.3
-    max_frame_lookahead: 10
+    max_frame_lookahead: 15
 
   correspondence_generator:
     _target_: gtsfm.frontend.correspondence_generator.det_desc_correspondence_generator.DetDescCorrespondenceGenerator
