@@ -58,9 +58,7 @@ class GtsfmRunnerBase:
             default=1,
             help="Number of threads per each worker",
         )
-        parser.add_argument(
-            "--worker_memory_limit", type=str, default=None, help="Memory limit per worker, e.g. `8GB`"
-        )
+        parser.add_argument("--worker_memory_limit", type=str, default=None, help="Memory limit per worker, e.g. `8GB`")
         parser.add_argument(
             "--config_name",
             type=str,
@@ -97,6 +95,12 @@ class GtsfmRunnerBase:
             type=int,
             default=None,
             help="maximum number of consecutive frames to consider for matching/co-visibility",
+        )
+        parser.add_argument(
+            "--num_matched",
+            type=int,
+            default=None,
+            help="Number of K potential matches to provide per query. These are the top `K` matches per query.",
         )
         parser.add_argument(
             "--share_intrinsics", action="store_true", help="Shares the intrinsics between all the cameras"
@@ -191,6 +195,21 @@ class GtsfmRunnerBase:
                 scene_optimizer.retriever._max_frame_lookahead = self.parsed_args.max_frame_lookahead
             elif scene_optimizer.retriever._matching_regime == ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL:
                 scene_optimizer.retriever._seq_retriever._max_frame_lookahead = self.parsed_args.max_frame_lookahead
+            else:
+                raise ValueError(
+                    "`max_frame_lookahead` arg is incompatible with retriever matching regime "
+                    f"{scene_optimizer.retriever._matching_regime}"
+                )
+        if self.parsed_args.num_matched is not None:
+            if scene_optimizer.retriever._matching_regime == ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL:
+                scene_optimizer.retriever._similarity_retriever._num_matched = self.parsed_args.num_matched
+            elif scene_optimizer.retriever._matching_regime == ImageMatchingRegime.RETRIEVAL:
+                scene_optimizer.retriever._num_matched = self.parsed_args.num_matched
+            else:
+                raise ValueError(
+                    "`num_matched` arg is incompatible with retriever matching regime "
+                    f"{scene_optimizer.retriever._matching_regime}"
+                )
 
         if self.parsed_args.mvs_off:
             scene_optimizer.run_dense_optimizer = False
