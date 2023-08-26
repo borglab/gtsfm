@@ -111,6 +111,7 @@ class TestDsfTracksEstimator(GtsamTestCase):
         assert track2.measurement(0).i == 1
         assert track2.measurement(1).i == 2
 
+
 def get_dummy_keypoints_list() -> List[Keypoints]:
     """ """
     img1_kp_coords = np.array([[1, 1], [2, 2], [3, 3]])
