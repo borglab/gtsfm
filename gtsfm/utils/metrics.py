@@ -11,6 +11,7 @@ from typing import Dict, List, Optional, Sequence, Set, Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
+import seaborn as sns
 from gtsam import Cal3Bundler, EssentialMatrix, PinholeCameraCal3Bundler, Point3, Pose3, Rot3, Unit3
 from trimesh import Trimesh
 
@@ -308,6 +309,7 @@ def compute_pose_auc_metric(
     rotation_angular_errors: Sequence[float],
     translation_angular_errors: Sequence[float],
     thresholds_deg: Tuple[float] = (1, 2.5, 5, 10, 20),
+    save_dir: Optional[str] = None,
 ) -> List[GtsfmMetric]:
     """Computes "Pose AUC" metric from rotation & translation angular errors.
 
@@ -328,7 +330,7 @@ def compute_pose_auc_metric(
         raise ValueError("# of rotation and translation angular errors must match.")
 
     pose_errors = np.maximum(rotation_angular_errors, translation_angular_errors)
-    aucs = pose_auc(pose_errors, thresholds_deg)
+    aucs = pose_auc(pose_errors, thresholds_deg, save_dir=save_dir)
     metrics = []
     for threshold, auc in zip(thresholds_deg, aucs):
         metrics.append(GtsfmMetric(f"pose_auc_@{threshold}_deg", auc))
@@ -338,6 +340,7 @@ def compute_pose_auc_metric(
 def compute_ba_pose_metrics(
     gt_wTi_list: List[Pose3],
     ba_output: GtsfmData,
+    save_dir: Optional[str] = None,
 ) -> GtsfmMetricsGroup:
     """Compute pose errors w.r.t. GT for the bundle adjustment result.
 
@@ -364,7 +367,7 @@ def compute_ba_pose_metrics(
 
     rotation_angular_errors = metrics[0]._data
     translation_angular_errors = metrics[3]._data
-    metrics.extend(compute_pose_auc_metric(rotation_angular_errors, translation_angular_errors))
+    metrics.extend(compute_pose_auc_metric(rotation_angular_errors, translation_angular_errors, save_dir=save_dir))
 
     return GtsfmMetricsGroup(name="ba_pose_error_metrics", metrics=metrics)
 
@@ -502,7 +505,9 @@ def get_measurement_angle_errors(
     return errors
 
 
-def pose_auc(errors: np.ndarray, thresholds: Sequence[float], save_plot: bool = False) -> Sequence[float]:
+def pose_auc(
+    errors: np.ndarray, thresholds: Sequence[float], save_plot: bool = True, save_dir: Optional[str] = None
+) -> Sequence[float]:
     """Computes area under the Recall (y) vs. Pose Error (x) curve, the pose AUC.
 
     If recall is defined as TP / # actual positives, then every camera is a TP if one can register it.
@@ -510,6 +515,8 @@ def pose_auc(errors: np.ndarray, thresholds: Sequence[float], save_plot: bool = 
     Args:
         errors: Array of shape (n,) representing angular errors.
         thresholds: Angular error thresholds.
+        save_plot: Whether to save an AUC plot.
+        save_dir: Directory where AUC plots should be saved.
 
     Returns:
         List of AUC values, one per threshold.
@@ -526,12 +533,20 @@ def pose_auc(errors: np.ndarray, thresholds: Sequence[float], save_plot: bool = 
         r = np.r_[recall[:last_index], recall[last_index - 1]]
         e = np.r_[errors[:last_index], t]
         if save_plot:
+            if save_dir is None:
+                raise ValueError("If `save_plot` is True, then `save_dir` must be provided.")
+            _ = plt.figure(dpi=200, facecolor="white")
+            plt.style.use("ggplot")
+            sns.set_style({"font.family": "Times New Roman"})
             plt.scatter(e, r, 20, color="k", marker=".")
             plt.plot(e, r, color="r")
             plt.ylabel("Recall")
             plt.xlabel("Pose Error (deg.)")
             uuid = datetime.datetime.utcnow().strftime("%Y_%m_%d_%H_%M_%S_%f")
-            save_fpath = f"{uuid}_recall_vs_pose_error_curve_auc.jpg"
+            Path(save_dir, "plots", "pose_auc").mkdir(parents=True, exist_ok=True)
+            save_fpath = Path(
+                save_dir, "plots", "pose_auc", f"{uuid}_recall_vs_pose_error_curve_auc_{t}_deg_threshold.jpg"
+            )
             plt.savefig(save_fpath)
             plt.close("all")
 

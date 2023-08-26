@@ -79,11 +79,23 @@ class TwoViewEstimator:
         self._bundle_adjust_2view = bundle_adjust_2view
         self._corr_metric_dist_threshold = eval_threshold_px
         self._triangulation_options = triangulation_options
+        self._ba_reproj_error_thresholds = ba_reproj_error_thresholds
+        self._bundle_adjust_2view_maxiters = bundle_adjust_2view_maxiters
         self._ba_optimizer = TwoViewBundleAdjustment(
             reproj_error_thresholds=ba_reproj_error_thresholds,
             robust_measurement_noise=True,
             max_iterations=bundle_adjust_2view_maxiters,
         )
+
+    def __repr__(self) -> str:
+        return f"""
+        TwoViewEstimator:
+            Verifier: {self._verifier}
+            Bundle adjust 2-view: {self._bundle_adjust_2view}
+            Correspondence metric dist. threshold: {self._corr_metric_dist_threshold}
+            BA reproj. error thresholds: {self._ba_reproj_error_thresholds}
+            BA 2-view max. iters: {self._bundle_adjust_2view_maxiters}
+        """
 
     def triangulate_two_view_correspondences(
         self,
@@ -142,6 +154,7 @@ class TwoViewEstimator:
             i2Ri1_initial: The relative rotation to be used as initial rotation between cameras.
             i2Ui1_initial: The relative unit direction, to be used to initialize initial translation between cameras.
             i2Ti1_prior: Prior on the relative pose for cameras (i1, i2).
+
         Returns:
             Optimized relative rotation i2Ri1.
             Optimized unit translation i2Ui1.
@@ -428,7 +441,7 @@ def aggregate_frontend_metrics(
     """
     num_image_pairs = len(two_view_reports_dict.keys())
 
-    # all rotational errors in degrees
+    # All rotational errors in degrees.
     rot3_angular_errors_list: List[float] = []
     trans_angular_errors_list: List[float] = []
 
@@ -436,7 +449,7 @@ def aggregate_frontend_metrics(
     inlier_ratio_est_model_all_pairs = []
     num_inliers_gt_model_all_pairs = []
     num_inliers_est_model_all_pairs = []
-    # populate the distributions
+    # Populate the distributions.
     for report in two_view_reports_dict.values():
         if report.R_error_deg is not None:
             rot3_angular_errors_list.append(report.R_error_deg)
@@ -450,18 +463,18 @@ def aggregate_frontend_metrics(
 
     rot3_angular_errors = np.array(rot3_angular_errors_list, dtype=float)
     trans_angular_errors = np.array(trans_angular_errors_list, dtype=float)
-    # count number of rot3 errors which are not None. Should be same in rot3/unit3
+    # Count number of rot3 errors which are not None. Should be same in rot3/unit3.
     num_valid_image_pairs = np.count_nonzero(~np.isnan(rot3_angular_errors))
 
-    # compute pose errors by picking the max error from rot3 and unit3 errors
+    # Compute pose errors by picking the max error from rot3 and unit3 errors.
     pose_errors = np.maximum(rot3_angular_errors, trans_angular_errors)
 
-    # check errors against the threshold
+    # Check errors against the threshold.
     success_count_rot3 = np.sum(rot3_angular_errors < angular_err_threshold_deg)
     success_count_unit3 = np.sum(trans_angular_errors < angular_err_threshold_deg)
     success_count_pose = np.sum(pose_errors < angular_err_threshold_deg)
 
-    # count image pair entries where inlier ratio w.r.t. GT model == 1.
+    # Count image pair entries where inlier ratio w.r.t. GT model == 1.
     all_correct = np.count_nonzero(
         [report.inlier_ratio_gt_model == 1.0 for report in two_view_reports_dict.values() if report is not None]
     )
@@ -496,7 +509,7 @@ def aggregate_frontend_metrics(
         metric_group_name,
         [
             GtsfmMetric("angular_err_threshold_deg", angular_err_threshold_deg),
-            GtsfmMetric("num_total_image_pairs", int(num_image_pairs)),
+            GtsfmMetric("num_input_image_pairs", int(num_image_pairs)),
             GtsfmMetric("num_valid_image_pairs", int(num_valid_image_pairs)),
             GtsfmMetric("rotation_success_count", int(success_count_rot3)),
             GtsfmMetric("translation_success_count", int(success_count_unit3)),

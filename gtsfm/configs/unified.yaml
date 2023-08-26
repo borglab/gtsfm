@@ -1,5 +1,4 @@
-# Deep front-end configuration tuned for AstroVision datasets: https://github.com/astrovision
-# Relaxes triangulation RANSAC threshold to 100 (10x threshold of deep_front_end.yaml)
+# Default front-end configuration.
 
 SceneOptimizer:
   _target_: gtsfm.scene_optimizer.SceneOptimizer
@@ -9,9 +8,10 @@ SceneOptimizer:
   pose_angular_error_thresh: 5 # degrees
 
   retriever:
-    _target_: gtsfm.retriever.netvlad_retriever.NetVLADRetriever
-    num_matched: 20
-    min_score: 0.5
+    _target_: gtsfm.retriever.joint_netvlad_sequential_retriever.JointNetVLADSequentialRetriever
+    num_matched: 5
+    min_score: 0.3
+    max_frame_lookahead: 15
 
   correspondence_generator:
     _target_: gtsfm.frontend.correspondence_generator.det_desc_correspondence_generator.DetDescCorrespondenceGenerator
@@ -53,6 +53,8 @@ SceneOptimizer:
 
   multiview_optimizer:
     _target_: gtsfm.multi_view_optimizer.MultiViewOptimizer
+
+    # comment out to not run
     view_graph_estimator:
       _target_: gtsfm.view_graph_estimator.cycle_consistent_rotation_estimator.CycleConsistentRotationViewGraphEstimator
       edge_error_aggregation_criterion: MEDIAN_EDGE_ERROR
@@ -63,13 +65,14 @@ SceneOptimizer:
     trans_avg_module:
       _target_: gtsfm.averaging.translation.averaging_1dsfm.TranslationAveraging1DSFM
       robust_measurement_noise: True
+      projection_sampling_method: SAMPLE_INPUT_MEASUREMENTS
 
     data_association_module:
       _target_: gtsfm.data_association.data_assoc.DataAssociation
       min_track_len: 2
       triangulation_options:
         _target_: gtsfm.data_association.point3d_initializer.TriangulationOptions
-        reproj_error_threshold: 100
+        reproj_error_threshold: 10
         mode:
           _target_: gtsfm.data_association.point3d_initializer.TriangulationSamplingMode
           value: RANSAC_SAMPLE_UNIFORM
@@ -81,6 +84,10 @@ SceneOptimizer:
       reproj_error_thresholds: [10, 5, 3] # for (multistage) post-optimization filtering
       robust_measurement_noise: True
       shared_calib: False
+      cam_pose3_prior_noise_sigma: 0.1
+      calibration_prior_noise_sigma: 1e-5
+      measurement_noise_sigma: 1.0
 
+  # comment out to not run
   dense_multiview_optimizer:
     _target_: gtsfm.densify.mvs_patchmatchnet.MVSPatchmatchNet

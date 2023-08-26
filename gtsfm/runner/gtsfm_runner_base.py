@@ -58,6 +58,7 @@ class GtsfmRunnerBase:
             default=1,
             help="Number of threads per each worker",
         )
+        parser.add_argument("--worker_memory_limit", type=str, default=None, help="Memory limit per worker, e.g. `8GB`")
         parser.add_argument(
             "--config_name",
             type=str,
@@ -94,6 +95,12 @@ class GtsfmRunnerBase:
             type=int,
             default=None,
             help="maximum number of consecutive frames to consider for matching/co-visibility",
+        )
+        parser.add_argument(
+            "--num_matched",
+            type=int,
+            default=None,
+            help="Number of K potential matches to provide per query. These are the top `K` matches per query.",
         )
         parser.add_argument(
             "--share_intrinsics", action="store_true", help="Shares the intrinsics between all the cameras"
@@ -188,13 +195,28 @@ class GtsfmRunnerBase:
                 scene_optimizer.retriever._max_frame_lookahead = self.parsed_args.max_frame_lookahead
             elif scene_optimizer.retriever._matching_regime == ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL:
                 scene_optimizer.retriever._seq_retriever._max_frame_lookahead = self.parsed_args.max_frame_lookahead
+            else:
+                raise ValueError(
+                    "`max_frame_lookahead` arg is incompatible with retriever matching regime "
+                    f"{scene_optimizer.retriever._matching_regime}"
+                )
+        if self.parsed_args.num_matched is not None:
+            if scene_optimizer.retriever._matching_regime == ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL:
+                scene_optimizer.retriever._similarity_retriever._num_matched = self.parsed_args.num_matched
+            elif scene_optimizer.retriever._matching_regime == ImageMatchingRegime.RETRIEVAL:
+                scene_optimizer.retriever._num_matched = self.parsed_args.num_matched
+            else:
+                raise ValueError(
+                    "`num_matched` arg is incompatible with retriever matching regime "
+                    f"{scene_optimizer.retriever._matching_regime}"
+                )
 
         if self.parsed_args.mvs_off:
             scene_optimizer.run_dense_optimizer = False
 
         logger.info("\n\nSceneOptimizer: " + str(scene_optimizer))
         return scene_optimizer
-    
+
     def setup_ssh_cluster_with_retries(self):
         """Sets up SSH Cluster allowing multiple retries upon connection failures."""
         workers = OmegaConf.load(
@@ -214,6 +236,7 @@ class GtsfmRunnerBase:
                     worker_options={
                         "n_workers": self.parsed_args.num_workers,
                         "nthreads": self.parsed_args.threads_per_worker,
+                        "memory_limit": "8GB",
                     },
                 )
                 connected = True
@@ -226,7 +249,7 @@ class GtsfmRunnerBase:
         """Run the SceneOptimizer."""
         start_time = time.time()
 
-        # create dask cluster
+        # Create dask cluster.
         if self.parsed_args.cluster_config:
             cluster = self.setup_ssh_cluster_with_retries()
             client = Client(cluster)
@@ -235,12 +258,16 @@ class GtsfmRunnerBase:
             self.loader._input_worker = io_worker
             self.scene_optimizer._output_worker = io_worker
         else:
-            cluster = LocalCluster(
-                n_workers=self.parsed_args.num_workers, threads_per_worker=self.parsed_args.threads_per_worker
-            )
+            local_cluster_kwargs = {
+                "n_workers": self.parsed_args.num_workers,
+                "threads_per_worker": self.parsed_args.threads_per_worker,
+            }
+            if self.parsed_args.worker_memory_limit is not None:
+                local_cluster_kwargs["memory_limit"] = self.parsed_args.worker_memory_limit
+            cluster = LocalCluster(**local_cluster_kwargs)
             client = Client(cluster)
 
-        # create process graph
+        # Create process graph.
         process_graph_generator = ProcessGraphGenerator()
         if isinstance(self.scene_optimizer.correspondence_generator, ImageCorrespondenceGenerator):
             process_graph_generator.is_image_correspondence = True
@@ -249,6 +276,10 @@ class GtsfmRunnerBase:
         # TODO(Ayush): Use futures
         image_pair_indices = self.scene_optimizer.retriever.get_image_pairs(
             self.loader, plots_output_dir=self.scene_optimizer._plot_base_path
+        )
+        retriever_metrics = self.scene_optimizer.retriever.evaluate(self.loader, image_pair_indices)
+        retriever_metrics.save_to_json(
+            os.path.join(self.parsed_args.output_root, "result_metrics", "retriever_metrics" + ".json")
         )
 
         intrinsics = self.loader.get_all_intrinsics()

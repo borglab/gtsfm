@@ -38,6 +38,12 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
             KeypointAggregatorDedup() if deduplicate else KeypointAggregatorUnique()
         )
 
+    def __repr__(self) -> str:
+        return f"""
+        ImageCorrespondenceGenerator:
+           {self._matcher}
+        """
+
     def generate_correspondences(
         self,
         client: Client,
