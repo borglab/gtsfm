@@ -11,6 +11,7 @@ import dask
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+from dask import config as dask_config
 from dask.delayed import Delayed
 from gtsam import Pose3, Similarity3, Rot3, Unit3
 from trimesh import Trimesh
@@ -56,6 +57,8 @@ pil_logger.setLevel(logging.INFO)
 
 # number of digits (significant figures) to include in each entry of error metrics
 PRINT_NUM_SIG_FIGS = 2
+
+dask_config.set({'distributed.scheduler.worker-ttl': None})
 
 
 class SceneOptimizer:
