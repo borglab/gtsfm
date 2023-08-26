@@ -123,12 +123,12 @@ class ProcessGraphGenerator:
 
         # autocast strings to one-element tuples
         output_products = metadata.output_products
-        if type(output_products) == str:
+        if isinstance(output_products, str):
             output_products = (output_products,)
 
         # autocast strings to one-element tuples
         input_products = metadata.input_products
-        if type(input_products) == str:
+        if isinstance(input_products, str):
             input_products = (input_products,)
 
         cluster = self._main_graph

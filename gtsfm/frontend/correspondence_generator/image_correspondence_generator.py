@@ -2,12 +2,17 @@
 
 Authors: John Lambert
 """
+from typing import Any, Dict, List, Optional, Tuple
 
-from typing import Dict, List, Tuple
+from dask.distributed import Client, Future
+import numpy as np
 
-from dask.delayed import Delayed
-
+from gtsfm.common.image import Image
+from gtsfm.common.keypoints import Keypoints
+from gtsfm.common.pose_prior import PosePrior
+from gtsfm.common.types import CALIBRATION_TYPE, CAMERA_TYPE
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
+from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_base import KeypointAggregatorBase
 from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_dedup import (
     KeypointAggregatorDedup,
 )
@@ -15,6 +20,7 @@ from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggreg
     KeypointAggregatorUnique,
 )
 from gtsfm.frontend.matcher.image_matcher_base import ImageMatcherBase
+from gtsfm.two_view_estimator import TWO_VIEW_OUTPUT, TwoViewEstimator
 
 
 class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
@@ -28,42 +34,141 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
         """
         self._matcher = matcher
 
-        if deduplicate:
-            self._aggregator = KeypointAggregatorDedup()
-        else:
-            self._aggregator = KeypointAggregatorUnique()
-
-    def create_computation_graph(
-        self,
-        delayed_images: List[Delayed],
-        image_shapes: List[Tuple[int, int]],
-        image_pair_indices: List[Tuple[int, int]],
-    ) -> Tuple[List[Delayed], Dict[Tuple[int, int], Delayed]]:
-        """Create Dask computation graph for correspondence generation.
-
-        Args:
-            delayed_images: list of N images.
-            image_shapes: list of N image shapes, as tuples (height,width) in pixels.
-            image_pair_indices: list of image pairs, each represented by a tuple (i1,i2).
-
-        Return:
-            delayed_keypoints: list of delayed tasks, each yielding Keypoints in one image.
-            delayed_putative_corr_idxs_dict: mapping from image pair (i1,i2) to delayed task to compute
-                putative correspondence indices. Correspondence indices are represented by an array of
-                shape (K,2), for K correspondences.
-        """
-        delayed_keypoints_dict = {}
-        delayed_putative_corr_idxs_dict = {}
-
-        for (i1, i2) in image_pair_indices:
-            delayed_dets_i1, delayed_dets_i2 = self._matcher.create_computation_graph(
-                delayed_images[i1], delayed_images[i2]
-            )
-            delayed_keypoints_dict[i1, i2] = (delayed_dets_i1, delayed_dets_i2)
-
-        # combine the keypoints into massive arrays, aggregated from over all pairs.
-        delayed_keypoints, delayed_putative_corr_idxs_dict = self._aggregator.create_computation_graph(
-            delayed_keypoints_dict
+        self._aggregator: KeypointAggregatorBase = (
+            KeypointAggregatorDedup() if deduplicate else KeypointAggregatorUnique()
         )
 
-        return delayed_keypoints, delayed_putative_corr_idxs_dict
+    def __repr__(self) -> str:
+        return f"""
+        ImageCorrespondenceGenerator:
+           {self._matcher}
+        """
+
+    def generate_correspondences(
+        self,
+        client: Client,
+        images: List[Future],
+        image_pairs: List[Tuple[int, int]],
+    ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
+        """Apply the correspondence generator to generate putative correspondences.
+
+        Args:
+            client: dask client, used to execute the front-end as futures.
+            images: list of all images, as futures.
+            image_pairs: indices of the pairs of images to estimate two-view pose and correspondences.
+
+        Returns:
+            List of keypoints, one entry for each input images.
+            Putative correspondence as indices of keypoints, for pairs of images.
+        """
+
+        def apply_image_matcher(
+            image_matcher: ImageMatcherBase, image_i1: Image, image_i2: Image
+        ) -> Tuple[Keypoints, Keypoints]:
+            return image_matcher.match(image_i1=image_i1, image_i2=image_i2)
+
+        image_matcher_future = client.scatter(self._matcher, broadcast=False)
+        pairwise_correspondence_futures = {
+            (i1, i2): client.submit(apply_image_matcher, image_matcher_future, images[i1], images[i2])
+            for i1, i2 in image_pairs
+        }
+
+        pairwise_correspondences: Dict[Tuple[int, int], Tuple[Keypoints, Keypoints]] = client.gather(
+            pairwise_correspondence_futures
+        )
+
+        keypoints_list, putative_corr_idxs_dict = self._aggregator.aggregate(keypoints_dict=pairwise_correspondences)
+
+        return keypoints_list, putative_corr_idxs_dict
+
+    def generate_correspondences_and_estimate_two_view(
+        self,
+        client: Client,
+        images: List[Image],
+        image_pairs: List[Tuple[int, int]],
+        camera_intrinsics: List[CALIBRATION_TYPE],
+        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
+        gt_cameras: List[Optional[CAMERA_TYPE]],
+        gt_scene_mesh: Optional[Any],
+        two_view_estimator: TwoViewEstimator,
+    ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], TWO_VIEW_OUTPUT]]:
+        """Apply the correspondence generator to generate putative correspondences and subsequently process them with
+        two view estimator to complete the front-end.
+
+        Args:
+            client: dask client, used to execute the front-end as futures.
+            images: list of all images.
+            image_pairs: indices of the pairs of images to estimate two-view pose and correspondences.
+            camera_intrinsics: list of all camera intrinsics.
+            relative_pose_priors: priors on relative pose between two cameras.
+            gt_cameras: GT cameras, used to evaluate metrics.
+            gt_scene_mesh: GT mesh of the 3D scene, used to evaluate metrics.
+            two_view_estimator: two view estimator, which is used to verify correspondences and estimate pose.
+
+        Returns:
+            List of keypoints, one entry for each input images.
+            Two view output for image_pairs.
+        """
+
+        def apply_image_matcher(
+            image_matcher: ImageMatcherBase, image_i1: Image, image_i2: Image
+        ) -> Tuple[Keypoints, Keypoints]:
+            return image_matcher.match(image_i1=image_i1, image_i2=image_i2)
+
+        def apply_two_view_estimator(
+            two_view_estimator: TwoViewEstimator,
+            keypoints_i1: Keypoints,
+            keypoints_i2: Keypoints,
+            putative_corr_idxs: np.ndarray,
+            camera_intrinsics_i1: CALIBRATION_TYPE,
+            camera_intrinsics_i2: CALIBRATION_TYPE,
+            i2Ti1_prior: Optional[PosePrior],
+            gt_camera_i1: Optional[CAMERA_TYPE],
+            gt_camera_i2: Optional[CAMERA_TYPE],
+            gt_scene_mesh: Optional[Any] = None,
+        ) -> TWO_VIEW_OUTPUT:
+            return two_view_estimator.run_2view(
+                keypoints_i1=keypoints_i1,
+                keypoints_i2=keypoints_i2,
+                putative_corr_idxs=putative_corr_idxs,
+                camera_intrinsics_i1=camera_intrinsics_i1,
+                camera_intrinsics_i2=camera_intrinsics_i2,
+                i2Ti1_prior=i2Ti1_prior,
+                gt_camera_i1=gt_camera_i1,
+                gt_camera_i2=gt_camera_i2,
+                gt_scene_mesh=gt_scene_mesh,
+            )
+
+        image_matcher_future = client.scatter(self._matcher, broadcast=False)
+        two_view_estimator_future = client.scatter(two_view_estimator, broadcast=False)
+        pairwise_correspondence_futures = {
+            (i1, i2): client.submit(apply_image_matcher, image_matcher_future, images[i1], images[i2])
+            for i1, i2 in image_pairs
+        }
+
+        pairwise_correspondences: Dict[Tuple[int, int], Tuple[Keypoints, Keypoints]] = client.gather(
+            pairwise_correspondence_futures
+        )
+
+        keypoints_list, putative_corr_idxs_dict = self._aggregator.aggregate(keypoints_dict=pairwise_correspondences)
+
+        two_view_output_futures = {
+            (i1, i2): client.submit(
+                apply_two_view_estimator,
+                two_view_estimator_future,
+                keypoints_list[i1],
+                keypoints_list[i2],
+                putative_corr_idxs_dict[(i1, i2)],
+                camera_intrinsics[i1],
+                camera_intrinsics[i2],
+                relative_pose_priors.get((i1, i2)),
+                gt_cameras[i1],
+                gt_cameras[i2],
+                gt_scene_mesh,
+            )
+            for (i1, i2) in image_pairs
+        }
+
+        two_view_output_dict = client.gather(two_view_output_futures)
+
+        return keypoints_list, two_view_output_dict

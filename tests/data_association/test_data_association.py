@@ -145,11 +145,18 @@ class TestDataAssociation(GtsamTestCase):
         triangulation_options = TriangulationOptions(
             reproj_error_threshold=5, mode=triangulation_mode, min_num_hypotheses=20
         )
+        tracks_2d = get_2d_tracks(matches_dict, keypoints_list)
         da = DataAssociation(min_track_len=3, triangulation_options=triangulation_options)
-        triangulated_landmark_map, _ = da.run(
+        sfm_tracks, avg_track_reproj_errors, triangulation_exit_codes = da.run_triangulation(
+            cameras=cameras, tracks_2d=tracks_2d
+        )
+        triangulated_landmark_map, _ = da.run_da(
             num_images=len(cameras),
             cameras=cameras,
-            tracks_2d=get_2d_tracks(matches_dict, keypoints_list),
+            tracks_2d=tracks_2d,
+            sfm_tracks=sfm_tracks,
+            avg_track_reproj_errors=avg_track_reproj_errors,
+            triangulation_exit_codes=triangulation_exit_codes,
             cameras_gt=[None] * len(cameras),
             relative_pose_priors={},
         )
@@ -184,10 +191,17 @@ class TestDataAssociation(GtsamTestCase):
         triangulation_options = TriangulationOptions(reproj_error_threshold=5, mode=TriangulationSamplingMode.NO_RANSAC)
         da = DataAssociation(min_track_len=2, triangulation_options=triangulation_options)
 
-        sfm_data, _ = da.run(
+        tracks_2d = get_2d_tracks(matches_dict, keypoints_list)
+        sfm_tracks, avg_track_reproj_errors, triangulation_exit_codes = da.run_triangulation(
+            cameras=cameras, tracks_2d=tracks_2d
+        )
+        sfm_data, _ = da.run_da(
             num_images=len(cameras),
             cameras=cameras,
-            tracks_2d=get_2d_tracks(matches_dict, keypoints_list),
+            tracks_2d=tracks_2d,
+            sfm_tracks=sfm_tracks,
+            avg_track_reproj_errors=avg_track_reproj_errors,
+            triangulation_exit_codes=triangulation_exit_codes,
             cameras_gt=[None] * len(cameras),
             relative_pose_priors={},
         )
@@ -238,10 +252,18 @@ class TestDataAssociation(GtsamTestCase):
             reproj_error_threshold=5, mode=triangulation_mode, min_num_hypotheses=20
         )
         da = DataAssociation(min_track_len=3, triangulation_options=triangulation_options)
-        sfm_data, _ = da.run(
+
+        tracks_2d = get_2d_tracks(matches_dict, keypoints_list)
+        sfm_tracks, avg_track_reproj_errors, triangulation_exit_codes = da.run_triangulation(
+            cameras=cameras, tracks_2d=tracks_2d
+        )
+        sfm_data, _ = da.run_da(
             num_images=len(cameras),
             cameras=cameras,
-            tracks_2d=get_2d_tracks(matches_dict, keypoints_list),
+            tracks_2d=tracks_2d,
+            sfm_tracks=sfm_tracks,
+            avg_track_reproj_errors=avg_track_reproj_errors,
+            triangulation_exit_codes=triangulation_exit_codes,
             cameras_gt=[None] * len(cameras),
             relative_pose_priors={},
         )
@@ -276,10 +298,17 @@ class TestDataAssociation(GtsamTestCase):
 
         # will lead to a cheirality exception because keypoints are identical in two cameras
         # no track will be formed, and thus connected component will be empty
-        sfm_data, _ = da.run(
+        tracks_2d = get_2d_tracks(corr_idxs_dict, [keypoints_shared] * 3)
+        sfm_tracks, avg_track_reproj_errors, triangulation_exit_codes = da.run_triangulation(
+            cameras=cameras, tracks_2d=tracks_2d
+        )
+        sfm_data, _ = da.run_da(
             num_images=3,
             cameras=cameras,
-            tracks_2d=get_2d_tracks(corr_idxs_dict, [keypoints_shared] * 3),
+            tracks_2d=tracks_2d,
+            sfm_tracks=sfm_tracks,
+            avg_track_reproj_errors=avg_track_reproj_errors,
+            triangulation_exit_codes=triangulation_exit_codes,
             cameras_gt=[None] * 3,
             relative_pose_priors={},
         )
@@ -309,10 +338,17 @@ class TestDataAssociation(GtsamTestCase):
             reproj_error_threshold=5, mode=TriangulationSamplingMode.RANSAC_TOPK_BASELINES, min_num_hypotheses=20
         )
         da = DataAssociation(min_track_len=3, triangulation_options=triangulation_options)
-        expected_sfm_data, expected_metrics = da.run(
+
+        sfm_tracks, avg_track_reproj_errors, triangulation_exit_codes = da.run_triangulation(
+            cameras=cameras, tracks_2d=tracks_2d
+        )
+        expected_sfm_data, expected_metrics = da.run_da(
             num_images=len(cameras),
             cameras=cameras,
             tracks_2d=tracks_2d,
+            sfm_tracks=sfm_tracks,
+            avg_track_reproj_errors=avg_track_reproj_errors,
+            triangulation_exit_codes=triangulation_exit_codes,
             cameras_gt=cameras_gt,
             relative_pose_priors={},
         )

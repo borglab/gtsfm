@@ -6,7 +6,6 @@ import pickle
 import unittest
 from pathlib import Path
 
-import dask
 import numpy as np
 
 from gtsfm.frontend.detector.dummy_detector import DummyDetector
@@ -23,7 +22,7 @@ class TestDetectorBase(unittest.TestCase):
     def setUp(self):
         super().setUp()
         self.detector = DummyDetector()
-        self.loader = OlssonLoader(TEST_DATA_PATH, image_extension="JPG")
+        self.loader = OlssonLoader(TEST_DATA_PATH)
 
     def test_number_of_detections(self):
         """Tests that the number of detections is less than the maximum number configured."""
@@ -48,22 +47,6 @@ class TestDetectorBase(unittest.TestCase):
 
         if keypoints.scales is not None:
             np.testing.assert_array_equal(keypoints.scales >= 0, True)
-
-    def test_computation_graph(self):
-        """Test the dask's computation graph formation using a single image."""
-
-        idx_under_test = 0
-
-        image_graph = self.loader.create_computation_graph_for_images()[idx_under_test]
-        keypoints_graph = self.detector.create_computation_graph(image_graph)
-
-        with dask.config.set(scheduler="single-threaded"):
-            keypoints = dask.compute(keypoints_graph)[0]
-
-        # check the results via normal workflow and dask workflow for an image
-        expected_keypoints = self.detector.detect(self.loader.get_image(0))
-
-        self.assertEqual(keypoints, expected_keypoints)
 
     def test_pickleable(self):
         """Tests that the detector object is pickleable (required for dask)."""

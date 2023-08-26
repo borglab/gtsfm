@@ -22,7 +22,7 @@ FULL_DATA_KEY = "full_data"
 SUMMARY_KEY = "summary"
 
 # Type hint for a 1D distribution
-Distribution1D = Union[np.ndarray, List[Union[int, float]]]
+Distribution1D = Union[np.ndarray, List[Optional[Union[int, float]]]]
 
 logger = logger_utils.get_logger()
 
@@ -90,8 +90,11 @@ class GtsfmMetric:
         self._name = name
         if data is not None:
             # Cast to a numpy array
-            if isinstance(data, list) and all(isinstance(x, int) for x in data):
-                data = np.array(data, dtype=np.int_)
+            if isinstance(data, list):
+                # Replace None with NaN
+                data = [x if x is not None else np.NaN for x in data]
+                if all(isinstance(x, int) for x in data):
+                    data = np.array(data, dtype=np.int32)
             if not isinstance(data, np.ndarray):
                 data = np.array(data, dtype=np.float32)
             if data.ndim > 1:
@@ -177,6 +180,8 @@ class GtsfmMetric:
             "median": np.nanmedian(data).tolist(),
             "mean": np.nanmean(data).tolist(),
             "stddev": np.nanstd(data).tolist(),
+            "len": int(data.size),
+            "invalid": int(np.isnan(data).sum()),
         }
         if self._plot_type == self.PlotType.BOX:
             summary.update({"quartiles": get_quartiles_dict(data)})
@@ -310,7 +315,10 @@ class GtsfmMetricsGroup:
         Args:
             path: path to json file.
         """
-        io.save_json_file(path, self.get_metrics_as_dict())
+        try:
+            io.save_json_file(path, self.get_metrics_as_dict())
+        except Exception as e:
+            logger.error("Error saving metric %s to json %s", self._name, e)
 
     @classmethod
     def parse_from_dict(cls, metrics_group_dict: Dict[str, Any]) -> GtsfmMetricsGroup:

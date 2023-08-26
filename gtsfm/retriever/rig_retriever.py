@@ -2,13 +2,13 @@
 
 Author: Frank Dellaert
 """
-
-from typing import List, Tuple
+from pathlib import Path
+from typing import List, Optional, Tuple
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.loader.hilti_loader import HiltiLoader
 from gtsfm.loader.loader_base import LoaderBase
-from gtsfm.retriever.retriever_base import RetrieverBase
+from gtsfm.retriever.retriever_base import RetrieverBase, ImageMatchingRegime
 
 logger = logger_utils.get_logger()
 
@@ -26,13 +26,15 @@ class RigRetriever(RetrieverBase):
         Args:
             threshold (int, optional): amount of "proxy" correspondences that will trigger an image-pair. Default 100.
         """
+        super().__init__(matching_regime=ImageMatchingRegime.RIG_HILTI)
         self._threshold = threshold
 
-    def run(self, loader: LoaderBase) -> List[Tuple[int, int]]:
+    def get_image_pairs(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> List[Tuple[int, int]]:
         """Compute potential image pairs.
 
         Args:
             loader: image loader.
+            plots_output_dir: Directory to save plots to. Unused in this retriever.
 
         Return:
             pair_indices: (i1,i2) image pairs.

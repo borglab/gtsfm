@@ -10,9 +10,8 @@ image representation commonly used in image retrieval
 Whereas bag-of-visual-words aggregation keeps counts of visual words, VLAD stores the sum of residuals
 (difference vector between the descriptor and its corresponding cluster centre) for each visual word.
 
-Authors: John Lambert
+Authors: John Lambert, Travis Driver
 """
-
 import numpy as np
 import torch
 from torch import nn
@@ -23,9 +22,12 @@ from thirdparty.hloc.netvlad import NetVLAD
 
 
 class NetVLADGlobalDescriptor(GlobalDescriptorBase):
-    def __init__(self) -> None:
+    """NetVLAD global descriptor"""
+
+    def __init__(self, use_cuda: bool = True) -> None:
         """ """
-        pass
+        self._use_cuda = use_cuda
+        self._model: nn.Module = NetVLAD().eval()
 
     def describe(self, image: Image) -> np.ndarray:
         """Compute the NetVLAD global descriptor for a single image query.
@@ -36,10 +38,13 @@ class NetVLADGlobalDescriptor(GlobalDescriptorBase):
         Returns:
             img_desc: array of shape (D,) representing global image descriptor.
         """
-        # initializing in the constructor leads to OOM.
-        model: nn.Module = NetVLAD()
+        device = torch.device("cuda" if self._use_cuda and torch.cuda.is_available() else "cpu")
+        self._model.to(device)
 
-        img_tensor = torch.from_numpy(image.value_array).permute(2, 0, 1).unsqueeze(0).type(torch.float32) / 255
-        img_desc = model({"image": img_tensor})
+        with torch.no_grad():
+            img_tensor = (
+                torch.from_numpy(image.value_array).permute(2, 0, 1).unsqueeze(0).type(torch.float32).to(device) / 255
+            )
+            img_desc = self._model({"image": img_tensor})
 
         return img_desc["global_descriptor"].detach().squeeze().cpu().numpy()

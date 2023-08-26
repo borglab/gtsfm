@@ -10,7 +10,6 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Tuple
 
-import dask
 import numpy as np
 
 import gtsfm.utils.features as feature_utils
@@ -34,7 +33,6 @@ class TestMatcherBase(unittest.TestCase):
         self.matcher: MatcherBase = TwoWayMatcher()
 
     def __assert_valid_indices(self, match_idxs: np.ndarray, num_keypoints_i1: int, num_keypoints_i2: int) -> None:
-
         if match_idxs.size:
             self.assertTrue(np.all((match_idxs[:, 0] >= 0) & (match_idxs[:, 0] < num_keypoints_i1)))
             self.assertTrue(np.all((match_idxs[:, 1] >= 0) & (match_idxs[:, 1] < num_keypoints_i2)))
@@ -83,7 +81,7 @@ class TestMatcherBase(unittest.TestCase):
         )
         self.assertEqual(result.size, 0)
 
-    def test_computation_graph(self):
+    def test_match_validity(self):
         """Test that the computation graph is working exactly as the normal API"""
         (
             keypoints_i1,
@@ -94,22 +92,10 @@ class TestMatcherBase(unittest.TestCase):
             im_shape_i2,
         ) = get_features_from_real_images()
 
-        expected_matches = self.matcher.match(
+        computed_matches = self.matcher.match(
             keypoints_i1, keypoints_i2, descriptors_i1, descriptors_i2, im_shape_i1, im_shape_i2
         )
 
-        computed_matches_graph = self.matcher.create_computation_graph(
-            dask.delayed(keypoints_i1),
-            dask.delayed(keypoints_i2),
-            dask.delayed(descriptors_i1),
-            dask.delayed(descriptors_i2),
-            dask.delayed(im_shape_i1),
-            dask.delayed(im_shape_i2),
-        )
-        with dask.config.set(scheduler="single-threaded"):
-            computed_matches = dask.compute(computed_matches_graph)[0]
-
-        np.testing.assert_allclose(computed_matches, expected_matches)
         self.__assert_valid_indices(computed_matches, len(keypoints_i1), len(keypoints_i2))
         self.__assert_one_to_one_constraint(computed_matches)
 
@@ -121,9 +107,9 @@ class TestMatcherBase(unittest.TestCase):
             self.fail("Cannot dump matcher using pickle")
 
 
-def get_features_from_real_images() -> Tuple[
-    Keypoints, Keypoints, np.ndarray, np.ndarray, Tuple[int, int], Tuple[int, int]
-]:
+def get_features_from_real_images() -> (
+    Tuple[Tuple[Keypoints, Keypoints, np.ndarray, np.ndarray, Tuple[int, int], Tuple[int, int]]]
+):
     """Load keypoints and descriptors from 2 real images, taken from Olsson's Lund Door dataset."""
     with open(REAL_FEATURES_PATH / "keypoints_0.pkl", "rb") as f:
         keypoints_i1 = pickle.load(f)

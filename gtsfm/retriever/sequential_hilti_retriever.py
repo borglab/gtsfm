@@ -2,11 +2,12 @@
 
 Authors: Ayush Baid.
 """
-from typing import List, Tuple
+from pathlib import Path
+from typing import List, Optional, Tuple
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.loader.hilti_loader import HiltiLoader
-from gtsfm.retriever.retriever_base import RetrieverBase
+from gtsfm.retriever.retriever_base import RetrieverBase, ImageMatchingRegime
 
 logger = logger_utils.get_logger()
 
@@ -20,19 +21,20 @@ class SequentialHiltiRetriever(RetrieverBase):
     def __init__(self, max_frame_lookahead: int) -> None:
         """
         Args:
-            max_frame_lookahead: maximum number of consecutive rig frames to consider for matching/co-visibility.
+            max_frame_lookahead: Maximum number of consecutive rig frames to consider for matching/co-visibility.
         """
+        super().__init__(matching_regime=ImageMatchingRegime.SEQUENTIAL_HILTI)
         self._max_frame_lookahead = max_frame_lookahead
 
     def is_valid_pair(self, loader, idx1: int, idx2: int) -> bool:
         """Checks if (idx1, idx2) is a valid pair. idx1 < idx2 is required.
 
         Args:
-            idx1: first index of the pair.
-            idx2: second index of the pair.
+            idx1: First index of the pair.
+            idx2: Second index of the pair.
 
         Returns:
-            validation result.
+            Validation result.
         """
         if idx1 >= idx2:
             return False
@@ -47,12 +49,15 @@ class SequentialHiltiRetriever(RetrieverBase):
         elif rig_idx_i1 < rig_idx_i2 and rig_idx_i2 - rig_idx_i1 <= self._max_frame_lookahead:
             return (cam_idx_i1, cam_idx_i2) in INTER_RIG_VALID_PAIRS
 
-    def run(self, loader: HiltiLoader) -> List[Tuple[int, int]]:
+        return False
+
+    def get_image_pairs(self, loader: HiltiLoader, plots_output_dir: Optional[Path] = None) -> List[Tuple[int, int]]:
         """Compute potential image pairs.
 
         Args:
             loader: image loader. The length of this loader will provide the total number of images
                 for exhaustive global descriptor matching.
+            plots_output_dir: Directory to save plots to. Unused in this retriever.
 
         Return:
             pair_indices: (i1,i2) image pairs.

@@ -7,7 +7,7 @@ References:
 1. Richard I. Hartley and Peter Sturm. Triangulation. Computer Vision and Image Understanding, Vol. 68, No. 2,
    November, pp. 146–157, 1997
 
-Authors: Sushmita Warrier, Xiaolong Wu, John Lambert
+Authors: Sushmita Warrier, Xiaolong Wu, John Lambert, Travis Driver
 """
 import os
 from collections import Counter
@@ -32,6 +32,10 @@ from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 logger = logger_utils.get_logger()
+
+# Heuristically set to limit the number of delayed tasks, as recommended by Dask:
+# https://docs.dask.org/en/stable/delayed-best-practices.html#avoid-too-many-tasks
+MAX_DELAYED_TRIANGULATION_CALLS = 1e3
 
 
 @dataclass(frozen=True)
@@ -68,21 +72,27 @@ class DataAssociation(GTSFMProcess):
         """Validate the track by checking its length."""
         return sfm_track is not None and sfm_track.numberMeasurements() >= self.min_track_len
 
-    def run(
+    def run_da(
         self,
         num_images: int,
         cameras: Dict[int, gtsfm_types.CAMERA_TYPE],
         tracks_2d: List[SfmTrack2d],
+        sfm_tracks: List[Optional[SfmTrack]],
+        avg_track_reproj_errors: List[Optional[float]],
+        triangulation_exit_codes: List[TriangulationExitCode],
         cameras_gt: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
         relative_pose_priors: Dict[Tuple[int, int], Optional[PosePrior]],
         images: Optional[List[Image]] = None,
     ) -> Tuple[GtsfmData, GtsfmMetricsGroup]:
-        """Perform the data association.
+        """Perform the data association and compute metrics.
 
         Args:
             num_images: Number of images in the scene.
             cameras: dictionary, with image index -> camera mapping.
             tracks_2d: list of 2D tracks.
+            sfm_tracks: List of triangulated tracks.
+            avg_track_reproj_errors: List of average reprojection errors per track.
+            triangulation_exit_codes: exit codes for each triangulation call.
             cameras_gt: list of GT cameras, to be used for benchmarking the tracks.
             images: a list of all images in scene (optional and only for track patch visualization)
 
@@ -99,9 +109,6 @@ class DataAssociation(GTSFMProcess):
         logger.debug("[Data association] input number of tracks: %s", len(tracks_2d))
         logger.debug("[Data association] input avg. track length: %s", np.mean(track_lengths_2d))
 
-        # Initialize 3D landmark for each track
-        point3d_initializer = Point3dInitializer(cameras, self.triangulation_options)
-
         # form GtsfmData object after triangulation
         triangulated_data = GtsfmData(num_images)
 
@@ -111,13 +118,16 @@ class DataAssociation(GTSFMProcess):
 
         exit_codes_wrt_gt = track_utils.classify_tracks2d_with_gt_cameras(tracks=tracks_2d, cameras_gt=cameras_gt)
 
-        # add valid tracks where triangulation is successful
+        # Add valid tracks where triangulation was successful.
         exit_codes_wrt_computed: List[TriangulationExitCode] = []
         per_accepted_track_avg_errors = []
         per_rejected_track_avg_errors = []
-        for track_2d in tracks_2d:
-            # triangulate and filter based on reprojection error
-            sfm_track, avg_track_reproj_error, triangulation_exit_code = point3d_initializer.triangulate(track_2d)
+        assert len(tracks_2d) == len(sfm_tracks)
+        for j in range(len(tracks_2d)):
+            # Filter triangulated points based on reprojection error and exit code.
+            sfm_track = sfm_tracks[j]
+            avg_track_reproj_error = avg_track_reproj_errors[j]
+            triangulation_exit_code = triangulation_exit_codes[j]
             exit_codes_wrt_computed.append(triangulation_exit_code)
             if triangulation_exit_code == TriangulationExitCode.CHEIRALITY_FAILURE:
                 continue
@@ -196,6 +206,70 @@ class DataAssociation(GTSFMProcess):
 
         return connected_data, data_assoc_metrics
 
+    def run_triangulation(
+        self,
+        cameras: Dict[int, gtsfm_types.CAMERA_TYPE],
+        tracks_2d: List[SfmTrack2d],
+    ) -> Tuple[List[Delayed], List[Delayed], List[Delayed]]:
+        """Performs triangulation of 2D tracks in parallel.
+
+        Refs:
+        - https://docs.dask.org/en/stable/delayed-best-practices.html#compute-on-lots-of-computation-at-once
+        - https://docs.dask.org/en/stable/delayed-best-practices.html#avoid-too-many-tasks
+
+        Args:
+            cameras: List of cameras wrapped up as Delayed.
+            tracks_2d: List of tracks wrapped up as Delayed.
+
+        Returns:
+            sfm_tracks: List of triangulated tracks.
+            avg_track_repoj_errors: List of average reprojection errors per track.
+            triangulation_exit_codes: exit codes for each triangulation call.
+        """
+
+        def triangulate_batch(
+            point3d_initializer: Point3dInitializer, tracks_2d: List[SfmTrack2d]
+        ) -> List[Tuple[Optional[SfmTrack], Optional[float], TriangulationExitCode]]:
+            """Triangulates a batch of 2D tracks sequentially."""
+            batch_results = []
+            for track_2d in tracks_2d:
+                batch_results.append(point3d_initializer.triangulate(track_2d))
+            return batch_results
+
+        # Initialize 3D landmark for each track
+        point3d_initializer = Point3dInitializer(cameras, self.triangulation_options)
+
+        # Loop through tracks and and generate delayed triangulation tasks.
+        batch_size = int(np.ceil(len(tracks_2d) / MAX_DELAYED_TRIANGULATION_CALLS))
+        triangulation_results = []
+        if batch_size == 1:
+            for track_2d in tracks_2d:
+                triangulation_results.append(dask.delayed(point3d_initializer.triangulate)(track_2d))
+        else:
+            for j in range(0, len(tracks_2d), batch_size):
+                triangulation_results.append(
+                    dask.delayed(triangulate_batch)(point3d_initializer, tracks_2d[j : j + batch_size])
+                )
+
+        # Perform triangulation in parallel.
+        triangulation_results = dask.compute(*triangulation_results)
+
+        # Unpack results.
+        sfm_tracks, avg_track_reproj_errors, triangulation_exit_codes = [], [], []
+        if batch_size == 1:
+            for sfm_track, avg_track_reproj_error, exit_code in triangulation_results:
+                sfm_tracks.append(sfm_track)
+                avg_track_reproj_errors.append(avg_track_reproj_error)
+                triangulation_exit_codes.append(exit_code)
+        else:
+            for batch_results in triangulation_results:
+                for sfm_track, avg_track_reproj_error, exit_code in batch_results:
+                    sfm_tracks.append(sfm_track)
+                    avg_track_reproj_errors.append(avg_track_reproj_error)
+                    triangulation_exit_codes.append(exit_code)
+
+        return sfm_tracks, avg_track_reproj_errors, triangulation_exit_codes
+
     def create_computation_graph(
         self,
         num_images: int,
@@ -203,7 +277,7 @@ class DataAssociation(GTSFMProcess):
         tracks_2d: Delayed,
         cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
-        images_graph: Optional[List[Delayed]] = None,
+        images: Optional[List[Delayed]] = None,
     ) -> Tuple[Delayed, Delayed]:
         """Creates a computation graph for performing data association.
 
@@ -213,20 +287,30 @@ class DataAssociation(GTSFMProcess):
             tracks_2d: list of tracks wrapped up as Delayed.
             cameras_gt: a list of cameras with ground truth params, if they exist.
             relative_pose_priors: pose priors on the relative pose between camera poses.
-            images_graph: a list of all images in scene (optional and only for track patch visualization)
+            images: a list of all images in scene (optional and only for track patch visualization)
 
         Returns:
             ba_input_graph: GtsfmData object wrapped up using dask.delayed
             data_assoc_metrics_graph: dictionary with different statistics about the data
                 association result
         """
-        ba_input_graph, data_assoc_metrics_graph = dask.delayed(self.run, nout=2)(
+
+        # Triangulate 2D tracks.
+        sfm_tracks, avg_track_reproj_errors, triangulation_exit_codes = dask.delayed(self.run_triangulation, nout=3)(
+            cameras=cameras, tracks_2d=tracks_2d
+        )
+
+        # Perform DA, create BA input, and compute metrics.
+        ba_input_graph, data_assoc_metrics_graph = dask.delayed(self.run_da, nout=2)(
             num_images=num_images,
             cameras=cameras,
             tracks_2d=tracks_2d,
+            sfm_tracks=sfm_tracks,
+            avg_track_reproj_errors=avg_track_reproj_errors,
+            triangulation_exit_codes=triangulation_exit_codes,
             cameras_gt=cameras_gt,
             relative_pose_priors=relative_pose_priors,
-            images=images_graph,
+            images=images,
         )
 
         return ba_input_graph, data_assoc_metrics_graph

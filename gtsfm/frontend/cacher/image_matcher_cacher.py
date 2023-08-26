@@ -31,6 +31,12 @@ class ImageMatcherCacher(ImageMatcherBase):
         self._matcher = matcher_obj
         self._matcher_obj_key = type(self._matcher).__name__
 
+    def __repr__(self) -> str:
+        return f"""
+        ImageMatcherCacher:
+           {self._matcher}
+        """
+
     def _get_cache_path(self, cache_key: str) -> Path:
         """Gets the file path to the cache bz2 file from the cache key."""
         return CACHE_ROOT_PATH / "image_matcher" / "{}.pbz2".format(cache_key)

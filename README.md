@@ -1,18 +1,10 @@
 ![Alt text](gtsfm-logo.png?raw=true)
 
-# Georgia Tech Structure from Motion (GTSfM) Library
-
 | Platform     | Build Status  |
 |:------------:| :-------------:|
-| Ubuntu 20.04.3 |  ![Linux CI](https://github.com/borglab/gtsfm/workflows/Unit%20tests%20and%20python%20checks/badge.svg) |
+| Ubuntu 20.04.3 |  ![Linux CI](https://github.com/borglab/gtsfm/actions/workflows/test-python.yml/badge.svg?branch=master) |
 
-### What is GTSfM?
-
-GTSfM is an end-to-end SfM pipeline based on [GTSAM](https://github.com/borglab/gtsam). GTSfM was designed from the ground-up to natively support parallel computation using [Dask](https://dask.org/).
-
-<p align="left">
-  <img src="https://dask.org/_images/dask_horizontal_white_no_pad_dark_bg.png" height="50">
-</p>
+Georgia Tech Structure-from-Motion (GTSfM) is an end-to-end SfM pipeline based on [GTSAM](https://github.com/borglab/gtsam). GTSfM was designed from the ground-up to natively support parallel computation using [Dask](https://dask.org/).
 
 <p align="left">
   <img src="https://user-images.githubusercontent.com/16724970/121294002-a4d7a400-c8ba-11eb-895e-a50305c049b6.gif" height="315" title="Olsson Lund Dataset: Door, 12 images">
@@ -26,31 +18,27 @@ GTSfM is an end-to-end SfM pipeline based on [GTSAM](https://github.com/borglab/
 
 ## License
 
-The majority of our code is governed by a MIT license and is suitable for commercial use. However, certain implementations featured in our repo (SuperPoint, SuperGlue) are governed by a non-commercial license and may not be used commercially.
+The majority of our code is governed by an MIT license and is suitable for commercial use. However, certain implementations featured in our repo (e.g., SuperPoint, SuperGlue) are governed by a non-commercial license and may not be used commercially.
 
 ## Installation
 
-GTSfM requires no compilation, as Python wheels are provided for GTSAM.
+GTSfM requires no compilation, as Python wheels are provided for GTSAM. This repository includes external repositories as Git submodules –- don't forget to pull submodules with `git submodule update --init --recursive` or clone with `git clone --recursive https://github.com/borglab/gtsfm.git`.
 
-To install GTSfM, first, we need to create a conda environment.
+To run GTSfM, first, we need to create a conda environment with the required dependencies.
 
-**Linux**
-On Linux, with CUDA support:
+On **Linux**, with CUDA support, run:
 
 ```bash
 conda env create -f environment_linux.yml
 conda activate gtsfm-v1 # you may need "source activate gtsfm-v1" depending upon your bash and conda set-up
 ```
 
-**Mac**
-On Mac OSX, there is no CUDA support, so run:
+On **macOS**, there is no CUDA support, so run:
 
 ```bash
 conda env create -f environment_mac.yml
 conda activate gtsfm-v1
 ```
-
-## Completing Installation
 
 Now, install `gtsfm` as a module:
 
@@ -60,7 +48,7 @@ pip install -e .
 
 Make sure that you can run `python -c "import gtsfm; import gtsam; print('hello world')"` in python, and you are good to go!
 
-## Usage Guide (Running 3d Reconstruction)
+## Usage Guide (Running 3D Reconstruction)
 
 Before running reconstruction, if you intend to use modules with pre-trained weights, such as SuperPoint, SuperGlue, or PatchmatchNet, please first run:
 
@@ -94,7 +82,7 @@ python gtsfm/runner/run_scene_optimizer_olssonloader.py --dataset_root tests/dat
 
 You can view/monitor the distributed computation using the [Dask dashboard](http://localhost:8787/status).
 
-Currently we require EXIF data embedded into your images (or you can provide ground truth intrinsics in the expected format for an Olsson dataset, or COLMAP-exported text data, etc)
+Currently we require EXIF data embedded into your images (or you can provide ground truth intrinsics in the expected format for an Olsson dataset, or COLMAP-exported text data, etc.)
 
 If you would like to compare GTSfM output with COLMAP output, please run:
 
@@ -107,11 +95,13 @@ where `COLMAP_FILES_DIRPATH` is a directory where .txt files such as `cameras.tx
 To visualize the result using Open3D, run:
 
 ```bash
-python gtsfm/visualization/view_scene.py --rendering_library open3d --rendering_style point
+python gtsfm/visualization/view_scene.py
 ```
 
 For users that are working with the same dataset repeatedly, we provide functionality to cache front-end results for
 GTSfM for very fast inference afterwards. For more information, please refer to [`gtsfm/frontend/cacher/README.md`](https://github.com/borglab/gtsfm/tree/master/gtsfm/frontend/cacher).
+
+For users that want to run GTSfM on a cluster of multiple machines, we provide setup instructions here: [`CLUSTER.md`](https://github.com/borglab/gtsfm/tree/master/CLUSTER.md)
 
 ## Repository Structure
 

@@ -6,9 +6,8 @@ Authors: Yanwei Du
 import glob
 import os
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
-import numpy as np
 from gtsam import Cal3Bundler, Pose3
 
 import gtsfm.utils.io as io_utils
@@ -39,7 +38,8 @@ class OneDSFMLoader(LoaderBase):
         folder: str,
         image_extension: str = "jpg",
         max_resolution: int = 640,
-        max_num_imgs: int = 0,
+        enable_no_exif: bool = False,
+        default_focal_length_factor: float = 1.2,
     ) -> None:
         """Initializes to load from a specified folder on disk.
 
@@ -50,58 +50,26 @@ class OneDSFMLoader(LoaderBase):
                 the smaller of the height/width of the image. e.g. for 1080p (1920 x 1080),
                 max_resolution would be 1080. If the image resolution max(height, width) is
                 greater than the max_resolution, it will be downsampled to match the max_resolution.
-            max_num_imgs: integer representing max number of images to process in the sequence,
-                0 or negative values means to process all the images.
+            enable_no_exif: flag to whether to read images without exif.
+            default_focal_length_factor: focal length is initialized to default_focal_length_factor * largest dimension
+            of image if exif data is not available. The value has not been tuned for performance, 1.2 would be a
+            good start.
         """
         super().__init__(max_resolution=max_resolution)
+        self._default_focal_length_factor = default_focal_length_factor
 
         # Fetch all the file names in /images folder.
         search_path = os.path.join(folder, "images", f"*.{image_extension}")
 
-        # NOTE(yanwei.du) Currently we only process images with valid EXIF data.
-        (
-            self._image_paths,
-            self._num_exif_imgs,
-            self._num_all_imgs,
-        ) = self.get_images_with_valid_exif(search_path, max_num_imgs)
+        if enable_no_exif:
+            self._image_paths = glob.glob(search_path)
+        else:
+            (self._image_paths, num_all_imgs) = self.get_images_with_exif(search_path)
+            logger.info("Read %d images with exif out of %d in total.", len(self._image_paths), num_all_imgs)
+
         self._num_imgs = len(self._image_paths)
-
-        logger.info("Selected %d out of %d images with valid exif.", self._num_imgs, self._num_exif_imgs)
-
         if self._num_imgs == 0:
             raise RuntimeError(f"Loader could not find any images with the specified file extension in {search_path}")
-
-    def get_images_with_valid_exif(self, search_path: str, max_num_imgs: int) -> Tuple[List[str], int, int]:
-        """Return a subset of images with valid exif.
-
-        Args:
-            search_path: image sequence search path.
-            max_num_imgs: the maximum number of images to process.
-
-        Returns:
-            Tuple[
-                List of selected image paths.
-                The number of images with valid exif data.
-                The number of all the images.
-            ]
-        """
-        all_image_paths = glob.glob(search_path)
-        num_all_imgs = len(all_image_paths)
-        exif_image_paths = []
-        for single_img_path in all_image_paths:
-            # Drop images without valid exif data.
-            if io_utils.load_image(single_img_path).get_intrinsics_from_exif() is not None:
-                exif_image_paths.append(single_img_path)
-
-        # Randomly select a subset to process.
-        num_exif_imgs = len(exif_image_paths)
-        max_num_imgs = max_num_imgs if (max_num_imgs > 0 and max_num_imgs < num_exif_imgs) else num_exif_imgs
-        random_indices = np.random.permutation(num_exif_imgs)
-        return (
-            np.array(exif_image_paths)[random_indices[:max_num_imgs]],
-            num_exif_imgs,
-            num_all_imgs,
-        )
 
     def image_filenames(self) -> List[str]:
         """Return the file names corresponding to each image index."""
@@ -140,9 +108,10 @@ class OneDSFMLoader(LoaderBase):
         Returns:
             Intrinsics for the given camera.
         """
-        # Get intrinsics from exif.
-        intrinsics = io_utils.load_image(self._image_paths[index]).get_intrinsics_from_exif()
-        return intrinsics
+        # Get intrinsics.
+        return io_utils.load_image(self._image_paths[index]).get_intrinsics(
+            default_focal_length_factor=self._default_focal_length_factor
+        )
 
     def get_camera_pose(self, index: int) -> Optional[Pose3]:
         """Get the camera pose (in world coordinates) at the given index.
@@ -155,11 +124,3 @@ class OneDSFMLoader(LoaderBase):
         """
         # The 1DSfM datasets do not provide ground truth or prior camera poses.
         return None
-
-    def get_num_all_imgs(self) -> int:
-        """Return the number of all images in the sequence."""
-        return self._num_all_imgs
-
-    def get_num_exif_imgs(self) -> int:
-        """Return the number of images with valid exif data."""
-        return self._num_exif_imgs

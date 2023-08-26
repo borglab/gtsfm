@@ -163,6 +163,7 @@ class ViewGraphEstimatorBase(GTSFMProcess):
         calibrations: List[Cal3Bundler],
         two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
         view_graph_edges: List[Tuple[int, int]],
+        plots_output_dir: Path = PLOT_BASE_PATH,
     ) -> GtsfmMetricsGroup:
         """Metric computation for the view optimizer by selecting a subset of two-view reports for the pairs which
         are the edges of the view-graph. This can be overrided by implementations to define custom metrics.
@@ -192,14 +193,14 @@ class ViewGraphEstimatorBase(GTSFMProcess):
                 edges=list(input_i1_i2),
                 two_view_reports=two_view_reports,
                 title="ViewGraphEstimator input",
-                save_fpath=PLOT_BASE_PATH / "view_graph_estimator_input_topology.jpg",
+                save_fpath=plots_output_dir / "view_graph_estimator_input_topology.jpg",
                 cameras_gt=None,
             )
             graph_utils.draw_view_graph_topology(
                 edges=view_graph_edges,
                 two_view_reports=two_view_reports,
                 title="ViewGraphEstimator output",
-                save_fpath=PLOT_BASE_PATH / "view_graph_estimator_output_topology.jpg",
+                save_fpath=plots_output_dir / "view_graph_estimator_output_topology.jpg",
                 cameras_gt=None,
             )
         except Exception as e:
@@ -249,11 +250,11 @@ class ViewGraphEstimatorBase(GTSFMProcess):
 
     def create_computation_graph(
         self,
-        i2Ri1_dict: Dict[Tuple[int, int], Delayed],
-        i2Ui1_dict: Dict[Tuple[int, int], Delayed],
+        i2Ri1_dict: Dict[Tuple[int, int], Rot3],
+        i2Ui1_dict: Dict[Tuple[int, int], Unit3],
         calibrations: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
-        corr_idxs_i1i2: Dict[Tuple[int, int], Delayed],
-        keypoints: List[Delayed],
+        corr_idxs_i1i2: Dict[Tuple[int, int], np.ndarray],
+        keypoints: List[Keypoints],
         two_view_reports: Optional[Dict[Tuple[int, int], TwoViewEstimationReport]],
         debug_output_dir: Optional[Path] = None,
     ) -> Tuple[Delayed, Delayed, Delayed, Delayed, Delayed]:
@@ -328,6 +329,7 @@ class ViewGraphEstimatorBase(GTSFMProcess):
             calibrations=calibrations,
             two_view_reports=two_view_reports_valid,
             view_graph_edges=view_graph_edges,
+            plots_output_dir=plot_cycle_consist_path,
         )
 
         return (

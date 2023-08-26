@@ -5,11 +5,10 @@ Authors: John Lambert
 
 import abc
 from enum import Enum
-from typing import List, Tuple
+from pathlib import Path
+from typing import List, Optional, Tuple
 
-import dask
-from dask.delayed import Delayed
-
+from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
@@ -26,6 +25,14 @@ class ImageMatchingRegime(str, Enum):
 class RetrieverBase(GTSFMProcess):
     """Base class for image retriever implementations."""
 
+    def __init__(self, matching_regime: ImageMatchingRegime) -> None:
+        """
+        Args:
+            matching_regime: identifies type of matching used for image retrieval.
+        """
+        self._matching_regime = matching_regime
+
+    @staticmethod
     def get_ui_metadata() -> UiMetadata:
         """Returns data needed to display node and edge info for this process in the process graph."""
 
@@ -37,25 +44,35 @@ class RetrieverBase(GTSFMProcess):
         )
 
     @abc.abstractmethod
-    def run(self, loader: LoaderBase) -> List[Tuple[int, int]]:
+    def get_image_pairs(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> List[Tuple[int, int]]:
         """Compute potential image pairs.
 
         Args:
             loader: image loader. The length of this loader will provide the total number of images
                 for exhaustive global descriptor matching.
+            plots_output_dir: Directory to save plots to.
 
         Return:
             pair_indices: (i1,i2) image pairs.
         """
 
-    def create_computation_graph(self, loader: LoaderBase) -> Delayed:
-        """Create Dask graph for image retriever.
+    def evaluate(self, loader: LoaderBase, image_pair_indices: List[Tuple[int, int]]) -> GtsfmMetricsGroup:
+        """Evaluates the retriever result.
 
         Args:
-            loader: image loader. The length of this loader will provide the total number of images
+            loader: Image loader. The length of this loader will provide the total number of images
                 for exhaustive global descriptor matching.
+            image_pair_indices: (i1,i2) image pairs.
 
-        Return:
-            Delayed task that evaluates to a list of (i1,i2) image pairs.
+        Returns:
+            Retriever metrics group.
         """
-        return dask.delayed(self.run)(loader=loader)
+        metric_group_name = "retriever_metrics"
+        retriever_metrics = GtsfmMetricsGroup(
+            metric_group_name,
+            [
+                GtsfmMetric("num_input_images", len(loader)),
+                GtsfmMetric("num_retrieved_image_pairs", len(image_pair_indices)),
+            ],
+        )
+        return retriever_metrics

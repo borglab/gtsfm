@@ -2,33 +2,33 @@
 
 Authors: John Lambert
 """
-
-import abc
+from abc import abstractmethod
 from typing import Dict, List, Tuple
 
-from dask.delayed import Delayed
+from dask.distributed import Client, Future
+import numpy as np
+
+from gtsfm.common.keypoints import Keypoints
 
 
 class CorrespondenceGeneratorBase:
     """Base class for correspondence generators."""
 
-    @abc.abstractmethod
-    def create_computation_graph(
+    @abstractmethod
+    def generate_correspondences(
         self,
-        delayed_images: List[Delayed],
-        image_shapes: List[Tuple[int, int]],
-        image_pair_indices: List[Tuple[int, int]],
-    ) -> Tuple[List[Delayed], Dict[Tuple[int, int], Delayed]]:
-        """Create Dask computation graph for correspondence generation.
+        client: Client,
+        images: List[Future],
+        image_pairs: List[Tuple[int, int]],
+    ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
+        """Apply the correspondence generator to generate putative correspondences.
 
         Args:
-            delayed_images: list of N images.
-            image_shapes: list of N image shapes, as tuples (height,width) in pixels.
-            image_pair_indices: list of image pairs, each represented by a tuple (i1,i2).
+            client: dask client, used to execute the front-end as futures.
+            images: list of all images, as futures.
+            image_pairs: indices of the pairs of images to estimate two-view pose and correspondences.
 
-        Return:
-            delayed_keypoints: list of delayed tasks, each yielding Keypoints in one image.
-            delayed_putative_corr_idxs_dict: mapping from image pair (i1,i2) to delayed task to compute
-                putative correspondence indices. Correspondence indices are represented by an array of
-                shape (K,2), for K correspondences.
+        Returns:
+            List of keypoints, one entry for each input images.
+            Putative correspondence as indices of keypoints, for pairs of images.
         """
