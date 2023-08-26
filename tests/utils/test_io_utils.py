@@ -235,17 +235,17 @@ class TestIoUtils(unittest.TestCase):
     def test_sort_image_filenames_lexigraphically(self) -> None:
         """Tests that 5 image-camera pose pairs are sorted jointly according to file name."""
         wTi_list = [
-            Pose3(Rot3(), np.array([0,0,34])),
-            Pose3(Rot3(), np.array([0,0,35])),
-            Pose3(Rot3(), np.array([0,0,36])),
-            Pose3(Rot3(), np.array([0,0,28])),
-            Pose3(Rot3(), np.array([0,0,37]))
+            Pose3(Rot3(), np.array([0, 0, 34])),
+            Pose3(Rot3(), np.array([0, 0, 35])),
+            Pose3(Rot3(), np.array([0, 0, 36])),
+            Pose3(Rot3(), np.array([0, 0, 28])),
+            Pose3(Rot3(), np.array([0, 0, 37])),
         ]
-        img_fnames = ['P1180334.JPG', 'P1180335.JPG', 'P1180336.JPG', 'P1180328.JPG', 'P1180337.JPG']
+        img_fnames = ["P1180334.JPG", "P1180335.JPG", "P1180336.JPG", "P1180328.JPG", "P1180337.JPG"]
 
         wTi_list_sorted, img_fnames_sorted = io_utils.sort_image_filenames_lexigraphically(wTi_list, img_fnames)
 
-        expected_img_fnames_sorted = ['P1180328.JPG', 'P1180334.JPG', 'P1180335.JPG', 'P1180336.JPG', 'P1180337.JPG']
+        expected_img_fnames_sorted = ["P1180328.JPG", "P1180334.JPG", "P1180335.JPG", "P1180336.JPG", "P1180337.JPG"]
         self.assertEqual(img_fnames_sorted, expected_img_fnames_sorted)
 
         self.assertEqual(wTi_list_sorted[0].translation()[2], 28)
