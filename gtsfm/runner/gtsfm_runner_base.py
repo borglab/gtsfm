@@ -23,6 +23,9 @@ from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.scene_optimizer import SceneOptimizer
 from gtsfm.two_view_estimator import TWO_VIEW_OUTPUT, TwoViewEstimationReport, run_two_view_estimator_as_futures
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
+from gtsfm.logtest import LogRecordSocketReceiver
+import logging
+import socket
 
 logger = logger_utils.get_logger()
 
@@ -248,6 +251,13 @@ class GtsfmRunnerBase:
     def run(self) -> GtsfmData:
         """Run the SceneOptimizer."""
         start_time = time.time()
+
+        logging.basicConfig(
+            format="[%(asctime)s %(levelname)s %(filename)s line %(lineno)d %(process)d] %(message)s")
+        tcpserver = LogRecordSocketReceiver()
+        print("About to start TCP server...")
+        logger.info(socket.gethostname())
+        # tcpserver.serve_until_stopped()
 
         # Create dask cluster.
         if self.parsed_args.cluster_config:
