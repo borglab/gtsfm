@@ -54,14 +54,12 @@ class DsfTracksEstimator(TracksEstimatorBase):
         matches_map = gtsam.MatchIndicesMap()
         for (i1, i2), corr_idxs in matches_dict.items():
             matches_map[gtsam.IndexPair(i1, i2)] = corr_idxs
-        
+
         # Convert gtsfm Keypoints into gtsam Keypoints.
         keypoints_vector = gtsam.KeypointsVector()
         for keypoint in keypoints_list:
-            keypoints_vector.append(
-                gtsam.gtsfm.Keypoints(keypoint.coordinates)
-            )
-        
+            keypoints_vector.append(gtsam.gtsfm.Keypoints(keypoint.coordinates))
+
         tracks = gtsam.gtsfm.tracksFromPairwiseMatches(
             matches_map,
             keypoints_vector,
