@@ -10,6 +10,7 @@ from typing import Any, Dict, Tuple
 import dask
 import hydra
 import numpy as np
+from dask import config as dask_config
 from dask.distributed import Client, LocalCluster, SSHCluster, performance_report
 from gtsam import Rot3, Unit3
 from hydra.utils import instantiate
@@ -23,6 +24,8 @@ from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.scene_optimizer import SceneOptimizer
 from gtsfm.two_view_estimator import TWO_VIEW_OUTPUT, TwoViewEstimationReport, run_two_view_estimator_as_futures
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
+
+dask_config.set({"distributed.scheduler.worker-ttl": None})
 
 logger = logger_utils.get_logger()
 
