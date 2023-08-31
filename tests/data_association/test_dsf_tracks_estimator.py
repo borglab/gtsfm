@@ -175,10 +175,10 @@ def get_dummy_matches() -> Dict[Tuple[int, int], np.ndarray]:
 def get_nontransitive_matches() -> Dict[Tuple[int, int], np.ndarray]:
     """Set up correspondences for each (i1,i2) pair that violates transitivity.
     
-    (i=0, k=0)
-         |    \
-         |     \
-    (i=1, k=2)--(i=2,k=3)--(i=3, k=4)--(i=1, k=1)
+    (i=0, k=0)             (i=0, k=1)
+         |    \\               |
+         |     \\              |
+    (i=1, k=2)--(i=2,k=3)--(i=3, k=4)
 
     Transitivity is violated due to the match between frames 0 and 3. 
     """
