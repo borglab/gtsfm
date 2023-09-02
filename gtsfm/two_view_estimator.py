@@ -602,7 +602,7 @@ def get_two_view_reports_summary(
         List of dictionaries, where each dictionary contains the metrics for an image pair.
     """
 
-    def round_fn(x):
+    def round_fn(x: Optional[float]) -> Optional[float]:
         return round(x, 2) if x else None
 
     metrics_list = []

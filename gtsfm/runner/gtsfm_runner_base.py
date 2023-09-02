@@ -291,18 +291,18 @@ class GtsfmRunnerBase:
             two_view_estimation_duration_sec = time.time() - two_view_estimation_start_time
 
         i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, two_view_reports_dict = unzip_two_view_results(two_view_results_dict)
-        two_view_metrics = two_view_estimator.aggregate_frontend_metrics(
+        two_view_agg_metrics = two_view_estimator.aggregate_frontend_metrics(
             two_view_reports_dict=two_view_reports_dict,
             angular_err_threshold_deg=self.scene_optimizer._pose_angular_error_thresh,
             metric_group_name="verifier_summary_{}".format(two_view_estimator.POST_ISP_REPORT_TAG),
         )
-        two_view_metrics.add_metric(
+        two_view_agg_metrics.add_metric(
             GtsfmMetric("total_correspondence_generation_duration_sec", correspondence_generation_duration_sec)
         )
-        two_view_metrics.add_metric(
+        two_view_agg_metrics.add_metric(
             GtsfmMetric("total_two_view_estimation_duration_sec", two_view_estimation_duration_sec)
         )
-        all_metrics_groups = [retriever_metrics, two_view_metrics]
+        all_metrics_groups = [retriever_metrics, two_view_agg_metrics]
 
         delayed_sfm_result, delayed_io, delayed_mvo_metrics_groups = self.scene_optimizer.create_computation_graph(
             keypoints_list=keypoints_list,
