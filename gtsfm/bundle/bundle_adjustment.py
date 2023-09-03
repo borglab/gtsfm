@@ -298,6 +298,16 @@ class BundleAdjustmentOptimizer:
         verbose: bool = True,
     ) -> Tuple[GtsfmData, GtsfmData, List[bool], float]:
         """Runs bundle adjustment and optionally filters the resulting tracks by reprojection error."""
+        logger.info(
+            "Input: %d tracks on %d cameras", initial_data.number_tracks(), len(initial_data.get_valid_camera_indices())
+        )
+        if initial_data.number_tracks() == 0 or len(initial_data.get_valid_camera_indices()) == 0:
+            # No cameras or tracks to optimize, so bundle adjustment is not possible, return invalid result.
+            logger.error(
+                "Bundle adjustment aborting, optimization cannot be performed without any tracks or any cameras."
+            )
+            return initial_data, initial_data, [False] * initial_data.number_tracks(), 0.0
+
         cameras_to_model = self.__cameras_to_model(initial_data, absolute_pose_priors, relative_pose_priors)
         graph = self.__construct_factor_graph(
             cameras_to_model=cameras_to_model,

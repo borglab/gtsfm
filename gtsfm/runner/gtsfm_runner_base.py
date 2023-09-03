@@ -369,9 +369,6 @@ def save_metrics_reports(metrics_group_list: List[GtsfmMetricsGroup], metrics_pa
     Args:
         metrics_graph: List of GtsfmMetricsGroup from different modules wrapped as Delayed.
         metrics_path: Path to directory where computed metrics will be saved.
-
-    Returns:
-        List of delayed objects after saving metrics.
     """
 
     # Save metrics to JSON
