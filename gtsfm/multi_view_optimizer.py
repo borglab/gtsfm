@@ -9,7 +9,7 @@ import numpy as np
 import os
 from dask.delayed import Delayed
 from pathlib import Path
-from gtsam import Pose3
+from gtsam import Pose3, Rot3, Unit3
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.graph as graph_utils
@@ -23,6 +23,7 @@ from gtsfm.data_association.data_assoc import DataAssociation
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 from gtsfm.view_graph_estimator.view_graph_estimator_base import ViewGraphEstimatorBase
 from gtsfm.data_association.dsf_tracks_estimator import DsfTracksEstimator
+from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 
 
 class MultiViewOptimizer:
@@ -41,18 +42,26 @@ class MultiViewOptimizer:
         self.ba_optimizer = bundle_adjustment_module
         self._run_view_graph_estimator: bool = self.view_graph_estimator is not None
 
+    def __repr__(self) -> str:
+        return f"""
+        MultiviewOptimizer: 
+            ViewGraphEstimator: {self.view_graph_estimator}
+            RotationAveraging: {self.rot_avg_module}
+            TranslationAveraging: {self.trans_avg_module}
+        """
+
     def create_computation_graph(
         self,
-        images_graph: List[Delayed],
+        images: List[Delayed],
         num_images: int,
-        keypoints_graph: List[Keypoints],
-        i2Ri1_graph: Dict[Tuple[int, int], Delayed],
-        i2Ui1_graph: Dict[Tuple[int, int], Delayed],
-        v_corr_idxs_graph: Dict[Tuple[int, int], Delayed],
-        all_intrinsics: List[Delayed],
+        keypoints_list: List[Keypoints],
+        i2Ri1_dict: Dict[Tuple[int, int], Rot3],
+        i2Ui1_dict: Dict[Tuple[int, int], Unit3],
+        v_corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
+        all_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
         absolute_pose_priors: List[Optional[PosePrior]],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
-        two_view_reports_dict: Optional[Dict[Tuple[int, int], Delayed]],
+        two_view_reports_dict: Optional[Dict[Tuple[int, int], TwoViewEstimationReport]],
         cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
         gt_wTi_list: List[Optional[Pose3]],
         output_root: Optional[Path] = None,
@@ -60,15 +69,16 @@ class MultiViewOptimizer:
         """Creates a computation graph for multi-view optimization.
 
         Args:
+            images: list of all images in the scene, as delayed.
             num_images: number of images in the scene.
-            keypoints_graph: keypoints for images, each wrapped up as Delayed.
-            i2Ri1_graph: relative rotations for image pairs, each value wrapped up as Delayed.
-            i2Ui1_graph: relative unit-translations for image pairs, each value wrapped up as Delayed.
-            v_corr_idxs_graph: indices of verified correspondences for image pairs, wrapped up as Delayed.
+            keypoints_list: keypoints for images.
+            i2Ri1_dict: relative rotations for image pairs.
+            i2Ui1_dict: relative unit-translations for image pairs.
+            v_corr_idxs_dict: indices of verified correspondences for image pairs.
             all_intrinsics: intrinsics for images.
-            absolute_pose_priors: priors on the camera poses (not delayed).
-            relative_pose_priors: priors on the pose between camera pairs (not delayed)
-            two_view_reports_dict: Dict of TwoViewEstimationReports after inlier support processor.
+            absolute_pose_priors: priors on the camera poses.
+            relative_pose_priors: priors on the pose between camera pairs.
+            two_view_reports_dict: Dict of TwoViewEstimationReports from the front-end.
             cameras_gt: list of GT cameras (if they exist), ordered by camera index.
             gt_wTi_list: list of GT poses of the camera.
             output_root: path where output should be saved.
@@ -94,18 +104,18 @@ class MultiViewOptimizer:
                 viewgraph_two_view_reports_graph,
                 viewgraph_estimation_metrics,
             ) = self.view_graph_estimator.create_computation_graph(
-                i2Ri1_graph,
-                i2Ui1_graph,
+                i2Ri1_dict,
+                i2Ui1_dict,
                 all_intrinsics,
-                v_corr_idxs_graph,
-                keypoints_graph,
+                v_corr_idxs_dict,
+                keypoints_list,
                 two_view_reports_dict,
                 debug_output_dir,
             )
         else:
-            viewgraph_i2Ri1_graph = dask.delayed(i2Ri1_graph)
-            viewgraph_i2Ui1_graph = dask.delayed(i2Ui1_graph)
-            viewgraph_v_corr_idxs_graph = dask.delayed(v_corr_idxs_graph)
+            viewgraph_i2Ri1_graph = dask.delayed(i2Ri1_dict)
+            viewgraph_i2Ui1_graph = dask.delayed(i2Ui1_dict)
+            viewgraph_v_corr_idxs_graph = dask.delayed(v_corr_idxs_dict)
             viewgraph_two_view_reports_graph = dask.delayed(two_view_reports_dict)
             viewgraph_estimation_metrics = dask.delayed(GtsfmMetricsGroup("view_graph_estimation_metrics", []))
 
@@ -117,7 +127,7 @@ class MultiViewOptimizer:
         delayed_wRi, rot_avg_metrics = self.rot_avg_module.create_computation_graph(
             num_images, pruned_i2Ri1_graph, i1Ti2_priors=relative_pose_priors, gt_wTi_list=gt_wTi_list
         )
-        tracks2d_graph = dask.delayed(get_2d_tracks)(viewgraph_v_corr_idxs_graph, keypoints_graph)
+        tracks2d_graph = dask.delayed(get_2d_tracks)(viewgraph_v_corr_idxs_graph, keypoints_list)
 
         wTi_graph, ta_metrics = self.trans_avg_module.create_computation_graph(
             num_images,
@@ -137,11 +147,10 @@ class MultiViewOptimizer:
             tracks2d_graph,
             cameras_gt,
             relative_pose_priors,
-            images_graph,
+            images,
         )
-
         ba_result_graph, ba_metrics_graph = self.ba_optimizer.create_computation_graph(
-            ba_input_graph, absolute_pose_priors, relative_pose_priors, cameras_gt
+            ba_input_graph, absolute_pose_priors, relative_pose_priors, cameras_gt, save_dir=output_root
         )
 
         multiview_optimizer_metrics_graph = [

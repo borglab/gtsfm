@@ -7,20 +7,9 @@ import logging
 import timeit
 from typing import Any, Dict, List, Optional, Tuple
 
-import dask
-import gtsam
+from dask.distributed import Client
 import numpy as np
-from dask.delayed import Delayed
-from gtsam import (
-    CameraSetCal3Bundler,
-    CameraSetCal3Fisheye,
-    PinholeCameraCal3Bundler,
-    Point2Vector,
-    Pose3,
-    Rot3,
-    SfmTrack,
-    Unit3,
-)
+from gtsam import PinholeCameraCal3Bundler, Pose3, Rot3, SfmTrack, Unit3
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.geometry_comparisons as comp_utils
@@ -30,8 +19,9 @@ from gtsfm.bundle.two_view_ba import TwoViewBundleAdjustment
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
+from gtsfm.common.sfm_track import SfmMeasurement, SfmTrack2d
 from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
-from gtsfm.data_association.point3d_initializer import SVD_DLT_RANK_TOL
+from gtsfm.data_association.point3d_initializer import Point3dInitializer, TriangulationOptions
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.frontend.inlier_support_processor import InlierSupportProcessor
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
@@ -49,6 +39,15 @@ POST_BA_REPORT_TAG = "POST_BA_2VIEW_REPORT"
 POST_ISP_REPORT_TAG = "POST_INLIER_SUPPORT_PROCESSOR_2VIEW_REPORT"
 VIEWGRAPH_REPORT_TAG = "VIEWGRAPH_2VIEW_REPORT"
 
+TWO_VIEW_OUTPUT = Tuple[
+    Optional[Rot3],
+    Optional[Unit3],
+    np.ndarray,
+    TwoViewEstimationReport,
+    TwoViewEstimationReport,
+    TwoViewEstimationReport,
+]
+
 
 class TwoViewEstimator:
     """Wrapper for running two-view relative pose estimation on image pairs in the dataset."""
@@ -59,8 +58,9 @@ class TwoViewEstimator:
         inlier_support_processor: InlierSupportProcessor,
         bundle_adjust_2view: bool,
         eval_threshold_px: float,
+        triangulation_options: TriangulationOptions,
         bundle_adjust_2view_maxiters: int = 100,
-        ba_reproj_error_thresholds: List[float] = [0.5],
+        ba_reproj_error_thresholds: List[Optional[float]] = [0.5],
     ) -> None:
         """Initializes the two-view estimator from verifier.
 
@@ -78,65 +78,59 @@ class TwoViewEstimator:
         self.processor = inlier_support_processor
         self._bundle_adjust_2view = bundle_adjust_2view
         self._corr_metric_dist_threshold = eval_threshold_px
+        self._triangulation_options = triangulation_options
+        self._ba_reproj_error_thresholds = ba_reproj_error_thresholds
+        self._bundle_adjust_2view_maxiters = bundle_adjust_2view_maxiters
         self._ba_optimizer = TwoViewBundleAdjustment(
             reproj_error_thresholds=ba_reproj_error_thresholds,
             robust_measurement_noise=True,
             max_iterations=bundle_adjust_2view_maxiters,
         )
 
-    @classmethod
+    def __repr__(self) -> str:
+        return f"""
+        TwoViewEstimator:
+            Verifier: {self._verifier}
+            Bundle adjust 2-view: {self._bundle_adjust_2view}
+            Correspondence metric dist. threshold: {self._corr_metric_dist_threshold}
+            BA reproj. error thresholds: {self._ba_reproj_error_thresholds}
+            BA 2-view max. iters: {self._bundle_adjust_2view_maxiters}
+        """
+
     def triangulate_two_view_correspondences(
-        cls,
-        camera_i1: gtsfm_types.CAMERA_TYPE,
-        camera_i2: gtsfm_types.CAMERA_TYPE,
+        self,
+        cameras: Dict[int, gtsfm_types.CAMERA_TYPE],
         keypoints_i1: Keypoints,
         keypoints_i2: Keypoints,
-        corr_idxs: np.ndarray,
-    ) -> Tuple[List[SfmTrack], List[int], float]:
-        """Triangulate 2-view correspondences to form 3d tracks.
+        corr_ind: np.ndarray,
+    ) -> Tuple[List[int], List[SfmTrack]]:
+        """Triangulate 2-view correspondences to form 3D tracks.
 
         Args:
             camera_i1: Camera for 1st view.
             camera_i2: Camera for 2nd view.
             keypoints_i1: Keypoints for 1st view.
             keypoints_i2: Keypoints for 2nd view.
-            corr_idxs: Indices of corresponding keypoints.
+            corr_ind: Indices of corresponding keypoints.
 
         Returns:
+            Indices of successfully triangulated tracks.
             Triangulated 3D points as tracks.
         """
-        camera_set = (
-            CameraSetCal3Bundler() if isinstance(camera_i1, PinholeCameraCal3Bundler) else CameraSetCal3Fisheye()
-        )
-        camera_set.append(camera_i1)
-        camera_set.append(camera_i2)
+        assert len(cameras) == 2
+        point3d_initializer = Point3dInitializer(cameras, self._triangulation_options)
+        triangulated_indices: List[int] = []
+        triangulated_tracks: List[SfmTrack] = []
+        for j, (idx1, idx2) in enumerate(corr_ind):
+            track2d = SfmTrack2d(
+                [SfmMeasurement(0, keypoints_i1.coordinates[idx1]), SfmMeasurement(1, keypoints_i2.coordinates[idx2])]
+            )
+            track, _, _ = point3d_initializer.triangulate(track2d)
+            if track is not None:
+                triangulated_indices.append(j)
+                triangulated_tracks.append(track)
 
-        tracks_3d: List[SfmTrack] = []
-        valid_indices: List[int] = []
-        points = []
-        for j, (idx1, idx2) in enumerate(corr_idxs):
-            track_2d = Point2Vector()
-            track_2d.append(keypoints_i1.coordinates[idx1])
-            track_2d.append(keypoints_i2.coordinates[idx2])
-
-            try:
-                triangulated_pt = gtsam.triangulatePoint3(
-                    camera_set,
-                    track_2d,
-                    rank_tol=SVD_DLT_RANK_TOL,
-                    optimize=False,
-                )
-                points.append(triangulated_pt)
-                track_3d = SfmTrack(triangulated_pt)
-                track_3d.addMeasurement(0, track_2d[0])
-                track_3d.addMeasurement(1, track_2d[1])
-                tracks_3d.append(track_3d)
-                valid_indices.append(j)
-            except RuntimeError:
-                pass
-
-        triangulation_angles = calculate_triangulation_angles_in_degrees(camera_i1, camera_i2, np.array(points))
-        return tracks_3d, valid_indices, np.mean(triangulation_angles)
+        return triangulated_indices, triangulated_tracks
 
     def bundle_adjust(
         self,
@@ -148,7 +142,7 @@ class TwoViewEstimator:
         i2Ri1_initial: Optional[Rot3],
         i2Ui1_initial: Optional[Unit3],
         i2Ti1_prior: Optional[PosePrior],
-    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray, float]:
+    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray]:
         """Refine the relative pose using bundle adjustment on the 2-view scene.
 
         Args:
@@ -160,39 +154,30 @@ class TwoViewEstimator:
             i2Ri1_initial: The relative rotation to be used as initial rotation between cameras.
             i2Ui1_initial: The relative unit direction, to be used to initialize initial translation between cameras.
             i2Ti1_prior: Prior on the relative pose for cameras (i1, i2).
+
         Returns:
             Optimized relative rotation i2Ri1.
             Optimized unit translation i2Ui1.
             Optimized verified_corr_idxs.
         """
-        i2Ti1_from_verifier: Optional[Pose3] = (
-            Pose3(i2Ri1_initial, i2Ui1_initial.point3()) if i2Ri1_initial is not None else None
-        )
-        i2Ti1_initial: Optional[Pose3] = self.__generate_initial_pose_for_bundle_adjustment(
-            i2Ti1_from_verifier, i2Ti1_prior
-        )
-
+        # Choose initial pose estimate for triangulation and BA (prior gets priority).
+        i2Ti1_initial = i2Ti1_prior.value if i2Ti1_prior is not None else None
+        if i2Ti1_initial is None and i2Ri1_initial is not None and i2Ui1_initial is not None:
+            i2Ti1_initial = Pose3(i2Ri1_initial, i2Ui1_initial.point3())
         if i2Ti1_initial is None:
             return None, None, verified_corr_idxs, None
 
         # Set the i1 camera pose as the global coordinate system.
         camera_class = gtsfm_types.get_camera_class_for_calibration(camera_intrinsics_i1)
-        camera_i1 = camera_class(Pose3(), camera_intrinsics_i1)
-        camera_i2 = camera_class(i2Ti1_initial.inverse(), camera_intrinsics_i2)
+        cameras = {
+            0: camera_class(Pose3(), camera_intrinsics_i1),
+            1: camera_class(i2Ti1_initial.inverse(), camera_intrinsics_i2),
+        }
 
-        # Perform data association to construct 2-view BA input.
+        # Triangulate!
         start_time = timeit.default_timer()
-        # TODO: add flag to switch between verified and putative correspondences.
-        (
-            triangulated_tracks,
-            triangulated_indices,
-            mean_triangulation_angle,
-        ) = self.triangulate_two_view_correspondences(
-            camera_i1=camera_i1,
-            camera_i2=camera_i2,
-            keypoints_i1=keypoints_i1,
-            keypoints_i2=keypoints_i2,
-            corr_idxs=verified_corr_idxs,
+        triangulated_indices, triangulated_tracks = self.triangulate_two_view_correspondences(
+            cameras, keypoints_i1, keypoints_i2, verified_corr_idxs
         )
         logger.debug("Performed DA in %.6f seconds.", timeit.default_timer() - start_time)
         logger.debug("Triangulated %d correspondences out of %d.", len(triangulated_tracks), len(verified_corr_idxs))
@@ -200,26 +185,22 @@ class TwoViewEstimator:
         if len(triangulated_tracks) == 0:
             return (i2Ti1_initial.rotation(), Unit3(i2Ti1_initial.translation()), np.array([], dtype=np.uint32), 0.0)
 
-        # Perform 2-view BA.
+        # Build BA inputs.
         start_time = timeit.default_timer()
-        ba_input = GtsfmData(number_images=2)
-        ba_input.add_camera(0, camera_i1)
-        ba_input.add_camera(1, camera_i2)
-        for track in triangulated_tracks:
-            ba_input.add_track(track)
+        ba_input = GtsfmData(number_images=2, cameras=cameras, tracks=triangulated_tracks)
+        relative_pose_prior_for_ba = {(0, 1): i2Ti1_prior} if i2Ti1_prior is not None else {}
 
-        relative_pose_prior_for_ba = {}
-        if i2Ti1_prior is not None:
-            relative_pose_prior_for_ba = {(0, 1): i2Ti1_prior}
-
+        # Optimize!
         _, ba_output, valid_mask = self._ba_optimizer.run_ba(
             ba_input, absolute_pose_priors=[], relative_pose_priors=relative_pose_prior_for_ba, verbose=False
         )
+
+        # Unpack results.
         valid_corr_idxs = verified_corr_idxs[triangulated_indices][valid_mask]
         wTi1, wTi2 = ba_output.get_camera_poses()  # extract the camera poses
         if wTi1 is None or wTi2 is None:
-            logger.warning("2-view BA failed")
-            return i2Ri1_initial, i2Ui1_initial, valid_corr_idxs, 0.0
+            logger.warning("2-view BA failed...")
+            return i2Ri1_initial, i2Ui1_initial, valid_corr_idxs
         i2Ti1_optimized = wTi2.between(wTi1)
         logger.debug("Performed 2-view BA in %.6f seconds.", timeit.default_timer() - start_time)
 
@@ -227,7 +208,6 @@ class TwoViewEstimator:
             i2Ti1_optimized.rotation(),
             Unit3(i2Ti1_optimized.translation()),
             valid_corr_idxs,
-            mean_triangulation_angle,
         )
 
     def __get_2view_report_from_results(
@@ -292,32 +272,6 @@ class TwoViewEstimator:
             reproj_error_gt_model=reproj_error_wrt_gt,
         )
 
-    def __generate_initial_pose_for_bundle_adjustment(
-        self,
-        i2Ti1_from_verifier: Optional[Pose3],
-        i2Ti1_prior: Optional[PosePrior],
-    ) -> Optional[Pose3]:
-        """Use the combination of pose recovered from the verifier and the prior information to get the pose
-        initialization for 2-view BA.
-
-        Logic:
-        1. If the prior value exists, use the prior as the initial value.
-        2. Otherwise, use the verifier output as initial value.
-
-        Args:
-            i2Ti1_from_verifier: Relative pose recovered from verifier.
-            i2Ti1_prior: Relative pose prior.
-
-        Returns:
-            Pose to be used for initialization.
-        """
-        if i2Ti1_prior is None and i2Ti1_from_verifier is None:
-            return None
-        elif i2Ti1_prior is not None:
-            return i2Ti1_prior.value
-        else:
-            return i2Ti1_from_verifier
-
     def get_corr_metric_dist_threshold(self) -> float:
         """Getter for the distance threshold used in the metric for correct correspondences."""
         return self._corr_metric_dist_threshold
@@ -333,14 +287,7 @@ class TwoViewEstimator:
         gt_camera_i1: Optional[gtsfm_types.CAMERA_TYPE],
         gt_camera_i2: Optional[gtsfm_types.CAMERA_TYPE],
         gt_scene_mesh: Optional[Any] = None,
-    ) -> Tuple[
-        Optional[Rot3],
-        Optional[Unit3],
-        np.ndarray,
-        TwoViewEstimationReport,
-        TwoViewEstimationReport,
-        TwoViewEstimationReport,
-    ]:
+    ) -> TWO_VIEW_OUTPUT:
         """Estimate relative pose between two views, using verification."""
         # verification on putative correspondences to obtain relative pose and verified correspondences
         (pre_ba_i2Ri1, pre_ba_i2Ui1, pre_ba_v_corr_idxs, pre_ba_inlier_ratio_wrt_estimate) = self._verifier.verify(
@@ -366,8 +313,8 @@ class TwoViewEstimator:
         pre_ba_report.K_i2 = camera_intrinsics_i2
 
         # Optionally, do two-view bundle adjustment
-        if self._bundle_adjust_2view:
-            (post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs, pre_ba_mean_triangulation_angle) = self.bundle_adjust(
+        if self._bundle_adjust_2view and len(pre_ba_v_corr_idxs) >= self.processor._min_num_inliers_est_model:
+            post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs = self.bundle_adjust(
                 keypoints_i1,
                 keypoints_i2,
                 pre_ba_v_corr_idxs,
@@ -416,67 +363,6 @@ class TwoViewEstimator:
             pre_ba_report,
             post_ba_report,
             post_isp_report,
-        )
-
-    def create_computation_graph(
-        self,
-        keypoints_i1: Keypoints,
-        keypoints_i2: Keypoints,
-        putative_corr_idxs: np.ndarray,
-        camera_intrinsics_i1: Optional[gtsfm_types.CALIBRATION_TYPE],
-        camera_intrinsics_i2: Optional[gtsfm_types.CALIBRATION_TYPE],
-        i2Ti1_prior: Optional[PosePrior] = None,
-        gt_camera_i1: Optional[gtsfm_types.CAMERA_TYPE] = None,
-        gt_camera_i2: Optional[gtsfm_types.CAMERA_TYPE] = None,
-        gt_scene_mesh_graph: Optional[Delayed] = None,
-    ) -> Tuple[Delayed, Delayed, Delayed, Dict[str, Delayed]]:
-        """Create delayed tasks for two view geometry estimation, using verification.
-
-        Args:
-            keypoints_i1: Keypoints for image i1.
-            keypoints_i2: Keypoints for image i2.
-            putative_corr_idxs: Putative correspondences between i1 and i2, as a Kx2 array.
-            camera_intrinsics_i1: Intrinsics for camera i1.
-            camera_intrinsics_i2: Intrinsics for camera i2.
-            i2Ti1_prior: The prior on relative pose i2Ti1.
-            i2Ti1_expected_graph (optional): Ground truth relative pose, used for evaluation if available.
-
-        Returns:
-            Computed relative rotation wrapped as Delayed.
-            Computed relative translation direction wrapped as Delayed.
-            Indices of verified correspondences wrapped as Delayed.
-            Two-view reports at different stages (pre BA, post BA, and post inlier-support-processor), as a dictionary.
-        """
-        (
-            post_isp_i2Ri1,
-            post_isp_i2Ui1,
-            post_isp_v_corr_idxs,
-            pre_ba_report,
-            post_ba_report,
-            post_isp_report,
-        ) = dask.delayed(self.run_2view, nout=6)(
-            keypoints_i1=keypoints_i1,
-            keypoints_i2=keypoints_i2,
-            putative_corr_idxs=putative_corr_idxs,
-            camera_intrinsics_i1=camera_intrinsics_i1,
-            camera_intrinsics_i2=camera_intrinsics_i2,
-            i2Ti1_prior=i2Ti1_prior,
-            gt_camera_i1=gt_camera_i1,
-            gt_camera_i2=gt_camera_i2,
-            gt_scene_mesh=gt_scene_mesh_graph,
-        )
-        # Return the reports as a dict of Delayed objects, instead of a single Delayed object.
-        # This makes it countable and indexable.
-        two_view_reports = {
-            PRE_BA_REPORT_TAG: pre_ba_report,
-            POST_BA_REPORT_TAG: post_ba_report,
-            POST_ISP_REPORT_TAG: post_isp_report,
-        }
-        return (
-            post_isp_i2Ri1,
-            post_isp_i2Ui1,
-            post_isp_v_corr_idxs,
-            two_view_reports,
         )
 
 
@@ -571,7 +457,7 @@ def aggregate_frontend_metrics(
     """
     num_image_pairs = len(two_view_reports_dict.keys())
 
-    # all rotational errors in degrees
+    # All rotational errors in degrees.
     rot3_angular_errors_list: List[float] = []
     trans_angular_errors_list: List[float] = []
 
@@ -579,7 +465,7 @@ def aggregate_frontend_metrics(
     inlier_ratio_est_model_all_pairs = []
     num_inliers_gt_model_all_pairs = []
     num_inliers_est_model_all_pairs = []
-    # populate the distributions
+    # Populate the distributions.
     for report in two_view_reports_dict.values():
         if report.R_error_deg is not None:
             rot3_angular_errors_list.append(report.R_error_deg)
@@ -593,18 +479,18 @@ def aggregate_frontend_metrics(
 
     rot3_angular_errors = np.array(rot3_angular_errors_list, dtype=float)
     trans_angular_errors = np.array(trans_angular_errors_list, dtype=float)
-    # count number of rot3 errors which are not None. Should be same in rot3/unit3
+    # Count number of rot3 errors which are not None. Should be same in rot3/unit3.
     num_valid_image_pairs = np.count_nonzero(~np.isnan(rot3_angular_errors))
 
-    # compute pose errors by picking the max error from rot3 and unit3 errors
+    # Compute pose errors by picking the max error from rot3 and unit3 errors.
     pose_errors = np.maximum(rot3_angular_errors, trans_angular_errors)
 
-    # check errors against the threshold
+    # Check errors against the threshold.
     success_count_rot3 = np.sum(rot3_angular_errors < angular_err_threshold_deg)
     success_count_unit3 = np.sum(trans_angular_errors < angular_err_threshold_deg)
     success_count_pose = np.sum(pose_errors < angular_err_threshold_deg)
 
-    # count image pair entries where inlier ratio w.r.t. GT model == 1.
+    # Count image pair entries where inlier ratio w.r.t. GT model == 1.
     all_correct = np.count_nonzero(
         [report.inlier_ratio_gt_model == 1.0 for report in two_view_reports_dict.values() if report is not None]
     )
@@ -639,7 +525,7 @@ def aggregate_frontend_metrics(
         metric_group_name,
         [
             GtsfmMetric("angular_err_threshold_deg", angular_err_threshold_deg),
-            GtsfmMetric("num_total_image_pairs", int(num_image_pairs)),
+            GtsfmMetric("num_input_image_pairs", int(num_image_pairs)),
             GtsfmMetric("num_valid_image_pairs", int(num_valid_image_pairs)),
             GtsfmMetric("rotation_success_count", int(success_count_rot3)),
             GtsfmMetric("translation_success_count", int(success_count_unit3)),
@@ -657,46 +543,61 @@ def aggregate_frontend_metrics(
     return frontend_metrics
 
 
-def calculate_triangulation_angles_in_degrees(
-    camera_1: PinholeCameraCal3Bundler,
-    camera_2: PinholeCameraCal3Bundler,
-    points_3d: np.ndarray,
-) -> np.ndarray:
-    """Vectorized. calculuation of the angles formed at 3D points by the rays backprojected from 2 cameras.
-    In the setup with X (point_3d) and two cameras C1 and C2, the triangulation angle is the angle between rays C1-X
-    and C2-X, i.e. the angle subtendted at the 3d point.
-        X
-       / \
-      /   \
-     /     \
-    C1      C2
-    References:
-    - https://github.com/colmap/colmap/blob/dev/src/base/triangulation.cc#L122
-    
-    Args:
-        camera_1: the first camera.
-        camera_2: the second camera.
-        points_3d: (N,3) 3d points which are imaged by the two camera centers, and where the angle between the
-                  light rays associated with the measurements are computed.
-    Returns:
-        the angles formed at the 3d points, in degrees.
+def run_two_view_estimator_as_futures(
+    client: Client,
+    two_view_estimator: TwoViewEstimator,
+    keypoints_list: List[Keypoints],
+    putative_corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
+    camera_intrinsics: List[gtsfm_types.CALIBRATION_TYPE],
+    relative_pose_priors: Dict[Tuple[int, int], PosePrior],
+    gt_cameras: List[Optional[gtsfm_types.CAMERA_TYPE]],
+    gt_scene_mesh: Optional[Any],
+) -> Dict[Tuple[int, int], TWO_VIEW_OUTPUT]:
+    """Run two-view estimator for all image pairs."""
 
-    https://github.com/colmap/colmap/blob/dev/src/base/triangulation.cc#L147
-    """
-    camera_center_1: np.ndarray = camera_1.pose().translation()
-    camera_center_2: np.ndarray = camera_2.pose().translation()
+    def apply_two_view_estimator(
+        two_view_estimator: TwoViewEstimator,
+        keypoints_i1: Keypoints,
+        keypoints_i2: Keypoints,
+        putative_corr_idxs: np.ndarray,
+        camera_intrinsics_i1: gtsfm_types.CALIBRATION_TYPE,
+        camera_intrinsics_i2: gtsfm_types.CALIBRATION_TYPE,
+        i2Ti1_prior: Optional[PosePrior],
+        gt_camera_i1: Optional[gtsfm_types.CAMERA_TYPE],
+        gt_camera_i2: Optional[gtsfm_types.CAMERA_TYPE],
+        gt_scene_mesh: Optional[Any] = None,
+    ) -> TWO_VIEW_OUTPUT:
+        return two_view_estimator.run_2view(
+            keypoints_i1=keypoints_i1,
+            keypoints_i2=keypoints_i2,
+            putative_corr_idxs=putative_corr_idxs,
+            camera_intrinsics_i1=camera_intrinsics_i1,
+            camera_intrinsics_i2=camera_intrinsics_i2,
+            i2Ti1_prior=i2Ti1_prior,
+            gt_camera_i1=gt_camera_i1,
+            gt_camera_i2=gt_camera_i2,
+            gt_scene_mesh=gt_scene_mesh,
+        )
 
-    N = points_3d.shape[0]
-    # ensure broadcasting is in the correct direction
-    rays1 = points_3d - camera_center_1.reshape(1, 3)
-    rays2 = points_3d - camera_center_2.reshape(1, 3)
+    two_view_estimator_future = client.scatter(two_view_estimator, broadcast=False)
 
-    # normalize rays to unit length
-    rays1 /= np.linalg.norm(rays1, axis=1).reshape(N, 1)
-    rays2 /= np.linalg.norm(rays2, axis=1).reshape(N, 1)
+    two_view_output_futures = {
+        (i1, i2): client.submit(
+            apply_two_view_estimator,
+            two_view_estimator_future,
+            keypoints_list[i1],
+            keypoints_list[i2],
+            putative_corr_idxs,
+            camera_intrinsics[i1],
+            camera_intrinsics[i2],
+            relative_pose_priors.get((i1, i2)),
+            gt_cameras[i1],
+            gt_cameras[i2],
+            gt_scene_mesh,
+        )
+        for (i1, i2), putative_corr_idxs in putative_corr_idxs_dict.items()
+    }
 
-    dot_products = np.multiply(rays1, rays2).sum(axis=1)
-    dot_products = np.clip(dot_products, -1, 1)
-    angles_rad = np.arccos(dot_products)
-    angles_deg = np.rad2deg(angles_rad)
-    return angles_deg
+    two_view_output_dict = client.gather(two_view_output_futures)
+
+    return two_view_output_dict

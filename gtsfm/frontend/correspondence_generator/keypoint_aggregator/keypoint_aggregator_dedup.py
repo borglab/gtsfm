@@ -3,7 +3,7 @@
 Authors: John Lambert
 """
 
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
 
@@ -29,13 +29,13 @@ class KeypointAggregatorDedup(KeypointAggregatorBase):
         If duplicate keypoints are found, the index of the previously existing keypoint is recorded.
 
         Args:
-           i: image frame index.
-           keypoints: keypoints detected in single image, from direct image pair feature matching.
-           per_image_kpt_coordinates: running list of global keypoints, per image.
+           i: Image frame index.
+           keypoints: Keypoints detected in single image, from direct image pair feature matching.
+           per_image_kpt_coordinates: Running list of global keypoints, per image.
 
         Returns:
-            per_image_kpt_coordinates: running list of global keypoints, per image.
-            i_indices: single column of putative correspondence indices, for pair. These represent indices
+            per_image_kpt_coordinates: Running list of global keypoints, per image.
+            i_indices: Single column of putative correspondence indices, for pair. These represent indices
                 into the global table of keypoints per image.
         """
         N_to_add = keypoints.coordinates.shape[0]
@@ -63,21 +63,23 @@ class KeypointAggregatorDedup(KeypointAggregatorBase):
         per_image_kpt_coordinates[i] = np.vstack([per_image_kpt_coordinates[i], unique_keypoints_i_coordinates])
         return per_image_kpt_coordinates, np.array(i_indices)
 
-    def run(self, keypoints_dict: Dict[Tuple[int, int], Tuple[Keypoints, Keypoints]]) -> List[Optional[Keypoints]]:
+    def aggregate(
+        self, keypoints_dict: Dict[Tuple[int, int], Tuple[Keypoints, Keypoints]]
+    ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
         """Aggregates per-pair image keypoints into a set of keypoints per image, with de-duplication.
 
         Keypoints are computed per image pair, instead of per image, so they are aggregated per image here.
 
         Args:
-            keypoints_dict: key (i1,i2) maps to (keypoints_i1, keypoints_i2) representing matches (correspondences).
+            keypoints_dict: Key (i1,i2) maps to (keypoints_i1, keypoints_i2) representing matches (correspondences).
 
         Returns:
-            keypoints_list: list of N Keypoints objects for N images.
-            putative_corr_idxs_dict: mapping from image pair (i1,i2) to putative correspondence indices.
+            keypoints_list: List of N Keypoints objects for N images.
+            putative_corr_idxs_dict: Mapping from image pair (i1,i2) to putative correspondence indices.
               Correspondence indices are represented by an array of shape (K,2), for K correspondences.
         """
         image_indices = set()
-        for (i1, i2) in keypoints_dict.keys():
+        for i1, i2 in keypoints_dict.keys():
             image_indices.add(i1)
             image_indices.add(i2)
 
@@ -104,8 +106,7 @@ class KeypointAggregatorDedup(KeypointAggregatorBase):
         # Reset global state.
         self.duplicates_found = 0
 
-        keypoints_list = [None] * (max_img_idx + 1)
+        keypoints_list: List[Keypoints] = [Keypoints(coordinates=np.array([]))] * (max_img_idx + 1)
         for i in per_image_kpt_coordinates.keys():
             keypoints_list[i] = Keypoints(coordinates=per_image_kpt_coordinates[i])
-
         return keypoints_list, putative_corr_idxs_dict

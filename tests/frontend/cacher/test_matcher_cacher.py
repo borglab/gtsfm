@@ -19,8 +19,8 @@ DUMMY_KEYPOINTS_I2 = Keypoints(
     coordinates=np.random.rand(15, 2), scales=np.random.rand(15), responses=np.random.rand(15)
 )
 DUMMY_DESCRIPTORS_I2 = np.random.rand(len(DUMMY_KEYPOINTS_I2), 128)
-DUMMY_IM_SHAPE_I1 = (100, 200)
-DUMMY_IM_SHAPE_I2 = (50, 50)
+DUMMY_IM_SHAPE_I1 = (100, 200, 3)
+DUMMY_IM_SHAPE_I2 = (50, 50, 3)
 
 DUMMY_MATCH_INDICES = np.random.rand(5, 2)
 

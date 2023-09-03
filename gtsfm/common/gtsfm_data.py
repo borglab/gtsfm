@@ -29,15 +29,30 @@ class GtsfmData:
     The situation of non-contiguous cameras can exists because of failures in front-end.
     """
 
-    def __init__(self, number_images: int) -> None:
+    def __init__(
+        self,
+        number_images: int,
+        cameras: Optional[Dict[int, gtsfm_types.CAMERA_TYPE]] = None,
+        tracks: Optional[List[SfmTrack]] = None,
+    ) -> None:
         """Initializes the class.
 
         Args:
             number_images: number of images/cameras in the scene.
+            cameras: Cameras in scene.
+            tracks: SfmTracks in scene.
         """
+        self._number_images = number_images
         self._cameras: Dict[int, gtsfm_types.CAMERA_TYPE] = {}
         self._tracks: List[SfmTrack] = []
-        self._number_images = number_images
+
+        # Initialize from inputs if provided.
+        if cameras is not None:
+            for i, cam in cameras.items():
+                self.add_camera(i, cam)
+        if tracks is not None:
+            for track in tracks:
+                self.add_track(track)
 
     @classmethod
     def from_sfm_data(cls, sfm_data: gtsam.SfmData) -> "GtsfmData":
@@ -165,6 +180,7 @@ class GtsfmData:
             i, _ = track.measurement(j)
 
             if i not in self._cameras:
+                # TODO (travisdriver): Should we throw an error here?
                 return False
 
         self._tracks.append(track)

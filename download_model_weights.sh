@@ -40,3 +40,10 @@ D2NET_WEIGHTS_DIR="./thirdparty/d2net/weights"
 mkdir -p $D2NET_WEIGHTS_DIR
 
 wget $D2NET_CKPT_URL -O $D2NET_WEIGHTS_DIR/d2_tf.pth
+
+##################### NetVLAD #############################
+
+NETVLAD_WEIGHTS_DIR="./thirdparty/hloc/weights"
+NETVLAD_CKPT_URL="https://github.com/johnwlambert/gtsfm-datasets-mirror/releases/download/gerrard-hall-100/VGG16-NetVLAD-Pitts30K.mat"
+mkdir $NETVLAD_WEIGHTS_DIR
+wget $NETVLAD_CKPT_URL -O $NETVLAD_WEIGHTS_DIR/VGG16-NetVLAD-Pitts30K.mat

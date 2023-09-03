@@ -10,9 +10,11 @@ References:
 
 Authors: Jing Wu, Ayush Baid, Akshay Krishnan
 """
+import time
 from collections import defaultdict
 from enum import Enum
 from typing import DefaultDict, Dict, List, Optional, Set, Tuple
+
 import gtsam
 import numpy as np
 from gtsam import (
@@ -461,6 +463,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
         w_i2Ui1_dict, valid_cameras = get_valid_measurements_in_world_frame(i2Ui1_dict, wRi_list)
 
+        start_time = time.time()
         if self._use_tracks_for_averaging:
             if tracks_2d is None:
                 logger.info("No tracks provided for translation averaging. Falling back to camera unit translations.")
@@ -473,10 +476,13 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         else:
             w_i2Ui1_dict_tracks = {}
 
+        inlier_computation_start_time = time.time()
         w_i2Ui1_dict_inliers, w_i2Ui1_dict_tracks_inliers, inlier_cameras = self.compute_inliers(
             w_i2Ui1_dict, w_i2Ui1_dict_tracks
         )
+        inlier_computation_time = time.time() - inlier_computation_start_time
 
+        averaging_start_time = time.time()
         wti_list = self.__run_averaging(
             num_images=num_images,
             w_i2Ui1_dict=w_i2Ui1_dict_inliers,
@@ -486,6 +492,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             absolute_pose_priors=absolute_pose_priors,
             scale_factor=scale_factor,
         )
+        averaging_time = time.time() - averaging_start_time
 
         # Compute the metrics.
         ta_metrics = compute_metrics(set(w_i2Ui1_dict_inliers.keys()), i2Ui1_dict, wRi_list, wti_list, gt_wTi_list)
@@ -497,6 +504,12 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         wTi_list = [
             Pose3(wRi, wti) if wRi is not None and wti is not None else None for wRi, wti in zip(wRi_list, wti_list)
         ]
+        total_time = time.time() - start_time
+        logger.info("Translation averaging took %.4f seconds.", total_time)
+        ta_metrics.add_metric(GtsfmMetric("total_duration_sec", total_time))
+        ta_metrics.add_metric(GtsfmMetric("outier_rejection_duration_sec", inlier_computation_time))
+        ta_metrics.add_metric(GtsfmMetric("optimization_duration_sec", averaging_time))
+
         return wTi_list, ta_metrics
 
 
@@ -530,12 +543,12 @@ def compute_metrics(
         GtsfmMetric("num_outlier_1dsfm_measurements", len(outlier_i1_i2_pairs)),
         GtsfmMetric("num_translations_estimated", len([wti for wti in wti_list if wti is not None])),
     ]
-    
+
     # Remaining metrics require ground truth, so return if GT is not available.
     gt_available = np.array([gt_wTi is not None for gt_wTi in gt_wTi_list]).any()
     if not gt_available:
         return GtsfmMetricsGroup("translation_averaging_metrics", ta_metrics)
-    
+
     # Get ground truth translation directions for the measurements.
     gt_i2Ui1_dict = metrics_utils.get_twoview_translation_directions(gt_wTi_list)
 
@@ -562,14 +575,17 @@ def compute_metrics(
     gt_wti_list = [gt_wTi.translation() if gt_wTi is not None else None for gt_wTi in gt_wTi_list]
 
     threshold_suffix = str(int(MAX_INLIER_MEASUREMENT_ERROR_DEG)) + "_deg"
-    ta_metrics.extend([
-        GtsfmMetric("1dsfm_precision_" + threshold_suffix, precision),
-        GtsfmMetric("1dsfm_recall_" + threshold_suffix, recall),
-        GtsfmMetric("1dsfm_inlier_angular_errors_deg", inlier_angular_errors),
-        GtsfmMetric("1dsfm_outlier_angular_errors_deg", outlier_angular_errors),
-        metrics_utils.compute_translation_angle_metric(measured_gt_i2Ui1_dict, wTi_aligned_list),
-        metrics_utils.compute_translation_distance_metric(wti_aligned_list, gt_wti_list),
-    ])
+    ta_metrics.extend(
+        [
+            GtsfmMetric("1dsfm_precision_" + threshold_suffix, precision),
+            GtsfmMetric("1dsfm_recall_" + threshold_suffix, recall),
+            GtsfmMetric("1dsfm_inlier_angular_errors_deg", inlier_angular_errors),
+            GtsfmMetric("1dsfm_outlier_angular_errors_deg", outlier_angular_errors),
+            metrics_utils.compute_relative_translation_angle_metric(measured_gt_i2Ui1_dict, wTi_aligned_list),
+            metrics_utils.compute_translation_distance_metric(wti_aligned_list, gt_wti_list),
+            metrics_utils.compute_translation_angle_metric(gt_wTi_list, wTi_aligned_list),
+        ]
+    )
 
     return GtsfmMetricsGroup("translation_averaging_metrics", ta_metrics)
 
