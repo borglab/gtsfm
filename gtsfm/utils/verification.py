@@ -212,3 +212,107 @@ def compute_epipolar_distances_sq_sampson(
     denominator = line_sq_norms_i1 + line_sq_norms_i2
 
     return numerator / denominator
+
+
+def compute_epipolar_distances_sq_sampson_essential(
+    coordinates_i1: np.ndarray, coordinates_i2: np.ndarray, i2Ei1: np.ndarray
+) -> Optional[np.ndarray]:
+    """Compute the sampson distance between corresponding coordinates in two images. Sampson distance is the first
+    order approximation of the reprojection error, and well-estimates the gold standard reprojection error at low
+    values of the reprojection error.
+
+    The squared Sampson distance is computed in OpenCV (Ref 3) as well COLMAP (Ref 4). OpenCV uses the squared sampson
+    error to find inliers in RANSAC (Ref 5).
+
+    References:
+    1 "Fathy et al., Fundamental Matrix Estimation: A Study of Error Criteria", https://arxiv.org/abs/1706.07886
+    2 "Hartley, R.~I. et al. Multiple View Geometry in Computer Vision.. Cambridge University Press, Pg 288"
+    3 https://github.com/opencv/opencv/blob/29fb4f98b10767008d0751dd064023727d9d3e5d/modules/calib3d/src/five-point.cpp#L375 # noqa: E501
+    4 https://github.com/colmap/colmap/blob/9f3a75ae9c72188244f2403eb085e51ecf4397a8/src/estimators/utils.cc#L87
+    5 https://github.com/opencv/opencv/blob/29fb4f98b10767008d0751dd064023727d9d3e5d/modules/calib3d/src/ptsetreg.cpp#L85 # noqa: E731
+
+    Algorithm:
+    - l2 = i2Fi1 @ x1
+    - l1 = x2.T @ i2Fi1 = [a1, b1, c2]
+    - n1 = EuclideanNorm(Normal(l1)) = sqrt(a1^2 + b1^2)
+    - n2 = EuclideanNorm(Normal(l2))
+    - Sampson^2 = ( l1 @ x1 )^2 / (n1^2 + n2^2)
+
+    Args:
+        coordinates_i1: coordinates in image i1, of shape Nx2.
+        coordinates_i2: corr. coordinates in image i2, of shape Nx2.
+        i2Fi1: fundamental matrix between two images.
+
+    Returns:
+        Sampson distance for each row of the input, of shape N.
+    """
+
+    if coordinates_i1 is None or coordinates_i1.size == 0 or coordinates_i2 is None or coordinates_i2.size == 0:
+        return None
+
+    epipolar_lines_i2 = coordinates_i1 @ i2Ei1.T
+    epipolar_lines_i1 = coordinates_i2 @ i2Ei1.T
+    line_sq_norms_i1 = np.sum(np.square(epipolar_lines_i1[:, :2]), axis=1)
+    line_sq_norms_i2 = np.sum(np.square(epipolar_lines_i2[:, :2]), axis=1)
+
+    numerator = np.square(np.sum(coordinates_i1 * epipolar_lines_i1, axis=-1))
+    denominator = line_sq_norms_i1 + line_sq_norms_i2
+
+    return numerator / denominator
+
+
+# Given a fundamental matrix that relates two cameras with the same intrinsics,
+# extract the shared focal length. The method is provided in the article:
+#   "On Focal Length Calibration from Two Views" by Peter Sturm (CVPR 2001).
+def shared_focal_lengths_from_fundamental_matrix(i2Fi1):
+    # Construct a "semi-calibrated" matrix G with all intrinsics but focal length
+    # accounted for. In our case, the fundamental matrix is equivalent to G
+    # because we assume the fundmental matrix was computed with all the known
+    # intrinsics effects removed.
+
+    # Compute the SVD of the semi-calibrated fundamental matrix.
+    U, S, Vt = np.linalg.svd(i2Fi1)
+    V = Vt.transpose()
+    a = S[0]
+    b = S[1]
+
+    # Construct the quadratic equation that reveals the focal length.
+    U20 = U[2, 0]
+    U21 = U[2, 1]
+    V20 = V[2, 0]
+    V21 = V[2, 1]
+    U20_sq = U20 * U20
+    U21_sq = U21 * U21
+    V20_sq = V20 * V20
+    V21_sq = V21 * V21
+
+    c0 = a * a * (1.0 - U20_sq) * (1.0 - V20_sq) - b * b * (1.0 - U21_sq) * (1.0 - V21_sq)
+    c1 = a * a * (U20_sq + V20_sq - 2.0 * U20_sq * V20_sq) - b * b * (U21_sq + V21_sq - 2.0 * U21_sq * V21_sq)
+    c2 = a * a * U20_sq * V20_sq - b * b * U21_sq * V21_sq
+
+    # Solve the quadratic equation. The roots provide the square of the focal
+    # length.
+    roots = np.roots(np.array([c0, c1, c2]))
+    real_roots = np.real(roots)
+
+    # If niether root is positive then no valid solution exists. If one of the
+    # roots is negative then it leads to an imaginary value for the focal length
+    # so we can immediately return the other value as the solution.
+    if np.all(real_roots < 0):
+        raise ValueError("No soln")
+    elif real_roots[0] < 0:
+        return np.sqrt(real_roots[1])
+    elif real_roots[1] < 0:
+        return np.sqrt(real_roots[0])
+    else:
+        # If we reach this point then the roots are both positive and so we
+        # disambiguate the roots by selecting the root that best satisfies the
+        # linear constraint.
+        c1 = a * U20 * U21 * (1.0 - V20_sq) + b * V20 * V21 * (1.0 - U21_sq)
+        c2 = U21 * V20 * (a * U20 * V20 + b * U21 * V21)
+        root1_val = c1 * real_roots[0] + c2
+        root2_val = c1 * real_roots[1] + c2
+        if np.abs(root1_val) < np.abs(root2_val):
+            return np.sqrt(real_roots[0])
+        else:
+            return np.sqrt(real_roots[1])

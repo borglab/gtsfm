@@ -53,3 +53,4 @@ class TwoViewEstimationReport:
     outlier_avg_reproj_error_gt_model: Optional[float] = None
     K_i1: Optional[Cal3Bundler] = None
     K_i2: Optional[Cal3Bundler] = None
+    triangulation_angle: np.ndarray = None

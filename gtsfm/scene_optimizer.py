@@ -31,6 +31,7 @@ from gtsfm.densify.mvs_base import MVSBase
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.retriever.retriever_base import RetrieverBase, ImageMatchingRegime
+from gtsfm.intrinsics_estimator import IntrinsicsEstimator
 from gtsfm.two_view_estimator import (
     POST_BA_REPORT_TAG,
     POST_ISP_REPORT_TAG,
@@ -94,6 +95,7 @@ class SceneOptimizer:
         self.output_root = Path(output_root)
         self._output_worker = output_worker
         self._create_output_directories()
+        self.intrinsics_estimator = IntrinsicsEstimator(verification_threshold_px=2, per_camera_intrinsics=False)
 
     def _create_output_directories(self) -> None:
         """Create various output directories for GTSFM results, metrics, and plots."""
@@ -148,10 +150,9 @@ class SceneOptimizer:
             POST_BA_REPORT_TAG: {},
             POST_ISP_REPORT_TAG: {},
         }
-        new_intrinsics = defaultdict(list)
 
         delayed_results: List[Delayed] = []
-        for (i1, i2) in image_pair_indices:
+        for i1, i2 in image_pair_indices:
             # Collect ground truth relative and absolute poses if available.
             # TODO(johnwlambert): decompose this method -- name it as "calling_the_plate()"
             # TODO(johnwlambert): decompose this so what happens in the loop is a separate method
@@ -159,8 +160,6 @@ class SceneOptimizer:
                 i2Ri1,
                 i2Ui1,
                 v_corr_idxs,
-                new_intrinsics_i1,
-                new_intrinsics_i2,
                 two_view_reports,
             ) = self.two_view_estimator.create_computation_graph(
                 keypoints_i1=keypoints_list[i1],
@@ -173,8 +172,6 @@ class SceneOptimizer:
                 gt_camera_i2=gt_cameras[i2],
                 gt_scene_mesh_graph=gt_scene_mesh,
             )
-            new_intrinsics[i1].append(new_intrinsics_i1)
-            new_intrinsics[i2].append(new_intrinsics_i2)
 
             # Store results.
             i2Ri1_graph_dict[(i1, i2)] = i2Ri1
@@ -199,15 +196,10 @@ class SceneOptimizer:
                         )
                     )
 
-        updated_intrinsics = []
-        for i in range(len(all_intrinsics)):
-            updated_intrinsics.append(dask.delayed(average_intrinsics)(new_intrinsics[i]))
-
         return (
             i2Ri1_graph_dict,
             i2Ui1_graph_dict,
             v_corr_idxs_graph_dict,
-            updated_intrinsics,
             two_view_reports_dict,
             delayed_results,
         )
@@ -229,12 +221,14 @@ class SceneOptimizer:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
         logger.info(f"Results, plots, and metrics will be saved at {self.output_root}")
 
+        updated_intrinsics = self.intrinsics_estimator.create_computation_graph(
+            keypoints_list, putative_corr_idxs_dict, image_pair_indices, all_intrinsics
+        )
         # Auxiliary graph elements for visualizations and saving intermediate data for analysis.
         (
             i2Ri1_graph_dict,
             i2Ui1_graph_dict,
             v_corr_idxs_graph_dict,
-            updated_intrinsics,
             two_view_reports_dict,
             delayed_results,
         ) = self.create_computation_graph_for_frontend(
@@ -246,6 +240,20 @@ class SceneOptimizer:
             relative_pose_priors=relative_pose_priors,
             gt_cameras=cameras_gt,
             gt_scene_mesh=gt_scene_mesh,
+        )
+        delayed_results.append(
+            dask.delayed(save_two_view_results)(
+                i2Ri1_graph_dict,
+                i2Ui1_graph_dict,
+                keypoints_list,
+                putative_corr_idxs_dict,
+                v_corr_idxs_graph_dict,
+                all_intrinsics,
+                updated_intrinsics,
+                cameras_gt,
+                image_pair_indices,
+                self.output_root,
+            )
         )
 
         # Note: the MultiviewOptimizer returns BA input and BA output that are aligned to GT via Sim(3).
@@ -370,7 +378,9 @@ def get_image_dictionary(image_list: List[Image]) -> Dict[int, Image]:
 
 
 def align_estimated_gtsfm_data(
-    ba_input: GtsfmData, ba_output: GtsfmData, gt_wTi_list: List[Optional[Pose3]]
+    ba_input: GtsfmData,
+    ba_output: GtsfmData,
+    gt_wTi_list: List[Optional[Pose3]],
 ) -> Tuple[GtsfmData, GtsfmData, List[Optional[Pose3]]]:
     """First aligns ba_input and ba_output to gt_wTi_list using a Sim3 transformation, then aligns them all to the
     X, Y, Z axes via another Sim3 global transformation.
@@ -423,7 +433,10 @@ def save_visualizations(
     viz_graph_list.append(dask.delayed(viz_utils.save_sfm_data_viz)(aligned_ba_output_graph, plot_results_path))
     viz_graph_list.append(
         dask.delayed(viz_utils.save_camera_poses_viz)(
-            aligned_ba_input_graph, aligned_ba_output_graph, gt_pose_graph, plot_results_path
+            aligned_ba_input_graph,
+            aligned_ba_output_graph,
+            gt_pose_graph,
+            plot_results_path,
         )
     )
     return viz_graph_list
@@ -556,7 +569,6 @@ def save_full_frontend_metrics(
     round_fn = lambda x: round(x, PRINT_NUM_SIG_FIGS) if x else None
 
     for (i1, i2), report in two_view_report_dict.items():
-
         # Note: if GT is unknown, then R_error_deg, U_error_deg, and inlier_ratio_gt_model will be None
         metrics_list.append(
             {
@@ -653,8 +665,59 @@ def _save_retrieval_two_view_metrics(metrics_path: Path, plot_base_path: Path) -
     plt.close("all")
 
 
-def average_intrinsics(estimates):
-    focals = [K.fx() for K in estimates]
-    reference = estimates[0]
-    new_intrinsics = Cal3Bundler(np.median(focals), reference.k1(), reference.k2(), reference.px(), reference.py())
-    return new_intrinsics
+def save_two_view_results(
+    i2Ri1_graph_dict,
+    i2Ui1_graph_dict,
+    keypoints_list,
+    putative_corr_idxs_dict,
+    v_corr_idxs_graph_dict,
+    all_intrinsics,
+    updated_intrinsics,
+    cameras_gt,
+    image_pairs,
+    output_dir,
+):
+    output_dir = Path(output_dir)
+    output_dir.mkdir(exist_ok=True)
+    (output_dir / "keypoints").mkdir(exist_ok=True)
+    (output_dir / "putative_corr").mkdir(exist_ok=True)
+    (output_dir / "v_corr").mkdir(exist_ok=True)
+    (output_dir / "orig_intrin").mkdir(exist_ok=True)
+    (output_dir / "updated_intrin").mkdir(exist_ok=True)
+    (output_dir / "rot").mkdir(exist_ok=True)
+    (output_dir / "trans").mkdir(exist_ok=True)
+    (output_dir / "gt_intrin").mkdir(exist_ok=True)
+    (output_dir / "gt_rot").mkdir(exist_ok=True)
+    (output_dir / "gt_trans").mkdir(exist_ok=True)
+
+    saved_kps = set()
+
+    def savef(fname, arr):
+        with open(fname, "wb") as f:
+            np.save(f, arr)
+
+    for i1, i2 in image_pairs:
+        if i1 not in saved_kps:
+            savef(output_dir / "keypoints" / f"{i1}.npy", keypoints_list[i1].coordinates)
+            savef(output_dir / "orig_intrin" / f"{i1}.npy", all_intrinsics[i1].K())
+            savef(output_dir / "updated_intrin" / f"{i1}.npy", updated_intrinsics[i1].K())
+            savef(output_dir / "gt_intrin" / f"{i1}.npy", cameras_gt[i1].calibration().K())
+            savef(output_dir / "gt_rot" / f"{i1}.npy", cameras_gt[i1].pose().rotation().matrix())
+            savef(output_dir / "gt_trans" / f"{i1}.npy", cameras_gt[i1].pose().translation())
+        if i2 not in saved_kps:
+            savef(output_dir / "keypoints" / f"{i2}.npy", keypoints_list[i2].coordinates)
+            savef(output_dir / "orig_intrin" / f"{i2}.npy", all_intrinsics[i2].K())
+            savef(output_dir / "updated_intrin" / f"{i2}.npy", updated_intrinsics[i2].K())
+            savef(output_dir / "gt_intrin" / f"{i2}.npy", cameras_gt[i2].calibration().K())
+            savef(output_dir / "gt_rot" / f"{i2}.npy", cameras_gt[i2].pose().rotation().matrix())
+            savef(output_dir / "gt_trans" / f"{i2}.npy", cameras_gt[i2].pose().translation())
+        savef(output_dir / "putative_corr" / f"{i1}_{i2}.npy", putative_corr_idxs_dict[(i1, i2)])
+        savef(output_dir / "v_corr" / f"{i1}_{i2}.npy", v_corr_idxs_graph_dict[(i1, i2)])
+        savef(
+            output_dir / "rot" / f"{i1}_{i2}.npy",
+            i2Ri1_graph_dict[(i1, i2)].matrix() if i2Ri1_graph_dict[(i1, i2)] is not None else [[]],
+        )
+        savef(
+            output_dir / "trans" / f"{i1}_{i2}.npy",
+            i2Ui1_graph_dict[(i1, i2)].point3() if i2Ui1_graph_dict[(i1, i2)] is not None else [[]],
+        )

@@ -1,3 +1,3 @@
 retriever:
   _target_: gtsfm.retriever.sequential_retriever.SequentialRetriever
-  max_frame_lookahead: 20
+  max_frame_lookahead: 5
