@@ -8,7 +8,7 @@ and grids of box or histogram plots generated using plotly.
 Authors: Akshay Krishnan, Jon Womack
 """
 from collections import defaultdict
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import plotly.graph_objects as go
@@ -372,7 +372,7 @@ def get_html_header() -> str:
 def generate_metrics_report_html(
     metrics_groups: List[GtsfmMetricsGroup],
     html_path: str,
-    other_pipelines_metrics_groups: Dict[str, List[GtsfmMetricsGroup]],
+    other_pipelines_metrics_groups: Optional[Dict[str, List[GtsfmMetricsGroup]]],
 ) -> None:
     """Generates a report for metrics groups with plots and tables and saves it to HTML.
 
