@@ -297,7 +297,22 @@ class BundleAdjustmentOptimizer:
         reproj_error_thresh: Optional[float],
         verbose: bool = True,
     ) -> Tuple[GtsfmData, GtsfmData, List[bool], float]:
-        """Runs bundle adjustment and optionally filters the resulting tracks by reprojection error."""
+        """Runs bundle adjustment and optionally filters the resulting tracks by reprojection error.
+
+        Args:
+            initial_data: Initialized cameras, tracks w/ their 3d landmark from triangulation.
+            absolute_pose_priors: Priors to be used on cameras.
+            relative_pose_priors: Priors on the pose between two cameras.
+            reproj_error_thresh: Maximum 3D track reprojection error, for filtering tracks after BA.
+            verbose: Boolean flag to print out additional info for debugging.
+
+        Results:
+            Optimized camera poses, 3D point w/ tracks, and error metrics, aligned to GT (if provided).
+            Optimized camera poses after filtering landmarks (and cameras with no remaining landmarks).
+            Valid mask as a list of booleans, indicating for each input track whether it was below the re-projection
+                threshold.
+            Final error value of the optimization problem.
+        """
         logger.info(
             "Input: %d tracks on %d cameras", initial_data.number_tracks(), len(initial_data.get_valid_camera_indices())
         )
