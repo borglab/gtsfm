@@ -24,6 +24,7 @@ from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.scene_optimizer import SceneOptimizer
 from gtsfm.two_view_estimator import TWO_VIEW_OUTPUT, TwoViewEstimationReport, run_two_view_estimator_as_futures
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
+from gtsfm import intrinsics_estimator
 
 dask_config.set({"distributed.scheduler.worker-ttl": None})
 
@@ -297,6 +298,13 @@ class GtsfmRunnerBase:
                 image_pair_indices,
             )
 
+        with performance_report(filename="intrinsics-estimator-dask-report.html"):
+            intrin_estimator = intrinsics_estimator.IntrinsicsEstimator(verification_threshold_px=4)
+            intrinsics = intrinsics_estimator.run_intrinsics_estimator_as_futures(
+                client, intrin_estimator, keypoints_list, putative_corr_idxs_dict, intrinsics
+            )
+
+        with performance_report(filename="two-view-estimator-dask-report.html"):
             two_view_results_dict = run_two_view_estimator_as_futures(
                 client,
                 self.scene_optimizer.two_view_estimator,
