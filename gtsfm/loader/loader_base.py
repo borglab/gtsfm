@@ -4,7 +4,6 @@ Authors: Frank Dellaert and Ayush Baid
 """
 
 import abc
-import glob
 import logging
 from typing import Dict, List, Optional, Tuple
 
@@ -415,7 +414,7 @@ class LoaderBase(GTSFMProcess):
                 The number of all the images.
             ]
         """
-        all_image_paths = glob.glob(search_path)
+        all_image_paths = io_utils.get_sorted_image_names_in_dir(search_path)
         num_all_imgs = len(all_image_paths)
         exif_image_paths = []
         for single_img_path in all_image_paths:

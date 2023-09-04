@@ -29,7 +29,7 @@ jobs:
       PYTHON_VERSION: 3.8
 
     steps:
-      - uses: actions/checkout@v3.6.0
+      - uses: actions/checkout@v4.0.0
       - name: Cache frontend
         uses: actions/cache@v3
         env:
@@ -67,7 +67,6 @@ jobs:
           DATASET_NAME=${{ matrix.config_dataset_info[1] }}
           CONFIG_NAME=${{ matrix.config_dataset_info[0] }}
           MAX_FRAME_LOOKAHEAD=${{ matrix.config_dataset_info[2] }}
-          IMAGE_EXTENSION=${{ matrix.config_dataset_info[3] }}
           LOADER_NAME=${{ matrix.config_dataset_info[5] }}
           MAX_RESOLUTION=${{ matrix.config_dataset_info[6] }}
           SHARE_INTRINSICS=${{ matrix.config_dataset_info[7] }}
@@ -78,7 +77,6 @@ jobs:
             $DATASET_NAME \
             $CONFIG_NAME \
             $MAX_FRAME_LOOKAHEAD \
-            $IMAGE_EXTENSION \
             $LOADER_NAME \
             $MAX_RESOLUTION \
             $SHARE_INTRINSICS

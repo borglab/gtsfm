@@ -5,18 +5,23 @@ import os
 import time
 from abc import abstractmethod, abstractproperty
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, List, Tuple
 
 import dask
 import hydra
 import numpy as np
+from dask import config as dask_config
 from dask.distributed import Client, LocalCluster, SSHCluster, performance_report
 from gtsam import Rot3, Unit3
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
 
+import gtsfm.evaluation.metrics_report as metrics_report
 import gtsfm.utils.logger as logger_utils
+import gtsfm.utils.metrics as metrics_utils
 from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm import two_view_estimator
+from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.frontend.correspondence_generator.image_correspondence_generator import ImageCorrespondenceGenerator
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.retriever.retriever_base import ImageMatchingRegime
@@ -24,9 +29,12 @@ from gtsfm.scene_optimizer import SceneOptimizer
 from gtsfm.two_view_estimator import TWO_VIEW_OUTPUT, TwoViewEstimationReport, run_two_view_estimator_as_futures
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
 
+dask_config.set({"distributed.scheduler.worker-ttl": None})
+
 logger = logger_utils.get_logger()
 
 DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent.parent.parent
+REACT_METRICS_PATH = DEFAULT_OUTPUT_ROOT / "rtf_vis_tool" / "src" / "result_metrics"
 
 
 class GtsfmRunnerBase:
@@ -278,13 +286,11 @@ class GtsfmRunnerBase:
             self.loader, plots_output_dir=self.scene_optimizer._plot_base_path
         )
         retriever_metrics = self.scene_optimizer.retriever.evaluate(self.loader, image_pair_indices)
-        retriever_metrics.save_to_json(
-            os.path.join(self.parsed_args.output_root, "result_metrics", "retriever_metrics" + ".json")
-        )
 
         intrinsics = self.loader.get_all_intrinsics()
 
         with performance_report(filename="correspondence-generator-dask-report.html"):
+            correspondence_generation_start_time = time.time()
             (
                 keypoints_list,
                 putative_corr_idxs_dict,
@@ -293,7 +299,9 @@ class GtsfmRunnerBase:
                 self.loader.get_all_images_as_futures(client),
                 image_pair_indices,
             )
+            correspondence_generation_duration_sec = time.time() - correspondence_generation_start_time
 
+            two_view_estimation_start_time = time.time()
             two_view_results_dict = run_two_view_estimator_as_futures(
                 client,
                 self.scene_optimizer.two_view_estimator,
@@ -304,10 +312,23 @@ class GtsfmRunnerBase:
                 self.loader.get_gt_cameras(),
                 gt_scene_mesh=self.loader.get_gt_scene_trimesh(),
             )
+            two_view_estimation_duration_sec = time.time() - two_view_estimation_start_time
 
         i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, two_view_reports_dict = unzip_two_view_results(two_view_results_dict)
+        two_view_agg_metrics = two_view_estimator.aggregate_frontend_metrics(
+            two_view_reports_dict=two_view_reports_dict,
+            angular_err_threshold_deg=self.scene_optimizer._pose_angular_error_thresh,
+            metric_group_name="verifier_summary_{}".format(two_view_estimator.POST_ISP_REPORT_TAG),
+        )
+        two_view_agg_metrics.add_metric(
+            GtsfmMetric("total_correspondence_generation_duration_sec", correspondence_generation_duration_sec)
+        )
+        two_view_agg_metrics.add_metric(
+            GtsfmMetric("total_two_view_estimation_duration_sec", two_view_estimation_duration_sec)
+        )
+        all_metrics_groups = [retriever_metrics, two_view_agg_metrics]
 
-        delayed_sfm_result, delayed_io = self.scene_optimizer.create_computation_graph(
+        delayed_sfm_result, delayed_io, delayed_mvo_metrics_groups = self.scene_optimizer.create_computation_graph(
             keypoints_list=keypoints_list,
             i2Ri1_dict=i2Ri1_dict,
             i2Ui1_dict=i2Ui1_dict,
@@ -324,9 +345,12 @@ class GtsfmRunnerBase:
         )
 
         with performance_report(filename="scene-optimizer-dask-report.html"):
-            sfm_result, *io = dask.compute(delayed_sfm_result, *delayed_io)
+            sfm_result, *other_results = dask.compute(delayed_sfm_result, *delayed_io, *delayed_mvo_metrics_groups)
+        mvo_metrics_groups = [x for x in other_results if isinstance(x, GtsfmMetricsGroup)]
 
         assert isinstance(sfm_result, GtsfmData)
+        all_metrics_groups.extend(mvo_metrics_groups)
+        save_metrics_reports(all_metrics_groups, os.path.join(self.scene_optimizer.output_root, "result_metrics"))
 
         end_time = time.time()
         duration_sec = end_time - start_time
@@ -361,3 +385,20 @@ def unzip_two_view_results(
         two_view_reports_dict[(i1, i2)] = two_view_output[5]
 
     return i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, two_view_reports_dict
+
+
+def save_metrics_reports(metrics_group_list: List[GtsfmMetricsGroup], metrics_path: str) -> None:
+    """Saves metrics to JSON and HTML report.
+
+    Args:
+        metrics_graph: List of GtsfmMetricsGroup from different modules wrapped as Delayed.
+        metrics_path: Path to directory where computed metrics will be saved.
+    """
+
+    # Save metrics to JSON
+    metrics_utils.save_metrics_as_json(metrics_group_list, metrics_path)
+    metrics_utils.save_metrics_as_json(metrics_group_list, str(REACT_METRICS_PATH))
+
+    metrics_report.generate_metrics_report_html(
+        metrics_group_list, os.path.join(metrics_path, "gtsfm_metrics_report.html"), None
+    )
