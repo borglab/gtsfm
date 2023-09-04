@@ -224,6 +224,8 @@ class IntrinsicsEstimator:
             return all_intrinsics
 
         ref_updated_intrinsics = self.get_updated_intrinsics(all_intrinsics[0], all_focals, all_errors)
+        if ref_updated_intrinsics is None:
+            logger.info("Could not udpate intrinsics, using original intrinsics.")
         result_intrinsics = [ref_updated_intrinsics for i in range(len(all_intrinsics))]
 
         return result_intrinsics
@@ -366,22 +368,28 @@ def run_intrinsics_estimator_as_futures(
             putative_corr_idxs_i1_i2,
         )
 
-    for i1, i2 in putative_corr_indices.keys():
-        focal_i1_future, focal_i2_future, error_future = client.submit(
+    camera_pair_focals_errors_futures = {
+        (i1, i2): client.submit(
             apply_intrinsics_estimator,
             intrinsics_estimator_future,
             keypoints_list[i1],
             keypoints_list[i2],
-            putative_corr_indices[(i1, i2)],
+            putative_corr_idxs_i1_i2,
             intrinsics[i1],
             intrinsics[i2],
         )
+        for (i1, i2), putative_corr_idxs_i1_i2 in putative_corr_indices.items()
+    }
 
-        focals_for_camera[i1].append(focal_i1_future)
-        focals_for_camera[i2].append(focal_i2_future)
-        errors_for_camera[i1].append(error_future)
-        errors_for_camera[i2].append(error_future)
+    camera_pair_focals_errors = client.gather(camera_pair_focals_errors_futures)
 
-    focals_for_camera, errors_for_camera = client.gather((focals_for_camera, errors_for_camera))
+    for (i1, i2), (focal_i1, focal_i2, error) in camera_pair_focals_errors.items():
+        focals_for_camera[i1].append(focal_i1)
+        focals_for_camera[i2].append(focal_i2)
+        errors_for_camera[i1].append(error)
+        errors_for_camera[i2].append(error)
 
-    return intrinsics_estimator.update_intrinsics_from_candidates(intrinsics, focals_for_camera, errors_for_camera)
+    udpated_intrinsics = intrinsics_estimator.update_intrinsics_from_candidates(
+        intrinsics, focals_for_camera, errors_for_camera
+    )
+    return udpated_intrinsics
