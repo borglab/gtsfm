@@ -35,7 +35,6 @@ class OneDSFMLoader(LoaderBase):
     def __init__(
         self,
         folder: str,
-        image_extension: str = "jpg",
         max_resolution: int = 640,
         enable_no_exif: bool = False,
         default_focal_length_factor: float = 1.2,
@@ -44,7 +43,6 @@ class OneDSFMLoader(LoaderBase):
 
         Args:
             folder: the base folder which contains image sequence.
-            image_extension: file extension for the image files. Defaults to 'jpg'.
             max_resolution: integer representing maximum length of image's short side, i.e.
                 the smaller of the height/width of the image. e.g. for 1080p (1920 x 1080),
                 max_resolution would be 1080. If the image resolution max(height, width) is
