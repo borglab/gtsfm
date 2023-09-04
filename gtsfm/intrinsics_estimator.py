@@ -194,6 +194,8 @@ class IntrinsicsEstimator:
         image_pair_indices,
         all_intrinsics,
     ):
+        for intrin in all_intrinsics:
+            assert intrin is not None
         focals_for_camera = defaultdict(list)
         errors_for_camera = defaultdict(list)
 
@@ -221,13 +223,18 @@ class IntrinsicsEstimator:
             all_errors.extend(errors)
         if len(all_errors) == 0:
             logger.info("Could not compute errors for refining intrinsics, returning original intrinsics.")
+            for intrin in all_intrinsics:
+                assert intrin is not None
             return all_intrinsics
 
         ref_updated_intrinsics = self.get_updated_intrinsics(all_intrinsics[0], all_focals, all_errors)
         if ref_updated_intrinsics is None:
             logger.info("Could not udpate intrinsics, using original intrinsics.")
-        result_intrinsics = [ref_updated_intrinsics for i in range(len(all_intrinsics))]
+            for intrin in all_intrinsics:
+                assert intrin is not None
+            return all_intrinsics
 
+        result_intrinsics = [ref_updated_intrinsics for i in range(len(all_intrinsics))]
         return result_intrinsics
 
     def update_intrinsics_from_candidates(self, intrinsics, focals_for_camera, errors_for_camera):
@@ -245,6 +252,9 @@ class IntrinsicsEstimator:
             return intrinsics
 
         ref_updated_intrinsics = self.get_updated_intrinsics(intrinsics[0], all_focals, all_errors)
+        if ref_updated_intrinsics is None:
+            logger.info("Could not refine intrinsics, returning original ones.")
+            return intrinsics
         result_intrinsics = [ref_updated_intrinsics for i in range(len(intrinsics))]
         return result_intrinsics
 
@@ -392,4 +402,6 @@ def run_intrinsics_estimator_as_futures(
     udpated_intrinsics = intrinsics_estimator.update_intrinsics_from_candidates(
         intrinsics, focals_for_camera, errors_for_camera
     )
+    for intrin in udpated_intrinsics:
+        assert intrin is not None
     return udpated_intrinsics

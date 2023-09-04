@@ -324,7 +324,6 @@ class TwoViewEstimator:
                 pre_ba_i2Ui1,
                 i2Ti1_prior,
             )
-            pre_ba_report.triangulation_angle = pre_ba_mean_triangulation_angle
             post_ba_inlier_ratio_wrt_estimate = float(len(post_ba_v_corr_idxs)) / len(putative_corr_idxs)
 
             # TODO: Remove this hack once we can handle the lower post_ba_inlier_ratio_wrt_estimate downstream.
