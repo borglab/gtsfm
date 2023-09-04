@@ -1,9 +1,8 @@
-"""Functions to create transforms.json file and resized images that are input to Nerfstudio
+"""Creates transforms.json file and resized images for running Nerfstudio from gtsfm output.
 
-Here I have modified code taken from Nerfstudio for parsing data in the Nerfstudio format.
-Original files at:
-https://github.com/nerfstudio-project/nerfstudio/blob/main/scripts/process_data.py
-https://github.com/nerfstudio-project/nerfstudio/blob/main/nerfstudio/process_data/colmap_utils.py
+This contains code from Nerfstudio for parsing data into the Nerfstudio format.
+https://github.com/nerfstudio-project/nerfstudio/blob/a121d76fd085f0fb356abf150c089c42eecbd066/nerfstudio/process_data/colmap_converter_to_nerfstudio_dataset.py#L29
+https://github.com/nerfstudio-project/nerfstudio/blob/a121d76fd085f0fb356abf150c089c42eecbd066/nerfstudio/process_data/colmap_utils.py#L16
 
 Author: Jon Womack
 """
@@ -12,6 +11,7 @@ import json
 import os
 from enum import Enum
 from pathlib import Path
+from typing import Tuple
 
 import numpy as np
 import thirdparty.nerfstudio.colmap_utils as colmap_utils
@@ -34,7 +34,9 @@ CAMERA_MODELS = {
 }
 
 
-def colmap_to_json(cameras_path: Path, images_path: Path, output_dir: Path, camera_model: CameraModel) -> int:
+def colmap_to_json(
+    cameras_path: Path, images_path: Path, output_dir: Path, camera_model: CameraModel
+) -> Tuple[int, int]:
     """Converts COLMAP's cameras.bin and images.bin to a JSON file.
     Args:
         cameras_path: Path to the cameras.txt file.
@@ -46,20 +48,21 @@ def colmap_to_json(cameras_path: Path, images_path: Path, output_dir: Path, came
     """
 
     cameras = colmap_utils.read_cameras_text(cameras_path)
-    images = colmap_utils.read_images_text(images_path)
+    input_images = colmap_utils.read_images_text(images_path)
 
     # Only supports one camera
     camera_params = cameras[1].params
 
     frames = []
-    for _, im_data in images.items():
+    for _, im_data in input_images.items():
         rotation = Rot3(im_data.qvec[0], im_data.qvec[1], im_data.qvec[2], im_data.qvec[3]).matrix()
         translation = im_data.tvec.reshape(3, 1)
         w2c = np.concatenate([rotation, translation], 1)
         w2c = np.concatenate([w2c, np.array([[0, 0, 0, 1]])], 0)
         c2w = np.linalg.inv(w2c)
 
-        # Convert from COLMAP's camera coordinate system to nerfstudio's
+        # Convert from COLMAP coordinate frame to nerfstudio coordinate frame.
+        # Invert camera X and Y, swap X and Y and invert Z in the world frame.
         c2w[0:3, 1:3] *= -1
         c2w = c2w[np.array([1, 0, 2, 3]), :]
         c2w[2, :] *= -1
@@ -129,17 +132,17 @@ def resize_and_save_images_for_nerfstudio(images_dir, image_width, image_height,
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--results_path", required=True, help="Relative or absolute path to /gtsfm/results/")
-    parser.add_argument(
-        "--camera_model",
-        required=True,
-        help="'perspective' or 'fisheye' corresponding to the OPENCV and OPENCV_FISHEYE camera models at"
-        + " https://github.com/nerfstudio-project/nerfstudio/blob/main/nerfstudio/cameras/cameras.py",
-    )
+    parser.add_argument("--results_path", required=True, help="Path to /gtsfm/results/, should contain ba_output/")
     parser.add_argument(
         "--images_dir",
         required=True,
-        help="Relative or absolute path to the directory of images GTSfM used for reconstruction",
+        help="Path to the directory of images GTSfM used for reconstruction",
+    )
+    parser.add_argument(
+        "--camera_model",
+        default="perspective",
+        help="'perspective' or 'fisheye' corresponding to the OPENCV and OPENCV_FISHEYE camera models at"
+        + " https://github.com/nerfstudio-project/nerfstudio/blob/main/nerfstudio/cameras/cameras.py",
     )
     args = parser.parse_args()
 
@@ -147,7 +150,7 @@ if __name__ == "__main__":
     results_path = args.results_path
     cameras_file = os.path.join(results_path, "ba_output", "cameras.txt")
     images_file = os.path.join(results_path, "ba_output", "images.txt")
-    nerfstudio_input_dir = os.path.join(results_path, "nerfstudio-input")
+    nerfstudio_input_dir = os.path.join(results_path, "nerfstudio_input")
     if not os.path.exists(nerfstudio_input_dir):
         os.makedirs(nerfstudio_input_dir)
     image_width, image_height = colmap_to_json(
