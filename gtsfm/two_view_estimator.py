@@ -592,7 +592,7 @@ def get_two_view_reports_summary(
     two_view_report_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
     images: List[Image],
 ) -> List[Dict[str, Any]]:
-    """Converts the TwoViewEstimationReports for all image pairs to a Dict and saves it as JSON.
+    """Converts the TwoViewEstimationReports to a summary dict for each image pair.
 
     Args:
         two_view_report_dict: Front-end metrics for pairs of images.
@@ -602,7 +602,7 @@ def get_two_view_reports_summary(
         List of dictionaries, where each dictionary contains the metrics for an image pair.
     """
 
-    def round_fn(x):
+    def round_fn(x: Optional[float]) -> Optional[float]:
         return round(x, 2) if x else None
 
     metrics_list = []

@@ -145,7 +145,3 @@ Open-source Python implementation:
 ```
 
 Note: authors are listed in alphabetical order (by last name).
-
-## Compiling Additional Verifiers
-
-On Linux, we have made `pycolmap`'s LORANSAC available in [pypi](https://pypi.org/project/pycolmap/). However, on Mac, `pycolmap` must be built from scratch. See the instructions [here](https://github.com/borglab/gtsfm/blob/master/gtsfm/frontend/verifier/loransac.py#L10).

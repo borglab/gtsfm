@@ -297,7 +297,32 @@ class BundleAdjustmentOptimizer:
         reproj_error_thresh: Optional[float],
         verbose: bool = True,
     ) -> Tuple[GtsfmData, GtsfmData, List[bool], float]:
-        """Runs bundle adjustment and optionally filters the resulting tracks by reprojection error."""
+        """Runs bundle adjustment and optionally filters the resulting tracks by reprojection error.
+
+        Args:
+            initial_data: Initialized cameras, tracks w/ their 3d landmark from triangulation.
+            absolute_pose_priors: Priors to be used on cameras.
+            relative_pose_priors: Priors on the pose between two cameras.
+            reproj_error_thresh: Maximum 3D track reprojection error, for filtering tracks after BA.
+            verbose: Boolean flag to print out additional info for debugging.
+
+        Results:
+            Optimized camera poses, 3D point w/ tracks, and error metrics, aligned to GT (if provided).
+            Optimized camera poses after filtering landmarks (and cameras with no remaining landmarks).
+            Valid mask as a list of booleans, indicating for each input track whether it was below the re-projection
+                threshold.
+            Final error value of the optimization problem.
+        """
+        logger.info(
+            "Input: %d tracks on %d cameras", initial_data.number_tracks(), len(initial_data.get_valid_camera_indices())
+        )
+        if initial_data.number_tracks() == 0 or len(initial_data.get_valid_camera_indices()) == 0:
+            # No cameras or tracks to optimize, so bundle adjustment is not possible, return invalid result.
+            logger.error(
+                "Bundle adjustment aborting, optimization cannot be performed without any tracks or any cameras."
+            )
+            return initial_data, initial_data, [False] * initial_data.number_tracks(), 0.0
+
         cameras_to_model = self.__cameras_to_model(initial_data, absolute_pose_priors, relative_pose_priors)
         graph = self.__construct_factor_graph(
             cameras_to_model=cameras_to_model,
@@ -389,7 +414,12 @@ class BundleAdjustmentOptimizer:
             logger.error(
                 "Bundle adjustment aborting, optimization cannot be performed without any tracks or any cameras."
             )
-            return initial_data, initial_data, [False] * initial_data.number_tracks()
+            return (
+                initial_data,
+                initial_data,
+                [False] * initial_data.number_tracks(),
+                GtsfmMetricsGroup(METRICS_GROUP, []),
+            )
         step_times = []
         start_time = time.time()
 
@@ -477,63 +507,6 @@ class BundleAdjustmentOptimizer:
         aligned_filtered_data.log_scene_reprojection_error_stats()
 
         return ba_metrics
-
-    def _run_ba_with_profiling(
-        self,
-        initial_data: GtsfmData,
-        absolute_pose_priors: List[Optional[PosePrior]],
-        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
-        cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
-        save_dir: Optional[str] = None,
-        verbose: bool = True,
-    ) -> Tuple[GtsfmData, GtsfmData, List[bool], GtsfmMetricsGroup]:
-        """TODO"""
-        logger.info(
-            "Input: %d tracks on %d cameras",
-            initial_data.number_tracks(),
-            len(initial_data.get_valid_camera_indices()),
-        )
-        if initial_data.number_tracks() == 0 or len(initial_data.get_valid_camera_indices()) == 0:
-            # No cameras or tracks to optimize, so bundle adjustment is not possible.
-            logger.error(
-                "Bundle adjustment aborting, optimization cannot be performed without any tracks or any cameras."
-            )
-            return initial_data, initial_data, [False] * initial_data.number_tracks()
-        step_times = []
-        start_time = time.time()
-
-        num_ba_steps = len(self._reproj_error_thresholds)
-        for step, reproj_error_thresh in enumerate(self._reproj_error_thresholds):
-            step_start_time = time.time()
-            (optimized_data, filtered_result, valid_mask, final_error) = self.run_ba_at_threshold(
-                initial_data=initial_data,
-                absolute_pose_priors=absolute_pose_priors,
-                relative_pose_priors=relative_pose_priors,
-                reproj_error_thresh=reproj_error_thresh,
-                verbose=verbose,
-            )
-            step_times.append(time.time() - step_start_time)
-
-            # Print intermediate results.
-            if num_ba_steps > 1:
-                logger.info(
-                    "[BA Stage @ thresh=%.2f px %d/%d] Error: %.2f, Number of tracks: %d"
-                    % (
-                        reproj_error_thresh,
-                        step + 1,
-                        num_ba_steps,
-                        final_error,
-                        filtered_result.number_tracks(),
-                    )
-                )
-        total_time = time.time() - start_time
-
-        metrics = self.evaluate(optimized_data, filtered_result, cameras_gt, save_dir)
-        for i, step_time in enumerate(step_times):
-            metrics.add_metric(GtsfmMetric(f"step_{i}_run_duration_sec", step_time))
-        metrics.add_metric(GtsfmMetric("total_run_duration_sec", total_time))
-
-        return optimized_data, filtered_result, valid_mask, metrics
 
     def create_computation_graph(
         self,

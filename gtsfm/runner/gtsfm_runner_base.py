@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Tuple
 import dask
 import hydra
 import numpy as np
+from dask import config as dask_config
 from dask.distributed import Client, LocalCluster, SSHCluster, performance_report
 from gtsam import Rot3, Unit3
 from hydra.utils import instantiate
@@ -27,6 +28,8 @@ from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.scene_optimizer import SceneOptimizer
 from gtsfm.two_view_estimator import TWO_VIEW_OUTPUT, TwoViewEstimationReport, run_two_view_estimator_as_futures
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
+
+dask_config.set({"distributed.scheduler.worker-ttl": None})
 
 logger = logger_utils.get_logger()
 
@@ -63,9 +66,7 @@ class GtsfmRunnerBase:
             default=1,
             help="Number of threads per each worker",
         )
-        parser.add_argument(
-            "--worker_memory_limit", type=str, default="auto", help="Memory limit per worker, e.g. `8GB`"
-        )
+        parser.add_argument("--worker_memory_limit", type=str, default=None, help="Memory limit per worker, e.g. `8GB`")
         parser.add_argument(
             "--config_name",
             type=str,
@@ -102,6 +103,12 @@ class GtsfmRunnerBase:
             type=int,
             default=None,
             help="maximum number of consecutive frames to consider for matching/co-visibility",
+        )
+        parser.add_argument(
+            "--num_matched",
+            type=int,
+            default=None,
+            help="Number of K potential matches to provide per query. These are the top `K` matches per query.",
         )
         parser.add_argument(
             "--share_intrinsics", action="store_true", help="Shares the intrinsics between all the cameras"
@@ -196,6 +203,21 @@ class GtsfmRunnerBase:
                 scene_optimizer.retriever._max_frame_lookahead = self.parsed_args.max_frame_lookahead
             elif scene_optimizer.retriever._matching_regime == ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL:
                 scene_optimizer.retriever._seq_retriever._max_frame_lookahead = self.parsed_args.max_frame_lookahead
+            else:
+                raise ValueError(
+                    "`max_frame_lookahead` arg is incompatible with retriever matching regime "
+                    f"{scene_optimizer.retriever._matching_regime}"
+                )
+        if self.parsed_args.num_matched is not None:
+            if scene_optimizer.retriever._matching_regime == ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL:
+                scene_optimizer.retriever._similarity_retriever._num_matched = self.parsed_args.num_matched
+            elif scene_optimizer.retriever._matching_regime == ImageMatchingRegime.RETRIEVAL:
+                scene_optimizer.retriever._num_matched = self.parsed_args.num_matched
+            else:
+                raise ValueError(
+                    "`num_matched` arg is incompatible with retriever matching regime "
+                    f"{scene_optimizer.retriever._matching_regime}"
+                )
 
         if self.parsed_args.mvs_off:
             scene_optimizer.run_dense_optimizer = False
@@ -244,11 +266,13 @@ class GtsfmRunnerBase:
             self.loader._input_worker = io_worker
             self.scene_optimizer._output_worker = io_worker
         else:
-            cluster = LocalCluster(
-                n_workers=self.parsed_args.num_workers,
-                threads_per_worker=self.parsed_args.threads_per_worker,
-                memory_limit=self.parsed_args.worker_memory_limit,
-            )
+            local_cluster_kwargs = {
+                "n_workers": self.parsed_args.num_workers,
+                "threads_per_worker": self.parsed_args.threads_per_worker,
+            }
+            if self.parsed_args.worker_memory_limit is not None:
+                local_cluster_kwargs["memory_limit"] = self.parsed_args.worker_memory_limit
+            cluster = LocalCluster(**local_cluster_kwargs)
             client = Client(cluster)
 
         # Create process graph.
@@ -291,18 +315,18 @@ class GtsfmRunnerBase:
             two_view_estimation_duration_sec = time.time() - two_view_estimation_start_time
 
         i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, two_view_reports_dict = unzip_two_view_results(two_view_results_dict)
-        two_view_metrics = two_view_estimator.aggregate_frontend_metrics(
+        two_view_agg_metrics = two_view_estimator.aggregate_frontend_metrics(
             two_view_reports_dict=two_view_reports_dict,
             angular_err_threshold_deg=self.scene_optimizer._pose_angular_error_thresh,
             metric_group_name="verifier_summary_{}".format(two_view_estimator.POST_ISP_REPORT_TAG),
         )
-        two_view_metrics.add_metric(
+        two_view_agg_metrics.add_metric(
             GtsfmMetric("total_correspondence_generation_duration_sec", correspondence_generation_duration_sec)
         )
-        two_view_metrics.add_metric(
+        two_view_agg_metrics.add_metric(
             GtsfmMetric("total_two_view_estimation_duration_sec", two_view_estimation_duration_sec)
         )
-        all_metrics_groups = [retriever_metrics, two_view_metrics]
+        all_metrics_groups = [retriever_metrics, two_view_agg_metrics]
 
         delayed_sfm_result, delayed_io, delayed_mvo_metrics_groups = self.scene_optimizer.create_computation_graph(
             keypoints_list=keypoints_list,
@@ -369,9 +393,6 @@ def save_metrics_reports(metrics_group_list: List[GtsfmMetricsGroup], metrics_pa
     Args:
         metrics_graph: List of GtsfmMetricsGroup from different modules wrapped as Delayed.
         metrics_path: Path to directory where computed metrics will be saved.
-
-    Returns:
-        List of delayed objects after saving metrics.
     """
 
     # Save metrics to JSON

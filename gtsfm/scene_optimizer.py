@@ -313,7 +313,7 @@ def save_visualizations(
     plot_ba_input_path: Path,
     plot_results_path: Path,
 ) -> List[Delayed]:
-    """Save SfmData before and after bundle adjustment and camera poses for visualization.i
+    """Save SfmData before and after bundle adjustment and camera poses for visualization.
 
     Accepts delayed GtsfmData before and after bundle adjustment, along with GT poses,
     saves them and returns a delayed object.

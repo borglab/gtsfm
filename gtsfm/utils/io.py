@@ -352,7 +352,20 @@ def read_images_txt(fpath: str) -> Tuple[Optional[List[Pose3]], Optional[List[st
         wTi_list.append(wTi)
         img_fnames.append(img_fname)
 
-    return wTi_list, img_fnames
+    # TODO(johnwlambert): Re-order tracks for COLMAP-formatted .bin files.
+    wTi_list_sorted, img_fnames_sorted = sort_image_filenames_lexigraphically(wTi_list, img_fnames)
+
+    return wTi_list_sorted, img_fnames_sorted
+
+
+def sort_image_filenames_lexigraphically(wTi_list: List[Pose3], img_fnames: List[str]) -> Tuple[List[Pose3], List[str]]:
+    """Sort a list of camera poses according to provided image file names."""
+    sorted_idxs = sorted(range(len(img_fnames)), key=lambda i: img_fnames[i])
+
+    wTi_list_sorted = [wTi_list[i] for i in sorted_idxs]
+    img_fnames_sorted = [img_fnames[i] for i in sorted_idxs]
+
+    return wTi_list_sorted, img_fnames_sorted
 
 
 def write_images(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> None:
@@ -506,6 +519,7 @@ def read_scene_data_from_colmap_format(
 
     if any(x is None for x in [wTi_list, img_fnames, calibrations, point_cloud, rgb]):
         raise RuntimeError("One or more of the requested model data products was not found.")
+    print(f"Loaded {len(wTi_list)} cameras with {point_cloud.shape[0]} points.")
     return wTi_list, img_fnames, calibrations, point_cloud, rgb
 
 
