@@ -232,6 +232,28 @@ class TestIoUtils(unittest.TestCase):
             self.assertEqual(data_from_json["data"][0], None)
             np.testing.assert_allclose(data["data"][1:], data_from_json["data"][1:])
 
+    def test_sort_image_filenames_lexigraphically(self) -> None:
+        """Tests that 5 image-camera pose pairs are sorted jointly according to file name."""
+        wTi_list = [
+            Pose3(Rot3(), np.array([0,0,34])),
+            Pose3(Rot3(), np.array([0,0,35])),
+            Pose3(Rot3(), np.array([0,0,36])),
+            Pose3(Rot3(), np.array([0,0,28])),
+            Pose3(Rot3(), np.array([0,0,37]))
+        ]
+        img_fnames = ['P1180334.JPG', 'P1180335.JPG', 'P1180336.JPG', 'P1180328.JPG', 'P1180337.JPG']
+
+        wTi_list_sorted, img_fnames_sorted = io_utils.sort_image_filenames_lexigraphically(wTi_list, img_fnames)
+
+        expected_img_fnames_sorted = ['P1180328.JPG', 'P1180334.JPG', 'P1180335.JPG', 'P1180336.JPG', 'P1180337.JPG']
+        self.assertEqual(img_fnames_sorted, expected_img_fnames_sorted)
+
+        self.assertEqual(wTi_list_sorted[0].translation()[2], 28)
+        self.assertEqual(wTi_list_sorted[1].translation()[2], 34)
+        self.assertEqual(wTi_list_sorted[2].translation()[2], 35)
+        self.assertEqual(wTi_list_sorted[3].translation()[2], 36)
+        self.assertEqual(wTi_list_sorted[4].translation()[2], 37)
+
 
 if __name__ == "__main__":
     unittest.main()

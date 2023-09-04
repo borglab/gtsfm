@@ -40,6 +40,7 @@ class LOFTR(ImageMatcherBase):
         self._model_type = "outdoor" if use_outdoor_model else "indoor"
         self._use_cuda: bool = use_cuda
         self._min_confidence = min_confidence
+        self._matcher = LoFTRKornia(pretrained=self._model_type).eval()
 
     def match(self, image_i1: Image, image_i2: Image) -> Tuple[Keypoints, Keypoints]:
         """Identify feature matches across two images.
@@ -54,13 +55,12 @@ class LOFTR(ImageMatcherBase):
             Keypoints from image 1 (N keypoints will exist).
             Corresponding keypoints from image 2 (there will also be N keypoints). These represent feature matches.
         """
-        device = torch.device("cuda" if (self._use_cuda and torch.cuda.is_available()) else "cpu")
+        device = torch.device("cuda" if self._use_cuda and torch.cuda.is_available() else "cpu")
+        self._matcher.to(device)
 
-        matcher = LoFTRKornia(pretrained=self._model_type).to(device).eval()
-
-        input = {"image0": self.to_tensor(image_i1).to(device), "image1": self.to_tensor(image_i2).to(device)}
         with torch.no_grad():
-            correspondences_dict = matcher(input)
+            input = {"image0": self.to_tensor(image_i1).to(device), "image1": self.to_tensor(image_i2).to(device)}
+            correspondences_dict = self._matcher(input)
 
         coordinates_i1 = correspondences_dict[KEYPOINTS_I1_COORDINATES_KEY].cpu().numpy()
         coordinates_i2 = correspondences_dict[KEYPOINTS_I2_COORDINATES_KEY].cpu().numpy()

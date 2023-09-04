@@ -15,8 +15,7 @@ logger = logger_utils.get_logger()
 class GtsfmRunnerMobilebrickLoader(GtsfmRunnerBase):
     """Runner for the Mobilebrick dataset."""
 
-    def __init__(self):
-        super(GtsfmRunnerMobilebrickLoader, self).__init__(tag="Run GTSFM on dataset from MobileBrick.")
+    tag = "Run GTSFM on dataset from MobileBrick."
 
     def construct_argparser(self) -> argparse.ArgumentParser:
         parser = super(GtsfmRunnerMobilebrickLoader, self).construct_argparser()

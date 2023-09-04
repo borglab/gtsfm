@@ -13,21 +13,18 @@ logger = logger_utils.get_logger()
 
 
 class GtsfmRunnerOlssonLoader(GtsfmRunnerBase):
-    def __init__(self):
-        super(GtsfmRunnerOlssonLoader, self).__init__(tag="GTSFM on Dataset in Olsson's Lund format")
+    tag = "GTSFM on Dataset in Olsson's Lund format"
 
     def construct_argparser(self) -> argparse.ArgumentParser:
         parser = super(GtsfmRunnerOlssonLoader, self).construct_argparser()
 
         parser.add_argument("--dataset_root", type=str, default=os.path.join(DATA_ROOT, "set1_lund_door"), help="")
-        parser.add_argument("--image_extension", type=str, default="JPG", help="")
 
         return parser
 
     def construct_loader(self) -> LoaderBase:
         loader = OlssonLoader(
             self.parsed_args.dataset_root,
-            image_extension=self.parsed_args.image_extension,
             max_frame_lookahead=self.parsed_args.max_frame_lookahead,
             max_resolution=self.parsed_args.max_resolution,
         )

@@ -45,8 +45,8 @@ class TwoWayMatcher(MatcherBase):
         keypoints_i2: Keypoints,  # pylint: disable=unused-argument
         descriptors_i1: np.ndarray,
         descriptors_i2: np.ndarray,
-        im_shape_i1: Tuple[int, int],  # pylint: disable=unused-argument
-        im_shape_i2: Tuple[int, int],  # pylint: disable=unused-argument
+        im_shape_i1: Tuple[int, int, int],  # pylint: disable=unused-argument
+        im_shape_i2: Tuple[int, int, int],  # pylint: disable=unused-argument
     ) -> np.ndarray:
         """Match descriptor vectors.
 
@@ -61,8 +61,8 @@ class TwoWayMatcher(MatcherBase):
             keypoints_i2: keypoints for image #i2, of length N2.
             descriptors_i1: descriptors corr. to keypoints_i1.
             descriptors_i2: descriptors corr. to keypoints_i2.
-            im_shape_i1: shape of image #i1, as height, width.
-            im_shape_i2: shape of image #i2, as height, width.
+            im_shape_i1: shape of image #i1, as height, width, channels.
+            im_shape_i2: shape of image #i2, as height, width, channels.
 
         Returns:
             Match indices (sorted by confidence), as matrix of shape (N, 2), where N < min(N1, N2).

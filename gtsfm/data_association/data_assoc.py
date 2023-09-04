@@ -257,13 +257,13 @@ class DataAssociation(GTSFMProcess):
         # Unpack results.
         sfm_tracks, avg_track_reproj_errors, triangulation_exit_codes = [], [], []
         if batch_size == 1:
-            for (sfm_track, avg_track_reproj_error, exit_code) in triangulation_results:
+            for sfm_track, avg_track_reproj_error, exit_code in triangulation_results:
                 sfm_tracks.append(sfm_track)
                 avg_track_reproj_errors.append(avg_track_reproj_error)
                 triangulation_exit_codes.append(exit_code)
         else:
             for batch_results in triangulation_results:
-                for (sfm_track, avg_track_reproj_error, exit_code) in batch_results:
+                for sfm_track, avg_track_reproj_error, exit_code in batch_results:
                     sfm_tracks.append(sfm_track)
                     avg_track_reproj_errors.append(avg_track_reproj_error)
                     triangulation_exit_codes.append(exit_code)
@@ -277,7 +277,7 @@ class DataAssociation(GTSFMProcess):
         tracks_2d: Delayed,
         cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
-        images_graph: Optional[List[Delayed]] = None,
+        images: Optional[List[Delayed]] = None,
     ) -> Tuple[Delayed, Delayed]:
         """Creates a computation graph for performing data association.
 
@@ -287,7 +287,7 @@ class DataAssociation(GTSFMProcess):
             tracks_2d: list of tracks wrapped up as Delayed.
             cameras_gt: a list of cameras with ground truth params, if they exist.
             relative_pose_priors: pose priors on the relative pose between camera poses.
-            images_graph: a list of all images in scene (optional and only for track patch visualization)
+            images: a list of all images in scene (optional and only for track patch visualization)
 
         Returns:
             ba_input_graph: GtsfmData object wrapped up using dask.delayed
@@ -310,7 +310,7 @@ class DataAssociation(GTSFMProcess):
             triangulation_exit_codes=triangulation_exit_codes,
             cameras_gt=cameras_gt,
             relative_pose_priors=relative_pose_priors,
-            images=images_graph,
+            images=images,
         )
 
         return ba_input_graph, data_assoc_metrics_graph

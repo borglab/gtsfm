@@ -4,15 +4,19 @@ Authors: Frank Dellaert and Ayush Baid
 """
 
 import abc
+import glob
 import logging
 from typing import Dict, List, Optional, Tuple
 
 import dask
 from dask.delayed import Delayed
+from dask.distributed import Client, Future
 from gtsam import Cal3Bundler, Pose3
+from trimesh import Trimesh
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.images as img_utils
+import gtsfm.utils.io as io_utils
 from gtsfm.common.image import Image
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
@@ -330,7 +334,13 @@ class LoaderBase(GTSFMProcess):
             delayed_images = [dask.delayed(self.get_image)(i) for i in range(N)]
         return delayed_images
 
-    def __get_all_intrinsics(self) -> List[Optional[gtsfm_types.CALIBRATION_TYPE]]:
+    def get_all_images_as_futures(self, client: Client) -> List[Future]:
+        return [
+            client.submit(self.get_image, i, workers=[self._input_worker] if self._input_worker else None)
+            for i in range(len(self))
+        ]
+
+    def get_all_intrinsics(self) -> List[Optional[gtsfm_types.CALIBRATION_TYPE]]:
         """Return all the camera intrinsics.
 
         Note: use create_computation_graph_for_intrinsics when calling from runners.
@@ -341,18 +351,6 @@ class LoaderBase(GTSFMProcess):
         N = len(self)
         return [self.get_camera_intrinsics(i) for i in range(N)]
 
-    def create_computation_graph_for_intrinsics(self) -> List[Delayed]:
-        """Creates the computation graph for camera intrinsics.
-
-        Returns:
-            List of delayed tasks for camera intrinsics.
-        """
-        N = len(self)
-        annotation = dask.annotate(workers=self._input_worker) if self._input_worker else dask.annotate()
-        with annotation:
-            delayed_intrinsics = [dask.delayed(self.get_camera_intrinsics)(i) for i in range(N)]
-        return delayed_intrinsics
-
     def get_gt_poses(self) -> List[Optional[Pose3]]:
         """Return all the camera poses.
 
@@ -362,7 +360,7 @@ class LoaderBase(GTSFMProcess):
         N = len(self)
         return [self.get_camera_pose(i) for i in range(N)]
 
-    def __get_gt_cameras(self) -> List[Optional[gtsfm_types.CAMERA_TYPE]]:
+    def get_gt_cameras(self) -> List[Optional[gtsfm_types.CAMERA_TYPE]]:
         """Return all the cameras.
 
         Note: use create_computation_graph_for_gt_cameras when calling from runners.
@@ -373,19 +371,7 @@ class LoaderBase(GTSFMProcess):
         N = len(self)
         return [self.get_camera(i) for i in range(N)]
 
-    def create_computation_graph_for_gt_cameras(self) -> List[Delayed]:
-        """Return the computation graph for all cameras.
-
-        Returns:
-            List of delayed tasks for ground truth cameras
-        """
-        N = len(self)
-        annotation = dask.annotate(workers=self._input_worker) if self._input_worker else dask.annotate()
-        with annotation:
-            delayed_cameras = [dask.delayed(self.get_camera)(i) for i in range(N)]
-        return delayed_cameras
-
-    def __get_image_shapes(self) -> List[Tuple[int, int]]:
+    def get_image_shapes(self) -> List[Tuple[int, int]]:
         """Return all the image shapes.
 
         Note: use create_computation_graph_for_image_shapes when calling from runners.
@@ -395,14 +381,6 @@ class LoaderBase(GTSFMProcess):
         """
         N = len(self)
         return [self.get_image_shape(i) for i in range(N)]
-
-    def create_computation_graph_for_image_shapes(self) -> List[Delayed]:
-        """Return the image shapes, as dask.Delayed."""
-        N = len(self)
-        annotation = dask.annotate(workers=self._input_worker) if self._input_worker else dask.annotate()
-        with annotation:
-            delayed_shapes = [dask.delayed(self.get_image_shape)(i) for i in range(N)]
-        return delayed_shapes
 
     def get_valid_pairs(self) -> List[Tuple[int, int]]:
         """Get the valid pairs of images for this loader.
@@ -418,3 +396,32 @@ class LoaderBase(GTSFMProcess):
                     pairs.append((idx1, idx2))
 
         return pairs
+
+    def get_gt_scene_trimesh(self) -> Optional[Trimesh]:
+        """Getter for the ground truth mesh for the scene.
+
+        Returns:
+            Trimesh object, if available
+        """
+        return None
+
+    def get_images_with_exif(self, search_path: str) -> Tuple[List[str], int]:
+        """Return images with exif.
+        Args:
+            search_path: image sequence search path.
+        Returns:
+            Tuple[
+                List of image with exif paths.
+                The number of all the images.
+            ]
+        """
+        all_image_paths = glob.glob(search_path)
+        num_all_imgs = len(all_image_paths)
+        exif_image_paths = []
+        for single_img_path in all_image_paths:
+            # Drop images without exif.
+            if io_utils.load_image(single_img_path).get_intrinsics_from_exif() is None:
+                continue
+            exif_image_paths.append(single_img_path)
+
+        return (exif_image_paths, num_all_imgs)

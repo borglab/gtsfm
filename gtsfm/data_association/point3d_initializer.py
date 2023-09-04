@@ -19,6 +19,7 @@ from gtsam import CameraSetCal3Bundler, CameraSetCal3Fisheye, PinholeCameraCal3B
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.reprojection as reproj_utils
+import gtsfm.utils.tracks as track_utils
 from gtsfm.common.sfm_track import SfmTrack2d
 
 NUM_SAMPLES_PER_RANSAC_HYPOTHESIS = 2
@@ -41,6 +42,7 @@ class TriangulationExitCode(Enum):
     INLIERS_UNDERCONSTRAINED = 2  # insufficent number of inlier measurements
     POSES_UNDERCONSTRAINED = 3  # insufficent number of estimated camera poses
     EXCEEDS_REPROJ_THRESH = 4  # estimated 3d point exceeds reprojection threshold
+    LOW_TRIANGULATION_ANGLE = 5  # maximum triangulation angle lower than threshold
 
 
 class TriangulationSamplingMode(str, Enum):
@@ -67,8 +69,10 @@ class TriangulationOptions(NamedTuple):
     See the following slides for a derivation of the #req'd samples: http://www.cse.psu.edu/~rtc12/CSE486/lecture15.pdf
 
     Args:
-        reproj_error_threshold: the maximum reprojection error allowed.
         mode: triangulation mode, which dictates whether or not to use robust estimation.
+        reproj_error_threshold: the maximum reprojection error allowed.
+        min_triangulation_angle: threshold for the minimum angle (in degrees) subtended at the triangulated track from 2
+            cameras. Tracks for which the maximum angle at any two cameras is less then this threshold will be rejected.
         min_inlier_ratio: a priori assumed minimum probability that a point is an inlier.
         confidence: desired confidence that at least one hypothesis is outlier free.
         dyn_num_hypotheses_multiplier: multiplication factor for dynamically computed hyptheses based on confidence.
@@ -76,8 +80,9 @@ class TriangulationOptions(NamedTuple):
         max_num_hypotheses: maximum number of hypotheses.
     """
 
-    reproj_error_threshold: float
     mode: TriangulationSamplingMode
+    reproj_error_threshold: float = np.inf  # defaults to no filtering unless specified
+    min_triangulation_angle: float = 0.0
 
     # RANSAC parameters
     min_inlier_ratio: float = 0.1
@@ -102,7 +107,7 @@ class TriangulationOptions(NamedTuple):
         """
         self.__check_ransac_params()
         dyn_num_hypotheses = int(
-            (np.log(1 - self.confidence) / np.log(1 - self.min_inlier_ratio ** NUM_SAMPLES_PER_RANSAC_HYPOTHESIS))
+            (np.log(1 - self.confidence) / np.log(1 - self.min_inlier_ratio**NUM_SAMPLES_PER_RANSAC_HYPOTHESIS))
             * self.dyn_num_hypotheses_multiplier
         )
         num_hypotheses = max(min(self.max_num_hypotheses, dyn_num_hypotheses), self.min_num_hypotheses)
@@ -268,13 +273,21 @@ class Point3dInitializer:
         )
 
         # Check that all measurements are within reprojection error threshold.
+        # TODO (travisdriver): Should we throw an error here if we're using RANSAC variant?
         if not np.all(reproj_errors.flatten() < self.options.reproj_error_threshold):
             return None, avg_track_reproj_error, TriangulationExitCode.EXCEEDS_REPROJ_THRESH
 
-        # Create a gtsam.SfmTrack with the triangulated 3d point and associated 2d measurements.
+        # Create a gtsam.SfmTrack with the triangulated 3D point and associated 2D measurements.
         track_3d = SfmTrack(triangulated_pt)
         for i, uv in inlier_track.measurements:
             track_3d.addMeasurement(i, uv)
+
+        # Check that there is a sufficient triangulation angle.
+        if (
+            track_utils.get_max_triangulation_angle(track_3d, cameras=self.track_camera_dict)
+            < self.options.min_triangulation_angle
+        ):
+            return None, avg_track_reproj_error, TriangulationExitCode.LOW_TRIANGULATION_ANGLE
 
         return track_3d, avg_track_reproj_error, TriangulationExitCode.SUCCESS
 
@@ -349,7 +362,6 @@ class Point3dInitializer:
 
         # Compile valid measurements.
         for i, uv in track.measurements:
-
             # check for unestimated cameras
             if i in self.track_camera_dict and self.track_camera_dict.get(i) is not None:
                 track_cameras.append(self.track_camera_dict.get(i))

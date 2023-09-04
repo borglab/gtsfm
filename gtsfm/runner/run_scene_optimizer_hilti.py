@@ -13,8 +13,7 @@ logger = logger_utils.get_logger()
 
 
 class GtsfmRunnerHiltiLoader(GtsfmRunnerBase):
-    def __init__(self):
-        super(GtsfmRunnerHiltiLoader, self).__init__(tag="GTSFM for the hilti loader")
+    tag = "GTSFM for the hilti loader"
 
     def construct_argparser(self) -> argparse.ArgumentParser:
         parser = super(GtsfmRunnerHiltiLoader, self).construct_argparser()

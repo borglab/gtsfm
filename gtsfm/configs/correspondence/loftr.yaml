@@ -2,5 +2,7 @@ CorrespondenceGenerator:
   _target_: gtsfm.frontend.correspondence_generator.image_correspondence_generator.ImageCorrespondenceGenerator
 
   matcher:
-    _target_: gtsfm.frontend.matcher.loftr.LOFTR
+    _target_: gtsfm.frontend.cacher.image_matcher_cacher.ImageMatcherCacher
+    matcher_obj: 
+      _target_: gtsfm.frontend.matcher.loftr.LOFTR
     
