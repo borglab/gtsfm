@@ -43,7 +43,6 @@ def view_scene(args: argparse.Namespace) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Visualize Olsson dataset w/ Open3d.")
     parser.add_argument("--dataset_root", type=str, default=os.path.join(TEST_DATA_ROOT, "set1_lund_door"), help="")
-    parser.add_argument("--image_extension", type=str, default="JPG", help="")
     parser.add_argument(
         "--rendering_style",
         type=str,

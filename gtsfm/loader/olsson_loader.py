@@ -3,7 +3,6 @@
 Authors: John Lambert
 """
 
-import glob
 import os
 from pathlib import Path
 from typing import List, Optional
@@ -15,8 +14,6 @@ import gtsfm.utils.io as io_utils
 import gtsfm.utils.verification as verification_utils
 from gtsfm.common.image import Image
 from gtsfm.loader.loader_base import LoaderBase
-
-IMG_EXTENSIONS = ["png", "PNG", "jpg", "JPG"]
 
 
 class OlssonLoader(LoaderBase):
@@ -60,13 +57,7 @@ class OlssonLoader(LoaderBase):
         self._use_gt_extrinsics = use_gt_extrinsics
         self._max_frame_lookahead = max_frame_lookahead
 
-        self._image_paths = []
-        for extension in IMG_EXTENSIONS:
-            search_path = os.path.join(folder, "images", f"*.{extension}")
-            self._image_paths.extend(glob.glob(search_path))
-
-        # sort the file names
-        self._image_paths.sort()
+        self._image_paths = io_utils.get_sorted_image_names_in_dir(os.path.join(folder, "images"))
         self._num_imgs = len(self._image_paths)
 
         if self._num_imgs == 0:

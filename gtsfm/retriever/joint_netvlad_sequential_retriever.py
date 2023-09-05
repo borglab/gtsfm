@@ -22,17 +22,16 @@ class JointNetVLADSequentialRetriever(RetrieverBase):
         """
         Args:
             num_matched: number of K potential matches to provide per query. These are the top "K" matches per query.
+            min_score: Minimum allowed similarity score to accept a match.
             max_frame_lookahead: maximum number of consecutive frames to consider for matching/co-visibility.
         """
         super().__init__(matching_regime=ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL)
-        self._num_matched = num_matched
         self._similarity_retriever = NetVLADRetriever(num_matched=num_matched, min_score=min_score)
         self._seq_retriever = SequentialRetriever(max_frame_lookahead=max_frame_lookahead)
 
     def __repr__(self) -> str:
         return f"""
         JointNetVLADSequentialRetriever:
-            Num. frames matched: {self._num_matched}
             Similarity retriever: {self._similarity_retriever}
             Sequential retriever: {self._seq_retriever}
         """

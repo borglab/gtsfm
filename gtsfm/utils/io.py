@@ -2,6 +2,7 @@
 
 Authors: Ayush Baid, John Lambert
 """
+import glob
 import os
 import pickle
 from bz2 import BZ2File
@@ -31,6 +32,9 @@ from thirdparty.colmap.scripts.python.read_write_model import Image as ColmapIma
 from thirdparty.colmap.scripts.python.read_write_model import Point3D as ColmapPoint3D
 
 logger = logger_utils.get_logger()
+
+
+IMG_EXTENSIONS = ["png", "PNG", "jpg", "JPG"]
 
 
 def load_image(img_path: str) -> Image:
@@ -211,7 +215,7 @@ def colmap2gtsfm(
         sfmtracks_gtsfm = []
         for point3D in points3D.values():
             sfmtrack = SfmTrack(point3D.xyz)
-            for (image_id, point2d_idx) in zip(point3D.image_ids, point3D.point2D_idxs):
+            for image_id, point2d_idx in zip(point3D.image_ids, point3D.point2D_idxs):
                 sfmtrack.addMeasurement(image_id_to_idx[image_id], images[image_id].xys[point2d_idx])
             sfmtracks_gtsfm.append(sfmtrack)
 
@@ -243,7 +247,6 @@ def read_cameras_txt(fpath: str) -> Optional[List[Cal3Bundler]]:
 
     calibrations = []
     for line in lines[3:]:
-
         cam_params = line.split()
         # Note that u0 is px, and v0 is py
         model = cam_params[1]
@@ -349,7 +352,20 @@ def read_images_txt(fpath: str) -> Tuple[Optional[List[Pose3]], Optional[List[st
         wTi_list.append(wTi)
         img_fnames.append(img_fname)
 
-    return wTi_list, img_fnames
+    # TODO(johnwlambert): Re-order tracks for COLMAP-formatted .bin files.
+    wTi_list_sorted, img_fnames_sorted = sort_image_filenames_lexigraphically(wTi_list, img_fnames)
+
+    return wTi_list_sorted, img_fnames_sorted
+
+
+def sort_image_filenames_lexigraphically(wTi_list: List[Pose3], img_fnames: List[str]) -> Tuple[List[Pose3], List[str]]:
+    """Sort a list of camera poses according to provided image file names."""
+    sorted_idxs = sorted(range(len(img_fnames)), key=lambda i: img_fnames[i])
+
+    wTi_list_sorted = [wTi_list[i] for i in sorted_idxs]
+    img_fnames_sorted = [img_fnames[i] for i in sorted_idxs]
+
+    return wTi_list_sorted, img_fnames_sorted
 
 
 def write_images(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> None:
@@ -503,6 +519,7 @@ def read_scene_data_from_colmap_format(
 
     if any(x is None for x in [wTi_list, img_fnames, calibrations, point_cloud, rgb]):
         raise RuntimeError("One or more of the requested model data products was not found.")
+    print(f"Loaded {len(wTi_list)} cameras with {point_cloud.shape[0]} points.")
     return wTi_list, img_fnames, calibrations, point_cloud, rgb
 
 
@@ -620,3 +637,20 @@ def read_point_cloud_from_ply(ply_fpath: str) -> Tuple[np.ndarray, np.ndarray]:
     """
     pointcloud = open3d.io.read_point_cloud(ply_fpath)
     return open3d_vis_utils.convert_colored_open3d_point_cloud_to_numpy(pointcloud)
+
+
+def get_sorted_image_names_in_dir(dir_path: str) -> List[str]:
+    """Finds all jpg and png images in directory and returns their names in sorted order.
+
+    Args:
+        dir_path: Path to directory containing images.
+
+    Returns:
+        image_paths: List of image names in sorted order.
+    """
+    image_paths = []
+    for extension in IMG_EXTENSIONS:
+        search_path = os.path.join(dir_path, f"*.{extension}")
+        image_paths.extend(glob.glob(search_path))
+
+    return sorted(image_paths)

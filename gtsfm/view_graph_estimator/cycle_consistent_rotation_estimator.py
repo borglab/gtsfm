@@ -3,6 +3,7 @@
 Authors: John Lambert, Ayush Baid, Akshay Krishnan
 """
 import os
+import time
 from collections import defaultdict
 from enum import Enum
 from pathlib import Path
@@ -99,6 +100,7 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
             Edges of the view-graph, which are the subset of the image pairs in the input args.
         """
         # pylint: disable=unused-argument
+        start_time = time.time()
 
         logger.info("Input number of edges: %d" % len(i2Ri1_dict))
         input_edges: List[Tuple[int, int]] = i2Ri1_dict.keys()
@@ -138,7 +140,14 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
                 valid_edges, cycle_errors, max_gt_error_in_cycle, per_edge_aggregate_error, two_view_reports, output_dir
             )
 
-        logger.info("Found %d consistent rel. rotations from %d original edges.", len(valid_edges), len(input_edges))
+        end_time = time.time()
+        duration_sec = end_time - start_time
+        logger.info(
+            "Found %d consistent rel. rotations from %d original edges in %.2f sec.",
+            len(valid_edges),
+            len(input_edges),
+            duration_sec,
+        )
 
         return valid_edges
 
