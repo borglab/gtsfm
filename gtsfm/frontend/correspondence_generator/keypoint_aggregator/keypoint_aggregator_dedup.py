@@ -15,11 +15,16 @@ logger = logger_utils.get_logger()
 
 
 class KeypointAggregatorDedup(KeypointAggregatorBase):
-    """Keypoint aggregator with de-duplication."""
+    """Keypoint aggregator with de-duplication of keypoints within each image."""
 
-    def __init__(self) -> None:
-        """Initialize global variables"""
+    def __init__(self, nms_radius: float = 3) -> None:
+        """Initialize global variables.
+
+        Args:
+            nms_radius: Radius (in pixels) to use when merging detections within the same view.
+        """
         self.duplicates_found = 0
+        self.nms_radius = nms_radius
 
     def append_unique_keypoints(
         self, i: int, keypoints: Keypoints, per_image_kpt_coordinates: Dict[Tuple[int, int], np.ndarray]
@@ -46,8 +51,8 @@ class KeypointAggregatorDedup(KeypointAggregatorBase):
         for k, uv in enumerate(keypoints.coordinates):
             diff_norms = np.linalg.norm(per_image_kpt_coordinates[i] - uv, axis=1)
             # TODO(johnwlambert,ayushbaid): test loosening threshold below to some epsilon.
-            is_identical = np.any(diff_norms == 0)
-            if len(per_image_kpt_coordinates[i]) > 0 and is_identical:
+            is_duplicate = np.any(diff_norms <= self.nms_radius)
+            if len(per_image_kpt_coordinates[i]) > 0 and is_duplicate:
                 self.duplicates_found += 1
                 i_indices[k] = np.argmin(diff_norms)
             else:
@@ -103,6 +108,7 @@ class KeypointAggregatorDedup(KeypointAggregatorBase):
             putative_corr_idxs_dict[(i1, i2)] = putative_corr_idxs
 
         logger.info(f"Merged {self.duplicates_found} duplicates during de-duplication.")
+        print(f"Merged {self.duplicates_found} duplicates during de-duplication.")
         # Reset global state.
         self.duplicates_found = 0
 
