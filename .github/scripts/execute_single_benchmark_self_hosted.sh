@@ -18,7 +18,6 @@ if [ "$DATASET_NAME" == "skydio-501" ]; then
   COLMAP_FILES_DIRPATH="skydio-501-colmap-pseudo-gt"
 fi
 
-
 echo "Config: ${CONFIG_NAME}, Loader: ${LOADER_NAME}"
 echo "Max. Frame Lookahead: ${MAX_FRAME_LOOKAHEAD}, Max. Resolution: ${MAX_RESOLUTION}"
 echo "Share intrinsics for all images? ${SHARE_INTRINSICS}"

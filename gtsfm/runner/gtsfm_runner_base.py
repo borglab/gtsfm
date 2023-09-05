@@ -314,7 +314,9 @@ class GtsfmRunnerBase:
             )
             two_view_estimation_duration_sec = time.time() - two_view_estimation_start_time
 
-        i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, _, two_view_reports_dict = unzip_two_view_results(two_view_results_dict)
+        i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, _, two_view_reports_dict = unzip_two_view_results(
+            two_view_results_dict
+        )
         two_view_agg_metrics = two_view_estimator.aggregate_frontend_metrics(
             two_view_reports_dict=two_view_reports_dict,
             angular_err_threshold_deg=self.scene_optimizer._pose_angular_error_thresh,
