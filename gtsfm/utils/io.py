@@ -2,6 +2,7 @@
 
 Authors: Ayush Baid, John Lambert
 """
+import glob
 import os
 import pickle
 from bz2 import BZ2File
@@ -31,6 +32,9 @@ from thirdparty.colmap.scripts.python.read_write_model import Image as ColmapIma
 from thirdparty.colmap.scripts.python.read_write_model import Point3D as ColmapPoint3D
 
 logger = logger_utils.get_logger()
+
+
+IMG_EXTENSIONS = ["png", "PNG", "jpg", "JPG"]
 
 
 def load_image(img_path: str) -> Image:
@@ -256,12 +260,11 @@ def read_cameras_txt(fpath: str) -> Optional[List[Cal3Bundler]]:
             k2 = 0
             calibrations.append(Cal3Bundler(fx, k1, k2, u0, v0))
         elif model == "RADIAL":
-            _, _, img_w, img_h, fx, fy, u0, v0, k1, k2 = cam_params[:10]
-            img_w, img_h, fx, fy, u0, v0, k1, k2 = (
+            _, _, img_w, img_h, fx, u0, v0, k1, k2 = cam_params[:9]
+            img_w, img_h, fx, u0, v0, k1, k2 = (
                 int(img_w),
                 int(img_h),
                 float(fx),
-                float(fy),
                 float(u0),
                 float(v0),
                 float(k1),
@@ -302,19 +305,15 @@ def write_cameras(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> 
             calibration = camera.calibration()
 
             fx = calibration.fx()
-            fy = calibration.fy()
-            u0 = calibration.px()  # optical image center
-            v0 = calibration.py()  # optical image center
+            u0 = calibration.px()
+            v0 = calibration.py()
             k1 = calibration.k1()
             k2 = calibration.k2()
-            p1 = 0.0
-            p2 = 0.0
-            # missing tangential distortion coefficients
 
             image_height = images[i].height
             image_width = images[i].width
 
-            f.write(f"{i} {camera_model} {image_width} {image_height} {fx} {fy} {u0} {v0} {k1} {k2} {p1} {p2}\n")
+            f.write(f"{i} {camera_model} {image_width} {image_height} {fx} {u0} {v0} {k1} {k2}\n")
 
 
 def read_images_txt(fpath: str) -> Tuple[Optional[List[Pose3]], Optional[List[str]]]:
@@ -638,3 +637,20 @@ def read_point_cloud_from_ply(ply_fpath: str) -> Tuple[np.ndarray, np.ndarray]:
     """
     pointcloud = open3d.io.read_point_cloud(ply_fpath)
     return open3d_vis_utils.convert_colored_open3d_point_cloud_to_numpy(pointcloud)
+
+
+def get_sorted_image_names_in_dir(dir_path: str) -> List[str]:
+    """Finds all jpg and png images in directory and returns their names in sorted order.
+
+    Args:
+        dir_path: Path to directory containing images.
+
+    Returns:
+        image_paths: List of image names in sorted order.
+    """
+    image_paths = []
+    for extension in IMG_EXTENSIONS:
+        search_path = os.path.join(dir_path, f"*.{extension}")
+        image_paths.extend(glob.glob(search_path))
+
+    return sorted(image_paths)
