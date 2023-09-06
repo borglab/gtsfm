@@ -33,15 +33,15 @@ CAMERA_MODELS = {
 }
 
 
-def colmap_to_json(data_dir: str, output_dir: Path, camera_model: CameraModel) -> Tuple[int, int]:
-    """Converts COLMAP's cameras.bin and images.bin to a JSON file.
+def colmap_to_json(data_dir: str, output_dir: str, camera_model: CameraModel) -> Tuple[int, int]:
+    """Converts GTSfM's cameras.txt to to a JSON file, saves it in output_dir.
     Args:
         cameras_path: Path to the cameras.txt file.
         images_path: Path to the images.txt file.
         output_dir: Path to the output directory.
         camera_model: Camera model used.
     Returns:
-        The number of registered images.
+        Image dimension as a tuple.
     """
     wTi_list, input_images, calibrations, _, _, img_dims = io_utils.read_scene_data_from_colmap_format(data_dir)
 
@@ -104,7 +104,9 @@ def colmap_to_json(data_dir: str, output_dir: Path, camera_model: CameraModel) -
     return img_w, img_h
 
 
-def resize_and_save_images_for_nerfstudio(images_dir, image_width, image_height, resized_images_dir):
+def resize_and_save_images_for_nerfstudio(
+    images_dir: str, image_width: int, image_height: int, resized_images_dir: str
+) -> None:
     """Resizes images to the size used in GTSfM and saves for nerfstudio.
     Args:
         images_dir: path to the original images.
