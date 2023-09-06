@@ -224,7 +224,9 @@ def colmap2gtsfm(
     return img_fnames, wTi_gtsfm, intrinsics_gtsfm, sfmtracks_gtsfm, point_cloud, rgb
 
 
-def read_cameras_txt(fpath: str) -> Optional[List[Cal3Bundler]]:
+def read_cameras_txt(
+    fpath: str, return_img_dims: bool = False
+) -> Union[Optional[List[Cal3Bundler]], Tuple[Optional[List[Cal3Bundler]], Tuple[int, int]]]:
     """Read camera calibrations from a COLMAP-formatted cameras.txt file.
 
     Reference: https://colmap.github.io/format.html#cameras-txt
@@ -234,6 +236,7 @@ def read_cameras_txt(fpath: str) -> Optional[List[Cal3Bundler]]:
 
     Returns:
         calibration object for each camera, or None if requested file is non-existent
+        also returns the dimensions of each img (H, W) as a list if return_img_dims is True.
     """
     if not Path(fpath).exists():
         logger.info("%s does not exist", fpath)
@@ -246,6 +249,7 @@ def read_cameras_txt(fpath: str) -> Optional[List[Cal3Bundler]]:
     num_cams = int(lines[2].replace("# Number of cameras: ", "").strip())
 
     calibrations = []
+    img_dims = []
     for line in lines[3:]:
         cam_params = line.split()
         # Note that u0 is px, and v0 is py
@@ -271,8 +275,11 @@ def read_cameras_txt(fpath: str) -> Optional[List[Cal3Bundler]]:
                 float(k2),
             )
             calibrations.append(Cal3Bundler(fx, k1, k2, u0, v0))
-
+            if return_img_dims:
+                img_dims.append((img_h, img_w))
     assert len(calibrations) == num_cams
+    if return_img_dims:
+        return calibrations, img_dims
     return calibrations
 
 
@@ -475,7 +482,7 @@ def read_points_txt(fpath: str) -> Tuple[Optional[np.ndarray], Optional[np.ndarr
 
 def read_scene_data_from_colmap_format(
     data_dir: str,
-) -> Tuple[List[Pose3], List[str], List[Cal3Bundler], np.ndarray, np.ndarray]:
+) -> Tuple[List[Pose3], List[str], List[Cal3Bundler], np.ndarray, np.ndarray, List[Tuple[int, int]]]:
     """Reads in full scene reconstruction model from scene data stored in the COLMAP file format.
 
     Reference: https://colmap.github.io/format.html
@@ -508,7 +515,7 @@ def read_scene_data_from_colmap_format(
         images_fpath = f"{data_dir}/images.txt"
         cameras_fpath = f"{data_dir}/cameras.txt"
         wTi_list, img_fnames = read_images_txt(images_fpath)
-        calibrations = read_cameras_txt(cameras_fpath)
+        calibrations, img_dims = read_cameras_txt(cameras_fpath, return_img_dims=True)
         point_cloud, rgb = read_points_txt(points_fpath)
 
     elif file_format == "bin":
@@ -520,7 +527,7 @@ def read_scene_data_from_colmap_format(
     if any(x is None for x in [wTi_list, img_fnames, calibrations, point_cloud, rgb]):
         raise RuntimeError("One or more of the requested model data products was not found.")
     print(f"Loaded {len(wTi_list)} cameras with {point_cloud.shape[0]} points.")
-    return wTi_list, img_fnames, calibrations, point_cloud, rgb
+    return wTi_list, img_fnames, calibrations, point_cloud, rgb, img_dims
 
 
 def write_points(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> None:

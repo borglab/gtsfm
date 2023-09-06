@@ -14,11 +14,10 @@ from pathlib import Path
 from typing import Tuple
 
 import numpy as np
-import thirdparty.nerfstudio.colmap_utils as colmap_utils
-
-
-from gtsfm.utils import images, io
 from gtsam import Rot3
+
+from gtsfm.utils import images
+from gtsfm.utils import io as io_utils
 
 
 class CameraModel(Enum):
@@ -34,9 +33,7 @@ CAMERA_MODELS = {
 }
 
 
-def colmap_to_json(
-    cameras_path: Path, images_path: Path, output_dir: Path, camera_model: CameraModel
-) -> Tuple[int, int]:
+def colmap_to_json(data_dir: str, output_dir: Path, camera_model: CameraModel) -> Tuple[int, int]:
     """Converts COLMAP's cameras.bin and images.bin to a JSON file.
     Args:
         cameras_path: Path to the cameras.txt file.
@@ -46,28 +43,19 @@ def colmap_to_json(
     Returns:
         The number of registered images.
     """
-
-    cameras = colmap_utils.read_cameras_text(cameras_path)
-    input_images = colmap_utils.read_images_text(images_path)
-
-    # Only supports one camera
-    camera_params = cameras[1].params
+    wTi_list, input_images, calibrations, _, _, img_dims = io_utils.read_scene_data_from_colmap_format(data_dir)
 
     frames = []
-    for _, im_data in input_images.items():
-        rotation = Rot3(im_data.qvec[0], im_data.qvec[1], im_data.qvec[2], im_data.qvec[3]).matrix()
-        translation = im_data.tvec.reshape(3, 1)
-        w2c = np.concatenate([rotation, translation], 1)
-        w2c = np.concatenate([w2c, np.array([[0, 0, 0, 1]])], 0)
-        c2w = np.linalg.inv(w2c)
+    for i, image_name in enumerate(input_images):
+        c2w = wTi_list[i].matrix()
 
-        # Convert from COLMAP coordinate frame to nerfstudio coordinate frame.
+        # Convert from GTSfM coordinate frame to nerfstudio coordinate frame.
         # Invert camera X and Y, swap X and Y and invert Z in the world frame.
         c2w[0:3, 1:3] *= -1
         c2w = c2w[np.array([1, 0, 2, 3]), :]
         c2w[2, :] *= -1
 
-        name = Path(f"./images/{im_data.name}")
+        name = Path(f"./images/{image_name}")
 
         frame = {
             "file_path": name.as_posix(),
@@ -75,32 +63,36 @@ def colmap_to_json(
         }
         frames.append(frame)
 
+    # Only supports single intrinsics datasets.
+    camera_params = calibrations[0]
+    img_h, img_w = img_dims[0]
+
     out = {
-        "fl_x": float(camera_params[0]),
-        "fl_y": float(camera_params[1]),
-        "cx": float(camera_params[2]),
-        "cy": float(camera_params[3]),
-        "w": cameras[1].width,
-        "h": cameras[1].height,
+        "fl_x": float(camera_params.fx()),
+        "fl_y": float(camera_params.fx()),
+        "cx": float(camera_params.px()),
+        "cy": float(camera_params.py()),
+        "w": img_w,
+        "h": img_h,
         "camera_model": camera_model.value,
     }
 
     if camera_model == CameraModel.OPENCV:
         out.update(
             {
-                "k1": float(camera_params[4]),
-                "k2": float(camera_params[5]),
-                "p1": float(camera_params[6]),
-                "p2": float(camera_params[7]),
+                "k1": float(camera_params.k1()),
+                "k2": float(camera_params.k2()),
+                "p1": 0.0,
+                "p2": 0.0,
             }
         )
     if camera_model == CameraModel.OPENCV_FISHEYE:
         out.update(
             {
-                "k1": float(camera_params[4]),
-                "k2": float(camera_params[5]),
-                "k3": float(camera_params[6]),
-                "k4": float(camera_params[7]),
+                "k1": camera_params.k1(),
+                "k2": camera_params.k2(),
+                "k3": 0.0,
+                "k4": 0.0,
             }
         )
 
@@ -109,7 +101,7 @@ def colmap_to_json(
     with open(os.path.join(output_dir, "transforms.json"), "w", encoding="utf-8") as f:
         json.dump(out, f, indent=4)
 
-    return cameras[1].width, cameras[1].height
+    return img_w, img_h
 
 
 def resize_and_save_images_for_nerfstudio(images_dir, image_width, image_height, resized_images_dir):
@@ -124,10 +116,10 @@ def resize_and_save_images_for_nerfstudio(images_dir, image_width, image_height,
     image_filenames = os.listdir(images_dir)
     for image_filename in image_filenames:
         image_path = os.path.join(images_dir, image_filename)
-        image = io.load_image(image_path)
+        image = io_utils.load_image(image_path)
         resized_image = images.resize_image(image, image_height, image_width)
         resized_image_path = os.path.join(resized_images_dir, image_filename)
-        io.save_image(resized_image, resized_image_path)
+        io_utils.save_image(resized_image, resized_image_path)
 
 
 if __name__ == "__main__":
@@ -151,10 +143,11 @@ if __name__ == "__main__":
     cameras_file = os.path.join(results_path, "ba_output", "cameras.txt")
     images_file = os.path.join(results_path, "ba_output", "images.txt")
     nerfstudio_input_dir = os.path.join(results_path, "nerfstudio_input")
+    data_dir = os.path.join(results_path, "ba_output")
     if not os.path.exists(nerfstudio_input_dir):
         os.makedirs(nerfstudio_input_dir)
     image_width, image_height = colmap_to_json(
-        cameras_file, images_file, nerfstudio_input_dir, camera_model=CAMERA_MODELS[args.camera_model]
+        data_dir, nerfstudio_input_dir, camera_model=CAMERA_MODELS[args.camera_model]
     )
 
     # Resize images (as GTSfM does) to match intrinsics in transforms.json
