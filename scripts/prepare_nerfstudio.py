@@ -69,7 +69,7 @@ def colmap_to_json(data_dir: str, output_dir: str, camera_model: CameraModel) ->
 
     out = {
         "fl_x": float(camera_params.fx()),
-        "fl_y": float(camera_params.fx()),
+        "fl_y": float(camera_params.fy()),
         "cx": float(camera_params.px()),
         "cy": float(camera_params.py()),
         "w": img_w,
