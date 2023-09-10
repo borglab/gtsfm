@@ -102,7 +102,7 @@ def colmap_to_json(
                 "p2": 0.0,
             }
         )
-    if camera_model == CameraModel.OPENCV_FISHEYE:
+    elif camera_model == CameraModel.OPENCV_FISHEYE:
         out.update(
             {
                 "k1": camera_params.k1(),
@@ -111,6 +111,8 @@ def colmap_to_json(
                 "k4": 0.0,
             }
         )
+    else:
+        raise ValueError(f"Unknown camera model! {camera_model}")
 
     out["frames"] = frames
 
