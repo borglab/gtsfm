@@ -9,6 +9,7 @@ Author: Jon Womack
 import argparse
 import json
 import os
+import shutil
 from enum import Enum
 from pathlib import Path
 from typing import Tuple
@@ -33,13 +34,16 @@ CAMERA_MODELS = {
 }
 
 
-def colmap_to_json(data_dir: str, output_dir: str, camera_model: CameraModel) -> Tuple[int, int]:
+def colmap_to_json(
+    images_dir: str, data_dir: str, output_dir: str, camera_model: CameraModel, rescale_intrinsics: bool = False
+) -> Tuple[int, int]:
     """Converts GTSfM's cameras.txt to to a JSON file, saves it in output_dir.
     Args:
-        cameras_path: Path to the cameras.txt file.
-        images_path: Path to the images.txt file.
-        output_dir: Path to the output directory.
+        images_dir: Path to images that were input to gtsfm.
+        data_dir: Path to GTSfM's ba_output.
+        output_dir: Path to the output directory (Nerfstudio's input).
         camera_model: Camera model used.
+        rescale_intrinsics: If true, scales the intrinsics, so that the original images can be used with Nerfstudio.
     Returns:
         Image dimension as a tuple.
     """
@@ -67,13 +71,25 @@ def colmap_to_json(data_dir: str, output_dir: str, camera_model: CameraModel) ->
     camera_params = calibrations[0]
     img_h, img_w = img_dims[0]
 
+    fx, fy, cx, cy = camera_params.fx(), camera_params.fy(), camera_params.px(), camera_params.py()
+    if rescale_intrinsics:
+        # load a source image to find the original image shape.
+        image_path = os.path.join(images_dir, input_images[0])
+        image = io_utils.load_image(image_path)
+        H, W, _ = image.shape
+        scale_gtsfm_to_original = H / img_h
+        fx = fx * scale_gtsfm_to_original
+        fy = fy * scale_gtsfm_to_original
+        cx = cx * scale_gtsfm_to_original
+        cy = cy * scale_gtsfm_to_original
+
     out = {
-        "fl_x": float(camera_params.fx()),
-        "fl_y": float(camera_params.fy()),
-        "cx": float(camera_params.px()),
-        "cy": float(camera_params.py()),
-        "w": img_w,
-        "h": img_h,
+        "fl_x": fx,
+        "fl_y": fy,
+        "cx": cx,
+        "cy": cy,
+        "w": W if rescale_intrinsics else img_w,
+        "h": H if rescale_intrinsics else img_h,
         "camera_model": camera_model.value,
     }
 
@@ -104,17 +120,19 @@ def colmap_to_json(data_dir: str, output_dir: str, camera_model: CameraModel) ->
     return img_w, img_h
 
 
-def resize_and_save_images_for_nerfstudio(
-    images_dir: str, image_width: int, image_height: int, resized_images_dir: str
+def save_images_for_nerfstudio(
+    images_dir: str, image_width: int, image_height: int, resized_images_dir: str, resize: bool = False
 ) -> None:
     """Resizes images to the size used in GTSfM and saves for nerfstudio.
     Args:
-        images_dir: path to the original images.
-        images_width: int width of resized images
-        images_height: int height of resized images.
-        resized_images_dir: path to directory where the resized images will be saved.
-
+        images_dir: Path to the original images.
+        images_width: Width of resized images
+        images_height: Height of resized images.
+        resized_images_dir: Path to directory where the resized images will be saved.
     """
+    if not resize:
+        shutil.copytree(images_dir, resized_images_dir, dirs_exist_ok=True)
+        return
     image_filenames = os.listdir(images_dir)
     for image_filename in image_filenames:
         image_path = os.path.join(images_dir, image_filename)
@@ -138,18 +156,21 @@ if __name__ == "__main__":
         help="'perspective' or 'fisheye' corresponding to the OPENCV and OPENCV_FISHEYE camera models at"
         + " https://github.com/nerfstudio-project/nerfstudio/blob/main/nerfstudio/cameras/cameras.py",
     )
+    parser.add_argument("--resize_to_gtsfm", action="store_true", default=False)
     args = parser.parse_args()
 
     # Create transforms.json, which contains intrinsics and extrinsics
     results_path = args.results_path
-    cameras_file = os.path.join(results_path, "ba_output", "cameras.txt")
-    images_file = os.path.join(results_path, "ba_output", "images.txt")
     nerfstudio_input_dir = os.path.join(results_path, "nerfstudio_input")
     data_dir = os.path.join(results_path, "ba_output")
     if not os.path.exists(nerfstudio_input_dir):
         os.makedirs(nerfstudio_input_dir)
     image_width, image_height = colmap_to_json(
-        data_dir, nerfstudio_input_dir, camera_model=CAMERA_MODELS[args.camera_model]
+        args.images_dir,
+        data_dir,
+        nerfstudio_input_dir,
+        camera_model=CAMERA_MODELS[args.camera_model],
+        rescale_intrinsics=not args.resize_to_gtsfm,
     )
 
     # Resize images (as GTSfM does) to match intrinsics in transforms.json
@@ -157,4 +178,6 @@ if __name__ == "__main__":
     nerfstudio_images_dir = os.path.join(nerfstudio_input_dir, "images")
     if not os.path.exists(nerfstudio_images_dir):
         os.makedirs(nerfstudio_images_dir)
-    resize_and_save_images_for_nerfstudio(gtsfm_images_dir, image_width, image_height, nerfstudio_images_dir)
+    save_images_for_nerfstudio(
+        gtsfm_images_dir, image_width, image_height, nerfstudio_images_dir, resize=args.resize_to_gtsfm
+    )

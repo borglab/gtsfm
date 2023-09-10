@@ -225,8 +225,8 @@ def colmap2gtsfm(
 
 
 def read_cameras_txt(
-    fpath: str, return_img_dims: bool = False
-) -> Union[Optional[List[Cal3Bundler]], Tuple[Optional[List[Cal3Bundler]], Tuple[int, int]]]:
+    fpath: str,
+) -> Tuple[Optional[List[Cal3Bundler]], Optional[Tuple[int, int]]]:
     """Read camera calibrations from a COLMAP-formatted cameras.txt file.
 
     Reference: https://colmap.github.io/format.html#cameras-txt
@@ -235,12 +235,13 @@ def read_cameras_txt(
         fpaths: path to cameras.txt file
 
     Returns:
-        calibration object for each camera, or None if requested file is non-existent
-        also returns the dimensions of each img (H, W) as a list if return_img_dims is True.
+        Tuple of:
+            List of calibration objects for each camera, and list of dimensions of each img (H, W).
+        Or (None, None) if fpath does not exist.
     """
     if not Path(fpath).exists():
         logger.info("%s does not exist", fpath)
-        return None
+        return None, None
 
     with open(fpath, "r") as f:
         lines = f.readlines()
@@ -275,12 +276,9 @@ def read_cameras_txt(
                 float(k2),
             )
             calibrations.append(Cal3Bundler(fx, k1, k2, u0, v0))
-            if return_img_dims:
-                img_dims.append((img_h, img_w))
+            img_dims.append((img_h, img_w))
     assert len(calibrations) == num_cams
-    if return_img_dims:
-        return calibrations, img_dims
-    return calibrations
+    return calibrations, img_dims
 
 
 def write_cameras(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> None:
@@ -515,7 +513,7 @@ def read_scene_data_from_colmap_format(
         images_fpath = f"{data_dir}/images.txt"
         cameras_fpath = f"{data_dir}/cameras.txt"
         wTi_list, img_fnames = read_images_txt(images_fpath)
-        calibrations, img_dims = read_cameras_txt(cameras_fpath, return_img_dims=True)
+        calibrations, img_dims = read_cameras_txt(cameras_fpath)
         point_cloud, rgb = read_points_txt(points_fpath)
 
     elif file_format == "bin":
