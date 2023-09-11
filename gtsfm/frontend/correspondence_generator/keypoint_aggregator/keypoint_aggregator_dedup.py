@@ -104,7 +104,7 @@ class KeypointAggregatorDedup(KeypointAggregatorBase):
             per_image_kpt_coordinates, i2_indices = self.append_unique_keypoints(
                 i=i2, keypoints=keypoints_i2, per_image_kpt_coordinates=per_image_kpt_coordinates
             )
-            putative_corr_idxs = np.stack([i1_indices, i2_indices], axis=-1).astype(np.uint16)
+            putative_corr_idxs = np.stack([i1_indices, i2_indices], axis=-1).astype(np.int32)
             putative_corr_idxs_dict[(i1, i2)] = putative_corr_idxs
 
         logger.info(f"Merged {self.duplicates_found} duplicates during de-duplication.")
