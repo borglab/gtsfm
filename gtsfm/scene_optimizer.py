@@ -70,7 +70,7 @@ class SceneOptimizer:
         multiview_optimizer: MultiViewOptimizer,
         dense_multiview_optimizer: Optional[MVSBase] = None,
         save_two_view_correspondences_viz: bool = False,
-        save_3d_viz: bool = True,
+        save_3d_viz: bool = False,
         save_gtsfm_data: bool = True,
         pose_angular_error_thresh: float = 3,
         output_root: str = DEFAULT_OUTPUT_ROOT,
