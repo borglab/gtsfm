@@ -100,7 +100,7 @@ for num_matched in ${num_matched_sizes[@]}; do
 					--output_root $OUTPUT_ROOT \
 					--max_resolution 760 \
 					2>&1 | tee $OUTPUT_ROOT/out.log
-				elif [[ $loader == *"olsson"* ]]
+				elif [[ $loader == *"colmap"* ]]
 				then
 					python gtsfm/runner/run_scene_optimizer_colmaploader.py \
 					--mvs_off \
