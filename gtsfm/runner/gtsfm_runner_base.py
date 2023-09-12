@@ -350,12 +350,17 @@ class GtsfmRunnerBase:
 
         assert isinstance(sfm_result, GtsfmData)
         all_metrics_groups.extend(mvo_metrics_groups)
-        save_metrics_reports(all_metrics_groups, os.path.join(self.scene_optimizer.output_root, "result_metrics"))
 
         end_time = time.time()
         duration_sec = end_time - start_time
         logger.info("GTSFM took %.2f minutes to compute sparse multi-view result.", duration_sec / 60)
 
+        total_summary_metrics = GtsfmMetricsGroup(
+            "total_summary_metrics", [GtsfmMetric("total_runtime_sec", duration_sec)]
+        )
+        all_metrics_groups.append(total_summary_metrics)
+
+        save_metrics_reports(all_metrics_groups, os.path.join(self.scene_optimizer.output_root, "result_metrics"))
         return sfm_result
 
 
