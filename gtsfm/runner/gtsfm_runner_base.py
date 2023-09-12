@@ -66,7 +66,7 @@ class GtsfmRunnerBase:
             default=1,
             help="Number of threads per each worker",
         )
-        parser.add_argument("--worker_memory_limit", type=str, default=None, help="Memory limit per worker, e.g. `8GB`")
+        parser.add_argument("--worker_memory_limit", type=str, default="8GB", help="Memory limit per worker, e.g. `8GB`")
         parser.add_argument(
             "--config_name",
             type=str,
@@ -228,7 +228,7 @@ class GtsfmRunnerBase:
     def setup_ssh_cluster_with_retries(self):
         """Sets up SSH Cluster allowing multiple retries upon connection failures."""
         workers = OmegaConf.load(
-            os.path.join(self.parsed_args.output_root, "gtsfm", "configs", self.parsed_args.cluster_config)
+            os.path.join("gtsfm", "configs", self.parsed_args.cluster_config)
         )["workers"]
         scheduler = workers[0]
         connected = False
@@ -244,7 +244,7 @@ class GtsfmRunnerBase:
                     worker_options={
                         "n_workers": self.parsed_args.num_workers,
                         "nthreads": self.parsed_args.threads_per_worker,
-                        "memory_limit": "8GB",
+                        "memory_limit": self.parsed_args.worker_memory_limit,
                     },
                 )
                 connected = True
