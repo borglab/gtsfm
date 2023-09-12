@@ -184,7 +184,7 @@ class TwoViewEstimator:
         logger.debug("Triangulated %d correspondences out of %d.", len(triangulated_tracks), len(verified_corr_idxs))
 
         if len(triangulated_tracks) == 0:
-            return i2Ti1_initial.rotation(), Unit3(i2Ti1_initial.translation()), np.array([], dtype=np.uint32)
+            return i2Ti1_initial.rotation(), Unit3(i2Ti1_initial.translation()), np.zeros(shape=(0,2), dtype=np.int32)
 
         # Build BA inputs.
         start_time = timeit.default_timer()
