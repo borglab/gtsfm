@@ -263,7 +263,6 @@ def read_cameras_txt(
             # Convert COLMAP's SIMPLE_RADIAL to GTSAM's Cal3Bundler:
             # Add second radial distortion coefficient of value zero.
             k2 = 0
-            calibrations.append(Cal3Bundler(fx, k1, k2, u0, v0))
         elif model == "RADIAL":
             _, _, img_w, img_h, fx, u0, v0, k1, k2 = cam_params[:9]
             img_w, img_h, fx, u0, v0, k1, k2 = (
@@ -275,8 +274,8 @@ def read_cameras_txt(
                 float(k1),
                 float(k2),
             )
-            calibrations.append(Cal3Bundler(fx, k1, k2, u0, v0))
-            img_dims.append((img_h, img_w))
+        calibrations.append(Cal3Bundler(fx, k1, k2, u0, v0))
+        img_dims.append((img_h, img_w))
     assert len(calibrations) == num_cams
     return calibrations, img_dims
 
