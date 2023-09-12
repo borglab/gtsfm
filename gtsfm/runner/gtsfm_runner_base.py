@@ -66,7 +66,11 @@ class GtsfmRunnerBase:
             default=1,
             help="Number of threads per each worker",
         )
-        parser.add_argument("--worker_memory_limit", type=str, default="8GB", help="Memory limit per worker, e.g. `8GB`")
+        parser.add_argument(
+            "--worker_memory_limit",
+            type=str, default="8GB",
+            help="Memory limit per worker, e.g. `8GB`"
+        )
         parser.add_argument(
             "--config_name",
             type=str,
