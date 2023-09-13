@@ -273,8 +273,13 @@ class DataAssociation(GTSFMProcess):
         return sfm_tracks, avg_track_reproj_errors, triangulation_exit_codes
 
     def run_triangulation_and_evaluate(
+        self,
+        num_images: int,
         cameras: Dict[int, gtsfm_types.CAMERA_TYPE],
         tracks_2d: List[SfmTrack2d],
+        cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
+        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
+        images: Optional[List[Delayed]] = None,
     ) -> Tuple[GtsfmData, GtsfmMetricsGroup]:
         """Runs triangulation, evaluates results, and forms metrics group."""
         start_time = time.time()
@@ -300,7 +305,7 @@ class DataAssociation(GTSFMProcess):
         end_time = time.time()
         duration_sec = end_time - start_time
         data_assoc_metrics.add_metric(GtsfmMetric("total_duration_sec", duration_sec))
-
+        logger.info("[Data association] runtime duration (sec): %.2f", duration_sec)
         return ba_input, data_assoc_metrics
 
     def create_computation_graph(
@@ -328,7 +333,12 @@ class DataAssociation(GTSFMProcess):
                 association result.
         """
         ba_input_graph, data_assoc_metrics_graph = dask.delayed(self.run_triangulation_and_evaluate, nout=2)(
-            cameras=cameras, tracks_2d=tracks_2d
+            num_images=num_images,
+            cameras=cameras,
+            tracks_2d=tracks_2d,
+            cameras_gt=cameras_gt,
+            relative_pose_priors=relative_pose_priors,
+            images=images,
         )
 
         return ba_input_graph, data_assoc_metrics_graph
