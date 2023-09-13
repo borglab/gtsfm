@@ -61,6 +61,9 @@ ba_result_metrics = [
     "total_run_duration_sec",
 ]
 
+total_fname = "total_summary_metrics.json"
+total_metrics = ["total_runtime_sec"]
+
 # Metrics that **do not** have a median + mean value associated.
 SCALAR_METRIC_NAMES = [
     "number_cameras",
@@ -83,6 +86,7 @@ SCALAR_METRIC_NAMES = [
     "num_input_measurements",
     "num_inlier_measurements",
     "num_outlier_measurements",
+    "total_runtime_sec"
 ]
 
 
@@ -92,7 +96,7 @@ def main(user_root: Path, output_fpath: str) -> None:
     table = defaultdict(list)
     headers = ["method_name"]
 
-    experiment_roots = sorted(list(user_root.glob("*-*")))
+    experiment_roots = sorted(list(user_root.glob("*__*")))
 
     method_idx = 0
     for experiment_root in experiment_roots:
@@ -102,9 +106,9 @@ def main(user_root: Path, output_fpath: str) -> None:
         table["method_name"].append(frontend_name)
 
         for json_fname, metric_names, nickname in zip(
-            [retriever_fname, isp_fname, vg_fname, ra_fname, ta_fname, ba_result_fname],
-            [retriever_metrics, isp_metrics, vg_metrics, ra_metrics, ta_metrics, ba_result_metrics],
-            ["retriever", "isp", "vg", "ra", "ta", "ba"],
+            [retriever_fname, isp_fname, vg_fname, ra_fname, ta_fname, ba_result_fname, total_fname],
+            [retriever_metrics, isp_metrics, vg_metrics, ra_metrics, ta_metrics, ba_result_metrics, total_metrics],
+            ["retriever", "isp", "vg", "ra", "ta", "ba", "total"],
         ):
             section_name = Path(json_fname).stem
             print(f"{dirpath}/{json_fname}")

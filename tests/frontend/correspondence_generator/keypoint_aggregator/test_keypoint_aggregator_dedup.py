@@ -29,7 +29,7 @@ class TestKeypointAggregatorDedup(test_keypoint_aggregator_base.TestKeypointAggr
 
     def setUp(self):
         super().setUp()
-        self.aggregator = KeypointAggregatorDedup(nms_radius=0.0)
+        self.aggregator = KeypointAggregatorDedup(nms_merge_radius=0.0)
 
     def test_keypoint_aggregator_repeated_keypoints(self) -> None:
         """Ensure aggregation works over 3 images, with duplicate keypoints in the same image from separate pairs.
@@ -91,13 +91,13 @@ class TestKeypointAggregatorDedup(test_keypoint_aggregator_base.TestKeypointAggr
         expected_image2_kps = np.array([[2.0, 2.0], [3.0, 3.0], [4.0, 4.0]])
         assert np.allclose(keypoints_list[2].coordinates, expected_image2_kps)
 
-    def test_dedup_nms_radius_3(self) -> None:
+    def test_dedup_nms_merge_radius_3(self) -> None:
         loader = OlssonLoader(str(DEFAULT_FOLDER), max_frame_lookahead=4)
         image_matcher = ImageMatcherCacher(matcher_obj=LOFTR())
 
         images = [loader.get_image(i) for i in range(4)]
         image_pairs = [(0, 1), (1, 2), (2, 3), (0, 2), (1, 3)]
-        aggregator = KeypointAggregatorDedup(nms_radius=3.0)
+        aggregator = KeypointAggregatorDedup(nms_merge_radius=3.0)
 
         pairwise_correspondences = {
             (i1, i2): image_matcher.match(image_i1=images[i1], image_i2=images[i2]) for i1, i2 in image_pairs
