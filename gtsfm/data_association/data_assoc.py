@@ -10,6 +10,7 @@ References:
 Authors: Sushmita Warrier, Xiaolong Wu, John Lambert, Travis Driver
 """
 import os
+import time
 from collections import Counter
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
@@ -72,7 +73,7 @@ class DataAssociation(GTSFMProcess):
         """Validate the track by checking its length."""
         return sfm_track is not None and sfm_track.numberMeasurements() >= self.min_track_len
 
-    def run_da(
+    def assemble_gtsfm_data_from_tracks(
         self,
         num_images: int,
         cameras: Dict[int, gtsfm_types.CAMERA_TYPE],
@@ -84,35 +85,36 @@ class DataAssociation(GTSFMProcess):
         relative_pose_priors: Dict[Tuple[int, int], Optional[PosePrior]],
         images: Optional[List[Image]] = None,
     ) -> Tuple[GtsfmData, GtsfmMetricsGroup]:
-        """Perform the data association and compute metrics.
+        """Validates 3D triangulated tracks, assembles GtsfmData, and computes DA metrics.
+
+        Only the largest connected component of cameras, represented in 3d tracks, is retained.
 
         Args:
             num_images: Number of images in the scene.
-            cameras: dictionary, with image index -> camera mapping.
-            tracks_2d: list of 2D tracks.
+            cameras: Dictionary, with image index -> camera mapping.
+            tracks_2d: List of 2D tracks.
             sfm_tracks: List of triangulated tracks.
             avg_track_reproj_errors: List of average reprojection errors per track.
-            triangulation_exit_codes: exit codes for each triangulation call.
-            cameras_gt: list of GT cameras, to be used for benchmarking the tracks.
-            images: a list of all images in scene (optional and only for track patch visualization)
+            triangulation_exit_codes: Exit codes for each triangulation call.
+            cameras_gt: List of GT cameras, to be used for benchmarking the tracks.
+            images: A list of all images in scene (optional and only for track patch visualization).
 
         Returns:
-            A tuple of GtsfmData with cameras and tracks, and a GtsfmMetricsGroup with data association metrics
+            A tuple of GtsfmData with cameras and tracks, and a GtsfmMetricsGroup with data association metrics.
         """
-
         if self.save_track_patches_viz and images is not None:
             io_utils.save_track_visualizations(tracks_2d, images, save_dir=os.path.join("plots", "tracks_2d"))
 
-        # track lengths w/o triangulation check
+        # Track lengths w/o triangulation check.
         track_lengths_2d = np.array(list(map(lambda x: int(x.number_measurements()), tracks_2d)), dtype=np.uint32)
 
         logger.debug("[Data association] input number of tracks: %s", len(tracks_2d))
         logger.debug("[Data association] input avg. track length: %s", np.mean(track_lengths_2d))
 
-        # form GtsfmData object after triangulation
+        # Form GtsfmData object after triangulation.
         triangulated_data = GtsfmData(num_images)
 
-        # add all cameras
+        # Add all cameras.
         for i, camera in cameras.items():
             triangulated_data.add_camera(i, camera)
 
@@ -138,11 +140,11 @@ class DataAssociation(GTSFMProcess):
             else:
                 per_rejected_track_avg_errors.append(avg_track_reproj_error)
 
-        # aggregate the exit codes to get the distribution w.r.t each triangulation exit
-        # get the exit codes distribution w.r.t. the camera params computed by the upstream modules of GTSFM
+        # Aggregate the exit codes to get the distribution w.r.t each triangulation exit
+        # Get the exit codes distribution w.r.t. the camera params computed by the upstream modules of GTSFM
         exit_codes_wrt_computed_distribution = Counter(exit_codes_wrt_computed)
-        # compute the exit codes distribution w.r.t. a tuple of exit codes: the exit code when triangulated with the
-        # ground truth cameras and the exit code when triangulated with the computed cameras.
+        # Compute the exit codes distribution w.r.t. a tuple of exit codes: the exit code when triangulated with the
+        # Ground truth cameras and the exit code when triangulated with the computed cameras.
         exit_codes_wrt_gt_and_computed_distribution = None
         if exit_codes_wrt_gt is not None:
             exit_codes_wrt_gt_and_computed_distribution = Counter(zip(exit_codes_wrt_gt, exit_codes_wrt_computed))
@@ -151,7 +153,7 @@ class DataAssociation(GTSFMProcess):
             TriangulationExitCode.CHEIRALITY_FAILURE
         ] / len(tracks_2d)
 
-        # pick only the largest connected component
+        # Pick only the largest connected component.
         # TODO(Ayush): remove this for hilti as disconnected components not an issue?
         cam_edges_from_prior = [k for k, v in relative_pose_priors.items() if v is not None]
         connected_data = triangulated_data.select_largest_connected_component(extra_camera_edges=cam_edges_from_prior)
@@ -211,7 +213,7 @@ class DataAssociation(GTSFMProcess):
         cameras: Dict[int, gtsfm_types.CAMERA_TYPE],
         tracks_2d: List[SfmTrack2d],
     ) -> Tuple[List[Delayed], List[Delayed], List[Delayed]]:
-        """Performs triangulation of 2D tracks in parallel.
+        """Performs triangulation of batched 2D tracks in parallel.
 
         Refs:
         - https://docs.dask.org/en/stable/delayed-best-practices.html#compute-on-lots-of-computation-at-once
@@ -224,7 +226,7 @@ class DataAssociation(GTSFMProcess):
         Returns:
             sfm_tracks: List of triangulated tracks.
             avg_track_repoj_errors: List of average reprojection errors per track.
-            triangulation_exit_codes: exit codes for each triangulation call.
+            triangulation_exit_codes: Exit codes for each triangulation call.
         """
 
         def triangulate_batch(
@@ -236,7 +238,7 @@ class DataAssociation(GTSFMProcess):
                 batch_results.append(point3d_initializer.triangulate(track_2d))
             return batch_results
 
-        # Initialize 3D landmark for each track
+        # Initialize 3D landmark for each track.
         point3d_initializer = Point3dInitializer(cameras, self.triangulation_options)
 
         # Loop through tracks and and generate delayed triangulation tasks.
@@ -270,6 +272,37 @@ class DataAssociation(GTSFMProcess):
 
         return sfm_tracks, avg_track_reproj_errors, triangulation_exit_codes
 
+    def run_triangulation_and_evaluate(
+        cameras: Dict[int, gtsfm_types.CAMERA_TYPE],
+        tracks_2d: List[SfmTrack2d],
+    ) -> Tuple[GtsfmData, GtsfmMetricsGroup]:
+        """Runs triangulation, evaluates results, and forms metrics group."""
+        start_time = time.time()
+
+        # Triangulate 2D tracks to form 3D tracks.
+        sfm_tracks, avg_track_reproj_errors, triangulation_exit_codes = self.run_triangulation(
+            cameras=cameras, tracks_2d=tracks_2d
+        )
+
+        # Validate 3D tracks, create BA input, and compute metrics.
+        ba_input, data_assoc_metrics = self.assemble_gtsfm_data_from_tracks(
+            num_images=num_images,
+            cameras=cameras,
+            tracks_2d=tracks_2d,
+            sfm_tracks=sfm_tracks,
+            avg_track_reproj_errors=avg_track_reproj_errors,
+            triangulation_exit_codes=triangulation_exit_codes,
+            cameras_gt=cameras_gt,
+            relative_pose_priors=relative_pose_priors,
+            images=images,
+        )
+
+        end_time = time.time()
+        duration_sec = end_time - start_time
+        data_assoc_metrics.add_metric(GtsfmMetric("total_duration_sec", duration_sec))
+
+        return ba_input, data_assoc_metrics
+
     def create_computation_graph(
         self,
         num_images: int,
@@ -282,35 +315,20 @@ class DataAssociation(GTSFMProcess):
         """Creates a computation graph for performing data association.
 
         Args:
-            num_images: number of images in the scene.
-            cameras: list of cameras wrapped up as Delayed.
-            tracks_2d: list of tracks wrapped up as Delayed.
-            cameras_gt: a list of cameras with ground truth params, if they exist.
-            relative_pose_priors: pose priors on the relative pose between camera poses.
-            images: a list of all images in scene (optional and only for track patch visualization)
+            num_images: Number of images in the scene.
+            cameras: List of cameras wrapped up as Delayed.
+            tracks_2d: List of tracks wrapped up as Delayed.
+            cameras_gt: A list of cameras with ground truth params, if they exist.
+            relative_pose_priors: Pose priors on the relative pose between camera poses.
+            images: A list of all images in scene (optional and only for track patch visualization).
 
         Returns:
-            ba_input_graph: GtsfmData object wrapped up using dask.delayed
-            data_assoc_metrics_graph: dictionary with different statistics about the data
-                association result
+            ba_input_graph: GtsfmData object wrapped up using dask.delayed.
+            data_assoc_metrics_graph: Dictionary with different statistics about the data
+                association result.
         """
-
-        # Triangulate 2D tracks.
-        sfm_tracks, avg_track_reproj_errors, triangulation_exit_codes = dask.delayed(self.run_triangulation, nout=3)(
+        ba_input_graph, data_assoc_metrics_graph = dask.delayed(self.run_triangulation_and_evaluate, nout=2)(
             cameras=cameras, tracks_2d=tracks_2d
-        )
-
-        # Perform DA, create BA input, and compute metrics.
-        ba_input_graph, data_assoc_metrics_graph = dask.delayed(self.run_da, nout=2)(
-            num_images=num_images,
-            cameras=cameras,
-            tracks_2d=tracks_2d,
-            sfm_tracks=sfm_tracks,
-            avg_track_reproj_errors=avg_track_reproj_errors,
-            triangulation_exit_codes=triangulation_exit_codes,
-            cameras_gt=cameras_gt,
-            relative_pose_priors=relative_pose_priors,
-            images=images,
         )
 
         return ba_input_graph, data_assoc_metrics_graph
