@@ -17,14 +17,15 @@ logger = logger_utils.get_logger()
 class KeypointAggregatorDedup(KeypointAggregatorBase):
     """Keypoint aggregator with de-duplication of keypoints within each image."""
 
-    def __init__(self, nms_radius: float = 3) -> None:
+    def __init__(self, nms_merge_radius: float = 3) -> None:
         """Initialize global variables.
 
         Args:
-            nms_radius: Radius (in pixels) to use when merging detections within the same view.
+            nms_merge_radius: Radius (in pixels) to use when merging detections within the same view (image).
+                Note that tracks are merged, not suppressed.
         """
         self.duplicates_found = 0
-        self.nms_radius = nms_radius
+        self.nms_merge_radius = nms_merge_radius
 
     def append_unique_keypoints(
         self, i: int, keypoints: Keypoints, per_image_kpt_coordinates: Dict[Tuple[int, int], np.ndarray]
@@ -50,8 +51,8 @@ class KeypointAggregatorDedup(KeypointAggregatorBase):
 
         for k, uv in enumerate(keypoints.coordinates):
             diff_norms = np.linalg.norm(per_image_kpt_coordinates[i] - uv, axis=1)
-            # TODO(johnwlambert,ayushbaid): test loosening threshold below to some epsilon.
-            is_duplicate = np.any(diff_norms <= self.nms_radius)
+            # TODO(johnwlambert,travisdriver): Use the average coordinate instead of first coordinate.
+            is_duplicate = np.any(diff_norms <= self.nms_merge_radius)
             if len(per_image_kpt_coordinates[i]) > 0 and is_duplicate:
                 self.duplicates_found += 1
                 i_indices[k] = np.argmin(diff_norms)
