@@ -361,9 +361,6 @@ class TestDataAssociation(GtsamTestCase):
             dask_sfm_data, dask_metrics = dask.compute(delayed_sfm_data, delayed_metrics)
 
         assert expected_sfm_data.number_tracks() == dask_sfm_data.number_tracks(), "Dask not configured correctly"
-        import pdb
-
-        pdb.set_trace()
 
         # Runtimes are not exactly comparable, so remove these keys after ensuring that they have been generated.
         dask_result_dict = expected_metrics.get_metrics_as_dict()
