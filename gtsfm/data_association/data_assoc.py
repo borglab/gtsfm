@@ -305,7 +305,7 @@ class DataAssociation(GTSFMProcess):
         end_time = time.time()
         duration_sec = end_time - start_time
         data_assoc_metrics.add_metric(GtsfmMetric("total_duration_sec", duration_sec))
-        logger.info("[Data association] runtime duration (sec): %.2f", duration_sec)
+        logger.info("[Data association] runtime duration: %.2f sec.", duration_sec)
         return ba_input, data_assoc_metrics
 
     def create_computation_graph(
