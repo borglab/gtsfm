@@ -4,6 +4,7 @@ Authors: Ayush Baid, John Lambert
 """
 import logging
 import os
+import shutil
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -379,37 +380,43 @@ def save_gtsfm_data(
     Returns:
         A list of delayed objects after saving the input and outputs to bundle adjustment.
     """
+    start_time = time.time()
     saving_graph_list = []
+    
+    output_dir = results_path
+    # Save the input to Bundle Adjustment (from data association).
+    saving_graph_list.append(
+        dask.delayed(io_utils.export_model_as_colmap_text)(
+            gtsfm_data=ba_input_graph,
+            images=image_graph,
+            save_dir=os.path.join(output_dir, "ba_input"),
+        )
+    )
+    # Save the output of Bundle Adjustment.
+    saving_graph_list.append(
+        dask.delayed(io_utils.export_model_as_colmap_text)(
+            gtsfm_data=ba_output_graph,
+            images=image_graph,
+            save_dir=os.path.join(output_dir, "ba_output"),
+        )
+    )
+
+    # Save the ground truth in the same format, for visualization.
+    # We use the estimated tracks here, with ground truth camera poses.
+    gt_gtsfm_data = dask.delayed(get_gtsfm_data_with_gt_cameras_and_est_tracks)(cameras_gt, ba_output_graph)
+    saving_graph_list.append(
+        dask.delayed(io_utils.export_model_as_colmap_text)(
+            gtsfm_data=gt_gtsfm_data,
+            images=image_graph,
+            save_dir=os.path.join(output_dir, "ba_output_gt"),
+        )
+    )
+
     # Save a duplicate in REACT_RESULTS_PATH.
-    for output_dir in [results_path, REACT_RESULTS_PATH]:
-        # Save the input to Bundle Adjustment (from data association).
-        saving_graph_list.append(
-            dask.delayed(io_utils.export_model_as_colmap_text)(
-                gtsfm_data=ba_input_graph,
-                images=image_graph,
-                save_dir=os.path.join(output_dir, "ba_input"),
-            )
-        )
-        # Save the output of Bundle Adjustment.
-        saving_graph_list.append(
-            dask.delayed(io_utils.export_model_as_colmap_text)(
-                gtsfm_data=ba_output_graph,
-                images=image_graph,
-                save_dir=os.path.join(output_dir, "ba_output"),
-            )
-        )
-
-        # Save the ground truth in the same format, for visualization.
-        # We use the estimated tracks here, with ground truth camera poses.
-        gt_gtsfm_data = dask.delayed(get_gtsfm_data_with_gt_cameras_and_est_tracks)(cameras_gt, ba_output_graph)
-        saving_graph_list.append(
-            dask.delayed(io_utils.export_model_as_colmap_text)(
-                gtsfm_data=gt_gtsfm_data,
-                images=image_graph,
-                save_dir=os.path.join(output_dir, "ba_output_gt"),
-            )
-        )
-
+    end_time = time.time()
+    duration_sec = end_time - start_time
+    logger.info("GtsfmData I/O took %.2f sec.", duration_sec)
+    shutil.copytree(src=results_path, dst=REACT_RESULTS_PATH)
     return saving_graph_list
 
 
