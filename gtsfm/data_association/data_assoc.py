@@ -288,8 +288,10 @@ class DataAssociation(GTSFMProcess):
         sfm_tracks, avg_track_reproj_errors, triangulation_exit_codes = self.run_triangulation(
             cameras=cameras, tracks_2d=tracks_2d
         )
+        triangulation_runtime_sec = time.time() - start_time
 
         # Validate 3D tracks, create BA input, and compute metrics.
+        gtsfm_data_creation_start_time = time.time()
         ba_input, data_assoc_metrics = self.assemble_gtsfm_data_from_tracks(
             num_images=num_images,
             cameras=cameras,
@@ -301,11 +303,14 @@ class DataAssociation(GTSFMProcess):
             relative_pose_priors=relative_pose_priors,
             images=images,
         )
+        gtsfm_data_creation_runtime = time.time() - gtsfm_data_creation_start_time
 
         end_time = time.time()
-        duration_sec = end_time - start_time
-        data_assoc_metrics.add_metric(GtsfmMetric("total_duration_sec", duration_sec))
-        logger.info("[Data association] runtime duration: %.2f sec.", duration_sec)
+        total_duration_sec = end_time - start_time
+        data_assoc_metrics.add_metric(GtsfmMetric("triangulation_runtime_sec", triangulation_runtime_sec))
+        data_assoc_metrics.add_metric(GtsfmMetric("gtsfm_data_creation_runtime", gtsfm_data_creation_runtime))
+        data_assoc_metrics.add_metric(GtsfmMetric("total_duration_sec", total_duration_sec))
+        logger.info("[Data association] runtime duration: %.2f sec.", total_duration_sec)
         return ba_input, data_assoc_metrics
 
     def create_computation_graph(
