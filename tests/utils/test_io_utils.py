@@ -89,8 +89,8 @@ class TestIoUtils(unittest.TestCase):
         # A second radial distortion coefficient equal to zero is expected when it is converted to GTSAM's Cal3Bundler.
         self.assertEqual(K.k2(), 0)
         # Image dims is (H, W).
-        self.assertEqual(img_dims[0], 3040)
-        self.assertEqual(img_dims[1], 4056)
+        self.assertEqual(img_dims[0][0], 3040)
+        self.assertEqual(img_dims[0][1], 4056)
 
     def test_read_cameras_txt_nonexistent_file(self) -> None:
         """Ensure that providing a path to a nonexistent file returns None for calibrations return arg."""
