@@ -361,18 +361,20 @@ class TestDataAssociation(GtsamTestCase):
             dask_sfm_data, dask_metrics = dask.compute(delayed_sfm_data, delayed_metrics)
 
         assert expected_sfm_data.number_tracks() == dask_sfm_data.number_tracks(), "Dask not configured correctly"
-        import pdb; pdb.set_trace()
+        import pdb
+
+        pdb.set_trace()
 
         # Runtimes are not exactly comparable, so remove these keys after ensuring that they have been generated.
         dask_result_dict = expected_metrics.get_metrics_as_dict()
         non_dask_result_dict = dask_metrics.get_metrics_as_dict()
 
-        noncomparable_metric_names = ['triangulation_runtime_sec', 'gtsfm_data_creation_runtime', 'total_duration_sec']
+        noncomparable_metric_names = ["triangulation_runtime_sec", "gtsfm_data_creation_runtime", "total_duration_sec"]
         for metric_name in noncomparable_metric_names:
-            assert metric_name in dask_result_dict['data_association_metrics']
-            assert metric_name in non_dask_result_dict['data_association_metrics']
-            del dask_result_dict['data_association_metrics'][metric_name]
-            del non_dask_result_dict['data_association_metrics'][metric_name]
+            assert metric_name in dask_result_dict["data_association_metrics"]
+            assert metric_name in non_dask_result_dict["data_association_metrics"]
+            del dask_result_dict["data_association_metrics"][metric_name]
+            del non_dask_result_dict["data_association_metrics"][metric_name]
 
         self.assertDictEqual(dask_result_dict, non_dask_result_dict)
 
