@@ -47,7 +47,7 @@ ta_metrics = [
     "optimization_duration_sec",
 ]
 
-da_result_fname = "data_association_metrics.json"
+da_fname = "data_association_metrics.json"
 da_metrics = ["triangulation_runtime_sec", "gtsfm_data_creation_runtime", "total_duration_sec"]
 
 ba_result_fname = "bundle_adjustment_metrics.json"
