@@ -395,7 +395,6 @@ def save_gtsfm_data(
         save_dir=os.path.join(output_dir, "ba_output"),
     )
 
-
     # Save the ground truth in the same format, for visualization.
     # We use the estimated tracks here, with ground truth camera poses.
     gt_gtsfm_data = get_gtsfm_data_with_gt_cameras_and_est_tracks(cameras_gt, ba_output_data)
