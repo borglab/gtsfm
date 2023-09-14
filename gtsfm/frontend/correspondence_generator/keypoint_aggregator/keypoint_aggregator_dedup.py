@@ -58,7 +58,9 @@ class KeypointAggregatorDedup(KeypointAggregatorBase):
                 i_indices[k] = img_global_kpt_idx
                 # Modify global keypoint coordinate to be set to average value of merged detections, instead of
                 # using the first identified coordinate.
-                per_image_kpt_coordinates[i] = np.mean([per_image_kpt_coordinates[img_global_kpt_idx], uv])
+                updated_uv = np.mean([per_image_kpt_coordinates[i][img_global_kpt_idx], uv], axis=0)
+                per_image_kpt_coordinates[i][img_global_kpt_idx] = updated_uv
+
             else:
                 i_indices[k] = i_count
                 i_count += 1
