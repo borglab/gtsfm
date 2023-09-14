@@ -5,6 +5,7 @@ Authors: Ayush Baid, John Lambert
 import logging
 import os
 import shutil
+import time
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -382,7 +383,7 @@ def save_gtsfm_data(
     """
     start_time = time.time()
     saving_graph_list = []
-    
+
     output_dir = results_path
     # Save the input to Bundle Adjustment (from data association).
     saving_graph_list.append(
@@ -412,10 +413,12 @@ def save_gtsfm_data(
         )
     )
 
-    # Save a duplicate in REACT_RESULTS_PATH.
+    # Save a duplicate copy of the directory in REACT_RESULTS_PATH.
     end_time = time.time()
     duration_sec = end_time - start_time
     logger.info("GtsfmData I/O took %.2f sec.", duration_sec)
+    # Delete old version of React results directory.
+    shutil.rmtree(REACT_RESULTS_PATH)
     shutil.copytree(src=results_path, dst=REACT_RESULTS_PATH)
     return saving_graph_list
 

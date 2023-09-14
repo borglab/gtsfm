@@ -303,8 +303,8 @@ class DataAssociation(GTSFMProcess):
             relative_pose_priors=relative_pose_priors,
             images=images,
         )
-
         gtsfm_data_creation_runtime = time.time() - gtsfm_data_creation_start_time
+
         end_time = time.time()
         total_duration_sec = end_time - start_time
         data_assoc_metrics.add_metric(GtsfmMetric("triangulation_runtime_sec", triangulation_runtime_sec))
