@@ -15,7 +15,13 @@ import gtsfm.utils.io as io_utils
 
 
 isp_fname = "verifier_summary_POST_INLIER_SUPPORT_PROCESSOR_2VIEW_REPORT.json"
-isp_metrics = ["rot3_angular_errors_deg", "trans_angular_errors_deg", "pose_errors_deg"]
+isp_metrics = [
+    "rot3_angular_errors_deg",
+    "trans_angular_errors_deg",
+    "pose_errors_deg",
+    "total_correspondence_generation_duration_sec",
+    "total_two_view_estimation_duration_sec",
+]
 
 retriever_fname = "retriever_metrics.json"
 retriever_metrics = ["num_input_images", "num_retrieved_image_pairs"]
@@ -40,6 +46,9 @@ ta_metrics = [
     "outier_rejection_duration_sec",
     "optimization_duration_sec",
 ]
+
+da_result_fname = "data_association_metrics.json"
+da_metrics = ["triangulation_runtime_sec", "gtsfm_data_creation_runtime", "total_duration_sec"]
 
 ba_result_fname = "bundle_adjustment_metrics.json"
 ba_result_metrics = [
@@ -83,6 +92,11 @@ SCALAR_METRIC_NAMES = [
     "num_input_measurements",
     "num_inlier_measurements",
     "num_outlier_measurements",
+    "total_correspondence_generation_duration_sec",
+    "total_two_view_estimation_duration_sec",
+    "triangulation_runtime_sec",
+    "gtsfm_data_creation_runtime",
+    "total_duration_sec",
 ]
 
 
@@ -102,9 +116,9 @@ def main(user_root: Path, output_fpath: str) -> None:
         table["method_name"].append(frontend_name)
 
         for json_fname, metric_names, nickname in zip(
-            [retriever_fname, isp_fname, vg_fname, ra_fname, ta_fname, ba_result_fname],
-            [retriever_metrics, isp_metrics, vg_metrics, ra_metrics, ta_metrics, ba_result_metrics],
-            ["retriever", "isp", "vg", "ra", "ta", "ba"],
+            [retriever_fname, isp_fname, vg_fname, ra_fname, ta_fname, da_fname, ba_result_fname],
+            [retriever_metrics, isp_metrics, vg_metrics, ra_metrics, ta_metrics, da_metrics, ba_result_metrics],
+            ["retriever", "isp", "vg", "ra", "ta", "da", "ba"],
         ):
             section_name = Path(json_fname).stem
             print(f"{dirpath}/{json_fname}")
