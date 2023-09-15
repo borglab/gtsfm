@@ -28,8 +28,8 @@ class KeypointAggregatorDedup(KeypointAggregatorBase):
         self.nms_merge_radius = nms_merge_radius
 
     def append_unique_keypoints(
-        self, i: int, keypoints: Keypoints, per_image_kpt_coordinates: Dict[Tuple[int, int], np.ndarray]
-    ) -> Tuple[Dict[Tuple[int, int], np.ndarray], np.ndarray]:
+        self, i: int, keypoints: Keypoints, per_image_kpt_coordinates: Dict[int, np.ndarray]
+    ) -> Tuple[Dict[int, np.ndarray], np.ndarray]:
         """Identify unique keypoints, and append them to running list of global keypoints per image.
 
         If duplicate keypoints are found, the index of the previously existing keypoint is recorded.
