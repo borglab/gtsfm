@@ -109,7 +109,6 @@ class KeypointAggregatorDedup(KeypointAggregatorBase):
             putative_corr_idxs_dict[(i1, i2)] = putative_corr_idxs
 
         logger.info(f"Merged {self.duplicates_found} duplicates during de-duplication.")
-        print(f"Merged {self.duplicates_found} duplicates during de-duplication.")
         # Reset global state.
         self.duplicates_found = 0
 
