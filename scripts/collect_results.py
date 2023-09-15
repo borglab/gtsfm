@@ -44,7 +44,7 @@ ta_metrics = [
     "relative_translation_angle_error_deg",
     "translation_angle_error_deg",
     "total_duration_sec",
-    "outier_rejection_duration_sec",  # outlier
+    "outlier_rejection_duration_sec",
     "optimization_duration_sec",
 ]
 
@@ -234,6 +234,11 @@ if __name__ == "__main__":
         required=True,
         help="Root directory where experiment results are stored, with a subdirectory for each experiment.",
     )
+    parser.add_argument(
+        "--show_runtime_pie_chart",
+        action="store_true",
+        help="Whether to plot runtime breakdown for each experiment as a pie chart (defaults to not display).",
+    )
     args = parser.parse_args()
 
     user_root = Path(args.user_root)
@@ -247,4 +252,5 @@ if __name__ == "__main__":
     experiment_roots = [d for d in experiment_roots if d.is_dir()]
 
     main(experiment_roots=experiment_roots, output_fpath=args.output_fpath)
-    _make_runtime_pie_chart(experiment_roots=experiment_roots)
+    if args.show_runtime_pie_chart:
+        _make_runtime_pie_chart(experiment_roots=experiment_roots)
