@@ -49,7 +49,10 @@ class CppDsfTracksEstimator(TracksEstimatorBase):
         # Check to ensure dimensions of coordinates are correct.
         dims_valid = all([kps.coordinates.ndim == 2 for kps in keypoints_list])
         if not dims_valid:
-            raise Exception("Dimensions for Keypoint coordinates incorrect. Array needs to be 2D")
+            raise Exception(
+                "Dimensions for Keypoint coordinates incorrect. Array needs to be 2D, but found "
+                f"{[kps.coordinates.shape for kps in keypoints_list]}"
+            )
 
         # For each image pair (i1,i2), we provide a (K,2) matrix of corresponding keypoint indices (k1,k2).
         # (Converts python dict into gtsam.MatchIndicesMap.)
