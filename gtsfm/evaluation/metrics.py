@@ -73,16 +73,16 @@ class GtsfmMetric:
         """Creates a GtsfmMetric.
 
         Args:
-             name: name of the metric
-             data: All values of the metric, optional for 1D distributions, uses summary if not provided.
-             summary: A summary dict of the metric, generated previously using the same class.
-                      Has to be provided if data = None.
-             store_full_data: Whether all the values are to be stored or only summary is required. True by default.
-             plot_type: The plot to use for visualization of the metric.
-                        Defaults:
-                           PlotType.BAR if data is a scalar
-                           PlotType.BOX if data is a distribution (other option is PlotType.HISTOGRAM)
-                         It is inferred from the summary if plot_type is not provided and summary is.
+            name: Name of the metric.
+            data: All values of the metric, optional for 1D distributions, uses summary if not provided.
+            summary: A summary dict of the metric, generated previously using the same class.
+                Has to be provided if data = None.
+            store_full_data: Whether all the values are to be stored or only summary is required.
+            plot_type: The plot to use for visualization of the metric.
+                Defaults:
+                   PlotType.BAR if data is a scalar
+                   PlotType.BOX if data is a distribution (other option is PlotType.HISTOGRAM)
+                 It is inferred from the summary if plot_type is not provided and summary is.
         """
         if summary is None and data is None:
             raise ValueError("Data and summary cannot both be None.")
@@ -165,7 +165,7 @@ class GtsfmMetric:
             - Either quartiles or histogram of the data depending on plot_type of this metric.
 
         Args:
-            data: 1D array of all values of the metric
+            data: 1D array of all values of the metric.
 
         Returns:
             summary as a dict that can be serialized to JSON for storage.
@@ -218,7 +218,7 @@ class GtsfmMetric:
         """Saves this metric's dict representation to a JSON file.
 
         Args:
-            Path to the json file.
+            json_filename: Path to the json file.
         """
         io.save_json_file(json_filename, self.get_metric_as_dict())
 
@@ -302,7 +302,7 @@ class GtsfmMetricsGroup:
         }
 
         Returns:
-            metrics group dictionary representation.
+            Metrics group dictionary representation.
         """
         metrics_dict = {}
         for metric in self._metrics:
@@ -313,7 +313,7 @@ class GtsfmMetricsGroup:
         """Saves the dictionary representation of the metrics group to json.
 
         Args:
-            path: path to json file.
+            path: Path to json file.
         """
         try:
             io.save_json_file(path, self.get_metrics_as_dict())
