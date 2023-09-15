@@ -67,7 +67,7 @@ class GtsfmMetric:
         name: str,
         data: Optional[Union[float, Distribution1D]] = None,
         summary: Optional[Dict[str, Any]] = None,
-        store_full_data: bool = False,
+        store_full_data: bool = True,
         plot_type: PlotType = None,
     ) -> GtsfmMetric:
         """Creates a GtsfmMetric.
