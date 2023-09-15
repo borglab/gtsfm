@@ -405,13 +405,14 @@ def save_gtsfm_data(
         save_dir=os.path.join(output_dir, "ba_output_gt"),
     )
 
-    end_time = time.time()
-    duration_sec = end_time - start_time
-    logger.info("GtsfmData I/O took %.2f sec.", duration_sec)
     # Delete old version of React results directory.
     shutil.rmtree(REACT_RESULTS_PATH)
     # Save a duplicate copy of the directory in REACT_RESULTS_PATH.
     shutil.copytree(src=results_path, dst=REACT_RESULTS_PATH)
+
+    end_time = time.time()
+    duration_sec = end_time - start_time
+    logger.info("GtsfmData I/O took %.2f sec.", duration_sec)
 
 
 def save_full_frontend_metrics(
