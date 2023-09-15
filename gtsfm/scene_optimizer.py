@@ -373,7 +373,7 @@ def save_gtsfm_data(
     """Saves the Gtsfm data before and after bundle adjustment.
 
     Args:
-        images: Input image wrapped as Delayed objects.
+        images: Input images.
         ba_input_data: GtsfmData input to bundle adjustment.
         ba_output_data: GtsfmData output to bundle adjustment.
         results_path: Path to directory where GTSFM results will be saved.

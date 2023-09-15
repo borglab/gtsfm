@@ -55,7 +55,7 @@ class CppDsfTracksEstimator(TracksEstimatorBase):
         # (Converts python dict into gtsam.MatchIndicesMap.)
         matches_map = gtsam.MatchIndicesMap()
         for (i1, i2), corr_idxs in matches_dict.items():
-            matches_map[gtsam.IndexPair(i1, i2)] = corr_idxs
+            matches_map[gtsam.IndexPair(i1, i2)] = corr_idxs.astype(np.int32)
 
         # Convert gtsfm Keypoints into gtsam Keypoints.
         keypoints_vector = gtsam.KeypointsVector()
