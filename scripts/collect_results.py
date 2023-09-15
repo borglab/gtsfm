@@ -9,6 +9,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import DefaultDict, Sequence
 
+import matplotlib.pyplot as plt
 from tabulate import tabulate
 
 import gtsfm.utils.io as io_utils
@@ -43,7 +44,7 @@ ta_metrics = [
     "relative_translation_angle_error_deg",
     "translation_angle_error_deg",
     "total_duration_sec",
-    "outier_rejection_duration_sec",
+    "outier_rejection_duration_sec",  # outlier
     "optimization_duration_sec",
 ]
 
@@ -100,17 +101,28 @@ SCALAR_METRIC_NAMES = [
     "triangulation_runtime_sec",
     "gtsfm_data_creation_runtime",
     "total_duration_sec",
-    "total_runtime_sec"
+    "total_runtime_sec",
 ]
 
+SECTION_FILE_NAMES = [retriever_fname, isp_fname, vg_fname, ra_fname, ta_fname, da_fname, ba_result_fname, total_fname]
+SECTION_METRIC_LISTS = [
+    retriever_metrics,
+    isp_metrics,
+    vg_metrics,
+    ra_metrics,
+    ta_metrics,
+    da_metrics,
+    ba_result_metrics,
+    total_metrics,
+]
+SECTION_NICKNAMES = ["retriever", "isp", "vg", "ra", "ta", "da", "ba", "total"]
 
-def main(user_root: Path, output_fpath: str) -> None:
+
+def main(experiment_roots: Sequence[Path], output_fpath: str) -> None:
     """ """
     # Store each column as mappings of (key, value) pairs, where (metric_name, experiment_value).
     table = defaultdict(list)
     headers = ["method_name"]
-
-    experiment_roots = sorted(list(user_root.glob("*__*")))
 
     method_idx = 0
     for experiment_root in experiment_roots:
@@ -120,9 +132,9 @@ def main(user_root: Path, output_fpath: str) -> None:
         table["method_name"].append(frontend_name)
 
         for json_fname, metric_names, nickname in zip(
-            [retriever_fname, isp_fname, vg_fname, ra_fname, ta_fname, da_fname, ba_result_fname, total_fname],
-            [retriever_metrics, isp_metrics, vg_metrics, ra_metrics, ta_metrics, da_metrics, ba_result_metrics, total_metrics],
-            ["retriever", "isp", "vg", "ra", "ta", "da", "ba", "total"],
+            SECTION_FILE_NAMES,
+            SECTION_METRIC_LISTS,
+            SECTION_NICKNAMES,
         ):
             section_name = Path(json_fname).stem
             print(f"{dirpath}/{json_fname}")
@@ -148,6 +160,55 @@ def main(user_root: Path, output_fpath: str) -> None:
     stdout_lines = tabulate(table, headers, tablefmt="fancy_grid")
     print(stdout_lines)
     save_table_to_tsv(table, headers, output_fpath)
+
+
+def _make_runtime_pie_chart(experiment_roots: Sequence[Path]) -> None:
+    """Make pie chart to depict runtime breakdown for each run."""
+    for experiment_root in experiment_roots:
+
+        runtime_labels = []
+        runtimes = []
+
+        runtimes_sum = 0.0
+        total_runtime = 0.0
+
+        dirpath = Path(experiment_root) / "result_metrics"
+        for json_fname, metric_names, nickname in zip(
+            SECTION_FILE_NAMES,
+            SECTION_METRIC_LISTS,
+            SECTION_NICKNAMES,
+        ):
+            section_name = Path(json_fname).stem
+            json_data = io_utils.read_json_file(f"{dirpath}/{json_fname}")[section_name]
+            for metric_name in metric_names:
+                full_metric_name = f"{nickname}_" + " ".join(metric_name.split("_"))
+                if "sec" not in metric_name:
+                    continue
+
+                runtime = json_data[metric_name]
+                if full_metric_name == "total_total runtime sec":
+                    total_runtime = runtime
+                elif full_metric_name in [
+                    "ta_total duration sec",
+                    "da_total duration sec",
+                    "ba_total run duration sec",
+                ]:
+                    # Section components are measured individually, so ignore section runtime.
+                    pass
+                else:
+                    runtimes_sum += runtime
+                    runtimes.append(runtime)
+                    runtime_labels.append(full_metric_name)
+
+        # Compute and plot unmeasured component.
+        remainder_runtime = total_runtime - runtimes_sum
+        runtime_labels.append("remainder_sec")
+        runtimes.append(remainder_runtime)
+
+        fig, ax = plt.subplots(figsize=(15, 10))
+        ax.pie(runtimes, labels=runtime_labels, autopct="%1.1f%%", textprops={"fontsize": 10})
+        plt.title("Runtime Breakdown for " + str(experiment_root.name))
+        plt.show()
 
 
 def save_table_to_tsv(table: DefaultDict, headers: Sequence[str], output_fpath: str) -> None:
@@ -182,4 +243,8 @@ if __name__ == "__main__":
     if Path(args.output_fpath).suffix != ".tsv":
         raise ValueError("Output file path must end in `.tsv`")
 
-    main(user_root=user_root, output_fpath=args.output_fpath)
+    experiment_roots = sorted(list(user_root.glob("*")))
+    experiment_roots = [d for d in experiment_roots if d.is_dir()]
+
+    main(experiment_roots=experiment_roots, output_fpath=args.output_fpath)
+    _make_runtime_pie_chart(experiment_roots=experiment_roots)
