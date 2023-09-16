@@ -91,7 +91,7 @@ SCALAR_METRIC_NAMES = [
     "total_run_duration_sec",
     "total_duration_sec",
     "total_duration_sec",
-    "outier_rejection_duration_sec",
+    "outlier_rejection_duration_sec",
     "optimization_duration_sec",
     "num_input_measurements",
     "num_inlier_measurements",
