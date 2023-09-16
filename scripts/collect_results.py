@@ -25,7 +25,7 @@ isp_metrics = [
 ]
 
 retriever_fname = "retriever_metrics.json"
-retriever_metrics = ["num_input_images", "num_retrieved_image_pairs"]
+retriever_metrics = ["num_input_images", "num_retrieved_image_pairs", "retriever_duration_sec"]
 
 vg_fname = "view_graph_estimation_metrics.json"
 vg_metrics = [
@@ -102,6 +102,7 @@ SCALAR_METRIC_NAMES = [
     "gtsfm_data_creation_runtime",
     "total_duration_sec",
     "total_runtime_sec",
+    "retriever_duration_sec"
 ]
 
 SECTION_FILE_NAMES = [retriever_fname, isp_fname, vg_fname, ra_fname, ta_fname, da_fname, ba_result_fname, total_fname]

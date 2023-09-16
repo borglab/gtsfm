@@ -1,5 +1,4 @@
-"""
-Defines GTSFMProcess, which holds a UiMetadata object for displaying this process in the process graph.
+"""Defines GTSFMProcess, which holds a UiMetadata object for displaying this process in the process graph.
 
 Author: Kevin Fu
 """
@@ -41,21 +40,20 @@ class UiMetadata:
     order=True makes this sortable, used to add the nodes in the same order to avoid non-deterministic DOT graph output.
 
     Fields:
-        display_name: string display_name of a GTSFMProcess
-        input_products: tuple of strings representing all products this process consumes
-        output_products: tuple of strings representing all products this process produces
-        parent_plate: string parent_plate of a GTSFMProcess
+        display_name: String display_name of a GTSFMProcess.
+        input_products: Tuple of strings representing all products this process consumes.
+        output_products: Tuple of strings representing all products this process produces.
+        parent_plate: String parent_plate of a GTSFMProcess.
     """
 
     display_name: str
-    input_products: Tuple[str]
-    output_products: Tuple[str]
+    input_products: Tuple[str, ...]
+    output_products: Tuple[str, ...]
     parent_plate: str = None
 
 
 class GTSFMProcess(metaclass=AbstractableRegistryHolder):
-    """
-    Base type that all classes the REGISTRY can see must inherit from.
+    """Base type that all classes the REGISTRY can see must inherit from.
 
     Built as a Mixin. For example usage see test cases for GTSFMProcess.
     """
