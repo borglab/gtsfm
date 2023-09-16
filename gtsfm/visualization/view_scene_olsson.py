@@ -28,7 +28,6 @@ def view_scene(args: argparse.Namespace) -> None:
     """
     loader = OlssonLoader(
         args.dataset_root,
-        image_extension=args.image_extension,
         max_frame_lookahead=DUMMY_MAX_FRAME_LOOKAHEAD,
         max_resolution=args.max_resolution,
     )
@@ -42,10 +41,8 @@ def view_scene(args: argparse.Namespace) -> None:
 
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser(description="Visualize Olsson dataset w/ Open3d.")
     parser.add_argument("--dataset_root", type=str, default=os.path.join(TEST_DATA_ROOT, "set1_lund_door"), help="")
-    parser.add_argument("--image_extension", type=str, default="JPG", help="")
     parser.add_argument(
         "--rendering_style",
         type=str,

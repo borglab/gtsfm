@@ -40,7 +40,7 @@ class SIFTDetectorDescriptor(DetectorDescriptorBase):
         # Convert to grayscale.
         gray_image = image_utils.rgb_to_gray_cv(image)
 
-        # Create OpenCV object.
+        # Create OpenCV object every time as the object is not pickle-able.
         opencv_obj = cv.SIFT_create()
 
         # Run the OpenCV code.

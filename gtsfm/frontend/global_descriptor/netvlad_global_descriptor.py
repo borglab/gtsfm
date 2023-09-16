@@ -12,7 +12,6 @@ Whereas bag-of-visual-words aggregation keeps counts of visual words, VLAD store
 
 Authors: John Lambert, Travis Driver
 """
-
 import numpy as np
 import torch
 from torch import nn
@@ -25,9 +24,10 @@ from thirdparty.hloc.netvlad import NetVLAD
 class NetVLADGlobalDescriptor(GlobalDescriptorBase):
     """NetVLAD global descriptor"""
 
-    def __init__(self) -> None:
+    def __init__(self, use_cuda: bool = True) -> None:
         """ """
-        pass
+        self._use_cuda = use_cuda
+        self._model: nn.Module = NetVLAD().eval()
 
     def describe(self, image: Image) -> np.ndarray:
         """Compute the NetVLAD global descriptor for a single image query.
@@ -38,16 +38,13 @@ class NetVLADGlobalDescriptor(GlobalDescriptorBase):
         Returns:
             img_desc: array of shape (D,) representing global image descriptor.
         """
-        # Load model.
-        # Note: Initializing in the constructor leads to OOM.
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        model: nn.Module = NetVLAD().to(device)
-        model.eval()
+        device = torch.device("cuda" if self._use_cuda and torch.cuda.is_available() else "cpu")
+        self._model.to(device)
 
-        img_tensor = (
-            torch.from_numpy(image.value_array).to(device).permute(2, 0, 1).unsqueeze(0).type(torch.float32) / 255
-        )
         with torch.no_grad():
-            img_desc = model({"image": img_tensor})
+            img_tensor = (
+                torch.from_numpy(image.value_array).permute(2, 0, 1).unsqueeze(0).type(torch.float32).to(device) / 255
+            )
+            img_desc = self._model({"image": img_tensor})
 
         return img_desc["global_descriptor"].detach().squeeze().cpu().numpy()

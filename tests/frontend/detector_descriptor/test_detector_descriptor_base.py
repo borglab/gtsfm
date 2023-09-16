@@ -4,11 +4,8 @@ Authors: Ayush Baid
 """
 import unittest
 
-import dask
-import numpy as np
 
 import tests.frontend.detector.test_detector_base as test_detector_base
-from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.descriptor.dummy_descriptor import DummyDescriptor
 from gtsfm.frontend.detector.detector_from_joint_detector_descriptor import DetectorFromDetectorDescriptor
 from gtsfm.frontend.detector.dummy_detector import DummyDetector
@@ -43,32 +40,6 @@ class TestDetectorDescriptorBase(test_detector_base.TestDetectorBase):
             else:
                 # number of descriptors and features should be equal
                 self.assertEqual(len(kps), descs.shape[0])
-
-    def test_computation_graph(self):
-        """Test the dask's computation graph formation."""
-
-        image_graph = self.loader.create_computation_graph_for_images()
-        for i, delayed_image in enumerate(image_graph):
-            (
-                kp_graph,
-                desc_graph,
-            ) = self.detector_descriptor.create_computation_graph(delayed_image)
-            with dask.config.set(scheduler="single-threaded"):
-                # TODO(ayush): check how many times detection is performed
-                keypoints = dask.compute(kp_graph)[0]
-                descriptors = dask.compute(desc_graph)[0]
-
-                # check the types of entries in results
-                self.assertTrue(isinstance(keypoints, Keypoints))
-                self.assertTrue(isinstance(descriptors, np.ndarray))
-
-                # check the results via normal workflow and dask workflow for an image
-                (
-                    expected_kps,
-                    expected_descs,
-                ) = self.detector_descriptor.detect_and_describe(self.loader.get_image(i))
-                self.assertEqual(keypoints, expected_kps)
-                np.testing.assert_array_equal(descriptors, expected_descs)
 
 
 if __name__ == "__main__":

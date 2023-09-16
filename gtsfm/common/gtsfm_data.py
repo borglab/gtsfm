@@ -19,7 +19,6 @@ import gtsfm.utils.reprojection as reproj_utils
 logger = logging.getLogger(__name__)
 
 EQUALITY_TOLERANCE = 1e-5
-PRINT_NUM_SIG_FIGS = 2
 
 
 class GtsfmData:

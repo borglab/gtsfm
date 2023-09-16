@@ -6,9 +6,6 @@ Authors: John Lambert
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-import dask
-from dask.delayed import Delayed
-
 import gtsfm.utils.logger as logger_utils
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.retriever.netvlad_retriever import NetVLADRetriever
@@ -25,26 +22,21 @@ class JointNetVLADSequentialRetriever(RetrieverBase):
         """
         Args:
             num_matched: number of K potential matches to provide per query. These are the top "K" matches per query.
+            min_score: Minimum allowed similarity score to accept a match.
             max_frame_lookahead: maximum number of consecutive frames to consider for matching/co-visibility.
         """
         super().__init__(matching_regime=ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL)
-        self._num_matched = num_matched
         self._similarity_retriever = NetVLADRetriever(num_matched=num_matched, min_score=min_score)
         self._seq_retriever = SequentialRetriever(max_frame_lookahead=max_frame_lookahead)
 
-    def create_computation_graph(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> Delayed:
-        """Compute potential image pairs.
-
-        Args:
-            loader: image loader. The length of this loader will provide the total number of images
-                for exhaustive global descriptor matching.
-
-        Return:
-            pair_indices: (i1,i2) image pairs.
+    def __repr__(self) -> str:
+        return f"""
+        JointNetVLADSequentialRetriever:
+            Similarity retriever: {self._similarity_retriever}
+            Sequential retriever: {self._seq_retriever}
         """
-        return self.run(loader=loader, plots_output_dir=plots_output_dir)
 
-    def run(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> Delayed:
+    def get_image_pairs(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> List[Tuple[int, int]]:
         """Compute potential image pairs.
 
         Args:
@@ -55,10 +47,10 @@ class JointNetVLADSequentialRetriever(RetrieverBase):
         Return:
             pair_indices: (i1,i2) image pairs.
         """
-        sim_pairs = self._similarity_retriever.create_computation_graph(loader, plots_output_dir=plots_output_dir)
-        seq_pairs = self._seq_retriever.create_computation_graph(loader)
+        sim_pairs = self._similarity_retriever.get_image_pairs(loader, plots_output_dir=plots_output_dir)
+        seq_pairs = self._seq_retriever.get_image_pairs(loader)
 
-        return dask.delayed(self.aggregate_pairs)(sim_pairs=sim_pairs, seq_pairs=seq_pairs)
+        return self.aggregate_pairs(sim_pairs=sim_pairs, seq_pairs=seq_pairs)
 
     def aggregate_pairs(
         self, sim_pairs: List[Tuple[int, int]], seq_pairs: List[Tuple[int, int]]

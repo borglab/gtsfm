@@ -24,10 +24,10 @@ class TestSuperGlueMatcher(unittest.TestCase):
     def test_on_dummy_data(self) -> None:
         """Ensure the SuperGlue matcher returns output of the correct shape, for random input."""
         # image height and width
-        H, W = 20, 20
+        H, W, C = 20, 20, 3
 
-        im_shape_i1 = (H, W)
-        im_shape_i2 = (H, W)
+        im_shape_i1 = (H, W, C)
+        im_shape_i2 = (H, W, C)
 
         num_kps_i1 = 50
         kps_i1 = Keypoints(coordinates=np.random.randint(0, H, size=(num_kps_i1, 2)), responses=np.random.rand(50))

@@ -150,7 +150,7 @@ class TestDataAssociation(GtsamTestCase):
         sfm_tracks, avg_track_reproj_errors, triangulation_exit_codes = da.run_triangulation(
             cameras=cameras, tracks_2d=tracks_2d
         )
-        triangulated_landmark_map, _ = da.run_da(
+        triangulated_landmark_map, _ = da.assemble_gtsfm_data_from_tracks(
             num_images=len(cameras),
             cameras=cameras,
             tracks_2d=tracks_2d,
@@ -195,7 +195,7 @@ class TestDataAssociation(GtsamTestCase):
         sfm_tracks, avg_track_reproj_errors, triangulation_exit_codes = da.run_triangulation(
             cameras=cameras, tracks_2d=tracks_2d
         )
-        sfm_data, _ = da.run_da(
+        sfm_data, _ = da.assemble_gtsfm_data_from_tracks(
             num_images=len(cameras),
             cameras=cameras,
             tracks_2d=tracks_2d,
@@ -257,7 +257,7 @@ class TestDataAssociation(GtsamTestCase):
         sfm_tracks, avg_track_reproj_errors, triangulation_exit_codes = da.run_triangulation(
             cameras=cameras, tracks_2d=tracks_2d
         )
-        sfm_data, _ = da.run_da(
+        sfm_data, _ = da.assemble_gtsfm_data_from_tracks(
             num_images=len(cameras),
             cameras=cameras,
             tracks_2d=tracks_2d,
@@ -302,7 +302,7 @@ class TestDataAssociation(GtsamTestCase):
         sfm_tracks, avg_track_reproj_errors, triangulation_exit_codes = da.run_triangulation(
             cameras=cameras, tracks_2d=tracks_2d
         )
-        sfm_data, _ = da.run_da(
+        sfm_data, _ = da.assemble_gtsfm_data_from_tracks(
             num_images=3,
             cameras=cameras,
             tracks_2d=tracks_2d,
@@ -339,21 +339,16 @@ class TestDataAssociation(GtsamTestCase):
         )
         da = DataAssociation(min_track_len=3, triangulation_options=triangulation_options)
 
-        sfm_tracks, avg_track_reproj_errors, triangulation_exit_codes = da.run_triangulation(
-            cameras=cameras, tracks_2d=tracks_2d
-        )
-        expected_sfm_data, expected_metrics = da.run_da(
+        # Run without delayed computation graph.
+        expected_sfm_data, expected_metrics = da.run_triangulation_and_evaluate(
             num_images=len(cameras),
             cameras=cameras,
             tracks_2d=tracks_2d,
-            sfm_tracks=sfm_tracks,
-            avg_track_reproj_errors=avg_track_reproj_errors,
-            triangulation_exit_codes=triangulation_exit_codes,
             cameras_gt=cameras_gt,
             relative_pose_priors={},
         )
 
-        # Run with computation graph
+        # Run with delayed computation graph.
         delayed_sfm_data, delayed_metrics = da.create_computation_graph(
             num_images=len(cameras),
             cameras=cameras,
@@ -366,7 +361,19 @@ class TestDataAssociation(GtsamTestCase):
             dask_sfm_data, dask_metrics = dask.compute(delayed_sfm_data, delayed_metrics)
 
         assert expected_sfm_data.number_tracks() == dask_sfm_data.number_tracks(), "Dask not configured correctly"
-        self.assertDictEqual(expected_metrics.get_metrics_as_dict(), dask_metrics.get_metrics_as_dict())
+
+        # Runtimes are not exactly comparable, so remove these keys after ensuring that they have been generated.
+        dask_result_dict = expected_metrics.get_metrics_as_dict()
+        non_dask_result_dict = dask_metrics.get_metrics_as_dict()
+
+        noncomparable_metric_names = ["triangulation_runtime_sec", "gtsfm_data_creation_runtime", "total_duration_sec"]
+        for metric_name in noncomparable_metric_names:
+            assert metric_name in dask_result_dict["data_association_metrics"]
+            assert metric_name in non_dask_result_dict["data_association_metrics"]
+            del dask_result_dict["data_association_metrics"][metric_name]
+            del non_dask_result_dict["data_association_metrics"][metric_name]
+
+        self.assertDictEqual(dask_result_dict, non_dask_result_dict)
 
         for k in range(expected_sfm_data.number_tracks()):
             assert (

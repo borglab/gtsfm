@@ -217,5 +217,87 @@ def test_compute_percentage_change_regression() -> None:
     assert np.isclose(change_percent, -99)
 
 
+def test_pose_auc1() -> None:
+    """Area under curve resembles one triangle on the left, and then a rectangle to its right."""
+    errors = np.ones(5) * 5.0
+    thresholds = [5, 10, 20]
+
+    aucs = metric_utils.pose_auc(errors, thresholds, save_plot=False)
+
+    # Sum triangles and rectangles.
+    # AUC @ 5 deg thresh: 0. (no cameras under this threshold).
+    # AUC @ 10 deg thresh: (5 * 0.2 * (1/2) + 1 * 5.0) / 10
+    # AUC @ 20 deg thresh: (5 * 0.2 * (1/2) + 1 * 15.0) / 20
+    expected_aucs = [0.0, 0.55, 0.775]
+
+    assert np.allclose(aucs, expected_aucs)
+
+
+def test_pose_auc_all_zero_errors_perfect_auc() -> None:
+    errors = np.zeros(5)
+
+    thresholds = [5, 10, 20]
+    aucs = metric_utils.pose_auc(errors, thresholds, save_plot=False)
+    expected_aucs = [1.0, 1.0, 1.0]
+    assert np.allclose(aucs, expected_aucs)
+
+
+def test_pose_auc_all_errors_exceed_threshold_zero_auc() -> None:
+    errors = np.ones(5) * 25.0
+    thresholds = [5, 10, 20]
+    aucs = metric_utils.pose_auc(errors, thresholds, save_plot=False)
+    expected_aucs = [0.0, 0.0, 0.0]
+    assert np.allclose(aucs, expected_aucs)
+
+
+def test_pose_auc_works_for_nan_error() -> None:
+    thresholds = [1, 2.5, 5, 10, 20]
+
+    pose_errors = np.array(
+        [
+            0.19827642,
+            0.24861091,
+            0.3637053,
+            0.46981758,
+            0.4993183,
+            0.9036343,
+            1.6756403,
+            0.83505183,
+            0.28977838,
+            0.42773795,
+            0.48842856,
+            6.654587,
+            np.nan,
+            0.2563246,
+            0.28247333,
+            0.32443768,
+            0.13612723,
+            0.3027622,
+            0.2385458,
+            2.9347303,
+            1.421731,
+            0.3097524,
+            0.57351094,
+            0.5353638,
+            0.5003734,
+            0.4324144,
+            0.22548386,
+            0.06921609,
+            0.25950527,
+            0.9956337,
+            0.76206225,
+            0.5812757,
+        ]
+    )
+
+    aucs = metric_utils.pose_auc(pose_errors, thresholds, save_plot=False)
+
+    # Note recall is roughly (27 / 32) since exclude 5 errors above 1 deg -> (1.422, 1.676, 2.935, 6.655,   nan)
+    # If we drew triangle up to recall point, we would get 0.84 * 0.5 -> 0.42, but more
+    # mass lies above diagonal, so get to roughly 0.5 AUC.
+    expected_auc_at_1_deg = 0.4996
+    assert np.isclose(aucs[0], expected_auc_at_1_deg, atol=1e-3)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -20,7 +20,7 @@ class TestSequentialHiltiRetriever(unittest.TestCase):
         loader = HiltiLoader(TEST_DATASET_DIR_PATH)
         max_frame_lookahead = 3
         retriever = SequentialHiltiRetriever(max_frame_lookahead=max_frame_lookahead)
-        pairs = retriever.run(loader=loader)
+        pairs = retriever.get_image_pairs(loader=loader)
         self.assertEqual(len(pairs), 42)  # regression, did not check carefully
         expected_pairs = [
             (0, 1),

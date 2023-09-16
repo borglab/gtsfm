@@ -2,20 +2,19 @@ SceneOptimizer:
   _target_: gtsfm.scene_optimizer.SceneOptimizer
   save_gtsfm_data: True
   save_two_view_correspondences_viz: False
-  save_3d_viz: True
+  save_3d_viz: False
   pose_angular_error_thresh: 5 # degrees
 
   retriever:
     _target_: gtsfm.retriever.sequential_retriever.SequentialRetriever
     max_frame_lookahead: 20
 
-  feature_extractor:
-    _target_: gtsfm.feature_extractor.FeatureExtractor
-    detector_descriptor:
-      _target_: gtsfm.frontend.cacher.detector_descriptor_cacher.DetectorDescriptorCacher
-      detector_descriptor_obj:
-        _target_: gtsfm.frontend.detector_descriptor.superpoint.SuperPointDetectorDescriptor
-        max_keypoints: 5000
+  
+  detector_descriptor:
+    _target_: gtsfm.frontend.cacher.detector_descriptor_cacher.DetectorDescriptorCacher
+    detector_descriptor_obj:
+      _target_: gtsfm.frontend.detector_descriptor.superpoint.SuperPointDetectorDescriptor
+      max_keypoints: 5000
 
   two_view_estimator:
     _target_: gtsfm.two_view_estimator.TwoViewEstimator
