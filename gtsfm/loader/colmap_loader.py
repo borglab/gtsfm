@@ -168,7 +168,7 @@ class ColmapLoader(LoaderBase):
             The camera pose w_T_index.
         """
         if index < 0 or index >= len(self):
-            raise IndexError("Image index is invalid")
+            raise IndexError(f"Image index {index} is invalid. Valid indices are in [0,{len(self)-1}].")
 
         if not self._use_gt_extrinsics:
             return None
