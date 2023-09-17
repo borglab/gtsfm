@@ -73,7 +73,8 @@ class GtsfmRunnerBase:
             "--config_name",
             type=str,
             default="sift_front_end.yaml",
-            help="Master config, including back-end configuration. Choose sift_front_end.yaml or deep_front_end.yaml",
+            help="Master config, including back-end configuration. Options include `unified_config.yaml`,"
+            " `sift_front_end.yaml`, `deep_front_end.yaml`, etc.",
         )
         parser.add_argument(
             "--correspondence_generator_config_name",
@@ -227,7 +228,7 @@ class GtsfmRunnerBase:
         logger.info("\n\nSceneOptimizer: " + str(scene_optimizer))
         return scene_optimizer
 
-    def setup_ssh_cluster_with_retries(self):
+    def setup_ssh_cluster_with_retries(self) -> SSHCluster:
         """Sets up SSH Cluster allowing multiple retries upon connection failures."""
         workers = OmegaConf.load(os.path.join("gtsfm", "configs", self.parsed_args.cluster_config))["workers"]
         scheduler = workers[0]
@@ -282,10 +283,14 @@ class GtsfmRunnerBase:
         process_graph_generator.save_graph()
 
         # TODO(Ayush): Use futures
+        retriever_start_time = time.time()
         image_pair_indices = self.scene_optimizer.retriever.get_image_pairs(
             self.loader, plots_output_dir=self.scene_optimizer._plot_base_path
         )
         retriever_metrics = self.scene_optimizer.retriever.evaluate(self.loader, image_pair_indices)
+        retriever_duration_sec = time.time() - retriever_start_time
+        retriever_metrics.add_metric(GtsfmMetric("retriever_duration_sec", retriever_duration_sec))
+        logger.info("Image pair retrieval took %.2f sec.", retriever_duration_sec)
 
         intrinsics = self.loader.get_all_intrinsics()
 

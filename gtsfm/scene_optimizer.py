@@ -4,6 +4,8 @@ Authors: Ayush Baid, John Lambert
 """
 import logging
 import os
+import shutil
+import time
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -220,8 +222,8 @@ class SceneOptimizer:
         annotation = dask.annotate(workers=self._output_worker) if self._output_worker else dask.annotate()
         with annotation:
             if self._save_gtsfm_data:
-                delayed_results.extend(
-                    save_gtsfm_data(
+                delayed_results.append(
+                    dask.delayed(save_gtsfm_data)(
                         images,
                         ba_input_graph,
                         ba_output_graph,
@@ -362,55 +364,55 @@ def get_gtsfm_data_with_gt_cameras_and_est_tracks(
 
 
 def save_gtsfm_data(
-    image_graph: List[Delayed],
-    ba_input_graph: Delayed,
-    ba_output_graph: Delayed,
+    images: List[Image],
+    ba_input_data: GtsfmData,
+    ba_output_data: GtsfmData,
     results_path: Path,
     cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
-) -> List[Delayed]:
+) -> None:
     """Saves the Gtsfm data before and after bundle adjustment.
 
     Args:
-        image_graph: Input image wrapped as Delayed objects.
-        ba_input_graph: GtsfmData input to bundle adjustment wrapped as Delayed.
-        ba_output_graph: GtsfmData output to bundle adjustment wrapped as Delayed.
+        images: Input images.
+        ba_input_data: GtsfmData input to bundle adjustment.
+        ba_output_data: GtsfmData output to bundle adjustment.
         results_path: Path to directory where GTSFM results will be saved.
-
-    Returns:
-        A list of delayed objects after saving the input and outputs to bundle adjustment.
     """
-    saving_graph_list = []
-    # Save a duplicate in REACT_RESULTS_PATH.
-    for output_dir in [results_path, REACT_RESULTS_PATH]:
-        # Save the input to Bundle Adjustment (from data association).
-        saving_graph_list.append(
-            dask.delayed(io_utils.export_model_as_colmap_text)(
-                gtsfm_data=ba_input_graph,
-                images=image_graph,
-                save_dir=os.path.join(output_dir, "ba_input"),
-            )
-        )
-        # Save the output of Bundle Adjustment.
-        saving_graph_list.append(
-            dask.delayed(io_utils.export_model_as_colmap_text)(
-                gtsfm_data=ba_output_graph,
-                images=image_graph,
-                save_dir=os.path.join(output_dir, "ba_output"),
-            )
-        )
+    start_time = time.time()
 
-        # Save the ground truth in the same format, for visualization.
-        # We use the estimated tracks here, with ground truth camera poses.
-        gt_gtsfm_data = dask.delayed(get_gtsfm_data_with_gt_cameras_and_est_tracks)(cameras_gt, ba_output_graph)
-        saving_graph_list.append(
-            dask.delayed(io_utils.export_model_as_colmap_text)(
-                gtsfm_data=gt_gtsfm_data,
-                images=image_graph,
-                save_dir=os.path.join(output_dir, "ba_output_gt"),
-            )
-        )
+    output_dir = results_path
+    # Save the input to Bundle Adjustment (from data association).
+    io_utils.export_model_as_colmap_text(
+        gtsfm_data=ba_input_data,
+        images=images,
+        save_dir=os.path.join(output_dir, "ba_input"),
+    )
 
-    return saving_graph_list
+    # Save the output of Bundle Adjustment.
+    io_utils.export_model_as_colmap_text(
+        gtsfm_data=ba_output_data,
+        images=images,
+        save_dir=os.path.join(output_dir, "ba_output"),
+    )
+
+    # Save the ground truth in the same format, for visualization.
+    # We use the estimated tracks here, with ground truth camera poses.
+    gt_gtsfm_data = get_gtsfm_data_with_gt_cameras_and_est_tracks(cameras_gt, ba_output_data)
+
+    io_utils.export_model_as_colmap_text(
+        gtsfm_data=gt_gtsfm_data,
+        images=images,
+        save_dir=os.path.join(output_dir, "ba_output_gt"),
+    )
+
+    # Delete old version of React results directory.
+    shutil.rmtree(REACT_RESULTS_PATH)
+    # Save a duplicate copy of the directory in REACT_RESULTS_PATH.
+    shutil.copytree(src=results_path, dst=REACT_RESULTS_PATH)
+
+    end_time = time.time()
+    duration_sec = end_time - start_time
+    logger.info("GtsfmData I/O took %.2f sec.", duration_sec)
 
 
 def save_full_frontend_metrics(

@@ -507,7 +507,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         total_time = time.time() - start_time
         logger.info("Translation averaging took %.4f seconds.", total_time)
         ta_metrics.add_metric(GtsfmMetric("total_duration_sec", total_time))
-        ta_metrics.add_metric(GtsfmMetric("outier_rejection_duration_sec", inlier_computation_time))
+        ta_metrics.add_metric(GtsfmMetric("outlier_rejection_duration_sec", inlier_computation_time))
         ta_metrics.add_metric(GtsfmMetric("optimization_duration_sec", averaging_time))
 
         return wTi_list, ta_metrics
