@@ -50,16 +50,16 @@ class ColmapLoader(LoaderBase):
         """Initializes to load from a specified folder on disk.
 
         Args:
-            colmap_files_dirpath: path to directory containing COLMAP-exported data, with images.txt
-                and cameras.txt files
-            images_dir: path to directory containing images files
-            use_gt_intrinsics: whether to use ground truth intrinsics. If COLMAP calibration is
+            colmap_files_dirpath: Path to directory containing COLMAP-exported data, with images.txt
+                and cameras.txt files.
+            images_dir: Path to directory containing images files.
+            use_gt_intrinsics: Whether to use ground truth intrinsics. If COLMAP calibration is
                not found on disk, then use_gt_intrinsics will be set to false automatically.
-            use_gt_extrinsics: whether to use ground truth extrinsics
-            max_frame_lookahead: maximum number of consecutive frames to consider for
+            use_gt_extrinsics: Whether to use ground truth extrinsics.
+            max_frame_lookahead: Maximum number of consecutive frames to consider for
                 matching/co-visibility. Any value of max_frame_lookahead less than the size of
                 the dataset assumes data is sequentially captured
-            max_resolution: integer representing maximum length of image's short side, i.e.
+            max_resolution: Integer representing maximum length of image's short side, i.e.
                the smaller of the height/width of the image. e.g. for 1080p (1920 x 1080),
                max_resolution would be 1080. If the image resolution max(height, width) is
                greater than the max_resolution, it will be downsampled to match the max_resolution.
@@ -81,7 +81,7 @@ class ColmapLoader(LoaderBase):
             # shared calibration!
             self._calibrations = self._calibrations * len(img_fnames)
 
-        # preserve COLMAP ordering of images
+        # Preserve COLMAP ordering of images.
 
         self._img_fnames = []
         self._image_paths = []
@@ -116,7 +116,7 @@ class ColmapLoader(LoaderBase):
         """The number of images in the dataset.
 
         Returns:
-            the number of images.
+            The number of images.
         """
         return self._num_imgs
 
@@ -124,13 +124,13 @@ class ColmapLoader(LoaderBase):
         """Get the image at the given index, at full resolution.
 
         Args:
-            index: the index to fetch.
-
-        Raises:
-            IndexError: if an out-of-bounds image index is requested.
+            index: The index to fetch.
 
         Returns:
-            Image: the image at the query index.
+            Image: The image at the query index.
+
+        Raises:
+            IndexError: If an out-of-bounds image index is requested.
         """
         if index < 0 or index >= len(self):
             raise IndexError(f"Image index {index} is invalid")
@@ -142,13 +142,13 @@ class ColmapLoader(LoaderBase):
         """Get the camera intrinsics at the given index, valid for a full-resolution image.
 
         Args:
-            the index to fetch.
+            The index to fetch.
 
         Returns:
-            intrinsics for the given camera.
+            Intrinsics for the given camera.
         """
         if index < 0 or index >= len(self):
-            raise IndexError("Image index is invalid")
+            raise IndexError(f"Image index {index} is invalid. Valid indices are in [0,{len(self)-1}].")
 
         if not self._use_gt_intrinsics:
             # get intrinsics from exif
@@ -162,13 +162,13 @@ class ColmapLoader(LoaderBase):
         """Get the camera pose (in world coordinates) at the given index.
 
         Args:
-            index: the index to fetch.
+            index: The index to fetch.
 
         Returns:
-            the camera pose w_T_index.
+            The camera pose w_T_index.
         """
         if index < 0 or index >= len(self):
-            raise IndexError("Image index is invalid")
+            raise IndexError(f"Image index {index} is invalid. Valid indices are in [0,{len(self)-1}].")
 
         if not self._use_gt_extrinsics:
             return None
@@ -180,10 +180,10 @@ class ColmapLoader(LoaderBase):
         """Checks if (idx1, idx2) is a valid pair. idx1 < idx2 is required.
 
         Args:
-            idx1: first index of the pair.
-            idx2: second index of the pair.
+            idx1: First index of the pair.
+            idx2: Second index of the pair.
 
         Returns:
-            validation result.
+            Validation result.
         """
         return super().is_valid_pair(idx1, idx2) and abs(idx1 - idx2) <= self._max_frame_lookahead

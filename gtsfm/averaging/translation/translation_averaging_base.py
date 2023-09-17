@@ -62,14 +62,14 @@ class TranslationAveragingBase(GTSFMProcess):
         """Run the translation averaging, and combine the estimated global translations with global rotations.
 
         Args:
-            num_images: number of camera poses.
-            i2Ui1_dict: relative unit-trans as dictionary (i1, i2): i2Ui1.
-            wRi_list: global rotations for each camera pose in the world coordinates.
+            num_images: Number of camera poses.
+            i2Ui1_dict: Relative unit-trans as dictionary (i1, i2): i2Ui1.
+            wRi_list: Global rotations for each camera pose in the world coordinates.
             tracks_2d: 2d tracks.
-            intrinsics: list of camera intrinsics.
-            absolute_pose_priors: priors on the camera poses (not delayed).
-            i2Ti1_priors: priors on the pose between camera pairs (not delayed) as (i1, i2): i2Ti1.
-            scale_factor: non-negative global scaling factor.
+            intrinsics: List of camera intrinsics.
+            absolute_pose_priors: Priors on the camera poses (not delayed).
+            i2Ti1_priors: Priors on the pose between camera pairs (not delayed) as (i1, i2): i2Ti1.
+            scale_factor: Non-negative global scaling factor.
             gt_wTi_list: List of ground truth poses (wTi) for computing metrics.
 
         Returns:
@@ -93,14 +93,14 @@ class TranslationAveragingBase(GTSFMProcess):
         """Create the computation graph for performing translation averaging.
 
         Args:
-            num_images: number of camera poses.
-            i2Ui1_graph: dictionary of relative unit translations as a delayed task.
-            wRi_graph: list of global rotations wrapped up in Delayed.
+            num_images: Number of camera poses.
+            i2Ui1_graph: Dictionary of relative unit translations as a delayed task.
+            wRi_graph: List of global rotations wrapped up in Delayed.
             tracks_2d: 2d tracks wrapped up in Delayed.
-            intrinsics: list of camera intrinsics.
-            absolute_pose_priors: priors on the camera poses (not delayed).
-            i2Ti1_priors: priors on the pose between camera pairs (not delayed) as (i1, i2): i2Ti1.
-            scale_factor: non-negative global scaling factor.
+            intrinsics: List of camera intrinsics.
+            absolute_pose_priors: Priors on the camera poses (not delayed).
+            i2Ti1_priors: Priors on the pose between camera pairs (not delayed) as (i1, i2): i2Ti1.
+            scale_factor: Non-negative global scaling factor.
             gt_wTi_list: List of ground truth poses (wTi) for computing metrics.
 
         Returns:

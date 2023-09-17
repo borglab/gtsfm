@@ -474,7 +474,7 @@ class BundleAdjustmentOptimizer:
             Metrics group containing metrics for both filtered and unfiltered BA results.
         """
         ba_metrics = GtsfmMetricsGroup(
-            name=METRICS_GROUP, metrics=metrics_utils.get_stats_for_sfmdata(unfiltered_data, suffix="_unfiltered")
+            name=METRICS_GROUP, metrics=metrics_utils.get_metrics_for_sfmdata(unfiltered_data, suffix="_unfiltered")
         )
 
         poses_gt = [cam.pose() if cam is not None else None for cam in cameras_gt]
@@ -483,7 +483,7 @@ class BundleAdjustmentOptimizer:
         if valid_poses_gt_count == 0:
             return ba_metrics
 
-        # align the sparse multi-view estimate after BA to the ground truth pose graph.
+        # Align the sparse multi-view estimate after BA to the ground truth pose graph.
         aligned_filtered_data = filtered_data.align_via_Sim3_to_poses(wTi_list_ref=poses_gt)
         ba_pose_error_metrics = metrics_utils.compute_ba_pose_metrics(
             gt_wTi_list=poses_gt, ba_output=aligned_filtered_data, save_dir=save_dir
@@ -499,8 +499,7 @@ class BundleAdjustmentOptimizer:
             metric_name = "Filtered tracks triangulated with GT cams: {}".format(exit_code.name)
             ba_metrics.add_metric(GtsfmMetric(name=metric_name, data=count))
 
-        ba_metrics.add_metrics(metrics_utils.get_stats_for_sfmdata(aligned_filtered_data, suffix="_filtered"))
-        # ba_metrics.save_to_json(os.path.join(METRICS_PATH, "bundle_adjustment_metrics.json"))
+        ba_metrics.add_metrics(metrics_utils.get_metrics_for_sfmdata(aligned_filtered_data, suffix="_filtered"))
 
         logger.info("[Result] Mean track length %.3f", np.mean(aligned_filtered_data.get_track_lengths()))
         logger.info("[Result] Median track length %.3f", np.median(aligned_filtered_data.get_track_lengths()))
@@ -561,18 +560,18 @@ def values_to_gtsfm_data(values: Values, initial_data: GtsfmData, shared_calib: 
         cal3_value_extraction_lambda = lambda i: values.atCal3Bundler(K(0 if shared_calib else i))
     camera_class = PinholeCameraCal3Fisheye if is_fisheye_calibration else PinholeCameraCal3Bundler
 
-    # add cameras
+    # Add cameras.
     for i in initial_data.get_valid_camera_indices():
         result.add_camera(
             i,
             camera_class(values.atPose3(X(i)), cal3_value_extraction_lambda(i)),
         )
 
-    # add tracks
+    # Add tracks.
     for j in range(initial_data.number_tracks()):
         input_track = initial_data.get_track(j)
 
-        # populate the result with optimized 3D point
+        # Populate the result with optimized 3D point.
         result_track = SfmTrack(values.atPoint3(P(j)))
 
         for measurement_idx in range(input_track.numberMeasurements()):

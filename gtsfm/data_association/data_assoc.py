@@ -65,7 +65,7 @@ class DataAssociation(GTSFMProcess):
                 "Global Translations",
                 "Camera Intrinsics",
             ),
-            output_products="3D Tracks",
+            output_products=("3D Tracks",),
             parent_plate="Sparse Reconstruction",
         )
 
