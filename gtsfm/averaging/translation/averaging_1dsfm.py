@@ -65,20 +65,21 @@ L = symbol_shorthand.B  # for track (landmark) translation variables
 RelativeDirectionsDict = Dict[Tuple[int, int], Unit3]
 
 
+class ProjectionSamplingMethod(str, Enum):
+    """Used to select how the projection directions in 1DSfM are sampled."""
+
+    # The string values for enums enable using them in the config.
+
+    # Randomly choose projection directions from input measurements.
+    SAMPLE_INPUT_MEASUREMENTS = "SAMPLE_INPUT_MEASUREMENTS"
+    # Fit a Gaussian density to input measurements and sample from it.
+    SAMPLE_WITH_INPUT_DENSITY = "SAMPLE_WITH_INPUT_DENSITY"
+    # Uniformly sample 3D directions at random.
+    SAMPLE_WITH_UNIFORM_DENSITY = "SAMPLE_WITH_UNIFORM_DENSITY"
+
+
 class TranslationAveraging1DSFM(TranslationAveragingBase):
     """1D-SFM translation averaging with outlier rejection."""
-
-    class ProjectionSamplingMethod(str, Enum):
-        """Used to select how the projection directions in 1DSfM are sampled."""
-
-        # The string values for enums enable using them in the config.
-
-        # Randomly choose projection directions from input measurements.
-        SAMPLE_INPUT_MEASUREMENTS = "SAMPLE_INPUT_MEASUREMENTS"
-        # Fit a Gaussian density to input measurements and sample from it.
-        SAMPLE_WITH_INPUT_DENSITY = "SAMPLE_WITH_INPUT_DENSITY"
-        # Uniformly sample 3D directions at random.
-        SAMPLE_WITH_UNIFORM_DENSITY = "SAMPLE_WITH_UNIFORM_DENSITY"
 
     def __init__(
         self,
@@ -101,159 +102,6 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         self._reject_outliers = reject_outliers
         self._projection_sampling_method = projection_sampling_method
         self._use_tracks_for_averaging = use_tracks_for_averaging
-
-    def __sample_projection_directions(
-        self,
-        w_i2Ui1_list: List[Unit3],
-    ) -> List[Unit3]:
-        """Samples projection directions for 1DSfM based on the provided sampling method.
-
-        Args:
-            w_i2Ui1_list: List of unit translations to be used for biasing sampling.
-            Used only if the sampling method is SAMPLE_INPUT_MEASUREMENTS or SAMPLE_WITH_INPUT_DENSITY.
-
-        Returns:
-            List of sampled Unit3 projection directions.
-        """
-        num_measurements = len(w_i2Ui1_list)
-
-        if self._projection_sampling_method == self.ProjectionSamplingMethod.SAMPLE_INPUT_MEASUREMENTS:
-            num_samples = min(num_measurements, self._max_1dsfm_projection_directions)
-            sampled_indices = np.random.choice(num_measurements, num_samples, replace=False)
-            projections = [w_i2Ui1_list[idx] for idx in sampled_indices]
-        elif self._projection_sampling_method == self.ProjectionSamplingMethod.SAMPLE_WITH_INPUT_DENSITY:
-            projections = sampling_utils.sample_kde_directions(
-                w_i2Ui1_list, num_samples=self._max_1dsfm_projection_directions
-            )
-        elif self._projection_sampling_method == self.ProjectionSamplingMethod.SAMPLE_WITH_UNIFORM_DENSITY:
-            projections = sampling_utils.sample_random_directions(num_samples=self._max_1dsfm_projection_directions)
-        else:
-            raise ValueError("Unsupported sampling method!")
-
-        return projections
-
-    def _binary_measurements_from_dict(
-        self,
-        w_i2Ui1_dict: RelativeDirectionsDict,
-        w_iUj_dict_tracks: RelativeDirectionsDict,
-        noise_model: gtsam.noiseModel,
-    ) -> BinaryMeasurementsUnit3:
-        """Gets a list of BinaryMeasurementUnit3 by combining measurements in w_i2Ui1_dict and w_i2Ui1_dict_tracks.
-
-        Args:
-            w_i2Ui1_dict: Dictionary of Unit3 relative translations between cameras.
-            w_iUj_dict_tracks: Dictionary of Unit3 relative translations between cameras and landmarks.
-            noise_model: Noise model to use for the measurements.
-
-        Returns:
-            List of binary measurements.
-        """
-        w_i1Ui2_measurements = BinaryMeasurementsUnit3()
-        for (i1, i2), w_i2Ui1 in w_i2Ui1_dict.items():
-            w_i1Ui2_measurements.append(BinaryMeasurementUnit3(C(i2), C(i1), w_i2Ui1, noise_model))
-        for (j, i), w_iUj in w_iUj_dict_tracks.items():
-            w_i1Ui2_measurements.append(BinaryMeasurementUnit3(C(i), L(j), w_iUj, noise_model))
-
-        return w_i1Ui2_measurements
-
-    def _binary_measurements_from_priors(
-        self, i2Ti1_priors: Dict[Tuple[int, int], PosePrior], wRi_list: List[Rot3]
-    ) -> BinaryMeasurementsPoint3:
-        """Converts the priors from relative Pose3 priors to relative Point3 measurements in world frame.
-
-        Args:
-            i2Ti1_priors: Relative pose priors between cameras, could be a hard or soft prior.
-            wRi_list: Absolute rotation estimates from rotation averaging.
-
-        Returns:
-            BinaryMeasurementsPoint3 containing Point3 priors in world frame.
-        """
-
-        def get_prior_in_world_frame(i2, i2Ti1_prior):
-            return wRi_list[i2].rotate(i2Ti1_prior.value.translation())
-
-        w_i1ti2_prior_measurements = BinaryMeasurementsPoint3()
-        if len(i2Ti1_priors) == 0:
-            return w_i1ti2_prior_measurements
-
-        # TODO(akshay-krishnan): Use the translation covariance, transform to world frame.
-        # noise_model = gtsam.noiseModel.Gaussian.Covariance(i2Ti1_prior.covariance)
-        # TODO(akshay-krishnan): use robust noise model for priors?
-        noise_model = gtsam.noiseModel.Isotropic.Sigma(3, 1e-2)
-        for (i1, i2), i2Ti1_prior in i2Ti1_priors.items():
-            w_i1ti2_prior_measurements.append(
-                BinaryMeasurementPoint3(
-                    C(i2),
-                    C(i1),
-                    get_prior_in_world_frame(i2, i2Ti1_prior),
-                    noise_model,
-                )
-            )
-        return w_i1ti2_prior_measurements
-
-    def compute_inliers(
-        self,
-        w_i2Ui1_dict: RelativeDirectionsDict,
-        w_iUj_dict_tracks: RelativeDirectionsDict,
-    ) -> Tuple[RelativeDirectionsDict, RelativeDirectionsDict, Set[int]]:
-        """Perform inlier detection for the relative direction measurements.
-
-        Args:
-            w_i2Ui1_dict: Dictionary of Unit3 relative translations between cameras.
-            w_i2Ui1_dict_tracks: Dictionary of Unit3 relative translations between cameras and landmarks.
-
-        Returns:
-            Tuple of:
-            inlier_w_i2Ui1_dict: Dictionary of inlier Unit3 relative translations between cameras.
-            w_iUj_dict_tracks: Dictionary of inlier Unit3 relative translations between cameras and landmarks.
-            inlier_cameras: Set of inlier cameras.
-        """
-
-        # Sample directions for projection
-        combined_measurements = list(w_i2Ui1_dict.values()) + list(w_iUj_dict_tracks.values())
-        projection_directions = self.__sample_projection_directions(combined_measurements)
-
-        # Convert to measurements: map indexes to symbols.
-        dummy_noise_model = gtsam.noiseModel.Isotropic.Sigma(3, 1e-2)  # MFAS does not use this.
-        w_i1Ui2_measurements = self._binary_measurements_from_dict(w_i2Ui1_dict, w_iUj_dict_tracks, dummy_noise_model)
-
-        # Compute outlier weights using MFAS.
-        # TODO(ayush): parallelize this step.
-        outlier_weights: List[Dict[Tuple[int, int], float]] = []
-        for direction in projection_directions:
-            mfas_instance = MFAS(w_i1Ui2_measurements, direction)
-            outlier_weights.append(mfas_instance.computeOutlierWeights())
-        logger.debug("Computed outlier weights using MFAS.")
-
-        # Compute average outlier weight.
-        outlier_weights_sum: DefaultDict[Tuple[int, int], float] = defaultdict(float)
-        inliers = set()
-        for outlier_weight_dict in outlier_weights:
-            for w_i1Ui2 in w_i1Ui2_measurements:
-                i1, i2 = w_i1Ui2.key1(), w_i1Ui2.key2()
-                outlier_weights_sum[(i1, i2)] += outlier_weight_dict[(i1, i2)]
-        for (i1, i2), weight_sum in outlier_weights_sum.items():
-            if weight_sum / len(projection_directions) < OUTLIER_WEIGHT_THRESHOLD:
-                inliers.add((i1, i2))
-
-        # Filter outliers, index back from symbol to int.
-        # `inliers` contains both camera-camera and camera-landmark inliers. We separate them here.
-        inlier_w_i2Ui1_dict = {}
-        inlier_w_iUj_dict_tracks = {}
-        inlier_cameras: Set[int] = set()
-        for (i1, i2) in w_i2Ui1_dict:
-            if (C(i2), C(i1)) in inliers:  # there is a flip in indices from w_i2Ui1_dict to inliers.
-                inlier_w_i2Ui1_dict[(i1, i2)] = w_i2Ui1_dict[(i1, i2)]
-                inlier_cameras.add(i1)
-                inlier_cameras.add(i2)
-
-        for (j, i) in w_iUj_dict_tracks:
-            # Same as above, `inliers` contains symbols that are flipped - C(i), L(j).
-            # Only add an inlier camera-track measurements if the camera has other camera-camera inliers.
-            if (C(i), L(j)) in inliers and i in inlier_cameras:
-                inlier_w_iUj_dict_tracks[(j, i)] = w_iUj_dict_tracks[(j, i)]
-
-        return inlier_w_i2Ui1_dict, inlier_w_iUj_dict_tracks, inlier_cameras
 
     def __get_initial_values(self, wTi_initial: List[Optional[PosePrior]]) -> gtsam.Values:
         """Converts translations from a list of absolute poses to gtsam.Values for initialization.
@@ -317,7 +165,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 camera_track_lookup[measurement.i].append(track_id)
 
         for count in range(len(filtered_tracks)):  # artificial limit to avoid infinite loop
-            # choose track that maximizes the heuristic
+            # Choose track that maximizes the heuristic.
             best_track_id = np.argmax(improvement)
             if improvement[best_track_id] <= 0:
                 break
@@ -337,39 +185,6 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                         improvement[t] = improvement[t] - 1 if improvement[t] > 0 else 0
 
         return tracks_subset
-
-    def _get_landmark_directions(
-        self,
-        tracks_2d: List[SfmTrack2d],
-        intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
-        wRi_list: List[Optional[Rot3]],
-    ) -> RelativeDirectionsDict:
-        """Computes the camera to landmark directions for each track, in world frame.
-
-        Args:
-            tracks_2d: 2d tracks in each image, assuming that all measurements in all tracks are for valid cameras.
-            intrinsics: camera intrinsics for each camera.
-            wRi_list: camera rotations in world frame.
-
-        Returns:
-            Dictionary of unit directions from camera to track in world frame indexed by (track_id, camera_id).
-        """
-        landmark_directions = {}
-        for track_id, track in enumerate(tracks_2d):
-            for j in range(track.number_measurements()):
-                measurement = track.measurement(j)
-                cam_idx = measurement.i
-
-                if intrinsics[cam_idx] is None or wRi_list[cam_idx] is None:
-                    raise ValueError("Camera intrinsics or rotation cannot be None for input track measurements")
-
-                measurement_xy = intrinsics[cam_idx].calibrate(measurement.uv)
-                measurement_homog = Point3(measurement_xy[0], measurement_xy[1], 1.0)
-                w_cam_U_track = Unit3(wRi_list[cam_idx].rotate(Unit3(measurement_homog).point3()))
-
-                # Direction starts at camera, but first index is track_id.
-                landmark_directions[(track_id, cam_idx)] = w_cam_U_track
-        return landmark_directions
 
     def __run_averaging(
         self,
@@ -404,14 +219,14 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             huber_loss = gtsam.noiseModel.mEstimator.Huber.Create(HUBER_LOSS_K)
             noise_model = gtsam.noiseModel.Robust.Create(huber_loss, noise_model)
 
-        w_i1Ui2_measurements = self._binary_measurements_from_dict(w_i2Ui1_dict, w_i2Ui1_dict_tracks, noise_model)
+        w_i1Ui2_measurements = _binary_measurements_from_dict(w_i2Ui1_dict, w_i2Ui1_dict_tracks, noise_model)
 
         # Run the optimizer.
         try:
             algorithm = TranslationRecovery()
             if len(i2Ti1_priors) > 0:
                 # scale is ignored here.
-                w_i1ti2_priors = self._binary_measurements_from_priors(i2Ti1_priors, wRi_list)
+                w_i1ti2_priors = _binary_measurements_from_priors(i2Ti1_priors, wRi_list)
                 wti_initial = self.__get_initial_values(absolute_pose_priors)
                 wti_values = algorithm.run(w_i1Ui2_measurements, 0.0, w_i1ti2_priors, wti_initial)
             else:
@@ -472,13 +287,16 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 raise ValueError("Number of intrinsics must match number of rotations when tracks are provided.")
             else:
                 selected_tracks = self._select_tracks_for_averaging(tracks_2d, valid_cameras, intrinsics)
-                w_i2Ui1_dict_tracks = self._get_landmark_directions(selected_tracks, intrinsics, wRi_list)
+                w_i2Ui1_dict_tracks = _get_landmark_directions(selected_tracks, intrinsics, wRi_list)
         else:
             w_i2Ui1_dict_tracks = {}
 
         inlier_computation_start_time = time.time()
-        w_i2Ui1_dict_inliers, w_i2Ui1_dict_tracks_inliers, inlier_cameras = self.compute_inliers(
-            w_i2Ui1_dict, w_i2Ui1_dict_tracks
+        w_i2Ui1_dict_inliers, w_i2Ui1_dict_tracks_inliers, inlier_cameras = compute_inliers(
+            w_i2Ui1_dict,
+            w_i2Ui1_dict_tracks,
+            projection_sampling_method=self._projection_sampling_method,
+            max_1dsfm_projection_directions=self._max_1dsfm_projection_directions,
         )
         inlier_computation_time = time.time() - inlier_computation_start_time
 
@@ -513,6 +331,203 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         return wTi_list, ta_metrics
 
 
+def _sample_projection_directions(
+    w_i2Ui1_list: List[Unit3], projection_sampling_method: ProjectionSamplingMethod, max_1dsfm_projection_directions: int
+) -> List[Unit3]:
+    """Samples projection directions for 1DSfM based on the provided sampling method.
+
+    Args:
+        w_i2Ui1_list: List of unit translations to be used for biasing sampling.
+            Used only if the sampling method is SAMPLE_INPUT_MEASUREMENTS or SAMPLE_WITH_INPUT_DENSITY.
+        projection_sampling_method: ProjectionSamplingMethod to be used for directions to run 1DSfM.
+        max_1dsfm_projection_directions: Maximum number of times 1dsfm will project the Unit3's to a 1d subspace for
+           outlier rejection.
+
+    Returns:
+        List of sampled Unit3 projection directions.
+    """
+    num_measurements = len(w_i2Ui1_list)
+
+    if projection_sampling_method == ProjectionSamplingMethod.SAMPLE_INPUT_MEASUREMENTS:
+        num_samples = min(num_measurements, max_1dsfm_projection_directions)
+        sampled_indices = np.random.choice(num_measurements, num_samples, replace=False)
+        projections = [w_i2Ui1_list[idx] for idx in sampled_indices]
+    elif projection_sampling_method == ProjectionSamplingMethod.SAMPLE_WITH_INPUT_DENSITY:
+        projections = sampling_utils.sample_kde_directions(w_i2Ui1_list, num_samples=max_1dsfm_projection_directions)
+    elif projection_sampling_method == ProjectionSamplingMethod.SAMPLE_WITH_UNIFORM_DENSITY:
+        projections = sampling_utils.sample_random_directions(num_samples=max_1dsfm_projection_directions)
+    else:
+        raise ValueError("Unsupported sampling method!")
+
+    return projections
+
+
+def _binary_measurements_from_dict(
+    w_i2Ui1_dict: RelativeDirectionsDict,
+    w_iUj_dict_tracks: RelativeDirectionsDict,
+    noise_model: gtsam.noiseModel,
+) -> BinaryMeasurementsUnit3:
+    """Gets a list of BinaryMeasurementUnit3 by combining measurements in w_i2Ui1_dict and w_i2Ui1_dict_tracks.
+
+    Args:
+        w_i2Ui1_dict: Dictionary of Unit3 relative translations between cameras.
+        w_iUj_dict_tracks: Dictionary of Unit3 relative translations between cameras and landmarks.
+        noise_model: Noise model to use for the measurements.
+
+    Returns:
+        List of binary measurements.
+    """
+    w_i1Ui2_measurements = BinaryMeasurementsUnit3()
+    for (i1, i2), w_i2Ui1 in w_i2Ui1_dict.items():
+        w_i1Ui2_measurements.append(BinaryMeasurementUnit3(C(i2), C(i1), w_i2Ui1, noise_model))
+    for (j, i), w_iUj in w_iUj_dict_tracks.items():
+        w_i1Ui2_measurements.append(BinaryMeasurementUnit3(C(i), L(j), w_iUj, noise_model))
+
+    return w_i1Ui2_measurements
+
+
+def compute_inliers(
+    w_i2Ui1_dict: RelativeDirectionsDict,
+    w_iUj_dict_tracks: RelativeDirectionsDict,
+    projection_sampling_method: ProjectionSamplingMethod,
+    max_1dsfm_projection_directions: int,
+) -> Tuple[RelativeDirectionsDict, RelativeDirectionsDict, Set[int]]:
+    """Perform inlier detection for the relative direction measurements.
+
+    Args:
+        w_i2Ui1_dict: Dictionary of Unit3 relative translations between cameras.
+        w_i2Ui1_dict_tracks: Dictionary of Unit3 relative translations between cameras and landmarks.
+        projection_sampling_method: ProjectionSamplingMethod to be used for directions to run 1DSfM.
+        max_1dsfm_projection_directions: Maximum number of times 1dsfm will project the Unit3's to a 1d subspace for
+           outlier rejection.
+
+    Returns:
+        Tuple of:
+        inlier_w_i2Ui1_dict: Dictionary of inlier Unit3 relative translations between cameras.
+        w_iUj_dict_tracks: Dictionary of inlier Unit3 relative translations between cameras and landmarks.
+        inlier_cameras: Set of inlier cameras.
+    """
+
+    # Sample directions for projection
+    combined_measurements = list(w_i2Ui1_dict.values()) + list(w_iUj_dict_tracks.values())
+    projection_directions = _sample_projection_directions(
+        combined_measurements,
+        projection_sampling_method,
+        max_1dsfm_projection_directions=max_1dsfm_projection_directions,
+    )
+
+    # Convert to measurements: map indexes to symbols.
+    dummy_noise_model = gtsam.noiseModel.Isotropic.Sigma(3, 1e-2)  # MFAS does not use this.
+    w_i1Ui2_measurements = _binary_measurements_from_dict(w_i2Ui1_dict, w_iUj_dict_tracks, dummy_noise_model)
+
+    # Compute outlier weights using MFAS.
+    # TODO(ayush): parallelize this step.
+    outlier_weights: List[Dict[Tuple[int, int], float]] = []
+    for direction in projection_directions:
+        mfas_instance = MFAS(w_i1Ui2_measurements, direction)
+        outlier_weights.append(mfas_instance.computeOutlierWeights())
+    logger.debug("Computed outlier weights using MFAS.")
+
+    # Compute average outlier weight.
+    outlier_weights_sum: DefaultDict[Tuple[int, int], float] = defaultdict(float)
+    inliers = set()
+    for outlier_weight_dict in outlier_weights:
+        for w_i1Ui2 in w_i1Ui2_measurements:
+            i1, i2 = w_i1Ui2.key1(), w_i1Ui2.key2()
+            outlier_weights_sum[(i1, i2)] += outlier_weight_dict[(i1, i2)]
+    for (i1, i2), weight_sum in outlier_weights_sum.items():
+        if weight_sum / len(projection_directions) < OUTLIER_WEIGHT_THRESHOLD:
+            inliers.add((i1, i2))
+
+    # Filter outliers, index back from symbol to int.
+    # `inliers` contains both camera-camera and camera-landmark inliers. We separate them here.
+    inlier_w_i2Ui1_dict = {}
+    inlier_w_iUj_dict_tracks = {}
+    inlier_cameras: Set[int] = set()
+    for (i1, i2) in w_i2Ui1_dict:
+        if (C(i2), C(i1)) in inliers:  # there is a flip in indices from w_i2Ui1_dict to inliers.
+            inlier_w_i2Ui1_dict[(i1, i2)] = w_i2Ui1_dict[(i1, i2)]
+            inlier_cameras.add(i1)
+            inlier_cameras.add(i2)
+
+    for (j, i) in w_iUj_dict_tracks:
+        # Same as above, `inliers` contains symbols that are flipped - C(i), L(j).
+        # Only add an inlier camera-track measurements if the camera has other camera-camera inliers.
+        if (C(i), L(j)) in inliers and i in inlier_cameras:
+            inlier_w_iUj_dict_tracks[(j, i)] = w_iUj_dict_tracks[(j, i)]
+
+    return inlier_w_i2Ui1_dict, inlier_w_iUj_dict_tracks, inlier_cameras
+
+
+def _get_landmark_directions(
+    tracks_2d: List[SfmTrack2d],
+    intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
+    wRi_list: List[Optional[Rot3]],
+) -> RelativeDirectionsDict:
+    """Computes the camera to landmark directions for each track, in world frame.
+
+    Args:
+        tracks_2d: 2d tracks in each image, assuming that all measurements in all tracks are for valid cameras.
+        intrinsics: Camera intrinsics for each camera.
+        wRi_list: Camera rotations in world frame.
+
+    Returns:
+        Dictionary of unit directions from camera to track in world frame indexed by (track_id, camera_id).
+    """
+    landmark_directions = {}
+    for track_id, track in enumerate(tracks_2d):
+        for j in range(track.number_measurements()):
+            measurement = track.measurement(j)
+            cam_idx = measurement.i
+
+            if intrinsics[cam_idx] is None or wRi_list[cam_idx] is None:
+                raise ValueError("Camera intrinsics or rotation cannot be None for input track measurements")
+
+            measurement_xy = intrinsics[cam_idx].calibrate(measurement.uv)
+            measurement_homog = Point3(measurement_xy[0], measurement_xy[1], 1.0)
+            w_cam_U_track = Unit3(wRi_list[cam_idx].rotate(Unit3(measurement_homog).point3()))
+
+            # Direction starts at camera, but first index is track_id.
+            landmark_directions[(track_id, cam_idx)] = w_cam_U_track
+    return landmark_directions
+
+
+def _binary_measurements_from_priors(
+    i2Ti1_priors: Dict[Tuple[int, int], PosePrior], wRi_list: List[Rot3]
+) -> BinaryMeasurementsPoint3:
+    """Converts the priors from relative Pose3 priors to relative Point3 measurements in world frame.
+
+    Args:
+        i2Ti1_priors: Relative pose priors between cameras, could be a hard or soft prior.
+        wRi_list: Absolute rotation estimates from rotation averaging.
+
+    Returns:
+        BinaryMeasurementsPoint3 containing Point3 priors in world frame.
+    """
+
+    def get_prior_in_world_frame(i2: int, i2Ti1_prior: PosePrior) -> Rot3:
+        return wRi_list[i2].rotate(i2Ti1_prior.value.translation())
+
+    w_i1ti2_prior_measurements = BinaryMeasurementsPoint3()
+    if len(i2Ti1_priors) == 0:
+        return w_i1ti2_prior_measurements
+
+    # TODO(akshay-krishnan): Use the translation covariance, transform to world frame.
+    # noise_model = gtsam.noiseModel.Gaussian.Covariance(i2Ti1_prior.covariance)
+    # TODO(akshay-krishnan): use robust noise model for priors?
+    noise_model = gtsam.noiseModel.Isotropic.Sigma(3, 1e-2)
+    for (i1, i2), i2Ti1_prior in i2Ti1_priors.items():
+        w_i1ti2_prior_measurements.append(
+            BinaryMeasurementPoint3(
+                C(i2),
+                C(i1),
+                get_prior_in_world_frame(i2, i2Ti1_prior),
+                noise_model,
+            )
+        )
+    return w_i1ti2_prior_measurements
+
+
 def compute_metrics(
     inlier_i1_i2_pairs: Set[Tuple[int, int]],
     i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]],
@@ -527,6 +542,7 @@ def compute_metrics(
         wRi_list: Estimated camera rotations from rotation averaging.
         wti_list: Estimated camera translations from translation averaging.
         gt_wTi_list: List of ground truth camera poses.
+    
     Returns:
         Translation averaging metrics as a metrics group. Includes the following metrics:
         - Number of inlier, outlier and total measurements.
