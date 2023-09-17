@@ -17,12 +17,12 @@ logger = logger_utils.get_logger()
 
 GTSFM_MODULE_METRICS_FNAMES = [
     "frontend_summary.json",
-    "view_graph_estimation_metrics.json"
+    "view_graph_estimation_metrics.json",
     "rotation_averaging_metrics.json",
     "translation_averaging_metrics.json",
     "data_association_metrics.json",
     "bundle_adjustment_metrics.json",
-    "total_summary_metrics.json"
+    "total_summary_metrics.json",
 ]
 
 

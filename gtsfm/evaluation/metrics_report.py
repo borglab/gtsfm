@@ -122,7 +122,7 @@ def create_plots_for_distributions(metrics_dict: Dict[str, Any]) -> str:
 
     Args:
         metrics_dict: Dictionary representation of the metric, where keys are names of metrics.
-    
+
     Returns:
         Plots in a grid converted to HTML as a string.
     """

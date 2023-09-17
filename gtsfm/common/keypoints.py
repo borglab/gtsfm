@@ -222,7 +222,7 @@ class Keypoints:
             Subset of data at the given indices.
         """
         if indices.size == 0:
-            return Keypoints(coordinates=np.zeros(shape=(0,2)))
+            return Keypoints(coordinates=np.zeros(shape=(0, 2)))
 
         return Keypoints(
             self.coordinates[indices],
