@@ -3,10 +3,9 @@
 DATASET_NAME=$1
 CONFIG_NAME=$2
 MAX_FRAME_LOOKAHEAD=$3
-IMAGE_EXTENSION=$4
-LOADER_NAME=$5
-MAX_RESOLUTION=$6
-SHARE_INTRINSICS=$7
+LOADER_NAME=$4
+MAX_RESOLUTION=$5
+SHARE_INTRINSICS=$6
 
 # Extract the data, configure arguments for runner.
 if [ "$DATASET_NAME" == "door-12" ]; then
@@ -37,7 +36,7 @@ elif [ "$DATASET_NAME" == "south-building-128" ]; then
 fi
 
 echo "Config: ${CONFIG_NAME}, Loader: ${LOADER_NAME}"
-echo "Max. Frame Lookahead: ${MAX_FRAME_LOOKAHEAD}, Image Extension: ${IMAGE_EXTENSION}, Max. Resolution: ${MAX_RESOLUTION}"
+echo "Max. Frame Lookahead: ${MAX_FRAME_LOOKAHEAD}, Max. Resolution: ${MAX_RESOLUTION}"
 echo "Share intrinsics for all images? ${SHARE_INTRINSICS}"
 
 # Setup the command line arg if intrinsics are to be shared

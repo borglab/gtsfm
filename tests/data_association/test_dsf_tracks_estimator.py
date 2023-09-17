@@ -60,6 +60,57 @@ class TestDsfTracksEstimator(GtsamTestCase):
         print(tracks)
         self.assertEqual(len(tracks), 0, "Tracks not filtered correctly")
 
+    def test_track_generation(self) -> None:
+        """Ensures that DSF generates three tracks from measurements in 3 images (H=200,W=400).
+
+        Analogous to test found at github.com/borglab/gtsam/blob/develop/python/gtsam/tests/test_DsfTrackGenerator.py
+        """
+        kps_i0 = Keypoints(np.array([[10.0, 20], [30, 40]]))
+        kps_i1 = Keypoints(np.array([[50.0, 60], [70, 80], [90, 100]]))
+        kps_i2 = Keypoints(np.array([[110.0, 120], [130, 140]]))
+
+        keypoints_list = []
+        keypoints_list.append(kps_i0)
+        keypoints_list.append(kps_i1)
+        keypoints_list.append(kps_i2)
+
+        # For each image pair (i1,i2), we provide a (K,2) matrix of corresponding keypoint indices (k1,k2).
+        matches_dict = {}
+        matches_dict[(0, 1)] = np.array([[0, 0], [1, 1]])
+        matches_dict[(1, 2)] = np.array([[2, 0], [1, 1]])
+
+        tracks = self.estimator.run(
+            matches_dict,
+            keypoints_list,
+        )
+        assert len(tracks) == 3
+
+        # Verify track 0.
+        track0 = tracks[0]
+        assert track0.number_measurements() == 2
+        np.testing.assert_allclose(track0.measurement(0).uv, np.array([10, 20]))
+        np.testing.assert_allclose(track0.measurement(1).uv, np.array([50, 60]))
+        assert track0.measurement(0).i == 0
+        assert track0.measurement(1).i == 1
+
+        # Verify track 1.
+        track1 = tracks[1]
+        assert track1.number_measurements() == 3
+        np.testing.assert_allclose(track1.measurement(0).uv, np.array([30, 40]))
+        np.testing.assert_allclose(track1.measurement(1).uv, np.array([70, 80]))
+        np.testing.assert_allclose(track1.measurement(2).uv, np.array([130, 140]))
+        assert track1.measurement(0).i == 0
+        assert track1.measurement(1).i == 1
+        assert track1.measurement(2).i == 2
+
+        # Verify track 2.
+        track2 = tracks[2]
+        assert track2.number_measurements() == 2
+        np.testing.assert_allclose(track2.measurement(0).uv, np.array([90, 100]))
+        np.testing.assert_allclose(track2.measurement(1).uv, np.array([110, 120]))
+        assert track2.measurement(0).i == 1
+        assert track2.measurement(1).i == 2
+
 
 def get_dummy_keypoints_list() -> List[Keypoints]:
     """ """
@@ -123,13 +174,13 @@ def get_dummy_matches() -> Dict[Tuple[int, int], np.ndarray]:
 
 def get_nontransitive_matches() -> Dict[Tuple[int, int], np.ndarray]:
     """Set up correspondences for each (i1,i2) pair that violates transitivity.
-    
-    (i=0, k=0)
-         |    \
-         |     \
-    (i=1, k=2)--(i=2,k=3)--(i=3, k=4)--(i=1, k=1)
 
-    Transitivity is violated due to the match between frames 0 and 3. 
+    (i=0, k=0)             (i=0, k=1)
+         |    \\               |
+         |     \\              |
+    (i=1, k=2)--(i=2,k=3)--(i=3, k=4)
+
+    Transitivity is violated due to the match between frames 0 and 3.
     """
     nontransitive_matches_dict = {
         (0, 1): np.array([[0, 2]]),

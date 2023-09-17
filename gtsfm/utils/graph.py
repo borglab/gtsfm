@@ -57,9 +57,9 @@ def prune_to_largest_connected_component(
     dict are considered.
 
     Args:
-        rotations: dictionary of relative rotations for pairs.
-        unit_translations: dictionary of relative unit-translations for pairs.
-        pose_priors: dictionary of priors on relative pose.
+        rotations: Dictionary of relative rotations for pairs.
+        unit_translations: Dictionary of relative unit-translations for pairs.
+        pose_priors: Dictionary of priors on relative pose.
 
     Returns:
         Subset of rotations which are in the largest connected components.
@@ -69,13 +69,13 @@ def prune_to_largest_connected_component(
     input_edges += relative_pose_priors.keys()
     nodes_in_pruned_graph = get_nodes_in_largest_connected_component(input_edges)
 
-    # select the edges with nodes in the pruned graph
+    # Select the edges with nodes in the pruned graph.
     selected_edges = []
     for i1, i2 in rotations.keys():
         if i1 in nodes_in_pruned_graph and i2 in nodes_in_pruned_graph:
             selected_edges.append((i1, i2))
 
-    # return the subset of original input
+    # Return the subset of original input.
     return (
         {k: rotations[k] for k in selected_edges},
         {k: unit_translations[k] for k in selected_edges},
@@ -93,7 +93,7 @@ def create_adjacency_list(edges: List[Tuple[int, int]]) -> DefaultDict[int, Set[
         edges: Indices of edges in the graph as a list of tuples.
 
     Returns:
-        adj_list: Adjacency list representation of the graph, mapping an image index to its neighbors
+        adj_list: Adjacency list representation of the graph, mapping an image index to its neighbors.
     """
     adj_list = defaultdict(set)
 
@@ -123,7 +123,7 @@ def extract_cyclic_triplets_from_edges(edges: List[Tuple[int, int]]) -> List[Tup
     """
     adj_list = create_adjacency_list(edges)
 
-    # only want to keep the unique ones
+    # Only want to keep the unique ones.
     triplets = set()
 
     # find intersections

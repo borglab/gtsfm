@@ -15,7 +15,7 @@ import gtsfm.utils.io as io_utils
 import gtsfm.utils.metrics as metrics_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 
-GTSAM_EXAMPLE_FILE = "dubrovnik-3-7-pre"  # example data with 3 cams and 7 tracks
+GTSAM_EXAMPLE_FILE = "dubrovnik-3-7-pre"  # Example data with 3 cameras and 7 tracks.
 EXAMPLE_DATA = io_utils.read_bal(gtsam.findExampleDataFile(GTSAM_EXAMPLE_FILE))
 
 NULL_DATA = SfmData()
@@ -903,10 +903,10 @@ class TestGtsfmData(unittest.TestCase):
         unaligned_filtered_data = GtsfmData.from_cameras_and_tracks(
             cameras=unaligned_cameras, tracks=unaligned_tracks, number_images=32
         )
-        unaligned_metrics = metrics_utils.get_stats_for_sfmdata(unaligned_filtered_data, suffix="_filtered")
+        unaligned_metrics = metrics_utils.get_metrics_for_sfmdata(unaligned_filtered_data, suffix="_filtered")
         aligned_filtered_data = unaligned_filtered_data.align_via_Sim3_to_poses(wTi_list_ref=poses_gt)
 
-        aligned_metrics = metrics_utils.get_stats_for_sfmdata(aligned_filtered_data, suffix="_filtered")
+        aligned_metrics = metrics_utils.get_metrics_for_sfmdata(aligned_filtered_data, suffix="_filtered")
 
         assert unaligned_metrics[3].name == "reprojection_errors_filtered_px"
         assert aligned_metrics[3].name == "reprojection_errors_filtered_px"
