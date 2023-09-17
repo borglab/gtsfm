@@ -16,6 +16,7 @@ import gtsfm.utils.features as feature_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.matcher.matcher_base import MatcherBase
 from gtsfm.frontend.matcher.twoway_matcher import TwoWayMatcher
+from gtsfm.frontend.matcher.lightglue_matcher import LightGlueMatcher
 
 DATA_ROOT_PATH = Path(__file__).resolve().parent.parent.parent / "data"
 REAL_FEATURES_PATH = DATA_ROOT_PATH / "set1_lund_door" / "features"
@@ -156,6 +157,36 @@ def generate_random_binary_descriptors(num_descriptors: int, descriptor_dim: int
         return np.array([], dtype=np.uint8)
 
     return np.random.randint(0, high=2, size=(num_descriptors, descriptor_dim)).astype(np.uint8)
+
+
+class TestFailingMatch(unittest.TestCase):
+    def setUp(self):
+        super().setUp()
+
+        self.matcher: MatcherBase = LightGlueMatcher(features="superpoint")
+    
+    def test_match_validity(self):
+        """Test that the computation graph is working exactly as the normal API"""
+        (
+            keypoints_i1,
+            keypoints_i2,
+            descriptors_i1,
+            descriptors_i2,
+            im_shape_i1,
+            im_shape_i2,
+        ) = get_features_from_real_images()
+
+        im_shape_i1 += (1,)
+        im_shape_i2 += (1,)
+
+        computed_matches = self.matcher.match(
+            keypoints_i1, keypoints_i2, descriptors_i1, descriptors_i2, im_shape_i1, im_shape_i2
+        )
+
+        print(computed_matches)
+
+        self.__assert_valid_indices(computed_matches, len(keypoints_i1), len(keypoints_i2))
+        self.__assert_one_to_one_constraint(computed_matches)
 
 
 if __name__ == "__main__":
