@@ -89,9 +89,9 @@ class GtsfmMetric:
 
         self._name = name
         if data is not None:
-            # Cast to a numpy array
+            # Cast to a numpy array.
             if isinstance(data, list):
-                # Replace None with NaN
+                # Replace None with NaN.
                 data = [x if x is not None else np.NaN for x in data]
                 if all(isinstance(x, int) for x in data):
                     data = np.array(data, dtype=np.int32)
@@ -113,7 +113,7 @@ class GtsfmMetric:
             else:
                 raise ValueError("Unsupported plot type for the data dimension")
 
-            # Create a summary if the data is a 1D distribution
+            # Create a summary if the data is a 1D distribution.
             if self._dim == 1:
                 self._summary = self._create_summary(data)
 
@@ -123,7 +123,7 @@ class GtsfmMetric:
             else:
                 self._data = None
         else:
-            # Metrics created from summary alone are 1D distribution metrics
+            # Metrics created from summary alone are 1D distribution metrics.
             self._dim = 1
             self._summary = summary
             self._plot_type = self.PlotType.HISTOGRAM if "histogram" in summary else self.PlotType.BOX

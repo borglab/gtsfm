@@ -466,6 +466,7 @@ def get_metrics_for_sfmdata(gtsfm_data: GtsfmData, suffix: str, store_full_data:
             name=f"reprojection_errors{suffix}_px",
             data=gtsfm_data.get_scene_reprojection_errors(),
             store_full_data=store_full_data,
+            plot_type=GtsfmMetric.PlotType.HISTOGRAM, # Also try BOX PLOT.
         )
     )
     return metrics

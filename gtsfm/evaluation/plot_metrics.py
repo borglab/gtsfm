@@ -17,11 +17,12 @@ logger = logger_utils.get_logger()
 
 GTSFM_MODULE_METRICS_FNAMES = [
     "frontend_summary.json",
-    "rotation_cycle_consistency_metrics.json",
+    "view_graph_estimation_metrics.json"
     "rotation_averaging_metrics.json",
     "translation_averaging_metrics.json",
     "data_association_metrics.json",
     "bundle_adjustment_metrics.json",
+    "total_summary_metrics.json"
 ]
 
 
@@ -81,12 +82,13 @@ def create_metrics_plots_html(
         [colmap_metrics_groups, openmvg_metrics_groups],
         ["colmap", "openmvg"],
     ):
-        if json_path is not None:
-            for i, metrics_group in enumerate(gtsfm_metrics_groups):
-                metric_path = metric_paths[i]
-                json_metric_path = os.path.join(json_path, os.path.basename(metric_path))
-                metrics_groups.append(GtsfmMetricsGroup.parse_from_json(json_metric_path))
-            other_pipeline_metrics_groups[pipeline_name] = metrics_groups
+        if json_path is None:
+            continue
+        for i, metrics_group in enumerate(gtsfm_metrics_groups):
+            metric_path = metric_paths[i]
+            json_metric_path = os.path.join(json_path, os.path.basename(metric_path))
+            metrics_groups.append(GtsfmMetricsGroup.parse_from_json(json_metric_path))
+        other_pipeline_metrics_groups[pipeline_name] = metrics_groups
     metrics_report.generate_metrics_report_html(gtsfm_metrics_groups, output_file, other_pipeline_metrics_groups)
 
 

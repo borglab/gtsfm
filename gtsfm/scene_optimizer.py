@@ -233,7 +233,7 @@ class SceneOptimizer:
                 )
                 if self._save_3d_viz:
                     delayed_results.extend(
-                        save_visualizations(
+                        save_matplotlib_visualizations(
                             aligned_ba_input_graph=ba_input_graph,
                             aligned_ba_output_graph=ba_output_graph,
                             gt_pose_graph=gt_wTi_list,
@@ -262,7 +262,7 @@ class SceneOptimizer:
                     )
                 )
 
-            # Add metrics for dense reconstruction and voxel downsampling
+            # Add metrics for dense reconstruction and voxel downsampling.
             if densify_metrics_graph is not None:
                 metrics_graph_list.append(densify_metrics_graph)
             if downsampling_metrics_graph is not None:
@@ -308,14 +308,14 @@ def align_estimated_gtsfm_data(
     return ba_input, ba_output, gt_wTi_list
 
 
-def save_visualizations(
+def save_matplotlib_visualizations(
     aligned_ba_input_graph: Delayed,
     aligned_ba_output_graph: Delayed,
     gt_pose_graph: List[Optional[Delayed]],
     plot_ba_input_path: Path,
     plot_results_path: Path,
 ) -> List[Delayed]:
-    """Save SfmData before and after bundle adjustment and camera poses for visualization.
+    """Visualizes GtsfmData & camera poses before and after bundle adjustment using Matplotlib.
 
     Accepts delayed GtsfmData before and after bundle adjustment, along with GT poses,
     saves them and returns a delayed object.
