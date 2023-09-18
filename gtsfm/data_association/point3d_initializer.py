@@ -69,15 +69,15 @@ class TriangulationOptions(NamedTuple):
     See the following slides for a derivation of the #req'd samples: http://www.cse.psu.edu/~rtc12/CSE486/lecture15.pdf
 
     Args:
-        mode: triangulation mode, which dictates whether or not to use robust estimation.
-        reproj_error_threshold: the maximum reprojection error allowed.
-        min_triangulation_angle: threshold for the minimum angle (in degrees) subtended at the triangulated track from 2
+        mode: Triangulation mode, which dictates whether or not to use robust estimation.
+        reproj_error_threshold: The maximum reprojection error allowed.
+        min_triangulation_angle: Threshold for the minimum angle (in degrees) subtended at the triangulated track from 2
             cameras. Tracks for which the maximum angle at any two cameras is less then this threshold will be rejected.
-        min_inlier_ratio: a priori assumed minimum probability that a point is an inlier.
-        confidence: desired confidence that at least one hypothesis is outlier free.
+        min_inlier_ratio: A priori assumed minimum probability that a point is an inlier.
+        confidence: Desired confidence that at least one hypothesis is outlier free.
         dyn_num_hypotheses_multiplier: multiplication factor for dynamically computed hyptheses based on confidence.
-        min_num_hypotheses: minimum number of hypotheses.
-        max_num_hypotheses: maximum number of hypotheses.
+        min_num_hypotheses: Minimum number of hypotheses.
+        max_num_hypotheses: Maximum number of hypotheses.
     """
 
     mode: TriangulationSamplingMode
@@ -123,14 +123,17 @@ class Point3dInitializer:
 
     Args:
         track_cameras: Dict of cameras and their indices.
-        mode: triangulation mode, which dictates whether or not to use robust estimation.
-        reproj_error_thresh: threshold on reproj errors for inliers.
-        num_ransac_hypotheses (optional): desired number of RANSAC hypotheses.
+        mode: Triangulation mode, which dictates whether or not to use robust estimation.
+        reproj_error_thresh: Threshold on reproj errors for inliers.
+        num_ransac_hypotheses (optional): Desired number of RANSAC hypotheses.
     """
 
     def __init__(self, track_camera_dict: Dict[int, gtsfm_types.CAMERA_TYPE], options: TriangulationOptions) -> None:
         self.track_camera_dict = track_camera_dict
         self.options = options
+
+        if len(track_camera_dict) == 0:
+            raise ValueError("No camera positions were estimated, so triangulation is not feasible.")
 
         sample_camera = list(self.track_camera_dict.values())[0]
         self._camera_set_class = (
@@ -142,23 +145,23 @@ class Point3dInitializer:
         RANSAC chooses one of 3 different sampling schemes to execute.
 
         Args:
-            track: feature track with N 2d measurements in separate images
+            track: Feature track with N 2d measurements in separate images
 
         Returns:
-            best_inliers: boolean array of length N. Indices of measurements
-               are set to true if they correspond to the best RANSAC hypothesis
+            best_inliers: Boolean array of length N. Indices of measurements
+               are set to true if they correspond to the best RANSAC hypothesis.
         """
 
-        # Generate all possible matches
+        # Generate all possible matches.
         measurement_pairs = generate_measurement_pairs(track_2d)
 
-        # limit the number of samples to the number of available pairs
+        # Limit the number of samples to the number of available pairs.
         num_hypotheses = min(self.options.num_ransac_hypotheses(), len(measurement_pairs))
 
-        # Sampling
+        # Sampling.
         samples = self.sample_ransac_hypotheses(track_2d, measurement_pairs, num_hypotheses)
 
-        # Initialize the best output containers
+        # Initialize the best output containers.
         best_num_votes = 0
         best_error = MAX_TRACK_REPROJ_ERROR
         best_inliers = np.zeros(len(track_2d.measurements), dtype=bool)
@@ -168,7 +171,7 @@ class Point3dInitializer:
             i1, uv1 = track_2d.measurements[k1]
             i2, uv2 = track_2d.measurements[k2]
 
-            # check for unestimated cameras
+            # Check for unestimated cameras.
             if self.track_camera_dict.get(i1) is None or self.track_camera_dict.get(i2) is None:
                 logger.warning("Unestimated cameras found at indices %d or %d. Skipping them.", i1, i2)
                 continue
@@ -181,7 +184,7 @@ class Point3dInitializer:
             img_measurements.append(uv1)
             img_measurements.append(uv2)
 
-            # triangulate point for track
+            # Triangulate point for track.
             try:
                 triangulated_pt = gtsam.triangulatePoint3(
                     camera_estimates,
@@ -204,11 +207,11 @@ class Point3dInitializer:
             # If the inlier number are the same, check the average error of inliers
             is_inlier = errors < self.options.reproj_error_threshold
 
-            # tally the number of votes
+            # Tally the number of votes.
             inlier_errors = errors[is_inlier]
 
             if inlier_errors.size > 0:
-                # only tally error over the inlier measurements
+                # Only tally error over the inlier measurements.
                 avg_error = inlier_errors.mean()
                 num_votes = is_inlier.astype(int).sum()
 
@@ -223,7 +226,7 @@ class Point3dInitializer:
         """Triangulates 3D point according to the configured triangulation mode.
 
         Args:
-            track: feature track from which measurements are to be extracted
+            track: Feature track from which measurements are to be extracted.
 
         Returns:
             track with inlier measurements and 3D landmark. None returned if triangulation fails or has high error.
@@ -300,11 +303,12 @@ class Point3dInitializer:
         """Sample a list of hypotheses (camera pairs) to use during triangulation.
 
         Args:
-            track: feature track from which measurements are to be extracted
-            measurement_pairs: all possible indices of pairs of measurements in a given track
-            num_hypotheses: desired number of samples
+            track: Feature track from which measurements are to be extracted.
+            measurement_pairs: All possible indices of pairs of measurements in a given track.
+            num_hypotheses: Desired number of samples.
+
         Returns:
-            Indices of selected match
+            Indices of selected match.
         """
         # Initialize scores as uniform distribution
         scores = np.ones(len(measurement_pairs), dtype=float)
@@ -320,10 +324,10 @@ class Point3dInitializer:
                 wTc1 = self.track_camera_dict[i1].pose()
                 wTc2 = self.track_camera_dict[i2].pose()
 
-                # rough approximation approximation of baseline between the 2 cameras
+                # Rough approximation approximation of baseline between the 2 cameras
                 scores[k] = np.linalg.norm(wTc1.inverse().compose(wTc2).translation())
 
-        # Check the validity of scores
+        # Check the validity of scores.
         if sum(scores) <= 0.0:
             raise Exception("Sum of scores cannot be zero (or smaller than zero)! It must a bug somewhere")
 
@@ -351,7 +355,7 @@ class Point3dInitializer:
         Returns None, None if less than 2 measurements were found with estimated camera poses after averaging.
 
         Args:
-            track: feature track from which measurements are to be extracted.
+            track: Feature track from which measurements are to be extracted.
 
         Returns:
             Vector of individual camera calibrations pertaining to track
@@ -377,14 +381,13 @@ class Point3dInitializer:
 
 
 def generate_measurement_pairs(track: SfmTrack2d) -> List[Tuple[int, ...]]:
-    """
-    Extract all possible measurement pairs in a track for triangulation.
+    """Extract all possible measurement pairs in a track for triangulation.
 
     Args:
-        track: feature track from which measurements are to be extracted
+        track: Feature track from which measurements are to be extracted.
 
     Returns:
-        measurement_idxs: all possible matching measurement indices in a given track
+        measurement_idxs: All possible matching measurement indices in a given track
     """
     num_track_measurements = track.number_measurements()
     all_measurement_idxs = range(num_track_measurements)

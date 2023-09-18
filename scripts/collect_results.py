@@ -90,7 +90,6 @@ SCALAR_METRIC_NAMES = [
     "step_2_run_duration_sec",
     "total_run_duration_sec",
     "total_duration_sec",
-    "total_duration_sec",
     "outlier_rejection_duration_sec",
     "optimization_duration_sec",
     "num_input_measurements",
@@ -100,7 +99,6 @@ SCALAR_METRIC_NAMES = [
     "total_two_view_estimation_duration_sec",
     "triangulation_runtime_sec",
     "gtsfm_data_creation_runtime",
-    "total_duration_sec",
     "total_runtime_sec",
     "retriever_duration_sec"
 ]
