@@ -1,0 +1,90 @@
+name: Benchmark GTSFM on select datasets using our self-hosted instances
+
+################################################################################
+# Please only run this action after making sure that the shorter benchmarks
+# (defined in benchmark.yml) all run correctly and show no major regressions.
+#
+# Please be conscious of multiple queued actions, as they run sychronously on
+# one machine.
+################################################################################
+
+on: [workflow_dispatch]
+jobs:
+  benchmark:
+    name: Benchmark
+    runs-on: self-hosted
+    strategy:
+      # Prevents other configs from being canceled if one of them fails.
+      fail-fast: false
+      matrix:
+        config_dataset_info: [
+            # config             dataset       lookahead   img-extension  source  loader         max-res  share-intrinsics
+            [skydio_front_end,   skydio-501,   15,         jpg,           wget,   colmap-loader, 600,     true,],
+          ]
+    defaults:
+      run:
+        shell: bash -l {0}
+
+    env:
+      PYTHON_VERSION: 3.8
+
+    steps:
+      - uses: actions/checkout@v4.0.0
+      - name: Cache frontend
+        uses: actions/cache@v3
+        env:
+          # Increase this value to reset cache
+          CACHE_NUMBER_FRONTEND: 0
+        with:
+          path: cache
+          key: ${{ matrix.config_dataset_info[0] }}-${{ matrix.config_dataset_info[1] }}-${{ matrix.config_dataset_info[2] }}-${{ matrix.config_dataset_info[6] }}-${{ env.CACHE_NUMBER_FRONTEND }}
+      # TODO (travisdriver): Setup micromamba/miniconda to update env automatically.
+      # - uses: conda-incubator/setup-miniconda@v2
+      #   with:
+      #     activate-environment: gtsfm-v1
+      #     environment-file: environment_linux.yml
+      #     python-version: 3.8
+      # - uses: mamba-org/setup-micromamba@v1
+      #   with:
+      #     micromamba-version: "1.3.1-0"
+      #     generate-run-shell: false
+      #     environment-file: environment_linux.yml
+      #     init-shell: >-
+      #       bash
+      #     cache-environment: true
+      #     post-cleanup: "all"
+      - name: Download third-party weights
+        run: |
+          ./download_model_weights.sh
+      - name: Prepare dataset
+        run: |
+          echo "Datasets are stored in /usr/local/gtsfm-data in order to" 
+          echo "reduce runtimes by not redownloading each (very large) dataset"
+          echo "every CI run. Any new datasets must be downloaded and stored in"
+          echo "/usr/local/gtsfm-data before running this action."
+      - name: Run GTSfM
+        run: |
+          DATASET_NAME=${{ matrix.config_dataset_info[1] }}
+          CONFIG_NAME=${{ matrix.config_dataset_info[0] }}
+          MAX_FRAME_LOOKAHEAD=${{ matrix.config_dataset_info[2] }}
+          LOADER_NAME=${{ matrix.config_dataset_info[5] }}
+          MAX_RESOLUTION=${{ matrix.config_dataset_info[6] }}
+          SHARE_INTRINSICS=${{ matrix.config_dataset_info[7] }}
+          pwd
+          micromamba activate gtsfm-v1
+          micromamba list
+          bash .github/scripts/execute_single_benchmark_self_hosted.sh \
+            $DATASET_NAME \
+            $CONFIG_NAME \
+            $MAX_FRAME_LOOKAHEAD \
+            $LOADER_NAME \
+            $MAX_RESOLUTION \
+            $SHARE_INTRINSICS
+      - name: Archive dataset metrics, plots, and output data (camera poses + points)
+        uses: actions/upload-artifact@v3
+        with:
+          name: results-${{ matrix.config_dataset_info[0] }}-${{ matrix.config_dataset_info[1] }}-${{ matrix.config_dataset_info[2] }}-${{ matrix.config_dataset_info[3] }}-${{ matrix.config_dataset_info[4] }}-${{ matrix.config_dataset_info[5] }}-${{ matrix.config_dataset_info[6] }}-${{ matrix.config_dataset_info[7] }}.zip
+          path: |
+            result_metrics
+            plots
+            results

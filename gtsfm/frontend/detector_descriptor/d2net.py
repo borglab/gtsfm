@@ -5,7 +5,6 @@ https://github.com/mihaidusmanu/d2-net
 
 Authors: John Lambert
 """
-
 from pathlib import Path
 from typing import Tuple
 
@@ -42,8 +41,8 @@ class D2NetDetDesc(DetectorDescriptorBase):
         super().__init__()
         self.max_keypoints = max_keypoints
         self.model_path = model_path
-        self.use_cuda = use_cuda and torch.cuda.is_available()
-        self.device = torch.device("cuda" if self.use_cuda else "cpu")
+        self.use_cuda = use_cuda
+        self._model = D2Net(model_file=self.model_path, use_relu=USE_RELU, use_cuda=False).eval()
 
     def detect_and_describe(self, image: Image) -> Tuple[Keypoints, np.ndarray]:
         """Extract keypoints and their corresponding descriptors.
@@ -58,8 +57,8 @@ class D2NetDetDesc(DetectorDescriptorBase):
             Detected keypoints, with length N <= max_keypoints.
             Corr. descriptors, of shape (N, D) where D is the dimension of each descriptor.
         """
-        model = D2Net(model_file=self.model_path, use_relu=USE_RELU, use_cuda=self.use_cuda)
-        model.eval()
+        device = torch.device("cuda" if self.use_cuda and torch.cuda.is_available() else "cpu")
+        self._model.to(device)
 
         # Resize image, and obtain re-scaling factors to postprocess keypoint coordinates.
         resized_image, fact_i, fact_j = resize_image(image.value_array)
@@ -69,8 +68,8 @@ class D2NetDetDesc(DetectorDescriptorBase):
 
         with torch.no_grad():
             keypoints, scores, descriptors = d2net_pyramid.process_multiscale(
-                image=torch.tensor(input_image[np.newaxis, :, :, :].astype(np.float32), device=self.device),
-                model=model,
+                image=torch.tensor(input_image[np.newaxis, :, :, :].astype(np.float32)).to(device),
+                model=self._model,
                 scales=scales,
             )
 

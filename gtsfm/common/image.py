@@ -21,7 +21,7 @@ class Image(NamedTuple):
 
     value_array: np.ndarray
     exif_data: Optional[Dict[str, Any]] = None
-    sensor_width_db = SensorWidthDatabase()
+    sensor_width_db: SensorWidthDatabase = SensorWidthDatabase()
     file_name: Optional[str] = None
     mask: Optional[np.ndarray] = None
 
@@ -73,14 +73,10 @@ class Image(NamedTuple):
 
         return sensor_width_mm
 
-    def get_intrinsics_from_exif(self, default_focal_length_factor: float = 1.2) -> Optional[Cal3Bundler]:
+    def get_intrinsics_from_exif(self) -> Optional[Cal3Bundler]:
         """Constructs the camera intrinsics from exif tag.
 
         Equation: focal_px=max(w_px,h_px)∗focal_mm / ccdw_mm
-
-        Note that it returns a default value based on image dimensions if EXIF not found:
-
-        focal_px=max(w_px, h_px)*default_factor
 
         Ref:
         - https://www.awaresystems.be/imaging/tiff/tifftags/privateifd/exif.html
@@ -88,36 +84,23 @@ class Image(NamedTuple):
         - https://openmvg.readthedocs.io/en/latest/software/SfM/SfMInit_ImageListing/
         - https://photo.stackexchange.com/questions/40865/how-can-i-get-the-image-sensor-dimensions-in-mm-to-get-circle-of-confusion-from # noqa: E501
 
-        Args:
-            default_focal_length_factor: A heuristic value that scales image width or height in pixel units.
-            The default value of 1.2 matches the value used in COLMAP,
-            see `ImageReaderOptions.default_focal_length_factor` in
-            https://github.com/colmap/colmap/blob/dev/src/base/image_reader.h.
-
         Returns:
             intrinsics matrix (3x3).
         """
 
+        if self.exif_data is None or len(self.exif_data) <= 0:
+            return None
+
         img_w_px = self.width
         img_h_px = self.height
+        max_size = max(img_w_px, img_h_px)
 
         # Initialize principal point.
         center_x = img_w_px / 2
         center_y = img_h_px / 2
 
-        # Initialize focal length by `default_focal_length_factor * max(width, height)`.
-        max_size = max(img_w_px, img_h_px)
-        focal_length_px = default_focal_length_factor * max_size
-
-        # Read focal length prior from exif.
-        if self.exif_data is None or len(self.exif_data) <= 0:
-            return Cal3Bundler(
-                fx=float(focal_length_px),
-                k1=0.0,
-                k2=0.0,
-                u0=float(center_x),
-                v0=float(center_y),
-            )
+        # Initialize focal length as None.
+        focal_length_px = None
 
         # Read from `FocalLengthIn35mmFilm`.
         focal_length_35_mm = self.exif_data.get("FocalLengthIn35mmFilm")
@@ -127,18 +110,12 @@ class Image(NamedTuple):
             # Read from `FocalLength` mm.
             focal_length_mm = self.exif_data.get("FocalLength")
             if focal_length_mm is None or focal_length_mm <= 0:
-                return Cal3Bundler(
-                    fx=float(focal_length_px),
-                    k1=0.0,
-                    k2=0.0,
-                    u0=float(center_x),
-                    v0=float(center_y),
-                )
+                return None
 
             # Compute sensor width, either from database or from EXIF.
             sensor_width_mm = 0.0
             try:
-                sensor_width_mm = Image.sensor_width_db.lookup(
+                sensor_width_mm = self.sensor_width_db.lookup(
                     self.exif_data.get("Make"),
                     self.exif_data.get("Model"),
                 )
@@ -147,8 +124,8 @@ class Image(NamedTuple):
             if sensor_width_mm > 0.0:
                 focal_length_px = focal_length_mm / sensor_width_mm * max_size
 
-        if focal_length_px <= 0:
-            raise ValueError("Focal length must be positive value.")
+        if focal_length_px is None or focal_length_px <= 0.0:
+            return None
 
         return Cal3Bundler(
             fx=float(focal_length_px),
@@ -156,6 +133,38 @@ class Image(NamedTuple):
             k2=0.0,
             u0=float(center_x),
             v0=float(center_y),
+        )
+
+    def get_intrinsics(self, default_focal_length_factor: float = 1.2) -> Optional[Cal3Bundler]:
+        """Constructs the camera intrinsics.
+
+        Note that it returns a default value based on image dimensions if EXIF not found.
+        Equation: focal_px=max(w_px, h_px)*default_factor
+
+        Args:
+            default_focal_length_factor: A heuristic value that scales image width or height in pixel units.
+            The default value of 1.2 matches the value used in COLMAP,
+            see `ImageReaderOptions.default_focal_length_factor` in
+            https://github.com/colmap/colmap/blob/dev/src/base/image_reader.h.
+
+        """
+
+        # Construct intrinsics from exif tag.
+        intrinsics = self.get_intrinsics_from_exif()
+        if intrinsics is not None:
+            return intrinsics
+
+        # Initialize focal length by `default_focal_length_factor * max(width, height)`.
+        focal_length_px = default_focal_length_factor * max(self.width, self.height)
+        if focal_length_px <= 0.0:
+            raise ValueError("Focal length must be positive value.")
+
+        return Cal3Bundler(
+            fx=float(focal_length_px),
+            k1=0.0,
+            k2=0.0,
+            u0=float(self.width / 2),
+            v0=float(self.height / 2),
         )
 
     def extract_patch(self, center_x: float, center_y: float, patch_size: int) -> "Image":

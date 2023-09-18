@@ -1,5 +1,4 @@
-"""
-Utilities for rendering camera frustums, 3d point clouds, and coordinate frames using the Open3d library.
+"""Utilities for rendering camera frustums, 3d point clouds, and coordinate frames using the Open3d library.
 
 Authors: John Lambert
 """
@@ -19,8 +18,8 @@ def create_colored_point_cloud_open3d(point_cloud: np.ndarray, rgb: np.ndarray) 
     """Render a point cloud as individual colored points, using Open3d.
 
     Args:
-        point_cloud: array of shape (N,3) representing 3d points.
-        rgb: uint8 array of shape (N,3) representing colors in RGB order, in the range [0,255].
+        point_cloud: Array of shape (N,3) representing 3d points.
+        rgb: Uint8 array of shape (N,3) representing colors in RGB order, in the range [0,255].
 
     Returns:
         pcd: Open3d geometry object representing a colored 3d point cloud.
@@ -37,14 +36,14 @@ def create_colored_point_cloud_open3d(point_cloud: np.ndarray, rgb: np.ndarray) 
 def convert_colored_open3d_point_cloud_to_numpy(
     pointcloud: open3d.geometry.PointCloud,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """
+    """Converts an Open3d point cloud object to two Numpy arrays representing x/y/z coords and per-point colors.
 
     Args:
-        pointcloud
+        pointcloud: Open3d point cloud object.
 
     Returns:
-        points
-        rgb
+        points: (N,3) float array representing 3d points.
+        rgb: (N,3) uint8 array representing per-point RGB colors.
     """
     points = np.asarray(pointcloud.points)
     rgb = np.asarray(pointcloud.colors)
@@ -61,12 +60,12 @@ def create_colored_spheres_open3d(
     Note: this is quite computationally expensive.
 
     Args:
-        point_cloud: array of shape (N,3) representing 3d points.
-        rgb: uint8 array of shape (N,3) representing colors in RGB order, in the range [0,255].
-        sphere_radius: radius of each rendered sphere.
+        point_cloud: Array of shape (N,3) representing 3d points.
+        rgb: Uint8 array of shape (N,3) representing colors in RGB order, in the range [0,255].
+        sphere_radius: Radius of each rendered sphere.
 
     Returns:
-        spheres: list of Open3d geometry objects, where each element (a sphere) represents a 3d point.
+        spheres: List of Open3d geometry objects, where each element (a sphere) represents a 3d point.
     """
     colors = rgb.astype(np.float64) / 255
 
@@ -86,24 +85,27 @@ def create_colored_spheres_open3d(
 
 
 def create_all_frustums_open3d(
-    wTi_list: List[Pose3], calibrations: List[Cal3Bundler], frustum_ray_len: float = 0.3
+    wTi_list: List[Pose3],
+    calibrations: List[Cal3Bundler],
+    frustum_ray_len: float = 0.3,
+    color_names: Tuple[str, ...] = ("red", "green"),
 ) -> List[open3d.geometry.LineSet]:
     """Render camera frustums as collections of line segments, using Open3d.
 
     Frustums are colored red-to-green by image order (for ordered collections, this corresponds to trajectory order).
 
     Args:
-        wTi_list: list of camera poses for each image
-        calibrations: calibration object for each camera
+        wTi_list: List of camera poses for each image
+        calibrations: Calibration object for each camera
 
     Returns:
-        line_sets: list of line segments that together parameterize all camera frustums
+        line_sets: List of line segments that together parameterize all camera frustums
     """
     line_sets = []
 
     # get array of shape Nx3 representing RGB values in [0,1], incrementally shifting from red to green
     colormap = np.array(
-        [[color_obj.rgb] for color_obj in Color("red").range_to(Color("green"), len(wTi_list))]
+        [[color_obj.rgb] for color_obj in Color(color_names[0]).range_to(Color(color_names[1]), len(wTi_list))]
     ).squeeze()
 
     for i, (K, wTi) in enumerate(zip(calibrations, wTi_list)):
@@ -144,17 +146,17 @@ def draw_coordinate_frame(wTc: Pose3, axis_length: float = 1.0) -> List[open3d.g
 
     Args:
         wTc: Pose of a camera in the world frame.
-        axis_length: length to use for line segments (representing coordinate frame axes).
+        axis_length: Length to use for line segments (representing coordinate frame axes).
 
     Returns:
-        line_sets: list of Open3D LineSet objects, representing 3 axes (a coordinate frame).
+        line_sets: List of Open3D LineSet objects, representing 3 axes (a coordinate frame).
     """
     RED = np.array([1, 0, 0])  # x-axis
     GREEN = np.array([0, 1, 0])  # y-axis
     BLUE = np.array([0, 0, 1])  # z-axis
     colors = (RED, GREEN, BLUE)
 
-    # line segment on each axis will connect just 2 vertices.
+    # Line segment on each axis will connect just 2 vertices.
     lines = [[0, 1]]
 
     line_sets = []
@@ -188,11 +190,11 @@ def draw_scene_open3d(
     """Render camera frustums and a 3d point cloud, using Open3d.
 
     Args:
-        point_cloud: array of shape (N,3) representing 3d points.
+        point_cloud: Array of shape (N,3) representing 3d points.
         rgb: uint8 array of shape (N,3) representing colors in RGB order, in the range [0,255].
-        wTi_list: list of camera poses for each image.
-        calibrations: calibration object for each camera.
-        args: rendering options.
+        wTi_list: List of camera poses for each image.
+        calibrations: Calibration object for each camera.
+        args: Rendering options.
     """
     frustums = create_all_frustums_open3d(wTi_list, calibrations, args.frustum_ray_len)
     if args.rendering_style == "point":

@@ -4,6 +4,8 @@ Authors: Ayush Baid, John Lambert
 """
 import logging
 import os
+import shutil
+import time
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -12,16 +14,14 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import Pose3, Similarity3
+from gtsam import Pose3, Similarity3, Rot3, Unit3
 from trimesh import Trimesh
 
 import gtsfm.common.types as gtsfm_types
-import gtsfm.evaluation.metrics_report as metrics_report
 import gtsfm.two_view_estimator as two_view_estimator
 import gtsfm.utils.ellipsoid as ellipsoid_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
-import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.viz as viz_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
@@ -32,9 +32,7 @@ from gtsfm.frontend.correspondence_generator.correspondence_generator_base impor
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.retriever.retriever_base import RetrieverBase, ImageMatchingRegime
 from gtsfm.two_view_estimator import (
-    POST_BA_REPORT_TAG,
     POST_ISP_REPORT_TAG,
-    PRE_BA_REPORT_TAG,
     VIEWGRAPH_REPORT_TAG,
     TwoViewEstimationReport,
     TwoViewEstimator,
@@ -56,9 +54,6 @@ mpl_logger.setLevel(logging.WARNING)
 pil_logger = logging.getLogger("PIL")
 pil_logger.setLevel(logging.INFO)
 
-# number of digits (significant figures) to include in each entry of error metrics
-PRINT_NUM_SIG_FIGS = 2
-
 
 class SceneOptimizer:
     """Wrapper combining different modules to run the whole pipeline on a
@@ -72,11 +67,11 @@ class SceneOptimizer:
         multiview_optimizer: MultiViewOptimizer,
         dense_multiview_optimizer: Optional[MVSBase] = None,
         save_two_view_correspondences_viz: bool = False,
-        save_3d_viz: bool = True,
+        save_3d_viz: bool = False,
         save_gtsfm_data: bool = True,
         pose_angular_error_thresh: float = 3,
         output_root: str = DEFAULT_OUTPUT_ROOT,
-        output_worker: str = None,
+        output_worker: Optional[str] = None,
     ) -> None:
         """pose_angular_error_thresh is given in degrees"""
         self.retriever = retriever
@@ -94,6 +89,16 @@ class SceneOptimizer:
         self.output_root = Path(output_root)
         self._output_worker = output_worker
         self._create_output_directories()
+
+    def __repr__(self) -> str:
+        """Returns string representation of class."""
+        return f"""
+        {self.retriever}
+        {self.correspondence_generator}
+        {self.two_view_estimator}
+        {self.multiview_optimizer}
+        DenseMultiviewOptimizer: {self.dense_multiview_optimizer}
+        """
 
     def _create_output_directories(self) -> None:
         """Create various output directories for GTSFM results, metrics, and plots."""
@@ -121,110 +126,26 @@ class SceneOptimizer:
         os.makedirs(REACT_RESULTS_PATH, exist_ok=True)
         os.makedirs(REACT_METRICS_PATH, exist_ok=True)
 
-    def create_computation_graph_for_frontend(
-        self,
-        keypoints_list: List[Keypoints],
-        putative_corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
-        image_pair_indices: List[Tuple[int, int]],
-        image_graph: List[Delayed],
-        all_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
-        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
-        gt_wTi_list: List[Optional[Pose3]],
-        gt_scene_mesh: Optional[Trimesh] = None,
-    ) -> Tuple[
-        Dict[Tuple[int, int], Delayed],
-        Dict[Tuple[int, int], Delayed],
-        Dict[Tuple[int, int], Delayed],
-        Dict[str, Dict[Tuple[int, int], Delayed]],
-        List[Delayed],
-    ]:
-        """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
-        # Estimate two-view geometry and get indices of verified correspondences.
-        i2Ri1_graph_dict = {}
-        i2Ui1_graph_dict = {}
-        v_corr_idxs_graph_dict: Dict[Tuple[int, int], Delayed] = {}
-        two_view_reports_dict: Dict[str, Dict[Tuple[int, int], Delayed]] = {
-            PRE_BA_REPORT_TAG: {},
-            POST_BA_REPORT_TAG: {},
-            POST_ISP_REPORT_TAG: {},
-        }
-
-        delayed_results: List[Delayed] = []
-        for (i1, i2) in image_pair_indices:
-            # Collect ground truth relative and absolute poses if available.
-            # TODO(johnwlambert): decompose this method -- name it as "calling_the_plate()"
-            # TODO(johnwlambert): decompose this so what happens in the loop is a separate method
-            i2Ri1, i2Ui1, v_corr_idxs, two_view_reports = self.two_view_estimator.create_computation_graph(
-                keypoints_i1=keypoints_list[i1],
-                keypoints_i2=keypoints_list[i2],
-                putative_corr_idxs=putative_corr_idxs_dict[i1, i2],
-                camera_intrinsics_i1=all_intrinsics[i1],
-                camera_intrinsics_i2=all_intrinsics[i2],
-                i2Ti1_prior=relative_pose_priors.get((i1, i2), None),
-                gt_wTi1=gt_wTi_list[i1],
-                gt_wTi2=gt_wTi_list[i2],
-                gt_scene_mesh_graph=gt_scene_mesh,
-            )
-
-            # Store results.
-            i2Ri1_graph_dict[(i1, i2)] = i2Ri1
-            i2Ui1_graph_dict[(i1, i2)] = i2Ui1
-            v_corr_idxs_graph_dict[(i1, i2)] = v_corr_idxs
-            for token in (PRE_BA_REPORT_TAG, POST_BA_REPORT_TAG, POST_ISP_REPORT_TAG):
-                two_view_reports_dict[token][(i1, i2)] = two_view_reports[token]
-
-            # Visualize verified two-view correspondences.
-            annotation = dask.annotate(workers=self._output_worker) if self._output_worker else dask.annotate()
-            with annotation:
-                if self._save_two_view_correspondences_viz:
-                    delayed_results.append(
-                        dask.delayed(viz_utils.save_twoview_correspondences_viz)(
-                            image_graph[i1],
-                            image_graph[i2],
-                            keypoints_list[i1],
-                            keypoints_list[i2],
-                            v_corr_idxs,
-                            two_view_report=two_view_reports[PRE_BA_REPORT_TAG],
-                            file_path=os.path.join(self._plot_correspondence_path, f"{i1}_{i2}.jpg"),
-                        )
-                    )
-
-        return i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict, two_view_reports_dict, delayed_results
-
     def create_computation_graph(
         self,
         keypoints_list: List[Keypoints],
-        putative_corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
+        i2Ri1_dict: Dict[Tuple[int, int], Rot3],
+        i2Ui1_dict: Dict[Tuple[int, int], Unit3],
+        v_corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
+        two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
         num_images: int,
-        image_pair_indices: List[Tuple[int, int]],
-        image_graph: List[Delayed],
-        all_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
+        images: List[Delayed],
+        camera_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
         absolute_pose_priors: List[Optional[PosePrior]],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
         gt_wTi_list: List[Optional[Pose3]],
         gt_scene_mesh: Optional[Trimesh] = None,
-    ) -> Tuple[Delayed, List[Delayed]]:
+    ) -> Tuple[Delayed, List[Delayed], List[Delayed]]:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
         logger.info(f"Results, plots, and metrics will be saved at {self.output_root}")
 
-        # Auxiliary graph elements for visualizations and saving intermediate data for analysis.
-        (
-            i2Ri1_graph_dict,
-            i2Ui1_graph_dict,
-            v_corr_idxs_graph_dict,
-            two_view_reports_dict,
-            delayed_results,
-        ) = self.create_computation_graph_for_frontend(
-            keypoints_list=keypoints_list,
-            putative_corr_idxs_dict=putative_corr_idxs_dict,
-            image_pair_indices=image_pair_indices,
-            image_graph=image_graph,
-            all_intrinsics=all_intrinsics,
-            relative_pose_priors=relative_pose_priors,
-            gt_wTi_list=gt_wTi_list,
-            gt_scene_mesh=gt_scene_mesh,
-        )
+        delayed_results: List[Delayed] = []
 
         # Note: the MultiviewOptimizer returns BA input and BA output that are aligned to GT via Sim(3).
         (
@@ -233,46 +154,61 @@ class SceneOptimizer:
             view_graph_two_view_reports,
             optimizer_metrics_graph,
         ) = self.multiview_optimizer.create_computation_graph(
-            image_graph,
-            num_images,
-            keypoints_list,
-            i2Ri1_graph_dict,
-            i2Ui1_graph_dict,
-            v_corr_idxs_graph_dict,
-            all_intrinsics,
-            absolute_pose_priors,
-            relative_pose_priors,
-            two_view_reports_dict[POST_ISP_REPORT_TAG],
-            cameras_gt,
-            gt_wTi_list,
-            self.output_root,
+            images=images,
+            num_images=num_images,
+            keypoints_list=keypoints_list,
+            i2Ri1_dict=i2Ri1_dict,
+            i2Ui1_dict=i2Ui1_dict,
+            v_corr_idxs_dict=v_corr_idxs_dict,
+            all_intrinsics=camera_intrinsics,
+            absolute_pose_priors=absolute_pose_priors,
+            relative_pose_priors=relative_pose_priors,
+            two_view_reports_dict=two_view_reports,
+            cameras_gt=cameras_gt,
+            gt_wTi_list=gt_wTi_list,
+            output_root=self.output_root,
         )
         if view_graph_two_view_reports is not None:
-            two_view_reports_dict[VIEWGRAPH_REPORT_TAG] = view_graph_two_view_reports
+            two_view_reports_post_viewgraph_estimator = view_graph_two_view_reports
 
         # Persist all front-end metrics and their summaries.
         # TODO(akshay-krishnan): this delays saving the frontend reports until MVO has completed, not ideal.
         metrics_graph_list: List[Delayed] = []
+        save_retrieval_metrics = self.retriever._matching_regime in [
+            ImageMatchingRegime.RETRIEVAL,
+            ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL,
+        ]
         annotation = dask.annotate(workers=self._output_worker) if self._output_worker else dask.annotate()
         with annotation:
-            for tag, report_dict in two_view_reports_dict.items():
-                delayed_results.append(
-                    dask.delayed(save_full_frontend_metrics)(
-                        report_dict,
-                        image_graph,
-                        filename="two_view_report_{}.json".format(tag),
-                        matching_regime=self.retriever._matching_regime,
-                        metrics_path=self._metrics_path,
-                        plot_base_path=self._plot_base_path,
-                    )
+            delayed_results.append(
+                dask.delayed(save_full_frontend_metrics)(
+                    two_view_reports,
+                    images,
+                    filename="two_view_report_{}.json".format(POST_ISP_REPORT_TAG),
+                    save_retrieval_metrics=save_retrieval_metrics,
+                    metrics_path=self._metrics_path,
+                    plot_base_path=self._plot_base_path,
                 )
-                metrics_graph_list.append(
-                    dask.delayed(two_view_estimator.aggregate_frontend_metrics)(
-                        report_dict,
-                        self._pose_angular_error_thresh,
-                        metric_group_name="verifier_summary_{}".format(tag),
-                    )
+            )
+
+            # TODO(Ayush): pass only image name instead of the whole image. And delete images from memory.
+            delayed_results.append(
+                dask.delayed(save_full_frontend_metrics)(
+                    two_view_reports_post_viewgraph_estimator,
+                    images,
+                    filename="two_view_report_{}.json".format(VIEWGRAPH_REPORT_TAG),
+                    save_retrieval_metrics=save_retrieval_metrics,
+                    metrics_path=self._metrics_path,
+                    plot_base_path=self._plot_base_path,
                 )
+            )
+            metrics_graph_list.append(
+                dask.delayed(two_view_estimator.aggregate_frontend_metrics)(
+                    two_view_reports_post_viewgraph_estimator,
+                    self._pose_angular_error_thresh,
+                    metric_group_name="verifier_summary_{}".format(VIEWGRAPH_REPORT_TAG),
+                )
+            )
 
         # aggregate metrics for multiview optimizer
         if optimizer_metrics_graph is not None:
@@ -286,9 +222,9 @@ class SceneOptimizer:
         annotation = dask.annotate(workers=self._output_worker) if self._output_worker else dask.annotate()
         with annotation:
             if self._save_gtsfm_data:
-                delayed_results.extend(
-                    save_gtsfm_data(
-                        image_graph,
+                delayed_results.append(
+                    dask.delayed(save_gtsfm_data)(
+                        images,
                         ba_input_graph,
                         ba_output_graph,
                         results_path=self._results_path,
@@ -297,7 +233,7 @@ class SceneOptimizer:
                 )
                 if self._save_3d_viz:
                     delayed_results.extend(
-                        save_visualizations(
+                        save_matplotlib_visualizations(
                             aligned_ba_input_graph=ba_input_graph,
                             aligned_ba_output_graph=ba_output_graph,
                             gt_pose_graph=gt_wTi_list,
@@ -307,7 +243,7 @@ class SceneOptimizer:
                     )
 
         if self.run_dense_optimizer and self.dense_multiview_optimizer is not None:
-            img_dict_graph = dask.delayed(get_image_dictionary)(image_graph)
+            img_dict_graph = dask.delayed(get_image_dictionary)(images)
             (
                 dense_points_graph,
                 dense_point_colors_graph,
@@ -326,7 +262,7 @@ class SceneOptimizer:
                     )
                 )
 
-            # Add metrics for dense reconstruction and voxel downsampling
+            # Add metrics for dense reconstruction and voxel downsampling.
             if densify_metrics_graph is not None:
                 metrics_graph_list.append(densify_metrics_graph)
             if downsampling_metrics_graph is not None:
@@ -334,11 +270,9 @@ class SceneOptimizer:
 
         # Save metrics to JSON and generate HTML report.
         annotation = dask.annotate(workers=self._output_worker) if self._output_worker else dask.annotate()
-        with annotation:
-            delayed_results.extend(save_metrics_reports(metrics_graph_list, metrics_path=self._metrics_path))
 
         # return the entry with just the sfm result
-        return ba_output_graph, delayed_results
+        return ba_output_graph, delayed_results, metrics_graph_list
 
 
 def get_image_dictionary(image_list: List[Image]) -> Dict[int, Image]:
@@ -374,14 +308,14 @@ def align_estimated_gtsfm_data(
     return ba_input, ba_output, gt_wTi_list
 
 
-def save_visualizations(
+def save_matplotlib_visualizations(
     aligned_ba_input_graph: Delayed,
     aligned_ba_output_graph: Delayed,
     gt_pose_graph: List[Optional[Delayed]],
     plot_ba_input_path: Path,
     plot_results_path: Path,
 ) -> List[Delayed]:
-    """Save SfmData before and after bundle adjustment and camera poses for visualization.
+    """Visualizes GtsfmData & camera poses before and after bundle adjustment using Matplotlib.
 
     Accepts delayed GtsfmData before and after bundle adjustment, along with GT poses,
     saves them and returns a delayed object.
@@ -430,94 +364,64 @@ def get_gtsfm_data_with_gt_cameras_and_est_tracks(
 
 
 def save_gtsfm_data(
-    image_graph: List[Delayed],
-    ba_input_graph: Delayed,
-    ba_output_graph: Delayed,
+    images: List[Image],
+    ba_input_data: GtsfmData,
+    ba_output_data: GtsfmData,
     results_path: Path,
     cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
-) -> List[Delayed]:
+) -> None:
     """Saves the Gtsfm data before and after bundle adjustment.
 
     Args:
-        image_graph: Input image wrapped as Delayed objects.
-        ba_input_graph: GtsfmData input to bundle adjustment wrapped as Delayed.
-        ba_output_graph: GtsfmData output to bundle adjustment wrapped as Delayed.
+        images: Input images.
+        ba_input_data: GtsfmData input to bundle adjustment.
+        ba_output_data: GtsfmData output to bundle adjustment.
         results_path: Path to directory where GTSFM results will be saved.
-
-    Returns:
-        A list of delayed objects after saving the input and outputs to bundle adjustment.
     """
-    saving_graph_list = []
-    # Save a duplicate in REACT_RESULTS_PATH.
-    for output_dir in [results_path, REACT_RESULTS_PATH]:
-        # Save the input to Bundle Adjustment (from data association).
-        saving_graph_list.append(
-            dask.delayed(io_utils.export_model_as_colmap_text)(
-                gtsfm_data=ba_input_graph,
-                images=image_graph,
-                save_dir=os.path.join(output_dir, "ba_input"),
-            )
-        )
-        # Save the output of Bundle Adjustment.
-        saving_graph_list.append(
-            dask.delayed(io_utils.export_model_as_colmap_text)(
-                gtsfm_data=ba_output_graph,
-                images=image_graph,
-                save_dir=os.path.join(output_dir, "ba_output"),
-            )
-        )
+    start_time = time.time()
 
-        # Save the ground truth in the same format, for visualization.
-        # We use the estimated tracks here, with ground truth camera poses.
-        gt_gtsfm_data = dask.delayed(get_gtsfm_data_with_gt_cameras_and_est_tracks)(cameras_gt, ba_output_graph)
-        saving_graph_list.append(
-            dask.delayed(io_utils.export_model_as_colmap_text)(
-                gtsfm_data=gt_gtsfm_data,
-                images=image_graph,
-                save_dir=os.path.join(output_dir, "ba_output_gt"),
-            )
-        )
-
-    return saving_graph_list
-
-
-def save_metrics_reports(metrics_graph_list: List[Delayed], metrics_path: Path) -> List[Delayed]:
-    """Saves metrics to JSON and HTML report.
-
-    Args:
-        metrics_graph: List of GtsfmMetricsGroup from different modules wrapped as Delayed.
-        metrics_path: Path to directory where computed metrics will be saved.
-
-    Returns:
-        List of delayed objects after saving metrics.
-    """
-    save_metrics_graph_list: List[Delayed] = []
-
-    if len(metrics_graph_list) == 0:
-        return save_metrics_graph_list
-
-    # Save metrics to JSON
-    save_metrics_graph_list.append(dask.delayed(metrics_utils.save_metrics_as_json)(metrics_graph_list, metrics_path))
-    save_metrics_graph_list.append(
-        dask.delayed(metrics_utils.save_metrics_as_json)(metrics_graph_list, REACT_METRICS_PATH)
+    output_dir = results_path
+    # Save the input to Bundle Adjustment (from data association).
+    io_utils.export_model_as_colmap_text(
+        gtsfm_data=ba_input_data,
+        images=images,
+        save_dir=os.path.join(output_dir, "ba_input"),
     )
-    save_metrics_graph_list.append(
-        dask.delayed(metrics_report.generate_metrics_report_html)(
-            metrics_graph_list,
-            os.path.join(metrics_path, "gtsfm_metrics_report.html"),
-            None,
-        )
+
+    # Save the output of Bundle Adjustment.
+    io_utils.export_model_as_colmap_text(
+        gtsfm_data=ba_output_data,
+        images=images,
+        save_dir=os.path.join(output_dir, "ba_output"),
     )
-    return save_metrics_graph_list
+
+    # Save the ground truth in the same format, for visualization.
+    # We use the estimated tracks here, with ground truth camera poses.
+    gt_gtsfm_data = get_gtsfm_data_with_gt_cameras_and_est_tracks(cameras_gt, ba_output_data)
+
+    io_utils.export_model_as_colmap_text(
+        gtsfm_data=gt_gtsfm_data,
+        images=images,
+        save_dir=os.path.join(output_dir, "ba_output_gt"),
+    )
+
+    # Delete old version of React results directory.
+    shutil.rmtree(REACT_RESULTS_PATH)
+    # Save a duplicate copy of the directory in REACT_RESULTS_PATH.
+    shutil.copytree(src=results_path, dst=REACT_RESULTS_PATH)
+
+    end_time = time.time()
+    duration_sec = end_time - start_time
+    logger.info("GtsfmData I/O took %.2f sec.", duration_sec)
 
 
 def save_full_frontend_metrics(
     two_view_report_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
     images: List[Image],
     filename: str,
-    matching_regime: ImageMatchingRegime,
     metrics_path: Path,
     plot_base_path: Path,
+    save_retrieval_metrics: bool = True,
 ) -> None:
     """Converts the TwoViewEstimationReports for all image pairs to a Dict and saves it as JSON.
 
@@ -529,41 +433,7 @@ def save_full_frontend_metrics(
         metrics_path: Path to directory where metrics will be saved.
         plot_base_path: Path to directory where plots will be saved.
     """
-    metrics_list = []
-
-    round_fn = lambda x: round(x, PRINT_NUM_SIG_FIGS) if x else None
-
-    for (i1, i2), report in two_view_report_dict.items():
-
-        # Note: if GT is unknown, then R_error_deg, U_error_deg, and inlier_ratio_gt_model will be None
-        metrics_list.append(
-            {
-                "i1": int(i1),
-                "i2": int(i2),
-                "i1_filename": images[i1].file_name,
-                "i2_filename": images[i2].file_name,
-                "rotation_angular_error": round_fn(report.R_error_deg),
-                "translation_angular_error": round_fn(report.U_error_deg),
-                "num_inliers_gt_model": int(report.num_inliers_gt_model)
-                if report.num_inliers_gt_model is not None
-                else None,
-                "inlier_ratio_gt_model": round_fn(report.inlier_ratio_gt_model),
-                "inlier_avg_reproj_error_gt_model": round_fn(
-                    np.nanmean(report.reproj_error_gt_model[report.v_corr_idxs_inlier_mask_gt])
-                )
-                if report.reproj_error_gt_model is not None and report.v_corr_idxs_inlier_mask_gt is not None
-                else None,
-                "outlier_avg_reproj_error_gt_model": round_fn(
-                    np.nanmean(report.reproj_error_gt_model[np.logical_not(report.v_corr_idxs_inlier_mask_gt)])
-                )
-                if report.reproj_error_gt_model is not None and report.v_corr_idxs_inlier_mask_gt is not None
-                else None,
-                "inlier_ratio_est_model": round_fn(report.inlier_ratio_est_model),
-                "num_inliers_est_model": int(report.num_inliers_est_model)
-                if report.num_inliers_est_model is not None
-                else None,
-            }
-        )
+    metrics_list = two_view_estimator.get_two_view_reports_summary(two_view_report_dict, images)
 
     io_utils.save_json_file(os.path.join(metrics_path, filename), metrics_list)
 
@@ -572,12 +442,8 @@ def save_full_frontend_metrics(
 
     # All retreival metrics need GT, no need to save them if GT is not available.
     gt_available = any([report.R_error_deg is not None for report in two_view_report_dict.values()])
-    if not gt_available:
-        return
 
-    if matching_regime not in [ImageMatchingRegime.RETRIEVAL, ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL]:
-        return
-    if "VIEWGRAPH_2VIEW_REPORT" in filename:
+    if save_retrieval_metrics and "VIEWGRAPH_2VIEW_REPORT" in filename and gt_available:
         # must come after two-view report file is written to disk in the Dask dependency graph.
         _save_retrieval_two_view_metrics(metrics_path, plot_base_path)
 

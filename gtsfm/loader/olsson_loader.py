@@ -3,7 +3,6 @@
 Authors: John Lambert
 """
 
-import glob
 import os
 from pathlib import Path
 from typing import List, Optional
@@ -37,7 +36,6 @@ class OlssonLoader(LoaderBase):
     def __init__(
         self,
         folder: str,
-        image_extension: str = "jpg",
         use_gt_intrinsics: bool = True,
         use_gt_extrinsics: bool = True,
         max_frame_lookahead: int = 20,
@@ -47,7 +45,6 @@ class OlssonLoader(LoaderBase):
 
         Args:
             folder: the base folder for a given scene
-            image_extension: file extension for the image files. Defaults to 'jpg'.
             use_gt_intrinsics: whether to use ground truth intrinsics
             use_gt_extrinsics: whether to use ground truth extrinsics
             max_resolution: integer representing maximum length of image's short side, i.e.
@@ -60,13 +57,7 @@ class OlssonLoader(LoaderBase):
         self._use_gt_extrinsics = use_gt_extrinsics
         self._max_frame_lookahead = max_frame_lookahead
 
-        # fetch all the file names in /images folder
-        search_path = os.path.join(folder, "images", f"*.{image_extension}")
-
-        self._image_paths = glob.glob(search_path)
-
-        # sort the file names
-        self._image_paths.sort()
+        self._image_paths = io_utils.get_sorted_image_names_in_dir(os.path.join(folder, "images"))
         self._num_imgs = len(self._image_paths)
 
         if self._num_imgs == 0:

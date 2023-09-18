@@ -2,6 +2,7 @@
 
 Authors: Ayush Baid, John Lambert
 """
+import glob
 import os
 import pickle
 from bz2 import BZ2File
@@ -22,6 +23,7 @@ import gtsfm.utils.images as image_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.reprojection as reproj_utils
 import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
+import thirdparty.colmap.scripts.python.read_write_model as colmap_io
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.common.sfm_track import SfmTrack2d
@@ -30,6 +32,9 @@ from thirdparty.colmap.scripts.python.read_write_model import Image as ColmapIma
 from thirdparty.colmap.scripts.python.read_write_model import Point3D as ColmapPoint3D
 
 logger = logger_utils.get_logger()
+
+
+IMG_EXTENSIONS = ["png", "PNG", "jpg", "JPG"]
 
 
 def load_image(img_path: str) -> Image:
@@ -160,9 +165,9 @@ def export_model_as_colmap_text(gtsfm_data: GtsfmData, images: List[Image], save
     Three text files will be save to disk: "points3D.txt", "images.txt", and "cameras.txt".
 
     Args:
-        gtsfm_data: scene data to write.
-        images: list of all images for this scene, in order of image index.
-        save_dir: folder where text files will be saved.
+        gtsfm_data: Scene data to write.
+        images: List of all images for this scene, in order of image index.
+        save_dir: Folder where text files will be saved.
     """
     write_cameras(gtsfm_data, images, save_dir)
     write_images(gtsfm_data, images, save_dir)
@@ -174,18 +179,22 @@ def colmap2gtsfm(
     images: Dict[int, ColmapImage],
     points3D: Dict[int, ColmapPoint3D],
     load_sfmtracks: bool = False,
-) -> Tuple[List[str], List[Pose3], List[str], Optional[List[Point3]]]:
+) -> Tuple[List[str], List[Pose3], List[str], Optional[List[Point3]], np.ndarray, np.ndarray]:
     """Converts COLMAP-formatted variables to GTSfM format.
+
     Args:
-        cameras: dictionary of COLMAP-formatted Cameras
-        images: dictionary of COLMAP-formatted Images
-        points3D: dictionary of COLMAP-formatted Point3Ds
-        return_tracks (optional): whether or not to return tracks
+        cameras: Dictionary of COLMAP-formatted Cameras.
+        images: Dictionary of COLMAP-formatted Images.
+        points3D: Dictionary of COLMAP-formatted Point3Ds.
+        return_tracks (optional): Whether or not to return tracks.
+
     Returns:
-        img_fnames: file names of images in images_gtsfm
-        wTi_gtsfm: list of N camera poses when each image was taken
-        intrinsics_gtsfm: list of N camera calibrations corresponding to the N images in images_gtsfm
-        sfmtracks_gtsfm: tracks of points in points3D
+        img_fnames: File names of images in images_gtsfm.
+        wTi_gtsfm: List of N camera poses when each image was taken.
+        intrinsics_gtsfm: List of N camera calibrations corresponding to the N images in images_gtsfm.
+        sfmtracks_gtsfm: Tracks of points in points3D.
+        point_cloud: (N,3) array representing xyz coordinates of 3d points.
+        rgb: Uint8 array of shape (N,3) representing per-point colors.
     """
     # Note: Assumes input cameras use `PINHOLE` model
     if len(images) == 0 and len(cameras) == 0:
@@ -206,14 +215,18 @@ def colmap2gtsfm(
         sfmtracks_gtsfm = []
         for point3D in points3D.values():
             sfmtrack = SfmTrack(point3D.xyz)
-            for (image_id, point2d_idx) in zip(point3D.image_ids, point3D.point2D_idxs):
+            for image_id, point2d_idx in zip(point3D.image_ids, point3D.point2D_idxs):
                 sfmtrack.addMeasurement(image_id_to_idx[image_id], images[image_id].xys[point2d_idx])
             sfmtracks_gtsfm.append(sfmtrack)
 
-    return img_fnames, wTi_gtsfm, intrinsics_gtsfm, sfmtracks_gtsfm
+    point_cloud = np.array([point3d.xyz for point3d in points3D.values()])
+    rgb = np.array([point3d.rgb for point3d in points3D.values()])
+    return img_fnames, wTi_gtsfm, intrinsics_gtsfm, sfmtracks_gtsfm, point_cloud, rgb
 
 
-def read_cameras_txt(fpath: str) -> Optional[List[Cal3Bundler]]:
+def read_cameras_txt(
+    fpath: str,
+) -> Tuple[Optional[List[Cal3Bundler]], Optional[Tuple[int, int]]]:
     """Read camera calibrations from a COLMAP-formatted cameras.txt file.
 
     Reference: https://colmap.github.io/format.html#cameras-txt
@@ -222,11 +235,13 @@ def read_cameras_txt(fpath: str) -> Optional[List[Cal3Bundler]]:
         fpaths: path to cameras.txt file
 
     Returns:
-        calibration object for each camera, or None if requested file is non-existent
+        Tuple of:
+            List of calibration objects for each camera, and list of dimensions of each img (H, W).
+        Or (None, None) if fpath does not exist.
     """
     if not Path(fpath).exists():
         logger.info("%s does not exist", fpath)
-        return None
+        return None, None
 
     with open(fpath, "r") as f:
         lines = f.readlines()
@@ -235,8 +250,8 @@ def read_cameras_txt(fpath: str) -> Optional[List[Cal3Bundler]]:
     num_cams = int(lines[2].replace("# Number of cameras: ", "").strip())
 
     calibrations = []
+    img_dims = []
     for line in lines[3:]:
-
         cam_params = line.split()
         # Note that u0 is px, and v0 is py
         model = cam_params[1]
@@ -248,7 +263,6 @@ def read_cameras_txt(fpath: str) -> Optional[List[Cal3Bundler]]:
             # Convert COLMAP's SIMPLE_RADIAL to GTSAM's Cal3Bundler:
             # Add second radial distortion coefficient of value zero.
             k2 = 0
-            calibrations.append(Cal3Bundler(fx, k1, k2, u0, v0))
         elif model == "RADIAL":
             _, _, img_w, img_h, fx, u0, v0, k1, k2 = cam_params[:9]
             img_w, img_h, fx, u0, v0, k1, k2 = (
@@ -260,10 +274,10 @@ def read_cameras_txt(fpath: str) -> Optional[List[Cal3Bundler]]:
                 float(k1),
                 float(k2),
             )
-            calibrations.append(Cal3Bundler(fx, k1, k2, u0, v0))
-
+        calibrations.append(Cal3Bundler(fx, k1, k2, u0, v0))
+        img_dims.append((img_h, img_w))
     assert len(calibrations) == num_cams
-    return calibrations
+    return calibrations, img_dims
 
 
 def write_cameras(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> None:
@@ -317,11 +331,11 @@ def read_images_txt(fpath: str) -> Tuple[Optional[List[Pose3]], Optional[List[st
         to the bottom, and the Z axis to the front as seen from the image."
 
     Args:
-        fpath: path to images.txt file
+        fpath: Path to images.txt file
 
     Returns:
-        wTi_list: list of camera poses for each image, or None if file path invalid
-        img_fnames: name of image file, for each image, or None if file path invalid
+        wTi_list: List of camera poses for each image, or None if file path invalid
+        img_fnames: Name of image file, for each image, or None if file path invalid
     """
     if not Path(fpath).exists():
         logger.info("%s does not exist", fpath)
@@ -342,7 +356,20 @@ def read_images_txt(fpath: str) -> Tuple[Optional[List[Pose3]], Optional[List[st
         wTi_list.append(wTi)
         img_fnames.append(img_fname)
 
-    return wTi_list, img_fnames
+    # TODO(johnwlambert): Re-order tracks for COLMAP-formatted .bin files.
+    wTi_list_sorted, img_fnames_sorted = sort_image_filenames_lexigraphically(wTi_list, img_fnames)
+
+    return wTi_list_sorted, img_fnames_sorted
+
+
+def sort_image_filenames_lexigraphically(wTi_list: List[Pose3], img_fnames: List[str]) -> Tuple[List[Pose3], List[str]]:
+    """Sort a list of camera poses according to provided image file names."""
+    sorted_idxs = sorted(range(len(img_fnames)), key=lambda i: img_fnames[i])
+
+    wTi_list_sorted = [wTi_list[i] for i in sorted_idxs]
+    img_fnames_sorted = [img_fnames[i] for i in sorted_idxs]
+
+    return wTi_list_sorted, img_fnames_sorted
 
 
 def write_images(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> None:
@@ -354,9 +381,9 @@ def write_images(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> N
     which COLMAP refers to as the "reconstructed cameras".
 
     Args:
-        gtsfm_data: scene data to write.
-        images: list of all images for this scene, in order of image index.
-        save_dir: folder to put the images.txt file in.
+        gtsfm_data: Scene data to write.
+        images: List of all images for this scene, in order of image index.
+        save_dir: Folder to put the images.txt file in.
     """
     os.makedirs(save_dir, exist_ok=True)
 
@@ -410,11 +437,11 @@ def read_points_txt(fpath: str) -> Tuple[Optional[np.ndarray], Optional[np.ndarr
     Reference: https://colmap.github.io/format.html#points3d-txt
 
     Args:
-        fpath: absolute file path to points.txt file
+        fpath: Absolute file path to points.txt file.
 
     Returns:
-        point_cloud: float array of shape (N,3)
-        rgb: uint8 array of shape (N,3)
+        point_cloud: Float array of shape (N,3) representing per-point x/y/z coordinates.
+        rgb: Uint8 array of shape (N,3) representing per-point colors.
     """
     if not Path(fpath).exists():
         logger.info("%s does not exist", fpath)
@@ -450,16 +477,54 @@ def read_points_txt(fpath: str) -> Tuple[Optional[np.ndarray], Optional[np.ndarr
     return point_cloud, rgb
 
 
-def read_scene(
-    images_fpath: str, cameras_fpath: str, points_fpath: str
-) -> Tuple[List[Pose3], List[str], List[Cal3Bundler], np.ndarray, np.ndarray]:
-    """Reads in full scene reconstruction model."""
-    wTi_list, img_fnames = read_images_txt(images_fpath)
-    calibrations = read_cameras_txt(cameras_fpath)
-    point_cloud, rgb = read_points_txt(points_fpath)
+def read_scene_data_from_colmap_format(
+    data_dir: str,
+) -> Tuple[List[Pose3], List[str], List[Cal3Bundler], np.ndarray, np.ndarray, List[Tuple[int, int]]]:
+    """Reads in full scene reconstruction model from scene data stored in the COLMAP file format.
+
+    Reference: https://colmap.github.io/format.html
+
+    Args:
+        data_dir: This directory should contain 3 files: either `cameras.txt`, `images.txt`, and `points3D.txt`, or
+            `cameras.bin`, `images.bin`, and `points3D.bin`.
+
+    Returns:
+        5-tuple of:
+            wTi_list: List of camera poses for each image.
+            img_fnames: List of image file names, for each image.
+            calibrations: Calibration object for each camera.
+            point_cloud: Float array of shape (N,3) representing per-point x/y/z coordinates.
+            rgb: Uint8 array of shape (N,3) representing per-point colors.
+    """
+    # Determine whether scene data is stored in a text (txt) or binary (bin) file format.
+    if Path(data_dir, "images.txt").exists():
+        file_format = "txt"
+    elif Path(data_dir, "images.bin").exists():
+        file_format = "bin"
+    else:
+        raise ValueError(
+            f"Unknown file format, as neither `{data_dir}/images.txt` or `{data_dir}/images.bin` could be found."
+        )
+
+    if file_format == "txt":
+        # TODO(johnwlambert): Consider unifying interfaces by using `colmap_io.read_model` for txt reading also.
+        points_fpath = f"{data_dir}/points3D.txt"
+        images_fpath = f"{data_dir}/images.txt"
+        cameras_fpath = f"{data_dir}/cameras.txt"
+        wTi_list, img_fnames = read_images_txt(images_fpath)
+        calibrations, img_dims = read_cameras_txt(cameras_fpath)
+        point_cloud, rgb = read_points_txt(points_fpath)
+
+    elif file_format == "bin":
+        cameras, images, points3d = colmap_io.read_model(path=data_dir, ext=".bin")
+        img_fnames, wTi_list, calibrations, _, point_cloud, rgb = colmap2gtsfm(
+            cameras, images, points3d, load_sfmtracks=False
+        )
+
     if any(x is None for x in [wTi_list, img_fnames, calibrations, point_cloud, rgb]):
         raise RuntimeError("One or more of the requested model data products was not found.")
-    return wTi_list, img_fnames, calibrations, point_cloud, rgb
+    print(f"Loaded {len(wTi_list)} cameras with {point_cloud.shape[0]} points.")
+    return wTi_list, img_fnames, calibrations, point_cloud, rgb, img_dims
 
 
 def write_points(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> None:
@@ -468,9 +533,9 @@ def write_points(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> N
     Reference: https://colmap.github.io/format.html#points3d-txt
 
     Args:
-        gtsfm_data: scene data to write.
-        images: list of all images for this scene, in order of image index
-        save_dir: folder to put the points3D.txt file in.
+        gtsfm_data: Scene data to write.
+        images: List of all images for this scene, in order of image index
+        save_dir: Folder to put the points3D.txt file in.
     """
     os.makedirs(save_dir, exist_ok=True)
 
@@ -550,9 +615,9 @@ def save_point_cloud_as_ply(save_fpath: str, points: np.ndarray, rgb: Optional[n
     """Save a point cloud as a .ply file.
 
     Args:
-        save_fpath: absolute file path where PLY file should be saved.
-        points: float array of shape (N,3) representing a 3d point cloud.
-        rgb: uint8 array of shape (N,3) representing an RGB color per point.
+        save_fpath: Absolute file path where PLY file should be saved.
+        points: Float array of shape (N,3) representing a 3d point cloud.
+        rgb: Uint8 array of shape (N,3) representing an RGB color per point.
     """
     if rgb is None:
         # If no colors are provided, then color all points uniformly as black.
@@ -568,11 +633,28 @@ def read_point_cloud_from_ply(ply_fpath: str) -> Tuple[np.ndarray, np.ndarray]:
     """Read a point cloud from a .ply file.
 
     Args:
-        ply_fpath: absolute file path where PLY file is located on disk.
+        ply_fpath: Absolute file path where PLY file is located on disk.
 
     Returns:
-        points: float array of shape (N,3) representing a 3d point cloud.
-        rgb: uint8 array of shape (N,3) representing an RGB color per point.
+        points: Float array of shape (N,3) representing a 3d point cloud.
+        rgb: Uint8 array of shape (N,3) representing an RGB color per point.
     """
     pointcloud = open3d.io.read_point_cloud(ply_fpath)
     return open3d_vis_utils.convert_colored_open3d_point_cloud_to_numpy(pointcloud)
+
+
+def get_sorted_image_names_in_dir(dir_path: str) -> List[str]:
+    """Finds all jpg and png images in directory and returns their names in sorted order.
+
+    Args:
+        dir_path: Path to directory containing images.
+
+    Returns:
+        image_paths: List of image names in sorted order.
+    """
+    image_paths = []
+    for extension in IMG_EXTENSIONS:
+        search_path = os.path.join(dir_path, f"*.{extension}")
+        image_paths.extend(glob.glob(search_path))
+
+    return sorted(image_paths)

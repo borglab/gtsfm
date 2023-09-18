@@ -250,11 +250,11 @@ class ViewGraphEstimatorBase(GTSFMProcess):
 
     def create_computation_graph(
         self,
-        i2Ri1_dict: Dict[Tuple[int, int], Delayed],
-        i2Ui1_dict: Dict[Tuple[int, int], Delayed],
+        i2Ri1_dict: Dict[Tuple[int, int], Rot3],
+        i2Ui1_dict: Dict[Tuple[int, int], Unit3],
         calibrations: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
-        corr_idxs_i1i2: Dict[Tuple[int, int], Delayed],
-        keypoints: List[Delayed],
+        corr_idxs_i1i2: Dict[Tuple[int, int], np.ndarray],
+        keypoints: List[Keypoints],
         two_view_reports: Optional[Dict[Tuple[int, int], TwoViewEstimationReport]],
         debug_output_dir: Optional[Path] = None,
     ) -> Tuple[Delayed, Delayed, Delayed, Delayed, Delayed]:
