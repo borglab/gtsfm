@@ -259,16 +259,16 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
         # Loop through tracks and and generate delayed MFAS tasks.
         batch_size = int(np.ceil(len(projection_directions) / MAX_DELAYED_CALLS))
-        outlier_weights: List[Any] = []
+        batched_outlier_weights: List[Any] = []
         if batch_size == 1:
             logger.info("BATCH SIZE 1")
             for direction in projection_directions:
-                outlier_weights.append(
+                batched_outlier_weights.append(
                     dask.delayed(MFASWrapper)(MFAS, future_w_i2Ui1_dict, future_w_iUj_dict_tracks, direction)
                 )
         else:
             for j in range(0, len(projection_directions), batch_size):
-                outlier_weights.append(
+                batched_outlier_weights.append(
                     dask.delayed(MFASWrapper)(
                         MFAS, future_w_i2Ui1_dict, future_w_iUj_dict_tracks, projection_directions[j : j + batch_size]
                     )
@@ -280,16 +280,17 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         #     outlier_weights.append(dask.delayed(MFASWrapper)(MFAS, w_i2Ui1_dict, w_iUj_dict_tracks, direction))
 
         # Compute outlier weights in parallel.
-        outlier_weights = dask.compute(*outlier_weights)
+        batched_outlier_weights = dask.compute(*batched_outlier_weights)
         logger.debug("Computed outlier weights using MFAS.")
 
         # Compute average outlier weight.
         outlier_weights_sum: DefaultDict[Tuple[int, int], float] = defaultdict(float)
         inliers = set()
-        for outlier_weight_dict in outlier_weights:
-            for w_i1Ui2 in w_i1Ui2_measurements:
-                i1, i2 = w_i1Ui2.key1(), w_i1Ui2.key2()
-                outlier_weights_sum[(i1, i2)] += outlier_weight_dict.results[(i1, i2)]
+        for batch_outlier_weights in batched_outlier_weights:
+            for outlier_weight_dict in batch_outlier_weights.results:
+                for w_i1Ui2 in w_i1Ui2_measurements:
+                    i1, i2 = w_i1Ui2.key1(), w_i1Ui2.key2()
+                    outlier_weights_sum[(i1, i2)] += outlier_weight_dict[(i1, i2)]
         for (i1, i2), weight_sum in outlier_weights_sum.items():
             if weight_sum / len(projection_directions) < OUTLIER_WEIGHT_THRESHOLD:
                 inliers.add((i1, i2))
