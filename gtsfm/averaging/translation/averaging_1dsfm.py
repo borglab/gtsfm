@@ -74,21 +74,32 @@ DUMMY_NOISE_MODEL = gtsam.noiseModel.Isotropic.Sigma(3, 1e-2)  # MFAS does not u
 
 
 class MFASWrapper(object):
-    def __init__(self, mfas, w_i2Ui1_dict, w_iUj_dict_tracks, directions):
+    def __init__(
+        self,
+        mfas,
+        w_i2Ui1_dict: RelativeDirectionsDict,
+        w_iUj_dict_tracks: RelativeDirectionsDict,
+        directions: List[Unit3],
+    ) -> None:
+        """
+
+        Args:
+            mfas:
+            w_i2Ui1_dict: Dictionary of Unit3 relative translations between cameras.
+            w_i2Ui1_dict_tracks: Dictionary of Unit3 relative translations between cameras and landmarks.
+            directions: Sampled Unit3 projection directions to use.
+        """
         self.mfas = mfas
         self._w_i2Ui1_dict = w_i2Ui1_dict
         self._w_iUj_dict_tracks = w_iUj_dict_tracks
         self._directions = directions
 
-        measurements = TranslationAveraging1DSFM._binary_measurements_from_dict(
+        w_i1Ui2_measurements = TranslationAveraging1DSFM._binary_measurements_from_dict(
             self._w_i2Ui1_dict, self._w_iUj_dict_tracks, DUMMY_NOISE_MODEL
         )
-        # if len(self._directions) == 0:
-        #     self.results = mfas(measurements, self._directions).computeOutlierWeights()
-        # else:
         self.results = []
         for _dir in self._directions:
-            self.results.append(mfas(measurements, _dir).computeOutlierWeights())
+            self.results.append(mfas(w_i1Ui2_measurements, _dir).computeOutlierWeights())
 
     def __reduce__(self):
         return (MFASWrapper, (self.mfas, self._w_i2Ui1_dict, self._w_iUj_dict_tracks, self._directions))
@@ -238,13 +249,6 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             inlier_cameras: Set of inlier cameras.
         """
 
-        # def compute_outlier_weights(w_i2Ui1_dict, w_iUj_dict_tracks, direction):
-        #     dummy_noise_model = gtsam.noiseModel.Isotropic.Sigma(3, 1e-2)  # MFAS does not use this.
-        #     w_i1Ui2_measurements = self._binary_measurements_from_dict(
-        #         w_i2Ui1_dict, w_iUj_dict_tracks, dummy_noise_model
-        #     )
-        #     return MFAS(w_i1Ui2_measurements, direction).computeOutlierWeights()
-
         # Sample directions for projection
         combined_measurements = list(w_i2Ui1_dict.values()) + list(w_iUj_dict_tracks.values())
         projection_directions = self.__sample_projection_directions(combined_measurements)
@@ -252,10 +256,9 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         # Convert to measurements: map indexes to symbols.
         w_i1Ui2_measurements = self._binary_measurements_from_dict(w_i2Ui1_dict, w_iUj_dict_tracks, DUMMY_NOISE_MODEL)
 
-        # Get client and scatter large data.
-        client = get_client()
-        future_w_i2Ui1_dict = client.scatter(w_i2Ui1_dict, broadcast=True)
-        future_w_iUj_dict_tracks = client.scatter(w_iUj_dict_tracks, broadcast=True)
+        # TODO(johnwlambert): Consider getting global client and scattering large data.
+        future_w_i2Ui1_dict = w_i2Ui1_dict
+        future_w_iUj_dict_tracks = w_iUj_dict_tracks
 
         # Loop through tracks and and generate delayed MFAS tasks.
         batch_size = int(np.ceil(len(projection_directions) / MAX_DELAYED_CALLS))
@@ -264,7 +267,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             logger.info("BATCH SIZE 1")
             for direction in projection_directions:
                 batched_outlier_weights.append(
-                    dask.delayed(MFASWrapper)(MFAS, future_w_i2Ui1_dict, future_w_iUj_dict_tracks, direction)
+                    dask.delayed(MFASWrapper)(MFAS, future_w_i2Ui1_dict, future_w_iUj_dict_tracks, [direction])
                 )
         else:
             for j in range(0, len(projection_directions), batch_size):
@@ -273,11 +276,6 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                         MFAS, future_w_i2Ui1_dict, future_w_iUj_dict_tracks, projection_directions[j : j + batch_size]
                     )
                 )
-
-        # # Compute outlier weights using MFAS.
-        # outlier_weights: List[Dict[Tuple[int, int], float]] = []
-        # for direction in projection_directions:
-        #     outlier_weights.append(dask.delayed(MFASWrapper)(MFAS, w_i2Ui1_dict, w_iUj_dict_tracks, direction))
 
         # Compute outlier weights in parallel.
         batched_outlier_weights = dask.compute(*batched_outlier_weights)
