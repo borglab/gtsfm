@@ -126,13 +126,16 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         use_tracks_for_averaging: bool = True,
         reject_outliers: bool = True,
         projection_sampling_method: ProjectionSamplingMethod = ProjectionSamplingMethod.SAMPLE_WITH_UNIFORM_DENSITY,
+        max_delayed_calls: int = MAX_DELAYED_CALLS
     ) -> None:
         """Initializes the 1DSFM averaging instance.
 
         Args:
             robust_measurement_noise: Whether to use a robust noise model for the measurements, defaults to true.
+            use_tracks_for_averaging:
             reject_outliers: whether to perform outlier rejection with MFAS algorithm (default True).
             projection_sampling_method: ProjectionSamplingMethod to be used for directions to run 1DSfM.
+            max_delayed_calls: Maximum number of concurrent delayed tasks to create.
         """
         super().__init__(robust_measurement_noise)
 
@@ -141,6 +144,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         self._reject_outliers = reject_outliers
         self._projection_sampling_method = projection_sampling_method
         self._use_tracks_for_averaging = use_tracks_for_averaging
+        self._max_delayed_calls = max_delayed_calls
 
     def __sample_projection_directions(
         self,
@@ -261,7 +265,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         future_w_iUj_dict_tracks = w_iUj_dict_tracks
 
         # Loop through tracks and and generate delayed MFAS tasks.
-        batch_size = int(np.ceil(len(projection_directions) / MAX_DELAYED_CALLS))
+        batch_size = int(np.ceil(len(projection_directions) / self._max_delayed_calls))
         batched_outlier_weights: List[Any] = []
         if batch_size == 1:
             logger.info("BATCH SIZE 1")
