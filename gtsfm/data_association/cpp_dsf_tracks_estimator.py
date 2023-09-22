@@ -56,7 +56,7 @@ class CppDsfTracksEstimator(TracksEstimatorBase):
                     if kps.coordinates.ndim != 2
                 ]
             )
-            raise Exception(
+            raise ValueError(
                 f"Dimensions for Keypoint coordinates incorrect. Array needs to be 2D, but found {error_str}"
             )
 
@@ -71,11 +71,7 @@ class CppDsfTracksEstimator(TracksEstimatorBase):
         for keypoint in keypoints_list:
             keypoints_vector.append(gtsam.gtsfm.Keypoints(keypoint.coordinates))
 
-        tracks = gtsam.gtsfm.tracksFromPairwiseMatches(
-            matches_map,
-            keypoints_vector,
-            verbose=True,
-        )
+        tracks = gtsam.gtsfm.tracksFromPairwiseMatches(matches_map, keypoints_vector, verbose=True)
 
         track_2d_list = []
         for track in tracks:
