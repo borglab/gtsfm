@@ -323,7 +323,7 @@ def write_cameras(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> 
             f.write(f"{i} {camera_model} {image_width} {image_height} {fx} {u0} {v0} {k1} {k2}\n")
 
 
-def read_images_txt(fpath: str) -> Tuple[Optional[List[Pose3]], Optional[List[str]]]:
+def read_images_txt(fpath: str) -> Tuple[List[Pose3], List[str]]:
     """Read camera poses and image file names from a COLMAP-format images.txt file.
 
     Reference: https://colmap.github.io/format.html#images-txt
@@ -339,17 +339,19 @@ def read_images_txt(fpath: str) -> Tuple[Optional[List[Pose3]], Optional[List[st
     Returns:
         wTi_list: List of camera poses for each image, or None if file path invalid.
         img_fnames: Name of image file, for each image, or None if file path invalid.
+
+    Raises:
+        ValueError: If file path missing.
     """
     if not Path(fpath).exists():
-        logger.info("%s does not exist", fpath)
-        return None, None
+        raise ValueError(f"{fpath} does not exist")
 
     with open(fpath, "r") as f:
         lines = f.readlines()
 
     wTi_list = []
     img_fnames = []
-    # ignore first 4 lines of text -- they contain a description of the file format
+    # Ignore first 4 lines of text -- they contain a description of the file format
     # and a record of the number of reconstructed images.
     for line in lines[4::2]:
         i, qw, qx, qy, qz, tx, ty, tz, i, img_fname = line.split()
