@@ -357,7 +357,7 @@ def read_images_txt(fpath: str) -> Tuple[List[Pose3], List[str]]:
         ValueError: If file path missing.
     """
     if not Path(fpath).exists():
-        raise FileNotError(f"{fpath} does not exist.")
+        raise FileNotFoundError(f"{fpath} does not exist.")
 
     with open(fpath, "r") as f:
         lines = f.readlines()
