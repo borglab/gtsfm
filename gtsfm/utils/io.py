@@ -347,14 +347,14 @@ def read_images_txt(fpath: str) -> Tuple[List[Pose3], List[str]]:
         to the bottom, and the Z axis to the front as seen from the image."
 
     Args:
-        fpath: Path to images.txt file
+        fpath: Path to images.txt file.
 
     Returns:
-        wTi_list: List of camera poses for each image, or None if file path invalid.
-        img_fnames: Name of image file, for each image, or None if file path invalid.
+        wTi_list: List of camera poses for each image.
+        img_fnames: Filename for each image.
 
     Raises:
-        ValueError: If file path missing.
+        ValueError: If file path invalid.
     """
     if not Path(fpath).exists():
         raise FileNotFoundError(f"{fpath} does not exist.")
