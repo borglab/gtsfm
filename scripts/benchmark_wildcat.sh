@@ -6,6 +6,7 @@ now=$(date +"%Y%m%d_%H%M%S")
 
 
 datasets=(
+	gendarmenmarkt-1463
 	palace-fine-arts-281
 	skydio-crane-mast-501
 	2011205_rc3
@@ -84,6 +85,11 @@ for num_matched in ${num_matched_sizes[@]}; do
 					loader=colmap
 					images_dir=/usr/local/gtsfm-data/gerrard-hall-100/images
 					colmap_files_dirpath=/usr/local/gtsfm-data/gerrard-hall-100/colmap-3.7-sparse-txt-2023-07-27
+				elif [[ $dataset == *"gendarmenmarkt-1463"* ]]
+				then
+					loader=colmap
+					images_dir=/usr/local/gtsfm-data/Gendarmenmarkt/images
+					colmap_files_dirpath=/usr/local/gtsfm-data/Gendarmenmarkt/gendarmenmark/im_size_full/0
 				fi
 
 				OUTPUT_ROOT=${USER_ROOT}/${now}/${now}__${dataset}__results__num_matched${num_matched}__maxframelookahead${max_frame_lookahead}__760p__unified_${correspondence_generator_config_name}
