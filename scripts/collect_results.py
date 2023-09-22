@@ -206,6 +206,7 @@ def _make_runtime_pie_chart(experiment_roots: Sequence[Path]) -> None:
         runtime_labels.append("remainder_sec")
         runtimes.append(remainder_runtime)
 
+        # Create uniform purple to yellow colormap to prevent color re-use in pie chart.
         n_colors = len(runtimes)
         cs = cm.viridis(np.arange(n_colors)/n_colors * 1.0)
 
