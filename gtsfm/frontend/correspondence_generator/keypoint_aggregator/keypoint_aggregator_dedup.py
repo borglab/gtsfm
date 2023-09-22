@@ -132,4 +132,3 @@ def _assert_keypoints_rank(keypoints: Keypoints) -> None:
             "[KeypointAggregatorDedup] Dimensions for Keypoint coordinates incorrect. Array needs to be 2D,"
             f" but found {keypoints.coordinates.shape}"
         )
-
