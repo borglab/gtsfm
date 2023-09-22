@@ -19,4 +19,4 @@ class TestCppDsfTracksEstimator(TestDsfTracksEstimator):
         keypoints_list = [Keypoints(np.zeros((0, 2))), Keypoints(np.zeros((0,)))]
 
         with self.assertRaises(ValueError):
-            estimator.run(matches_dict=matches_dict, keypoints_list=keypoints_list)
+            self.estimator.run(matches_dict=matches_dict, keypoints_list=keypoints_list)
