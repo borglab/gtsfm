@@ -13,9 +13,10 @@ class TestCppDsfTracksEstimator(TestDsfTracksEstimator):
     def setUp(self) -> None:
         self.estimator = CppDsfTracksEstimator()
 
-    def test_zero_nonrank2_keypoint_coordinates(self) -> None:
+    def test_nonrank2_keypoint_coordinates_raises(self) -> None:
 
         matches_dict = {(0, 1): np.random.randint(low=0, high=500, size=(100, 2), dtype=np.int32)}
         keypoints_list = [Keypoints(np.zeros((0, 2))), Keypoints(np.zeros((0,)))]
 
-        self.estimator.run(matches_dict=matches_dict, keypoints_list=keypoints_list)
+        with self.assertRaises(ValueError):
+            estimator.run(matches_dict=matches_dict, keypoints_list=keypoints_list)
