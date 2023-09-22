@@ -322,11 +322,7 @@ class GtsfmRunnerBase:
 
         i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, two_view_reports_dict = unzip_two_view_results(two_view_results_dict)
 
-        # annotation = dask.annotate(workers=self._output_worker) if self._output_worker else dask.annotate()
-        # with annotation:
         if self.scene_optimizer._save_two_view_correspondences_viz:
-            # delayed_results.append(
-            #     dask.delayed(
             for (i1, i2) in v_corr_idxs_dict.keys():
                 image_i1 = self.loader.get_image(i1)
                 image_i2 = self.loader.get_image(i2)
@@ -342,8 +338,6 @@ class GtsfmRunnerBase:
                         f"{i1}_{i2}__{image_i1.file_name}_{image_i2.file_name}.jpg",
                     ),
                 )
-            #     )
-            # )
 
         two_view_agg_metrics = two_view_estimator.aggregate_frontend_metrics(
             two_view_reports_dict=two_view_reports_dict,
