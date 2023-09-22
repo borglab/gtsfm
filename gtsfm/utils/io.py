@@ -45,10 +45,10 @@ def load_image(img_path: str) -> Image:
     Images will be converted to RGB if in a different format.
 
     Args:
-        img_path (str): the path of image to load.
+        img_path: The path of image to load.
 
     Returns:
-        loaded image in RGB format.
+        Loaded image in RGB format.
     """
     original_image = PILImage.open(img_path)
 
@@ -76,8 +76,8 @@ def save_image(image: Image, img_path: str) -> None:
     """Saves the image to disk
 
     Args:
-        image (np.array): image
-        img_path (str): the path on disk to save the image to
+        image (np.array): Image.
+        img_path: The path on disk to save the image to.
     """
     im = PILImage.fromarray(image.value_array)
     im.save(img_path)
@@ -137,7 +137,7 @@ def read_bal(file_path: str) -> GtsfmData:
 
 
     Args:
-        file_name: file path of the BAL file.
+        file_name: File path of the BAL file.
 
     Returns:
         The data as an GtsfmData object.
@@ -150,7 +150,7 @@ def read_bundler(file_path: str) -> GtsfmData:
     """Read a Bundler file.
 
     Args:
-        file_name: file path of the Bundler file.
+        file_name: File path of the Bundler file.
 
     Returns:
         The data as an GtsfmData object.
@@ -289,9 +289,9 @@ def write_cameras(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> 
     Reference: https://colmap.github.io/format.html#cameras-txt
 
     Args:
-        gtsfm_data: scene data to write.
-        images: list of all images for this scene, in order of image index
-        save_dir: folder to put the cameras.txt file in.
+        gtsfm_data: Scene data to write.
+        images: List of all images for this scene, in order of image index.
+        save_dir: Folder to put the cameras.txt file in.
     """
     os.makedirs(save_dir, exist_ok=True)
 
@@ -337,8 +337,8 @@ def read_images_txt(fpath: str) -> Tuple[Optional[List[Pose3]], Optional[List[st
         fpath: Path to images.txt file
 
     Returns:
-        wTi_list: List of camera poses for each image, or None if file path invalid
-        img_fnames: Name of image file, for each image, or None if file path invalid
+        wTi_list: List of camera poses for each image, or None if file path invalid.
+        img_fnames: Name of image file, for each image, or None if file path invalid.
     """
     if not Path(fpath).exists():
         logger.info("%s does not exist", fpath)
@@ -455,7 +455,7 @@ def read_points_txt(fpath: str) -> Tuple[Optional[np.ndarray], Optional[np.ndarr
 
     rgb = []
     point_cloud = []
-    # first 3 lines are information about the file format
+    # First 3 lines are information about the file format.
     # line at index 2 will be of the form
     # "# Number of points: 2122, mean track length: 2.8449575871819039"
     points_metadata = data[2]
@@ -538,7 +538,7 @@ def write_points(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> N
 
     Args:
         gtsfm_data: Scene data to write.
-        images: List of all images for this scene, in order of image index
+        images: List of all images for this scene, in order of image index.
         save_dir: Folder to put the points3D.txt file in.
     """
     os.makedirs(save_dir, exist_ok=True)
@@ -581,7 +581,7 @@ def save_track_visualizations(
     """
     os.makedirs(save_dir, exist_ok=True)
 
-    # save each 2d track
+    # Save each 2d track.
     for i, track in enumerate(tracks_2d):
         patches = []
         for m in track.measurements:
