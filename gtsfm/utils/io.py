@@ -206,7 +206,7 @@ def colmap2gtsfm(
         wTi_gtsfm.append(Pose3(Rot3(img.qvec2rotmat()), img.tvec).inverse())
         img_fnames.append(img.name)
         camera_model_name = cameras[img.camera_id].model
-        if camera_model_name == 'SIMPLE_RADIAL'
+        if camera_model_name == 'SIMPLE_RADIAL':
             # See https://github.com/colmap/colmap/blob/1f6812e333a1e4b2ef56aa74e2c3873e4e3a40cd/src/colmap/sensor/models.h#L212
             f, cx, cy, k = cameras[img.camera_id].params[:4]
             fx = f
