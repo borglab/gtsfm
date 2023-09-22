@@ -179,7 +179,7 @@ def colmap2gtsfm(
     images: Dict[int, ColmapImage],
     points3D: Dict[int, ColmapPoint3D],
     load_sfmtracks: bool = False,
-) -> Tuple[List[str], List[Pose3], List[str], Optional[List[Point3]], np.ndarray, np.ndarray, List[Tuple[int,int]]]:
+) -> Tuple[List[str], List[Pose3], List[str], Optional[List[Point3]], np.ndarray, np.ndarray, List[Tuple[int, int]]]:
     """Converts COLMAP-formatted variables to GTSfM format.
 
     Args:
@@ -498,7 +498,7 @@ def read_scene_data_from_colmap_format(
             calibrations: Calibration object for each camera.
             point_cloud: Float array of shape (N,3) representing per-point x/y/z coordinates.
             rgb: Uint8 array of shape (N,3) representing per-point colors.
-            img_dims: 
+            img_dims: List of dimensions of each img (H, W).
     """
     # Determine whether scene data is stored in a text (txt) or binary (bin) file format.
     if Path(data_dir, "images.txt").exists():
