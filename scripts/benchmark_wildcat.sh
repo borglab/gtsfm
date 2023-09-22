@@ -37,9 +37,16 @@ correspondence_generator_config_names=(
 	)
 
 
-for num_matched in ${num_matched_sizes[@]}; do
-	for max_frame_lookahead in ${max_frame_lookahead_sizes[@]}; do
-		for dataset in ${datasets[@]}; do
+for dataset in ${datasets[@]}; do
+	for num_matched in ${num_matched_sizes[@]}; do
+		for max_frame_lookahead in ${max_frame_lookahead_sizes[@]}; do
+
+			if [[ $dataset == *"gendarmenmarkt-1463"* && $max_frame_lookahead != 0 ]]
+			then
+				# Gendarmenmarkt images have no natural order.
+				continue
+			fi
+
 			for correspondence_generator_config_name in ${correspondence_generator_config_names[@]}; do
 				
 				if [[ $correspondence_generator_config_name == *"sift"* ]]
@@ -56,11 +63,11 @@ for num_matched in ${num_matched_sizes[@]}; do
 					num_workers=1
 				fi
 
-				echo "Dataset: "${dataset}
-				echo "Num matched: "${num_matched}
-				echo "Max frame lookahead: "${max_frame_lookahead}
-				echo "Correspondence Generator: "${correspondence_generator_config_name}
-				echo "Num workers: "${num_workers}
+				echo "Dataset: ${dataset}"
+				echo "Num matched: ${num_matched}"
+				echo "Max frame lookahead: ${max_frame_lookahead}"
+				echo "Correspondence Generator: ${correspondence_generator_config_name}"
+				echo "Num workers: ${num_workers}"
 
 				if [[ $dataset == *"palace-fine-arts-281"* ]]
 				then

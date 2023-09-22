@@ -213,6 +213,9 @@ def colmap2gtsfm(
         elif camera_model_name == "FULL_OPENCV":
             # See https://github.com/colmap/colmap/blob/1f6812e333a1e4b2ef56aa74e2c3873e4e3a40cd/src/colmap/sensor/models.h#L273  # noqa: E501
             fx, fy, cx, cy = cameras[img.camera_id].params[:4]
+        elif camera_model_name == "PINHOLE":
+            # See https://github.com/colmap/colmap/blob/1f6812e333a1e4b2ef56aa74e2c3873e4e3a40cd/src/colmap/sensor/models.h#L196  # noqa: E501
+            fx, fy, cx, cy = cameras[img.camera_id].params[:4]
         else:
             raise ValueError(f"Unsupported COLMAP camera type: {camera_model_name}")
 
@@ -354,7 +357,7 @@ def read_images_txt(fpath: str) -> Tuple[List[Pose3], List[str]]:
         ValueError: If file path missing.
     """
     if not Path(fpath).exists():
-        raise ValueError(f"{fpath} does not exist")
+        raise FileNotError(f"{fpath} does not exist.")
 
     with open(fpath, "r") as f:
         lines = f.readlines()
