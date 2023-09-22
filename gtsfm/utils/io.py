@@ -205,7 +205,17 @@ def colmap2gtsfm(
     for idx, img in enumerate(images.values()):
         wTi_gtsfm.append(Pose3(Rot3(img.qvec2rotmat()), img.tvec).inverse())
         img_fnames.append(img.name)
-        fx, _, cx, cy = cameras[img.camera_id].params[:4]
+        camera_model_name = cameras[img.camera_id].model
+        if camera_model_name == 'SIMPLE_RADIAL'
+            # See https://github.com/colmap/colmap/blob/1f6812e333a1e4b2ef56aa74e2c3873e4e3a40cd/src/colmap/sensor/models.h#L212
+            f, cx, cy, k = cameras[img.camera_id].params[:4]
+            fx = f
+        elif camera_model_name == "FULL_OPENCV"
+            # See https://github.com/colmap/colmap/blob/1f6812e333a1e4b2ef56aa74e2c3873e4e3a40cd/src/colmap/sensor/models.h#L273
+            fx, fy, cx, cy = cameras[img.camera_id].params[:4]
+        else:
+            raise ValueError(f"Unsupported COLMAP camera type: {camera_model_name}")
+
         intrinsics_gtsfm.append(Cal3Bundler(fx, 0.0, 0.0, cx, cy))
         image_id_to_idx[img.id] = idx
         img_h, img_w = cameras[img.camera_id].height, cameras[img.camera_id].width
