@@ -207,11 +207,11 @@ def colmap2gtsfm(
         img_fnames.append(img.name)
         camera_model_name = cameras[img.camera_id].model
         if camera_model_name == "SIMPLE_RADIAL":
-            # See https://github.com/colmap/colmap/blob/1f6812e333a1e4b2ef56aa74e2c3873e4e3a40cd/src/colmap/sensor/models.h#L212
+            # See https://github.com/colmap/colmap/blob/1f6812e333a1e4b2ef56aa74e2c3873e4e3a40cd/src/colmap/sensor/models.h#L212  # noqa: E501
             f, cx, cy, k = cameras[img.camera_id].params[:4]
             fx = f
         elif camera_model_name == "FULL_OPENCV":
-            # See https://github.com/colmap/colmap/blob/1f6812e333a1e4b2ef56aa74e2c3873e4e3a40cd/src/colmap/sensor/models.h#L273
+            # See https://github.com/colmap/colmap/blob/1f6812e333a1e4b2ef56aa74e2c3873e4e3a40cd/src/colmap/sensor/models.h#L273  # noqa: E501
             fx, fy, cx, cy = cameras[img.camera_id].params[:4]
         else:
             raise ValueError(f"Unsupported COLMAP camera type: {camera_model_name}")
