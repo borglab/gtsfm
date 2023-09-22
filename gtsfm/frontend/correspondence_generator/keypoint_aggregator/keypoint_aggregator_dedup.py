@@ -99,6 +99,9 @@ class KeypointAggregatorDedup(KeypointAggregatorBase):
         # Have to merge keypoints across different views here (or turn off transitivity check).
 
         for (i1, i2), (keypoints_i1, keypoints_i2) in keypoints_dict.items():
+            _assert_keypoints_rank(keypoints_i1)
+            _assert_keypoints_rank(keypoints_i2)
+
             per_image_kpt_coordinates, i1_indices = self.append_unique_keypoints(
                 i=i1, keypoints=keypoints_i1, per_image_kpt_coordinates=per_image_kpt_coordinates
             )
@@ -115,4 +118,18 @@ class KeypointAggregatorDedup(KeypointAggregatorBase):
         keypoints_list: List[Keypoints] = [Keypoints(coordinates=np.array([]))] * (max_img_idx + 1)
         for i in per_image_kpt_coordinates.keys():
             keypoints_list[i] = Keypoints(coordinates=per_image_kpt_coordinates[i])
+            _assert_keypoints_rank(keypoints_list[i])
+
         return keypoints_list, putative_corr_idxs_dict
+
+
+def _assert_keypoints_rank(keypoints: Keypoints) -> None:
+    """Verifies that `Keypoints` instance has correct rank-2 shape, with (N,2) shape."""
+    rank_correct = keypoints.coordinates.ndim == 2
+    shape_correct = keypoints.coordinates.shape[-1] == 2
+    if not (rank_correct and shape_correct):
+        raise ValueError(
+            "[KeypointAggregatorDedup] Dimensions for Keypoint coordinates incorrect. Array needs to be 2D,"
+            f" but found {keypoints.coordinates.shape}"
+        )
+
