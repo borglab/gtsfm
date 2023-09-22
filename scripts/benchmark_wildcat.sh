@@ -1,6 +1,7 @@
 # Script to launch jobs over various datasets & front-ends.
 
 USER_ROOT=$1
+CLUSTER_CONFIG=$2
 
 now=$(date +"%Y%m%d_%H%M%S")
 
@@ -99,6 +100,7 @@ for num_matched in ${num_matched_sizes[@]}; do
 					--worker_memory_limit "32GB" \
 					--output_root $OUTPUT_ROOT \
 					--max_resolution 760 \
+					-n $CLUSTER_CONFIG && "--cluster_config $CLUSTER_CONFIG" \
 					2>&1 | tee $OUTPUT_ROOT/out.log
 				elif [[ $loader == *"colmap"* ]]
 				then
@@ -115,6 +117,7 @@ for num_matched in ${num_matched_sizes[@]}; do
 					--worker_memory_limit "32GB" \
 					--output_root $OUTPUT_ROOT \
 					--max_resolution 760 \
+					-n $CLUSTER_CONFIG && "--cluster_config $CLUSTER_CONFIG" \
 					2>&1 | tee $OUTPUT_ROOT/out.log
 				elif [[ $loader == *"astrovision"* ]]
 				then
@@ -130,6 +133,7 @@ for num_matched in ${num_matched_sizes[@]}; do
 					--worker_memory_limit "32GB" \
 					--output_root $OUTPUT_ROOT \
 					--max_resolution 760 \
+					-n $CLUSTER_CONFIG && "--cluster_config $CLUSTER_CONFIG" \
 					2>&1 | tee $OUTPUT_ROOT/out.log
 				fi
 			done
