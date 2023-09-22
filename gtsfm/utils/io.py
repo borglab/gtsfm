@@ -179,7 +179,7 @@ def colmap2gtsfm(
     images: Dict[int, ColmapImage],
     points3D: Dict[int, ColmapPoint3D],
     load_sfmtracks: bool = False,
-) -> Tuple[List[str], List[Pose3], List[str], Optional[List[Point3]], np.ndarray, np.ndarray]:
+) -> Tuple[List[str], List[Pose3], List[str], Optional[List[Point3]], np.ndarray, np.ndarray, List[Tuple[int,int]]]:
     """Converts COLMAP-formatted variables to GTSfM format.
 
     Args:
@@ -195,11 +195,12 @@ def colmap2gtsfm(
         sfmtracks_gtsfm: Tracks of points in points3D.
         point_cloud: (N,3) array representing xyz coordinates of 3d points.
         rgb: Uint8 array of shape (N,3) representing per-point colors.
+        img_dims: List of dimensions of each img (H, W).
     """
     # Note: Assumes input cameras use `PINHOLE` model
     if len(images) == 0 and len(cameras) == 0:
         raise RuntimeError("No Image or Camera data provided to loader.")
-    intrinsics_gtsfm, wTi_gtsfm, img_fnames = [], [], []
+    intrinsics_gtsfm, wTi_gtsfm, img_fnames, img_dims = [], [], [], []
     image_id_to_idx = {}  # keeps track of discrepencies between `image_id` and List index.
     for idx, img in enumerate(images.values()):
         wTi_gtsfm.append(Pose3(Rot3(img.qvec2rotmat()), img.tvec).inverse())
@@ -207,6 +208,8 @@ def colmap2gtsfm(
         fx, _, cx, cy = cameras[img.camera_id].params[:4]
         intrinsics_gtsfm.append(Cal3Bundler(fx, 0.0, 0.0, cx, cy))
         image_id_to_idx[img.id] = idx
+        img_h, img_w = cameras[img.camera_id].height, cameras[img.camera_id].width
+        img_dims.append((img_h, img_w))
 
     if len(points3D) == 0 and load_sfmtracks:
         raise RuntimeError("No SfMTrack data provided to loader.")
@@ -221,18 +224,18 @@ def colmap2gtsfm(
 
     point_cloud = np.array([point3d.xyz for point3d in points3D.values()])
     rgb = np.array([point3d.rgb for point3d in points3D.values()])
-    return img_fnames, wTi_gtsfm, intrinsics_gtsfm, sfmtracks_gtsfm, point_cloud, rgb
+    return img_fnames, wTi_gtsfm, intrinsics_gtsfm, sfmtracks_gtsfm, point_cloud, rgb, img_dims
 
 
 def read_cameras_txt(
     fpath: str,
-) -> Tuple[Optional[List[Cal3Bundler]], Optional[Tuple[int, int]]]:
+) -> Tuple[Optional[List[Cal3Bundler]], Optional[List[Tuple[int, int]]]]:
     """Read camera calibrations from a COLMAP-formatted cameras.txt file.
 
     Reference: https://colmap.github.io/format.html#cameras-txt
 
     Args:
-        fpaths: path to cameras.txt file
+        fpaths: Path to cameras.txt file
 
     Returns:
         Tuple of:
@@ -246,7 +249,7 @@ def read_cameras_txt(
     with open(fpath, "r") as f:
         lines = f.readlines()
 
-    # may not be one line per camera (could be only one line of text if shared calibration)
+    # May not be one line per camera (could be only one line of text if shared calibration)
     num_cams = int(lines[2].replace("# Number of cameras: ", "").strip())
 
     calibrations = []
@@ -489,12 +492,13 @@ def read_scene_data_from_colmap_format(
             `cameras.bin`, `images.bin`, and `points3D.bin`.
 
     Returns:
-        5-tuple of:
+        6-tuple of:
             wTi_list: List of camera poses for each image.
             img_fnames: List of image file names, for each image.
             calibrations: Calibration object for each camera.
             point_cloud: Float array of shape (N,3) representing per-point x/y/z coordinates.
             rgb: Uint8 array of shape (N,3) representing per-point colors.
+            img_dims: 
     """
     # Determine whether scene data is stored in a text (txt) or binary (bin) file format.
     if Path(data_dir, "images.txt").exists():
@@ -517,7 +521,7 @@ def read_scene_data_from_colmap_format(
 
     elif file_format == "bin":
         cameras, images, points3d = colmap_io.read_model(path=data_dir, ext=".bin")
-        img_fnames, wTi_list, calibrations, _, point_cloud, rgb = colmap2gtsfm(
+        img_fnames, wTi_list, calibrations, _, point_cloud, rgb, img_dims = colmap2gtsfm(
             cameras, images, points3d, load_sfmtracks=False
         )
 

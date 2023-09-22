@@ -41,21 +41,25 @@ for num_matched in ${num_matched_sizes[@]}; do
 		for dataset in ${datasets[@]}; do
 			for correspondence_generator_config_name in ${correspondence_generator_config_names[@]}; do
 				
-				echo "Dataset: "${dataset}
-				echo "Num matched: "${num_matched}
-				echo "Max frame lookahead: "${max_frame_lookahead}
-				echo "Correspondence Generator: "${correspondence_generator_config_name}
-
 				if [[ $correspondence_generator_config_name == *"sift"* ]]
 				then
 					num_workers=10
 				elif [[ $correspondence_generator_config_name == *"lightglue"* ]]
 				then
 					num_workers=1
+				elif [[ $correspondence_generator_config_name == *"superglue"* ]]
+				then
+					num_workers=1
 				elif [[ $correspondence_generator_config_name == *"loftr"* ]]
 				then
 					num_workers=1
 				fi
+
+				echo "Dataset: "${dataset}
+				echo "Num matched: "${num_matched}
+				echo "Max frame lookahead: "${max_frame_lookahead}
+				echo "Correspondence Generator: "${correspondence_generator_config_name}
+				echo "Num workers: "${num_workers}
 
 				if [[ $dataset == *"palace-fine-arts-281"* ]]
 				then
