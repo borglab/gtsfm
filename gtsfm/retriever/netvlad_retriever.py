@@ -21,8 +21,11 @@ from gtsfm.frontend.cacher.global_descriptor_cacher import GlobalDescriptorCache
 from gtsfm.frontend.global_descriptor.netvlad_global_descriptor import NetVLADGlobalDescriptor
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.retriever.retriever_base import RetrieverBase, ImageMatchingRegime
+
 logger = logger_utils.get_logger()
 MAX_NUM_IMAGES = 10000
+
+
 @dataclass
 class SubBlockSimilarityResult:
     i_start: int
@@ -30,6 +33,8 @@ class SubBlockSimilarityResult:
     j_start: int
     j_end: int
     subblock: torch.Tensor
+
+
 class NetVLADRetriever(RetrieverBase):
     def __init__(self, num_matched: int, min_score: float = 0.1, blocksize: int = 50) -> None:
         """
@@ -55,12 +60,12 @@ class NetVLADRetriever(RetrieverBase):
 
     def create_computation_graph(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> Delayed:
         """Compute potential image pairs.
-        
+
         Args:
             loader: image loader. The length of this loader will provide the total number of images
                 for exhaustive global descriptor matching.
             plots_output_dir: Directory to save plots to. If None, plots are not saved.
-        
+
         Returns:
             Delayed task that evaluates to a list of (i1,i2) image pairs.
         """
@@ -68,12 +73,12 @@ class NetVLADRetriever(RetrieverBase):
 
     def get_image_pairs(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> Delayed:
         """Compute potential image pairs.
-        
+
         Args:
             loader: Image loader. The length of this loader will provide the total number of images
                 for exhaustive global descriptor matching.
             plots_output_dir: Directory to save plots to. If None, plots are not saved.
-        
+
         Returns:
             Delayed task which evaluates to a list of (i1,i2) image pairs.
         """
@@ -89,12 +94,12 @@ class NetVLADRetriever(RetrieverBase):
         We cannot fit more than 50x50 sized block into memory, on a 16 GB RAM machine.
         A similar blocked exhaustive matching implementation can be found in COLMAP:
         https://github.com/colmap/colmap/blob/dev/src/feature/matching.cc#L899
-        
+
         Args:
             loader: Image loader. The length of this loader will provide the total number of images
                 for exhaustive global descriptor matching.
             num_images: Number of images to compare for matching.
-        
+
         Returns:
             Delayed task which evaluates to a tensor of shape (num_images, num_images) representing
                 the similarity matrix.
@@ -155,13 +160,14 @@ class NetVLADRetriever(RetrieverBase):
         sim_block = torch.einsum("id,jd->ij", block_i_query_descs.to(device), block_j_query_descs.to(device))
         # sim[i_start:i_end, j_start:j_end] = sim_block
         return SubBlockSimilarityResult(i_start=i_start, i_end=i_end, j_start=j_start, j_end=j_end, subblock=sim_block)
+
     def _aggregate_subblocks(self, subblock_results: List[SubBlockSimilarityResult], num_images: int) -> torch.Tensor:
         """Aggregate results from many independently computed sub-blocks of the similarity matrix into a single matrix.
-        
+
         Args:
             subblock_results: Metadata and results of similarity matrix sub-block computation.
             num_images: Number of images to compare for matching.
-        
+
         Returns:
             sim: Tensor of shape (num_images, num_images) representing similarity matrix.
         """
@@ -180,7 +186,7 @@ class NetVLADRetriever(RetrieverBase):
             loader: Image loader. The length of this loader will provide the total number of images
                 for exhaustive global descriptor matching.
             plots_output_dir: Directory to save plots to. If None, plots are not saved.
-        
+
         Returns:
             pair_indices: (i1,i2) image pairs.
         """
@@ -216,20 +222,21 @@ class NetVLADRetriever(RetrieverBase):
         logger.info("Found %d pairs from the NetVLAD Retriever.", len(pairs))
         return pairs
 
+
 def pairs_from_score_matrix(
     scores: torch.Tensor, invalid: np.array, num_select: int, min_score: Optional[float] = None
 ) -> List[Tuple[int, int]]:
     """Identify image pairs from a score matrix.
-    
+
     Note: Similarity computation here is based off of Paul-Edouard Sarlin's HLOC:
     Reference: https://github.com/cvg/Hierarchical-Localization/blob/master/hloc/pairs_from_retrieval.py
-    
+
     Args:
         scores: (K1,K2) for matching K1 images against K2 images.
         invalid: (K1,K2) boolean array indicating invalid match pairs (e.g. self-matches).
         num_select: Number of matches to select, per query.
         min_score: Minimum allowed similarity score.
-    
+
     Returns:
         pairs: Tuples representing pairs (i1,i2) of images.
     """

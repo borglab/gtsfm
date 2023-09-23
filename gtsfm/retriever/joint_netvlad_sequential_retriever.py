@@ -13,11 +13,13 @@ from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.retriever.netvlad_retriever import NetVLADRetriever
 from gtsfm.retriever.retriever_base import RetrieverBase, ImageMatchingRegime
 from gtsfm.retriever.sequential_retriever import SequentialRetriever
+
 logger = logger_utils.get_logger()
 
 
 class JointNetVLADSequentialRetriever(RetrieverBase):
     """Retriever that includes both sequential and retrieval links."""
+
     def __init__(self, num_matched: int, min_score: float, max_frame_lookahead: int) -> None:
         """Initializes sub-retrievers.
 
@@ -33,7 +35,7 @@ class JointNetVLADSequentialRetriever(RetrieverBase):
 
     def create_computation_graph(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> Delayed:
         """Compute potential image pairs.
-        
+
         Args:
             loader: Image loader. The length of this loader will provide the total number of images
                 for exhaustive global descriptor matching.
@@ -44,12 +46,12 @@ class JointNetVLADSequentialRetriever(RetrieverBase):
 
     def get_image_pairs(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> Delayed:
         """Compute potential image pairs.
-        
+
         Args:
             loader: Image loader. The length of this loader will provide the total number of images
                 for exhaustive global descriptor matching.
             plots_output_dir: Directory to save plots to. If None, plots are not saved.
-        
+
         Return:
             pair_indices: (i1,i2) image pairs.
         """
@@ -62,11 +64,11 @@ class JointNetVLADSequentialRetriever(RetrieverBase):
         self, sim_pairs: List[Tuple[int, int]], seq_pairs: List[Tuple[int, int]]
     ) -> List[Tuple[int, int]]:
         """Aggregate all image pair indices from both similarity-based and sequential retrieval.
-        
+
         Args:
             sim_pairs: Image pairs (i1,i2) from similarity-based retrieval.
             seq_pairs: Image pairs (i1,i2) from sequential retrieval.
-        
+
         Returns:
             Unique pairs (i1,i2) representing union of the input sets.
         """

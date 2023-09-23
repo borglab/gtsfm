@@ -82,12 +82,12 @@ class RetrieverBase(GTSFMProcess):
 
     def create_computation_graph(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> Delayed:
         """Create Dask graph for image retriever.
-        
+
         Args:
             loader: image loader. The length of this loader will provide the total number of images
                 for exhaustive global descriptor matching.
             plots_output_dir: Directory to save plots to.
-        
+
         Returns:
             Delayed task that evaluates to a list of (i1,i2) image pairs.
         """

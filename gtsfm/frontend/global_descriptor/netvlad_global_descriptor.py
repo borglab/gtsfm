@@ -15,6 +15,8 @@ from torch import nn
 from gtsfm.common.image import Image
 from gtsfm.frontend.global_descriptor.global_descriptor_base import GlobalDescriptorBase
 from thirdparty.hloc.netvlad import NetVLAD
+
+
 class NetVLADGlobalDescriptor(GlobalDescriptorBase):
     """NetVLAD global descriptor"""
 
@@ -24,10 +26,10 @@ class NetVLADGlobalDescriptor(GlobalDescriptorBase):
 
     def describe(self, image: Image) -> np.ndarray:
         """Compute the NetVLAD global descriptor for a single image query.
-        
+
         Args:
             image: Input image.
-        
+
         Returns:
             img_desc: Array of shape (D,) representing global image descriptor.
         """
