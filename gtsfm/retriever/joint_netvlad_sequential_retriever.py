@@ -1,4 +1,5 @@
 """Retriever that includes both sequential and retrieval links.
+
 Authors: John Lambert
 """
 from pathlib import Path
@@ -16,11 +17,13 @@ logger = logger_utils.get_logger()
 
 
 class JointNetVLADSequentialRetriever(RetrieverBase):
-    """Note: this class contains no .run() method."""
+    """Retriever that includes both sequential and retrieval links."""
     def __init__(self, num_matched: int, min_score: float, max_frame_lookahead: int) -> None:
-        """
+        """Initializes sub-retrievers.
+
         Args:
             num_matched: Number of K potential matches to provide per query. These are the top "K" matches per query.
+            min_score: Minimum allowed similarity score to accept a match.
             max_frame_lookahead: Maximum number of consecutive frames to consider for matching/co-visibility.
         """
         super().__init__(matching_regime=ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL)
@@ -30,6 +33,7 @@ class JointNetVLADSequentialRetriever(RetrieverBase):
 
     def create_computation_graph(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> Delayed:
         """Compute potential image pairs.
+        
         Args:
             loader: Image loader. The length of this loader will provide the total number of images
                 for exhaustive global descriptor matching.
@@ -40,6 +44,7 @@ class JointNetVLADSequentialRetriever(RetrieverBase):
 
     def get_image_pairs(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> Delayed:
         """Compute potential image pairs.
+        
         Args:
             loader: Image loader. The length of this loader will provide the total number of images
                 for exhaustive global descriptor matching.
