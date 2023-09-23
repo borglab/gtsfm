@@ -22,6 +22,7 @@ max_frame_lookahead_sizes=(
 	)
 
 num_matched_sizes=(
+	0
 	5
 	10
 	15
