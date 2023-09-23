@@ -99,9 +99,7 @@ class KeypointAggregatorDedup(KeypointAggregatorBase):
         # Have to merge keypoints across different views here (or turn off transitivity check).
 
         for (i1, i2), (keypoints_i1, keypoints_i2) in keypoints_dict.items():
-            _assert_keypoints_rank(keypoints_i1)
-            _assert_keypoints_rank(keypoints_i2)
-
+            # NOTE: `Keypoints` coordinates with shape (0,2) are allowed here, when no matches are identified.
             per_image_kpt_coordinates, i1_indices = self.append_unique_keypoints(
                 i=i1, keypoints=keypoints_i1, per_image_kpt_coordinates=per_image_kpt_coordinates
             )
@@ -115,7 +113,7 @@ class KeypointAggregatorDedup(KeypointAggregatorBase):
         # Reset global state.
         self.duplicates_found = 0
 
-        keypoints_list: List[Keypoints] = [Keypoints(coordinates=np.array([]))] * (max_img_idx + 1)
+        keypoints_list: List[Keypoints] = [Keypoints(coordinates=np.zeros(shape=(0, 2)))] * (max_img_idx + 1)
         for i in per_image_kpt_coordinates.keys():
             keypoints_list[i] = Keypoints(coordinates=per_image_kpt_coordinates[i])
             _assert_keypoints_rank(keypoints_list[i])
