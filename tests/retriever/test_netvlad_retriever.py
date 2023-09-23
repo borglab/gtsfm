@@ -6,6 +6,8 @@ Authors: John Lambert
 import unittest
 from pathlib import Path
 
+from dask.distributed import Client, LocalCluster
+
 from gtsfm.loader.colmap_loader import ColmapLoader
 from gtsfm.loader.olsson_loader import OlssonLoader
 from gtsfm.retriever.netvlad_retriever import NetVLADRetriever
@@ -30,7 +32,11 @@ class TestNetVLADRetriever(unittest.TestCase):
 
         retriever = NetVLADRetriever(num_matched=2)
 
-        pairs = retriever.get_image_pairs(loader=loader)
+        # Create dask client.
+        cluster = LocalCluster(n_workers=1, threads_per_worker=4)
+        pairs_graph = retriever.create_computation_graph(loader=loader)
+        with Client(cluster):
+            pairs = pairs_graph.compute()
 
         # only 1 pair possible between frame 0 and frame 1
         self.assertEqual(len(pairs), 1)
@@ -41,11 +47,15 @@ class TestNetVLADRetriever(unittest.TestCase):
         loader = OlssonLoader(folder=DOOR_DATA_ROOT)
         retriever = NetVLADRetriever(num_matched=2)
 
-        pairs = retriever.get_image_pairs(loader=loader)
+        # Create dask client.
+        cluster = LocalCluster(n_workers=1, threads_per_worker=4)
+        pairs_graph = retriever.create_computation_graph(loader=loader)
+        with Client(cluster):
+            pairs = pairs_graph.compute()
 
         self.assertEqual(len(pairs), 21)
 
-        for i1, i2 in pairs:
+        for (i1, i2) in pairs:
             self.assertTrue(i1 != i2)
             self.assertTrue(i1 < i2)
 

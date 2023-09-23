@@ -285,9 +285,12 @@ class GtsfmRunnerBase:
 
         # TODO(Ayush): Use futures
         retriever_start_time = time.time()
-        image_pair_indices = self.scene_optimizer.retriever.get_image_pairs(
+        pairs_graph = self.scene_optimizer.retriever.create_computation_graph(
             self.loader, plots_output_dir=self.scene_optimizer._plot_base_path
         )
+        with performance_report(filename="retriever-dask-report.html"):
+            image_pair_indices = pairs_graph.compute()
+
         retriever_metrics = self.scene_optimizer.retriever.evaluate(self.loader, image_pair_indices)
         retriever_duration_sec = time.time() - retriever_start_time
         retriever_metrics.add_metric(GtsfmMetric("retriever_duration_sec", retriever_duration_sec))
