@@ -79,7 +79,6 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
         )
 
         keypoints_list, putative_corr_idxs_dict = self._aggregator.aggregate(keypoints_dict=pairwise_correspondences)
-
         return keypoints_list, putative_corr_idxs_dict
 
     def generate_correspondences_and_estimate_two_view(
