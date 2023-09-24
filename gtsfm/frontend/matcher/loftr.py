@@ -66,12 +66,12 @@ class LOFTR(ImageMatcherBase):
         coordinates_i2 = correspondences_dict[KEYPOINTS_I2_COORDINATES_KEY].cpu().numpy()
         match_confidence = correspondences_dict[CONFIDENCE_KEY].cpu().numpy()
 
-        coords_i1_by_confidence, coords_i2_by_confidence = self.__sort_and_filter_by_confidence(
+        coords_i1_by_confidence, coords_i2_by_confidence, sorted_confs = self.__sort_and_filter_by_confidence(
             coordinates_i1, coordinates_i2, match_confidence
         )
 
-        keypoints_i1 = Keypoints(coordinates=coords_i1_by_confidence)
-        keypoints_i2 = Keypoints(coordinates=coords_i2_by_confidence)
+        keypoints_i1 = Keypoints(coordinates=coords_i1_by_confidence, responses=sorted_confs)
+        keypoints_i2 = Keypoints(coordinates=coords_i2_by_confidence, responses=sorted_confs)
         valid_ind = np.arange(len(keypoints_i1))
         if image_i1.mask is not None:
             _, valid_ind_i1 = keypoints_i1.filter_by_mask(image_i1.mask)
@@ -84,14 +84,14 @@ class LOFTR(ImageMatcherBase):
 
     def __sort_and_filter_by_confidence(
         self, coordinates_i1: np.ndarray, coordinates_i2: np.ndarray, match_confidence: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         idxs = np.argsort(-match_confidence)
         sorted_confs = match_confidence[idxs]
 
         num_vals_greater_than_threshold = (sorted_confs > self._min_confidence).sum()
         idxs = idxs[:num_vals_greater_than_threshold]
 
-        return coordinates_i1[idxs], coordinates_i2[idxs]
+        return coordinates_i1[idxs], coordinates_i2[idxs], sorted_confs[idxs]
 
     def to_tensor(self, image: Image) -> torch.Tensor:
         single_channel_value_array = image_utils.rgb_to_gray_cv(image).value_array.astype(np.float32) / 255.0
