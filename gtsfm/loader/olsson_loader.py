@@ -53,6 +53,7 @@ class OlssonLoader(LoaderBase):
                greater than the max_resolution, it will be downsampled to match the max_resolution.
         """
         super().__init__(max_resolution)
+        self._images_dir = os.path.join(folder, "images")
         self._use_gt_intrinsics = use_gt_intrinsics
         self._use_gt_extrinsics = use_gt_extrinsics
         self._max_frame_lookahead = max_frame_lookahead

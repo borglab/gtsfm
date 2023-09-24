@@ -291,6 +291,17 @@ class GtsfmRunnerBase:
         with performance_report(filename="retriever-dask-report.html"):
             image_pair_indices = pairs_graph.compute()
 
+        # Filter the image pairs.
+        from doppelgangers import infer_doppelgangers as doppelgangers_utils
+
+        pretrained_model_path = "/home/jlambert78/doppelgangers/weights/doppelgangers_classifier_loftr.pt"
+        image_pair_indices = doppelgangers_utils.classify_pairs(
+            images_dir=self.loader._images_dir,
+            loader=self.loader,
+            image_pair_indices=image_pair_indices,
+            pretrained_model_path=pretrained_model_path,
+        )
+
         retriever_metrics = self.scene_optimizer.retriever.evaluate(self.loader, image_pair_indices)
         retriever_duration_sec = time.time() - retriever_start_time
         retriever_metrics.add_metric(GtsfmMetric("retriever_duration_sec", retriever_duration_sec))

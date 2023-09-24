@@ -70,6 +70,7 @@ class AstrovisionLoader(LoaderBase):
             RuntimeError: If ground truth camera calibrations not provided.
         """
         super().__init__(max_resolution)
+        self._images_dir = os.path.join(data_dir, "images")
         self._use_gt_extrinsics = use_gt_extrinsics
         self._use_gt_sfmtracks = use_gt_sfmtracks
         self._max_frame_lookahead = max_frame_lookahead
