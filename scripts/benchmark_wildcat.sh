@@ -1,7 +1,7 @@
 # Script to launch jobs over various datasets & front-ends.
 
 USER_ROOT=$1
-CLUSTER_CONFIG=$2
+CLUSTER_CONFIG=${2:-""}
 
 now=$(date +"%Y%m%d_%H%M%S")
 
@@ -79,8 +79,8 @@ for num_matched in ${num_matched_sizes[@]}; do
 				elif [[ $dataset == *"gerrard-hall-100"* ]]
 				then
 					loader=colmap
-					images_dir=/usr/local/gtsfm-data/gerrard-hall-100/images
-					colmap_files_dirpath=/usr/local/gtsfm-data/gerrard-hall-100/colmap-3.7-sparse-txt-2023-07-27
+					images_dir=/home/hstepanyan3/gtsfm/gtsfm-data/gerrard-hall-100/images
+					colmap_files_dirpath=/home/hstepanyan3/gtsfm/gtsfm-data/gerrard-hall-100/colmap-3.7-sparse-txt-2023-07-27
 				fi
 
 				OUTPUT_ROOT=${USER_ROOT}/${now}/${now}__${dataset}__results__num_matched${num_matched}__maxframelookahead${max_frame_lookahead}__760p__unified_${correspondence_generator_config_name}
@@ -100,7 +100,7 @@ for num_matched in ${num_matched_sizes[@]}; do
 					--worker_memory_limit "32GB" \
 					--output_root $OUTPUT_ROOT \
 					--max_resolution 760 \
-					-n $CLUSTER_CONFIG && "--cluster_config $CLUSTER_CONFIG" \
+					--cluster_config "$CLUSTER_CONFIG" \
 					2>&1 | tee $OUTPUT_ROOT/out.log
 				elif [[ $loader == *"colmap"* ]]
 				then
@@ -117,7 +117,7 @@ for num_matched in ${num_matched_sizes[@]}; do
 					--worker_memory_limit "32GB" \
 					--output_root $OUTPUT_ROOT \
 					--max_resolution 760 \
-					-n $CLUSTER_CONFIG && "--cluster_config $CLUSTER_CONFIG" \
+					--cluster_config "$CLUSTER_CONFIG" \
 					2>&1 | tee $OUTPUT_ROOT/out.log
 				elif [[ $loader == *"astrovision"* ]]
 				then
@@ -133,7 +133,7 @@ for num_matched in ${num_matched_sizes[@]}; do
 					--worker_memory_limit "32GB" \
 					--output_root $OUTPUT_ROOT \
 					--max_resolution 760 \
-					-n $CLUSTER_CONFIG && "--cluster_config $CLUSTER_CONFIG" \
+					--cluster_config "$CLUSTER_CONFIG" \
 					2>&1 | tee $OUTPUT_ROOT/out.log
 				fi
 			done
