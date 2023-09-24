@@ -292,7 +292,7 @@ class GtsfmRunnerBase:
             image_pair_indices = pairs_graph.compute()
 
         # Filter the image pairs.
-        from doppelgangers import infer_doppelgangers as doppelgangers_utils
+        import infer_doppelgangers as doppelgangers_utils
 
         pretrained_model_path = "/home/jlambert78/doppelgangers/weights/doppelgangers_classifier_loftr.pt"
         image_pair_indices = doppelgangers_utils.classify_pairs(
