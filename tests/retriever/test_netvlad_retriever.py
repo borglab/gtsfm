@@ -26,7 +26,6 @@ class TestNetVLADRetriever(unittest.TestCase):
         loader = ColmapLoader(
             colmap_files_dirpath=colmap_files_dirpath,
             images_dir=images_dir,
-            max_frame_lookahead=100,
             max_resolution=760,
         )
 
@@ -38,7 +37,7 @@ class TestNetVLADRetriever(unittest.TestCase):
         with Client(cluster):
             pairs = pairs_graph.compute()
 
-        # only 1 pair possible between frame 0 and frame 1
+        # Only 1 pair possible between frame 0 and frame 1.
         self.assertEqual(len(pairs), 1)
         self.assertEqual(pairs, [(0, 1)])
 
