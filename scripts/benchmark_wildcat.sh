@@ -1,6 +1,7 @@
 # Script to launch jobs over various datasets & front-ends.
 
 USER_ROOT=$1
+CLUSTER_CONFIG=$2
 
 now=$(date +"%Y%m%d_%H%M%S")
 
@@ -37,6 +38,12 @@ correspondence_generator_config_names=(
 	loftr
 	)
 
+if [[ $CLUSTER_CONFIG ]]
+then
+	CLUSTER_ARGS="--cluster_config $CLUSTER_CONFIG"
+else
+	CLUSTER_ARGS=""
+fi
 
 
 for num_matched in ${num_matched_sizes[@]}; do
@@ -117,6 +124,7 @@ for num_matched in ${num_matched_sizes[@]}; do
 					--worker_memory_limit "32GB" \
 					--output_root $OUTPUT_ROOT \
 					--max_resolution 760 \
+					$CLUSTER_ARGS \
 					2>&1 | tee $OUTPUT_ROOT/out.log
 				elif [[ $loader == *"colmap"* ]]
 				then
@@ -133,6 +141,7 @@ for num_matched in ${num_matched_sizes[@]}; do
 					--worker_memory_limit "32GB" \
 					--output_root $OUTPUT_ROOT \
 					--max_resolution 760 \
+					$CLUSTER_ARGS \
 					2>&1 | tee $OUTPUT_ROOT/out.log
 				elif [[ $loader == *"astrovision"* ]]
 				then
@@ -148,6 +157,7 @@ for num_matched in ${num_matched_sizes[@]}; do
 					--worker_memory_limit "32GB" \
 					--output_root $OUTPUT_ROOT \
 					--max_resolution 760 \
+					$CLUSTER_ARGS \
 					2>&1 | tee $OUTPUT_ROOT/out.log
 				fi
 			done
