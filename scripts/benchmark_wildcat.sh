@@ -23,6 +23,7 @@ max_frame_lookahead_sizes=(
 	)
 
 num_matched_sizes=(
+	0
 	5
 	10
 	15
@@ -44,10 +45,10 @@ else
 	CLUSTER_ARGS=""
 fi
 
-for dataset in ${datasets[@]}; do
-	for num_matched in ${num_matched_sizes[@]}; do
-		for max_frame_lookahead in ${max_frame_lookahead_sizes[@]}; do
 
+for num_matched in ${num_matched_sizes[@]}; do
+	for max_frame_lookahead in ${max_frame_lookahead_sizes[@]}; do
+		for dataset in ${datasets[@]}; do
 			if [[ $dataset == *"gendarmenmarkt-1463"* && $max_frame_lookahead != 0 ]]
 			then
 				# Gendarmenmarkt images have no natural order.
