@@ -111,11 +111,11 @@ def generate_random_keypoints(num_keypoints: int, image_shape: Tuple[int, int]) 
     """Generates random keypoints within the image bounds.
 
     Args:
-        num_keypoints: number of features to generate.
-        image_shape: size of the image, as (H,W)
+        num_keypoints: Number of features to generate.
+        image_shape: Size of the image, as (H,W)
 
     Returns:
-        generated keypoints.
+        Generated keypoints.
     """
     if num_keypoints == 0:
         return Keypoints(coordinates=np.array([]))
