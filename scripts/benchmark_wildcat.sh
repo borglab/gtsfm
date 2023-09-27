@@ -1,11 +1,13 @@
 # Script to launch jobs over various datasets & front-ends.
 
 USER_ROOT=$1
+CLUSTER_CONFIG=$2
 
 now=$(date +"%Y%m%d_%H%M%S")
 
 
 datasets=(
+	gendarmenmarkt-1463
 	palace-fine-arts-281
 	skydio-crane-mast-501
 	2011205_rc3
@@ -21,6 +23,7 @@ max_frame_lookahead_sizes=(
 	)
 
 num_matched_sizes=(
+	0
 	5
 	10
 	15
@@ -35,27 +38,44 @@ correspondence_generator_config_names=(
 	loftr
 	)
 
+if [[ $CLUSTER_CONFIG ]]
+then
+	CLUSTER_ARGS="--cluster_config $CLUSTER_CONFIG"
+else
+	CLUSTER_ARGS=""
+fi
+
 
 for num_matched in ${num_matched_sizes[@]}; do
 	for max_frame_lookahead in ${max_frame_lookahead_sizes[@]}; do
 		for dataset in ${datasets[@]}; do
+			if [[ $dataset == *"gendarmenmarkt-1463"* && $max_frame_lookahead != 0 ]]
+			then
+				# Gendarmenmarkt images have no natural order.
+				continue
+			fi
+
 			for correspondence_generator_config_name in ${correspondence_generator_config_names[@]}; do
 				
-				echo "Dataset: "${dataset}
-				echo "Num matched: "${num_matched}
-				echo "Max frame lookahead: "${max_frame_lookahead}
-				echo "Correspondence Generator: "${correspondence_generator_config_name}
-
 				if [[ $correspondence_generator_config_name == *"sift"* ]]
 				then
 					num_workers=10
 				elif [[ $correspondence_generator_config_name == *"lightglue"* ]]
 				then
 					num_workers=1
+				elif [[ $correspondence_generator_config_name == *"superglue"* ]]
+				then
+					num_workers=1
 				elif [[ $correspondence_generator_config_name == *"loftr"* ]]
 				then
 					num_workers=1
 				fi
+
+				echo "Dataset: ${dataset}"
+				echo "Num matched: ${num_matched}"
+				echo "Max frame lookahead: ${max_frame_lookahead}"
+				echo "Correspondence Generator: ${correspondence_generator_config_name}"
+				echo "Num workers: ${num_workers}"
 
 				if [[ $dataset == *"palace-fine-arts-281"* ]]
 				then
@@ -80,6 +100,11 @@ for num_matched in ${num_matched_sizes[@]}; do
 					loader=colmap
 					images_dir=/usr/local/gtsfm-data/gerrard-hall-100/images
 					colmap_files_dirpath=/usr/local/gtsfm-data/gerrard-hall-100/colmap-3.7-sparse-txt-2023-07-27
+				elif [[ $dataset == *"gendarmenmarkt-1463"* ]]
+				then
+					loader=colmap
+					images_dir=/usr/local/gtsfm-data/Gendarmenmarkt/images
+					colmap_files_dirpath=/usr/local/gtsfm-data/Gendarmenmarkt/gendarmenmark/im_size_full/0
 				fi
 
 				OUTPUT_ROOT=${USER_ROOT}/${now}/${now}__${dataset}__results__num_matched${num_matched}__maxframelookahead${max_frame_lookahead}__760p__unified_${correspondence_generator_config_name}
@@ -99,6 +124,7 @@ for num_matched in ${num_matched_sizes[@]}; do
 					--worker_memory_limit "32GB" \
 					--output_root $OUTPUT_ROOT \
 					--max_resolution 760 \
+					$CLUSTER_ARGS \
 					2>&1 | tee $OUTPUT_ROOT/out.log
 				elif [[ $loader == *"colmap"* ]]
 				then
@@ -115,6 +141,7 @@ for num_matched in ${num_matched_sizes[@]}; do
 					--worker_memory_limit "32GB" \
 					--output_root $OUTPUT_ROOT \
 					--max_resolution 760 \
+					$CLUSTER_ARGS \
 					2>&1 | tee $OUTPUT_ROOT/out.log
 				elif [[ $loader == *"astrovision"* ]]
 				then
@@ -130,6 +157,7 @@ for num_matched in ${num_matched_sizes[@]}; do
 					--worker_memory_limit "32GB" \
 					--output_root $OUTPUT_ROOT \
 					--max_resolution 760 \
+					$CLUSTER_ARGS \
 					2>&1 | tee $OUTPUT_ROOT/out.log
 				fi
 			done

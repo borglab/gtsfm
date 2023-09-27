@@ -8,6 +8,9 @@ from enum import Enum
 from pathlib import Path
 from typing import List, Optional, Tuple
 
+import dask
+from dask.delayed import Delayed
+
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
@@ -76,3 +79,16 @@ class RetrieverBase(GTSFMProcess):
             ],
         )
         return retriever_metrics
+
+    def create_computation_graph(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> Delayed:
+        """Create Dask graph for image retriever.
+
+        Args:
+            loader: image loader. The length of this loader will provide the total number of images
+                for exhaustive global descriptor matching.
+            plots_output_dir: Directory to save plots to.
+
+        Returns:
+            Delayed task that evaluates to a list of (i1,i2) image pairs.
+        """
+        return dask.delayed(self.get_image_pairs)(loader=loader, plots_output_dir=plots_output_dir)

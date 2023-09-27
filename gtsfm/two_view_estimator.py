@@ -584,7 +584,6 @@ def run_two_view_estimator_as_futures(
     }
 
     two_view_output_dict = client.gather(two_view_output_futures)
-
     return two_view_output_dict
 
 

@@ -117,18 +117,18 @@ def plot_twoview_correspondences(
         max_corrs (optional): Max number of correspondences to plot. Defaults to 50.
 
     Returns:
-        image visualizing correspondences between two images.
+        Image visualizing correspondences between two images.
     """
     image_i1, image_i2, scale_i1, scale_i2 = image_utils.match_image_widths(image_i1, image_i2)
 
     result = image_utils.vstack_image_pair(image_i1, image_i2)
 
     if max_corrs is not None and corr_idxs_i1i2.shape[0] > max_corrs:
-        # subsample matches
+        # Subsample matches.
         corr_idxs_i1i2 = corr_idxs_i1i2[np.random.choice(corr_idxs_i1i2.shape[0], max_corrs)]
 
     for corr_idx in range(corr_idxs_i1i2.shape[0]):
-        # mark the points in both images as circles, and draw connecting line
+        # Mark the points in both images as circles, and draw connecting line
         idx_i1, idx_i2 = corr_idxs_i1i2[corr_idx]
 
         x_i1 = (kps_i1.coordinates[idx_i1, 0] * scale_i1[0]).astype(np.int32)
@@ -136,7 +136,7 @@ def plot_twoview_correspondences(
         x_i2 = (kps_i2.coordinates[idx_i2, 0] * scale_i2[0]).astype(np.int32)
         y_i2 = (kps_i2.coordinates[idx_i2, 1] * scale_i2[1]).astype(np.int32) + image_i1.height
 
-        # drawing correspondences with optional inlier mask
+        # Draw correspondences with optional inlier mask.
         if inlier_mask is None:
             line_color = tuple([int(c) for c in np.random.randint(0, 255 + 1, 3)])
         elif inlier_mask[corr_idx]:
@@ -244,8 +244,8 @@ def save_twoview_correspondences_viz(
     keypoints_i1: Keypoints,
     keypoints_i2: Keypoints,
     corr_idxs_i1i2: np.ndarray,
-    two_view_report: TwoViewEstimationReport,
     file_path: str,
+    two_view_report: Optional[TwoViewEstimationReport] = None,
 ) -> None:
     """Visualize correspondences between pairs of images.
 
@@ -255,8 +255,8 @@ def save_twoview_correspondences_viz(
         keypoints_i1: Detected Keypoints for image #i1.
         keypoints_i2: Detected Keypoints for image #i2.
         corr_idxs_i1i2: Correspondence indices.
-        two_view_report: Front-end metrics and inlier/outlier info for image pair.
         file_path: File path to save the visualization.
+        two_view_report: Front-end metrics and inlier/outlier info for image pair.
     """
     plot_img = plot_twoview_correspondences(
         image_i1,
@@ -264,7 +264,7 @@ def save_twoview_correspondences_viz(
         keypoints_i1,
         keypoints_i2,
         corr_idxs_i1i2,
-        inlier_mask=two_view_report.v_corr_idxs_inlier_mask_gt,
+        inlier_mask=two_view_report.v_corr_idxs_inlier_mask_gt if two_view_report else None,
     )
 
     io_utils.save_image(plot_img, file_path)
