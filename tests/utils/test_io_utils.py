@@ -67,9 +67,8 @@ class TestIoUtils(unittest.TestCase):
     def test_read_images_txt_nonexistent_file(self) -> None:
         """Ensure that providing a path to a nonexistent file returns None for both return args."""
         fpath = "nonexistent_dir/images.txt"
-        wTi_list, img_filenames = io_utils.read_images_txt(fpath)
-        self.assertIsNone(wTi_list)
-        self.assertIsNone(img_filenames)
+        with self.assertRaises(FileNotFoundError):
+            io_utils.read_images_txt(fpath)
 
     def test_read_cameras_txt(self) -> None:
         """Ensure that shared calibration from COLMAP output is read in as a single calibration."""

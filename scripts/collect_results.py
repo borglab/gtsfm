@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import DefaultDict, Sequence
 
 import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib import cm
 from tabulate import tabulate
 
 import gtsfm.utils.io as io_utils
@@ -90,7 +92,6 @@ SCALAR_METRIC_NAMES = [
     "step_2_run_duration_sec",
     "total_run_duration_sec",
     "total_duration_sec",
-    "total_duration_sec",
     "outlier_rejection_duration_sec",
     "optimization_duration_sec",
     "num_input_measurements",
@@ -100,7 +101,6 @@ SCALAR_METRIC_NAMES = [
     "total_two_view_estimation_duration_sec",
     "triangulation_runtime_sec",
     "gtsfm_data_creation_runtime",
-    "total_duration_sec",
     "total_runtime_sec",
     "retriever_duration_sec"
 ]
@@ -206,8 +206,12 @@ def _make_runtime_pie_chart(experiment_roots: Sequence[Path]) -> None:
         runtime_labels.append("remainder_sec")
         runtimes.append(remainder_runtime)
 
+        # Create uniform purple to yellow colormap to prevent color re-use in pie chart.
+        n_colors = len(runtimes)
+        cs = cm.viridis(np.arange(n_colors)/n_colors * 1.0)
+
         fig, ax = plt.subplots(figsize=(15, 10))
-        ax.pie(runtimes, labels=runtime_labels, autopct="%1.1f%%", textprops={"fontsize": 10})
+        ax.pie(runtimes, labels=runtime_labels, autopct="%1.1f%%", textprops={"fontsize": 10}, colors=cs)
         plt.title("Runtime Breakdown for " + str(experiment_root.name))
         plt.show()
 

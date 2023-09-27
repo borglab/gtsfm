@@ -64,36 +64,26 @@ class ImageMatcherCacher(ImageMatcherBase):
         data = {"keypoints_i1": keypoints_i1, "keypoints_i2": keypoints_i2}
         io_utils.write_to_bz2_file(data, cache_path)
 
-    def match(
-        self,
-        image_i1: Image,
-        image_i2: Image,
-    ) -> Tuple[Keypoints, Keypoints]:
+    def match(self, image_i1: Image, image_i2: Image) -> Tuple[Keypoints, Keypoints]:
         """Identify feature matches across two images.
 
         If the results are in the cache, they are fetched and returned. Otherwise, the `match()` of the
         underlying object's API is called and the results are cached.
 
         Args:
-            image_i1: first input image of pair.
-            image_i2: second input image of pair.
+            image_i1: First input image of pair.
+            image_i2: Second input image of pair.
 
         Returns:
             Keypoints from image 1 (N keypoints will exist).
             Corresponding keypoints from image 2 (there will also be N keypoints). These represent feature matches.
         """
-        cached_data = self._load_result_from_cache(
-            image_i1=image_i1,
-            image_i2=image_i2,
-        )
+        cached_data = self._load_result_from_cache(image_i1=image_i1, image_i2=image_i2)
 
         if cached_data is not None:
             return cached_data
 
-        keypoints_i1, keypoints_i2 = self._matcher.match(
-            image_i1=image_i1,
-            image_i2=image_i2,
-        )
+        keypoints_i1, keypoints_i2 = self._matcher.match(image_i1=image_i1, image_i2=image_i2)
 
         self._save_result_to_cache(
             image_i1=image_i1, image_i2=image_i2, keypoints_i1=keypoints_i1, keypoints_i2=keypoints_i2
