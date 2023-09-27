@@ -139,6 +139,7 @@ class MultiViewOptimizer:
             relative_pose_priors,
             gt_wTi_list=gt_wTi_list,
         )
+
         init_cameras_graph = dask.delayed(init_cameras)(wTi_graph, all_intrinsics)
 
         ba_input_graph, data_assoc_metrics_graph = self.data_association_module.create_computation_graph(
@@ -184,8 +185,9 @@ def init_cameras(
 
     camera_class = gtsfm_types.get_camera_class_for_calibration(intrinsics_list[0])
     for idx, (wTi) in enumerate(wTi_list):
-        if wTi is not None:
-            cameras[idx] = camera_class(wTi, intrinsics_list[idx])
+        if wTi is None:
+            continue
+        cameras[idx] = camera_class(wTi, intrinsics_list[idx])
 
     return cameras
 

@@ -44,7 +44,6 @@ class ColmapLoader(LoaderBase):
         images_dir: str,
         use_gt_intrinsics: bool = True,
         use_gt_extrinsics: bool = True,
-        max_frame_lookahead: int = 1,
         max_resolution: int = 760,
     ) -> None:
         """Initializes to load from a specified folder on disk.
@@ -56,9 +55,6 @@ class ColmapLoader(LoaderBase):
             use_gt_intrinsics: Whether to use ground truth intrinsics. If COLMAP calibration is
                not found on disk, then use_gt_intrinsics will be set to false automatically.
             use_gt_extrinsics: Whether to use ground truth extrinsics.
-            max_frame_lookahead: Maximum number of consecutive frames to consider for
-                matching/co-visibility. Any value of max_frame_lookahead less than the size of
-                the dataset assumes data is sequentially captured
             max_resolution: Integer representing maximum length of image's short side, i.e.
                the smaller of the height/width of the image. e.g. for 1080p (1920 x 1080),
                max_resolution would be 1080. If the image resolution max(height, width) is
@@ -67,11 +63,10 @@ class ColmapLoader(LoaderBase):
         super().__init__(max_resolution)
         self._use_gt_intrinsics = use_gt_intrinsics
         self._use_gt_extrinsics = use_gt_extrinsics
-        self._max_frame_lookahead = max_frame_lookahead
 
-        wTi_list, img_fnames = io_utils.read_images_txt(fpath=os.path.join(colmap_files_dirpath, "images.txt"))
-        self._calibrations, _ = io_utils.read_cameras_txt(fpath=os.path.join(colmap_files_dirpath, "cameras.txt"))
-
+        wTi_list, img_fnames, self._calibrations, _, _, _ = io_utils.read_scene_data_from_colmap_format(
+            colmap_files_dirpath
+        )
         # TODO in future PR: if img_fnames is None, default to using everything inside image directory
 
         if self._calibrations is None:
@@ -175,15 +170,3 @@ class ColmapLoader(LoaderBase):
 
         wTi = self._wTi_list[index]
         return wTi
-
-    def is_valid_pair(self, idx1: int, idx2: int) -> bool:
-        """Checks if (idx1, idx2) is a valid pair. idx1 < idx2 is required.
-
-        Args:
-            idx1: First index of the pair.
-            idx2: Second index of the pair.
-
-        Returns:
-            Validation result.
-        """
-        return super().is_valid_pair(idx1, idx2) and abs(idx1 - idx2) <= self._max_frame_lookahead
