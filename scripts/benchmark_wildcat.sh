@@ -55,6 +55,12 @@ for num_matched in ${num_matched_sizes[@]}; do
 				continue
 			fi
 
+			if [[ $num_matched == 0 && $max_frame_lookahead == 0 ]]
+			then
+				# Matches must come from at least some retriever.
+				continue
+			fi
+
 			for correspondence_generator_config_name in ${correspondence_generator_config_names[@]}; do
 				
 				if [[ $correspondence_generator_config_name == *"sift"* ]]
