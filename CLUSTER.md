@@ -19,7 +19,7 @@ GTSfM uses the [SSHCluster](https://docs.dask.org/en/stable/deploying-ssh.html#d
     - If the cluster has 5 machines, then `ssh-copy-id` must be run 5*5=25 times.
 4. Clone gtsfm and follow the main readme file to setup the environment on all nodes in the cluster at an identical path
     - ```bash
-        git clone https://github.com/borglab/gtsfm.git --recursive
+        git clone --recursive https://github.com/borglab/gtsfm.git
         conda env create -f environment_linux.yml
         conda activate gtsfm-v1
       ```
