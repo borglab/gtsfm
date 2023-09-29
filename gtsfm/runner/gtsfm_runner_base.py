@@ -59,13 +59,13 @@ class GtsfmRunnerBase:
             "--num_workers",
             type=int,
             default=1,
-            help="Number of workers to start (processes, by default)",
+            help="Number of workers to start (processes, by default).",
         )
         parser.add_argument(
             "--threads_per_worker",
             type=int,
             default=1,
-            help="Number of threads per each worker",
+            help="Number of threads per each worker.",
         )
         parser.add_argument(
             "--worker_memory_limit", type=str, default="8GB", help="Memory limit per worker, e.g. `8GB`"
@@ -106,7 +106,7 @@ class GtsfmRunnerBase:
             "--max_frame_lookahead",
             type=int,
             default=None,
-            help="maximum number of consecutive frames to consider for matching/co-visibility",
+            help="Maximum number of consecutive frames to consider for matching/co-visibility.",
         )
         parser.add_argument(
             "--num_matched",
@@ -115,7 +115,7 @@ class GtsfmRunnerBase:
             help="Number of K potential matches to provide per query. These are the top `K` matches per query.",
         )
         parser.add_argument(
-            "--share_intrinsics", action="store_true", help="Shares the intrinsics between all the cameras"
+            "--share_intrinsics", action="store_true", help="Shares the intrinsics between all the cameras."
         )
         parser.add_argument("--mvs_off", action="store_true", help="Turn off dense MVS reconstruction")
         parser.add_argument(
@@ -148,7 +148,7 @@ class GtsfmRunnerBase:
             "--num_retry_cluster_connection",
             type=int,
             default=3,
-            help="number of times to retry cluster connection if it fails",
+            help="Number of times to retry cluster connection if it fails.",
         )
         return parser
 
@@ -253,6 +253,11 @@ class GtsfmRunnerBase:
             except Exception as e:
                 logger.info(f"Worker failed to start: {str(e)}")
                 retry_count += 1
+        if not connected:
+            raise ValueError(
+                f"Connection to cluster could not be established after {self.parsed_args.num_retry_cluster_connection}"
+                " attempts. Aborting..."
+            )
         return cluster
 
     def run(self) -> GtsfmData:
