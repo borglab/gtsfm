@@ -62,7 +62,7 @@ TRACKS_MEASUREMENTS_PER_CAMERA = 12
 
 # Heuristically set to limit the number of delayed tasks, as recommended by Dask:
 # https://docs.dask.org/en/stable/delayed-best-practices.html#avoid-too-many-tasks
-MAX_DELAYED_CALLS = 5
+MAX_DELAYED_CALLS = 30
 
 logger = logger_utils.get_logger()
 
