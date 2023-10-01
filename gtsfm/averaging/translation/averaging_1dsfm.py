@@ -283,7 +283,9 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
         # Compute outlier weights in parallel.
         batched_outlier_weights = dask.compute(*batched_outlier_weights)
-        logger.debug("Computed outlier weights using MFAS.")
+        logger.info("Computed outlier weights using MFAS.")
+
+        start_agg = time.time()
 
         # Compute average outlier weight.
         outlier_weights_sum: DefaultDict[Tuple[int, int], float] = defaultdict(float)
@@ -313,6 +315,9 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             # Only add an inlier camera-track measurements if the camera has other camera-camera inliers.
             if (C(i), L(j)) in inliers and i in inlier_cameras:
                 inlier_w_iUj_dict_tracks[(j, i)] = w_iUj_dict_tracks[(j, i)]
+
+        end_agg = time.time()
+        logger.info("Aggregated MFAS results in %.2f sec", end_agg - start_agg)
 
         return inlier_w_i2Ui1_dict, inlier_w_iUj_dict_tracks, inlier_cameras
 
