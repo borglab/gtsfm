@@ -360,12 +360,12 @@ class GtsfmRunnerBase:
         )
         all_metrics_groups = [retriever_metrics, two_view_agg_metrics]
 
-        delayed_sfm_result, delayed_io, delayed_mvo_metrics_groups = self.scene_optimizer.create_computation_graph(
+        sfm_result, mvo_metrics_groups = self.scene_optimizer.reconstruct_scene(
             keypoints_list=keypoints_list,
             i2Ri1_dict=i2Ri1_dict,
             i2Ui1_dict=i2Ui1_dict,
             v_corr_idxs_dict=v_corr_idxs_dict,
-            two_view_reports=two_view_reports_dict,
+            two_view_reports_dict=two_view_reports_dict,
             num_images=len(self.loader),
             images=self.loader.create_computation_graph_for_images(),
             camera_intrinsics=intrinsics,
@@ -375,10 +375,6 @@ class GtsfmRunnerBase:
             gt_wTi_list=self.loader.get_gt_poses(),
             gt_scene_mesh=self.loader.get_gt_scene_trimesh(),
         )
-
-        with performance_report(filename="scene-optimizer-dask-report.html"):
-            sfm_result, *other_results = dask.compute(delayed_sfm_result, *delayed_io, *delayed_mvo_metrics_groups)
-        mvo_metrics_groups = [x for x in other_results if isinstance(x, GtsfmMetricsGroup)]
 
         assert isinstance(sfm_result, GtsfmData)
         all_metrics_groups.extend(mvo_metrics_groups)

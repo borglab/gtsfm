@@ -37,6 +37,24 @@ from gtsfm.two_view_estimator import (
     TwoViewEstimationReport,
     TwoViewEstimator,
 )
+import gtsfm.multi_view_optimizer as multiview_optimizer_lib
+from gtsfm.evaluation.metrics import GtsfmMetricsGroup
+from dask.distributed import Client, LocalCluster, SSHCluster, performance_report
+
+
+
+import gtsfm.utils.graph as graph_utils
+from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
+from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
+from gtsfm.bundle.global_ba import GlobalBundleAdjustment
+from gtsfm.common.sfm_track import SfmTrack2d
+from gtsfm.data_association.data_assoc import DataAssociation
+from gtsfm.evaluation.metrics import GtsfmMetricsGroup
+from gtsfm.view_graph_estimator.view_graph_estimator_base import ViewGraphEstimatorBase
+from gtsfm.data_association.dsf_tracks_estimator import DsfTracksEstimator
+from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
+
+
 
 matplotlib.use("Agg")
 
@@ -126,13 +144,13 @@ class SceneOptimizer:
         os.makedirs(REACT_RESULTS_PATH, exist_ok=True)
         os.makedirs(REACT_METRICS_PATH, exist_ok=True)
 
-    def create_computation_graph(
+    def reconstruct_scene(
         self,
         keypoints_list: List[Keypoints],
         i2Ri1_dict: Dict[Tuple[int, int], Rot3],
         i2Ui1_dict: Dict[Tuple[int, int], Unit3],
         v_corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
-        two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
+        two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
         num_images: int,
         images: List[Delayed],
         camera_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
@@ -141,35 +159,100 @@ class SceneOptimizer:
         cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
         gt_wTi_list: List[Optional[Pose3]],
         gt_scene_mesh: Optional[Trimesh] = None,
-    ) -> Tuple[Delayed, List[Delayed], List[Delayed]]:
+    ) -> Tuple[GtsfmData, List[GtsfmMetricsGroup]]:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
         logger.info(f"Results, plots, and metrics will be saved at {self.output_root}")
 
-        delayed_results: List[Delayed] = []
+        delayed_io_results: List[Delayed] = []
+
+
+
+
+
+        # Create debug directory.
+        debug_output_dir = None
+        if self.output_root:
+            debug_output_dir = self.output_root / "debug"
+            os.makedirs(debug_output_dir, exist_ok=True)
+
+        if self.multiview_optimizer._run_view_graph_estimator:
+            (
+                viewgraph_i2Ri1_graph,
+                viewgraph_i2Ui1_graph,
+                viewgraph_v_corr_idxs_graph,
+                viewgraph_two_view_reports_graph,
+                viewgraph_estimation_metrics,
+            ) = self.multiview_optimizer.view_graph_estimator.create_computation_graph(
+                i2Ri1_dict,
+                i2Ui1_dict,
+                camera_intrinsics,
+                v_corr_idxs_dict,
+                keypoints_list,
+                two_view_reports_dict,
+                debug_output_dir,
+            )
+        else:
+            viewgraph_i2Ri1_graph = dask.delayed(i2Ri1_dict)
+            viewgraph_i2Ui1_graph = dask.delayed(i2Ui1_dict)
+            viewgraph_v_corr_idxs_graph = dask.delayed(v_corr_idxs_dict)
+            viewgraph_two_view_reports_graph = dask.delayed(two_view_reports_dict)
+            viewgraph_estimation_metrics = dask.delayed(GtsfmMetricsGroup("view_graph_estimation_metrics", []))
+
+        # Prune the graph to a single connected component.
+        pruned_i2Ri1_graph, pruned_i2Ui1_graph = dask.delayed(graph_utils.prune_to_largest_connected_component, nout=2)(
+            viewgraph_i2Ri1_graph, viewgraph_i2Ui1_graph, relative_pose_priors
+        )
+
+        delayed_wRi, rot_avg_metrics = self.multiview_optimizer.rot_avg_module.create_computation_graph(
+            num_images, pruned_i2Ri1_graph, i1Ti2_priors=relative_pose_priors, gt_wTi_list=gt_wTi_list
+        )
+        tracks2d_graph = dask.delayed(multiview_optimizer_lib.get_2d_tracks)(viewgraph_v_corr_idxs_graph, keypoints_list)
+
+        wTi_graph, ta_metrics = self.multiview_optimizer.trans_avg_module.create_computation_graph(
+            num_images,
+            pruned_i2Ui1_graph,
+            delayed_wRi,
+            tracks2d_graph,
+            camera_intrinsics,
+            absolute_pose_priors,
+            relative_pose_priors,
+            gt_wTi_list=gt_wTi_list,
+        )
+        wTi_graph, ta_metrics = dask.compute(wTi_graph, ta_metrics)
+
+        # Start.
+        init_cameras_graph = dask.delayed(multiview_optimizer_lib.init_cameras)(wTi_graph, camera_intrinsics)
+
+        ba_input_graph, data_assoc_metrics_graph = self.multiview_optimizer.data_association_module.create_computation_graph(
+            num_images,
+            init_cameras_graph,
+            tracks2d_graph,
+            cameras_gt,
+            relative_pose_priors,
+            images,
+        )
+        ba_output_graph, ba_metrics_graph = self.multiview_optimizer.ba_optimizer.create_computation_graph(
+            ba_input_graph, absolute_pose_priors, relative_pose_priors, cameras_gt, save_dir=self.output_root
+        )
+
+        multiview_optimizer_metrics_graph = [
+            viewgraph_estimation_metrics,
+            rot_avg_metrics,
+            ta_metrics,
+            data_assoc_metrics_graph,
+            ba_metrics_graph,
+        ]
+
+        # Align the sparse multi-view estimate before BA to the ground truth pose graph.
+        ba_input_graph = dask.delayed(ba_input_graph.align_via_Sim3_to_poses)(gt_wTi_list)
+
+
+
 
         # Note: the MultiviewOptimizer returns BA input and BA output that are aligned to GT via Sim(3).
-        (
-            ba_input_graph,
-            ba_output_graph,
-            view_graph_two_view_reports,
-            optimizer_metrics_graph,
-        ) = self.multiview_optimizer.create_computation_graph(
-            images=images,
-            num_images=num_images,
-            keypoints_list=keypoints_list,
-            i2Ri1_dict=i2Ri1_dict,
-            i2Ui1_dict=i2Ui1_dict,
-            v_corr_idxs_dict=v_corr_idxs_dict,
-            all_intrinsics=camera_intrinsics,
-            absolute_pose_priors=absolute_pose_priors,
-            relative_pose_priors=relative_pose_priors,
-            two_view_reports_dict=two_view_reports,
-            cameras_gt=cameras_gt,
-            gt_wTi_list=gt_wTi_list,
-            output_root=self.output_root,
-        )
-        if view_graph_two_view_reports is not None:
-            two_view_reports_post_viewgraph_estimator = view_graph_two_view_reports
+
+        if viewgraph_two_view_reports_graph is not None:
+            two_view_reports_post_viewgraph_estimator = viewgraph_two_view_reports_graph
 
         # Persist all front-end metrics and their summaries.
         # TODO(akshay-krishnan): this delays saving the frontend reports until MVO has completed, not ideal.
@@ -180,9 +263,9 @@ class SceneOptimizer:
         ]
         annotation = dask.annotate(workers=self._output_worker) if self._output_worker else dask.annotate()
         with annotation:
-            delayed_results.append(
+            delayed_io_results.append(
                 dask.delayed(save_full_frontend_metrics)(
-                    two_view_reports,
+                    two_view_reports_dict,
                     images,
                     filename="two_view_report_{}.json".format(POST_ISP_REPORT_TAG),
                     save_retrieval_metrics=save_retrieval_metrics,
@@ -192,7 +275,7 @@ class SceneOptimizer:
             )
 
             # TODO(Ayush): pass only image name instead of the whole image. And delete images from memory.
-            delayed_results.append(
+            delayed_io_results.append(
                 dask.delayed(save_full_frontend_metrics)(
                     two_view_reports_post_viewgraph_estimator,
                     images,
@@ -211,8 +294,8 @@ class SceneOptimizer:
             )
 
         # aggregate metrics for multiview optimizer
-        if optimizer_metrics_graph is not None:
-            metrics_graph_list.extend(optimizer_metrics_graph)
+        if multiview_optimizer_metrics_graph is not None:
+            metrics_graph_list.extend(multiview_optimizer_metrics_graph)
 
         # Modify BA input, BA output, and GT poses to have point clouds and frustums aligned with x,y,z axes.
         ba_input_graph, ba_output_graph, gt_wTi_list = dask.delayed(align_estimated_gtsfm_data, nout=3)(
@@ -222,7 +305,7 @@ class SceneOptimizer:
         annotation = dask.annotate(workers=self._output_worker) if self._output_worker else dask.annotate()
         with annotation:
             if self._save_gtsfm_data:
-                delayed_results.append(
+                delayed_io_results.append(
                     dask.delayed(save_gtsfm_data)(
                         images,
                         ba_input_graph,
@@ -232,7 +315,7 @@ class SceneOptimizer:
                     )
                 )
                 if self._save_3d_viz:
-                    delayed_results.extend(
+                    delayed_io_results.extend(
                         save_matplotlib_visualizations(
                             aligned_ba_input_graph=ba_input_graph,
                             aligned_ba_output_graph=ba_output_graph,
@@ -254,7 +337,7 @@ class SceneOptimizer:
             # Cast to string as Open3d cannot use PosixPath's for I/O -- only string file paths are accepted.
             annotation = dask.annotate(workers=self._output_worker) if self._output_worker else dask.annotate()
             with annotation:
-                delayed_results.append(
+                delayed_io_results.append(
                     dask.delayed(io_utils.save_point_cloud_as_ply)(
                         save_fpath=str(self._mvs_ply_save_fpath),
                         points=dense_points_graph,
@@ -271,8 +354,12 @@ class SceneOptimizer:
         # Save metrics to JSON and generate HTML report.
         annotation = dask.annotate(workers=self._output_worker) if self._output_worker else dask.annotate()
 
+        with performance_report(filename="scene-optimizer-dask-report.html"):
+            ba_output, *other_results = dask.compute(ba_output_graph, *delayed_io_results, *metrics_graph_list)
+
+        metrics_groups = [x for x in other_results if isinstance(x, GtsfmMetricsGroup)]
         # return the entry with just the sfm result
-        return ba_output_graph, delayed_results, metrics_graph_list
+        return ba_output, metrics_groups
 
 
 def get_image_dictionary(image_list: List[Image]) -> Dict[int, Image]:

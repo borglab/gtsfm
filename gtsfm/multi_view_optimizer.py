@@ -90,82 +90,82 @@ class MultiViewOptimizer:
             List of GtsfmMetricGroups from different modules, wrapped up as Delayed.
         """
 
-        # Create debug directory.
-        debug_output_dir = None
-        if output_root:
-            debug_output_dir = output_root / "debug"
-            os.makedirs(debug_output_dir, exist_ok=True)
+        # # Create debug directory.
+        # debug_output_dir = None
+        # if output_root:
+        #     debug_output_dir = output_root / "debug"
+        #     os.makedirs(debug_output_dir, exist_ok=True)
 
-        if self._run_view_graph_estimator and self.view_graph_estimator is not None:
-            (
-                viewgraph_i2Ri1_graph,
-                viewgraph_i2Ui1_graph,
-                viewgraph_v_corr_idxs_graph,
-                viewgraph_two_view_reports_graph,
-                viewgraph_estimation_metrics,
-            ) = self.view_graph_estimator.create_computation_graph(
-                i2Ri1_dict,
-                i2Ui1_dict,
-                all_intrinsics,
-                v_corr_idxs_dict,
-                keypoints_list,
-                two_view_reports_dict,
-                debug_output_dir,
-            )
-        else:
-            viewgraph_i2Ri1_graph = dask.delayed(i2Ri1_dict)
-            viewgraph_i2Ui1_graph = dask.delayed(i2Ui1_dict)
-            viewgraph_v_corr_idxs_graph = dask.delayed(v_corr_idxs_dict)
-            viewgraph_two_view_reports_graph = dask.delayed(two_view_reports_dict)
-            viewgraph_estimation_metrics = dask.delayed(GtsfmMetricsGroup("view_graph_estimation_metrics", []))
+        # if self._run_view_graph_estimator:
+        #     (
+        #         viewgraph_i2Ri1_graph,
+        #         viewgraph_i2Ui1_graph,
+        #         viewgraph_v_corr_idxs_graph,
+        #         viewgraph_two_view_reports_graph,
+        #         viewgraph_estimation_metrics,
+        #     ) = self.view_graph_estimator.create_computation_graph(
+        #         i2Ri1_dict,
+        #         i2Ui1_dict,
+        #         all_intrinsics,
+        #         v_corr_idxs_dict,
+        #         keypoints_list,
+        #         two_view_reports_dict,
+        #         debug_output_dir,
+        #     )
+        # else:
+        #     viewgraph_i2Ri1_graph = dask.delayed(i2Ri1_dict)
+        #     viewgraph_i2Ui1_graph = dask.delayed(i2Ui1_dict)
+        #     viewgraph_v_corr_idxs_graph = dask.delayed(v_corr_idxs_dict)
+        #     viewgraph_two_view_reports_graph = dask.delayed(two_view_reports_dict)
+        #     viewgraph_estimation_metrics = dask.delayed(GtsfmMetricsGroup("view_graph_estimation_metrics", []))
 
-        # Prune the graph to a single connected component.
-        pruned_i2Ri1_graph, pruned_i2Ui1_graph = dask.delayed(graph_utils.prune_to_largest_connected_component, nout=2)(
-            viewgraph_i2Ri1_graph, viewgraph_i2Ui1_graph, relative_pose_priors
-        )
+        # # Prune the graph to a single connected component.
+        # pruned_i2Ri1_graph, pruned_i2Ui1_graph = dask.delayed(graph_utils.prune_to_largest_connected_component, nout=2)(
+        #     viewgraph_i2Ri1_graph, viewgraph_i2Ui1_graph, relative_pose_priors
+        # )
 
-        delayed_wRi, rot_avg_metrics = self.rot_avg_module.create_computation_graph(
-            num_images, pruned_i2Ri1_graph, i1Ti2_priors=relative_pose_priors, gt_wTi_list=gt_wTi_list
-        )
-        tracks2d_graph = dask.delayed(get_2d_tracks)(viewgraph_v_corr_idxs_graph, keypoints_list)
+        # delayed_wRi, rot_avg_metrics = self.rot_avg_module.create_computation_graph(
+        #     num_images, pruned_i2Ri1_graph, i1Ti2_priors=relative_pose_priors, gt_wTi_list=gt_wTi_list
+        # )
+        # tracks2d_graph = dask.delayed(get_2d_tracks)(viewgraph_v_corr_idxs_graph, keypoints_list)
 
-        wTi_graph, ta_metrics = self.trans_avg_module.create_computation_graph(
-            num_images,
-            pruned_i2Ui1_graph,
-            delayed_wRi,
-            tracks2d_graph,
-            all_intrinsics,
-            absolute_pose_priors,
-            relative_pose_priors,
-            gt_wTi_list=gt_wTi_list,
-        )
+        # wTi_graph, ta_metrics = self.trans_avg_module.create_computation_graph(
+        #     num_images,
+        #     pruned_i2Ui1_graph,
+        #     delayed_wRi,
+        #     tracks2d_graph,
+        #     all_intrinsics,
+        #     absolute_pose_priors,
+        #     relative_pose_priors,
+        #     gt_wTi_list=gt_wTi_list,
+        # )
 
-        init_cameras_graph = dask.delayed(init_cameras)(wTi_graph, all_intrinsics)
+        # init_cameras_graph = dask.delayed(init_cameras)(wTi_graph, all_intrinsics)
 
-        ba_input_graph, data_assoc_metrics_graph = self.data_association_module.create_computation_graph(
-            num_images,
-            init_cameras_graph,
-            tracks2d_graph,
-            cameras_gt,
-            relative_pose_priors,
-            images,
-        )
-        ba_result_graph, ba_metrics_graph = self.ba_optimizer.create_computation_graph(
-            ba_input_graph, absolute_pose_priors, relative_pose_priors, cameras_gt, save_dir=output_root
-        )
+        # ba_input_graph, data_assoc_metrics_graph = self.data_association_module.create_computation_graph(
+        #     num_images,
+        #     init_cameras_graph,
+        #     tracks2d_graph,
+        #     cameras_gt,
+        #     relative_pose_priors,
+        #     images,
+        # )
+        # ba_result_graph, ba_metrics_graph = self.ba_optimizer.create_computation_graph(
+        #     ba_input_graph, absolute_pose_priors, relative_pose_priors, cameras_gt, save_dir=output_root
+        # )
 
-        multiview_optimizer_metrics_graph = [
-            viewgraph_estimation_metrics,
-            rot_avg_metrics,
-            ta_metrics,
-            data_assoc_metrics_graph,
-            ba_metrics_graph,
-        ]
+        # multiview_optimizer_metrics_graph = [
+        #     viewgraph_estimation_metrics,
+        #     rot_avg_metrics,
+        #     ta_metrics,
+        #     data_assoc_metrics_graph,
+        #     ba_metrics_graph,
+        # ]
 
-        # Align the sparse multi-view estimate before BA to the ground truth pose graph.
-        ba_input_graph = dask.delayed(ba_input_graph.align_via_Sim3_to_poses)(gt_wTi_list)
+        # # Align the sparse multi-view estimate before BA to the ground truth pose graph.
+        # ba_input_graph = dask.delayed(ba_input_graph.align_via_Sim3_to_poses)(gt_wTi_list)
 
-        return ba_input_graph, ba_result_graph, viewgraph_two_view_reports_graph, multiview_optimizer_metrics_graph
+        # return ba_input_graph, ba_result_graph, viewgraph_two_view_reports_graph, multiview_optimizer_metrics_graph
 
 
 def init_cameras(
