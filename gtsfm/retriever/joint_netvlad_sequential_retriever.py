@@ -5,11 +5,9 @@ Authors: John Lambert
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-import dask
-from dask.delayed import Delayed
+import numpy as np
 
 import gtsfm.utils.logger as logger_utils
-from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.retriever.netvlad_retriever import NetVLADRetriever
 from gtsfm.retriever.retriever_base import RetrieverBase, ImageMatchingRegime
 from gtsfm.retriever.sequential_retriever import SequentialRetriever
@@ -40,34 +38,32 @@ class JointNetVLADSequentialRetriever(RetrieverBase):
             Sequential retriever: {self._seq_retriever}
         """
 
-    def create_computation_graph(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> Delayed:
+    def get_image_pairs(
+        self,
+        global_descriptors: Optional[List[np.ndarray]],
+        image_fnames: List[str],
+        plots_output_dir: Optional[Path] = None,
+    ) -> List[Tuple[int, int]]:
         """Compute potential image pairs.
 
         Args:
-            loader: Image loader. The length of this loader will provide the total number of images
-                for exhaustive global descriptor matching.
-        Return:
-            pair_indices: (i1,i2) image pairs.
-        """
-        return self.get_image_pairs(loader=loader, plots_output_dir=plots_output_dir)
-
-    def get_image_pairs(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> Delayed:
-        """Compute potential image pairs.
-
-        Args:
-            loader: Image loader. The length of this loader will provide the total number of images
-                for exhaustive global descriptor matching.
+            global_descriptors: the global descriptors for the retriever, if needed.
+            image_fnames: file names of the images
             plots_output_dir: Directory to save plots to. If None, plots are not saved.
 
-        Return:
-            pair_indices: (i1,i2) image pairs.
+        Returns:
+            List of (i1,i2) image pairs.
         """
-        sim_pairs = self._similarity_retriever.create_computation_graph(loader, plots_output_dir=plots_output_dir)
-        seq_pairs = self._seq_retriever.create_computation_graph(loader)
+        sim_pairs = self._similarity_retriever.get_image_pairs(
+            global_descriptors=global_descriptors, image_fnames=image_fnames, plots_output_dir=plots_output_dir
+        )
+        seq_pairs = self._seq_retriever.get_image_pairs(
+            global_descriptors=None, image_fnames=image_fnames, plots_output_dir=plots_output_dir
+        )
 
-        return dask.delayed(self.aggregate_pairs)(sim_pairs=sim_pairs, seq_pairs=seq_pairs)
+        return self._aggregate_pairs(sim_pairs=sim_pairs, seq_pairs=seq_pairs)
 
-    def aggregate_pairs(
+    def _aggregate_pairs(
         self, sim_pairs: List[Tuple[int, int]], seq_pairs: List[Tuple[int, int]]
     ) -> List[Tuple[int, int]]:
         """Aggregate all image pair indices from both similarity-based and sequential retrieval.

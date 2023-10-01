@@ -5,9 +5,11 @@ SceneOptimizer:
   save_3d_viz: False
   pose_angular_error_thresh: 5 # degrees
 
-  retriever:
-    _target_: gtsfm.retriever.sequential_retriever.SequentialRetriever
-    max_frame_lookahead: 20
+  image_pairs_generator:
+    _target_: gtsfm.retriever.image_pairs_generator.ImagePairsGenerator
+    retriever:
+      _target_: gtsfm.retriever.sequential_retriever.SequentialRetriever
+      max_frame_lookahead: 20
 
   
   detector_descriptor:
