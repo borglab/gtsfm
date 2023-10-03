@@ -30,6 +30,11 @@ from gtsfm.scene_optimizer import SceneOptimizer
 from gtsfm.two_view_estimator import TWO_VIEW_OUTPUT, TwoViewEstimationReport, run_two_view_estimator_as_futures
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
 
+from gtsfm.utils.logservertest import LogRecordSocketReceiver
+import logging
+import socket
+import threading
+
 dask_config.set({"distributed.scheduler.worker-ttl": None})
 
 logger = logger_utils.get_logger()
@@ -264,6 +269,28 @@ class GtsfmRunnerBase:
         """Run the SceneOptimizer."""
         start_time = time.time()
 
+        # logging.basicConfig(
+        #     format="[%(asctime)s %(levelname)s %(filename)s line %(lineno)d %(process)d] %(message)s")
+        # tcpserver = LogRecordSocketReceiver()
+        # print("About to start TCP server...")
+        # logger.info(socket.gethostname())
+
+        logging.basicConfig(
+            format="[%(asctime)s %(levelname)s {} %(filename)s line %(lineno)d %(process)d] %(message)s".format(socket.gethostname()))
+        tcpserver = LogRecordSocketReceiver()
+        server_thread = threading.Thread(target=tcpserver.serve_until_stopped)
+        server_thread.daemon = True
+        server_thread.start()
+
+        print("About to start TCP server...")
+        # tcpserver.serve_until_stopped()
+
+        # print(server_thread.is_alive())
+        # print(tcpserver.abort)
+        # print(server_thread)
+        # print(server_thread.is_alive())
+        # return 1
+
         # Create dask cluster.
         if self.parsed_args.cluster_config:
             cluster = self.setup_ssh_cluster_with_retries()
@@ -387,6 +414,7 @@ class GtsfmRunnerBase:
         end_time = time.time()
         duration_sec = end_time - start_time
         logger.info("GTSFM took %.2f minutes to compute sparse multi-view result.", duration_sec / 60)
+        tcpserver.stop()
 
         total_summary_metrics = GtsfmMetricsGroup(
             "total_summary_metrics", [GtsfmMetric("total_runtime_sec", duration_sec)]
@@ -394,6 +422,10 @@ class GtsfmRunnerBase:
         all_metrics_groups.append(total_summary_metrics)
 
         save_metrics_reports(all_metrics_groups, os.path.join(self.scene_optimizer.output_root, "result_metrics"))
+        # tcpserver.abort = 1
+        print("here")
+        client.close()
+        return 1
         return sfm_result
 
 
