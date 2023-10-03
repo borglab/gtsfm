@@ -199,30 +199,6 @@ class GtsfmRunnerBase:
                 logger.info("\n\nRetriever override: " + OmegaConf.to_yaml(retriever_cfg))
                 scene_optimizer.retriever = instantiate(retriever_cfg.retriever)
 
-        if self.parsed_args.max_frame_lookahead is not None:
-            if scene_optimizer.retriever._matching_regime in [
-                ImageMatchingRegime.SEQUENTIAL,
-                ImageMatchingRegime.SEQUENTIAL_HILTI,
-            ]:
-                scene_optimizer.retriever._max_frame_lookahead = self.parsed_args.max_frame_lookahead
-            elif scene_optimizer.retriever._matching_regime == ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL:
-                scene_optimizer.retriever._seq_retriever._max_frame_lookahead = self.parsed_args.max_frame_lookahead
-            else:
-                raise ValueError(
-                    "`max_frame_lookahead` arg is incompatible with retriever matching regime "
-                    f"{scene_optimizer.retriever._matching_regime}"
-                )
-        if self.parsed_args.num_matched is not None:
-            if scene_optimizer.retriever._matching_regime == ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL:
-                scene_optimizer.retriever._similarity_retriever._num_matched = self.parsed_args.num_matched
-            elif scene_optimizer.retriever._matching_regime == ImageMatchingRegime.RETRIEVAL:
-                scene_optimizer.retriever._num_matched = self.parsed_args.num_matched
-            else:
-                raise ValueError(
-                    "`num_matched` arg is incompatible with retriever matching regime "
-                    f"{scene_optimizer.retriever._matching_regime}"
-                )
-
         if self.parsed_args.mvs_off:
             scene_optimizer.run_dense_optimizer = False
 
@@ -262,7 +238,6 @@ class GtsfmRunnerBase:
 
     def run(self) -> GtsfmData:
         """Run the SceneOptimizer."""
-        start_time = time.time()
 
         # Create dask cluster.
         if self.parsed_args.cluster_config:
@@ -287,6 +262,79 @@ class GtsfmRunnerBase:
         if isinstance(self.scene_optimizer.correspondence_generator, ImageCorrespondenceGenerator):
             process_graph_generator.is_image_correspondence = True
         process_graph_generator.save_graph()
+
+        COMBINATIONS = [
+            (0,0), (0,5), (0,10),
+            (5,0), (5,5), (5,10),
+            (10,0), (10,5), (10,10),
+        ]
+
+        for (num_matched, max_frame_lookahead) in COMBINATIONS:
+
+            if max_frame_lookahead is not None:
+                if scene_optimizer.retriever._matching_regime in [
+                    ImageMatchingRegime.SEQUENTIAL,
+                    ImageMatchingRegime.SEQUENTIAL_HILTI,
+                ]:
+                    scene_optimizer.retriever._max_frame_lookahead = max_frame_lookahead
+                elif scene_optimizer.retriever._matching_regime == ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL:
+                    scene_optimizer.retriever._seq_retriever._max_frame_lookahead = max_frame_lookahead
+                else:
+                    raise ValueError(
+                        "`max_frame_lookahead` arg is incompatible with retriever matching regime "
+                        f"{scene_optimizer.retriever._matching_regime}"
+                    )
+            if num_matched is not None:
+                if scene_optimizer.retriever._matching_regime == ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL:
+                    scene_optimizer.retriever._similarity_retriever._num_matched = num_matched
+                elif scene_optimizer.retriever._matching_regime == ImageMatchingRegime.RETRIEVAL:
+                    scene_optimizer.retriever._num_matched = num_matched
+                else:
+                    raise ValueError(
+                        "`num_matched` arg is incompatible with retriever matching regime "
+                        f"{scene_optimizer.retriever._matching_regime}"
+                    )
+
+            self.run_with_retriever_setting()
+
+        # Loop over all runs, see which has highest median track length.
+
+        experiment_roots = []
+        for experiment_root in experiment_roots:
+
+            dirpath = Path(experiment_root) / "result_metrics"
+            frontend_name = Path(experiment_root).name
+            table["method_name"].append(frontend_name)
+
+            json_fname = ""
+            metric_name = ""
+
+            for json_fname, metric_names, nickname in zip(
+                SECTION_FILE_NAMES,
+                SECTION_METRIC_LISTS,
+                SECTION_NICKNAMES,
+            ):
+                section_name = Path(json_fname).stem
+                print(f"{dirpath}/{json_fname}")
+                json_data = io_utils.read_json_file(f"{dirpath}/{json_fname}")[section_name]
+                for metric_name in metric_names:
+                    full_metric_name = f"{nickname}_" + " ".join(metric_name.split("_"))
+                    if method_idx == 0:
+                        headers.append(full_metric_name)
+
+                    if "pose_auc_" in metric_name and metric_name in SCALAR_METRIC_NAMES:
+                        table[full_metric_name].append(json_data[metric_name] * 100)
+                    elif metric_name in SCALAR_METRIC_NAMES:
+                        print(f"{metric_name}: {json_data[metric_name]}")
+                        table[full_metric_name].append(json_data[metric_name])
+                    else:
+                        med = f"{json_data[metric_name]['summary']['median']:.2f}"
+
+
+
+
+    def run_with_retriever_setting(self) -> GtsfmData:
+        start_time = time.time()
 
         # TODO(Ayush): Use futures
         retriever_start_time = time.time()
