@@ -88,7 +88,7 @@ class SceneOptimizer:
         self._pose_angular_error_thresh = pose_angular_error_thresh
         self.output_root = Path(output_root)
         self._output_worker = output_worker
-        self._create_output_directories()
+        
 
     def __repr__(self) -> str:
         """Returns string representation of class."""

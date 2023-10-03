@@ -51,7 +51,13 @@ ta_metrics = [
 ]
 
 da_fname = "data_association_metrics.json"
-da_metrics = ["triangulation_runtime_sec", "gtsfm_data_creation_runtime", "total_duration_sec"]
+da_metrics = [
+    "triangulation_runtime_sec",
+    "gtsfm_data_creation_runtime",
+    "total_duration_sec",
+    "3d_tracks_length",
+    "2D_track_lengths",
+]
 
 ba_result_fname = "bundle_adjustment_metrics.json"
 ba_result_metrics = [
@@ -102,7 +108,7 @@ SCALAR_METRIC_NAMES = [
     "triangulation_runtime_sec",
     "gtsfm_data_creation_runtime",
     "total_runtime_sec",
-    "retriever_duration_sec"
+    "retriever_duration_sec",
 ]
 
 SECTION_FILE_NAMES = [retriever_fname, isp_fname, vg_fname, ra_fname, ta_fname, da_fname, ba_result_fname, total_fname]
@@ -208,7 +214,7 @@ def _make_runtime_pie_chart(experiment_roots: Sequence[Path]) -> None:
 
         # Create uniform purple to yellow colormap to prevent color re-use in pie chart.
         n_colors = len(runtimes)
-        cs = cm.viridis(np.arange(n_colors)/n_colors * 1.0)
+        cs = cm.viridis(np.arange(n_colors) / n_colors * 1.0)
 
         fig, ax = plt.subplots(figsize=(15, 10))
         ax.pie(runtimes, labels=runtime_labels, autopct="%1.1f%%", textprops={"fontsize": 10}, colors=cs)

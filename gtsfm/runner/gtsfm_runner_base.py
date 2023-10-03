@@ -2,6 +2,7 @@
 
 import argparse
 import os
+import shutil
 import time
 from abc import abstractmethod, abstractproperty
 from pathlib import Path
@@ -17,6 +18,7 @@ from hydra.utils import instantiate
 from omegaconf import OmegaConf
 
 import gtsfm.evaluation.metrics_report as metrics_report
+import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.viz as viz_utils
@@ -264,76 +266,72 @@ class GtsfmRunnerBase:
         process_graph_generator.save_graph()
 
         COMBINATIONS = [
-            (0,0), (0,5), (0,10),
+            (0,5), (0,10),
             (5,0), (5,5), (5,10),
             (10,0), (10,5), (10,10),
         ]
 
+        experiment_roots = []
+        output_root = self.scene_optimizer.output_root
         for (num_matched, max_frame_lookahead) in COMBINATIONS:
 
+            experiment_root = output_root / f'num_matched{num_matched}_maxframelookahead{max_frame_lookahead}'
+            experiment_roots.append(experiment_root)
+            self.scene_optimizer.output_root = experiment_root
+            print(f"Run and save to {self.scene_optimizer.output_root}")
+
             if max_frame_lookahead is not None:
-                if scene_optimizer.retriever._matching_regime in [
+                if self.scene_optimizer.retriever._matching_regime in [
                     ImageMatchingRegime.SEQUENTIAL,
                     ImageMatchingRegime.SEQUENTIAL_HILTI,
                 ]:
-                    scene_optimizer.retriever._max_frame_lookahead = max_frame_lookahead
-                elif scene_optimizer.retriever._matching_regime == ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL:
-                    scene_optimizer.retriever._seq_retriever._max_frame_lookahead = max_frame_lookahead
+                    self.scene_optimizer.retriever._max_frame_lookahead = max_frame_lookahead
+                elif self.scene_optimizer.retriever._matching_regime == ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL:
+                    self.scene_optimizer.retriever._seq_retriever._max_frame_lookahead = max_frame_lookahead
                 else:
                     raise ValueError(
                         "`max_frame_lookahead` arg is incompatible with retriever matching regime "
-                        f"{scene_optimizer.retriever._matching_regime}"
+                        f"{self.scene_optimizer.retriever._matching_regime}"
                     )
             if num_matched is not None:
-                if scene_optimizer.retriever._matching_regime == ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL:
-                    scene_optimizer.retriever._similarity_retriever._num_matched = num_matched
-                elif scene_optimizer.retriever._matching_regime == ImageMatchingRegime.RETRIEVAL:
-                    scene_optimizer.retriever._num_matched = num_matched
+                if self.scene_optimizer.retriever._matching_regime == ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL:
+                    self.scene_optimizer.retriever._similarity_retriever._num_matched = num_matched
+                elif self.scene_optimizer.retriever._matching_regime == ImageMatchingRegime.RETRIEVAL:
+                    self.scene_optimizer.retriever._num_matched = num_matched
                 else:
                     raise ValueError(
                         "`num_matched` arg is incompatible with retriever matching regime "
-                        f"{scene_optimizer.retriever._matching_regime}"
+                        f"{self.scene_optimizer.retriever._matching_regime}"
                     )
 
-            self.run_with_retriever_setting()
+            self.scene_optimizer._create_output_directories()
+            self.run_with_retriever_setting(client)
 
         # Loop over all runs, see which has highest median track length.
-
-        experiment_roots = []
+        mean_track_lengths = []
         for experiment_root in experiment_roots:
-
             dirpath = Path(experiment_root) / "result_metrics"
-            frontend_name = Path(experiment_root).name
-            table["method_name"].append(frontend_name)
+            json_fname = "bundle_adjustment_metrics.json"
+            metric_name = "3d_track_lengths_filtered"
+            section_name = Path(json_fname).stem
 
-            json_fname = ""
-            metric_name = ""
+            json_data = io_utils.read_json_file(f"{dirpath}/{json_fname}")[section_name]
+            mean_track_length = json_data[metric_name]['summary']['mean']
+            mean_track_lengths.append(mean_track_length)
 
-            for json_fname, metric_names, nickname in zip(
-                SECTION_FILE_NAMES,
-                SECTION_METRIC_LISTS,
-                SECTION_NICKNAMES,
-            ):
-                section_name = Path(json_fname).stem
-                print(f"{dirpath}/{json_fname}")
-                json_data = io_utils.read_json_file(f"{dirpath}/{json_fname}")[section_name]
-                for metric_name in metric_names:
-                    full_metric_name = f"{nickname}_" + " ".join(metric_name.split("_"))
-                    if method_idx == 0:
-                        headers.append(full_metric_name)
+        print("Mean track lengths: ", [np.round(length, 3) for length in mean_track_lengths])
+        best_idx = np.argmax(mean_track_lengths)
+        best_experiment_root = experiment_roots[best_idx]
+        print("Selected: index=", best_idx, best_experiment_root)
 
-                    if "pose_auc_" in metric_name and metric_name in SCALAR_METRIC_NAMES:
-                        table[full_metric_name].append(json_data[metric_name] * 100)
-                    elif metric_name in SCALAR_METRIC_NAMES:
-                        print(f"{metric_name}: {json_data[metric_name]}")
-                        table[full_metric_name].append(json_data[metric_name])
-                    else:
-                        med = f"{json_data[metric_name]['summary']['median']:.2f}"
+        # Delete all other directories.
+        for idx, experiment_root in enumerate(experiment_roots):
+            if idx == best_idx:
+                continue
+            shutil.rmtree(experiment_root)
 
 
-
-
-    def run_with_retriever_setting(self) -> GtsfmData:
+    def run_with_retriever_setting(self, client) -> GtsfmData:
         start_time = time.time()
 
         # TODO(Ayush): Use futures
