@@ -152,6 +152,12 @@ class GtsfmRunnerBase:
             default=3,
             help="Number of times to retry cluster connection if it fails.",
         )
+        parser.add_argument(
+            "--run_low_quality",
+            action="store_true",
+            help="Whether to run GTSFM at a single (num_matched,max_frame_lookahead) threshold, i.e. single trial "
+            "(defaults to false if not provided).",
+        )
         return parser
 
     @abstractmethod
@@ -265,17 +271,27 @@ class GtsfmRunnerBase:
             process_graph_generator.is_image_correspondence = True
         process_graph_generator.save_graph()
 
-        COMBINATIONS = [
-            (0,5), (0,10),
-            (5,0), (5,5), (5,10),
-            (10,0), (10,5), (10,10),
-        ]
+        if self.parsed_args.run_low_quality:
+            # TODO(johnwlambert): Check if these are None, otherwise don't override.
+            COMBINATIONS = [(self.parsed_args.num_matched, self.parsed_args.max_frame_lookahead)]
+        else:
+            # Run multiple trials at different (num_matched, max_frame_lookahead) settings.
+            COMBINATIONS = [
+                (0, 5),
+                (0, 10),
+                (5, 0),
+                (5, 5),
+                (5, 10),
+                (10, 0),
+                (10, 5),
+                (10, 10),
+            ]
 
         experiment_roots = []
         output_root = self.scene_optimizer.output_root
         for (num_matched, max_frame_lookahead) in COMBINATIONS:
 
-            experiment_root = output_root / f'num_matched{num_matched}_maxframelookahead{max_frame_lookahead}'
+            experiment_root = output_root / f"num_matched{num_matched}_maxframelookahead{max_frame_lookahead}"
             experiment_roots.append(experiment_root)
             self.scene_optimizer.output_root = experiment_root
             print(f"Run and save to {self.scene_optimizer.output_root}")
@@ -316,7 +332,7 @@ class GtsfmRunnerBase:
             section_name = Path(json_fname).stem
 
             json_data = io_utils.read_json_file(f"{dirpath}/{json_fname}")[section_name]
-            mean_track_length = json_data[metric_name]['summary']['mean']
+            mean_track_length = json_data[metric_name]["summary"]["mean"]
             mean_track_lengths.append(mean_track_length)
 
         print("Mean track lengths: ", [np.round(length, 3) for length in mean_track_lengths])
@@ -329,7 +345,6 @@ class GtsfmRunnerBase:
             if idx == best_idx:
                 continue
             shutil.rmtree(experiment_root)
-
 
     def run_with_retriever_setting(self, client) -> GtsfmData:
         start_time = time.time()
