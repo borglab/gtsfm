@@ -1,25 +1,37 @@
-"""Unit tests for two-view estimator cacher.
-
-"""
+"""Unit tests for two-view estimator cacher."""
 
 import unittest
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import numpy as np
+from gtsam import Cal3Bundler
+
+from gtsfm.common.keypoints import Keypoints
 from gtsfm.two_view_estimator_cacher import TwoViewEstimatorCacher
 
+
+ROOT_PATH = Path(__file__).resolve().parent.parent
+
+_DUMMY_OUTPUT = (None, None, None, None, None, None)
 
 class TestTwoViewEstimatorCacher(unittest.TestCase):
     def setUp(self) -> None:
         # Generate 20 random keypoints, and assume H = W = 1000.
         coordinates_i1 = np.random.randint(low=0, high=1000, size=(20, 2))
-        coordinates_i1 = np.random.randint(low=0, high=1000, size=(20, 2))
+        coordinates_i2 = np.random.randint(low=0, high=1000, size=(20, 2))
 
         self.keypoints_i1 = Keypoints(coordinates_i1)
         self.keypoints_i2 = Keypoints(coordinates_i2)
         # Horizontally stack two (5,1) arrays to form (20,2).
         self.corr_idxs = np.hstack([np.arange(5).reshape(-1, 1)] * 2)
 
-        self.dummy_output = (None, None, None, None, None, None)
+        fx, k1, k2, u0, v0 = 583.1175, 0, 0, 507, 380
+        calibration = Cal3Bundler(fx, k1, k2, u0, v0)
+        self.camera_intrinsics_i1 = calibration
+        self.camera_intrinsics_i2 = calibration
+
+        self.dummy_output = _DUMMY_OUTPUT
 
     @patch("gtsfm.utils.cache.generate_hash_for_numpy_array", return_value="numpy_key")
     @patch("gtsfm.utils.io.read_from_bz2_file", return_value=None)
@@ -27,12 +39,11 @@ class TestTwoViewEstimatorCacher(unittest.TestCase):
     def test_cache_miss(
         self, write_mock: MagicMock, read_mock: MagicMock, generate_hash_for_numpy_array_mock: MagicMock
     ) -> None:
-        """Test the scenario of cache miss."""
+        """Test the scenario of cache miss for the TwoViewEstimator."""
 
         # Mock the underlying two-view estimator which is used on cache miss.
         underlying_estimator_mock = MagicMock()
         underlying_estimator_mock.run_2view.return_value = self.dummy_output
-        underlying_estimator_mock.__class__.__name__ = "mock_two_view_estimator"
 
         cacher = TwoViewEstimatorCacher(two_view_estimator_obj=underlying_estimator_mock)
 
@@ -40,8 +51,8 @@ class TestTwoViewEstimatorCacher(unittest.TestCase):
             keypoints_i1=self.keypoints_i1,
             keypoints_i2=self.keypoints_i2,
             putative_corr_idxs=self.corr_idxs,
-            # camera_intrinsics_i1: Optional[gtsfm_types.CALIBRATION_TYPE],
-            # camera_intrinsics_i2: Optional[gtsfm_types.CALIBRATION_TYPE],
+            camera_intrinsics_i1=self.camera_intrinsics_i1,
+            camera_intrinsics_i2=self.camera_intrinsics_i2,
             i2Ti1_prior=None,
             gt_camera_i1=None,
             gt_camera_i2=None,
@@ -50,34 +61,29 @@ class TestTwoViewEstimatorCacher(unittest.TestCase):
         # Assert the returned value.
         self.assertEqual(result, self.dummy_output)
 
-        # Assert that underlying object was called.
-        underlying_estimator_mock.run_2view.assert_called_once_with(DUMMY_IMAGE)
+        # Assert that underlying TwoViewEstimator was called, to generate result from scratch (cache miss).
+        underlying_estimator_mock.run_2view.assert_called_once()
 
-        # Assert that hash generation was called with the input image.
+        # Assert that hash generation was called once.
         generate_hash_for_numpy_array_mock.assert_called()
 
         # Assert that read function was called once and write function was called once.
-        cache_path = ROOT_PATH / "cache" / "two_view_estimator" / "mock_two_view_estimator_numpy_key.pbz2"
+        cache_path = ROOT_PATH / "cache" / "two_view_estimator" / "numpy_key.pbz2"
         read_mock.assert_called_once_with(cache_path)
-        write_mock.assert_called_once_with(
-            {"keypoints_i1": self.keypoints_i1, "keypoints_i2": self.keypoints_i2}, cache_path
-        )
+        write_mock.assert_called_once()
+
 
     @patch("gtsfm.utils.cache.generate_hash_for_numpy_array", return_value="numpy_key")
-    @patch(
-        "gtsfm.utils.io.read_from_bz2_file",
-        return_value={"keypoints": DUMMY_KEYPOINTS, "descriptors": DUMMY_DESCRIPTORS},
-    )
+    @patch("gtsfm.utils.io.read_from_bz2_file", return_value=_DUMMY_OUTPUT)
     @patch("gtsfm.utils.io.write_to_bz2_file")
     def test_cache_hit(
         self, write_mock: MagicMock, read_mock: MagicMock, generate_hash_for_numpy_array_mock: MagicMock
     ) -> None:
-        """Test the scenario of cache miss."""
+        """Test the scenario of cache miss for TwoViewEstimator."""
 
         # Mock the underlying two-view estimator which is used on cache miss.
         underlying_estimator_mock = MagicMock()
-        # underlying_estimator_mock.run_2view.return_value = self.dummy_output
-        underlying_estimator_mock.__class__.__name__ = "mock_two_view_estimator"
+        underlying_estimator_mock.run_2view.return_value = self.dummy_output
 
         cacher = TwoViewEstimatorCacher(two_view_estimator_obj=underlying_estimator_mock)
 
@@ -85,8 +91,8 @@ class TestTwoViewEstimatorCacher(unittest.TestCase):
             keypoints_i1=self.keypoints_i1,
             keypoints_i2=self.keypoints_i2,
             putative_corr_idxs=self.corr_idxs,
-            # camera_intrinsics_i1: Optional[gtsfm_types.CALIBRATION_TYPE],
-            # camera_intrinsics_i2: Optional[gtsfm_types.CALIBRATION_TYPE],
+            camera_intrinsics_i1=self.camera_intrinsics_i1,
+            camera_intrinsics_i2=self.camera_intrinsics_i2,
             i2Ti1_prior=None,
             gt_camera_i1=None,
             gt_camera_i2=None,
@@ -99,12 +105,14 @@ class TestTwoViewEstimatorCacher(unittest.TestCase):
         # Assert that underlying object was not called.
         underlying_estimator_mock.run_2view.assert_not_called()
 
-        # Assert that hash generation was called with the input image.
+        # Assert that hash generation was called with the inputs.
         generate_hash_for_numpy_array_mock.assert_called()
 
-        # Assert that read function was called once and write function was called once.
-        cache_path = ROOT_PATH / "cache" / "two_view_estimator" / "mock_two_view_estimator_numpy_key.pbz2"
+        # Assert that the read function was called once.
+        cache_path = ROOT_PATH / "cache" / "two_view_estimator" / "numpy_key.pbz2"
         read_mock.assert_called_once_with(cache_path)
+
+        # Assert that the write function was not called (as cache is mocked to already exist).
         write_mock.assert_not_called()
 
 
