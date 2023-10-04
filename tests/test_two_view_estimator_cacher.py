@@ -15,6 +15,7 @@ ROOT_PATH = Path(__file__).resolve().parent.parent
 
 _DUMMY_OUTPUT = (None, None, None, None, None, None)
 
+
 class TestTwoViewEstimatorCacher(unittest.TestCase):
     def setUp(self) -> None:
         # Generate 20 random keypoints, and assume H = W = 1000.
