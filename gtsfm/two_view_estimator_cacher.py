@@ -1,4 +1,4 @@
-"""Decorator which implements a cache for the two-view-estimator class
+"""Decorator which implements a cache for the two-view estimator class.
 
 Authors: Ayush Baid
 """
@@ -42,15 +42,15 @@ class TwoViewEstimatorCacher(TwoViewEstimator):
     def __generate_cache_key(
         self, keypoints_i1: Keypoints, keypoints_i2: Keypoints, putative_corr_idxs: np.ndarray
     ) -> str:
-        # Subsample correspondence indices
+        # Subsample correspondence indices.
         sampled_idxs = putative_corr_idxs[:NUM_CORRESPONDENCES_TO_SAMPLE_FOR_HASH]
 
-        # Get the coordinates of the sampled idxs
+        # Get the coordinates of the sampled idxs.
         numpy_arrays_to_hash: List[np.ndarray] = []
         numpy_arrays_to_hash.append(keypoints_i1.coordinates[sampled_idxs[:, 0]].flatten())
         numpy_arrays_to_hash.append(keypoints_i2.coordinates[sampled_idxs[:, 1]].flatten())
 
-        # hash the concatenation of all the numpy arrays
+        # Hash the concatenation of all the numpy arrays.
         return cache_utils.generate_hash_for_numpy_array(np.concatenate(numpy_arrays_to_hash))
 
     def __load_result_from_cache(
