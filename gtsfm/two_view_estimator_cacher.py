@@ -39,6 +39,9 @@ class TwoViewEstimatorCacher(TwoViewEstimator):
     def __init__(self, two_view_estimator_obj: TwoViewEstimator) -> None:
         self._two_view_estimator = two_view_estimator_obj
 
+    def __repr__(self) -> str:
+        return self._two_view_estimator.__repr__()
+
     def __get_cache_path(self, cache_key: str) -> Path:
         """Gets the file path to the cache bz2 file from the cache key."""
         return CACHE_ROOT_PATH / "two_view_estimator" / "{}.pbz2".format(cache_key)
