@@ -69,13 +69,13 @@ To run SfM with a dataset with only an image directory and EXIF, with image file
 and run
 
 ```python
-python gtsfm/runner/run_scene_optimizer_olssonloader.py --config_name {CONFIG_NAME} --dataset_root {DATASET_ROOT} --image_extension jpg --num_workers {NUM_WORKERS}
+python gtsfm/runner/run_scene_optimizer_olssonloader.py --config_name {CONFIG_NAME} --dataset_root {DATASET_ROOT} --num_workers {NUM_WORKERS}
 ```
 
 For example, if you had 4 cores available and wanted to use the Deep Front-End (recommended) on the "door" dataset, you should run:
 
 ```bash
-python gtsfm/runner/run_scene_optimizer_olssonloader.py --dataset_root tests/data/set1_lund_door --image_extension JPG --config_name deep_front_end.yaml --num_workers 4
+python gtsfm/runner/run_scene_optimizer_olssonloader.py --dataset_root tests/data/set1_lund_door --config_name deep_front_end.yaml --num_workers 4
 ```
 
 (or however many workers you desire).
@@ -87,7 +87,7 @@ Currently we require EXIF data embedded into your images (or you can provide gro
 If you would like to compare GTSfM output with COLMAP output, please run:
 
 ```python
-python gtsfm/runner/run_scene_optimizer_colmaploader.py --config_name {CONFIG_NAME} --images_dir {IMAGES_DIR} --colmap_files_dirpath {COLMAP_FILES_DIRPATH} --image_extension jpg --num_workers {NUM_WORKERS} --max_frame_lookahead {MAX_FRAME_LOOKAHEAD}
+python gtsfm/runner/run_scene_optimizer_colmaploader.py --config_name {CONFIG_NAME} --images_dir {IMAGES_DIR} --colmap_files_dirpath {COLMAP_FILES_DIRPATH} --num_workers {NUM_WORKERS} --max_frame_lookahead {MAX_FRAME_LOOKAHEAD}
 ```
 
 where `COLMAP_FILES_DIRPATH` is a directory where .txt files such as `cameras.txt`, `images.txt`, etc have been saved.
@@ -102,6 +102,22 @@ For users that are working with the same dataset repeatedly, we provide function
 GTSfM for very fast inference afterwards. For more information, please refer to [`gtsfm/frontend/cacher/README.md`](https://github.com/borglab/gtsfm/tree/master/gtsfm/frontend/cacher).
 
 For users that want to run GTSfM on a cluster of multiple machines, we provide setup instructions here: [`CLUSTER.md`](https://github.com/borglab/gtsfm/tree/master/CLUSTER.md)
+
+The results will be stored at `--output_root`, which is the `results` folder in the repo root by default. The poses and 3D tracks are stored in COLMAP format inside the `ba_output` subdirectory of `--output_root`. These can be visualized using the COLMAP GUI as well. 
+
+### Nerfstudio
+
+We provide a preprocessing script to convert the camera poses estimated by GTSfM to [nerfstudio](https://docs.nerf.studio/en/latest/) format: 
+
+```bash
+python gtsfm/utils/prepare_nerfstudio.py --results_path {RESULTS_DIR} --images_dir {IMAGES_DIR}
+```
+
+The results are stored in the nerfstudio_input subdirectory inside `{RESULTS_DIR}`, which can be used directly with nerfstudio if installed:
+
+```bash
+ns-train nerfacto --data {RESULTS_DIR}/nerfstudio_input
+```
 
 ## Repository Structure
 
@@ -145,7 +161,3 @@ Open-source Python implementation:
 ```
 
 Note: authors are listed in alphabetical order (by last name).
-
-## Compiling Additional Verifiers
-
-On Linux, we have made `pycolmap`'s LORANSAC available in [pypi](https://pypi.org/project/pycolmap/). However, on Mac, `pycolmap` must be built from scratch. See the instructions [here](https://github.com/borglab/gtsfm/blob/master/gtsfm/frontend/verifier/loransac.py#L10).

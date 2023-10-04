@@ -5,18 +5,24 @@ import os
 import time
 from abc import abstractmethod, abstractproperty
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, List, Tuple
 
 import dask
 import hydra
 import numpy as np
+from dask import config as dask_config
 from dask.distributed import Client, LocalCluster, SSHCluster, performance_report
 from gtsam import Rot3, Unit3
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
 
+import gtsfm.evaluation.metrics_report as metrics_report
 import gtsfm.utils.logger as logger_utils
+import gtsfm.utils.metrics as metrics_utils
+import gtsfm.utils.viz as viz_utils
 from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm import two_view_estimator
+from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.frontend.correspondence_generator.image_correspondence_generator import ImageCorrespondenceGenerator
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.retriever.retriever_base import ImageMatchingRegime
@@ -24,9 +30,12 @@ from gtsfm.scene_optimizer import SceneOptimizer
 from gtsfm.two_view_estimator import TWO_VIEW_OUTPUT, TwoViewEstimationReport, run_two_view_estimator_as_futures
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
 
+dask_config.set({"distributed.scheduler.worker-ttl": None})
+
 logger = logger_utils.get_logger()
 
 DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent.parent.parent
+REACT_METRICS_PATH = DEFAULT_OUTPUT_ROOT / "rtf_vis_tool" / "src" / "result_metrics"
 
 
 class GtsfmRunnerBase:
@@ -50,19 +59,23 @@ class GtsfmRunnerBase:
             "--num_workers",
             type=int,
             default=1,
-            help="Number of workers to start (processes, by default)",
+            help="Number of workers to start (processes, by default).",
         )
         parser.add_argument(
             "--threads_per_worker",
             type=int,
             default=1,
-            help="Number of threads per each worker",
+            help="Number of threads per each worker.",
+        )
+        parser.add_argument(
+            "--worker_memory_limit", type=str, default="8GB", help="Memory limit per worker, e.g. `8GB`"
         )
         parser.add_argument(
             "--config_name",
             type=str,
             default="sift_front_end.yaml",
-            help="Master config, including back-end configuration. Choose sift_front_end.yaml or deep_front_end.yaml",
+            help="Master config, including back-end configuration. Options include `unified_config.yaml`,"
+            " `sift_front_end.yaml`, `deep_front_end.yaml`, etc.",
         )
         parser.add_argument(
             "--correspondence_generator_config_name",
@@ -93,10 +106,16 @@ class GtsfmRunnerBase:
             "--max_frame_lookahead",
             type=int,
             default=None,
-            help="maximum number of consecutive frames to consider for matching/co-visibility",
+            help="Maximum number of consecutive frames to consider for matching/co-visibility.",
         )
         parser.add_argument(
-            "--share_intrinsics", action="store_true", help="Shares the intrinsics between all the cameras"
+            "--num_matched",
+            type=int,
+            default=None,
+            help="Number of K potential matches to provide per query. These are the top `K` matches per query.",
+        )
+        parser.add_argument(
+            "--share_intrinsics", action="store_true", help="Shares the intrinsics between all the cameras."
         )
         parser.add_argument("--mvs_off", action="store_true", help="Turn off dense MVS reconstruction")
         parser.add_argument(
@@ -129,7 +148,7 @@ class GtsfmRunnerBase:
             "--num_retry_cluster_connection",
             type=int,
             default=3,
-            help="number of times to retry cluster connection if it fails",
+            help="Number of times to retry cluster connection if it fails.",
         )
         return parser
 
@@ -188,6 +207,21 @@ class GtsfmRunnerBase:
                 scene_optimizer.retriever._max_frame_lookahead = self.parsed_args.max_frame_lookahead
             elif scene_optimizer.retriever._matching_regime == ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL:
                 scene_optimizer.retriever._seq_retriever._max_frame_lookahead = self.parsed_args.max_frame_lookahead
+            else:
+                raise ValueError(
+                    "`max_frame_lookahead` arg is incompatible with retriever matching regime "
+                    f"{scene_optimizer.retriever._matching_regime}"
+                )
+        if self.parsed_args.num_matched is not None:
+            if scene_optimizer.retriever._matching_regime == ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL:
+                scene_optimizer.retriever._similarity_retriever._num_matched = self.parsed_args.num_matched
+            elif scene_optimizer.retriever._matching_regime == ImageMatchingRegime.RETRIEVAL:
+                scene_optimizer.retriever._num_matched = self.parsed_args.num_matched
+            else:
+                raise ValueError(
+                    "`num_matched` arg is incompatible with retriever matching regime "
+                    f"{scene_optimizer.retriever._matching_regime}"
+                )
 
         if self.parsed_args.mvs_off:
             scene_optimizer.run_dense_optimizer = False
@@ -195,11 +229,9 @@ class GtsfmRunnerBase:
         logger.info("\n\nSceneOptimizer: " + str(scene_optimizer))
         return scene_optimizer
 
-    def setup_ssh_cluster_with_retries(self):
+    def setup_ssh_cluster_with_retries(self) -> SSHCluster:
         """Sets up SSH Cluster allowing multiple retries upon connection failures."""
-        workers = OmegaConf.load(
-            os.path.join(self.parsed_args.output_root, "gtsfm", "configs", self.parsed_args.cluster_config)
-        )["workers"]
+        workers = OmegaConf.load(os.path.join("gtsfm", "configs", self.parsed_args.cluster_config))["workers"]
         scheduler = workers[0]
         connected = False
         retry_count = 0
@@ -214,20 +246,25 @@ class GtsfmRunnerBase:
                     worker_options={
                         "n_workers": self.parsed_args.num_workers,
                         "nthreads": self.parsed_args.threads_per_worker,
-                        "memory_limit": "8GB",
+                        "memory_limit": self.parsed_args.worker_memory_limit,
                     },
                 )
                 connected = True
             except Exception as e:
                 logger.info(f"Worker failed to start: {str(e)}")
                 retry_count += 1
+        if not connected:
+            raise ValueError(
+                f"Connection to cluster could not be established after {self.parsed_args.num_retry_cluster_connection}"
+                " attempts. Aborting..."
+            )
         return cluster
 
     def run(self) -> GtsfmData:
         """Run the SceneOptimizer."""
         start_time = time.time()
 
-        # create dask cluster
+        # Create dask cluster.
         if self.parsed_args.cluster_config:
             cluster = self.setup_ssh_cluster_with_retries()
             client = Client(cluster)
@@ -236,29 +273,39 @@ class GtsfmRunnerBase:
             self.loader._input_worker = io_worker
             self.scene_optimizer._output_worker = io_worker
         else:
-            cluster = LocalCluster(
-                n_workers=self.parsed_args.num_workers, threads_per_worker=self.parsed_args.threads_per_worker
-            )
+            local_cluster_kwargs = {
+                "n_workers": self.parsed_args.num_workers,
+                "threads_per_worker": self.parsed_args.threads_per_worker,
+                "dashboard_address": self.parsed_args.dashboard_port
+            }
+            if self.parsed_args.worker_memory_limit is not None:
+                local_cluster_kwargs["memory_limit"] = self.parsed_args.worker_memory_limit
+            cluster = LocalCluster(**local_cluster_kwargs)
             client = Client(cluster)
 
-        # create process graph
+        # Create process graph.
         process_graph_generator = ProcessGraphGenerator()
         if isinstance(self.scene_optimizer.correspondence_generator, ImageCorrespondenceGenerator):
             process_graph_generator.is_image_correspondence = True
         process_graph_generator.save_graph()
 
         # TODO(Ayush): Use futures
-        image_pair_indices = self.scene_optimizer.retriever.get_image_pairs(
+        retriever_start_time = time.time()
+        pairs_graph = self.scene_optimizer.retriever.create_computation_graph(
             self.loader, plots_output_dir=self.scene_optimizer._plot_base_path
         )
+        with performance_report(filename="retriever-dask-report.html"):
+            image_pair_indices = pairs_graph.compute()
+
         retriever_metrics = self.scene_optimizer.retriever.evaluate(self.loader, image_pair_indices)
-        retriever_metrics.save_to_json(
-            os.path.join(self.parsed_args.output_root, "result_metrics", "retriever_metrics" + ".json")
-        )
+        retriever_duration_sec = time.time() - retriever_start_time
+        retriever_metrics.add_metric(GtsfmMetric("retriever_duration_sec", retriever_duration_sec))
+        logger.info("Image pair retrieval took %.2f sec.", retriever_duration_sec)
 
         intrinsics = self.loader.get_all_intrinsics()
 
         with performance_report(filename="correspondence-generator-dask-report.html"):
+            correspondence_generation_start_time = time.time()
             (
                 keypoints_list,
                 putative_corr_idxs_dict,
@@ -267,7 +314,9 @@ class GtsfmRunnerBase:
                 self.loader.get_all_images_as_futures(client),
                 image_pair_indices,
             )
+            correspondence_generation_duration_sec = time.time() - correspondence_generation_start_time
 
+            two_view_estimation_start_time = time.time()
             two_view_results_dict = run_two_view_estimator_as_futures(
                 client,
                 self.scene_optimizer.two_view_estimator,
@@ -278,10 +327,41 @@ class GtsfmRunnerBase:
                 self.loader.get_gt_cameras(),
                 gt_scene_mesh=self.loader.get_gt_scene_trimesh(),
             )
+            two_view_estimation_duration_sec = time.time() - two_view_estimation_start_time
 
         i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, two_view_reports_dict = unzip_two_view_results(two_view_results_dict)
 
-        delayed_sfm_result, delayed_io = self.scene_optimizer.create_computation_graph(
+        if self.scene_optimizer._save_two_view_correspondences_viz:
+            for (i1, i2) in v_corr_idxs_dict.keys():
+                image_i1 = self.loader.get_image(i1)
+                image_i2 = self.loader.get_image(i2)
+                viz_utils.save_twoview_correspondences_viz(
+                    image_i1,
+                    image_i2,
+                    keypoints_list[i1],
+                    keypoints_list[i2],
+                    v_corr_idxs_dict[(i1, i2)],
+                    two_view_report=two_view_reports_dict[(i1, i2)],
+                    file_path=os.path.join(
+                        self.scene_optimizer._plot_correspondence_path,
+                        f"{i1}_{i2}__{image_i1.file_name}_{image_i2.file_name}.jpg",
+                    ),
+                )
+
+        two_view_agg_metrics = two_view_estimator.aggregate_frontend_metrics(
+            two_view_reports_dict=two_view_reports_dict,
+            angular_err_threshold_deg=self.scene_optimizer._pose_angular_error_thresh,
+            metric_group_name="verifier_summary_{}".format(two_view_estimator.POST_ISP_REPORT_TAG),
+        )
+        two_view_agg_metrics.add_metric(
+            GtsfmMetric("total_correspondence_generation_duration_sec", correspondence_generation_duration_sec)
+        )
+        two_view_agg_metrics.add_metric(
+            GtsfmMetric("total_two_view_estimation_duration_sec", two_view_estimation_duration_sec)
+        )
+        all_metrics_groups = [retriever_metrics, two_view_agg_metrics]
+
+        delayed_sfm_result, delayed_io, delayed_mvo_metrics_groups = self.scene_optimizer.create_computation_graph(
             keypoints_list=keypoints_list,
             i2Ri1_dict=i2Ri1_dict,
             i2Ui1_dict=i2Ui1_dict,
@@ -298,14 +378,22 @@ class GtsfmRunnerBase:
         )
 
         with performance_report(filename="scene-optimizer-dask-report.html"):
-            sfm_result, *io = dask.compute(delayed_sfm_result, *delayed_io)
+            sfm_result, *other_results = dask.compute(delayed_sfm_result, *delayed_io, *delayed_mvo_metrics_groups)
+        mvo_metrics_groups = [x for x in other_results if isinstance(x, GtsfmMetricsGroup)]
 
         assert isinstance(sfm_result, GtsfmData)
+        all_metrics_groups.extend(mvo_metrics_groups)
 
         end_time = time.time()
         duration_sec = end_time - start_time
         logger.info("GTSFM took %.2f minutes to compute sparse multi-view result.", duration_sec / 60)
 
+        total_summary_metrics = GtsfmMetricsGroup(
+            "total_summary_metrics", [GtsfmMetric("total_runtime_sec", duration_sec)]
+        )
+        all_metrics_groups.append(total_summary_metrics)
+
+        save_metrics_reports(all_metrics_groups, os.path.join(self.scene_optimizer.output_root, "result_metrics"))
         return sfm_result
 
 
@@ -335,3 +423,20 @@ def unzip_two_view_results(
         two_view_reports_dict[(i1, i2)] = two_view_output[5]
 
     return i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, two_view_reports_dict
+
+
+def save_metrics_reports(metrics_group_list: List[GtsfmMetricsGroup], metrics_path: str) -> None:
+    """Saves metrics to JSON and HTML report.
+
+    Args:
+        metrics_graph: List of GtsfmMetricsGroup from different modules wrapped as Delayed.
+        metrics_path: Path to directory where computed metrics will be saved.
+    """
+
+    # Save metrics to JSON
+    metrics_utils.save_metrics_as_json(metrics_group_list, metrics_path)
+    metrics_utils.save_metrics_as_json(metrics_group_list, str(REACT_METRICS_PATH))
+
+    metrics_report.generate_metrics_report_html(
+        metrics_group_list, os.path.join(metrics_path, "gtsfm_metrics_report.html"), None
+    )

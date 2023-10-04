@@ -22,7 +22,7 @@ class ImageMatcherBase(GTSFMProcess):
 
         return UiMetadata(
             display_name="Direct Image Matcher",
-            input_products="Images",
+            input_products=("Images",),
             output_products=("Detections i", "Detections j"),
             parent_plate="ImageCorrespondenceGenerator",
         )

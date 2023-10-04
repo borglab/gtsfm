@@ -21,7 +21,7 @@ class SequentialHiltiRetriever(RetrieverBase):
     def __init__(self, max_frame_lookahead: int) -> None:
         """
         Args:
-            max_frame_lookahead: maximum number of consecutive rig frames to consider for matching/co-visibility.
+            max_frame_lookahead: Maximum number of consecutive rig frames to consider for matching/co-visibility.
         """
         super().__init__(matching_regime=ImageMatchingRegime.SEQUENTIAL_HILTI)
         self._max_frame_lookahead = max_frame_lookahead
@@ -30,11 +30,11 @@ class SequentialHiltiRetriever(RetrieverBase):
         """Checks if (idx1, idx2) is a valid pair. idx1 < idx2 is required.
 
         Args:
-            idx1: first index of the pair.
-            idx2: second index of the pair.
+            idx1: First index of the pair.
+            idx2: Second index of the pair.
 
         Returns:
-            validation result.
+            Validation result.
         """
         if idx1 >= idx2:
             return False

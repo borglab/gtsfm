@@ -10,9 +10,11 @@ References:
 
 Authors: Jing Wu, Ayush Baid, Akshay Krishnan
 """
+import time
 from collections import defaultdict
 from enum import Enum
 from typing import DefaultDict, Dict, List, Optional, Set, Tuple
+
 import gtsam
 import numpy as np
 from gtsam import (
@@ -461,6 +463,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
         w_i2Ui1_dict, valid_cameras = get_valid_measurements_in_world_frame(i2Ui1_dict, wRi_list)
 
+        start_time = time.time()
         if self._use_tracks_for_averaging:
             if tracks_2d is None:
                 logger.info("No tracks provided for translation averaging. Falling back to camera unit translations.")
@@ -473,10 +476,13 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         else:
             w_i2Ui1_dict_tracks = {}
 
+        inlier_computation_start_time = time.time()
         w_i2Ui1_dict_inliers, w_i2Ui1_dict_tracks_inliers, inlier_cameras = self.compute_inliers(
             w_i2Ui1_dict, w_i2Ui1_dict_tracks
         )
+        inlier_computation_time = time.time() - inlier_computation_start_time
 
+        averaging_start_time = time.time()
         wti_list = self.__run_averaging(
             num_images=num_images,
             w_i2Ui1_dict=w_i2Ui1_dict_inliers,
@@ -486,6 +492,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             absolute_pose_priors=absolute_pose_priors,
             scale_factor=scale_factor,
         )
+        averaging_time = time.time() - averaging_start_time
 
         # Compute the metrics.
         ta_metrics = compute_metrics(set(w_i2Ui1_dict_inliers.keys()), i2Ui1_dict, wRi_list, wti_list, gt_wTi_list)
@@ -497,6 +504,12 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         wTi_list = [
             Pose3(wRi, wti) if wRi is not None and wti is not None else None for wRi, wti in zip(wRi_list, wti_list)
         ]
+        total_time = time.time() - start_time
+        logger.info("Translation averaging took %.4f seconds.", total_time)
+        ta_metrics.add_metric(GtsfmMetric("total_duration_sec", total_time))
+        ta_metrics.add_metric(GtsfmMetric("outlier_rejection_duration_sec", inlier_computation_time))
+        ta_metrics.add_metric(GtsfmMetric("optimization_duration_sec", averaging_time))
+
         return wTi_list, ta_metrics
 
 

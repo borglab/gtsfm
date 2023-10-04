@@ -18,16 +18,22 @@ class SequentialRetriever(RetrieverBase):
     def __init__(self, max_frame_lookahead: int) -> None:
         """
         Args:
-            max_frame_lookahead: maximum number of consecutive frames to consider for matching/co-visibility.
+            max_frame_lookahead: Maximum number of consecutive frames to consider for matching/co-visibility.
         """
         super().__init__(matching_regime=ImageMatchingRegime.SEQUENTIAL)
         self._max_frame_lookahead = max_frame_lookahead
+
+    def __repr__(self) -> str:
+        return f"""
+        SequentialRetriever:
+           Max. frame lookahead {self._max_frame_lookahead}
+        """
 
     def get_image_pairs(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> List[Tuple[int, int]]:
         """Compute potential image pairs.
 
         Args:
-            loader: image loader. The length of this loader will provide the total number of images
+            loader: Image loader. The length of this loader will provide the total number of images
                 for exhaustive global descriptor matching.
             plots_output_dir: Directory to save plots to. Unused in this retriever.
 

@@ -3,10 +3,9 @@
 DATASET_NAME=$1
 CONFIG_NAME=$2
 MAX_FRAME_LOOKAHEAD=$3
-IMAGE_EXTENSION=$4
-LOADER_NAME=$5
-MAX_RESOLUTION=$6
-SHARE_INTRINSICS=$7
+LOADER_NAME=$4
+MAX_RESOLUTION=$5
+SHARE_INTRINSICS=$6
 
 # Extract the data, configure arguments for runner.
 if [ "$DATASET_NAME" == "door-12" ]; then
@@ -30,10 +29,14 @@ elif [ "$DATASET_NAME" == "notre-dame-20" ]; then
 elif [ "$DATASET_NAME" == "gerrard-hall-100" ]; then
   IMAGES_DIR=gerrard-hall-100/images
   COLMAP_FILES_DIRPATH=gerrard-hall-100/colmap-3.7-sparse-txt-2023-07-27
+elif [ "$DATASET_NAME" == "south-building-128" ]; then
+  IMAGES_DIR=south-building-128/images
+  #COLMAP_FILES_DIRPATH=south-building-128/colmap-official-2016-10-05
+  COLMAP_FILES_DIRPATH=south-building-128/colmap-2023-07-28-txt
 fi
 
 echo "Config: ${CONFIG_NAME}, Loader: ${LOADER_NAME}"
-echo "Max. Frame Lookahead: ${MAX_FRAME_LOOKAHEAD}, Image Extension: ${IMAGE_EXTENSION}, Max. Resolution: ${MAX_RESOLUTION}"
+echo "Max. Frame Lookahead: ${MAX_FRAME_LOOKAHEAD}, Max. Resolution: ${MAX_RESOLUTION}"
 echo "Share intrinsics for all images? ${SHARE_INTRINSICS}"
 
 # Setup the command line arg if intrinsics are to be shared
@@ -47,7 +50,8 @@ fi
 if [ "$LOADER_NAME" == "olsson-loader" ]; then
   python gtsfm/runner/run_scene_optimizer_olssonloader.py \
     --dataset_root $DATASET_ROOT \
-    --config_name ${CONFIG_NAME}.yaml \
+    --config_name unified \
+    --correspondence_generator_config_name ${CONFIG_NAME} \
     --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
     --max_resolution ${MAX_RESOLUTION} \
     ${SHARE_INTRINSICS_ARG} \
@@ -57,7 +61,8 @@ elif [ "$LOADER_NAME" == "colmap-loader" ]; then
   python gtsfm/runner/run_scene_optimizer_colmaploader.py \
     --images_dir ${IMAGES_DIR} \
     --colmap_files_dirpath $COLMAP_FILES_DIRPATH \
-    --config_name ${CONFIG_NAME}.yaml \
+    --config_name unified \
+    --correspondence_generator_config_name ${CONFIG_NAME} \
     --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
     --max_resolution ${MAX_RESOLUTION} \
     ${SHARE_INTRINSICS_ARG} \
@@ -66,7 +71,8 @@ elif [ "$LOADER_NAME" == "colmap-loader" ]; then
 elif [ "$LOADER_NAME" == "astrovision" ]; then
   python gtsfm/runner/run_scene_optimizer_astrovision.py \
     --data_dir $DATASET_ROOT \
-    --config_name ${CONFIG_NAME}.yaml \
+    --config_name unified \
+    --correspondence_generator_config_name ${CONFIG_NAME} \
     --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
     --max_resolution ${MAX_RESOLUTION} \
     ${SHARE_INTRINSICS_ARG} \

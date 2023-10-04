@@ -67,14 +67,13 @@ class TestIoUtils(unittest.TestCase):
     def test_read_images_txt_nonexistent_file(self) -> None:
         """Ensure that providing a path to a nonexistent file returns None for both return args."""
         fpath = "nonexistent_dir/images.txt"
-        wTi_list, img_filenames = io_utils.read_images_txt(fpath)
-        self.assertIsNone(wTi_list)
-        self.assertIsNone(img_filenames)
+        with self.assertRaises(FileNotFoundError):
+            io_utils.read_images_txt(fpath)
 
     def test_read_cameras_txt(self) -> None:
         """Ensure that shared calibration from COLMAP output is read in as a single calibration."""
         fpath = TEST_DATA_ROOT / "crane_mast_8imgs_colmap_output" / "cameras.txt"
-        calibrations = io_utils.read_cameras_txt(fpath)
+        calibrations, img_dims = io_utils.read_cameras_txt(fpath)
 
         self.assertIsInstance(calibrations, list)
         self.assertTrue(all([isinstance(calibration, Cal3Bundler) for calibration in calibrations]))
@@ -88,12 +87,16 @@ class TestIoUtils(unittest.TestCase):
         # COLMAP SIMPLE_RADIAL model has only 1 radial distortion coefficient.
         # A second radial distortion coefficient equal to zero is expected when it is converted to GTSAM's Cal3Bundler.
         self.assertEqual(K.k2(), 0)
+        # Image dims is (H, W).
+        self.assertEqual(img_dims[0][0], 3040)
+        self.assertEqual(img_dims[0][1], 4056)
 
     def test_read_cameras_txt_nonexistent_file(self) -> None:
         """Ensure that providing a path to a nonexistent file returns None for calibrations return arg."""
         fpath = "nonexistent_dir/cameras.txt"
-        calibrations = io_utils.read_cameras_txt(fpath)
+        calibrations, img_dims = io_utils.read_cameras_txt(fpath)
         self.assertIsNone(calibrations)
+        self.assertIsNone(img_dims)
 
     def test_round_trip_images_txt(self) -> None:
         """Verifies that round-trip saving and reading a COLMAP-style `images.txt` file yields input poses.
@@ -159,7 +162,7 @@ class TestIoUtils(unittest.TestCase):
             cameras_fpath = os.path.join(tempdir, "cameras.txt")
 
             io_utils.write_cameras(gtsfm_data, images, tempdir)
-            recovered_calibrations = io_utils.read_cameras_txt(cameras_fpath)
+            recovered_calibrations, _ = io_utils.read_cameras_txt(cameras_fpath)
 
         self.assertEqual(len(original_calibrations), len(recovered_calibrations))
 
@@ -231,6 +234,28 @@ class TestIoUtils(unittest.TestCase):
             # np.NaN is output as null, then read in as None
             self.assertEqual(data_from_json["data"][0], None)
             np.testing.assert_allclose(data["data"][1:], data_from_json["data"][1:])
+
+    def test_sort_image_filenames_lexigraphically(self) -> None:
+        """Tests that 5 image-camera pose pairs are sorted jointly according to file name."""
+        wTi_list = [
+            Pose3(Rot3(), np.array([0, 0, 34])),
+            Pose3(Rot3(), np.array([0, 0, 35])),
+            Pose3(Rot3(), np.array([0, 0, 36])),
+            Pose3(Rot3(), np.array([0, 0, 28])),
+            Pose3(Rot3(), np.array([0, 0, 37])),
+        ]
+        img_fnames = ["P1180334.JPG", "P1180335.JPG", "P1180336.JPG", "P1180328.JPG", "P1180337.JPG"]
+
+        wTi_list_sorted, img_fnames_sorted = io_utils.sort_image_filenames_lexigraphically(wTi_list, img_fnames)
+
+        expected_img_fnames_sorted = ["P1180328.JPG", "P1180334.JPG", "P1180335.JPG", "P1180336.JPG", "P1180337.JPG"]
+        self.assertEqual(img_fnames_sorted, expected_img_fnames_sorted)
+
+        self.assertEqual(wTi_list_sorted[0].translation()[2], 28)
+        self.assertEqual(wTi_list_sorted[1].translation()[2], 34)
+        self.assertEqual(wTi_list_sorted[2].translation()[2], 35)
+        self.assertEqual(wTi_list_sorted[3].translation()[2], 36)
+        self.assertEqual(wTi_list_sorted[4].translation()[2], 37)
 
 
 if __name__ == "__main__":

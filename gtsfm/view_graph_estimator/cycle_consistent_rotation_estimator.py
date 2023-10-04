@@ -3,6 +3,7 @@
 Authors: John Lambert, Ayush Baid, Akshay Krishnan
 """
 import os
+import time
 from collections import defaultdict
 from enum import Enum
 from pathlib import Path
@@ -89,7 +90,7 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         Args:
             i2Ri1_dict: Dict from (i1, i2) to relative rotation of i1 with respect to i2.
             i2Ui1_dict: Dict from (i1, i2) to relative translation direction of i1 with respect to i2 (unused).
-            calibrations: list of calibrations for each image (unused).
+            calibrations: List of calibrations for each image (unused).
             corr_idxs_i1i2: Dict from (i1, i2) to indices of verified correspondences from i1 to i2 (unused).
             keypoints: keypoints for each images (unused).
             two_view_reports: Dict from (i1, i2) to the TwoViewEstimationReport of the edge.
@@ -99,6 +100,7 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
             Edges of the view-graph, which are the subset of the image pairs in the input args.
         """
         # pylint: disable=unused-argument
+        start_time = time.time()
 
         logger.info("Input number of edges: %d" % len(i2Ri1_dict))
         input_edges: List[Tuple[int, int]] = i2Ri1_dict.keys()
@@ -120,7 +122,7 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
             per_edge_errors[(i1, i2)].append(error)
             per_edge_errors[(i0, i2)].append(error)
 
-            # form 3 edges e_i, e_j, e_k between fully connected subgraph (nodes i0,i1,i2)
+            # Form 3 edges e_i, e_j, e_k between fully connected subgraph (nodes i0,i1,i2).
             edges = [(i0, i1), (i1, i2), (i0, i2)]
             rot_errors = [two_view_reports[e].R_error_deg for e in edges]
             gt_known = all([err is not None for err in rot_errors])
@@ -138,7 +140,14 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
                 valid_edges, cycle_errors, max_gt_error_in_cycle, per_edge_aggregate_error, two_view_reports, output_dir
             )
 
-        logger.info("Found %d consistent rel. rotations from %d original edges.", len(valid_edges), len(input_edges))
+        end_time = time.time()
+        duration_sec = end_time - start_time
+        logger.info(
+            "Found %d consistent rel. rotations from %d original edges in %.2f sec.",
+            len(valid_edges),
+            len(input_edges),
+            duration_sec,
+        )
 
         return valid_edges
 
@@ -161,7 +170,7 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
             two_view_reports_dict: Dict from edge index pair to the TwoViewEstimationReport of the edge.
             output_dir: Path to directory where outputs for debugging will be saved.
         """
-        # aggregate info over per edge_errors
+        # Aggregate info over per edge_errors.
         inlier_errors_aggregate = []
         inlier_errors_wrt_gt = []
 
