@@ -288,6 +288,7 @@ class GtsfmRunnerBase:
             local_cluster_kwargs = {
                 "n_workers": self.parsed_args.num_workers,
                 "threads_per_worker": self.parsed_args.threads_per_worker,
+                "dashboard_address": self.parsed_args.dashboard_port
             }
             if self.parsed_args.worker_memory_limit is not None:
                 local_cluster_kwargs["memory_limit"] = self.parsed_args.worker_memory_limit
