@@ -80,7 +80,11 @@ class TestTwoViewEstimatorCacher(unittest.TestCase):
     def test_cache_hit(
         self, write_mock: MagicMock, read_mock: MagicMock, generate_hash_for_numpy_array_mock: MagicMock
     ) -> None:
-        """Test the scenario of cache miss for TwoViewEstimator."""
+        """Test the scenario of cache miss for TwoViewEstimator.
+
+        The cache hit is actually ensure by the mocked return value of the `gtsfm.utils.io.read_from_bz2_file()`.
+        The I/O function returns `None` on cache miss, and we mock it to return `None`.
+        """
 
         # Mock the underlying two-view estimator which is used on cache miss.
         underlying_estimator_mock = MagicMock()
