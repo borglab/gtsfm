@@ -20,7 +20,9 @@ class TestSequentialRetriever(unittest.TestCase):
         max_frame_lookahead = 3
         loader = OlssonLoader(str(DEFAULT_FOLDER), max_frame_lookahead=max_frame_lookahead)
         retriever = SequentialRetriever(max_frame_lookahead=max_frame_lookahead)
-        pairs = retriever.get_image_pairs(loader=loader)
+        pairs = retriever.get_image_pairs(
+            global_descriptors=None, image_fnames=loader.image_filenames(), plots_output_dir=None
+        )
 
         expected_pairs = [
             (0, 1),
