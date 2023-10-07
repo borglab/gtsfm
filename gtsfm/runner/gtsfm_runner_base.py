@@ -7,6 +7,7 @@ from abc import abstractmethod, abstractproperty
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
+import multiprocessing
 import dask
 import hydra
 import numpy as np
@@ -269,27 +270,12 @@ class GtsfmRunnerBase:
         """Run the SceneOptimizer."""
         start_time = time.time()
 
-        # logging.basicConfig(
-        #     format="[%(asctime)s %(levelname)s %(filename)s line %(lineno)d %(process)d] %(message)s")
-        # tcpserver = LogRecordSocketReceiver()
-        # print("About to start TCP server...")
-        # logger.info(socket.gethostname())
-
         logging.basicConfig(
             format="[%(asctime)s %(levelname)s {} %(filename)s line %(lineno)d %(process)d] %(message)s".format(socket.gethostname()))
         tcpserver = LogRecordSocketReceiver()
-        server_thread = threading.Thread(target=tcpserver.serve_until_stopped)
-        server_thread.daemon = True
-        server_thread.start()
 
-        print("About to start TCP server...")
-        # tcpserver.serve_until_stopped()
-
-        # print(server_thread.is_alive())
-        # print(tcpserver.abort)
-        # print(server_thread)
-        # print(server_thread.is_alive())
-        # return 1
+        server_process = multiprocessing.Process(target=tcpserver.serve_forever)
+        server_process.start()
 
         # Create dask cluster.
         if self.parsed_args.cluster_config:
@@ -414,7 +400,6 @@ class GtsfmRunnerBase:
         end_time = time.time()
         duration_sec = end_time - start_time
         logger.info("GTSFM took %.2f minutes to compute sparse multi-view result.", duration_sec / 60)
-        tcpserver.stop()
 
         total_summary_metrics = GtsfmMetricsGroup(
             "total_summary_metrics", [GtsfmMetric("total_runtime_sec", duration_sec)]
@@ -422,10 +407,8 @@ class GtsfmRunnerBase:
         all_metrics_groups.append(total_summary_metrics)
 
         save_metrics_reports(all_metrics_groups, os.path.join(self.scene_optimizer.output_root, "result_metrics"))
-        # tcpserver.abort = 1
-        print("here")
-        client.close()
-        return 1
+
+        server_process.terminate()
         return sfm_result
 
 
