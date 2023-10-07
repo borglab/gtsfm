@@ -50,7 +50,7 @@ class MultiViewOptimizer:
             TranslationAveraging: {self.trans_avg_module}
         """
 
-    def create_computation_graph(
+    def run_optimizer_with_dask(
         self,
         images: List[Delayed],
         num_images: int,
@@ -140,12 +140,14 @@ class MultiViewOptimizer:
             gt_wTi_list=gt_wTi_list,
         )
 
+        tracks_2d = dask.compute(tracks2d_graph)[0]
+
         init_cameras_graph = dask.delayed(init_cameras)(wTi_graph, all_intrinsics)
 
         ba_input_graph, data_assoc_metrics_graph = self.data_association_module.create_computation_graph(
             num_images,
             init_cameras_graph,
-            tracks2d_graph,
+            tracks_2d,
             cameras_gt,
             relative_pose_priors,
             images,

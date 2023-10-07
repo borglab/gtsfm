@@ -340,7 +340,7 @@ class TestDataAssociation(GtsamTestCase):
         da = DataAssociation(min_track_len=3, triangulation_options=triangulation_options)
 
         # Run without delayed computation graph.
-        expected_sfm_data, expected_metrics = da.run_triangulation_and_evaluate(
+        expected_sfm_data, expected_metrics = da.construct_gtsfm_data_and_evaluate(
             num_images=len(cameras),
             cameras=cameras,
             tracks_2d=tracks_2d,

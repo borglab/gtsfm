@@ -153,7 +153,7 @@ class SceneOptimizer:
             ba_output_graph,
             view_graph_two_view_reports,
             optimizer_metrics_graph,
-        ) = self.multiview_optimizer.create_computation_graph(
+        ) = self.multiview_optimizer.run_optimizer_with_dask(
             images=images,
             num_images=num_images,
             keypoints_list=keypoints_list,

@@ -13,7 +13,7 @@ import os
 import time
 from collections import Counter
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import dask
 import numpy as np
@@ -37,6 +37,7 @@ logger = logger_utils.get_logger()
 # Heuristically set to limit the number of delayed tasks, as recommended by Dask:
 # https://docs.dask.org/en/stable/delayed-best-practices.html#avoid-too-many-tasks
 MAX_DELAYED_TRIANGULATION_CALLS = 1e3
+MIN_TRACKS_PER_BATCH = 500
 
 
 @dataclass(frozen=True)
@@ -54,6 +55,7 @@ class DataAssociation(GTSFMProcess):
     triangulation_options: TriangulationOptions
     save_track_patches_viz: Optional[bool] = False
 
+    @staticmethod
     def get_ui_metadata() -> UiMetadata:
         """Returns data needed to display node and edge info for this process in the process graph."""
 
@@ -160,7 +162,7 @@ class DataAssociation(GTSFMProcess):
         num_accepted_tracks = connected_data.number_tracks()
         accepted_tracks_ratio = num_accepted_tracks / len(tracks_2d)
 
-        mean_3d_track_length, median_3d_track_length = connected_data.get_track_length_statistics()
+        mean_3d_track_length, _ = connected_data.get_track_length_statistics()
         track_lengths_3d = connected_data.get_track_lengths()
 
         logger.debug("[Data association] output number of tracks: %s", num_accepted_tracks)
@@ -212,9 +214,10 @@ class DataAssociation(GTSFMProcess):
         self,
         cameras: Dict[int, gtsfm_types.CAMERA_TYPE],
         tracks_2d: List[SfmTrack2d],
-    ) -> Tuple[List[Delayed], List[Delayed], List[Delayed]]:
-        """Performs triangulation of batched 2D tracks in parallel.
+    ) -> Tuple[List[Optional[SfmTrack]], List[Optional[float]], List[TriangulationExitCode], float]:
+        """Performs triangulation all the tracks.
 
+        This function is meant to be called with batches of input tracks, with caution to not create too many tasks
         Refs:
         - https://docs.dask.org/en/stable/delayed-best-practices.html#compute-on-lots-of-computation-at-once
         - https://docs.dask.org/en/stable/delayed-best-practices.html#avoid-too-many-tasks
@@ -224,71 +227,44 @@ class DataAssociation(GTSFMProcess):
             tracks_2d: List of tracks wrapped up as Delayed.
 
         Returns:
-            sfm_tracks: List of triangulated tracks.
-            avg_track_repoj_errors: List of average reprojection errors per track.
-            triangulation_exit_codes: Exit codes for each triangulation call.
+            List of triangulated tracks.
+            List of average reprojection errors per track.
+            Exit codes for each triangulation call.
+            Time taken by the function, in seconds.
         """
-
-        def triangulate_batch(
-            point3d_initializer: Point3dInitializer, tracks_2d: List[SfmTrack2d]
-        ) -> List[Tuple[Optional[SfmTrack], Optional[float], TriangulationExitCode]]:
-            """Triangulates a batch of 2D tracks sequentially."""
-            batch_results = []
-            for track_2d in tracks_2d:
-                batch_results.append(point3d_initializer.triangulate(track_2d))
-            return batch_results
+        start_time = time.time()
 
         # Initialize 3D landmark for each track.
         point3d_initializer = Point3dInitializer(cameras, self.triangulation_options)
 
-        # Loop through tracks and and generate delayed triangulation tasks.
-        batch_size = int(np.ceil(len(tracks_2d) / MAX_DELAYED_TRIANGULATION_CALLS))
-        triangulation_results = []
-        if batch_size == 1:
-            for track_2d in tracks_2d:
-                triangulation_results.append(dask.delayed(point3d_initializer.triangulate)(track_2d))
-        else:
-            for j in range(0, len(tracks_2d), batch_size):
-                triangulation_results.append(
-                    dask.delayed(triangulate_batch)(point3d_initializer, tracks_2d[j : j + batch_size])
-                )
-
-        # Perform triangulation in parallel.
-        triangulation_results = dask.compute(*triangulation_results)
+        triangulation_results = [point3d_initializer.triangulate(track_2d=track_2d) for track_2d in tracks_2d]
 
         # Unpack results.
-        sfm_tracks, avg_track_reproj_errors, triangulation_exit_codes = [], [], []
-        if batch_size == 1:
-            for sfm_track, avg_track_reproj_error, exit_code in triangulation_results:
-                sfm_tracks.append(sfm_track)
-                avg_track_reproj_errors.append(avg_track_reproj_error)
-                triangulation_exit_codes.append(exit_code)
-        else:
-            for batch_results in triangulation_results:
-                for sfm_track, avg_track_reproj_error, exit_code in batch_results:
-                    sfm_tracks.append(sfm_track)
-                    avg_track_reproj_errors.append(avg_track_reproj_error)
-                    triangulation_exit_codes.append(exit_code)
+        sfm_tracks: List[Optional[SfmTrack]] = []
+        avg_track_reproj_errors: List[Optional[float]] = []
+        triangulation_exit_codes: List[TriangulationExitCode] = []
 
-        return sfm_tracks, avg_track_reproj_errors, triangulation_exit_codes
+        for sfm_track, avg_track_reproj_error, exit_code in triangulation_results:
+            sfm_tracks.append(sfm_track)
+            avg_track_reproj_errors.append(avg_track_reproj_error)
+            triangulation_exit_codes.append(exit_code)
 
-    def run_triangulation_and_evaluate(
+        return sfm_tracks, avg_track_reproj_errors, triangulation_exit_codes, time.time() - start_time
+
+    def construct_gtsfm_data_and_evaluate(
         self,
         num_images: int,
         cameras: Dict[int, gtsfm_types.CAMERA_TYPE],
         tracks_2d: List[SfmTrack2d],
+        tracks_3d: List[Optional[SfmTrack]],
+        avg_track_reproj_errors: List[Optional[float]],
+        triangulation_exit_codes: List[TriangulationExitCode],
+        triangulation_runtime_sec: float,
         cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
-        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
-        images: Optional[List[Delayed]] = None,
+        relative_pose_priors: Dict[Tuple[int, int], Optional[PosePrior]],
+        images: Optional[List[Image]] = None,
     ) -> Tuple[GtsfmData, GtsfmMetricsGroup]:
-        """Runs triangulation, evaluates results, and forms metrics group."""
-        start_time = time.time()
-
-        # Triangulate 2D tracks to form 3D tracks.
-        sfm_tracks, avg_track_reproj_errors, triangulation_exit_codes = self.run_triangulation(
-            cameras=cameras, tracks_2d=tracks_2d
-        )
-        triangulation_runtime_sec = time.time() - start_time
+        """Constructs GtSfmData, evaluates results, and forms metrics group."""
 
         # Validate 3D tracks, create BA input, and compute metrics.
         gtsfm_data_creation_start_time = time.time()
@@ -296,7 +272,7 @@ class DataAssociation(GTSFMProcess):
             num_images=num_images,
             cameras=cameras,
             tracks_2d=tracks_2d,
-            sfm_tracks=sfm_tracks,
+            sfm_tracks=tracks_3d,
             avg_track_reproj_errors=avg_track_reproj_errors,
             triangulation_exit_codes=triangulation_exit_codes,
             cameras_gt=cameras_gt,
@@ -305,8 +281,7 @@ class DataAssociation(GTSFMProcess):
         )
         gtsfm_data_creation_runtime = time.time() - gtsfm_data_creation_start_time
 
-        end_time = time.time()
-        total_duration_sec = end_time - start_time
+        total_duration_sec = gtsfm_data_creation_runtime + triangulation_runtime_sec
         data_assoc_metrics.add_metric(GtsfmMetric("triangulation_runtime_sec", triangulation_runtime_sec))
         data_assoc_metrics.add_metric(GtsfmMetric("gtsfm_data_creation_runtime", gtsfm_data_creation_runtime))
         data_assoc_metrics.add_metric(GtsfmMetric("total_duration_sec", total_duration_sec))
@@ -317,7 +292,7 @@ class DataAssociation(GTSFMProcess):
         self,
         num_images: int,
         cameras: Delayed,
-        tracks_2d: Delayed,
+        tracks_2d: List[SfmTrack2d],
         cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         images: Optional[List[Delayed]] = None,
@@ -327,7 +302,7 @@ class DataAssociation(GTSFMProcess):
         Args:
             num_images: Number of images in the scene.
             cameras: List of cameras wrapped up as Delayed.
-            tracks_2d: List of tracks wrapped up as Delayed.
+            tracks_2d: List of 2d tracks, not Delayed.
             cameras_gt: A list of cameras with ground truth params, if they exist.
             relative_pose_priors: Pose priors on the relative pose between camera poses.
             images: A list of all images in scene (optional and only for track patch visualization).
@@ -337,10 +312,41 @@ class DataAssociation(GTSFMProcess):
             data_assoc_metrics_graph: Dictionary with different statistics about the data
                 association result.
         """
-        ba_input_graph, data_assoc_metrics_graph = dask.delayed(self.run_triangulation_and_evaluate, nout=2)(
+
+        # Loop through tracks and generate delayed triangulation tasks.
+        batch_size = max(int(np.ceil(len(tracks_2d) / MAX_DELAYED_TRIANGULATION_CALLS)), MIN_TRACKS_PER_BATCH)
+        batch_triangulation_results: List[Tuple[Delayed, Delayed, Delayed, Delayed]] = []
+        for start_idx in range(0, len(tracks_2d), batch_size):
+            batch_triangulation_results.append(
+                dask.delayed(self.run_triangulation, nout=4)(cameras, tracks_2d[start_idx : start_idx + batch_size])
+            )
+
+        def combine_batch_results(
+            results: List[Tuple[Any, Any, Any, Any]]
+        ) -> Tuple[List[Any], List[Any], List[Any], float]:
+            tracks_3d, avg_reproj_errors, exit_codes = [], [], []
+            runtime_sum = 0.0
+
+            for result in results:
+                tracks_3d.extend(result[0])
+                avg_reproj_errors.extend(result[1])
+                exit_codes.extend(result[2])
+                runtime_sum += result[3]
+
+            return tracks_3d, avg_reproj_errors, exit_codes, runtime_sum
+
+        tracks_3d, avg_reproj_errors, triangulation_exit_codes, triangulation_runtime = dask.delayed(
+            combine_batch_results, nout=4
+        )(batch_triangulation_results)
+
+        ba_input_graph, data_assoc_metrics_graph = dask.delayed(self.construct_gtsfm_data_and_evaluate, nout=2)(
             num_images=num_images,
             cameras=cameras,
             tracks_2d=tracks_2d,
+            tracks_3d=tracks_3d,
+            avg_track_reproj_errors=avg_reproj_errors,
+            triangulation_exit_codes=triangulation_exit_codes,
+            triangulation_runtime_sec=triangulation_runtime,
             cameras_gt=cameras_gt,
             relative_pose_priors=relative_pose_priors,
             images=images,
