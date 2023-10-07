@@ -14,7 +14,7 @@ def get_logger() -> Logger:
     logger.setLevel(logging.INFO)
 
     logging.basicConfig(
-            format=f"[%(asctime)s %(levelname)s {socket.gethostname()} %(filename)s line %(lineno)d %(process)d] %(message)s")
+            format="[%(asctime)s %(levelname)s %(filename)s line %(lineno)d %(process)d] %(message)s")
 
     if not logger.handlers:
         handler = logging.handlers.SocketHandler('eagle.cc.gatech.edu', 5000)
