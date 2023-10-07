@@ -270,8 +270,6 @@ class GtsfmRunnerBase:
         """Run the SceneOptimizer."""
         start_time = time.time()
 
-        logging.basicConfig(
-            format="[%(asctime)s %(levelname)s {} %(filename)s line %(lineno)d %(process)d] %(message)s".format(socket.gethostname()))
         tcpserver = LogRecordSocketReceiver()
 
         server_process = multiprocessing.Process(target=tcpserver.serve_forever)
