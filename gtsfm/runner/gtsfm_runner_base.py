@@ -59,13 +59,13 @@ class GtsfmRunnerBase:
             "--num_workers",
             type=int,
             default=1,
-            help="Number of workers to start (processes, by default)",
+            help="Number of workers to start (processes, by default).",
         )
         parser.add_argument(
             "--threads_per_worker",
             type=int,
             default=1,
-            help="Number of threads per each worker",
+            help="Number of threads per each worker.",
         )
         parser.add_argument(
             "--worker_memory_limit", type=str, default="8GB", help="Memory limit per worker, e.g. `8GB`"
@@ -106,7 +106,7 @@ class GtsfmRunnerBase:
             "--max_frame_lookahead",
             type=int,
             default=None,
-            help="maximum number of consecutive frames to consider for matching/co-visibility",
+            help="Maximum number of consecutive frames to consider for matching/co-visibility.",
         )
         parser.add_argument(
             "--num_matched",
@@ -115,7 +115,7 @@ class GtsfmRunnerBase:
             help="Number of K potential matches to provide per query. These are the top `K` matches per query.",
         )
         parser.add_argument(
-            "--share_intrinsics", action="store_true", help="Shares the intrinsics between all the cameras"
+            "--share_intrinsics", action="store_true", help="Shares the intrinsics between all the cameras."
         )
         parser.add_argument("--mvs_off", action="store_true", help="Turn off dense MVS reconstruction")
         parser.add_argument(
@@ -148,7 +148,7 @@ class GtsfmRunnerBase:
             "--num_retry_cluster_connection",
             type=int,
             default=3,
-            help="number of times to retry cluster connection if it fails",
+            help="Number of times to retry cluster connection if it fails.",
         )
         return parser
 
@@ -197,30 +197,42 @@ class GtsfmRunnerBase:
                     config_name=self.parsed_args.retriever_config_name,
                 )
                 logger.info("\n\nRetriever override: " + OmegaConf.to_yaml(retriever_cfg))
-                scene_optimizer.retriever = instantiate(retriever_cfg.retriever)
+                scene_optimizer.image_pairs_generator._retriever = instantiate(retriever_cfg.retriever)
 
         if self.parsed_args.max_frame_lookahead is not None:
-            if scene_optimizer.retriever._matching_regime in [
+            if scene_optimizer.image_pairs_generator._retriever._matching_regime in [
                 ImageMatchingRegime.SEQUENTIAL,
                 ImageMatchingRegime.SEQUENTIAL_HILTI,
             ]:
-                scene_optimizer.retriever._max_frame_lookahead = self.parsed_args.max_frame_lookahead
-            elif scene_optimizer.retriever._matching_regime == ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL:
-                scene_optimizer.retriever._seq_retriever._max_frame_lookahead = self.parsed_args.max_frame_lookahead
+                scene_optimizer.image_pairs_generator._retriever._max_frame_lookahead = (
+                    self.parsed_args.max_frame_lookahead
+                )
+            elif (
+                scene_optimizer.image_pairs_generator._retriever._matching_regime
+                == ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL
+            ):
+                scene_optimizer.image_pairs_generator._retriever._seq_retriever._max_frame_lookahead = (
+                    self.parsed_args.max_frame_lookahead
+                )
             else:
                 raise ValueError(
                     "`max_frame_lookahead` arg is incompatible with retriever matching regime "
-                    f"{scene_optimizer.retriever._matching_regime}"
+                    f"{scene_optimizer.image_pairs_generator._retriever._matching_regime}"
                 )
         if self.parsed_args.num_matched is not None:
-            if scene_optimizer.retriever._matching_regime == ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL:
-                scene_optimizer.retriever._similarity_retriever._num_matched = self.parsed_args.num_matched
-            elif scene_optimizer.retriever._matching_regime == ImageMatchingRegime.RETRIEVAL:
-                scene_optimizer.retriever._num_matched = self.parsed_args.num_matched
+            if (
+                scene_optimizer.image_pairs_generator._retriever._matching_regime
+                == ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL
+            ):
+                scene_optimizer.image_pairs_generator._retriever._similarity_retriever._num_matched = (
+                    self.parsed_args.num_matched
+                )
+            elif scene_optimizer.image_pairs_generator._retriever._matching_regime == ImageMatchingRegime.RETRIEVAL:
+                scene_optimizer.image_pairs_generator._retriever._num_matched = self.parsed_args.num_matched
             else:
                 raise ValueError(
                     "`num_matched` arg is incompatible with retriever matching regime "
-                    f"{scene_optimizer.retriever._matching_regime}"
+                    f"{scene_optimizer.image_pairs_generator._retriever._matching_regime}"
                 )
 
         if self.parsed_args.mvs_off:
@@ -253,6 +265,11 @@ class GtsfmRunnerBase:
             except Exception as e:
                 logger.info(f"Worker failed to start: {str(e)}")
                 retry_count += 1
+        if not connected:
+            raise ValueError(
+                f"Connection to cluster could not be established after {self.parsed_args.num_retry_cluster_connection}"
+                " attempts. Aborting..."
+            )
         return cluster
 
     def run(self) -> GtsfmData:
@@ -271,6 +288,7 @@ class GtsfmRunnerBase:
             local_cluster_kwargs = {
                 "n_workers": self.parsed_args.num_workers,
                 "threads_per_worker": self.parsed_args.threads_per_worker,
+                "dashboard_address": self.parsed_args.dashboard_port
             }
             if self.parsed_args.worker_memory_limit is not None:
                 local_cluster_kwargs["memory_limit"] = self.parsed_args.worker_memory_limit
@@ -283,15 +301,18 @@ class GtsfmRunnerBase:
             process_graph_generator.is_image_correspondence = True
         process_graph_generator.save_graph()
 
-        # TODO(Ayush): Use futures
         retriever_start_time = time.time()
-        pairs_graph = self.scene_optimizer.retriever.create_computation_graph(
-            self.loader, plots_output_dir=self.scene_optimizer._plot_base_path
-        )
         with performance_report(filename="retriever-dask-report.html"):
-            image_pair_indices = pairs_graph.compute()
+            image_pair_indices = self.scene_optimizer.image_pairs_generator.generate_image_pairs(
+                client=client,
+                images=self.loader.get_all_images_as_futures(client),
+                image_fnames=self.loader.image_filenames(),
+                plots_output_dir=self.scene_optimizer._plot_base_path,
+            )
 
-        retriever_metrics = self.scene_optimizer.retriever.evaluate(self.loader, image_pair_indices)
+        retriever_metrics = self.scene_optimizer.image_pairs_generator._retriever.evaluate(
+            len(self.loader), image_pair_indices
+        )
         retriever_duration_sec = time.time() - retriever_start_time
         retriever_metrics.add_metric(GtsfmMetric("retriever_duration_sec", retriever_duration_sec))
         logger.info("Image pair retrieval took %.2f sec.", retriever_duration_sec)
@@ -326,7 +347,7 @@ class GtsfmRunnerBase:
         i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, two_view_reports_dict = unzip_two_view_results(two_view_results_dict)
 
         if self.scene_optimizer._save_two_view_correspondences_viz:
-            for (i1, i2) in v_corr_idxs_dict.keys():
+            for i1, i2 in v_corr_idxs_dict.keys():
                 image_i1 = self.loader.get_image(i1)
                 image_i2 = self.loader.get_image(i2)
                 viz_utils.save_twoview_correspondences_viz(
