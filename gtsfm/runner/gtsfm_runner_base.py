@@ -247,6 +247,8 @@ class GtsfmRunnerBase:
     def run(self) -> GtsfmData:
         """Run the SceneOptimizer."""
 
+        start_time = time.time()
+
         # Create dask cluster.
         if self.parsed_args.cluster_config:
             cluster = self.setup_ssh_cluster_with_retries()
@@ -295,42 +297,42 @@ class GtsfmRunnerBase:
             experiment_root = output_root / f"num_matched{num_matched}_maxframelookahead{max_frame_lookahead}"
             experiment_roots.append(experiment_root)
             self.scene_optimizer.output_root = experiment_root
-            logging.info(f"Run and save to %s", self.scene_optimizer.output_root)
+            logger.info(f"Run and save to %s", self.scene_optimizer.output_root)
 
             if max_frame_lookahead is not None:
-                if scene_optimizer.image_pairs_generator._retriever._matching_regime in [
+                if self.scene_optimizer.image_pairs_generator._retriever._matching_regime in [
                     ImageMatchingRegime.SEQUENTIAL,
                     ImageMatchingRegime.SEQUENTIAL_HILTI,
                 ]:
-                    scene_optimizer.image_pairs_generator._retriever._max_frame_lookahead = (
+                    self.scene_optimizer.image_pairs_generator._retriever._max_frame_lookahead = (
                         max_frame_lookahead
                     )
                 elif (
-                    scene_optimizer.image_pairs_generator._retriever._matching_regime
+                    self.scene_optimizer.image_pairs_generator._retriever._matching_regime
                     == ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL
                 ):
-                    scene_optimizer.image_pairs_generator._retriever._seq_retriever._max_frame_lookahead = (
+                    self.scene_optimizer.image_pairs_generator._retriever._seq_retriever._max_frame_lookahead = (
                         max_frame_lookahead
                     )
                 else:
                     raise ValueError(
                         "`max_frame_lookahead` arg is incompatible with retriever matching regime "
-                        f"{scene_optimizer.image_pairs_generator._retriever._matching_regime}"
+                        f"{self.scene_optimizer.image_pairs_generator._retriever._matching_regime}"
                     )
             if num_matched is not None:
                 if (
-                    scene_optimizer.image_pairs_generator._retriever._matching_regime
+                    self.scene_optimizer.image_pairs_generator._retriever._matching_regime
                     == ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL
                 ):
-                    scene_optimizer.image_pairs_generator._retriever._similarity_retriever._num_matched = (
+                    self.scene_optimizer.image_pairs_generator._retriever._similarity_retriever._num_matched = (
                         num_matched
                     )
-                elif scene_optimizer.image_pairs_generator._retriever._matching_regime == ImageMatchingRegime.RETRIEVAL:
-                    scene_optimizer.image_pairs_generator._retriever._num_matched = num_matched
+                elif self.scene_optimizer.image_pairs_generator._retriever._matching_regime == ImageMatchingRegime.RETRIEVAL:
+                    self.scene_optimizer.image_pairs_generator._retriever._num_matched = num_matched
                 else:
                     raise ValueError(
                         "`num_matched` arg is incompatible with retriever matching regime "
-                        f"{scene_optimizer.image_pairs_generator._retriever._matching_regime}"
+                        f"{self.scene_optimizer.image_pairs_generator._retriever._matching_regime}"
                     )
 
             self.scene_optimizer._create_output_directories()
@@ -348,18 +350,28 @@ class GtsfmRunnerBase:
             mean_track_length = json_data[metric_name]["summary"]["mean"]
             mean_track_lengths.append(mean_track_length)
 
-        print("Mean track lengths: ", [np.round(length, 3) for length in mean_track_lengths])
+        logger.info("Mean track lengths: %s", str([np.round(length, 3) for length in mean_track_lengths]))
         best_idx = np.argmax(mean_track_lengths)
         best_experiment_root = experiment_roots[best_idx]
-        logging.info("Selected: index=%d, %s", best_idx, best_experiment_root)
+        logger.info("Selected: index=%d, %s", best_idx, best_experiment_root)
 
         # Delete all other directories.
+        rejected_root = output_root / "rejected_trials"
+        rejected_root.mkdir(exist_ok=True)
         for idx, experiment_root in enumerate(experiment_roots):
             if idx == best_idx:
                 continue
-            shutil.rmtree(experiment_root)
+            
+            shutil.move(src=experiment_root, dst=rejected_root / experiment_root.name)
+            shutil.rmtree(rejected_root / experiment_root.name / "results")
 
-    def run_with_retriever_setting(self, client) -> GtsfmData:
+        # Move `result_metrics` out of {best_experiment_root}/*.
+        shutil.move(best_experiment_root / "result_metrics", output_root / "result_metrics")
+
+        all_trials_runtime = time.time() - start_time
+        logger.info("Runtime for all trials: %.2f sec.", all_trials_runtime)
+
+    def run_with_retriever_setting(self, client: Client) -> GtsfmData:
         start_time = time.time()
         retriever_start_time = time.time()
         with performance_report(filename="retriever-dask-report.html"):
