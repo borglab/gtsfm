@@ -8,11 +8,9 @@ from enum import Enum
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-import dask
-from dask.delayed import Delayed
+import numpy as np
 
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
-from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 
@@ -47,24 +45,28 @@ class RetrieverBase(GTSFMProcess):
         )
 
     @abc.abstractmethod
-    def get_image_pairs(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> List[Tuple[int, int]]:
+    def get_image_pairs(
+        self,
+        global_descriptors: Optional[List[np.ndarray]],
+        image_fnames: List[str],
+        plots_output_dir: Optional[Path] = None,
+    ) -> List[Tuple[int, int]]:
         """Compute potential image pairs.
 
         Args:
-            loader: image loader. The length of this loader will provide the total number of images
-                for exhaustive global descriptor matching.
-            plots_output_dir: Directory to save plots to.
+            global_descriptors: the global descriptors for the retriever, if needed.
+            image_fnames: file names of the images
+            plots_output_dir: Directory to save plots to. If None, plots are not saved.
 
-        Return:
-            pair_indices: (i1,i2) image pairs.
+        Returns:
+            List of (i1,i2) image pairs.
         """
 
-    def evaluate(self, loader: LoaderBase, image_pair_indices: List[Tuple[int, int]]) -> GtsfmMetricsGroup:
+    def evaluate(self, num_images, image_pair_indices: List[Tuple[int, int]]) -> GtsfmMetricsGroup:
         """Evaluates the retriever result.
 
         Args:
-            loader: Image loader. The length of this loader will provide the total number of images
-                for exhaustive global descriptor matching.
+            num_images: the number of images in the dataset.
             image_pair_indices: (i1,i2) image pairs.
 
         Returns:
@@ -74,21 +76,8 @@ class RetrieverBase(GTSFMProcess):
         retriever_metrics = GtsfmMetricsGroup(
             metric_group_name,
             [
-                GtsfmMetric("num_input_images", len(loader)),
+                GtsfmMetric("num_input_images", num_images),
                 GtsfmMetric("num_retrieved_image_pairs", len(image_pair_indices)),
             ],
         )
         return retriever_metrics
-
-    def create_computation_graph(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> Delayed:
-        """Create Dask graph for image retriever.
-
-        Args:
-            loader: image loader. The length of this loader will provide the total number of images
-                for exhaustive global descriptor matching.
-            plots_output_dir: Directory to save plots to.
-
-        Returns:
-            Delayed task that evaluates to a list of (i1,i2) image pairs.
-        """
-        return dask.delayed(self.get_image_pairs)(loader=loader, plots_output_dir=plots_output_dir)

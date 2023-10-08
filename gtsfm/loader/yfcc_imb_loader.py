@@ -55,7 +55,7 @@ class YfccImbLoader(LoaderBase):
             image_names.add(file2)
 
         # convert image names from set to list
-        self._image_names = sorted(list(image_names))
+        self._image_names: List[str] = sorted(list(image_names))
 
         # map image names to its position in the list
         self._name_to_idx_map = {name: i for i, name in enumerate(self._image_names)}
@@ -77,6 +77,10 @@ class YfccImbLoader(LoaderBase):
             the number of images.
         """
         return len(self._image_names)
+
+    def image_filenames(self) -> List[str]:
+        """Return the file names corresponding to each image index."""
+        return self._image_names
 
     def get_image_full_res(self, index: int) -> Image:
         """Get the image at the given index, at full resolution.

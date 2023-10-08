@@ -109,6 +109,11 @@ class LoaderBase(GTSFMProcess):
             The camera pose w_P_index.
         """
 
+    # ignored-abstractmethod
+    @abc.abstractmethod
+    def image_filenames(self) -> List[str]:
+        """Return the file names corresponding to each image index."""
+
     # TODO: Rename this to get_gt_camera.
     def get_camera(self, index: int) -> Optional[gtsfm_types.CAMERA_TYPE]:
         """Gets the GT camera at the given index.
