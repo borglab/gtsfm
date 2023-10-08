@@ -25,12 +25,13 @@ import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.viz as viz_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
+from gtsfm.retriever.image_pairs_generator import ImagePairsGenerator
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.densify.mvs_base import MVSBase
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
-from gtsfm.retriever.retriever_base import RetrieverBase, ImageMatchingRegime
+from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.two_view_estimator import (
     POST_ISP_REPORT_TAG,
     VIEWGRAPH_REPORT_TAG,
@@ -61,7 +62,7 @@ class SceneOptimizer:
 
     def __init__(
         self,
-        retriever: RetrieverBase,
+        image_pairs_generator: ImagePairsGenerator,
         correspondence_generator: CorrespondenceGeneratorBase,
         two_view_estimator: TwoViewEstimator,
         multiview_optimizer: MultiViewOptimizer,
@@ -69,12 +70,11 @@ class SceneOptimizer:
         save_two_view_correspondences_viz: bool = False,
         save_3d_viz: bool = False,
         save_gtsfm_data: bool = True,
-        pose_angular_error_thresh: float = 3,
+        pose_angular_error_thresh: float = 3,  # in degrees
         output_root: str = DEFAULT_OUTPUT_ROOT,
         output_worker: Optional[str] = None,
     ) -> None:
-        """pose_angular_error_thresh is given in degrees"""
-        self.retriever = retriever
+        self.image_pairs_generator = image_pairs_generator
         self.correspondence_generator = correspondence_generator
         self.two_view_estimator = two_view_estimator
         self.multiview_optimizer = multiview_optimizer
@@ -93,7 +93,7 @@ class SceneOptimizer:
     def __repr__(self) -> str:
         """Returns string representation of class."""
         return f"""
-        {self.retriever}
+        {self.image_pairs_generator}
         {self.correspondence_generator}
         {self.two_view_estimator}
         {self.multiview_optimizer}
@@ -174,7 +174,7 @@ class SceneOptimizer:
         # Persist all front-end metrics and their summaries.
         # TODO(akshay-krishnan): this delays saving the frontend reports until MVO has completed, not ideal.
         metrics_graph_list: List[Delayed] = []
-        save_retrieval_metrics = self.retriever._matching_regime in [
+        save_retrieval_metrics = self.image_pairs_generator._retriever._matching_regime in [
             ImageMatchingRegime.RETRIEVAL,
             ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL,
         ]
