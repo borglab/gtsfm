@@ -153,10 +153,10 @@ class GtsfmRunnerBase:
             help="Number of times to retry cluster connection if it fails.",
         )
         parser.add_argument(
-            "--run_low_quality",
+            "--run_single_trial",
             action="store_true",
             help="Whether to run GTSFM at a single (num_matched,max_frame_lookahead) threshold, i.e. single trial "
-            "(defaults to false if not provided).",
+            "(defaults to false if not provided). Lower quality performance, but faster.",
         )
         return parser
 
@@ -272,7 +272,7 @@ class GtsfmRunnerBase:
             process_graph_generator.is_image_correspondence = True
         process_graph_generator.save_graph()
 
-        if self.parsed_args.run_low_quality:
+        if self.parsed_args.run_single_trial:
             # TODO(johnwlambert): Check if these are None, otherwise don't override.
             COMBINATIONS = [(self.parsed_args.num_matched, self.parsed_args.max_frame_lookahead)]
         else:
