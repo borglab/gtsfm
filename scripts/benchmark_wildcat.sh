@@ -7,7 +7,7 @@ now=$(date +"%Y%m%d_%H%M%S")
 
 
 datasets=(
-	# Olsson
+	# Olsson Datasets.
 	# See https://www.maths.lth.se/matematiklth/personal/calle/dataset/dataset.html
 	ecole-superieure-de-guerre-35
 	fort-channing-gate-singapore-27
@@ -15,14 +15,16 @@ datasets=(
 	nijo-castle-gate-19
 	kings-college-cambridge-328
 	spilled-blood-cathedral-st-petersburg-781
-	# palace-fine-arts-281
-	# # 1dsfm Datasets
-	# gendarmenmarkt-1463
-	# skydio-crane-mast-501
-	# 2011205_rc3
-	# # Colmap datasets.
-	# south-building-128
-	# gerrard-hall-100
+	palace-fine-arts-281
+	# 1dsfm Datasets
+	gendarmenmarkt-1463
+	# Other.
+	skydio-crane-mast-501
+	# Astrovision Datasets.
+	2011205_rc3
+	# Colmap Datasets.
+	south-building-128
+	gerrard-hall-100
 	)
 
 max_frame_lookahead_sizes=(
