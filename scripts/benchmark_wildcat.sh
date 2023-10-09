@@ -78,13 +78,13 @@ for num_matched in ${num_matched_sizes[@]}; do
 					num_workers=10
 				elif [[ $correspondence_generator_config_name == *"lightglue"* ]]
 				then
-					num_workers=1
+					num_workers=4
 				elif [[ $correspondence_generator_config_name == *"superglue"* ]]
 				then
-					num_workers=1
+					num_workers=4
 				elif [[ $correspondence_generator_config_name == *"loftr"* ]]
 				then
-					num_workers=1
+					num_workers=4
 				fi
 
 				echo "Dataset: ${dataset}"
@@ -97,7 +97,6 @@ for num_matched in ${num_matched_sizes[@]}; do
 				then
 					loader=olsson
 					dataset_root=/usr/local/gtsfm-data/palace-fine-arts-281
-
 
 				elif [[ $dataset == *"ecole-superieure-de-guerre-35"* ]]
 				then
