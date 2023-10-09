@@ -78,13 +78,13 @@ for num_matched in ${num_matched_sizes[@]}; do
 					num_workers=10
 				elif [[ $correspondence_generator_config_name == *"lightglue"* ]]
 				then
-					num_workers=4
+					num_workers=1
 				elif [[ $correspondence_generator_config_name == *"superglue"* ]]
 				then
-					num_workers=4
+					num_workers=1
 				elif [[ $correspondence_generator_config_name == *"loftr"* ]]
 				then
-					num_workers=4
+					num_workers=1
 				fi
 
 				echo "Dataset: ${dataset}"
