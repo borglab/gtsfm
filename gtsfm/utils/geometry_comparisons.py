@@ -19,11 +19,11 @@ def align_rotations(aRi_list: List[Optional[Rot3]], bRi_list: List[Optional[Rot3
     """Aligns the list of rotations to the reference list by using Karcher mean.
 
     Args:
-        aRi_list: reference rotations in frame "a" which are the targets for alignment
-        bRi_list: input rotations which need to be aligned to frame "a"
+        aRi_list: Reference rotations in frame "a" which are the targets for alignment
+        bRi_list: Input rotations which need to be aligned to frame "a"
 
     Returns:
-        aRi_list_: transformed input rotations previously "bRi_list" but now which
+        aRi_list_: Transformed input rotations previously "bRi_list" but now which
             have the same origin as reference (now living in "a" frame)
     """
     aRb_list = [
@@ -263,17 +263,41 @@ def compare_global_poses(
     return rotations_equal and translations_equal
 
 
+def compute_rotation_angle_measurement_consistency(
+    i2Ri1: Optional[Unit3], wRi2: Optional[Pose3], wRi1: Optional[Pose3]
+) -> Optional[float]:
+    """Compute angle between a [ TODO ] between 2 poses.
+
+    Given a relative rotation measurement from i2 to i1, and the estimated global rotations of
+    i1 and i2, returns the angular difference between the relative vs. synthetic measurements.
+
+    Args:
+        i2Ri1: Relative rotation measurement.
+        wRi2: Global rotation of camera i2.
+        wRi1: Global rotation of camera i1.
+
+    Returns:
+        Angle between two-view measurement and synthetic relative rotation in degrees.
+    """
+    if i2Ri1 is None or wRi2 is None or wRi1 is None:
+        return None
+
+    # Synthetic measurement.
+    i2Ri1_synthetic = wRi2.between(wRi1)
+    return compute_relative_rotation_angle(i2Ri1, i2Ri1_synthetic)
+
+
 def compute_relative_rotation_angle(R_1: Optional[Rot3], R_2: Optional[Rot3]) -> Optional[float]:
     """Compute the angle between two rotations.
 
     Note: the angle is the norm of the angle-axis representation.
 
     Args:
-        R_1: the first rotation.
-        R_2: the second rotation.
+        R_1: The first rotation.
+        R_2: The second rotation.
 
     Returns:
-        the angle between two rotations, in degrees
+        The angle between two rotations, in degrees.
     """
 
     if R_1 is None or R_2 is None:
@@ -292,16 +316,16 @@ def compute_relative_unit_translation_angle(U_1: Optional[Unit3], U_2: Optional[
     """Compute the angle between two unit-translations.
 
     Args:
-        U_1: the first unit-translation.
-        U_2: the second unit-translation.
+        U_1: The first unit-translation.
+        U_2: The second unit-translation.
 
     Returns:
-        the angle between the two unit-vectors, in degrees
+        The angle between the two unit-vectors, in degrees.
     """
     if U_1 is None or U_2 is None:
         return None
 
-    # TODO: expose Unit3's dot function and use it directly
+    # TODO: expose Unit3's dot function and use it directly.
     dot_product = np.dot(U_1.point3(), U_2.point3())
     dot_product = np.clip(dot_product, -1, 1)
     angle_rad = np.arccos(dot_product)

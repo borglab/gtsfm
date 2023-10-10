@@ -212,7 +212,7 @@ def compute_keypoint_intersections(
 
 
 def compute_rotation_angle_metric(wRi_list: List[Optional[Rot3]], gt_wRi_list: List[Optional[Pose3]]) -> GtsfmMetric:
-    """Computes statistics for the angle between estimated and GT rotations.
+    """Computes statistics for the angle between estimated and GT global rotations.
 
     Assumes that the estimated and GT rotations have been aligned and do not
     have a gauge freedom.
@@ -231,6 +231,27 @@ def compute_rotation_angle_metric(wRi_list: List[Optional[Rot3]], gt_wRi_list: L
         else:
             errors.append(np.nan)
     return GtsfmMetric("rotation_angle_error_deg", errors)
+
+
+def compute_relative_rotation_angle_metric(
+    i2Ri1_dict: Dict[Tuple[int, int], Optional[Unit3]], wRi_list: List[Optional[Pose3]]
+) -> GtsfmMetric:
+    """Computes consistency statistics between estimated global rotations and relative rotation measurements.
+
+    Args:
+        i2Ri1_dict: List of relative rotation measurements.
+        wRi_list: List of estimated camera global rotations.
+
+    Returns:
+        A GtsfmMetric for the relative rotation angle errors, in degrees.
+    """
+    angles: List[Optional[float]] = []
+    for i1, i2 in i2Ri1_dict:
+        i2Ri1 = i2Ri1_dict[(i1, i2)]
+        angles.append(
+            comp_utils.compute_rotation_angle_measurement_consistency(i2Ri1, wRi2=wRi_list[i2], wRi1=wRi_list[i1])
+        )
+    return GtsfmMetric("relative_rotation_angle_consistency_error_deg", np.array(angles, dtype=np.float32))
 
 
 def compute_translation_distance_metric(
