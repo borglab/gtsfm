@@ -20,8 +20,10 @@ from gtsam import (
 )
 
 import gtsfm.utils.logger as logger_utils
+from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.frontend.verifier.ransac import Ransac
 import gtsfm.utils.verification as verify_utils
+
 
 logger = logger_utils.get_logger()
 
@@ -43,7 +45,8 @@ def update_focal_length(intrinsics, focal_length):
     return Cal3Bundler(focal_length, intrinsics.k1(), intrinsics.k2(), intrinsics.px(), intrinsics.py())
 
 
-def triangulation_error_with_intrinsics(matched_i1_kps, matched_i2_kps, i2Ei1, intrinsics_i1, intrinsics_i2):
+def triangulation_error_with_intrinsics(matched_i1_kps, matched_i2_kps, i2Fi1, intrinsics_i1, intrinsics_i2):
+    i2Ei1 = verify_utils.fundamental_to_essential_matrix(i2Fi1, intrinsics_i1, intrinsics_i2)
     i2Ri1, i2Ui1 = verify_utils.recover_relative_pose_from_essential_matrix(
         i2Ei1,
         matched_i1_kps,
@@ -68,7 +71,10 @@ def triangulation_error_with_intrinsics(matched_i1_kps, matched_i2_kps, i2Ei1, i
         reproj_p2 = intrinsics_i2.K() @ point
         reproj_p2 = reproj_p2[:2]
         this_errors.append(np.linalg.norm(reproj_p2 - matched_i2_kps[i]))
-    return np.nanmean(this_errors) if len(this_errors) else np.inf
+        if this_errors[-1] == np.inf:
+            print(reproj_p2, matched_i2_kps)
+    error = np.nanmean(this_errors) if len(this_errors) > 50 else np.inf
+    return error
 
 
 def epipolar_distance_error(matched_i1_kps, matched_i2_kps, i2Ei1, intrinsics_i1, intrinsics_i2):
@@ -102,9 +108,9 @@ class IntrinsicsEstimator:
         )
         self.per_camera_intrinsics = per_camera_intrinsics
         self.max_num_points_for_estimation = max_num_points_for_estimation
-        self.min_focal_length_ratio = 0.5
-        self.max_focal_length_ratio = 1.5
-        self.num_focal_length_steps = 20
+        self.min_focal_length_ratio = 0.95
+        self.max_focal_length_ratio = 1.05
+        self.num_focal_length_steps = 7
 
         self.max_reprojection_error_px = 20
 
@@ -141,16 +147,18 @@ class IntrinsicsEstimator:
                 )
             else:
                 error = epipolar_distance_error(matched_i1_kps, matched_i2_kps, i2Ei1, intrinsics_i1, intrinsics_i2)
-        if error is not None and error < np.inf:
-            errors.append(error)
-            candidates.append((f1, f2))
+            if error is not None and error < np.inf:
+                errors.append(error)
+                candidates.append((f1, f2))
 
-        if len(candidates) < 0.3 * len(focal_candidate_pairs):
+        if len(candidates) < 1:
+            print("too few candidates")
             # This is likely not a good camera pair to do focal length estimation.
             return (None, None, None)
 
         best_idx = np.argmin(errors)
         if best_idx == 0 or best_idx == len(errors) - 1:
+            print(best_idx, " at end or beginning")
             # the minima was at the bounds, so likely not a good pair for estimation.
             return (None, None, None)
 
@@ -187,60 +195,61 @@ class IntrinsicsEstimator:
             averaged_focal, orig_intrinsics.k1(), orig_intrinsics.k2(), orig_intrinsics.px(), orig_intrinsics.py()
         )
 
-    def compute_all_intrinsics(
-        self,
-        keypoints_list,
-        putative_corr_idxs_dict,
-        image_pair_indices,
-        all_intrinsics,
-    ):
-        for intrin in all_intrinsics:
-            assert intrin is not None
-        focals_for_camera = defaultdict(list)
-        errors_for_camera = defaultdict(list)
+    # def compute_all_intrinsics(
+    #     self,
+    #     keypoints_list,
+    #     putative_corr_idxs_dict,
+    #     image_pair_indices,
+    #     all_intrinsics,
+    # ):
+    #     for intrin in all_intrinsics:
+    #         assert intrin is not None
+    #     focals_for_camera = defaultdict(list)
+    #     errors_for_camera = defaultdict(list)
 
-        for i1, i2 in image_pair_indices:
-            focal_i1, focal_i2, error = self.compute_intrinsics(
-                all_intrinsics[i1],
-                all_intrinsics[i2],
-                keypoints_list[i1],
-                keypoints_list[i2],
-                putative_corr_idxs_dict[(i1, i2)],
-            )
-            focals_for_camera[i1].append(focal_i1)
-            focals_for_camera[i2].append(focal_i2)
-            errors_for_camera[i1].append(error)
-            errors_for_camera[i2].append(error)
+    #     for i1, i2 in image_pair_indices:
+    #         focal_i1, focal_i2, error = self.compute_intrinsics(
+    #             all_intrinsics[i1],
+    #             all_intrinsics[i2],
+    #             keypoints_list[i1],
+    #             keypoints_list[i2],
+    #             putative_corr_idxs_dict[(i1, i2)],
+    #         )
+    #         focals_for_camera[i1].append(focal_i1)
+    #         focals_for_camera[i2].append(focal_i2)
+    #         errors_for_camera[i1].append(error)
+    #         errors_for_camera[i2].append(error)
 
-        if self.per_camera_intrinsics:
-            raise ValueError("yet to be implemented")
+    #     if self.per_camera_intrinsics:
+    #         raise ValueError("yet to be implemented")
 
-        all_focals = []
-        all_errors = []
-        for focals in focals_for_camera.values():
-            all_focals.extend(focals)
-        for errors in errors_for_camera.values():
-            all_errors.extend(errors)
-        if len(all_errors) == 0:
-            logger.info("Could not compute errors for refining intrinsics, returning original intrinsics.")
-            for intrin in all_intrinsics:
-                assert intrin is not None
-            return all_intrinsics
+    #     all_focals = []
+    #     all_errors = []
+    #     for focals in focals_for_camera.values():
+    #         all_focals.extend(focals)
+    #     for errors in errors_for_camera.values():
+    #         all_errors.extend(errors)
+    #     if len(all_errors) == 0:
+    #         logger.info("Could not compute errors for refining intrinsics, returning original intrinsics.")
+    #         for intrin in all_intrinsics:
+    #             assert intrin is not None
+    #         return all_intrinsics
 
-        ref_updated_intrinsics = self.get_updated_intrinsics(all_intrinsics[0], all_focals, all_errors)
-        if ref_updated_intrinsics is None:
-            logger.info("Could not udpate intrinsics, using original intrinsics.")
-            for intrin in all_intrinsics:
-                assert intrin is not None
-            return all_intrinsics
+    #     ref_updated_intrinsics = self.get_updated_intrinsics(all_intrinsics[0], all_focals, all_errors)
+    #     if ref_updated_intrinsics is None:
+    #         logger.info("Could not udpate intrinsics, using original intrinsics.")
+    #         for intrin in all_intrinsics:
+    #             assert intrin is not None
+    #         return all_intrinsics
 
-        result_intrinsics = [ref_updated_intrinsics for i in range(len(all_intrinsics))]
-        return result_intrinsics
+    #     result_intrinsics = [ref_updated_intrinsics for i in range(len(all_intrinsics))]
+    #     return result_intrinsics
 
     def update_intrinsics_from_candidates(self, intrinsics, focals_for_camera, errors_for_camera):
         if self.per_camera_intrinsics:
             raise ValueError("yet to be implemented")
 
+        num_invalid_intrinsics = 0
         all_focals = []
         all_errors = []
         for focals in focals_for_camera.values():
@@ -248,97 +257,101 @@ class IntrinsicsEstimator:
         for errors in errors_for_camera.values():
             all_errors.extend(errors)
         if len(all_errors) == 0:
+            raise ValueError("no intrinsics estimated")
             logger.info("Could not compute errors for refining intrinsics, returning original intrinsics.")
+            num_invalid_intrinsics += 1
             return intrinsics
 
         ref_updated_intrinsics = self.get_updated_intrinsics(intrinsics[0], all_focals, all_errors)
         if ref_updated_intrinsics is None:
+            raise ValueError("no intrinsics estimated22")
             logger.info("Could not refine intrinsics, returning original ones.")
             return intrinsics
         result_intrinsics = [ref_updated_intrinsics for i in range(len(intrinsics))]
         return result_intrinsics
 
-    # def estimate_intrinsics(
-    #     self, keypoints_i1, keypoints_i2, putative_corr_idxs, camera_intrinsics_i1, camera_intrinsics_i2
-    # ):
-    #     cx = camera_intrinsics_i1.px()
-    #     cy = camera_intrinsics_i1.py()
-    #     keypoints_i1.coordinates = keypoints_i1.coordinates - np.array([[cx, cy]])
-    #     keypoints_i2.coordinates = keypoints_i2.coordinates - np.array([[cx, cy]])
-    #     i2Fi1, mask = self._F_verifier.estimate_F(keypoints_i1, keypoints_i2, putative_corr_idxs)
-    #     try:
-    #         focal = verify_utils.shared_focal_lengths_from_fundamental_matrix(i2Fi1)
-    #     except:
-    #         return None
-    #     return gtsam.Cal3Bundler(
-    #         focal,
-    #         camera_intrinsics_i1.k1(),
-    #         camera_intrinsics_i1.k2(),
-    #         camera_intrinsics_i1.px(),
-    #         camera_intrinsics_i1.py(),
-    #     )
 
-    # def verify_with_coarse_focal_estimation(
-    #     self,
-    #     intrinsics_i1,
-    #     intrinsics_i2,
-    #     keypoints_i1,
-    #     keypoints_i2,
-    #     putative_corr_idxs,
-    # ):
-    #     f_range = np.linspace(start=0.7, stop=1.5, num=20)
-    #     best_pre_ba_inlier_ratio_wrt_estimate = 0.0
-    #     best_pre_ba_i2Ri1 = None
-    #     best_pre_ba_i2Ui1 = None
-    #     best_pre_ba_v_corr_idxs = None
-    #     best_intrin_i1 = None
-    #     best_intrin_i2 = None
-    #     all_inlier_ratios = []
-    #     for f1 in f_range:
-    #         new_f_i1 = intrinsics_i1.fx() * f1
-    #         new_f_i2 = intrinsics_i2.fx() * f1
-    #         new_intrin_i1 = gtsam.Cal3Bundler(
-    #             new_f_i1,
-    #             intrinsics_i1.k1(),
-    #             intrinsics_i1.k2(),
-    #             intrinsics_i1.px(),
-    #             intrinsics_i1.py(),
-    #         )
-    #         new_intrin_i2 = gtsam.Cal3Bundler(
-    #             new_f_i2,
-    #             intrinsics_i2.k1(),
-    #             intrinsics_i2.k2(),
-    #             intrinsics_i2.px(),
-    #             intrinsics_i2.py(),
-    #         )
-    #         (
-    #             pre_ba_i2Ri1,
-    #             pre_ba_i2Ui1,
-    #             pre_ba_v_corr_idxs,
-    #             pre_ba_inlier_ratio_wrt_estimate,
-    #         ) = self._verifier.verify(
-    #             keypoints_i1,
-    #             keypoints_i2,
-    #             putative_corr_idxs,
-    #             new_intrin_i1,
-    #             new_intrin_i2,
-    #         )
-    #         all_inlier_ratios.append(pre_ba_inlier_ratio_wrt_estimate)
-    #         if pre_ba_inlier_ratio_wrt_estimate > best_pre_ba_inlier_ratio_wrt_estimate:
-    #             best_pre_ba_inlier_ratio_wrt_estimate = pre_ba_inlier_ratio_wrt_estimate
-    #             best_pre_ba_i2Ri1 = pre_ba_i2Ri1
-    #             best_pre_ba_i2Ui1 = pre_ba_i2Ui1
-    #             best_pre_ba_v_corr_idxs = pre_ba_v_corr_idxs
-    #             best_intrin_i1 = new_intrin_i1
-    #             best_intrin_i2 = new_intrin_i2
-    #     return (
-    #         best_pre_ba_i2Ri1,
-    #         best_pre_ba_i2Ui1,
-    #         best_pre_ba_v_corr_idxs,
-    #         best_pre_ba_inlier_ratio_wrt_estimate,
-    #         best_intrin_i1,
-    #         best_intrin_i2,
-    #     )
+#     def estimate_intrinsics(
+#         self, keypoints_i1, keypoints_i2, putative_corr_idxs, camera_intrinsics_i1, camera_intrinsics_i2
+#     ):
+#         cx = camera_intrinsics_i1.px()
+#         cy = camera_intrinsics_i1.py()
+#         keypoints_i1.coordinates = keypoints_i1.coordinates - np.array([[cx, cy]])
+#         keypoints_i2.coordinates = keypoints_i2.coordinates - np.array([[cx, cy]])
+#         i2Fi1, mask = self._F_verifier.estimate_F(keypoints_i1, keypoints_i2, putative_corr_idxs)
+#         try:
+#             focal = verify_utils.shared_focal_lengths_from_fundamental_matrix(i2Fi1)
+#         except:
+#             return None
+#         return gtsam.Cal3Bundler(
+#             focal,
+#             camera_intrinsics_i1.k1(),
+#             camera_intrinsics_i1.k2(),
+#             camera_intrinsics_i1.px(),
+#             camera_intrinsics_i1.py(),
+#         )
+
+#     def verify_with_coarse_focal_estimation(
+#         self,
+#         intrinsics_i1,
+#         intrinsics_i2,
+#         keypoints_i1,
+#         keypoints_i2,
+#         putative_corr_idxs,
+#     ):
+#         f_range = np.linspace(start=0.7, stop=1.5, num=20)
+#         best_pre_ba_inlier_ratio_wrt_estimate = 0.0
+#         best_pre_ba_i2Ri1 = None
+#         best_pre_ba_i2Ui1 = None
+#         best_pre_ba_v_corr_idxs = None
+#         best_intrin_i1 = None
+#         best_intrin_i2 = None
+#         all_inlier_ratios = []
+#         for f1 in f_range:
+#             new_f_i1 = intrinsics_i1.fx() * f1
+#             new_f_i2 = intrinsics_i2.fx() * f1
+#             new_intrin_i1 = gtsam.Cal3Bundler(
+#                 new_f_i1,
+#                 intrinsics_i1.k1(),
+#                 intrinsics_i1.k2(),
+#                 intrinsics_i1.px(),
+#                 intrinsics_i1.py(),
+#             )
+#             new_intrin_i2 = gtsam.Cal3Bundler(
+#                 new_f_i2,
+#                 intrinsics_i2.k1(),
+#                 intrinsics_i2.k2(),
+#                 intrinsics_i2.px(),
+#                 intrinsics_i2.py(),
+#             )
+#             (
+#                 pre_ba_i2Ri1,
+#                 pre_ba_i2Ui1,
+#                 pre_ba_v_corr_idxs,
+#                 pre_ba_inlier_ratio_wrt_estimate,
+#             ) = self._verifier.verify(
+#                 keypoints_i1,
+#                 keypoints_i2,
+#                 putative_corr_idxs,
+#                 new_intrin_i1,
+#                 new_intrin_i2,
+#             )
+#             all_inlier_ratios.append(pre_ba_inlier_ratio_wrt_estimate)
+#             if pre_ba_inlier_ratio_wrt_estimate > best_pre_ba_inlier_ratio_wrt_estimate:
+#                 best_pre_ba_inlier_ratio_wrt_estimate = pre_ba_inlier_ratio_wrt_estimate
+#                 best_pre_ba_i2Ri1 = pre_ba_i2Ri1
+#                 best_pre_ba_i2Ui1 = pre_ba_i2Ui1
+#                 best_pre_ba_v_corr_idxs = pre_ba_v_corr_idxs
+#                 best_intrin_i1 = new_intrin_i1
+#                 best_intrin_i2 = new_intrin_i2
+#         return (
+#             best_pre_ba_i2Ri1,
+#             best_pre_ba_i2Ui1,
+#             best_pre_ba_v_corr_idxs,
+#             best_pre_ba_inlier_ratio_wrt_estimate,
+#             best_intrin_i1,
+#             best_intrin_i2,
+#         )
 
 
 # def average_all_intrinsics(estimates, triang_angles, pose_params):
@@ -360,7 +373,7 @@ class IntrinsicsEstimator:
 
 
 def run_intrinsics_estimator_as_futures(
-    client, intrinsics_estimator, keypoints_list, putative_corr_indices, intrinsics
+    client, intrinsics_estimator, keypoints_list, putative_corr_indices, intrinsics, gt_cameras
 ):
     intrinsics_estimator_future = client.scatter(intrinsics_estimator, broadcast=False)
 
@@ -399,9 +412,47 @@ def run_intrinsics_estimator_as_futures(
         errors_for_camera[i1].append(error)
         errors_for_camera[i2].append(error)
 
+    print("these are the estimated errors")
+    for i in focals_for_camera:
+        print(i, errors_for_camera[i])
+
     udpated_intrinsics = intrinsics_estimator.update_intrinsics_from_candidates(
         intrinsics, focals_for_camera, errors_for_camera
     )
+    intrin_estim_metrics = compute_metrics(udpated_intrinsics, focals_for_camera, gt_cameras)
     for intrin in udpated_intrinsics:
         assert intrin is not None
-    return udpated_intrinsics
+    return udpated_intrinsics, intrin_estim_metrics
+
+
+def compute_metrics(intrinsics, focals_for_camera, gt_cameras):
+    gt_intrinsics = [cam.calibration() for cam in gt_cameras]
+    inlier_ratios = []
+    estimate_errors = []
+
+    for cam, focals in focals_for_camera.items():
+        gt_fx = gt_intrinsics[cam].fx()
+        print(cam, focals)
+        valid_focals = [f for f in focals if f is not None]
+        if len(valid_focals) == 0:
+            inlier_ratios.append(0.0)
+            continue
+
+        errors = np.abs(np.array(valid_focals) - gt_fx)
+        estimate_errors.extend(errors.tolist())
+        num_inliers = (errors < 40).sum()
+        inlier_ratio = num_inliers / len(focals)
+        inlier_ratios.append(inlier_ratio)
+
+    final_estimate_error = []
+
+    for i, intrinsic in enumerate(intrinsics):
+        final_estimate_error.append(np.abs(gt_intrinsics[i].fx() - intrinsics[i].fx()))
+    return GtsfmMetricsGroup(
+        "intrinsics_estimation_metrics",
+        [
+            GtsfmMetric("inlier_ratios", np.array(inlier_ratios)),
+            GtsfmMetric("final_estimate_error", final_estimate_error),
+            GtsfmMetric("all_estimate_errors", estimate_errors),
+        ],
+    )

@@ -300,8 +300,16 @@ class GtsfmRunnerBase:
 
         with performance_report(filename="intrinsics-estimator-dask-report.html"):
             intrin_estimator = intrinsics_estimator.IntrinsicsEstimator(verification_threshold_px=4)
-            intrinsics = intrinsics_estimator.run_intrinsics_estimator_as_futures(
-                client, intrin_estimator, keypoints_list, putative_corr_idxs_dict, intrinsics
+            intrinsics, intrin_estim_metrics = intrinsics_estimator.run_intrinsics_estimator_as_futures(
+                client,
+                intrin_estimator,
+                keypoints_list,
+                putative_corr_idxs_dict,
+                intrinsics,
+                self.loader.get_gt_cameras(),
+            )
+            intrin_estim_metrics.save_to_json(
+                os.path.join(self.parsed_args.output_root, "result_metrics", "intrinsics_estimation_metrics.json")
             )
 
         with performance_report(filename="two-view-estimator-dask-report.html"):
