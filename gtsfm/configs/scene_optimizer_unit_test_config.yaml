@@ -2,12 +2,14 @@ SceneOptimizer:
   _target_: gtsfm.scene_optimizer.SceneOptimizer
   save_gtsfm_data: True
   save_two_view_correspondences_viz: False
-  save_3d_viz: True
+  save_3d_viz: False
   pose_angular_error_thresh: 5 # degrees
 
-  retriever:
-    _target_: gtsfm.retriever.sequential_retriever.SequentialRetriever
-    max_frame_lookahead: 20
+  image_pairs_generator:
+    _target_: gtsfm.retriever.image_pairs_generator.ImagePairsGenerator
+    retriever:
+      _target_: gtsfm.retriever.sequential_retriever.SequentialRetriever
+      max_frame_lookahead: 20
 
   correspondence_generator:
     _target_: gtsfm.frontend.correspondence_generator.det_desc_correspondence_generator.DetDescCorrespondenceGenerator

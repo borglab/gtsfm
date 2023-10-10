@@ -29,8 +29,8 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
     def __init__(self, matcher: ImageMatcherBase, deduplicate: bool = True) -> None:
         """
         Args:
-            matcher: matcher to use.
-            deduplicate: whether to de-duplicate with a single image the detections received from each image pair.
+            matcher: Matcher to use.
+            deduplicate: Whether to de-duplicate with a single image the detections received from each image pair.
         """
         self._matcher = matcher
 
@@ -42,6 +42,7 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
         return f"""
         ImageCorrespondenceGenerator:
            {self._matcher}
+           {self._aggregator}
         """
 
     def generate_correspondences(
@@ -53,9 +54,9 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
         """Apply the correspondence generator to generate putative correspondences.
 
         Args:
-            client: dask client, used to execute the front-end as futures.
-            images: list of all images, as futures.
-            image_pairs: indices of the pairs of images to estimate two-view pose and correspondences.
+            client: Dask client, used to execute the front-end as futures.
+            images: List of all images, as futures.
+            image_pairs: Indices of the pairs of images to estimate two-view pose and correspondences.
 
         Returns:
             List of keypoints, one entry for each input images.
@@ -78,7 +79,6 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
         )
 
         keypoints_list, putative_corr_idxs_dict = self._aggregator.aggregate(keypoints_dict=pairwise_correspondences)
-
         return keypoints_list, putative_corr_idxs_dict
 
     def generate_correspondences_and_estimate_two_view(
@@ -96,14 +96,14 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
         two view estimator to complete the front-end.
 
         Args:
-            client: dask client, used to execute the front-end as futures.
-            images: list of all images.
-            image_pairs: indices of the pairs of images to estimate two-view pose and correspondences.
-            camera_intrinsics: list of all camera intrinsics.
-            relative_pose_priors: priors on relative pose between two cameras.
+            client: Dask client, used to execute the front-end as futures.
+            images: List of all images.
+            image_pairs: Indices of the pairs of images to estimate two-view pose and correspondences.
+            camera_intrinsics: List of all camera intrinsics.
+            relative_pose_priors: Priors on relative pose between two cameras.
             gt_cameras: GT cameras, used to evaluate metrics.
             gt_scene_mesh: GT mesh of the 3D scene, used to evaluate metrics.
-            two_view_estimator: two view estimator, which is used to verify correspondences and estimate pose.
+            two_view_estimator: Two view estimator, which is used to verify correspondences and estimate pose.
 
         Returns:
             List of keypoints, one entry for each input images.
@@ -170,5 +170,4 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
         }
 
         two_view_output_dict = client.gather(two_view_output_futures)
-
         return keypoints_list, two_view_output_dict

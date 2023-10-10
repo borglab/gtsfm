@@ -4,14 +4,20 @@ SceneOptimizer:
   _target_: gtsfm.scene_optimizer.SceneOptimizer
   save_gtsfm_data: True
   save_two_view_correspondences_viz: False
-  save_3d_viz: True
+  save_3d_viz: False
   pose_angular_error_thresh: 5 # degrees
 
-  retriever:
-    _target_: gtsfm.retriever.joint_netvlad_sequential_retriever.JointNetVLADSequentialRetriever
-    num_matched: 20
-    min_score: 0.2
-    max_frame_lookahead: 25
+  image_pairs_generator:
+    _target_: gtsfm.retriever.image_pairs_generator.ImagePairsGenerator
+    global_descriptor:
+      _target_: gtsfm.frontend.cacher.global_descriptor_cacher.GlobalDescriptorCacher
+      global_descriptor_obj:
+        _target_: gtsfm.frontend.global_descriptor.netvlad_global_descriptor.NetVLADGlobalDescriptor
+    retriever:
+      _target_: gtsfm.retriever.joint_netvlad_sequential_retriever.JointNetVLADSequentialRetriever
+      num_matched: 20
+      min_score: 0.2
+      max_frame_lookahead: 25
 
   correspondence_generator:
     _target_: gtsfm.frontend.correspondence_generator.image_correspondence_generator.ImageCorrespondenceGenerator
@@ -22,27 +28,29 @@ SceneOptimizer:
         _target_: gtsfm.frontend.matcher.loftr.LOFTR
 
   two_view_estimator:
-    _target_: gtsfm.two_view_estimator.TwoViewEstimator
-    bundle_adjust_2view: True
-    eval_threshold_px: 4 # in px
-    ba_reproj_error_thresholds: [0.5]
-    bundle_adjust_2view_maxiters: 100
+    _target_: gtsfm.two_view_estimator_cacher.TwoViewEstimatorCacher
+    two_view_estimator_obj:
+      _target_: gtsfm.two_view_estimator.TwoViewEstimator
+      bundle_adjust_2view: True
+      eval_threshold_px: 4 # in px
+      ba_reproj_error_thresholds: [0.5]
+      bundle_adjust_2view_maxiters: 100
 
-    verifier:
-      _target_: gtsfm.frontend.verifier.ransac.Ransac
-      use_intrinsics_in_verification: True
-      estimation_threshold_px: 4 # for H/E/F estimators
+      verifier:
+        _target_: gtsfm.frontend.verifier.ransac.Ransac
+        use_intrinsics_in_verification: True
+        estimation_threshold_px: 4 # for H/E/F estimators
 
-    triangulation_options:
-      _target_: gtsfm.data_association.point3d_initializer.TriangulationOptions
-      mode:
-        _target_: gtsfm.data_association.point3d_initializer.TriangulationSamplingMode
-        value: NO_RANSAC
+      triangulation_options:
+        _target_: gtsfm.data_association.point3d_initializer.TriangulationOptions
+        mode:
+          _target_: gtsfm.data_association.point3d_initializer.TriangulationSamplingMode
+          value: NO_RANSAC
 
-    inlier_support_processor:
-      _target_: gtsfm.two_view_estimator.InlierSupportProcessor
-      min_num_inliers_est_model: 15
-      min_inlier_ratio_est_model: 0.1
+      inlier_support_processor:
+        _target_: gtsfm.two_view_estimator.InlierSupportProcessor
+        min_num_inliers_est_model: 15
+        min_inlier_ratio_est_model: 0.1
 
   multiview_optimizer:
     _target_: gtsfm.multi_view_optimizer.MultiViewOptimizer

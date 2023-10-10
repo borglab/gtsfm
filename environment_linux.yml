@@ -53,5 +53,5 @@ dependencies:
       - colour
       - pycolmap>=0.1.0
       - trimesh[easy]
-      - gtsam==4.2a8
+      - gtsam==4.2
       - pydot
