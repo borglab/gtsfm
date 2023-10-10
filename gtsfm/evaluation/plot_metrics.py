@@ -16,6 +16,7 @@ from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 logger = logger_utils.get_logger()
 
 GTSFM_MODULE_METRICS_FNAMES = [
+    "intrinsics_estimation_metrics.json",
     "frontend_summary.json",
     "rotation_cycle_consistency_metrics.json",
     "rotation_averaging_metrics.json",
