@@ -248,9 +248,20 @@ def compute_relative_rotation_angle_metric(
     angles: List[Optional[float]] = []
     for i1, i2 in i2Ri1_dict:
         i2Ri1 = i2Ri1_dict[(i1, i2)]
-        angles.append(
-            comp_utils.compute_rotation_angle_measurement_consistency(i2Ri1, wRi2=wRi_list[i2], wRi1=wRi_list[i1])
-        )
+
+        wRi2 = wRi_list[i2]
+        wRi1 = wRi_list[i1]
+
+        if i2Ri1 is None or wRi2 is None or wRi1 is None:
+            return None
+
+        # Given a relative rotation measurement from i2 to i1, and the estimated global rotations of
+        # i1 and i2, compute the angular difference between the relative vs. synthetic measurements.
+        # (angle between two-view measurement and synthetic relative rotation in degrees).
+        i2Ri1_synthetic = wRi2.between(wRi1)
+        angle_deg = comp_utils.compute_relative_rotation_angle(i2Ri1, i2Ri1_synthetic)
+        angles.append(angle_deg)
+
     return GtsfmMetric("relative_rotation_angle_consistency_error_deg", np.array(angles, dtype=np.float32))
 
 

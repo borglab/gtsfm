@@ -207,18 +207,18 @@ def compare_global_poses(
         aTi_list: 1st list of poses.
         bTi_list: 2nd list of poses.
         rot_angular_error_threshold_degrees (optional): angular error threshold for rotations. Defaults to 2.
-        trans_err_atol (optional): absolute error threshold for translation. Defaults to 1e-2.
-        trans_err_rtol (optional): relative error threshold for translation. Defaults to 1e-1.
+        trans_err_atol (optional): Absolute error threshold for translation. Defaults to 1e-2.
+        trans_err_rtol (optional): Relative error threshold for translation. Defaults to 1e-1.
 
     Returns:
-        result of the comparison.
+        Result of the comparison.
     """
 
-    # check the length of the input lists
+    # Check the length of the input lists
     if len(aTi_list) != len(bTi_list):
         return False
 
-    # check the presense of valid Pose3 objects in the same location
+    # Check the presence of valid Pose3 objects in the same location.
     aTi_valid = [i for (i, aTi) in enumerate(aTi_list) if aTi is not None]
     bTi_valid = [i for (i, bTi) in enumerate(bTi_list) if bTi is not None]
     if aTi_valid != bTi_valid:
@@ -228,7 +228,7 @@ def compare_global_poses(
         # we need >= two entries going forward for meaningful comparisons
         return False
 
-    # align the remaining poses
+    # Align the remaining poses.
     aTi_list = [aTi_list[i] for i in aTi_valid]
     bTi_list = [bTi_list[i] for i in bTi_valid]
 
@@ -261,30 +261,6 @@ def compare_global_poses(
         logger.info("Comparison Translation Errors: " + str(np.round(translation_errors, 2)))
 
     return rotations_equal and translations_equal
-
-
-def compute_rotation_angle_measurement_consistency(
-    i2Ri1: Optional[Unit3], wRi2: Optional[Pose3], wRi1: Optional[Pose3]
-) -> Optional[float]:
-    """Compute angle between a [ TODO ] between 2 poses.
-
-    Given a relative rotation measurement from i2 to i1, and the estimated global rotations of
-    i1 and i2, returns the angular difference between the relative vs. synthetic measurements.
-
-    Args:
-        i2Ri1: Relative rotation measurement.
-        wRi2: Global rotation of camera i2.
-        wRi1: Global rotation of camera i1.
-
-    Returns:
-        Angle between two-view measurement and synthetic relative rotation in degrees.
-    """
-    if i2Ri1 is None or wRi2 is None or wRi1 is None:
-        return None
-
-    # Synthetic measurement.
-    i2Ri1_synthetic = wRi2.between(wRi1)
-    return compute_relative_rotation_angle(i2Ri1, i2Ri1_synthetic)
 
 
 def compute_relative_rotation_angle(R_1: Optional[Rot3], R_2: Optional[Rot3]) -> Optional[float]:
