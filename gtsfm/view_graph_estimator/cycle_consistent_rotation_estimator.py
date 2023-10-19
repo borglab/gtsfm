@@ -92,7 +92,7 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
             i2Ui1_dict: Dict from (i1, i2) to relative translation direction of i1 with respect to i2 (unused).
             calibrations: List of calibrations for each image (unused).
             corr_idxs_i1i2: Dict from (i1, i2) to indices of verified correspondences from i1 to i2 (unused).
-            keypoints: keypoints for each images (unused).
+            keypoints: Keypoints for each image (unused).
             two_view_reports: Dict from (i1, i2) to the TwoViewEstimationReport of the edge.
             output_dir: Path to directory where outputs for debugging will be saved.
 

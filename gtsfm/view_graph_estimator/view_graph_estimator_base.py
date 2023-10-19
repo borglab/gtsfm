@@ -79,7 +79,7 @@ class ViewGraphEstimatorBase(GTSFMProcess):
         Args:
             i2Ri1_dict: Dict from (i1, i2) to relative rotation of i1 with respect to i2.
             i2Ui1_dict: Dict from (i1, i2) to relative translation direction of i1 with respect to i2.
-            calibrations: list of calibrations for each image.
+            calibrations: List of calibrations for each image.
             corr_idxs_i1i2: Dict from (i1, i2) to indices of verified correspondences from i1 to i2.
             keypoints: keypoints for each images.
             two_view_reports: two-view reports between image pairs from the TwoViewEstimator.

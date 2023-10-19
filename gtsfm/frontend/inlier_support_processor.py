@@ -27,9 +27,9 @@ class InlierSupportProcessor:
         """Saves inlier thresholds to use for filtering.
 
         Args:
-            min_num_inliers_est_model: minimum number of inliers that must agree w/ estimated model, to accept
+            min_num_inliers_est_model: Minimum number of inliers that must agree w/ estimated model, to accept
                 and use the image pair.
-            min_inlier_ratio_est_model: minimum allowed inlier ratio w.r.t. the estimated model to accept
+            min_inlier_ratio_est_model: Minimum allowed inlier ratio w.r.t. the estimated model to accept
                 the verification result and use the image pair, i.e. the lowest allowed ratio of
                 #final RANSAC inliers/ #putatives. A lower fraction indicates less agreement among the result.
         """
@@ -63,7 +63,7 @@ class InlierSupportProcessor:
         failure_result = (
             None,
             None,
-            np.array([], dtype=np.uint64),
+            np.zeros((0,2), dtype=np.uint64),
             TwoViewEstimationReport(v_corr_idxs=v_corr_idxs, num_inliers_est_model=0),
         )
 

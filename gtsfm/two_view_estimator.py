@@ -267,6 +267,8 @@ class TwoViewEstimator:
             U_error_deg=U_error_deg,
             v_corr_idxs_inlier_mask_gt=inlier_mask_wrt_gt,
             reproj_error_gt_model=reproj_error_wrt_gt,
+            i2Ri1_computed=i2Ri1_computed,
+            i2Ui1_computed=i2Ui1_computed,
         )
 
     def get_corr_metric_dist_threshold(self) -> float:
@@ -358,6 +360,8 @@ def generate_two_view_report(
     U_error_deg: Optional[float] = None,
     v_corr_idxs_inlier_mask_gt: Optional[np.ndarray] = None,
     reproj_error_gt_model: Optional[np.ndarray] = None,
+    i2Ri1_computed: Optional[Rot3] = None,
+    i2Ui1_computed: Optional[Unit3] = None,
 ) -> TwoViewEstimationReport:
     """Wrapper around class constructor for Dask."""
     # Compute ground truth metrics.
@@ -377,6 +381,7 @@ def generate_two_view_report(
         outlier_avg_reproj_error_gt_model = float("Nan")
 
     # Generate report.
+    print("i2Ri1 computed: ", i2Ri1_computed)
     two_view_report = TwoViewEstimationReport(
         inlier_ratio_est_model=inlier_ratio_est_model,
         num_inliers_est_model=v_corr_idxs.shape[0],
@@ -389,6 +394,8 @@ def generate_two_view_report(
         reproj_error_gt_model=reproj_error_gt_model,
         inlier_avg_reproj_error_gt_model=inlier_avg_reproj_error_gt_model,
         outlier_avg_reproj_error_gt_model=outlier_avg_reproj_error_gt_model,
+        i2Ri1 = i2Ri1_computed,
+        i2Ui1 = i2Ui1_computed,
     )
     return two_view_report
 
@@ -607,9 +614,16 @@ def get_two_view_reports_summary(
     metrics_list = []
 
     for (i1, i2), report in two_view_report_dict.items():
+        rotation_dict = {}
+        if report.i2Ri1 is not None:
+            i2Ri1_quaternion = report.i2Ri1.toQuaternion()
+            qw, qx, qy, qz = i2Ri1_quaternion.w(), i2Ri1_quaternion.x(), i2Ri1_quaternion.y(), i2Ri1_quaternion.z()
+            rotation_dict = {"qw": qw, "qx": qx, "qy": qy, "qz": qz}
+
         # Note: if GT is unknown, then R_error_deg, U_error_deg, and inlier_ratio_gt_model will be None
         metrics_list.append(
             {
+                "rotation": rotation_dict,
                 "i1": int(i1),
                 "i2": int(i2),
                 "i1_filename": images[i1].file_name,

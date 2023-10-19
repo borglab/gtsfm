@@ -12,8 +12,7 @@ from gtsfm.common.image import Image
 
 
 def rgb_to_gray_cv(image: Image) -> Image:
-    """
-    RGB to Grayscale conversion using opencv
+    """Convert image from RGB to Grayscale using opencv.
 
     Args:
         image: Input RGB/RGBA image.
