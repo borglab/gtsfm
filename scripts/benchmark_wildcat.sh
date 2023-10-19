@@ -7,10 +7,22 @@ now=$(date +"%Y%m%d_%H%M%S")
 
 
 datasets=(
-	gendarmenmarkt-1463
+	# Olsson Datasets.
+	# See https://www.maths.lth.se/matematiklth/personal/calle/dataset/dataset.html
+	ecole-superieure-de-guerre-35
+	fort-channing-gate-singapore-27
+	skansen-kronan-gothenburg-131
+	nijo-castle-gate-19
+	kings-college-cambridge-328
+	spilled-blood-cathedral-st-petersburg-781
 	palace-fine-arts-281
+	# 1dsfm Datasets
+	gendarmenmarkt-1463
+	# Other.
 	skydio-crane-mast-501
+	# Astrovision Datasets.
 	2011205_rc3
+	# Colmap Datasets.
 	south-building-128
 	gerrard-hall-100
 	)
@@ -87,6 +99,37 @@ for num_matched in ${num_matched_sizes[@]}; do
 				then
 					loader=olsson
 					dataset_root=/usr/local/gtsfm-data/palace-fine-arts-281
+
+				elif [[ $dataset == *"ecole-superieure-de-guerre-35"* ]]
+				then
+					loader=olsson
+					dataset_root=/usr/local/gtsfm-data/ecole-superieure-de-guerre-35
+
+				elif [[ $dataset == *"fort-channing-gate-singapore-27"* ]]
+				then
+					loader=olsson
+					dataset_root=/usr/local/gtsfm-data/fort-channing-gate-singapore-27
+
+				elif [[ $dataset == *"skansen-kronan-gothenburg-131"* ]]
+				then
+					loader=olsson
+					dataset_root=/usr/local/gtsfm-data/skansen-kronan-gothenburg-131
+
+				elif [[ $dataset == *"nijo-castle-gate-19"* ]]
+				then
+					loader=olsson
+					dataset_root=/usr/local/gtsfm-data/nijo-castle-gate-19
+
+				elif [[ $dataset == *"kings-college-cambridge-328"* ]]
+				then
+					loader=olsson
+					dataset_root=/usr/local/gtsfm-data/kings-college-cambridge-328
+
+				elif [[ $dataset == *"spilled-blood-cathedral-st-petersburg-781"* ]]
+				then
+					loader=olsson
+					dataset_root=/usr/local/gtsfm-data/spilled-blood-cathedral-st-petersburg-781
+
 				elif [[ $dataset == *"skydio-crane-mast-501"* ]]
 				then
 					loader=colmap
