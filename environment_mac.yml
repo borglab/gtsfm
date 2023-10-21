@@ -1,4 +1,4 @@
-name: gtsfm-v1
+name: gtsfm-v9
 channels:
   # The GTSFM mac environment closely follows the linux conda environment file,
   # except for two noticeable differences: no CUDA support and no DEGENSAC support.
@@ -28,7 +28,7 @@ dependencies:
   - python-graphviz
   # core functionality and APIs
   - matplotlib==3.4.2
-  - networkx
+  - networkx>=3.2
   - numpy
   - nodejs
   - pandas
