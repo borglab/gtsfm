@@ -1,6 +1,7 @@
 """ """
 from typing import Dict, Tuple
 
+import copy
 import os
 import time
 from collections import defaultdict
@@ -18,6 +19,7 @@ import gtsfm.utils.io as io_utils
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.logger as logger_utils
+from gtsfm.averaging.rotation.shonan import ShonanRotationAveraging
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.two_view_estimator import TwoViewEstimationReport
 from gtsfm.view_graph_estimator.view_graph_estimator_base import ViewGraphEstimatorBase
@@ -50,7 +52,7 @@ class SpanningTreeViewGraphEstimator(ViewGraphEstimatorBase):
 
     def __init__(self) -> None:
         """ """
-        pass
+        self._rot_avg_module = ShonanRotationAveraging()
 
 
     def run(
@@ -86,28 +88,83 @@ class SpanningTreeViewGraphEstimator(ViewGraphEstimatorBase):
             weight = num_inliers / total_num_inliers
             G.add_edge(i1, i2, weight=weight)
 
-        import pdb; pdb.set_trace()
+        avg_error = np.mean([ two_view_reports[(i1,i2)].R_error_deg for (i1,i2) in i2Ri1_dict.keys() ])
+        print(f"Avg Full Graph error: {avg_error}")
+        #import pdb; pdb.set_trace()
+        
         # Plot the graph.
-        graph_utils.draw_view_graph_topology(
-            edges=list(i2Ri1_dict.keys()),
-            two_view_reports=two_view_reports,
-            title="Title",
-            save_fpath="",
-            cameras_gt=None,
-        )
+        # graph_utils.draw_view_graph_topology(
+        #     edges=list(i2Ri1_dict.keys()),
+        #     two_view_reports=two_view_reports,
+        #     title="Title",
+        #     save_fpath="",
+        #     cameras_gt=None,
+        # )
+
+        # Sample spanning trees.
+        # for ... 
 
         # Find max weight spanning tree.
         T = nx.maximum_spanning_tree(G)
 
-        unused_edges = set(G) - set(T)
+        T_edges = T.edges()
+        sorted_T_edges = [tuple(sorted([i1,i2])) for (i1,i2) in T_edges]
+        avg_error = np.mean([ two_view_reports[(i1,i2)].R_error_deg for (i1,i2) in sorted_T_edges ])
+        print(f"Avg ST error: {avg_error}")
+
+        # graph_utils.draw_view_graph_topology(
+        #     edges=sorted_T_edges,
+        #     two_view_reports=two_view_reports,
+        #     title="Title",
+        #     save_fpath="",
+        #     cameras_gt=None,
+        # )
+
+        unused_edges = set(G.edges()) - set(T.edges())
+
+        clean_edges_to_add = []
 
         # Add an edge. Compute cycle error.
-        cycle_path = list(nx.find_cycle(G, orientation="original"))
+        for unused_edge in unused_edges:
+            # Networkx returns them in unsorted order.
+            i1, i2 = sorted(unused_edge)
+            T_augmented = copy.deepcopy(T)
+            num_inliers = two_view_reports[(i1,i2)].num_inliers_est_model
+            weight = num_inliers / total_num_inliers
+            T_augmented.add_edge(i1, i2, weight=weight)
+            cycle_path = list(nx.find_cycle(T_augmented, orientation="original"))
+
+            R = Rot3()
+            for (i1, i2, direction) in cycle_path:
+                if i1 < i2:
+                    R = R.compose(i2Ri1_dict[(i1,i2)])
+                else:
+                    R = R.compose(i2Ri1_dict[(i2,i1)].inverse())
+
+            cycle_error = comp_utils.compute_relative_rotation_angle(Rot3(), R)
+            
+            error_epsilon = 0.75
+            acceptance_threshold_deg = np.sqrt(len(cycle_path)) * error_epsilon
+            print(
+                f"Cycle error: {cycle_error:.2f} vs acceptance thresh {acceptance_threshold_deg:.2f} for length {len(cycle_path)}"
+            )
+            if cycle_error < acceptance_threshold_deg:
+                clean_edges_to_add.append(unused_edge)
+
 
         # Check average rotation consistency error, by running Shonan on this.
+        filtered_edges = set(clean_edges_to_add).union(set(T.edges()))
+        sorted_filtered_edges = [tuple(sorted([i1,i2])) for (i1,i2) in filtered_edges]
+        i2Ri1_dict_filtered = {(i1,i2): i2Ri1_dict[(i1,i2)] for (i1,i2) in sorted_filtered_edges}
+        wRi_list = self._rot_avg_module.run_rotation_averaging(
+            num_images=len(keypoints),
+            i2Ri1_dict=i2Ri1_dict_filtered,
+            i1Ti2_priors={},
+        )
+        # Check consistency statistics.
 
-        i0Ri0_from_cycle = i2Ri0.inverse().compose(i2Ri1).compose(i1Ri0)
-        comp_utils.compute_relative_rotation_angle(Rot3(), i0Ri0_from_cycle)
+        # i0Ri0_from_cycle = i2Ri0.inverse().compose(i2Ri1).compose(i1Ri0)
+        
 
 
         return T.edges()
@@ -115,7 +172,8 @@ class SpanningTreeViewGraphEstimator(ViewGraphEstimatorBase):
 
 def main():
 
-    fpath = "/Users/johnlambert/Downloads/gtsfm_2023_07_08/gtsfm/door_results_2023_10_18/result_metrics/two_view_report_POST_INLIER_SUPPORT_PROCESSOR_2VIEW_REPORT.json"
+    fpath = "/Users/johnlambert/Documents/2023_10_19_0013_spanning_tree_view_graph_estimator/20231019_041341/20231019_041341__gerrard-hall-100__results__num_matched5__maxframelookahead10__760p__unified_sift/result_metrics/two_view_report_POST_INLIER_SUPPORT_PROCESSOR_2VIEW_REPORT.json"
+    #fpath = "/Users/johnlambert/Downloads/gtsfm_2023_07_08/gtsfm/door_results_2023_10_18/result_metrics/two_view_report_POST_INLIER_SUPPORT_PROCESSOR_2VIEW_REPORT.json"
     data = io_utils.read_json_file(fpath)
 
     i2Ri1_dict = {}
@@ -149,7 +207,7 @@ def main():
         i2Ui1_dict={},
         calibrations=[],
         corr_idxs_i1i2={},
-        keypoints=[],
+        keypoints=[Keypoints(coordinates=np.zeros((0,2)))] * 100,
         two_view_reports=two_view_reports_dict,
     )
 
