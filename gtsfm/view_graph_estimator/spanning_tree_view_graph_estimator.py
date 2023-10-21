@@ -23,6 +23,7 @@ from gtsfm.averaging.rotation.shonan import ShonanRotationAveraging
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.two_view_estimator import TwoViewEstimationReport
 from gtsfm.view_graph_estimator.view_graph_estimator_base import ViewGraphEstimatorBase
+from gtsfm.averaging.rotation.spanning_tree import SpanningTreeRotationEstimator
 
 logger = logger_utils.get_logger()
 
@@ -52,7 +53,9 @@ class SpanningTreeViewGraphEstimator(ViewGraphEstimatorBase):
 
     def __init__(self) -> None:
         """ """
-        self._rot_avg_module = ShonanRotationAveraging()
+        #self._rot_avg_module = ShonanRotationAveraging()
+        self._rot_avg_module = SpanningTreeRotationEstimator()
+
 
     def run(
         self,
@@ -107,101 +110,182 @@ class SpanningTreeViewGraphEstimator(ViewGraphEstimatorBase):
         # for ...
 
         # Find max weight spanning tree.
-        #
-        for sample_idx in range(100):
-            print(f"Sample index={sample_idx}")
-            #T = nx.random_spanning_tree(G, weight="weight", multiplicative=True) #, seed=42)
-            T = nx.maximum_spanning_tree(G)
+        T = nx.maximum_spanning_tree(G)
 
-            T_edges = T.edges()
-            sorted_T_edges = [tuple(sorted([i1, i2])) for (i1, i2) in T_edges]
-            avg_error = np.mean([two_view_reports[(i1, i2)].R_error_deg for (i1, i2) in sorted_T_edges])
-            print(f"Sample {sample_idx} Avg ST error: {avg_error}")
+        T_edges = T.edges()
+        sorted_T_edges = [tuple(sorted([i1, i2])) for (i1, i2) in T_edges]
+        avg_error = np.mean([two_view_reports[(i1, i2)].R_error_deg for (i1, i2) in sorted_T_edges])
+        max_error = np.amax([two_view_reports[(i1, i2)].R_error_deg for (i1, i2) in sorted_T_edges])
+        for (i1,i2) in sorted_T_edges:
+            print(f"({i1},{i2}) -> {two_view_reports[(i1, i2)].R_error_deg:.2f} GT error")
+        print(f"Avg MaxST error: {avg_error}")
+        print(f"Max MaxST error: {max_error}")
+
+
+
+        consistency_avg_error, consistency_max_error = self._compute_rotation_consistency_stats(
+            num_images = len(keypoints),
+            i2Ri1_dict_filtered={(i1,i2): i2Ri1_dict[(i1,i2)] for (i1,i2) in sorted_T_edges},
+            i2Ri1_dict=i2Ri1_dict,
+        )
+        print(f"Max ST Consistency avg error: {consistency_avg_error:.2f}")
+        print(f"Max ST Consistency max error: {consistency_max_error:.2f}")
+
+        unused_edges = set(i2Ri1_dict.keys()) - set(sorted_T_edges)
+
+        clean_edges_to_add = []
+
+        cycle_errors = []
+        gt_errors = []
+
+        outlier_edges = []
+        outlier_edge_weights = []
+
+        print("\n\nClassify")
+        # Add an edge. Compute cycle error.
+        for unused_edge_idx, unused_edge in enumerate(unused_edges):
+            #print(f"Unused edge index={unused_edge_idx}")
+            # Networkx returns them in unsorted order.
+            i1, i2 = sorted(unused_edge)
+            T_augmented = copy.deepcopy(T)
+            num_inliers = two_view_reports[(i1, i2)].num_inliers_est_model
+            weight = num_inliers / total_num_inliers
+            T_augmented.add_edge(i1, i2, weight=weight)
+            try:
+                cycle_path = list(nx.find_cycle(T_augmented, orientation="original"))
+            except:
+                import pdb; pdb.set_trace()
+
+            gt_error = two_view_reports[unused_edge].R_error_deg
+            cycle_gt_errors = []
+            R = Rot3() # think of as i2Ri2.
+            for (i1, i2, direction) in cycle_path:
+                if i1 < i2:
+                    R = R.compose(i2Ri1_dict[(i1, i2)])
+                    cycle_gt_errors.append(two_view_reports[(i1, i2)].R_error_deg)
+                else:
+                    R = R.compose(i2Ri1_dict[(i2, i1)].inverse())
+                    cycle_gt_errors.append(two_view_reports[(i2, i1)].R_error_deg)
+
+            cycle_error = comp_utils.compute_relative_rotation_angle(Rot3(), R)
+
+            error_epsilon = 0.75
+            acceptance_threshold_deg = np.sqrt(len(cycle_path)) * error_epsilon
+            
+            print_str = f"GT error {gt_error:.2f}, Cycle error: {cycle_error:.2f} vs acceptance thresh {acceptance_threshold_deg:.2f} for length {len(cycle_path)}"
+
+            if cycle_error < acceptance_threshold_deg:
+                clean_edges_to_add.append(unused_edge)
+                #print(f"Clean classified edge: {unused_edge} ", print_str)
+            else:
+
+                # print(f"Noisy classified edge: {unused_edge} ", print_str)
+                # print(f"{unused_edge}: cycle path: {cycle_path}", "cycle gt errors: ",  cycle_gt_errors)
+                outlier_edges.append(unused_edge)
+                outlier_edge_weights.append(cycle_error)
+                
+            cycle_errors.append(cycle_error)
+            gt_errors.append(gt_error)
+
+        
+        sorted_idxs = np.argsort(-1 * np.array(outlier_edge_weights))
+        outlier_edges_sorted = [outlier_edges[idx] for idx in sorted_idxs]
+
+        # plt.figure(figsize=(10, 10))
+        # plt.ylabel("GT error (deg)")
+        # plt.xlabel("Cycle error (deg)")
+        # plt.scatter(cycle_errors, gt_errors, 10, color="r", marker=".")
+        # #plt.savefig(output_dir / "n_length_cycle_error_vs_R_error_deg.jpg", dpi=500)
+        # plt.show()
+
+        for outlier_edge in outlier_edges_sorted:
+
+            G_new = nx.Graph()
+            G_new.add_edge(outlier_edge[0], outlier_edge[1], weight=1.0)
+
+            print("Add outlier edge: ", outlier_edge)
+
+            for (i1,i2) in sorted_T_edges:
+                new_weight = G.get_edge_data(i1, i2)["weight"] / 2
+                G_new.add_edge(i1, i2, weight=new_weight)
+            
+            new_T = nx.maximum_spanning_tree(G_new)
+
+            new_T_edges = new_T.edges()
+            sorted_new_T_edges = [tuple(sorted([i1, i2])) for (i1, i2) in new_T_edges]
+
+            i2Ri1_dict_filtered = {(i1, i2): i2Ri1_dict[(i1, i2)] for (i1, i2) in sorted_new_T_edges}
+
+            consistency_avg_error, consistency_max_error = self._compute_rotation_consistency_stats(
+                num_images = len(keypoints),
+                i2Ri1_dict_filtered=i2Ri1_dict_filtered,
+                i2Ri1_dict=i2Ri1_dict,
+            )
+            print(f"\tConsistency avg error: {consistency_avg_error:.2f}")
+            print(f"\tConsistency max error: {consistency_max_error:.2f}")
+
+            avg_error = np.mean([two_view_reports[(i1, i2)].R_error_deg for (i1, i2) in sorted_new_T_edges])
+            max_error = np.amax([two_view_reports[(i1, i2)].R_error_deg for (i1, i2) in sorted_new_T_edges])
+            print(f"\tAvg New ST error: {avg_error}")
+            print(f"\tMax New ST error: {max_error}")
 
             # graph_utils.draw_view_graph_topology(
-            #     edges=sorted_T_edges,
+            #     edges=sorted_new_T_edges,
             #     two_view_reports=two_view_reports,
             #     title="Title",
             #     save_fpath="",
             #     cameras_gt=None,
             # )
-
-            unused_edges = set(i2Ri1_dict.keys()) - set(sorted_T_edges)
-
-            clean_edges_to_add = []
-
-            cycle_errors = []
-            gt_errors = []
-
-            # Add an edge. Compute cycle error.
-            for unused_edge_idx, unused_edge in enumerate(unused_edges):
-                #print(f"Unused edge index={unused_edge_idx}")
-                # Networkx returns them in unsorted order.
-                i1, i2 = sorted(unused_edge)
-                T_augmented = copy.deepcopy(T)
-                num_inliers = two_view_reports[(i1, i2)].num_inliers_est_model
-                weight = num_inliers / total_num_inliers
-                T_augmented.add_edge(i1, i2, weight=weight)
-                try:
-                    cycle_path = list(nx.find_cycle(T_augmented, orientation="original"))
-                except:
-                    import pdb; pdb.set_trace()
-
-                R = Rot3()
-                for (i1, i2, direction) in cycle_path:
-                    if i1 < i2:
-                        R = R.compose(i2Ri1_dict[(i1, i2)])
-                        gt_error = two_view_reports[(i1, i2)].R_error_deg
-                    else:
-                        R = R.compose(i2Ri1_dict[(i2, i1)].inverse())
-                        gt_error = two_view_reports[(i2, i1)].R_error_deg
-
-                cycle_error = comp_utils.compute_relative_rotation_angle(Rot3(), R)
-
-                error_epsilon = 0.75
-                acceptance_threshold_deg = np.sqrt(len(cycle_path)) * error_epsilon
-                # print(
-                #     f"Cycle error: {cycle_error:.2f} vs acceptance thresh {acceptance_threshold_deg:.2f} for length {len(cycle_path)}"
-                # )
-                if cycle_error < acceptance_threshold_deg:
-                    clean_edges_to_add.append(unused_edge)
-
-                cycle_errors.append(cycle_error)
-                gt_errors.append(gt_error)
-
-            # plt.figure(figsize=(10, 10))
-            # plt.ylabel("GT error (deg)")
-            # plt.xlabel("Cycle error (deg)")
-            # plt.scatter(cycle_errors, gt_errors, 10, color="r", marker=".")
-            # #plt.savefig(output_dir / "n_length_cycle_error_vs_R_error_deg.jpg", dpi=500)
-            # plt.show()
-
-            # Check average rotation consistency error, by running Shonan on this.
-            filtered_edges = set(clean_edges_to_add).union(set(T.edges()))
-            sorted_filtered_edges = [tuple(sorted([i1, i2])) for (i1, i2) in filtered_edges]
-            i2Ri1_dict_filtered = {(i1, i2): i2Ri1_dict[(i1, i2)] for (i1, i2) in sorted_filtered_edges}
-            num_images = len(keypoints)
-            wRi_list = self._rot_avg_module.run_rotation_averaging(
-                num_images=num_images,
-                i2Ri1_dict=i2Ri1_dict_filtered,
-                i1Ti2_priors={},
-            )
-            metrics_group = self._rot_avg_module.evaluate(
-                wRi_computed=wRi_list,
-                wTi_gt=[None] * num_images,
-                i2Ri1_dict=i2Ri1_dict_filtered,
-            )
-            rot_avg_metrics_dict = metrics_group.get_metrics_as_dict()["rotation_averaging_metrics"]
-
-            # Check consistency statistics.
-            consistency_avg_error = rot_avg_metrics_dict["relative_rotation_angle_consistency_error_deg"]["summary"]["mean"]
-            consistency_max_error = rot_avg_metrics_dict["relative_rotation_angle_consistency_error_deg"]["summary"]["max"]
             
-            print(f"Consistency avg error: {consistency_avg_error:.2f}")
-            print(f"Consistency max error: {consistency_max_error:.2f}")
+
+            # Remove edge that creates cycle.
+
+            # Add supposed "outlier edge" to the spanning tree.
+
+            # Run Shonan, see if max consistency error goes down.
+
+
+
+        # Check average rotation consistency error, by running Shonan on this.
+        filtered_edges = set(clean_edges_to_add).union(set(T.edges()))
+        sorted_filtered_edges = [tuple(sorted([i1, i2])) for (i1, i2) in filtered_edges]
+        i2Ri1_dict_filtered = {(i1, i2): i2Ri1_dict[(i1, i2)] for (i1, i2) in sorted_filtered_edges}
+
+        consistency_avg_error, consistency_max_error = self._compute_rotation_consistency_stats(
+            num_images = len(keypoints),
+            i2Ri1_dict_filtered=i2Ri1_dict_filtered,
+            i2Ri1_dict=i2Ri1_dict,
+        )
+        print(f"Consistency avg error: {consistency_avg_error:.2f}")
+        print(f"Consistency max error: {consistency_max_error:.2f}")
 
         return sorted_filtered_edges
 
+
+    def _compute_rotation_consistency_stats(
+        self,
+        num_images: int,
+        i2Ri1_dict_filtered: Dict[Tuple[int,int], Rot3],
+        i2Ri1_dict,
+    ) -> Tuple[float, float]:
+        """Runs rotation averaging and checks consistency of measurements vs. global rotation estimate"""
+        wRi_list = self._rot_avg_module.run_rotation_averaging(
+            num_images=num_images,
+            i2Ri1_dict=i2Ri1_dict_filtered,
+            i1Ti2_priors={},
+        )
+        metrics_group = self._rot_avg_module.evaluate(
+            wRi_computed=wRi_list,
+            wTi_gt=[None] * len(wRi_list),
+            i2Ri1_dict=i2Ri1_dict, # i2Ri1_dict_filtered,
+        )
+        print("Estimated ", sum([1 if wRi is not None else 0 for wRi in wRi_list]))
+        rot_avg_metrics_dict = metrics_group.get_metrics_as_dict()["rotation_averaging_metrics"]
+
+        # Check consistency statistics.
+        consistency_avg_error = rot_avg_metrics_dict["relative_rotation_angle_consistency_error_deg"]["summary"]["mean"]
+        consistency_max_error = rot_avg_metrics_dict["relative_rotation_angle_consistency_error_deg"]["summary"]["max"]
+        return consistency_avg_error, consistency_max_error
 
 
 
