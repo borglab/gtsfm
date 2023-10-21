@@ -256,10 +256,10 @@ def compute_relative_rotation_angle_metric(
             return None
 
         # Given a relative rotation measurement from i2 to i1, and the estimated global rotations of
-        # i1 and i2, compute the angular difference between the relative vs. synthetic measurements.
-        # (angle between two-view measurement and synthetic relative rotation in degrees).
-        i2Ri1_synthetic = wRi2.between(wRi1)
-        angle_deg = comp_utils.compute_relative_rotation_angle(i2Ri1, i2Ri1_synthetic)
+        # i1 and i2, compute the angular difference between the relative measurement vs. derived relative
+        # rotation.
+        i2Ri1_derived = wRi2.between(wRi1)
+        angle_deg = comp_utils.compute_relative_rotation_angle(i2Ri1, i2Ri1_derived)
         angles.append(angle_deg)
 
     return GtsfmMetric("relative_rotation_angle_consistency_error_deg", np.array(angles, dtype=np.float32))
