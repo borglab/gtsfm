@@ -143,61 +143,66 @@ class SpanningTreeViewGraphEstimator(ViewGraphEstimatorBase):
 
         clean_G = nx.Graph()
 
-        for epsilon in [0.5, 0.75, 1.0, 1.25, 1.5, 2, 2.5, 3, 3.5, 4]:
+        for triplet_cycle_error_threshold in [1.5, 2.5, 5.0]:
 
-            for triplet_idx, (i0, i1, i2) in enumerate(sorted_cycles):
+            for epsilon in [0.5, 4]: # 0.75, 1.0, 1.25, 1.5, 2, 2.5, 3, 3.5,
+
+                for triplet_idx, (i0, i1, i2) in enumerate(sorted_cycles):
+                    
+                    if triplet_is_used[triplet_idx]:
+                        continue
+
+                    triplet_cycle_error = comp_utils.compute_cyclic_rotation_error(
+                        i1Ri0=i2Ri1_dict[(i0, i1)], i2Ri1=i2Ri1_dict[(i1, i2)], i2Ri0=i2Ri1_dict[(i0, i2)]
+                    )
+                    gt_errors = [
+                        two_view_reports[(i0,i1)].R_error_deg,
+                        two_view_reports[(i1,i2)].R_error_deg,
+                        two_view_reports[(i0,i2)].R_error_deg
+                    ]
+                    print(f"cycle_error={triplet_cycle_error:.2f} vs. GT errors={np.round(gt_errors,2)}")
+                    if triplet_cycle_error < triplet_cycle_error_threshold:
+                        print(f"\tClean graph now has {len(clean_G)} nodes, on Triplet={triplet_idx}.")
+                        augmented_clean_G = copy.deepcopy(clean_G)
+                        detected_cycles = sorted(nx.simple_cycles(augmented_clean_G, length_bound=5))
+                        print(f"Found {len(detected_cycles)} cycles in the augmented graph")
+
+                        derived_cycle_errors = []
+                        cycle_lengths = []
+                        for detected_cycle_idx, ordered_cycle_nodes in enumerate(detected_cycles):
+                            derived_cycle_error = compute_cycle_error(ordered_cycle_nodes, i2Ri1_dict)
+                            cycle_len = len(ordered_cycle_nodes)
+                            
+                            derived_cycle_errors.append(derived_cycle_error)
+                            cycle_lengths.append(cycle_len)
+
+                        success = True
+                        #epsilon = 0.5
+                        for detected_cycle_idx, (cycle_len, derived_cycle_error) in enumerate(zip(cycle_lengths, derived_cycle_errors)):
+                            if derived_cycle_error > np.sqrt(cycle_len) * epsilon:
+                                print(f"\t\tReject cycle {detected_cycle_idx}: len-{cycle_len} derived_cycle_error {derived_cycle_error:.2f} > {np.sqrt(cycle_len) * epsilon:.2f} thresh")
+                                success = False
+                            else:
+                                print(f"\tAcceptable derived cycle {detected_cycle_idx} error for len-{cycle_len}: {derived_cycle_error:.2f}")
+
+                        if success:
+                            triplet_is_used[triplet_idx] = True
+                            clean_G.add_edge(i0, i1)
+                            clean_G.add_edge(i1, i2)
+                            clean_G.add_edge(i0, i2)
+                            
+
+                    else:
+                        print("\tSkip this triplet.")
+                    #cycle_path = list(nx.find_cycle(T_augmented, orientation="original"))
                 
-                if triplet_is_used[triplet_idx]:
-                    continue
-
-                triplet_cycle_error = comp_utils.compute_cyclic_rotation_error(
-                    i1Ri0=i2Ri1_dict[(i0, i1)], i2Ri1=i2Ri1_dict[(i1, i2)], i2Ri0=i2Ri1_dict[(i0, i2)]
-                )
-                gt_errors = [
-                    two_view_reports[(i0,i1)].R_error_deg,
-                    two_view_reports[(i1,i2)].R_error_deg,
-                    two_view_reports[(i0,i2)].R_error_deg
-                ]
-                print(f"cycle_error={triplet_cycle_error:.2f} vs. GT errors={np.round(gt_errors,2)}")
-                if triplet_cycle_error < 1.5:
-                    print(f"\tClean graph now has {len(clean_G)} nodes, on Triplet={triplet_idx}.")
-                    augmented_clean_G = copy.deepcopy(clean_G)
-                    detected_cycles = sorted(nx.simple_cycles(augmented_clean_G, length_bound=5))
-                    print(f"Found {len(detected_cycles)} cycles in the augmented graph")
-
-                    derived_cycle_errors = []
-                    cycle_lengths = []
-                    for detected_cycle_idx, ordered_cycle_nodes in enumerate(detected_cycles):
-                        derived_cycle_error = compute_cycle_error(ordered_cycle_nodes, i2Ri1_dict)
-                        cycle_len = len(ordered_cycle_nodes)
-                        
-                        derived_cycle_errors.append(derived_cycle_error)
-                        cycle_lengths.append(cycle_len)
-
-                    success = True
-                    #epsilon = 0.5
-                    for detected_cycle_idx, (cycle_len, derived_cycle_error) in enumerate(zip(cycle_lengths, derived_cycle_errors)):
-                        if derived_cycle_error > np.sqrt(cycle_len) * epsilon:
-                            print(f"\t\tReject cycle {detected_cycle_idx}: len-{cycle_len} derived_cycle_error {derived_cycle_error:.2f} > {np.sqrt(cycle_len) * epsilon:.2f} thresh")
-                            success = False
-                        else:
-                            print(f"\tAcceptable derived cycle {detected_cycle_idx} error for len-{cycle_len}: {derived_cycle_error:.2f}")
-
-                    if success:
-                        triplet_is_used[triplet_idx] = True
-                        clean_G.add_edge(i0, i1)
-                        clean_G.add_edge(i1, i2)
-                        clean_G.add_edge(i0, i2)
-                        
-
-                else:
-                    print("\tSkip this triplet.")
-                #cycle_path = list(nx.find_cycle(T_augmented, orientation="original"))
-            
-            percent_triplets_used = triplet_is_used.mean() * 100
-            print(f"% triplets used: {percent_triplets_used:.2f} % w/ epsilon={epsilon}")
-            import pdb; pdb.set_trace()
-        #     
+                percent_triplets_used = triplet_is_used.mean() * 100
+                print(f"% triplets used: {percent_triplets_used:.2f} % w/ epsilon={epsilon}")
+                print(f"\tClean graph now has {len(clean_G)} nodes")
+                import time
+                time.sleep(10)
+                #import pdb; pdb.set_trace()
+            #     
         #     cycle_gt_errors = []
         #     R = Rot3() # think of as i2Ri2.
         #     for (i1, i2, direction) in cycle_path:
