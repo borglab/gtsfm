@@ -141,14 +141,19 @@ class SpanningTreeViewGraphEstimator(ViewGraphEstimatorBase):
         
         triplet_is_used = np.zeros(len(triplets), dtype=bool)
 
+        clean_graphs = []
         clean_G = nx.Graph()
 
-        for triplet_cycle_error_threshold in [1.5, 2.5, 5.0]:
+        for triplet_cycle_error_threshold in [1.5, 2.5, 5.0]:#, 7.5]:
 
             for epsilon in [0.5, 4]: # 0.75, 1.0, 1.25, 1.5, 2, 2.5, 3, 3.5,
 
                 for triplet_idx, (i0, i1, i2) in enumerate(sorted_cycles):
-                    
+
+                    if len(clean_G) > 10:
+                        clean_graphs.append(clean_G)
+                        clean_G = nx.Graph()
+
                     if triplet_is_used[triplet_idx]:
                         continue
 
@@ -160,12 +165,18 @@ class SpanningTreeViewGraphEstimator(ViewGraphEstimatorBase):
                         two_view_reports[(i1,i2)].R_error_deg,
                         two_view_reports[(i0,i2)].R_error_deg
                     ]
-                    print(f"cycle_error={triplet_cycle_error:.2f} vs. GT errors={np.round(gt_errors,2)}")
+                    print(f"Propose:cycle_error={triplet_cycle_error:.2f} vs. GT errors={np.round(gt_errors,2)} for triplet ({i0},{i1},{i2}), @ index={triplet_idx}")
+                    
                     if triplet_cycle_error < triplet_cycle_error_threshold:
-                        print(f"\tClean graph now has {len(clean_G)} nodes, on Triplet={triplet_idx}.")
+                        
+                        if 53 in [i0, i1,i2] and 58 in [i0, i1, i2]:
+                            import pdb; pdb.set_trace()
+                        
+                        # (53,58), (53,59), (59,63), (55,58), (57,60), (49,53), (49,54), (3,7)
+
                         augmented_clean_G = copy.deepcopy(clean_G)
                         detected_cycles = sorted(nx.simple_cycles(augmented_clean_G, length_bound=5))
-                        print(f"Found {len(detected_cycles)} cycles in the augmented graph")
+                        print(f"\tFound {len(detected_cycles)} cycles in the augmented graph")
 
                         derived_cycle_errors = []
                         cycle_lengths = []
@@ -179,17 +190,18 @@ class SpanningTreeViewGraphEstimator(ViewGraphEstimatorBase):
                         success = True
                         #epsilon = 0.5
                         for detected_cycle_idx, (cycle_len, derived_cycle_error) in enumerate(zip(cycle_lengths, derived_cycle_errors)):
-                            if derived_cycle_error > np.sqrt(cycle_len) * epsilon:
-                                print(f"\t\tReject cycle {detected_cycle_idx}: len-{cycle_len} derived_cycle_error {derived_cycle_error:.2f} > {np.sqrt(cycle_len) * epsilon:.2f} thresh")
+                            if derived_cycle_error > (cycle_len) * epsilon:
+                                print(f"\t\t\tReject cycle {detected_cycle_idx}: len-{cycle_len} derived_cycle_error {derived_cycle_error:.2f} > {(cycle_len) * epsilon:.2f} thresh")
                                 success = False
                             else:
-                                print(f"\tAcceptable derived cycle {detected_cycle_idx} error for len-{cycle_len}: {derived_cycle_error:.2f}")
+                                print(f"\t\tAcceptable derived cycle {detected_cycle_idx} error for len-{cycle_len}: {derived_cycle_error:.2f}")
 
                         if success:
                             triplet_is_used[triplet_idx] = True
                             clean_G.add_edge(i0, i1)
                             clean_G.add_edge(i1, i2)
                             clean_G.add_edge(i0, i2)
+                            print(f"\tClean graph now has {len(clean_G)} nodes, on Triplet={triplet_idx}.")
                             
 
                     else:
@@ -199,9 +211,29 @@ class SpanningTreeViewGraphEstimator(ViewGraphEstimatorBase):
                 percent_triplets_used = triplet_is_used.mean() * 100
                 print(f"% triplets used: {percent_triplets_used:.2f} % w/ epsilon={epsilon}")
                 print(f"\tClean graph now has {len(clean_G)} nodes")
-                import time
-                time.sleep(10)
-                #import pdb; pdb.set_trace()
+                #import time
+                #time.sleep(10)
+        
+        clean_edges = set()
+        nodes = set()
+        for clean_graph in clean_graphs:
+            nodes = nodes.union(set(clean_graph.nodes()))
+            # Different graphs have forward vs. backward edges.
+            sorted_edges = [tuple(sorted([i1, i2])) for (i1, i2) in clean_graph.edges()]
+            clean_edges = clean_edges.union(set(sorted_edges))
+
+        print('\n\n\n')
+        sorted_clean_edges = [tuple(sorted([i1, i2])) for (i1, i2) in clean_edges]
+        sorted_clean_edges = sorted(sorted_clean_edges, key=lambda x: x[0])
+        avg_error = np.mean([two_view_reports[(i1, i2)].R_error_deg for (i1, i2) in sorted_clean_edges])
+        max_error = np.amax([two_view_reports[(i1, i2)].R_error_deg for (i1, i2) in sorted_clean_edges])
+        for (i1,i2) in sorted_clean_edges:
+            print(f"({i1},{i2}) -> {two_view_reports[(i1, i2)].R_error_deg:.2f} GT error")
+        print(f"Avg Clean Union error: {avg_error}")
+        print(f"Max Clean Union error: {max_error}")
+
+
+        import pdb; pdb.set_trace()
             #     
         #     cycle_gt_errors = []
         #     R = Rot3() # think of as i2Ri2.
