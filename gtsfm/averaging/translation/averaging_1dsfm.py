@@ -11,6 +11,7 @@ References:
 Authors: Jing Wu, Ayush Baid, Akshay Krishnan
 """
 import time
+import timeit
 from collections import defaultdict
 from enum import Enum
 from typing import DefaultDict, Dict, List, Optional, Set, Tuple, Any
@@ -89,6 +90,7 @@ class MFASWrapper(object):
             w_i2Ui1_dict_tracks: Dictionary of Unit3 relative translations between cameras and landmarks.
             directions: Sampled Unit3 projection directions to use.
         """
+        _t0 = timeit.default_timer()
         self.mfas = mfas
         self._w_i2Ui1_dict = w_i2Ui1_dict
         self._w_iUj_dict_tracks = w_iUj_dict_tracks
@@ -97,9 +99,12 @@ class MFASWrapper(object):
         w_i1Ui2_measurements = TranslationAveraging1DSFM._binary_measurements_from_dict(
             self._w_i2Ui1_dict, self._w_iUj_dict_tracks, DUMMY_NOISE_MODEL
         )
+        _t1 = timeit.default_timer()
         self.results = []
         for _dir in self._directions:
             self.results.append(mfas(w_i1Ui2_measurements, _dir).computeOutlierWeights())
+        _t2 = timeit.default_timer()
+        print(_t1 - _t0, _t2 - _t1)
 
     def __reduce__(self):
         return (MFASWrapper, (self.mfas, self._w_i2Ui1_dict, self._w_iUj_dict_tracks, self._directions))
@@ -126,7 +131,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         use_tracks_for_averaging: bool = True,
         reject_outliers: bool = True,
         projection_sampling_method: ProjectionSamplingMethod = ProjectionSamplingMethod.SAMPLE_WITH_UNIFORM_DENSITY,
-        max_delayed_calls: int = MAX_DELAYED_CALLS
+        max_delayed_calls: int = MAX_DELAYED_CALLS,
     ) -> None:
         """Initializes the 1DSFM averaging instance.
 
@@ -265,6 +270,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         future_w_iUj_dict_tracks = w_iUj_dict_tracks
 
         # Loop through tracks and and generate delayed MFAS tasks.
+        _t0 = timeit.default_timer()
         batch_size = int(np.ceil(len(projection_directions) / self._max_delayed_calls))
         batched_outlier_weights: List[Any] = []
         if batch_size == 1:
@@ -280,10 +286,13 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                         MFAS, future_w_i2Ui1_dict, future_w_iUj_dict_tracks, projection_directions[j : j + batch_size]
                     )
                 )
+        _t1 = timeit.default_timer()
+        print(f"Built delayed Tasks in {_t1 - _t0} seconds")
 
         # Compute outlier weights in parallel.
+        _t2 = timeit.default_timer()
         batched_outlier_weights = dask.compute(*batched_outlier_weights)
-        logger.debug("Computed outlier weights using MFAS.")
+        logger.debug(f"Computed outlier weights using MFAS in {timeit.default_timer() - _t2}.")
 
         # Compute average outlier weight.
         outlier_weights_sum: DefaultDict[Tuple[int, int], float] = defaultdict(float)
