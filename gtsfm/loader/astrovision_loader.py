@@ -66,8 +66,8 @@ class AstrovisionLoader(LoaderBase):
                greater than the max_resolution, it will be downsampled to match the max_resolution.
 
         Raises:
-            FileNotFoundError if `data_dir` doesn't exist or image path does not exist.
-            RuntimeError if ground truth camera calibrations not provided.
+            FileNotFoundError: If `data_dir` doesn't exist or image path does not exist.
+            RuntimeError: If ground truth camera calibrations not provided.
         """
         super().__init__(max_resolution)
         self._use_gt_extrinsics = use_gt_extrinsics
@@ -78,11 +78,12 @@ class AstrovisionLoader(LoaderBase):
         if not Path(data_dir).exists():
             raise FileNotFoundError("No data found at %s." % data_dir)
         cameras, images, points3d = colmap_io.read_model(path=data_dir, ext=".bin")
-        img_fnames, self._wTi_list, self._calibrations, self._sfmtracks, _, _ = io_utils.colmap2gtsfm(
+
+        img_fnames, self._wTi_list, self._calibrations, self._sfmtracks, _, _, _ = io_utils.colmap2gtsfm(
             cameras, images, points3d, load_sfmtracks=use_gt_sfmtracks
         )
 
-        # Read in scene mesh as Trimesh object
+        # Read in scene mesh as Trimesh object.
         if gt_scene_mesh_path is not None:
             if not Path(gt_scene_mesh_path).exists():
                 raise FileNotFoundError(f"No mesh found at {gt_scene_mesh_path}")
