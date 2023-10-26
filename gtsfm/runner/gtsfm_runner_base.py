@@ -7,7 +7,6 @@ from abc import abstractmethod, abstractproperty
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
-import multiprocessing
 import dask
 import hydra
 import numpy as np
@@ -31,10 +30,6 @@ from gtsfm.scene_optimizer import SceneOptimizer
 from gtsfm.two_view_estimator import TWO_VIEW_OUTPUT, TwoViewEstimationReport, run_two_view_estimator_as_futures
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
 
-from gtsfm.utils.logservertest import LogRecordSocketReceiver
-import logging
-import socket
-import threading
 
 dask_config.set({"distributed.scheduler.worker-ttl": None})
 
@@ -282,11 +277,6 @@ class GtsfmRunnerBase:
         """Run the SceneOptimizer."""
         start_time = time.time()
 
-        tcpserver = LogRecordSocketReceiver()
-
-        server_process = multiprocessing.Process(target=tcpserver.serve_forever)
-        server_process.start()
-
         # Create dask cluster.
         if self.parsed_args.cluster_config:
             cluster = self.setup_ssh_cluster_with_retries()
@@ -421,7 +411,6 @@ class GtsfmRunnerBase:
 
         save_metrics_reports(all_metrics_groups, os.path.join(self.scene_optimizer.output_root, "result_metrics"))
 
-        server_process.terminate()
         return sfm_result
 
 
