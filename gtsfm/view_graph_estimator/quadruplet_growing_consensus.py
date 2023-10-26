@@ -121,7 +121,16 @@ class SpanningTreeViewGraphEstimator(ViewGraphEstimatorBase):
         print(f"Avg MaxST error: {avg_error}")
         print(f"Max MaxST error: {max_error}")
 
-        
+        graph_utils.draw_view_graph_topology(
+            edges=sorted_T_edges,
+            two_view_reports=two_view_reports,
+            title="Title",
+            save_fpath="",
+            cameras_gt=None,
+        )
+
+
+        import pdb; pdb.set_trace()
 
         # Find all quadruplets.
         quadruplets = graph_utils.extract_cyclic_quadruplets_from_edges(list(i2Ri1_dict.keys()))
@@ -352,6 +361,7 @@ class SpanningTreeViewGraphEstimator(ViewGraphEstimatorBase):
         #                     print("\tSkip this triplet.")
         #                 #cycle_path = list(nx.find_cycle(T_augmented, orientation="original"))
                     
+        clean_graphs.append(clean_G)
         clean_edges = set()
         nodes = set()
         for clean_graph_idx, clean_graph in enumerate(clean_graphs):
@@ -578,7 +588,9 @@ def compute_cycle_error(ordered_cycle_nodes, i2Ri1_dict) -> float:
 
 def main():
 
-    fpath = "/Users/johnlambert/Documents/2023_10_19_0013_spanning_tree_view_graph_estimator/20231019_041341/20231019_041341__gerrard-hall-100__results__num_matched5__maxframelookahead10__760p__unified_sift/result_metrics/two_view_report_POST_INLIER_SUPPORT_PROCESSOR_2VIEW_REPORT.json"
+    fpath = "/Users/johnlambert/Documents/2023_10_19_0013_spanning_tree_view_graph_estimator/20231019_041341/20231019_041341__south-building-128__results__num_matched5__maxframelookahead10__760p__unified_superglue/result_metrics/two_view_report_POST_INLIER_SUPPORT_PROCESSOR_2VIEW_REPORT.json"
+
+    #fpath = "/Users/johnlambert/Documents/2023_10_19_0013_spanning_tree_view_graph_estimator/20231019_041341/20231019_041341__gerrard-hall-100__results__num_matched5__maxframelookahead10__760p__unified_sift/result_metrics/two_view_report_POST_INLIER_SUPPORT_PROCESSOR_2VIEW_REPORT.json"
     # fpath = "/Users/johnlambert/Downloads/gtsfm_2023_07_08/gtsfm/door_results_2023_10_18/result_metrics/two_view_report_POST_INLIER_SUPPORT_PROCESSOR_2VIEW_REPORT.json"
     data = io_utils.read_json_file(fpath)
 
@@ -613,7 +625,7 @@ def main():
         i2Ui1_dict={},
         calibrations=[],
         corr_idxs_i1i2={},
-        keypoints=[Keypoints(coordinates=np.zeros((0, 2)))] * 100,
+        keypoints=[Keypoints(coordinates=np.zeros((0, 2)))] * 128,
         two_view_reports=two_view_reports_dict,
     )
 

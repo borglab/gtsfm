@@ -34,13 +34,11 @@ class SpanningTreeRotationEstimator(RotationAveragingBase):
         """
         edges = i2Ri1_dict.keys()
 
-        num_nodes = max([max(i1, i2) for i1, i2 in edges]) + 1
-
         # Find the largest connected component.
         cc_nodes = graph_utils.get_nodes_in_largest_connected_component(edges)
         cc_nodes = sorted(cc_nodes)
 
-        wRi_list = [None] * num_nodes
+        wRi_list = [None] * num_images
         # Choose origin node.
         origin_node = cc_nodes[0]
         wRi_list[origin_node] = Rot3()

@@ -150,7 +150,11 @@ class SpanningTreeViewGraphEstimator(ViewGraphEstimatorBase):
 
                 for triplet_idx, (i0, i1, i2) in enumerate(sorted_cycles):
 
-                    if len(clean_G) > 10:
+                    if len(clean_G) > 0 and not any(i in clean_G.nodes() for i in [i0,i1,i2]):
+                        # Add to an existing cluster, if graph is not empty.
+                        continue
+
+                    if len(clean_G) > 15:
                         clean_graphs.append(clean_G)
                         clean_G = nx.Graph()
 
@@ -169,12 +173,15 @@ class SpanningTreeViewGraphEstimator(ViewGraphEstimatorBase):
                     
                     if triplet_cycle_error < triplet_cycle_error_threshold:
                         
-                        if 53 in [i0, i1,i2] and 58 in [i0, i1, i2]:
-                            import pdb; pdb.set_trace()
+                        # if 53 in [i0, i1,i2] and 58 in [i0, i1, i2]:
+                        #     import pdb; pdb.set_trace()
                         
                         # (53,58), (53,59), (59,63), (55,58), (57,60), (49,53), (49,54), (3,7)
 
                         augmented_clean_G = copy.deepcopy(clean_G)
+                        augmented_clean_G.add_edge(i0, i1)
+                        augmented_clean_G.add_edge(i1, i2)
+                        augmented_clean_G.add_edge(i0, i2)
                         detected_cycles = sorted(nx.simple_cycles(augmented_clean_G, length_bound=5))
                         print(f"\tFound {len(detected_cycles)} cycles in the augmented graph")
 
