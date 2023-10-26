@@ -7,8 +7,9 @@ Authors: John Lambert
 from pathlib import Path
 from typing import List, Optional, Tuple
 
+import numpy as np
+
 import gtsfm.utils.logger as logger_utils
-from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.retriever.retriever_base import RetrieverBase, ImageMatchingRegime
 
 logger = logger_utils.get_logger()
@@ -29,18 +30,23 @@ class SequentialRetriever(RetrieverBase):
            Max. frame lookahead {self._max_frame_lookahead}
         """
 
-    def get_image_pairs(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> List[Tuple[int, int]]:
+    def get_image_pairs(
+        self,
+        global_descriptors: Optional[List[np.ndarray]],  # pylint: disable=unused-argument
+        image_fnames: List[str],
+        plots_output_dir: Optional[Path] = None,  # pylint: disable=unused-argument
+    ) -> List[Tuple[int, int]]:
         """Compute potential image pairs.
 
         Args:
-            loader: Image loader. The length of this loader will provide the total number of images
-                for exhaustive global descriptor matching.
-            plots_output_dir: Directory to save plots to. Unused in this retriever.
+            global_descriptors: the global descriptors for the retriever, if needed.
+            image_fnames: file names of the images
+            plots_output_dir: Directory to save plots to. If None, plots are not saved.
 
-        Return:
-            pair_indices: (i1,i2) image pairs.
+        Returns:
+            List of (i1,i2) image pairs.
         """
-        num_images = len(loader)
+        num_images = len(image_fnames)
 
         pairs = []
         for i1 in range(num_images):
