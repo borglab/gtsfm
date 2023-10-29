@@ -60,6 +60,7 @@ class RotationAveragingBase(GTSFMProcess):
         num_images: int,
         i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]],
         i1Ti2_priors: Dict[Tuple[int, int], PosePrior],
+        frontend_uncertainty_dict,
         wTi_gt: List[Optional[Pose3]],
     ) -> Tuple[List[Optional[Rot3]], GtsfmMetricsGroup]:
         """Runs rotation averaging and computes metrics.
@@ -77,7 +78,7 @@ class RotationAveragingBase(GTSFMProcess):
             Metrics on global rotations.
         """
         start_time = time.time()
-        wRis = self.run_rotation_averaging(num_images, i2Ri1_dict, i1Ti2_priors)
+        wRis = self.run_rotation_averaging(num_images, i2Ri1_dict, i1Ti2_priors, frontend_uncertainty_dict)
         run_time = time.time() - start_time
 
         metrics = self.evaluate(wRis, wTi_gt)

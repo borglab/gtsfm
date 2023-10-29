@@ -468,7 +468,7 @@ class BundleAdjustmentOptimizer:
         num_ba_steps = len(self._reproj_error_thresholds)
         for step, reproj_error_thresh in enumerate(self._reproj_error_thresholds):
             step_start_time = time.time()
-            (optimized_data, filtered_result, valid_mask, final_error) = self.run_ba_stage_with_filtering(
+            (optimized_data, filtered_result, valid_mask, final_error, _) = self.run_ba_stage_with_filtering(
                 initial_data=initial_data,
                 absolute_pose_priors=absolute_pose_priors,
                 relative_pose_priors=relative_pose_priors,
