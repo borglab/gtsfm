@@ -314,7 +314,7 @@ class BundleAdjustmentOptimizer:
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         reproj_error_thresh: Optional[float],
         verbose: bool = True,
-    ) -> Tuple[GtsfmData, GtsfmData, List[bool], float]:
+    ) -> Tuple[GtsfmData, GtsfmData, List[bool], float, float]:
         """Runs bundle adjustment and optionally filters the resulting tracks by reprojection error.
 
         Args:
@@ -348,12 +348,6 @@ class BundleAdjustmentOptimizer:
             absolute_pose_priors=absolute_pose_priors,
             relative_pose_priors=relative_pose_priors,
         )
-        initial_values = self.__initial_values(initial_data=initial_data)
-        result_values = self.__optimize_factor_graph(graph, initial_values)
-
-        # Print error.
-        final_error = graph.error(result_values)
-
         initial_values = self.__initial_values(initial_data=initial_data)
         result_values = self.__optimize_factor_graph(graph, initial_values)
 
