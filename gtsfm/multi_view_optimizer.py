@@ -104,6 +104,7 @@ class MultiViewOptimizer:
                 viewgraph_v_corr_idxs_graph,
                 viewgraph_two_view_reports_graph,
                 viewgraph_estimation_metrics,
+                frontend_uncertainty_dict,
             ) = self.view_graph_estimator.create_computation_graph(
                 i2Ri1_dict,
                 i2Ui1_dict,
