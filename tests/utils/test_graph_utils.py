@@ -80,6 +80,87 @@ class TestGraphUtils(unittest.TestCase):
                 computed_relative_unit_translations[(i1, i2)].equals(input_relative_unit_translations[(i1, i2)], 1e-2)
             )
 
+    def test_extract_quadruplets_0found_0edges(self) -> None:
+        edges = []
+        quadruplets = graph_utils.extract_cyclic_quadruplets_from_edges(edges)
+        assert isinstance(quadruplets, list)
+        assert len(quadruplets) == 0
+
+
+    def test_extract_quadruplets_0found_8edges(self) -> None:
+        """
+              2 --------- 7
+           /  |           |
+         /    |           |
+        1 --- 0 --- 4 --- 5
+              |
+              |
+              3 --- 6
+        """
+        edges = [
+            (1,2),
+            (2,7),
+            (5,7),
+            (4,5),
+            (0,4),
+            (0,2),
+            (0,3),
+            (3,6)
+        ]
+        quadruplets = graph_utils.extract_cyclic_quadruplets_from_edges(edges)
+        assert isinstance(quadruplets, list)
+        assert len(quadruplets) == 0
+
+    def test_extract_quadruplets_1found(self) -> None:
+        """
+        0 --- 1
+        |     |
+        |     |
+        3 --- 2 --- 4
+        """
+        edges = [
+            (0,1),
+            (1,2),
+            (2,3),
+            (3,0),
+            (2,4)
+        ]
+        quadruplets = graph_utils.extract_cyclic_quadruplets_from_edges(edges)
+
+        assert isinstance(quadruplets, list)
+        assert len(quadruplets) == 1
+        assert quadruplets[0] == (0, 1, 2, 3)
+
+
+    def test_extract_quadruplets_2found(self) -> None:
+        """
+        0 ---- 1
+        |      |\
+        |      | \
+        |      |  \
+        2 ---- 3   \
+               |    \
+               |     \
+               |      \
+               4 ----- 5
+        """
+        edges = [
+            (0,1),
+            (1,3),
+            (2,3),
+            (0,2),
+            (1,5),
+            (3,4),
+            (4,5)
+        ]
+        quadruplets = graph_utils.extract_cyclic_quadruplets_from_edges(edges)
+        
+        assert isinstance(quadruplets, list)
+        assert len(quadruplets) == 2
+        assert quadruplets[0] == (1, 3, 4, 5)
+        assert quadruplets[1] == (0, 1, 3, 2) 
+
+
     def test_extract_triplets_1(self) -> None:
         """Ensure triplets are recovered accurately via intersection of adjacency lists.
 

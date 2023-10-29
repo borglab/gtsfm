@@ -97,6 +97,54 @@ def create_adjacency_list(edges: List[Tuple[int, int]]) -> DefaultDict[int, Set[
     return adj_list
 
 
+def extract_cyclic_quadruplets_from_edges(edges: List[Tuple[int, int]]) -> List[Tuple[int, int, int]]:
+    """Extracts 4-cycles from a graph's edges by using intersection within adjacency lists.
+
+    If we have an edge a<->b, if we can find any node c such that a<->c and b<->c, then we have
+    discovered a triplet. In other words, we need only look at the intersection between the nodes
+    connected to `a` and the nodes connected to `b`.
+
+    Args:
+        edges: Indices of edges in the graph as a list of tuples.
+
+    Returns:
+        quadruplets: 4-tuples of nodes that form a cycle. Order matters though -- quadruplet node order cannot permute.
+    """
+    adj_list = create_adjacency_list(edges)
+
+    # Only want to keep the unique ones. 
+    quadruplets = set()
+
+    # Find intersections.
+    for (a, b) in edges:
+        if a > b:
+            a, b = b, a
+
+        nodes_from_a = adj_list[a]
+        nodes_from_b = adj_list[b]
+        for c in nodes_from_b:
+            if c == a:
+                continue
+            nodes_from_c = adj_list[c]
+
+            node_intersection = (nodes_from_a - set([b])).intersection(nodes_from_c)
+            for node in node_intersection:
+                # Prevent adding duplicate qudaruplets.
+                # However, order matters! Quadruplet node order cannot permute.
+                # Shift cyclically to start with smallest node.
+                cycle_nodes = [a, b, c, node]
+                reversed_cycle_nodes = cycle_nodes[::-1]
+
+                perform_cyclic_shift = lambda x: tuple(np.roll(a=x, shift=4-np.argmin(x)).tolist())
+                cycle_nodes = perform_cyclic_shift(cycle_nodes)
+                reversed_cycle_nodes = perform_cyclic_shift(reversed_cycle_nodes)
+                
+                if cycle_nodes not in quadruplets and reversed_cycle_nodes not in quadruplets:
+                    quadruplets.add(cycle_nodes)
+
+    return list(quadruplets)
+
+
 def extract_cyclic_triplets_from_edges(edges: List[Tuple[int, int]]) -> List[Tuple[int, int, int]]:
     """Extracts triplets from a graph's edges by using intersection within adjacency lists.
 
@@ -157,7 +205,7 @@ def draw_view_graph_topology(
     """
     M = len(edges)
 
-    plt.figure(figsize=(16, 10))
+    plt.figure(figsize=(12, 8))
     G = nx.Graph()
     G.add_edges_from(edges)
     nodes = list(G.nodes)
@@ -188,5 +236,6 @@ def draw_view_graph_topology(
     plt.axis("equal")
     plt.title(title)
 
-    plt.savefig(save_fpath, dpi=500)
-    plt.close("all")
+    plt.show()
+    # plt.savefig(save_fpath, dpi=500)
+    # plt.close("all")
