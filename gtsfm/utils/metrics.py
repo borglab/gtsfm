@@ -252,8 +252,8 @@ def compute_relative_rotation_angle_metric(
         wRi2 = wRi_list[i2]
         wRi1 = wRi_list[i1]
 
-        if i2Ri1 is None or wRi2 is None or wRi1 is None:
-            return None
+        if wRi2 is None or wRi1 is None:
+            continue
 
         # Given a relative rotation measurement from i2 to i1, and the estimated global rotations of
         # i1 and i2, compute the angular difference between the relative measurement vs. derived relative
