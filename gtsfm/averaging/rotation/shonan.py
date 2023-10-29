@@ -38,7 +38,7 @@ _DEFAULT_TWO_VIEW_ROTATION_SIGMA = 1.0
 class ShonanRotationAveraging(RotationAveragingBase):
     """Performs Shonan rotation averaging."""
 
-    def __init__(self, two_view_rotation_sigma: float = _DEFAULT_TWO_VIEW_ROTATION_SIGMA) -> None:
+    def __init__(self, two_view_rotation_sigma: float = _DEFAULT_TWO_VIEW_ROTATION_SIGMA, robust_measurement_noise: bool = False) -> None:
         """Initializes module.
 
         Note: `p_min` and `p_max` describe the minimum and maximum relaxation rank.
@@ -46,15 +46,18 @@ class ShonanRotationAveraging(RotationAveragingBase):
         Args:
             two_view_rotation_sigma: Covariance to use (lower values -> more strictly adhere to input measurements).
         """
+        self._robust_measurement_noise = robust_measurement_noise
         self._two_view_rotation_sigma = two_view_rotation_sigma
         self._p_min = 5
         self._p_max = 30
+        if robust_measurement_noise:
+            self._p_min = self._p_max
 
     def __get_shonan_params(self) -> ShonanAveragingParameters3:
         lm_params = LevenbergMarquardtParams.CeresDefaults()
         shonan_params = ShonanAveragingParameters3(lm_params)
-        shonan_params.setUseHuber(False)
-        shonan_params.setCertifyOptimality(True)
+        shonan_params.setUseHuber(self._robust_measurement_noise)
+        shonan_params.setCertifyOptimality(not self._robust_measurement_noise)
         return shonan_params
 
     def __between_factors_from_2view_relative_rotations(
