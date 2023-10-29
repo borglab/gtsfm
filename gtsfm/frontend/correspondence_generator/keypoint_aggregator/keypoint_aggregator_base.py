@@ -25,6 +25,7 @@ class KeypointAggregatorBase(GTSFMProcess):
             parent_plate="ImageCorrespondenceGenerator",
         )
 
+    # ignored-abstractmethod
     @abc.abstractmethod
     def aggregate(
         self, keypoints_dict: Dict[Tuple[int, int], Tuple[Keypoints, Keypoints]]

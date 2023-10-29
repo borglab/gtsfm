@@ -69,7 +69,7 @@ class TestMetricUtils(unittest.TestCase):
             estimated_intersections.append(intersection.flatten().tolist())
         np.testing.assert_allclose(expected_intersections, estimated_intersections)
 
-    def test_get_stats_for_sfmdata_skydio32(self) -> None:
+    def test_get_metrics_for_sfmdata_skydio32(self) -> None:
         """Verifies that track reprojection errors are returned as NaN if given degenerate input.
 
         The data used below corresponds to camera poses aligned to GT from Skydio-32 sequence with the SIFT front-end,
@@ -169,7 +169,7 @@ class TestMetricUtils(unittest.TestCase):
         aligned_filtered_data = GtsfmData.from_cameras_and_tracks(
             cameras=aligned_cameras, tracks=aligned_tracks, number_images=32
         )
-        metrics = metric_utils.get_stats_for_sfmdata(aligned_filtered_data, suffix="_filtered")
+        metrics = metric_utils.get_metrics_for_sfmdata(aligned_filtered_data, suffix="_filtered")
 
         assert metrics[0].name == "number_cameras"
         assert np.isclose(metrics[0]._data, np.array(5.0, dtype=np.float32))
@@ -222,7 +222,7 @@ def test_pose_auc1() -> None:
     errors = np.ones(5) * 5.0
     thresholds = [5, 10, 20]
 
-    aucs = metric_utils.pose_auc(errors, thresholds)
+    aucs = metric_utils.pose_auc(errors, thresholds, save_plot=False)
 
     # Sum triangles and rectangles.
     # AUC @ 5 deg thresh: 0. (no cameras under this threshold).
@@ -237,7 +237,7 @@ def test_pose_auc_all_zero_errors_perfect_auc() -> None:
     errors = np.zeros(5)
 
     thresholds = [5, 10, 20]
-    aucs = metric_utils.pose_auc(errors, thresholds)
+    aucs = metric_utils.pose_auc(errors, thresholds, save_plot=False)
     expected_aucs = [1.0, 1.0, 1.0]
     assert np.allclose(aucs, expected_aucs)
 
@@ -245,7 +245,7 @@ def test_pose_auc_all_zero_errors_perfect_auc() -> None:
 def test_pose_auc_all_errors_exceed_threshold_zero_auc() -> None:
     errors = np.ones(5) * 25.0
     thresholds = [5, 10, 20]
-    aucs = metric_utils.pose_auc(errors, thresholds)
+    aucs = metric_utils.pose_auc(errors, thresholds, save_plot=False)
     expected_aucs = [0.0, 0.0, 0.0]
     assert np.allclose(aucs, expected_aucs)
 
@@ -290,7 +290,7 @@ def test_pose_auc_works_for_nan_error() -> None:
         ]
     )
 
-    aucs = metric_utils.pose_auc(pose_errors, thresholds)
+    aucs = metric_utils.pose_auc(pose_errors, thresholds, save_plot=False)
 
     # Note recall is roughly (27 / 32) since exclude 5 errors above 1 deg -> (1.422, 1.676, 2.935, 6.655,   nan)
     # If we drew triangle up to recall point, we would get 0.84 * 0.5 -> 0.42, but more

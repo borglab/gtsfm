@@ -24,27 +24,26 @@ COLOR_GREEN = (0, 255, 0)
 
 
 def set_axes_equal(ax: Axes):
-    """
-    Make axes of 3D plot have equal scale so that spheres appear as spheres, cubes as cubes, etc..  This is one
-    possible solution to Matplotlib's ax.set_aspect('equal') and ax.axis('equal') not working for 3D.
+    """Make axes of 3D plot have equal scale so that spheres appear as spheres, cubes as cubes, etc.
 
+    This is one possible solution to Matplotlib's ax.set_aspect('equal') and ax.axis('equal') not working for 3D.
     Ref: https://github.com/borglab/gtsam/blob/develop/python/gtsam/utils/plot.py#L13
 
     Args:
-        ax: axis for the plot.
+        ax: Axis for the plot.
     """
-    # get the min and max value for each of (x, y, z) axes as 3x2 matrix.
+    # Get the min and max value for each of (x, y, z) axes as 3x2 matrix.
     # This gives us the bounds of the minimum volume cuboid encapsulating all
     # data.
     limits = np.array([ax.get_xlim3d(), ax.get_ylim3d(), ax.get_zlim3d()])
 
-    # find the centroid of the cuboid
+    # Find the centroid of the cuboid.
     centroid = np.mean(limits, axis=1)
 
-    # pick the largest edge length for this cuboid
+    # Pick the largest edge length for this cuboid.
     largest_edge_length = np.max(np.abs(limits[:, 1] - limits[:, 0]))
 
-    # set new limits to draw a cube using the largest edge length
+    # Set new limits to draw a cube using the largest edge length
     radius = 0.5 * largest_edge_length
     ax.set_xlim3d([centroid[0] - radius, centroid[0] + radius])
     ax.set_ylim3d([centroid[1] - radius, centroid[1] + radius])
@@ -55,11 +54,11 @@ def draw_circle_cv2(image: Image, x: int, y: int, color: Tuple[int, int, int], c
     """Draw a solid circle on the image.
 
     Args:
-        image: image to draw the circle on.
+        image: Image to draw the circle on.
         x: x coordinate of the center of the circle.
         y: y coordinate of the center of the circle.
         color: RGB color of the circle.
-        circle_size (optional): the size of the circle (in pixels). Defaults to 10.
+        circle_size (optional): The size of the circle (in pixels). Defaults to 10.
 
     Returns:
         Image: image with the circle drawn on it.
@@ -81,13 +80,13 @@ def draw_line_cv2(
     """Draw a line on the image from coordinates (x1, y1) to (x2, y2).
 
     Args:
-        image: image to draw the line on.
+        image: Image to draw the line on.
         x1: x coordinate of start of the line.
         y1: y coordinate of start of the line.
         x2: x coordinate of end of the line.
         y2: y coordinate of end of the line.
-        line_color: color of the line.
-        line_thickness (optional): line thickness. Defaults to 10.
+        line_color: Color of the line.
+        line_thickness (optional): Line thickness. Defaults to 10.
 
     Returns:
         Image: image with the line drawn on it.
@@ -108,28 +107,28 @@ def plot_twoview_correspondences(
     """Plot correspondences between two images as lines between two circles.
 
     Args:
-        image_i1: first image.
-        image_i2: second image.
-        kps_i1: keypoints for image_i1.
-        kps_i2: keypoints for image_i2.
-        corr_idxs_i1i2: indices of correspondences between i1 and i2.
-        inlier_mask (optional): inlier mask for correspondences as boolean array. Defaults to None.
-        dot_color (optional): color for keypoints. Defaults to (0, 0, 0).
-        max_corrs (optional): max number of correspondences to plot. Defaults to 50.
+        image_i1: First image.
+        image_i2: Second image.
+        kps_i1: Keypoints for image_i1.
+        kps_i2: Keypoints for image_i2.
+        corr_idxs_i1i2: Indices of correspondences between i1 and i2.
+        inlier_mask (optional): Inlier mask for correspondences as boolean array. Defaults to None.
+        dot_color (optional): Color for keypoints. Defaults to (0, 0, 0).
+        max_corrs (optional): Max number of correspondences to plot. Defaults to 50.
 
     Returns:
-        image visualizing correspondences between two images.
+        Image visualizing correspondences between two images.
     """
     image_i1, image_i2, scale_i1, scale_i2 = image_utils.match_image_widths(image_i1, image_i2)
 
     result = image_utils.vstack_image_pair(image_i1, image_i2)
 
     if max_corrs is not None and corr_idxs_i1i2.shape[0] > max_corrs:
-        # subsample matches
+        # Subsample matches.
         corr_idxs_i1i2 = corr_idxs_i1i2[np.random.choice(corr_idxs_i1i2.shape[0], max_corrs)]
 
     for corr_idx in range(corr_idxs_i1i2.shape[0]):
-        # mark the points in both images as circles, and draw connecting line
+        # Mark the points in both images as circles, and draw connecting line
         idx_i1, idx_i2 = corr_idxs_i1i2[corr_idx]
 
         x_i1 = (kps_i1.coordinates[idx_i1, 0] * scale_i1[0]).astype(np.int32)
@@ -137,7 +136,7 @@ def plot_twoview_correspondences(
         x_i2 = (kps_i2.coordinates[idx_i2, 0] * scale_i2[0]).astype(np.int32)
         y_i2 = (kps_i2.coordinates[idx_i2, 1] * scale_i2[1]).astype(np.int32) + image_i1.height
 
-        # drawing correspondences with optional inlier mask
+        # Draw correspondences with optional inlier mask.
         if inlier_mask is None:
             line_color = tuple([int(c) for c in np.random.randint(0, 255 + 1, 3)])
         elif inlier_mask[corr_idx]:
@@ -159,10 +158,10 @@ def plot_sfm_data_3d(sfm_data: GtsfmData, ax: Axes, max_plot_radius: float = 50)
     """Plot the camera poses and landmarks in 3D matplotlib plot.
 
     Args:
-        sfm_data: SfmData object with camera and tracks.
-        ax: axis to plot on.
-        max_plot_radius: maximum distance threshold away from any camera for which a point
-            will be plotted
+        sfm_data: GtsfmData object with camera and tracks.
+        ax: Axis to plot on.
+        max_plot_radius: Maximum distance threshold away from any camera for which a point
+            will be plotted.
     """
     camera_poses = [sfm_data.get_camera(i).pose() for i in sfm_data.get_valid_camera_indices()]
     plot_poses_3d(camera_poses, ax)
@@ -187,9 +186,9 @@ def plot_poses_3d(
     Color convention: R -> x axis, G -> y axis, B -> z axis.
 
     Args:
-        wTi_list: list of poses to plot.
-        ax: axis to plot on.
-        center_marker_color (optional): color for camera center marker. Defaults to "k".
+        wTi_list: List of poses to plot.
+        ax: Axis to plot on.
+        center_marker_color (optional): Color for camera center marker. Defaults to "k".
         name:
     """
     spec = "{}.".format(center_marker_color)
@@ -226,8 +225,8 @@ def plot_and_compare_poses_3d(wTi_list: List[Pose3], wTi_list_: List[Pose3]) -> 
     The markers are colored black (k) and cyan (c) for the two lists.
 
     Args:
-        wTi_list: first set of poses.
-        wTi_list_: second set of poses.
+        wTi_list: First set of poses.
+        wTi_list_: Second set of poses.
     """
     fig = plt.figure()
     ax = fig.gca(projection="3d")
@@ -245,19 +244,19 @@ def save_twoview_correspondences_viz(
     keypoints_i1: Keypoints,
     keypoints_i2: Keypoints,
     corr_idxs_i1i2: np.ndarray,
-    two_view_report: TwoViewEstimationReport,
     file_path: str,
+    two_view_report: Optional[TwoViewEstimationReport] = None,
 ) -> None:
     """Visualize correspondences between pairs of images.
 
     Args:
-        image_i1: image #i1.
+        image_i1: Image #i1.
         image_i2: image #i2.
-        keypoints_i1: detected Keypoints for image #i1.
-        keypoints_i2: detected Keypoints for image #i2.
-        corr_idxs_i1i2: correspondence indices.
-        two_view_report: front-end metrics and inlier/outlier info for image pair.
-        file_path: file path to save the visualization.
+        keypoints_i1: Detected Keypoints for image #i1.
+        keypoints_i2: Detected Keypoints for image #i2.
+        corr_idxs_i1i2: Correspondence indices.
+        file_path: File path to save the visualization.
+        two_view_report: Front-end metrics and inlier/outlier info for image pair.
     """
     plot_img = plot_twoview_correspondences(
         image_i1,
@@ -265,18 +264,18 @@ def save_twoview_correspondences_viz(
         keypoints_i1,
         keypoints_i2,
         corr_idxs_i1i2,
-        inlier_mask=two_view_report.v_corr_idxs_inlier_mask_gt,
+        inlier_mask=two_view_report.v_corr_idxs_inlier_mask_gt if two_view_report else None,
     )
 
     io_utils.save_image(plot_img, file_path)
 
 
 def save_sfm_data_viz(sfm_data: GtsfmData, folder_name: str) -> None:
-    """Visualize the camera poses and 3d points in SfmData.
+    """Visualizes the camera poses and 3d points in GtsfmData using Matplotlib.
 
     Args:
-        sfm_data: data to visualize.
-        folder_name: folder to save the visualization at.
+        sfm_data: Data to visualize.
+        folder_name: Folder to save the visualization at.
     """
     fig = plt.figure()
     ax = fig.add_subplot(projection="3d")
@@ -284,10 +283,10 @@ def save_sfm_data_viz(sfm_data: GtsfmData, folder_name: str) -> None:
     plot_sfm_data_3d(sfm_data, ax)
     set_axes_equal(ax)
 
-    # save the 3D plot in the original view
+    # Save the 3D plot in the original view.
     fig.savefig(os.path.join(folder_name, "3d.png"))
 
-    # save the BEV representation
+    # Save the BEV representation.
     default_camera_elevation = 100  # in metres above ground
     ax.view_init(azim=0, elev=default_camera_elevation)
     fig.savefig(os.path.join(folder_name, "bev.png"))
@@ -298,15 +297,15 @@ def save_sfm_data_viz(sfm_data: GtsfmData, folder_name: str) -> None:
 def save_camera_poses_viz(
     pre_ba_sfm_data: GtsfmData, post_ba_sfm_data: GtsfmData, gt_pose_graph: List[Optional[Pose3]], folder_name: str
 ) -> None:
-    """Visualize the camera pose and save to disk.
+    """Visualize the camera poses before and after bundle adjustment using Matplotlib, and saves plots to disk.
 
     Args:
-        pre_ba_sfm_data: data input to bundle adjustment.
-        post_ba_sfm_data: output of bundle adjustment.
-        gt_pose_graph: ground truth poses.
-        folder_name: folder to save the visualization at.
+        pre_ba_sfm_data: Data input to bundle adjustment.
+        post_ba_sfm_data: Output of bundle adjustment.
+        gt_pose_graph: Ground truth poses.
+        folder_name: Folder to save the visualization at.
     """
-    # extract camera poses
+    # Extract camera poses.
     pre_ba_poses = []
     for i in pre_ba_sfm_data.get_valid_camera_indices():
         pre_ba_poses.append(pre_ba_sfm_data.get_camera(i).pose())
@@ -325,10 +324,10 @@ def save_camera_poses_viz(
     ax.legend(loc="upper left")
     set_axes_equal(ax)
 
-    # save the 3D plot in the original view
+    # Save the 3D plot in the original view.
     fig.savefig(os.path.join(folder_name, "poses_3d.png"))
 
-    # save the BEV representation
+    # Save the BEV representation.
     default_camera_elevation = 100  # in metres above ground
     ax.view_init(azim=0, elev=default_camera_elevation)
     fig.savefig(os.path.join(folder_name, "poses_bev.png"))

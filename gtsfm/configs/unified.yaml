@@ -1,4 +1,4 @@
-# SIFT front-end configuration tuned for AstroVision datasets: https://github.com/astrovision
+# Default front-end configuration.
 
 SceneOptimizer:
   _target_: gtsfm.scene_optimizer.SceneOptimizer
@@ -14,9 +14,10 @@ SceneOptimizer:
       global_descriptor_obj:
         _target_: gtsfm.frontend.global_descriptor.netvlad_global_descriptor.NetVLADGlobalDescriptor
     retriever:
-      _target_: gtsfm.retriever.netvlad_retriever.NetVLADRetriever
-      num_matched: 20
-      min_score: 0.5
+      _target_: gtsfm.retriever.joint_netvlad_sequential_retriever.JointNetVLADSequentialRetriever
+      num_matched: 5
+      min_score: 0.3
+      max_frame_lookahead: 15
 
   correspondence_generator:
     _target_: gtsfm.frontend.correspondence_generator.det_desc_correspondence_generator.DetDescCorrespondenceGenerator
@@ -24,13 +25,14 @@ SceneOptimizer:
     detector_descriptor:
       _target_: gtsfm.frontend.cacher.detector_descriptor_cacher.DetectorDescriptorCacher
       detector_descriptor_obj:
-        _target_: gtsfm.frontend.detector_descriptor.sift.SIFTDetectorDescriptor
+        _target_: gtsfm.frontend.detector_descriptor.superpoint.SuperPointDetectorDescriptor
         max_keypoints: 5000
 
     matcher:
       _target_: gtsfm.frontend.cacher.matcher_cacher.MatcherCacher
       matcher_obj:
-        _target_: gtsfm.frontend.matcher.twoway_matcher.TwoWayMatcher
+        _target_: gtsfm.frontend.matcher.lightglue_matcher.LightGlueMatcher
+        features: "superpoint"
 
   two_view_estimator:
     _target_: gtsfm.two_view_estimator_cacher.TwoViewEstimatorCacher
@@ -59,6 +61,8 @@ SceneOptimizer:
 
   multiview_optimizer:
     _target_: gtsfm.multi_view_optimizer.MultiViewOptimizer
+
+    # comment out to not run
     view_graph_estimator:
       _target_: gtsfm.view_graph_estimator.cycle_consistent_rotation_estimator.CycleConsistentRotationViewGraphEstimator
       edge_error_aggregation_criterion: MEDIAN_EDGE_ERROR
@@ -76,7 +80,7 @@ SceneOptimizer:
       min_track_len: 2
       triangulation_options:
         _target_: gtsfm.data_association.point3d_initializer.TriangulationOptions
-        reproj_error_threshold: 100
+        reproj_error_threshold: 10
         mode:
           _target_: gtsfm.data_association.point3d_initializer.TriangulationSamplingMode
           value: RANSAC_SAMPLE_UNIFORM
@@ -88,6 +92,10 @@ SceneOptimizer:
       reproj_error_thresholds: [10, 5, 3] # for (multistage) post-optimization filtering
       robust_measurement_noise: True
       shared_calib: False
+      cam_pose3_prior_noise_sigma: 0.1
+      calibration_prior_noise_sigma: 1e-5
+      measurement_noise_sigma: 1.0
 
+  # comment out to not run
   dense_multiview_optimizer:
     _target_: gtsfm.densify.mvs_patchmatchnet.MVSPatchmatchNet

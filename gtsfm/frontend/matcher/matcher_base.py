@@ -24,7 +24,7 @@ class MatcherBase(GTSFMProcess):
         return UiMetadata(
             display_name="Matcher",
             input_products=("Keypoints", "Descriptors", "Image Shapes"),
-            output_products="Putative Correspondences",
+            output_products=("Putative Correspondences",),
             parent_plate="DetDescCorrespondenceGenerator",
         )
 

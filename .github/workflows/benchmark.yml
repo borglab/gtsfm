@@ -12,20 +12,21 @@ jobs:
       matrix:
         config_dataset_info:
           [
-            # config                     dataset                lookahead   img-extension  source      loader          max-res  share-intrinsics
-            [sift_front_end,             door-12,               12,         JPG,           test_data,  olsson-loader,  1296,    true],
-            [deep_front_end,             door-12,               12,         JPG,           test_data,  olsson-loader,  1296,    true],
-            [sift_front_end,             skydio-8,              8,          jpg,           gdrive ,    colmap-loader,  760,     true],
-            [deep_front_end,             skydio-8,              8,          jpg,           gdrive,     colmap-loader,  760,     true],
-            [sift_front_end,             skydio-32,             32,         jpg,           gdrive,     colmap-loader,  760,     true],
-            [deep_front_end,             skydio-32,             32,         jpg,           gdrive,     colmap-loader,  760,     true],
-            [sift_front_end,             palace-fine-arts-281,  25,         jpg,           wget,       olsson-loader,  320,     true],
-            [deep_front_end,             notre-dame-20,         20,         jpg,           gdrive,     colmap-loader,  760,     false],
-            [sift_front_end_astrovision, 2011205_rc3,           65,         png,           wget,       astrovision,    1024,    true],
-            [deep_front_end_astrovision, 2011205_rc3,           65,         png,           wget,       astrovision,    1024,    true],
-            [sift_front_end,             gerrard-hall-100,      0,          jpg,           wget,       colmap-loader,  760,     true],
-            [deep_front_end,             gerrard-hall-100,      0,          jpg,           wget,       colmap-loader,  760,     true],
-            [synthetic_front_end,   tanks-and-temples-barn-410, 4,          jpg,           wget,    tanks-and-temples, 1080,    true],
+            # config              dataset                lookahead   img-extension  source      loader          max-res  share-intrinsics
+            [sift,                door-12,               15,         JPG,           test_data,  olsson-loader,  1296,    true],
+            [lightglue,           door-12,               15,         JPG,           test_data,  olsson-loader,  1296,    true],
+            [sift,                skydio-8,              15,         jpg,           gdrive ,    colmap-loader,  760,     true],
+            [lightglue,           skydio-8,              15,         jpg,           gdrive,     colmap-loader,  760,     true],
+            [sift,                skydio-32,             15,         jpg,           gdrive,     colmap-loader,  760,     true],
+            [lightglue,           skydio-32,             15,         jpg,           gdrive,     colmap-loader,  760,     true],
+            [sift,                palace-fine-arts-281,  15,         jpg,           wget,       olsson-loader,  320,     true],
+            [lightglue,           notre-dame-20,         15,         jpg,           gdrive,     colmap-loader,  760,     false],
+            [sift,                2011205_rc3,           15,         png,           wget,       astrovision,    1024,    true],
+            [lightglue,           2011205_rc3,           15,         png,           wget,       astrovision,    1024,    true],
+            [sift,                gerrard-hall-100,      15,         jpg,           wget,       colmap-loader,  760,     true],
+            [lightglue,           gerrard-hall-100,      15,         jpg,           wget,       colmap-loader,  760,     true],
+            [sift,                south-building-128,    15,         jpg,           wget,       colmap-loader,  760,     true],
+            [lightglue,           south-building-128,    15,         jpg,           wget,       colmap-loader,  760,     true],  
           ]
     defaults:
       run:
@@ -35,7 +36,7 @@ jobs:
       PYTHON_VERSION: 3.8
 
     steps:
-      - uses: actions/checkout@v3.5.3
+      - uses: actions/checkout@v4.1.1
       - name: Cache frontend
         uses: actions/cache@v3
         env:
@@ -64,7 +65,6 @@ jobs:
           DATASET_NAME=${{ matrix.config_dataset_info[1] }}
           CONFIG_NAME=${{ matrix.config_dataset_info[0] }}
           MAX_FRAME_LOOKAHEAD=${{ matrix.config_dataset_info[2] }}
-          IMAGE_EXTENSION=${{ matrix.config_dataset_info[3] }}
           LOADER_NAME=${{ matrix.config_dataset_info[5] }}
           MAX_RESOLUTION=${{ matrix.config_dataset_info[6] }}
           SHARE_INTRINSICS=${{ matrix.config_dataset_info[7] }}
@@ -72,7 +72,6 @@ jobs:
             $DATASET_NAME \
             $CONFIG_NAME \
             $MAX_FRAME_LOOKAHEAD \
-            $IMAGE_EXTENSION \
             $LOADER_NAME \
             $MAX_RESOLUTION \
             $SHARE_INTRINSICS

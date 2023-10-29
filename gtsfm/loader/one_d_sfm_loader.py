@@ -3,7 +3,6 @@
 Authors: Yanwei Du
 """
 
-import glob
 import os
 from pathlib import Path
 from typing import List, Optional
@@ -36,7 +35,6 @@ class OneDSFMLoader(LoaderBase):
     def __init__(
         self,
         folder: str,
-        image_extension: str = "jpg",
         max_resolution: int = 640,
         enable_no_exif: bool = False,
         default_focal_length_factor: float = 1.2,
@@ -45,7 +43,6 @@ class OneDSFMLoader(LoaderBase):
 
         Args:
             folder: the base folder which contains image sequence.
-            image_extension: file extension for the image files. Defaults to 'jpg'.
             max_resolution: integer representing maximum length of image's short side, i.e.
                 the smaller of the height/width of the image. e.g. for 1080p (1920 x 1080),
                 max_resolution would be 1080. If the image resolution max(height, width) is
@@ -59,10 +56,10 @@ class OneDSFMLoader(LoaderBase):
         self._default_focal_length_factor = default_focal_length_factor
 
         # Fetch all the file names in /images folder.
-        search_path = os.path.join(folder, "images", f"*.{image_extension}")
+        search_path = os.path.join(folder, "images")
 
         if enable_no_exif:
-            self._image_paths = glob.glob(search_path)
+            self._image_paths = io_utils.get_sorted_image_names_in_dir(search_path)
         else:
             (self._image_paths, num_all_imgs) = self.get_images_with_exif(search_path)
             logger.info("Read %d images with exif out of %d in total.", len(self._image_paths), num_all_imgs)

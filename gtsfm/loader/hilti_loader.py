@@ -205,6 +205,10 @@ class HiltiLoader(LoaderBase):
 
         return io_utils.load_image(str(image_path))
 
+    def image_filenames(self) -> List[str]:
+        """Return the file names corresponding to each image index."""
+        return [f"{i}.jpg" for i in len(self)]
+
     def get_camera_intrinsics(self, index: int) -> Optional[Cal3Fisheye]:
         return self.get_camera_intrinsics_full_res(index)
 

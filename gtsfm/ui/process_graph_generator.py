@@ -37,10 +37,10 @@ class ProcessGraphGenerator:
         """Create ProcessGraphGenerator.
 
         Args:
-            test_mode: boolean flag, only set True when unit testing.
+            test_mode: Boolean flag, only set to `True` when unit testing.
         """
 
-        # create empty directed graph
+        # Create empty directed graph.
         self._main_graph = pydot.Dot(graph_type="digraph", fontname="Veranda", bgcolor="white")
 
         # dict of pydot Clusters for plates
@@ -83,19 +83,19 @@ class ProcessGraphGenerator:
             if not self._test_mode and cls_name.startswith("Fake"):
                 continue
 
-            # get UI metadata of class
+            # Get UI metadata of class.
             metadata = cls_type.get_ui_metadata()
 
-            # skip duplicates
+            # Skip duplicates.
             # happens when concrete classes implement an abstract class without overwriting get_ui_metadata()
             if metadata in unique_metadata:
                 continue
             unique_metadata.add(metadata)
 
-            # create an empty plate for each unique parent_plate name
+            # Create an empty plate for each unique parent_plate name.
             plate = metadata.parent_plate
             if plate not in self._plate_to_cluster:
-                # if no plate, add straight to main graph
+                # If no plate, add straight to main graph.
                 if plate is None:
                     continue
 
@@ -116,17 +116,17 @@ class ProcessGraphGenerator:
         which is unintuitive. Auto-cast here prevents unexpected behavior for developers.
 
         Args:
-            metadata: UiMetadata object to add nodes/edges for
+            metadata: UiMetadata object to add nodes/edges for.
         """
 
         display_name = metadata.display_name
 
-        # autocast strings to one-element tuples
+        # Autocast strings to one-element tuples.
         output_products = metadata.output_products
         if isinstance(output_products, str):
             output_products = (output_products,)
 
-        # autocast strings to one-element tuples
+        # Autocast strings to one-element tuples.
         input_products = metadata.input_products
         if isinstance(input_products, str):
             input_products = (input_products,)
@@ -135,7 +135,7 @@ class ProcessGraphGenerator:
         if metadata.parent_plate is not None:
             cluster = self._plate_to_cluster[metadata.parent_plate]
 
-        # add Nodes for processes and output_products in the same plate
+        # Add Nodes for processes and output_products in the same plate.
         # don't add input_products as Nodes to ensure output_products are in the same plate as their processes
         cluster.add_node(pydot.Node(display_name, shape=NODE_SHAPE, style=NODE_STYLE, fillcolor=PROCESS_FILLCOLOR))
         for product_name in output_products:
@@ -152,10 +152,10 @@ class ProcessGraphGenerator:
     def save_graph(self, filepath: str = DEFAULT_GRAPH_VIZ_OUTPUT_PATH) -> None:
         """Save graph to the given filepath."""
 
-        # graph must be built first
+        # Graph must be built first.
         self._build_graph()
 
-        # make output directory if one does not exist
+        # Make output directory if one does not exist.
         save_dir = os.path.dirname(filepath)
         Path(save_dir).mkdir(parents=True, exist_ok=True)
 

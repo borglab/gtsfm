@@ -34,6 +34,7 @@ dependencies:
   - pandas
   - pillow>=8.0.1
   - scikit-learn
+  - seaborn
   - scipy
   - hydra-core
   # 3rd party algorithms for different modules
@@ -56,5 +57,5 @@ dependencies:
       - colour
       - trimesh[easy]
       - pycolmap>=0.1.0
-      - gtsam==4.2a8
+      - gtsam==4.2
       - pydot
