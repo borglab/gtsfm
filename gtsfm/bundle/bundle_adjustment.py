@@ -353,6 +353,34 @@ class BundleAdjustmentOptimizer:
 
         # Print error.
         final_error = graph.error(result_values)
+
+        initial_values = self.__initial_values(initial_data=initial_data)
+        result_values = self.__optimize_factor_graph(graph, initial_values)
+
+        # Print error.
+        final_error = graph.error(result_values)
+
+        # try:
+        #     # Calculate marginal covariances for all variables.
+        #     marginals = gtsam.Marginals(graph, result_values)
+
+        #     print("Num. tracks:", initial_data.number_tracks())
+        #     graph_keys = self.get_graph_keys(initial_data)
+        #     print(f"Num. graph keys: {len(graph_keys)}")
+        #     print("Number cameras: ", initial_data.get_valid_camera_indices())
+        #     uncertainty = 0.0
+        #     for key in graph_keys:
+        #         cov = marginals.marginalCovariance(key)
+        #         print(f"covariance:\n{np.round(cov,1)}\n", "trace: ", np.round(np.trace(cov), 2))
+        #         #print("\ttrace: ", np.round(np.trace(cov), 2))
+        #         uncertainty += np.trace(cov)
+
+        # except:
+        #     print("ILS exception.")
+        #     uncertainty = 999
+        # print(f"Uncertainty {uncertainty:.1f} vs. error {final_error:.1f}")
+        uncertainty = 1.0
+
         if verbose:
             logger.info("initial error: %.2f", graph.error(initial_values))
             logger.info("final error: %.2f", final_error)
@@ -372,7 +400,7 @@ class BundleAdjustmentOptimizer:
             valid_mask = [True] * optimized_data.number_tracks()
             filtered_result = optimized_data
 
-        return optimized_data, filtered_result, valid_mask, final_error
+        return optimized_data, filtered_result, valid_mask, final_error, uncertainty
 
 
     def run_ba(
@@ -399,62 +427,13 @@ class BundleAdjustmentOptimizer:
         num_ba_steps = len(self._reproj_error_thresholds)
         for step, reproj_error_thresh in enumerate(self._reproj_error_thresholds):
             # Use intermediate result as initial condition for next step.
-            (optimized_data, filtered_result, valid_mask, final_error) = self.run_ba_stage_with_filtering(
+            (optimized_data, filtered_result, valid_mask, final_error, uncertainty) = self.run_ba_stage_with_filtering(
                 initial_data,
                 absolute_pose_priors,
                 relative_pose_priors,
                 reproj_error_thresh,
                 verbose,
             )
-
-            initial_values = self.__initial_values(initial_data=initial_data)
-            result_values = self.__optimize_factor_graph(graph, initial_values)
-
-            # Print error.
-            final_error = graph.error(result_values)
-
-            # try:
-            #     # Calculate marginal covariances for all variables.
-            #     marginals = gtsam.Marginals(graph, result_values)
-
-            #     print("Num. tracks:", initial_data.number_tracks())
-            #     graph_keys = self.get_graph_keys(initial_data)
-            #     print(f"Num. graph keys: {len(graph_keys)}")
-            #     print("Number cameras: ", initial_data.get_valid_camera_indices())
-            #     uncertainty = 0.0
-            #     for key in graph_keys:
-            #         cov = marginals.marginalCovariance(key)
-            #         print(f"covariance:\n{np.round(cov,1)}\n", "trace: ", np.round(np.trace(cov), 2))
-            #         #print("\ttrace: ", np.round(np.trace(cov), 2))
-            #         uncertainty += np.trace(cov)
-
-            # except:
-            #     print("ILS exception.")
-            #     uncertainty = 999
-            # print(f"Uncertainty {uncertainty:.1f} vs. error {final_error:.1f}")
-            uncertainty = 1.0
-
-            if verbose:
-                logger.info(f"initial error: {graph.error(initial_values):.2f}")
-                logger.info(f"final error: {final_error:.2f}")
-
-            # Construct the results.
-            optimized_data = values_to_gtsfm_data(result_values, initial_data, self._shared_calib)
-
-            # Filter landmarks by reprojection error.
-            if reproj_error_thresh is not None:
-                if verbose:
-                    logger.info("[Result] Number of tracks before filtering: %d", optimized_data.number_tracks())
-                filtered_result, valid_mask = optimized_data.filter_landmarks(reproj_error_thresh)
-                if verbose:
-                    logger.info("[Result] Number of tracks after filtering: %d", filtered_result.number_tracks())
-
-            else:
-                valid_mask = [True] * optimized_data.number_tracks()
-                filtered_result = optimized_data
-
-            # Set intermediate result as initial condition for next step.
-            initial_data = filtered_result
 
             # Print intermediate results.
             if num_ba_steps > 1:
