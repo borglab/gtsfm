@@ -112,6 +112,8 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         cycle_errors: List[float] = []
         max_gt_error_in_cycle = []
 
+        uncertainty_dict = {}
+
         # Compute the cycle error for each triplet, and add it to its edges for aggregation.
         for i0, i1, i2 in triplets:  # sort order guaranteed
             error = comp_utils.compute_cyclic_rotation_error(
@@ -149,7 +151,8 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
             duration_sec,
         )
 
-        return valid_edges
+        uncertainty_dict = per_edge_aggregate_error
+        return valid_edges, uncertainty_dict
 
     def __save_plots(
         self,

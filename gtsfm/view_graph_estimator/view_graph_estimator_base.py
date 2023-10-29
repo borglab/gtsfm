@@ -302,7 +302,7 @@ class ViewGraphEstimatorBase(GTSFMProcess):
         )
 
         # Run view graph estimation.
-        view_graph_edges = dask.delayed(self.run)(
+        view_graph_edges, uncertainty_dict = dask.delayed(self.run, nout=2)(
             i2Ri1_dict=i2Ri1_valid_dict,
             i2Ui1_dict=i2Ui1_valid_dict,
             calibrations=calibrations,
@@ -338,4 +338,5 @@ class ViewGraphEstimatorBase(GTSFMProcess):
             corr_idxs_i1i2_filtered,
             two_view_reports_filtered,
             view_graph_estimation_metrics,
+            uncertainty_dict
         )
