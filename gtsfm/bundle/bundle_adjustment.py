@@ -403,7 +403,7 @@ class BundleAdjustmentOptimizer:
         absolute_pose_priors: List[Optional[PosePrior]],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         verbose: bool = True,
-    ) -> Tuple[GtsfmData, GtsfmData, List[bool]]:
+    ) -> Tuple[GtsfmData, GtsfmData, List[bool], float]:
         """Runs bundle adjustment by forming a factor graph and optimizing it using Levenberg–Marquardt optimization.
 
         Args:

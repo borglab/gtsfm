@@ -47,7 +47,7 @@ TWO_VIEW_OUTPUT = Tuple[
     TwoViewEstimationReport,
     TwoViewEstimationReport,
     TwoViewEstimationReport,
-    float
+    float,
 ]
 
 
@@ -324,7 +324,6 @@ class TwoViewEstimator:
                 i2Ti1_prior,
             )
 
-
             post_ba_inlier_ratio_wrt_estimate = float(len(post_ba_v_corr_idxs)) / len(putative_corr_idxs)
 
             # TODO: Remove this hack once we can handle the lower post_ba_inlier_ratio_wrt_estimate downstream.
@@ -356,7 +355,15 @@ class TwoViewEstimator:
             post_isp_report,
         ) = self.processor.run_inlier_support(post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs, post_ba_report)
 
-        return post_isp_i2Ri1, post_isp_i2Ui1, post_isp_v_corr_idxs, pre_ba_report, post_ba_report, post_isp_report, uncertainty
+        return (
+            post_isp_i2Ri1,
+            post_isp_i2Ui1,
+            post_isp_v_corr_idxs,
+            pre_ba_report,
+            post_ba_report,
+            post_isp_report,
+            uncertainty,
+        )
 
 
 def generate_two_view_report(
