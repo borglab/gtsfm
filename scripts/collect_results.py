@@ -39,7 +39,8 @@ vg_metrics = [
 ]
 
 ra_fname = "rotation_averaging_metrics.json"
-ra_metrics = ["rotation_angle_error_deg", "total_duration_sec"]
+ra_metrics = ["rotation_angle_error_deg", #"relative_rotation_angle_consistency_error_deg",
+ "total_duration_sec"]
 
 ta_fname = "translation_averaging_metrics.json"
 ta_metrics = [
