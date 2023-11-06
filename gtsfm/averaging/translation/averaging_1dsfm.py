@@ -102,9 +102,14 @@ class MFASWrapper(object):
         _t1 = timeit.default_timer()
         self.results = []
         for _dir in self._directions:
-            self.results.append(mfas(w_i1Ui2_measurements, _dir).computeOutlierWeights())
+            _tt0 = timeit.default_timer()
+            _mfas = mfas(w_i1Ui2_measurements, _dir)
+            _tt1 = timeit.default_timer()
+            self.results.append(_mfas.computeOutlierWeights())
+            _tt2 = timeit.default_timer()
+            # print("inner loop", _tt1 - _tt0, _tt2 - _tt1)
         _t2 = timeit.default_timer()
-        print(_t1 - _t0, _t2 - _t1)
+        # print("outter loop", _t1 - _t0, _t2 - _t1)
 
     def __reduce__(self):
         return (MFASWrapper, (self.mfas, self._w_i2Ui1_dict, self._w_iUj_dict_tracks, self._directions))
@@ -272,6 +277,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         # Loop through tracks and and generate delayed MFAS tasks.
         _t0 = timeit.default_timer()
         batch_size = int(np.ceil(len(projection_directions) / self._max_delayed_calls))
+        print("BATCH SIZE:", batch_size, len(projection_directions))
         batched_outlier_weights: List[Any] = []
         if batch_size == 1:
             logger.info("BATCH SIZE 1")
