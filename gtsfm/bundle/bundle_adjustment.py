@@ -365,7 +365,7 @@ class BundleAdjustmentOptimizer:
             uncertainty = 0.0
             for key in graph_keys:
                 cov = marginals.marginalCovariance(key)
-                print(f"covariance:\n{np.round(cov,1)}\n", "trace: ", np.round(np.trace(cov), 2))
+                print(f"covariance:\n{np.round(cov,2)}\n", "trace: ", np.round(np.trace(cov), 2))
                 #print("\ttrace: ", np.round(np.trace(cov), 2))
                 uncertainty += np.trace(cov)
 
@@ -435,6 +435,8 @@ class BundleAdjustmentOptimizer:
                     "[BA Step %d/%d] Error: %.2f, Number of tracks: %d"
                     % (step + 1, num_ba_steps, final_error, filtered_result.number_tracks())
                 )
+        # metrics = self.evaluate(optimized_data, filtered_result, cameras_gt, save_dir)
+
 
         return optimized_data, filtered_result, valid_mask, uncertainty
 
