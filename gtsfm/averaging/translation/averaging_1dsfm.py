@@ -74,47 +74,6 @@ RelativeDirectionsDict = Dict[Tuple[int, int], Unit3]
 DUMMY_NOISE_MODEL = gtsam.noiseModel.Isotropic.Sigma(3, 1e-2)  # MFAS does not use this.
 
 
-# class MFASWrapper(object):
-#     def __init__(
-#         self,
-#         mfas,
-#         w_i2Ui1_dict: RelativeDirectionsDict,
-#         w_iUj_dict_tracks: RelativeDirectionsDict,
-#         directions: List[Unit3],
-#     ) -> None:
-#         """
-#
-#         Args:
-#             mfas:
-#             w_i2Ui1_dict: Dictionary of Unit3 relative translations between cameras.
-#             w_i2Ui1_dict_tracks: Dictionary of Unit3 relative translations between cameras and landmarks.
-#             directions: Sampled Unit3 projection directions to use.
-#         """
-#         # _t0 = timeit.default_timer()
-#         self.mfas = mfas
-#         self._w_i2Ui1_dict = w_i2Ui1_dict
-#         self._w_iUj_dict_tracks = w_iUj_dict_tracks
-#         self._directions = directions
-#
-#         w_i1Ui2_measurements = TranslationAveraging1DSFM._binary_measurements_from_dict(
-#             self._w_i2Ui1_dict, self._w_iUj_dict_tracks, DUMMY_NOISE_MODEL
-#         )
-#         # _t1 = timeit.default_timer()
-#         self.results = []
-#         for _dir in self._directions:
-#             # _tt0 = timeit.default_timer()
-#             _mfas = mfas(w_i1Ui2_measurements, _dir)
-#             # _tt1 = timeit.default_timer()
-#             self.results.append(_mfas.computeOutlierWeights())
-#             # _tt2 = timeit.default_timer()
-#             # print("inner loop", _tt1 - _tt0, _tt2 - _tt1)
-#         # _t2 = timeit.default_timer()
-#         # print("outter loop", _t1 - _t0, _t2 - _t1)
-#
-#     def __reduce__(self):
-#         return (MFASWrapper, (self.mfas, self._w_i2Ui1_dict, self._w_iUj_dict_tracks, self._directions))
-
-
 class MFASWrapper(object):
     def __init__(self, mfas, results=[]) -> None:
         """ """
@@ -122,16 +81,20 @@ class MFASWrapper(object):
         self.results = []
 
     def __reduce__(self):
-        return (MFASWrapper, (self.mfas,))
+        return (MFASWrapper, (self.mfas, self.results))
 
 
 class MFASResultsWrapper(object):
     def __init__(self, results=[]) -> None:
-        """ """
+        """Wraps result from MFAS.
+
+        Note: Dask is unable to serialize the output from MFAS::computeOutlierWeights, as it's a wrapped C++ class. This
+            is a workaround to avoid Dask needing to serialize the output.
+        """
         self.results = results
 
     def __reduce__(self):
-        return (MFASWrapper, (self.results,))
+        return (MFASResultsWrapper, ())
 
 
 class TranslationAveraging1DSFM(TranslationAveragingBase):
@@ -266,21 +229,21 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
     @staticmethod
     def run_mfas(
-        mfas_results_wrapper: MFASResultsWrapper,
         w_i2Ui1_dict: RelativeDirectionsDict,
         w_iUj_dict_tracks: RelativeDirectionsDict,
         directions: List[Unit3],
-    ):
+    ) -> Dict[Tuple[int, int], float]:
+        """Runs MFAS on a batch of directions."""
         w_i1Ui2_measurements = TranslationAveraging1DSFM._binary_measurements_from_dict(
             w_i2Ui1_dict, w_iUj_dict_tracks, DUMMY_NOISE_MODEL
         )
-        # mfas_results_wrapper = MFASResultsWrapper()
+        results = []
         for dir in directions:
-            # mfas = mfas_wrapper.mfas(w_i1Ui2_measurements, dir)
-            # mfas_wrapper.results.append(mfas.computeOutlierWeights())
-            mfas_results_wrapper.results.append(MFAS(w_i1Ui2_measurements, dir).computeOutlierWeights())
+            # Note: Have to convert output of MFAS::computeOutlierWeights to Dict, as Dask has no instructions to pickle
+            #   KeyPairDoubleMap objects.
+            results.append(dict(MFAS(w_i1Ui2_measurements, dir).computeOutlierWeights()))
 
-        return mfas_results_wrapper
+        return results
 
     def compute_inliers(
         self,
@@ -321,7 +284,6 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         for j in range(0, len(projection_directions), batch_size):
             batched_outlier_weights.append(
                 dask.delayed(self.run_mfas)(
-                    MFASResultsWrapper(),
                     future_w_i2Ui1_dict,
                     future_w_iUj_dict_tracks,
                     projection_directions[j : j + batch_size],
@@ -333,13 +295,13 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         # Compute outlier weights in parallel.
         _t2 = timeit.default_timer()
         batched_outlier_weights = dask.compute(*batched_outlier_weights)
-        logger.info(f"Computed outlier weights using MFAS in {timeit.default_timer() - _t2}.")
+        logger.info("Computed outlier weights using MFAS in %.2f seconds." % (timeit.default_timer() - _t2))
 
         # Compute average outlier weight.
         outlier_weights_sum: DefaultDict[Tuple[int, int], float] = defaultdict(float)
         inliers = set()
         for batch_outlier_weights in batched_outlier_weights:
-            for outlier_weight_dict in batch_outlier_weights.results:
+            for outlier_weight_dict in batch_outlier_weights:
                 for w_i1Ui2 in w_i1Ui2_measurements:
                     i1, i2 = w_i1Ui2.key1(), w_i1Ui2.key2()
                     outlier_weights_sum[(i1, i2)] += outlier_weight_dict[(i1, i2)]
