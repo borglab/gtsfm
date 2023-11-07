@@ -388,16 +388,16 @@ class GtsfmData:
 
 
         print(
-            "Min scene reproj error: %.3f".format(np.nanmin(scene_reproj_errors) if len(scene_reproj_errors) else np.NaN)
+            f"Min scene reproj error: {np.nanmin(scene_reproj_errors) if len(scene_reproj_errors) else np.NaN:.3f}"
         )
         print(
-            "Avg scene reproj error: %.3f".format(np.nanmean(scene_reproj_errors) if len(scene_reproj_errors) else np.NaN)
+            f"Avg scene reproj error: {np.nanmean(scene_reproj_errors) if len(scene_reproj_errors) else np.NaN:.3f}"
         )
         print(
-            "Median scene reproj error: %.3f".format(np.nanmedian(scene_reproj_errors) if len(scene_reproj_errors) else np.NaN)
+            f"Median scene reproj error: {np.nanmedian(scene_reproj_errors) if len(scene_reproj_errors) else np.NaN:.3f}"
         )
         print(
-            "Max scene reproj error: %.3f".format(np.nanmax(scene_reproj_errors) if len(scene_reproj_errors) else np.NaN)
+            f"Max scene reproj error: {np.nanmax(scene_reproj_errors) if len(scene_reproj_errors) else np.NaN:.3f}"
         )
 
     def __validate_track(self, track: SfmTrack, reproj_err_thresh: float) -> bool:
