@@ -63,7 +63,7 @@ TRACKS_MEASUREMENTS_PER_CAMERA = 12
 
 # Heuristically set to limit the number of delayed tasks, as recommended by Dask:
 # https://docs.dask.org/en/stable/delayed-best-practices.html#avoid-too-many-tasks
-MAX_DELAYED_CALLS = 5
+MAX_DELAYED_CALLS = 16
 
 logger = logger_utils.get_logger()
 
@@ -74,45 +74,64 @@ RelativeDirectionsDict = Dict[Tuple[int, int], Unit3]
 DUMMY_NOISE_MODEL = gtsam.noiseModel.Isotropic.Sigma(3, 1e-2)  # MFAS does not use this.
 
 
+# class MFASWrapper(object):
+#     def __init__(
+#         self,
+#         mfas,
+#         w_i2Ui1_dict: RelativeDirectionsDict,
+#         w_iUj_dict_tracks: RelativeDirectionsDict,
+#         directions: List[Unit3],
+#     ) -> None:
+#         """
+#
+#         Args:
+#             mfas:
+#             w_i2Ui1_dict: Dictionary of Unit3 relative translations between cameras.
+#             w_i2Ui1_dict_tracks: Dictionary of Unit3 relative translations between cameras and landmarks.
+#             directions: Sampled Unit3 projection directions to use.
+#         """
+#         # _t0 = timeit.default_timer()
+#         self.mfas = mfas
+#         self._w_i2Ui1_dict = w_i2Ui1_dict
+#         self._w_iUj_dict_tracks = w_iUj_dict_tracks
+#         self._directions = directions
+#
+#         w_i1Ui2_measurements = TranslationAveraging1DSFM._binary_measurements_from_dict(
+#             self._w_i2Ui1_dict, self._w_iUj_dict_tracks, DUMMY_NOISE_MODEL
+#         )
+#         # _t1 = timeit.default_timer()
+#         self.results = []
+#         for _dir in self._directions:
+#             # _tt0 = timeit.default_timer()
+#             _mfas = mfas(w_i1Ui2_measurements, _dir)
+#             # _tt1 = timeit.default_timer()
+#             self.results.append(_mfas.computeOutlierWeights())
+#             # _tt2 = timeit.default_timer()
+#             # print("inner loop", _tt1 - _tt0, _tt2 - _tt1)
+#         # _t2 = timeit.default_timer()
+#         # print("outter loop", _t1 - _t0, _t2 - _t1)
+#
+#     def __reduce__(self):
+#         return (MFASWrapper, (self.mfas, self._w_i2Ui1_dict, self._w_iUj_dict_tracks, self._directions))
+
+
 class MFASWrapper(object):
-    def __init__(
-        self,
-        mfas,
-        w_i2Ui1_dict: RelativeDirectionsDict,
-        w_iUj_dict_tracks: RelativeDirectionsDict,
-        directions: List[Unit3],
-    ) -> None:
-        """
-
-        Args:
-            mfas:
-            w_i2Ui1_dict: Dictionary of Unit3 relative translations between cameras.
-            w_i2Ui1_dict_tracks: Dictionary of Unit3 relative translations between cameras and landmarks.
-            directions: Sampled Unit3 projection directions to use.
-        """
-        _t0 = timeit.default_timer()
+    def __init__(self, mfas, results=[]) -> None:
+        """ """
         self.mfas = mfas
-        self._w_i2Ui1_dict = w_i2Ui1_dict
-        self._w_iUj_dict_tracks = w_iUj_dict_tracks
-        self._directions = directions
-
-        w_i1Ui2_measurements = TranslationAveraging1DSFM._binary_measurements_from_dict(
-            self._w_i2Ui1_dict, self._w_iUj_dict_tracks, DUMMY_NOISE_MODEL
-        )
-        _t1 = timeit.default_timer()
         self.results = []
-        for _dir in self._directions:
-            _tt0 = timeit.default_timer()
-            _mfas = mfas(w_i1Ui2_measurements, _dir)
-            _tt1 = timeit.default_timer()
-            self.results.append(_mfas.computeOutlierWeights())
-            _tt2 = timeit.default_timer()
-            # print("inner loop", _tt1 - _tt0, _tt2 - _tt1)
-        _t2 = timeit.default_timer()
-        # print("outter loop", _t1 - _t0, _t2 - _t1)
 
     def __reduce__(self):
-        return (MFASWrapper, (self.mfas, self._w_i2Ui1_dict, self._w_iUj_dict_tracks, self._directions))
+        return (MFASWrapper, (self.mfas,))
+
+
+class MFASResultsWrapper(object):
+    def __init__(self, results=[]) -> None:
+        """ """
+        self.results = results
+
+    def __reduce__(self):
+        return (MFASWrapper, (self.results,))
 
 
 class TranslationAveraging1DSFM(TranslationAveragingBase):
@@ -245,6 +264,24 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             )
         return w_i1ti2_prior_measurements
 
+    @staticmethod
+    def run_mfas(
+        mfas_results_wrapper: MFASResultsWrapper,
+        w_i2Ui1_dict: RelativeDirectionsDict,
+        w_iUj_dict_tracks: RelativeDirectionsDict,
+        directions: List[Unit3],
+    ):
+        w_i1Ui2_measurements = TranslationAveraging1DSFM._binary_measurements_from_dict(
+            w_i2Ui1_dict, w_iUj_dict_tracks, DUMMY_NOISE_MODEL
+        )
+        # mfas_results_wrapper = MFASResultsWrapper()
+        for dir in directions:
+            # mfas = mfas_wrapper.mfas(w_i1Ui2_measurements, dir)
+            # mfas_wrapper.results.append(mfas.computeOutlierWeights())
+            mfas_results_wrapper.results.append(MFAS(w_i1Ui2_measurements, dir).computeOutlierWeights())
+
+        return mfas_results_wrapper
+
     def compute_inliers(
         self,
         w_i2Ui1_dict: RelativeDirectionsDict,
@@ -271,34 +308,32 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         w_i1Ui2_measurements = self._binary_measurements_from_dict(w_i2Ui1_dict, w_iUj_dict_tracks, DUMMY_NOISE_MODEL)
 
         # TODO(johnwlambert): Consider getting global client and scattering large data.
-        future_w_i2Ui1_dict = w_i2Ui1_dict
-        future_w_iUj_dict_tracks = w_iUj_dict_tracks
+        client = get_client()
+        future_w_i2Ui1_dict = client.scatter(w_i2Ui1_dict, broadcast=True)
+        future_w_iUj_dict_tracks = client.scatter(w_iUj_dict_tracks, broadcast=True)
+        # future_mfas_wrapper = client.scatter(MFASWrapper(MFAS), broadcast=True)
 
         # Loop through tracks and and generate delayed MFAS tasks.
-        _t0 = timeit.default_timer()
+        # _t0 = timeit.default_timer()
         batch_size = int(np.ceil(len(projection_directions) / self._max_delayed_calls))
-        print("BATCH SIZE:", batch_size, len(projection_directions))
+        # print("BATCH SIZE:", batch_size, len(projection_directions))
         batched_outlier_weights: List[Any] = []
-        if batch_size == 1:
-            logger.info("BATCH SIZE 1")
-            for direction in projection_directions:
-                batched_outlier_weights.append(
-                    dask.delayed(MFASWrapper)(MFAS, future_w_i2Ui1_dict, future_w_iUj_dict_tracks, [direction])
+        for j in range(0, len(projection_directions), batch_size):
+            batched_outlier_weights.append(
+                dask.delayed(self.run_mfas)(
+                    MFASResultsWrapper(),
+                    future_w_i2Ui1_dict,
+                    future_w_iUj_dict_tracks,
+                    projection_directions[j : j + batch_size],
                 )
-        else:
-            for j in range(0, len(projection_directions), batch_size):
-                batched_outlier_weights.append(
-                    dask.delayed(MFASWrapper)(
-                        MFAS, future_w_i2Ui1_dict, future_w_iUj_dict_tracks, projection_directions[j : j + batch_size]
-                    )
-                )
-        _t1 = timeit.default_timer()
-        print(f"Built delayed Tasks in {_t1 - _t0} seconds")
+            )
+        # _t1 = timeit.default_timer()
+        # print(f"Built delayed Tasks in {_t1 - _t0} seconds")
 
         # Compute outlier weights in parallel.
         _t2 = timeit.default_timer()
         batched_outlier_weights = dask.compute(*batched_outlier_weights)
-        logger.debug(f"Computed outlier weights using MFAS in {timeit.default_timer() - _t2}.")
+        logger.info(f"Computed outlier weights using MFAS in {timeit.default_timer() - _t2}.")
 
         # Compute average outlier weight.
         outlier_weights_sum: DefaultDict[Tuple[int, int], float] = defaultdict(float)
