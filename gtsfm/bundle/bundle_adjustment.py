@@ -354,25 +354,25 @@ class BundleAdjustmentOptimizer:
         # Print error.
         final_error = graph.error(result_values)
 
-        # try:
-        #     # Calculate marginal covariances for all variables.
-        #     marginals = gtsam.Marginals(graph, result_values)
+        try:
+            # Calculate marginal covariances for all variables.
+            marginals = gtsam.Marginals(graph, result_values)
 
-        #     print("Num. tracks:", initial_data.number_tracks())
-        #     graph_keys = self.get_graph_keys(initial_data)
-        #     print(f"Num. graph keys: {len(graph_keys)}")
-        #     print("Number cameras: ", initial_data.get_valid_camera_indices())
-        #     uncertainty = 0.0
-        #     for key in graph_keys:
-        #         cov = marginals.marginalCovariance(key)
-        #         print(f"covariance:\n{np.round(cov,1)}\n", "trace: ", np.round(np.trace(cov), 2))
-        #         #print("\ttrace: ", np.round(np.trace(cov), 2))
-        #         uncertainty += np.trace(cov)
+            print("Num. tracks:", initial_data.number_tracks())
+            graph_keys = self.get_graph_keys(initial_data)
+            print(f"Num. graph keys: {len(graph_keys)}")
+            print("Number cameras: ", initial_data.get_valid_camera_indices())
+            uncertainty = 0.0
+            for key in graph_keys:
+                cov = marginals.marginalCovariance(key)
+                print(f"covariance:\n{np.round(cov,1)}\n", "trace: ", np.round(np.trace(cov), 2))
+                #print("\ttrace: ", np.round(np.trace(cov), 2))
+                uncertainty += np.trace(cov)
 
-        # except:
-        #     print("ILS exception.")
-        #     uncertainty = 999
-        # print(f"Uncertainty {uncertainty:.1f} vs. error {final_error:.1f}")
+        except:
+            print("ILS exception.")
+            uncertainty = 999
+        print(f"Uncertainty {uncertainty:.1f} vs. LM graph error {final_error:.1f}")
         uncertainty = 1.0
 
         if verbose:
