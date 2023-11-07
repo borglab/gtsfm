@@ -386,6 +386,20 @@ class GtsfmData:
             "Max scene reproj error: %.3f", np.nanmax(scene_reproj_errors) if len(scene_reproj_errors) else np.NaN
         )
 
+
+        print(
+            "Min scene reproj error: %.3f".format(np.nanmin(scene_reproj_errors) if len(scene_reproj_errors) else np.NaN)
+        )
+        print(
+            "Avg scene reproj error: %.3f".format(np.nanmean(scene_reproj_errors) if len(scene_reproj_errors) else np.NaN)
+        )
+        print(
+            "Median scene reproj error: %.3f".format(np.nanmedian(scene_reproj_errors) if len(scene_reproj_errors) else np.NaN)
+        )
+        print(
+            "Max scene reproj error: %.3f".format(np.nanmax(scene_reproj_errors) if len(scene_reproj_errors) else np.NaN)
+        )
+
     def __validate_track(self, track: SfmTrack, reproj_err_thresh: float) -> bool:
         """Validates a track based on reprojection errors and cheirality checks.
 
