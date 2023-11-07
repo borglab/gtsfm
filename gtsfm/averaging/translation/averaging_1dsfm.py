@@ -74,29 +74,6 @@ RelativeDirectionsDict = Dict[Tuple[int, int], Unit3]
 DUMMY_NOISE_MODEL = gtsam.noiseModel.Isotropic.Sigma(3, 1e-2)  # MFAS does not use this.
 
 
-class MFASWrapper(object):
-    def __init__(self, mfas, results=[]) -> None:
-        """ """
-        self.mfas = mfas
-        self.results = []
-
-    def __reduce__(self):
-        return (MFASWrapper, (self.mfas, self.results))
-
-
-class MFASResultsWrapper(object):
-    def __init__(self, results=[]) -> None:
-        """Wraps result from MFAS.
-
-        Note: Dask is unable to serialize the output from MFAS::computeOutlierWeights, as it's a wrapped C++ class. This
-            is a workaround to avoid Dask needing to serialize the output.
-        """
-        self.results = results
-
-    def __reduce__(self):
-        return (MFASResultsWrapper, ())
-
-
 class TranslationAveraging1DSFM(TranslationAveragingBase):
     """1D-SFM translation averaging with outlier rejection."""
 
@@ -274,12 +251,9 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         client = get_client()
         future_w_i2Ui1_dict = client.scatter(w_i2Ui1_dict, broadcast=True)
         future_w_iUj_dict_tracks = client.scatter(w_iUj_dict_tracks, broadcast=True)
-        # future_mfas_wrapper = client.scatter(MFASWrapper(MFAS), broadcast=True)
 
         # Loop through tracks and and generate delayed MFAS tasks.
-        # _t0 = timeit.default_timer()
         batch_size = int(np.ceil(len(projection_directions) / self._max_delayed_calls))
-        # print("BATCH SIZE:", batch_size, len(projection_directions))
         batched_outlier_weights: List[Any] = []
         for j in range(0, len(projection_directions), batch_size):
             batched_outlier_weights.append(
@@ -289,8 +263,6 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                     projection_directions[j : j + batch_size],
                 )
             )
-        # _t1 = timeit.default_timer()
-        # print(f"Built delayed Tasks in {_t1 - _t0} seconds")
 
         # Compute outlier weights in parallel.
         _t2 = timeit.default_timer()
