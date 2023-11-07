@@ -247,10 +247,15 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         # Convert to measurements: map indexes to symbols.
         w_i1Ui2_measurements = self._binary_measurements_from_dict(w_i2Ui1_dict, w_iUj_dict_tracks, DUMMY_NOISE_MODEL)
 
-        # TODO(johnwlambert): Consider getting global client and scattering large data.
-        client = get_client()
-        future_w_i2Ui1_dict = client.scatter(w_i2Ui1_dict, broadcast=True)
-        future_w_iUj_dict_tracks = client.scatter(w_iUj_dict_tracks, broadcast=True)
+        # Scatter data to all workers if client available.
+        try:
+            client = get_client()
+            future_w_i2Ui1_dict = client.scatter(w_i2Ui1_dict, broadcast=True)
+            future_w_iUj_dict_tracks = client.scatter(w_iUj_dict_tracks, broadcast=True)
+        except ValueError:  # this should only happen for unit tests.
+            logger.info("No Dask client found... Running without scattering.")
+            future_w_i2Ui1_dict = w_i2Ui1_dict
+            future_w_iUj_dict_tracks = w_iUj_dict_tracks
 
         # Loop through tracks and and generate delayed MFAS tasks.
         batch_size = int(np.ceil(len(projection_directions) / self._max_delayed_calls))
