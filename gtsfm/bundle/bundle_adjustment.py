@@ -382,6 +382,9 @@ class BundleAdjustmentOptimizer:
         # Convert the `Values` results to a `GtsfmData` instance.
         optimized_data = values_to_gtsfm_data(result_values, initial_data, self._shared_calib)
 
+        print("Optimized:")
+        optimized_data.log_scene_reprojection_error_stats()
+
         # Filter landmarks by reprojection error.
         if reproj_error_thresh is not None:
             if verbose:
@@ -393,6 +396,10 @@ class BundleAdjustmentOptimizer:
         else:
             valid_mask = [True] * optimized_data.number_tracks()
             filtered_result = optimized_data
+
+        print("Filtered:")
+        print("Valid mask: ", np.mean(valid_mask))
+        filtered_result.log_scene_reprojection_error_stats()
 
         return optimized_data, filtered_result, valid_mask, final_error, uncertainty
 
