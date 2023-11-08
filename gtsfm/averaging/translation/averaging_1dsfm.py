@@ -252,7 +252,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             client = get_client()
             future_w_i2Ui1_dict = client.scatter(w_i2Ui1_dict, broadcast=True)
             future_w_iUj_dict_tracks = client.scatter(w_iUj_dict_tracks, broadcast=True)
-        except ValueError:  # this should only happen for unit tests.
+        except ValueError:  # allows use without initializing client.
             logger.info("No Dask client found... Running without scattering.")
             future_w_i2Ui1_dict = w_i2Ui1_dict
             future_w_iUj_dict_tracks = w_iUj_dict_tracks
