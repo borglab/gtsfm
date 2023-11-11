@@ -86,6 +86,7 @@ class TwoViewEstimator:
             reproj_error_thresholds=ba_reproj_error_thresholds,
             robust_measurement_noise=True,
             max_iterations=bundle_adjust_2view_maxiters,
+            allow_indeterminant_linear_system=False,
         )
 
     def __repr__(self) -> str:
