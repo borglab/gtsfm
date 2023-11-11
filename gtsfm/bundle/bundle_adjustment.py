@@ -289,6 +289,23 @@ class BundleAdjustmentOptimizer:
 
         return sorted(list(cameras))
 
+    def get_two_view_ba_pose_graph_keys(self, initial_data: GtsfmData):
+        """ """
+        # pose_keys = []
+        # landmark_keys = []
+        # for j in range(initial_data.number_tracks()):
+        #     track = initial_data.get_track(j)  # SfmTrack
+        #     # Retrieve the SfmMeasurement objects
+        #     for m_idx in range(track.numberMeasurements()):
+        #         # i represents the camera index, and uv is the 2d measurement
+        #         i, _ = track.measurement(m_idx)
+        #         pose_keys.append(X(i))
+        #         landmark_keys.append(P(j))
+
+        pose_keys = [ X(0), X(1) ]
+                
+        return pose_keys #+ landmark_keys + 
+
     def run_ba_stage_with_filtering(
         self,
         initial_data: GtsfmData,
@@ -338,6 +355,18 @@ class BundleAdjustmentOptimizer:
         if verbose:
             logger.info("initial error: %.2f", graph.error(initial_values))
             logger.info("final error: %.2f", final_error)
+
+        try:
+            # Calculate marginal covariances for all variables.
+            marginals = gtsam.Marginals(graph, result_values)
+            graph_keys = self.get_two_view_ba_pose_graph_keys(initial_data)
+            uncertainty = 0.0
+            for key in graph_keys:
+                cov = marginals.marginalCovariance(key)
+
+        except:
+            logger.info("BA result discarded due to ILS when computing marginals.")
+            return None, None, None, None
 
         # Convert the `Values` results to a `GtsfmData` instance.
         optimized_data = values_to_gtsfm_data(result_values, initial_data, self._shared_calib)
