@@ -292,21 +292,8 @@ class BundleAdjustmentOptimizer:
         return sorted(list(cameras))
 
     def get_two_view_ba_pose_graph_keys(self, initial_data: GtsfmData):
-        """ """
-        # pose_keys = []
-        # landmark_keys = []
-        # for j in range(initial_data.number_tracks()):
-        #     track = initial_data.get_track(j)  # SfmTrack
-        #     # Retrieve the SfmMeasurement objects
-        #     for m_idx in range(track.numberMeasurements()):
-        #         # i represents the camera index, and uv is the 2d measurement
-        #         i, _ = track.measurement(m_idx)
-        #         pose_keys.append(X(i))
-        #         landmark_keys.append(P(j))
-
-        pose_keys = [ X(0), X(1) ]
-                
-        return pose_keys #+ landmark_keys + 
+        """Retrieves GTSAM keys for camera poses in a 2-view BA problem."""
+        return [ X(0), X(1) ]
 
     def run_ba_stage_with_filtering(
         self,
