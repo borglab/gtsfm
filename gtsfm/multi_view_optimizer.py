@@ -19,12 +19,16 @@ from gtsfm.bundle.global_ba import GlobalBundleAdjustment
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.sfm_track import SfmTrack2d
+from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
+from gtsfm.data_association.cpp_dsf_tracks_estimator import CppDsfTracksEstimator
 from gtsfm.data_association.data_assoc import DataAssociation
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
+from gtsfm.view_graph_estimator.cycle_consistent_rotation_estimator import (
+    CycleConsistentRotationViewGraphEstimator,
+    EdgeErrorAggregationCriterion,
+)
 from gtsfm.view_graph_estimator.view_graph_estimator_base import ViewGraphEstimatorBase
-from gtsfm.data_association.cpp_dsf_tracks_estimator import CppDsfTracksEstimator
-from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
-from gtsfm.view_graph_estimator.cycle_consistent_rotation_estimator import CycleConsistentRotationViewGraphEstimator, EdgeErrorAggregationCriterion
+
 
 class MultiViewOptimizer:
     def __init__(
@@ -45,7 +49,6 @@ class MultiViewOptimizer:
         self.view_graph_estimator_v2 = CycleConsistentRotationViewGraphEstimator(
             edge_error_aggregation_criterion=EdgeErrorAggregationCriterion.MEDIAN_EDGE_ERROR
         )
-
 
     def __repr__(self) -> str:
         return f"""
