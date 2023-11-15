@@ -14,10 +14,8 @@ datasets=(
 	skansen-kronan-gothenburg-131
 	nijo-castle-gate-19
 	kings-college-cambridge-328
-	spilled-blood-cathedral-st-petersburg-781
+	# spilled-blood-cathedral-st-petersburg-781
 	palace-fine-arts-281
-	# 1dsfm Datasets
-	gendarmenmarkt-1463
 	# Other.
 	skydio-crane-mast-501
 	# Astrovision Datasets.
@@ -25,22 +23,22 @@ datasets=(
 	# Colmap Datasets.
 	south-building-128
 	gerrard-hall-100
+	# # 1dsfm Datasets
+	# gendarmenmarkt-1463
 	)
 
 max_frame_lookahead_sizes=(
-	0
-	5
 	10
-	15
+	5
+	#15
 	)
 
 num_matched_sizes=(
-	0
 	5
 	10
 	15
-	20
-	25
+	# 20
+	# 25
 	)
 
 correspondence_generator_config_names=(
@@ -80,13 +78,13 @@ for num_matched in ${num_matched_sizes[@]}; do
 					num_workers=10
 				elif [[ $correspondence_generator_config_name == *"lightglue"* ]]
 				then
-					num_workers=1
+					num_workers=4
 				elif [[ $correspondence_generator_config_name == *"superglue"* ]]
 				then
-					num_workers=1
+					num_workers=4
 				elif [[ $correspondence_generator_config_name == *"loftr"* ]]
 				then
-					num_workers=1
+					num_workers=4
 				fi
 
 				echo "Dataset: ${dataset}"
