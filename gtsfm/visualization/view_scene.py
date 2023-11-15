@@ -46,7 +46,7 @@ def view_scene(args: argparse.Namespace) -> None:
     wTi_list, img_fnames, calibrations, point_cloud, rgb, _ = io_utils.read_scene_data_from_colmap_format(
         data_dir=args.output_dir
     )
-    if args.show_mvs_result:
+    if args.ply_fpath is not None:
         point_cloud, rgb = io_utils.read_point_cloud_from_ply(args.ply_fpath)
 
     if len(calibrations) == 1:
@@ -62,6 +62,13 @@ def view_scene(args: argparse.Namespace) -> None:
     rgb = rgb[is_nearby]
     for i in range(len(wTi_list)):
         wTi_list[i] = zcwTw.compose(wTi_list[i])
+
+    # LIGHT BLUE: (173, 216, 230)
+    # import pdb; pdb.set_trace()
+    is_light_blue = rgb[:, 2] > 220 # rgb[:, 0] > 100) & (rgb[:, 1] > 100) &
+    mask = np.logical_not(is_light_blue)
+    rgb = rgb[mask]
+    point_cloud = point_cloud[mask]
 
     draw_scene_open3d(point_cloud, rgb, wTi_list, calibrations, args)
 
@@ -103,14 +110,9 @@ if __name__ == "__main__":
         + "(increase length for large-scale scenes to make frustums visible)",
     )
     parser.add_argument(
-        "--show_mvs_result",
-        action="store_true",
-        help="defaults to false.",
-    )
-    parser.add_argument(
         "--ply_fpath",
         type=str,
-        default=os.path.join(REPO_ROOT, "results", "mvs_output", "dense_pointcloud.ply"),
+        default=None,
         help="Path to MVS output (.ply file).",
     )
 

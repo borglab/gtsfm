@@ -22,12 +22,12 @@ isp_metrics = [
     "rot3_angular_errors_deg",
     "trans_angular_errors_deg",
     "pose_errors_deg",
-    "total_correspondence_generation_duration_sec",
-    "total_two_view_estimation_duration_sec",
+    # "total_correspondence_generation_duration_sec",
+    # "total_two_view_estimation_duration_sec",
 ]
 
 retriever_fname = "retriever_metrics.json"
-retriever_metrics = ["num_input_images", "num_retrieved_image_pairs", "retriever_duration_sec"]
+retriever_metrics = ["num_input_images", "num_retrieved_image_pairs"]#, "retriever_duration_sec"]
 
 vg_fname = "view_graph_estimation_metrics.json"
 vg_metrics = [
@@ -39,15 +39,15 @@ vg_metrics = [
 ]
 
 ra_fname = "rotation_averaging_metrics.json"
-ra_metrics = ["rotation_angle_error_deg", "total_duration_sec"]
+ra_metrics = ["rotation_angle_error_deg"]#, "total_duration_sec"]
 
 ta_fname = "translation_averaging_metrics.json"
 ta_metrics = [
     "relative_translation_angle_error_deg",
     "translation_angle_error_deg",
-    "total_duration_sec",
-    "outlier_rejection_duration_sec",
-    "optimization_duration_sec",
+    # "total_duration_sec",
+    # "outlier_rejection_duration_sec",
+    # "optimization_duration_sec",
 ]
 
 da_fname = "data_association_metrics.json"
@@ -67,14 +67,14 @@ ba_result_metrics = [
     "pose_auc_@5_deg",
     "pose_auc_@10_deg",
     "pose_auc_@20_deg",
-    "step_0_run_duration_sec",
-    "step_1_run_duration_sec",
-    "step_2_run_duration_sec",
-    "total_run_duration_sec",
+    # "step_0_run_duration_sec",
+    # "step_1_run_duration_sec",
+    # "step_2_run_duration_sec",
+    # "total_run_duration_sec",
 ]
 
 total_fname = "total_summary_metrics.json"
-total_metrics = ["total_runtime_sec"]
+total_metrics = []#"total_runtime_sec"]
 
 # Metrics that **do not** have a median + mean value associated.
 SCALAR_METRIC_NAMES = [
@@ -151,8 +151,8 @@ def main(experiment_roots: Sequence[Path], output_fpath: str) -> None:
                     print(f"{metric_name}: {json_data[metric_name]}")
                     table[full_metric_name].append(json_data[metric_name])
                 else:
-                    med = f"{json_data[metric_name]['summary']['median']:.2f}"
-                    mean = f"{json_data[metric_name]['summary']['mean']:.2f}"
+                    med = f"{json_data[metric_name]['summary']['median']:.1f}"
+                    mean = f"{json_data[metric_name]['summary']['mean']:.1f}"
                     print(f"Med / Median {metric_name}: {med} / {mean}")
                     table[full_metric_name].append(f"{med} / {mean}")
         method_idx += 1

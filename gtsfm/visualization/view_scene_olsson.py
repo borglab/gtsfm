@@ -24,16 +24,50 @@ def view_scene(args: argparse.Namespace) -> None:
     """Read Olsson Dataset ground truth from a data.mat file and render the scene to the GUI.
 
     Args:
-        args: rendering options.
+        args: Rendering options.
     """
     loader = OlssonLoader(
         args.dataset_root,
         max_frame_lookahead=DUMMY_MAX_FRAME_LOOKAHEAD,
         max_resolution=args.max_resolution,
     )
+
+    point_cloud_rgb = np.zeros(shape=loader._point_cloud.shape, dtype=np.uint8)
+    derive_point_colors = True
+    if derive_point_colors:
+
+        tracks = loader.gt_tracks
+
+        cameras = {i:loader.get_camera(i) for i in range(len(loader))}
+        images = {i:loader.get_image(i) for i in range(len(loader))}
+
+        for j, track in enumerate(tracks):
+            if track.numberMeasurements() == 0:
+                continue
+            track_colors = []
+            # Cannot naively project 3d point into images since we do not know occlusion info.
+            point = track.point3()
+            for k in range(track.numberMeasurements()):
+                i, uv = track.measurement(k)
+                # uv_reprojected, success_flag = cameras[i].projectSafe(point)
+                # if not success_flag:
+                #     import pdb; pdb.set_trace()
+                u, v = uv.astype(np.int32)
+                track_colors.append(images[i].value_array[v, u])
+            avg_color = np.array(track_colors).mean(axis=0)
+            point_cloud_rgb[j] = avg_color
+        # for j, point in enumerate(loader._point_cloud):
+
+        #     # Have to use track to get visibility info.
+        #     track_colors = []
+        #     print(f"On point j={j}")
+        #     for i in range(len(loader)):
+        #         if u < 0 or u >= images[i].width or v < 0 or v >= images[i].height:
+        #             continue
+
     open3d_vis_utils.draw_scene_open3d(
         point_cloud=loader._point_cloud,
-        rgb=np.ones_like(loader._point_cloud).astype(np.uint8),
+        rgb=point_cloud_rgb,
         wTi_list=loader._wTi_list,
         calibrations=[loader.get_camera_intrinsics_full_res(0)] * loader._num_imgs,
         args=args,
@@ -69,6 +103,11 @@ if __name__ == "__main__":
         default=760,
         help="integer representing maximum length of image's short side"
         " e.g. for 1080p (1920 x 1080), max_resolution would be 1080",
+    )
+    parser.add_argument(
+        "--derive_point_colors",
+        action="store_true",
+        help="Derive RGB point colors by projecting each 3D point into images (slow)."
     )
     args = parser.parse_args()
     view_scene(args)
