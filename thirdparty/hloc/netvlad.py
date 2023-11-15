@@ -72,7 +72,7 @@ class NetVLADLayer(nn.Module):
 
 
 class NetVLAD(nn.Module):
-    default_conf = {"model_name": "VGG16-NetVLAD-Pitts30K", "checkpoint_dir": netvlad_path, "whiten": False}
+    default_conf = {"model_name": "VGG16-NetVLAD-Pitts30K", "checkpoint_dir": netvlad_path, "whiten": True}
     required_inputs = ["image"]
 
     # Models exported using
