@@ -11,7 +11,7 @@ Authors: John Lambert, Travis Driver
 
 import numpy as np
 import torch
-from torch import nn
+
 from gtsfm.common.image import Image
 from gtsfm.frontend.global_descriptor.global_descriptor_base import GlobalDescriptorBase
 from thirdparty.hloc.netvlad import NetVLAD
@@ -33,8 +33,6 @@ class NetVLADGlobalDescriptor(GlobalDescriptorBase):
         Returns:
             img_desc: Array of shape (D,) representing global image descriptor.
         """
-        # Load model.
-        # Note: Initializing in the constructor leads to OOM.
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self._model.to(device)
 
