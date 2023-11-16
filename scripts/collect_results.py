@@ -9,16 +9,25 @@ from collections import defaultdict
 from pathlib import Path
 from typing import DefaultDict, Sequence
 
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib import cm
 from tabulate import tabulate
 
 import gtsfm.utils.io as io_utils
 
 
 isp_fname = "verifier_summary_POST_INLIER_SUPPORT_PROCESSOR_2VIEW_REPORT.json"
-isp_metrics = ["rot3_angular_errors_deg", "trans_angular_errors_deg", "pose_errors_deg"]
+isp_metrics = [
+    "rot3_angular_errors_deg",
+    "trans_angular_errors_deg",
+    "pose_errors_deg",
+    "total_correspondence_generation_duration_sec",
+    "total_two_view_estimation_duration_sec",
+]
 
 retriever_fname = "retriever_metrics.json"
-retriever_metrics = ["num_input_images", "num_retrieved_image_pairs"]
+retriever_metrics = ["num_input_images", "num_retrieved_image_pairs", "retriever_duration_sec"]
 
 vg_fname = "view_graph_estimation_metrics.json"
 vg_metrics = [
@@ -37,9 +46,12 @@ ta_metrics = [
     "relative_translation_angle_error_deg",
     "translation_angle_error_deg",
     "total_duration_sec",
-    "outier_rejection_duration_sec",
+    "outlier_rejection_duration_sec",
     "optimization_duration_sec",
 ]
+
+da_fname = "data_association_metrics.json"
+da_metrics = ["triangulation_runtime_sec", "gtsfm_data_creation_runtime", "total_duration_sec"]
 
 ba_result_fname = "bundle_adjustment_metrics.json"
 ba_result_metrics = [
@@ -61,6 +73,9 @@ ba_result_metrics = [
     "total_run_duration_sec",
 ]
 
+total_fname = "total_summary_metrics.json"
+total_metrics = ["total_runtime_sec"]
+
 # Metrics that **do not** have a median + mean value associated.
 SCALAR_METRIC_NAMES = [
     "number_cameras",
@@ -77,22 +92,38 @@ SCALAR_METRIC_NAMES = [
     "step_2_run_duration_sec",
     "total_run_duration_sec",
     "total_duration_sec",
-    "total_duration_sec",
-    "outier_rejection_duration_sec",
+    "outlier_rejection_duration_sec",
     "optimization_duration_sec",
     "num_input_measurements",
     "num_inlier_measurements",
     "num_outlier_measurements",
+    "total_correspondence_generation_duration_sec",
+    "total_two_view_estimation_duration_sec",
+    "triangulation_runtime_sec",
+    "gtsfm_data_creation_runtime",
+    "total_runtime_sec",
+    "retriever_duration_sec"
 ]
 
+SECTION_FILE_NAMES = [retriever_fname, isp_fname, vg_fname, ra_fname, ta_fname, da_fname, ba_result_fname, total_fname]
+SECTION_METRIC_LISTS = [
+    retriever_metrics,
+    isp_metrics,
+    vg_metrics,
+    ra_metrics,
+    ta_metrics,
+    da_metrics,
+    ba_result_metrics,
+    total_metrics,
+]
+SECTION_NICKNAMES = ["retriever", "isp", "vg", "ra", "ta", "da", "ba", "total"]
 
-def main(user_root: Path, output_fpath: str) -> None:
+
+def main(experiment_roots: Sequence[Path], output_fpath: str) -> None:
     """ """
     # Store each column as mappings of (key, value) pairs, where (metric_name, experiment_value).
     table = defaultdict(list)
     headers = ["method_name"]
-
-    experiment_roots = sorted(list(user_root.glob("*-*")))
 
     method_idx = 0
     for experiment_root in experiment_roots:
@@ -102,9 +133,9 @@ def main(user_root: Path, output_fpath: str) -> None:
         table["method_name"].append(frontend_name)
 
         for json_fname, metric_names, nickname in zip(
-            [retriever_fname, isp_fname, vg_fname, ra_fname, ta_fname, ba_result_fname],
-            [retriever_metrics, isp_metrics, vg_metrics, ra_metrics, ta_metrics, ba_result_metrics],
-            ["retriever", "isp", "vg", "ra", "ta", "ba"],
+            SECTION_FILE_NAMES,
+            SECTION_METRIC_LISTS,
+            SECTION_NICKNAMES,
         ):
             section_name = Path(json_fname).stem
             print(f"{dirpath}/{json_fname}")
@@ -132,6 +163,59 @@ def main(user_root: Path, output_fpath: str) -> None:
     save_table_to_tsv(table, headers, output_fpath)
 
 
+def _make_runtime_pie_chart(experiment_roots: Sequence[Path]) -> None:
+    """Make pie chart to depict runtime breakdown for each run."""
+    for experiment_root in experiment_roots:
+
+        runtime_labels = []
+        runtimes = []
+
+        runtimes_sum = 0.0
+        total_runtime = 0.0
+
+        dirpath = Path(experiment_root) / "result_metrics"
+        for json_fname, metric_names, nickname in zip(
+            SECTION_FILE_NAMES,
+            SECTION_METRIC_LISTS,
+            SECTION_NICKNAMES,
+        ):
+            section_name = Path(json_fname).stem
+            json_data = io_utils.read_json_file(f"{dirpath}/{json_fname}")[section_name]
+            for metric_name in metric_names:
+                full_metric_name = f"{nickname}_" + " ".join(metric_name.split("_"))
+                if "sec" not in metric_name:
+                    continue
+
+                runtime = json_data[metric_name]
+                if full_metric_name == "total_total runtime sec":
+                    total_runtime = runtime
+                elif full_metric_name in [
+                    "ta_total duration sec",
+                    "da_total duration sec",
+                    "ba_total run duration sec",
+                ]:
+                    # Section components are measured individually, so ignore section runtime.
+                    pass
+                else:
+                    runtimes_sum += runtime
+                    runtimes.append(runtime)
+                    runtime_labels.append(full_metric_name)
+
+        # Compute and plot unmeasured component.
+        remainder_runtime = total_runtime - runtimes_sum
+        runtime_labels.append("remainder_sec")
+        runtimes.append(remainder_runtime)
+
+        # Create uniform purple to yellow colormap to prevent color re-use in pie chart.
+        n_colors = len(runtimes)
+        cs = cm.viridis(np.arange(n_colors)/n_colors * 1.0)
+
+        fig, ax = plt.subplots(figsize=(15, 10))
+        ax.pie(runtimes, labels=runtime_labels, autopct="%1.1f%%", textprops={"fontsize": 10}, colors=cs)
+        plt.title("Runtime Breakdown for " + str(experiment_root.name))
+        plt.show()
+
+
 def save_table_to_tsv(table: DefaultDict, headers: Sequence[str], output_fpath: str) -> None:
     """Save a table to tsv, with given column headers."""
     content = tabulate(table, headers, tablefmt="tsv")
@@ -155,6 +239,11 @@ if __name__ == "__main__":
         required=True,
         help="Root directory where experiment results are stored, with a subdirectory for each experiment.",
     )
+    parser.add_argument(
+        "--show_runtime_pie_chart",
+        action="store_true",
+        help="Whether to plot runtime breakdown for each experiment as a pie chart (defaults to not display).",
+    )
     args = parser.parse_args()
 
     user_root = Path(args.user_root)
@@ -164,4 +253,9 @@ if __name__ == "__main__":
     if Path(args.output_fpath).suffix != ".tsv":
         raise ValueError("Output file path must end in `.tsv`")
 
-    main(user_root=user_root, output_fpath=args.output_fpath)
+    experiment_roots = sorted(list(user_root.glob("*")))
+    experiment_roots = [d for d in experiment_roots if d.is_dir()]
+
+    main(experiment_roots=experiment_roots, output_fpath=args.output_fpath)
+    if args.show_runtime_pie_chart:
+        _make_runtime_pie_chart(experiment_roots=experiment_roots)

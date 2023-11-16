@@ -12,7 +12,7 @@ from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggreg
 
 
 class KeypointAggregatorUnique(KeypointAggregatorBase):
-    """Keypoint aggregator without de-duplication."""
+    """Keypoint aggregator without de-duplication, allowing for potentially duplicate keypoints per image."""
 
     def aggregate(
         self, keypoints_dict: Dict[Tuple[int, int], Tuple[Keypoints, Keypoints]]

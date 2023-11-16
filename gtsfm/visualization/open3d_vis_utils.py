@@ -88,7 +88,7 @@ def create_all_frustums_open3d(
     wTi_list: List[Pose3],
     calibrations: List[Cal3Bundler],
     frustum_ray_len: float = 0.3,
-    color_names: Tuple[str] = ("red", "green"),
+    color_names: Tuple[str, ...] = ("red", "green"),
 ) -> List[open3d.geometry.LineSet]:
     """Render camera frustums as collections of line segments, using Open3d.
 

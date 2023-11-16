@@ -69,7 +69,7 @@ class TestMetricUtils(unittest.TestCase):
             estimated_intersections.append(intersection.flatten().tolist())
         np.testing.assert_allclose(expected_intersections, estimated_intersections)
 
-    def test_get_stats_for_sfmdata_skydio32(self) -> None:
+    def test_get_metrics_for_sfmdata_skydio32(self) -> None:
         """Verifies that track reprojection errors are returned as NaN if given degenerate input.
 
         The data used below corresponds to camera poses aligned to GT from Skydio-32 sequence with the SIFT front-end,
@@ -169,7 +169,7 @@ class TestMetricUtils(unittest.TestCase):
         aligned_filtered_data = GtsfmData.from_cameras_and_tracks(
             cameras=aligned_cameras, tracks=aligned_tracks, number_images=32
         )
-        metrics = metric_utils.get_stats_for_sfmdata(aligned_filtered_data, suffix="_filtered")
+        metrics = metric_utils.get_metrics_for_sfmdata(aligned_filtered_data, suffix="_filtered")
 
         assert metrics[0].name == "number_cameras"
         assert np.isclose(metrics[0]._data, np.array(5.0, dtype=np.float32))

@@ -37,9 +37,9 @@ class DetDescCorrespondenceGenerator(CorrespondenceGeneratorBase):
         """Apply the correspondence generator to generate putative correspondences.
 
         Args:
-            client: dask client, used to execute the front-end as futures.
-            images: list of all images, as futures.
-            image_pairs: indices of the pairs of images to estimate two-view pose and correspondences.
+            client: Dask client, used to execute the front-end as futures.
+            images: List of all images, as futures.
+            image_pairs: Indices of the pairs of images to estimate two-view pose and correspondences.
 
         Returns:
             List of keypoints, one entry for each input images.

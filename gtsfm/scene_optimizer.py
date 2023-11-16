@@ -4,6 +4,8 @@ Authors: Ayush Baid, John Lambert
 """
 import logging
 import os
+import shutil
+import time
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -23,12 +25,13 @@ import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.viz as viz_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
+from gtsfm.retriever.image_pairs_generator import ImagePairsGenerator
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.densify.mvs_base import MVSBase
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
-from gtsfm.retriever.retriever_base import RetrieverBase, ImageMatchingRegime
+from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.two_view_estimator import (
     POST_ISP_REPORT_TAG,
     VIEWGRAPH_REPORT_TAG,
@@ -59,20 +62,19 @@ class SceneOptimizer:
 
     def __init__(
         self,
-        retriever: RetrieverBase,
+        image_pairs_generator: ImagePairsGenerator,
         correspondence_generator: CorrespondenceGeneratorBase,
         two_view_estimator: TwoViewEstimator,
         multiview_optimizer: MultiViewOptimizer,
         dense_multiview_optimizer: Optional[MVSBase] = None,
         save_two_view_correspondences_viz: bool = False,
-        save_3d_viz: bool = True,
+        save_3d_viz: bool = False,
         save_gtsfm_data: bool = True,
-        pose_angular_error_thresh: float = 3,
+        pose_angular_error_thresh: float = 3,  # in degrees
         output_root: str = DEFAULT_OUTPUT_ROOT,
         output_worker: Optional[str] = None,
     ) -> None:
-        """pose_angular_error_thresh is given in degrees"""
-        self.retriever = retriever
+        self.image_pairs_generator = image_pairs_generator
         self.correspondence_generator = correspondence_generator
         self.two_view_estimator = two_view_estimator
         self.multiview_optimizer = multiview_optimizer
@@ -91,7 +93,7 @@ class SceneOptimizer:
     def __repr__(self) -> str:
         """Returns string representation of class."""
         return f"""
-        {self.retriever}
+        {self.image_pairs_generator}
         {self.correspondence_generator}
         {self.two_view_estimator}
         {self.multiview_optimizer}
@@ -172,7 +174,7 @@ class SceneOptimizer:
         # Persist all front-end metrics and their summaries.
         # TODO(akshay-krishnan): this delays saving the frontend reports until MVO has completed, not ideal.
         metrics_graph_list: List[Delayed] = []
-        save_retrieval_metrics = self.retriever._matching_regime in [
+        save_retrieval_metrics = self.image_pairs_generator._retriever._matching_regime in [
             ImageMatchingRegime.RETRIEVAL,
             ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL,
         ]
@@ -220,8 +222,8 @@ class SceneOptimizer:
         annotation = dask.annotate(workers=self._output_worker) if self._output_worker else dask.annotate()
         with annotation:
             if self._save_gtsfm_data:
-                delayed_results.extend(
-                    save_gtsfm_data(
+                delayed_results.append(
+                    dask.delayed(save_gtsfm_data)(
                         images,
                         ba_input_graph,
                         ba_output_graph,
@@ -231,7 +233,7 @@ class SceneOptimizer:
                 )
                 if self._save_3d_viz:
                     delayed_results.extend(
-                        save_visualizations(
+                        save_matplotlib_visualizations(
                             aligned_ba_input_graph=ba_input_graph,
                             aligned_ba_output_graph=ba_output_graph,
                             gt_pose_graph=gt_wTi_list,
@@ -260,7 +262,7 @@ class SceneOptimizer:
                     )
                 )
 
-            # Add metrics for dense reconstruction and voxel downsampling
+            # Add metrics for dense reconstruction and voxel downsampling.
             if densify_metrics_graph is not None:
                 metrics_graph_list.append(densify_metrics_graph)
             if downsampling_metrics_graph is not None:
@@ -306,14 +308,14 @@ def align_estimated_gtsfm_data(
     return ba_input, ba_output, gt_wTi_list
 
 
-def save_visualizations(
+def save_matplotlib_visualizations(
     aligned_ba_input_graph: Delayed,
     aligned_ba_output_graph: Delayed,
     gt_pose_graph: List[Optional[Delayed]],
     plot_ba_input_path: Path,
     plot_results_path: Path,
 ) -> List[Delayed]:
-    """Save SfmData before and after bundle adjustment and camera poses for visualization.
+    """Visualizes GtsfmData & camera poses before and after bundle adjustment using Matplotlib.
 
     Accepts delayed GtsfmData before and after bundle adjustment, along with GT poses,
     saves them and returns a delayed object.
@@ -362,55 +364,55 @@ def get_gtsfm_data_with_gt_cameras_and_est_tracks(
 
 
 def save_gtsfm_data(
-    image_graph: List[Delayed],
-    ba_input_graph: Delayed,
-    ba_output_graph: Delayed,
+    images: List[Image],
+    ba_input_data: GtsfmData,
+    ba_output_data: GtsfmData,
     results_path: Path,
     cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
-) -> List[Delayed]:
+) -> None:
     """Saves the Gtsfm data before and after bundle adjustment.
 
     Args:
-        image_graph: Input image wrapped as Delayed objects.
-        ba_input_graph: GtsfmData input to bundle adjustment wrapped as Delayed.
-        ba_output_graph: GtsfmData output to bundle adjustment wrapped as Delayed.
+        images: Input images.
+        ba_input_data: GtsfmData input to bundle adjustment.
+        ba_output_data: GtsfmData output to bundle adjustment.
         results_path: Path to directory where GTSFM results will be saved.
-
-    Returns:
-        A list of delayed objects after saving the input and outputs to bundle adjustment.
     """
-    saving_graph_list = []
-    # Save a duplicate in REACT_RESULTS_PATH.
-    for output_dir in [results_path, REACT_RESULTS_PATH]:
-        # Save the input to Bundle Adjustment (from data association).
-        saving_graph_list.append(
-            dask.delayed(io_utils.export_model_as_colmap_text)(
-                gtsfm_data=ba_input_graph,
-                images=image_graph,
-                save_dir=os.path.join(output_dir, "ba_input"),
-            )
-        )
-        # Save the output of Bundle Adjustment.
-        saving_graph_list.append(
-            dask.delayed(io_utils.export_model_as_colmap_text)(
-                gtsfm_data=ba_output_graph,
-                images=image_graph,
-                save_dir=os.path.join(output_dir, "ba_output"),
-            )
-        )
+    start_time = time.time()
 
-        # Save the ground truth in the same format, for visualization.
-        # We use the estimated tracks here, with ground truth camera poses.
-        gt_gtsfm_data = dask.delayed(get_gtsfm_data_with_gt_cameras_and_est_tracks)(cameras_gt, ba_output_graph)
-        saving_graph_list.append(
-            dask.delayed(io_utils.export_model_as_colmap_text)(
-                gtsfm_data=gt_gtsfm_data,
-                images=image_graph,
-                save_dir=os.path.join(output_dir, "ba_output_gt"),
-            )
-        )
+    output_dir = results_path
+    # Save the input to Bundle Adjustment (from data association).
+    io_utils.export_model_as_colmap_text(
+        gtsfm_data=ba_input_data,
+        images=images,
+        save_dir=os.path.join(output_dir, "ba_input"),
+    )
 
-    return saving_graph_list
+    # Save the output of Bundle Adjustment.
+    io_utils.export_model_as_colmap_text(
+        gtsfm_data=ba_output_data,
+        images=images,
+        save_dir=os.path.join(output_dir, "ba_output"),
+    )
+
+    # Save the ground truth in the same format, for visualization.
+    # We use the estimated tracks here, with ground truth camera poses.
+    gt_gtsfm_data = get_gtsfm_data_with_gt_cameras_and_est_tracks(cameras_gt, ba_output_data)
+
+    io_utils.export_model_as_colmap_text(
+        gtsfm_data=gt_gtsfm_data,
+        images=images,
+        save_dir=os.path.join(output_dir, "ba_output_gt"),
+    )
+
+    # Delete old version of React results directory.
+    shutil.rmtree(REACT_RESULTS_PATH)
+    # Save a duplicate copy of the directory in REACT_RESULTS_PATH.
+    shutil.copytree(src=results_path, dst=REACT_RESULTS_PATH)
+
+    end_time = time.time()
+    duration_sec = end_time - start_time
+    logger.info("GtsfmData I/O took %.2f sec.", duration_sec)
 
 
 def save_full_frontend_metrics(

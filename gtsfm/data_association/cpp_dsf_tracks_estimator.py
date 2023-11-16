@@ -49,24 +49,29 @@ class CppDsfTracksEstimator(TracksEstimatorBase):
         # Check to ensure dimensions of coordinates are correct.
         dims_valid = all([kps.coordinates.ndim == 2 for kps in keypoints_list])
         if not dims_valid:
-            raise Exception("Dimensions for Keypoint coordinates incorrect. Array needs to be 2D")
+            error_str = " ".join(
+                [
+                    f"i={i}: shape={kps.coordinates.shape},"
+                    for i, kps in enumerate(keypoints_list)
+                    if kps.coordinates.ndim != 2
+                ]
+            )
+            raise ValueError(
+                f"Dimensions for Keypoint coordinates incorrect. Array needs to be 2D, but found {error_str}"
+            )
 
         # For each image pair (i1,i2), we provide a (K,2) matrix of corresponding keypoint indices (k1,k2).
         # (Converts python dict into gtsam.MatchIndicesMap.)
         matches_map = gtsam.MatchIndicesMap()
         for (i1, i2), corr_idxs in matches_dict.items():
-            matches_map[gtsam.IndexPair(i1, i2)] = corr_idxs
+            matches_map[gtsam.IndexPair(i1, i2)] = corr_idxs.astype(np.int32)
 
         # Convert gtsfm Keypoints into gtsam Keypoints.
         keypoints_vector = gtsam.KeypointsVector()
         for keypoint in keypoints_list:
             keypoints_vector.append(gtsam.gtsfm.Keypoints(keypoint.coordinates))
 
-        tracks = gtsam.gtsfm.tracksFromPairwiseMatches(
-            matches_map,
-            keypoints_vector,
-            verbose=True,
-        )
+        tracks = gtsam.gtsfm.tracksFromPairwiseMatches(matches_map, keypoints_vector, verbose=True)
 
         track_2d_list = []
         for track in tracks:

@@ -43,10 +43,10 @@ def view_scene(args: argparse.Namespace) -> None:
         args: Rendering options.
     """
     # Read in data.
-    wTi_list, img_fnames, calibrations, point_cloud, rgb = io_utils.read_scene_data_from_colmap_format(
+    wTi_list, img_fnames, calibrations, point_cloud, rgb, _ = io_utils.read_scene_data_from_colmap_format(
         data_dir=args.output_dir
     )
-    if args.show_mvs_result:
+    if args.ply_fpath is not None:
         point_cloud, rgb = io_utils.read_point_cloud_from_ply(args.ply_fpath)
 
     if len(calibrations) == 1:
@@ -67,7 +67,6 @@ def view_scene(args: argparse.Namespace) -> None:
 
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser(description="Visualize GTSFM result with Open3d.")
     parser.add_argument(
         "--output_dir",
@@ -104,14 +103,9 @@ if __name__ == "__main__":
         + "(increase length for large-scale scenes to make frustums visible)",
     )
     parser.add_argument(
-        "--show_mvs_result",
-        action="store_true",
-        help="defaults to false.",
-    )
-    parser.add_argument(
         "--ply_fpath",
         type=str,
-        default=os.path.join(REPO_ROOT, "results", "mvs_output", "dense_pointcloud.ply"),
+        default=None,
         help="Path to MVS output (.ply file).",
     )
 
