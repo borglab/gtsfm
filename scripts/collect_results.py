@@ -151,8 +151,8 @@ def main(experiment_roots: Sequence[Path], output_fpath: str) -> None:
                     print(f"{metric_name}: {json_data[metric_name]}")
                     table[full_metric_name].append(json_data[metric_name])
                 else:
-                    med = f"{json_data[metric_name]['summary']['median']:.2f}"
-                    mean = f"{json_data[metric_name]['summary']['mean']:.2f}"
+                    med = f"{json_data[metric_name]['summary']['median']:.1f}"
+                    mean = f"{json_data[metric_name]['summary']['mean']:.1f}"
                     print(f"Med / Median {metric_name}: {med} / {mean}")
                     table[full_metric_name].append(f"{med} / {mean}")
         method_idx += 1
@@ -166,6 +166,9 @@ def main(experiment_roots: Sequence[Path], output_fpath: str) -> None:
 def _make_runtime_pie_chart(experiment_roots: Sequence[Path]) -> None:
     """Make pie chart to depict runtime breakdown for each run."""
     for experiment_root in experiment_roots:
+
+        if "num_matched5__maxframelookahead10" not in experiment_root:
+            continue
 
         runtime_labels = []
         runtimes = []
