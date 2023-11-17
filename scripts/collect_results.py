@@ -151,8 +151,8 @@ def main(experiment_roots: Sequence[Path], output_fpath: str) -> None:
                     print(f"{metric_name}: {json_data[metric_name]}")
                     table[full_metric_name].append(json_data[metric_name])
                 else:
-                    med = f"{json_data[metric_name]['summary']['median']:.2f}"
-                    mean = f"{json_data[metric_name]['summary']['mean']:.2f}"
+                    med = f"{json_data[metric_name]['summary']['median']:.1f}"
+                    mean = f"{json_data[metric_name]['summary']['mean']:.1f}"
                     print(f"Med / Median {metric_name}: {med} / {mean}")
                     table[full_metric_name].append(f"{med} / {mean}")
         method_idx += 1
