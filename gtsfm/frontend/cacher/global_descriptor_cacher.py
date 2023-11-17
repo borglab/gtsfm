@@ -44,6 +44,7 @@ class GlobalDescriptorCacher(GlobalDescriptorBase):
     def __generate_cache_key(self, image: Image) -> str:
         """Generates the cache key from the input image and underlying global descriptor."""
         input_key = cache_utils.generate_hash_for_image(image)
+        # Concatenate class name and image array hash.
         return "{}_{}".format(self._global_descriptor_obj_cache_key, input_key)
 
     def __load_result_from_cache(self, image: Image) -> Optional[np.ndarray]:
@@ -70,7 +71,7 @@ class GlobalDescriptorCacher(GlobalDescriptorBase):
         details about the output format.
 
         Args:
-            image: the input image.
+            image: The input image.
 
         Returns:
             Global image descriptor, of shape (D,).
