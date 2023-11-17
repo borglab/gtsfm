@@ -7,6 +7,8 @@ now=$(date +"%Y%m%d_%H%M%S")
 
 
 datasets=(
+        # Tanks and Temples Dataset.
+	barn-tanks-and-temples-410
 	# Olsson Datasets.
 	# See https://www.maths.lth.se/matematiklth/personal/calle/dataset/dataset.html
 	ecole-superieure-de-guerre-35
@@ -93,7 +95,12 @@ for num_matched in ${num_matched_sizes[@]}; do
 				echo "Correspondence Generator: ${correspondence_generator_config_name}"
 				echo "Num workers: ${num_workers}"
 
-				if [[ $dataset == *"palace-fine-arts-281"* ]]
+                                if [[ $dataset == *"barn-tanks-and-temples-410"* ]]
+				then
+                                        loader=colmap
+					images_dir=/usr/local/gtsfm-data/Tanks_and_Temples_Barn_410/Barn
+                                        colmap_files_dirpath=/usr/local/gtsfm-data/Tanks_and_Temples_Barn_410/colmap_gt_2023_11_15_2250_highquality
+				elif [[ $dataset == *"palace-fine-arts-281"* ]]
 				then
 					loader=olsson
 					dataset_root=/usr/local/gtsfm-data/palace-fine-arts-281
