@@ -167,9 +167,6 @@ def _make_runtime_pie_chart(experiment_roots: Sequence[Path]) -> None:
     """Make pie chart to depict runtime breakdown for each run."""
     for experiment_root in experiment_roots:
 
-        if "num_matched5__maxframelookahead10" not in experiment_root:
-            continue
-
         runtime_labels = []
         runtimes = []
 
