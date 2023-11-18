@@ -22,12 +22,12 @@ isp_metrics = [
     "rot3_angular_errors_deg",
     "trans_angular_errors_deg",
     "pose_errors_deg",
-    # "total_correspondence_generation_duration_sec",
-    # "total_two_view_estimation_duration_sec",
+    "total_correspondence_generation_duration_sec",
+    "total_two_view_estimation_duration_sec",
 ]
 
 retriever_fname = "retriever_metrics.json"
-retriever_metrics = ["num_input_images", "num_retrieved_image_pairs"]#, "retriever_duration_sec"]
+retriever_metrics = ["num_input_images", "num_retrieved_image_pairs", "retriever_duration_sec"]
 
 vg_fname = "view_graph_estimation_metrics.json"
 vg_metrics = [
@@ -39,15 +39,15 @@ vg_metrics = [
 ]
 
 ra_fname = "rotation_averaging_metrics.json"
-ra_metrics = ["rotation_angle_error_deg"]#, "total_duration_sec"]
+ra_metrics = ["rotation_angle_error_deg", "total_duration_sec"]
 
 ta_fname = "translation_averaging_metrics.json"
 ta_metrics = [
     "relative_translation_angle_error_deg",
     "translation_angle_error_deg",
-    # "total_duration_sec",
-    # "outlier_rejection_duration_sec",
-    # "optimization_duration_sec",
+    "total_duration_sec",
+    "outlier_rejection_duration_sec",
+    "optimization_duration_sec",
 ]
 
 da_fname = "data_association_metrics.json"
@@ -67,14 +67,14 @@ ba_result_metrics = [
     "pose_auc_@5_deg",
     "pose_auc_@10_deg",
     "pose_auc_@20_deg",
-    # "step_0_run_duration_sec",
-    # "step_1_run_duration_sec",
-    # "step_2_run_duration_sec",
-    # "total_run_duration_sec",
+    "step_0_run_duration_sec",
+    "step_1_run_duration_sec",
+    "step_2_run_duration_sec",
+    "total_run_duration_sec",
 ]
 
 total_fname = "total_summary_metrics.json"
-total_metrics = []#"total_runtime_sec"]
+total_metrics = ["total_runtime_sec"]
 
 # Metrics that **do not** have a median + mean value associated.
 SCALAR_METRIC_NAMES = [
@@ -102,7 +102,7 @@ SCALAR_METRIC_NAMES = [
     "triangulation_runtime_sec",
     "gtsfm_data_creation_runtime",
     "total_runtime_sec",
-    "retriever_duration_sec"
+    "retriever_duration_sec",
 ]
 
 SECTION_FILE_NAMES = [retriever_fname, isp_fname, vg_fname, ra_fname, ta_fname, da_fname, ba_result_fname, total_fname]
@@ -127,7 +127,6 @@ def main(experiment_roots: Sequence[Path], output_fpath: str) -> None:
 
     method_idx = 0
     for experiment_root in experiment_roots:
-
         dirpath = Path(experiment_root) / "result_metrics"
         frontend_name = Path(experiment_root).name
         table["method_name"].append(frontend_name)
@@ -166,7 +165,6 @@ def main(experiment_roots: Sequence[Path], output_fpath: str) -> None:
 def _make_runtime_pie_chart(experiment_roots: Sequence[Path]) -> None:
     """Make pie chart to depict runtime breakdown for each run."""
     for experiment_root in experiment_roots:
-
         runtime_labels = []
         runtimes = []
 
@@ -208,7 +206,7 @@ def _make_runtime_pie_chart(experiment_roots: Sequence[Path]) -> None:
 
         # Create uniform purple to yellow colormap to prevent color re-use in pie chart.
         n_colors = len(runtimes)
-        cs = cm.viridis(np.arange(n_colors)/n_colors * 1.0)
+        cs = cm.viridis(np.arange(n_colors) / n_colors * 1.0)
 
         fig, ax = plt.subplots(figsize=(15, 10))
         ax.pie(runtimes, labels=runtime_labels, autopct="%1.1f%%", textprops={"fontsize": 10}, colors=cs)
@@ -225,7 +223,6 @@ def save_table_to_tsv(table: DefaultDict, headers: Sequence[str], output_fpath: 
 
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--output_fpath",
