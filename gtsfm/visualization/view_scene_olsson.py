@@ -36,7 +36,6 @@ def view_scene(args: argparse.Namespace) -> None:
     point_cloud_rgb = np.zeros(shape=loader._point_cloud.shape, dtype=np.uint8)
     if args.derive_point_colors:
         images = {i: loader.get_image(i) for i in range(len(loader))}
-        cameras = {i: loader.get_camera(i) for i in range(len(loader))}
 
         if args.visualize_gt_tracks:
             tracks_2d = loader.gt_tracks_2d
@@ -46,8 +45,6 @@ def view_scene(args: argparse.Namespace) -> None:
             track_colors = []
             # NOTE: We cannot naively project 3d point into images since we do not know occlusion info.
             # Have to use track to get visibility info.
-            point = track.point3()
-            patches = []
             for k in range(track.numberMeasurements()):
                 i, uv = track.measurement(k)
                 u, v = uv.astype(np.int32)
