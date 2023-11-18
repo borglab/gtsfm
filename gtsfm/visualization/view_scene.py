@@ -65,7 +65,7 @@ def view_scene(args: argparse.Namespace) -> None:
 
     # LIGHT BLUE: (173, 216, 230)
     # import pdb; pdb.set_trace()
-    is_light_blue = rgb[:, 2] > 220 # rgb[:, 0] > 100) & (rgb[:, 1] > 100) &
+    is_light_blue = rgb[:, 2] > 220  # rgb[:, 0] > 100) & (rgb[:, 1] > 100) &
     mask = np.logical_not(is_light_blue)
     rgb = rgb[mask]
     point_cloud = point_cloud[mask]

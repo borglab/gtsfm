@@ -34,19 +34,15 @@ def view_scene(args: argparse.Namespace) -> None:
     )
 
     point_cloud_rgb = np.zeros(shape=loader._point_cloud.shape, dtype=np.uint8)
-    derive_point_colors = True
     if derive_point_colors:
-
-        images = {i:loader.get_image(i) for i in range(len(loader))}
-        cameras = {i:loader.get_camera(i) for i in range(len(loader))}
+        images = {i: loader.get_image(i) for i in range(len(loader))}
+        cameras = {i: loader.get_camera(i) for i in range(len(loader))}
 
         if args.visualize_gt_tracks:
             tracks_2d = loader.gt_tracks_2d
             io_utils.save_track_visualizations(tracks_2d, images, save_dir=os.path.join("plots", "tracks_2d_olsson"))
 
-        tracks = loader.gt_tracks_3d
-
-        for j, track in enumerate(tracks):
+        for j, track in enumerate(loader.gt_tracks_3d):
             track_colors = []
             # NOTE: We cannot naively project 3d point into images since we do not know occlusion info.
             # Have to use track to get visibility info.
@@ -94,19 +90,21 @@ if __name__ == "__main__":
     parser.add_argument(
         "--max_resolution",
         type=int,
-        default=760,
-        help="integer representing maximum length of image's short side"
+        default=1296,
+        help="Integer representing maximum length of original image's short side"
         " e.g. for 1080p (1920 x 1080), max_resolution would be 1080",
     )
     parser.add_argument(
         "--derive_point_colors",
         action="store_true",
-        help="Derive RGB point colors by projecting each 3D point into images (slow)."
+        help="Derive RGB point colors by projecting each 3D point into images (slow). Requires `max_resolution` to be "
+        "set to original image resolution.",
     )
     parser.add_argument(
         "--visualize_gt_tracks",
         action="store_true",
-        help="Save visualizations of ground-truth 2d tracks, as vertically stacked image patches."
+        help="Save visualizations of ground-truth 2d tracks, as vertically stacked image patches. Requires "
+        "`max_resolution` to be set to original image resolution.",
     )
     args = parser.parse_args()
     view_scene(args)
