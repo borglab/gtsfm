@@ -63,13 +63,6 @@ def view_scene(args: argparse.Namespace) -> None:
     for i in range(len(wTi_list)):
         wTi_list[i] = zcwTw.compose(wTi_list[i])
 
-    # LIGHT BLUE: (173, 216, 230)
-    # import pdb; pdb.set_trace()
-    is_light_blue = rgb[:, 2] > 220  # rgb[:, 0] > 100) & (rgb[:, 1] > 100) &
-    mask = np.logical_not(is_light_blue)
-    rgb = rgb[mask]
-    point_cloud = point_cloud[mask]
-
     draw_scene_open3d(point_cloud, rgb, wTi_list, calibrations, args)
 
 
