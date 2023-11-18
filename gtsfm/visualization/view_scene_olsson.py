@@ -34,7 +34,7 @@ def view_scene(args: argparse.Namespace) -> None:
     )
 
     point_cloud_rgb = np.zeros(shape=loader._point_cloud.shape, dtype=np.uint8)
-    if derive_point_colors:
+    if args.derive_point_colors:
         images = {i: loader.get_image(i) for i in range(len(loader))}
         cameras = {i: loader.get_camera(i) for i in range(len(loader))}
 
