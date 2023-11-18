@@ -6,9 +6,10 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 import numpy as np
-from gtsam import Cal3Bundler, Pose3, Rot3
+from gtsam import Cal3Bundler, Pose3, Rot3, SfmTrack
 
 import gtsfm.utils.io as io_utils
+from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.loader.olsson_loader import OlssonLoader
 
 DATA_ROOT_PATH = Path(__file__).resolve().parent.parent / "data"
@@ -32,6 +33,20 @@ class TestFolderLoader(unittest.TestCase):
         """Test the number of entries in the loader."""
 
         self.assertEqual(12, len(self.loader))
+
+    def test_gt_tracks_2d(self) -> None:
+        """Tests that ground truth 2d tracks (as GTSFM `SfmTrack2d` objects) can be retrieved."""
+        gt_tracks_2d = self.loader.gt_tracks_2d
+        self.assertTrue(isinstance(gt_tracks_2d, list))
+        self.assertTrue(len(gt_tracks_2d) > 0)
+        self.assertTrue(isinstance(gt_tracks_2d[0], SfmTrack2d))
+
+    def test_gt_tracks_3d(self) -> None:
+        """Tests that ground truth 3d tracks (as GTSAM `SfmTrack` objects) can be retrieved."""
+        gt_tracks_3d = self.loader.gt_tracks_3d
+        self.assertTrue(isinstance(gt_tracks_3d, list))
+        self.assertTrue(len(gt_tracks_3d) > 0)
+        self.assertTrue(isinstance(gt_tracks_3d[0], SfmTrack))
 
     def test_get_image_valid_index(self) -> None:
         """Tests that get_image works for all valid indices."""

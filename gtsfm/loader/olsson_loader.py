@@ -14,6 +14,7 @@ from gtsam import Cal3Bundler, Pose3, SfmTrack
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.verification as verification_utils
 from gtsfm.common.image import Image
+from gtsfm.common.sfm_track import SfmMeasurement, SfmTrack2d
 from gtsfm.loader.loader_base import LoaderBase
 
 
@@ -96,8 +97,21 @@ class OlssonLoader(LoaderBase):
         self._point_cloud = data["U"].T[:, :3]
 
     @property
-    def gt_tracks(self) -> List[SfmTrack]:
-        """Retrieves ground-truth point tracks."""
+    def gt_tracks_2d(self) -> List[SfmTrack2d]:
+        """Retrieves 2d ground-truth point tracks."""
+        tracks_2d = []
+        tracks_3d = self.gt_tracks_3d
+        for track_3d in tracks_3d:
+            measurements_2d = []
+            for k in range(track_3d.numberMeasurements()):
+                i, uv = track_3d.measurement(k)
+                measurements_2d.append(SfmMeasurement(i, uv)) 
+            tracks_2d.append(SfmTrack2d(measurements_2d))
+        return tracks_2d
+
+    @property
+    def gt_tracks_3d(self) -> List[SfmTrack]:
+        """Retrieves 3d ground-truth point tracks."""
         cam_matrices_fpath = os.path.join(self._folder, "data.mat")
         if not Path(cam_matrices_fpath).exists():
             raise ValueError("Ground truth data file missing.")
@@ -124,6 +138,9 @@ class OlssonLoader(LoaderBase):
                 uv = np.squeeze(keypoint_coords[k,:2])
                 track_3d.addMeasurement(i, uv)
 
+            if track_3d.numberMeasurements() == 0:
+                # Empty track in ground truth.
+                continue
             tracks.append(track_3d)
 
         return tracks

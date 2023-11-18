@@ -11,6 +11,7 @@ from pathlib import Path
 
 import numpy as np
 
+import gtsfm.utils.io as io_utils
 import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
 from gtsfm.loader.olsson_loader import OlssonLoader
 
@@ -36,34 +37,27 @@ def view_scene(args: argparse.Namespace) -> None:
     derive_point_colors = True
     if derive_point_colors:
 
-        tracks = loader.gt_tracks
-
-        cameras = {i:loader.get_camera(i) for i in range(len(loader))}
         images = {i:loader.get_image(i) for i in range(len(loader))}
+        cameras = {i:loader.get_camera(i) for i in range(len(loader))}
+
+        if args.visualize_gt_tracks:
+            tracks_2d = loader.gt_tracks_2d
+            io_utils.save_track_visualizations(tracks_2d, images, save_dir=os.path.join("plots", "tracks_2d_olsson"))
+
+        tracks = loader.gt_tracks_3d
 
         for j, track in enumerate(tracks):
-            if track.numberMeasurements() == 0:
-                continue
             track_colors = []
-            # Cannot naively project 3d point into images since we do not know occlusion info.
+            # NOTE: We cannot naively project 3d point into images since we do not know occlusion info.
+            # Have to use track to get visibility info.
             point = track.point3()
+            patches = []
             for k in range(track.numberMeasurements()):
                 i, uv = track.measurement(k)
-                # uv_reprojected, success_flag = cameras[i].projectSafe(point)
-                # if not success_flag:
-                #     import pdb; pdb.set_trace()
                 u, v = uv.astype(np.int32)
                 track_colors.append(images[i].value_array[v, u])
             avg_color = np.array(track_colors).mean(axis=0)
             point_cloud_rgb[j] = avg_color
-        # for j, point in enumerate(loader._point_cloud):
-
-        #     # Have to use track to get visibility info.
-        #     track_colors = []
-        #     print(f"On point j={j}")
-        #     for i in range(len(loader)):
-        #         if u < 0 or u >= images[i].width or v < 0 or v >= images[i].height:
-        #             continue
 
     open3d_vis_utils.draw_scene_open3d(
         point_cloud=loader._point_cloud,
@@ -108,6 +102,11 @@ if __name__ == "__main__":
         "--derive_point_colors",
         action="store_true",
         help="Derive RGB point colors by projecting each 3D point into images (slow)."
+    )
+    parser.add_argument(
+        "--visualize_gt_tracks",
+        action="store_true",
+        help="Save visualizations of ground-truth 2d tracks, as vertically stacked image patches."
     )
     args = parser.parse_args()
     view_scene(args)
