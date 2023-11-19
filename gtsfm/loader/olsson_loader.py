@@ -96,12 +96,10 @@ class OlssonLoader(LoaderBase):
         # GT 3d structure (point cloud)
         self._point_cloud = data["U"].T[:, :3]
 
-    @property
-    def gt_tracks_2d(self) -> List[SfmTrack2d]:
+    def get_gt_tracks_2d(self) -> List[SfmTrack2d]:
         """Retrieves 2d ground-truth point tracks."""
         tracks_2d = []
-        tracks_3d = self.gt_tracks_3d
-        for track_3d in tracks_3d:
+        for track_3d in self.get_gt_tracks_3d():
             measurements_2d = []
             for k in range(track_3d.numberMeasurements()):
                 i, uv = track_3d.measurement(k)
@@ -109,8 +107,7 @@ class OlssonLoader(LoaderBase):
             tracks_2d.append(SfmTrack2d(measurements_2d))
         return tracks_2d
 
-    @property
-    def gt_tracks_3d(self) -> List[SfmTrack]:
+    def get_gt_tracks_3d(self) -> List[SfmTrack]:
         """Retrieves 3d ground-truth point tracks."""
         cam_matrices_fpath = os.path.join(self._folder, "data.mat")
         if not Path(cam_matrices_fpath).exists():
@@ -119,18 +116,18 @@ class OlssonLoader(LoaderBase):
         data = scipy.io.loadmat(cam_matrices_fpath)
 
         tracks = []
-        # `u_uncalib` contains two cells
+        # `u_uncalib` contains two cells.
         for j, point in enumerate(self._point_cloud):
 
             track_3d = SfmTrack(point)
             for i in range(len(self)):
 
-                # (3, num_visible_points). u_uncalib.points{i} contains imagepoints.
-                # Transpose to (num_visible_points,3)
+                # u_uncalib.points{i} contains homogeneous image keypoints w/ shape (3, num_visible_points).
+                # Transpose to (num_visible_points, 3)
                 keypoint_coords = data['u_uncalib'][0,0][1][i][0].T
 
                 # u_uncalib.index{i} contains the indices of the 3D points corresponding to u_uncalib.points{i}.
-                # (1, num_visible_points)
+                # shape: (1, num_visible_points)
                 if j not in data['u_uncalib'][0,0][2][i][0]:
                     continue
 

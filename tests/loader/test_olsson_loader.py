@@ -34,16 +34,16 @@ class TestFolderLoader(unittest.TestCase):
 
         self.assertEqual(12, len(self.loader))
 
-    def test_gt_tracks_2d(self) -> None:
+    def test_get_gt_tracks_2d(self) -> None:
         """Tests that ground truth 2d tracks (as GTSFM `SfmTrack2d` objects) can be retrieved."""
-        gt_tracks_2d = self.loader.gt_tracks_2d
+        gt_tracks_2d = self.loader.get_gt_tracks_2d()
         self.assertTrue(isinstance(gt_tracks_2d, list))
         self.assertTrue(len(gt_tracks_2d) > 0)
         self.assertTrue(isinstance(gt_tracks_2d[0], SfmTrack2d))
 
-    def test_gt_tracks_3d(self) -> None:
+    def test_get_gt_tracks_3d(self) -> None:
         """Tests that ground truth 3d tracks (as GTSAM `SfmTrack` objects) can be retrieved."""
-        gt_tracks_3d = self.loader.gt_tracks_3d
+        gt_tracks_3d = self.loader.get_gt_tracks_3d()
         self.assertTrue(isinstance(gt_tracks_3d, list))
         self.assertTrue(len(gt_tracks_3d) > 0)
         self.assertTrue(isinstance(gt_tracks_3d[0], SfmTrack))

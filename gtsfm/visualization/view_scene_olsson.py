@@ -38,10 +38,10 @@ def view_scene(args: argparse.Namespace) -> None:
         images = {i: loader.get_image(i) for i in range(len(loader))}
 
         if args.visualize_gt_tracks:
-            tracks_2d = loader.gt_tracks_2d
+            tracks_2d = loader.get_gt_tracks_2d()
             io_utils.save_track_visualizations(tracks_2d, images, save_dir=os.path.join("plots", "tracks_2d_olsson"))
 
-        for j, track in enumerate(loader.gt_tracks_3d):
+        for j, track in enumerate(loader.get_gt_tracks_3d()):
             track_colors = []
             # NOTE: We cannot naively project 3d point into images since we do not know occlusion info.
             # Have to use track to get visibility info.
