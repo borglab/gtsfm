@@ -534,7 +534,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         else:
             w_i2Ui1_dict_inliers = w_i2Ui1_dict
             w_i2Ui1_dict_tracks_inliers = w_i2Ui1_dict_tracks
-            inlier_cameras = valid_cameras
+
         inlier_computation_time = time.time() - inlier_computation_start_time
 
         averaging_start_time = time.time()
