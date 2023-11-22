@@ -291,13 +291,13 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         inlier_w_i2Ui1_dict = {}
         inlier_w_iUj_dict_tracks = {}
         inlier_cameras: Set[int] = set()
-        for (i1, i2) in w_i2Ui1_dict:
+        for i1, i2 in w_i2Ui1_dict:
             if (C(i2), C(i1)) in inliers:  # there is a flip in indices from w_i2Ui1_dict to inliers.
                 inlier_w_i2Ui1_dict[(i1, i2)] = w_i2Ui1_dict[(i1, i2)]
                 inlier_cameras.add(i1)
                 inlier_cameras.add(i2)
 
-        for (j, i) in w_iUj_dict_tracks:
+        for j, i in w_iUj_dict_tracks:
             # Same as above, `inliers` contains symbols that are flipped - C(i), L(j).
             # Only add an inlier camera-track measurements if the camera has other camera-camera inliers.
             if (C(i), L(j)) in inliers and i in inlier_cameras:
@@ -527,9 +527,14 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             w_i2Ui1_dict_tracks = {}
 
         inlier_computation_start_time = time.time()
-        w_i2Ui1_dict_inliers, w_i2Ui1_dict_tracks_inliers, inlier_cameras = self.compute_inliers(
-            w_i2Ui1_dict, w_i2Ui1_dict_tracks
-        )
+        if self._reject_outliers:
+            w_i2Ui1_dict_inliers, w_i2Ui1_dict_tracks_inliers, inlier_cameras = self.compute_inliers(
+                w_i2Ui1_dict, w_i2Ui1_dict_tracks
+            )
+        else:
+            w_i2Ui1_dict_inliers = w_i2Ui1_dict
+            w_i2Ui1_dict_tracks_inliers = w_i2Ui1_dict_tracks
+
         inlier_computation_time = time.time() - inlier_computation_start_time
 
         averaging_start_time = time.time()
@@ -610,12 +615,12 @@ def compute_metrics(
     )
 
     measured_gt_i2Ui1_dict = {}
-    for (i1, i2) in set.union(inlier_i1_i2_pairs, outlier_i1_i2_pairs):
+    for i1, i2 in set.union(inlier_i1_i2_pairs, outlier_i1_i2_pairs):
         measured_gt_i2Ui1_dict[(i1, i2)] = gt_i2Ui1_dict[(i1, i2)]
 
     # Compute estimated poses after the averaging step and align them to ground truth.
     wTi_list: List[Optional[Pose3]] = []
-    for (wRi, wti) in zip(wRi_list, wti_list):
+    for wRi, wti in zip(wRi_list, wti_list):
         if wRi is None or wti is None:
             wTi_list.append(None)
         else:
