@@ -421,7 +421,13 @@ def compute_filtered_reprojection_error(
         src_depth_est = depth_list[src_view][0]
 
         # compute reprojected coordinates
-        _, u_reprojected, v_reprojected, _, _, = patchmatchnet_eval.reproject_with_depth(
+        (
+            _,
+            u_reprojected,
+            v_reprojected,
+            _,
+            _,
+        ) = patchmatchnet_eval.reproject_with_depth(
             ref_depth_est,
             ref_intrinsics,
             ref_extrinsics,
