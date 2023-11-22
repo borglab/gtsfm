@@ -69,7 +69,6 @@ def draw_cameras_mayavi(fig: mayavi.core.scene.Scene, wTi_list: List[Pose3], cal
 
         edges_worldfr = frustum_obj.get_mesh_edges_worldframe(wTi)
         for edge_worldfr in edges_worldfr:
-
             # start and end vertices
             vs = edge_worldfr[0]
             ve = edge_worldfr[1]

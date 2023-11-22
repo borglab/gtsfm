@@ -109,7 +109,6 @@ def create_all_frustums_open3d(
     ).squeeze()
 
     for i, (K, wTi) in enumerate(zip(calibrations, wTi_list)):
-
         K = K.K()
         fx = K[0, 0]
 
@@ -123,7 +122,6 @@ def create_all_frustums_open3d(
 
         edges_worldfr = frustum_obj.get_mesh_edges_worldframe(wTi)
         for verts_worldfr in edges_worldfr:
-
             lines = [[0, 1]]
             # color is in range [0,1]
             color = tuple(colormap[i].tolist())
