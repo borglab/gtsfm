@@ -74,6 +74,7 @@ SceneOptimizer:
       _target_: gtsfm.averaging.translation.averaging_1dsfm.TranslationAveraging1DSFM
       robust_measurement_noise: True
       projection_sampling_method: SAMPLE_INPUT_MEASUREMENTS
+      reject_outliers: True
 
     data_association_module:
       _target_: gtsfm.data_association.data_assoc.DataAssociation
