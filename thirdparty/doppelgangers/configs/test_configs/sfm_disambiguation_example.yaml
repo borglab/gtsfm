@@ -1,0 +1,15 @@
+data:
+  output_path: 'result/cup/'
+  type: doppelgangers.datasets.sfm_disambiguation_dataset
+  num_workers: 4
+  image_dir: 'data/sfm_disambiguation/yan2017/cup/images'
+  loftr_match_dir: 'result/cup/loftr_match'
+  test:
+    batch_size: 1
+    img_size: 1024
+    pair_path: 'result/cup/pairs_list.npy'
+
+models:
+  decoder:
+    type: doppelgangers.models.cnn_classifier
+    input_dim: 10
