@@ -7,13 +7,13 @@ Authors: John Lambert, Neha Upadhyay
 """
 
 import argparse
-import yaml
 from collections import defaultdict
 from pathlib import Path
 from typing import List
 
 import numpy as np
 import plotly.graph_objects as go
+import yaml
 from matplotlib import colors
 from matplotlib.colors import LinearSegmentedColormap
 from plotly.graph_objs.layout import Annotation, Font, Margin, XAxis, YAxis
@@ -21,7 +21,6 @@ from plotly.graph_objs.layout import Annotation, Font, Margin, XAxis, YAxis
 import gtsfm.evaluation.merge_reports as report_utils
 import gtsfm.evaluation.metrics_report as metrics_report
 import gtsfm.utils.metrics as metrics_utils
-
 
 HEATMAP_WIDTH = 1500
 HEATMAP_HEIGHT = 900
@@ -41,7 +40,8 @@ TABLE_NAMES = [
     "Verifier Summary Post Inlier Support Processor 2view Report",
     "View Graph Estimation Metrics",
     "Verifier Summary Viewgraph 2view Report",
-    "Averaging Metrics",
+    "Rotation Averaging Metrics",
+    "Translation Averaging Metrics",
     "Data Association Metrics",
     "Bundle Adjustment Metrics",
 ]
@@ -128,10 +128,9 @@ def plot_colored_table(
         margin=Margin(l=135, r=40, b=85, t=170),
     )
 
-    fig = go.Figure(data=go.Data([trace]), layout=layout)
+    fig = go.Figure(data=[trace], layout=layout)
 
-    annotations = go.Annotations()
-
+    annotations = []
     num_rows, num_cols = tab_data.shape
     for i in range(num_rows):
         for j in range(num_cols):
@@ -185,7 +184,7 @@ def generate_dashboard(curr_master_dirpath: str, new_branch_dirpath: str) -> Non
         curr_master_dirpath: path to directory containing benchmark artifacts for the master branch.
         new_branch_dirpath: path to directory containing benchmark artifacts for a new branch.
     """
-    zip_artifact_fnames = generate_artifact_fnames_from_workflow(workflow_yaml_fpath=BENCHMARK_YAML_FPATH)
+    zip_artifacts = generate_artifact_fnames_from_workflow(workflow_yaml_fpath=BENCHMARK_YAML_FPATH)
 
     f = open(DASHBOARD_HTML_SAVE_FPATH, mode="w")
 
@@ -195,20 +194,29 @@ def generate_dashboard(curr_master_dirpath: str, new_branch_dirpath: str) -> Non
 
     # Loop over each table in the HTML report.
     for table_name in TABLE_NAMES:
+        print(f"\nCreating {table_name}")
 
         # use just the first 35 chars of each.
-        X = [zip_fname[:MAX_NUM_CHARS_ARTIFACT_FNAME] for zip_fname in zip_artifact_fnames]
+        col_labels = []
 
         # mapping from (metric_name, benchmark_name) -> (master value, branch value, percentage change)
         benchmark_table_vals = defaultdict(dict)
 
         # Loop over each benchmark result (columns of table).
-        for zip_fname in zip_artifact_fnames:
-            report1_fpath = f"{curr_master_dirpath}/results-{zip_fname}/result_metrics/gtsfm_metrics_report.html"
-            tables_dict1 = report_utils.extract_tables_from_report(report1_fpath)
+        for zip_artifact in zip_artifacts:
+            # TODO(dellaert): use pathlib
+            report1_fpath = f"{curr_master_dirpath}/results-{zip_artifact}/result_metrics/gtsfm_metrics_report.html"
+            report2_fpath = f"{new_branch_dirpath}/results-{zip_artifact}/result_metrics/gtsfm_metrics_report.html"
+            try:
+                tables_dict1 = report_utils.extract_tables_from_report(report1_fpath)
+                tables_dict2 = report_utils.extract_tables_from_report(report2_fpath)
+            except FileNotFoundError:
+                print(f"WARNING: skipping {zip_artifact}")
+                continue
 
-            report2_fpath = f"{new_branch_dirpath}/results-{zip_fname}/result_metrics/gtsfm_metrics_report.html"
-            tables_dict2 = report_utils.extract_tables_from_report(report2_fpath)
+            print(f"Comparing {zip_artifact}")
+            label = zip_artifact[:MAX_NUM_CHARS_ARTIFACT_FNAME]
+            col_labels.append(label)
             merged_tables_dict = report_utils.merge_tables(tables_dict1, tables_dict2)
 
             # Loop over each metric within this table (rows of table).
@@ -219,35 +227,46 @@ def generate_dashboard(curr_master_dirpath: str, new_branch_dirpath: str) -> Non
                 else:
                     percentage_change = metrics_utils.compute_percentage_change(float(master_val), float(branch_val))
 
+                # For some metrics, smaller is better.
+                # Hence, below we flip the color to green for reduced values, instead of red:
+                # exception are outlier errors, which we want to get larger.
                 if "error" in metric_name and "outlier" not in metric_name:
-                    # smaller is better, so this will flip the color to green for reduced values, instead of red
-                    # exception are outlier errors, which we want to get larger.
                     percentage_change *= -1
-                benchmark_table_vals[metric_name][zip_fname] = (
+                elif "outlier" in metric_name and "error" not in metric_name:
+                    percentage_change *= -1
+                elif "EXCEEDS" in metric_name:
+                    percentage_change *= -1
+                elif "failure_ratio" in metric_name:
+                    percentage_change *= -1
+                elif "CHEIRALITY_FAILURE" in metric_name:
+                    percentage_change *= -1
+                benchmark_table_vals[metric_name][label] = (
                     round(float(master_val), 4) if master_val else np.nan,
                     round(float(branch_val), 4) if branch_val else np.nan,
                     round(percentage_change, 4),
                 )
 
         N_metrics = len(benchmark_table_vals.keys())
-        M_benchmarks = len(zip_artifact_fnames)
-        Y = list(benchmark_table_vals.keys())
-        Z = np.zeros((N_metrics, M_benchmarks))
+        M_benchmarks = len(col_labels)
+        row_labels = list(benchmark_table_vals.keys())
+        tab_data = np.zeros((N_metrics, M_benchmarks))
         master_values = np.zeros((N_metrics, M_benchmarks))
         branch_values = np.zeros((N_metrics, M_benchmarks))
 
         for i, (metric_name, benchmark_vals_dict) in enumerate(benchmark_table_vals.items()):
 
-            for j, zip_fname in enumerate(zip_artifact_fnames):
-                if zip_fname in benchmark_vals_dict.keys():
-                    master_val, branch_val, percentage_change = benchmark_vals_dict.get(zip_fname)
+            for j, col_label in enumerate(col_labels):
+                if col_label in benchmark_vals_dict.keys():
+                    master_val, branch_val, percentage_change = benchmark_vals_dict.get(col_label)
                 else:
                     master_val, branch_val, percentage_change = np.nan, np.nan, np.nan
-                Z[i, j] = percentage_change
+                tab_data[i, j] = percentage_change
                 master_values[i, j] = master_val
                 branch_values[i, j] = branch_val
 
-        table_html = plot_colored_table(master_values, branch_values, row_labels=Y, col_labels=X, tab_data=Z)
+        table_html = plot_colored_table(
+            master_values, branch_values, row_labels=row_labels, col_labels=col_labels, tab_data=tab_data
+        )
 
         # Write name of the metric group in human readable form.
         f.write(metrics_report.get_html_metric_heading(table_name))

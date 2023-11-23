@@ -108,7 +108,7 @@ class PatchmatchNetData(Dataset):
 
         for j in range(num_tracks):
             track = self._sfm_result.get_track(j)
-            num_measurements = track.number_measurements()
+            num_measurements = track.numberMeasurements()
             measurements = [track.measurement(k) for k in range(num_measurements)]
             wtj = track.point3()
             for k1 in range(num_measurements):
@@ -210,13 +210,13 @@ class PatchmatchNetData(Dataset):
             # In the multi-scale feature extraction, there are NUM_PATCHMATCHNET_STAGES stages.
             #   Resize the image to scales in [2^0, 2^(-1), 2^(-2), ..., 2^(1-NUM_PATCHMATCHNET_STAGES)]
             #   Initially the intrinsics is scaled to fit the smallest image size
-            intrinsics[:2, :] /= 2 ** NUM_PATCHMATCHNET_STAGES
+            intrinsics[:2, :] /= 2**NUM_PATCHMATCHNET_STAGES
 
             for s in range(self._num_stages):
                 imgs[s].append(
                     cv2.resize(
                         np_img,
-                        (self._cropped_w // (2 ** s), self._cropped_h // (2 ** s)),
+                        (self._cropped_w // (2**s), self._cropped_h // (2**s)),
                         interpolation=cv2.INTER_LINEAR,
                     )
                 )

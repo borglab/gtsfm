@@ -10,7 +10,6 @@ from unittest.mock import patch
 import numpy as np
 from gtsam import Cal3_S2, Point3, Pose3, Rot3, Similarity3, Unit3
 from gtsam.examples import SFMdata
-from scipy.spatial.transform import Rotation
 
 import gtsfm.utils.geometry_comparisons as geometry_comparisons
 import tests.data.sample_poses as sample_poses
@@ -248,14 +247,13 @@ class TestGeometryComparisons(unittest.TestCase):
             wR1 = random_rotation()
             wR2 = random_rotation()
 
-            error_deg = geometry_comparisons.compute_relative_rotation_angle(wR1, wR2)
+            computed_deg = geometry_comparisons.compute_relative_rotation_angle(wR1, wR2)
 
             i2Ri1 = wR2.between(wR1)
-            axis, angle_rad = i2Ri1.axisAngle()
-            angle_deg = np.rad2deg(angle_rad)
+            _, expected_rad = i2Ri1.axisAngle()
+            expected_deg = np.rad2deg(expected_rad)
+            np.testing.assert_almost_equal(computed_deg, expected_deg, decimal=1)
 
-            np.testing.assert_almost_equal(angle_deg, error_deg, decimal=1)
-            print(angle_deg, error_deg)
 
     def test_compute_relative_unit_translation_angle(self) -> None:
         """Tests the relative angle between two unit-translations."""
@@ -460,6 +458,25 @@ def test_compute_cyclic_rotation_error() -> None:
 
     cycle_error = geometry_comparisons.compute_cyclic_rotation_error(i2Ri0, i4Ri2, i4Ri0)
     assert np.isclose(cycle_error, 5)
+
+
+def test_is_valid_SO3() -> None:
+    """Ensures that rotation matrices are accurately checked for SO(3) membership."""
+    R = Rot3(np.eye(3))
+    assert geometry_comparisons.is_valid_SO3(R)
+
+    # fmt: off
+    # Determinant and diagonal are obviously not unit-sized.
+    R = np.array(
+        [
+            [3.85615, 0.0483263, 1.5018],
+            [-1.50233, 0.199159, 3.8511],
+            [-0.0273012, -4.13347, 0.203112]
+        ]
+    )
+    R = Rot3(R)
+    # fmt: on
+    assert not geometry_comparisons.is_valid_SO3(R)
 
 
 if __name__ == "__main__":

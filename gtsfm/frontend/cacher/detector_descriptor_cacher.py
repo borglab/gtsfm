@@ -39,6 +39,12 @@ class DetectorDescriptorCacher(DetectorDescriptorBase):
         # TODO(ayushbaid): make the obj cache key dependent on the code
         self._detector_descriptor_obj_cache_key = type(self._detector_descriptor).__name__
 
+    def __repr__(self) -> str:
+        return f"""
+        DetectorDescriptorCacher:
+           {self._detector_descriptor}
+        """
+
     def __get_cache_path(self, cache_key: str) -> Path:
         """Gets the file path to the cache bz2 file from the cache key."""
         return CACHE_ROOT_PATH / "detector_descriptor" / "{}.pbz2".format(cache_key)

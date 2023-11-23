@@ -13,6 +13,7 @@ var Quaternion = require('quaternion');
 // Local Imports.
 var SE3 = require('./frustum_classes/se3');
 var ViewFrustum = require('./frustum_classes/view_frustum');
+let alerted = false;
 
 function AllFrustums(props) {
     /* 
@@ -63,10 +64,10 @@ function AllFrustums(props) {
         // remove any dummy lines from images.txt that contain the string "TODO", until gtsfm.utils.io.write_images is
         // updated
         ex_cameraList = ex_cameraList.filter(line => line !== "TODO"); 
-
-        if (in_cameraList.length !== ex_cameraList.length) {
+        
+        if (!alerted && in_cameraList.length !== ex_cameraList.length) {
             alert('Camera count mismatch between images.txt and cameras.txt');
-            return;
+            alerted = true;
         }
 
         var finalFrustumsJSX = [];

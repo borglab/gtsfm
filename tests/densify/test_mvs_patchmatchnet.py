@@ -15,10 +15,10 @@ import torch
 from gtsam import Cal3_S2, PinholeCameraCal3_S2, Point3
 from gtsam.examples import SFMdata
 
-from gtsfm.common.image import Image
 from gtsfm.common.gtsfm_data import GtsfmData, SfmTrack
-from gtsfm.densify.mvs_patchmatchnet import MVSPatchmatchNet
-
+from gtsfm.common.image import Image
+from gtsfm.densify.mvs_patchmatchnet import MVSPatchmatchNet, compute_filtered_reprojection_error
+from gtsfm.densify.patchmatchnet_data import PatchmatchNetData
 
 # set dummy random seed
 torch.manual_seed(0)
@@ -32,6 +32,9 @@ IMAGE_C = 3
 NUM_TRACKS = 30
 DUMMY_TRACK_PTS_WORLD = [Point3(0, 0.5 * float(i), float(i)) for i in range(NUM_TRACKS)]
 
+# dummy cameras are around a circle of radius 40.0
+CAMERA_CIRCLE_RADIUS = 40.0
+CAMERA_HEIGHT = 10.0
 # set dummy camera intrinsics
 CAMERA_INTRINSICS = Cal3_S2(
     fx=100.0,
@@ -53,6 +56,8 @@ DUMMY_IMAGE_DICT = {i: Image(value_array=np.zeros([IMAGE_H, IMAGE_W, IMAGE_C], d
 
 # a reconstructed point is consistent in geometry if it satisfies all geometric thresholds in more than 3 source views
 MIN_NUM_CONSISTENT_VIEWS = 3
+# the reprojection error in pixel coordinates should be less than 1
+MAX_GEOMETRIC_PIXEL_THRESH = 1
 
 
 class TestMVSPatchmatchNet(unittest.TestCase):
@@ -72,7 +77,7 @@ class TestMVSPatchmatchNet(unittest.TestCase):
         self._sfm_result = self.get_dummy_gtsfm_data()
 
         # Use patchmatchnet to recontruct dense point cloud. Discarding per-point colors.
-        self._dense_points, _ = MVSPatchmatchNet().densify(
+        self._dense_points, _, _ = MVSPatchmatchNet().densify(
             images=self._img_dict,
             sfm_result=self._sfm_result,
             max_num_views=NUM_IMAGES,
@@ -97,7 +102,7 @@ class TestMVSPatchmatchNet(unittest.TestCase):
                 # color the track point with (r, g, b) = (255, 255, 255)
                 self._img_dict[i].value_array[np.round(v).astype(np.uint32), np.round(u).astype(np.uint32), :] = 255
 
-                track_to_add.add_measurement(idx=i, m=[u, v])
+                track_to_add.addMeasurement(idx=i, m=[u, v])
             sfm_result.add_track(track_to_add)
 
         return sfm_result
@@ -122,6 +127,63 @@ class TestMVSPatchmatchNet(unittest.TestCase):
         x_error = np.abs(x).mean()
 
         self.assertTrue(mean_k_yz_error < 0.2 and x_error < 0.5)
+
+    def test_compute_filtered_reprojection_error(self) -> None:
+        """Test whether the compute_filtered_reprojection_error produces correct reprojection errors
+        In this test,
+            1. We assume there is an object O at (0, 0, 0), where all cameras look at.
+            2. We select camera 0 (40, 0, 10) as dummy reference view, while camera 2 (0, 40, 10)
+                as dummy source view, so object O will appear at the center (H/2, W/2) of both images.
+            3. We assume depth estimation for pixel (H/2, W/2) for reference camera 0 is sqrt(40**2 + 10**2),
+                so the estimated object coordinates O_0 by camera 0 is (0, 0, 0).
+            4. Then we assume depth estimation for pixel (H/2, W/2) for source camera 2 is sqrt(40**2 + 10**2) * 1.01,
+                so the estimated object coordinates O_2 by camera 2 is (0, -0.4, -0.1).
+            5. we assume pixel (H/2, W/2) is the only valid pixel in the joint mask.
+        """
+        # prepare PatchmatchNet dataset
+        dataset = PatchmatchNetData(images=self._img_dict, sfm_result=self._sfm_result, max_num_views=NUM_IMAGES)
+
+        # set dummy reference and source view pair
+        dummy_ref_view = 0
+        dummy_src_view = 2
+
+        # fetch depthmap resolution
+        height, width = self._img_dict[dummy_ref_view].value_array.shape[:2]
+
+        # set dummy estimated depthmap for reference and source view
+        dummy_ref_depthmap = np.zeros([1, height, width])
+        dummy_ref_depthmap[0, height // 2, width // 2] = np.linalg.norm([CAMERA_CIRCLE_RADIUS, CAMERA_HEIGHT])
+
+        dummy_src_depthmap = np.zeros([1, height, width])
+        # add some error when estimating the depthmap of source view
+        dummy_src_depthmap[0, height // 2, width // 2] = np.linalg.norm([CAMERA_CIRCLE_RADIUS, CAMERA_HEIGHT]) * 1.01
+
+        # build depthmap list
+        depth_list = {dummy_ref_view: dummy_ref_depthmap, dummy_src_view: dummy_src_depthmap}
+
+        # set dummy joint mask to only include the image center, where object O is located
+        dummy_joint_mask = np.zeros([height, width], dtype=bool)
+        dummy_joint_mask[height // 2, width // 2] = True
+
+        # calculate reprojection error
+        reproject_errors = compute_filtered_reprojection_error(
+            dataset=dataset,
+            ref_view=dummy_ref_view,
+            src_views=[dummy_src_view],
+            depth_list=depth_list,
+            max_reprojection_err=MAX_GEOMETRIC_PIXEL_THRESH,
+            joint_mask=dummy_joint_mask,
+        )
+
+        # project O_2(0, -0.4, -0.1) to reference camera 0, the uv coordinate is calculated by:
+        #           K_0               [        R_0        | t_0]
+        # --------------------------------------------------------------------------------------------
+        #  [ 100,   0, W/2, 0 ]       [0,  0.2425, -0.9701,  40]
+        #  [   0, 100, H/2, 0 ]  @  [ [1,       0,       0,   0] ] ^ (-1)  @  [0, -0.4, -0.1, 1].T = [199.03, 150.23, 1]
+        #  [   0,   0,   1, 0 ]       [0, -0.9701, -0.2425,  10]
+        #                             [0,       0,       0,   1]
+        # Therefore the uv coordinate is (199.03, 150.23), the reprojection error is ||(200-199.03, 150 - 150.23)||
+        self.assertAlmostEqual(reproject_errors[0], 0.998, 3)
 
 
 if __name__ == "__main__":

@@ -6,94 +6,64 @@ Author: Adi Singh
 
 const blue_node_list = [
     {
-        text: 'Scene Looper',
-        topOffset: 15,
-        leftOffset: 0,
-    },
-    {
-        text: 'Scene Image Directories',
+        text: 'Image Loader',
         topOffset: 0,
+        leftOffset: 10,
+    },
+    {
+        text: 'Image Retriever',
+        topOffset: 7,
         leftOffset: 0,
     },
     {
-        text: 'Data Loader + Filter Invalid Edges',
-        topOffset: 5,
-        leftOffset: 20
+        text: 'DetectorDescriptor',
+        topOffset: 0,
+        leftOffset: 80
     },
     {
-        text: 'Detector',
-        topOffset: 18,
-        leftOffset: 30
-    },
-    {
-        text: 'Keypoint Describer',
-        topOffset: 10,
-        leftOffset: 39
-    },
-    {
-        text: 'Putative Matcher',
-        topOffset: 18,
-        leftOffset: 53
+        text: 'Matcher',
+        topOffset: 14,
+        leftOffset: 80
     },
     {
         text: 'Verifier',
-        topOffset: 8,
-        leftOffset: 69
+        topOffset: 14,
+        leftOffset: 45
     },
     {
-        text: 'Post-Processor',
-        topOffset: 8,
-        leftOffset: 84
+        text: 'Two-View Bundle Adjustment',
+        topOffset: 30,
+        leftOffset: 40
     },
     {
-        text: 'Optimizer',
-        topOffset: 39,
-        leftOffset: 34
+        text: 'View-Graph Estimator',
+        topOffset: 32,
+        leftOffset: 16
     },
     {
-        text: 'File Writer',
-        topOffset: 70,
-        leftOffset: 30
+        text: 'Rotation Averaging',
+        topOffset: 50,
+        leftOffset: 7
     },
     {
-        text: 'MVSNet',
+        text: 'Translation Averaging',
+        topOffset: 65,
+        leftOffset: 7
+    },
+    {
+        text: 'Data Association',
+        topOffset: 74,
+        leftOffset: 8
+    },
+    {
+        text: 'Global Bundle Adjustment',
+        topOffset: 84,
+        leftOffset: 5
+    },
+    {
+        text: 'Multi-view Stereo',
         topOffset: 70,
         leftOffset: 52
-    },
-    {
-        text: 'Triangulation',
-        topOffset: 70,
-        leftOffset: 65
-    },
-    {
-        text: 'Aggregate',
-        topOffset: 87,
-        leftOffset: 72.5
-    },
-    {
-        text: 'Data Association w/ Track Filtering',
-        topOffset: 36,
-        leftOffset: 47
-    },
-    {
-        text: 'Bundler Calibrator',
-        topOffset: 49,
-        leftOffset: 53
-    },
-    {
-        text: '1d-SfM',
-        topOffset: 35,
-        leftOffset: 70
-    },
-    {
-        text: 'Largest Connected Component Extractor',
-        topOffset: 33,
-        leftOffset: 86
-    },
-    {
-        text: 'Shonan',
-        topOffset: 52,
-        leftOffset: 76
     },
 ]
 

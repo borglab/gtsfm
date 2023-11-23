@@ -1,0 +1,24 @@
+# Calibration Phasma25 22/03/22
+sensors:
+  imu:
+    extrinsics:
+      quaternion: [ 0.0, 0.0, 0.0, 1.0 ]
+      translation: [ 0.0, 0.0, 0.0 ]
+    intrinsics:
+      parameters:
+        bias_a: [ 0.06080652138668933, 0.08353074835853214, 0.057072968234636895 ]
+        bias_g: [ -0.0015351229643790084, -0.0013449146576507546, 0.00030127855524786183 ]
+        gravity: [ 0.01165152782783894, 9.804989173462031, -0.008749296634685332 ]
+      type: IMU
+    parent: base_link
+  PandarXT-32:
+    extrinsics:
+      quaternion: [ 0.7071068, -0.7071068, 0, 0 ]
+      translation: [ -0.001, -0.00855, 0.055 ]
+    parent: imu
+  measurement_tip:
+    parent: imu
+    extrinsics:
+      quaternion: [ 0, 0, 0, 1 ]
+      translation: [ 0.059, -0.00855, 0.1964 ]
+

@@ -4,7 +4,7 @@ Authors: Ren Liu
 """
 import time
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
 import torch
@@ -18,8 +18,11 @@ from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.densify.mvs_base import MVSBase
 from gtsfm.densify.patchmatchnet_data import PatchmatchNetData
+from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.utils import logger as logger_utils
 from thirdparty.patchmatchnet.models.net import PatchmatchNet
+
+METRICS_GROUP = "multi_view_stereo"
 
 logger = logger_utils.get_logger()
 
@@ -64,7 +67,7 @@ class MVSPatchmatchNet(MVSBase):
         min_conf_thresh: float = MIN_CONFIDENCE_THRESH,
         min_num_consistent_views: float = MIN_NUM_CONSISTENT_VIEWS,
         num_workers: int = 0,
-    ) -> Dict[str, np.ndarray]:
+    ) -> Tuple[np.ndarray, np.ndarray, GtsfmMetricsGroup]:
         """Get dense point cloud using PatchmatchNet from GtsfmData. The method implements the densify method in MVSBase
         Ref: Wang et al. https://github.com/FangjinhuaWang/PatchmatchNet/blob/main/eval.py
 
@@ -87,6 +90,7 @@ class MVSPatchmatchNet(MVSBase):
                 with shape (N, 3) where N is the number of points
             dense_point_colors: RGB color of each point in the dense point cloud
                 with shape (N, 3) where N is the number of points
+            densify_metrics: Metrics group containing metrics for dense reconstruction
         """
         dataset = PatchmatchNetData(images=images, sfm_result=sfm_result, max_num_views=max_num_views)
 
@@ -127,6 +131,8 @@ class MVSPatchmatchNet(MVSBase):
         depth_est_list = {}
         confidence_est_list = {}
 
+        batch_times = []
+
         logger.info("Starting PatchMatchNet inference...")
         with torch.no_grad():
             for batch_idx, sample in enumerate(loader):
@@ -158,15 +164,18 @@ class MVSPatchmatchNet(MVSBase):
                     depth_est_list[pm_i] = depth_est.copy()
                     confidence_est_list[pm_i] = photometric_confidence.copy()
 
+                time_elapsed = time.time() - start_time
+                batch_times.append(time_elapsed)
+
                 logger.debug(
                     "[Densify::PatchMatchNet] Iter %d/%d, time = %.3f",
                     batch_idx + 1,
                     len(loader),
-                    time.time() - start_time,
+                    time_elapsed,
                 )
 
         # Filter inference result with thresholds
-        dense_point_cloud, dense_point_colors = self.filter_depth(
+        dense_point_cloud, dense_point_colors, filtering_metrics = self.filter_depth(
             dataset=dataset,
             depth_list=depth_est_list,
             confidence_list=confidence_est_list,
@@ -176,7 +185,18 @@ class MVSPatchmatchNet(MVSBase):
             min_num_consistent_views=min_num_consistent_views,
         )
 
-        return dense_point_cloud, dense_point_colors
+        # Initialize densify metrics, add elapsed time per batch to the metric list
+        densify_metrics = GtsfmMetricsGroup(
+            name=METRICS_GROUP,
+            metrics=[
+                GtsfmMetric(name="num_valid_reference_views", data=len(loader)),
+                GtsfmMetric(name="elapsed_time_per_ref_img(sec)", data=batch_times),
+            ],
+        )
+        # merge filtering metrics to densify metrics
+        densify_metrics.extend(filtering_metrics)
+
+        return dense_point_cloud, dense_point_colors, densify_metrics
 
     def filter_depth(
         self,
@@ -187,7 +207,7 @@ class MVSPatchmatchNet(MVSBase):
         max_geo_depth_thresh: float,
         min_conf_thresh: float,
         min_num_consistent_views: float,
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> Tuple[np.ndarray, np.ndarray, GtsfmMetricsGroup]:
         """Create a dense point cloud by filtering depth maps based on estimated confidence maps and consistent geometry
 
         A 3D point is consistent in geometry between two views if:
@@ -204,8 +224,8 @@ class MVSPatchmatchNet(MVSBase):
 
         Args:
             dataset: an instance of PatchmatchData as the inference dataset
-            depth_list: list of 2D depth map (H, W) from each view
-            confidence_list: list of 2D confidence map (H, W) from each view
+            depth_list: list of batched 2D depth maps (1, H, W) from each view
+            confidence_list: list of 2D confidence maps (H, W) from each view
             max_geo_pixel_thresh: maximum reprojection error in pixel coordinates
             max_geo_depth_thresh: maximum reprojection error in depth from camera
             min_conf_thresh: minimum confidence required for a valid point
@@ -217,6 +237,7 @@ class MVSPatchmatchNet(MVSBase):
                 with shape (N, 3) where N is the number of points
             dense_point_colors: RGB color of each point in the dense point cloud
                 with shape (N, 3) where N is the number of points
+            filter_metrics: Metrics for dense reconstruction while filtering points from depth maps
         """
         # coordinates of the final point cloud
         vertices = []
@@ -224,6 +245,13 @@ class MVSPatchmatchNet(MVSBase):
         vertex_colors = []
         # depth maps from each view
         depths = []
+
+        # record valid ratio of each kind of masks among images while filtering points from depth maps
+        geo_mask_ratios = []
+        conf_mask_ratios = []
+        joint_mask_ratios = []
+
+        reprojection_errors = []
 
         packed_pairs = dataset.get_packed_pairs()
 
@@ -277,6 +305,18 @@ class MVSPatchmatchNet(MVSBase):
 
             # Combine geometric mask and confidence mask
             joint_mask = np.logical_and(confidence_mask, geo_mask)
+
+            # Compute and record the reprojection errors
+            reprojection_errors.extend(
+                compute_filtered_reprojection_error(
+                    dataset=dataset,
+                    ref_view=ref_view,
+                    src_views=src_views,
+                    depth_list=depth_list,
+                    max_reprojection_err=max_geo_pixel_thresh,
+                    joint_mask=joint_mask,
+                )
+            )
             # Set the depths of invalid positions to 0
             depth_est_averaged[np.logical_not(joint_mask)] = 0
             # Append the depth map to the depth map list
@@ -301,6 +341,10 @@ class MVSPatchmatchNet(MVSBase):
             color = ref_img[valid_points]
             vertex_colors.append((color * 255).astype(np.uint8))
 
+            geo_mask_ratios.append(geo_mask.mean())
+            conf_mask_ratios.append(confidence_mask.mean())
+            joint_mask_ratios.append(joint_mask.mean())
+
             logger.debug(
                 "[Densify::PatchMatchNet] RefView: %03d Geometric: %.03f Confidence: %.03f Joint: %.03f",
                 ref_view,
@@ -311,4 +355,83 @@ class MVSPatchmatchNet(MVSBase):
 
         dense_points = np.concatenate(vertices, axis=0)
         dense_point_colors = np.concatenate(vertex_colors, axis=0)
-        return dense_points, dense_point_colors
+
+        # compute and collect metrics during filtering points from depth maps
+        filtering_metrics = []
+        # compute the proportion of valid pixels in the geometric masks among all reference views
+        filtering_metrics.append(GtsfmMetric(name="geometric_mask_valid_ratios", data=geo_mask_ratios))
+        # compute the proportion of valid pixels in the confidence masks among all reference views
+        filtering_metrics.append(GtsfmMetric(name="confidence_mask_valid_ratios", data=conf_mask_ratios))
+        # compute the proportion of valid pixels in the joint masks among all reference views
+        filtering_metrics.append(GtsfmMetric(name="joint_mask_valid_ratios", data=joint_mask_ratios))
+        filtering_metrics.append(
+            GtsfmMetric(name="reprojection_errors", data=reprojection_errors, store_full_data=False)
+        )
+
+        return dense_points, dense_point_colors, GtsfmMetricsGroup(name="filtering metrics", metrics=filtering_metrics)
+
+
+def compute_filtered_reprojection_error(
+    dataset: PatchmatchNetData,
+    ref_view: int,
+    src_views: List[int],
+    depth_list: Dict[int, np.ndarray],
+    max_reprojection_err: float,
+    joint_mask: np.ndarray,
+) -> List[float]:
+    """Compute reprojection errors of reference view pixels among all source views, filtered by joint mask
+    Detailed steps include:
+        1. Compute coordinates of each pixel in reference depth map at reference camera frame by ref_intrinsics.
+        2. Project these points to a source view by ref_extrinsics, src_extrinsics and src intrinsics.
+        3. Use the source depth map to calculate the depths of reprojected pixel by interpolation.
+        4. Compute coordinates of each reprojected pixel at source camera frame by src_intrinsics.
+        5. Reproject these points to the reference view by src_extrinsics, ref_extrinsics, and ref intrinsics.
+        6. Compute the reprojection errors by Euclidean distance and filter the errors by the joint mask.
+
+    Args:
+        dataset: an instance of PatchmatchData as the inference dataset
+        ref_view: reference view pm_i
+        src_views: list of source view pm_i
+        depth_list: list of batched 2D depth maps (1, H, W) from each reference view
+        max_reprojection_err: maximum reprojection error in pixels
+        joint_mask: the union set of geometric mask and confidence mask, in shape of (H, W)
+
+    Returns:
+        list of filtered reprojection errors among all source views in the reference view
+    """
+    # initialize reprojection err list
+    reproj_errs = []
+
+    # get reference view estimated depth map
+    ref_depth_est = depth_list[ref_view][0]
+    # get the resolution of reference view depth map
+    height, width = ref_depth_est.shape[:2]
+    # get camera parameters of the reference view
+    ref_intrinsics, ref_extrinsics = dataset.get_camera_params(ref_view)
+
+    # Compute reprojection error after filtering by joint mask
+    # 1. generate reference coordinates for each pixel
+    u_ref, v_ref = np.meshgrid(np.arange(0, width), np.arange(0, height))
+    # 2. compute reprojection errors from each reference-source view pair
+    for src_view in src_views:
+        # camera parameters of the source view
+        src_intrinsics, src_extrinsics = dataset.get_camera_params(src_view)
+
+        # the estimated depth of the source view
+        src_depth_est = depth_list[src_view][0]
+
+        # compute reprojected coordinates
+        _, u_reprojected, v_reprojected, _, _, = patchmatchnet_eval.reproject_with_depth(
+            ref_depth_est,
+            ref_intrinsics,
+            ref_extrinsics,
+            src_depth_est,
+            src_intrinsics,
+            src_extrinsics,
+        )
+
+        # compute reprojection error
+        reproj_err = np.hypot((u_reprojected - u_ref), (v_reprojected - v_ref))[joint_mask]
+        # record reprojection errors
+        reproj_errs.extend(reproj_err[reproj_err < max_reprojection_err].tolist())
+    return reproj_errs

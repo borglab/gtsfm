@@ -1,9 +1,8 @@
 import numpy as np
-from gtsam import Cal3Bundler, Rot3, PinholeCameraCal3Bundler, Pose3, SfmTrack
+from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, Rot3, SfmTrack
 
-from gtsfm.common.image import Image
-from gtsfm.common.sfm_track import SfmMeasurement
 import gtsfm.utils.reprojection as reproj_utils
+from gtsfm.common.sfm_track import SfmMeasurement
 
 
 def test_compute_track_reprojection_errors():
@@ -39,9 +38,9 @@ def test_compute_track_reprojection_errors():
     track_3d = SfmTrack(triangulated_pt)
 
     # in camera 0
-    track_3d.add_measurement(idx=0, m=np.array([13, 24]))
+    track_3d.addMeasurement(idx=0, m=np.array([13, 24]))
     # in camera 1
-    track_3d.add_measurement(idx=1, m=np.array([-8, 43]))  # should be (-7,44), 1 px error in each dim
+    track_3d.addMeasurement(idx=1, m=np.array([-8, 43]))  # should be (-7,44), 1 px error in each dim
 
     errors, avg_track_reproj_error = reproj_utils.compute_track_reprojection_errors(track_camera_dict, track_3d)
 
@@ -86,4 +85,3 @@ def test_compute_point_reprojection_errors():
     expected_errors = np.array([np.sqrt(2), 0])
     np.testing.assert_allclose(errors, expected_errors)
     assert avg_track_reproj_error == np.sqrt(2) / 2
-

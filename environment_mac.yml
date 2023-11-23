@@ -1,6 +1,6 @@
 name: gtsfm-v1
 channels:
-  # The GTSFM mac environment closely follows the linux conda environment file, 
+  # The GTSFM mac environment closely follows the linux conda environment file,
   # except for two noticeable differences: no CUDA support and no DEGENSAC support.
   #
   # for priority order, we prefer pytorch as the highest priority as it supplies
@@ -21,8 +21,10 @@ dependencies:
   - pylint
   - pytest
   - flake8
+  - isort
   # dask and related
   - dask # same as dask[complete] pip distribution
+  - asyncssh
   - python-graphviz
   # core functionality and APIs
   - matplotlib==3.4.2
@@ -32,16 +34,28 @@ dependencies:
   - pandas
   - pillow>=8.0.1
   - scikit-learn
+  - seaborn
+  - scipy
   - hydra-core
   # 3rd party algorithms for different modules
-  - opencv=4.5.0 # preferring conda-forge's distribution as it provides the latest distribution
-  - pytorch
+  - pytorch>=1.12.0
+  - torchvision>=0.13.0
+  # for M1 only:
+  # - mkl < 2022
+  - kornia
   # io
   - h5py
   - plotly=4.14.3
   - tabulate
+  - simplejson
+  # testing
+  - parameterized
   - pip:
-    - open3d # conda-forge version does not support M1 Macs. 
-    - pydegensac
-    - colour
-    - trimesh[easy]
+      - open3d
+      - opencv-python>=4.5.4.58 # pypi has a more recent distribution than conda-forge
+      - pydegensac
+      - colour
+      - trimesh[easy]
+      - pycolmap>=0.1.0
+      - gtsam==4.2
+      - pydot

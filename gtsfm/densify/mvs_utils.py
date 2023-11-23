@@ -7,10 +7,15 @@ from typing import Tuple
 
 import numpy as np
 from gtsam import PinholeCameraCal3Bundler, Unit3
+from scipy.spatial import KDTree
 
 import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
+from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.utils import ellipsoid as ellipsoid_utils
 from gtsfm.utils import geometry_comparisons as geometry_utils
+
+# epsilon, added to denominator to prevent division by zero.
+EPS = 1e-12
 
 
 def calculate_triangulation_angle_in_degrees(
@@ -115,7 +120,7 @@ def piecewise_gaussian(theta: float, theta_0: float = 5, sigma_1: float = 1, sig
     else:
         sigma = sigma_2
 
-    return math.exp(-((theta - theta_0) ** 2) / (2 * sigma ** 2))
+    return math.exp(-((theta - theta_0) ** 2) / (2 * sigma**2))
 
 
 def cart_to_homogenous(
@@ -140,10 +145,28 @@ def cart_to_homogenous(
     return np.vstack([non_homogenous_coordinates, np.ones((1, n))])
 
 
+def estimate_voxel_scales(points: np.ndarray) -> np.ndarray:
+    """Estimate the voxel scales along 3 orthogonal axes through computing semi-axis lengths of a centered point cloud
+    by eigendecomposition, see Ellipsoid from point cloud: https://forge.epn-campus.eu/svn/vtas/vTIU/doc/ellipsoide.pdf
+
+    Args:
+        points: array of shape (N,3)
+
+    Returns:
+        voxel scales along 3 orthogonal axes in the descent order
+    """
+    # center the point cloud
+    centered_points = ellipsoid_utils.center_point_cloud(points)
+
+    # get semi-axis lengths in all axes of the centered point cloud
+    _, singular_values = ellipsoid_utils.get_right_singular_vectors(centered_points)
+
+    return singular_values
+
+
 def estimate_minimum_voxel_size(points: np.ndarray, scale: float = 0.02) -> float:
     """Estimate the minimum voxel size for point cloud simplification by downsampling
-        1. compute the minimum semi-axis length of a centered point cloud by eigendecomposition,
-            See Ellipsoid from point cloud: https://forge.epn-campus.eu/svn/vtas/vTIU/doc/ellipsoide.pdf
+        1. compute the minimum semi-axis length of a centered point cloud by eigendecomposition
         2. scale it to obtain the minimum voxel size for point cloud simplification by downsampling
 
     Args:
@@ -160,14 +183,11 @@ def estimate_minimum_voxel_size(points: np.ndarray, scale: float = 0.02) -> floa
     if N < 2:
         return 0
 
-    # center the point cloud
-    centered_points = ellipsoid_utils.center_point_cloud(points)
-
-    # get squared semi-axis lengths in all axes of the centered point cloud
-    _, singular_values = ellipsoid_utils.get_right_singular_vectors(centered_points)
+    # get semi-axis lengths along 3 orthogonal axes in desent order
+    voxel_scales = estimate_voxel_scales(points=points)
 
     # set the minimum voxel size as the scaled minimum semi-axis length
-    return singular_values[-1] * scale
+    return voxel_scales[-1] * scale
 
 
 def downsample_point_cloud(
@@ -199,3 +219,70 @@ def downsample_point_cloud(
 
     points_downsampled, rgb_downsampled = open3d_vis_utils.convert_colored_open3d_point_cloud_to_numpy(pcd)
     return points_downsampled, rgb_downsampled
+
+
+def compute_downsampling_psnr(original_point_cloud: np.ndarray, downsampled_point_cloud: np.ndarray) -> float:
+    """Compute PSNR between original point cloud and downsampled point cloud
+    A larger PSNR shows smaller distances between:
+        1. the nearest neighbors of a point in the original point cloud found in the downsampled point cloud
+        1. the nearest neighbors of a point in the downsampled point cloud found in the original point cloud
+
+    Ref: Schnabel, R., & Klein, R. (2006, July). Octree-based Point-Cloud Compression. In PBG@SIGGRAPH (pp. 111-120).
+        https://diglib.eg.org/xmlui/bitstream/handle/10.2312/SPBG.SPBG06.111-120/111-120.pdf?sequence=1
+
+    Args:
+        original_point_cloud: original dense point cloud before downsampling, in shape of (N, 3)
+        downsampled_point_cloud: dense point cloud after downsampling, in shape of (N', 3), where N' <= N
+
+    Returns:
+        float representing PSNR between original point cloud and downsampled point cloud
+    """
+    # calculate the bounding box diagonal as estimated voxel scale
+    #   this diagonal is estimated as the diagonal of the ellipsoid's circumscribed rectangular parallelepiped
+    est_voxel_scale = 2.0 * np.linalg.norm(estimate_voxel_scales(original_point_cloud))
+
+    original_tree = KDTree(data=original_point_cloud)
+    downsampled_tree = KDTree(data=downsampled_point_cloud)
+
+    d_downsampled_to_original, _ = original_tree.query(downsampled_point_cloud)
+    d_original_to_downsampled, _ = downsampled_tree.query(original_point_cloud)
+
+    RMS = lambda data: np.sqrt(np.square(data).mean())
+
+    psnr = 20.0 * np.log10(est_voxel_scale / max(RMS(d_downsampled_to_original), RMS(d_original_to_downsampled)))
+
+    return psnr
+
+
+def get_voxel_downsampling_metrics(
+    min_voxel_size: float, original_point_cloud: np.ndarray, downsampled_point_cloud: np.ndarray
+) -> GtsfmMetricsGroup:
+    """Collect and compute metrics for voxel downsampling
+    Args:
+        min_voxel_size: minimum voxel size for voxel downsampling
+        original_point_cloud: original dense point cloud before downsampling
+        downsampled_point_cloud: dense point cloud after downsampling
+
+    Returns:
+        GtsfmMetricsGroup: voxel downsamping metrics group
+    """
+    psnr = compute_downsampling_psnr(
+        original_point_cloud=original_point_cloud, downsampled_point_cloud=downsampled_point_cloud
+    )
+
+    downsampling_metrics = []
+    downsampling_metrics.append(GtsfmMetric(name="voxel size for downsampling", data=min_voxel_size))
+    downsampling_metrics.append(
+        GtsfmMetric(name="point cloud size before downsampling", data=original_point_cloud.shape[0])
+    )
+    downsampling_metrics.append(
+        GtsfmMetric(name="point cloud size after downsampling", data=downsampled_point_cloud.shape[0])
+    )
+    downsampling_metrics.append(
+        GtsfmMetric(
+            name="compression ratio", data=original_point_cloud.shape[0] / (downsampled_point_cloud.shape[0] + EPS)
+        )
+    )
+    downsampling_metrics.append(GtsfmMetric(name="downsampling PSNR", data=psnr))
+
+    return GtsfmMetricsGroup(name="voxel downsampling metrics", metrics=downsampling_metrics)

@@ -32,8 +32,11 @@ def extract_tables_from_report(report_fpath: str) -> SINGLE_REPORT_TABLES:
     with open(report_fpath, "r") as f:
         lines = f.readlines()
 
-    start_token_tab_name = 'font-size:25px;font-family:Arial">'
-    end_token_tab_name = "</p><table>"
+    start_token_tab_name = "<h2>"
+    end_token_tab_name = "</h2>"
+
+    old_start_token_tab_name = 'font-size:25px;font-family:Arial">'
+    old_end_token_tab_name = "</p><table>"
 
     start_token_submetric = "<tr><td>"
     end_token_submetric = "</td></tr>"
@@ -48,6 +51,11 @@ def extract_tables_from_report(report_fpath: str) -> SINGLE_REPORT_TABLES:
         if s != -1:
             e = line.find(end_token_tab_name)
             curr_tab_name = line[s + len(start_token_tab_name) : e]
+        else:
+            s = line.find(old_start_token_tab_name)
+            if s != -1:
+                e = line.find(old_end_token_tab_name)
+                curr_tab_name = line[s + len(old_start_token_tab_name) : e]
 
         # check to see if is a row of a table, containing info about one metric.
         s = line.find(start_token_submetric)

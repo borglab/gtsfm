@@ -8,7 +8,7 @@ This React application was created for viewing metrics related to the various pr
 2. Inside the React directory, install all the Node dependencies specified within `package.json`:
 ```bash
 cd rtf_vis_tool
-npm install
+npm install --legacy-peer-deps
 ```
 3. Now, run the web application:
 ```bash
@@ -63,3 +63,9 @@ package-lock.json
 TwoViewEstimator Plate: displays frontend summary metrics  
 MultiViewEstimor Plate: displays multiview optimizer metrics  
 'SfMData' Node: displays the point cloud after data association
+
+Note: information displayed is based on state of `result_metrics` as of
+07/22/22. The relevant JSON files are imported at the top of the
+`LandingPageGraph` component, and then passed to the `FrontendSummary` and
+`MVOSummary` components. These components are all defined in their respective
+`.js` files in `src/Components`.

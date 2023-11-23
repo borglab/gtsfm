@@ -21,15 +21,15 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
     def setUp(self):
         super().setUp()
 
-        output_reproj_error_thresh = 100
-        self.obj = BundleAdjustmentOptimizer(output_reproj_error_thresh)
+        output_reproj_error_thresh = [100.0]
+        self.ba = BundleAdjustmentOptimizer(output_reproj_error_thresh)
 
         self.test_data = EXAMPLE_DATA
 
     # def test_simple_scene(self):
-    #     """Test the simple scene using the `run` API."""
+    #     """Test the simple scene using the `run_ba` API."""
 
-    #     computed_result = self.obj.run(self.test_data)
+    #     computed_result = self.ba.run_ba(self.test_data)
 
     #     expected_error = 0.046137573704557046
 
@@ -39,9 +39,19 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
         """Test the simple scene as dask computation graph."""
         sfm_data_graph = dask.delayed(self.test_data)
 
-        expected_result, _ = self.obj.run(self.test_data)
+        absolute_pose_priors = [None] * EXAMPLE_DATA.number_images()
+        relative_pose_priors = {}
 
-        computed_result, _ = self.obj.create_computation_graph(dask.delayed(sfm_data_graph))
+        expected_result, _, _ = self.ba.run_ba(
+            self.test_data, absolute_pose_priors=absolute_pose_priors, relative_pose_priors=relative_pose_priors
+        )
+
+        computed_result, _ = self.ba.create_computation_graph(
+            sfm_data_graph,
+            absolute_pose_priors,
+            relative_pose_priors,
+            cameras_gt=[None] * self.test_data.number_images(),
+        )
 
         with dask.config.set(scheduler="single-threaded"):
             result = dask.compute(computed_result)[0]

@@ -1,6 +1,6 @@
 /* Landing Page Component to display GTSFM graph (what user first sees).
 
-Author: Adi Singh
+Authors: Adi Singh, Kevin Fu
 */
 import React, {useEffect, useState} from "react";
 
@@ -11,15 +11,18 @@ import Xarrow from "react-xarrows";  // Used to render directed edges.
 import BlueNode from './BlueNode.js';
 import BlueNodes from './gtsfm_graph/blue_nodes.js';
 import EdgeList from './gtsfm_graph/edge_list.js';
-import frontend_summary_json from '../result_metrics/frontend_summary.json';
 import FrontendSummary from './FrontendSummary';
 import GrayNode from './GrayNode';
 import GrayNodes from './gtsfm_graph/gray_nodes.js';
 import GtsfmNode from './GtsfmNode';
-import averaging_metrics_json from '../result_metrics/averaging_metrics.json';
 import MVOSummary from './MVOSummary';
 import PCViewer from './PCViewer.js';
 import '../stylesheets/LandingPageGraph.css'
+
+// JSON result_metrics data
+import raw_frontend_summary_json from '../result_metrics/verifier_summary_POST_INLIER_SUPPORT_PROCESSOR_2VIEW_REPORT.json';
+import raw_rot_avg_json from '../result_metrics/rotation_averaging_metrics.json';
+import raw_trans_avg_json from '../result_metrics/translation_averaging_metrics.json';
 
 function LandingPageGraph() {
     /*
@@ -40,8 +43,9 @@ function LandingPageGraph() {
     const [showBA_PC, setShowBA_PC] = useState(false);
     
     // Variables storing JSON information from result_metrics directory.
-    const [fs_json, setFS_JSON] = useState(null);
-    const [averaging_json, setAveragingJSON] = useState(null);
+    const [frontend_summary_json, setFSJSON] = useState(null);
+    const [rotation_averaging_json, setRotationAveragingJSON] = useState(null);
+    const [translation_averaging_json, setTranslationAveragingJSON] = useState(null);
 
     useEffect(() => {
         var rawEdges = EdgeList
@@ -78,8 +82,9 @@ function LandingPageGraph() {
         setBlueNodesList(blueNodes_formatted);
 
         // Save all the json resulting metrics in separate React variables.
-        setFS_JSON(frontend_summary_json);
-        setAveragingJSON(averaging_metrics_json);
+        setFSJSON(raw_frontend_summary_json.verifier_summary_POST_INLIER_SUPPORT_PROCESSOR_2VIEW_REPORT);
+        setRotationAveragingJSON(raw_rot_avg_json.rotation_averaging_metrics);
+        setTranslationAveragingJSON(raw_trans_avg_json.translation_averaging_metrics);
     }, [])
 
     function toggleFrontEndSummaryDisplay(showDisplay) {
@@ -125,14 +130,23 @@ function LandingPageGraph() {
             </div>
 
             {/* Render popups only when the respective node is clicked. */} 
-            {showDA_PC && <PCViewer title={'Data Association Point Cloud'} 
+            {showDA_PC && <PCViewer title={'3D Tracks 1'} 
                                     togglePC={toggleDA_PointCloud} 
                                     pointCloudType={'ba_input'}/>}
-            {showBA_PC && <PCViewer title={'Bundle Adjustment Point Cloud'}
+            {showBA_PC && <PCViewer title={'Optimized 3D Tracks'}
                                     togglePC={toggleBA_PointCloud}
                                     pointCloudType={'ba_output'}/>}
-            {showFS && <FrontendSummary json={fs_json} toggleFS={toggleFrontEndSummaryDisplay}/>}
-            {showAveragingMetrics && <MVOSummary json={averaging_json} toggleMVO={toggleAveragingMetrics}/>}
+      
+            {/* show the frontend summary post 2-view-estimator via:
+              * result_metrics/verifier_summary_POST_INLIER_SUPPORT_PROCESSOR_2VIEW_REPORT.json
+              */}
+            {showFS && <FrontendSummary frontend_summary={frontend_summary_json} toggleFS={toggleFrontEndSummaryDisplay}/>}
+
+            {/* show averaging metrics for sparse multiview optimizer via: 
+              * result_metrics/rotation_averaging_metrics
+              * result_metrics/translation_averaging_metrics
+              */}
+            {showAveragingMetrics && <MVOSummary rotation_averaging_metrics={rotation_averaging_json} translation_averaging_metrics={translation_averaging_json} toggleMVO={toggleAveragingMetrics}/>}
 
             <div className="gtsfm_graph">
 
@@ -146,42 +160,39 @@ function LandingPageGraph() {
                     funcParam={true}
                     textColor={'black'} 
                     backgroundColor={lightGray} 
-                    topOffset={'36%'} 
-                    leftOffset={'40%'} 
-                    text={'Data Association GtsfmData'}/>
+                    topOffset={'76%'} 
+                    leftOffset={'18%'} 
+                    text={'3D Tracks'}/>
                 
                 <GtsfmNode
                     onClickFunction={toggleBA_PointCloud}
                     funcParam={true}
                     textColor={'black'}
                     backgroundColor={lightGray}
-                    topOffset={'37%'}
-                    leftOffset={'27%'}
-                    text={'Bundle Adjustment GtsfmData'}/>
+                    topOffset={'90%'}
+                    leftOffset={'10%'}
+                    text={'Optimized 3D Tracks'}/>
 
                 {/* Render Directed Edges. */}
                 {arrowList}
 
                 {/* Render Plates. */}
-                <div className="scene_optimizer_plate">
-                    <p className="plate_title">Scene Optimizer Scenes</p>
+                <div className="loader_and_retriever">
+                    <p className="plate_title">Loader and Retriever</p>
                 </div>
-                <div className="feature_extractor_plate">
-                    <p className="plate_title">Feature Extractor Images</p>
+                <div className="two_view_estimator_plate">
+                    <p className="plate_title">Two-View Estimator</p>
                 </div>
-                <div className="two_view_estimator_plate" 
-                     onClick={(fs_json) ? (() => toggleFrontEndSummaryDisplay(true)) : (null)}>
-                    <p className="plate_title">TwoViewEstimator</p>
+                <div className="correspondence_plate">
+                    <p className="plate_title">DetDescCorrespondenceGenerator</p>
                 </div>
-                <div className="averaging_plate">
-                    <p className="plate_title">Averaging</p>
+                <div className="sparse_reconstruction_plate">
+                    <p className="plate_title">Sparse Reconstruction</p>
                 </div>
                 <div className="sparse_multiview_optimizer_plate" 
-                     onClick={(averaging_json) ? (() => toggleAveragingMetrics(true)) : (null)}>
+                     onClick={(rotation_averaging_json, translation_averaging_json) ? (() => toggleAveragingMetrics(true)) : (null)}
+                >
                     <p className="plate_title">Sparse Multiview Optimizer</p>
-                </div>
-                <div className="dense_multiview_optimizer_plate">
-                    <p className="plate_title">Dense Multiview Optimizer</p>
                 </div>
             </div>
         </div>

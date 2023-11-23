@@ -20,18 +20,16 @@ describe('FrontendSummary.js Test', () => {
        tags.
     */
     it('Frontend Summary has 1 <h3> tag, 5 <p> tags, and 1 <button>.', () => {
-        const frontendSummaryJSON = {
-            "frontend_summary": {
-                "num_total_image_pairs": 66,
-                "num_valid_image_pairs": 66,
-                "rotation_success_count": 66,
-                "translation_success_count": 66,
-                "pose_success_count": 66,
-                "num_all_inlier_correspondences_wrt_gt_model": 43,
-            }
+        const minimal_verifier_summary_JSON = {
+            "num_total_image_pairs": 66,
+            "num_valid_image_pairs": 66,
+            "rotation_success_count": 66,
+            "translation_success_count": 66,
+            "pose_success_count": 66,
+            "num_all_inlier_correspondences_wrt_gt_model": 43,
         };
     
-        const wrapper = shallow(<FrontendSummary json={frontendSummaryJSON}/>);
+        const wrapper = shallow(<FrontendSummary frontend_summary={minimal_verifier_summary_JSON}/>);
         const div = wrapper.find('div[className="fs_container"]');
         const tagList = div.props().children.props.children;
 

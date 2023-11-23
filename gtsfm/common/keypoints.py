@@ -34,9 +34,9 @@ class Keypoints:
         """Initializes the attributes.
 
         Args:
-            coordinates: the (x, y) coordinates of the features, of shape Nx2.
-            scales: optional scale of the detections, of shape N.
-            responses: optional confidences/responses for each detection, of shape N.
+            coordinates: The (x, y) coordinates of the features, of shape Nx2.
+            scales: Optional scale of the detections, of shape N.
+            responses: Optional confidences/responses for each detection, of shape N.
         """
         self.coordinates = coordinates
         self.scales = scales
@@ -61,10 +61,10 @@ class Keypoints:
         if not isinstance(other, Keypoints):
             return False
 
-        # equality check on coordinates
+        # Equality check on coordinates.
         coordinates_eq = np.array_equal(self.coordinates, other.coordinates)
 
-        # equality check on scales
+        # Equality check on scales.
         if self.scales is None and other.scales is None:
             scales_eq = True
         elif self.scales is not None and other.scales is not None:
@@ -93,10 +93,10 @@ class Keypoints:
         If k keypoints are requested, and only n < k are available, then returning n keypoints is the expected behavior.
 
         Args:
-            k: max number of keypoints to return.
+            k: Maximum number of keypoints to return.
 
         Returns:
-            subset of current keypoints.
+            Subset of current keypoints.
         """
         if k >= len(self):
             return copy.deepcopy(self), np.arange(self.__len__())
@@ -114,7 +114,7 @@ class Keypoints:
 
         Args:
             mask: (H, W) array of 0's and 1's corresponding to valid portions of the original image.
-            keypoints: detected keypoints with length M.
+            keypoints: Detected keypoints with length M.
             descriptors: (M, D) array of descriptors D is the dimension of each descriptor.
 
         Returns:
@@ -148,7 +148,7 @@ class Keypoints:
         """Cast all attributes which are numpy arrays to float.
 
         Returns:
-            keypoints with the type-casted attributes.
+            Keypoints with the type-casted attributes.
         """
         return Keypoints(
             coordinates=None if self.coordinates is None else self.coordinates.astype(np.float32),
@@ -166,7 +166,7 @@ class Keypoints:
             List of OpenCV's keypoints with the same information as input keypoints.
         """
 
-        # cast input attributed to floating point numpy arrays.
+        # Cast input attributed to floating point numpy arrays.
         keypoints = self.cast_to_float()
 
         opencv_keypoints = []
@@ -177,7 +177,7 @@ class Keypoints:
                     cv.KeyPoint(
                         x=keypoints.coordinates[idx, 0],
                         y=keypoints.coordinates[idx, 1],
-                        _size=OPENCV_DEFAULT_SIZE,
+                        size=OPENCV_DEFAULT_SIZE,
                     )
                 )
         elif keypoints.responses is None:
@@ -186,7 +186,7 @@ class Keypoints:
                     cv.KeyPoint(
                         x=keypoints.coordinates[idx, 0],
                         y=keypoints.coordinates[idx, 1],
-                        _size=keypoints.scales[idx],
+                        size=keypoints.scales[idx],
                     )
                 )
         elif keypoints.scales is None:
@@ -195,8 +195,8 @@ class Keypoints:
                     cv.KeyPoint(
                         x=keypoints.coordinates[idx, 0],
                         y=keypoints.coordinates[idx, 1],
-                        _size=OPENCV_DEFAULT_SIZE,
-                        _response=keypoints.responses[idx],
+                        size=OPENCV_DEFAULT_SIZE,
+                        response=keypoints.responses[idx],
                     )
                 )
         else:
@@ -205,8 +205,8 @@ class Keypoints:
                     cv.KeyPoint(
                         x=keypoints.coordinates[idx, 0],
                         y=keypoints.coordinates[idx, 1],
-                        _size=keypoints.scales[idx],
-                        _response=keypoints.responses[idx],
+                        size=keypoints.scales[idx],
+                        response=keypoints.responses[idx],
                     )
                 )
 
@@ -216,14 +216,13 @@ class Keypoints:
         """Form subset with the given indices.
 
         Args:
-            indices: indices to extract, as a 1-D vector.
+            indices: Indices to extract, as a 1-D vector.
 
         Returns:
             Subset of data at the given indices.
         """
-
         if indices.size == 0:
-            return Keypoints(coordinates=np.array([]))
+            return Keypoints(coordinates=np.zeros(shape=(0, 2)))
 
         return Keypoints(
             self.coordinates[indices],

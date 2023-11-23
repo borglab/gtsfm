@@ -41,7 +41,7 @@ class SE3 {
         Returns:
             Array, shape (1,3), representing the point in the w frame.
         */
-        var ones = nj.ones([1, 1]);
+        var ones = nj.ones([1]);
         var homogeneous_pt = nj.concatenate(point, ones);
 
         var point_world_coords = homogeneous_pt.dot(this.transform_matrix.T);

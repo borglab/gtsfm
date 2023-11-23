@@ -24,7 +24,7 @@ def compute_track_reprojection_errors(
         avg_track_reproj_error: average reprojection error of all meausurements in track.
     """
     errors = []
-    for k in range(track.number_measurements()):
+    for k in range(track.numberMeasurements()):
 
         # process each measurement
         i, uv_measured = track.measurement(k)
@@ -41,7 +41,7 @@ def compute_track_reprojection_errors(
             errors.append(np.nan)
 
     errors = np.array(errors)
-    avg_track_reproj_error = np.nanmean(errors)
+    avg_track_reproj_error = np.nan if np.isnan(errors).all() else np.nanmean(errors)
     return errors, avg_track_reproj_error
 
 
@@ -79,6 +79,5 @@ def compute_point_reprojection_errors(
             errors.append(np.nan)
 
     errors = np.array(errors)
-    avg_track_reproj_error = np.nanmean(errors)
+    avg_track_reproj_error = np.nan if np.isnan(errors).all() else np.nanmean(errors)
     return errors, avg_track_reproj_error
-

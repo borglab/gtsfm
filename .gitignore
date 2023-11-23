@@ -137,11 +137,16 @@ dmypy.json
 # Dask workspace
 dask-worker-space/
 dask-report.html
+*-dask-report.html
 
 # Third party model code
 thirdparty/models/
 thirdparty/patchmatchnet/checkpoints/
 thirdparty/SuperGluePretrainedNetwork/models/weights/
+thirdparty/hloc/weights/VGG16-NetVLAD-Pitts30K.mat
+thirdparty/**/*.pth
+thirdparty/**/*.index
+thirdparty/**/*.data*
 
 # Data folder
 data/
@@ -150,10 +155,12 @@ data/
 *.DS_Store
 
 # Data dumped by GTSFM directory
+debug/
 plots/
 results/
 result_metrics/
-visual_comparison_dashboard.html
+*.html
+*.zip
 
 #React Folders/Files to be Ignored
 #   node_modules and .eslintcache are auto generated when a user runs the 
@@ -181,3 +188,6 @@ output/
 
 # Cache dir
 cache/
+
+# Dev notebooks
+notebooks/

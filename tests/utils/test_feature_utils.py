@@ -1,10 +1,8 @@
 """Unit test for common feature utils."""
-import math
 import unittest
 
 import cv2 as cv
 import numpy as np
-
 from gtsam import Cal3Bundler, EssentialMatrix, Rot3, Unit3
 
 import gtsfm.utils.features as feature_utils
@@ -57,14 +55,21 @@ class TestFeatureUtils(unittest.TestCase):
         non_homogenous_coordinates = np.random.rand(5, 3)
 
         self.assertRaises(
-            TypeError, feature_utils.convert_to_homogenous_coordinates, non_homogenous_coordinates,
+            TypeError,
+            feature_utils.convert_to_homogenous_coordinates,
+            non_homogenous_coordinates,
         )
 
     def test_convert_to_epipolar_lines_valid_input(self):
         """Test conversion of valid 2D points to epipolar lines using the fundamental matrix, against manual
         computation and with OpenCV's output."""
 
-        points = np.array([[10.0, -5.0], [3.5, 20.0],])  # 2d points in homogenous coordinates
+        points = np.array(
+            [
+                [10.0, -5.0],
+                [3.5, 20.0],
+            ]
+        )  # 2d points in homogenous coordinates
         E_matrix = EssentialMatrix(Rot3.RzRyRx(0, np.deg2rad(45), 0), Unit3(np.array([-5, 2, 0])))
         F_matrix = E_matrix.matrix()  # using identity intrinsics
         expected_opencv = cv.computeCorrespondEpilines(points.reshape(-1, 1, 2), 1, F_matrix)
@@ -96,7 +101,12 @@ class TestFeatureUtils(unittest.TestCase):
     def test_point_line_dotproduct(self):
         """Test for 2D point-line dot product."""
 
-        points = np.array([[-2.0, 1.0], [1.0, 3.0],])
+        points = np.array(
+            [
+                [-2.0, 1.0],
+                [1.0, 3.0],
+            ]
+        )
         lines = np.array([[1.0, 3.0, -2.0], [-1.0, 2.0, 2.0]])  # coefficients (a, b, c) for the line ax + by + c = 0
         expected = np.array([-1.0, 7.0])  # (-2*1 + 1*3 + 1*-2)  and  (1*-1 + 3*2 + 1*2)
         computed = feature_utils.point_line_dotproduct(points, lines)

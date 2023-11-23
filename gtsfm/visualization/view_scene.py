@@ -1,5 +1,6 @@
-"""
-Script to render a GTSFM scene using either Open3d or Mayavi mlab.
+"""Script to render a GTSFM scene using either Open3d.
+
+Results must be stored in the COLMAP .txt or .bin file format.
 
 Authors: John Lambert
 """
@@ -9,7 +10,7 @@ import os
 from pathlib import Path
 
 import numpy as np
-from gtsam import Rot3, Pose3
+from gtsam import Pose3, Rot3
 
 import gtsfm.utils.io as io_utils
 from gtsfm.visualization.open3d_vis_utils import draw_scene_open3d
@@ -21,10 +22,10 @@ def compute_point_cloud_center_robust(point_cloud: np.ndarray) -> np.ndarray:
     """Robustly estimate the point cloud center.
 
     Args:
-        point_cloud: array of shape (N,3) representing 3d points.
+        point_cloud: Array of shape (N,3) representing 3d points.
 
     Returns:
-        mean_pt: coordinates of central point, ignoring outliers.
+        mean_pt: Coordinates of central point, ignoring outliers.
     """
     ranges = np.linalg.norm(point_cloud, axis=1)
     outlier_thresh = np.percentile(ranges, 75)
@@ -39,19 +40,14 @@ def view_scene(args: argparse.Namespace) -> None:
     world frame, where the point cloud is zero-centered.
 
     Args:
-        args: rendering options.
+        args: Rendering options.
     """
-    points_fpath = f"{args.output_dir}/points3D.txt"
-    images_fpath = f"{args.output_dir}/images.txt"
-    cameras_fpath = f"{args.output_dir}/cameras.txt"
-
     # Read in data.
-    wTi_list, img_fnames, calibrations, point_cloud, rgb = io_utils.read_scene(
-        images_fpath, cameras_fpath, points_fpath
+    wTi_list, img_fnames, calibrations, point_cloud, rgb, _ = io_utils.read_scene_data_from_colmap_format(
+        data_dir=args.output_dir
     )
-    if args.show_mvs_result:
+    if args.ply_fpath is not None:
         point_cloud, rgb = io_utils.read_point_cloud_from_ply(args.ply_fpath)
-
 
     if len(calibrations) == 1:
         calibrations = calibrations * len(img_fnames)
@@ -71,21 +67,21 @@ def view_scene(args: argparse.Namespace) -> None:
 
 
 if __name__ == "__main__":
-
-    parser = argparse.ArgumentParser(description="Visualize GTSFM result with Mayavi or Open3d.")
+    parser = argparse.ArgumentParser(description="Visualize GTSFM result with Open3d.")
     parser.add_argument(
         "--output_dir",
         type=str,
         default=os.path.join(REPO_ROOT, "results", "ba_output"),
         help="Path to a directory containing GTSFM output. "
-        "This directory should contain 3 files: cameras.txt, images.txt, and points3D.txt",
+        "This directory should contain 3 files: either `cameras.txt`, `images.txt`, and `points3D.txt`"
+        " or `cameras.bin`, `images.bin`, and `points3D.bin`.",
     )
     parser.add_argument(
-        "--point_rendering_mode",
+        "--rendering_style",
         type=str,
         default="point",
         choices=["point", "sphere"],
-        help="Render each 3d point as a `point` (optimized in Open3d) or `sphere` (optimized in Mayavi).",
+        help="Render each 3d point as a `point` (optimized in Open3d) or `sphere` (unoptimized in Open3d).",
     )
     parser.add_argument(
         "--max_range",
@@ -107,14 +103,9 @@ if __name__ == "__main__":
         + "(increase length for large-scale scenes to make frustums visible)",
     )
     parser.add_argument(
-        "--show_mvs_result",
-        action="store_true",
-        help="defaults to false.",
-    )
-    parser.add_argument(
         "--ply_fpath",
         type=str,
-        default=os.path.join(REPO_ROOT, "results", "mvs_output", "dense_pointcloud.ply"),
+        default=None,
         help="Path to MVS output (.ply file).",
     )
 

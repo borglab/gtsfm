@@ -4,22 +4,18 @@ Authors: John Lambert
 """
 
 import pickle
-import pdb
 import random
 import unittest
 from pathlib import Path
 from typing import Any, Tuple
 
-import dask
 import numpy as np
 from gtsam import Cal3Bundler, Pose3
 from scipy.spatial.transform import Rotation
 
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.frontend.verifier.degensac import Degensac
 from gtsfm.frontend.verifier.ransac import Ransac
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
-
 
 ARGOVERSE_TEST_DATA_ROOT = Path(__file__).parent.parent.parent.resolve() / "data" / "argoverse"
 

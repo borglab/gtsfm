@@ -8,9 +8,8 @@ import random
 import unittest
 from typing import Optional, Tuple
 
-import dask
 import numpy as np
-from gtsam import Cal3Bundler, EssentialMatrix, PinholeCameraCal3Bundler, Point3, Pose3, Rot3, Unit3
+from gtsam import Cal3Bundler, EssentialMatrix, PinholeCameraCal3Bundler, Pose3, Rot3, Unit3
 
 import gtsfm.utils.features as feature_utils
 import gtsfm.utils.geometry_comparisons as geom_comp_utils
@@ -20,7 +19,7 @@ from gtsfm.frontend.verifier.ransac import Ransac
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 
 RANDOM_SEED = 15
-UINT32_MAX = 2 ** 32  # MAX VALUE OF UINT32 type
+UINT32_MAX = 2**32  # MAX VALUE OF UINT32 type
 
 ROTATION_ANGULAR_ERROR_DEG_THRESHOLD = 2
 DIRECTION_ANGULAR_ERROR_DEG_THRESHOLD = 2
@@ -53,7 +52,7 @@ class TestVerifierBase(unittest.TestCase):
     ) -> None:
         """Execute the verification and compute results."""
 
-        i2Ri1_computed, i2Ui1_computed, verified_indices_computed, inlier_ratio_est_model = self.verifier.verify(
+        i2Ri1_computed, i2Ui1_computed, verified_indices_computed, _ = self.verifier.verify(
             keypoints_i1,
             keypoints_i2,
             match_indices,
@@ -138,50 +137,6 @@ class TestVerifierBase(unittest.TestCase):
             verified_indices_expected=np.array([], dtype=np.uint32),
         )
 
-    def test_create_computation_graph(self) -> None:
-        """Checks that the dask computation graph produces the same results as direct APIs."""
-
-        # creating inputs for verification
-        keypoints_i1, keypoints_i2, matches_i1i2, intrinsics_i1, intrinsics_i2 = generate_random_input_for_verifier()
-
-        # and use GTSFM's direct API to get expected results
-        expected_results = self.verifier.verify(keypoints_i1, keypoints_i2, matches_i1i2, intrinsics_i1, intrinsics_i2)
-
-        expected_i2Ri1 = expected_results[0]
-        expected_i2Ui1 = expected_results[1]
-        expected_v_corr_idxs = expected_results[2]
-        expected_inlier_ratio_est_model = expected_results[3]
-
-        # generate the computation graph for the verifier
-        (
-            delayed_i2Ri1,
-            delayed_i2Ui1,
-            delayed_v_corr_idxs,
-            delayed_inlier_ratio_est_model,
-        ) = self.verifier.create_computation_graph(
-            dask.delayed(keypoints_i1),
-            dask.delayed(keypoints_i2),
-            dask.delayed(matches_i1i2),
-            dask.delayed(intrinsics_i1),
-            dask.delayed(intrinsics_i2),
-        )
-
-        with dask.config.set(scheduler="single-threaded"):
-            i2Ri1, i2Ui1, v_corr_idxs, inlier_ratio_est_model = dask.compute(
-                delayed_i2Ri1, delayed_i2Ui1, delayed_v_corr_idxs, delayed_inlier_ratio_est_model
-            )
-
-        if expected_i2Ri1 is None:
-            self.assertIsNone(i2Ri1)
-        else:
-            self.assertTrue(expected_i2Ri1.equals(i2Ri1, 1e-2))
-        if expected_i2Ui1 is None:
-            self.assertIsNone(i2Ui1)
-        else:
-            self.assertTrue(expected_i2Ui1.equals(i2Ui1, 1e-2))
-        np.testing.assert_array_equal(v_corr_idxs, expected_v_corr_idxs)
-        np.testing.assert_almost_equal(inlier_ratio_est_model, expected_inlier_ratio_est_model)
-
     def test_pickleable(self) -> None:
         """Tests that the verifier object is pickleable (required for dask)."""
 
@@ -213,7 +168,7 @@ class TestVerifierBase(unittest.TestCase):
             i2Ri1,
             i2Ui1,
             verified_indices,
-            inlier_ratio_est_model,
+            _,
         ) = self.verifier.verify(keypoints_i1, keypoints_i2, match_indices, intrinsics_i1, intrinsics_i2)
 
         return i2Ri1, i2Ui1, verified_indices, keypoints_i1, keypoints_i2

@@ -2,14 +2,14 @@
 
 Authors: Ayush Baid
 """
-from pathlib import Path
 import unittest
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import numpy as np
 
-from gtsfm.frontend.cacher.matcher_cacher import MatcherCacher
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.frontend.cacher.matcher_cacher import MatcherCacher
 
 DUMMY_KEYPOINTS_I1 = Keypoints(
     coordinates=np.random.rand(10, 2), scales=np.random.rand(10), responses=np.random.rand(10)
@@ -19,8 +19,8 @@ DUMMY_KEYPOINTS_I2 = Keypoints(
     coordinates=np.random.rand(15, 2), scales=np.random.rand(15), responses=np.random.rand(15)
 )
 DUMMY_DESCRIPTORS_I2 = np.random.rand(len(DUMMY_KEYPOINTS_I2), 128)
-DUMMY_IM_SHAPE_I1 = (100, 200)
-DUMMY_IM_SHAPE_I2 = (50, 50)
+DUMMY_IM_SHAPE_I1 = (100, 200, 3)
+DUMMY_IM_SHAPE_I2 = (50, 50, 3)
 
 DUMMY_MATCH_INDICES = np.random.rand(5, 2)
 
@@ -102,13 +102,15 @@ class TestMatcherCacher(unittest.TestCase):
         # assert that underlying object was not called
         underlying_matcher_mock.match.assert_not_called()
 
-        # assert that hash generation was called twice
+        # Assert that hash generation was called twice.
         # TODO(ayushbaid): this need proper values
         generate_hash_for_numpy_array_mock.assert_called()
 
-        # assert that read function was called once and write function was called once
+        # Assert that read function was called once
         cache_path = ROOT_PATH / "cache" / "matcher" / "mock_matcher_numpy_key.pbz2"
         read_mock.assert_called_once_with(cache_path)
+
+        # Assert that the write function was not called (as cache is mocked to already exist).
         write_mock.assert_not_called()
 
 

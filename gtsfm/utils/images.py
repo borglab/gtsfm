@@ -116,7 +116,7 @@ def resize_image(image: Image, new_height: int, new_width: int) -> Image:
     )
 
     # Resize the mask using nearest-neighbor interpolation.
-    if image.mask:
+    if image.mask is not None:
         resized_mask = cv.resize(
             image.mask,
             (new_width, new_height),
@@ -239,18 +239,19 @@ def match_image_widths(
 
 
 def get_average_point_color(track: SfmTrack, images: List[Image]) -> Tuple[int, int, int]:
-    """
+    """Computes the average point color over all measurements in a track.
+
     Args:
-        track: 3d point/landmark and its corresponding 2d measurements in various cameras
-        images: list of all images for this scene
+        track: 3d point/landmark and its corresponding 2d measurements in various cameras.
+        images: List of all images for this scene.
 
     Returns:
-        r: red color intensity, in range [0,255]
-        g: green color intensity, in range [0,255]
-        b: blue color intensity, in range [0,255]
+        r: Red color intensity, in range [0,255].
+        g: Green color intensity, in range [0,255].
+        b: Blue color intensity, in range [0,255].
     """
     rgb_measurements = []
-    for k in range(track.number_measurements()):
+    for k in range(track.numberMeasurements()):
 
         # process each measurement
         i, uv_measured = track.measurement(k)

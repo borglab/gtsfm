@@ -9,7 +9,6 @@ Authors: Akshay Krishnan
 
 from __future__ import annotations
 
-import json
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
@@ -23,7 +22,7 @@ FULL_DATA_KEY = "full_data"
 SUMMARY_KEY = "summary"
 
 # Type hint for a 1D distribution
-Distribution1D = Union[np.ndarray, List[Union[int, float]]]
+Distribution1D = Union[np.ndarray, List[Optional[Union[int, float]]]]
 
 logger = logger_utils.get_logger()
 
@@ -72,24 +71,30 @@ class GtsfmMetric:
         plot_type: PlotType = None,
     ) -> GtsfmMetric:
         """Creates a GtsfmMetric.
+
         Args:
-             name: name of the metric
-             data: All values of the metric, optional for 1D distributions, uses summary if not provided.
-             summary: A summary dict of the metric, generated previously using the same class.
-                      Has to be provided if data = None.
-             store_full_data: Whether all the values are to be stored or only summary is required. True by default.
-             plot_type: The plot to use for visualization of the metric.
-                        Defaults:
-                           PlotType.BAR if data is a scalar
-                           PlotType.BOX if data is a distribution (other option is PlotType.HISTOGRAM)
-                         It is inferred from the summary if plot_type is not provided and summary is.
+            name: Name of the metric.
+            data: All values of the metric, optional for 1D distributions, uses summary if not provided.
+            summary: A summary dict of the metric, generated previously using the same class.
+                Has to be provided if data = None.
+            store_full_data: Whether all the values are to be stored or only summary is required.
+            plot_type: The plot to use for visualization of the metric.
+                Defaults:
+                   PlotType.BAR if data is a scalar
+                   PlotType.BOX if data is a distribution (other option is PlotType.HISTOGRAM)
+                 It is inferred from the summary if plot_type is not provided and summary is.
         """
         if summary is None and data is None:
             raise ValueError("Data and summary cannot both be None.")
 
         self._name = name
         if data is not None:
-            # Cast to a numpy array
+            # Cast to a numpy array.
+            if isinstance(data, list):
+                # Replace None with NaN.
+                data = [x if x is not None else np.NaN for x in data]
+                if all(isinstance(x, int) for x in data):
+                    data = np.array(data, dtype=np.int32)
             if not isinstance(data, np.ndarray):
                 data = np.array(data, dtype=np.float32)
             if data.ndim > 1:
@@ -108,7 +113,7 @@ class GtsfmMetric:
             else:
                 raise ValueError("Unsupported plot type for the data dimension")
 
-            # Create a summary if the data is a 1D distribution
+            # Create a summary if the data is a 1D distribution.
             if self._dim == 1:
                 self._summary = self._create_summary(data)
 
@@ -118,7 +123,7 @@ class GtsfmMetric:
             else:
                 self._data = None
         else:
-            # Metrics created from summary alone are 1D distribution metrics
+            # Metrics created from summary alone are 1D distribution metrics.
             self._dim = 1
             self._summary = summary
             self._plot_type = self.PlotType.HISTOGRAM if "histogram" in summary else self.PlotType.BOX
@@ -160,7 +165,7 @@ class GtsfmMetric:
             - Either quartiles or histogram of the data depending on plot_type of this metric.
 
         Args:
-            data: 1D array of all values of the metric
+            data: 1D array of all values of the metric.
 
         Returns:
             summary as a dict that can be serialized to JSON for storage.
@@ -169,13 +174,14 @@ class GtsfmMetric:
             raise ValueError("Metric must be a 1D distribution to get summary.")
         if data.size == 0 or np.isnan(data).all():
             return {"min": np.NaN, "max": np.NaN, "median": np.NaN, "mean": np.NaN, "stddev": np.NaN}
-
         summary = {
             "min": np.nanmin(data).tolist(),
             "max": np.nanmax(data).tolist(),
             "median": np.nanmedian(data).tolist(),
             "mean": np.nanmean(data).tolist(),
             "stddev": np.nanstd(data).tolist(),
+            "len": int(data.size),
+            "invalid": int(np.isnan(data).sum()),
         }
         if self._plot_type == self.PlotType.BOX:
             summary.update({"quartiles": get_quartiles_dict(data)})
@@ -203,7 +209,6 @@ class GtsfmMetric:
         """
         if self._dim == 0:
             return {self._name: self._data.tolist()}
-
         metric_dict = {SUMMARY_KEY: self.summary}
         if self._data is not None:
             metric_dict[FULL_DATA_KEY] = self._data.tolist()
@@ -213,7 +218,7 @@ class GtsfmMetric:
         """Saves this metric's dict representation to a JSON file.
 
         Args:
-            Path to the json file.
+            json_filename: Path to the json file.
         """
         io.save_json_file(json_filename, self.get_metric_as_dict())
 
@@ -234,7 +239,6 @@ class GtsfmMetric:
 
         metric_name = list(metric_dict.keys())[0]
         metric_value = metric_dict[metric_name]
-
         # 1D distribution metrics
         if isinstance(metric_value, dict):
             data = None
@@ -244,7 +248,6 @@ class GtsfmMetric:
             if SUMMARY_KEY in metric_value:
                 summary = metric_value[SUMMARY_KEY]
             return cls(metric_name, data=data, summary=summary)
-
         # Scalar metrics
         return cls(metric_name, metric_value)
 
@@ -299,7 +302,7 @@ class GtsfmMetricsGroup:
         }
 
         Returns:
-            metrics group dictionary representation.
+            Metrics group dictionary representation.
         """
         metrics_dict = {}
         for metric in self._metrics:
@@ -310,9 +313,12 @@ class GtsfmMetricsGroup:
         """Saves the dictionary representation of the metrics group to json.
 
         Args:
-            path: path to json file.
+            path: Path to json file.
         """
-        io.save_json_file(path, self.get_metrics_as_dict())
+        try:
+            io.save_json_file(path, self.get_metrics_as_dict())
+        except Exception as e:
+            logger.error("Error saving metric %s to json %s", self._name, e)
 
     @classmethod
     def parse_from_dict(cls, metrics_group_dict: Dict[str, Any]) -> GtsfmMetricsGroup:
@@ -339,11 +345,11 @@ class GtsfmMetricsGroup:
 
         Args:
             json_filename: Path to the JSON file.
+
         Returns:
             A new GtsfmMetricsGroup parsed from the JSON.
         """
-        with open(json_filename) as f:
-            metric_group_dict = json.load(f)
+        metric_group_dict = io.read_json_file(json_filename)
         return cls.parse_from_dict(metric_group_dict)
 
 

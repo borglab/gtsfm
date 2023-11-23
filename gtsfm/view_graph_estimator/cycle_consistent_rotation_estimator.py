@@ -3,9 +3,11 @@
 Authors: John Lambert, Ayush Baid, Akshay Krishnan
 """
 import os
+import time
 from collections import defaultdict
 from enum import Enum
-from typing import Dict, List, Set, Tuple
+from pathlib import Path
+from typing import Dict, List, Optional, Set, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -81,21 +83,24 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         corr_idxs_i1i2: Dict[Tuple[int, int], np.ndarray],
         keypoints: List[Keypoints],
         two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
+        output_dir: Optional[Path] = None,
     ) -> Set[Tuple[int, int]]:
         """Estimates the view graph using the rotation consistency constraint in a cycle of 3 edges.
 
         Args:
             i2Ri1_dict: Dict from (i1, i2) to relative rotation of i1 with respect to i2.
             i2Ui1_dict: Dict from (i1, i2) to relative translation direction of i1 with respect to i2 (unused).
-            calibrations: list of calibrations for each image (unused).
+            calibrations: List of calibrations for each image (unused).
             corr_idxs_i1i2: Dict from (i1, i2) to indices of verified correspondences from i1 to i2 (unused).
             keypoints: keypoints for each images (unused).
             two_view_reports: Dict from (i1, i2) to the TwoViewEstimationReport of the edge.
+            output_dir: Path to directory where outputs for debugging will be saved.
 
         Returns:
             Edges of the view-graph, which are the subset of the image pairs in the input args.
         """
         # pylint: disable=unused-argument
+        start_time = time.time()
 
         logger.info("Input number of edges: %d" % len(i2Ri1_dict))
         input_edges: List[Tuple[int, int]] = i2Ri1_dict.keys()
@@ -117,7 +122,7 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
             per_edge_errors[(i1, i2)].append(error)
             per_edge_errors[(i0, i2)].append(error)
 
-            # form 3 edges e_i, e_j, e_k between fully connected subgraph (nodes i0,i1,i2)
+            # Form 3 edges e_i, e_j, e_k between fully connected subgraph (nodes i0,i1,i2).
             edges = [(i0, i1), (i1, i2), (i0, i2)]
             rot_errors = [two_view_reports[e].R_error_deg for e in edges]
             gt_known = all([err is not None for err in rot_errors])
@@ -130,9 +135,19 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
             pair_indices: self.__aggregate_errors_for_edge(errors) for pair_indices, errors in per_edge_errors.items()
         }
         valid_edges = {edge for edge, error in per_edge_aggregate_error.items() if error < self._error_threshold}
-        self.__save_plots(valid_edges, cycle_errors, max_gt_error_in_cycle, per_edge_aggregate_error, two_view_reports)
+        if output_dir:
+            self.__save_plots(
+                valid_edges, cycle_errors, max_gt_error_in_cycle, per_edge_aggregate_error, two_view_reports, output_dir
+            )
 
-        logger.info("Found %d consistent rel. rotations from %d original edges.", len(valid_edges), len(input_edges))
+        end_time = time.time()
+        duration_sec = end_time - start_time
+        logger.info(
+            "Found %d consistent rel. rotations from %d original edges in %.2f sec.",
+            len(valid_edges),
+            len(input_edges),
+            duration_sec,
+        )
 
         return valid_edges
 
@@ -143,6 +158,7 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         max_gt_error_in_cycle: List[float],
         per_edge_aggregate_error: Dict[Tuple[int, int], float],
         two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
+        output_dir: Path,
     ) -> None:
         """Saves plots of aggregate error vs GT error for each edge, and cyclic error vs max GT error for each cycle.
 
@@ -152,8 +168,9 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
             max_gt_error_in_cycle: Maximum GT rotation error in the cycle, for all cycles.
             per_edge_aggregate_error: Dict from edge index pair to aggregate cyclic error of the edge.
             two_view_reports_dict: Dict from edge index pair to the TwoViewEstimationReport of the edge.
+            output_dir: Path to directory where outputs for debugging will be saved.
         """
-        # aggregate info over per edge_errors
+        # Aggregate info over per edge_errors.
         inlier_errors_aggregate = []
         inlier_errors_wrt_gt = []
 
@@ -186,14 +203,16 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         plt.ylabel("Rotation error w.r.t GT")
         plt.axis("equal")
         plt.legend(loc="lower right")
-        plt.savefig(os.path.join("plots", f"gt_err_vs_{self._edge_error_aggregation_criterion}_agg_error.jpg"), dpi=400)
+        plt.savefig(
+            os.path.join(output_dir, f"gt_err_vs_{self._edge_error_aggregation_criterion}_agg_error.jpg"), dpi=400
+        )
         plt.close("all")
 
         plt.scatter(cycle_errors, max_gt_error_in_cycle)
         plt.xlabel("Cycle error")
         plt.ylabel("Avg. Rot3 error over cycle triplet")
         plt.axis("equal")
-        plt.savefig(os.path.join("plots", "cycle_error_vs_GT_rot_error.jpg"), dpi=400)
+        plt.savefig(os.path.join(output_dir, "cycle_error_vs_GT_rot_error.jpg"), dpi=400)
         plt.close("all")
 
     def __aggregate_errors_for_edge(self, edge_errors: List[float]) -> float:

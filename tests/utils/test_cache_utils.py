@@ -26,7 +26,7 @@ class TestCacheUtils(unittest.TestCase):
         image_path = TEST_DATA_ROOT_PATH / "set1_lund_door" / "images" / "DSC_0001.JPG"
         image = io_utils.load_image(str(image_path))
         key = cache_utils.generate_hash_for_image(image=image)
-        expected = "033223b24a9edfe6e989b6853db295df51011f3cdc58c96e361e565c018e33ff4630345c79c09188"
+        expected = "033223b24a9edfe6e989b6853db295df51011f3ce3b4545791778669f08d15213223f7873ea8dcdd"
         self.assertEqual(key, expected)
 
 

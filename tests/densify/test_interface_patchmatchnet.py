@@ -12,8 +12,8 @@ import numpy as np
 from gtsam import Cal3_S2, PinholeCameraCal3_S2, Point3
 from gtsam.examples import SFMdata
 
-from gtsfm.common.image import Image
 from gtsfm.common.gtsfm_data import GtsfmData, SfmTrack
+from gtsfm.common.image import Image
 from gtsfm.densify.patchmatchnet_data import PatchmatchNetData
 
 # set the default image size as 800x600, with 3 channels
@@ -86,7 +86,7 @@ class TestPatchmatchNetData(unittest.TestCase):
 
             for i in range(DEFAULT_NUM_CAMERAS):
                 uv = sfm_result.get_camera(i).project(world_x)
-                track_to_add.add_measurement(idx=i, m=uv)
+                track_to_add.addMeasurement(idx=i, m=uv)
             sfm_result.add_track(track_to_add)
 
         return sfm_result
@@ -109,7 +109,7 @@ class TestPatchmatchNetData(unittest.TestCase):
             {"ref_id": 6, "src_ids": [5, 7, 4, 0]},
             {"ref_id": 7, "src_ids": [6, 0, 5, 1]},
         ]
-        # self.assertTrue(pairs, expected_pairs)
+        self.assertTrue(pairs, expected_pairs)
 
     def test_depth_ranges(self) -> None:
         """Test whether the depth ranges for each camera are calculated correctly and whether the depth outliers

@@ -1,0 +1,32 @@
+name: Reproducibility tests
+
+on: [pull_request, workflow_dispatch]
+
+jobs:
+  run-repro-tests:
+    name: Run reproducibility tests for different algorithms
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -l {0}
+
+    env:
+      PYTHON_VERSION: 3.8
+
+    steps:
+      - uses: actions/checkout@v4.1.1
+      - uses: conda-incubator/setup-miniconda@v2
+        with:
+          mamba-version: "*"
+          activate-environment: gtsfm-v1
+          environment-file: environment_linux_cpuonly.yml
+          python-version: 3.8
+      - name: Environment setup
+        run: |
+          bash .github/scripts/setup.sh
+          pip install pytest-cov
+          pip install flake8
+          conda info
+      - name: Reproducibility tests
+        run: |
+          pytest tests/repro_tests

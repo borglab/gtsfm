@@ -9,10 +9,7 @@ logger = logger_utils.get_logger()
 
 
 class GtsfmRunnerColmapLoader(GtsfmRunnerBase):
-    def __init__(self):
-        super(GtsfmRunnerColmapLoader, self).__init__(
-            tag="GTSFM with intrinsics and image names stored in COLMAP-format"
-        )
+    tag = "GTSFM with intrinsics and image names stored in COLMAP-format"
 
     def construct_argparser(self) -> argparse.ArgumentParser:
         parser = super(GtsfmRunnerColmapLoader, self).construct_argparser()
@@ -33,7 +30,6 @@ class GtsfmRunnerColmapLoader(GtsfmRunnerBase):
         loader = ColmapLoader(
             colmap_files_dirpath=self.parsed_args.colmap_files_dirpath,
             images_dir=self.parsed_args.images_dir,
-            max_frame_lookahead=self.parsed_args.max_frame_lookahead,
             max_resolution=self.parsed_args.max_resolution,
         )
 

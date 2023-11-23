@@ -6,11 +6,10 @@ Authors: Adi Singh
 import unittest
 from pathlib import Path
 
-from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, Rot3, SfmTrack, Similarity3
-
 import numpy as np
 import numpy.testing as npt
 import scipy.spatial.distance
+from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, Rot3, SfmTrack, Similarity3
 
 import gtsfm.utils.ellipsoid as ellipsoid_utils
 from gtsfm.common.gtsfm_data import GtsfmData
@@ -23,7 +22,7 @@ class TestEllipsoidUtils(unittest.TestCase):
     """Class containing all unit tests for ellipsoid utils."""
 
     def setUp(self) -> None:
-        self.loader = OlssonLoader(str(DATA_ROOT_PATH / "set1_lund_door"), image_extension="JPG")
+        self.loader = OlssonLoader(str(DATA_ROOT_PATH / "set1_lund_door"))
         assert len(self.loader)
 
     def test_get_ortho_axis_alignment_transform(self) -> None:

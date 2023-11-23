@@ -4,21 +4,28 @@ Estimating the ViewGraph can be done trivially by adding all the two-view estima
 The purpose of this class, however, is to define an API for more sophisticated methods for estimating a ViewGraph 
 that include filtering or optimizing the two-view estimates.
 
-Authors: Akshay Krishnan, Ayush Baid
+Authors: Akshay Krishnan, Ayush Baid, John Lambert
 """
 import abc
-from typing import Dict, List, Set, Tuple
+from pathlib import Path
+from typing import Dict, List, Optional, Set, Tuple
 
 import dask
+import os
 import numpy as np
 from dask.delayed import Delayed
 from gtsam import Cal3Bundler, Rot3, Unit3
 
-import gtsfm.utils.metrics as metrics_utils
+import gtsfm.common.types as gtsfm_types
+import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.logger as logger_utils
+import gtsfm.utils.metrics as metrics_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.two_view_estimator import TwoViewEstimationReport
+from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
+
+PLOT_BASE_PATH = Path(__file__).resolve().parent.parent.parent / "plots"
 
 # threshold for evaluation w.r.t. GT
 MAX_INLIER_MEASUREMENT_ERROR_DEG = 5.0
@@ -27,12 +34,32 @@ METRIC_GROUP = "view_graph"
 logger = logger_utils.get_logger()
 
 
-class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
+class ViewGraphEstimatorBase(GTSFMProcess):
     """Base class for ViewGraph estimation.
 
     A ViewGraphEstimator aggregates two-view estimates into a ViewGraph.
     It could also improve the two-view estimates using filtering or optimization techniques.
     """
+
+    def get_ui_metadata() -> UiMetadata:
+        """Returns data needed to display node and edge info for this process in the process graph."""
+
+        return UiMetadata(
+            display_name="View-Graph Estimator",
+            input_products=(
+                "Optimized Relative Rotation",
+                "Optimized Relative Translation",
+                "Camera Intrinsics",
+                "Inlier Correspondences",
+                "Keypoints",
+            ),
+            output_products=(
+                "View-Graph Relative Rotations",
+                "View-Graph Relative Translations",
+                "View-Graph Correspondences",
+            ),
+            parent_plate="Sparse Reconstruction",
+        )
 
     @abc.abstractmethod
     def run(
@@ -46,7 +73,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
     ) -> Set[Tuple[int, int]]:
         """Estimates the view graph, needs to be implemented by the derived class.
 
-        The input rotation and unit translation dicts are guaranteed to be valid, i.e., i1 < i2 and 
+        The input rotation and unit translation dicts are guaranteed to be valid, i.e., i1 < i2 and
         neither i2Ri1 nor i2Ui1 are None.
 
         Args:
@@ -62,9 +89,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
         """
 
     def _get_valid_input_edges(
-        self, 
-        i2Ri1_dict: Dict[Tuple[int, int], Rot3],
-        i2Ui1_dict: Dict[Tuple[int, int], Unit3]
+        self, i2Ri1_dict: Dict[Tuple[int, int], Rot3], i2Ui1_dict: Dict[Tuple[int, int], Unit3]
     ) -> List[Tuple[int, int]]:
         """Gets the input edges (i1, i2):
         1. i1 < i2
@@ -138,6 +163,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
         calibrations: List[Cal3Bundler],
         two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
         view_graph_edges: List[Tuple[int, int]],
+        plots_output_dir: Path = PLOT_BASE_PATH,
     ) -> GtsfmMetricsGroup:
         """Metric computation for the view optimizer by selecting a subset of two-view reports for the pairs which
         are the edges of the view-graph. This can be overrided by implementations to define custom metrics.
@@ -161,6 +187,25 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
         input_i1_i2 = i2Ri1_dict.keys()
         inlier_i1_i2 = view_graph_edges
         outlier_i1_i2 = list(set(input_i1_i2) - set(inlier_i1_i2))
+
+        try:
+            graph_utils.draw_view_graph_topology(
+                edges=list(input_i1_i2),
+                two_view_reports=two_view_reports,
+                title="ViewGraphEstimator input",
+                save_fpath=plots_output_dir / "view_graph_estimator_input_topology.jpg",
+                cameras_gt=None,
+            )
+            graph_utils.draw_view_graph_topology(
+                edges=view_graph_edges,
+                two_view_reports=two_view_reports,
+                title="ViewGraphEstimator output",
+                save_fpath=plots_output_dir / "view_graph_estimator_output_topology.jpg",
+                cameras_gt=None,
+            )
+        except Exception as e:
+            # drawing the topology can fail in case of too many cameras
+            logger.info(e)
 
         inlier_R_angular_errors = []
         outlier_R_angular_errors = []
@@ -205,12 +250,13 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
 
     def create_computation_graph(
         self,
-        i2Ri1_dict: Delayed,
-        i2Ui1_dict: Delayed,
-        calibrations: Delayed,
-        corr_idxs_i1i2: Delayed,
-        keypoints: Delayed,
-        two_view_reports: Delayed,
+        i2Ri1_dict: Dict[Tuple[int, int], Rot3],
+        i2Ui1_dict: Dict[Tuple[int, int], Unit3],
+        calibrations: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
+        corr_idxs_i1i2: Dict[Tuple[int, int], np.ndarray],
+        keypoints: List[Keypoints],
+        two_view_reports: Optional[Dict[Tuple[int, int], TwoViewEstimationReport]],
+        debug_output_dir: Optional[Path] = None,
     ) -> Tuple[Delayed, Delayed, Delayed, Delayed, Delayed]:
         """Create the computation graph for ViewGraph estimation and metric evaluation.
 
@@ -223,6 +269,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
                 wrapped as Delayed.
             keypoints: keypoints for each image, wrapped as Delayed.
             two_view_reports: Dict from (i1, i2) to TwoViewEstimationReport that contains metrics, wrapped as Delayed.
+            debug_output_dir: Path to directory where outputs for debugging will be saved.
 
         Returns:
             Tuple of the following 5 elements, all wrapped as Delayed:
@@ -232,6 +279,13 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
             - Dict of two_view_reports in the view graph
             - GtsfmMetricsGroup with the view graph estimation metrics
         """
+
+        # create debug directory for cycle_consistency
+        plot_cycle_consist_path = None
+        if debug_output_dir:
+            plot_cycle_consist_path = debug_output_dir / "cycle_consistency"
+            os.makedirs(plot_cycle_consist_path, exist_ok=True)
+
         # Remove all invalid edges in the input dicts.
         valid_edges = dask.delayed(self._get_valid_input_edges)(
             i2Ri1_dict=i2Ri1_dict,
@@ -244,7 +298,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
             i2Ui1_dict=i2Ui1_dict,
             corr_idxs_i1i2=corr_idxs_i1i2,
             two_view_reports=two_view_reports,
-            edges_to_select=valid_edges,            
+            edges_to_select=valid_edges,
         )
 
         # Run view graph estimation.
@@ -255,6 +309,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
             corr_idxs_i1i2=corr_idxs_i1i2_valid,
             keypoints=keypoints,
             two_view_reports=two_view_reports_valid,
+            output_dir=plot_cycle_consist_path,
         )
 
         # Remove all edges that are not in the view graph.
@@ -274,6 +329,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
             calibrations=calibrations,
             two_view_reports=two_view_reports_valid,
             view_graph_edges=view_graph_edges,
+            plots_output_dir=plot_cycle_consist_path,
         )
 
         return (

@@ -4,12 +4,8 @@ Wrapper about COLMAP's LORANSAC Essential matrix estimation, using pycolmap's py
 LORANSAC paper:
 ftp://cmp.felk.cvut.cz/pub/cmp/articles/matas/chum-dagm03.pdf
 
-On Linux, a python wheel is available:
+On Linux and Mac, a python wheel is available:
 https://pypi.org/project/pycolmap/#files
-
-On Mac, no wheel is available, so system-wide installation of COLMAP is required using this module.
-   Follow the instructions first here: https://colmap.github.io/install.html
-   and then here: https://github.com/mihaidusmanu/pycolmap#getting-started
 
 Authors: John Lambert
 """
@@ -22,12 +18,18 @@ from gtsam import Cal3Bundler, Rot3, Unit3
 
 import gtsfm.frontend.verifier.verifier_base as verifier_base
 import gtsfm.utils.logger as logger_utils
+import gtsfm.utils.pycolmap_utils as pycolmap_utils
 import gtsfm.utils.verification as verification_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 
-
 logger = logger_utils.get_logger()
+
+
+MIN_INLIER_RATIO = 0.01
+MIN_NUM_TRIALS = 100000
+MAX_NUM_TRIALS = 1000000
+CONFIDENCE = 0.999999
 
 
 class LoRansac(VerifierBase):
@@ -37,12 +39,6 @@ class LoRansac(VerifierBase):
         estimation_threshold_px: float,
     ) -> None:
         """Initializes the verifier.
-
-        Note: LoRANSAC is hard-coded in pycolmap to use the following hyperparameters:
-            min_inlier_ratio = 0.01
-            min_num_trials = 1000
-            max_num_trials = 100000
-            confidence = 0.9999
 
         (See https://github.com/mihaidusmanu/pycolmap/blob/master/essential_matrix.cc#L98)
 
@@ -82,30 +78,8 @@ class LoRansac(VerifierBase):
         Returns:
             dictionary containing result status code, estimated relative pose (R,t), and inlier mask.
         """
-
-        def get_pycolmap_camera_dict(camera_intrinsics: Cal3Bundler) -> Dict[str, Any]:
-            """Convert Cal3Bundler intrinsics to a pycolmap-compatible format (a dictionary).
-
-            See https://colmap.github.io/cameras.html#camera-models for info about the COLMAP camera models.
-            Both SIMPLE_PINHOLE and SIMPLE_RADIAL use 1 focal length.
-            """
-            focal_length = camera_intrinsics.fx()
-            cx, cy = camera_intrinsics.px(), camera_intrinsics.py()
-
-            # TODO: use more accurate proxy?
-            width = int(cx * 2)
-            height = int(cy * 2)
-
-            camera_dict = {
-                "model": "SIMPLE_PINHOLE",
-                "width": width,
-                "height": height,
-                "params": [focal_length, cx, cy],
-            }
-            return camera_dict
-
-        camera_dict1 = get_pycolmap_camera_dict(camera_intrinsics_i1)
-        camera_dict2 = get_pycolmap_camera_dict(camera_intrinsics_i2)
+        camera_dict1 = pycolmap_utils.get_pycolmap_camera(camera_intrinsics_i1)
+        camera_dict2 = pycolmap_utils.get_pycolmap_camera(camera_intrinsics_i2)
 
         result_dict = pycolmap.essential_matrix_estimation(
             uv_i1, uv_i2, camera_dict1, camera_dict2, max_error_px=self._estimation_threshold_px
@@ -147,7 +121,13 @@ class LoRansac(VerifierBase):
             result_dict = self.__estimate_essential_matrix(uv_i1, uv_i2, camera_intrinsics_i1, camera_intrinsics_i2)
         else:
             result_dict = pycolmap.fundamental_matrix_estimation(
-                uv_i1, uv_i2, max_error_px=self._estimation_threshold_px
+                uv_i1,
+                uv_i2,
+                max_error_px=self._estimation_threshold_px,
+                min_inlier_ratio=MIN_INLIER_RATIO,
+                min_num_trials=MIN_NUM_TRIALS,
+                max_num_trials=MAX_NUM_TRIALS,
+                confidence=CONFIDENCE,
             )
 
         success = result_dict["success"]

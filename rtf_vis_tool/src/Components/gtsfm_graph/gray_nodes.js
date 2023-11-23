@@ -7,119 +7,119 @@ Author: Adi Singh
 
 const gray_node_list = [
     {
-        text: 'Scene Directory',
-        topOffset: 15,
-        leftOffset: 10
-    },
-    {
-        text: 'DigiCamDB',
-        topOffset: 8,
-        leftOffset: 10.5
-    },
-    {
-        text: 'Image i',
-        topOffset: 10.5,
-        leftOffset: 28
-    },
-    {
-        text: 'Keypoints',
-        topOffset: 18,
-        leftOffset: 35
-    },
-    {
-        text: 'Descriptors',
-        topOffset: 18,
-        leftOffset: 46
-    },
-    {
-        text: 'Intrinsics',
+        text: 'Relative Pose Priors',
         topOffset: 7,
-        leftOffset: 45
+        leftOffset: 7
     },
     {
-        text: 'Image Pair Indices (i1,i2)',
-        topOffset: 5,
-        leftOffset: 54
+        text: 'Absolute Pose Priors',
+        topOffset: 7,
+        leftOffset: 14
     },
     {
-        text: 'Putative Correspondence Indices',
-        topOffset: 17,
-        leftOffset: 60
-    },
-    {
-        text: 'E matrix',
-        topOffset: 8,
-        leftOffset: 75
-    },
-    {
-        text: 'Verified Correspondence Indices',
-        topOffset: 16,
-        leftOffset: 72
-    },
-    {
-        text: 'relative Rs: i2Ri1',
-        topOffset: 17,
-        leftOffset: 79
-    },
-    {
-        text: 'relative ts: i2ti1',
-        topOffset: 17,
-        leftOffset: 87
-    },
-    {
-        text: 'Images',
-        topOffset: 50,
+        text: 'Camera Intrinsics',
+        topOffset: 7,
         leftOffset: 21
     },
     {
-        text: 'Output Directory',
-        topOffset: 69,
-        leftOffset: 22
+        text: 'Images',
+        topOffset: 7,
+        leftOffset: 28
     },
     {
-        text: 'GtsfmData as files',
-        topOffset: 69,
-        leftOffset: 37
+        text: 'Image Shapes',
+        topOffset: 7,
+        leftOffset: 32
     },
     {
-        text: 'Dense Point Cloud',
-        topOffset: 70,
-        leftOffset: 57
+        text: 'Image Pair Indices',
+        topOffset: 16,
+        leftOffset: 0
     },
     {
-        text: 'Dense Mesh Reconstruction',
-        topOffset: 70,
-        leftOffset: 72
+        text: 'Keypoints',
+        topOffset: 7,
+        leftOffset: 78
     },
     {
-        text: 'Zipped Results for All Scenes',
-        topOffset: 86,
-        leftOffset: 60
+        text: 'Descriptors',
+        topOffset: 7,
+        leftOffset: 85
     },
     {
-        text: 'Bundler Pinhole Cameras',
-        topOffset: 49,
-        leftOffset: 45
+        text: 'Putative Correspondences',
+        topOffset: 21,
+        leftOffset: 82
     },
     {
-        text: 'absolute ts',
-        topOffset: 39,
-        leftOffset: 64
+        text: 'Verified Correspondences',
+        topOffset: 21,
+        leftOffset: 35
     },
     {
-        text: 'Pruned relative ts: i2ti1',
-        topOffset: 33,
-        leftOffset: 76
+        text: 'Relative Rotation',
+        topOffset: 21,
+        leftOffset: 42
     },
     {
-        text: 'absolute Rs',
-        topOffset: 52,
-        leftOffset: 65
+        text: 'Relative Translation',
+        topOffset: 21,
+        leftOffset: 49
     },
     {
-        text: 'Pruned relative Rs (2): i2Ri1',
-        topOffset: 50,
-        leftOffset: 87
+        text: 'Inlier Ratio',
+        topOffset: 21,
+        leftOffset: 56
+    },
+    {
+        text: 'Optimized Relative Rotation',
+        topOffset: 40,
+        leftOffset: 32
+    },
+    {
+        text: 'Optimized Relative Translation',
+        topOffset: 40,
+        leftOffset: 42
+    },
+    {
+        text: 'Inlier Correspondences',
+        topOffset: 40,
+        leftOffset: 49
+    },
+    {
+        text: 'View-Graph Relative Rotations',
+        topOffset: 40,
+        leftOffset: 0
+    },
+    {
+        text: 'View-Graph Relative Translations',
+        topOffset: 40,
+        leftOffset: 10
+    },
+    {
+        text: 'Global Rotations',
+        topOffset: 60,
+        leftOffset: 0
+    },
+    {
+        text: 'View-Graph Correspondences',
+        topOffset: 60,
+        leftOffset: 20
+    },
+    {
+        text: 'Global Translations',
+        topOffset: 65,
+        leftOffset: 13
+    },
+    {
+        text: 'Optimized Camera Poses',
+        topOffset: 90,
+        leftOffset: 17
+    },
+    {
+        text: 'Dense Colored 3D Point Cloud',
+        topOffset: 80,
+        leftOffset: 50
     }
 ]
 

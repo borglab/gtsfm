@@ -151,13 +151,44 @@ class TestGtsfmMetricsGroup(unittest.TestCase):
         np.testing.assert_equal(metric1_dict, np.array(2))
         np.testing.assert_equal(metric2_dict["full_data"], np.array([1, 2, 3]))
 
-    def test_saves_to_json(self) -> None:
-        """Check that no errors are raised when saving metrics group to json."""
+    def test_json_roundtrip(self) -> None:
+        """Check that saving to and reading from JSON preserves all data in a GtsfmMetric."""
+        metrics_list = []
+        metrics_list.append(GtsfmMetric(name="metric1", data=2))
+        metrics_list.append(GtsfmMetric(name="metric2", data=np.array([np.NaN, -2.0, 999, 0.0])))
+        pre_json_metrics_group = GtsfmMetricsGroup(name="test_metrics", metrics=metrics_list)
+        # The np.NaN here is not a special case (unlike in test_io_utils.py)
+        # because GtsfmMetricsGroup casts all lists to np.array types on init.
+        #
+        # Here, all "null" from JSON are read in as None types in a list. Then,
+        # in the init() of GtsfmMetricsGroup, those None types are cast to
+        # np.NaN when the list is cast to an np.array, dtype=np.float32.
+        #
+        # (This only works when dtype=float, but that is because NaN is not an
+        # option for other types like np.int.)
+
         with tempfile.TemporaryDirectory() as tempdir:
-            self._metrics_group.save_to_json(os.path.join(tempdir, "test_metrics.json"))
+            # save temp_metrics_group
+            json_fpath = os.path.join(tempdir, "temp_metrics_group.json")
+            pre_json_metrics_group.save_to_json(json_fpath)
+            post_json_metrics_group = GtsfmMetricsGroup.parse_from_json(json_fpath)
+
+            # get dicts for both and compare contents
+            pre_json_metric_dict = pre_json_metrics_group.get_metrics_as_dict()
+            post_json_metric_dict = post_json_metrics_group.get_metrics_as_dict()
+
+            self.assertEqual(len(pre_json_metric_dict), len(post_json_metric_dict))
+            self.assertEqual(len(pre_json_metric_dict["test_metrics"]), len(post_json_metric_dict["test_metrics"]))
+            np.testing.assert_allclose(
+                pre_json_metric_dict["test_metrics"]["metric1"], post_json_metric_dict["test_metrics"]["metric1"]
+            )
+            np.testing.assert_allclose(
+                pre_json_metric_dict["test_metrics"]["metric2"]["full_data"],
+                post_json_metric_dict["test_metrics"]["metric2"]["full_data"],
+            )
 
     def test_parse_metrics_from_dict(self) -> None:
-        """Check that metrics group can be parsed from json."""
+        """Check that metrics group can be parsed from dict."""
         metrics_group_dict = self._metrics_group.get_metrics_as_dict()
         parsed_metrics = GtsfmMetricsGroup.parse_from_dict(metrics_group_dict)
         self.assertEqual(parsed_metrics.name, "test_metrics")
