@@ -74,7 +74,7 @@ class BundleAdjustmentOptimizer:
         cam_pose3_prior_noise_sigma: float = 0.1,
         calibration_prior_noise_sigma: float = 1e-5,
         measurement_noise_sigma: float = 1.0,
-        allow_indeterminant_linear_system: bool = True
+        allow_indeterminate_linear_system: bool = True,
     ) -> None:
         """Initializes the parameters for bundle adjustment module.
 
@@ -92,6 +92,8 @@ class BundleAdjustmentOptimizer:
             calibration_prior_noise_sigma (optional): Calibration prior noise sigma. Default to 1e-5, which is
                 essentially fixed.
             measurement_noise_sigma (optional): Measurement noise sigma in pixel units.
+            allow_indeterminate_linear_system: Reject a two-view measurement if an indeterminate linear system is
+                encountered during marginal covariance computation after bundle adjustment.
         """
         self._reproj_error_thresholds = reproj_error_thresholds
         self._robust_measurement_noise = robust_measurement_noise
@@ -100,7 +102,7 @@ class BundleAdjustmentOptimizer:
         self._cam_pose3_prior_noise_sigma = cam_pose3_prior_noise_sigma
         self._calibration_prior_noise_sigma = calibration_prior_noise_sigma
         self._measurement_noise_sigma = measurement_noise_sigma
-        self._allow_indeterminant_linear_system = allow_indeterminant_linear_system
+        self._allow_indeterminate_linear_system = allow_indeterminate_linear_system
 
     def __map_to_calibration_variable(self, camera_idx: int) -> int:
         return 0 if self._shared_calib else camera_idx
@@ -293,7 +295,11 @@ class BundleAdjustmentOptimizer:
 
     def get_two_view_ba_pose_graph_keys(self, initial_data: GtsfmData):
         """Retrieves GTSAM keys for camera poses in a 2-view BA problem."""
-        return [ X(0), X(1) ]
+        return [X(0), X(1)]
+
+    def is_two_view_ba(self, initial_data: GtsfmData) -> bool:
+        """Determines whether two-view bundle adjustment is being executed."""
+        return len(initial_data.get_valid_camera_indices()) == 2
 
     def run_ba_stage_with_filtering(
         self,
@@ -345,17 +351,20 @@ class BundleAdjustmentOptimizer:
             logger.info("initial error: %.2f", graph.error(initial_values))
             logger.info("final error: %.2f", final_error)
 
-        try:
-            # Calculate marginal covariances for all variables.
-            marginals = gtsam.Marginals(graph, result_values)
-            graph_keys = self.get_two_view_ba_pose_graph_keys(initial_data)
-            for key in graph_keys:
-                cov = marginals.marginalCovariance(key)
+        if self.is_two_view_ba(initial_data):
+            try:
+                # Calculate marginal covariances for all two pose variables.
+                marginals = gtsam.Marginals(graph, result_values)
+                graph_keys = self.get_two_view_ba_pose_graph_keys(initial_data)
+                for key in graph_keys:
+                    _ = marginals.marginalCovariance(key)
 
-        except:
-            logger.info("BA result discarded due to ILS when computing marginals.")
-            if not self._allow_indeterminant_linear_system:
-                return None, None, None, None
+            except RuntimeError:
+                if not self._allow_indeterminate_linear_system:
+                    logger.error(
+                        "BA result discarded due to Indeterminate Linear System (ILS) when computing marginals."
+                    )
+                    return None, None, None, None
 
         # Convert the `Values` results to a `GtsfmData` instance.
         optimized_data = values_to_gtsfm_data(result_values, initial_data, self._shared_calib)
