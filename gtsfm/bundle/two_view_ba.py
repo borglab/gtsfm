@@ -22,3 +22,7 @@ class TwoViewBundleAdjustment(GTSFMProcess, BundleAdjustmentOptimizer):
             output_products=("Optimized Relative Rotation", "Optimized Relative Translation", "Inlier Correspondences"),
             parent_plate="Two-View Estimator",
         )
+
+    def is_two_view_ba(self) -> bool:
+        """Determines whether two-view bundle adjustment is being executed."""
+        return True

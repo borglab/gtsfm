@@ -347,17 +347,18 @@ class BundleAdjustmentOptimizer:
             logger.info("initial error: %.2f", graph.error(initial_values))
             logger.info("final error: %.2f", final_error)
 
-        try:
-            # Calculate marginal covariances for all pose variables.
-            marginals = gtsam.Marginals(graph, result_values)
-            graph_keys = self.get_two_view_ba_pose_graph_keys(initial_data)
-            for key in graph_keys:
-                _ = marginals.marginalCovariance(key)
+        if self.is_two_view_ba():
+            try:
+                # Calculate marginal covariances for all two pose variables.
+                marginals = gtsam.Marginals(graph, result_values)
+                graph_keys = self.get_two_view_ba_pose_graph_keys(initial_data)
+                for key in graph_keys:
+                    _ = marginals.marginalCovariance(key)
 
-        except RuntimeError:
-            if not self._allow_indeterminate_linear_system:
-                logger.error("BA result discarded due to Indeterminate Linear System (ILS) when computing marginals.")
-                return None, None, None, None
+            except RuntimeError:
+                if not self._allow_indeterminate_linear_system:
+                    logger.error("BA result discarded due to Indeterminate Linear System (ILS) when computing marginals.")
+                    return None, None, None, None
 
         # Convert the `Values` results to a `GtsfmData` instance.
         optimized_data = values_to_gtsfm_data(result_values, initial_data, self._shared_calib)
