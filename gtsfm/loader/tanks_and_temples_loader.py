@@ -1,8 +1,6 @@
 """Loader for the Tanks & Temples dataset.
 
 See https://www.tanksandtemples.org/download/ for more information.
-
-Author: John Lambert
 """
 
 import tempfile
