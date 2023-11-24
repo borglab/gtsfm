@@ -430,12 +430,16 @@ class GtsfmData:
         """Align estimated, sparse multiview result (self) to a set of reference poses.
 
         Args:
-            wTi_list_ref: list of reference/target camera poses, ordered by camera index.
+            wTi_list_ref: List of reference/target camera poses, ordered by camera index.
 
         Returns:
-            aligned_data: sparse multiview result that is aligned to the poses above.
+            aligned_data: Sparse multiview result that is aligned to the poses above.
         """
-        # these are the estimated poses (source, to be aligned)
+        # If no reference poses (e.g. ground truth) are provided, then alignment is not possible.
+        if all([wTi_gt is None for wTi_gt in wTi_list_ref]):
+            return self
+
+        # These are the estimated poses (source, to be aligned)
         wTi_list = self.get_camera_poses()
         # align the poses which are valid (i.e. are not None)
         # some camera indices may have been lost after pruning to largest connected component, leading to None values
