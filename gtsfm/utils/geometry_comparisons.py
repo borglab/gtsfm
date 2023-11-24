@@ -22,11 +22,11 @@ def align_rotations(aRi_list: List[Optional[Rot3]], bRi_list: List[Optional[Rot3
     """Aligns the list of rotations to the reference list by using Karcher mean.
 
     Args:
-        aRi_list: reference rotations in frame "a" which are the targets for alignment
-        bRi_list: input rotations which need to be aligned to frame "a"
+        aRi_list: Reference rotations in frame "a" which are the targets for alignment
+        bRi_list: Input rotations which need to be aligned to frame "a"
 
     Returns:
-        aRi_list_: transformed input rotations previously "bRi_list" but now which
+        aRi_list_: Transformed input rotations previously "bRi_list" but now which
             have the same origin as reference (now living in "a" frame)
     """
     aRb_list = [
@@ -52,8 +52,8 @@ def ransac_align_poses_sim3_ignore_missing(
     Args:
         aTi_list_ref: Pose graph 1 (reference/target to align to).
         bTi_list_est: Pose graph 2 (to be aligned).
-        num_iters: Number of RANSAC iterations to execture.
-        delete_frac: What percent of data to remove when fitting a single hypothesis.
+        num_iters: Number of RANSAC iterations to execute.
+        delete_frac: What percent of data (as fraction in [0,1]) to remove when fitting a single hypothesis.
 
     Returns:
         best_aligned_bTi_list_est_full: Transformed input poses previously "bTi_list" but now which
@@ -68,7 +68,7 @@ def ransac_align_poses_sim3_ignore_missing(
     valid_idxs = [i for i, bTi in enumerate(bTi_list_est) if bTi is not None]
     num_to_delete = math.ceil(delete_frac * len(valid_idxs))
     if len(valid_idxs) - num_to_delete < 2:
-        # Run without RANSAC! want at least 2 frame pairs for good alignment.
+        # Run without RANSAC! Want at least 2 frame pairs for good alignment.
         aligned_bTi_list_est, aSb = align_poses_sim3_ignore_missing(
             aTi_list_ref, bTi_list_est
         )
@@ -80,7 +80,7 @@ def ransac_align_poses_sim3_ignore_missing(
         aTi_list_ref_subset = copy.deepcopy(aTi_list_ref)
         bTi_list_est_subset = copy.deepcopy(bTi_list_est)
 
-        # randomly delete 33% of the poses
+        # Randomly remove X percent of the poses.
         delete_idxs = np.random.choice(a=valid_idxs, size=num_to_delete, replace=False)
         for del_idx in delete_idxs:
             bTi_list_est_subset[del_idx] = None
@@ -117,14 +117,14 @@ def compute_pose_errors_3d(
     Note: pose graphs must already be aligned.
 
     Args:
-        aTi_list_gt: ground truth 3d pose graph.
-        aligned_bTi_list_est: estimated pose graph aligned to the ground truth's "a" frame.
+        aTi_list_gt: Ground truth 3d pose graph.
+        aligned_bTi_list_est: Estimated pose graph aligned to the ground truth's "a" frame.
 
     Returns:
-        mean_rot_err: average rotation error per camera, measured in degrees.
-        mean_trans_err: average translation error per camera.
-        rot_errors: array of (K,) rotation errors, measured in degrees.
-        trans_errors: array of (K,) translation errors.
+        mean_rot_err: Average rotation error per camera, measured in degrees.
+        mean_trans_err: Average translation error per camera.
+        rot_errors: Array of (K,) rotation errors, measured in degrees.
+        trans_errors: Array of (K,) translation errors.
     """
     logger.debug("aTi_list_gt: " + str(aTi_list_gt))
     logger.debug("aligned_bTi_list_est" + str(aligned_bTi_list_est))
@@ -162,17 +162,17 @@ def align_poses_sim3_ignore_missing(
     We assume the two trajectories are of the exact same length.
 
     Args:
-        aTi_list: reference poses in frame "a" which are the targets for alignment
-        bTi_list: input poses which need to be aligned to frame "a"
+        aTi_list: Reference poses in frame "a" which are the targets for alignment
+        bTi_list: Input poses which need to be aligned to frame "a"
 
     Returns:
-        aTi_list_: transformed input poses previously "bTi_list" but now which
+        aTi_list_: Transformed input poses previously "bTi_list" but now which
             have the same origin and scale as reference (now living in "a" frame)
         aSb: Similarity(3) object that aligns the two pose graphs.
     """
     assert len(aTi_list) == len(bTi_list)
 
-    # only choose target poses for which there is a corresponding estimated pose
+    # Only choose target poses for which there is a corresponding estimated pose.
     corresponding_aTi_list = []
     valid_camera_idxs = []
     valid_bTi_list = []
@@ -185,7 +185,7 @@ def align_poses_sim3_ignore_missing(
     valid_aTi_list_, aSb = align_poses_sim3(aTi_list=corresponding_aTi_list, bTi_list=valid_bTi_list)
 
     num_cameras = len(aTi_list)
-    # now at valid indices
+    # Now at valid indices.
     aTi_list_ = [None] * num_cameras
     for i in range(num_cameras):
         if i in valid_camera_idxs:
@@ -201,11 +201,11 @@ def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> Tuple[List
     We assume the two trajectories are of the exact same length.
 
     Args:
-        aTi_list: reference poses in frame "a" which are the targets for alignment
-        bTi_list: input poses which need to be aligned to frame "a"
+        aTi_list: Reference poses in frame "a" which are the targets for alignment.
+        bTi_list: Input poses which need to be aligned to frame "a".
 
     Returns:
-        aTi_list_: transformed input poses previously "bTi_list" but now which
+        aTi_list_: Transformed input poses previously "bTi_list" but now which
             have the same origin and scale as reference (now living in "a" frame)
         aSb: Similarity(3) object that aligns the two pose graphs.
     """
@@ -226,7 +226,7 @@ def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> Tuple[List
     aSb = Similarity3.Align(ab_pairs)
 
     if np.isnan(aSb.scale()) or aSb.scale() == 0:
-        # we have run into a case where points have no translation between them (i.e. panorama).
+        # We have run into a case where points have no translation between them (i.e. panorama).
         # We will first align the rotations and then align the translation by using centroids.
         # TODO: handle it in GTSAM
 
@@ -273,7 +273,8 @@ def compare_rotations(
     Args:
         aTi_list: 1st list of rotations.
         bTi_list: 2nd list of rotations.
-        angular_error_threshold_degrees: the threshold for angular error between two rotations.
+        angular_error_threshold_degrees: Threshold for angular error between two rotations.
+    
     Returns:
         Result of the comparison.
     """
@@ -287,13 +288,13 @@ def compare_rotations(
         return False
 
     if len(aRi_valid) <= 1:
-        # we need >= two entries going forward for meaningful comparisons
+        # We need >= two entries going forward for meaningful comparisons.
         return False
 
     aRi_list = [aRi_list[i] for i in aRi_valid]
     bRi_list = [bRi_list[i] for i in bRi_valid]
 
-    # frame 'a' is the target/reference, and bRi_list will be transformed
+    # Frame 'a' is the target/reference, and bRi_list will be transformed.
     aRi_list_ = align_rotations(aRi_list, bRi_list)
     relative_rotations_angles = np.array(
         [compute_relative_rotation_angle(aRi, aRi_) for (aRi, aRi_) in zip(aRi_list, aRi_list_)], dtype=np.float32
@@ -318,33 +319,33 @@ def compare_global_poses(
     Args:
         aTi_list: 1st list of poses.
         bTi_list: 2nd list of poses.
-        rot_angular_error_threshold_degrees (optional): angular error threshold for rotations. Defaults to 2.
-        trans_err_atol (optional): absolute error threshold for translation. Defaults to 1e-2.
-        trans_err_rtol (optional): relative error threshold for translation. Defaults to 1e-1.
+        rot_angular_error_threshold_degrees (optional): Angular error threshold for rotations. Defaults to 2.
+        trans_err_atol (optional): Absolute error threshold for translation. Defaults to 1e-2.
+        trans_err_rtol (optional): Relative error threshold for translation. Defaults to 1e-1.
 
     Returns:
-        result of the comparison.
+        Result of the comparison.
     """
 
-    # check the length of the input lists
+    # Check the length of the input lists
     if len(aTi_list) != len(bTi_list):
         return False
 
-    # check the presense of valid Pose3 objects in the same location
+    # Check the presense of valid Pose3 objects in the same location
     aTi_valid = [i for (i, aTi) in enumerate(aTi_list) if aTi is not None]
     bTi_valid = [i for (i, bTi) in enumerate(bTi_list) if bTi is not None]
     if aTi_valid != bTi_valid:
         return False
 
     if len(aTi_valid) <= 1:
-        # we need >= two entries going forward for meaningful comparisons
+        # We need >= two entries going forward for meaningful comparisons.
         return False
 
-    # align the remaining poses
+    # Align the remaining poses.
     aTi_list = [aTi_list[i] for i in aTi_valid]
     bTi_list = [bTi_list[i] for i in bTi_valid]
 
-    #  We set frame "a" the target/reference
+    #  We set frame "a" the target/reference.
     aTi_list_, _ = align_poses_sim3(aTi_list, bTi_list)
 
     rotations_equal = all(
@@ -381,11 +382,11 @@ def compute_relative_rotation_angle(R_1: Optional[Rot3], R_2: Optional[Rot3]) ->
     Note: the angle is the norm of the angle-axis representation.
 
     Args:
-        R_1: the first rotation.
-        R_2: the second rotation.
+        R_1: The first rotation.
+        R_2: The second rotation.
 
     Returns:
-        the angle between two rotations, in degrees
+        The angle between two rotations, in degrees.
     """
 
     if R_1 is None or R_2 is None:
@@ -404,11 +405,11 @@ def compute_relative_unit_translation_angle(U_1: Optional[Unit3], U_2: Optional[
     """Compute the angle between two unit-translations.
 
     Args:
-        U_1: the first unit-translation.
-        U_2: the second unit-translation.
+        U_1: The first unit-translation.
+        U_2: The second unit-translation.
 
     Returns:
-        the angle between the two unit-vectors, in degrees
+        The angle between the two unit-vectors, in degrees
     """
     if U_1 is None or U_2 is None:
         return None
@@ -488,20 +489,20 @@ def get_points_within_radius_of_cameras(
     """Return those 3d points that fall within a specified radius from any camera.
 
     Args:
-        wTi_list: camera poses
-        points_3d: array of shape (N,3) representing 3d points
-        radius: distance threshold, in meters
+        wTi_list: Camera poses.
+        points_3d: Array of shape (N,3) representing 3d points.
+        radius: Distance threshold, in meters.
 
     Returns:
-        nearby_points_3d: array of shape (M,3), where M <= N
+        nearby_points_3d: Array of shape (M,3), where M <= N
     """
     if len(wTi_list) == 0 or points_3d.size == 0 or radius <= 0:
         return None
 
     num_points = points_3d.shape[0]
     num_poses = len(wTi_list)
-    # each row represents attributes for a single point
-    # each column represents
+    # Each row represents attributes for a single point
+    # Each column represents
     is_nearby_matrix = np.zeros((num_points, num_poses), dtype=bool)
     for j, wTi in enumerate(wTi_list):
         is_nearby_matrix[:, j] = np.linalg.norm(points_3d - wTi.translation(), axis=1) < radius
