@@ -350,9 +350,10 @@ class BundleAdjustmentOptimizer:
             marginals = gtsam.Marginals(graph, result_values)
             graph_keys = self.get_two_view_ba_pose_graph_keys(initial_data)
             for key in graph_keys:
-                cov = marginals.marginalCovariance(key)
+                _ = marginals.marginalCovariance(key)
 
-        except:
+        except Exception as e:
+            logger.exception("")
             logger.info("BA result discarded due to ILS when computing marginals.")
             if not self._allow_indeterminant_linear_system:
                 return None, None, None, None
