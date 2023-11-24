@@ -74,7 +74,7 @@ class BundleAdjustmentOptimizer:
         cam_pose3_prior_noise_sigma: float = 0.1,
         calibration_prior_noise_sigma: float = 1e-5,
         measurement_noise_sigma: float = 1.0,
-        allow_indeterminate_linear_system: bool = True
+        allow_indeterminate_linear_system: bool = True,
     ) -> None:
         """Initializes the parameters for bundle adjustment module.
 
@@ -295,7 +295,7 @@ class BundleAdjustmentOptimizer:
 
     def get_two_view_ba_pose_graph_keys(self, initial_data: GtsfmData):
         """Retrieves GTSAM keys for camera poses in a 2-view BA problem."""
-        return [ X(0), X(1) ]
+        return [X(0), X(1)]
 
     def is_two_view_ba(self, initial_data: GtsfmData) -> bool:
         """Determines whether two-view bundle adjustment is being executed."""
@@ -361,7 +361,9 @@ class BundleAdjustmentOptimizer:
 
             except RuntimeError:
                 if not self._allow_indeterminate_linear_system:
-                    logger.error("BA result discarded due to Indeterminate Linear System (ILS) when computing marginals.")
+                    logger.error(
+                        "BA result discarded due to Indeterminate Linear System (ILS) when computing marginals."
+                    )
                     return None, None, None, None
 
         # Convert the `Values` results to a `GtsfmData` instance.
