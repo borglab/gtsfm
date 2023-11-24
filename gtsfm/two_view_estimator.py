@@ -86,6 +86,7 @@ class TwoViewEstimator:
             reproj_error_thresholds=ba_reproj_error_thresholds,
             robust_measurement_noise=True,
             max_iterations=bundle_adjust_2view_maxiters,
+            allow_indeterminant_linear_system=False,
         )
 
     def __repr__(self) -> str:
@@ -195,6 +196,9 @@ class TwoViewEstimator:
         _, ba_output, valid_mask = self._ba_optimizer.run_ba(
             ba_input, absolute_pose_priors=[], relative_pose_priors=relative_pose_prior_for_ba, verbose=False
         )
+        if ba_output is None:
+            # Indeterminate linear system was met.
+            return None, None, np.zeros((0,2), dtype=np.int32)
 
         # Unpack results.
         valid_corr_idxs = verified_corr_idxs[triangulated_indices][valid_mask]
