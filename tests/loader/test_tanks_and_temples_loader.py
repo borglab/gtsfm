@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 import numpy as np
-from gtsam import Cal3Bundler, Unit3
+from gtsam import Cal3Bundler
 
 from gtsfm.common.image import Image
 from gtsfm.loader.tanks_and_temples_loader import TanksAndTemplesLoader
@@ -57,7 +57,11 @@ class TanksAndTemplesLoaderTest(unittest.TestCase):
         assert np.allclose(wRi @ wRi.T, np.eye(3))
 
         expected_wRi = np.array(
-            [[-0.43322, -0.0555537, -0.899574], [0.0567814, 0.994434, -0.0887567], [0.899498, -0.0895302, -0.427654]]
+            [
+                [-0.43322, -0.0555537, -0.899574],
+                [0.0567814, 0.994434, -0.0887567],
+                [0.899498, -0.0895302, -0.427654],
+            ]
         )
         assert np.allclose(wTi.rotation().matrix(), expected_wRi)
 
@@ -68,7 +72,7 @@ class TanksAndTemplesLoaderTest(unittest.TestCase):
         """Verify that image file names are provided correctly (used in NetVLAD)."""
         filenames = self.loader.image_filenames()
 
-        expected_filenames = ['000001.jpg', '000002.jpg', '000003.jpg']
+        expected_filenames = ["000001.jpg", "000002.jpg", "000003.jpg"]
         assert filenames == expected_filenames
 
     def test_get_image_fpath(self) -> None:

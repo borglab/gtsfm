@@ -3,21 +3,17 @@
 See https://www.tanksandtemples.org/download/ for more information.
 """
 
-import tempfile
-from enum import auto, Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 import numpy as np
 import open3d
 import trimesh
 from gtsam import Cal3Bundler, Rot3, Pose3
 
-import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
-from gtsfm.common.keypoints import Keypoints
 from gtsfm.loader.loader_base import LoaderBase
 import gtsfm.utils.geometry_comparisons as geom_comp_utils
 import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
@@ -198,7 +194,6 @@ class TanksAndTemplesLoader(LoaderBase):
         rgb = rgb[::downsample_factor]
         pcd = open3d_vis_utils.create_colored_point_cloud_open3d(point_cloud=points, rgb=rgb)
         return pcd
-
 
 
 def crop_points_to_bounding_polyhedron(pcd: open3d.geometry.PointCloud, json_fpath: str) -> open3d.geometry.PointCloud:
