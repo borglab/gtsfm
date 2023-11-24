@@ -195,6 +195,9 @@ class TwoViewEstimator:
         _, ba_output, valid_mask = self._ba_optimizer.run_ba(
             ba_input, absolute_pose_priors=[], relative_pose_priors=relative_pose_prior_for_ba, verbose=False
         )
+        logger.info(
+            f"Fraction of valid correspondences after BA track reproj error classification: {np.mean(valid_mask):.2f}"
+        )
 
         # Unpack results.
         valid_corr_idxs = verified_corr_idxs[triangulated_indices][valid_mask]
