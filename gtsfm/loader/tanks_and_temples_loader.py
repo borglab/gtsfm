@@ -159,7 +159,6 @@ class TanksAndTemplesLoader(LoaderBase):
         if not self._use_gt_extrinsics:
             return None
 
-        # wTi = self._wTi_list[index]
         wTi = self.wTi_gt_dict[index]
         if not geom_comp_utils.is_valid_SO3(wTi.rotation()):
             raise ValueError("Given GT rotation is not a member of SO(3) and GT metrics will be incorrect.")
@@ -181,8 +180,7 @@ class TanksAndTemplesLoader(LoaderBase):
         colmap_Sim3_lidar = np.linalg.inv(lidar_Sim3_colmap)
         # Transform LiDAR points to COLMAP coordinate frame.
         points = transform_point_cloud_vectorized(points, colmap_Sim3_lidar)
-        pcd = open3d_vis_utils.create_colored_point_cloud_open3d(point_cloud=points, rgb=rgb)
-        return pcd
+        return open3d_vis_utils.create_colored_point_cloud_open3d(point_cloud=points, rgb=rgb)
 
     def get_colmap_point_cloud(self, downsample_factor: int = 1) -> open3d.geometry.PointCloud:
         """Returns COLMAP-reconstructed point cloud."""
@@ -192,8 +190,7 @@ class TanksAndTemplesLoader(LoaderBase):
         points, rgb = open3d_vis_utils.convert_colored_open3d_point_cloud_to_numpy(pointcloud=pcd)
         points = points[::downsample_factor]
         rgb = rgb[::downsample_factor]
-        pcd = open3d_vis_utils.create_colored_point_cloud_open3d(point_cloud=points, rgb=rgb)
-        return pcd
+        return open3d_vis_utils.create_colored_point_cloud_open3d(point_cloud=points, rgb=rgb)
 
 
 def crop_points_to_bounding_polyhedron(pcd: open3d.geometry.PointCloud, json_fpath: str) -> open3d.geometry.PointCloud:
