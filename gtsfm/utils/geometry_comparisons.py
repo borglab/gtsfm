@@ -76,7 +76,6 @@ def ransac_align_poses_sim3_ignore_missing(
 
     # Randomly delete some elements.
     for _ in range(num_iters):
-
         aTi_list_ref_subset = copy.deepcopy(aTi_list_ref)
         bTi_list_est_subset = copy.deepcopy(bTi_list_est)
 
@@ -99,6 +98,11 @@ def ransac_align_poses_sim3_ignore_missing(
             best_aSb = aSb
             best_trans_error = trans_error
             best_rot_error = rot_error
+
+    if best_aSb is None:
+        # The reference poses were likely all None.
+        logger.error("Sim(3) alignment requires at least two reference poses; Skipping")
+        return bTi_list_est, Similarity3(Rot3(), np.zeros((3,)), 1.0)
 
     # Now go back and transform the full, original list (not just a subset).
     best_aligned_bTi_list_est_full = [None] * len(bTi_list_est)
@@ -177,10 +181,11 @@ def align_poses_sim3_ignore_missing(
     valid_camera_idxs = []
     valid_bTi_list = []
     for i, bTi in enumerate(bTi_list):
-        if bTi is not None:
-            valid_camera_idxs.append(i)
-            valid_bTi_list.append(bTi)
-            corresponding_aTi_list.append(aTi_list[i])
+        if bTi is None:
+            continue
+        valid_camera_idxs.append(i)
+        valid_bTi_list.append(bTi)
+        corresponding_aTi_list.append(aTi_list[i])
 
     valid_aTi_list_, aSb = align_poses_sim3(aTi_list=corresponding_aTi_list, bTi_list=valid_bTi_list)
 

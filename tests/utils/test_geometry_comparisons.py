@@ -364,7 +364,7 @@ def test_ransac_align_poses_sim3_ignore_missing_pureidentity() -> None:
         assert np.allclose(aTi.translation(), aTi_.translation(), atol=1e-3)
 
 
-def test_ransac_align_poses_sim3_ignore_missing() -> None:
+def test_ransac_align_poses_sim3_ignore_two_missing_estimated_poses() -> None:
     """Unit test for simple case of 3 poses (one is an outlier with massive translation error.)"""
 
     aTi_list = [
@@ -388,6 +388,24 @@ def test_ransac_align_poses_sim3_ignore_missing() -> None:
     assert np.isclose(aSb.scale(), 1.0, atol=1e-2)
     assert np.allclose(aligned_bTi_list_est[1].translation(), np.array([50.0114, 0.0576299, 0]), atol=1e-3)
     assert np.allclose(aligned_bTi_list_est[2].translation(), np.array([-0.0113879, 9.94237, 0]), atol=1e-3)
+
+
+def test_ransac_align_poses_sim3_if_no_ground_truth_provided() -> None:
+    aTi_list = [
+        None,
+        None,
+        None,
+    ]
+
+    # below was previously in b's frame. Has a bit of noise compared to pose graph above.
+    bTi_list = [
+        Pose3(Rot3(), np.array([50.1, 0, 0])),
+        Pose3(Rot3(), np.array([0, 9.9, 0])),
+        Pose3(Rot3(), np.array([0, 0, 2000])),
+    ]
+    
+    aligned_bTi_list_est, aSb = geometry_comparisons.ransac_align_poses_sim3_ignore_missing(aTi_list, bTi_list)
+    assert isinstance(aSb, Similarity3)
 
 
 def test_get_points_within_radius_of_cameras() -> None:
