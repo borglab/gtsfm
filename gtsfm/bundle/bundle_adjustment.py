@@ -297,6 +297,10 @@ class BundleAdjustmentOptimizer:
         """Retrieves GTSAM keys for camera poses in a 2-view BA problem."""
         return [ X(0), X(1) ]
 
+    def is_two_view_ba(self, initial_data: GtsfmData) -> bool:
+        """Determines whether two-view bundle adjustment is being executed."""
+        return len(initial_data.get_valid_camera_indices()) == 2
+
     def run_ba_stage_with_filtering(
         self,
         initial_data: GtsfmData,
@@ -347,7 +351,7 @@ class BundleAdjustmentOptimizer:
             logger.info("initial error: %.2f", graph.error(initial_values))
             logger.info("final error: %.2f", final_error)
 
-        if self.is_two_view_ba():
+        if self.is_two_view_ba(initial_data):
             try:
                 # Calculate marginal covariances for all two pose variables.
                 marginals = gtsam.Marginals(graph, result_values)
