@@ -336,7 +336,7 @@ def compare_global_poses(
     if len(aTi_list) != len(bTi_list):
         return False
 
-    # Check the presense of valid Pose3 objects in the same location
+    # Check the presence of valid Pose3 objects in the same location.
     aTi_valid = [i for (i, aTi) in enumerate(aTi_list) if aTi is not None]
     bTi_valid = [i for (i, bTi) in enumerate(bTi_list) if bTi is not None]
     if aTi_valid != bTi_valid:
@@ -414,12 +414,12 @@ def compute_relative_unit_translation_angle(U_1: Optional[Unit3], U_2: Optional[
         U_2: The second unit-translation.
 
     Returns:
-        The angle between the two unit-vectors, in degrees
+        The angle between the two unit-vectors, in degrees.
     """
     if U_1 is None or U_2 is None:
         return None
 
-    # TODO: expose Unit3's dot function and use it directly
+    # TODO: expose Unit3's dot function and use it directly.
     dot_product = np.dot(U_1.point3(), U_2.point3())
     dot_product = np.clip(dot_product, -1, 1)
     angle_rad = np.arccos(dot_product)
