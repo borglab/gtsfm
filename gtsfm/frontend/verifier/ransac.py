@@ -60,11 +60,11 @@ class Ransac(OpencvVerifierBase):
         """Estimate the Essential matrix from correspondences.
 
         Args:
-            uv_norm_i1: normalized coordinates of detected features in image #i1.
-            uv_norm_i2: normalized coordinates of detected features in image #i2.
-            match_indices: matches as indices of features from both images, of shape (N3, 2), where N3 <= min(N1, N2),
+            uv_norm_i1: Normalized coordinates of detected features in image #i1.
+            uv_norm_i2: Normalized coordinates of detected features in image #i2.
+            match_indices: Matches as indices of features from both images, of shape (N3, 2), where N3 <= min(N1, N2),
                given N1 features from image 1, and N2 features from image 2.
-            fx: focal length (in pixels) in horizontal direction.
+            fx: Focal length (in pixels) in horizontal direction.
 
         Returns:
             i2Ei1: Essential matrix, as 3x3 array.
@@ -91,14 +91,14 @@ class Ransac(OpencvVerifierBase):
         """Estimate the Fundamental matrix from correspondences.
 
         Args:
-            keypoints_i1: detected features in image #i1.
-            keypoints_i2: detected features in image #i2.
-            match_indices: matches as indices of features from both images, of shape (N3, 2), where N3 <= min(N1, N2),
+            keypoints_i1: Detected features in image #i1.
+            keypoints_i2: Detected features in image #i2.
+            match_indices: Matches as indices of features from both images, of shape (N3, 2), where N3 <= min(N1, N2),
                given N1 features from image 1, and N2 features from image 2.
 
         Returns:
             i2Fi1: Fundamental matrix, as 3x3 array.
-            inlier_mask: boolean array of shape (N3,) indicating inlier matches.
+            inlier_mask: Boolean array of shape (N3,) indicating inlier matches.
         """
         i2Fi1, inlier_mask = cv2.findFundamentalMat(
             keypoints_i1.extract_indices(match_indices[:, 0]).coordinates,
