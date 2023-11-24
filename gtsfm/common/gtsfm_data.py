@@ -439,7 +439,7 @@ class GtsfmData:
         if all([wTi_gt is None for wTi_gt in wTi_list_ref]):
             return self
 
-        # These are the estimated poses (source, to be aligned)
+        # These are the estimated poses (source, to be aligned).
         wTi_list = self.get_camera_poses()
         # align the poses which are valid (i.e. are not None)
         # some camera indices may have been lost after pruning to largest connected component, leading to None values
