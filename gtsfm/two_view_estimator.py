@@ -204,7 +204,7 @@ class TwoViewEstimator:
 
         if ba_output is None:
             # Indeterminate linear system was met.
-            return None, None, np.zeros((0,2), dtype=np.int32)
+            return None, None, np.zeros((0, 2), dtype=np.int32)
         else:
             logger.info(
                 "Fraction of valid correspondences after BA track reproj error classification: "
