@@ -11,6 +11,7 @@ from pathlib import Path
 
 import numpy as np
 
+import gtsfm.utils.io as io_utils
 import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
 from gtsfm.loader.olsson_loader import OlssonLoader
 
@@ -24,16 +25,36 @@ def view_scene(args: argparse.Namespace) -> None:
     """Read Olsson Dataset ground truth from a data.mat file and render the scene to the GUI.
 
     Args:
-        args: rendering options.
+        args: Rendering options.
     """
     loader = OlssonLoader(
         args.dataset_root,
         max_frame_lookahead=DUMMY_MAX_FRAME_LOOKAHEAD,
         max_resolution=args.max_resolution,
     )
+
+    point_cloud_rgb = np.zeros(shape=loader._point_cloud.shape, dtype=np.uint8)
+    if args.derive_point_colors:
+        images = {i: loader.get_image(i) for i in range(len(loader))}
+
+        if args.visualize_gt_tracks:
+            tracks_2d = loader.get_gt_tracks_2d()
+            io_utils.save_track_visualizations(tracks_2d, images, save_dir=os.path.join("plots", "tracks_2d_olsson"))
+
+        for j, track in enumerate(loader.get_gt_tracks_3d()):
+            track_colors = []
+            # NOTE: We cannot naively project 3d point into images since we do not know occlusion info.
+            # Have to use track to get visibility info.
+            for k in range(track.numberMeasurements()):
+                i, uv = track.measurement(k)
+                u, v = uv.astype(np.int32)
+                track_colors.append(images[i].value_array[v, u])
+            avg_color = np.array(track_colors).mean(axis=0)
+            point_cloud_rgb[j] = avg_color
+
     open3d_vis_utils.draw_scene_open3d(
         point_cloud=loader._point_cloud,
-        rgb=np.ones_like(loader._point_cloud).astype(np.uint8),
+        rgb=point_cloud_rgb,
         wTi_list=loader._wTi_list,
         calibrations=[loader.get_camera_intrinsics_full_res(0)] * loader._num_imgs,
         args=args,
@@ -66,9 +87,21 @@ if __name__ == "__main__":
     parser.add_argument(
         "--max_resolution",
         type=int,
-        default=760,
-        help="integer representing maximum length of image's short side"
+        default=1296,
+        help="Integer representing maximum length of original image's short side"
         " e.g. for 1080p (1920 x 1080), max_resolution would be 1080",
+    )
+    parser.add_argument(
+        "--derive_point_colors",
+        action="store_true",
+        help="Derive RGB point colors by projecting each 3D point into images (slow). Requires `max_resolution` to be "
+        "set to original image resolution.",
+    )
+    parser.add_argument(
+        "--visualize_gt_tracks",
+        action="store_true",
+        help="Save visualizations of ground-truth 2d tracks, as vertically stacked image patches. Requires "
+        "`max_resolution` to be set to original image resolution.",
     )
     args = parser.parse_args()
     view_scene(args)

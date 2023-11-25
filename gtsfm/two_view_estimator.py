@@ -62,6 +62,7 @@ class TwoViewEstimator:
         triangulation_options: TriangulationOptions,
         bundle_adjust_2view_maxiters: int = 100,
         ba_reproj_error_thresholds: List[Optional[float]] = [0.5],
+        allow_indeterminate_linear_system: bool = False,
     ) -> None:
         """Initializes the two-view estimator from verifier.
 
@@ -74,6 +75,8 @@ class TwoViewEstimator:
             bundle_adjust_2view_maxiters (optional): Max number of iterations for 2-view BA. Defaults to 100.
             ba_reproj_error_thresholds (optional): Reprojection thresholds used to filter features after each stage of
                 2-view BA. The length of this list decides the number of BA stages. Defaults to [0.5] (single stage).
+            allow_indeterminate_linear_system: Reject a two-view measurement if an indeterminate linear system is
+                encountered during marginal covariance computation after 2-view bundle adjustment.
         """
         self._verifier = verifier
         self.processor = inlier_support_processor
@@ -82,10 +85,12 @@ class TwoViewEstimator:
         self._triangulation_options = triangulation_options
         self._ba_reproj_error_thresholds = ba_reproj_error_thresholds
         self._bundle_adjust_2view_maxiters = bundle_adjust_2view_maxiters
+        self._allow_indeterminate_linear_system = allow_indeterminate_linear_system
         self._ba_optimizer = TwoViewBundleAdjustment(
             reproj_error_thresholds=ba_reproj_error_thresholds,
             robust_measurement_noise=True,
             max_iterations=bundle_adjust_2view_maxiters,
+            allow_indeterminate_linear_system=allow_indeterminate_linear_system,
         )
 
     def __repr__(self) -> str:
@@ -96,6 +101,7 @@ class TwoViewEstimator:
             Correspondence metric dist. threshold: {self._corr_metric_dist_threshold}
             BA reproj. error thresholds: {self._ba_reproj_error_thresholds}
             BA 2-view max. iters: {self._bundle_adjust_2view_maxiters}
+            allow 2-view BA indeterminate linear system: {self._allow_indeterminate_linear_system}
         """
 
     def triangulate_two_view_correspondences(
@@ -195,6 +201,9 @@ class TwoViewEstimator:
         _, ba_output, valid_mask = self._ba_optimizer.run_ba(
             ba_input, absolute_pose_priors=[], relative_pose_priors=relative_pose_prior_for_ba, verbose=False
         )
+        if ba_output is None:
+            # Indeterminate linear system was met.
+            return None, None, np.zeros((0,2), dtype=np.int32)
 
         # Unpack results.
         valid_corr_idxs = verified_corr_idxs[triangulated_indices][valid_mask]
