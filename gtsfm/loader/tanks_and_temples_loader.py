@@ -1,6 +1,8 @@
 """Loader for the Tanks & Temples dataset.
 
 See https://www.tanksandtemples.org/download/ for more information.
+
+Authors: John Lambert
 """
 
 from pathlib import Path
@@ -108,7 +110,7 @@ class TanksAndTemplesLoader(LoaderBase):
 
         img = io_utils.load_image(self._image_paths[index])
 
-        # All should have shape (1080, 1920, 3)
+        # All images should have the same shape: (1080, 1920, 3).
         if img.height != _DEFAULT_IMAGE_HEIGHT_PX:
             raise ValueError(f"Images from the Tanks&Temples dataset should have height {_DEFAULT_IMAGE_HEIGHT_PX} px.")
         if img.width != _DEFAULT_IMAGE_WIDTH_PX:
@@ -168,13 +170,20 @@ class TanksAndTemplesLoader(LoaderBase):
         """Returns ground-truth point cloud, captured using an industrial laser scanner.
 
         Move all LiDAR points to the COLMAP frame.
+
+        Args:
+            downsample_factor: Downsampling factor on point cloud.
+
+        Return:
+            Point cloud captured by laser scanner, in the COLMAP world frame.
         """
         if not Path(self.lidar_ply_fpath).exists():
             raise ValueError("")
         pcd = open3d.io.read_point_cloud(self.lidar_ply_fpath)
         points, rgb = open3d_vis_utils.convert_colored_open3d_point_cloud_to_numpy(pointcloud=pcd)
-        points = points[::downsample_factor]
-        rgb = rgb[::downsample_factor]
+        if downsample_factor > 1:
+            points = points[::downsample_factor]
+            rgb = rgb[::downsample_factor]
 
         lidar_Sim3_colmap = _create_Sim3_from_tt_dataset_alignment_transform(self.lidar_Sim3_colmap)
         colmap_Sim3_lidar = np.linalg.inv(lidar_Sim3_colmap)
@@ -183,13 +192,21 @@ class TanksAndTemplesLoader(LoaderBase):
         return open3d_vis_utils.create_colored_point_cloud_open3d(point_cloud=points, rgb=rgb)
 
     def get_colmap_point_cloud(self, downsample_factor: int = 1) -> open3d.geometry.PointCloud:
-        """Returns COLMAP-reconstructed point cloud."""
+        """Returns COLMAP-reconstructed point cloud.
+
+        Args:
+            downsample_factor: Downsampling factor on point cloud.
+
+        Return:
+            Point cloud reconstructed by COLMAP, in the COLMAP world frame.
+        """
         if not Path(self.colmap_ply_fpath).exists():
             raise ValueError("")
         pcd = open3d.io.read_point_cloud(self.colmap_ply_fpath)
         points, rgb = open3d_vis_utils.convert_colored_open3d_point_cloud_to_numpy(pointcloud=pcd)
-        points = points[::downsample_factor]
-        rgb = rgb[::downsample_factor]
+        if downsample_factor > 1:
+            points = points[::downsample_factor]
+            rgb = rgb[::downsample_factor]
         return open3d_vis_utils.create_colored_point_cloud_open3d(point_cloud=points, rgb=rgb)
 
 
@@ -245,22 +262,6 @@ def _parse_redwood_data_log_file(log_fpath: str) -> Dict[int, Pose3]:
         wTi_gt = np.array([parse_matrix_row(line) for line in lines])
         wTi_gt_dict[cam_idx] = Pose3(wTi_gt)
     return wTi_gt_dict
-
-
-def _make_line_plot(point1: np.ndarray, point2: np.ndarray) -> open3d.geometry.LineSet:
-    """ """
-    verts_worldfr = np.array([point1, point2])
-    lines = [[0, 1]]
-    # color is in range [0,1]
-    color = (0, 0, 1)
-    colors = [color for i in range(len(lines))]
-
-    line_set = open3d.geometry.LineSet(
-        points=open3d.utility.Vector3dVector(verts_worldfr),
-        lines=open3d.utility.Vector2iVector(lines),
-    )
-    line_set.colors = open3d.utility.Vector3dVector(colors)
-    return line_set
 
 
 def load_from_trimesh(mesh_path: str) -> trimesh.Trimesh:
