@@ -625,7 +625,7 @@ def compute_metrics(
             wTi_list.append(None)
         else:
             wTi_list.append(Pose3(wRi, wti))
-    wTi_aligned_list, _ = comp_utils.align_poses_sim3_ignore_missing(gt_wTi_list, wTi_list)
+    wTi_aligned_list, _ = comp_utils.ransac_align_poses_sim3_ignore_missing(gt_wTi_list, wTi_list)
     wti_aligned_list = [wTi.translation() if wTi is not None else None for wTi in wTi_aligned_list]
     gt_wti_list = [gt_wTi.translation() if gt_wTi is not None else None for gt_wTi in gt_wTi_list]
 

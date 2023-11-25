@@ -47,7 +47,7 @@ def compute_correspondence_metrics(
     """Checks the correspondences for epipolar distances and counts ones which are below the threshold.
 
     Args:
-        keypoints_i1: keypoints in image i1.
+        keypoints_i1: Keypoints in image i1.
         keypoints_i2: Corr. keypoints in image i2.
         intrinsics_i1: Intrinsics for i1.
         intrinsics_i2: Intrinsics for i2.
@@ -56,13 +56,13 @@ def compute_correspondence_metrics(
         gt_wTi2: Ground truth pose of image i2.
         gt_scene_mesh: Ground truth triangular surface mesh of the scene in the world frame.
 
-    Raises:
-        ValueError: When the number of keypoints do not match.
-
     Returns:
         Boolean mask of which verified correspondences are classified as correct under Sampson error
             (using GT epipolar geometry).
         Reprojection error for every verified correspondence against GT geometry.
+
+    Raises:
+        ValueError: When the number of keypoints do not match.
     """
     if corr_idxs_i1i2.size == 0:
         return None, None
@@ -108,10 +108,10 @@ def epipolar_inlier_correspondences(
 
     Args:
         keypoints_i1: Keypoints in image i1.
-        keypoints_i2: corr. keypoints in image i2.
+        keypoints_i2: Corr. keypoints in image i2.
         intrinsics_i1: Intrinsics for i1.
         intrinsics_i2: Intrinsics for i2.
-        i2Ti1: Relative pose
+        i2Ti1: Relative pose.
         dist_threshold: Max acceptable distance for a correct correspondence.
 
     Returns:
@@ -136,10 +136,12 @@ def mesh_inlier_correspondences(
     gt_scene_mesh: Trimesh,
     dist_threshold: float,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """Compute inlier correspondences using the ground truth triangular surface mesh of the scene. First, rays are
-    back-projected at each keypoint in the images and intersections between these rays and the ground truth mesh are
-    recorded. Next, given a match, the mesh intersections corresponding to each keypoint are forward-projected into the
-    other image and the reprojection error is computed to decide whether the match is an inlier.
+    """Compute inlier correspondences using the ground truth triangular surface mesh of the scene. 
+
+    First, rays are back-projected at each keypoint in the images and intersections between these rays and the ground
+    truth mesh are recorded. Next, given a match, the mesh intersections corresponding to each keypoint are
+    forward-projected into the other image and the reprojection error is computed to decide whether the match is an
+    inlier.
 
     Args:
         keypoints_i1: N keypoints in image i1.
@@ -415,11 +417,11 @@ def get_twoview_translation_directions(wTi_list: List[Optional[Pose3]]) -> Dict[
     """
     number_images = len(wTi_list)  # vs. using ba_output.number_images()
 
-    # check against all possible image pairs -- compute unit translation directions
+    # Check against all possible image pairs -- compute unit translation directions
     i2Ui1_dict = {}
     possible_img_pair_idxs = list(itertools.combinations(range(number_images), 2))
     for i1, i2 in possible_img_pair_idxs:
-        # compute the exact relative pose
+        # Compute the exact relative pose
         if wTi_list[i1] is None or wTi_list[i2] is None:
             i2Ui1 = None
         else:

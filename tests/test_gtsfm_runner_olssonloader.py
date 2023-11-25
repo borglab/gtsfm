@@ -29,10 +29,10 @@ def test_gtsfm_runner_olssonloader(dataset_path):
     if dataset_path == TEST_DATA_NO_GT:
         assert len(sfm_result.get_valid_camera_indices()) == len(runner.loader)
     else:
-        # compare the camera poses
+        # Compare the camera poses.
         computed_poses = sfm_result.get_camera_poses()
 
-        # get active cameras from largest connected component, may be <len(loader)
+        # Get active cameras from largest connected component, may be <len(loader).
         connected_camera_idxs = sfm_result.get_valid_camera_indices()
         expected_poses = [runner.loader.get_camera_pose(i) for i in connected_camera_idxs]
 

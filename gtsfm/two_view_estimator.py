@@ -201,9 +201,15 @@ class TwoViewEstimator:
         _, ba_output, valid_mask = self._ba_optimizer.run_ba(
             ba_input, absolute_pose_priors=[], relative_pose_priors=relative_pose_prior_for_ba, verbose=False
         )
+
         if ba_output is None:
             # Indeterminate linear system was met.
-            return None, None, np.zeros((0,2), dtype=np.int32)
+            return None, None, np.zeros((0, 2), dtype=np.int32)
+        else:
+            logger.info(
+                "Fraction of valid correspondences after BA track reproj error classification: "
+                f"{np.mean(valid_mask):.2f}"
+            )
 
         # Unpack results.
         valid_corr_idxs = verified_corr_idxs[triangulated_indices][valid_mask]
