@@ -10,7 +10,6 @@ from pathlib import Path
 import numpy as np
 import open3d
 
-import gtsfm.utils.io as io_utils
 import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
 from gtsfm.loader.tanks_and_temples_loader import TanksAndTemplesLoader
 
