@@ -164,19 +164,8 @@ class TanksAndTemplesLoader(LoaderBase):
         if index < 0 or index >= len(self):
             raise IndexError("Image index is invalid")
 
-        # Use synthetic camera.
-        H = _DEFAULT_IMAGE_HEIGHT_PX
-        W = _DEFAULT_IMAGE_WIDTH_PX
-        # Principal point offset:
-        cx = W / 2
-        cy = H / 2
-        # Focal length:
-        fx = 0.7 * W
-
-        # TODO(johnwlambert): Add Sony A7SM2 to sensor DB (35.6 x 23.8 mm), and get intrinsics from exif.
-        # intrinsics = io_utils.load_image(self._image_paths[index]).get_intrinsics_from_exif()
-
-        intrinsics = Cal3Bundler(fx, k1=0.0, k2=0.0, u0=cx, v0=cy)
+        # Retrieve focal length from EXIF, and principal point will be `cx = IMG_W / 2`, `cy = IMG_H / 2`.
+        intrinsics = io_utils.load_image(self._image_paths[index]).get_intrinsics_from_exif()
         return intrinsics
 
     def get_camera_pose(self, index: int) -> Optional[Pose3]:
@@ -300,7 +289,7 @@ class TanksAndTemplesLoader(LoaderBase):
         """Generates synthetic correspondences from virtual cameras and a ground-truth mesh.
 
         Args:
-            images:
+            images: List of input images.
             image_pairs: Tuples (i1,i2) indicating image indices to use as image pairs.
             deduplicate: Whether to de-duplicate with a single image the detections received from each image pair.
             num_sampled_3d_points: Number of 3d points to sample from the mesh surface and to project.
