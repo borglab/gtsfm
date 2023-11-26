@@ -33,7 +33,6 @@ def view_scene(args: argparse.Namespace) -> None:
     lidar_ply_fpath = data_root / f"{args.scene_name}.ply"
     colmap_ply_fpath = data_root / f"{args.scene_name}_COLMAP.ply"
 
-    # Note: PLY files are not provided here, as they are too large to include as test data (300 MB each).
     loader = TanksAndTemplesLoader(
         img_dir=str(img_dir),
         poses_fpath=str(poses_fpath),
@@ -44,14 +43,14 @@ def view_scene(args: argparse.Namespace) -> None:
     )
 
     # Both are loaded in the COLMAP world coordinate frame.
-    lidar_pcd = loader.get_lidar_point_cloud(downsample_factor=1000)
+    lidar_pcd = loader.get_lidar_point_cloud(downsample_factor=1)
     overlay_point_clouds = False
     if overlay_point_clouds:
         red = np.zeros_like(lidar_pcd.colors)
         red[:, 0] = 1.0
         lidar_pcd.colors = open3d.utility.Vector3dVector(red)
 
-    colmap_pcd = loader.get_colmap_point_cloud(downsample_factor=100)
+    colmap_pcd = loader.get_colmap_point_cloud(downsample_factor=1)
 
     calibrations = [loader.get_camera_intrinsics_full_res(0)] * len(loader)
     wTi_list = loader.get_gt_poses()
@@ -76,7 +75,7 @@ def view_scene(args: argparse.Namespace) -> None:
     if visualize_synthetic_correspondences:
         camera_i1 = loader.get_camera(index=0)
         img = loader.get_image_full_res(index=0)
-        
+
         # Project LiDAR point cloud into image 1.
         pcd = loader.get_lidar_point_cloud(downsample_factor=10)
         lidar_points = np.asarray(pcd.points)
@@ -86,7 +85,7 @@ def view_scene(args: argparse.Namespace) -> None:
         plt.imshow(img.value_array.astype(np.uint8))
         plt.scatter(keypoints_i1[:, 0], keypoints_i1[:, 1], 10, color="r", marker=".", alpha=0.007)
         plt.show()
-        
+
         # Project mesh vertices into image 1.
         mesh = loader.reconstruct_mesh()
         mesh_points = np.asarray(mesh.vertices)
@@ -109,7 +108,10 @@ def _project_points_onto_image(points: np.ndarray, camera: Cal3Bundler) -> np.nd
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Visualize Tanks & Temples dataset w/ Open3d.")
     parser.add_argument(
-        "--data_root", type=str, default=os.path.join(TEST_DATA_ROOT, "tanks_and_temples_barn"), help=""
+        "--data_root",
+        type=str,
+        default=os.path.join(TEST_DATA_ROOT, "tanks_and_temples_barn"),
+        help="Path to data for a specific Tanks & Temples scene.",
     )
     parser.add_argument("--scene_name", type=str, default="Barn")
     parser.add_argument(
