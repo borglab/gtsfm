@@ -5,13 +5,10 @@ Author: John Lambert
 import unittest
 from pathlib import Path
 
-import matplotlib.pyplot as plt
 import numpy as np
-import open3d
 from gtsam import Cal3Bundler, Unit3
 
 import gtsfm.utils.geometry_comparisons as geom_comp_utils
-import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
 from gtsfm.common.image import Image
 from gtsfm.loader.tanks_and_temples_loader import TanksAndTemplesLoader
 from gtsfm.frontend.verifier.loransac import LoRansac
