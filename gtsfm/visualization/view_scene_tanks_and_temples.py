@@ -74,22 +74,25 @@ def view_scene(args: argparse.Namespace) -> None:
 
     visualize_synthetic_correspondences = True
     if visualize_synthetic_correspondences:
+        camera_i1 = loader.get_camera(index=0)
+        img = loader.get_image_full_res(index=0)
+        
         # Project LiDAR point cloud into image 1.
-        pcd = loader.get_lidar_point_cloud()
+        pcd = loader.get_lidar_point_cloud(downsample_factor=10)
         lidar_points = np.asarray(pcd.points)
+        keypoints_i1 = _project_points_onto_image(lidar_points, camera_i1)
 
+        # Plot projected LiDAR points.
+        plt.imshow(img.value_array.astype(np.uint8))
+        plt.scatter(keypoints_i1[:, 0], keypoints_i1[:, 1], 10, color="r", marker=".", alpha=0.007)
+        plt.show()
+        
         # Project mesh vertices into image 1.
         mesh = loader.reconstruct_mesh()
         mesh_points = np.asarray(mesh.vertices)
-
-        camera_i1 = loader.get_camera(index=0)
-
-        keypoints_i1 = _project_points_onto_image(lidar_points, camera_i1)
         keypoints_i1_ = _project_points_onto_image(mesh_points, camera_i1)
-
-        img = loader.get_image_full_res(index=0)
+        # Plot projected mesh points.
         plt.imshow(img.value_array.astype(np.uint8))
-        plt.scatter(keypoints_i1[:, 0], keypoints_i1[:, 1], 10, color="r", marker=".", alpha=0.007)
         plt.scatter(keypoints_i1_[:, 0], keypoints_i1_[:, 1], 10, color="g", marker=".", alpha=0.007)
         plt.show()
 
