@@ -3,6 +3,7 @@
 Authors: John Lambert
 """
 import tempfile
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from dask.distributed import Client, Future
@@ -12,6 +13,7 @@ import trimesh
 from gtsam import Pose3
 
 import gtsfm.common.types as gtsfm_types
+import gtsfm.utils.logger as logger_utils
 import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.types import CAMERA_TYPE
@@ -25,6 +27,9 @@ from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggreg
 )
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.loader.tanks_and_temples_loader import TanksAndTemplesLoader
+
+
+logger = logger_utils.get_logger()
 
 
 class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
@@ -186,6 +191,7 @@ def generate_synthetic_correspondences(
 
     keypoints_list, putative_corr_idxs_dict = aggregator.aggregate(keypoints_dict=keypoints_dict)
     return keypoints_list, putative_corr_idxs_dict
+
 
 def generate_synthetic_correspondences_for_image_pair(
     camera_i1: gtsfm_types.CAMERA_TYPE,
