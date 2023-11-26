@@ -46,6 +46,7 @@ class TestTwoViewEstimator(unittest.TestCase):
             inlier_support_processor=None,
             bundle_adjust_2view=True,
             eval_threshold_px=4,
+            allow_indeterminate_linear_system=True,
         )
 
     def test_two_view_correspondences(self):
