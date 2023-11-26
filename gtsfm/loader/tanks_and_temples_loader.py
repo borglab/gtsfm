@@ -17,10 +17,13 @@ from gtsam import Cal3Bundler, Rot3, Pose3
 from dask.distributed import Future
 
 import gtsfm.common.types as gtsfm_types
+import gtsfm.utils.geometry_comparisons as geom_comp_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
+import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_base import KeypointAggregatorBase
 from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_dedup import (
     KeypointAggregatorDedup,
@@ -29,12 +32,6 @@ from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggreg
     KeypointAggregatorUnique,
 )
 
-import gtsfm.utils.io as io_utils
-import gtsfm.utils.logger as logger_utils
-from gtsfm.common.image import Image
-from gtsfm.loader.loader_base import LoaderBase
-import gtsfm.utils.geometry_comparisons as geom_comp_utils
-import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
 
 logger = logger_utils.get_logger()
 
