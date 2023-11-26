@@ -244,7 +244,6 @@ class TanksAndTemplesLoader(LoaderBase):
             rgb = rgb[::downsample_factor]
         return open3d_vis_utils.create_colored_point_cloud_open3d(point_cloud=points, rgb=rgb)
 
-
     def reconstruct_mesh(
         self,
         crop_by_polyhedron: bool = True,
@@ -328,7 +327,7 @@ class TanksAndTemplesLoader(LoaderBase):
         keypoints_dict = {}
         putative_corr_idxs_dict = {}
 
-        for (i1, i2) in image_pairs:
+        for i1, i2 in image_pairs:
             if i1 not in camera_dict:
                 camera_dict[i1] = self.get_camera(index=i1)
             if i2 not in camera_dict:
