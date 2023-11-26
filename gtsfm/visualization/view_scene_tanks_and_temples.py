@@ -7,8 +7,10 @@ import argparse
 import os
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import numpy as np
 import open3d
+from gtsam import Cal3Bundler
 
 import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
 from gtsfm.loader.tanks_and_temples_loader import TanksAndTemplesLoader
@@ -57,6 +59,46 @@ def view_scene(args: argparse.Namespace) -> None:
 
     geometries = frustums + [colmap_pcd] + [lidar_pcd]
     open3d.visualization.draw_geometries(geometries)
+
+    visualize_mesh = True
+    if visualize_mesh:
+        mesh = loader.reconstruct_mesh()
+        num_sampled_3d_points = 20000
+        pcd = mesh.sample_points_uniformly(number_of_points=num_sampled_3d_points)
+        # pcd = mesh.sample_points_poisson_disk(number_of_points=num_sampled_3d_points, pcl=pcd)
+        open3d.visualization.draw_geometries([pcd])
+
+        open3d.visualization.draw_geometries([mesh], mesh_show_back_face=True)
+
+    visualize_synthetic_correspondences = True
+    if visualize_synthetic_correspondences:
+        # Project LiDAR point cloud into image 1.
+        pcd = loader.get_lidar_point_cloud()
+        lidar_points = np.asarray(pcd.points)
+
+        # Project mesh vertices into image 1.
+        mesh = loader.reconstruct_mesh()
+        mesh_points = np.asarray(mesh.vertices)
+
+        camera_i1 = loader.get_camera(index=0)
+
+        keypoints_i1 = _project_points_onto_image(lidar_points, camera_i1)
+        keypoints_i1_ = _project_points_onto_image(mesh_points, camera_i1)
+
+        img = loader.get_image_full_res(index=0)
+        plt.imshow(img.value_array.astype(np.uint8))
+        plt.scatter(keypoints_i1[:, 0], keypoints_i1[:, 1], 10, color="r", marker=".", alpha=0.007)
+        plt.scatter(keypoints_i1_[:, 0], keypoints_i1_[:, 1], 10, color="g", marker=".", alpha=0.007)
+        plt.show()
+
+
+def _project_points_onto_image(points: np.ndarray, camera: Cal3Bundler) -> np.ndarray:
+    """Returns (N,2) array of keypoint coordinates."""
+    keypoints = []
+    for point in points:
+        keypoints.append(camera.projectSafe(point)[0])
+
+    return np.array(keypoints_i1)
 
 
 if __name__ == "__main__":
