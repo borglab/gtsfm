@@ -63,12 +63,14 @@ def view_scene(args: argparse.Namespace) -> None:
     visualize_mesh = True
     if visualize_mesh:
         mesh = loader.reconstruct_mesh()
+        open3d.visualization.draw_geometries([mesh], mesh_show_back_face=True)
+
+    visualize_mesh_sampled_points = True
+    if visualize_mesh_sampled_points:
         num_sampled_3d_points = 20000
         pcd = mesh.sample_points_uniformly(number_of_points=num_sampled_3d_points)
         # pcd = mesh.sample_points_poisson_disk(number_of_points=num_sampled_3d_points, pcl=pcd)
         open3d.visualization.draw_geometries([pcd])
-
-        open3d.visualization.draw_geometries([mesh], mesh_show_back_face=True)
 
     visualize_synthetic_correspondences = True
     if visualize_synthetic_correspondences:
@@ -98,7 +100,7 @@ def _project_points_onto_image(points: np.ndarray, camera: Cal3Bundler) -> np.nd
     for point in points:
         keypoints.append(camera.projectSafe(point)[0])
 
-    return np.array(keypoints_i1)
+    return np.array(keypoints)
 
 
 if __name__ == "__main__":
