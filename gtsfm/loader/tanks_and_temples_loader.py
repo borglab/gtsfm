@@ -5,22 +5,19 @@ See https://www.tanksandtemples.org/download/ for more information.
 Author: John Lambert
 """
 
-import tempfile
 from enum import auto, Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 import numpy as np
 import open3d
 from gtsam import Cal3Bundler, Rot3, Pose3
-from dask.distributed import Future
 
 import gtsfm.utils.geometry_comparisons as geom_comp_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
 from gtsfm.common.image import Image
-from gtsfm.common.keypoints import Keypoints
 from gtsfm.loader.loader_base import LoaderBase
 
 
