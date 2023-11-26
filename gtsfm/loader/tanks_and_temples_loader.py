@@ -28,6 +28,10 @@ from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggreg
 from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_unique import (
     KeypointAggregatorUnique,
 )
+
+import gtsfm.utils.io as io_utils
+import gtsfm.utils.logger as logger_utils
+from gtsfm.common.image import Image
 from gtsfm.loader.loader_base import LoaderBase
 import gtsfm.utils.geometry_comparisons as geom_comp_utils
 import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
@@ -142,7 +146,7 @@ class TanksAndTemplesLoader(LoaderBase):
 
         img = io_utils.load_image(self._image_paths[index])
 
-        # All should have shape (1080, 1920, 3)
+        # All images should have the same shape: (1080, 1920, 3).
         if img.height != _DEFAULT_IMAGE_HEIGHT_PX:
             raise ValueError(f"Images from the Tanks&Temples dataset should have height {_DEFAULT_IMAGE_HEIGHT_PX} px.")
         if img.width != _DEFAULT_IMAGE_WIDTH_PX:
@@ -193,7 +197,6 @@ class TanksAndTemplesLoader(LoaderBase):
         if not self._use_gt_extrinsics:
             return None
 
-        # wTi = self._wTi_list[index]
         wTi = self.wTi_gt_dict[index]
         if not geom_comp_utils.is_valid_SO3(wTi.rotation()):
             raise ValueError("Given GT rotation is not a member of SO(3) and GT metrics will be incorrect.")
@@ -203,31 +206,47 @@ class TanksAndTemplesLoader(LoaderBase):
         """Returns ground-truth point cloud, captured using an industrial laser scanner.
 
         Move all LiDAR points to the COLMAP frame.
+
+        Args:
+            downsample_factor: Downsampling factor on point cloud.
+
+        Return:
+            Point cloud captured by laser scanner, in the COLMAP world frame.
         """
         if not Path(self.lidar_ply_fpath).exists():
             raise ValueError("")
         pcd = open3d.io.read_point_cloud(self.lidar_ply_fpath)
         points, rgb = open3d_vis_utils.convert_colored_open3d_point_cloud_to_numpy(pointcloud=pcd)
-        points = points[::downsample_factor]
-        rgb = rgb[::downsample_factor]
+
+        if downsample_factor > 1:
+            points = points[::downsample_factor]
+            rgb = rgb[::downsample_factor]
 
         lidar_Sim3_colmap = _create_Sim3_from_tt_dataset_alignment_transform(self.lidar_Sim3_colmap)
         colmap_Sim3_lidar = np.linalg.inv(lidar_Sim3_colmap)
         # Transform LiDAR points to COLMAP coordinate frame.
         points = transform_point_cloud_vectorized(points, colmap_Sim3_lidar)
-        pcd = open3d_vis_utils.create_colored_point_cloud_open3d(point_cloud=points, rgb=rgb)
-        return pcd
+        return open3d_vis_utils.create_colored_point_cloud_open3d(point_cloud=points, rgb=rgb)
 
     def get_colmap_point_cloud(self, downsample_factor: int = 1) -> open3d.geometry.PointCloud:
-        """Returns COLMAP-reconstructed point cloud."""
+        """Returns COLMAP-reconstructed point cloud.
+
+        Args:
+            downsample_factor: Downsampling factor on point cloud.
+
+        Return:
+            Point cloud reconstructed by COLMAP, in the COLMAP world frame.
+        """
         if not Path(self.colmap_ply_fpath).exists():
             raise ValueError("")
         pcd = open3d.io.read_point_cloud(self.colmap_ply_fpath)
         points, rgb = open3d_vis_utils.convert_colored_open3d_point_cloud_to_numpy(pointcloud=pcd)
-        points = points[::downsample_factor]
-        rgb = rgb[::downsample_factor]
-        pcd = open3d_vis_utils.create_colored_point_cloud_open3d(point_cloud=points, rgb=rgb)
-        return pcd
+
+        if downsample_factor > 1:
+            points = points[::downsample_factor]
+            rgb = rgb[::downsample_factor]
+        return open3d_vis_utils.create_colored_point_cloud_open3d(point_cloud=points, rgb=rgb)
+
 
     def reconstruct_mesh(
         self,

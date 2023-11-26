@@ -2,7 +2,6 @@
 
 Author: John Lambert
 """
-
 import unittest
 from pathlib import Path
 
@@ -23,12 +22,8 @@ _TEST_DATA_ROOT = Path(__file__).resolve().parent.parent / "data" / "tanks_and_t
 
 class TanksAndTemplesLoaderTest(unittest.TestCase):
     def setUp(self) -> None:
-        scene_name = "Barn"  # 'Truck'
+        scene_name = "Barn"
 
-        # Uncomment lines below to run locally.
-        # _TEST_DATA_ROOT = Path('/Users/johnlambert/Downloads/Tanks_and_Temples_Barn_410')
-        # lidar_ply_fpath = _TEST_DATA_ROOT / f'{scene_name}.ply'
-        # colmap_ply_fpath = _TEST_DATA_ROOT / f'{scene_name}_COLMAP.ply'
         lidar_ply_fpath = None
         colmap_ply_fpath = None
 
@@ -69,7 +64,11 @@ class TanksAndTemplesLoaderTest(unittest.TestCase):
         assert np.allclose(wRi @ wRi.T, np.eye(3))
 
         expected_wRi = np.array(
-            [[-0.43322, -0.0555537, -0.899574], [0.0567814, 0.994434, -0.0887567], [0.899498, -0.0895302, -0.427654]]
+            [
+                [-0.43322, -0.0555537, -0.899574],
+                [0.0567814, 0.994434, -0.0887567],
+                [0.899498, -0.0895302, -0.427654],
+            ]
         )
         assert np.allclose(wTi.rotation().matrix(), expected_wRi)
 
@@ -80,7 +79,7 @@ class TanksAndTemplesLoaderTest(unittest.TestCase):
         """Verify that image file names are provided correctly (used in NetVLAD)."""
         filenames = self.loader.image_filenames()
 
-        expected_filenames = ['000001.jpg', '000002.jpg', '000003.jpg']
+        expected_filenames = ["000001.jpg", "000002.jpg", "000003.jpg"]
         assert filenames == expected_filenames
 
     def test_get_image_fpath(self) -> None:
@@ -150,52 +149,3 @@ class TanksAndTemplesLoaderTest(unittest.TestCase):
         #         DIRECTION_ANGULAR_ERROR_DEG_THRESHOLD,
         #     )
 
-    def test_mesh(self) -> None:
-        # Skip this test in the CI, and only uncomment it to run it locally, since it requires PLY.
-        return
-        mesh = self.loader.reconstruct_mesh()
-        num_sampled_3d_points = 20000
-        pcd = mesh.sample_points_uniformly(number_of_points=num_sampled_3d_points)
-        # pcd = mesh.sample_points_poisson_disk(number_of_points=num_sampled_3d_points, pcl=pcd)
-        open3d.visualization.draw_geometries([pcd])  # [mesh], mesh_show_back_face=True)
-
-    def test_project_synthetic_correspondences_to_image(self) -> None:
-        # Skip this test in the CI, and only uncomment it to run it locally, since it requires PLY.
-        return
-        # Project LiDAR point cloud into image 1.
-        pcd = self.loader.get_lidar_point_cloud()
-        points = np.asarray(pcd.points)
-
-        # Project mesh vertices into image 1.
-        mesh = self.loader.reconstruct_mesh()
-        points = np.asarray(mesh.vertices)
-
-        camera_i1 = self.loader.get_camera(index=0)
-
-        keypoints_i1 = []
-        for point in points:
-            keypoints_i1.append(camera_i1.projectSafe(point)[0])
-
-        keypoints_i1 = np.array(keypoints_i1)
-
-        img = self.loader.get_image_full_res(index=0)
-        plt.imshow(img.value_array.astype(np.uint8))
-        plt.scatter(keypoints_i1[:, 0], keypoints_i1[:, 1], 10, color="r", marker=".", alpha=0.007)
-        plt.show()
-        open3d.visualization.draw_geometries([mesh], mesh_show_back_face=True)
-
-    def visualize_overlapping_point_clouds(self) -> None:
-        """Visualize overlaid LiDAR and COLMAP point clouds."""
-        # Skip this test in the CI, and only uncomment it to run it locally, since it opens a GUI.
-        return
-        wTi_list = [self.loader.get_camera_pose(index) for index in range(len(self.loader))]
-        calibrations = [self.loader.get_camera_intrinsics_full_res(index) for index in range(len(self.loader))]
-
-        frustums = open3d_vis_utils.create_all_frustums_open3d(
-            wTi_list=wTi_list, calibrations=calibrations, frustum_ray_len=0.3
-        )
-        geometries = frustums
-        lidar_pcd = self.loader.get_lidar_point_cloud()
-        colmap_pcd = self.loader.get_colmap_point_cloud()
-
-        open3d.visualization.draw_geometries(geometries + [lidar_pcd] + [colmap_pcd])
