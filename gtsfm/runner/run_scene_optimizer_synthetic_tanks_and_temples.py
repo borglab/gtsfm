@@ -16,6 +16,7 @@ logger = logger_utils.get_logger()
 _TANKS_AND_TEMPLES_RESOLUTION_PX = 1080
 
 
+# TODO(johnwlambert,travisdriver): Make this generic for any dataset with a GT mesh.
 class GtsfmRunnerSyntheticTanksAndTemplesLoader(GtsfmRunnerBase):
     tag = "GTSFM with LiDAR scans, COLMAP camera poses, and image names stored in Tanks and Temples format"
 
