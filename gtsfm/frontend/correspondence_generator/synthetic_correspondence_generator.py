@@ -55,12 +55,13 @@ class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
         image_pairs: List[Tuple[int, int]],
         num_sampled_3d_points: int = 500,
     ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
-        """Apply the correspondence generator to generate putative correspondences.
+        """Apply the correspondence generator to generate putative correspondences (in parallel).
 
         Args:
             client: Dask client, used to execute the front-end as futures.
             images: List of all images, as futures.
             image_pairs: Indices of the pairs of images to estimate two-view pose and correspondences.
+            num_sampled_3d_points: Number of 3d points to sample from the mesh surface and to project.
 
         Returns:
             List of keypoints, with one entry for each input image.
@@ -97,6 +98,9 @@ class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
 
         loader_future = client.scatter(loader, broadcast=False)
 
+        # TODO(johnwlambert): Remove assumption that image pair shares the same image shape.
+        image_height_px, image_width_px, _ = loader.get_image(0).shape
+
         def apply_synthetic_corr_generator(
             loader_: LoaderBase,
             camera_i1: CAMERA_TYPE,
@@ -105,7 +109,13 @@ class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
             points: np.ndarray,
         ) -> Tuple[Keypoints, Keypoints]:
             return generate_synthetic_correspondences_for_image_pair(
-                loader, camera_i1, camera_i2, open3d_mesh_fpath, points
+                loader,
+                camera_i1,
+                camera_i2,
+                open3d_mesh_fpath,
+                points,
+                image_height_px=image_height_px,
+                image_width_px=image_width_px,
             )
 
         pairwise_correspondence_futures = {
@@ -135,7 +145,7 @@ def generate_synthetic_correspondences(
     deduplicate: bool = False,
     num_sampled_3d_points: int = 2000,
 ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
-    """Generates synthetic correspondences from virtual cameras and a ground-truth mesh.
+    """Generates synthetic correspondences from virtual cameras and a ground-truth mesh (in a single process).
 
     Args:
         loader: Dataset loader.
@@ -174,7 +184,10 @@ def generate_synthetic_correspondences(
         # TODO(johnwlambert): Remove assumption that image pair shares the same image shape.
         image_height_px, image_width_px, _ = loader.get_image(i1).shape
         keypoints_i1, keypoints_i2 = generate_synthetic_correspondences_for_image_pair(
-            camera_i1=camera_dict[i1], camera_i2=camera_dict[i2], open3d_mesh_fpath=open3d_mesh_path, points=points,
+            camera_i1=camera_dict[i1],
+            camera_i2=camera_dict[i2],
+            open3d_mesh_fpath=open3d_mesh_path,
+            points=points,
             image_height_px=image_height_px,
             image_width_px=image_width_px,
         )
@@ -208,8 +221,8 @@ def generate_synthetic_correspondences_for_image_pair(
         camera_i2: Second camera.
         open3d_mesh_fpath: Path to saved Open3d mesh.
         points: 3d points sampled from mesh surface.
-        image_height_px:
-        image_width_px:
+        image_height_px: Image height, in pixels.
+        image_width_px: Image width, in pixels.
 
     Returns:
         Tuple of `Keypoints` objects, one for each image in the input image pair.
@@ -257,7 +270,7 @@ def visualize_ray_to_sampled_mesh_point(
         point: 3d point as (3,) array.
         wTi_list: All camera poses.
         calibrations: Calibration for each camera.
-        mesh:
+        mesh: 3d surface mesh.
     """
     frustums = open3d_vis_utils.create_all_frustums_open3d(wTi_list, calibrations, frustum_ray_len=0.3)
 
@@ -289,8 +302,8 @@ def verify_camera_fov_and_occlusion(
         camera: Camera to use.
         point: 3d point as (3,) array.
         trimesh_mesh: Trimesh mesh object to raycast against.
-        image_height_px:
-        image_width_px:
+        image_height_px: Image height, in pixels.
+        image_width_px: Image width, in pixels.
 
     Returns:
         2d keypoint as (2,) array.
@@ -350,10 +363,10 @@ def load_from_trimesh(mesh_path: str) -> trimesh.Trimesh:
 
 
 def _make_line_plot(point1: np.ndarray, point2: np.ndarray) -> open3d.geometry.LineSet:
-    """ """
+    """Plot a line segment from `point1` to `point2` using Open3D."""
     verts_worldfr = np.array([point1, point2])
     lines = [[0, 1]]
-    # color is in range [0,1]
+    # Color is in range [0,1]
     color = (0, 0, 1)
     colors = [color for i in range(len(lines))]
 
@@ -363,4 +376,3 @@ def _make_line_plot(point1: np.ndarray, point2: np.ndarray) -> open3d.geometry.L
     )
     line_set.colors = open3d.utility.Vector3dVector(colors)
     return line_set
-
