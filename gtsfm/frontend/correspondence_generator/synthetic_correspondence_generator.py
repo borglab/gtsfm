@@ -109,7 +109,6 @@ class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
             points: np.ndarray,
         ) -> Tuple[Keypoints, Keypoints]:
             return generate_synthetic_correspondences_for_image_pair(
-                loader,
                 camera_i1,
                 camera_i2,
                 open3d_mesh_fpath,
