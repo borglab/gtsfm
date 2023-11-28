@@ -13,15 +13,15 @@ SceneOptimizer:
       _target_: gtsfm.frontend.cacher.global_descriptor_cacher.GlobalDescriptorCacher
       global_descriptor_obj:
         _target_: gtsfm.frontend.global_descriptor.netvlad_global_descriptor.NetVLADGlobalDescriptor
-    retriever:
-      _target_: gtsfm.retriever.joint_netvlad_sequential_retriever.JointNetVLADSequentialRetriever
-      num_matched: 2
-      min_score: 0.2
-      max_frame_lookahead: 3
-
     # retriever:
-    #   _target_: gtsfm.retriever.sequential_retriever.SequentialRetriever
-    #   max_frame_lookahead: 4
+    #   _target_: gtsfm.retriever.joint_netvlad_sequential_retriever.JointNetVLADSequentialRetriever
+    #   num_matched: 2
+    #   min_score: 0.2
+    #   max_frame_lookahead: 3
+
+    retriever:
+      _target_: gtsfm.retriever.sequential_retriever.SequentialRetriever
+      max_frame_lookahead: 4
 
     # retriever:
     #   _target_: gtsfm.retriever.netvlad_retriever.NetVLADRetriever
