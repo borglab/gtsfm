@@ -188,7 +188,7 @@ class TanksAndTemplesLoader(LoaderBase):
             Point cloud captured by laser scanner, in the COLMAP world frame.
         """
         if not Path(self.lidar_ply_fpath).exists():
-            raise ValueError("")
+            raise ValueError("Cannot retrieve LiDAR scanned point cloud if `lidar_ply_fpath` not provided.")
         pcd = open3d.io.read_point_cloud(self.lidar_ply_fpath)
         points, rgb = open3d_vis_utils.convert_colored_open3d_point_cloud_to_numpy(pointcloud=pcd)
 
