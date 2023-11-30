@@ -101,6 +101,7 @@ for num_matched in ${num_matched_sizes[@]}; do
 				echo "Max frame lookahead: ${max_frame_lookahead}"
 				echo "Correspondence Generator: ${correspondence_generator_config_name}"
 				echo "Num workers: ${num_workers}"
+				echo "Intrinsics: ${INTRINSICS_ARGS}"
 
 				if [[ $dataset == *"barn-tanks-and-temples-410"* ]]
 				then
