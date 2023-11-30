@@ -123,7 +123,7 @@ for num_matched in ${num_matched_sizes[@]}; do
 					# dataset_root=/usr/local/gtsfm-data/ecole-superieure-de-guerre-35
 
 					loader=colmap
-					colmap_files_dirpath=/usr/local/gtsfm-data/ecole_superieure_colmap_gt_2023_11_22
+					colmap_files_dirpath=/usr/local/gtsfm-data/ecole_superieure_colmap_gt_2023_11_22/txt_gt
 					images_dir=/usr/local/gtsfm-data/ecole-superieure-de-guerre-35/images
 
 				elif [[ $dataset == *"fort-channing-gate-singapore-27"* ]]
@@ -137,7 +137,7 @@ for num_matched in ${num_matched_sizes[@]}; do
 					# dataset_root=/usr/local/gtsfm-data/skansen-kronan-gothenburg-131
 
 					loader=colmap
-					colmap_files_dirpath==/usr/local/gtsfm-data/skansen_colmap_gt_2023_11_22
+					colmap_files_dirpath=/usr/local/gtsfm-data/skansen_colmap_gt_2023_11_22
 					images_dir=/usr/local/gtsfm-data/skansen-kronan-gothenburg-131/images
 
 				elif [[ $dataset == *"nijo-castle-gate-19"* ]]
@@ -151,7 +151,7 @@ for num_matched in ${num_matched_sizes[@]}; do
 					# dataset_root=/usr/local/gtsfm-data/kings-college-cambridge-328
 
 					loader=colmap
-					colmap_files_dirpath==/usr/local/gtsfm-data/kings_college_colmap_gt_2023_11_22
+					colmap_files_dirpath=/usr/local/gtsfm-data/kings_college_colmap_gt_2023_11_22
 					images_dir=/usr/local/gtsfm-data/kings-college-cambridge-328/images
 
 				elif [[ $dataset == *"spilled-blood-cathedral-st-petersburg-781"* ]]
