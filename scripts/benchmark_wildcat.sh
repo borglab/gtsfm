@@ -8,37 +8,37 @@ now=$(date +"%Y%m%d_%H%M%S")
 
 datasets=(
         # Tanks and Temples Dataset.
-	barn-tanks-and-temples-410
+	#barn-tanks-and-temples-410
 	# Olsson Datasets.
 	# See https://www.maths.lth.se/matematiklth/personal/calle/dataset/dataset.html
 	ecole-superieure-de-guerre-35
-	fort-channing-gate-singapore-27
+	#fort-channing-gate-singapore-27
 	skansen-kronan-gothenburg-131
-	nijo-castle-gate-19
+	#nijo-castle-gate-19
 	kings-college-cambridge-328
 	# spilled-blood-cathedral-st-petersburg-781
 	palace-fine-arts-281
 	# Other.
-	skydio-crane-mast-501
+	#skydio-crane-mast-501
 	# Astrovision Datasets.
-	2011205_rc3
+	#2011205_rc3
 	# Colmap Datasets.
-	south-building-128
-	gerrard-hall-100
+	#south-building-128
+	#gerrard-hall-100
 	# # 1dsfm Datasets
 	# gendarmenmarkt-1463
 	)
 
 max_frame_lookahead_sizes=(
 	10
-	5
+	#5
 	#15
 	)
 
 num_matched_sizes=(
 	5
-	10
-	15
+	#10
+	#15
 	# 20
 	# 25
 	)
@@ -65,6 +65,13 @@ for num_matched in ${num_matched_sizes[@]}; do
 			then
 				# Gendarmenmarkt images have no natural order.
 				continue
+			fi
+
+			if [[ $dataset == *"gendarmenmarkt-1463"* ]]
+			then
+				INTRINSICS_ARGS=""
+			else
+				INTRINSICS_ARGS="--share_intrinsics"
 			fi
 
 			if [[ $num_matched == 0 && $max_frame_lookahead == 0 ]]
@@ -95,20 +102,29 @@ for num_matched in ${num_matched_sizes[@]}; do
 				echo "Correspondence Generator: ${correspondence_generator_config_name}"
 				echo "Num workers: ${num_workers}"
 
-                                if [[ $dataset == *"barn-tanks-and-temples-410"* ]]
+				if [[ $dataset == *"barn-tanks-and-temples-410"* ]]
 				then
-                                        loader=colmap
+					loader=colmap
 					images_dir=/usr/local/gtsfm-data/Tanks_and_Temples_Barn_410/Barn
-                                        colmap_files_dirpath=/usr/local/gtsfm-data/Tanks_and_Temples_Barn_410/colmap_gt_2023_11_15_2250_highquality
+					colmap_files_dirpath=/usr/local/gtsfm-data/Tanks_and_Temples_Barn_410/colmap_gt_2023_11_15_2250_highquality
+
 				elif [[ $dataset == *"palace-fine-arts-281"* ]]
 				then
-					loader=olsson
-					dataset_root=/usr/local/gtsfm-data/palace-fine-arts-281
+					# loader=olsson
+					# dataset_root=/usr/local/gtsfm-data/palace-fine-arts-281
+
+					loader=colmap
+					colmap_files_dirpath=/usr/local/gtsfm-data/palace_colmap_gt_2023_11_22
+					images_dir=/usr/local/gtsfm-data/palace-fine-arts-281/images
 
 				elif [[ $dataset == *"ecole-superieure-de-guerre-35"* ]]
 				then
-					loader=olsson
-					dataset_root=/usr/local/gtsfm-data/ecole-superieure-de-guerre-35
+					# loader=olsson
+					# dataset_root=/usr/local/gtsfm-data/ecole-superieure-de-guerre-35
+
+					loader=colmap
+					colmap_files_dirpath=/usr/local/gtsfm-data/ecole_superieure_colmap_gt_2023_11_22
+					images_dir=/usr/local/gtsfm-data/ecole-superieure-de-guerre-35/images
 
 				elif [[ $dataset == *"fort-channing-gate-singapore-27"* ]]
 				then
@@ -117,8 +133,12 @@ for num_matched in ${num_matched_sizes[@]}; do
 
 				elif [[ $dataset == *"skansen-kronan-gothenburg-131"* ]]
 				then
-					loader=olsson
-					dataset_root=/usr/local/gtsfm-data/skansen-kronan-gothenburg-131
+					# loader=olsson
+					# dataset_root=/usr/local/gtsfm-data/skansen-kronan-gothenburg-131
+
+					loader=colmap
+					colmap_files_dirpath==/usr/local/gtsfm-data/skansen_colmap_gt_2023_11_22
+					images_dir=/usr/local/gtsfm-data/skansen-kronan-gothenburg-131/images
 
 				elif [[ $dataset == *"nijo-castle-gate-19"* ]]
 				then
@@ -127,8 +147,12 @@ for num_matched in ${num_matched_sizes[@]}; do
 
 				elif [[ $dataset == *"kings-college-cambridge-328"* ]]
 				then
-					loader=olsson
-					dataset_root=/usr/local/gtsfm-data/kings-college-cambridge-328
+					# loader=olsson
+					# dataset_root=/usr/local/gtsfm-data/kings-college-cambridge-328
+
+					loader=colmap
+					colmap_files_dirpath==/usr/local/gtsfm-data/kings_college_colmap_gt_2023_11_22
+					images_dir=/usr/local/gtsfm-data/kings-college-cambridge-328/images
 
 				elif [[ $dataset == *"spilled-blood-cathedral-st-petersburg-781"* ]]
 				then
@@ -178,7 +202,7 @@ for num_matched in ${num_matched_sizes[@]}; do
 					--worker_memory_limit "32GB" \
 					--output_root $OUTPUT_ROOT \
 					--max_resolution 760 \
-					$CLUSTER_ARGS \
+					$INTRINSICS_ARGS $CLUSTER_ARGS \
 					2>&1 | tee $OUTPUT_ROOT/out.log
 				elif [[ $loader == *"colmap"* ]]
 				then
@@ -195,7 +219,7 @@ for num_matched in ${num_matched_sizes[@]}; do
 					--worker_memory_limit "32GB" \
 					--output_root $OUTPUT_ROOT \
 					--max_resolution 760 \
-					$CLUSTER_ARGS \
+					$INTRINSICS_ARGS $CLUSTER_ARGS \
 					2>&1 | tee $OUTPUT_ROOT/out.log
 				elif [[ $loader == *"astrovision"* ]]
 				then
@@ -211,7 +235,7 @@ for num_matched in ${num_matched_sizes[@]}; do
 					--worker_memory_limit "32GB" \
 					--output_root $OUTPUT_ROOT \
 					--max_resolution 760 \
-					$CLUSTER_ARGS \
+					$INTRINSICS_ARGS $CLUSTER_ARGS \
 					2>&1 | tee $OUTPUT_ROOT/out.log
 				fi
 			done
