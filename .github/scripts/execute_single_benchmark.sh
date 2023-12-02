@@ -29,9 +29,6 @@ elif [ "$DATASET_NAME" == "notre-dame-20" ]; then
 elif [ "$DATASET_NAME" == "gerrard-hall-100" ]; then
   IMAGES_DIR=gerrard-hall-100/images
   COLMAP_FILES_DIRPATH=gerrard-hall-100/colmap-3.7-sparse-txt-2023-07-27
-elif [ "$DATASET_NAME" == "tanks-and-temples-barn-410" ]; then
-  DATASET_ROOT="Tanks_and_Temples_Barn_410"
-  SCENE_NAME="Barn"
 elif [ "$DATASET_NAME" == "south-building-128" ]; then
   IMAGES_DIR=south-building-128/images
   #COLMAP_FILES_DIRPATH=south-building-128/colmap-official-2016-10-05
@@ -81,9 +78,4 @@ elif [ "$LOADER_NAME" == "astrovision" ]; then
     ${SHARE_INTRINSICS_ARG} \
     --mvs_off
 
-elif [ "$LOADER_NAME" == "tanks-and-temples" ]; then
-  python gtsfm/runner/run_scene_optimizer_synthetic_tanks_and_temples.py \
-    --config_name ${CONFIG_NAME}.yaml \
-    --dataset_root $DATASET_ROOT \
-    --scene_name $SCENE_NAME
 fi

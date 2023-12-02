@@ -27,7 +27,6 @@ jobs:
             [lightglue,           gerrard-hall-100,      15,         jpg,           wget,       colmap-loader,  760,     true],
             [sift,                south-building-128,    15,         jpg,           wget,       colmap-loader,  760,     true],
             [lightglue,           south-building-128,    15,         jpg,           wget,       colmap-loader,  760,     true],
-            [synthetic_front_end, tanks-and-temples-barn-410, 4,     jpg,           wget,    tanks-and-temples, 1080,    true],
           ]
     defaults:
       run:

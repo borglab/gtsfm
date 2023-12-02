@@ -67,11 +67,6 @@ function download_and_unzip_dataset_files {
     WGET_URL1=https://github.com/johnwlambert/gtsfm-datasets-mirror/releases/download/gerrard-hall-100/gerrard-hall-100.zip
     ZIP_FNAME=gerrard-hall-100.zip
 
-  elif [ "$DATASET_NAME" == "tanks-and-temples-barn-410" ]; then 
-    # Tanks and Temples Dataset, "Barn" scene.
-    WGET_URL1=https://github.com/johnwlambert/gtsfm-datasets-mirror/releases/download/tanks-and-temples-barn/Tanks_and_Temples_Barn_410.zip
-    ZIP_FNAME=Tanks_and_Temples_Barn_410.zip
-
   elif [ "$DATASET_NAME" == "south-building-128" ]; then
     WGET_URL1=https://github.com/johnwlambert/gtsfm-datasets-mirror/releases/download/south-building-128/south-building-128.zip
     ZIP_FNAME=south-building-128.zip
@@ -146,8 +141,6 @@ function download_and_unzip_dataset_files {
   elif [ "$DATASET_NAME" == "south-building-128" ]; then
     unzip south-building-128.zip
 
-  elif [ "$DATASET_NAME" == "tanks-and-temples-barn-410" ]; then
-    unzip -qq Tanks_and_Temples_Barn_410.zip
   fi
 }
 

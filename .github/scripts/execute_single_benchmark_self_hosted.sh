@@ -58,5 +58,4 @@ elif [ "$LOADER_NAME" == "astrovision" ]; then
     --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
     --max_resolution ${MAX_RESOLUTION} \
     ${SHARE_INTRINSICS_ARG}
-
 fi
