@@ -10,8 +10,11 @@ import networkx as nx
 import numpy as np
 from gtsam import PinholeCameraCal3Bundler, Rot3, Unit3
 
+import gtsfm.utils.logger as logger_utils
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
+
+logger = logger_utils.get_logger()
 
 GREEN = [0, 1, 0]
 RED = [1, 0, 0]
@@ -32,9 +35,13 @@ def get_nodes_in_largest_connected_component(edges: List[Tuple[int, int]]) -> Li
     input_graph = nx.Graph()
     input_graph.add_edges_from(edges)
 
-    # get the largest connected component
-    largest_cc = max(nx.connected_components(input_graph), key=len)
-    subgraph = input_graph.subgraph(largest_cc).copy()
+    # Log the sizes of the connected components.
+    cc_sizes = [len(x) for x in sorted(list(nx.connected_components(input_graph)))]
+    logger.info("Connected component sizes: %s nodes.", str(cc_sizes))
+
+    # Get the largest connected component.
+    largest_cc_nodes = max(nx.connected_components(input_graph), key=len)
+    subgraph = input_graph.subgraph(largest_cc_nodes).copy()
 
     return list(subgraph.nodes())
 

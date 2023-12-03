@@ -123,7 +123,6 @@ class MultiViewOptimizer:
         pruned_i2Ri1_graph, pruned_i2Ui1_graph = dask.delayed(graph_utils.prune_to_largest_connected_component, nout=2)(
             viewgraph_i2Ri1_graph, viewgraph_i2Ui1_graph, relative_pose_priors
         )
-
         delayed_wRi, rot_avg_metrics = self.rot_avg_module.create_computation_graph(
             num_images, pruned_i2Ri1_graph, i1Ti2_priors=relative_pose_priors, gt_wTi_list=gt_wTi_list
         )

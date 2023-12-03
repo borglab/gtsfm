@@ -203,3 +203,37 @@ def draw_scene_open3d(
         geometries = frustums + spheres
 
     open3d.visualization.draw_geometries(geometries)
+
+
+def draw_scene_with_gt_open3d(
+    point_cloud: np.ndarray,
+    rgb: np.ndarray,
+    wTi_list: List[Pose3],
+    calibrations: List[Cal3Bundler],
+    gt_wTi_list: List[Pose3],
+    gt_calibrations: List[Cal3Bundler],
+    args: argparse.Namespace,
+) -> None:
+    """Render GT camera frustums, estimated camera frustums, and a 3d point cloud, using Open3d.
+
+    GT frustums are shown in a blue-purple colormap, whereas estimated frustums are shown in a red-green colormap.
+
+    Args:
+        point_cloud: Array of shape (N,3) representing 3d points.
+        rgb: Uint8 array of shape (N,3) representing colors in RGB order, in the range [0,255].
+        wTi_list: List of camera poses for each image.
+        calibrations: Calibration object for each camera.
+        gt_wTi_list: List of ground truth camera poses for each image.
+        gt_calibrations: Ground truth calibration object for each camera.
+        args: Rendering options.
+    """
+    frustums = create_all_frustums_open3d(wTi_list, calibrations, args.frustum_ray_len, color_names=("red", "green"))
+    gt_frustums = create_all_frustums_open3d(
+        wTi_list, calibrations, args.frustum_ray_len, color_names=("blue", "purple")
+    )
+
+    # spheres = create_colored_spheres_open3d(point_cloud, rgb, args.sphere_radius)
+    pcd = create_colored_point_cloud_open3d(point_cloud, rgb)
+    geometries = frustums + gt_frustums + [pcd]  # + spheres
+
+    open3d.visualization.draw_geometries(geometries)

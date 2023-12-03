@@ -2,29 +2,50 @@
 
 See https://www.tanksandtemples.org/download/ for more information.
 
-Authors: John Lambert
+Author: John Lambert
 """
 
+from enum import auto, Enum
 from pathlib import Path
 from typing import Dict, List, Optional
 
 import numpy as np
 import open3d
-import trimesh
 from gtsam import Cal3Bundler, Rot3, Pose3
 
+import gtsfm.utils.geometry_comparisons as geom_comp_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
+import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
 from gtsfm.common.image import Image
 from gtsfm.loader.loader_base import LoaderBase
-import gtsfm.utils.geometry_comparisons as geom_comp_utils
-import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
+
 
 logger = logger_utils.get_logger()
 
 
 _DEFAULT_IMAGE_HEIGHT_PX = 1080
 _DEFAULT_IMAGE_WIDTH_PX = 1920
+
+
+class MeshReconstructionType(Enum):
+    """Mesh reconstruction algorithm choices.
+
+    The alpha shape [Edelsbrunner1983] is a generalization of a convex hull.
+    See Edelsbrunner and D. G. Kirkpatrick and R. Seidel: On the shape of a set of points in the plane, 1983.
+    https://www.cs.jhu.edu/~misha/Fall13b/Papers/Edelsbrunner93.pdf
+
+    The ball pivoting algorithm (BPA) [Bernardini1999].
+    See https://www.cs.jhu.edu/~misha/Fall13b/Papers/Bernardini99.pdf
+
+    The Poisson surface reconstruction method [Kazhdan2006].
+    See: M.Kazhdan and M. Bolitho and H. Hoppe: Poisson surface reconstruction, Eurographics, 2006.
+    See https://hhoppe.com/poissonrecon.pdf
+    """
+
+    ALPHA_SHAPE = auto()
+    BALL_PIVOTING = auto()
+    POISSON_SURFACE = auto()
 
 
 class TanksAndTemplesLoader(LoaderBase):
@@ -131,19 +152,8 @@ class TanksAndTemplesLoader(LoaderBase):
         if index < 0 or index >= len(self):
             raise IndexError("Image index is invalid")
 
-        # Use synthetic camera.
-        H = _DEFAULT_IMAGE_HEIGHT_PX
-        W = _DEFAULT_IMAGE_WIDTH_PX
-        # Principal point offset:
-        cx = W / 2
-        cy = H / 2
-        # Focal length:
-        fx = 0.7 * W
-
-        # TODO(johnwlambert): Add Sony A7SM2 to sensor DB (35.6 x 23.8 mm), and get intrinsics from exif.
-        # intrinsics = io_utils.load_image(self._image_paths[index]).get_intrinsics_from_exif()
-
-        intrinsics = Cal3Bundler(fx, k1=0.0, k2=0.0, u0=cx, v0=cy)
+        # Retrieve focal length from EXIF, and principal point will be `cx = IMG_W / 2`, `cy = IMG_H / 2`.
+        intrinsics = io_utils.load_image(self._image_paths[index]).get_intrinsics_from_exif()
         return intrinsics
 
     def get_camera_pose(self, index: int) -> Optional[Pose3]:
@@ -178,9 +188,10 @@ class TanksAndTemplesLoader(LoaderBase):
             Point cloud captured by laser scanner, in the COLMAP world frame.
         """
         if not Path(self.lidar_ply_fpath).exists():
-            raise ValueError("")
+            raise ValueError("Cannot retrieve LiDAR scanned point cloud if `lidar_ply_fpath` not provided.")
         pcd = open3d.io.read_point_cloud(self.lidar_ply_fpath)
         points, rgb = open3d_vis_utils.convert_colored_open3d_point_cloud_to_numpy(pointcloud=pcd)
+
         if downsample_factor > 1:
             points = points[::downsample_factor]
             rgb = rgb[::downsample_factor]
@@ -201,13 +212,60 @@ class TanksAndTemplesLoader(LoaderBase):
             Point cloud reconstructed by COLMAP, in the COLMAP world frame.
         """
         if not Path(self.colmap_ply_fpath).exists():
-            raise ValueError("")
+            raise ValueError("Cannot retrieve COLMAP-reconstructed point cloud if `colmap_ply_fpath` not provided.")
         pcd = open3d.io.read_point_cloud(self.colmap_ply_fpath)
         points, rgb = open3d_vis_utils.convert_colored_open3d_point_cloud_to_numpy(pointcloud=pcd)
+
         if downsample_factor > 1:
             points = points[::downsample_factor]
             rgb = rgb[::downsample_factor]
         return open3d_vis_utils.create_colored_point_cloud_open3d(point_cloud=points, rgb=rgb)
+
+    def reconstruct_mesh(
+        self,
+        crop_by_polyhedron: bool = True,
+        reconstruction_algorithm: MeshReconstructionType = MeshReconstructionType.ALPHA_SHAPE,
+    ) -> open3d.geometry.TriangleMesh:
+        """Reconstructs mesh from LiDAR PLY file.
+
+        Args:
+            crop_by_polyhedron: Whether to crop by a manually specified polyhedron, vs. simply
+                by range from global origin.
+            reconstruction_algorithm: Mesh reconstruction algorithm to use, given input point cloud.
+
+        Returns:
+            Reconstructed mesh.
+        """
+        # Get LiDAR point cloud, in camera coordinate frame.
+        pcd = self.get_lidar_point_cloud()
+        if crop_by_polyhedron:
+            pass
+            # pcd = crop_points_to_bounding_polyhedron(pcd, self.bounding_polyhedron_json_fpath)
+
+        points, rgb = open3d_vis_utils.convert_colored_open3d_point_cloud_to_numpy(pcd)
+        if not crop_by_polyhedron:
+            max_radius = 4.0
+            valid = np.linalg.norm(points, axis=1) < max_radius
+            points = points[valid]
+            rgb = rgb[valid]
+        pcd = open3d_vis_utils.create_colored_point_cloud_open3d(points, rgb)
+        pcd.estimate_normals()
+
+        if reconstruction_algorithm == MeshReconstructionType.ALPHA_SHAPE:
+            alpha = 0.1  # 0.03
+            print(f"alpha={alpha:.3f}")
+            mesh = open3d.geometry.TriangleMesh.create_from_point_cloud_alpha_shape(pcd, alpha)
+            mesh.compute_vertex_normals()
+
+        elif reconstruction_algorithm == MeshReconstructionType.BALL_PIVOTING:
+            radii = [0.005, 0.01, 0.02, 0.04]
+            mesh = open3d.geometry.TriangleMesh.create_from_point_cloud_ball_pivoting(
+                pcd, open3d.utility.DoubleVector(radii)
+            )
+
+        elif reconstruction_algorithm == MeshReconstructionType.POISSON_SURFACE:
+            mesh, densities = open3d.geometry.TriangleMesh.create_from_point_cloud_poisson(pcd, depth=9)
+        return mesh
 
 
 def crop_points_to_bounding_polyhedron(pcd: open3d.geometry.PointCloud, json_fpath: str) -> open3d.geometry.PointCloud:
@@ -262,19 +320,6 @@ def _parse_redwood_data_log_file(log_fpath: str) -> Dict[int, Pose3]:
         wTi_gt = np.array([parse_matrix_row(line) for line in lines])
         wTi_gt_dict[cam_idx] = Pose3(wTi_gt)
     return wTi_gt_dict
-
-
-def load_from_trimesh(mesh_path: str) -> trimesh.Trimesh:
-    """Read in scene mesh as Trimesh object."""
-    if not Path(mesh_path).exists():
-        raise FileNotFoundError(f"No mesh found at {mesh_path}")
-    mesh = trimesh.load(mesh_path, process=False, maintain_order=True)
-    logger.info(
-        "Tanks & Temples loader read in mesh with %d vertices and %d faces.",
-        mesh.vertices.shape[0],
-        mesh.faces.shape[0],
-    )
-    return mesh
 
 
 def _create_Sim3_from_tt_dataset_alignment_transform(lidar_Sim3_colmap: np.ndarray) -> np.ndarray:
