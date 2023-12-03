@@ -195,11 +195,6 @@ def generate_synthetic_correspondences(
         keypoints_dict[(i1, i2)] = (keypoints_i1, keypoints_i2)
         putative_corr_idxs_dict[(i1, i2)] = putative_corr_idxs
         print(f"Number of keypoints in image {i1}: ", len(keypoints_i1))
-        # import matplotlib.pyplot as plt
-        # img = self.get_image_full_res(index=0)
-        # plt.imshow(img.value_array.astype(np.uint8))
-        # plt.scatter(keypoints_i1.coordinates[:,0], keypoints_i1.coordinates[:,1], 10, color='r', marker='.')
-        # plt.show()
 
     keypoints_list, putative_corr_idxs_dict = aggregator.aggregate(keypoints_dict=keypoints_dict)
     return keypoints_list, putative_corr_idxs_dict
