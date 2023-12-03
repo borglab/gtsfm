@@ -92,7 +92,7 @@ class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
         pcd = mesh.sample_points_poisson_disk(number_of_points=num_sampled_3d_points, pcl=pcd)
         sampled_points = np.asarray(pcd.points)
 
-        # TODO(jolambert): File Open3d bug to add pickle support for TriangleMesh.
+        # TODO(johnwlambert): File Open3d bug to add pickle support for TriangleMesh.
         open3d_mesh_path = tempfile.NamedTemporaryFile(suffix=".obj").name
         open3d.io.write_triangle_mesh(filename=open3d_mesh_path, mesh=mesh)
 
@@ -135,69 +135,6 @@ class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
 
         keypoints_list, putative_corr_idxs_dict = self._aggregator.aggregate(keypoints_dict=pairwise_correspondences)
         return keypoints_list, putative_corr_idxs_dict
-
-
-def generate_synthetic_correspondences(
-    loader: LoaderBase,
-    images: List[Future],
-    image_pairs: List[Tuple[int, int]],
-    deduplicate: bool = False,
-    num_sampled_3d_points: int = 2000,
-) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
-    """Generates synthetic correspondences from virtual cameras and a ground-truth mesh (in a single process).
-
-    Args:
-        loader: Dataset loader.
-        images: List of input images.
-        image_pairs: Tuples (i1,i2) indicating image indices to use as image pairs.
-        deduplicate: Whether to de-duplicate with a single image the detections received from each image pair.
-        num_sampled_3d_points: Number of 3d points to sample from the mesh surface and to project.
-
-    Returns:
-        List of keypoints, one entry for each input image.
-        Putative correspondences as indices of keypoints, for pairs of images. Mapping from image pair
-            (i1,i2) to delayed task to compute putative correspondence indices. Correspondence indices
-            are represented by an array of shape (K,2), for K correspondences.
-    """
-    mesh = loader.reconstruct_mesh()
-
-    # Sample random 3d points. This sampling must occur only once, to avoid clusters from repeated sampling.
-    pcd = mesh.sample_points_uniformly(number_of_points=num_sampled_3d_points)
-    pcd = mesh.sample_points_poisson_disk(number_of_points=num_sampled_3d_points, pcl=pcd)
-    points = np.asarray(pcd.points)
-
-    open3d_mesh_path = tempfile.NamedTemporaryFile(suffix=".obj").name
-    open3d.io.write_triangle_mesh(filename=open3d_mesh_path, mesh=mesh)
-
-    camera_dict = {}
-
-    aggregator: KeypointAggregatorBase = KeypointAggregatorDedup() if deduplicate else KeypointAggregatorUnique()
-    keypoints_dict = {}
-    putative_corr_idxs_dict = {}
-
-    for i1, i2 in image_pairs:
-        if i1 not in camera_dict:
-            camera_dict[i1] = loader.get_camera(index=i1)
-        if i2 not in camera_dict:
-            camera_dict[i2] = loader.get_camera(index=i2)
-        # TODO(johnwlambert): Remove assumption that image pair shares the same image shape.
-        image_height_px, image_width_px, _ = loader.get_image(i1).shape
-        keypoints_i1, keypoints_i2 = generate_synthetic_correspondences_for_image_pair(
-            camera_i1=camera_dict[i1],
-            camera_i2=camera_dict[i2],
-            open3d_mesh_fpath=open3d_mesh_path,
-            points=points,
-            image_height_px=image_height_px,
-            image_width_px=image_width_px,
-        )
-        num_kpts = len(keypoints_i1)
-        putative_corr_idxs = np.stack([np.arange(num_kpts), np.arange(num_kpts)], axis=-1)
-        keypoints_dict[(i1, i2)] = (keypoints_i1, keypoints_i2)
-        putative_corr_idxs_dict[(i1, i2)] = putative_corr_idxs
-        print(f"Number of keypoints in image {i1}: ", len(keypoints_i1))
-
-    keypoints_list, putative_corr_idxs_dict = aggregator.aggregate(keypoints_dict=keypoints_dict)
-    return keypoints_list, putative_corr_idxs_dict
 
 
 def generate_synthetic_correspondences_for_image_pair(

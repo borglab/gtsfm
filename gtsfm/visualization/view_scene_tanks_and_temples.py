@@ -11,9 +11,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 import open3d
 from gtsam import Cal3Bundler
+from dask.distributed import Client, LocalCluster
 
 import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
+from gtsfm.frontend.correspondence_generator.synthetic_correspondence_generator import SyntheticCorrespondenceGenerator
 from gtsfm.loader.tanks_and_temples_loader import TanksAndTemplesLoader
+
+import gtsfm.utils.viz as correspondence_viz_utils
+
 
 TEST_DATA_ROOT = Path(__file__).resolve().parent.parent.parent / "tests" / "data"
 
@@ -71,10 +76,11 @@ def view_scene(args: argparse.Namespace) -> None:
         # pcd = mesh.sample_points_poisson_disk(number_of_points=num_sampled_3d_points, pcl=pcd)
         open3d.visualization.draw_geometries([pcd])
 
-    visualize_synthetic_correspondences = True
-    if visualize_synthetic_correspondences:
-        camera_i1 = loader.get_camera(index=0)
-        img = loader.get_image_full_res(index=0)
+    visualize_projected_points = False
+    if visualize_projected_points:
+        i1 = 0
+        camera_i1 = loader.get_camera(index=i1)
+        img_i1 = loader.get_image_full_res(index=i1)
 
         # Project LiDAR point cloud into image 1.
         pcd = loader.get_lidar_point_cloud(downsample_factor=10)
@@ -82,7 +88,7 @@ def view_scene(args: argparse.Namespace) -> None:
         keypoints_i1 = _project_points_onto_image(lidar_points, camera_i1)
 
         # Plot projected LiDAR points.
-        plt.imshow(img.value_array.astype(np.uint8))
+        plt.imshow(img_i1.value_array.astype(np.uint8))
         plt.scatter(keypoints_i1[:, 0], keypoints_i1[:, 1], 10, color="r", marker=".", alpha=0.007)
         plt.show()
 
@@ -91,8 +97,37 @@ def view_scene(args: argparse.Namespace) -> None:
         mesh_points = np.asarray(mesh.vertices)
         keypoints_i1_ = _project_points_onto_image(mesh_points, camera_i1)
         # Plot projected mesh points.
-        plt.imshow(img.value_array.astype(np.uint8))
+        plt.imshow(img_i1.value_array.astype(np.uint8))
         plt.scatter(keypoints_i1_[:, 0], keypoints_i1_[:, 1], 10, color="g", marker=".", alpha=0.007)
+        plt.show()
+
+    visualize_synthetic_correspondences = True
+    if visualize_synthetic_correspondences:
+        cluster = LocalCluster(n_workers=1, threads_per_worker=1)
+        client = Client(cluster)
+
+        i1 = 0
+        i2 = 4
+
+        synthetic_generator = SyntheticCorrespondenceGenerator(args.data_root, args.scene_name)
+        images = [loader.get_image_full_res(index=i) for i in range(i2+1)]
+        keypoints_list, corr_idx_dict = synthetic_generator.generate_correspondences(
+            client=client,
+            images=images,
+            image_pairs=[[i1,i2]],
+            num_sampled_3d_points=500,
+        )
+
+        plot_img = correspondence_viz_utils.plot_twoview_correspondences(
+            images[i1],
+            images[i2],
+            keypoints_list[i1],
+            keypoints_list[i2],
+            corr_idx_dict[(i1,i2)],
+            inlier_mask=np.ones(len(corr_idx_dict[(i1,i2)]), dtype=bool)
+        )
+        plt.imshow(plot_img.value_array)
+        plt.axis('off')
         plt.show()
 
 
