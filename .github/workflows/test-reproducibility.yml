@@ -15,7 +15,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4.1.1
-      - uses: conda-incubator/setup-miniconda@v2
+      - uses: conda-incubator/setup-miniconda@v3
         with:
           mamba-version: "*"
           activate-environment: gtsfm-v1
