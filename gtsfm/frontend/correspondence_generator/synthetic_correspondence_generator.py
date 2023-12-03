@@ -53,7 +53,7 @@ class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
         client: Client,
         images: List[Future],
         image_pairs: List[Tuple[int, int]],
-        num_sampled_3d_points: int = 500,
+        num_sampled_3d_points: int = 5000,
     ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
         """Apply the correspondence generator to generate putative correspondences (in parallel).
 
