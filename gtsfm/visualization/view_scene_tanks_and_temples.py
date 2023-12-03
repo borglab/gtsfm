@@ -110,11 +110,11 @@ def view_scene(args: argparse.Namespace) -> None:
         i2 = 4
 
         synthetic_generator = SyntheticCorrespondenceGenerator(args.data_root, args.scene_name)
-        images = [loader.get_image_full_res(index=i) for i in range(i2+1)]
+        images = [loader.get_image_full_res(index=i) for i in range(i2 + 1)]
         keypoints_list, corr_idx_dict = synthetic_generator.generate_correspondences(
             client=client,
             images=images,
-            image_pairs=[[i1,i2]],
+            image_pairs=[[i1, i2]],
             num_sampled_3d_points=500,
         )
 
@@ -123,11 +123,11 @@ def view_scene(args: argparse.Namespace) -> None:
             images[i2],
             keypoints_list[i1],
             keypoints_list[i2],
-            corr_idx_dict[(i1,i2)],
-            inlier_mask=np.ones(len(corr_idx_dict[(i1,i2)]), dtype=bool)
+            corr_idx_dict[(i1, i2)],
+            inlier_mask=np.ones(len(corr_idx_dict[(i1, i2)]), dtype=bool),
         )
         plt.imshow(plot_img.value_array)
-        plt.axis('off')
+        plt.axis("off")
         plt.show()
 
 
