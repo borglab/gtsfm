@@ -1,4 +1,3 @@
-
 CorrespondenceGenerator:
   _target_: gtsfm.frontend.correspondence_generator.det_desc_correspondence_generator.DetDescCorrespondenceGenerator
 

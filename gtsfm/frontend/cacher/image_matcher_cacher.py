@@ -54,6 +54,7 @@ class ImageMatcherCacher(ImageMatcherBase):
         cached_data = io_utils.read_from_bz2_file(cache_path)
         if cached_data is None:
             return None
+        print(len(cached_data["keypoints_i1"]), len(cached_data["keypoints_i2"]))
         return cached_data["keypoints_i1"], cached_data["keypoints_i2"]
 
     def _save_result_to_cache(

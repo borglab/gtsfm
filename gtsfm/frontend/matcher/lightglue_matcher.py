@@ -29,6 +29,7 @@ class LightGlueMatcher(MatcherBase):
         super().__init__()
         self._use_cuda = use_cuda
         self._model = LightGlue(features=features).eval()
+        self._features = features
 
     def match(
         self,
@@ -83,6 +84,12 @@ class LightGlueMatcher(MatcherBase):
             "descriptors": torch.from_numpy(descriptors_i2).unsqueeze(0).float().to(device),
             "image": empty_image_i2.to(device),
         }
+        if self._features == "sift":
+            feats_i1["scales"] = torch.from_numpy(keypoints_i1.scales).unsqueeze(0).float().to(device)
+            feats_i2["scales"] = torch.from_numpy(keypoints_i2.scales).unsqueeze(0).float().to(device)
+
+            feats_i1["oris"] = torch.from_numpy(keypoints_i1.oris).unsqueeze(0).float().to(device)
+            feats_i2["oris"] = torch.from_numpy(keypoints_i2.oris).unsqueeze(0).float().to(device)
 
         # Match!
         with torch.no_grad():

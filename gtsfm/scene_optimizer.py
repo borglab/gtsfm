@@ -300,11 +300,11 @@ def align_estimated_gtsfm_data(
     ba_input = ba_input.align_via_Sim3_to_poses(gt_wTi_list)
     ba_output = ba_output.align_via_Sim3_to_poses(gt_wTi_list)
 
-    walignedTw = ellipsoid_utils.get_ortho_axis_alignment_transform(ba_output)
-    walignedSw = Similarity3(R=walignedTw.rotation(), t=walignedTw.translation(), s=1.0)
-    ba_input = ba_input.apply_Sim3(walignedSw)
-    ba_output = ba_output.apply_Sim3(walignedSw)
-    gt_wTi_list = [walignedSw.transformFrom(wTi) if wTi is not None else None for wTi in gt_wTi_list]
+    # walignedTw = ellipsoid_utils.get_ortho_axis_alignment_transform(ba_output)
+    # walignedSw = Similarity3(R=walignedTw.rotation(), t=walignedTw.translation(), s=1.0)
+    # ba_input = ba_input.apply_Sim3(walignedSw)
+    # ba_output = ba_output.apply_Sim3(walignedSw)
+    # gt_wTi_list = [walignedSw.transformFrom(wTi) if wTi is not None else None for wTi in gt_wTi_list]
     return ba_input, ba_output, gt_wTi_list
 
 

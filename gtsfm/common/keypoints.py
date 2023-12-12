@@ -29,6 +29,7 @@ class Keypoints:
         self,
         coordinates: np.ndarray,
         scales: Optional[np.ndarray] = None,
+        oris: Optional[np.ndarray] = None,
         responses: Optional[np.ndarray] = None,
     ):
         """Initializes the attributes.
@@ -40,6 +41,7 @@ class Keypoints:
         """
         self.coordinates = coordinates
         self.scales = scales
+        self.oris = oris
         self.responses = responses  # TODO(ayush): enforce the range.
 
     def __len__(self) -> int:
@@ -227,5 +229,6 @@ class Keypoints:
         return Keypoints(
             self.coordinates[indices],
             None if self.scales is None else self.scales[indices],
+            None if self.oris is None else self.scales[indices],
             None if self.responses is None else self.responses[indices],
         )

@@ -31,10 +31,11 @@ class NetVLADLayer(nn.Module):
     Whereas bag-of-visual-words aggregation keeps counts of visual words, VLAD stores the sum of residuals
     (difference vector between the descriptor and its corresponding cluster centre) for each visual word.
     """
+
     def __init__(self, input_dim: int = 512, K: int = 64, score_bias: bool = False, intranorm: bool = True) -> None:
         """
         Args:
-            input_dim: output feature map from fully-convolutional backbone has shape (input_dim,H2,W2) 
+            input_dim: output feature map from fully-convolutional backbone has shape (input_dim,H2,W2)
             K: number of cluster centers.
             score_bias: whether to use bias term in 1x1 conv (projection operation).
             intranorm: whether to normalize descriptors immediately after computing sum of residuals.
@@ -72,7 +73,7 @@ class NetVLADLayer(nn.Module):
 
 
 class NetVLAD(nn.Module):
-    default_conf = {"model_name": "VGG16-NetVLAD-Pitts30K", "checkpoint_dir": netvlad_path, "whiten": True}
+    default_conf = {"model_name": "VGG16-NetVLAD-Pitts30K", "checkpoint_dir": netvlad_path, "whiten": False}
     required_inputs = ["image"]
 
     # Models exported using

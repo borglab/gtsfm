@@ -56,6 +56,7 @@ class LOFTR(ImageMatcherBase):
             Corresponding keypoints from image 2 (there will also be N keypoints). These represent feature matches.
         """
         device = torch.device("cuda" if self._use_cuda and torch.cuda.is_available() else "cpu")
+        # device = torch.device("cpu")
         self._matcher.to(device)
 
         with torch.no_grad():

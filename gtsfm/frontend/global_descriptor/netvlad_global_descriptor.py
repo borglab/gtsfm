@@ -22,7 +22,7 @@ class NetVLADGlobalDescriptor(GlobalDescriptorBase):
 
     def __init__(self) -> None:
         """ """
-        pass
+        self._model = NetVLAD().eval()
 
     def describe(self, image: Image) -> np.ndarray:
         """Compute the NetVLAD global descriptor for a single image query.
@@ -36,13 +36,12 @@ class NetVLADGlobalDescriptor(GlobalDescriptorBase):
         # Load model.
         # Note: Initializing in the constructor leads to OOM.
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        model: nn.Module = NetVLAD().to(device)
-        model.eval()
+        self._model.to(device)
 
         img_tensor = (
             torch.from_numpy(image.value_array).to(device).permute(2, 0, 1).unsqueeze(0).type(torch.float32) / 255
         )
         with torch.no_grad():
-            img_desc = model({"image": img_tensor})
+            img_desc = self._model({"image": img_tensor})
 
         return img_desc["global_descriptor"].detach().squeeze().cpu().numpy()

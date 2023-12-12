@@ -24,15 +24,18 @@ def cast_to_gtsfm_keypoints(keypoints: List[cv.KeyPoint]) -> Keypoints:
     """
     coordinates = []
     scales = []
+    oris = []
     responses = []
     for kp in keypoints:
         coordinates.append([kp.pt[0], kp.pt[1]])
         scales.append(kp.size)
+        oris.append(np.rad2deg(kp.angle))
         responses.append(kp.response)
 
     return Keypoints(
         coordinates=np.array(coordinates),
         scales=np.array(scales) if scales else None,
+        oris=np.array(oris) if oris else None,
         responses=np.array(responses) if responses else None,
     )
 

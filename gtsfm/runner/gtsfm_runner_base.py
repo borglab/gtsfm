@@ -288,7 +288,7 @@ class GtsfmRunnerBase:
             local_cluster_kwargs = {
                 "n_workers": self.parsed_args.num_workers,
                 "threads_per_worker": self.parsed_args.threads_per_worker,
-                "dashboard_address": self.parsed_args.dashboard_port
+                "dashboard_address": self.parsed_args.dashboard_port,
             }
             if self.parsed_args.worker_memory_limit is not None:
                 local_cluster_kwargs["memory_limit"] = self.parsed_args.worker_memory_limit
@@ -309,6 +309,36 @@ class GtsfmRunnerBase:
                 image_fnames=self.loader.image_filenames(),
                 plots_output_dir=self.scene_optimizer._plot_base_path,
             )
+
+        # image_pair_indices = [
+        #     (0, 1),
+        #     (0, 2),
+        #     (0, 3),
+        #     (0, 4),
+        #     (0, 5),
+        #     (0, 6),
+        #     (0, 7),
+        #     (0, 8),
+        #     (0, 9),
+        #     (0, 10),
+        #     (0, 11),
+        #     (0, 12),
+        #     (0, 13),
+        #     (0, 14),
+        #     (0, 15),
+        #     (0, 16),
+        #     (0, 17),
+        #     (0, 18),
+        #     (0, 19),
+        #     (0, 20),
+        #     (0, 21),
+        #     (0, 22),
+        #     (0, 23),
+        #     (0, 24),
+        #     (0, 25),
+        #     (0, 26),
+        #     (0, 27),
+        # ]
 
         retriever_metrics = self.scene_optimizer.image_pairs_generator._retriever.evaluate(
             len(self.loader), image_pair_indices

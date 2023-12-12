@@ -204,7 +204,7 @@ def colmap2gtsfm(
     image_id_to_idx = {}  # keeps track of discrepencies between `image_id` and List index.
     for idx, img in enumerate(images.values()):
         wTi_gtsfm.append(Pose3(Rot3(img.qvec2rotmat()), img.tvec).inverse())
-        img_fnames.append(img.name)
+        img_fnames.append(img.name.replace("FIT", "png"))
         camera_model_name = cameras[img.camera_id].model
         if camera_model_name == "SIMPLE_RADIAL":
             # See https://github.com/colmap/colmap/blob/1f6812e333a1e4b2ef56aa74e2c3873e4e3a40cd/src/colmap/sensor/models.h#L212  # noqa: E501

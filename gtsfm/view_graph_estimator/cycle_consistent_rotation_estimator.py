@@ -107,6 +107,8 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         triplets: List[Tuple[int, int, int]] = graph_utils.extract_cyclic_triplets_from_edges(input_edges)
 
         logger.info("Number of triplets: %d" % len(triplets))
+        if len(triplets) == 0:
+            return input_edges
 
         per_edge_errors = defaultdict(list)
         cycle_errors: List[float] = []

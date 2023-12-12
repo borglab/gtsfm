@@ -77,7 +77,7 @@ class AstrovisionLoader(LoaderBase):
         # Use COLMAP model reader to load data and convert to GTSfM format.
         if not Path(data_dir).exists():
             raise FileNotFoundError("No data found at %s." % data_dir)
-        cameras, images, points3d = colmap_io.read_model(path=data_dir, ext=".bin")
+        cameras, images, points3d = colmap_io.read_model(path=data_dir, ext=".txt")
 
         img_fnames, self._wTi_list, self._calibrations, self._sfmtracks, _, _, _ = io_utils.colmap2gtsfm(
             cameras, images, points3d, load_sfmtracks=use_gt_sfmtracks
