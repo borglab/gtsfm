@@ -22,7 +22,7 @@ from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.data_association.data_assoc import DataAssociation
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 from gtsfm.view_graph_estimator.view_graph_estimator_base import ViewGraphEstimatorBase
-from gtsfm.data_association.cpp_dsf_tracks_estimator import CppDsfTracksEstimator
+from gtsfm.data_association.dsf_tracks_estimator import DsfTracksEstimator
 from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 
 
@@ -194,5 +194,5 @@ def init_cameras(
 def get_2d_tracks(
     corr_idxs_dict: Dict[Tuple[int, int], np.ndarray], keypoints_list: List[Keypoints]
 ) -> List[SfmTrack2d]:
-    tracks_estimator = CppDsfTracksEstimator()
+    tracks_estimator = DsfTracksEstimator()
     return tracks_estimator.run(corr_idxs_dict, keypoints_list)
