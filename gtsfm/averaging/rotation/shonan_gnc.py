@@ -17,9 +17,11 @@ import numpy as np
 from gtsam import (
     BetweenFactorPose3,
     BetweenFactorPose3s,
+    LevenbergMarquardtParams,
     Pose3,
     Rot3,
     ShonanAveraging3,
+    ShonanAveragingParameters3,
     GncLMOptimizer,
     GncLMParams
 )
@@ -33,10 +35,10 @@ POSE3_DOF = 6
 
 logger = logger_utils.get_logger()
 
-_DEFAULT_TWO_VIEW_ROTATION_SIGMA = 1e-1
+_DEFAULT_TWO_VIEW_ROTATION_SIGMA = 1.0
 
 
-class GncRotationAveraging(RotationAveragingBase):
+class CombinedShonanGncRotationAveraging(RotationAveragingBase):
     """Performs Shonan rotation averaging."""
 
     def __init__(self, two_view_rotation_sigma: float = _DEFAULT_TWO_VIEW_ROTATION_SIGMA) -> None:
@@ -48,14 +50,16 @@ class GncRotationAveraging(RotationAveragingBase):
             two_view_rotation_sigma: Covariance to use (lower values -> more strictly adhere to input measurements).
         """
         self._two_view_rotation_sigma = two_view_rotation_sigma
+        self._p_min = 5
+        self._p_max = 30
 
     def __get_gnc_params(self) -> GncLMParams:
         params = GncLMParams()
         return params
 
     def __get_shonan_params(self) -> gtsam.ShonanAveragingParameters3:
-        lm_params = gtsam.LevenbergMarquardtParams.CeresDefaults()
-        shonan_params = gtsam.ShonanAveragingParameters3(lm_params)
+        lm_params = LevenbergMarquardtParams.CeresDefaults()
+        shonan_params = ShonanAveragingParameters3(lm_params)
         shonan_params.setUseHuber(False)
         shonan_params.setCertifyOptimality(True)
         return shonan_params
@@ -138,12 +142,22 @@ class GncRotationAveraging(RotationAveragingBase):
                 the list is `num_connected_nodes`. The list may contain `None` where the global rotation could
                 not be computed (either underconstrained system or ill-constrained system).
         """
-
-        logger.info("Running GNC rotation averaging...")
+        # Run Shonan.
+        logger.info(
+            "Running Shonan with %d constraints on %d nodes",
+            len(between_factors),
+            num_connected_nodes,
+        )
         shonan = ShonanAveraging3(between_factors, self.__get_shonan_params())
-        initial = shonan.initializeRandomly()
 
-        optimizer = GncLMOptimizer(graph, initial, self.__get_gnc_params())
+        initial = shonan.initializeRandomly()
+        logger.info("Initial cost: %.5f", shonan.cost(initial))
+        result, _ = shonan.run(initial, self._p_min, self._p_max)
+        logger.info("Final cost: %.5f", shonan.cost(result))
+
+        # Run GNC.
+        logger.info("Running GNC rotation averaging...")
+        optimizer = GncLMOptimizer(graph, result, self.__get_gnc_params())
         result = optimizer.optimize()
 
         wRi_list_consecutive = [None] * num_connected_nodes
