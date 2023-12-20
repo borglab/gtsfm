@@ -210,7 +210,7 @@ class GncRotationAveraging(RotationAveragingBase):
             i2Ri1_dict, old_to_new_idxes
         )
 
-        initial = initialize_mst(num_images, i2Ri1_dict, corr_idxs)
+        initial = initialize_mst(num_images, i2Ri1_dict, corr_idxs, old_to_new_idxes)
 
         graph: gtsam.NonlinearFactorGraph = self.__graph_from_2view_relative_rotations(
             i2Ri1_dict, old_to_new_idxes
@@ -232,6 +232,7 @@ def initialize_mst(
         num_images: int, 
         i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]], 
         corr_idxs: Dict[Tuple[int, int], np.ndarray],
+        old_to_new_idxs: Dict[int, int],
     ) -> gtsam.Values:
     """Initialize global rotations using the minimum spanning tree (MST)."""
     # Compute MST.
@@ -248,8 +249,14 @@ def initialize_mst(
 
     # Build global rotations from MST.
     i_mst, j_mst = Tcsr.nonzero()
-    iR0_dict = {0: np.eye(3)}
-    for (i, j) in zip(i_mst, j_mst):
+    logger.info(i_mst)
+    logger.info(j_mst)
+    edges_mst = [(i, j) for (i, j) in zip(i_mst, j_mst)]
+    iR0_dict = {i_mst[0]: np.eye(3)}  # pick the left index of the first edge as the seed
+    max_iters = num_images * 10
+    iter = 0
+    while len(edges_mst) > 0:
+        i, j = edges_mst.pop(0)
         if i in iR0_dict:
             jRi = i2Ri1_dict[(i, j)].matrix()
             iR0 = iR0_dict[i]
@@ -259,12 +266,16 @@ def initialize_mst(
             jR0 = iR0_dict[j]
             iR0_dict[i] = iRj @ jR0
         else:
+            edges_mst.append((i, j))
+        iter += 1
+        if iter >= max_iters:
+            logger.info("Reached max MST iters.")
             assert False
     
     # Add to Values object.
     initial = gtsam.Values()
     for i, iR0 in iR0_dict.items():
-        initial.insert(i, Rot3(iR0))
+        initial.insert(old_to_new_idxs[i], Rot3(iR0))
     
     return initial
 
