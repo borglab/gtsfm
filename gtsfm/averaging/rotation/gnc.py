@@ -14,6 +14,7 @@ from typing import Dict, List, Optional, Set, Tuple
 
 import gtsam
 import numpy as np
+import scipy
 from gtsam import (
     BetweenFactorPose3,
     BetweenFactorPose3s,
@@ -120,7 +121,11 @@ class GncRotationAveraging(RotationAveragingBase):
         return between_factors
 
     def _run_with_consecutive_ordering(
-        self, num_connected_nodes: int, graph: gtsam.NonlinearFactorGraph, between_factors: BetweenFactorPose3s
+        self, 
+        num_connected_nodes: int, 
+        graph: gtsam.NonlinearFactorGraph, 
+        between_factors: BetweenFactorPose3s, 
+        initial: gtsam.Values,
     ) -> List[Optional[Rot3]]:
         """Run the rotation averaging on a connected graph w/ N keys ordered consecutively [0,...,N-1].
 
@@ -140,8 +145,8 @@ class GncRotationAveraging(RotationAveragingBase):
         """
 
         logger.info("Running GNC rotation averaging...")
-        shonan = ShonanAveraging3(between_factors, self.__get_shonan_params())
-        initial = shonan.initializeRandomly()
+        #shonan = ShonanAveraging3(between_factors, self.__get_shonan_params())
+        #initial = shonan.initializeRandomly()
 
         optimizer = GncLMOptimizer(graph, initial, self.__get_gnc_params())
         result = optimizer.optimize()
@@ -174,6 +179,7 @@ class GncRotationAveraging(RotationAveragingBase):
         num_images: int,
         i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]],
         i1Ti2_priors: Dict[Tuple[int, int], PosePrior],
+        corr_idxs: Dict[Tuple[int, int], np.ndarray],
     ) -> List[Optional[Rot3]]:
         """Run the rotation averaging on a connected graph with arbitrary keys, where each key is a image/pose index.
 
@@ -204,13 +210,15 @@ class GncRotationAveraging(RotationAveragingBase):
             i2Ri1_dict, old_to_new_idxes
         )
 
+        initial = initialize_mst(num_images, i2Ri1_dict, corr_idxs)
+
         graph: gtsam.NonlinearFactorGraph = self.__graph_from_2view_relative_rotations(
             i2Ri1_dict, old_to_new_idxes
         )
         # between_factors.extend(self._between_factors_from_pose_priors(i1Ti2_priors, old_to_new_idxes))
 
         wRi_list_subset = self._run_with_consecutive_ordering(
-            num_connected_nodes=len(nodes_with_edges), graph=graph, between_factors=between_factors
+            len(nodes_with_edges), graph, between_factors, initial
         )
 
         wRi_list = [None] * num_images
@@ -218,3 +226,49 @@ class GncRotationAveraging(RotationAveragingBase):
             wRi_list[original_i] = wRi_list_subset[remapped_i]
 
         return wRi_list
+
+
+def initialize_mst(
+        num_images: int, 
+        i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]], 
+        corr_idxs: Dict[Tuple[int, int], np.ndarray],
+    ) -> gtsam.Values:
+    """Initialize global rotations using the minimum spanning tree (MST)."""
+    # Compute MST.
+    row, col, data = [], [], []
+    for (i1, i2), i2Ri1 in i2Ri1_dict.items():
+        if i2Ri1 is None:
+            continue
+        row.append(i1)
+        col.append(i2)
+        data.append(-len(corr_idxs[(i1, i2)]))
+    corr_adjacency = scipy.sparse.coo_array((data, (row, col)), shape=(num_images, num_images))
+    Tcsr = scipy.sparse.csgraph.minimum_spanning_tree(corr_adjacency)
+    logger.info(Tcsr.toarray().astype(int))
+
+    # Build global rotations from MST.
+    i_mst, j_mst = Tcsr.nonzero()
+    logger.info(i_mst)
+    logger.info(j_mst)
+    iR0_dict = {0: np.eye(3)}
+    for (i, j) in zip(i_mst, j_mst):
+        if i in iR0_dict:
+            jRi = i2Ri1_dict[(i, j)].matrix()
+            iR0 = iR0_dict[i]
+            iR0_dict[j] = jRi @ iR0
+        elif j in iR0_dict:
+            iRj = i2Ri1_dict[(i, j)].matrix().T
+            jR0 = iR0_dict[j]
+            iR0_dict[i] = iRj @ jR0
+        else:
+            assert False
+    
+    # Add to Values object.
+    initial = gtsam.Values()
+    for i, iR0 in iR0_dict.items():
+        initial.insert(i, Rot3(iR0))
+    
+    return initial
+
+
+

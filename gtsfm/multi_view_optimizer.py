@@ -124,7 +124,7 @@ class MultiViewOptimizer:
             viewgraph_i2Ri1_graph, viewgraph_i2Ui1_graph, relative_pose_priors
         )
         delayed_wRi, rot_avg_metrics = self.rot_avg_module.create_computation_graph(
-            num_images, pruned_i2Ri1_graph, i1Ti2_priors=relative_pose_priors, gt_wTi_list=gt_wTi_list
+            num_images, pruned_i2Ri1_graph, relative_pose_priors, gt_wTi_list, viewgraph_v_corr_idxs_graph
         )
         tracks2d_graph = dask.delayed(get_2d_tracks)(viewgraph_v_corr_idxs_graph, keypoints_list)
 
