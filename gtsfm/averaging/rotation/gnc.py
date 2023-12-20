@@ -249,6 +249,7 @@ def initialize_mst(
     logger.info(Tcsr.toarray().astype(int))
 
     # Build global rotations from MST.
+    # TODO (travisdriver): This is simple but very inefficient. Use something else.
     i_mst, j_mst = Tcsr.nonzero()
     logger.info(i_mst)
     logger.info(j_mst)
