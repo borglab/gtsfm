@@ -242,7 +242,8 @@ def initialize_mst(
             continue
         row.append(i1)
         col.append(i2)
-        data.append(-len(corr_idxs[(i1, i2)]))
+        data.append(-corr_idxs[(i1, i2)].shape[0])
+    logger.info(corr_idxs[(i1, i2)])
     corr_adjacency = scipy.sparse.coo_array((data, (row, col)), shape=(num_images, num_images))
     Tcsr = scipy.sparse.csgraph.minimum_spanning_tree(corr_adjacency)
     logger.info(Tcsr.toarray().astype(int))
