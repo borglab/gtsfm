@@ -34,7 +34,7 @@ POSE3_DOF = 6
 
 logger = logger_utils.get_logger()
 
-_DEFAULT_TWO_VIEW_ROTATION_SIGMA = 1e-1
+_DEFAULT_TWO_VIEW_ROTATION_SIGMA = 1.0
 
 
 class GncRotationAveraging(RotationAveragingBase):
@@ -248,8 +248,6 @@ def initialize_mst(
 
     # Build global rotations from MST.
     i_mst, j_mst = Tcsr.nonzero()
-    logger.info(i_mst)
-    logger.info(j_mst)
     iR0_dict = {0: np.eye(3)}
     for (i, j) in zip(i_mst, j_mst):
         if i in iR0_dict:

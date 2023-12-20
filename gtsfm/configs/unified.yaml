@@ -15,7 +15,7 @@ SceneOptimizer:
         _target_: gtsfm.frontend.global_descriptor.netvlad_global_descriptor.NetVLADGlobalDescriptor
     retriever:
       _target_: gtsfm.retriever.joint_netvlad_sequential_retriever.JointNetVLADSequentialRetriever
-      num_matched: 10
+      num_matched: 5
       min_score: 0.3
       max_frame_lookahead: 15
 
@@ -68,7 +68,7 @@ SceneOptimizer:
       edge_error_aggregation_criterion: MEDIAN_EDGE_ERROR
 
     rot_avg_module:
-      _target_: gtsfm.averaging.rotation.shonan_gnc.CombinedShonanGncRotationAveraging
+      _target_: gtsfm.averaging.rotation.gnc.GncRotationAveraging
 
     trans_avg_module:
       _target_: gtsfm.averaging.translation.averaging_1dsfm.TranslationAveraging1DSFM
