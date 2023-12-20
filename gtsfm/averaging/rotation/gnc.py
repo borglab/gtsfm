@@ -253,7 +253,7 @@ def initialize_mst(
     logger.info(j_mst)
     edges_mst = [(i, j) for (i, j) in zip(i_mst, j_mst)]
     iR0_dict = {i_mst[0]: np.eye(3)}  # pick the left index of the first edge as the seed
-    max_iters = num_images * 10
+    # max_iters = num_images * 10
     iter = 0
     while len(edges_mst) > 0:
         i, j = edges_mst.pop(0)
@@ -268,9 +268,9 @@ def initialize_mst(
         else:
             edges_mst.append((i, j))
         iter += 1
-        if iter >= max_iters:
-            logger.info("Reached max MST iters.")
-            assert False
+        # if iter >= max_iters:
+        #     logger.info("Reached max MST iters.")
+        #     assert False
     
     # Add to Values object.
     initial = gtsam.Values()
