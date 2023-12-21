@@ -35,7 +35,7 @@ wget -c --no-check-certificate -O $PATCHMATCHNET_WEIGHTS_DIR/model_000007.ckpt $
 
 ##################### D2Net #############################
 
-D2NET_CKPT_URL="https://dsmn.ml/files/d2-net/d2_tf.pth"
+D2NET_CKPT_URL="https://dusmanu.com/files/d2-net/d2_tf.pth"
 D2NET_WEIGHTS_DIR="./thirdparty/d2net/weights"
 mkdir -p $D2NET_WEIGHTS_DIR
 
