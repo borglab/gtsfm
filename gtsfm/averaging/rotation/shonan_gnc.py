@@ -35,7 +35,7 @@ POSE3_DOF = 6
 
 logger = logger_utils.get_logger()
 
-_DEFAULT_TWO_VIEW_ROTATION_SIGMA = 1.0
+_DEFAULT_TWO_VIEW_ROTATION_SIGMA = 1e-1
 
 
 class CombinedShonanGncRotationAveraging(RotationAveragingBase):
@@ -65,16 +65,18 @@ class CombinedShonanGncRotationAveraging(RotationAveragingBase):
         return shonan_params
 
     def __graph_from_2view_relative_rotations(
-        self, i2Ri1_dict: Dict[Tuple[int, int], Rot3], old_to_new_idxs: Dict[int, int]
+        self, 
+        i2Ri1_dict: Dict[Tuple[int, int], Rot3], 
+        corr_idxs: Dict[Tuple[int, int], np.ndarray],
+        old_to_new_idxs: Dict[int, int],
     ) -> BetweenFactorPose3s:
         """Create between factors from relative rotations computed by the 2-view estimator."""
         # TODO: how to weight the noise model on relative rotations compared to priors?
-        noise_model = gtsam.noiseModel.Isotropic.Sigma(ROT3_DOF, self._two_view_rotation_sigma)
         between_factors = gtsam.NonlinearFactorGraph()
         # graph.addPriorRot3(gtsam.symbol("R", 0), gtsam.Rot3(np.eye(3)), sigma_R0)
-
         for (i1, i2), i2Ri1 in i2Ri1_dict.items():
             if i2Ri1 is not None:
+                noise_model = gtsam.noiseModel.Isotropic.Sigma(POSE3_DOF, 1 / corr_idxs[(i1, i2)].shape[0])
                 i2_ = old_to_new_idxs[i2]
                 i1_ = old_to_new_idxs[i1]
                 between_factors.add(gtsam.BetweenFactorRot3(i2_, i1_, i2Ri1, noise_model))
