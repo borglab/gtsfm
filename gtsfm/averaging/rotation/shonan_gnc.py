@@ -73,6 +73,7 @@ class CombinedShonanGncRotationAveraging(RotationAveragingBase):
         """Create between factors from relative rotations computed by the 2-view estimator."""
         # TODO: how to weight the noise model on relative rotations compared to priors?
         between_factors = gtsam.NonlinearFactorGraph()
+
         # graph.addPriorRot3(gtsam.symbol("R", 0), gtsam.Rot3(np.eye(3)), sigma_R0)
         for (i1, i2), i2Ri1 in i2Ri1_dict.items():
             if i2Ri1 is not None:
