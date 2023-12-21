@@ -77,7 +77,7 @@ class CombinedShonanGncRotationAveraging(RotationAveragingBase):
         # graph.addPriorRot3(gtsam.symbol("R", 0), gtsam.Rot3(np.eye(3)), sigma_R0)
         for (i1, i2), i2Ri1 in i2Ri1_dict.items():
             if i2Ri1 is not None:
-                noise_model = gtsam.noiseModel.Isotropic.Sigma(POSE3_DOF, 1 / corr_idxs[(i1, i2)].shape[0])
+                noise_model = gtsam.noiseModel.Isotropic.Sigma(ROT3_DOF, 1 / corr_idxs[(i1, i2)].shape[0])
                 i2_ = old_to_new_idxs[i2]
                 i1_ = old_to_new_idxs[i1]
                 between_factors.add(gtsam.BetweenFactorRot3(i2_, i1_, i2Ri1, noise_model))
@@ -96,7 +96,7 @@ class CombinedShonanGncRotationAveraging(RotationAveragingBase):
         for (i1, i2), i2Ri1 in i2Ri1_dict.items():
             if i2Ri1 is not None:
                 # ignore translation during rotation averaging
-                noise_model = gtsam.noiseModel.Isotropic.Sigma(POSE3_DOF, 1 / corr_idxs[(i1, i2)].shape[0])
+                noise_model = gtsam.noiseModel.Isotropic.Sigma(ROT3_DOF, 1 / corr_idxs[(i1, i2)].shape[0])
                 i2Ti1 = Pose3(i2Ri1, np.zeros(3))
                 i2_ = old_to_new_idxs[i2]
                 i1_ = old_to_new_idxs[i1]
@@ -223,7 +223,7 @@ class CombinedShonanGncRotationAveraging(RotationAveragingBase):
         )
 
         graph: gtsam.NonlinearFactorGraph = self.__graph_from_2view_relative_rotations(
-            i2Ri1_dict, old_to_new_idxes
+            i2Ri1_dict, corr_idxs, old_to_new_idxes
         )
         # between_factors.extend(self._between_factors_from_pose_priors(i1Ti2_priors, old_to_new_idxes))
 
