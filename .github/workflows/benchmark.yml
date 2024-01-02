@@ -12,21 +12,21 @@ jobs:
       matrix:
         config_dataset_info:
           [
-            # config              dataset                lookahead   img-extension  source      loader          max-res  share-intrinsics
-            [sift,                door-12,               15,         JPG,           test_data,  olsson-loader,  1296,    true],
-            [lightglue,           door-12,               15,         JPG,           test_data,  olsson-loader,  1296,    true],
-            [sift,                skydio-8,              15,         jpg,           wget ,    colmap-loader,  760,     true],
-            [lightglue,           skydio-8,              15,         jpg,           wget,     colmap-loader,  760,     true],
-            [sift,                skydio-32,             15,         jpg,           wget,     colmap-loader,  760,     true],
-            [lightglue,           skydio-32,             15,         jpg,           wget,     colmap-loader,  760,     true],
-            [sift,                palace-fine-arts-281,  15,         jpg,           wget,       olsson-loader,  320,     true],
-            [lightglue,           notre-dame-20,         15,         jpg,           wget,     colmap-loader,  760,     false],
-            [sift,                2011205_rc3,           15,         png,           wget,       astrovision,    1024,    true],
-            [lightglue,           2011205_rc3,           15,         png,           wget,       astrovision,    1024,    true],
-            [sift,                gerrard-hall-100,      15,         jpg,           wget,       colmap-loader,  760,     true],
-            [lightglue,           gerrard-hall-100,      15,         jpg,           wget,       colmap-loader,  760,     true],
-            [sift,                south-building-128,    15,         jpg,           wget,       colmap-loader,  760,     true],
-            [lightglue,           south-building-128,    15,         jpg,           wget,       colmap-loader,  760,     true],  
+            # config              dataset                lookahead   img-extension  source      loader          max-res  share-intrinsics append-sift
+            [sift,                door-12,               15,         JPG,           test_data,  olsson-loader,  1296,    true,            false],
+            [lightglue,           door-12,               15,         JPG,           test_data,  olsson-loader,  1296,    true,            false],
+            [sift,                skydio-8,              15,         jpg,           wget ,    colmap-loader,  760,     true,                     false],
+            [lightglue,           skydio-8,              15,         jpg,           wget,     colmap-loader,  760,      true,                     false],
+            [sift,                skydio-32,             15,         jpg,           wget,     colmap-loader,  760,     true,                     false],
+            [lightglue,           skydio-32,             15,         jpg,           wget,     colmap-loader,  760,     true,                     false],
+            [sift,                palace-fine-arts-281,  15,         jpg,           wget,       olsson-loader,  320,     true,            false],
+            [lightglue,           notre-dame-20,         15,         jpg,           wget,     colmap-loader,  760,     false,                    false],
+            [sift,                2011205_rc3,           15,         png,           wget,       astrovision,    1024,    true,            false],
+            [lightglue,           2011205_rc3,           15,         png,           wget,       astrovision,    1024,    true,            false],
+            [sift,                gerrard-hall-100,      15,         jpg,           wget,       colmap-loader,  760,     true,            false],
+            [lightglue,           gerrard-hall-100,      15,         jpg,           wget,       colmap-loader,  760,     true,            false],
+            [sift,                south-building-128,    15,         jpg,           wget,       colmap-loader,  760,     true,            false],
+            [lightglue,           south-building-128,    15,         jpg,           wget,       colmap-loader,  760,     true,            false],
           ]
     defaults:
       run:

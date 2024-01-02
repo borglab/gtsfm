@@ -6,6 +6,7 @@ MAX_FRAME_LOOKAHEAD=$3
 LOADER_NAME=$4
 MAX_RESOLUTION=$5
 SHARE_INTRINSICS=$6
+APPEND_SIFT=$7
 
 # Extract the data, configure arguments for runner.
 if [ "$DATASET_NAME" == "door-12" ]; then
@@ -46,6 +47,12 @@ else
   export SHARE_INTRINSICS_ARG=""
 fi
 
+if [ "$APPEND_SIFT" == "true" ]; then
+  export EXTRA_CORRESPONDENCE_GENERATOR_ARG="--correspondence_generator_config_name sift"
+else
+  export EXTRA_CORRESPONDENCE_GENERATOR_ARG=""
+fi
+
 # Run GTSFM on the dataset.
 if [ "$LOADER_NAME" == "olsson-loader" ]; then
   python gtsfm/runner/run_scene_optimizer_olssonloader.py \
@@ -56,6 +63,7 @@ if [ "$LOADER_NAME" == "olsson-loader" ]; then
     --max_resolution ${MAX_RESOLUTION} \
     ${SHARE_INTRINSICS_ARG} \
     --mvs_off
+    ${EXTRA_CORRESPONDENCE_GENERATOR_ARG}
 
 elif [ "$LOADER_NAME" == "colmap-loader" ]; then
   python gtsfm/runner/run_scene_optimizer_colmaploader.py \
@@ -67,6 +75,7 @@ elif [ "$LOADER_NAME" == "colmap-loader" ]; then
     --max_resolution ${MAX_RESOLUTION} \
     ${SHARE_INTRINSICS_ARG} \
     --mvs_off
+    ${EXTRA_CORRESPONDENCE_GENERATOR_ARG}
 
 elif [ "$LOADER_NAME" == "astrovision" ]; then
   python gtsfm/runner/run_scene_optimizer_astrovision.py \
@@ -77,4 +86,5 @@ elif [ "$LOADER_NAME" == "astrovision" ]; then
     --max_resolution ${MAX_RESOLUTION} \
     ${SHARE_INTRINSICS_ARG} \
     --mvs_off
+    ${EXTRA_CORRESPONDENCE_GENERATOR_ARG}
 fi
