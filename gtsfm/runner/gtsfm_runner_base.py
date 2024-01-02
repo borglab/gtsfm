@@ -81,7 +81,9 @@ class GtsfmRunnerBase:
             "--correspondence_generator_config_name",
             type=str,
             default=None,
-            help="Override flag for correspondence generator (choose from among gtsfm/configs/correspondence).",
+            action="append",
+            help="Override flag for correspondence generator (choose from among gtsfm/configs/correspondence)."
+            + "Can use multiple.",
         )
         parser.add_argument(
             "--verifier_config_name",
@@ -173,13 +175,18 @@ class GtsfmRunnerBase:
             scene_optimizer: SceneOptimizer = instantiate(main_cfg.SceneOptimizer)
 
         # Override correspondence generator.
-        if self.parsed_args.correspondence_generator_config_name is not None:
-            with hydra.initialize_config_module(config_module="gtsfm.configs.correspondence"):
-                correspondence_cfg = hydra.compose(
-                    config_name=self.parsed_args.correspondence_generator_config_name,
+        if (
+            self.parsed_args.correspondence_generator_config_name is not None
+            and len(self.parsed_args.correspondence_generator_config_name) > 0
+        ):
+            scene_optimizer.correspondence_generators = []
+            for config in self.parsed_args.correspondence_generator_config_name:
+                with hydra.initialize_config_module(config_module="gtsfm.configs.correspondence"):
+                    correspondence_cfg = hydra.compose(config_name=config)
+                    logger.info("\n\nCorrespondenceGenerator override: %s", OmegaConf.to_yaml(correspondence_cfg))
+                scene_optimizer.correspondence_generators.append(
+                    instantiate(correspondence_cfg.CorrespondenceGenerator)
                 )
-                logger.info("\n\nCorrespondenceGenerators override: " + OmegaConf.to_yaml(correspondence_cfg))
-                scene_optimizer.correspondence_generators = instantiate(correspondence_cfg.CorrespondenceGenerators)
 
         # Override verifier.
         if self.parsed_args.verifier_config_name is not None:
