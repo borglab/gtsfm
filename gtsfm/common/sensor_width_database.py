@@ -15,7 +15,7 @@ DEFAULT_SENSOR_DB_PATH = ASSETS_ROOT / "camera_details" / "sensor_database.csv"
 class SensorWidthDatabase:
     """Database class for sensor-width, reading data from a csv file."""
 
-    def __init__(self, csv_path: str = DEFAULT_SENSOR_DB_PATH):
+    def __init__(self, csv_path: Path = DEFAULT_SENSOR_DB_PATH) -> None:
         """Initializes the database from a csv file."""
 
         self.df = pd.read_csv(csv_path)
@@ -28,11 +28,11 @@ class SensorWidthDatabase:
         """Look-up the sensor width given the camera make and model.
 
         Args:
-            make: make of the camera
-            model: model of the camera
+            make: Make of the camera.
+            model: Model of the camera.
 
         Returns:
-            sensor-width in mm
+            Sensor width in mm.
         """
 
         # Preprocess query strings.

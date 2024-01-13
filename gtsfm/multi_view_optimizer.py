@@ -22,7 +22,7 @@ from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.data_association.data_assoc import DataAssociation
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 from gtsfm.view_graph_estimator.view_graph_estimator_base import ViewGraphEstimatorBase
-from gtsfm.data_association.dsf_tracks_estimator import DsfTracksEstimator
+from gtsfm.data_association.cpp_dsf_tracks_estimator import CppDsfTracksEstimator
 from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 
 
@@ -41,6 +41,14 @@ class MultiViewOptimizer:
         self.data_association_module = data_association_module
         self.ba_optimizer = bundle_adjustment_module
         self._run_view_graph_estimator: bool = self.view_graph_estimator is not None
+
+    def __repr__(self) -> str:
+        return f"""
+        MultiviewOptimizer: 
+            ViewGraphEstimator: {self.view_graph_estimator}
+            RotationAveraging: {self.rot_avg_module}
+            TranslationAveraging: {self.trans_avg_module}
+        """
 
     def create_computation_graph(
         self,
@@ -61,19 +69,19 @@ class MultiViewOptimizer:
         """Creates a computation graph for multi-view optimization.
 
         Args:
-            images: list of all images in the scene, as delayed.
-            num_images: number of images in the scene.
-            keypoints_list: keypoints for images.
-            i2Ri1_dict: relative rotations for image pairs.
-            i2Ui1_dict: relative unit-translations for image pairs.
-            v_corr_idxs_dict: indices of verified correspondences for image pairs.
+            images: List of all images in the scene, as delayed.
+            num_images: Number of images in the scene.
+            keypoints_list: Keypoints for images.
+            i2Ri1_dict: Relative rotations for image pairs.
+            i2Ui1_dict: Relative unit-translations for image pairs.
+            v_corr_idxs_dict: Indices of verified correspondences for image pairs.
             all_intrinsics: intrinsics for images.
-            absolute_pose_priors: priors on the camera poses.
-            relative_pose_priors: priors on the pose between camera pairs.
+            absolute_pose_priors: Priors on the camera poses.
+            relative_pose_priors: Priors on the pose between camera pairs.
             two_view_reports_dict: Dict of TwoViewEstimationReports from the front-end.
-            cameras_gt: list of GT cameras (if they exist), ordered by camera index.
-            gt_wTi_list: list of GT poses of the camera.
-            output_root: path where output should be saved.
+            cameras_gt: List of GT cameras (if they exist), ordered by camera index.
+            gt_wTi_list: List of GT poses of the camera.
+            output_root: Path where output should be saved.
 
         Returns:
             The GtsfmData input to bundle adjustment, aligned to GT (if provided), wrapped up as Delayed.
@@ -82,7 +90,7 @@ class MultiViewOptimizer:
             List of GtsfmMetricGroups from different modules, wrapped up as Delayed.
         """
 
-        # create debug directory
+        # Create debug directory.
         debug_output_dir = None
         if output_root:
             debug_output_dir = output_root / "debug"
@@ -111,11 +119,10 @@ class MultiViewOptimizer:
             viewgraph_two_view_reports_graph = dask.delayed(two_view_reports_dict)
             viewgraph_estimation_metrics = dask.delayed(GtsfmMetricsGroup("view_graph_estimation_metrics", []))
 
-        # prune the graph to a single connected component.
+        # Prune the graph to a single connected component.
         pruned_i2Ri1_graph, pruned_i2Ui1_graph = dask.delayed(graph_utils.prune_to_largest_connected_component, nout=2)(
             viewgraph_i2Ri1_graph, viewgraph_i2Ui1_graph, relative_pose_priors
         )
-
         delayed_wRi, rot_avg_metrics = self.rot_avg_module.create_computation_graph(
             num_images, pruned_i2Ri1_graph, i1Ti2_priors=relative_pose_priors, gt_wTi_list=gt_wTi_list
         )
@@ -131,6 +138,7 @@ class MultiViewOptimizer:
             relative_pose_priors,
             gt_wTi_list=gt_wTi_list,
         )
+
         init_cameras_graph = dask.delayed(init_cameras)(wTi_graph, all_intrinsics)
 
         ba_input_graph, data_assoc_metrics_graph = self.data_association_module.create_computation_graph(
@@ -141,9 +149,8 @@ class MultiViewOptimizer:
             relative_pose_priors,
             images,
         )
-
         ba_result_graph, ba_metrics_graph = self.ba_optimizer.create_computation_graph(
-            ba_input_graph, absolute_pose_priors, relative_pose_priors, cameras_gt
+            ba_input_graph, absolute_pose_priors, relative_pose_priors, cameras_gt, save_dir=output_root
         )
 
         multiview_optimizer_metrics_graph = [
@@ -154,7 +161,7 @@ class MultiViewOptimizer:
             ba_metrics_graph,
         ]
 
-        # align the sparse multi-view estimate before BA to the ground truth pose graph.
+        # Align the sparse multi-view estimate before BA to the ground truth pose graph.
         ba_input_graph = dask.delayed(ba_input_graph.align_via_Sim3_to_poses)(gt_wTi_list)
 
         return ba_input_graph, ba_result_graph, viewgraph_two_view_reports_graph, multiview_optimizer_metrics_graph
@@ -167,8 +174,8 @@ def init_cameras(
     """Generate camera from valid rotations and unit-translations.
 
     Args:
-        wTi_list: estimated global poses for cameras.
-        intrinsics_list: intrinsics for cameras.
+        wTi_list: Estimated global poses for cameras.
+        intrinsics_list: Intrinsics for cameras.
 
     Returns:
         Valid cameras.
@@ -177,8 +184,9 @@ def init_cameras(
 
     camera_class = gtsfm_types.get_camera_class_for_calibration(intrinsics_list[0])
     for idx, (wTi) in enumerate(wTi_list):
-        if wTi is not None:
-            cameras[idx] = camera_class(wTi, intrinsics_list[idx])
+        if wTi is None:
+            continue
+        cameras[idx] = camera_class(wTi, intrinsics_list[idx])
 
     return cameras
 
@@ -186,5 +194,5 @@ def init_cameras(
 def get_2d_tracks(
     corr_idxs_dict: Dict[Tuple[int, int], np.ndarray], keypoints_list: List[Keypoints]
 ) -> List[SfmTrack2d]:
-    tracks_estimator = DsfTracksEstimator()
+    tracks_estimator = CppDsfTracksEstimator()
     return tracks_estimator.run(corr_idxs_dict, keypoints_list)

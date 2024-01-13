@@ -3,17 +3,18 @@
 Authors: John Lambert
 """
 
-import glob
 import os
 from pathlib import Path
 from typing import List, Optional
 
+import numpy as np
 import scipy.io
-from gtsam import Cal3Bundler, Pose3
+from gtsam import Cal3Bundler, Pose3, SfmTrack
 
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.verification as verification_utils
 from gtsfm.common.image import Image
+from gtsfm.common.sfm_track import SfmMeasurement, SfmTrack2d
 from gtsfm.loader.loader_base import LoaderBase
 
 
@@ -37,7 +38,6 @@ class OlssonLoader(LoaderBase):
     def __init__(
         self,
         folder: str,
-        image_extension: str = "jpg",
         use_gt_intrinsics: bool = True,
         use_gt_extrinsics: bool = True,
         max_frame_lookahead: int = 20,
@@ -46,27 +46,21 @@ class OlssonLoader(LoaderBase):
         """Initializes to load from a specified folder on disk.
 
         Args:
-            folder: the base folder for a given scene
-            image_extension: file extension for the image files. Defaults to 'jpg'.
-            use_gt_intrinsics: whether to use ground truth intrinsics
-            use_gt_extrinsics: whether to use ground truth extrinsics
-            max_resolution: integer representing maximum length of image's short side, i.e.
+            folder: The base folder for a given scene.
+            use_gt_intrinsics: Whether to use ground truth intrinsics.
+            use_gt_extrinsics: Whether to use ground truth extrinsics.
+            max_resolution: Integer representing maximum length of image's short side, i.e.
                the smaller of the height/width of the image. e.g. for 1080p (1920 x 1080),
                max_resolution would be 1080. If the image resolution max(height, width) is
                greater than the max_resolution, it will be downsampled to match the max_resolution.
         """
         super().__init__(max_resolution)
+        self._folder = folder
         self._use_gt_intrinsics = use_gt_intrinsics
         self._use_gt_extrinsics = use_gt_extrinsics
         self._max_frame_lookahead = max_frame_lookahead
 
-        # fetch all the file names in /images folder
-        search_path = os.path.join(folder, "images", f"*.{image_extension}")
-
-        self._image_paths = glob.glob(search_path)
-
-        # sort the file names
-        self._image_paths.sort()
+        self._image_paths = io_utils.get_sorted_image_names_in_dir(os.path.join(folder, "images"))
         self._num_imgs = len(self._image_paths)
 
         if self._num_imgs == 0:
@@ -74,19 +68,19 @@ class OlssonLoader(LoaderBase):
 
         cam_matrices_fpath = os.path.join(folder, "data.mat")
         if not Path(cam_matrices_fpath).exists():
-            # not available, so no choice
+            # Not available, so no choice
             self._use_gt_intrinsics = False
             self._use_gt_extrinsics = False
             return
 
-        # stores camera poses (extrinsics) and intrinsics as 3x4 projection matrices
+        # Stores camera poses (extrinsics) and intrinsics as 3x4 projection matrices
         # 'P' array will have shape (1,num_imgs), and each element will be a (3,4) matrix
         data = scipy.io.loadmat(cam_matrices_fpath)
 
         if len(data["P"][0]) != self._num_imgs:
             raise RuntimeError("Number of images found on disk not equal to number of ground truth images.")
 
-        # each projection matrix is "M"
+        # Each projection matrix is "M"
         # M = K [R | t]
         # in GTSAM notation, M = K @ cTw
         projection_matrices = [data["P"][0][i] for i in range(self._num_imgs)]
@@ -94,13 +88,60 @@ class OlssonLoader(LoaderBase):
         self._K, _ = verification_utils.decompose_camera_projection_matrix(projection_matrices[0])
 
         self._wTi_list = []
-        # first pose is not necessarily identity (in Door it is, but not in Palace of Fine Arts)
+        # First pose is not necessarily identity (in Door it is, but not in Palace of Fine Arts).
         for M in projection_matrices:
             K, wTc = verification_utils.decompose_camera_projection_matrix(M)
             self._wTi_list.append(wTc)
 
         # GT 3d structure (point cloud)
         self._point_cloud = data["U"].T[:, :3]
+
+    def get_gt_tracks_2d(self) -> List[SfmTrack2d]:
+        """Retrieves 2d ground-truth point tracks."""
+        tracks_2d = []
+        for track_3d in self.get_gt_tracks_3d():
+            measurements_2d = []
+            for k in range(track_3d.numberMeasurements()):
+                i, uv = track_3d.measurement(k)
+                measurements_2d.append(SfmMeasurement(i, uv)) 
+            tracks_2d.append(SfmTrack2d(measurements_2d))
+        return tracks_2d
+
+    def get_gt_tracks_3d(self) -> List[SfmTrack]:
+        """Retrieves 3d ground-truth point tracks."""
+        cam_matrices_fpath = os.path.join(self._folder, "data.mat")
+        if not Path(cam_matrices_fpath).exists():
+            raise ValueError("Ground truth data file missing.")
+
+        data = scipy.io.loadmat(cam_matrices_fpath)
+
+        tracks = []
+        # `u_uncalib` contains two cells.
+        for j, point in enumerate(self._point_cloud):
+
+            track_3d = SfmTrack(point)
+            for i in range(len(self)):
+
+                # u_uncalib.points{i} contains homogeneous image keypoints w/ shape (3, num_visible_points).
+                # Transpose to (num_visible_points, 3)
+                keypoint_coords = data['u_uncalib'][0,0][1][i][0].T
+
+                # u_uncalib.index{i} contains the indices of the 3D points corresponding to u_uncalib.points{i}.
+                # shape: (1, num_visible_points)
+                if j not in data['u_uncalib'][0,0][2][i][0]:
+                    continue
+
+                k = np.argwhere(data['u_uncalib'][0,0][2][i][0][0] == j)[0]
+                uv = np.squeeze(keypoint_coords[k,:2])
+                track_3d.addMeasurement(i, uv)
+
+            if track_3d.numberMeasurements() == 0:
+                # Empty track in ground truth.
+                continue
+            tracks.append(track_3d)
+
+        return tracks
+
 
     def image_filenames(self) -> List[str]:
         """Return the file names corresponding to each image index."""

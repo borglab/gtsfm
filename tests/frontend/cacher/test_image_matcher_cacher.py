@@ -93,15 +93,16 @@ class TestImageMatcherCacher(unittest.TestCase):
         self.assertEqual(computed_keypoints_i1, DUMMY_KEYPOINTS_I1)
         self.assertEqual(computed_keypoints_i2, DUMMY_KEYPOINTS_I2)
 
-        # assert that underlying object was not called
+        # Assert that underlying object was not called.
         underlying_matcher_mock.match.assert_not_called()
 
-        # assert that hash generation was called twice
+        # Assert that hash generation was called twice.
         generate_hash_for_image_mock.assert_called()
 
-        # assert that read function was called once and write function was called once
+        # Assert that read function was called once.
         cache_path = ROOT_PATH / "cache" / "image_matcher" / "mock_matcher_numpy_key_numpy_key.pbz2"
         read_mock.assert_called_once_with(cache_path)
+        # Assert that the write function was not called  (as cache is mocked to already exist).
         write_mock.assert_not_called()
 
 

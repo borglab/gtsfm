@@ -1,4 +1,7 @@
+"""General multi-view bundle adjustment."""
+
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
+from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 
@@ -21,3 +24,7 @@ class GlobalBundleAdjustment(GTSFMProcess, BundleAdjustmentOptimizer):
             output_products=("Optimized Camera Poses", "Optimized 3D Tracks"),
             parent_plate="Sparse Reconstruction",
         )
+
+    def is_two_view_ba(self, initial_data: GtsfmData) -> bool:
+        """Determines whether two-view bundle adjustment is being executed."""
+        return False

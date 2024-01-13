@@ -14,8 +14,8 @@ jobs:
       PYTHON_VERSION: 3.8
 
     steps:
-      - uses: actions/checkout@v3.5.3
-      - uses: conda-incubator/setup-miniconda@v2
+      - uses: actions/checkout@v4.1.1
+      - uses: conda-incubator/setup-miniconda@v3
         with:
           mamba-version: "*"
           activate-environment: gtsfm-v1

@@ -17,6 +17,7 @@ import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metric_utils
 from gtsfm.bundle.two_view_ba import TwoViewBundleAdjustment
 from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.sfm_track import SfmMeasurement, SfmTrack2d
@@ -61,6 +62,7 @@ class TwoViewEstimator:
         triangulation_options: TriangulationOptions,
         bundle_adjust_2view_maxiters: int = 100,
         ba_reproj_error_thresholds: List[Optional[float]] = [0.5],
+        allow_indeterminate_linear_system: bool = False,
     ) -> None:
         """Initializes the two-view estimator from verifier.
 
@@ -73,17 +75,34 @@ class TwoViewEstimator:
             bundle_adjust_2view_maxiters (optional): Max number of iterations for 2-view BA. Defaults to 100.
             ba_reproj_error_thresholds (optional): Reprojection thresholds used to filter features after each stage of
                 2-view BA. The length of this list decides the number of BA stages. Defaults to [0.5] (single stage).
+            allow_indeterminate_linear_system: Reject a two-view measurement if an indeterminate linear system is
+                encountered during marginal covariance computation after 2-view bundle adjustment.
         """
         self._verifier = verifier
         self.processor = inlier_support_processor
         self._bundle_adjust_2view = bundle_adjust_2view
         self._corr_metric_dist_threshold = eval_threshold_px
         self._triangulation_options = triangulation_options
+        self._ba_reproj_error_thresholds = ba_reproj_error_thresholds
+        self._bundle_adjust_2view_maxiters = bundle_adjust_2view_maxiters
+        self._allow_indeterminate_linear_system = allow_indeterminate_linear_system
         self._ba_optimizer = TwoViewBundleAdjustment(
             reproj_error_thresholds=ba_reproj_error_thresholds,
             robust_measurement_noise=True,
             max_iterations=bundle_adjust_2view_maxiters,
+            allow_indeterminate_linear_system=allow_indeterminate_linear_system,
         )
+
+    def __repr__(self) -> str:
+        return f"""
+        TwoViewEstimator:
+            Verifier: {self._verifier}
+            Bundle adjust 2-view: {self._bundle_adjust_2view}
+            Correspondence metric dist. threshold: {self._corr_metric_dist_threshold}
+            BA reproj. error thresholds: {self._ba_reproj_error_thresholds}
+            BA 2-view max. iters: {self._bundle_adjust_2view_maxiters}
+            allow 2-view BA indeterminate linear system: {self._allow_indeterminate_linear_system}
+        """
 
     def triangulate_two_view_correspondences(
         self,
@@ -142,6 +161,7 @@ class TwoViewEstimator:
             i2Ri1_initial: The relative rotation to be used as initial rotation between cameras.
             i2Ui1_initial: The relative unit direction, to be used to initialize initial translation between cameras.
             i2Ti1_prior: Prior on the relative pose for cameras (i1, i2).
+
         Returns:
             Optimized relative rotation i2Ri1.
             Optimized unit translation i2Ui1.
@@ -170,7 +190,7 @@ class TwoViewEstimator:
         logger.debug("Triangulated %d correspondences out of %d.", len(triangulated_tracks), len(verified_corr_idxs))
 
         if len(triangulated_tracks) == 0:
-            return i2Ti1_initial.rotation(), Unit3(i2Ti1_initial.translation()), np.array([], dtype=np.uint32)
+            return i2Ti1_initial.rotation(), Unit3(i2Ti1_initial.translation()), np.zeros(shape=(0, 2), dtype=np.int32)
 
         # Build BA inputs.
         start_time = timeit.default_timer()
@@ -181,6 +201,9 @@ class TwoViewEstimator:
         _, ba_output, valid_mask = self._ba_optimizer.run_ba(
             ba_input, absolute_pose_priors=[], relative_pose_priors=relative_pose_prior_for_ba, verbose=False
         )
+        if ba_output is None:
+            # Indeterminate linear system was met.
+            return None, None, np.zeros((0,2), dtype=np.int32)
 
         # Unpack results.
         valid_corr_idxs = verified_corr_idxs[triangulated_indices][valid_mask]
@@ -412,7 +435,7 @@ def aggregate_frontend_metrics(
     two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
     angular_err_threshold_deg: float,
     metric_group_name: str,
-) -> None:
+) -> GtsfmMetricsGroup:
     """Aggregate the front-end metrics to log summary statistics.
 
     We define "pose error" as the maximum of the angular errors in rotation and translation, per:
@@ -428,7 +451,7 @@ def aggregate_frontend_metrics(
     """
     num_image_pairs = len(two_view_reports_dict.keys())
 
-    # all rotational errors in degrees
+    # All rotational errors in degrees.
     rot3_angular_errors_list: List[float] = []
     trans_angular_errors_list: List[float] = []
 
@@ -436,7 +459,7 @@ def aggregate_frontend_metrics(
     inlier_ratio_est_model_all_pairs = []
     num_inliers_gt_model_all_pairs = []
     num_inliers_est_model_all_pairs = []
-    # populate the distributions
+    # Populate the distributions.
     for report in two_view_reports_dict.values():
         if report.R_error_deg is not None:
             rot3_angular_errors_list.append(report.R_error_deg)
@@ -450,18 +473,18 @@ def aggregate_frontend_metrics(
 
     rot3_angular_errors = np.array(rot3_angular_errors_list, dtype=float)
     trans_angular_errors = np.array(trans_angular_errors_list, dtype=float)
-    # count number of rot3 errors which are not None. Should be same in rot3/unit3
+    # Count number of rot3 errors which are not None. Should be same in rot3/unit3.
     num_valid_image_pairs = np.count_nonzero(~np.isnan(rot3_angular_errors))
 
-    # compute pose errors by picking the max error from rot3 and unit3 errors
+    # Compute pose errors by picking the max error from rot3 and unit3 errors.
     pose_errors = np.maximum(rot3_angular_errors, trans_angular_errors)
 
-    # check errors against the threshold
+    # Check errors against the threshold.
     success_count_rot3 = np.sum(rot3_angular_errors < angular_err_threshold_deg)
     success_count_unit3 = np.sum(trans_angular_errors < angular_err_threshold_deg)
     success_count_pose = np.sum(pose_errors < angular_err_threshold_deg)
 
-    # count image pair entries where inlier ratio w.r.t. GT model == 1.
+    # Count image pair entries where inlier ratio w.r.t. GT model == 1.
     all_correct = np.count_nonzero(
         [report.inlier_ratio_gt_model == 1.0 for report in two_view_reports_dict.values() if report is not None]
     )
@@ -496,7 +519,7 @@ def aggregate_frontend_metrics(
         metric_group_name,
         [
             GtsfmMetric("angular_err_threshold_deg", angular_err_threshold_deg),
-            GtsfmMetric("num_total_image_pairs", int(num_image_pairs)),
+            GtsfmMetric("num_input_image_pairs", int(num_image_pairs)),
             GtsfmMetric("num_valid_image_pairs", int(num_valid_image_pairs)),
             GtsfmMetric("rotation_success_count", int(success_count_rot3)),
             GtsfmMetric("translation_success_count", int(success_count_unit3)),
@@ -570,5 +593,56 @@ def run_two_view_estimator_as_futures(
     }
 
     two_view_output_dict = client.gather(two_view_output_futures)
-
     return two_view_output_dict
+
+
+def get_two_view_reports_summary(
+    two_view_report_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
+    images: List[Image],
+) -> List[Dict[str, Any]]:
+    """Converts the TwoViewEstimationReports to a summary dict for each image pair.
+
+    Args:
+        two_view_report_dict: Front-end metrics for pairs of images.
+        images: List of all images for this scene, in order of image/frame index.
+
+    Returns:
+        List of dictionaries, where each dictionary contains the metrics for an image pair.
+    """
+
+    def round_fn(x: Optional[float]) -> Optional[float]:
+        return round(x, 2) if x else None
+
+    metrics_list = []
+
+    for (i1, i2), report in two_view_report_dict.items():
+        # Note: if GT is unknown, then R_error_deg, U_error_deg, and inlier_ratio_gt_model will be None
+        metrics_list.append(
+            {
+                "i1": int(i1),
+                "i2": int(i2),
+                "i1_filename": images[i1].file_name,
+                "i2_filename": images[i2].file_name,
+                "rotation_angular_error": round_fn(report.R_error_deg),
+                "translation_angular_error": round_fn(report.U_error_deg),
+                "num_inliers_gt_model": int(report.num_inliers_gt_model)
+                if report.num_inliers_gt_model is not None
+                else None,
+                "inlier_ratio_gt_model": round_fn(report.inlier_ratio_gt_model),
+                "inlier_avg_reproj_error_gt_model": round_fn(
+                    np.nanmean(report.reproj_error_gt_model[report.v_corr_idxs_inlier_mask_gt])
+                )
+                if report.reproj_error_gt_model is not None and report.v_corr_idxs_inlier_mask_gt is not None
+                else None,
+                "outlier_avg_reproj_error_gt_model": round_fn(
+                    np.nanmean(report.reproj_error_gt_model[np.logical_not(report.v_corr_idxs_inlier_mask_gt)])
+                )
+                if report.reproj_error_gt_model is not None and report.v_corr_idxs_inlier_mask_gt is not None
+                else None,
+                "inlier_ratio_est_model": round_fn(report.inlier_ratio_est_model),
+                "num_inliers_est_model": int(report.num_inliers_est_model)
+                if report.num_inliers_est_model is not None
+                else None,
+            }
+        )
+    return metrics_list

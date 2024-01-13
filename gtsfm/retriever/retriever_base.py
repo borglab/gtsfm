@@ -8,7 +8,9 @@ from enum import Enum
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from gtsfm.loader.loader_base import LoaderBase
+import numpy as np
+
+from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 
@@ -43,14 +45,39 @@ class RetrieverBase(GTSFMProcess):
         )
 
     @abc.abstractmethod
-    def get_image_pairs(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> List[Tuple[int, int]]:
+    def get_image_pairs(
+        self,
+        global_descriptors: Optional[List[np.ndarray]],
+        image_fnames: List[str],
+        plots_output_dir: Optional[Path] = None,
+    ) -> List[Tuple[int, int]]:
         """Compute potential image pairs.
 
         Args:
-            loader: image loader. The length of this loader will provide the total number of images
-                for exhaustive global descriptor matching.
-            plots_output_dir: Directory to save plots to.
+            global_descriptors: the global descriptors for the retriever, if needed.
+            image_fnames: file names of the images
+            plots_output_dir: Directory to save plots to. If None, plots are not saved.
 
-        Return:
-            pair_indices: (i1,i2) image pairs.
+        Returns:
+            List of (i1,i2) image pairs.
         """
+
+    def evaluate(self, num_images, image_pair_indices: List[Tuple[int, int]]) -> GtsfmMetricsGroup:
+        """Evaluates the retriever result.
+
+        Args:
+            num_images: the number of images in the dataset.
+            image_pair_indices: (i1,i2) image pairs.
+
+        Returns:
+            Retriever metrics group.
+        """
+        metric_group_name = "retriever_metrics"
+        retriever_metrics = GtsfmMetricsGroup(
+            metric_group_name,
+            [
+                GtsfmMetric("num_input_images", num_images),
+                GtsfmMetric("num_retrieved_image_pairs", len(image_pair_indices)),
+            ],
+        )
+        return retriever_metrics

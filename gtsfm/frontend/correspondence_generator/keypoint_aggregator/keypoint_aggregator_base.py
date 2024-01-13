@@ -25,6 +25,7 @@ class KeypointAggregatorBase(GTSFMProcess):
             parent_plate="ImageCorrespondenceGenerator",
         )
 
+    # ignored-abstractmethod
     @abc.abstractmethod
     def aggregate(
         self, keypoints_dict: Dict[Tuple[int, int], Tuple[Keypoints, Keypoints]]
@@ -32,10 +33,11 @@ class KeypointAggregatorBase(GTSFMProcess):
         """Aggregates per-pair image keypoints into a set of keypoints per image.
 
         Args:
-            keypoints_dict: (i1,i2) maps to (keypoints_i1, keypoints_i2) representing matches (correspondences).
+            keypoints_dict: Dictionary where key (i1,i2) maps to (keypoints_i1, keypoints_i2) representing matches
+                (correspondences).
 
         Returns:
-            keypoints_list: list of N Keypoints objects for N images.
-            putative_corr_idxs_dict: mapping from image pair (i1,i2) to putative correspondence indices.
+            keypoints_list: List of N Keypoints objects for N images.
+            putative_corr_idxs_dict: Mapping from image pair (i1,i2) to putative correspondence indices.
               Correspondence indices are represented by an array of shape (K,2), for K correspondences.
         """

@@ -19,11 +19,11 @@ def align_rotations(aRi_list: List[Optional[Rot3]], bRi_list: List[Optional[Rot3
     """Aligns the list of rotations to the reference list by using Karcher mean.
 
     Args:
-        aRi_list: reference rotations in frame "a" which are the targets for alignment
-        bRi_list: input rotations which need to be aligned to frame "a"
+        aRi_list: Reference rotations in frame "a" which are the targets for alignment
+        bRi_list: Input rotations which need to be aligned to frame "a"
 
     Returns:
-        aRi_list_: transformed input rotations previously "bRi_list" but now which
+        aRi_list_: Transformed input rotations previously "bRi_list" but now which
             have the same origin as reference (now living in "a" frame)
     """
     aRb_list = [
@@ -207,18 +207,18 @@ def compare_global_poses(
         aTi_list: 1st list of poses.
         bTi_list: 2nd list of poses.
         rot_angular_error_threshold_degrees (optional): angular error threshold for rotations. Defaults to 2.
-        trans_err_atol (optional): absolute error threshold for translation. Defaults to 1e-2.
-        trans_err_rtol (optional): relative error threshold for translation. Defaults to 1e-1.
+        trans_err_atol (optional): Absolute error threshold for translation. Defaults to 1e-2.
+        trans_err_rtol (optional): Relative error threshold for translation. Defaults to 1e-1.
 
     Returns:
-        result of the comparison.
+        Result of the comparison.
     """
 
-    # check the length of the input lists
+    # Check the length of the input lists
     if len(aTi_list) != len(bTi_list):
         return False
 
-    # check the presense of valid Pose3 objects in the same location
+    # Check the presence of valid Pose3 objects in the same location.
     aTi_valid = [i for (i, aTi) in enumerate(aTi_list) if aTi is not None]
     bTi_valid = [i for (i, bTi) in enumerate(bTi_list) if bTi is not None]
     if aTi_valid != bTi_valid:
@@ -228,7 +228,7 @@ def compare_global_poses(
         # we need >= two entries going forward for meaningful comparisons
         return False
 
-    # align the remaining poses
+    # Align the remaining poses.
     aTi_list = [aTi_list[i] for i in aTi_valid]
     bTi_list = [bTi_list[i] for i in bTi_valid]
 
@@ -269,11 +269,11 @@ def compute_relative_rotation_angle(R_1: Optional[Rot3], R_2: Optional[Rot3]) ->
     Note: the angle is the norm of the angle-axis representation.
 
     Args:
-        R_1: the first rotation.
-        R_2: the second rotation.
+        R_1: The first rotation.
+        R_2: The second rotation.
 
     Returns:
-        the angle between two rotations, in degrees
+        The angle between two rotations, in degrees.
     """
 
     if R_1 is None or R_2 is None:
@@ -292,16 +292,16 @@ def compute_relative_unit_translation_angle(U_1: Optional[Unit3], U_2: Optional[
     """Compute the angle between two unit-translations.
 
     Args:
-        U_1: the first unit-translation.
-        U_2: the second unit-translation.
+        U_1: The first unit-translation.
+        U_2: The second unit-translation.
 
     Returns:
-        the angle between the two unit-vectors, in degrees
+        The angle between the two unit-vectors, in degrees.
     """
     if U_1 is None or U_2 is None:
         return None
 
-    # TODO: expose Unit3's dot function and use it directly
+    # TODO: expose Unit3's dot function and use it directly.
     dot_product = np.dot(U_1.point3(), U_2.point3())
     dot_product = np.clip(dot_product, -1, 1)
     angle_rad = np.arccos(dot_product)
@@ -341,8 +341,8 @@ def compute_points_distance_l2(wti1: Optional[Point3], wti2: Optional[Point3]) -
     point is None.
 
     Args:
-        wti1: Point1 in world frame
-        wti2: Point2 in world frame
+        wti1: Point1 in world frame.
+        wti2: Point2 in world frame.
 
     Returns:
         L2 norm of wti1 - wti2
@@ -397,3 +397,11 @@ def get_points_within_radius_of_cameras(
     is_nearby_to_any_cam = np.any(is_nearby_matrix, axis=1)
     nearby_points_3d = points_3d[is_nearby_to_any_cam]
     return nearby_points_3d
+
+
+def is_valid_SO3(R: Rot3) -> bool:
+    """Verifies that provided rotation matrix is a valid member of SO(3)."""
+    R = R.matrix()
+    is_unit_det = np.isclose(np.linalg.det(R), 1.0)
+    is_orthogonal = np.allclose(R @ R.T, np.eye(3))
+    return is_unit_det and is_orthogonal

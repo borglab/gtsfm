@@ -8,10 +8,9 @@ DATASET_PREFIX=/home/akrishnan86/gtsfm/data
 DATASET_NAME=$1
 CONFIG_NAME=$2
 MAX_FRAME_LOOKAHEAD=$3
-IMAGE_EXTENSION=$4
-LOADER_NAME=$5
-MAX_RESOLUTION=$6
-SHARE_INTRINSICS=$7
+LOADER_NAME=$4
+MAX_RESOLUTION=$5
+SHARE_INTRINSICS=$6
 
 # Extract the data, configure arguments for runner.
 if [ "$DATASET_NAME" == "skydio-501" ]; then
@@ -20,7 +19,7 @@ if [ "$DATASET_NAME" == "skydio-501" ]; then
 fi
 
 echo "Config: ${CONFIG_NAME}, Loader: ${LOADER_NAME}"
-echo "Max. Frame Lookahead: ${MAX_FRAME_LOOKAHEAD}, Image Extension: ${IMAGE_EXTENSION}, Max. Resolution: ${MAX_RESOLUTION}"
+echo "Max. Frame Lookahead: ${MAX_FRAME_LOOKAHEAD}, Max. Resolution: ${MAX_RESOLUTION}"
 echo "Share intrinsics for all images? ${SHARE_INTRINSICS}"
 
 # Setup the command line arg if intrinsics are to be shared
@@ -34,7 +33,6 @@ fi
 if [ "$LOADER_NAME" == "olsson-loader" ]; then
   python gtsfm/runner/run_scene_optimizer_olssonloader.py \
     --dataset_root $DATASET_PREFIX/$DATASET_ROOT \
-    --image_extension $IMAGE_EXTENSION \
     --config_name ${CONFIG_NAME}.yaml \
     --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
     --max_resolution ${MAX_RESOLUTION} \

@@ -35,7 +35,7 @@ wget -c --no-check-certificate -O $PATCHMATCHNET_WEIGHTS_DIR/model_000007.ckpt $
 
 ##################### D2Net #############################
 
-D2NET_CKPT_URL="https://dsmn.ml/files/d2-net/d2_tf.pth"
+D2NET_CKPT_URL="https://dusmanu.com/files/d2-net/d2_tf.pth"
 D2NET_WEIGHTS_DIR="./thirdparty/d2net/weights"
 mkdir -p $D2NET_WEIGHTS_DIR
 
@@ -43,4 +43,7 @@ wget $D2NET_CKPT_URL -O $D2NET_WEIGHTS_DIR/d2_tf.pth
 
 ##################### NetVLAD #############################
 
-python thirdparty/hloc/download_netvlad.py
+NETVLAD_WEIGHTS_DIR="./thirdparty/hloc/weights"
+NETVLAD_CKPT_URL="https://github.com/johnwlambert/gtsfm-datasets-mirror/releases/download/gerrard-hall-100/VGG16-NetVLAD-Pitts30K.mat"
+mkdir $NETVLAD_WEIGHTS_DIR
+wget $NETVLAD_CKPT_URL -O $NETVLAD_WEIGHTS_DIR/VGG16-NetVLAD-Pitts30K.mat

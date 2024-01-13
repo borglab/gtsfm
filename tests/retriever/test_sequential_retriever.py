@@ -18,9 +18,11 @@ class TestSequentialRetriever(unittest.TestCase):
         """Assert that we get 30 total matches with a lookahead of 3 frames on the Door Dataset."""
 
         max_frame_lookahead = 3
-        loader = OlssonLoader(str(DEFAULT_FOLDER), image_extension="JPG", max_frame_lookahead=max_frame_lookahead)
+        loader = OlssonLoader(str(DEFAULT_FOLDER), max_frame_lookahead=max_frame_lookahead)
         retriever = SequentialRetriever(max_frame_lookahead=max_frame_lookahead)
-        pairs = retriever.get_image_pairs(loader=loader)
+        pairs = retriever.get_image_pairs(
+            global_descriptors=None, image_fnames=loader.image_filenames(), plots_output_dir=None
+        )
 
         expected_pairs = [
             (0, 1),

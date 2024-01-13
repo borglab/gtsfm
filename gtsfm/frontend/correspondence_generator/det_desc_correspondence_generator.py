@@ -17,9 +17,16 @@ from gtsfm.frontend.matcher.matcher_base import MatcherBase
 class DetDescCorrespondenceGenerator(CorrespondenceGeneratorBase):
     """Traditional pair-wise matching of descriptors."""
 
-    def __init__(self, matcher: MatcherBase, detector_descriptor: DetectorDescriptorBase):
+    def __init__(self, matcher: MatcherBase, detector_descriptor: DetectorDescriptorBase) -> None:
         self._detector_descriptor = detector_descriptor
         self._matcher = matcher
+
+    def __repr__(self) -> str:
+        return f"""
+        DetDescCorrespondenceGenerator:
+           {self._detector_descriptor}
+           {self._matcher}
+        """
 
     def generate_correspondences(
         self,
@@ -30,9 +37,9 @@ class DetDescCorrespondenceGenerator(CorrespondenceGeneratorBase):
         """Apply the correspondence generator to generate putative correspondences.
 
         Args:
-            client: dask client, used to execute the front-end as futures.
-            images: list of all images, as futures.
-            image_pairs: indices of the pairs of images to estimate two-view pose and correspondences.
+            client: Dask client, used to execute the front-end as futures.
+            images: List of all images, as futures.
+            image_pairs: Indices of the pairs of images to estimate two-view pose and correspondences.
 
         Returns:
             List of keypoints, one entry for each input images.

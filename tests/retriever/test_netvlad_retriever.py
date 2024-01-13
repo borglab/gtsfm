@@ -9,6 +9,7 @@ from pathlib import Path
 from gtsfm.loader.colmap_loader import ColmapLoader
 from gtsfm.loader.olsson_loader import OlssonLoader
 from gtsfm.retriever.netvlad_retriever import NetVLADRetriever
+from gtsfm.frontend.global_descriptor.netvlad_global_descriptor import NetVLADGlobalDescriptor
 
 DATA_ROOT_PATH = Path(__file__).resolve().parent.parent / "data"
 DOOR_DATA_ROOT = DATA_ROOT_PATH / "set1_lund_door"
@@ -16,32 +17,37 @@ SKYDIO_DATA_ROOT = DATA_ROOT_PATH / "crane_mast_8imgs_colmap_output"
 
 
 class TestNetVLADRetriever(unittest.TestCase):
+    def setUp(self):
+        super().setUp()
+        self.global_descriptor = NetVLADGlobalDescriptor()
+
     def test_netvlad_retriever_crane_mast(self) -> None:
         """Test the NetVLAD retriever on 2 frames of the Skydio Crane-Mast dataset."""
         colmap_files_dirpath = SKYDIO_DATA_ROOT
         images_dir = SKYDIO_DATA_ROOT / "images"
 
         loader = ColmapLoader(
-            colmap_files_dirpath=colmap_files_dirpath,
-            images_dir=images_dir,
-            max_frame_lookahead=100,
+            colmap_files_dirpath=str(colmap_files_dirpath),
+            images_dir=str(images_dir),
             max_resolution=760,
         )
 
         retriever = NetVLADRetriever(num_matched=2)
 
-        pairs = retriever.get_image_pairs(loader=loader)
+        descriptors = [self.global_descriptor.describe(loader.get_image(i)) for i in range(len(loader))]
+        pairs = retriever.get_image_pairs(descriptors, loader.image_filenames(), plots_output_dir=None)
 
-        # only 1 pair possible between frame 0 and frame 1
+        # Only 1 pair possible between frame 0 and frame 1.
         self.assertEqual(len(pairs), 1)
         self.assertEqual(pairs, [(0, 1)])
 
     def test_netvlad_retriever_door(self) -> None:
         """Test the NetVLAD retriever on 12 frames of the Lund Door Dataset."""
-        loader = OlssonLoader(folder=DOOR_DATA_ROOT, image_extension="JPG")
+        loader = OlssonLoader(folder=str(DOOR_DATA_ROOT))
         retriever = NetVLADRetriever(num_matched=2)
 
-        pairs = retriever.get_image_pairs(loader=loader)
+        descriptors = [self.global_descriptor.describe(loader.get_image(i)) for i in range(len(loader))]
+        pairs = retriever.get_image_pairs(descriptors, loader.image_filenames(), plots_output_dir=None)
 
         self.assertEqual(len(pairs), 21)
 

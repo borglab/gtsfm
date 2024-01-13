@@ -8,7 +8,7 @@ and grids of box or histogram plots generated using plotly.
 Authors: Akshay Krishnan, Jon Womack
 """
 from collections import defaultdict
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import plotly.graph_objects as go
@@ -31,7 +31,7 @@ def get_readable_metric_name(metric_name: str) -> str:
         metric_name: where words are separated by underscores.
 
     Returns:
-        readable metric name where words are separated by spaces.
+        Readable metric name where words are separated by spaces.
     """
     words = metric_name.split("_")
     words = [word.capitalize() for word in words]
@@ -80,8 +80,8 @@ def create_table_for_scalar_metrics_and_compare(
     return tabulate(table, headers="keys", tablefmt="html")
 
 
-def add_plot(fig, metric_value: Dict[str, Union[List, Dict]], metric_name: str, row: int, col: int):
-    """Function for adding a plot to a figure
+def add_plot(fig, metric_value: Dict[str, Union[List, Dict]], metric_name: str, row: int, col: int) -> None:
+    """Adds a plot (histogram or box plot) to a figure using Plotly.
 
     Args:
         fig: The figure that the plot will be added to.
@@ -89,7 +89,6 @@ def add_plot(fig, metric_value: Dict[str, Union[List, Dict]], metric_name: str, 
         metric_name: The name of the metric being plotted.
         row: The row number of the plot in the figure.
         col: The column number of the plot in the figure.
-
     """
     if "histogram" in metric_value[metrics.SUMMARY_KEY]:
         histogram = metric_value[metrics.SUMMARY_KEY]["histogram"]
@@ -122,18 +121,20 @@ def create_plots_for_distributions(metrics_dict: Dict[str, Any]) -> str:
     For a certain metric, these can be either histogram or box according to the metric's property.
 
     Args:
-        metrics_dict: A dict, where keys are names of metrics and values are
-        the dictionary representation of the metric.
+        metrics_dict: Dictionary representation of the metric, where keys are names of metrics.
+
     Returns:
         Plots in a grid converted to HTML as a string.
     """
     distribution_metrics = []
     # Separate all the 1D distribution metrics.
     for metric, value in metrics_dict.items():
-        if isinstance(value, dict):
-            all_nan_summary = all(np.isnan(v) for v in value[metrics.SUMMARY_KEY].values())
-            if not all_nan_summary:
-                distribution_metrics.append(metric)
+        if not isinstance(value, dict):
+            continue
+        all_nan_summary = all(np.isnan(v) for v in value[metrics.SUMMARY_KEY].values())
+        if not all_nan_summary:
+            distribution_metrics.append(metric)
+
     if len(distribution_metrics) == 0:
         return ""
 
@@ -165,10 +166,9 @@ def create_plots_for_distributions_and_compare(
     For a certain metric, these can be either histogram or box according to the metric's property.
 
     Args:
-        metrics_dict: A dict, where keys are names of metrics and values are
-        the dictionary representation of the metric.
-        other_pipeline_metrics_dicts: metrics_dicts for other SfM pipelines
-        pipeline_names: A list of other SfM pipeline names
+        metrics_dict: Dictionary representation of the metric, where keys are names of metrics.
+        other_pipeline_metrics_dicts: Metrics_dicts for other SfM pipelines.
+        pipeline_names: A list of other SfM pipeline names.
 
     Returns:
         Plots in a grid converted to HTML as a string.
@@ -372,7 +372,7 @@ def get_html_header() -> str:
 def generate_metrics_report_html(
     metrics_groups: List[GtsfmMetricsGroup],
     html_path: str,
-    other_pipelines_metrics_groups: Dict[str, List[GtsfmMetricsGroup]],
+    other_pipelines_metrics_groups: Optional[Dict[str, List[GtsfmMetricsGroup]]],
 ) -> None:
     """Generates a report for metrics groups with plots and tables and saves it to HTML.
 

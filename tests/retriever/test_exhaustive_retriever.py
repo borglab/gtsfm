@@ -13,13 +13,15 @@ DATA_ROOT_PATH = Path(__file__).resolve().parent.parent / "data"
 DOOR_DATA_ROOT = DATA_ROOT_PATH / "set1_lund_door"
 
 
-class TestNetVLADRetriever(unittest.TestCase):
+class TestExhaustiveRetriever(unittest.TestCase):
     def test_exhaustive_retriever_door(self) -> None:
         """Test the Exhaustive retriever on 12 frames of the Lund Door Dataset."""
-        loader = OlssonLoader(folder=DOOR_DATA_ROOT, image_extension="JPG")
+        loader = OlssonLoader(folder=str(DOOR_DATA_ROOT))
         retriever = ExhaustiveRetriever()
 
-        pairs = retriever.get_image_pairs(loader=loader)
+        pairs = retriever.get_image_pairs(
+            global_descriptors=None, image_fnames=loader.image_filenames(), plots_output_dir=None
+        )
 
         # {12 \choose 2} = (12 * 11) / 2 = 66
         self.assertEqual(len(pairs), 66)
