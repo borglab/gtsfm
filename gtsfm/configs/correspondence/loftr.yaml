@@ -5,4 +5,5 @@ CorrespondenceGenerator:
     _target_: gtsfm.frontend.cacher.image_matcher_cacher.ImageMatcherCacher
     matcher_obj: 
       _target_: gtsfm.frontend.matcher.loftr.LOFTR
+      max_matches: 2000
     
