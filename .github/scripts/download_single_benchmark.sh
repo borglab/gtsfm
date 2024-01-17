@@ -29,13 +29,13 @@ function retry {
 function download_and_unzip_dataset_files {
   # Prepare the download URLs.
   if [ "$DATASET_NAME" == "skydio-8" ]; then
-    # Description: TODO
-    export GDRIVE_FILEID='1mmM1p_NpL7-pnf3iHWeWVKpsm1pcBoD5'
+    # Description: 8 images from Skydio-501 facing a single crane face
+    WGET_URL1=https://github.com/johnwlambert/gtsfm-datasets-mirror/releases/download/gtsfm-ci-small-datasets/skydio_crane_mast_8imgs_with_exif.zip
     ZIP_FNAME=skydio-8.zip
 
   elif [ "$DATASET_NAME" == "skydio-32" ]; then
-    # Description: TODO
-    export GDRIVE_FILEID='1BQ6jp0DD3D9yhTnrDoEddzlMYT0RRH68'
+    # Description: 32 images from Skydio-501 facing a single crane face
+    WGET_URL1=https://github.com/johnwlambert/gtsfm-datasets-mirror/releases/download/gtsfm-ci-small-datasets/skydio_crane_mast_32imgs_w_colmap_GT.zip
     ZIP_FNAME=skydio-32.zip
 
   elif [ "$DATASET_NAME" == "skydio-501" ]; then
@@ -46,7 +46,7 @@ function download_and_unzip_dataset_files {
 
   elif [ "$DATASET_NAME" == "notre-dame-20" ]; then
     # Description: TODO
-    export GDRIVE_FILEID='1t_CptH7ZWdKQVW-yw56bpLS83TntNQiK'
+    WGET_URL1=https://github.com/johnwlambert/gtsfm-datasets-mirror/releases/download/gtsfm-ci-small-datasets/notre-dame-20.zip
     ZIP_FNAME=notre-dame-20.zip
 
   elif [ "$DATASET_NAME" == "palace-fine-arts-281" ]; then
@@ -73,17 +73,7 @@ function download_and_unzip_dataset_files {
   fi
 
   # Download the data.
-  if [ "$DATASET_SRC" == "gdrive" ]; then
-    echo "Downloading ${DATASET_NAME} from GDRIVE"
-
-    # delete if exists (would be truncated version from earlier retry)
-    rm -f $ZIP_FNAME
-
-    export GDRIVE_URL='https://docs.google.com/uc?export=download&id='$GDRIVE_FILEID
-    retry 10 wget --save-cookies cookies.txt $GDRIVE_URL -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1/p' >confirm.txt
-    retry 10 wget --load-cookies cookies.txt -O ${DATASET_NAME}.zip $GDRIVE_URL'&confirm='$(<confirm.txt)
-
-  elif [ "$DATASET_SRC" == "wget" ]; then
+  if [ "$DATASET_SRC" == "wget" ]; then
     echo "Downloading ${DATASET_NAME} with WGET"
     retry 10 wget $WGET_URL1
 
