@@ -91,10 +91,10 @@ function download_and_unzip_dataset_files {
 
   # Extract the data, configure arguments for runner.
   if [ "$DATASET_NAME" == "skydio-8" ]; then
-    unzip -qq skydio-8.zip
+    unzip -qq skydio_crane_mast_8imgs_with_exif.zip
 
   elif [ "$DATASET_NAME" == "skydio-32" ]; then
-    unzip -qq skydio-32.zip -d skydio-32
+    unzip -qq skydio_crane_mast_32imgs_w_colmap_GT.zip -d skydio-32
 
   elif [ "$DATASET_NAME" == "skydio-501" ]; then
     tar -xvzf skydio-crane-mast-501-images1.tar.gz
