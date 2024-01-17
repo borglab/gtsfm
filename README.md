@@ -105,14 +105,14 @@ GTSfM for very fast inference afterwards. For more information, please refer to 
 
 For users that want to run GTSfM on a cluster of multiple machines, we provide setup instructions here: [`CLUSTER.md`](https://github.com/borglab/gtsfm/tree/master/CLUSTER.md)
 
-The results will be stored at `--output_root`, which is the `results` folder in the repo root by default. The poses and 3D tracks are stored in COLMAP format inside the `ba_output` subdirectory of `--output_root`. These can be visualized using the COLMAP GUI as well. 
+The results will be stored at `--output_root`, which is the `results` folder in the repo root by default. The poses and 3D tracks are stored in COLMAP format inside the `ba_output` subdirectory of `--output_root`. These can be visualized using the COLMAP GUI as well.
 
 ### Nerfstudio
 
-We provide a preprocessing script to convert the camera poses estimated by GTSfM to [nerfstudio](https://docs.nerf.studio/en/latest/) format: 
+We provide a preprocessing script to convert the camera poses estimated by GTSfM to [nerfstudio](https://docs.nerf.studio/en/latest/) format:
 
 ```bash
-python gtsfm/utils/prepare_nerfstudio.py --results_path {RESULTS_DIR} --images_dir {IMAGES_DIR}
+python scripts/prepare_nerfstudio.py --results_path {RESULTS_DIR} --images_dir {IMAGES_DIR}
 ```
 
 The results are stored in the nerfstudio_input subdirectory inside `{RESULTS_DIR}`, which can be used directly with nerfstudio if installed:
