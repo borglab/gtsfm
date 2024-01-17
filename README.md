@@ -6,7 +6,7 @@
 
 Georgia Tech Structure-from-Motion (GTSfM) is an end-to-end SfM pipeline based on [GTSAM](https://github.com/borglab/gtsam). GTSfM was designed from the ground-up to natively support parallel computation using [Dask](https://dask.org/). 
 
-For more details, please refer to our [arXiv preprint](https://arxiv.org/abs/2311.18801)
+For more details, please refer to our [arXiv preprint](https://arxiv.org/abs/2311.18801).
 
 <p align="left">
   <img src="https://user-images.githubusercontent.com/16724970/121294002-a4d7a400-c8ba-11eb-895e-a50305c049b6.gif" height="315" title="Olsson Lund Dataset: Door, 12 images">
