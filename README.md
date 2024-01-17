@@ -4,7 +4,9 @@
 |:------------:| :-------------:|
 | Ubuntu 20.04.3 |  ![Linux CI](https://github.com/borglab/gtsfm/actions/workflows/test-python.yml/badge.svg?branch=master) |
 
-Georgia Tech Structure-from-Motion (GTSfM) is an end-to-end SfM pipeline based on [GTSAM](https://github.com/borglab/gtsam). GTSfM was designed from the ground-up to natively support parallel computation using [Dask](https://dask.org/).
+Georgia Tech Structure-from-Motion (GTSfM) is an end-to-end SfM pipeline based on [GTSAM](https://github.com/borglab/gtsam). GTSfM was designed from the ground-up to natively support parallel computation using [Dask](https://dask.org/). 
+
+For more details, please refer to our [arXiv preprint](https://arxiv.org/abs/2311.18801).
 
 <p align="left">
   <img src="https://user-images.githubusercontent.com/16724970/121294002-a4d7a400-c8ba-11eb-895e-a50305c049b6.gif" height="315" title="Olsson Lund Dataset: Door, 12 images">
@@ -147,7 +149,20 @@ Contributions are always welcome! Please be aware of our [contribution guideline
 
 ## Citing this work
 
-Open-source Python implementation:
+If you use GTSfM, please cite our paper: 
+
+```
+@misc{baid2023distributed,
+      title={Distributed Global Structure-from-Motion with a Deep Front-End}, 
+      author={Ayush Baid and John Lambert and Travis Driver and Akshay Krishnan and Hayk Stepanyan and Frank Dellaert},
+      year={2023},
+      eprint={2311.18801},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV}
+}
+```
+
+Citing the open-source Python implementation:
 
 ```
 @misc{GTSFM,
