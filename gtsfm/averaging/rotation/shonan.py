@@ -29,6 +29,7 @@ from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBa
 from gtsfm.common.pose_prior import PosePrior
 
 POSE3_DOF = 6
+ROT3_DOF = 3
 
 logger = logger_utils.get_logger()
 
@@ -38,7 +39,11 @@ _DEFAULT_TWO_VIEW_ROTATION_SIGMA = 1.0
 class ShonanRotationAveraging(RotationAveragingBase):
     """Performs Shonan rotation averaging."""
 
-    def __init__(self, two_view_rotation_sigma: float = _DEFAULT_TWO_VIEW_ROTATION_SIGMA) -> None:
+    def __init__(
+            self, 
+            two_view_rotation_sigma: float = _DEFAULT_TWO_VIEW_ROTATION_SIGMA, 
+            robust_measurement_noise: bool = True,
+        ) -> None:
         """Initializes module.
 
         Note: `p_min` and `p_max` describe the minimum and maximum relaxation rank.
@@ -48,13 +53,16 @@ class ShonanRotationAveraging(RotationAveragingBase):
         """
         self._two_view_rotation_sigma = two_view_rotation_sigma
         self._p_min = 5
-        self._p_max = 5
+        self._p_max = 30
+        self._robust_measurement_noise = robust_measurement_noise
+        if self._robust_measurement_noise:
+            self._p_max = self._p_min
 
     def __get_shonan_params(self) -> ShonanAveragingParameters3:
         lm_params = LevenbergMarquardtParams.CeresDefaults()
         shonan_params = ShonanAveragingParameters3(lm_params)
-        shonan_params.setUseHuber(True)
-        shonan_params.setCertifyOptimality(False)
+        shonan_params.setUseHuber(self._robust_measurement_noise)
+        shonan_params.setCertifyOptimality(not self._robust_measurement_noise)
         return shonan_params
 
     def __between_factors_from_2view_relative_rotations(
@@ -65,17 +73,18 @@ class ShonanRotationAveraging(RotationAveragingBase):
     ) -> BetweenFactorPose3s:
         """Create between factors from relative rotations computed by the 2-view estimator."""
         # TODO: how to weight the noise model on relative rotations compared to priors?
-        between_factors = BetweenFactorPose3s()
+        measurements = gtsam.BinaryMeasurementsRot3()
         for (i1, i2), i2Ri1 in i2Ri1_dict.items():
             if i2Ri1 is not None:
                 # ignore translation during rotation averaging
-                noise_model = gtsam.noiseModel.Isotropic.Sigma(POSE3_DOF, 1 / corr_idxs[(i1, i2)].shape[0])
-                i2Ti1 = Pose3(i2Ri1, np.zeros(3))
+                noise_model = gtsam.noiseModel.Isotropic.Sigma(ROT3_DOF, 1 / corr_idxs[(i1, i2)].shape[0])
+                if self._robust_measurement_noise:
+                    noise_model = gtsam.noiseModel.Robust(gtsam.noiseModel.mEstimator.Huber(0.1), noise_model)
                 i2_ = old_to_new_idxs[i2]
                 i1_ = old_to_new_idxs[i1]
-                between_factors.append(BetweenFactorPose3(i2_, i1_, i2Ti1, noise_model))
+                measurements.append(gtsam.BinaryMeasurementRot3(i2_, i1_, i2Ri1, noise_model))
 
-        return between_factors
+        return measurements
 
     def _between_factors_from_pose_priors(
         self, i1Ti2_priors: Dict[Tuple[int, int], PosePrior], old_to_new_idxs: Dict[int, int]
@@ -100,7 +109,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         return between_factors
 
     def _run_with_consecutive_ordering(
-        self, num_connected_nodes: int, between_factors: BetweenFactorPose3s
+        self, num_connected_nodes: int, measurements: gtsam.BinaryMeasurementsRot3
     ) -> List[Optional[Rot3]]:
         """Run the rotation averaging on a connected graph w/ N keys ordered consecutively [0,...,N-1].
 
@@ -121,10 +130,10 @@ class ShonanRotationAveraging(RotationAveragingBase):
 
         logger.info(
             "Running Shonan with %d constraints on %d nodes",
-            len(between_factors),
+            len(measurements),
             num_connected_nodes,
         )
-        shonan = ShonanAveraging3(between_factors, self.__get_shonan_params())
+        shonan = ShonanAveraging3(measurements, self.__get_shonan_params())
 
         initial = shonan.initializeRandomly()
         logger.info("Initial cost: %.5f", shonan.cost(initial))
@@ -185,13 +194,13 @@ class ShonanRotationAveraging(RotationAveragingBase):
         nodes_with_edges = sorted(list(self._nodes_with_edges(i2Ri1_dict, i1Ti2_priors)))
         old_to_new_idxes = {old_idx: i for i, old_idx in enumerate(nodes_with_edges)}
 
-        between_factors: BetweenFactorPose3s = self.__between_factors_from_2view_relative_rotations(
+        measurements: gtsam.BinaryMeasurementsRot3 = self.__between_factors_from_2view_relative_rotations(
             i2Ri1_dict, corr_idxs, old_to_new_idxes
         )
-        between_factors.extend(self._between_factors_from_pose_priors(i1Ti2_priors, old_to_new_idxes))
+        # between_factors.extend(self._between_factors_from_pose_priors(i1Ti2_priors, old_to_new_idxes))
 
         wRi_list_subset = self._run_with_consecutive_ordering(
-            num_connected_nodes=len(nodes_with_edges), between_factors=between_factors
+            num_connected_nodes=len(nodes_with_edges), measurements=measurements
         )
 
         wRi_list = [None] * num_images
