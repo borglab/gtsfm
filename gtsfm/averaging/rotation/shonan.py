@@ -75,11 +75,11 @@ class ShonanRotationAveraging(RotationAveragingBase):
         # TODO: how to weight the noise model on relative rotations compared to priors?
         measurements = gtsam.BinaryMeasurementsRot3()
         for (i1, i2), i2Ri1 in i2Ri1_dict.items():
-            if i2Ri1 is not None and corr_idxs[(i1, i2)] > 0:
+            if i2Ri1 is not None and len(corr_idxs[(i1, i2)]) > 0:
                 # ignore translation during rotation averaging
                 noise_model = gtsam.noiseModel.Isotropic.Sigma(ROT3_DOF, 1 / corr_idxs[(i1, i2)].shape[0])
                 if self._robust_measurement_noise:
-                    noise_model = gtsam.noiseModel.Robust(gtsam.noiseModel.mEstimator.Huber(0.2), noise_model)
+                    noise_model = gtsam.noiseModel.Robust(gtsam.noiseModel.mEstimator.GemanMcClure(1.0), noise_model)
                 i2_ = old_to_new_idxs[i2]
                 i1_ = old_to_new_idxs[i1]
                 measurements.append(gtsam.BinaryMeasurementRot3(i2_, i1_, i2Ri1, noise_model))
