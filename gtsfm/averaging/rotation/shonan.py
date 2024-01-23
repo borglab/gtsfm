@@ -10,7 +10,8 @@ References:
 
 Authors: Jing Wu, Ayush Baid, John Lambert
 """
-from typing import Dict, List, Optional, Set, Tuple
+from enum import Enum, unique
+from typing import Dict, List, Optional, Set, Tuple, Any
 
 import gtsam
 import numpy as np
@@ -18,7 +19,6 @@ from gtsam import (
     BetweenFactorPose3,
     BetweenFactorPose3s,
     LevenbergMarquardtParams,
-    Pose3,
     Rot3,
     ShonanAveraging3,
     ShonanAveragingParameters3,
@@ -36,13 +36,32 @@ logger = logger_utils.get_logger()
 _DEFAULT_TWO_VIEW_ROTATION_SIGMA = 1.0
 
 
+@unique
+class RobustErrorType(str, Enum):
+    """Robust error function types for GTSAM.
+
+    See https://gtsam.org/doxygen/4.0.0/a01426.html for more detailed information.
+    """
+
+    Huber: str = "Huber"
+    GemanMcClure: str = "GemanMcClure"
+
+
+# Stores default parameters for each error function.
+DEFAULT_ROBUST_MODEL_KWARGS = {
+    RobustErrorType.Huber: {"k": 1.345},
+    RobustErrorType.GemanMcClure: {"c": 1.0},
+}
+
+
 class ShonanRotationAveraging(RotationAveragingBase):
     """Performs Shonan rotation averaging."""
 
     def __init__(
             self, 
             two_view_rotation_sigma: float = _DEFAULT_TWO_VIEW_ROTATION_SIGMA, 
-            robust_measurement_noise: bool = True,
+            robust_error_model: Optional[RobustErrorType] = None,
+            robust_error_model_kwargs: Optional[Dict[Any, Any]] = None,
         ) -> None:
         """Initializes module.
 
@@ -54,15 +73,22 @@ class ShonanRotationAveraging(RotationAveragingBase):
         self._two_view_rotation_sigma = two_view_rotation_sigma
         self._p_min = 5
         self._p_max = 30
-        self._robust_measurement_noise = robust_measurement_noise
-        if self._robust_measurement_noise:
+
+        # Build robust error function.
+        self._robust_error_model = robust_error_model
+        if self._robust_error_model is not None:
+            self._robust_error_model = getattr(gtsam.noiseModel.mEstimator, robust_error_model.value)
+            if robust_error_model_kwargs is None:
+                robust_error_model_kwargs = DEFAULT_ROBUST_MODEL_KWARGS[robust_error_model]
+            self._robust_error_model = self._robust_error_model(**robust_error_model_kwargs)
             self._p_max = self._p_min
+
 
     def __get_shonan_params(self) -> ShonanAveragingParameters3:
         lm_params = LevenbergMarquardtParams.CeresDefaults()
         shonan_params = ShonanAveragingParameters3(lm_params)
-        shonan_params.setUseHuber(self._robust_measurement_noise)
-        shonan_params.setCertifyOptimality(not self._robust_measurement_noise)
+        shonan_params.setUseHuber(self._robust_error_model is not None)
+        shonan_params.setCertifyOptimality(self._robust_error_model is None)
         return shonan_params
 
     def __between_factors_from_2view_relative_rotations(
@@ -70,7 +96,8 @@ class ShonanRotationAveraging(RotationAveragingBase):
         i2Ri1_dict: Dict[Tuple[int, int], Rot3],
         corr_idxs: Dict[Tuple[int, int], np.ndarray],
         old_to_new_idxs: Dict[int, int],
-    ) -> BetweenFactorPose3s:
+        use_robust_error: bool,
+    ) -> gtsam.BinaryMeasurementsRot3:
         """Create between factors from relative rotations computed by the 2-view estimator."""
         # TODO: how to weight the noise model on relative rotations compared to priors?
         measurements = gtsam.BinaryMeasurementsRot3()
@@ -78,8 +105,8 @@ class ShonanRotationAveraging(RotationAveragingBase):
             if i2Ri1 is not None and len(corr_idxs[(i1, i2)]) > 0:
                 # ignore translation during rotation averaging
                 noise_model = gtsam.noiseModel.Isotropic.Sigma(ROT3_DOF, 1 / corr_idxs[(i1, i2)].shape[0])
-                if self._robust_measurement_noise:
-                    noise_model = gtsam.noiseModel.Robust(gtsam.noiseModel.mEstimator.Huber(1.0), noise_model)
+                if use_robust_error:
+                    noise_model = gtsam.noiseModel.Robust(self._robust_error_model, noise_model)
                 i2_ = old_to_new_idxs[i2]
                 i1_ = old_to_new_idxs[i1]
                 measurements.append(gtsam.BinaryMeasurementRot3(i2_, i1_, i2Ri1, noise_model))
@@ -109,7 +136,9 @@ class ShonanRotationAveraging(RotationAveragingBase):
         return between_factors
 
     def _run_with_consecutive_ordering(
-        self, num_connected_nodes: int, measurements: gtsam.BinaryMeasurementsRot3
+        self, num_connected_nodes: int, 
+        measurements: gtsam.BinaryMeasurementsRot3, 
+        measurements_not_robust: gtsam.BinaryMeasurementsRot3,
     ) -> List[Optional[Rot3]]:
         """Run the rotation averaging on a connected graph w/ N keys ordered consecutively [0,...,N-1].
 
@@ -133,9 +162,25 @@ class ShonanRotationAveraging(RotationAveragingBase):
             len(measurements),
             num_connected_nodes,
         )
-        shonan = ShonanAveraging3(measurements, self.__get_shonan_params())
 
-        initial = shonan.initializeRandomly()
+        # Run without robust error.
+        if self._robust_error_model is not None:
+            lm_params = LevenbergMarquardtParams.CeresDefaults()
+            shonan_params = ShonanAveragingParameters3(lm_params)
+            shonan_params.setUseHuber(False)
+            shonan_params.setCertifyOptimality(True)
+
+            shonan = ShonanAveraging3(measurements_not_robust, shonan_params)
+            initial = shonan.initializeRandomly()
+            logger.info("Initial cost: %.5f", shonan.cost(initial))
+            result, _ = shonan.run(initial, 5, 30)
+            logger.info("Final cost: %.5f", shonan.cost(result))
+            initial = result
+        else:
+            shonan = ShonanAveraging3(measurements, self.__get_shonan_params())
+            initial = shonan.initializeRandomly()
+
+        # Run with robust error.
         logger.info("Initial cost: %.5f", shonan.cost(initial))
         result, _ = shonan.run(initial, self._p_min, self._p_max)
         logger.info("Final cost: %.5f", shonan.cost(result))
@@ -195,12 +240,17 @@ class ShonanRotationAveraging(RotationAveragingBase):
         old_to_new_idxes = {old_idx: i for i, old_idx in enumerate(nodes_with_edges)}
 
         measurements: gtsam.BinaryMeasurementsRot3 = self.__between_factors_from_2view_relative_rotations(
-            i2Ri1_dict, corr_idxs, old_to_new_idxes
+            i2Ri1_dict, corr_idxs, old_to_new_idxes, self._robust_error_model is not None
+        )
+        measurements_not_robust: gtsam.BinaryMeasurementsRot3 = self.__between_factors_from_2view_relative_rotations(
+            i2Ri1_dict, corr_idxs, old_to_new_idxes, False
         )
         # between_factors.extend(self._between_factors_from_pose_priors(i1Ti2_priors, old_to_new_idxes))
 
         wRi_list_subset = self._run_with_consecutive_ordering(
-            num_connected_nodes=len(nodes_with_edges), measurements=measurements
+            num_connected_nodes=len(nodes_with_edges), 
+            measurements=measurements, 
+            measurements_not_robust=measurements_not_robust,
         )
 
         wRi_list = [None] * num_images
