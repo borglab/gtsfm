@@ -79,7 +79,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
                 # ignore translation during rotation averaging
                 noise_model = gtsam.noiseModel.Isotropic.Sigma(ROT3_DOF, 1 / corr_idxs[(i1, i2)].shape[0])
                 if self._robust_measurement_noise:
-                    noise_model = gtsam.noiseModel.Robust(gtsam.noiseModel.mEstimator.GemanMcClure(1.0), noise_model)
+                    noise_model = gtsam.noiseModel.Robust(gtsam.noiseModel.mEstimator.Huber(1.0), noise_model)
                 i2_ = old_to_new_idxs[i2]
                 i1_ = old_to_new_idxs[i1]
                 measurements.append(gtsam.BinaryMeasurementRot3(i2_, i1_, i2Ri1, noise_model))
