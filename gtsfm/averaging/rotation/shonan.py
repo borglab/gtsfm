@@ -181,6 +181,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
             initial = shonan.initializeRandomly()
 
         # Run with robust error.
+        shonan = ShonanAveraging3(measurements, self.__get_shonan_params())
         logger.info("Initial cost: %.5f", shonan.cost(initial))
         result, _ = shonan.run(initial, self._p_min, self._p_max)
         logger.info("Final cost: %.5f", shonan.cost(result))
