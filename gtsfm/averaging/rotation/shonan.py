@@ -173,7 +173,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
             shonan = ShonanAveraging3(measurements_not_robust, shonan_params)
             initial = shonan.initializeRandomly()
             logger.info("Initial cost: %.5f", shonan.cost(initial))
-            result, _ = shonan.run(initial, 5, 30)
+            result, _ = shonan.run(initial, 5, 64)
             logger.info("Final cost: %.5f", shonan.cost(result))
             initial = result
         else:
