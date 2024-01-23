@@ -76,6 +76,8 @@ class TranslationAveragingBase(GTSFMProcess):
             Global camera poses wTi. The number of entries in the list is `num_images`. The list
                 may contain `None` where the global translations could not be computed (either underconstrained system
                 or ill-constrained system).
+            A GtsfmMetricsGroup with translation averaging metrics.
+            Indices of inlier measurements (list of camera pair indices).
         """
 
     def create_computation_graph(
@@ -106,6 +108,7 @@ class TranslationAveragingBase(GTSFMProcess):
         Returns:
             Global poses wrapped as Delayed.
             A GtsfmMetricsGroup with translation averaging metrics wrapped as Delayed.
+            Indices of inlier measurements (List[tuple[int, int]]) after running 1dsfm wrapped as Delayed.
         """
         return dask.delayed(self.run_translation_averaging, nout=3)(
             num_images=num_images,

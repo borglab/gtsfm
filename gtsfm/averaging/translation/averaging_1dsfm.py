@@ -508,6 +508,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 may contain `None` where the global translations could not be computed (either underconstrained system
                 or ill-constrained system).
             A GtsfmMetricsGroup of 1DSfM metrics.
+            List of camera pair indices that are classified as inliers by 1dsfm.
         """
         logger.info("Running translation averaging on %d unit translations", len(i2Ui1_dict))
 

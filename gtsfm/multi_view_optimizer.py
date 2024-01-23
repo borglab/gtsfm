@@ -140,7 +140,7 @@ class MultiViewOptimizer:
         )
         ta_v_corr_idxs_graph = dask.delayed(filter_corr_by_idx)(viewgraph_v_corr_idxs_graph, ta_inlier_idx_i1_i2)
         ta_inlier_tracks_2d_graph = dask.delayed(get_2d_tracks)(ta_v_corr_idxs_graph, keypoints_list)
-        # TODO(akshay-krishnan): update pose priors also with the same inlier indices.
+        # TODO(akshay-krishnan): update pose priors also with the same inlier indices, right now these are unused.
 
         init_cameras_graph = dask.delayed(init_cameras)(wTi_graph, all_intrinsics)
 
@@ -201,7 +201,7 @@ def get_2d_tracks(
     return tracks_estimator.run(corr_idxs_dict, keypoints_list)
 
 
-def filter_corr_by_idx(correspondences, idxs):
+def filter_corr_by_idx(correspondences: Dict[Tuple[int, int], np.ndarray], idxs: List[Tuple[int, int]]):
     """Filter correspondences by indices.
 
     Args:
