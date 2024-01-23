@@ -128,7 +128,7 @@ class MultiViewOptimizer:
         )
         tracks2d_graph = dask.delayed(get_2d_tracks)(viewgraph_v_corr_idxs_graph, keypoints_list)
 
-        wTi_graph, ta_metrics = self.trans_avg_module.create_computation_graph(
+        wTi_graph, ta_metrics, ta_inlier_idx_i1_i2 = self.trans_avg_module.create_computation_graph(
             num_images,
             pruned_i2Ui1_graph,
             delayed_wRi,
@@ -138,13 +138,16 @@ class MultiViewOptimizer:
             relative_pose_priors,
             gt_wTi_list=gt_wTi_list,
         )
+        ta_v_corr_idxs_graph = dask.delayed(filter_corr_by_idx)(viewgraph_v_corr_idxs_graph, ta_inlier_idx_i1_i2)
+        ta_inlier_tracks_2d_graph = dask.delayed(get_2d_tracks)(ta_v_corr_idxs_graph, keypoints_list)
+        # TODO(akshay-krishnan): update pose priors also with the same inlier indices, right now these are unused.
 
         init_cameras_graph = dask.delayed(init_cameras)(wTi_graph, all_intrinsics)
 
         ba_input_graph, data_assoc_metrics_graph = self.data_association_module.create_computation_graph(
             num_images,
             init_cameras_graph,
-            tracks2d_graph,
+            ta_inlier_tracks_2d_graph,
             cameras_gt,
             relative_pose_priors,
             images,
@@ -196,3 +199,16 @@ def get_2d_tracks(
 ) -> List[SfmTrack2d]:
     tracks_estimator = CppDsfTracksEstimator()
     return tracks_estimator.run(corr_idxs_dict, keypoints_list)
+
+
+def filter_corr_by_idx(correspondences: Dict[Tuple[int, int], np.ndarray], idxs: List[Tuple[int, int]]):
+    """Filter correspondences by indices.
+
+    Args:
+        correspondences: Correspondences as a dictionary.
+        idxs: Indices to filter by.
+
+    Returns:
+        Filtered correspondences.
+    """
+    return {k: v for k, v in correspondences.items() if k in idxs}
