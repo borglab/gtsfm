@@ -22,20 +22,23 @@ from gtsam import (
     Rot3,
     ShonanAveraging3,
     ShonanAveragingParameters3,
+    GncLMOptimizer,
+    GncLMParams
 )
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
 from gtsfm.common.pose_prior import PosePrior
 
+ROT3_DOF = 3
 POSE3_DOF = 6
 
 logger = logger_utils.get_logger()
 
-_DEFAULT_TWO_VIEW_ROTATION_SIGMA = 1.0
+_DEFAULT_TWO_VIEW_ROTATION_SIGMA = 1e-1
 
 
-class ShonanRotationAveraging(RotationAveragingBase):
+class CombinedShonanGncRotationAveraging(RotationAveragingBase):
     """Performs Shonan rotation averaging."""
 
     def __init__(self, two_view_rotation_sigma: float = _DEFAULT_TWO_VIEW_ROTATION_SIGMA) -> None:
@@ -48,14 +51,38 @@ class ShonanRotationAveraging(RotationAveragingBase):
         """
         self._two_view_rotation_sigma = two_view_rotation_sigma
         self._p_min = 5
-        self._p_max = 5
+        self._p_max = 30
 
-    def __get_shonan_params(self) -> ShonanAveragingParameters3:
+    def __get_gnc_params(self) -> GncLMParams:
+        params = GncLMParams()
+        return params
+
+    def __get_shonan_params(self) -> gtsam.ShonanAveragingParameters3:
         lm_params = LevenbergMarquardtParams.CeresDefaults()
         shonan_params = ShonanAveragingParameters3(lm_params)
-        shonan_params.setUseHuber(True)
-        shonan_params.setCertifyOptimality(False)
+        shonan_params.setUseHuber(False)
+        shonan_params.setCertifyOptimality(True)
         return shonan_params
+
+    def __graph_from_2view_relative_rotations(
+        self, 
+        i2Ri1_dict: Dict[Tuple[int, int], Rot3], 
+        corr_idxs: Dict[Tuple[int, int], np.ndarray],
+        old_to_new_idxs: Dict[int, int],
+    ) -> BetweenFactorPose3s:
+        """Create between factors from relative rotations computed by the 2-view estimator."""
+        # TODO: how to weight the noise model on relative rotations compared to priors?
+        between_factors = gtsam.NonlinearFactorGraph()
+
+        # graph.addPriorRot3(gtsam.symbol("R", 0), gtsam.Rot3(np.eye(3)), sigma_R0)
+        for (i1, i2), i2Ri1 in i2Ri1_dict.items():
+            if i2Ri1 is not None:
+                noise_model = gtsam.noiseModel.Isotropic.Sigma(ROT3_DOF, 1 / corr_idxs[(i1, i2)].shape[0])
+                i2_ = old_to_new_idxs[i2]
+                i1_ = old_to_new_idxs[i1]
+                between_factors.add(gtsam.BetweenFactorRot3(i2_, i1_, i2Ri1, noise_model))
+
+        return between_factors
 
     def __between_factors_from_2view_relative_rotations(
         self, 
@@ -69,7 +96,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         for (i1, i2), i2Ri1 in i2Ri1_dict.items():
             if i2Ri1 is not None:
                 # ignore translation during rotation averaging
-                noise_model = gtsam.noiseModel.Isotropic.Sigma(POSE3_DOF, 1 / corr_idxs[(i1, i2)].shape[0])
+                noise_model = gtsam.noiseModel.Isotropic.Sigma(ROT3_DOF, 1 / corr_idxs[(i1, i2)].shape[0])
                 i2Ti1 = Pose3(i2Ri1, np.zeros(3))
                 i2_ = old_to_new_idxs[i2]
                 i1_ = old_to_new_idxs[i1]
@@ -95,12 +122,12 @@ class ShonanRotationAveraging(RotationAveragingBase):
             i2_ = old_to_new_idxs[i2]
             noise_model_sigma = get_isotropic_noise_model_sigma(i1Ti2_prior.covariance)
             noise_model = gtsam.noiseModel.Isotropic.Sigma(POSE3_DOF, noise_model_sigma)
-            between_factors.append(BetweenFactorPose3(i1_, i2_, i1Ti2_prior.value, noise_model))
+            between_factors.append(BetweenFactorPose3(i2_, i1_, i1Ti2_prior.value, noise_model))
 
         return between_factors
 
     def _run_with_consecutive_ordering(
-        self, num_connected_nodes: int, between_factors: BetweenFactorPose3s
+        self, num_connected_nodes: int, graph: gtsam.NonlinearFactorGraph, between_factors: BetweenFactorPose3s
     ) -> List[Optional[Rot3]]:
         """Run the rotation averaging on a connected graph w/ N keys ordered consecutively [0,...,N-1].
 
@@ -118,7 +145,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
                 the list is `num_connected_nodes`. The list may contain `None` where the global rotation could
                 not be computed (either underconstrained system or ill-constrained system).
         """
-
+        # Run Shonan.
         logger.info(
             "Running Shonan with %d constraints on %d nodes",
             len(between_factors),
@@ -131,10 +158,16 @@ class ShonanRotationAveraging(RotationAveragingBase):
         result, _ = shonan.run(initial, self._p_min, self._p_max)
         logger.info("Final cost: %.5f", shonan.cost(result))
 
+        # Run GNC.
+        logger.info("Running GNC rotation averaging...")
+        optimizer = GncLMOptimizer(graph, result, self.__get_gnc_params())
+        result = optimizer.optimize()
+
         wRi_list_consecutive = [None] * num_connected_nodes
         for i in range(num_connected_nodes):
             if result.exists(i):
                 wRi_list_consecutive[i] = result.atRot3(i)
+        logger.info(wRi_list_consecutive)
 
         return wRi_list_consecutive
 
@@ -185,13 +218,17 @@ class ShonanRotationAveraging(RotationAveragingBase):
         nodes_with_edges = sorted(list(self._nodes_with_edges(i2Ri1_dict, i1Ti2_priors)))
         old_to_new_idxes = {old_idx: i for i, old_idx in enumerate(nodes_with_edges)}
 
-        between_factors: BetweenFactorPose3s = self.__between_factors_from_2view_relative_rotations(
+        between_factors = self.__between_factors_from_2view_relative_rotations(
             i2Ri1_dict, corr_idxs, old_to_new_idxes
         )
-        between_factors.extend(self._between_factors_from_pose_priors(i1Ti2_priors, old_to_new_idxes))
+
+        graph: gtsam.NonlinearFactorGraph = self.__graph_from_2view_relative_rotations(
+            i2Ri1_dict, corr_idxs, old_to_new_idxes
+        )
+        # between_factors.extend(self._between_factors_from_pose_priors(i1Ti2_priors, old_to_new_idxes))
 
         wRi_list_subset = self._run_with_consecutive_ordering(
-            num_connected_nodes=len(nodes_with_edges), between_factors=between_factors
+            num_connected_nodes=len(nodes_with_edges), graph=graph, between_factors=between_factors
         )
 
         wRi_list = [None] * num_images

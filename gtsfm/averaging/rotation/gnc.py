@@ -14,20 +14,22 @@ from typing import Dict, List, Optional, Set, Tuple
 
 import gtsam
 import numpy as np
+import scipy
 from gtsam import (
     BetweenFactorPose3,
     BetweenFactorPose3s,
-    LevenbergMarquardtParams,
     Pose3,
     Rot3,
     ShonanAveraging3,
-    ShonanAveragingParameters3,
+    GncLMOptimizer,
+    GncLMParams
 )
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
 from gtsfm.common.pose_prior import PosePrior
 
+ROT3_DOF = 3
 POSE3_DOF = 6
 
 logger = logger_utils.get_logger()
@@ -35,7 +37,7 @@ logger = logger_utils.get_logger()
 _DEFAULT_TWO_VIEW_ROTATION_SIGMA = 1.0
 
 
-class ShonanRotationAveraging(RotationAveragingBase):
+class GncRotationAveraging(RotationAveragingBase):
     """Performs Shonan rotation averaging."""
 
     def __init__(self, two_view_rotation_sigma: float = _DEFAULT_TWO_VIEW_ROTATION_SIGMA) -> None:
@@ -47,35 +49,54 @@ class ShonanRotationAveraging(RotationAveragingBase):
             two_view_rotation_sigma: Covariance to use (lower values -> more strictly adhere to input measurements).
         """
         self._two_view_rotation_sigma = two_view_rotation_sigma
-        self._p_min = 5
-        self._p_max = 5
 
-    def __get_shonan_params(self) -> ShonanAveragingParameters3:
-        lm_params = LevenbergMarquardtParams.CeresDefaults()
-        shonan_params = ShonanAveragingParameters3(lm_params)
-        shonan_params.setUseHuber(True)
-        shonan_params.setCertifyOptimality(False)
+    def __get_gnc_params(self) -> GncLMParams:
+        params = GncLMParams()
+        return params
+
+    def __get_shonan_params(self) -> gtsam.ShonanAveragingParameters3:
+        lm_params = gtsam.LevenbergMarquardtParams.CeresDefaults()
+        shonan_params = gtsam.ShonanAveragingParameters3(lm_params)
+        shonan_params.setUseHuber(False)
+        shonan_params.setCertifyOptimality(True)
         return shonan_params
 
-    def __between_factors_from_2view_relative_rotations(
-        self, 
-        i2Ri1_dict: Dict[Tuple[int, int], Rot3],
-        corr_idxs: Dict[Tuple[int, int], np.ndarray],
-        old_to_new_idxs: Dict[int, int],
+    def __graph_from_2view_relative_rotations(
+        self, i2Ri1_dict: Dict[Tuple[int, int], Rot3], old_to_new_idxs: Dict[int, int]
     ) -> BetweenFactorPose3s:
         """Create between factors from relative rotations computed by the 2-view estimator."""
         # TODO: how to weight the noise model on relative rotations compared to priors?
+        noise_model = gtsam.noiseModel.Isotropic.Sigma(ROT3_DOF, self._two_view_rotation_sigma)
+        between_factors = gtsam.NonlinearFactorGraph()
+        # graph.addPriorRot3(gtsam.symbol("R", 0), gtsam.Rot3(np.eye(3)), sigma_R0)
+
+        for (i1, i2), i2Ri1 in i2Ri1_dict.items():
+            if i2Ri1 is not None:
+                i2_ = old_to_new_idxs[i2]
+                i1_ = old_to_new_idxs[i1]
+                between_factors.add(gtsam.BetweenFactorRot3(i2_, i1_, i2Ri1, noise_model))
+
+        return between_factors
+
+    def __between_factors_from_2view_relative_rotations(
+        self, i2Ri1_dict: Dict[Tuple[int, int], Rot3], old_to_new_idxs: Dict[int, int]
+    ) -> BetweenFactorPose3s:
+        """Create between factors from relative rotations computed by the 2-view estimator."""
+        # TODO: how to weight the noise model on relative rotations compared to priors?
+        noise_model = gtsam.noiseModel.Isotropic.Sigma(POSE3_DOF, self._two_view_rotation_sigma)
+
         between_factors = BetweenFactorPose3s()
+
         for (i1, i2), i2Ri1 in i2Ri1_dict.items():
             if i2Ri1 is not None:
                 # ignore translation during rotation averaging
-                noise_model = gtsam.noiseModel.Isotropic.Sigma(POSE3_DOF, 1 / corr_idxs[(i1, i2)].shape[0])
                 i2Ti1 = Pose3(i2Ri1, np.zeros(3))
                 i2_ = old_to_new_idxs[i2]
                 i1_ = old_to_new_idxs[i1]
                 between_factors.append(BetweenFactorPose3(i2_, i1_, i2Ti1, noise_model))
 
         return between_factors
+
 
     def _between_factors_from_pose_priors(
         self, i1Ti2_priors: Dict[Tuple[int, int], PosePrior], old_to_new_idxs: Dict[int, int]
@@ -95,12 +116,16 @@ class ShonanRotationAveraging(RotationAveragingBase):
             i2_ = old_to_new_idxs[i2]
             noise_model_sigma = get_isotropic_noise_model_sigma(i1Ti2_prior.covariance)
             noise_model = gtsam.noiseModel.Isotropic.Sigma(POSE3_DOF, noise_model_sigma)
-            between_factors.append(BetweenFactorPose3(i1_, i2_, i1Ti2_prior.value, noise_model))
+            between_factors.append(BetweenFactorPose3(i2_, i1_, i1Ti2_prior.value, noise_model))
 
         return between_factors
 
     def _run_with_consecutive_ordering(
-        self, num_connected_nodes: int, between_factors: BetweenFactorPose3s
+        self, 
+        num_connected_nodes: int, 
+        graph: gtsam.NonlinearFactorGraph, 
+        between_factors: BetweenFactorPose3s, 
+        initial: gtsam.Values,
     ) -> List[Optional[Rot3]]:
         """Run the rotation averaging on a connected graph w/ N keys ordered consecutively [0,...,N-1].
 
@@ -119,22 +144,18 @@ class ShonanRotationAveraging(RotationAveragingBase):
                 not be computed (either underconstrained system or ill-constrained system).
         """
 
-        logger.info(
-            "Running Shonan with %d constraints on %d nodes",
-            len(between_factors),
-            num_connected_nodes,
-        )
-        shonan = ShonanAveraging3(between_factors, self.__get_shonan_params())
+        logger.info("Running GNC rotation averaging...")
+        #shonan = ShonanAveraging3(between_factors, self.__get_shonan_params())
+        #initial = shonan.initializeRandomly()
 
-        initial = shonan.initializeRandomly()
-        logger.info("Initial cost: %.5f", shonan.cost(initial))
-        result, _ = shonan.run(initial, self._p_min, self._p_max)
-        logger.info("Final cost: %.5f", shonan.cost(result))
+        optimizer = GncLMOptimizer(graph, initial, self.__get_gnc_params())
+        result = optimizer.optimize()
 
         wRi_list_consecutive = [None] * num_connected_nodes
         for i in range(num_connected_nodes):
             if result.exists(i):
                 wRi_list_consecutive[i] = result.atRot3(i)
+        logger.info(wRi_list_consecutive)
 
         return wRi_list_consecutive
 
@@ -185,13 +206,19 @@ class ShonanRotationAveraging(RotationAveragingBase):
         nodes_with_edges = sorted(list(self._nodes_with_edges(i2Ri1_dict, i1Ti2_priors)))
         old_to_new_idxes = {old_idx: i for i, old_idx in enumerate(nodes_with_edges)}
 
-        between_factors: BetweenFactorPose3s = self.__between_factors_from_2view_relative_rotations(
-            i2Ri1_dict, corr_idxs, old_to_new_idxes
+        between_factors = self.__between_factors_from_2view_relative_rotations(
+            i2Ri1_dict, old_to_new_idxes
         )
-        between_factors.extend(self._between_factors_from_pose_priors(i1Ti2_priors, old_to_new_idxes))
+
+        initial = initialize_mst(num_images, i2Ri1_dict, corr_idxs, old_to_new_idxes)
+
+        graph: gtsam.NonlinearFactorGraph = self.__graph_from_2view_relative_rotations(
+            i2Ri1_dict, old_to_new_idxes
+        )
+        # between_factors.extend(self._between_factors_from_pose_priors(i1Ti2_priors, old_to_new_idxes))
 
         wRi_list_subset = self._run_with_consecutive_ordering(
-            num_connected_nodes=len(nodes_with_edges), between_factors=between_factors
+            len(nodes_with_edges), graph, between_factors, initial
         )
 
         wRi_list = [None] * num_images
@@ -199,3 +226,60 @@ class ShonanRotationAveraging(RotationAveragingBase):
             wRi_list[original_i] = wRi_list_subset[remapped_i]
 
         return wRi_list
+
+
+def initialize_mst(
+        num_images: int, 
+        i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]], 
+        corr_idxs: Dict[Tuple[int, int], np.ndarray],
+        old_to_new_idxs: Dict[int, int],
+    ) -> gtsam.Values:
+    """Initialize global rotations using the minimum spanning tree (MST)."""
+    # Compute MST.
+    row, col, data = [], [], []
+    for (i1, i2), i2Ri1 in i2Ri1_dict.items():
+        if i2Ri1 is None:
+            continue
+        row.append(i1)
+        col.append(i2)
+        data.append(-corr_idxs[(i1, i2)].shape[0])
+    logger.info(corr_idxs[(i1, i2)])
+    corr_adjacency = scipy.sparse.coo_array((data, (row, col)), shape=(num_images, num_images))
+    Tcsr = scipy.sparse.csgraph.minimum_spanning_tree(corr_adjacency)
+    logger.info(Tcsr.toarray().astype(int))
+
+    # Build global rotations from MST.
+    # TODO (travisdriver): This is simple but very inefficient. Use something else.
+    i_mst, j_mst = Tcsr.nonzero()
+    logger.info(i_mst)
+    logger.info(j_mst)
+    edges_mst = [(i, j) for (i, j) in zip(i_mst, j_mst)]
+    iR0_dict = {i_mst[0]: np.eye(3)}  # pick the left index of the first edge as the seed
+    # max_iters = num_images * 10
+    iter = 0
+    while len(edges_mst) > 0:
+        i, j = edges_mst.pop(0)
+        if i in iR0_dict:
+            jRi = i2Ri1_dict[(i, j)].matrix()
+            iR0 = iR0_dict[i]
+            iR0_dict[j] = jRi @ iR0
+        elif j in iR0_dict:
+            iRj = i2Ri1_dict[(i, j)].matrix().T
+            jR0 = iR0_dict[j]
+            iR0_dict[i] = iRj @ jR0
+        else:
+            edges_mst.append((i, j))
+        iter += 1
+        # if iter >= max_iters:
+        #     logger.info("Reached max MST iters.")
+        #     assert False
+    
+    # Add to Values object.
+    initial = gtsam.Values()
+    for i, iR0 in iR0_dict.items():
+        initial.insert(old_to_new_idxs[i], Rot3(iR0))
+    
+    return initial
+
+
+

@@ -67,7 +67,7 @@ SceneOptimizer:
       edge_error_aggregation_criterion: MEDIAN_EDGE_ERROR
 
     rot_avg_module:
-      _target_: gtsfm.averaging.rotation.shonan.ShonanRotationAveraging
+      _target_: gtsfm.averaging.rotation.gnc.GncRotationAveraging
 
     trans_avg_module:
       _target_: gtsfm.averaging.translation.averaging_1dsfm.TranslationAveraging1DSFM
@@ -95,6 +95,6 @@ SceneOptimizer:
       calibration_prior_noise_sigma: 1e-5
       measurement_noise_sigma: 1.0
 
-  # comment out to not run
-  dense_multiview_optimizer:
-    _target_: gtsfm.densify.mvs_patchmatchnet.MVSPatchmatchNet
+  # # comment out to not run
+  # dense_multiview_optimizer:
+  #   _target_: gtsfm.densify.mvs_patchmatchnet.MVSPatchmatchNet
