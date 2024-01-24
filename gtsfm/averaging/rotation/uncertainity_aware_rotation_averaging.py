@@ -23,7 +23,7 @@ from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBa
 
 logger = logger_utils.get_logger()
 
-DUMMY_COVARIANCE = np.eye(3)
+DUMMY_COVARIANCE = np.eye(3) * 1e-2
 
 
 def random_rotation() -> Rot3:
@@ -144,6 +144,16 @@ class MAGSACWeightBasedLoss(pyceres.LossFunction):
         return rho
 
 
+def to_ceres_quat(rotation: Rot3) -> np.ndarray:
+    gtsam_quat = rotation.toQuaternion()
+    return np.array([gtsam_quat.w(), gtsam_quat.x(), gtsam_quat.y(), gtsam_quat.x()], dtype=np.float64)
+
+
+def to_gtsam_rot(ceres_quat: np.ndarray) -> Rot3:
+    w, x, y, z = ceres_quat
+    return Rot3(w, x, y, z)
+
+
 def _estimate_rotations_with_customized_loss_and_covariance_ceres(
     global_orientations_init: List[Rot3],
     two_view_rotations: Dict[Tuple[int, int], RotationInfo],
@@ -160,7 +170,8 @@ def _estimate_rotations_with_customized_loss_and_covariance_ceres(
     if rotation_error_type != RotationErrorType.ANGLE_AXIS_COVARIANCE:
         raise NotImplementedError(f"Rotation error type {rotation_error_type} not implemented")
 
-    optimization_result = [(wRi.inverse().toQuaternion().coeffs(), np.zeros(3)) for wRi in global_orientations_init]
+    # Note(Ayush): In camera frame
+    optimization_result = [(to_ceres_quat(wRi.inverse()), np.zeros(3)) for wRi in global_orientations_init]
 
     for view_id_pair, rotation_info in two_view_rotations.items():
         i1, i2 = view_id_pair
@@ -184,13 +195,12 @@ def _estimate_rotations_with_customized_loss_and_covariance_ceres(
         if rotation_error_type == RotationErrorType.ANGLE_AXIS_COVARIANCE:
             pose_cov = np.eye(6)
             pose_cov[:3, :3] = covariance
-            cost = pyceres.factors.PoseGraphRelativeCost(
-                np.array(rotation_info.i2Ri1.toQuaternion().coeffs()), np.zeros(3), pose_cov
-            )
+            cost = pyceres.factors.PoseGraphRelativeCost(to_ceres_quat(rotation_info.i2Ri1), np.zeros(3), pose_cov)
             costs.append(cost)
             problem.add_residual_block(
                 cost,
-                pyceres.TrivialLoss(),
+                # pyceres.TrivialLoss(),
+                pyceres.SoftLOneLoss(0.1),
                 # MAGSACWeightBasedLoss(sigma=0.02, inverse=False),
                 [
                     optimization_result[i1][0],
@@ -218,9 +228,7 @@ def _estimate_rotations_with_customized_loss_and_covariance_ceres(
     pyceres.solve(options, problem, summary)
     logger.info(summary.BriefReport())
 
-    print("Optimization result at end", optimization_result)
-
-    wRi = [Rot3(quat[0], quat[1], quat[2], quat[3]).inverse() for quat, _ in optimization_result]
+    wRi = [to_gtsam_rot(ceres_quat).inverse() for ceres_quat, _ in optimization_result]
 
     # return global_orientations_init
 
