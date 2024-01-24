@@ -72,7 +72,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         """
         self._two_view_rotation_sigma = two_view_rotation_sigma
         self._p_min = 5
-        self._p_max = 30
+        self._p_max = 64
 
         # Build robust error function.
         self._robust_error_model = robust_error_model
