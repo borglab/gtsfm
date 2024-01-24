@@ -49,7 +49,7 @@ class RobustErrorType(str, Enum):
 
 # Stores default parameters for each error function.
 DEFAULT_ROBUST_MODEL_KWARGS = {
-    RobustErrorType.Huber: {"k": 1.345},
+    RobustErrorType.Huber: {"k": 0.1},
     RobustErrorType.GemanMcClure: {"c": 1.0},
 }
 
