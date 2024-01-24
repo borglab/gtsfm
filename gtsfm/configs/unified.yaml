@@ -69,9 +69,9 @@ SceneOptimizer:
 
     rot_avg_module:
       _target_: gtsfm.averaging.rotation.shonan.ShonanRotationAveraging
-      robust_error_model: 
-        _target_: gtsfm.averaging.rotation.shonan.RobustErrorType
-        value: Huber
+      # robust_error_model: 
+      #   _target_: gtsfm.averaging.rotation.shonan.RobustErrorType
+      #   value: Huber
 
 
     trans_avg_module:
