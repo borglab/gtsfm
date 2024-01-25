@@ -33,10 +33,10 @@ dependencies:
   - seaborn
   - scipy
   - hydra-core
-  # 3rd party algorithms for different modules
-  - cudatoolkit>=10.2
-  - pytorch>=1.12.0
-  - torchvision>=0.13.0
+    # # 3rd party algorithms for different modules
+    # - cudatoolkit>=10.2
+    # - pytorch>=1.12.0
+    # - torchvision>=0.13.0
   - kornia
   # io
   - h5py

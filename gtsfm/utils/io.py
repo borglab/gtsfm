@@ -272,13 +272,13 @@ def read_cameras_txt(
         # Note that u0 is px, and v0 is py
         model = cam_params[1]
         # Currently only handles SIMPLE RADIAL and RADIAL camera models
-        assert model in ["SIMPLE_RADIAL", "RADIAL"]
+        assert model in ["SIMPLE_RADIAL", "RADIAL", "PINHOLE"]
         if model == "SIMPLE_RADIAL":
             _, _, img_w, img_h, fx, u0, v0, k1 = cam_params[:8]
             img_w, img_h, fx, u0, v0, k1 = int(img_w), int(img_h), float(fx), float(u0), float(v0), float(k1)
             # Convert COLMAP's SIMPLE_RADIAL to GTSAM's Cal3Bundler:
             # Add second radial distortion coefficient of value zero.
-            k2 = 0
+            k2 = 0.0
         elif model == "RADIAL":
             _, _, img_w, img_h, fx, u0, v0, k1, k2 = cam_params[:9]
             img_w, img_h, fx, u0, v0, k1, k2 = (
@@ -290,6 +290,16 @@ def read_cameras_txt(
                 float(k1),
                 float(k2),
             )
+        elif model == "PINHOLE":
+            _, _, img_w, img_h, fx, _, u0, v0 = cam_params[:9]
+            img_w, img_h, fx, u0, v0 = (
+                int(img_w),
+                int(img_h),
+                float(fx),
+                float(u0),
+                float(v0),
+            )
+            k1, k2 = 0.0, 0.0
         calibrations.append(Cal3Bundler(fx, k1, k2, u0, v0))
         img_dims.append((img_h, img_w))
     assert len(calibrations) == num_cams
@@ -517,28 +527,17 @@ def read_scene_data_from_colmap_format(
     """
     # Determine whether scene data is stored in a text (txt) or binary (bin) file format.
     if Path(data_dir, "images.txt").exists():
-        file_format = "txt"
+        file_format = ".txt"
     elif Path(data_dir, "images.bin").exists():
-        file_format = "bin"
+        file_format = ".bin"
     else:
         raise ValueError(
             f"Unknown file format, as neither `{data_dir}/images.txt` or `{data_dir}/images.bin` could be found."
         )
-
-    if file_format == "txt":
-        # TODO(johnwlambert): Consider unifying interfaces by using `colmap_io.read_model` for txt reading also.
-        points_fpath = f"{data_dir}/points3D.txt"
-        images_fpath = f"{data_dir}/images.txt"
-        cameras_fpath = f"{data_dir}/cameras.txt"
-        wTi_list, img_fnames = read_images_txt(images_fpath)
-        calibrations, img_dims = read_cameras_txt(cameras_fpath)
-        point_cloud, rgb = read_points_txt(points_fpath)
-
-    elif file_format == "bin":
-        cameras, images, points3d = colmap_io.read_model(path=data_dir, ext=".bin")
-        img_fnames, wTi_list, calibrations, _, point_cloud, rgb, img_dims = colmap2gtsfm(
-            cameras, images, points3d, load_sfmtracks=False
-        )
+    cameras, images, points3d = colmap_io.read_model(path=data_dir, ext=file_format)
+    img_fnames, wTi_list, calibrations, _, point_cloud, rgb, img_dims = colmap2gtsfm(
+        cameras, images, points3d, load_sfmtracks=False
+    )
 
     if any(x is None for x in [wTi_list, img_fnames, calibrations, point_cloud, rgb]):
         raise RuntimeError("One or more of the requested model data products was not found.")
