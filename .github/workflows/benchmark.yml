@@ -15,12 +15,12 @@ jobs:
             # config              dataset                lookahead   img-extension  source      loader          max-res  share-intrinsics
             [sift,                door-12,               15,         JPG,           test_data,  olsson-loader,  1296,    true],
             [lightglue,           door-12,               15,         JPG,           test_data,  olsson-loader,  1296,    true],
-            [sift,                skydio-8,              15,         jpg,           gdrive ,    colmap-loader,  760,     true],
-            [lightglue,           skydio-8,              15,         jpg,           gdrive,     colmap-loader,  760,     true],
-            [sift,                skydio-32,             15,         jpg,           gdrive,     colmap-loader,  760,     true],
-            [lightglue,           skydio-32,             15,         jpg,           gdrive,     colmap-loader,  760,     true],
+            [sift,                skydio-8,              15,         jpg,           wget ,    colmap-loader,  760,     true],
+            [lightglue,           skydio-8,              15,         jpg,           wget,     colmap-loader,  760,     true],
+            [sift,                skydio-32,             15,         jpg,           wget,     colmap-loader,  760,     true],
+            [lightglue,           skydio-32,             15,         jpg,           wget,     colmap-loader,  760,     true],
             [sift,                palace-fine-arts-281,  15,         jpg,           wget,       olsson-loader,  320,     true],
-            [lightglue,           notre-dame-20,         15,         jpg,           gdrive,     colmap-loader,  760,     false],
+            [lightglue,           notre-dame-20,         15,         jpg,           wget,     colmap-loader,  760,     false],
             [sift,                2011205_rc3,           15,         png,           wget,       astrovision,    1024,    true],
             [lightglue,           2011205_rc3,           15,         png,           wget,       astrovision,    1024,    true],
             [sift,                gerrard-hall-100,      15,         jpg,           wget,       colmap-loader,  760,     true],
@@ -77,7 +77,7 @@ jobs:
             $SHARE_INTRINSICS
 
       - name: Archive dataset metrics, plots, and output data (camera poses + points)
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: results-${{ matrix.config_dataset_info[0] }}-${{ matrix.config_dataset_info[1] }}-${{ matrix.config_dataset_info[2] }}-${{ matrix.config_dataset_info[3] }}-${{ matrix.config_dataset_info[4] }}-${{ matrix.config_dataset_info[5] }}-${{ matrix.config_dataset_info[6] }}-${{ matrix.config_dataset_info[7] }}.zip
           path: |

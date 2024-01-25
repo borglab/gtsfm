@@ -491,7 +491,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         i2Ti1_priors: Dict[Tuple[int, int], PosePrior] = {},
         scale_factor: float = 1.0,
         gt_wTi_list: List[Optional[Pose3]] = [],
-    ) -> Tuple[List[Optional[Pose3]], Optional[GtsfmMetricsGroup]]:
+    ) -> Tuple[List[Optional[Pose3]], Optional[GtsfmMetricsGroup], Optional[List[Tuple[int, int]]]]:
         """Run the translation averaging.
 
         Args:
@@ -508,6 +508,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 may contain `None` where the global translations could not be computed (either underconstrained system
                 or ill-constrained system).
             A GtsfmMetricsGroup of 1DSfM metrics.
+            List of camera pair indices that are classified as inliers by 1dsfm.
         """
         logger.info("Running translation averaging on %d unit translations", len(i2Ui1_dict))
 
@@ -565,7 +566,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         ta_metrics.add_metric(GtsfmMetric("outlier_rejection_duration_sec", inlier_computation_time))
         ta_metrics.add_metric(GtsfmMetric("optimization_duration_sec", averaging_time))
 
-        return wTi_list, ta_metrics
+        return wTi_list, ta_metrics, list(w_i2Ui1_dict_inliers.keys())
 
 
 def compute_metrics(
