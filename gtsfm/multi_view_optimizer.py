@@ -132,6 +132,8 @@ class MultiViewOptimizer:
             num_images,
             pruned_i2Ui1_graph,
             delayed_wRi,
+            viewgraph_v_corr_idxs_graph,
+            keypoints_list,
             tracks2d_graph,
             all_intrinsics,
             absolute_pose_priors,
