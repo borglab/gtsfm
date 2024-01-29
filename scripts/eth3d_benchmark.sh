@@ -1,4 +1,5 @@
-# Script to launch jobs over various datasets & front-ends.
+# Script to launch jobs over various ETH3D datasets & front-ends.
+# See https://www.eth3d.net/data/schoeps2017cvpr.pdf for more details.
 
 USER_ROOT=$1
 CLUSTER_CONFIG=$2
@@ -23,26 +24,26 @@ datasets=(
 	)
 
 max_frame_lookahead_sizes=(
-	0
-	5
+	#0
+	#5
 	10
-	15
+	#15
 	)
 
 num_matched_sizes=(
 	5
-	10
-	15
-	20
-	25
+	#10
+	#15
+	#20
+	#25
 	)
 
 correspondence_generator_config_names=(
 	sift
-	disk
-	lightglue
-	superglue
-	loftr
+	#disk
+	#lightglue
+	#superglue
+	#loftr
 	)
 
 if [[ $CLUSTER_CONFIG ]]
@@ -66,7 +67,7 @@ for num_matched in ${num_matched_sizes[@]}; do
 				
 				if [[ $correspondence_generator_config_name == *"sift"* ]]
 				then
-					num_workers=10
+					num_workers=1
 				elif [[ $correspondence_generator_config_name == *"lightglue"* ]]
 				then
 					num_workers=1
@@ -84,8 +85,8 @@ for num_matched in ${num_matched_sizes[@]}; do
 				echo "Correspondence Generator: ${correspondence_generator_config_name}"
 				echo "Num workers: ${num_workers}"
 
-				images_dir=/home/tdriver6/dev/eth3d_datasets/${dataset}_dslr_undistorted/${dataset}/images
-                                colmap_files_dirpath=/home/tdriver6/dev/eth3d_datasets/${dataset}_dslr_undistorted/${dataset}/dslr_calibration_undistorted
+				images_dir=/home/tdriver6/Downloads/eth3d_datasets/${dataset}_dslr_undistorted/${dataset}/images
+                colmap_files_dirpath=/home/tdriver6/Downloads/eth3d_datasets/${dataset}_dslr_undistorted/${dataset}/dslr_calibration_undistorted
 
 				OUTPUT_ROOT=${USER_ROOT}/${now}/${now}__${dataset}__results__num_matched${num_matched}__maxframelookahead${max_frame_lookahead}__760p__unified_${correspondence_generator_config_name}
 				mkdir -p $OUTPUT_ROOT

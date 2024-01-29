@@ -224,6 +224,12 @@ def colmap2gtsfm(
         img_h, img_w = cameras[img.camera_id].height, cameras[img.camera_id].width
         img_dims.append((img_h, img_w))
 
+    # Reorder images according to image name.
+    wTi_gtsfm, img_fnames, sorted_idxs = sort_image_filenames_lexigraphically(wTi_gtsfm, img_fnames)
+    old_idx_to_new_idx = {old_idx: new_idx for new_idx, old_idx in enumerate(sorted_idxs)}
+    image_id_to_idx = {image_id: old_idx_to_new_idx[old_idx] for image_id, old_idx in image_id_to_idx.items()}
+
+    # Convert COLMAP's Point3D to SfmTrack.
     if len(points3D) == 0 and load_sfmtracks:
         raise RuntimeError("No SfMTrack data provided to loader.")
     sfmtracks_gtsfm = None
@@ -235,6 +241,7 @@ def colmap2gtsfm(
                 sfmtrack.addMeasurement(image_id_to_idx[image_id], images[image_id].xys[point2d_idx])
             sfmtracks_gtsfm.append(sfmtrack)
 
+    
     point_cloud = np.array([point3d.xyz for point3d in points3D.values()])
     rgb = np.array([point3d.rgb for point3d in points3D.values()])
     return img_fnames, wTi_gtsfm, intrinsics_gtsfm, sfmtracks_gtsfm, point_cloud, rgb, img_dims
@@ -397,7 +404,7 @@ def sort_image_filenames_lexigraphically(wTi_list: List[Pose3], img_fnames: List
     wTi_list_sorted = [wTi_list[i] for i in sorted_idxs]
     img_fnames_sorted = [img_fnames[i] for i in sorted_idxs]
 
-    return wTi_list_sorted, img_fnames_sorted
+    return wTi_list_sorted, img_fnames_sorted, sorted_idxs
 
 
 def write_images(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> None:
