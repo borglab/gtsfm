@@ -19,7 +19,7 @@ SceneOptimizer:
       min_score: 0.2
       max_frame_lookahead: 25
 
-  correspondence_generator:
+  correspondence_generators:
     - _target_: gtsfm.frontend.correspondence_generator.image_correspondence_generator.ImageCorrespondenceGenerator
 
       matcher:
