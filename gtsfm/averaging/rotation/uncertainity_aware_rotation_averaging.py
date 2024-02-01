@@ -15,6 +15,7 @@ from typing import Dict, List, NamedTuple, Optional, Tuple
 import numpy as np
 import pyceres
 from gtsam import Rot3
+import networkx as nx
 from gtsfm.common.pose_prior import PosePrior
 
 import gtsfm.utils.logger as logger_utils
@@ -36,6 +37,26 @@ def random_rotation() -> Rot3:
     return R
 
 
+def initialize_global_rotations_using_mst(num_images: int, i2Ri1_dict: Dict[Tuple[int, int], Rot3]) -> List[Rot3]:
+    # Create a graph from the relative rotations dictionary
+    graph = nx.Graph()
+    for i1, i2 in i2Ri1_dict.keys():
+        # TODO: use inlier count as weight
+        graph.add_edge(i1, i2, weight=1)
+
+    # Compute the Minimum Spanning Tree (MST)
+    mst = nx.minimum_spanning_tree(graph)
+
+    wRis = [random_rotation() for _ in range(num_images)]
+    for i1, i2 in sorted(mst.edges):
+        if (i1, i2) in i2Ri1_dict:
+            wRis[i2] = wRis[i1] * i2Ri1_dict[(i1, i2)].inverse()
+        else:
+            wRis[i2] = wRis[i1] * i2Ri1_dict[(i2, i1)]
+
+    return wRis
+
+
 class UncertainityAwareRotationAveraging(RotationAveragingBase):
     def run_rotation_averaging(
         self,
@@ -47,14 +68,18 @@ class UncertainityAwareRotationAveraging(RotationAveragingBase):
             k: RotationInfo(i2Ri1=v, covariance_mat=DUMMY_COVARIANCE) for k, v in i2Ri1_dict.items() if v is not None
         }
 
-        global_rotations_init = [Rot3()] + [random_rotation() for _ in range(num_images - 1)]
+        global_rotations_init = initialize_global_rotations_using_mst(
+            num_images, {key: value for key, value in i2Ri1_dict.items() if value is not None}
+        )
         # global_rotations_init = [
         #     Rot3.RzRyRx(0, 0, 0) * random_rotation(),
         #     Rot3.RzRyRx(0, np.deg2rad(30), 0) * random_rotation(),
         #     i2Ri1_dict[(1, 0)].compose(i2Ri1_dict[(2, 1)]) * random_rotation(),
         # ]
 
-        return _estimate_rotations_with_customized_loss_and_covariance_ceres(global_rotations_init, rotation_info_dict)
+        return global_rotations_init
+
+        # return _estimate_rotations_with_customized_loss_and_covariance_ceres(global_rotations_init, rotation_info_dict)
 
 
 class RotationInfo(NamedTuple):
