@@ -13,6 +13,7 @@ Authors: Jing Wu, Ayush Baid, John Lambert
 from typing import Dict, List, Optional, Set, Tuple
 
 import gtsam
+import networkx as nx
 import numpy as np
 from gtsam import (
     BetweenFactorPose3,
@@ -22,6 +23,7 @@ from gtsam import (
     Rot3,
     ShonanAveraging3,
     ShonanAveragingParameters3,
+    Values,
 )
 
 import gtsfm.utils.logger as logger_utils
@@ -33,6 +35,36 @@ POSE3_DOF = 6
 logger = logger_utils.get_logger()
 
 _DEFAULT_TWO_VIEW_ROTATION_SIGMA = 1.0
+
+
+def random_rotation() -> Rot3:
+    """Sample a random rotation by generating a sample from the 4d unit sphere."""
+    q = np.random.randn(4) * 0.03
+    # make unit-length quaternion
+    q /= np.linalg.norm(q)
+    qw, qx, qy, qz = q
+    R = Rot3(qw, qx, qy, qz)
+    return R
+
+
+def initialize_global_rotations_using_mst(num_images: int, i2Ri1_dict: Dict[Tuple[int, int], Rot3]) -> List[Rot3]:
+    # Create a graph from the relative rotations dictionary
+    graph = nx.Graph()
+    for i1, i2 in i2Ri1_dict.keys():
+        # TODO: use inlier count as weight
+        graph.add_edge(i1, i2, weight=1)
+
+    # Compute the Minimum Spanning Tree (MST)
+    mst = nx.minimum_spanning_tree(graph)
+
+    wRis = [random_rotation() for _ in range(num_images)]
+    for i1, i2 in sorted(mst.edges):
+        if (i1, i2) in i2Ri1_dict:
+            wRis[i2] = wRis[i1] * i2Ri1_dict[(i1, i2)].inverse()
+        else:
+            wRis[i2] = wRis[i1] * i2Ri1_dict[(i2, i1)]
+
+    return wRis
 
 
 class ShonanRotationAveraging(RotationAveragingBase):
@@ -99,7 +131,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         return between_factors
 
     def _run_with_consecutive_ordering(
-        self, num_connected_nodes: int, between_factors: BetweenFactorPose3s
+        self, num_connected_nodes: int, between_factors: BetweenFactorPose3s, initial=Optional[Values]
     ) -> List[Optional[Rot3]]:
         """Run the rotation averaging on a connected graph w/ N keys ordered consecutively [0,...,N-1].
 
@@ -125,7 +157,8 @@ class ShonanRotationAveraging(RotationAveragingBase):
         )
         shonan = ShonanAveraging3(between_factors, self.__get_shonan_params())
 
-        initial = shonan.initializeRandomly()
+        if initial is None:
+            initial = shonan.initializeRandomly()
         logger.info("Initial cost: %.5f", shonan.cost(initial))
         result, _ = shonan.run(initial, self._p_min, self._p_max)
         logger.info("Final cost: %.5f", shonan.cost(result))
@@ -143,10 +176,10 @@ class ShonanRotationAveraging(RotationAveragingBase):
         """Gets the nodes with edges which are to be modelled as between factors."""
 
         unique_nodes_with_edges = set()
-        for (i1, i2) in i2Ri1_dict.keys():
+        for i1, i2 in i2Ri1_dict.keys():
             unique_nodes_with_edges.add(i1)
             unique_nodes_with_edges.add(i2)
-        for (i1, i2) in relative_pose_priors.keys():
+        for i1, i2 in relative_pose_priors.keys():
             unique_nodes_with_edges.add(i1)
             unique_nodes_with_edges.add(i2)
 
@@ -183,13 +216,21 @@ class ShonanRotationAveraging(RotationAveragingBase):
         nodes_with_edges = sorted(list(self._nodes_with_edges(i2Ri1_dict, i1Ti2_priors)))
         old_to_new_idxes = {old_idx: i for i, old_idx in enumerate(nodes_with_edges)}
 
+        i2Ri1_dict_ = {
+            (old_to_new_idxes[edge[0]], old_to_new_idxes[edge[1]]): i2Ri1 for edge, i2Ri1 in i2Ri1_dict.items()
+        }
+        wRi_initial_ = initialize_global_rotations_using_mst(len(nodes_with_edges), i2Ri1_dict_)
+        initial_values = Values()
+        for i, wRi_initial_ in enumerate(wRi_initial_):
+            initial_values.insert(i, wRi_initial_)
+
         between_factors: BetweenFactorPose3s = self.__between_factors_from_2view_relative_rotations(
             i2Ri1_dict, old_to_new_idxes
         )
         between_factors.extend(self._between_factors_from_pose_priors(i1Ti2_priors, old_to_new_idxes))
 
         wRi_list_subset = self._run_with_consecutive_ordering(
-            num_connected_nodes=len(nodes_with_edges), between_factors=between_factors
+            num_connected_nodes=len(nodes_with_edges), between_factors=between_factors, initial=initial_values
         )
 
         wRi_list = [None] * num_images
