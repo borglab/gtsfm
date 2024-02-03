@@ -27,6 +27,7 @@ from gtsam import (
 )
 
 import gtsfm.utils.logger as logger_utils
+import gtsfm.utils.rotation as rotation_util
 from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
 from gtsfm.common.pose_prior import PosePrior
 
@@ -35,36 +36,6 @@ POSE3_DOF = 6
 logger = logger_utils.get_logger()
 
 _DEFAULT_TWO_VIEW_ROTATION_SIGMA = 1.0
-
-
-def random_rotation() -> Rot3:
-    """Sample a random rotation by generating a sample from the 4d unit sphere."""
-    q = np.random.randn(4) * 0.03
-    # make unit-length quaternion
-    q /= np.linalg.norm(q)
-    qw, qx, qy, qz = q
-    R = Rot3(qw, qx, qy, qz)
-    return R
-
-
-def initialize_global_rotations_using_mst(num_images: int, i2Ri1_dict: Dict[Tuple[int, int], Rot3]) -> List[Rot3]:
-    # Create a graph from the relative rotations dictionary
-    graph = nx.Graph()
-    for i1, i2 in i2Ri1_dict.keys():
-        # TODO: use inlier count as weight
-        graph.add_edge(i1, i2, weight=1)
-
-    # Compute the Minimum Spanning Tree (MST)
-    mst = nx.minimum_spanning_tree(graph)
-
-    wRis = [random_rotation() for _ in range(num_images)]
-    for i1, i2 in sorted(mst.edges):
-        if (i1, i2) in i2Ri1_dict:
-            wRis[i2] = wRis[i1] * i2Ri1_dict[(i1, i2)].inverse()
-        else:
-            wRis[i2] = wRis[i1] * i2Ri1_dict[(i2, i1)]
-
-    return wRis
 
 
 class ShonanRotationAveraging(RotationAveragingBase):
@@ -219,7 +190,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         i2Ri1_dict_ = {
             (old_to_new_idxes[edge[0]], old_to_new_idxes[edge[1]]): i2Ri1 for edge, i2Ri1 in i2Ri1_dict.items()
         }
-        wRi_initial_ = initialize_global_rotations_using_mst(len(nodes_with_edges), i2Ri1_dict_)
+        wRi_initial_ = rotation_util.initialize_global_rotations_using_mst(len(nodes_with_edges), i2Ri1_dict_)
         initial_values = Values()
         for i, wRi_initial_ in enumerate(wRi_initial_):
             initial_values.insert(i, wRi_initial_)
