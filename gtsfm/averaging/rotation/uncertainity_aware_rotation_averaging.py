@@ -71,15 +71,11 @@ class UncertainityAwareRotationAveraging(RotationAveragingBase):
         global_rotations_init = initialize_global_rotations_using_mst(
             num_images, {key: value for key, value in i2Ri1_dict.items() if value is not None}
         )
-        # global_rotations_init = [
-        #     Rot3.RzRyRx(0, 0, 0) * random_rotation(),
-        #     Rot3.RzRyRx(0, np.deg2rad(30), 0) * random_rotation(),
-        #     i2Ri1_dict[(1, 0)].compose(i2Ri1_dict[(2, 1)]) * random_rotation(),
-        # ]
+        # global_rotations_init = [random_rotation() for _ in range(num_images)]
 
-        return global_rotations_init
+        # return global_rotations_init
 
-        # return _estimate_rotations_with_customized_loss_and_covariance_ceres(global_rotations_init, rotation_info_dict)
+        return _estimate_rotations_with_customized_loss_and_covariance_ceres(global_rotations_init, rotation_info_dict)
 
 
 class RotationInfo(NamedTuple):
@@ -171,7 +167,7 @@ class MAGSACWeightBasedLoss(pyceres.LossFunction):
 
 def to_ceres_quat(rotation: Rot3) -> np.ndarray:
     gtsam_quat = rotation.toQuaternion()
-    return np.array([gtsam_quat.w(), gtsam_quat.x(), gtsam_quat.y(), gtsam_quat.x()], dtype=np.float64)
+    return np.array([gtsam_quat.w(), gtsam_quat.x(), gtsam_quat.y(), gtsam_quat.z()], dtype=np.float64)
 
 
 def to_gtsam_rot(ceres_quat: np.ndarray) -> Rot3:
@@ -183,13 +179,10 @@ def _estimate_rotations_with_customized_loss_and_covariance_ceres(
     global_orientations_init: List[Rot3],
     two_view_rotations: Dict[Tuple[int, int], RotationInfo],
     rotation_error_type: RotationErrorType = RotationErrorType.ANGLE_AXIS_COVARIANCE,
-) -> List[Rot3]:
+) -> List[Optional[Rot3]]:
     if len(two_view_rotations) == 0:
         logger.warning("Skipping nonlinear rotation optimization because no relative rotations were provided.")
 
-    # Set up the problem and loss function.
-    # ceres_options = pyceres.ProblemOptions()
-    # ceres_options.
     problem = pyceres.Problem()
 
     if rotation_error_type != RotationErrorType.ANGLE_AXIS_COVARIANCE:
@@ -198,8 +191,12 @@ def _estimate_rotations_with_customized_loss_and_covariance_ceres(
     # Note(Ayush): In camera frame
     optimization_result = [(to_ceres_quat(wRi.inverse()), np.zeros(3)) for wRi in global_orientations_init]
 
+    valid_rotations = set()
+
     for view_id_pair, rotation_info in two_view_rotations.items():
         i1, i2 = view_id_pair
+        valid_rotations.add(i1)
+        valid_rotations.add(i2)
         rotation1 = global_orientations_init[i1]
         rotation2 = global_orientations_init[i2]
         covariance = rotation_info.covariance_mat
@@ -238,9 +235,11 @@ def _estimate_rotations_with_customized_loss_and_covariance_ceres(
         else:
             logger.warning("Rotation error type %s skipped", rotation_error_type)
 
-    problem.set_parameter_block_constant(optimization_result[0][0])
-    problem.set_parameter_block_constant(optimization_result[0][1])
-    for i in range(len(global_orientations_init)):
+    valid_rotations_list = list(valid_rotations)
+
+    problem.set_parameter_block_constant(optimization_result[valid_rotations_list[0]][0])
+    problem.set_parameter_block_constant(optimization_result[valid_rotations_list[0]][1])
+    for i in valid_rotations_list:
         problem.set_manifold(optimization_result[i][0], pyceres.QuaternionManifold())
     # problem.set_parameter_block_constant(optimization_result[i][1])
     # problem.set_parameter_block_constant(optimization_result[0][1])
@@ -253,8 +252,6 @@ def _estimate_rotations_with_customized_loss_and_covariance_ceres(
     pyceres.solve(options, problem, summary)
     logger.info(summary.BriefReport())
 
-    wRi = [to_gtsam_rot(ceres_quat).inverse() for ceres_quat, _ in optimization_result]
+    wRis_list = [to_gtsam_rot(ceres_quat).inverse() for ceres_quat, _ in optimization_result]
 
-    # return global_orientations_init
-
-    return wRi
+    return [wRi if i in valid_rotations else None for i, wRi in enumerate(wRis_list)]
