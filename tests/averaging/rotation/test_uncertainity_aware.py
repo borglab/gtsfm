@@ -43,33 +43,33 @@ class TestUncertainityAwareRotationAveraging(unittest.TestCase):
             geometry_comparisons.compare_rotations(wRi_computed, wRi_expected, ROTATION_ANGLE_ERROR_THRESHOLD_DEG)
         )
 
-    # def test_circle_two_edges(self):
-    #     """Test for 4 poses in a circle, with a pose connected to its immediate neighborhood."""
-    #     i2Ri1_dict, wRi_expected = sample_poses.convert_data_for_rotation_averaging(
-    #         sample_poses.CIRCLE_TWO_EDGES_GLOBAL_POSES, sample_poses.CIRCLE_TWO_EDGES_RELATIVE_POSES
-    #     )
-    #     self.__execute_test(i2Ri1_dict, wRi_expected)
+    def test_circle_two_edges(self):
+        """Test for 4 poses in a circle, with a pose connected to its immediate neighborhood."""
+        i2Ri1_dict, wRi_expected = sample_poses.convert_data_for_rotation_averaging(
+            sample_poses.CIRCLE_TWO_EDGES_GLOBAL_POSES, sample_poses.CIRCLE_TWO_EDGES_RELATIVE_POSES
+        )
+        self.__execute_test(i2Ri1_dict, wRi_expected)
 
-    # def test_circle_all_edges(self):
-    #     """Test for 4 poses in a circle, with a pose connected all others."""
-    #     i2Ri1_dict, wRi_expected = sample_poses.convert_data_for_rotation_averaging(
-    #         sample_poses.CIRCLE_ALL_EDGES_GLOBAL_POSES, sample_poses.CIRCLE_ALL_EDGES_RELATIVE_POSES
-    #     )
-    #     self.__execute_test(i2Ri1_dict, wRi_expected)
+    def test_circle_all_edges(self):
+        """Test for 4 poses in a circle, with a pose connected all others."""
+        i2Ri1_dict, wRi_expected = sample_poses.convert_data_for_rotation_averaging(
+            sample_poses.CIRCLE_ALL_EDGES_GLOBAL_POSES, sample_poses.CIRCLE_ALL_EDGES_RELATIVE_POSES
+        )
+        self.__execute_test(i2Ri1_dict, wRi_expected)
 
-    # def test_line_large_edges(self):
-    #     """Test for 3 poses in a line, with large translations between them."""
-    #     i2Ri1_dict, wRi_expected = sample_poses.convert_data_for_rotation_averaging(
-    #         sample_poses.LINE_LARGE_EDGES_GLOBAL_POSES, sample_poses.LINE_LARGE_EDGES_RELATIVE_POSES
-    #     )
-    #     self.__execute_test(i2Ri1_dict, wRi_expected)
+    def test_line_large_edges(self):
+        """Test for 3 poses in a line, with large translations between them."""
+        i2Ri1_dict, wRi_expected = sample_poses.convert_data_for_rotation_averaging(
+            sample_poses.LINE_LARGE_EDGES_GLOBAL_POSES, sample_poses.LINE_LARGE_EDGES_RELATIVE_POSES
+        )
+        self.__execute_test(i2Ri1_dict, wRi_expected)
 
-    # def test_panorama(self):
-    #     """Test for 3 poses in a panorama configuration (large rotations at the same location)"""
-    #     i2Ri1_dict, wRi_expected = sample_poses.convert_data_for_rotation_averaging(
-    #         sample_poses.PANORAMA_GLOBAL_POSES, sample_poses.PANORAMA_RELATIVE_POSES
-    #     )
-    #     self.__execute_test(i2Ri1_dict, wRi_expected)
+    def test_panorama(self):
+        """Test for 3 poses in a panorama configuration (large rotations at the same location)"""
+        i2Ri1_dict, wRi_expected = sample_poses.convert_data_for_rotation_averaging(
+            sample_poses.PANORAMA_GLOBAL_POSES, sample_poses.PANORAMA_RELATIVE_POSES
+        )
+        self.__execute_test(i2Ri1_dict, wRi_expected)
 
     def test_simple(self):
         """Test a simple case with three relative rotations."""
