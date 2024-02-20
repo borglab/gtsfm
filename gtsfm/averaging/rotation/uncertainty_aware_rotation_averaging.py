@@ -1,13 +1,14 @@
 """
-Uncertainity aware rotation averaging.
+Uncertainty aware rotation averaging.
 
 This algorithm was proposed in "Revisiting Rotation Averaging: Uncertainties and Robust Losses" and is implemented by 
-following the authors' source code.
+following the authors' source code (GNU GPL v3.0 license)
 
 References:
 - https://openaccess.thecvf.com/content/CVPR2023/papers/Zhang_Revisiting_Rotation_Averaging_Uncertainties_and_Robust_Losses_CVPR_2023_paper.pdf
 - https://github.com/zhangganlin/GlobalSfMpy
 """
+
 import math
 from enum import Enum
 from typing import Dict, List, NamedTuple, Optional, Tuple
@@ -19,7 +20,7 @@ import networkx as nx
 from gtsfm.common.pose_prior import PosePrior
 
 import gtsfm.utils.logger as logger_utils
-import gtsfm.averaging.rotation.const as rotation_const
+import gtsfm.averaging.rotation.gamma_values as rotation_const
 from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
 
 logger = logger_utils.get_logger()
@@ -27,10 +28,27 @@ logger = logger_utils.get_logger()
 DUMMY_COVARIANCE = np.eye(3) * 1e-2
 
 
+class RotationInfo(NamedTuple):
+    i2Ri1: Rot3
+    covariance_mat: np.ndarray
+
+
+class RotationErrorType(Enum):
+    QUATERNION_NORM = 0
+    ROTATION_MAT_FNORM = 1
+    QUATERNION_COSINE = 2
+    ANGLE_AXIS_COVARIANCE = 3
+    ANGLE_AXIS = 4
+    ANGLE_AXIS_INLIERS = 5
+    ANGLE_AXIS_COV_INLIERS = 6
+    ANGLE_AXIS_COVTRACE = 7
+    ANGLE_AXIS_COVNORM = 8
+
+
 def random_rotation() -> Rot3:
     """Sample a random rotation by generating a sample from the 4d unit sphere."""
     q = np.random.randn(4) * 0.03
-    # make unit-length quaternion
+    # Make unit-norm quaternion.
     q /= np.linalg.norm(q)
     qw, qx, qy, qz = q
     R = Rot3(qw, qx, qy, qz)
@@ -57,7 +75,7 @@ def initialize_global_rotations_using_mst(num_images: int, i2Ri1_dict: Dict[Tupl
     return wRis
 
 
-class UncertainityAwareRotationAveraging(RotationAveragingBase):
+class UncertaintyAwareRotationAveraging(RotationAveragingBase):
     def run_rotation_averaging(
         self,
         num_images: int,
@@ -71,32 +89,14 @@ class UncertainityAwareRotationAveraging(RotationAveragingBase):
         global_rotations_init = initialize_global_rotations_using_mst(
             num_images, {key: value for key, value in i2Ri1_dict.items() if value is not None}
         )
-        # global_rotations_init = [random_rotation() for _ in range(num_images)]
-
-        # return global_rotations_init
 
         return _estimate_rotations_with_customized_loss_and_covariance_ceres(global_rotations_init, rotation_info_dict)
 
 
-class RotationInfo(NamedTuple):
-    i2Ri1: Rot3
-    covariance_mat: np.ndarray
-
-
-class RotationErrorType(Enum):
-    QUATERNION_NORM = 0
-    ROTATION_MAT_FNORM = 1
-    QUATERNION_COSINE = 2
-    ANGLE_AXIS_COVARIANCE = 3
-    ANGLE_AXIS = 4
-    ANGLE_AXIS_INLIERS = 5
-    ANGLE_AXIS_COV_INLIERS = 6
-    ANGLE_AXIS_COVTRACE = 7
-    ANGLE_AXIS_COVNORM = 8
-
-
 class MAGSACWeightBasedLoss(pyceres.LossFunction):
-    def __init__(self, sigma, inverse=False):
+    """MAGSAC++ inspired loss proposed in "Revisiting Rotation Averaging: Uncertainties and Robust Losses"."""
+
+    def __init__(self, sigma: float, inverse: bool = False) -> None:
         super().__init__()
         self.sigma_max = sigma
         self.nu = rotation_const.NU3
@@ -112,7 +112,6 @@ class MAGSACWeightBasedLoss(pyceres.LossFunction):
         self.use_weight_inverse = inverse
 
     def Evaluate(self, squared_residual, rho):
-        # rho = np.zeros((3, 1), dtype=np.float64)
         zero_derivative = False
         if squared_residual > rotation_const.SIGMA_QUANTILE3 * rotation_const.SIGMA_QUANTILE3 * self.squared_sigma:
             squared_residual = rotation_const.SIGMA_QUANTILE3 * rotation_const.SIGMA_QUANTILE3 * self.squared_sigma
@@ -165,12 +164,12 @@ class MAGSACWeightBasedLoss(pyceres.LossFunction):
         return rho
 
 
-def to_ceres_quat(rotation: Rot3) -> np.ndarray:
+def _to_ceres_quat(rotation: Rot3) -> np.ndarray:
     gtsam_quat = rotation.toQuaternion()
     return np.array([gtsam_quat.w(), gtsam_quat.x(), gtsam_quat.y(), gtsam_quat.z()], dtype=np.float64)
 
 
-def to_gtsam_rot(ceres_quat: np.ndarray) -> Rot3:
+def _to_gtsam_rot(ceres_quat: np.ndarray) -> Rot3:
     w, x, y, z = ceres_quat
     return Rot3(w, x, y, z)
 
@@ -189,7 +188,7 @@ def _estimate_rotations_with_customized_loss_and_covariance_ceres(
         raise NotImplementedError(f"Rotation error type {rotation_error_type} not implemented")
 
     # Note(Ayush): In camera frame
-    optimization_result = [(to_ceres_quat(wRi.inverse()), np.zeros(3)) for wRi in global_orientations_init]
+    optimization_result = [(_to_ceres_quat(wRi.inverse()), np.zeros(3)) for wRi in global_orientations_init]
 
     valid_rotations = set()
 
@@ -203,27 +202,18 @@ def _estimate_rotations_with_customized_loss_and_covariance_ceres(
 
         # Do not add the relative rotation constraint if it requires an orientation
         # that we do not have an initialization for.
-        if (
-            rotation1 is None
-            or rotation2 is None
-            or (covariance is None and rotation_error_type == RotationErrorType.ANGLE_AXIS_COVARIANCE)
-            or (covariance is None and rotation_error_type == RotationErrorType.ANGLE_AXIS_COV_INLIERS)
-            or (covariance is None and rotation_error_type == RotationErrorType.ANGLE_AXIS_COVTRACE)
-            or (covariance is None and rotation_error_type == RotationErrorType.ANGLE_AXIS_COVNORM)
-        ):
+        if rotation1 is None or rotation2 is None:
             continue
 
         costs = []
         if rotation_error_type == RotationErrorType.ANGLE_AXIS_COVARIANCE:
             pose_cov = np.eye(6)
             pose_cov[:3, :3] = covariance
-            cost = pyceres.factors.PoseGraphRelativeCost(to_ceres_quat(rotation_info.i2Ri1), np.zeros(3), pose_cov)
+            cost = pyceres.factors.PoseGraphRelativeCost(_to_ceres_quat(rotation_info.i2Ri1), np.zeros(3), pose_cov)
             costs.append(cost)
             problem.add_residual_block(
                 cost,
-                # pyceres.TrivialLoss(),
                 pyceres.SoftLOneLoss(0.1),
-                # MAGSACWeightBasedLoss(sigma=0.02, inverse=False),
                 [
                     optimization_result[i1][0],
                     optimization_result[i1][1],
@@ -241,17 +231,15 @@ def _estimate_rotations_with_customized_loss_and_covariance_ceres(
     problem.set_parameter_block_constant(optimization_result[valid_rotations_list[0]][1])
     for i in valid_rotations_list:
         problem.set_manifold(optimization_result[i][0], pyceres.QuaternionManifold())
-    # problem.set_parameter_block_constant(optimization_result[i][1])
-    # problem.set_parameter_block_constant(optimization_result[0][1])
 
     options = pyceres.SolverOptions()
     options.linear_solver_type = pyceres.LinearSolverType.SPARSE_NORMAL_CHOLESKY
-    options.minimizer_progress_to_stdout = True
+    options.minimizer_progress_to_stdout = False
     options.num_threads = -1
     summary = pyceres.SolverSummary()
     pyceres.solve(options, problem, summary)
     logger.info(summary.BriefReport())
 
-    wRis_list = [to_gtsam_rot(ceres_quat).inverse() for ceres_quat, _ in optimization_result]
+    wRis_list = [_to_gtsam_rot(ceres_quat).inverse() for ceres_quat, _ in optimization_result]
 
     return [wRi if i in valid_rotations else None for i, wRi in enumerate(wRis_list)]

@@ -1,3 +1,10 @@
+"""
+Constants for the Gamma distribution used in the MagSac loss.
+
+These values are copied over from the `GlobalSfmPy`'s source code:
+- https://raw.githubusercontent.com/zhangganlin/GlobalSfMpy/1c77e81a0b97884c81b8fc42c89e13049d9d4ad4/include/gamma_values.cpp
+"""
+
 NU3 = 3
 SIGMA_QUANTILE3 = 3.368214175218727
 C3 = 4.029720004054876e-01
