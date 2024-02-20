@@ -102,7 +102,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         return between_factors
 
     def _run_with_consecutive_ordering(
-        self, num_connected_nodes: int, between_factors: BetweenFactorPose3s, initial=Optional[Values]
+        self, num_connected_nodes: int, between_factors: BetweenFactorPose3s, initial: Optional[Values]
     ) -> List[Optional[Rot3]]:
         """Run the rotation averaging on a connected graph w/ N keys ordered consecutively [0,...,N-1].
 
