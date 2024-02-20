@@ -19,6 +19,7 @@ def random_rotation() -> Rot3:
 
 
 def initialize_global_rotations_using_mst(num_images: int, i2Ri1_dict: Dict[Tuple[int, int], Rot3]) -> List[Rot3]:
+        num_images: Number of images in the scene.
     # Create a graph from the relative rotations dictionary
     graph = nx.Graph()
     for i1, i2 in i2Ri1_dict.keys():
