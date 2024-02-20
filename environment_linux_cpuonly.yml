@@ -52,6 +52,7 @@ dependencies:
       - opencv-python>=4.5.4.58
       - pydegensac
       - colour
+      - pycolmap==0.4.0
       - trimesh[easy]
       - gtsam==4.2
       - pydot

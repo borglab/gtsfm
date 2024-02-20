@@ -48,7 +48,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         """
         self._two_view_rotation_sigma = two_view_rotation_sigma
         self._p_min = 5
-        self._p_max = 30
+        self._p_max = 64
 
     def __get_shonan_params(self) -> ShonanAveragingParameters3:
         lm_params = LevenbergMarquardtParams.CeresDefaults()
