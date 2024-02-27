@@ -2,6 +2,7 @@
 
 Authors: Ayush Baid
 """
+
 from typing import Dict, List, Tuple
 
 import networkx as nx
@@ -18,13 +19,14 @@ def random_rotation() -> Rot3:
     return Rot3(qw, qx, qy, qz)
 
 
-def initialize_global_rotations_using_mst(num_images: int, i2Ri1_dict: Dict[Tuple[int, int], Rot3]) -> List[Rot3]:
-        num_images: Number of images in the scene.
+def initialize_global_rotations_using_mst(
+    num_images: int, i2Ri1_dict: Dict[Tuple[int, int], Rot3], edge_weights: Dict[Tuple[int, int], int]
+) -> List[Rot3]:
+    """Initialize rotations using minimum spanning tree (weighted by number of correspondences)"""
     # Create a graph from the relative rotations dictionary
     graph = nx.Graph()
     for i1, i2 in i2Ri1_dict.keys():
-        # TODO: use inlier count as weight
-        graph.add_edge(i1, i2, weight=1)
+        graph.add_edge(i1, i2, weight=edge_weights.get((i1, i2), 0))
 
     # Compute the Minimum Spanning Tree (MST)
     mst = nx.minimum_spanning_tree(graph)

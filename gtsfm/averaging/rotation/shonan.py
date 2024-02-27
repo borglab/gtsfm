@@ -10,10 +10,10 @@ References:
 
 Authors: Jing Wu, Ayush Baid, John Lambert
 """
+
 from typing import Dict, List, Optional, Set, Tuple
 
 import gtsam
-import networkx as nx
 import numpy as np
 from gtsam import (
     BetweenFactorPose3,
@@ -30,6 +30,7 @@ import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.rotation as rotation_util
 from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
 from gtsfm.common.pose_prior import PosePrior
+from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 
 POSE3_DOF = 6
 
@@ -49,6 +50,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         Args:
             two_view_rotation_sigma: Covariance to use (lower values -> more strictly adhere to input measurements).
         """
+        super().__init__()
         self._two_view_rotation_sigma = two_view_rotation_sigma
         self._p_min = 5
         self._p_max = 64
@@ -161,6 +163,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         num_images: int,
         i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]],
         i1Ti2_priors: Dict[Tuple[int, int], PosePrior],
+        two_view_estimation_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
     ) -> List[Optional[Rot3]]:
         """Run the rotation averaging on a connected graph with arbitrary keys, where each key is a image/pose index.
 
@@ -170,8 +173,9 @@ class ShonanRotationAveraging(RotationAveragingBase):
 
         Args:
             num_images: Number of images. Since we have one pose per image, it is also the number of poses.
-            i2Ri1_dict: Relative rotations for each image pair-edge as dictionary (i1, i2): i2Ri1.
+            i2Ri1_dict: Relative rotations for each image pair-edge as dictionaryy (i1, i2): i2Ri1.
             i1Ti2_priors: Priors on relative poses.
+            two_view_estimation_reports: information related to 2-view pose estimation and correspondence verification.
 
         Returns:
             Global rotations for each camera pose, i.e. wRi, as a list. The number of entries in the list is
@@ -190,7 +194,16 @@ class ShonanRotationAveraging(RotationAveragingBase):
         i2Ri1_dict_ = {
             (old_to_new_idxes[edge[0]], old_to_new_idxes[edge[1]]): i2Ri1 for edge, i2Ri1 in i2Ri1_dict.items()
         }
-        wRi_initial_ = rotation_util.initialize_global_rotations_using_mst(len(nodes_with_edges), i2Ri1_dict_)
+        num_correspondences_dict: Dict[Tuple[int, int], int] = {
+            (old_to_new_idxes[edge[0]], old_to_new_idxes[edge[1]]): int(report.num_inliers_est_model)
+            for edge, report in two_view_estimation_reports.items()
+            if edge in i2Ri1_dict
+        }
+        wRi_initial_ = rotation_util.initialize_global_rotations_using_mst(
+            len(nodes_with_edges),
+            i2Ri1_dict_,
+            edge_weights={(i1, i2): min(num_correspondences_dict.get((i1, i2), 0), 1) for i1, i2 in i2Ri1_dict.keys()},
+        )
         initial_values = Values()
         for i, wRi_initial_ in enumerate(wRi_initial_):
             initial_values.insert(i, wRi_initial_)

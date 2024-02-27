@@ -14,6 +14,7 @@ from gtsam import Pose3, Rot3
 import gtsfm.utils.alignment as alignment_utils
 import gtsfm.utils.metrics as metric_utils
 from gtsfm.common.pose_prior import PosePrior
+from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
@@ -42,13 +43,15 @@ class RotationAveragingBase(GTSFMProcess):
         num_images: int,
         i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]],
         i1Ti2_priors: Dict[Tuple[int, int], PosePrior],
+        two_view_estimation_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
     ) -> List[Optional[Rot3]]:
         """Run the rotation averaging.
 
         Args:
             num_images: number of poses.
-            i2Ri1_dict: relative rotations as dictionary (i1, i2): i2Ri1.
+            i2Ri1_dict: dictionary of two view rotation information (containing i2Ri1), keyed by (i1, i2).
             i1Ti2_priors: priors on relative poses as dictionary(i1, i2): PosePrior on i1Ti2.
+            two_view_estimation_reports: information related to 2-view pose estimation and correspondence verification.
 
         Returns:
             Global rotations for each camera pose, i.e. wRi, as a list. The number of entries in the list is
@@ -61,14 +64,16 @@ class RotationAveragingBase(GTSFMProcess):
         num_images: int,
         i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]],
         i1Ti2_priors: Dict[Tuple[int, int], PosePrior],
+        two_view_estimation_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
         wTi_gt: List[Optional[Pose3]],
     ) -> Tuple[List[Optional[Rot3]], GtsfmMetricsGroup]:
         """Runs rotation averaging and computes metrics.
 
         Args:
             num_images: Number of poses.
-            i2Ri1_dict: Relative rotations as dictionary (i1, i2): i2Ri1.
+            i2Ri1_dict: dictionary of two view rotation information (containing i2Ri1), keyed by (i1, i2).
             i1Ti2_priors: Priors on relative poses as dictionary(i1, i2): PosePrior on i1Ti2.
+            two_view_estimation_reports: information related to 2-view pose estimation and correspondence verification.
             wTi_gt: Ground truth global rotations to compare against.
 
         Returns:
@@ -78,7 +83,7 @@ class RotationAveragingBase(GTSFMProcess):
             Metrics on global rotations.
         """
         start_time = time.time()
-        wRis = self.run_rotation_averaging(num_images, i2Ri1_dict, i1Ti2_priors)
+        wRis = self.run_rotation_averaging(num_images, i2Ri1_dict, i1Ti2_priors, two_view_estimation_reports)
         run_time = time.time() - start_time
 
         metrics = self.evaluate(wRis, wTi_gt)
@@ -116,14 +121,16 @@ class RotationAveragingBase(GTSFMProcess):
         num_images: int,
         i2Ri1_graph: Delayed,
         i1Ti2_priors: Dict[Tuple[int, int], PosePrior],
+        two_view_estimation_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
         gt_wTi_list: List[Optional[Pose3]],
     ) -> Tuple[Delayed, Delayed]:
         """Create the computation graph for performing rotation averaging.
 
         Args:
             num_images: number of poses.
-            i2Ri1_graph: dictionary of relative rotations as a delayed task.
+            i2Ri1_graph: dictionary of relative rotation info as a delayed task.
             i1Ti2_priors: priors on relative poses as (i1, i2): PosePrior on i1Ti2.
+            two_view_estimation_reports: information related to 2-view pose estimation and correspondence verification.
             gt_wTi_list: ground truth poses, to be used for evaluation.
 
         Returns:
@@ -131,7 +138,11 @@ class RotationAveragingBase(GTSFMProcess):
         """
 
         wRis, metrics = dask.delayed(self._run_rotation_averaging_base, nout=2)(
-            num_images, i2Ri1_dict=i2Ri1_graph, i1Ti2_priors=i1Ti2_priors, wTi_gt=gt_wTi_list
+            num_images,
+            i2Ri1_dict=i2Ri1_graph,
+            i1Ti2_priors=i1Ti2_priors,
+            wTi_gt=gt_wTi_list,
+            two_view_estimation_reports=two_view_estimation_reports,
         )
 
         return wRis, metrics
