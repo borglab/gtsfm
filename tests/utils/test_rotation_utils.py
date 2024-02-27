@@ -2,7 +2,9 @@
 
 Authors: Ayush Baid
 """
+
 import unittest
+import random
 
 import gtsfm.utils.geometry_comparisons as geometry_comparisons
 import gtsfm.utils.rotation as rotation_util
@@ -18,7 +20,11 @@ class TestRotationUtil(unittest.TestCase):
             sample_poses.CIRCLE_ALL_EDGES_GLOBAL_POSES, sample_poses.CIRCLE_ALL_EDGES_RELATIVE_POSES
         )
 
-        wRi_computed = rotation_util.initialize_global_rotations_using_mst(len(wRi_expected), i2Ri1_dict)
+        wRi_computed = rotation_util.initialize_global_rotations_using_mst(
+            len(wRi_expected),
+            i2Ri1_dict,
+            edge_weights={(i1, i2): (i1 + i2) * 100 for i1, i2 in i2Ri1_dict.keys()},
+        )
         self.assertTrue(
             geometry_comparisons.compare_rotations(wRi_computed, wRi_expected, ROTATION_ANGLE_ERROR_THRESHOLD_DEG)
         )
