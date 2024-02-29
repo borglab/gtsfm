@@ -49,7 +49,7 @@ class RotationAveragingBase(GTSFMProcess):
 
         Args:
             num_images: number of poses.
-            i2Ri1_dict: dictionary of two view rotation information (containing i2Ri1), keyed by (i1, i2).
+            i2Ri1_dict: relative rotations as dictionary (i1, i2): i2Ri1.
             i1Ti2_priors: priors on relative poses as dictionary(i1, i2): PosePrior on i1Ti2.
             two_view_estimation_reports: information related to 2-view pose estimation and correspondence verification.
 
@@ -71,7 +71,7 @@ class RotationAveragingBase(GTSFMProcess):
 
         Args:
             num_images: Number of poses.
-            i2Ri1_dict: dictionary of two view rotation information (containing i2Ri1), keyed by (i1, i2).
+            i2Ri1_dict: relative rotations as dictionary (i1, i2): i2Ri1.
             i1Ti2_priors: Priors on relative poses as dictionary(i1, i2): PosePrior on i1Ti2.
             two_view_estimation_reports: information related to 2-view pose estimation and correspondence verification.
             wTi_gt: Ground truth global rotations to compare against.
@@ -128,7 +128,7 @@ class RotationAveragingBase(GTSFMProcess):
 
         Args:
             num_images: number of poses.
-            i2Ri1_graph: dictionary of relative rotation info as a delayed task.
+            i2Ri1_graph: dictionary of relative rotations as a delayed task.
             i1Ti2_priors: priors on relative poses as (i1, i2): PosePrior on i1Ti2.
             two_view_estimation_reports: information related to 2-view pose estimation and correspondence verification.
             gt_wTi_list: ground truth poses, to be used for evaluation.

@@ -173,7 +173,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
 
         Args:
             num_images: Number of images. Since we have one pose per image, it is also the number of poses.
-            i2Ri1_dict: Relative rotations for each image pair-edge as dictionaryy (i1, i2): i2Ri1.
+            i2Ri1_dict: Relative rotations for each image pair-edge as dictionary (i1, i2): i2Ri1.
             i1Ti2_priors: Priors on relative poses.
             two_view_estimation_reports: information related to 2-view pose estimation and correspondence verification.
 
@@ -199,10 +199,11 @@ class ShonanRotationAveraging(RotationAveragingBase):
             for edge, report in two_view_estimation_reports.items()
             if edge in i2Ri1_dict
         }
+        # Use negative of the number of correspondences as the edge weight.
         wRi_initial_ = rotation_util.initialize_global_rotations_using_mst(
             len(nodes_with_edges),
             i2Ri1_dict_,
-            edge_weights={(i1, i2): min(num_correspondences_dict.get((i1, i2), 0), 1) for i1, i2 in i2Ri1_dict.keys()},
+            edge_weights={(i1, i2): -num_correspondences_dict.get((i1, i2), 0) for i1, i2 in i2Ri1_dict_.keys()},
         )
         initial_values = Values()
         for i, wRi_initial_ in enumerate(wRi_initial_):
