@@ -4,7 +4,6 @@ Authors: Ayush Baid
 """
 
 import unittest
-import random
 
 import gtsfm.utils.geometry_comparisons as geometry_comparisons
 import gtsfm.utils.rotation as rotation_util
