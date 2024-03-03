@@ -2,16 +2,15 @@
 
 Authors: Ayush Baid
 """
+
 import unittest
-from typing import List
 from unittest.mock import patch
 
 import numpy as np
-from gtsam import Cal3_S2, Point3, Pose3, Rot3, Similarity3, Unit3
+from gtsam import Cal3_S2, Point3, Pose3, Rot3, Unit3
 from gtsam.examples import SFMdata
 
 import gtsfm.utils.geometry_comparisons as geometry_comparisons
-import tests.data.sample_poses as sample_poses
 
 POSE_LIST = SFMdata.createPoses(Cal3_S2())
 
@@ -31,92 +30,14 @@ def point3_compare(t: Point3, t_: Point3, msg=None) -> bool:
 class TestGeometryComparisons(unittest.TestCase):
     """Unit tests for comparison functions for geometry types."""
 
-    def __assert_equality_on_rot3s(self, computed: List[Rot3], expected: List[Rot3]) -> None:
-
-        self.assertEqual(len(computed), len(expected))
-
-        for R, R_ in zip(computed, expected):
-            self.assertEqual(R, R_)
-
-    def __assert_equality_on_point3s(self, computed: List[Point3], expected: List[Point3]) -> None:
-
-        self.assertEqual(len(computed), len(expected))
-
-        for t, t_ in zip(computed, expected):
-            np.testing.assert_allclose(t, t_, rtol=POINT3_RELATIVE_ERROR_THRESH, atol=POINT3_ABS_ERROR_THRESH)
-
-    def __assert_equality_on_pose3s(self, computed: List[Pose3], expected: List[Pose3]) -> None:
-
-        self.assertEqual(len(computed), len(expected))
-
-        computed_rot3s = [x.rotation() for x in computed]
-        computed_point3s = [x.translation() for x in computed]
-        expected_rot3s = [x.rotation() for x in expected]
-        expected_point3s = [x.translation() for x in expected]
-
-        self.__assert_equality_on_rot3s(computed_rot3s, expected_rot3s)
-        self.__assert_equality_on_point3s(computed_point3s, expected_point3s)
-
     def setUp(self):
         super().setUp()
 
         self.addTypeEqualityFunc(Rot3, rot3_compare)
         self.addTypeEqualityFunc(Point3, point3_compare)
 
-    def test_align_rotations(self):
-        """Tests the alignment of rotations."""
-
-        # using rotation along just the Y-axis so that angles can be linearly added.
-        input_list = [
-            Rot3.RzRyRx(np.deg2rad(0), np.deg2rad(-10), 0),
-            Rot3.RzRyRx(np.deg2rad(0), np.deg2rad(30), 0),
-        ]
-        ref_list = [
-            Rot3.RzRyRx(np.deg2rad(0), np.deg2rad(80), 0),
-            Rot3.RzRyRx(np.deg2rad(0), np.deg2rad(-40), 0),
-        ]
-
-        computed = geometry_comparisons.align_rotations(input_list, ref_list)
-        expected = [
-            Rot3.RzRyRx(0, np.deg2rad(80), 0),
-            Rot3.RzRyRx(0, np.deg2rad(120), 0),
-        ]
-
-        self.__assert_equality_on_rot3s(computed, expected)
-
-    def test_align_poses_after_sim3_transform(self):
-        """Test for alignment of poses after applying a SIM3 transformation."""
-
-        translation_shift = np.array([5, 10, -5])
-        rotation_shift = Rot3.RzRyRx(0, 0, np.deg2rad(30))
-        scaling_factor = 0.7
-
-        transform = Similarity3(rotation_shift, translation_shift, scaling_factor)
-        ref_list = [transform.transformFrom(x) for x in sample_poses.CIRCLE_TWO_EDGES_GLOBAL_POSES]
-
-        computed_poses, aSb = geometry_comparisons.align_poses_sim3(
-            sample_poses.CIRCLE_TWO_EDGES_GLOBAL_POSES, ref_list
-        )
-        assert isinstance(aSb, Similarity3)
-        self.__assert_equality_on_pose3s(computed_poses, sample_poses.CIRCLE_TWO_EDGES_GLOBAL_POSES)
-
-    def test_align_poses_on_panorama_after_sim3_transform(self):
-        """Test for alignment of poses after applying a forward motion transformation."""
-
-        translation_shift = np.array([0, 5, 0])
-        rotation_shift = Rot3.RzRyRx(0, 0, np.deg2rad(30))
-        scaling_factor = 1.0
-
-        aTi_list = sample_poses.PANORAMA_GLOBAL_POSES
-        bSa = Similarity3(rotation_shift, translation_shift, scaling_factor)
-        bTi_list = [bSa.transformFrom(x) for x in aTi_list]
-
-        aTi_list_, aSb = geometry_comparisons.align_poses_sim3(aTi_list, bTi_list)
-        assert isinstance(aSb, Similarity3)
-        self.__assert_equality_on_pose3s(aTi_list_, aTi_list)
-
     @patch(
-        "gtsfm.utils.geometry_comparisons.align_rotations",
+        "gtsfm.utils.alignment.align_rotations",
         return_value=[
             Rot3.RzRyRx(0, np.deg2rad(32), 0),
             Rot3.RzRyRx(0, 0, np.deg2rad(-22)),
@@ -142,7 +63,7 @@ class TestGeometryComparisons(unittest.TestCase):
         align_rotations_mocked.assert_called_once()
 
     @patch(
-        "gtsfm.utils.geometry_comparisons.align_rotations",
+        "gtsfm.utils.alignment.align_rotations",
         return_value=[
             Rot3.RzRyRx(0, np.deg2rad(32), 0),
             Rot3.RzRyRx(0, 0, np.deg2rad(-22)),
@@ -168,7 +89,7 @@ class TestGeometryComparisons(unittest.TestCase):
         align_rotations_mocked.assert_called_once()
 
     @patch(
-        "gtsfm.utils.geometry_comparisons.align_rotations",
+        "gtsfm.utils.alignment.align_rotations",
         return_value=[Rot3.RzRyRx(0, np.deg2rad(25), 0), Rot3.RzRyRx(0, 0, np.deg2rad(-20))],  # compared with aRi_list
     )
     def test_compare_rotations_with_nones_at_same_indices(self, align_rotations_mocked):
@@ -190,7 +111,7 @@ class TestGeometryComparisons(unittest.TestCase):
         self.assertTrue(geometry_comparisons.compare_rotations(list1, list2, threshold_degrees))
         align_rotations_mocked.assert_called_once()
 
-    @patch("gtsfm.utils.geometry_comparisons.align_rotations", return_value=None)
+    @patch("gtsfm.utils.alignment.align_rotations", return_value=None)
     def test_compare_rotations_with_nones_at_different_indices(self, aligned_rotations_mocked):
         """Tests the comparison results on list of rotations."""
 
@@ -241,7 +162,6 @@ class TestGeometryComparisons(unittest.TestCase):
             return R
 
         for _ in range(num_trials):
-
             # generate 2 random rotations
             wR1 = random_rotation()
             wR2 = random_rotation()
@@ -300,26 +220,6 @@ class TestGeometryComparisons(unittest.TestCase):
         wti1 = Point3(1, 1, 1)
         wti2 = Point3(1, 1, -1)
         self.assertEqual(geometry_comparisons.compute_points_distance_l2(wti1, wti2), 2)
-
-    def test_align_poses_sim3_ignore_missing(self):
-        """Consider a simple cases with 4 poses in a line. Suppose SfM only recovers 2 of the 4 poses."""
-        wT0 = Pose3(Rot3(np.eye(3)), np.zeros(3))
-        wT1 = Pose3(Rot3(np.eye(3)), np.ones(3))
-        wT2 = Pose3(Rot3(np.eye(3)), np.ones(3) * 2)
-        wT3 = Pose3(Rot3(np.eye(3)), np.ones(3) * 3)
-
-        # `a` frame is the target/reference frame
-        aTi_list = [wT0, wT1, wT2, wT3]
-        # `b` frame contains the estimates
-        bTi_list = [None, wT1, None, wT3]
-        aTi_list_, _ = geometry_comparisons.align_poses_sim3_ignore_missing(aTi_list, bTi_list)
-
-        # indices 0 and 2 should still have no estimated pose, even after alignment
-        assert aTi_list_[0] is None
-        assert aTi_list_[2] is None
-
-        # identity alignment should preserve poses, should still match GT/targets at indices 1 and 3
-        self.__assert_equality_on_pose3s(computed=[aTi_list_[1], aTi_list_[3]], expected=[aTi_list[1], aTi_list[3]])
 
 
 def test_get_points_within_radius_of_cameras():

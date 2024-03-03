@@ -10,6 +10,7 @@ References:
 
 Authors: Jing Wu, Ayush Baid, Akshay Krishnan
 """
+
 import time
 import timeit
 from collections import defaultdict
@@ -35,7 +36,7 @@ from gtsam import (
 )
 
 import gtsfm.common.types as gtsfm_types
-import gtsfm.utils.geometry_comparisons as comp_utils
+import gtsfm.utils.alignment as alignment_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.sampling as sampling_utils
@@ -626,7 +627,7 @@ def compute_metrics(
             wTi_list.append(None)
         else:
             wTi_list.append(Pose3(wRi, wti))
-    wTi_aligned_list, _ = comp_utils.align_poses_sim3_ignore_missing(gt_wTi_list, wTi_list)
+    wTi_aligned_list, _ = alignment_utils.align_poses_sim3_ignore_missing(gt_wTi_list, wTi_list)
     wti_aligned_list = [wTi.translation() if wTi is not None else None for wTi in wTi_aligned_list]
     gt_wti_list = [gt_wTi.translation() if gt_wTi is not None else None for gt_wTi in gt_wTi_list]
 
