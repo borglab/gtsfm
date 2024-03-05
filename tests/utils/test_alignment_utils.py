@@ -126,7 +126,7 @@ class TestAlignmentUtils(unittest.TestCase):
         )
 
         # Note: this test requires exhaustive alignment and will fail with regular alignment.
-        computed_poses, aSb = alignment_utils.align_poses_sim3_exhaustive(ref_list, input_list)
+        computed_poses, aSb = alignment_utils.align_poses_sim3_robust(ref_list, input_list)
         assert isinstance(aSb, Similarity3)
         computed_poses_with_outlier_removed = [computed_poses[0]] + computed_poses[2:]
         ref_list_with_outlier_removed = [ref_list[0]] + ref_list[2:]

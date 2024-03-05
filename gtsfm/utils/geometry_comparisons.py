@@ -102,7 +102,7 @@ def compare_global_poses(
     bTi_list = [bTi_list[i] for i in bTi_valid]
 
     #  We set frame "a" the target/reference
-    aTi_list_, _ = alignment_utils.align_poses_sim3_exhaustive(aTi_list, bTi_list)
+    aTi_list_, _ = alignment_utils.align_poses_sim3_robust(aTi_list, bTi_list)
 
     rotations_equal = all(
         [
