@@ -399,7 +399,7 @@ def read_images_txt(fpath: str) -> Tuple[List[Pose3], List[str]]:
 
 def sort_image_filenames_lexigraphically(
         wTi_list: List[Pose3], img_fnames: List[str]
-    ) -> Tuple[List[Pose3], List[str], List[int]]:
+) -> Tuple[List[Pose3], List[str], List[int]]:
     """Sort a list of camera poses according to provided image file names."""
     sorted_idxs = sorted(range(len(img_fnames)), key=lambda i: img_fnames[i])
 
