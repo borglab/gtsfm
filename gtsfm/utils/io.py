@@ -392,12 +392,14 @@ def read_images_txt(fpath: str) -> Tuple[List[Pose3], List[str]]:
         img_fnames.append(img_fname)
 
     # TODO(johnwlambert): Re-order tracks for COLMAP-formatted .bin files.
-    wTi_list_sorted, img_fnames_sorted = sort_image_filenames_lexigraphically(wTi_list, img_fnames)
+    wTi_list_sorted, img_fnames_sorted, _ = sort_image_filenames_lexigraphically(wTi_list, img_fnames)
 
     return wTi_list_sorted, img_fnames_sorted
 
 
-def sort_image_filenames_lexigraphically(wTi_list: List[Pose3], img_fnames: List[str]) -> Tuple[List[Pose3], List[str]]:
+def sort_image_filenames_lexigraphically(
+        wTi_list: List[Pose3], img_fnames: List[str]
+    ) -> Tuple[List[Pose3], List[str], List[int]]:
     """Sort a list of camera poses according to provided image file names."""
     sorted_idxs = sorted(range(len(img_fnames)), key=lambda i: img_fnames[i])
 
