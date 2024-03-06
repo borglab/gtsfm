@@ -47,9 +47,7 @@ def compare_poses(baseline_dirpath: str, eval_dirpath: str, output_dirpath: str)
             current_reconstruction.align_robust(
                 list(baseline_wTi_dict.keys()),
                 [wTi.translation() for wTi in baseline_wTi_dict.values()],
-                min_common_images=3,  # int(len(common_fnames) * 0.2),
-                # min_inlier_ratio=0.1,
-                # max_error=1,
+                min_common_images=3,
             ).matrix
         )
         current_wTi_dict = {fname: baselineScurrent.transformFrom(wTi) for fname, wTi in current_wTi_dict.items()}

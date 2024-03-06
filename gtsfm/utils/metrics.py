@@ -513,6 +513,30 @@ def get_measurement_angle_errors(
     return errors
 
 
+def pose_auc_from_poses(
+    computed_wTis: List[Pose3], ref_wTis: List[Pose3], thresholds_deg: Sequence[float]
+) -> Sequence[float]:
+    """Computes area under the Recall (y) vs. Pose Error (x) curve, the pose AUC.
+
+    If recall is defined as TP / # actual positives, then every camera is a TP if one can register it.
+
+    Args:
+        computed_wTis: list of poses for comparison, of length N.
+        ref_wTis: references list of poses, of length N.
+        thresholds: Angular error thresholds, in degrees.
+
+    Returns:
+        List of AUC values, one per threshold.
+    """
+    rotation_angular_errors = compute_rotation_angle_metric(
+        wRi_list=[wTi.rotation() for wTi in computed_wTis], gt_wRi_list=[wTi.rotation() for wTi in ref_wTis]
+    ).data
+    translation_angular_errors = compute_translation_angle_metric(gt_wTi_list=ref_wTis, wTi_list=computed_wTis).data
+    pose_angular_errors = np.maximum(rotation_angular_errors, translation_angular_errors)
+
+    return pose_auc(pose_angular_errors, thresholds_deg)
+
+
 def pose_auc(errors: np.ndarray, thresholds: Sequence[float], save_dir: Optional[str] = None) -> Sequence[float]:
     """Computes area under the Recall (y) vs. Pose Error (x) curve, the pose AUC.
 
@@ -521,7 +545,6 @@ def pose_auc(errors: np.ndarray, thresholds: Sequence[float], save_dir: Optional
     Args:
         errors: Array of shape (n,) representing angular errors.
         thresholds: Angular error thresholds.
-        save_plot: Whether to save an AUC plot.
         save_dir: Directory where AUC plots should be saved.
 
     Returns:

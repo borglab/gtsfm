@@ -1,4 +1,4 @@
-"""Utility functions for aligning different geometry types
+"""Utility functions for aligning different geometry types.
 
 Authors: Ayush Baid, John Lambert
 """
@@ -20,7 +20,7 @@ EPSILON = np.finfo(float).eps
 logger = logger_utils.get_logger()
 
 MAX_ALIGNMENT_ERROR = np.finfo(np.float32).max
-MAX_NUM_HYPOTHESIS_FOR_ROBUST_ALIGNMENT: int = 200
+MAX_NUM_HYPOTHESES_FOR_ROBUST_ALIGNMENT: int = 200
 
 
 def align_rotations(aRi_list: List[Optional[Rot3]], bRi_list: List[Optional[Rot3]]) -> List[Rot3]:
@@ -113,7 +113,7 @@ def align_poses_sim3_exhaustive(aTi_list: List[Pose3], bTi_list: List[Pose3]) ->
         logger.error("SIM(3) alignment uses at least 2 frames; Skipping")
         return bTi_list, Similarity3(Rot3(), np.zeros((3,)), 1.0)
 
-    best_pose_auc_5deg = 0
+    best_pose_auc_5deg: float = 0.0
     best_aSb = Similarity3()
     for i in range(n_to_align):
         for j in range(i + 1, n_to_align):
@@ -124,11 +124,9 @@ def align_poses_sim3_exhaustive(aTi_list: List[Pose3], bTi_list: List[Pose3]) ->
 
             aTi_candidate_: List[Pose3] = [aSb_candidate.transformFrom(bTi) for bTi in bTi_list]
 
-            candidate_metrics = metric_utils.compute_ba_pose_metrics(
-                gt_wTi_list=aTi_list,
-                computed_wTi_list=aTi_candidate_,
-            )
-            pose_auc_5deg = candidate_metrics.metrics[6].data.item()
+            pose_auc_5deg = metric_utils.pose_auc_from_poses(
+                computed_wTis=aTi_candidate_, ref_wTis=aTi_sample, thresholds_deg=[5]
+            )[0]
 
             if pose_auc_5deg > best_pose_auc_5deg:
                 logger.debug("Update auc: %.2f -> %.2f", best_pose_auc_5deg, pose_auc_5deg)
@@ -153,21 +151,23 @@ def align_poses_sim3_exhaustive(aTi_list: List[Pose3], bTi_list: List[Pose3]) ->
     return best_aTi_, best_aSb
 
 
-def align_poses_sim3_robust(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> Tuple[List[Pose3], Similarity3]:
-    """Align two pose graphs via similarity transformation by trying out some samples of pairs of cameras for candidate
-    transforms.
-    Note: poses cannot be missing/invalid.
+def align_poses_sim3_robust(
+    aTi_list: List[Pose3], bTi_list: List[Pose3], max_num_hypotheses: int = MAX_NUM_HYPOTHESES_FOR_ROBUST_ALIGNMENT
+) -> Tuple[List[Pose3], Similarity3]:
+    """Align two pose graphs using similarity transform chosen from pose pair samples.
 
+    Note: poses cannot be missing/invalid.
     We force Sim(3) alignment rather than SE(3) alignment.
     We assume the two trajectories are of the exact same length.
 
     Args:
-        aTi_list: reference poses in frame "a" which are the targets for alignment
-        bTi_list: input poses which need to be aligned to frame "a"
+        aTi_list: Reference poses in frame "a" which are the targets for alignment.
+        bTi_list: Input poses which need to be aligned to frame "a".
+        max_num_hypothesis: max number of RANSAC iterations.
 
     Returns:
         aTi_list_: transformed input poses previously "bTi_list" but now which
-            have the same origin and scale as reference (now living in "a" frame)
+            have the same origin and scale as reference (now living in "a" frame).
         aSb: Similarity(3) object that aligns the two pose graphs.
     """
     assert len(aTi_list) == len(bTi_list)
@@ -176,32 +176,31 @@ def align_poses_sim3_robust(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> Tup
         logger.error("SIM(3) alignment uses at least 2 frames; Skipping")
         return bTi_list, Similarity3(Rot3(), np.zeros((3,)), 1.0)
 
-    max_possible_hypothesis: int = (n_to_align * (n_to_align - 1)) // 2
-    if max_possible_hypothesis <= MAX_NUM_HYPOTHESIS_FOR_ROBUST_ALIGNMENT:
+    # Compute the total possible number of hypothesis { N choose 2 }
+    max_possible_hypotheses: int = (n_to_align * (n_to_align - 1)) // 2
+    if max_possible_hypotheses <= max_num_hypotheses:
         return align_poses_sim3_exhaustive(aTi_list=aTi_list, bTi_list=bTi_list)
 
-    best_pose_auc_5deg = 0
+    best_pose_auc_5deg: float = 0.0
     best_aSb = Similarity3()
 
     sample_pose_pairs = np.random.choice(
         len(aTi_list),
-        size=MAX_NUM_HYPOTHESIS_FOR_ROBUST_ALIGNMENT * 2,
+        size=max_num_hypotheses * 2,
         replace=True,
     ).reshape(-1, 2)
 
-    for i, j in sample_pose_pairs:
-        aTi_sample = copy.deepcopy([aTi_list[i], aTi_list[j]])
-        bTi_sample = copy.deepcopy([bTi_list[i], bTi_list[j]])
+    for i1, i2 in sample_pose_pairs:
+        aTi_sample = copy.deepcopy([aTi_list[i1], aTi_list[i2]])
+        bTi_sample = copy.deepcopy([bTi_list[i1], bTi_list[i2]])
 
         _, aSb_candidate = align_poses_sim3(aTi_sample, bTi_sample)
 
         aTi_candidate_: List[Pose3] = [aSb_candidate.transformFrom(bTi) for bTi in bTi_list]
 
-        candidate_metrics = metric_utils.compute_ba_pose_metrics(
-            gt_wTi_list=aTi_list,
-            computed_wTi_list=aTi_candidate_,
-        )
-        pose_auc_5deg = candidate_metrics.metrics[6].data.item()
+        pose_auc_5deg = metric_utils.pose_auc_from_poses(
+            computed_wTis=aTi_candidate_, ref_wTis=aTi_list, thresholds_deg=[5]
+        )[0]
 
         if pose_auc_5deg > best_pose_auc_5deg:
             logger.debug("Update auc: %.2f -> %.2f", best_pose_auc_5deg, pose_auc_5deg)
