@@ -206,6 +206,9 @@ def colmap2gtsfm(
         wTi_gtsfm.append(Pose3(Rot3(img.qvec2rotmat()), img.tvec).inverse())
         img_fnames.append(img.name)
         camera_model_name = cameras[img.camera_id].model
+
+        # Default to zero-valued radial distortion coefficients (quadratic and quartic).
+        k1, k2 = 0.0, 0.0
         if camera_model_name == "SIMPLE_RADIAL":
             # See https://github.com/colmap/colmap/blob/1f6812e333a1e4b2ef56aa74e2c3873e4e3a40cd/src/colmap/sensor/models.h#L212  # noqa: E501
             f, cx, cy, k = cameras[img.camera_id].params[:4]
@@ -216,10 +219,13 @@ def colmap2gtsfm(
         elif camera_model_name == "PINHOLE":
             # See https://github.com/colmap/colmap/blob/1f6812e333a1e4b2ef56aa74e2c3873e4e3a40cd/src/colmap/sensor/models.h#L196  # noqa: E501
             fx, fy, cx, cy = cameras[img.camera_id].params[:4]
+        elif camera_model_name == "RADIAL":
+            f, cx, cy, k1, k2 = cameras[img.camera_id].params[:5]
+            fx = f
         else:
             raise ValueError(f"Unsupported COLMAP camera type: {camera_model_name}")
 
-        intrinsics_gtsfm.append(Cal3Bundler(fx, 0.0, 0.0, cx, cy))
+        intrinsics_gtsfm.append(Cal3Bundler(fx, k1, k2, cx, cy))
         image_id_to_idx[img.id] = idx
         img_h, img_w = cameras[img.camera_id].height, cameras[img.camera_id].width
         img_dims.append((img_h, img_w))
@@ -241,7 +247,6 @@ def colmap2gtsfm(
                 sfmtrack.addMeasurement(image_id_to_idx[image_id], images[image_id].xys[point2d_idx])
             sfmtracks_gtsfm.append(sfmtrack)
 
-    
     point_cloud = np.array([point3d.xyz for point3d in points3D.values()])
     rgb = np.array([point3d.rgb for point3d in points3D.values()])
     return img_fnames, wTi_gtsfm, intrinsics_gtsfm, sfmtracks_gtsfm, point_cloud, rgb, img_dims
@@ -398,7 +403,7 @@ def read_images_txt(fpath: str) -> Tuple[List[Pose3], List[str]]:
 
 
 def sort_image_filenames_lexigraphically(
-        wTi_list: List[Pose3], img_fnames: List[str]
+    wTi_list: List[Pose3], img_fnames: List[str]
 ) -> Tuple[List[Pose3], List[str], List[int]]:
     """Sort a list of camera poses according to provided image file names."""
     sorted_idxs = sorted(range(len(img_fnames)), key=lambda i: img_fnames[i])

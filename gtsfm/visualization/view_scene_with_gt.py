@@ -79,7 +79,13 @@ def view_scene(args: argparse.Namespace) -> None:
     point_cloud = np.stack([rSe.transformFrom(pt) for pt in point_cloud])
 
     open3d_vis_utils.draw_scene_with_gt_open3d(
-        point_cloud, rgb, wTi_aligned_list, calibrations, wTi_list_gt, gt_calibrations, args
+        point_cloud=point_cloud,
+        rgb=rgb,
+        wTi_list=wTi_aligned_list,
+        calibrations=calibrations,
+        gt_wTi_list=wTi_list_gt,
+        gt_calibrations=gt_calibrations,
+        args=args,
     )
 
 
