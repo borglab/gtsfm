@@ -113,8 +113,13 @@ def align_poses_sim3_exhaustive(aTi_list: List[Pose3], bTi_list: List[Pose3]) ->
         logger.error("SIM(3) alignment uses at least 2 frames; Skipping")
         return bTi_list, Similarity3(Rot3(), np.zeros((3,)), 1.0)
 
-    best_pose_auc_5deg: float = 0.0
+    # Run once with all poses for initial guess
     best_aSb = Similarity3()
+    aTi_candidate_, best_aSb = align_poses_sim3(aTi_list, bTi_list)
+    best_pose_auc_5deg: float = metric_utils.pose_auc_from_poses(
+        computed_wTis=aTi_candidate_, ref_wTis=aTi_list, thresholds_deg=[5]
+    )[0]
+
     for i in range(n_to_align):
         for j in range(i + 1, n_to_align):
             aTi_sample = copy.deepcopy([aTi_list[i], aTi_list[j]])
@@ -125,7 +130,7 @@ def align_poses_sim3_exhaustive(aTi_list: List[Pose3], bTi_list: List[Pose3]) ->
             aTi_candidate_: List[Pose3] = [aSb_candidate.transformFrom(bTi) for bTi in bTi_list]
 
             pose_auc_5deg = metric_utils.pose_auc_from_poses(
-                computed_wTis=aTi_candidate_, ref_wTis=aTi_sample, thresholds_deg=[5]
+                computed_wTis=aTi_candidate_, ref_wTis=aTi_list, thresholds_deg=[5]
             )[0]
 
             if pose_auc_5deg > best_pose_auc_5deg:
@@ -181,8 +186,12 @@ def align_poses_sim3_robust(
     if max_possible_hypotheses <= max_num_hypotheses:
         return align_poses_sim3_exhaustive(aTi_list=aTi_list, bTi_list=bTi_list)
 
-    best_pose_auc_5deg: float = 0.0
+    # Run once with all poses for initial guess
     best_aSb = Similarity3()
+    aTi_candidate_, best_aSb = align_poses_sim3(aTi_list, bTi_list)
+    best_pose_auc_5deg: float = metric_utils.pose_auc_from_poses(
+        computed_wTis=aTi_candidate_, ref_wTis=aTi_list, thresholds_deg=[5]
+    )[0]
 
     sample_pose_pairs = np.random.choice(
         len(aTi_list),
