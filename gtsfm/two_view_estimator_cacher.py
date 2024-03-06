@@ -50,6 +50,8 @@ class TwoViewEstimatorCacher(TwoViewEstimator):
         self, keypoints_i1: Keypoints, keypoints_i2: Keypoints, putative_corr_idxs: np.ndarray
     ) -> str:
         """Generates a cache key according to keypoint coordinates and putative correspondence indices."""
+        if putative_corr_idxs.size == 0:  # catch no correspondences
+            return cache_utils.generate_hash_for_numpy_array(np.array([]))
 
         # Subsample correspondence indices.
         sampled_idxs = putative_corr_idxs[:NUM_CORRESPONDENCES_TO_SAMPLE_FOR_HASH]

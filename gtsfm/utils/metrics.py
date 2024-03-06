@@ -2,6 +2,7 @@
 
 Authors: Ayush Baid, Akshay Krishnan
 """
+
 import datetime
 import itertools
 import os
@@ -339,7 +340,7 @@ def compute_pose_auc_metric(
 
 def compute_ba_pose_metrics(
     gt_wTi_list: List[Pose3],
-    ba_output: GtsfmData,
+    computed_wTi_list: List[Pose3],
     save_dir: Optional[str] = None,
 ) -> GtsfmMetricsGroup:
     """Compute pose errors w.r.t. GT for the bundle adjustment result.
@@ -348,22 +349,21 @@ def compute_ba_pose_metrics(
 
     Args:
         gt_wTi_list: List of ground truth poses.
-        ba_output: Sparse multi-view result, as output of bundle adjustment.
+        computed_wTi_list: List of computed poses.
 
     Returns:
         A group of metrics that describe errors associated with a bundle adjustment result (w.r.t. GT).
     """
-    wTi_aligned_list = ba_output.get_camera_poses()
     i2Ui1_dict_gt = get_twoview_translation_directions(gt_wTi_list)
 
-    wRi_aligned_list, wti_aligned_list = get_rotations_translations_from_poses(wTi_aligned_list)
+    wRi_aligned_list, wti_aligned_list = get_rotations_translations_from_poses(computed_wTi_list)
     gt_wRi_list, gt_wti_list = get_rotations_translations_from_poses(gt_wTi_list)
 
     metrics = []
     metrics.append(compute_rotation_angle_metric(wRi_aligned_list, gt_wRi_list))
     metrics.append(compute_translation_distance_metric(wti_aligned_list, gt_wti_list))
-    metrics.append(compute_relative_translation_angle_metric(i2Ui1_dict_gt, wTi_aligned_list))
-    metrics.append(compute_translation_angle_metric(gt_wTi_list, wTi_aligned_list))
+    metrics.append(compute_relative_translation_angle_metric(i2Ui1_dict_gt, computed_wTi_list))
+    metrics.append(compute_translation_angle_metric(gt_wTi_list, computed_wTi_list))
 
     rotation_angular_errors = metrics[0]._data
     translation_angular_errors = metrics[3]._data
@@ -513,9 +513,31 @@ def get_measurement_angle_errors(
     return errors
 
 
-def pose_auc(
-    errors: np.ndarray, thresholds: Sequence[float], save_plot: bool = True, save_dir: Optional[str] = None
+def pose_auc_from_poses(
+    computed_wTis: List[Pose3], ref_wTis: List[Pose3], thresholds_deg: Sequence[float]
 ) -> Sequence[float]:
+    """Computes area under the Recall (y) vs. Pose Error (x) curve, the pose AUC.
+
+    If recall is defined as TP / # actual positives, then every camera is a TP if one can register it.
+
+    Args:
+        computed_wTis: list of poses for comparison, of length N.
+        ref_wTis: references list of poses, of length N.
+        thresholds: Angular error thresholds, in degrees.
+
+    Returns:
+        List of AUC values, one per threshold.
+    """
+    rotation_angular_errors = compute_rotation_angle_metric(
+        wRi_list=[wTi.rotation() for wTi in computed_wTis], gt_wRi_list=[wTi.rotation() for wTi in ref_wTis]
+    ).data
+    translation_angular_errors = compute_translation_angle_metric(gt_wTi_list=ref_wTis, wTi_list=computed_wTis).data
+    pose_angular_errors = np.maximum(rotation_angular_errors, translation_angular_errors)
+
+    return pose_auc(pose_angular_errors, thresholds_deg)
+
+
+def pose_auc(errors: np.ndarray, thresholds: Sequence[float], save_dir: Optional[str] = None) -> Sequence[float]:
     """Computes area under the Recall (y) vs. Pose Error (x) curve, the pose AUC.
 
     If recall is defined as TP / # actual positives, then every camera is a TP if one can register it.
@@ -523,7 +545,6 @@ def pose_auc(
     Args:
         errors: Array of shape (n,) representing angular errors.
         thresholds: Angular error thresholds.
-        save_plot: Whether to save an AUC plot.
         save_dir: Directory where AUC plots should be saved.
 
     Returns:
@@ -540,9 +561,7 @@ def pose_auc(
         last_index = np.searchsorted(errors, t)
         r = np.r_[recall[:last_index], recall[last_index - 1]]
         e = np.r_[errors[:last_index], t]
-        if save_plot:
-            if save_dir is None:
-                raise ValueError("If `save_plot` is True, then `save_dir` must be provided.")
+        if save_dir is not None:
             _ = plt.figure(dpi=200, facecolor="white")
             plt.style.use("ggplot")
             sns.set_style({"font.family": "Times New Roman"})

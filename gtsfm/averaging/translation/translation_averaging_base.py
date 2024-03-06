@@ -58,7 +58,7 @@ class TranslationAveragingBase(GTSFMProcess):
         i2Ti1_priors: Dict[Tuple[int, int], PosePrior] = {},
         scale_factor: float = 1.0,
         gt_wTi_list: List[Optional[Pose3]] = [],
-    ) -> Tuple[List[Optional[Pose3]], Optional[GtsfmMetricsGroup]]:
+    ) -> Tuple[List[Optional[Pose3]], Optional[GtsfmMetricsGroup], Optional[List[Tuple[int, int]]]]:
         """Run the translation averaging, and combine the estimated global translations with global rotations.
 
         Args:
@@ -76,6 +76,8 @@ class TranslationAveragingBase(GTSFMProcess):
             Global camera poses wTi. The number of entries in the list is `num_images`. The list
                 may contain `None` where the global translations could not be computed (either underconstrained system
                 or ill-constrained system).
+            A GtsfmMetricsGroup with translation averaging metrics.
+            Indices of inlier measurements (list of camera pair indices).
         """
 
     def create_computation_graph(
@@ -89,7 +91,7 @@ class TranslationAveragingBase(GTSFMProcess):
         i2Ti1_priors: Dict[Tuple[int, int], PosePrior] = {},
         scale_factor: float = 1.0,
         gt_wTi_list: List[Optional[Pose3]] = [],
-    ) -> Tuple[Delayed, Delayed]:
+    ) -> Tuple[Delayed, Delayed, Delayed]:
         """Create the computation graph for performing translation averaging.
 
         Args:
@@ -106,8 +108,9 @@ class TranslationAveragingBase(GTSFMProcess):
         Returns:
             Global poses wrapped as Delayed.
             A GtsfmMetricsGroup with translation averaging metrics wrapped as Delayed.
+            Indices of inlier measurements (List[tuple[int, int]]) after running 1dsfm wrapped as Delayed.
         """
-        return dask.delayed(self.run_translation_averaging, nout=2)(
+        return dask.delayed(self.run_translation_averaging, nout=3)(
             num_images=num_images,
             i2Ui1_dict=i2Ui1_graph,
             wRi_list=wRi_graph,
