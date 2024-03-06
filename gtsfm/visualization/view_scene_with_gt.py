@@ -14,7 +14,7 @@ from gtsam import Pose3, Rot3
 
 import gtsfm.utils.io as io_utils
 from gtsfm.visualization import open3d_vis_utils
-import gtsfm.utils.geometry_comparisons as comp_utils
+import gtsfm.utils.alignment as alignment_utils
 
 REPO_ROOT = Path(__file__).parent.parent.parent.resolve()
 
@@ -44,7 +44,9 @@ def view_scene(args: argparse.Namespace) -> None:
         args: Rendering options.
     """
     # Read in data.
-    wTi_list, img_fnames, calibrations, point_cloud, rgb, _ = io_utils.read_scene_data_from_colmap_format(args.output_dir)
+    wTi_list, img_fnames, calibrations, point_cloud, rgb, _ = io_utils.read_scene_data_from_colmap_format(
+        args.output_dir
+    )
     if args.show_mvs_result:
         point_cloud, rgb = io_utils.read_point_cloud_from_ply(args.ply_fpath)
 
@@ -63,7 +65,7 @@ def view_scene(args: argparse.Namespace) -> None:
         wTi_list[i] = zcwTw.compose(wTi_list[i])
 
     # Read in data.
-    wTi_list_gt, _, gt_calibrations, _, _,_ = io_utils.read_scene_data_from_colmap_format(args.gt_dir)
+    wTi_list_gt, _, gt_calibrations, _, _, _ = io_utils.read_scene_data_from_colmap_format(args.gt_dir)
 
     if len(gt_calibrations) == 1:
         gt_calibrations = gt_calibrations * len(img_fnames)
@@ -72,7 +74,8 @@ def view_scene(args: argparse.Namespace) -> None:
         wTi_list_gt[i] = zcwTw.compose(wTi_list_gt[i])
 
     # Align the poses.
-    wTi_aligned_list, rSe = comp_utils.align_poses_sim3_ignore_missing(wTi_list_gt[:31], wTi_list[:31])
+    n = min(len(wTi_list), len(wTi_list_gt))
+    wTi_aligned_list, rSe = alignment_utils.align_poses_sim3_ignore_missing(wTi_list_gt[:n], wTi_list[:n])
     point_cloud = np.stack([rSe.transformFrom(pt) for pt in point_cloud])
 
     open3d_vis_utils.draw_scene_with_gt_open3d(
