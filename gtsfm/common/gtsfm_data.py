@@ -3,6 +3,7 @@ This can be the output of either data association or of bundle adjustment.
 
 Authors: Ayush Baid, John Lambert, Xiaolong Wu
 """
+
 import itertools
 import logging
 from typing import Any, Dict, List, Optional, Tuple
@@ -12,7 +13,6 @@ import numpy as np
 from gtsam import Pose3, SfmTrack, Similarity3
 
 import gtsfm.common.types as gtsfm_types
-import gtsfm.utils.geometry_comparisons as geometry_comparisons
 import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.reprojection as reproj_utils
 
@@ -425,23 +425,6 @@ class GtsfmData:
             filtered_data.add_track(track)
 
         return filtered_data, valid_mask
-
-    def align_via_Sim3_to_poses(self, wTi_list_ref: List[Optional[Pose3]]) -> "GtsfmData":
-        """Align estimated, sparse multiview result (self) to a set of reference poses.
-
-        Args:
-            wTi_list_ref: list of reference/target camera poses, ordered by camera index.
-
-        Returns:
-            aligned_data: sparse multiview result that is aligned to the poses above.
-        """
-        # these are the estimated poses (source, to be aligned)
-        wTi_list = self.get_camera_poses()
-        # align the poses which are valid (i.e. are not None)
-        # some camera indices may have been lost after pruning to largest connected component, leading to None values
-        # rSe aligns the estimate `e` frame to the reference `r` frame
-        _, rSe = geometry_comparisons.align_poses_sim3_ignore_missing(wTi_list_ref, wTi_list)
-        return self.apply_Sim3(aSb=rSe)
 
     def apply_Sim3(self, aSb: Similarity3) -> "GtsfmData":
         """Assume current tracks and cameras are in frame "b", then transport them to frame "a".

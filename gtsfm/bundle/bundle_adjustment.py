@@ -2,6 +2,7 @@
 
 Authors: Xiaolong Wu, John Lambert, Ayush Baid
 """
+
 import logging
 import time
 from collections import Counter
@@ -28,6 +29,7 @@ from gtsam import (
 )
 
 import gtsfm.common.types as gtsfm_types
+import gtsfm.utils.alignment as alignment_utils
 import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.tracks as track_utils
 from gtsfm.common.gtsfm_data import GtsfmData
@@ -511,9 +513,9 @@ class BundleAdjustmentOptimizer:
             return ba_metrics
 
         # Align the sparse multi-view estimate after BA to the ground truth pose graph.
-        aligned_filtered_data = filtered_data.align_via_Sim3_to_poses(wTi_list_ref=poses_gt)
+        aligned_filtered_data = alignment_utils.align_gtsfm_data_via_Sim3_to_poses(filtered_data, wTi_list_ref=poses_gt)
         ba_pose_error_metrics = metrics_utils.compute_ba_pose_metrics(
-            gt_wTi_list=poses_gt, ba_output=aligned_filtered_data, save_dir=save_dir
+            gt_wTi_list=poses_gt, computed_wTi_list=aligned_filtered_data.get_camera_poses(), save_dir=save_dir
         )
         ba_metrics.extend(metrics_group=ba_pose_error_metrics)
 

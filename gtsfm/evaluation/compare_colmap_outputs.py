@@ -13,6 +13,7 @@ from gtsam import Pose3, Similarity3
 from scipy.spatial.transform import Rotation
 
 import gtsfm.runner.gtsfm_runner_base as runner_base
+import gtsfm.utils.alignment as alignment_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metric_utils
@@ -40,33 +41,39 @@ def compare_poses(baseline_dirpath: str, eval_dirpath: str, output_dirpath: str)
 
     common_fnames = baseline_wTi_dict.keys() & current_wTi_dict.keys()
 
-    current_reconstruction = pycolmap.Reconstruction(eval_dirpath)
-    baselineScurrent = Similarity3(
-        current_reconstruction.align_robust(
-            list(baseline_wTi_dict.keys()),
-            [wTi.translation() for wTi in baseline_wTi_dict.values()],
-            min_common_images=3  # int(len(common_fnames) * 0.2),
-            # min_inlier_ratio=0.1,
-            # max_error=1,
-        ).matrix
+    if args.use_pycolmap_alignment:
+        current_reconstruction = pycolmap.Reconstruction(eval_dirpath)
+        baselineScurrent = Similarity3(
+            current_reconstruction.align_robust(
+                list(baseline_wTi_dict.keys()),
+                [wTi.translation() for wTi in baseline_wTi_dict.values()],
+                min_common_images=3,
+            ).matrix
+        )
+        current_wTi_dict = {fname: baselineScurrent.transformFrom(wTi) for fname, wTi in current_wTi_dict.items()}
+
+        aRb = baselineScurrent.rotation().matrix()
+        atb = baselineScurrent.translation()
+        rz, ry, rx = Rotation.from_matrix(aRb).as_euler("zyx", degrees=True)
+        logger.info("Sim(3) Rotation `aRb`: rz=%.2f deg., ry=%.2f deg., rx=%.2f deg.", rz, ry, rx)
+        logger.info(f"Sim(3) Translation `atb`: [tx,ty,tz]={str(np.round(atb,2))}")
+        logger.info("Sim(3) Scale `asb`: %.2f", float(baselineScurrent.scale()))
+
+    logger.info(
+        "Baseline: %d, current: %d , common: %d poses",
+        len(baseline_wTi_dict),
+        len(current_wTi_dict),
+        len(common_fnames),
     )
-
-    current_wTi_dict = {fname: baselineScurrent.transformFrom(wTi) for fname, wTi in current_wTi_dict.items()}
-
-    aRb = baselineScurrent.rotation().matrix()
-    atb = baselineScurrent.translation()
-    rz, ry, rx = Rotation.from_matrix(aRb).as_euler("zyx", degrees=True)
-    logger.info("Sim(3) Rotation `aRb`: rz=%.2f deg., ry=%.2f deg., rx=%.2f deg.", rz, ry, rx)
-    logger.info(f"Sim(3) Translation `atb`: [tx,ty,tz]={str(np.round(atb,2))}")
-    logger.info("Sim(3) Scale `asb`: %.2f", float(baselineScurrent.scale()))
-
-    print(f"Baseline: {len(baseline_wTi_dict)}, current: {len(current_wTi_dict)} , common: {len(common_fnames)} poses")
 
     baseline_wTi_list: List[Pose3] = []
     current_wTi_list: List[Pose3] = []
     for fname, wTi in baseline_wTi_dict.items():
         baseline_wTi_list.append(wTi)
         current_wTi_list.append(current_wTi_dict.get(fname))
+
+    if not args.use_pycolmap_alignment:
+        current_wTi_list, _ = alignment_utils.align_poses_sim3_ignore_missing(baseline_wTi_list, current_wTi_list)
 
     i2Ui1_dict_gt = metric_utils.get_twoview_translation_directions(baseline_wTi_list)
 
@@ -107,6 +114,9 @@ if __name__ == "__main__":
         help="Path to directory containing benchmark artifacts for the current",
     )
     parser.add_argument("--output", required=True, help="Output for the json file for pose metrics")
+    parser.add_argument(
+        "--use_pycolmap_alignment", action="store_true", help="Use Pycolmap to align cameras between two reconstruction"
+    )
     args = parser.parse_args()
 
     os.makedirs(args.output, exist_ok=True)
