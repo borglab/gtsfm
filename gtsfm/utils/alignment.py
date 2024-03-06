@@ -73,10 +73,11 @@ def align_poses_sim3_ignore_missing(
     valid_camera_idxs = []
     valid_bTi_list = []
     for i, bTi in enumerate(bTi_list):
-        if bTi is not None:
+        aTi = aTi_list[i]
+        if aTi is not None and bTi is not None:
             valid_camera_idxs.append(i)
             valid_bTi_list.append(bTi)
-            corresponding_aTi_list.append(aTi_list[i])
+            corresponding_aTi_list.append(aTi)
 
     valid_aTi_list_, aSb = align_poses_sim3_robust(aTi_list=corresponding_aTi_list, bTi_list=valid_bTi_list)
 
