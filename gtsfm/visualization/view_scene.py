@@ -110,8 +110,9 @@ if __name__ == "__main__":
         type=str,
         required=False,
         default=None,
-        help="If provided, will plot GT data alongside provided scene data in `output_dir`. `gt_dir` should be a path to a separate directory containing GT camera poses. "
-        "This directory should contain 3 files: cameras.txt, images.txt, and points3D.txt",
+        help="If provided, will plot GT data alongside provided scene data in `output_dir`. `gt_dir` should be a path"
+        " to a separate directory containing GT camera poses. This directory should contain 3 files: "
+        "cameras.txt, images.txt, and points3D.txt or `cameras.bin`, `images.bin`, and `points3D.bin`.",
     )
     parser.add_argument(
         "--rendering_style",
