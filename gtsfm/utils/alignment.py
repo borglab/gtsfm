@@ -58,26 +58,27 @@ def align_poses_sim3_ignore_missing(
     We assume the two trajectories are of the exact same length.
 
     Args:
-        aTi_list: reference poses in frame "a" which are the targets for alignment
-        bTi_list: input poses which need to be aligned to frame "a"
+        aTi_list: Reference poses in frame "a" which are the targets for alignment.
+        bTi_list: Input poses which need to be aligned to frame "a".
 
     Returns:
-        aTi_list_: transformed input poses previously "bTi_list" but now which
+        aTi_list_: Transformed input poses previously "bTi_list" but now which
             have the same origin and scale as reference (now living in "a" frame)
         aSb: Similarity(3) object that aligns the two pose graphs.
     """
     assert len(aTi_list) == len(bTi_list)
 
-    # only choose target poses for which there is a corresponding estimated pose
+    # Only choose target poses for which there is a corresponding estimated pose.
     corresponding_aTi_list = []
     valid_camera_idxs = []
     valid_bTi_list = []
     for i, bTi in enumerate(bTi_list):
         aTi = aTi_list[i]
-        if aTi is not None and bTi is not None:
-            valid_camera_idxs.append(i)
-            valid_bTi_list.append(bTi)
-            corresponding_aTi_list.append(aTi)
+        if aTi is None or bTi is None:
+            continue
+        valid_camera_idxs.append(i)
+        valid_bTi_list.append(bTi)
+        corresponding_aTi_list.append(aTi)
 
     valid_aTi_list_, aSb = align_poses_sim3_robust(aTi_list=corresponding_aTi_list, bTi_list=valid_bTi_list)
 
@@ -100,11 +101,11 @@ def align_poses_sim3_exhaustive(aTi_list: List[Pose3], bTi_list: List[Pose3]) ->
     We assume the two trajectories are of the exact same length.
 
     Args:
-        aTi_list: reference poses in frame "a" which are the targets for alignment
-        bTi_list: input poses which need to be aligned to frame "a"
+        aTi_list: Reference poses in frame "a" which are the targets for alignment
+        bTi_list: Input poses which need to be aligned to frame "a"
 
     Returns:
-        aTi_list_: transformed input poses previously "bTi_list" but now which
+        aTi_list_: Transformed input poses previously "bTi_list" but now which
             have the same origin and scale as reference (now living in "a" frame)
         aSb: Similarity(3) object that aligns the two pose graphs.
     """
