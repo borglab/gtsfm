@@ -6,15 +6,18 @@ CLUSTER_CONFIG=$2
 
 now=$(date +"%Y%m%d_%H%M%S")
 
+ETH3D_ROOT=/home/tdriver6/Downloads/eth3d_datasets
 
+# Includes all "high-resolution multi-view" datasets from 'training' split (i.e. w/ public GT data)
+# See https://www.eth3d.net/datasets for more information.
 datasets=(
-	office
 	courtyard
 	delivery_area
 	electro
 	facade
 	kicker
 	meadow
+	office
 	pipes
 	playground
 	relief_2
@@ -85,8 +88,8 @@ for num_matched in ${num_matched_sizes[@]}; do
 				echo "Correspondence Generator: ${correspondence_generator_config_name}"
 				echo "Num workers: ${num_workers}"
 
-				images_dir=/home/tdriver6/Downloads/eth3d_datasets/${dataset}_dslr_undistorted/${dataset}/images
-                colmap_files_dirpath=/home/tdriver6/Downloads/eth3d_datasets/${dataset}_dslr_undistorted/${dataset}/dslr_calibration_undistorted
+				images_dir="${ETH3D_ROOT}/${dataset}_dslr_undistorted/${dataset}/images"
+                colmap_files_dirpath="${ETH3D_ROOT}/${dataset}_dslr_undistorted/${dataset}/dslr_calibration_undistorted"
 
 				OUTPUT_ROOT=${USER_ROOT}/${now}/${now}__${dataset}__results__num_matched${num_matched}__maxframelookahead${max_frame_lookahead}__760p__unified_${correspondence_generator_config_name}
 				mkdir -p $OUTPUT_ROOT
