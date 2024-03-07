@@ -12,8 +12,9 @@ from pathlib import Path
 import numpy as np
 from gtsam import Pose3, Rot3
 
+import gtsfm.utils.alignment as alignment_utils
 import gtsfm.utils.io as io_utils
-from gtsfm.visualization.open3d_vis_utils import draw_scene_open3d
+from gtsfm.visualization import open3d_vis_utils
 
 REPO_ROOT = Path(__file__).parent.parent.parent.resolve()
 
@@ -63,7 +64,35 @@ def view_scene(args: argparse.Namespace) -> None:
     for i in range(len(wTi_list)):
         wTi_list[i] = zcwTw.compose(wTi_list[i])
 
-    draw_scene_open3d(point_cloud, rgb, wTi_list, calibrations, args)
+    if args.gt_dir is not None:
+        # Plot both scene data, and GT data, in same coordinate frame.
+        # Read in GT data.
+        wTi_list_gt, _, gt_calibrations, _, _, _ = io_utils.read_scene_data_from_colmap_format(args.gt_dir)
+
+        if len(gt_calibrations) == 1:
+            gt_calibrations = gt_calibrations * len(img_fnames)
+
+        for i in range(len(wTi_list_gt)):
+            wTi_list_gt[i] = zcwTw.compose(wTi_list_gt[i])
+
+        # Align the poses.
+        n = min(len(wTi_list), len(wTi_list_gt))
+        wTi_aligned_list, rSe = alignment_utils.align_poses_sim3_ignore_missing(wTi_list_gt[:n], wTi_list[:n])
+        point_cloud = np.stack([rSe.transformFrom(pt) for pt in point_cloud])
+
+        open3d_vis_utils.draw_scene_with_gt_open3d(
+            point_cloud=point_cloud,
+            rgb=rgb,
+            wTi_list=wTi_aligned_list,
+            calibrations=calibrations,
+            gt_wTi_list=wTi_list_gt,
+            gt_calibrations=gt_calibrations,
+            args=args,
+        )
+
+    else:
+        # Draw the provided scene data only.
+        open3d_vis_utils.draw_scene_open3d(point_cloud, rgb, wTi_list, calibrations, args)
 
 
 if __name__ == "__main__":
@@ -75,6 +104,14 @@ if __name__ == "__main__":
         help="Path to a directory containing GTSFM output. "
         "This directory should contain 3 files: either `cameras.txt`, `images.txt`, and `points3D.txt`"
         " or `cameras.bin`, `images.bin`, and `points3D.bin`.",
+    )
+    parser.add_argument(
+        "--gt_dir",
+        type=str,
+        required=False,
+        default=None,
+        help="If provided, will plot GT data alongside provided scene data in `output_dir`. `gt_dir` should be a path to a separate directory containing GT camera poses. "
+        "This directory should contain 3 files: cameras.txt, images.txt, and points3D.txt",
     )
     parser.add_argument(
         "--rendering_style",
