@@ -222,7 +222,7 @@ def test_pose_auc1() -> None:
     errors = np.ones(5) * 5.0
     thresholds = [5, 10, 20]
 
-    aucs = metric_utils.pose_auc(errors, thresholds, save_plot=False)
+    aucs = metric_utils.pose_auc(errors, thresholds)
 
     # Sum triangles and rectangles.
     # AUC @ 5 deg thresh: 0. (no cameras under this threshold).
@@ -237,7 +237,7 @@ def test_pose_auc_all_zero_errors_perfect_auc() -> None:
     errors = np.zeros(5)
 
     thresholds = [5, 10, 20]
-    aucs = metric_utils.pose_auc(errors, thresholds, save_plot=False)
+    aucs = metric_utils.pose_auc(errors, thresholds)
     expected_aucs = [1.0, 1.0, 1.0]
     assert np.allclose(aucs, expected_aucs)
 
@@ -245,7 +245,7 @@ def test_pose_auc_all_zero_errors_perfect_auc() -> None:
 def test_pose_auc_all_errors_exceed_threshold_zero_auc() -> None:
     errors = np.ones(5) * 25.0
     thresholds = [5, 10, 20]
-    aucs = metric_utils.pose_auc(errors, thresholds, save_plot=False)
+    aucs = metric_utils.pose_auc(errors, thresholds)
     expected_aucs = [0.0, 0.0, 0.0]
     assert np.allclose(aucs, expected_aucs)
 
@@ -290,7 +290,7 @@ def test_pose_auc_works_for_nan_error() -> None:
         ]
     )
 
-    aucs = metric_utils.pose_auc(pose_errors, thresholds, save_plot=False)
+    aucs = metric_utils.pose_auc(pose_errors, thresholds)
 
     # Note recall is roughly (27 / 32) since exclude 5 errors above 1 deg -> (1.422, 1.676, 2.935, 6.655,   nan)
     # If we drew triangle up to recall point, we would get 0.84 * 0.5 -> 0.42, but more

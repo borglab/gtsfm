@@ -2,6 +2,7 @@
 
 Authors: Jing Wu, Ayush Baid
 """
+
 import abc
 import time
 from typing import Dict, List, Optional, Tuple
@@ -11,7 +12,7 @@ import numpy as np
 from dask.delayed import Delayed
 from gtsam import Pose3, Rot3
 
-import gtsfm.utils.geometry_comparisons as comp_utils
+import gtsfm.utils.alignment as alignment_utils
 import gtsfm.utils.metrics as metric_utils
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
@@ -106,7 +107,7 @@ class RotationAveragingBase(GTSFMProcess):
         if len(wRi_computed) != len(wRi_gt):
             raise ValueError("Lengths of wRi_list and gt_wRi_list should be the same.")
 
-        wRi_aligned = comp_utils.align_rotations(wRi_gt, wRi_computed)
+        wRi_aligned = alignment_utils.align_rotations(wRi_gt, wRi_computed)
 
         metrics = []
         metrics.append(GtsfmMetric(name="num_rotations_computed", data=len([x for x in wRi_computed if x is not None])))

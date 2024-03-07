@@ -224,6 +224,12 @@ def colmap2gtsfm(
         img_h, img_w = cameras[img.camera_id].height, cameras[img.camera_id].width
         img_dims.append((img_h, img_w))
 
+    # Reorder images according to image name.
+    wTi_gtsfm, img_fnames, sorted_idxs = sort_image_filenames_lexigraphically(wTi_gtsfm, img_fnames)
+    old_idx_to_new_idx = {old_idx: new_idx for new_idx, old_idx in enumerate(sorted_idxs)}
+    image_id_to_idx = {image_id: old_idx_to_new_idx[old_idx] for image_id, old_idx in image_id_to_idx.items()}
+
+    # Convert COLMAP's Point3D to SfmTrack.
     if len(points3D) == 0 and load_sfmtracks:
         raise RuntimeError("No SfMTrack data provided to loader.")
     sfmtracks_gtsfm = None
@@ -235,6 +241,7 @@ def colmap2gtsfm(
                 sfmtrack.addMeasurement(image_id_to_idx[image_id], images[image_id].xys[point2d_idx])
             sfmtracks_gtsfm.append(sfmtrack)
 
+    
     point_cloud = np.array([point3d.xyz for point3d in points3D.values()])
     rgb = np.array([point3d.rgb for point3d in points3D.values()])
     return img_fnames, wTi_gtsfm, intrinsics_gtsfm, sfmtracks_gtsfm, point_cloud, rgb, img_dims
@@ -272,13 +279,13 @@ def read_cameras_txt(
         # Note that u0 is px, and v0 is py
         model = cam_params[1]
         # Currently only handles SIMPLE RADIAL and RADIAL camera models
-        assert model in ["SIMPLE_RADIAL", "RADIAL"]
+        assert model in ["SIMPLE_RADIAL", "RADIAL", "PINHOLE"]
         if model == "SIMPLE_RADIAL":
             _, _, img_w, img_h, fx, u0, v0, k1 = cam_params[:8]
             img_w, img_h, fx, u0, v0, k1 = int(img_w), int(img_h), float(fx), float(u0), float(v0), float(k1)
             # Convert COLMAP's SIMPLE_RADIAL to GTSAM's Cal3Bundler:
             # Add second radial distortion coefficient of value zero.
-            k2 = 0
+            k2 = 0.0
         elif model == "RADIAL":
             _, _, img_w, img_h, fx, u0, v0, k1, k2 = cam_params[:9]
             img_w, img_h, fx, u0, v0, k1, k2 = (
@@ -290,6 +297,16 @@ def read_cameras_txt(
                 float(k1),
                 float(k2),
             )
+        elif model == "PINHOLE":
+            _, _, img_w, img_h, fx, _, u0, v0 = cam_params[:9]
+            img_w, img_h, fx, u0, v0 = (
+                int(img_w),
+                int(img_h),
+                float(fx),
+                float(u0),
+                float(v0),
+            )
+            k1, k2 = 0.0, 0.0
         calibrations.append(Cal3Bundler(fx, k1, k2, u0, v0))
         img_dims.append((img_h, img_w))
     assert len(calibrations) == num_cams
@@ -375,19 +392,21 @@ def read_images_txt(fpath: str) -> Tuple[List[Pose3], List[str]]:
         img_fnames.append(img_fname)
 
     # TODO(johnwlambert): Re-order tracks for COLMAP-formatted .bin files.
-    wTi_list_sorted, img_fnames_sorted = sort_image_filenames_lexigraphically(wTi_list, img_fnames)
+    wTi_list_sorted, img_fnames_sorted, _ = sort_image_filenames_lexigraphically(wTi_list, img_fnames)
 
     return wTi_list_sorted, img_fnames_sorted
 
 
-def sort_image_filenames_lexigraphically(wTi_list: List[Pose3], img_fnames: List[str]) -> Tuple[List[Pose3], List[str]]:
+def sort_image_filenames_lexigraphically(
+        wTi_list: List[Pose3], img_fnames: List[str]
+) -> Tuple[List[Pose3], List[str], List[int]]:
     """Sort a list of camera poses according to provided image file names."""
     sorted_idxs = sorted(range(len(img_fnames)), key=lambda i: img_fnames[i])
 
     wTi_list_sorted = [wTi_list[i] for i in sorted_idxs]
     img_fnames_sorted = [img_fnames[i] for i in sorted_idxs]
 
-    return wTi_list_sorted, img_fnames_sorted
+    return wTi_list_sorted, img_fnames_sorted, sorted_idxs
 
 
 def write_images(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> None:
@@ -517,28 +536,17 @@ def read_scene_data_from_colmap_format(
     """
     # Determine whether scene data is stored in a text (txt) or binary (bin) file format.
     if Path(data_dir, "images.txt").exists():
-        file_format = "txt"
+        file_format = ".txt"
     elif Path(data_dir, "images.bin").exists():
-        file_format = "bin"
+        file_format = ".bin"
     else:
         raise ValueError(
             f"Unknown file format, as neither `{data_dir}/images.txt` or `{data_dir}/images.bin` could be found."
         )
-
-    if file_format == "txt":
-        # TODO(johnwlambert): Consider unifying interfaces by using `colmap_io.read_model` for txt reading also.
-        points_fpath = f"{data_dir}/points3D.txt"
-        images_fpath = f"{data_dir}/images.txt"
-        cameras_fpath = f"{data_dir}/cameras.txt"
-        wTi_list, img_fnames = read_images_txt(images_fpath)
-        calibrations, img_dims = read_cameras_txt(cameras_fpath)
-        point_cloud, rgb = read_points_txt(points_fpath)
-
-    elif file_format == "bin":
-        cameras, images, points3d = colmap_io.read_model(path=data_dir, ext=".bin")
-        img_fnames, wTi_list, calibrations, _, point_cloud, rgb, img_dims = colmap2gtsfm(
-            cameras, images, points3d, load_sfmtracks=False
-        )
+    cameras, images, points3d = colmap_io.read_model(path=data_dir, ext=file_format)
+    img_fnames, wTi_list, calibrations, _, point_cloud, rgb, img_dims = colmap2gtsfm(
+        cameras, images, points3d, load_sfmtracks=False
+    )
 
     if any(x is None for x in [wTi_list, img_fnames, calibrations, point_cloud, rgb]):
         raise RuntimeError("One or more of the requested model data products was not found.")

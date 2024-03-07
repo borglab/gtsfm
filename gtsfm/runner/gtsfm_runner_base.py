@@ -288,7 +288,7 @@ class GtsfmRunnerBase:
             local_cluster_kwargs = {
                 "n_workers": self.parsed_args.num_workers,
                 "threads_per_worker": self.parsed_args.threads_per_worker,
-                "dashboard_address": self.parsed_args.dashboard_port
+                "dashboard_address": self.parsed_args.dashboard_port,
             }
             if self.parsed_args.worker_memory_limit is not None:
                 local_cluster_kwargs["memory_limit"] = self.parsed_args.worker_memory_limit
@@ -414,9 +414,7 @@ class GtsfmRunnerBase:
         return sfm_result
 
 
-def unzip_two_view_results(
-    two_view_results: Dict[Tuple[int, int], TWO_VIEW_OUTPUT]
-) -> Tuple[
+def unzip_two_view_results(two_view_results: Dict[Tuple[int, int], TWO_VIEW_OUTPUT]) -> Tuple[
     Dict[Tuple[int, int], Rot3],
     Dict[Tuple[int, int], Unit3],
     Dict[Tuple[int, int], np.ndarray],
@@ -436,7 +434,7 @@ def unzip_two_view_results(
         i2Ri1 = two_view_output[0]
         i2Ui1 = two_view_output[1]
         if i2Ri1 is None or i2Ui1 is None:
-            print(f"Skip {i1},{i2} since None")
+            logger.debug("Skip %d, %d since None", i1, i2)
             continue
 
         i2Ri1_dict[(i1, i2)] = i2Ri1
