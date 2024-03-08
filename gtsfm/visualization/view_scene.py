@@ -14,6 +14,7 @@ from gtsam import Pose3, Rot3
 
 import gtsfm.utils.alignment as alignment_utils
 import gtsfm.utils.io as io_utils
+from gtsfm.loader.olsson_loader import OlssonLoader
 from gtsfm.visualization import open3d_vis_utils
 
 REPO_ROOT = Path(__file__).parent.parent.parent.resolve()
@@ -64,11 +65,17 @@ def view_scene(args: argparse.Namespace) -> None:
     for i in range(len(wTi_list)):
         wTi_list[i] = zcwTw.compose(wTi_list[i])
 
-    if args.gt_dir is not None:
+    if args.gt_olsson_dir is not None:
+        loader = OlssonLoader(args.gt_olsson_dir)
+        wTi_list_gt = loader._wTi_list
+        gt_calibrations = [loader.get_camera_intrinsics_full_res(0)] * loader._num_imgs
+
+    if args.gt_colmap_dir is not None:
         # Plot both scene data, and GT data, in same coordinate frame.
         # Read in GT data.
-        wTi_list_gt, _, gt_calibrations, _, _, _ = io_utils.read_scene_data_from_colmap_format(args.gt_dir)
+        wTi_list_gt, _, gt_calibrations, _, _, _ = io_utils.read_scene_data_from_colmap_format(args.gt_colmap_dir)
 
+    if args.gt_olsson_dir is not None or args.gt_colmap_dir is not None:
         if len(gt_calibrations) == 1:
             gt_calibrations = gt_calibrations * len(img_fnames)
 
@@ -106,12 +113,19 @@ if __name__ == "__main__":
         " or `cameras.bin`, `images.bin`, and `points3D.bin`.",
     )
     parser.add_argument(
-        "--gt_dir",
+        "--gt_olsson_dir",
         type=str,
         required=False,
         default=None,
-        help="If provided, will plot GT data alongside provided scene data in `output_dir`. `gt_dir` should be a path"
-        " to a separate directory containing GT camera poses. This directory should contain 3 files: "
+        help="If provided, will plot Olsson-format GT data alongside provided scene data in `output_dir`.",
+    )
+    parser.add_argument(
+        "--gt_colmap_dir",
+        type=str,
+        required=False,
+        default=None,
+        help="If provided, will plot COLMAP-format GT data alongside provided scene data in `output_dir`. `gt_dir` "
+        "should be a path to a separate directory containing GT camera poses. This directory should contain 3 files: "
         "cameras.txt, images.txt, and points3D.txt or `cameras.bin`, `images.bin`, and `points3D.bin`.",
     )
     parser.add_argument(
