@@ -32,7 +32,7 @@ def compare_poses(baseline_dirpath: str, eval_dirpath: str, output_dirpath: str)
     """Compare the pose metrics between two reconstructions (Colmap format).
 
     Args:
-        baseline_dirpath: Directory with baseline reconstruction.
+        baseline_dirpath: Directory with baseline (reference) reconstruction.
         current_dirpath: Directory with reconstruction which needs evaluation.
         output_dirpath: Directory to save the metrics.
     """
@@ -106,12 +106,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--baseline",
         required=True,
-        help="Path to directory containing benchmark artifacts for the baseline",
+        help="Path to directory containing benchmark artifacts for the baseline (reference).",
     )
     parser.add_argument(
         "--current",
         required=True,
-        help="Path to directory containing benchmark artifacts for the current",
+        help="Path to directory containing benchmark artifacts for the current.",
     )
     parser.add_argument("--output", required=True, help="Output for the json file for pose metrics")
     parser.add_argument(
