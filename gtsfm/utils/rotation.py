@@ -6,17 +6,7 @@ Authors: Ayush Baid
 from typing import Dict, List, Tuple
 
 import networkx as nx
-import numpy as np
 from gtsam import Rot3
-
-
-def random_rotation() -> Rot3:
-    """Sample a random rotation by generating a sample from the 4d unit sphere."""
-    q = np.random.randn(4) * 0.03
-    # Make unit-length quaternion.
-    q /= np.linalg.norm(q)
-    qw, qx, qy, qz = q
-    return Rot3(qw, qx, qy, qz)
 
 
 def initialize_global_rotations_using_mst(
@@ -37,7 +27,8 @@ def initialize_global_rotations_using_mst(
     for i1, i2 in i2Ri1_dict.keys():
         graph.add_edge(i1, i2, weight=edge_weights[(i1, i2)])
 
-    assert nx.is_connected(graph), "Relative rotation graph is not connected"
+    if not nx.is_connected(graph):
+        raise ValueError("Relative rotation graph is not connected")
 
     # Compute the Minimum Spanning Tree (MST)
     mst = nx.minimum_spanning_tree(graph)
@@ -52,3 +43,58 @@ def initialize_global_rotations_using_mst(
         wRis[i2] = wRis[i1] * i1Ri2
 
     return wRis
+
+
+
+def initialize_mst(
+        num_images: int, 
+        i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]], 
+        corr_idxs: Dict[Tuple[int, int], np.ndarray],
+        old_to_new_idxs: Dict[int, int],
+    ) -> gtsam.Values:
+    """Initialize global rotations using the minimum spanning tree (MST)."""
+    # Compute MST.
+    row, col, data = [], [], []
+    for (i1, i2), i2Ri1 in i2Ri1_dict.items():
+        if i2Ri1 is None:
+            continue
+        row.append(i1)
+        col.append(i2)
+        data.append(-corr_idxs[(i1, i2)].shape[0])
+    logger.info(corr_idxs[(i1, i2)])
+    corr_adjacency = scipy.sparse.coo_array((data, (row, col)), shape=(num_images, num_images))
+    Tcsr = scipy.sparse.csgraph.minimum_spanning_tree(corr_adjacency)
+    logger.info(Tcsr.toarray().astype(int))
+
+    # Build global rotations from MST.
+    # TODO (travisdriver): This is simple but very inefficient. Use something else.
+    i_mst, j_mst = Tcsr.nonzero()
+    logger.info(i_mst)
+    logger.info(j_mst)
+    edges_mst = [(i, j) for (i, j) in zip(i_mst, j_mst)]
+    iR0_dict = {i_mst[0]: np.eye(3)}  # pick the left index of the first edge as the seed
+    # max_iters = num_images * 10
+    iter = 0
+    while len(edges_mst) > 0:
+        i, j = edges_mst.pop(0)
+        if i in iR0_dict:
+            jRi = i2Ri1_dict[(i, j)].matrix()
+            iR0 = iR0_dict[i]
+            iR0_dict[j] = jRi @ iR0
+        elif j in iR0_dict:
+            iRj = i2Ri1_dict[(i, j)].matrix().T
+            jR0 = iR0_dict[j]
+            iR0_dict[i] = iRj @ jR0
+        else:
+            edges_mst.append((i, j))
+        iter += 1
+        # if iter >= max_iters:
+        #     logger.info("Reached max MST iters.")
+        #     assert False
+    
+    # Add to Values object.
+    initial = gtsam.Values()
+    for i, iR0 in iR0_dict.items():
+        initial.insert(old_to_new_idxs[i], Rot3(iR0))
+    
+    return initial
