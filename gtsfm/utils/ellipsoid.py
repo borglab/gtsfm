@@ -1,5 +1,6 @@
-"""Algorithms to center and align 3D points and camera frustums (belonging to GtsfmData object) to the x, y, and z axes 
-using SVD. Process is similar to Principal Component Analysis. Used in React Three Fiber Visulization Tool.
+"""Algorithms to center and align 3D points and camera frustums to the x, y, and z axes using SVD. 
+
+Process is similar to Principal Component Analysis. Used in React Three Fiber Visualization Tool.
 
 Authors: Adi Singh
 """
@@ -19,7 +20,7 @@ def get_ortho_axis_alignment_transform(gtsfm_data: GtsfmData) -> Pose3:
     the GtsfmData to the x,y,z axes.
 
     Args:
-        gtsfm_data: scene data to write to transform.
+        gtsfm_data: Scene data to write to transform.
 
     Returns:
         The final transformation required to align point cloud and frustums.
@@ -48,13 +49,13 @@ def center_point_cloud(point_cloud: np.ndarray) -> np.ndarray:
     """Centers a point cloud using mean values of x, y, and z.
 
     Args:
-        point_cloud: array of shape (N,3) representing the original point cloud.
+        point_cloud: Array of shape (N,3) representing the original point cloud.
 
     Returns:
-        points_centered: array of shape (N,3) representing the centered point cloud
+        points_centered: Array of shape (N,3) representing the centered point cloud
 
     Raises:
-        TypeError: if point_cloud is not of shape (N,3).
+        TypeError: If point_cloud is not of shape (N,3).
     """
     if point_cloud.shape[1] != 3:
         raise TypeError("Points list should be 3D")
@@ -68,17 +69,20 @@ def remove_outlier_points(point_cloud: np.ndarray) -> Tuple[np.ndarray, np.ndarr
     """Removes the top 5% of points with greatest distance from origin.
 
     Args:
-        point_cloud: point cloud of shape N x 3.
+        point_cloud: Point cloud of shape (N, 3).
 
     Returns:
-        points_filtered: filtered point cloud of shape M x 3 (M = 0.95*N)
+        points_filtered: Filtered point cloud of shape (M, 3), with (M = 0.95*N)
         inlier_mask: Boolean array, shape (N,), representing which points in point cloud are inliers.
 
     Raises:
-        TypeError: if centered point cloud is not of shape (N,3).
+        TypeError: If centered point cloud is not of shape (N,3).
     """
+    if point_cloud.ndim != 2:
+        raise ValueError(f"Point cloud must have shape (N,3) but received {point_cloud.shape}")
+
     if point_cloud.shape[1] != 3:
-        raise TypeError("Point Cloud should be 3 dimensional")
+        raise TypeError("Point cloud should be 3 dimensional")
 
     mags = np.linalg.norm(point_cloud, axis=1)
     cutoff_mag = np.percentile(mags, OUTLIER_DISTANCE_PERCENTILE)
@@ -92,13 +96,13 @@ def get_alignment_rotation_matrix_from_svd(point_cloud: np.ndarray) -> np.ndarra
     align the 3 principal axes of the ellipsoid with the x, y, z coordinate axes.
 
     Args:
-        point_cloud: point cloud of shape (N,3).
+        point_cloud: Point cloud of shape (N,3).
 
     Returns:
         The rotation matrix, shape (3,3), required to align points with the x, y, and z axes.
 
     Raises:
-        TypeError: if point cloud is not of shape (N,3).
+        TypeError: If point cloud is not of shape (N,3).
     """
     if point_cloud.shape[1] != 3:
         raise TypeError("Point Cloud should be 3 dimensional")
@@ -131,14 +135,14 @@ def get_right_singular_vectors(A: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         The singular values of the point cloud (sorted in descending order), with shape (3,)
 
     Raises:
-        TypeError: if point cloud is not of shape (N,3).
+        TypeError: If point cloud is not of shape (N,3).
     """
     N, D = A.shape
     if D != 3:
-        raise TypeError("Point Cloud should be 3 dimesional")
+        raise TypeError("Point cloud should be 3 dimensional.")
 
-    # eigenvectors of A^T*A are singular vectors of A
-    # we apply Bessel's correction when estimating the covariance matrix
+    # Eigenvectors of A^T*A are singular vectors of A
+    # We apply Bessel's correction when estimating the covariance matrix.
     # See https://en.wikipedia.org/wiki/Principal_component_analysis#Computing_PCA_using_the_covariance_method
     eigvals, eigvecs = np.linalg.eig(A.T @ A / (N - 1))
 
