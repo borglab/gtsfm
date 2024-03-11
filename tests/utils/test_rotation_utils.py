@@ -37,14 +37,13 @@ def _get_ordered_chain_pose_data() -> Tuple[RELATIVE_ROTATION_DICT, List[float]]
         Tuple of mapping from image index pair to relative rotations, and expected global rotation angles.
     """
     # Expected angles.
-    wRi_list_euler_deg_expected = np.array([0,90,0,0,90])
+    wRi_list_euler_deg_expected = np.array([0, 90, 0, 0, 90])
 
     # Ground truth 3d rotations for 5 ordered poses (0,1,2,3,4)
     wRi_list_gt = [Rot3.RzRyRx(np.deg2rad(Rz_deg), 0, 0) for Rz_deg in wRi_list_euler_deg_expected]
 
     edges = [(0, 1), (1, 2), (2, 3), (3, 4)]
     i2Ri1_dict = _create_synthetic_relative_pose_measurements(wRi_list_gt, edges=edges)
-
 
     return i2Ri1_dict, wRi_list_euler_deg_expected
 
@@ -66,7 +65,7 @@ def _get_mixed_order_chain_pose_data() -> Tuple[RELATIVE_ROTATION_DICT, List[flo
 
     """
     # Expected angles.
-    wRi_list_euler_deg_expected = np.array([0,90,90,0,0])
+    wRi_list_euler_deg_expected = np.array([0, 90, 90, 0, 0])
 
     # Ground truth 2d rotations for 5 ordered poses (0,1,2,3,4)
     wRi_list_gt = [Rot3.RzRyRx(np.deg2rad(Rz_deg), 0, 0) for Rz_deg in wRi_list_euler_deg_expected]
@@ -107,10 +106,10 @@ def _wrap_angles(angles: np.ndarray) -> np.ndarray:
     Returns:
         Array of shape (N,) representing the angles (in degrees) mapped to the interval [0, 360].
     """
-    # Reduce the angle  
-    angles =  angles % 360
+    # Reduce the angle
+    angles = angles % 360
 
-    # Force it to be the positive remainder, so that 0 <= angle < 360  
+    # Force it to be the positive remainder, so that 0 <= angle < 360
     angles = (angles + 360) % 360
     return angles
 
