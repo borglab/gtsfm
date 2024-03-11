@@ -98,7 +98,7 @@ def _create_synthetic_relative_pose_measurements(
 
 
 def _wrap_angles(angles: np.ndarray) -> np.ndarray:
-    """Map angle (in degrees) from domain [-\infty, \infty] to [0, 360).
+    r"""Map angle (in degrees) from domain [-∞, ∞] to [0, 360).
 
     Args:
         angles: Array of shape (N,) representing angles (in degrees) in any interval.
