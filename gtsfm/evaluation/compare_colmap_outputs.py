@@ -23,6 +23,7 @@ logger = logger_utils.get_logger()
 
 
 def load_poses(colmap_dirpath: str) -> Dict[str, Pose3]:
+    """Returns mapping from image filename to associated camera pose."""
     wTi_list, img_fnames, _, _, _, _ = io_utils.read_scene_data_from_colmap_format(colmap_dirpath)
 
     return dict(zip(img_fnames, wTi_list))

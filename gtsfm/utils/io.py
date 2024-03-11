@@ -201,7 +201,8 @@ def colmap2gtsfm(
     if len(images) == 0 and len(cameras) == 0:
         raise RuntimeError("No Image or Camera data provided to loader.")
     intrinsics_gtsfm, wTi_gtsfm, img_fnames, img_dims = [], [], [], []
-    image_id_to_idx = {}  # keeps track of discrepencies between `image_id` and List index.
+    image_id_to_idx = {}  # Keeps track of discrepencies between `image_id` and List index.
+    # We ignore missing IDs (unestimated cameras) and re-order without them.
     for idx, img in enumerate(images.values()):
         wTi_gtsfm.append(Pose3(Rot3(img.qvec2rotmat()), img.tvec).inverse())
         img_fnames.append(img.name)
@@ -260,7 +261,7 @@ def read_cameras_txt(
     Reference: https://colmap.github.io/format.html#cameras-txt
 
     Args:
-        fpaths: Path to cameras.txt file
+        fpaths: Path to cameras.txt file.
 
     Returns:
         Tuple of:
