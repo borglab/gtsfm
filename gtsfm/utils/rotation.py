@@ -48,19 +48,18 @@ def initialize_global_rotations_using_mst(
         # Determine the path to this node from the origin. ordered from [origin_node,...,dst_node]
         path = nx.shortest_path(G, source=origin_node, target=dst_node)
 
-        wRi = Rot3()
+        # Chain relative rotations w.r.t. origin node. Initialize as identity Rot3 w.r.t origin node `i1`.
+        wRi1 = Rot3()
         for (i1, i2) in zip(path[:-1], path[1:]):
-
             # NOTE: i1, i2 may not be in sorted order here. May need to reverse ordering.
             if i1 < i2:
                 i1Ri2 = i2Ri1_dict[(i1, i2)].inverse()
             else:
                 i1Ri2 = i2Ri1_dict[(i2, i1)]
+            # Path order is (origin -> ... -> i1 -> i2 -> ... -> dst_node). Set `i2` to be new `i1`.
+            wRi1 = wRi1 * i1Ri2
 
-            # wRi = wR0 * 0R1
-            wRi = wRi * i1Ri2
-
-        wRi_list[dst_node] = wRi
+        wRi_list[dst_node] = wRi1
 
     return wRi_list
 
