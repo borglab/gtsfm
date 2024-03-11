@@ -87,7 +87,7 @@ def _create_synthetic_relative_pose_measurements(
         edges: Edges as pairs of image indices.
 
     Returns:
-        i2Ri1_dict: Relative rotation measurements.
+        Relative rotation measurements.
     """
     i2Ri1_dict = {}
     for i1, i2 in edges:
@@ -98,30 +98,21 @@ def _create_synthetic_relative_pose_measurements(
     return i2Ri1_dict
 
 
-# def _wrap_angles(angles: np.ndarray, period: float = 180) -> np.ndarray:
-#     """Map angles (in radians) from domain [-∞, ∞] to [0, π). This function is
-#         the inverse of `np.unwrap`.
+def _wrap_angles(angles: np.ndarray) -> np.ndarray:
+    """Map angle (in degrees) from domain [-\infty, \infty] to [0, 360).
 
-#     Args:
+    Args:
+        angles: Array of shape (N,) representing angles (in degrees) in any interval.
 
-#     Returns:
-#         Angles (in radians) mapped to the interval [0, π).
-#     """
+    Returns:
+        Array of shape (N,) representing the angles (in degrees) mapped to the interval [0, 360].
+    """
+    # Reduce the angle  
+    angles =  angles % 360
 
-#     # Map angles to [0, ∞].
-#     angles = np.abs(angles)
-
-#     # Calculate floor division and remainder simultaneously.
-#     divs, mods = np.divmod(angles, period)
-
-#     # Select angles which exceed specified period.
-#     angle_complement_mask = np.nonzero(divs)
-
-#     # Take set complement of `mods` w.r.t. the set [0, π].
-#     # `mods` must be nonzero, thus the image is the interval [0, π).
-#     angles[angle_complement_mask] = period - mods[angle_complement_mask]
-#     return angles
-
+    # Force it to be the positive remainder, so that 0 <= angle < 360  
+    angles = (angles + 360) % 360
+    return angles
 
 
 class TestRotationUtil(unittest.TestCase):
@@ -140,35 +131,39 @@ class TestRotationUtil(unittest.TestCase):
             geometry_comparisons.compare_rotations(wRi_computed, wRi_expected, ROTATION_ANGLE_ERROR_THRESHOLD_DEG)
         )
 
-    # def test_greedily_construct_st_ordered_chain(self) -> None:
-    #     """Ensures that we can greedily construct a Spanning Tree for an ordered chain."""
+    def test_greedily_construct_st_ordered_chain(self) -> None:
+        """Ensures that we can greedily construct a Spanning Tree for an ordered chain."""
 
-    #     i2Ri1_dict, wRi_list_euler_deg_expected = _get_ordered_chain_pose_data()
+        i2Ri1_dict, wRi_list_euler_deg_expected = _get_ordered_chain_pose_data()
 
-    #     num_images = 5
-    #     wRi_list_computed = rotation_util.initialize_global_rotations_using_mst(
-    #         num_images,
-    #         i2Ri1_dict,
-    #         edge_weights={(i1, i2): (i1 + i2) * 100 for i1, i2 in i2Ri1_dict.keys()},
-    #     )
+        num_images = 5
+        wRi_list_computed = rotation_util.initialize_global_rotations_using_mst(
+            num_images,
+            i2Ri1_dict,
+            edge_weights={(i1, i2): (i1 + i2) * 100 for i1, i2 in i2Ri1_dict.keys()},
+        )
 
-    #     wRi_list_euler_deg_est = [np.rad2deg(wRi.roll()) for wRi in wRi_list_computed]
-    #     assert np.allclose(wRi_list_euler_deg_est, wRi_list_euler_deg_expected)
+        wRi_list_euler_deg_est = [np.rad2deg(wRi.roll()) for wRi in wRi_list_computed]
+        assert np.allclose(wRi_list_euler_deg_est, wRi_list_euler_deg_expected)
 
-    # def test_greedily_construct_st_mixed_order_chain(self) -> None:
-    #     """Ensures that we can greedily construct a Spanning Tree for an unordered chain."""
-    #     i2Ri1_dict, wRi_list_euler_deg_expected = _get_mixed_order_chain_pose_data()
+    def test_greedily_construct_st_mixed_order_chain(self) -> None:
+        """Ensures that we can greedily construct a Spanning Tree for an unordered chain."""
+        i2Ri1_dict, wRi_list_euler_deg_expected = _get_mixed_order_chain_pose_data()
 
-    #     num_images = 5
-    #     wRi_list_computed = rotation_util.initialize_global_rotations_using_mst(
-    #         num_images,
-    #         i2Ri1_dict,
-    #         edge_weights={(i1, i2): (i1 + i2) * 100 for i1, i2 in i2Ri1_dict.keys()},
-    #     )
+        num_images = 5
+        wRi_list_computed = rotation_util.initialize_global_rotations_using_mst(
+            num_images,
+            i2Ri1_dict,
+            edge_weights={(i1, i2): (i1 + i2) * 100 for i1, i2 in i2Ri1_dict.keys()},
+        )
 
-    #     wRi_list_euler_deg_est = np.array([np.rad2deg(wRi.roll()) for wRi in wRi_list_computed])
-    #     import pdb; pdb.set_trace()
-    #     assert np.allclose(wRi_list_euler_deg_est, wRi_list_euler_deg_expected)
+        wRi_list_euler_deg_est = np.array([np.rad2deg(wRi.roll()) for wRi in wRi_list_computed])
+
+        # Make sure both lists of angles start at 0 deg.
+        wRi_list_euler_deg_est -= wRi_list_euler_deg_est[0]
+        wRi_list_euler_deg_expected -= wRi_list_euler_deg_expected[0]
+
+        assert np.allclose(_wrap_angles(wRi_list_euler_deg_est), _wrap_angles(wRi_list_euler_deg_expected))
 
 
 if __name__ == "__main__":
