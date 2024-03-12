@@ -23,7 +23,7 @@ dependencies:
   - asyncssh
   - python-graphviz
   # core functionality and APIs
-  - matplotlib==3.4.2
+  - matplotlib
   - networkx
   - numpy
   - nodejs
@@ -38,6 +38,8 @@ dependencies:
   - pytorch>=1.12.0
   - torchvision>=0.13.0
   - kornia
+  - colmap=3.8
+  - pyceres
   # io
   - h5py
   - plotly=4.14.3

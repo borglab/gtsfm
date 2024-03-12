@@ -68,7 +68,7 @@ SceneOptimizer:
       edge_error_aggregation_criterion: MEDIAN_EDGE_ERROR
 
     rot_avg_module:
-      _target_: gtsfm.averaging.rotation.shonan.ShonanRotationAveraging
+      _target_: gtsfm.averaging.rotation.uncertainty_aware_rotation_averaging.UncertaintyAwareRotationAveraging
 
     trans_avg_module:
       _target_: gtsfm.averaging.translation.averaging_1dsfm.TranslationAveraging1DSFM
