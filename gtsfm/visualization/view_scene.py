@@ -69,9 +69,8 @@ def view_scene(args: argparse.Namespace) -> None:
     for i in range(len(wTi_list)):
         wTi_list[i] = zcwTw.compose(wTi_list[i])
 
-    wTi_list_gt, gt_calibrations = _load_common_gt_poses(args, img_fnames)
-
     if args.gt_olsson_dir is not None or args.gt_colmap_dir is not None:
+        wTi_list_gt, gt_calibrations = _load_common_gt_poses(args, img_fnames)
         if len(gt_calibrations) == 1:
             gt_calibrations = gt_calibrations * len(img_fnames)
 
