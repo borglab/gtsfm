@@ -21,8 +21,8 @@ def generate_relative_from_global(
     """Generate relative poses from global poses.
 
     Args:
-        wTi_list: global poses.
-        pair_indices: pairs (i1, i2) to construct relative poses for.
+        wTi_list: Global poses.
+        pair_indices: Pairs (i1, i2) to construct relative poses for.
 
     Returns:
         Dictionary (i1, i2) -> i2Ti1 for all requested pairs.
@@ -37,7 +37,7 @@ For relative poses, each pose has just 2 edges, connecting to the immediate neig
 CIRCLE_TWO_EDGES_GLOBAL_POSES = SFMdata.createPoses(Cal3_S2(fx=1, fy=1, s=0, u0=0, v0=0))[::2]
 
 CIRCLE_TWO_EDGES_RELATIVE_POSES = generate_relative_from_global(
-    CIRCLE_TWO_EDGES_GLOBAL_POSES, [(1, 0), (2, 1), (3, 2), (0, 3)]
+    CIRCLE_TWO_EDGES_GLOBAL_POSES, [(0, 1), (1, 2), (2, 3), (0, 3)]
 )
 
 """4 poses in the circle of radius 5m, all looking at the center of the circle.
