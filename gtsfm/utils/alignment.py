@@ -58,8 +58,8 @@ def align_poses_sim3_ignore_missing(
     We assume the two trajectories are of the exact same length.
 
     Args:
-        aTi_list: Reference poses in frame "a" which are the targets for alignment
-        bTi_list: Input poses which need to be aligned to frame "a"
+        aTi_list: Reference poses in frame "a" which are the targets for alignment.
+        bTi_list: Input poses which need to be aligned to frame "a".
 
     Returns:
         aTi_list_: Transformed input poses previously "bTi_list" but now which
@@ -68,16 +68,17 @@ def align_poses_sim3_ignore_missing(
     """
     assert len(aTi_list) == len(bTi_list)
 
-    # only choose target poses for which there is a corresponding estimated pose
+    # Only choose target poses for which there is a corresponding estimated pose.
     corresponding_aTi_list = []
     valid_camera_idxs = []
     valid_bTi_list = []
     for i, bTi in enumerate(bTi_list):
         aTi = aTi_list[i]
-        if aTi is not None and bTi is not None:
-            valid_camera_idxs.append(i)
-            valid_bTi_list.append(bTi)
-            corresponding_aTi_list.append(aTi)
+        if aTi is None or bTi is None:
+            continue
+        valid_camera_idxs.append(i)
+        valid_bTi_list.append(bTi)
+        corresponding_aTi_list.append(aTi)
 
     valid_aTi_list_, aSb = align_poses_sim3_robust(aTi_list=corresponding_aTi_list, bTi_list=valid_bTi_list)
 
@@ -114,17 +115,17 @@ def align_poses_sim3_exhaustive(aTi_list: List[Pose3], bTi_list: List[Pose3]) ->
         logger.error("SIM(3) alignment uses at least 2 frames; Skipping")
         return bTi_list, Similarity3(Rot3(), np.zeros((3,)), 1.0)
 
-    # Run once with all poses for initial guess
+    # Run once with all poses for initial guess.
     best_aSb = Similarity3()
     aTi_candidate_, best_aSb = align_poses_sim3(aTi_list, bTi_list)
     best_pose_auc_5deg: float = metric_utils.pose_auc_from_poses(
         computed_wTis=aTi_candidate_, ref_wTis=aTi_list, thresholds_deg=[5]
     )[0]
 
-    for i in range(n_to_align):
-        for j in range(i + 1, n_to_align):
-            aTi_sample = copy.deepcopy([aTi_list[i], aTi_list[j]])
-            bTi_sample = copy.deepcopy([bTi_list[i], bTi_list[j]])
+    for i1 in range(n_to_align):
+        for i2 in range(i1 + 1, n_to_align):
+            aTi_sample = copy.deepcopy([aTi_list[i1], aTi_list[i2]])
+            bTi_sample = copy.deepcopy([bTi_list[i1], bTi_list[i2]])
 
             _, aSb_candidate = align_poses_sim3(aTi_sample, bTi_sample)
 
@@ -265,7 +266,6 @@ def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> Tuple[List
     ab_pairs = Pose3Pairs(valid_pose_tuples)
 
     aSb = Similarity3.Align(ab_pairs)
-
     if np.isnan(aSb.scale()) or aSb.scale() == 0:
         logger.warning("GTSAM Sim3.Align failed. Aligning ourselves")
         # we have run into a case where points have no translation between them (i.e. panorama).
