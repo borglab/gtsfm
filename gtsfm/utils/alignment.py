@@ -58,11 +58,11 @@ def align_poses_sim3_ignore_missing(
     We assume the two trajectories are of the exact same length.
 
     Args:
-        aTi_list: reference poses in frame "a" which are the targets for alignment
-        bTi_list: input poses which need to be aligned to frame "a"
+        aTi_list: Reference poses in frame "a" which are the targets for alignment
+        bTi_list: Input poses which need to be aligned to frame "a"
 
     Returns:
-        aTi_list_: transformed input poses previously "bTi_list" but now which
+        aTi_list_: Transformed input poses previously "bTi_list" but now which
             have the same origin and scale as reference (now living in "a" frame)
         aSb: Similarity(3) object that aligns the two pose graphs.
     """
@@ -100,11 +100,11 @@ def align_poses_sim3_exhaustive(aTi_list: List[Pose3], bTi_list: List[Pose3]) ->
     We assume the two trajectories are of the exact same length.
 
     Args:
-        aTi_list: reference poses in frame "a" which are the targets for alignment
-        bTi_list: input poses which need to be aligned to frame "a"
+        aTi_list: Reference poses in frame "a" which are the targets for alignment.
+        bTi_list: Input poses which need to be aligned to frame "a".
 
     Returns:
-        aTi_list_: transformed input poses previously "bTi_list" but now which
+        aTi_list_: Transformed input poses previously "bTi_list" but now which
             have the same origin and scale as reference (now living in "a" frame)
         aSb: Similarity(3) object that aligns the two pose graphs.
     """
@@ -172,7 +172,7 @@ def align_poses_sim3_robust(
         max_num_hypothesis: max number of RANSAC iterations.
 
     Returns:
-        aTi_list_: transformed input poses previously "bTi_list" but now which
+        aTi_list_: Transformed input poses previously "bTi_list" but now which
             have the same origin and scale as reference (now living in "a" frame).
         aSb: Similarity(3) object that aligns the two pose graphs.
     """
@@ -242,11 +242,11 @@ def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> Tuple[List
     We assume the two trajectories are of the exact same length.
 
     Args:
-        aTi_list: reference poses in frame "a" which are the targets for alignment
-        bTi_list: input poses which need to be aligned to frame "a"
+        aTi_list: Reference poses in frame "a" which are the targets for alignment
+        bTi_list: Input poses which need to be aligned to frame "a"
 
     Returns:
-        aTi_list_: transformed input poses previously "bTi_list" but now which
+        aTi_list_: Transformed input poses previously "bTi_list" but now which
             have the same origin and scale as reference (now living in "a" frame)
         aSb: Similarity(3) object that aligns the two pose graphs.
     """
@@ -305,7 +305,7 @@ def align_gtsfm_data_via_Sim3_to_poses(input_data: GtsfmData, wTi_list_ref: List
     """Align GtsfmData (points and cameras) to a set of reference poses.
 
     Args:
-        wTi_list_ref: list of reference/target camera poses, ordered by camera index.
+        wTi_list_ref: List of reference/target camera poses, ordered by camera index.
 
     Returns:
         aligned_data: GtsfmData that is aligned to the poses above.
