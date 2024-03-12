@@ -18,6 +18,7 @@ from typing import Dict, List, Optional, Tuple
 import dask
 import numpy as np
 from dask.delayed import Delayed
+from distributed.worker import get_client
 from gtsam import SfmTrack
 
 import gtsfm.common.types as gtsfm_types
@@ -239,7 +240,9 @@ class DataAssociation(GTSFMProcess):
             return batch_results
 
         # Initialize 3D landmark for each track.
+        client = get_client()
         point3d_initializer = Point3dInitializer(cameras, self.triangulation_options)
+        future_point3d_initializer = client.scatter(point3d_initializer, broadcast=True)
 
         # Loop through tracks and and generate delayed triangulation tasks.
         batch_size = int(np.ceil(len(tracks_2d) / MAX_DELAYED_TRIANGULATION_CALLS))
@@ -250,7 +253,7 @@ class DataAssociation(GTSFMProcess):
         else:
             for j in range(0, len(tracks_2d), batch_size):
                 triangulation_results.append(
-                    dask.delayed(triangulate_batch)(point3d_initializer, tracks_2d[j : j + batch_size])
+                    dask.delayed(triangulate_batch)(future_point3d_initializer, tracks_2d[j : j + batch_size])
                 )
 
         # Perform triangulation in parallel.
