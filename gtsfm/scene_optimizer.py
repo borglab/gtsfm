@@ -65,7 +65,7 @@ class SceneOptimizer:
     def __init__(
         self,
         image_pairs_generator: ImagePairsGenerator,
-        correspondence_generator: CorrespondenceGeneratorBase,
+        correspondence_generators: List[CorrespondenceGeneratorBase],
         two_view_estimator: TwoViewEstimator,
         multiview_optimizer: MultiViewOptimizer,
         dense_multiview_optimizer: Optional[MVSBase] = None,
@@ -77,7 +77,7 @@ class SceneOptimizer:
         output_worker: Optional[str] = None,
     ) -> None:
         self.image_pairs_generator = image_pairs_generator
-        self.correspondence_generator = correspondence_generator
+        self.correspondence_generators = correspondence_generators
         self.two_view_estimator = two_view_estimator
         self.multiview_optimizer = multiview_optimizer
         self.dense_multiview_optimizer = dense_multiview_optimizer
@@ -96,7 +96,7 @@ class SceneOptimizer:
         """Returns string representation of class."""
         return f"""
         {self.image_pairs_generator}
-        {self.correspondence_generator}
+        {self.correspondence_generators}
         {self.two_view_estimator}
         {self.multiview_optimizer}
         DenseMultiviewOptimizer: {self.dense_multiview_optimizer}
