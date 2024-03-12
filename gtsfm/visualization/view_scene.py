@@ -105,7 +105,7 @@ def _load_common_gt_poses(args: argparse.Namespace, img_fnames: List[str]) -> Tu
        img_fnames: Filenames for images reconstructed in provided scene (not the GT). GT may include
           additional images, and we want to keep 1:1 to be able to align later, so may need to prune away some
           of GT poses.
-    
+
     Returns:
         Ground truth poses and calibrations.
     """
@@ -118,7 +118,9 @@ def _load_common_gt_poses(args: argparse.Namespace, img_fnames: List[str]) -> Tu
     if args.gt_colmap_dir is not None:
         # Plot both scene data, and GT data, in same coordinate frame.
         # Read in GT data.
-        wTi_list_gt, gt_img_fnames, gt_calibrations, _, _, _ = io_utils.read_scene_data_from_colmap_format(args.gt_colmap_dir)
+        wTi_list_gt, gt_img_fnames, gt_calibrations, _, _, _ = io_utils.read_scene_data_from_colmap_format(
+            args.gt_colmap_dir
+        )
 
         gt_pose_dict = dict(zip(gt_img_fnames, wTi_list_gt))
         common_fnames = set(img_fnames) & set(gt_img_fnames)
