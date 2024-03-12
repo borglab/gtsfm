@@ -8,41 +8,41 @@ now=$(date +"%Y%m%d_%H%M%S")
 
 datasets=(
         # Tanks and Temples Dataset.
-	barn-tanks-and-temples-410
+	# barn-tanks-and-temples-410
 	# Olsson Datasets.
 	# See https://www.maths.lth.se/matematiklth/personal/calle/dataset/dataset.html
-	ecole-superieure-de-guerre-35
-	fort-channing-gate-singapore-27
-	skansen-kronan-gothenburg-131
-	nijo-castle-gate-19
-	kings-college-cambridge-328
-	spilled-blood-cathedral-st-petersburg-781
-	palace-fine-arts-281
-	# 1dsfm Datasets
-	gendarmenmarkt-1463
-	# Other.
-	skydio-crane-mast-501
-	# Astrovision Datasets.
-	2011205_rc3
-	# Colmap Datasets.
-	south-building-128
+	# ecole-superieure-de-guerre-35
+	# fort-channing-gate-singapore-27
+	# skansen-kronan-gothenburg-131
+	# nijo-castle-gate-19
+	# kings-college-cambridge-328
+	# spilled-blood-cathedral-st-petersburg-781
+	# palace-fine-arts-281
+	# # 1dsfm Datasets
+	# gendarmenmarkt-1463
+	# # Other.
+	# skydio-crane-mast-501
+	# # Astrovision Datasets.
+	# 2011205_rc3
+	# # Colmap Datasets.
+	# south-building-128
 	gerrard-hall-100
 	)
 
 max_frame_lookahead_sizes=(
-	0
-	5
+	#0
+	#5
 	10
-	15
+	#15
 	)
 
 num_matched_sizes=(
-	0
+	#0
 	5
-	10
-	15
-	20
-	25
+	#10
+	#15
+	#20
+	#25
 	)
 
 correspondence_generator_config_names=(
@@ -79,7 +79,7 @@ for num_matched in ${num_matched_sizes[@]}; do
 				
 				if [[ $correspondence_generator_config_name == *"sift"* ]]
 				then
-					num_workers=10
+					num_workers=1
 				elif [[ $correspondence_generator_config_name == *"lightglue"* ]]
 				then
 					num_workers=1
