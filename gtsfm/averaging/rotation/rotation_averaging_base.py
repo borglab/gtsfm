@@ -8,6 +8,7 @@ import time
 from typing import Dict, List, Optional, Tuple
 
 import dask
+import numpy as np
 from dask.delayed import Delayed
 from gtsam import Pose3, Rot3
 
@@ -42,6 +43,7 @@ class RotationAveragingBase(GTSFMProcess):
         num_images: int,
         i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]],
         i1Ti2_priors: Dict[Tuple[int, int], PosePrior],
+        corr_idxs: Dict[Tuple[int, int], np.ndarray],
     ) -> List[Optional[Rot3]]:
         """Run the rotation averaging.
 
@@ -62,6 +64,7 @@ class RotationAveragingBase(GTSFMProcess):
         i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]],
         i1Ti2_priors: Dict[Tuple[int, int], PosePrior],
         wTi_gt: List[Optional[Pose3]],
+        corr_idxs: Dict[Tuple[int, int], np.ndarray],
     ) -> Tuple[List[Optional[Rot3]], GtsfmMetricsGroup]:
         """Runs rotation averaging and computes metrics.
 
@@ -78,7 +81,7 @@ class RotationAveragingBase(GTSFMProcess):
             Metrics on global rotations.
         """
         start_time = time.time()
-        wRis = self.run_rotation_averaging(num_images, i2Ri1_dict, i1Ti2_priors)
+        wRis = self.run_rotation_averaging(num_images, i2Ri1_dict, i1Ti2_priors, corr_idxs)
         run_time = time.time() - start_time
 
         metrics = self.evaluate(wRis, wTi_gt)
@@ -117,6 +120,7 @@ class RotationAveragingBase(GTSFMProcess):
         i2Ri1_graph: Delayed,
         i1Ti2_priors: Dict[Tuple[int, int], PosePrior],
         gt_wTi_list: List[Optional[Pose3]],
+        corr_idxs: Dict[Tuple[int, int], np.ndarray],
     ) -> Tuple[Delayed, Delayed]:
         """Create the computation graph for performing rotation averaging.
 
@@ -131,7 +135,7 @@ class RotationAveragingBase(GTSFMProcess):
         """
 
         wRis, metrics = dask.delayed(self._run_rotation_averaging_base, nout=2)(
-            num_images, i2Ri1_dict=i2Ri1_graph, i1Ti2_priors=i1Ti2_priors, wTi_gt=gt_wTi_list
+            num_images, i2Ri1_graph, i1Ti2_priors, gt_wTi_list, corr_idxs 
         )
 
         return wRis, metrics
