@@ -30,8 +30,8 @@ import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.rotation as rotation_util
 from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
 from gtsfm.common.pose_prior import PosePrior
-from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 
+ROT3_DOF = 3
 POSE3_DOF = 6
 
 logger = logger_utils.get_logger()
@@ -62,24 +62,40 @@ class ShonanRotationAveraging(RotationAveragingBase):
         shonan_params.setCertifyOptimality(True)
         return shonan_params
 
+    # def __between_factors_from_2view_relative_rotations(
+    #     self, i2Ri1_dict: Dict[Tuple[int, int], Rot3], old_to_new_idxs: Dict[int, int]
+    # ) -> BetweenFactorPose3s:
+    #     """Create between factors from relative rotations computed by the 2-view estimator."""
+    #     # TODO: how to weight the noise model on relative rotations compared to priors?
+    #     noise_model = gtsam.noiseModel.Isotropic.Sigma(POSE3_DOF, self._two_view_rotation_sigma)
+
+    #     between_factors = BetweenFactorPose3s()
+
+    #     for (i1, i2), i2Ri1 in i2Ri1_dict.items():
+    #         if i2Ri1 is not None:
+    #             # ignore translation during rotation averaging
+    #             i2Ti1 = Pose3(i2Ri1, np.zeros(3))
+    #             i2_ = old_to_new_idxs[i2]
+    #             i1_ = old_to_new_idxs[i1]
+    #             between_factors.append(BetweenFactorPose3(i2_, i1_, i2Ti1, noise_model))
+
+    #     return between_factors
+
     def __between_factors_from_2view_relative_rotations(
-        self, i2Ri1_dict: Dict[Tuple[int, int], Rot3], old_to_new_idxs: Dict[int, int]
-    ) -> BetweenFactorPose3s:
+        self,
+        i2Ri1_dict: Dict[Tuple[int, int], Rot3],
+        num_correspondences_dict: Dict[Tuple[int, int], int],
+    ) -> gtsam.BinaryMeasurementsRot3:
         """Create between factors from relative rotations computed by the 2-view estimator."""
         # TODO: how to weight the noise model on relative rotations compared to priors?
-        noise_model = gtsam.noiseModel.Isotropic.Sigma(POSE3_DOF, self._two_view_rotation_sigma)
-
-        between_factors = BetweenFactorPose3s()
-
+        measurements = gtsam.BinaryMeasurementsRot3()
         for (i1, i2), i2Ri1 in i2Ri1_dict.items():
-            if i2Ri1 is not None:
+            if i2Ri1 is not None and num_correspondences_dict[(i1, i2)] > 0:
                 # ignore translation during rotation averaging
-                i2Ti1 = Pose3(i2Ri1, np.zeros(3))
-                i2_ = old_to_new_idxs[i2]
-                i1_ = old_to_new_idxs[i1]
-                between_factors.append(BetweenFactorPose3(i2_, i1_, i2Ti1, noise_model))
+                noise_model = gtsam.noiseModel.Isotropic.Sigma(ROT3_DOF, 1 / num_correspondences_dict[(i1, i2)])
+                measurements.append(gtsam.BinaryMeasurementRot3(i2, i1, i2Ri1, noise_model))
 
-        return between_factors
+        return measurements
 
     def _between_factors_from_pose_priors(
         self, i1Ti2_priors: Dict[Tuple[int, int], PosePrior], old_to_new_idxs: Dict[int, int]
@@ -104,7 +120,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         return between_factors
 
     def _run_with_consecutive_ordering(
-        self, num_connected_nodes: int, between_factors: BetweenFactorPose3s, initial: Optional[Values]
+        self, num_connected_nodes: int, measurements: gtsam.BinaryMeasurementsRot3, initial: Optional[Values]
     ) -> List[Optional[Rot3]]:
         """Run the rotation averaging on a connected graph w/ N keys ordered consecutively [0,...,N-1].
 
@@ -125,10 +141,10 @@ class ShonanRotationAveraging(RotationAveragingBase):
 
         logger.info(
             "Running Shonan with %d constraints on %d nodes",
-            len(between_factors),
+            len(measurements),
             num_connected_nodes,
         )
-        shonan = ShonanAveraging3(between_factors, self.__get_shonan_params())
+        shonan = ShonanAveraging3(measurements, self.__get_shonan_params())
 
         if initial is None:
             initial = shonan.initializeRandomly()
@@ -189,31 +205,35 @@ class ShonanRotationAveraging(RotationAveragingBase):
             return wRi_list
 
         nodes_with_edges = sorted(list(self._nodes_with_edges(i2Ri1_dict, i1Ti2_priors)))
-        old_to_new_idxes = {old_idx: i for i, old_idx in enumerate(nodes_with_edges)}
+        old_to_new_idxs = {old_idx: i for i, old_idx in enumerate(nodes_with_edges)}
 
-        i2Ri1_dict_ = {(old_to_new_idxes[i1], old_to_new_idxes[i2]): i2Ri1 for (i1, i2), i2Ri1 in i2Ri1_dict.items()}
+        i2Ri1_dict_remapped = {(old_to_new_idxs[i1], old_to_new_idxs[i2]): i2Ri1 for (i1, i2), i2Ri1 in i2Ri1_dict.items()}
         num_correspondences_dict: Dict[Tuple[int, int], int] = {
-            (old_to_new_idxes[i1], old_to_new_idxes[i2]): len(v_corr_idxs[(i1, i2)])
+            (old_to_new_idxs[i1], old_to_new_idxs[i2]): len(v_corr_idxs[(i1, i2)])
             for (i1, i2) in v_corr_idxs.keys()
             if (i1, i2) in i2Ri1_dict
         }
         # Use negative of the number of correspondences as the edge weight.
         wRi_initial_ = rotation_util.initialize_global_rotations_using_mst(
             len(nodes_with_edges),
-            i2Ri1_dict_,
-            edge_weights={(i1, i2): -num_correspondences_dict.get((i1, i2), 0) for i1, i2 in i2Ri1_dict_.keys()},
+            i2Ri1_dict_remapped,
+            edge_weights={(i1, i2): -num_correspondences_dict.get((i1, i2), 0) for i1, i2 in i2Ri1_dict_remapped.keys()},
         )
         initial_values = Values()
         for i, wRi_initial_ in enumerate(wRi_initial_):
             initial_values.insert(i, wRi_initial_)
 
-        between_factors: BetweenFactorPose3s = self.__between_factors_from_2view_relative_rotations(
-            i2Ri1_dict, old_to_new_idxes
+        measurements: gtsam.BinaryMeasurementsRot3 = self.__between_factors_from_2view_relative_rotations(
+            i2Ri1_dict=i2Ri1_dict_remapped, num_correspondences_dict=num_correspondences_dict
         )
-        between_factors.extend(self._between_factors_from_pose_priors(i1Ti2_priors, old_to_new_idxes))
+
+        # between_factors: BetweenFactorPose3s = self.__between_factors_from_2view_relative_rotations(
+        #     i2Ri1_dict, old_to_new_idxes
+        # )
+        # between_factors.extend(self._between_factors_from_pose_priors(i1Ti2_priors, old_to_new_idxes))
 
         wRi_list_subset = self._run_with_consecutive_ordering(
-            num_connected_nodes=len(nodes_with_edges), between_factors=between_factors, initial=initial_values
+            num_connected_nodes=len(nodes_with_edges), measurements=measurements, initial=initial_values
         )
 
         wRi_list = [None] * num_images
