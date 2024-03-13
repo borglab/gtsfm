@@ -65,7 +65,7 @@ SceneOptimizer:
     # comment out to not run
     view_graph_estimator:
       _target_: gtsfm.view_graph_estimator.cycle_consistent_rotation_estimator.CycleConsistentRotationViewGraphEstimator
-      edge_error_aggregation_criterion: MEDIAN_EDGE_ERROR
+      edge_error_aggregation_criterion: MIN_EDGE_ERROR
 
     rot_avg_module:
       _target_: gtsfm.averaging.rotation.shonan.ShonanRotationAveraging
