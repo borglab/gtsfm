@@ -163,7 +163,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         num_images: int,
         i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]],
         i1Ti2_priors: Dict[Tuple[int, int], PosePrior],
-        two_view_estimation_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
+        v_corr_idxs: Dict[Tuple[int, int], np.ndarray],
     ) -> List[Optional[Rot3]]:
         """Run the rotation averaging on a connected graph with arbitrary keys, where each key is a image/pose index.
 
@@ -175,7 +175,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
             num_images: Number of images. Since we have one pose per image, it is also the number of poses.
             i2Ri1_dict: Relative rotations for each image pair-edge as dictionary (i1, i2): i2Ri1.
             i1Ti2_priors: Priors on relative poses.
-            two_view_estimation_reports: information related to 2-view pose estimation and correspondence verification.
+            v_corr_idxs: Dict mapping image pair indices (i1, i2) to indices of verified correspondences.
 
         Returns:
             Global rotations for each camera pose, i.e. wRi, as a list. The number of entries in the list is
@@ -192,12 +192,11 @@ class ShonanRotationAveraging(RotationAveragingBase):
         old_to_new_idxes = {old_idx: i for i, old_idx in enumerate(nodes_with_edges)}
 
         i2Ri1_dict_ = {
-            (old_to_new_idxes[edge[0]], old_to_new_idxes[edge[1]]): i2Ri1 for edge, i2Ri1 in i2Ri1_dict.items()
+            (old_to_new_idxes[i1], old_to_new_idxes[i2]): i2Ri1 for (i1,i2), i2Ri1 in i2Ri1_dict.items()
         }
         num_correspondences_dict: Dict[Tuple[int, int], int] = {
-            (old_to_new_idxes[edge[0]], old_to_new_idxes[edge[1]]): int(report.num_inliers_est_model)
-            for edge, report in two_view_estimation_reports.items()
-            if edge in i2Ri1_dict
+            (old_to_new_idxes[i1], old_to_new_idxes[i2]): len(v_corr_idxs[(i1, i2)])
+            for (i1,i2) in v_corr_idxs.keys() if (i1,i2) in i2Ri1_dict
         }
         # Use negative of the number of correspondences as the edge weight.
         wRi_initial_ = rotation_util.initialize_global_rotations_using_mst(
