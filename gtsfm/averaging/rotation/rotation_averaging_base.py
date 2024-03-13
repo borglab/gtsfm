@@ -8,13 +8,13 @@ import time
 from typing import Dict, List, Optional, Tuple
 
 import dask
+import numpy as np
 from dask.delayed import Delayed
 from gtsam import Pose3, Rot3
 
 import gtsfm.utils.alignment as alignment_utils
 import gtsfm.utils.metrics as metric_utils
 from gtsfm.common.pose_prior import PosePrior
-from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
