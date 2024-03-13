@@ -191,12 +191,11 @@ class ShonanRotationAveraging(RotationAveragingBase):
         nodes_with_edges = sorted(list(self._nodes_with_edges(i2Ri1_dict, i1Ti2_priors)))
         old_to_new_idxes = {old_idx: i for i, old_idx in enumerate(nodes_with_edges)}
 
-        i2Ri1_dict_ = {
-            (old_to_new_idxes[i1], old_to_new_idxes[i2]): i2Ri1 for (i1,i2), i2Ri1 in i2Ri1_dict.items()
-        }
+        i2Ri1_dict_ = {(old_to_new_idxes[i1], old_to_new_idxes[i2]): i2Ri1 for (i1, i2), i2Ri1 in i2Ri1_dict.items()}
         num_correspondences_dict: Dict[Tuple[int, int], int] = {
             (old_to_new_idxes[i1], old_to_new_idxes[i2]): len(v_corr_idxs[(i1, i2)])
-            for (i1,i2) in v_corr_idxs.keys() if (i1,i2) in i2Ri1_dict
+            for (i1, i2) in v_corr_idxs.keys()
+            if (i1, i2) in i2Ri1_dict
         }
         # Use negative of the number of correspondences as the edge weight.
         wRi_initial_ = rotation_util.initialize_global_rotations_using_mst(
