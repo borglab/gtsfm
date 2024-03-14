@@ -10,6 +10,7 @@ References:
 
 Authors: Jing Wu, Ayush Baid, Akshay Krishnan
 """
+
 import time
 import timeit
 from collections import defaultdict
@@ -35,7 +36,7 @@ from gtsam import (
 )
 
 import gtsfm.common.types as gtsfm_types
-import gtsfm.utils.geometry_comparisons as comp_utils
+import gtsfm.utils.alignment as alignment_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.sampling as sampling_utils
@@ -491,7 +492,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         i2Ti1_priors: Dict[Tuple[int, int], PosePrior] = {},
         scale_factor: float = 1.0,
         gt_wTi_list: List[Optional[Pose3]] = [],
-    ) -> Tuple[List[Optional[Pose3]], Optional[GtsfmMetricsGroup]]:
+    ) -> Tuple[List[Optional[Pose3]], Optional[GtsfmMetricsGroup], Optional[List[Tuple[int, int]]]]:
         """Run the translation averaging.
 
         Args:
@@ -508,6 +509,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 may contain `None` where the global translations could not be computed (either underconstrained system
                 or ill-constrained system).
             A GtsfmMetricsGroup of 1DSfM metrics.
+            List of camera pair indices that are classified as inliers by 1dsfm.
         """
         logger.info("Running translation averaging on %d unit translations", len(i2Ui1_dict))
 
@@ -565,7 +567,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         ta_metrics.add_metric(GtsfmMetric("outlier_rejection_duration_sec", inlier_computation_time))
         ta_metrics.add_metric(GtsfmMetric("optimization_duration_sec", averaging_time))
 
-        return wTi_list, ta_metrics
+        return wTi_list, ta_metrics, list(w_i2Ui1_dict_inliers.keys())
 
 
 def compute_metrics(
@@ -625,7 +627,7 @@ def compute_metrics(
             wTi_list.append(None)
         else:
             wTi_list.append(Pose3(wRi, wti))
-    wTi_aligned_list, _ = comp_utils.align_poses_sim3_ignore_missing(gt_wTi_list, wTi_list)
+    wTi_aligned_list, _ = alignment_utils.align_poses_sim3_ignore_missing(gt_wTi_list, wTi_list)
     wti_aligned_list = [wTi.translation() if wTi is not None else None for wTi in wTi_aligned_list]
     gt_wti_list = [gt_wTi.translation() if gt_wTi is not None else None for gt_wTi in gt_wTi_list]
 

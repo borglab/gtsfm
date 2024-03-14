@@ -2,6 +2,7 @@
 
 Authors: Ayush Baid, John Lambert
 """
+
 import logging
 import os
 import shutil
@@ -14,23 +15,24 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import Pose3, Similarity3, Rot3, Unit3
+from gtsam import Pose3, Rot3, Similarity3, Unit3
 from trimesh import Trimesh
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.two_view_estimator as two_view_estimator
+import gtsfm.utils.alignment as alignment_utils
 import gtsfm.utils.ellipsoid as ellipsoid_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.viz as viz_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
-from gtsfm.retriever.image_pairs_generator import ImagePairsGenerator
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.densify.mvs_base import MVSBase
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
+from gtsfm.retriever.image_pairs_generator import ImagePairsGenerator
 from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.two_view_estimator import (
     POST_ISP_REPORT_TAG,
@@ -297,8 +299,8 @@ def align_estimated_gtsfm_data(
         Updated ba_output GtsfmData object aligned to axes.
         Updated gt_pose_graph with GT poses aligned to axes.
     """
-    ba_input = ba_input.align_via_Sim3_to_poses(gt_wTi_list)
-    ba_output = ba_output.align_via_Sim3_to_poses(gt_wTi_list)
+    ba_input = alignment_utils.align_gtsfm_data_via_Sim3_to_poses(ba_input, gt_wTi_list)
+    ba_output = alignment_utils.align_gtsfm_data_via_Sim3_to_poses(ba_output, gt_wTi_list)
 
     walignedTw = ellipsoid_utils.get_ortho_axis_alignment_transform(ba_output)
     walignedSw = Similarity3(R=walignedTw.rotation(), t=walignedTw.translation(), s=1.0)

@@ -2,6 +2,7 @@
 
 Authors: Ayush Baid, John Lambert
 """
+
 from typing import Dict, List, Optional, Tuple
 
 import dask
@@ -13,6 +14,7 @@ from gtsam import Pose3, Rot3, Unit3
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.graph as graph_utils
+import gtsfm.utils.alignment as alignment_utils
 from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
 from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
 from gtsfm.bundle.global_ba import GlobalBundleAdjustment
@@ -128,7 +130,7 @@ class MultiViewOptimizer:
         )
         tracks2d_graph = dask.delayed(get_2d_tracks)(viewgraph_v_corr_idxs_graph, keypoints_list)
 
-        wTi_graph, ta_metrics = self.trans_avg_module.create_computation_graph(
+        wTi_graph, ta_metrics, ta_inlier_idx_i1_i2 = self.trans_avg_module.create_computation_graph(
             num_images,
             pruned_i2Ui1_graph,
             delayed_wRi,
@@ -138,13 +140,16 @@ class MultiViewOptimizer:
             relative_pose_priors,
             gt_wTi_list=gt_wTi_list,
         )
+        ta_v_corr_idxs_graph = dask.delayed(filter_corr_by_idx)(viewgraph_v_corr_idxs_graph, ta_inlier_idx_i1_i2)
+        ta_inlier_tracks_2d_graph = dask.delayed(get_2d_tracks)(ta_v_corr_idxs_graph, keypoints_list)
+        # TODO(akshay-krishnan): update pose priors also with the same inlier indices, right now these are unused.
 
         init_cameras_graph = dask.delayed(init_cameras)(wTi_graph, all_intrinsics)
 
         ba_input_graph, data_assoc_metrics_graph = self.data_association_module.create_computation_graph(
             num_images,
             init_cameras_graph,
-            tracks2d_graph,
+            ta_inlier_tracks_2d_graph,
             cameras_gt,
             relative_pose_priors,
             images,
@@ -162,7 +167,7 @@ class MultiViewOptimizer:
         ]
 
         # Align the sparse multi-view estimate before BA to the ground truth pose graph.
-        ba_input_graph = dask.delayed(ba_input_graph.align_via_Sim3_to_poses)(gt_wTi_list)
+        ba_input_graph = dask.delayed(alignment_utils.align_gtsfm_data_via_Sim3_to_poses)(ba_input_graph, gt_wTi_list)
 
         return ba_input_graph, ba_result_graph, viewgraph_two_view_reports_graph, multiview_optimizer_metrics_graph
 
@@ -196,3 +201,16 @@ def get_2d_tracks(
 ) -> List[SfmTrack2d]:
     tracks_estimator = CppDsfTracksEstimator()
     return tracks_estimator.run(corr_idxs_dict, keypoints_list)
+
+
+def filter_corr_by_idx(correspondences: Dict[Tuple[int, int], np.ndarray], idxs: List[Tuple[int, int]]):
+    """Filter correspondences by indices.
+
+    Args:
+        correspondences: Correspondences as a dictionary.
+        idxs: Indices to filter by.
+
+    Returns:
+        Filtered correspondences.
+    """
+    return {k: v for k, v in correspondences.items() if k in idxs}

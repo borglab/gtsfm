@@ -126,7 +126,6 @@ def create_all_frustums_open3d(
             # color is in range [0,1]
             color = tuple(colormap[i].tolist())
             colors = [color for i in range(len(lines))]
-
             line_set = open3d.geometry.LineSet(
                 points=open3d.utility.Vector3dVector(verts_worldfr),
                 lines=open3d.utility.Vector2iVector(lines),
@@ -229,10 +228,9 @@ def draw_scene_with_gt_open3d(
     """
     frustums = create_all_frustums_open3d(wTi_list, calibrations, args.frustum_ray_len, color_names=("red", "green"))
     gt_frustums = create_all_frustums_open3d(
-        wTi_list, calibrations, args.frustum_ray_len, color_names=("blue", "purple")
+        gt_wTi_list, gt_calibrations, args.frustum_ray_len, color_names=("blue", "purple")
     )
 
-    # spheres = create_colored_spheres_open3d(point_cloud, rgb, args.sphere_radius)
     pcd = create_colored_point_cloud_open3d(point_cloud, rgb)
     geometries = frustums + gt_frustums + [pcd]  # + spheres
 
