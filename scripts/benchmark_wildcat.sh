@@ -119,7 +119,6 @@ for num_matched in ${num_matched_sizes[@]}; do
                 then
                     # loader=olsson
                     # dataset_root=/usr/local/gtsfm-data/palace-fine-arts-281
-
                     loader=colmap
                     colmap_files_dirpath=/usr/local/gtsfm-data/palace_colmap_gt_2023_11_22
                     images_dir=/usr/local/gtsfm-data/palace-fine-arts-281/images
@@ -128,7 +127,6 @@ for num_matched in ${num_matched_sizes[@]}; do
                 then
                     # loader=olsson
                     # dataset_root=/usr/local/gtsfm-data/ecole-superieure-de-guerre-35
-
                     loader=colmap
                     colmap_files_dirpath=/usr/local/gtsfm-data/ecole_superieure_colmap_gt_2023_11_22/txt_gt
                     images_dir=/usr/local/gtsfm-data/ecole-superieure-de-guerre-35/images
@@ -142,7 +140,6 @@ for num_matched in ${num_matched_sizes[@]}; do
                 then
                     # loader=olsson
                     # dataset_root=/usr/local/gtsfm-data/skansen-kronan-gothenburg-131
-
                     loader=colmap
                     colmap_files_dirpath=/usr/local/gtsfm-data/skansen_colmap_gt_2023_11_22
                     images_dir=/usr/local/gtsfm-data/skansen-kronan-gothenburg-131/images
@@ -156,15 +153,17 @@ for num_matched in ${num_matched_sizes[@]}; do
                 then
                     # loader=olsson
                     # dataset_root=/usr/local/gtsfm-data/kings-college-cambridge-328
-
                     loader=colmap
                     colmap_files_dirpath=/usr/local/gtsfm-data/kings_college_colmap_gt_2023_11_22
                     images_dir=/usr/local/gtsfm-data/kings-college-cambridge-328/images
 
                 elif [[ $dataset == *"spilled-blood-cathedral-st-petersburg-781"* ]]
                 then
-                    loader=olsson
-                    dataset_root=/usr/local/gtsfm-data/spilled-blood-cathedral-st-petersburg-781
+                    # loader=olsson
+                    # dataset_root=/usr/local/gtsfm-data/spilled-blood-cathedral-st-petersburg-781
+                    loader=colmap
+                    colmap_files_dirpath=/usr/local/gtsfm-data/colmap-spilled-blood-gt
+                    images_dir=/usr/local/gtsfm-data/spilled-blood-cathedral-st-petersburg-781/images
 
                 elif [[ $dataset == *"skydio-crane-mast-501"* ]]
                 then
@@ -201,7 +200,6 @@ for num_matched in ${num_matched_sizes[@]}; do
                     --mvs_off \
                     --config unified \
                     --correspondence_generator_config_name $correspondence_generator_config_name \
-                    --share_intrinsics \
                     --dataset_root $dataset_root \
                     --num_workers $num_workers \
                     --num_matched $num_matched \
@@ -217,7 +215,6 @@ for num_matched in ${num_matched_sizes[@]}; do
                     --mvs_off \
                     --config unified \
                     --correspondence_generator_config_name $correspondence_generator_config_name \
-                    --share_intrinsics \
                     --images_dir $images_dir \
                     --colmap_files_dirpath $colmap_files_dirpath \
                     --num_workers $num_workers \
@@ -234,7 +231,6 @@ for num_matched in ${num_matched_sizes[@]}; do
                     --mvs_off \
                     --config unified \
                     --correspondence_generator_config_name $correspondence_generator_config_name \
-                    --share_intrinsics \
                     --data_dir $data_dir \
                     --num_workers $num_workers \
                     --num_matched $num_matched \
