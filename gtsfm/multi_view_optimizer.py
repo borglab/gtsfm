@@ -63,7 +63,7 @@ class MultiViewOptimizer:
         all_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
         absolute_pose_priors: List[Optional[PosePrior]],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
-        two_view_reports_dict: Optional[Dict[Tuple[int, int], TwoViewEstimationReport]],
+        two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
         cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
         gt_wTi_list: List[Optional[Pose3]],
         output_root: Optional[Path] = None,
@@ -126,7 +126,11 @@ class MultiViewOptimizer:
             viewgraph_i2Ri1_graph, viewgraph_i2Ui1_graph, relative_pose_priors
         )
         delayed_wRi, rot_avg_metrics = self.rot_avg_module.create_computation_graph(
-            num_images, pruned_i2Ri1_graph, i1Ti2_priors=relative_pose_priors, gt_wTi_list=gt_wTi_list
+            num_images,
+            pruned_i2Ri1_graph,
+            i1Ti2_priors=relative_pose_priors,
+            gt_wTi_list=gt_wTi_list,
+            v_corr_idxs=viewgraph_v_corr_idxs_graph,
         )
         tracks2d_graph = dask.delayed(get_2d_tracks)(viewgraph_v_corr_idxs_graph, keypoints_list)
 
