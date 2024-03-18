@@ -49,6 +49,7 @@ class TestTwoViewEstimatorCacher(unittest.TestCase):
 
         def new_repr(self) -> str:
             return verifier_key
+
         underlying_estimator_mock._verifier.__repr__ = new_repr
 
         cacher = TwoViewEstimatorCacher(two_view_estimator_obj=underlying_estimator_mock)
@@ -78,7 +79,6 @@ class TestTwoViewEstimatorCacher(unittest.TestCase):
         read_mock.assert_called_once_with(cache_path)
         write_mock.assert_called_once()
 
-
     @patch("gtsfm.utils.cache.generate_hash_for_numpy_array", return_value="numpy_key")
     @patch("gtsfm.utils.io.read_from_bz2_file", return_value=_DUMMY_OUTPUT)
     @patch("gtsfm.utils.io.write_to_bz2_file")
@@ -98,6 +98,7 @@ class TestTwoViewEstimatorCacher(unittest.TestCase):
 
         def new_repr(self) -> str:
             return verifier_key
+
         underlying_estimator_mock._verifier.__repr__ = new_repr
         cacher = TwoViewEstimatorCacher(two_view_estimator_obj=underlying_estimator_mock)
 
