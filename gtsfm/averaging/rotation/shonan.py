@@ -19,11 +19,9 @@ from gtsam import (
     BetweenFactorPose3,
     BetweenFactorPose3s,
     LevenbergMarquardtParams,
-    Pose3,
     Rot3,
     ShonanAveraging3,
     ShonanAveragingParameters3,
-    Values,
 )
 
 import gtsfm.utils.logger as logger_utils
