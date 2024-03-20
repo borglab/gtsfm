@@ -2,7 +2,6 @@
 
 Authors: Ayush Baid, John Lambert
 """
-
 from typing import List, Optional
 
 import numpy as np
@@ -30,7 +29,8 @@ def compare_rotations(
     Args:
         aTi_list: 1st list of rotations.
         bTi_list: 2nd list of rotations.
-        angular_error_threshold_degrees: the threshold for angular error between two rotations.
+        angular_error_threshold_degrees: Threshold for angular error between two rotations.
+    
     Returns:
         Result of the comparison.
     """
