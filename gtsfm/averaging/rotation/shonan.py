@@ -72,8 +72,8 @@ class ShonanRotationAveraging(RotationAveragingBase):
         """Create between factors from relative rotations computed by the 2-view estimator."""
         # TODO: how to weight the noise model on relative rotations compared to priors?
 
-        if not self._weight_by_inliers:
-            noise_model = gtsam.noiseModel.Isotropic.Sigma(POSE3_DOF, self._two_view_rotation_sigma)
+        # Default noise model if `self._weight_by_inliers` is False, or zero correspondences on edge.
+        noise_model = gtsam.noiseModel.Isotropic.Sigma(POSE3_DOF, self._two_view_rotation_sigma)
 
         measurements = gtsam.BinaryMeasurementsRot3()
         for (i1, i2), i2Ri1 in i2Ri1_dict.items():
@@ -204,16 +204,26 @@ class ShonanRotationAveraging(RotationAveragingBase):
             for (i1, i2) in v_corr_idxs.keys()
             if (i1, i2) in i2Ri1_dict
         }
-        measurements: gtsam.BinaryMeasurementsRot3 = self.__between_factors_from_2view_relative_rotations(
-            i2Ri1_dict=i2Ri1_dict_remapped, num_correspondences_dict=num_correspondences_dict
-        )
 
-        # between_factors.extend(self._between_factors_from_pose_priors(i1Ti2_priors, old_to_new_idxes))
+        def _create_factors_and_run() -> List[Rot3]:
+            measurements: gtsam.BinaryMeasurementsRot3 = self.__between_factors_from_2view_relative_rotations(
+                i2Ri1_dict=i2Ri1_dict_remapped, num_correspondences_dict=num_correspondences_dict
+            )
 
-        wRi_list_subset = self._run_with_consecutive_ordering(
-            num_connected_nodes=len(nodes_with_edges), measurements=measurements
-        )
+            # between_factors.extend(self._between_factors_from_pose_priors(i1Ti2_priors, old_to_new_idxes))
 
+            wRi_list_subset = self._run_with_consecutive_ordering(
+                num_connected_nodes=len(nodes_with_edges), measurements=measurements
+            )
+            return wRi_list_subset
+
+        try:
+            wRi_list_subset = _create_factors_and_run()
+        except RuntimeError:
+            if self._weight_by_inliers is True:
+                # At times, Shonan's `SparseMinimumEigenValue` fails to compute minimum eigenvalue.
+                self._weight_by_inliers = False
+                wRi_list_subset = _create_factors_and_run()
         wRi_list = [None] * num_images
         for remapped_i, original_i in enumerate(nodes_with_edges):
             wRi_list[original_i] = wRi_list_subset[remapped_i]
