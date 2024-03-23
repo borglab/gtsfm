@@ -48,7 +48,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
 
         Args:
             two_view_rotation_sigma: Covariance to use (lower values -> more strictly adhere to input measurements).
-            weight_by_inliers: Whether to weight paiiwse costs according to an uncertainty equal to the inverse number
+            weight_by_inliers: Whether to weight pairwise costs according to an uncertainty equal to the inverse number
                 of inlier correspondences per edge.
         """
         super().__init__()
