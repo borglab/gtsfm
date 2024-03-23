@@ -220,7 +220,9 @@ class ShonanRotationAveraging(RotationAveragingBase):
         try:
             wRi_list_subset = _create_factors_and_run()
         except RuntimeError:
+            logger.exception("Shonan failed")
             if self._weight_by_inliers is True:
+                logger.info("Reattempting Shonan without inlier-weighted costs...")
                 # At times, Shonan's `SparseMinimumEigenValue` fails to compute minimum eigenvalue.
                 self._weight_by_inliers = False
                 wRi_list_subset = _create_factors_and_run()
