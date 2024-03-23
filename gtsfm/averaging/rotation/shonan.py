@@ -73,7 +73,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         # TODO: how to weight the noise model on relative rotations compared to priors?
 
         # Default noise model if `self._weight_by_inliers` is False, or zero correspondences on edge.
-        noise_model = gtsam.noiseModel.Isotropic.Sigma(POSE3_DOF, self._two_view_rotation_sigma)
+        noise_model = gtsam.noiseModel.Isotropic.Sigma(ROT3_DOF, self._two_view_rotation_sigma)
 
         measurements = gtsam.BinaryMeasurementsRot3()
         for (i1, i2), i2Ri1 in i2Ri1_dict.items():
