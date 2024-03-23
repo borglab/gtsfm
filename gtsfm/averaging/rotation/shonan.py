@@ -207,9 +207,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
             measurements: gtsam.BinaryMeasurementsRot3 = self.__measurements_from_2view_relative_rotations(
                 i2Ri1_dict=i2Ri1_dict_remapped, num_correspondences_dict=num_correspondences_dict
             )
-
             measurements.extend(self._measurements_from_pose_priors(i1Ti2_priors, old_to_new_idxs))
-
             wRi_list_subset = self._run_with_consecutive_ordering(
                 num_connected_nodes=len(nodes_with_edges), measurements=measurements
             )
