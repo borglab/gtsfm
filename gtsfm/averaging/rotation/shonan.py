@@ -64,7 +64,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         shonan_params.setCertifyOptimality(True)
         return shonan_params
 
-    def __between_factors_from_2view_relative_rotations(
+    def __measurements_from_2view_relative_rotations(
         self,
         i2Ri1_dict: Dict[Tuple[int, int], Rot3],
         num_correspondences_dict: Dict[Tuple[int, int], int],
@@ -87,11 +87,11 @@ class ShonanRotationAveraging(RotationAveragingBase):
 
         return measurements
 
-    def _between_factors_from_pose_priors(
+    def _measurements_from_pose_priors(
         self, i1Ti2_priors: Dict[Tuple[int, int], PosePrior], old_to_new_idxs: Dict[int, int]
-    ) -> BetweenFactorPose3s:
+    ) -> gtsam.BinaryMeasurementsRot3:
         """Create between factors from the priors on relative poses."""
-        between_factors = BetweenFactorPose3s()
+        measurements = gtsam.BinaryMeasurementsRot3()
 
         def get_isotropic_noise_model_sigma(covariance: np.ndarray) -> float:
             """Get the sigma to be used for the isotropic noise model.
@@ -104,10 +104,10 @@ class ShonanRotationAveraging(RotationAveragingBase):
             i1_ = old_to_new_idxs[i1]
             i2_ = old_to_new_idxs[i2]
             noise_model_sigma = get_isotropic_noise_model_sigma(i1Ti2_prior.covariance)
-            noise_model = gtsam.noiseModel.Isotropic.Sigma(POSE3_DOF, noise_model_sigma)
-            between_factors.append(BetweenFactorPose3(i1_, i2_, i1Ti2_prior.value, noise_model))
+            noise_model = gtsam.noiseModel.Isotropic.Sigma(ROT3_DOF, noise_model_sigma)
+            measurements.append(gtsam.BinaryMeasurementRot3(i1_, i2_, i1Ti2_prior.value.rotation(), noise_model))
 
-        return between_factors
+        return measurements
 
     def _run_with_consecutive_ordering(
         self, num_connected_nodes: int, measurements: gtsam.BinaryMeasurementsRot3
@@ -206,11 +206,11 @@ class ShonanRotationAveraging(RotationAveragingBase):
         }
 
         def _create_factors_and_run() -> List[Rot3]:
-            measurements: gtsam.BinaryMeasurementsRot3 = self.__between_factors_from_2view_relative_rotations(
+            measurements: gtsam.BinaryMeasurementsRot3 = self.__measurements_from_2view_relative_rotations(
                 i2Ri1_dict=i2Ri1_dict_remapped, num_correspondences_dict=num_correspondences_dict
             )
 
-            # between_factors.extend(self._between_factors_from_pose_priors(i1Ti2_priors, old_to_new_idxes))
+            measurements.extend(self._measurements_from_pose_priors(i1Ti2_priors, old_to_new_idxs))
 
             wRi_list_subset = self._run_with_consecutive_ordering(
                 num_connected_nodes=len(nodes_with_edges), measurements=measurements
