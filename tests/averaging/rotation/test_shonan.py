@@ -130,7 +130,7 @@ class TestShonanRotationAveraging(unittest.TestCase):
         # Use dask's computation graph
         gt_wTi_list = [None] * len(expected_wRi_list)
         rotations_graph, _ = self.obj.create_computation_graph(
-            num_poses, i2Ri1_graph, i1Ti2_priors, gt_wTi_list, v_corr_idxs=v_corr_idxs
+            num_poses, i2Ri1_graph, i1Ti2_priors, v_corr_idxs=v_corr_idxs, gt_wTi_list=gt_wTi_list
         )
 
         with dask.config.set(scheduler="single-threaded"):
