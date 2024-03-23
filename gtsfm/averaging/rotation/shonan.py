@@ -16,8 +16,6 @@ from typing import Dict, List, Optional, Set, Tuple
 import gtsam
 import numpy as np
 from gtsam import (
-    BetweenFactorPose3,
-    BetweenFactorPose3s,
     LevenbergMarquardtParams,
     Rot3,
     ShonanAveraging3,
@@ -121,7 +119,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         Args:
             num_connected_nodes: Number of unique connected nodes (i.e. images) in the graph
                 (<= the number of images in the dataset)
-            measurements: BetweenFactorPose3s created from relative rotations from 2-view estimator and the priors.
+            measurements: BinaryMeasurementsRot3 created from relative rotations from 2-view estimator and the priors.
 
         Returns:
             Global rotations for each **CONNECTED** camera pose, i.e. wRi, as a list. The number of entries in
