@@ -1,7 +1,5 @@
-
-
-
-# Script to launch jobs over various datasets & front-ends.
+# Script to launch jobs over various Tanks & Temples datasets & front-ends.
+# https://www.tanksandtemples.org/download/
 
 USER_ROOT=$1
 CLUSTER_CONFIG=$2
@@ -10,13 +8,12 @@ now=$(date +"%Y%m%d_%H%M%S")
 
 
 datasets=(
-    # Tanks and Temples Dataset.
     # barn-tanks-and-temples-410
-    # truck-251
+    truck-251
     # meetingroom-371
-    courthouse-1106
-    ignatius-263
-    church-507
+    # courthouse-1106
+    # ignatius-263
+    # church-507
 )
 
 max_frame_lookahead_sizes=(
@@ -94,24 +91,27 @@ for num_matched in ${num_matched_sizes[@]}; do
                 if [[ $dataset == *"truck-251"* ]]
                 then
                     dataset_root=/usr/local/gtsfm-data/TanksAndTemples/Truck
-                elif [[ $dataset == *"meetingroom-371"* ]]
+                elif [[ $dataset == *"barn-tanks-and-temples-410"* ]]
                 then
-                    dataset_root=/usr/local/gtsfm-data/TanksAndTemples/Meetingroom
-                elif [[ $dataset == *"courthouse-1106"* ]]
-                then
-                    dataset_root=/usr/local/gtsfm-data/Tanks_and_Temples_Courthouse_1106
-                elif [[ $dataset == *"ignatius-263"* ]]
-                then
-                    dataset_root=/usr/local/gtsfm-data/TanksAndTemples/Ignatius
+                    dataset_root=""
                 elif [[ $dataset == *"church-507"* ]]
                 then
                     dataset_root=/usr/local/gtsfm-data/TanksAndTemples/Church
+                elif [[ $dataset == *"courthouse-1106"* ]]
+                then
+                    dataset_root=/usr/local/gtsfm-data/TanksAndTemples/Courthouse
+                elif [[ $dataset == *"ignatius-263"* ]]
+                then
+                    dataset_root=/usr/local/gtsfm-data/TanksAndTemples/Ignatius
+                elif [[ $dataset == *"meetingroom-371"* ]]
+                then
+                    dataset_root=/usr/local/gtsfm-data/TanksAndTemples/Meetingroom
                 fi
 
                 OUTPUT_ROOT=${USER_ROOT}/${now}/${now}__${dataset}__results__num_matched${num_matched}__maxframelookahead${max_frame_lookahead}__760p__unified_${correspondence_generator_config_name}
                 mkdir -p $OUTPUT_ROOT
 
-                python gtsfm/runner/run_scene_optimizer_1dsfm.py \
+                python gtsfm/runner/run_scene_optimizer_tanks_and_temples.py \
                 --mvs_off \
                 --config unified \
                 --correspondence_generator_config_name $correspondence_generator_config_name \
