@@ -34,10 +34,10 @@ num_matched_sizes=(
 
 correspondence_generator_config_names=(
     sift
-    lightglue
-    superglue
-    loftr
-    disk
+    # lightglue
+    # superglue
+    # loftr
+    # disk
 )
 
 if [[ $CLUSTER_CONFIG ]]
@@ -66,7 +66,7 @@ for num_matched in ${num_matched_sizes[@]}; do
 
                 if [[ $correspondence_generator_config_name == *"sift"* ]]
                 then
-                    num_workers=1
+                    num_workers=10
                 elif [[ $correspondence_generator_config_name == *"lightglue"* ]]
                 then
                     num_workers=1
@@ -91,27 +91,34 @@ for num_matched in ${num_matched_sizes[@]}; do
                 if [[ $dataset == *"truck-251"* ]]
                 then
                     dataset_root=/usr/local/gtsfm-data/TanksAndTemples/Truck
+                    scene_name="Truck"
                 elif [[ $dataset == *"barn-tanks-and-temples-410"* ]]
                 then
                     dataset_root=""
+                    scene_name="Barn"
                 elif [[ $dataset == *"church-507"* ]]
                 then
                     dataset_root=/usr/local/gtsfm-data/TanksAndTemples/Church
+                    scene_name="Church"
                 elif [[ $dataset == *"courthouse-1106"* ]]
                 then
                     dataset_root=/usr/local/gtsfm-data/TanksAndTemples/Courthouse
+                    scene_name="Courthouse"
                 elif [[ $dataset == *"ignatius-263"* ]]
                 then
                     dataset_root=/usr/local/gtsfm-data/TanksAndTemples/Ignatius
+                    scene_name="Ignatius"
                 elif [[ $dataset == *"meetingroom-371"* ]]
                 then
                     dataset_root=/usr/local/gtsfm-data/TanksAndTemples/Meetingroom
+                    scene_name="Meetingroom"
                 fi
 
                 OUTPUT_ROOT=${USER_ROOT}/${now}/${now}__${dataset}__results__num_matched${num_matched}__maxframelookahead${max_frame_lookahead}__760p__unified_${correspondence_generator_config_name}
                 mkdir -p $OUTPUT_ROOT
 
                 python gtsfm/runner/run_scene_optimizer_tanks_and_temples.py \
+                --scene_name $scene_name \
                 --mvs_off \
                 --config unified \
                 --correspondence_generator_config_name $correspondence_generator_config_name \
