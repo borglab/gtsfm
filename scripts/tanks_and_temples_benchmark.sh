@@ -9,11 +9,12 @@ now=$(date +"%Y%m%d_%H%M%S")
 
 datasets=(
     # barn-tanks-and-temples-410
+    courthouse-1106
+    ignatius-263
+    church-507
+    caterpillar-383
+    meetingroom-371
     truck-251
-    # meetingroom-371
-    # courthouse-1106
-    # ignatius-263
-    # church-507
 )
 
 max_frame_lookahead_sizes=(
@@ -34,10 +35,10 @@ num_matched_sizes=(
 
 correspondence_generator_config_names=(
     sift
-    # lightglue
-    # superglue
-    # loftr
-    # disk
+    lightglue
+    superglue
+    loftr
+    disk
 )
 
 if [[ $CLUSTER_CONFIG ]]
@@ -66,7 +67,7 @@ for num_matched in ${num_matched_sizes[@]}; do
 
                 if [[ $correspondence_generator_config_name == *"sift"* ]]
                 then
-                    num_workers=10
+                    num_workers=1
                 elif [[ $correspondence_generator_config_name == *"lightglue"* ]]
                 then
                     num_workers=1
@@ -88,14 +89,15 @@ for num_matched in ${num_matched_sizes[@]}; do
                 echo "Num workers: ${num_workers}"
                 echo "Intrinsics: ${INTRINSICS_ARGS}"
 
-                if [[ $dataset == *"truck-251"* ]]
-                then
-                    dataset_root=/usr/local/gtsfm-data/TanksAndTemples/Truck
-                    scene_name="Truck"
-                elif [[ $dataset == *"barn-tanks-and-temples-410"* ]]
+
+                if [[ $dataset == *"barn-tanks-and-temples-410"* ]]
                 then
                     dataset_root=""
                     scene_name="Barn"
+                elif [[ $dataset == *"caterpillar-383"* ]]
+                then
+                    dataset_root=/usr/local/gtsfm-data/TanksAndTemples/Caterpillar
+                    scene_name="Caterpillar"
                 elif [[ $dataset == *"church-507"* ]]
                 then
                     dataset_root=/usr/local/gtsfm-data/TanksAndTemples/Church
@@ -112,6 +114,10 @@ for num_matched in ${num_matched_sizes[@]}; do
                 then
                     dataset_root=/usr/local/gtsfm-data/TanksAndTemples/Meetingroom
                     scene_name="Meetingroom"
+                elif [[ $dataset == *"truck-251"* ]]
+                then
+                    dataset_root=/usr/local/gtsfm-data/TanksAndTemples/Truck
+                    scene_name="Truck"
                 fi
 
                 OUTPUT_ROOT=${USER_ROOT}/${now}/${now}__${dataset}__results__num_matched${num_matched}__maxframelookahead${max_frame_lookahead}__760p__unified_${correspondence_generator_config_name}
