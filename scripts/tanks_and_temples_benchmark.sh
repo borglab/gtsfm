@@ -8,7 +8,7 @@ now=$(date +"%Y%m%d_%H%M%S")
 
 
 datasets=(
-    # barn-tanks-and-temples-410
+    barn-tanks-and-temples-410
     courthouse-1106
     ignatius-263
     church-507
@@ -92,7 +92,7 @@ for num_matched in ${num_matched_sizes[@]}; do
 
                 if [[ $dataset == *"barn-tanks-and-temples-410"* ]]
                 then
-                    dataset_root=""
+                    dataset_root="/usr/local/gtsfm-data/TanksAndTemples/Barn"
                     scene_name="Barn"
                 elif [[ $dataset == *"caterpillar-383"* ]]
                 then
