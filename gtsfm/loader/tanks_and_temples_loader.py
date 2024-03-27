@@ -10,13 +10,13 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 import numpy as np
-# import open3d
+import open3d
 from gtsam import Cal3Bundler, Rot3, Pose3
 
 import gtsfm.utils.geometry_comparisons as geom_comp_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
-# import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
+import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
 from gtsfm.common.image import Image
 from gtsfm.loader.loader_base import LoaderBase
 
@@ -176,112 +176,112 @@ class TanksAndTemplesLoader(LoaderBase):
             raise ValueError("Given GT rotation is not a member of SO(3) and GT metrics will be incorrect.")
         return wTi
 
-#     def get_lidar_point_cloud(self, downsample_factor: int = 10) -> open3d.geometry.PointCloud:
-#         """Returns ground-truth point cloud, captured using an industrial laser scanner.
+    def get_lidar_point_cloud(self, downsample_factor: int = 10) -> open3d.geometry.PointCloud:
+        """Returns ground-truth point cloud, captured using an industrial laser scanner.
 
-#         Move all LiDAR points to the COLMAP frame.
+        Move all LiDAR points to the COLMAP frame.
 
-#         Args:
-#             downsample_factor: Downsampling factor on point cloud.
+        Args:
+            downsample_factor: Downsampling factor on point cloud.
 
-#         Return:
-#             Point cloud captured by laser scanner, in the COLMAP world frame.
-#         """
-#         if not Path(self.lidar_ply_fpath).exists():
-#             raise ValueError("Cannot retrieve LiDAR scanned point cloud if `lidar_ply_fpath` not provided.")
-#         pcd = open3d.io.read_point_cloud(self.lidar_ply_fpath)
-#         points, rgb = open3d_vis_utils.convert_colored_open3d_point_cloud_to_numpy(pointcloud=pcd)
+        Return:
+            Point cloud captured by laser scanner, in the COLMAP world frame.
+        """
+        if not Path(self.lidar_ply_fpath).exists():
+            raise ValueError("Cannot retrieve LiDAR scanned point cloud if `lidar_ply_fpath` not provided.")
+        pcd = open3d.io.read_point_cloud(self.lidar_ply_fpath)
+        points, rgb = open3d_vis_utils.convert_colored_open3d_point_cloud_to_numpy(pointcloud=pcd)
 
-#         if downsample_factor > 1:
-#             points = points[::downsample_factor]
-#             rgb = rgb[::downsample_factor]
+        if downsample_factor > 1:
+            points = points[::downsample_factor]
+            rgb = rgb[::downsample_factor]
 
-#         lidar_Sim3_colmap = _create_Sim3_from_tt_dataset_alignment_transform(self.lidar_Sim3_colmap)
-#         colmap_Sim3_lidar = np.linalg.inv(lidar_Sim3_colmap)
-#         # Transform LiDAR points to COLMAP coordinate frame.
-#         points = transform_point_cloud_vectorized(points, colmap_Sim3_lidar)
-#         return open3d_vis_utils.create_colored_point_cloud_open3d(point_cloud=points, rgb=rgb)
+        lidar_Sim3_colmap = _create_Sim3_from_tt_dataset_alignment_transform(self.lidar_Sim3_colmap)
+        colmap_Sim3_lidar = np.linalg.inv(lidar_Sim3_colmap)
+        # Transform LiDAR points to COLMAP coordinate frame.
+        points = transform_point_cloud_vectorized(points, colmap_Sim3_lidar)
+        return open3d_vis_utils.create_colored_point_cloud_open3d(point_cloud=points, rgb=rgb)
 
-#     def get_colmap_point_cloud(self, downsample_factor: int = 1) -> open3d.geometry.PointCloud:
-#         """Returns COLMAP-reconstructed point cloud.
+    def get_colmap_point_cloud(self, downsample_factor: int = 1) -> open3d.geometry.PointCloud:
+        """Returns COLMAP-reconstructed point cloud.
 
-#         Args:
-#             downsample_factor: Downsampling factor on point cloud.
+        Args:
+            downsample_factor: Downsampling factor on point cloud.
 
-#         Return:
-#             Point cloud reconstructed by COLMAP, in the COLMAP world frame.
-#         """
-#         if not Path(self.colmap_ply_fpath).exists():
-#             raise ValueError("Cannot retrieve COLMAP-reconstructed point cloud if `colmap_ply_fpath` not provided.")
-#         pcd = open3d.io.read_point_cloud(self.colmap_ply_fpath)
-#         points, rgb = open3d_vis_utils.convert_colored_open3d_point_cloud_to_numpy(pointcloud=pcd)
+        Return:
+            Point cloud reconstructed by COLMAP, in the COLMAP world frame.
+        """
+        if not Path(self.colmap_ply_fpath).exists():
+            raise ValueError("Cannot retrieve COLMAP-reconstructed point cloud if `colmap_ply_fpath` not provided.")
+        pcd = open3d.io.read_point_cloud(self.colmap_ply_fpath)
+        points, rgb = open3d_vis_utils.convert_colored_open3d_point_cloud_to_numpy(pointcloud=pcd)
 
-#         if downsample_factor > 1:
-#             points = points[::downsample_factor]
-#             rgb = rgb[::downsample_factor]
-#         return open3d_vis_utils.create_colored_point_cloud_open3d(point_cloud=points, rgb=rgb)
+        if downsample_factor > 1:
+            points = points[::downsample_factor]
+            rgb = rgb[::downsample_factor]
+        return open3d_vis_utils.create_colored_point_cloud_open3d(point_cloud=points, rgb=rgb)
 
-#     def reconstruct_mesh(
-#         self,
-#         crop_by_polyhedron: bool = True,
-#         reconstruction_algorithm: MeshReconstructionType = MeshReconstructionType.ALPHA_SHAPE,
-#     ) -> open3d.geometry.TriangleMesh:
-#         """Reconstructs mesh from LiDAR PLY file.
+    def reconstruct_mesh(
+        self,
+        crop_by_polyhedron: bool = True,
+        reconstruction_algorithm: MeshReconstructionType = MeshReconstructionType.ALPHA_SHAPE,
+    ) -> open3d.geometry.TriangleMesh:
+        """Reconstructs mesh from LiDAR PLY file.
 
-#         Args:
-#             crop_by_polyhedron: Whether to crop by a manually specified polyhedron, vs. simply
-#                 by range from global origin.
-#             reconstruction_algorithm: Mesh reconstruction algorithm to use, given input point cloud.
+        Args:
+            crop_by_polyhedron: Whether to crop by a manually specified polyhedron, vs. simply
+                by range from global origin.
+            reconstruction_algorithm: Mesh reconstruction algorithm to use, given input point cloud.
 
-#         Returns:
-#             Reconstructed mesh.
-#         """
-#         # Get LiDAR point cloud, in camera coordinate frame.
-#         pcd = self.get_lidar_point_cloud()
-#         if crop_by_polyhedron:
-#             pass
-#             # pcd = crop_points_to_bounding_polyhedron(pcd, self.bounding_polyhedron_json_fpath)
+        Returns:
+            Reconstructed mesh.
+        """
+        # Get LiDAR point cloud, in camera coordinate frame.
+        pcd = self.get_lidar_point_cloud()
+        if crop_by_polyhedron:
+            pass
+            # pcd = crop_points_to_bounding_polyhedron(pcd, self.bounding_polyhedron_json_fpath)
 
-#         points, rgb = open3d_vis_utils.convert_colored_open3d_point_cloud_to_numpy(pcd)
-#         if not crop_by_polyhedron:
-#             max_radius = 4.0
-#             valid = np.linalg.norm(points, axis=1) < max_radius
-#             points = points[valid]
-#             rgb = rgb[valid]
-#         pcd = open3d_vis_utils.create_colored_point_cloud_open3d(points, rgb)
-#         pcd.estimate_normals()
+        points, rgb = open3d_vis_utils.convert_colored_open3d_point_cloud_to_numpy(pcd)
+        if not crop_by_polyhedron:
+            max_radius = 4.0
+            valid = np.linalg.norm(points, axis=1) < max_radius
+            points = points[valid]
+            rgb = rgb[valid]
+        pcd = open3d_vis_utils.create_colored_point_cloud_open3d(points, rgb)
+        pcd.estimate_normals()
 
-#         if reconstruction_algorithm == MeshReconstructionType.ALPHA_SHAPE:
-#             alpha = 0.1  # 0.03
-#             print(f"alpha={alpha:.3f}")
-#             mesh = open3d.geometry.TriangleMesh.create_from_point_cloud_alpha_shape(pcd, alpha)
-#             mesh.compute_vertex_normals()
+        if reconstruction_algorithm == MeshReconstructionType.ALPHA_SHAPE:
+            alpha = 0.1  # 0.03
+            print(f"alpha={alpha:.3f}")
+            mesh = open3d.geometry.TriangleMesh.create_from_point_cloud_alpha_shape(pcd, alpha)
+            mesh.compute_vertex_normals()
 
-#         elif reconstruction_algorithm == MeshReconstructionType.BALL_PIVOTING:
-#             radii = [0.005, 0.01, 0.02, 0.04]
-#             mesh = open3d.geometry.TriangleMesh.create_from_point_cloud_ball_pivoting(
-#                 pcd, open3d.utility.DoubleVector(radii)
-#             )
+        elif reconstruction_algorithm == MeshReconstructionType.BALL_PIVOTING:
+            radii = [0.005, 0.01, 0.02, 0.04]
+            mesh = open3d.geometry.TriangleMesh.create_from_point_cloud_ball_pivoting(
+                pcd, open3d.utility.DoubleVector(radii)
+            )
 
-#         elif reconstruction_algorithm == MeshReconstructionType.POISSON_SURFACE:
-#             mesh, densities = open3d.geometry.TriangleMesh.create_from_point_cloud_poisson(pcd, depth=9)
-#         return mesh
+        elif reconstruction_algorithm == MeshReconstructionType.POISSON_SURFACE:
+            mesh, densities = open3d.geometry.TriangleMesh.create_from_point_cloud_poisson(pcd, depth=9)
+        return mesh
 
 
-# def crop_points_to_bounding_polyhedron(pcd: open3d.geometry.PointCloud, json_fpath: str) -> open3d.geometry.PointCloud:
-#     """Crops a point cloud according to JSON-specified polyhedron crop bounds.
+def crop_points_to_bounding_polyhedron(pcd: open3d.geometry.PointCloud, json_fpath: str) -> open3d.geometry.PointCloud:
+    """Crops a point cloud according to JSON-specified polyhedron crop bounds.
 
-#     Args:
-#         pcd: Input point cloud.
-#         json_fpath: Path to JSON file containing crop specification, including 'orthogonal_axis',
-#             'axis_min', 'axis_max', 'bounding_polygon'.
+    Args:
+        pcd: Input point cloud.
+        json_fpath: Path to JSON file containing crop specification, including 'orthogonal_axis',
+            'axis_min', 'axis_max', 'bounding_polygon'.
 
-#     Returns:
-#         Cropped point cloud, according to `SelectionPolygonVolume`.
-#     """
-#     vol = open3d.visualization.read_selection_polygon_volume(json_fpath)
-#     cropped_pcd = vol.crop_point_cloud(pcd)
-#     return cropped_pcd
+    Returns:
+        Cropped point cloud, according to `SelectionPolygonVolume`.
+    """
+    vol = open3d.visualization.read_selection_polygon_volume(json_fpath)
+    cropped_pcd = vol.crop_point_cloud(pcd)
+    return cropped_pcd
 
 
 def _parse_redwood_data_log_file(log_fpath: str) -> Dict[int, Pose3]:
