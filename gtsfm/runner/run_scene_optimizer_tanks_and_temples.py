@@ -13,9 +13,6 @@ from gtsfm.runner.gtsfm_runner_base import GtsfmRunnerBase
 logger = logger_utils.get_logger()
 
 
-_TANKS_AND_TEMPLES_RESOLUTION_PX = 1080
-
-
 # TODO(johnwlambert,travisdriver): Make this generic for any dataset with a GT mesh.
 class GtsfmRunnerSyntheticTanksAndTemplesLoader(GtsfmRunnerBase):
     tag = "GTSFM with LiDAR scans, COLMAP camera poses, and image names stored in Tanks and Temples format"
@@ -24,7 +21,7 @@ class GtsfmRunnerSyntheticTanksAndTemplesLoader(GtsfmRunnerBase):
         parser = super().construct_argparser()
 
         parser.add_argument(
-            "--dataset_root", type=str, required=True, help="Path to zip file containing packaged data."
+            "--dataset_root", type=str, required=True, help="Path to dir, for unzipped file containing packaged data."
         )
         parser.add_argument("--scene_name", type=str, required=True, help="Name of dataset scene.")
         parser.add_argument(
@@ -52,7 +49,8 @@ class GtsfmRunnerSyntheticTanksAndTemplesLoader(GtsfmRunnerBase):
             ply_alignment_fpath=ply_alignment_fpath,
             bounding_polyhedron_json_fpath=bounding_polyhedron_json_fpath,
             colmap_ply_fpath=colmap_ply_fpath,
-            max_resolution=_TANKS_AND_TEMPLES_RESOLUTION_PX,
+            # NOTE: Native resolution for T&T is 1080 px.
+            max_resolution=self.parsed_args.max_resolution,
             max_num_images=self.parsed_args.max_num_images,
         )
         return loader
