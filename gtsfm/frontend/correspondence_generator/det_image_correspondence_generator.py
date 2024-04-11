@@ -16,34 +16,36 @@ from gtsfm.frontend.correspondence_generator.correspondence_generator_base impor
 from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_base import (
     KeypointAggregatorBase,
 )
-from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_dedup import (
-    KeypointAggregatorDedup,
+from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_unique import (
+    KeypointAggregatorUnique,
 )
+from gtsfm.frontend.detector.detector_base import DetectorBase
 from gtsfm.frontend.matcher.image_matcher_base import ImageMatcherBase
 from gtsfm.two_view_estimator import TWO_VIEW_OUTPUT, TwoViewEstimator
 
 
-class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
+class DetImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
     """Pair-wise direct matching of images (e.g. transformer-based)."""
 
     def __init__(
         self,
+        detector: DetectorBase,
         matcher: ImageMatcherBase,
-        aggregator: KeypointAggregatorBase = KeypointAggregatorDedup(),
+        aggregator: KeypointAggregatorBase = KeypointAggregatorUnique(),
     ) -> None:
         """
         Args:
             matcher: Matcher to use.
             deduplicate: Whether to de-duplicate with a single image the detections received from each image pair.
         """
+        self._detector = detector
         self._matcher = matcher
-        self._aggregator = aggregator
 
     def __repr__(self) -> str:
         return f"""
         ImageCorrespondenceGenerator:
+           {self._detector}
            {self._matcher}
-           {self._aggregator}
         """
 
     def generate_correspondences(
@@ -64,26 +66,41 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
             Putative correspondence as indices of keypoints, for pairs of images.
         """
 
-        def apply_image_matcher(
-            image_matcher: ImageMatcherBase, image_i1: Image, image_i2: Image
-        ) -> Tuple[Keypoints, Keypoints]:
-            return image_matcher.match(image_i1=image_i1, image_i2=image_i2)
+        def apply_detector(detector: DetectorBase, image: Image) -> Keypoints:
+            return detector.detect(image)
 
+        def apply_det_image_matcher(
+            image_matcher: ImageMatcherBase,
+            image_i1: Image,
+            image_i2: Image,
+            keypoints_i1: Keypoints,
+            keypoints_i2: Keypoints,
+        ) -> Tuple[Keypoints, Keypoints]:
+            return image_matcher.match(image_i1, image_i2, keypoints_i1, keypoints_i2)
+
+        # Apply detector.
+        detector_future = client.scatter(self._detector, broadcast=False)
+        keypoints_futures = [
+            client.submit(apply_detector, detector_future, image) for image in images
+        ]
+        keypoints_list = client.gather(keypoints_futures)
+
+        # Apply dense image matcher to detected keypoints.
         image_matcher_future = client.scatter(self._matcher, broadcast=False)
-        pairwise_correspondence_futures = {
+        putative_corr_idxs_futures = {
             (i1, i2): client.submit(
-                apply_image_matcher, image_matcher_future, images[i1], images[i2]
+                apply_det_image_matcher,
+                image_matcher_future,
+                images[i1],
+                images[i2],
+                keypoints_list[i1],
+                keypoints_list[i2],
             )
             for i1, i2 in image_pairs
         }
 
-        pairwise_correspondences: Dict[
-            Tuple[int, int], Tuple[Keypoints, Keypoints]
-        ] = client.gather(pairwise_correspondence_futures)
+        putative_corr_idxs_dict = client.gather(putative_corr_idxs_futures)
 
-        keypoints_list, putative_corr_idxs_dict = self._aggregator.aggregate(
-            keypoints_dict=pairwise_correspondences
-        )
         return keypoints_list, putative_corr_idxs_dict
 
     def generate_correspondences_and_estimate_two_view(

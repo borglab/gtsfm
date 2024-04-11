@@ -1,0 +1,9 @@
+CorrespondenceGenerator:
+  _target_: gtsfm.frontend.correspondence_generator.image_correspondence_generator.ImageCorrespondenceGenerator
+
+  matcher:
+    _target_: gtsfm.frontend.matcher.roma.RoMa
+
+  aggregator:
+    _target_: gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_dedup.KeypointAggregatorDedup
+    nms_merge_radius: 1.0

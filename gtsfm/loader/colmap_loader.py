@@ -7,10 +7,9 @@ import os
 from pathlib import Path
 from typing import List, Optional
 
-from gtsam import Cal3Bundler, Pose3
-
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
+from gtsam import Cal3Bundler, Pose3
 from gtsfm.common.image import Image
 from gtsfm.loader.loader_base import LoaderBase
 
@@ -64,9 +63,14 @@ class ColmapLoader(LoaderBase):
         self._use_gt_intrinsics = use_gt_intrinsics
         self._use_gt_extrinsics = use_gt_extrinsics
 
-        wTi_list, img_fnames, self._calibrations, _, _, _ = io_utils.read_scene_data_from_colmap_format(
-            colmap_files_dirpath
-        )
+        (
+            wTi_list,
+            img_fnames,
+            self._calibrations,
+            _,
+            _,
+            _,
+        ) = io_utils.read_scene_data_from_colmap_format(colmap_files_dirpath)
         # TODO in future PR: if img_fnames is None, default to using everything inside image directory
 
         if self._calibrations is None:
@@ -86,6 +90,7 @@ class ColmapLoader(LoaderBase):
         # to skip the missing image.
         for img_fname, wTi in zip(img_fnames, wTi_list):
             img_fpath = os.path.join(images_dir, img_fname)
+            print(img_fpath)
             if not Path(img_fpath).exists():
                 continue
             self._img_fnames.append(img_fname)
@@ -143,11 +148,15 @@ class ColmapLoader(LoaderBase):
             Intrinsics for the given camera.
         """
         if index < 0 or index >= len(self):
-            raise IndexError(f"Image index {index} is invalid. Valid indices are in [0,{len(self)-1}].")
+            raise IndexError(
+                f"Image index {index} is invalid. Valid indices are in [0,{len(self)-1}]."
+            )
 
         if not self._use_gt_intrinsics:
             # get intrinsics from exif
-            intrinsics = io_utils.load_image(self._image_paths[index]).get_intrinsics_from_exif()
+            intrinsics = io_utils.load_image(
+                self._image_paths[index]
+            ).get_intrinsics_from_exif()
         else:
             intrinsics = self._calibrations[index]
 
@@ -163,7 +172,9 @@ class ColmapLoader(LoaderBase):
             The camera pose w_T_index.
         """
         if index < 0 or index >= len(self):
-            raise IndexError(f"Image index {index} is invalid. Valid indices are in [0,{len(self)-1}].")
+            raise IndexError(
+                f"Image index {index} is invalid. Valid indices are in [0,{len(self)-1}]."
+            )
 
         if not self._use_gt_extrinsics:
             return None

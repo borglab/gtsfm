@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 import numpy as np
-
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
@@ -62,7 +61,10 @@ class RetrieverBase(GTSFMProcess):
             List of (i1,i2) image pairs.
         """
 
-    def evaluate(self, num_images, image_pair_indices: List[Tuple[int, int]]) -> GtsfmMetricsGroup:
+    @staticmethod
+    def evaluate(
+        num_images, image_pair_indices: List[Tuple[int, int]]
+    ) -> GtsfmMetricsGroup:
         """Evaluates the retriever result.
 
         Args:

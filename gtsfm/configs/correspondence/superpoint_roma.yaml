@@ -1,0 +1,11 @@
+CorrespondenceGenerator:
+  _target_: gtsfm.frontend.correspondence_generator.det_image_correspondence_generator.DetImageCorrespondenceGenerator
+
+  detector:
+    _target_: gtsfm.frontend.detector.detector_from_joint_detector_descriptor.DetectorFromDetectorDescriptor
+    detector_descriptor:
+      _target_: gtsfm.frontend.detector_descriptor.dedode.DeDoDeDetectorDescriptor
+      max_keypoints: 10000
+
+  matcher:
+    _target_: gtsfm.frontend.matcher.roma.RoMa
