@@ -21,15 +21,11 @@ from gtsfm.bundle.global_ba import GlobalBundleAdjustment
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.sfm_track import SfmTrack2d
-from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
-from gtsfm.data_association.cpp_dsf_tracks_estimator import CppDsfTracksEstimator
 from gtsfm.data_association.data_assoc import DataAssociation
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
-from gtsfm.view_graph_estimator.cycle_consistent_rotation_estimator import (
-    CycleConsistentRotationViewGraphEstimator,
-    EdgeErrorAggregationCriterion,
-)
 from gtsfm.view_graph_estimator.view_graph_estimator_base import ViewGraphEstimatorBase
+from gtsfm.data_association.cpp_dsf_tracks_estimator import CppDsfTracksEstimator
+from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 
 
 class MultiViewOptimizer:
@@ -47,10 +43,6 @@ class MultiViewOptimizer:
         self.data_association_module = data_association_module
         self.ba_optimizer = bundle_adjustment_module
         self._run_view_graph_estimator: bool = self.view_graph_estimator is not None
-
-        self.view_graph_estimator_v2 = CycleConsistentRotationViewGraphEstimator(
-            edge_error_aggregation_criterion=EdgeErrorAggregationCriterion.MEDIAN_EDGE_ERROR
-        )
 
     def __repr__(self) -> str:
         return f"""
@@ -71,7 +63,7 @@ class MultiViewOptimizer:
         all_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
         absolute_pose_priors: List[Optional[PosePrior]],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
-        two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
+        two_view_reports_dict: Optional[Dict[Tuple[int, int], TwoViewEstimationReport]],
         cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
         gt_wTi_list: List[Optional[Pose3]],
         output_root: Optional[Path] = None,
@@ -122,21 +114,6 @@ class MultiViewOptimizer:
                 two_view_reports_dict,
                 debug_output_dir,
             )
-            (
-                viewgraph_i2Ri1_graph,
-                viewgraph_i2Ui1_graph,
-                viewgraph_v_corr_idxs_graph,
-                viewgraph_two_view_reports_graph,
-                viewgraph_estimation_metrics,
-            ) = self.view_graph_estimator_v2.create_computation_graph(
-                viewgraph_i2Ri1_graph,
-                viewgraph_i2Ui1_graph,
-                all_intrinsics,
-                viewgraph_v_corr_idxs_graph,
-                keypoints_list,
-                viewgraph_two_view_reports_graph,
-                debug_output_dir / "2",
-            )
         else:
             viewgraph_i2Ri1_graph = dask.delayed(i2Ri1_dict)
             viewgraph_i2Ui1_graph = dask.delayed(i2Ui1_dict)
@@ -149,11 +126,7 @@ class MultiViewOptimizer:
             viewgraph_i2Ri1_graph, viewgraph_i2Ui1_graph, relative_pose_priors
         )
         delayed_wRi, rot_avg_metrics = self.rot_avg_module.create_computation_graph(
-            num_images,
-            pruned_i2Ri1_graph,
-            i1Ti2_priors=relative_pose_priors,
-            gt_wTi_list=gt_wTi_list,
-            v_corr_idxs=viewgraph_v_corr_idxs_graph,
+            num_images, pruned_i2Ri1_graph, i1Ti2_priors=relative_pose_priors, gt_wTi_list=gt_wTi_list
         )
         tracks2d_graph = dask.delayed(get_2d_tracks)(viewgraph_v_corr_idxs_graph, keypoints_list)
 

@@ -45,12 +45,6 @@ class TestTwoViewEstimatorCacher(unittest.TestCase):
         # Mock the underlying two-view estimator which is used on cache miss.
         underlying_estimator_mock = MagicMock()
         underlying_estimator_mock.run_2view.return_value = self.dummy_output
-        verifier_key = "Ransac__use_intrinsicsTrue_4px"
-
-        def new_repr(self) -> str:
-            return verifier_key
-
-        underlying_estimator_mock._verifier.__repr__ = new_repr
 
         cacher = TwoViewEstimatorCacher(two_view_estimator_obj=underlying_estimator_mock)
 
@@ -75,9 +69,10 @@ class TestTwoViewEstimatorCacher(unittest.TestCase):
         generate_hash_for_numpy_array_mock.assert_called()
 
         # Assert that read function was called once and write function was called once.
-        cache_path = ROOT_PATH / "cache" / "two_view_estimator" / f"{verifier_key}_numpy_key.pbz2"
+        cache_path = ROOT_PATH / "cache" / "two_view_estimator" / "numpy_key.pbz2"
         read_mock.assert_called_once_with(cache_path)
         write_mock.assert_called_once()
+
 
     @patch("gtsfm.utils.cache.generate_hash_for_numpy_array", return_value="numpy_key")
     @patch("gtsfm.utils.io.read_from_bz2_file", return_value=_DUMMY_OUTPUT)
@@ -94,12 +89,7 @@ class TestTwoViewEstimatorCacher(unittest.TestCase):
         # Mock the underlying two-view estimator which is used on cache miss.
         underlying_estimator_mock = MagicMock()
         underlying_estimator_mock.run_2view.return_value = self.dummy_output
-        verifier_key = "Ransac__use_intrinsicsTrue_4px"
 
-        def new_repr(self) -> str:
-            return verifier_key
-
-        underlying_estimator_mock._verifier.__repr__ = new_repr
         cacher = TwoViewEstimatorCacher(two_view_estimator_obj=underlying_estimator_mock)
 
         result = cacher.run_2view(
@@ -124,7 +114,7 @@ class TestTwoViewEstimatorCacher(unittest.TestCase):
         generate_hash_for_numpy_array_mock.assert_called()
 
         # Assert that the read function was called once.
-        cache_path = ROOT_PATH / "cache" / "two_view_estimator" / f"{verifier_key}_numpy_key.pbz2"
+        cache_path = ROOT_PATH / "cache" / "two_view_estimator" / "numpy_key.pbz2"
         read_mock.assert_called_once_with(cache_path)
 
         # Assert that the write function was not called (as cache is mocked to already exist).

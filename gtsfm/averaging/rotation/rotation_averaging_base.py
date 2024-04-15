@@ -8,7 +8,6 @@ import time
 from typing import Dict, List, Optional, Tuple
 
 import dask
-import numpy as np
 from dask.delayed import Delayed
 from gtsam import Pose3, Rot3
 
@@ -43,15 +42,13 @@ class RotationAveragingBase(GTSFMProcess):
         num_images: int,
         i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]],
         i1Ti2_priors: Dict[Tuple[int, int], PosePrior],
-        v_corr_idxs: Dict[Tuple[int, int], np.ndarray],
     ) -> List[Optional[Rot3]]:
         """Run the rotation averaging.
 
         Args:
-            num_images: Number of poses.
-            i2Ri1_dict: Relative rotations as dictionary (i1, i2): i2Ri1.
-            i1Ti2_priors: Priors on relative poses as dictionary(i1, i2): PosePrior on i1Ti2.
-            v_corr_idxs: Dict mapping image pair indices (i1, i2) to indices of verified correspondences.
+            num_images: number of poses.
+            i2Ri1_dict: relative rotations as dictionary (i1, i2): i2Ri1.
+            i1Ti2_priors: priors on relative poses as dictionary(i1, i2): PosePrior on i1Ti2.
 
         Returns:
             Global rotations for each camera pose, i.e. wRi, as a list. The number of entries in the list is
@@ -64,7 +61,6 @@ class RotationAveragingBase(GTSFMProcess):
         num_images: int,
         i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]],
         i1Ti2_priors: Dict[Tuple[int, int], PosePrior],
-        v_corr_idxs: Dict[Tuple[int, int], np.ndarray],
         wTi_gt: List[Optional[Pose3]],
     ) -> Tuple[List[Optional[Rot3]], GtsfmMetricsGroup]:
         """Runs rotation averaging and computes metrics.
@@ -73,7 +69,6 @@ class RotationAveragingBase(GTSFMProcess):
             num_images: Number of poses.
             i2Ri1_dict: Relative rotations as dictionary (i1, i2): i2Ri1.
             i1Ti2_priors: Priors on relative poses as dictionary(i1, i2): PosePrior on i1Ti2.
-            v_corr_idxs: Dict mapping image pair indices (i1, i2) to indices of verified correspondences.
             wTi_gt: Ground truth global rotations to compare against.
 
         Returns:
@@ -83,7 +78,7 @@ class RotationAveragingBase(GTSFMProcess):
             Metrics on global rotations.
         """
         start_time = time.time()
-        wRis = self.run_rotation_averaging(num_images, i2Ri1_dict, i1Ti2_priors, v_corr_idxs)
+        wRis = self.run_rotation_averaging(num_images, i2Ri1_dict, i1Ti2_priors)
         run_time = time.time() - start_time
 
         metrics = self.evaluate(wRis, wTi_gt)
@@ -98,11 +93,11 @@ class RotationAveragingBase(GTSFMProcess):
             wRi_computed: List of global rotations computed.
             wTi_gt: Ground truth global rotations to compare against.
 
-        Returns:
-            Metrics on global rotations.
-
         Raises:
             ValueError: If the length of the computed and GT list differ.
+
+        Returns:
+            Metrics on global rotations.
         """
         wRi_gt = [wTi.rotation() if wTi is not None else None for wTi in wTi_gt]
 
@@ -121,28 +116,22 @@ class RotationAveragingBase(GTSFMProcess):
         num_images: int,
         i2Ri1_graph: Delayed,
         i1Ti2_priors: Dict[Tuple[int, int], PosePrior],
-        v_corr_idxs: Dict[Tuple[int, int], np.ndarray],
         gt_wTi_list: List[Optional[Pose3]],
     ) -> Tuple[Delayed, Delayed]:
         """Create the computation graph for performing rotation averaging.
 
         Args:
-            num_images: Number of poses.
-            i2Ri1_graph: Dictionary of relative rotations as a delayed task.
-            i1Ti2_priors: Priors on relative poses as (i1, i2): PosePrior on i1Ti2.
-            v_corr_idxs: Dict mapping image pair indices (i1, i2) to indices of verified correspondences.
-            gt_wTi_list: Ground truth poses, to be used for evaluation.
+            num_images: number of poses.
+            i2Ri1_graph: dictionary of relative rotations as a delayed task.
+            i1Ti2_priors: priors on relative poses as (i1, i2): PosePrior on i1Ti2.
+            gt_wTi_list: ground truth poses, to be used for evaluation.
 
         Returns:
-            Global rotations wrapped using dask.delayed.
+            global rotations wrapped using dask.delayed.
         """
 
         wRis, metrics = dask.delayed(self._run_rotation_averaging_base, nout=2)(
-            num_images,
-            i2Ri1_dict=i2Ri1_graph,
-            i1Ti2_priors=i1Ti2_priors,
-            v_corr_idxs=v_corr_idxs,
-            wTi_gt=gt_wTi_list,
+            num_images, i2Ri1_dict=i2Ri1_graph, i1Ti2_priors=i1Ti2_priors, wTi_gt=gt_wTi_list
         )
 
         return wRis, metrics
