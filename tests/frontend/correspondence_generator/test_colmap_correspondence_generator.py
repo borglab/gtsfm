@@ -36,6 +36,13 @@ class TestColmapCorrespondenceGenerator(unittest.TestCase):
         self.assertEqual(len(keypoints), len(self._loader))
         self.assertEqual(len(match_indices), len(IMAGE_PAIRS))
 
+        # Assert that we get a min of 100 keypoints and matches, as it was an easy dataset
+        for i, kpts in enumerate(keypoints):
+            self.assertGreaterEqual(len(kpts), 100, f"Image {i} has {len(kpts)} < 100 of keypoints")
+
+        for pair_tuple, corr_idxs in match_indices.items():
+            self.assertGreaterEqual(len(corr_idxs), 100, f"Pair {pair_tuple} has {len(corr_idxs)} < 100 matches")
+
 
 if __name__ == "__main__":
     unittest.main()
