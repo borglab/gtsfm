@@ -48,6 +48,7 @@ dependencies:
   - plotly=4.14.3
   - tabulate
   - simplejson
+  - pycolmap
   # testing
   - parameterized
   - pip:

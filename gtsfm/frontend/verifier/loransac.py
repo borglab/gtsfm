@@ -49,8 +49,7 @@ class LoRansac(VerifierBase):
             estimation_threshold_px: maximum distance (in pixels) to consider a match an inlier, under squared
                 Sampson distance.
         """
-        self._use_intrinsics_in_verification = use_intrinsics_in_verification
-        self._estimation_threshold_px = estimation_threshold_px
+        super().__init__(use_intrinsics_in_verification, estimation_threshold_px)
         self._min_matches = (
             verifier_base.NUM_MATCHES_REQ_E_MATRIX
             if self._use_intrinsics_in_verification
@@ -78,11 +77,23 @@ class LoRansac(VerifierBase):
         Returns:
             dictionary containing result status code, estimated relative pose (R,t), and inlier mask.
         """
-        camera_dict1 = pycolmap_utils.get_pycolmap_camera(camera_intrinsics_i1)
-        camera_dict2 = pycolmap_utils.get_pycolmap_camera(camera_intrinsics_i2)
+        camera_i1: pycolmap.Camera = pycolmap_utils.get_pycolmap_camera(camera_intrinsics_i1)
+        camera_i2: pycolmap.Camera = pycolmap_utils.get_pycolmap_camera(camera_intrinsics_i2)
 
         result_dict = pycolmap.essential_matrix_estimation(
-            uv_i1, uv_i2, camera_dict1, camera_dict2, max_error_px=self._estimation_threshold_px
+            uv_i1,
+            uv_i2,
+            camera_i1,
+            camera_i2,
+            pycolmap.RANSACOptions(
+                {
+                    "max_error": self._estimation_threshold_px,
+                    "min_num_trials": MIN_NUM_TRIALS,
+                    "max_num_trials": MAX_NUM_TRIALS,
+                    "min_inlier_ratio": MIN_INLIER_RATIO,
+                    "confidence": CONFIDENCE,
+                }
+            ),
         )
         return result_dict
 
@@ -123,17 +134,20 @@ class LoRansac(VerifierBase):
             result_dict = pycolmap.fundamental_matrix_estimation(
                 uv_i1,
                 uv_i2,
-                max_error_px=self._estimation_threshold_px,
-                min_inlier_ratio=MIN_INLIER_RATIO,
-                min_num_trials=MIN_NUM_TRIALS,
-                max_num_trials=MAX_NUM_TRIALS,
-                confidence=CONFIDENCE,
+                pycolmap.RANSACOptions(
+                    {
+                        "max_error": self._estimation_threshold_px,
+                        "min_num_trials": MIN_NUM_TRIALS,
+                        "max_num_trials": MAX_NUM_TRIALS,
+                        "min_inlier_ratio": MIN_INLIER_RATIO,
+                        "confidence": CONFIDENCE,
+                    }
+                ),
             )
 
-        success = result_dict["success"]
-        if not success:
-            matrix_type = "Essential" if self.use_intrinsics_in_verification else "Fundamental"
-            logger.info(f"[LORANSAC] {matrix_type} matrix estimation unsuccessful.")
+        if not result_dict:
+            matrix_type = "Essential" if self._use_intrinsics_in_verification else "Fundamental"
+            logger.info("[LORANSAC] %s matrix estimation unsuccessful.", matrix_type)
             return self._failure_result
 
         num_inliers = result_dict["num_inliers"]
@@ -144,10 +158,11 @@ class LoRansac(VerifierBase):
         if self._use_intrinsics_in_verification:
             # case where E-matrix was estimated
             # See https://github.com/colmap/colmap/blob/dev/src/base/pose.h#L72 for quaternion coefficient ordering
-            qw, qx, qy, qz = result_dict["qvec"]
-            i2Ui1 = result_dict["tvec"]
+            # Note(Ayush): their "cam2_from_cam1" does not mean our i1Ri2.
+            qx, qy, qz, qw = result_dict["cam2_from_cam1"].rotation.quat
             i2Ri1 = Rot3(qw, qx, qy, qz)
-            i2Ui1 = Unit3(i2Ui1)
+            i2Ui1 = Unit3(result_dict["cam2_from_cam1"].translation)
+
         else:
             # case where F-matrix was estimated
             i2Fi1 = result_dict["F"]
