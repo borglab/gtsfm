@@ -71,9 +71,8 @@ SceneOptimizer:
       _target_: gtsfm.averaging.rotation.shonan.ShonanRotationAveraging
 
     trans_avg_module:
-      _target_: gtsfm.averaging.translation.averaging_1dsfm.TranslationAveraging1DSFM
+      _target_: gtsfm.averaging.translation.averaging_creta.TranslationAveragingCReTA
       robust_measurement_noise: True
-      projection_sampling_method: SAMPLE_INPUT_MEASUREMENTS
 
     data_association_module:
       _target_: gtsfm.data_association.data_assoc.DataAssociation

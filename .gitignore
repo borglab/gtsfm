@@ -186,6 +186,10 @@ result_metrics/
 # Folder created by hydra
 output/
 
+# CReTA inputs/outputs
+ta_input*
+ta_output*
+
 # Cache dir
 cache/
 *.mat
