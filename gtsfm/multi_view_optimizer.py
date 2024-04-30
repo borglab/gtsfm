@@ -24,7 +24,7 @@ from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.data_association.data_assoc import DataAssociation
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 from gtsfm.view_graph_estimator.view_graph_estimator_base import ViewGraphEstimatorBase
-from gtsfm.data_association.cpp_dsf_tracks_estimator import CppDsfTracksEstimator
+from gtsfm.data_association.dsf_tracks_estimator import DsfTracksEstimator
 from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 
 
@@ -126,7 +126,7 @@ class MultiViewOptimizer:
             viewgraph_i2Ri1_graph, viewgraph_i2Ui1_graph, relative_pose_priors
         )
         delayed_wRi, rot_avg_metrics = self.rot_avg_module.create_computation_graph(
-            num_images, pruned_i2Ri1_graph, i1Ti2_priors=relative_pose_priors, gt_wTi_list=gt_wTi_list
+            num_images, pruned_i2Ri1_graph, relative_pose_priors, gt_wTi_list, viewgraph_v_corr_idxs_graph
         )
         tracks2d_graph = dask.delayed(get_2d_tracks)(viewgraph_v_corr_idxs_graph, keypoints_list)
 
@@ -199,7 +199,7 @@ def init_cameras(
 def get_2d_tracks(
     corr_idxs_dict: Dict[Tuple[int, int], np.ndarray], keypoints_list: List[Keypoints]
 ) -> List[SfmTrack2d]:
-    tracks_estimator = CppDsfTracksEstimator()
+    tracks_estimator = DsfTracksEstimator()
     return tracks_estimator.run(corr_idxs_dict, keypoints_list)
 
 
