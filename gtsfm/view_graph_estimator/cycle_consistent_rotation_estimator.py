@@ -94,7 +94,7 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         # what those cameras have in other edges.
         for i1, i2 in input_edges:
             num_inlier_corr = two_view_reports[(i1, i2)].num_inliers_est_model
-            if len(num_verified_inliers_for_camera[i1]) < 5 or len(num_verified_inliers_for_camera[i2]) < 5:
+            if len(num_verified_inliers_for_camera[i1]) < 10 or len(num_verified_inliers_for_camera[i2]) < 10:
                 valid_edges.append((i1, i2))
                 continue
             min_required = np.min(
