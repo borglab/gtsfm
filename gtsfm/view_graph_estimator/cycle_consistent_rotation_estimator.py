@@ -2,6 +2,7 @@
 
 Authors: John Lambert, Ayush Baid, Akshay Krishnan
 """
+
 import os
 import time
 from collections import defaultdict
@@ -75,6 +76,40 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         self._edge_error_aggregation_criterion = edge_error_aggregation_criterion
         self._error_threshold = error_threshold
 
+    def remove_edges_with_few_inliers(self, input_edges, two_view_reports):
+        # Collect number of verified inliers for each camera.
+        num_verified_inliers_for_camera = defaultdict(list)
+        for i1, i2 in input_edges:
+            num_inlier_corr = two_view_reports[(i1, i2)].num_inliers_est_model
+            num_verified_inliers_for_camera[i1].append(num_inlier_corr)
+            num_verified_inliers_for_camera[i2].append(num_inlier_corr)
+        mean_num_inliers = {k: np.mean(val) for k, val in num_verified_inliers_for_camera.items()}
+        std_num_inliers = {k: np.std(val) for k, val in num_verified_inliers_for_camera.items()}
+        valid_edges = []
+
+        # Remove measurements for which the number of inliers is less than a minimum heuristic.
+        # The heuristic is min of 0.2 * mean or mean - std, where mean and std the mean and std of the
+        # number of inlier measurements over all edges (for either camera).
+        # Intuitively this removes edges for which the number of correspondences are much lesser than
+        # what those cameras have in other edges.
+        for i1, i2 in input_edges:
+            num_inlier_corr = two_view_reports[(i1, i2)].num_inliers_est_model
+            if len(num_verified_inliers_for_camera[i1]) < 5 or len(num_verified_inliers_for_camera[i2]) < 5:
+                valid_edges.append((i1, i2))
+                continue
+            min_required = np.min(
+                [
+                    0.2 * mean_num_inliers[i1],
+                    0.2 * mean_num_inliers[i2],
+                    mean_num_inliers[i1] - std_num_inliers[i1],
+                    mean_num_inliers[i2] - std_num_inliers[i2],
+                ]
+            )
+            if num_inlier_corr < min_required:
+                continue
+            valid_edges.append((i1, i2))
+        return valid_edges
+
     def run(
         self,
         i2Ri1_dict: Dict[Tuple[int, int], Rot3],
@@ -104,6 +139,8 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
 
         logger.info("Input number of edges: %d" % len(i2Ri1_dict))
         input_edges: List[Tuple[int, int]] = i2Ri1_dict.keys()
+        input_edges = self.remove_edges_with_few_inliers(input_edges, two_view_reports)
+
         triplets: List[Tuple[int, int, int]] = graph_utils.extract_cyclic_triplets_from_edges(input_edges)
 
         logger.info("Number of triplets: %d" % len(triplets))
@@ -145,7 +182,7 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         logger.info(
             "Found %d consistent rel. rotations from %d original edges in %.2f sec.",
             len(valid_edges),
-            len(input_edges),
+            len(i2Ri1_dict),
             duration_sec,
         )
 
