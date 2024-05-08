@@ -6,7 +6,7 @@ Authors: Akshay Krishnan
 """
 
 from typing import Any, Dict, List, Tuple
-
+import torch
 from dask.distributed import Client, Future
 from dust3r.cloud_opt import global_aligner, GlobalAlignerMode
 from dust3r.inference import inference
@@ -18,6 +18,7 @@ import torchvision.transforms as tvf
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.utils import images as image_utils
+from gtsfm.utils import logger as logger_utils
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import (
     CorrespondenceGeneratorBase,
 )
@@ -30,6 +31,7 @@ from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggreg
 )
 
 ImgNorm = tvf.Compose([tvf.ToTensor(), tvf.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+logger = logger_utils.get_logger()
 
 
 def resize_image(img: Image, long_edge_size: int) -> Image:
@@ -95,12 +97,14 @@ class Dust3rCorrespondenceGenerator(CorrespondenceGeneratorBase):
             Putative correspondence as indices of keypoints, for pairs of images.
         """
         model_name = "naver/DUSt3R_ViTLarge_BaseDecoder_512_dpt"
-        model = AsymmetricCroCo3DStereo.from_pretrained(model_name).to("cuda")
-        # model_future = client.scatter(model, broadcast=False)
+        model = AsymmetricCroCo3DStereo.from_pretrained(model_name).to("cpu")
+        model_future = client.scatter(model, broadcast=False)
 
         def apply_dust3r(model, image1: Image, image2: Image) -> Tuple[Keypoints, Keypoints]:
             image1_proc, crop1, scale1 = preprocess_image(image1, 0)
             image2_proc, crop2, scale2 = preprocess_image(image2, 1)
+
+            model.to("cuda")
             output = inference([(image1_proc, image2_proc), (image2_proc, image1_proc)], model, "cuda", batch_size=1)
 
             scene = global_aligner(output, device="cuda", mode=GlobalAlignerMode.PairViewer)

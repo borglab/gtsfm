@@ -6,7 +6,7 @@ Authors: Akshay Krishnan
 from pathlib import Path
 import unittest
 
-from dask.distributed import Client
+from dask.distributed import Client, LocalCluster
 from PIL import Image
 
 from gtsfm.frontend.correspondence_generator.dust3r_correspondence_generator import Dust3rCorrespondenceGenerator
@@ -18,7 +18,7 @@ DATA_ROOT_PATH = Path(__file__).resolve().parent.parent.parent / "data"
 TEST_DATA_PATH = DATA_ROOT_PATH / "set1_lund_door"
 DB_PATH = TEST_DATA_PATH / "colmap.db"
 
-IMAGE_PAIRS = [(0, 1)]
+IMAGE_PAIRS = [(0, 1), (1, 2)]
 
 SAVE_VISUALIZATION = False  # Use for debugging locally.
 
@@ -26,7 +26,8 @@ SAVE_VISUALIZATION = False  # Use for debugging locally.
 class TestDust3rCorrespondenceGenerator(unittest.TestCase):
 
     def setUp(self) -> None:
-        self._client = Client()
+        cluster = LocalCluster(n_workers=1, threads_per_worker=1, memory_limit="32GB")
+        self._client = Client(cluster)
 
         self._loader = OlssonLoader(str(TEST_DATA_PATH), max_frame_lookahead=4)
 
@@ -37,7 +38,7 @@ class TestDust3rCorrespondenceGenerator(unittest.TestCase):
             self._client, self._loader.get_all_images_as_futures(self._client), IMAGE_PAIRS
         )
 
-        self.assertEqual(len(keypoints), 2)
+        self.assertEqual(len(keypoints), 3)
         self.assertEqual(len(match_indices), len(IMAGE_PAIRS))
 
         # Assert that we get a min of 100 keypoints and matches, as it was an easy dataset
