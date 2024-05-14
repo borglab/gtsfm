@@ -138,7 +138,6 @@ class ShonanRotationAveraging(RotationAveragingBase):
         logger.info("Initial cost: %.5f", shonan.cost(initial))
         result, _ = shonan.run(initial, self._p_min, self._p_max)
         logger.info("Final cost: %.5f", shonan.cost(result))
-        logger.info("Shonan result optimal: %s", shonan.checkOptimality(result))
 
         wRi_list_consecutive = [None] * num_connected_nodes
         for i in range(num_connected_nodes):
