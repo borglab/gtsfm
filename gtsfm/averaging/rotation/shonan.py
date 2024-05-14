@@ -30,7 +30,6 @@ import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.rotation as rotation_util
 from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
 from gtsfm.common.pose_prior import PosePrior
-from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 
 POSE3_DOF = 6
 
@@ -42,7 +41,9 @@ _DEFAULT_TWO_VIEW_ROTATION_SIGMA = 1.0
 class ShonanRotationAveraging(RotationAveragingBase):
     """Performs Shonan rotation averaging."""
 
-    def __init__(self, two_view_rotation_sigma: float = _DEFAULT_TWO_VIEW_ROTATION_SIGMA) -> None:
+    def __init__(
+        self, two_view_rotation_sigma: float = _DEFAULT_TWO_VIEW_ROTATION_SIGMA, use_mst_init: bool = False
+    ) -> None:
         """Initializes module.
 
         Note: `p_min` and `p_max` describe the minimum and maximum relaxation rank.
@@ -52,6 +53,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         """
         super().__init__()
         self._two_view_rotation_sigma = two_view_rotation_sigma
+        self._use_mst_init = use_mst_init
         self._p_min = 5
         self._p_max = 64
 
@@ -198,14 +200,16 @@ class ShonanRotationAveraging(RotationAveragingBase):
             if (i1, i2) in i2Ri1_dict
         }
         # Use negative of the number of correspondences as the edge weight.
-        wRi_initial_ = rotation_util.initialize_global_rotations_using_mst(
-            len(nodes_with_edges),
-            i2Ri1_dict_,
-            edge_weights={(i1, i2): -num_correspondences_dict.get((i1, i2), 0) for i1, i2 in i2Ri1_dict_.keys()},
-        )
-        initial_values = Values()
-        for i, wRi_initial_ in enumerate(wRi_initial_):
-            initial_values.insert(i, wRi_initial_)
+        initial_values: Optional[Values] = None
+        if self._use_mst_init:
+            wRi_initial_ = rotation_util.initialize_global_rotations_using_mst(
+                len(nodes_with_edges),
+                i2Ri1_dict_,
+                edge_weights={(i1, i2): -num_correspondences_dict.get((i1, i2), 0) for i1, i2 in i2Ri1_dict_.keys()},
+            )
+            initial_values = Values()
+            for i, wRi in enumerate(wRi_initial_):
+                initial_values.insert(i, wRi)
 
         between_factors: BetweenFactorPose3s = self.__between_factors_from_2view_relative_rotations(
             i2Ri1_dict, old_to_new_idxes

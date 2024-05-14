@@ -2,6 +2,7 @@
 
 Authors: Ayush Baid
 """
+
 import unittest
 from typing import Dict, List, Tuple
 
@@ -18,7 +19,7 @@ ROTATION_ANGLE_ERROR_THRESHOLD_DEG = 2
 RELATIVE_ROTATION_DICT = Dict[Tuple[int, int], Rot3]
 
 
-def _get_ordered_chain_pose_data() -> Tuple[RELATIVE_ROTATION_DICT, List[float]]:
+def _get_ordered_chain_pose_data() -> Tuple[RELATIVE_ROTATION_DICT, np.ndarray]:
     """Return data for a scenario with 5 camera poses, with ordering that follows their connectivity.
 
     Accordingly, we specify i1 < i2 for all edges (i1,i2).
@@ -48,7 +49,7 @@ def _get_ordered_chain_pose_data() -> Tuple[RELATIVE_ROTATION_DICT, List[float]]
     return i2Ri1_dict, wRi_list_euler_deg_expected
 
 
-def _get_mixed_order_chain_pose_data() -> Tuple[RELATIVE_ROTATION_DICT, List[float]]:
+def _get_mixed_order_chain_pose_data() -> Tuple[RELATIVE_ROTATION_DICT, np.ndarray]:
     """Return data for a scenario with 5 camera poses, with ordering that does NOT follow their connectivity.
 
     Below, we do NOT specify i1 < i2 for all edges (i1,i2).
@@ -116,7 +117,7 @@ def _wrap_angles(angles: np.ndarray) -> np.ndarray:
 
 class TestRotationUtil(unittest.TestCase):
     def test_mst_initialization(self):
-        """Test for 4 poses in a circle, with a pose connected all others."""
+        """Test for 4 poses in a circle, with a pose connected to all others."""
         i2Ri1_dict, wRi_expected = sample_poses.convert_data_for_rotation_averaging(
             sample_poses.CIRCLE_ALL_EDGES_GLOBAL_POSES, sample_poses.CIRCLE_ALL_EDGES_RELATIVE_POSES
         )
