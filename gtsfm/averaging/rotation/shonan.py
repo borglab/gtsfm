@@ -133,6 +133,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         shonan = ShonanAveraging3(between_factors, self.__get_shonan_params())
 
         if initial is None:
+            logger.info("Using random initialization for Shonan")
             initial = shonan.initializeRandomly()
         logger.info("Initial cost: %.5f", shonan.cost(initial))
         result, _ = shonan.run(initial, self._p_min, self._p_max)
@@ -202,6 +203,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         # Use negative of the number of correspondences as the edge weight.
         initial_values: Optional[Values] = None
         if self._use_mst_init:
+            logger.info("Using MST initialization for Shonan")
             wRi_initial_ = rotation_util.initialize_global_rotations_using_mst(
                 len(nodes_with_edges),
                 i2Ri1_dict_,
