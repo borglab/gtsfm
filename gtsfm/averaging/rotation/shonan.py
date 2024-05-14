@@ -10,6 +10,7 @@ References:
 
 Authors: Jing Wu, Ayush Baid, John Lambert
 """
+
 from typing import Dict, List, Optional, Set, Tuple
 
 import gtsam
@@ -46,8 +47,9 @@ class ShonanRotationAveraging(RotationAveragingBase):
         Args:
             two_view_rotation_sigma: Covariance to use (lower values -> more strictly adhere to input measurements).
         """
+        super().__init__()
         self._two_view_rotation_sigma = two_view_rotation_sigma
-        self._p_min = 5
+        self._p_min = 3
         self._p_max = 64
 
     def __get_shonan_params(self) -> ShonanAveragingParameters3:
@@ -143,10 +145,10 @@ class ShonanRotationAveraging(RotationAveragingBase):
         """Gets the nodes with edges which are to be modelled as between factors."""
 
         unique_nodes_with_edges = set()
-        for (i1, i2) in i2Ri1_dict.keys():
+        for i1, i2 in i2Ri1_dict.keys():
             unique_nodes_with_edges.add(i1)
             unique_nodes_with_edges.add(i2)
-        for (i1, i2) in relative_pose_priors.keys():
+        for i1, i2 in relative_pose_priors.keys():
             unique_nodes_with_edges.add(i1)
             unique_nodes_with_edges.add(i2)
 
