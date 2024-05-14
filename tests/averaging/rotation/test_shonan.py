@@ -15,7 +15,6 @@ from gtsam import Pose3, Rot3
 import gtsfm.utils.geometry_comparisons as geometry_comparisons
 import gtsfm.utils.rotation as rotation_util
 import tests.data.sample_poses as sample_poses
-from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
 from gtsfm.averaging.rotation.shonan import ShonanRotationAveraging
 from gtsfm.common.pose_prior import PosePrior, PosePriorType
 
