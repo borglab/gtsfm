@@ -6,7 +6,18 @@ Authors: Ayush Baid
 from typing import Dict, List, Tuple
 
 import networkx as nx
+import numpy as np
 from gtsam import Rot3
+
+
+def random_rotation() -> Rot3:
+    """Sample a random rotation by generating a sample from the 4d unit sphere."""
+    q = np.random.randn(4)
+    # make unit-length quaternion
+    q /= np.linalg.norm(q)
+    qw, qx, qy, qz = q
+    R = Rot3(qw, qx, qy, qz)
+    return R
 
 
 def initialize_global_rotations_using_mst(

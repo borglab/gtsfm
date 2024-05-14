@@ -4,15 +4,16 @@ Authors: Ayush Baid, John Lambert
 """
 
 import pickle
+import random
 import unittest
 from typing import Dict, List, Tuple
-import random
 
 import dask
 import numpy as np
 from gtsam import Pose3, Rot3
 
 import gtsfm.utils.geometry_comparisons as geometry_comparisons
+import gtsfm.utils.rotation as rotation_util
 import tests.data.sample_poses as sample_poses
 from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
 from gtsfm.averaging.rotation.shonan import ShonanRotationAveraging
@@ -27,10 +28,10 @@ class TestShonanRotationAveraging(unittest.TestCase):
     All unit test functions defined in TestRotationAveragingBase are run automatically.
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         super().setUp()
 
-        self.obj: RotationAveragingBase = ShonanRotationAveraging()
+        self.obj = ShonanRotationAveraging()
 
     def __execute_test(self, i2Ri1_input: Dict[Tuple[int, int], Rot3], wRi_expected: List[Rot3]) -> None:
         """Helper function to run the averagaing and assert w/ expected.
@@ -190,7 +191,38 @@ class TestShonanRotationAveraging(unittest.TestCase):
             geometry_comparisons.compare_rotations(wRi_computed, wRi_expected, angular_error_threshold_degrees=0.1)
         )
 
-    def _test_initialization(self, )
+    def test_initialization(self) -> None:
+        """Test that the result of Shonan is not dependent on the initialization."""
+        i2Ri1_dict_noisefree, wRi_expected = sample_poses.convert_data_for_rotation_averaging(
+            sample_poses.CIRCLE_ALL_EDGES_GLOBAL_POSES, sample_poses.CIRCLE_ALL_EDGES_RELATIVE_POSES
+        )
+        v_corr_idxs = {pair: _generate_corr_idxs(random.randint(1, 10)) for pair in i2Ri1_dict_noisefree.keys()}
+
+        # Add noise to the relative rotations
+        i2Ri1_dict_noisy = {
+            pair: i2Ri1 * rotation_util.random_rotation() for pair, i2Ri1 in i2Ri1_dict_noisefree.items()
+        }
+
+        wRi_computed_with_random_init = self.obj.run_rotation_averaging(
+            num_images=len(wRi_expected),
+            i2Ri1_dict=i2Ri1_dict_noisy,
+            i1Ti2_priors={},
+            v_corr_idxs=v_corr_idxs,
+        )
+
+        shonan_mst_init = ShonanRotationAveraging(use_mst_init=True)
+        wRi_computed_with_mst_init = shonan_mst_init.run_rotation_averaging(
+            num_images=len(wRi_expected),
+            i2Ri1_dict=i2Ri1_dict_noisy,
+            i1Ti2_priors={},
+            v_corr_idxs=v_corr_idxs,
+        )
+
+        self.assertTrue(
+            geometry_comparisons.compare_rotations(
+                wRi_computed_with_random_init, wRi_computed_with_mst_init, angular_error_threshold_degrees=0.1
+            )
+        )
 
 
 def _generate_corr_idxs(num_corrs: int) -> np.ndarray:
