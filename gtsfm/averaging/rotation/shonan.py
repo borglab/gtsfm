@@ -54,14 +54,14 @@ class ShonanRotationAveraging(RotationAveragingBase):
         super().__init__()
         self._two_view_rotation_sigma = two_view_rotation_sigma
         self._use_mst_init = use_mst_init
-        self._p_min = 5
-        self._p_max = 64
+        self._p_min = 3
+        self._p_max = 3
 
     def __get_shonan_params(self) -> ShonanAveragingParameters3:
         lm_params = LevenbergMarquardtParams.CeresDefaults()
         shonan_params = ShonanAveragingParameters3(lm_params)
-        shonan_params.setUseHuber(False)
-        shonan_params.setCertifyOptimality(True)
+        shonan_params.setUseHuber(True)
+        shonan_params.setCertifyOptimality(False)
         return shonan_params
 
     def __between_factors_from_2view_relative_rotations(
