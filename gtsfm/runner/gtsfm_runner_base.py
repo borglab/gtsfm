@@ -344,8 +344,8 @@ class GtsfmRunnerBase:
             )
             two_view_estimation_duration_sec = time.time() - two_view_estimation_start_time
 
-        i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, _, two_view_reports_dict = unzip_two_view_results(
-            two_view_results_dict
+        i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, _, post_ba_two_view_reports_dict, two_view_reports_dict = (
+            unzip_two_view_results(two_view_results_dict)
         )
 
         if self.scene_optimizer._save_two_view_correspondences_viz:
@@ -364,7 +364,11 @@ class GtsfmRunnerBase:
                         f"{i1}_{i2}__{image_i1.file_name}_{image_i2.file_name}.jpg",
                     ),
                 )
-
+        two_view_agg_metrics_post_ba = two_view_estimator.aggregate_frontend_metrics(
+            two_view_reports_dict=post_ba_two_view_reports_dict,
+            angular_err_threshold_deg=self.scene_optimizer._pose_angular_error_thresh,
+            metric_group_name="verifier_summary_{}".format(two_view_estimator.POST_BA_REPORT_TAG),
+        )
         two_view_agg_metrics = two_view_estimator.aggregate_frontend_metrics(
             two_view_reports_dict=two_view_reports_dict,
             angular_err_threshold_deg=self.scene_optimizer._pose_angular_error_thresh,
@@ -376,7 +380,7 @@ class GtsfmRunnerBase:
         two_view_agg_metrics.add_metric(
             GtsfmMetric("total_two_view_estimation_duration_sec", two_view_estimation_duration_sec)
         )
-        all_metrics_groups = [retriever_metrics, two_view_agg_metrics]
+        all_metrics_groups = [retriever_metrics, two_view_agg_metrics, two_view_agg_metrics_post_ba]
 
         delayed_sfm_result, delayed_io, delayed_mvo_metrics_groups = self.scene_optimizer.create_computation_graph(
             keypoints_list=keypoints_list,
@@ -384,6 +388,7 @@ class GtsfmRunnerBase:
             i2Ui1_dict=i2Ui1_dict,
             v_corr_idxs_dict=v_corr_idxs_dict,
             two_view_reports=two_view_reports_dict,
+            post_ba_two_view_reports=post_ba_two_view_reports_dict,
             num_images=len(self.loader),
             images=self.loader.create_computation_graph_for_images(),
             camera_intrinsics=intrinsics,
@@ -420,12 +425,14 @@ def unzip_two_view_results(two_view_results: Dict[Tuple[int, int], TWO_VIEW_OUTP
     Dict[Tuple[int, int], np.ndarray],
     Dict[Tuple[int, int], TwoViewEstimationReport],
     Dict[Tuple[int, int], TwoViewEstimationReport],
+    Dict[Tuple[int, int], TwoViewEstimationReport],
 ]:
     """Unzip the tuple TWO_VIEW_OUTPUT into 1 dictionary for 1 element in the tuple."""
     i2Ri1_dict: Dict[Tuple[int, int], Rot3] = {}
     i2Ui1_dict: Dict[Tuple[int, int], Unit3] = {}
     v_corr_idxs_dict: Dict[Tuple[int, int], np.ndarray] = {}
     pre_ba_two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport] = {}
+    post_ba_two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport] = {}
     post_isp_two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport] = {}
 
     for (i1, i2), two_view_output in two_view_results.items():
@@ -441,9 +448,17 @@ def unzip_two_view_results(two_view_results: Dict[Tuple[int, int], TWO_VIEW_OUTP
         i2Ui1_dict[(i1, i2)] = i2Ui1
         v_corr_idxs_dict[(i1, i2)] = two_view_output[2]
         pre_ba_two_view_reports_dict[(i1, i2)] = two_view_output[3]
+        post_ba_two_view_reports_dict[(i1, i2)] = two_view_output[4]
         post_isp_two_view_reports_dict[(i1, i2)] = two_view_output[5]
 
-    return i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, pre_ba_two_view_reports_dict, post_isp_two_view_reports_dict
+    return (
+        i2Ri1_dict,
+        i2Ui1_dict,
+        v_corr_idxs_dict,
+        pre_ba_two_view_reports_dict,
+        post_ba_two_view_reports_dict,
+        post_isp_two_view_reports_dict,
+    )
 
 
 def save_metrics_reports(metrics_group_list: List[GtsfmMetricsGroup], metrics_path: str) -> None:

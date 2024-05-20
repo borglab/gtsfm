@@ -2,6 +2,7 @@
 
 Authors: Ayush Baid, John Lambert
 """
+
 import dataclasses
 import logging
 import timeit
@@ -26,6 +27,7 @@ from gtsfm.data_association.point3d_initializer import Point3dInitializer, Trian
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.frontend.inlier_support_processor import InlierSupportProcessor
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
+from gtsfm.utils import tracks as track_utils
 
 logger = logger_utils.get_logger()
 
@@ -190,7 +192,12 @@ class TwoViewEstimator:
         logger.debug("Triangulated %d correspondences out of %d.", len(triangulated_tracks), len(verified_corr_idxs))
 
         if len(triangulated_tracks) == 0:
-            return i2Ti1_initial.rotation(), Unit3(i2Ti1_initial.translation()), np.zeros(shape=(0, 2), dtype=np.int32)
+            return (
+                i2Ti1_initial.rotation(),
+                Unit3(i2Ti1_initial.translation()),
+                np.zeros(shape=(0, 2), dtype=np.int32),
+                None,
+            )
 
         # Build BA inputs.
         start_time = timeit.default_timer()
@@ -213,8 +220,16 @@ class TwoViewEstimator:
             return i2Ri1_initial, i2Ui1_initial, valid_corr_idxs
         i2Ti1_optimized = wTi2.between(wTi1)
         logger.debug("Performed 2-view BA in %.6f seconds.", timeit.default_timer() - start_time)
+        points3d = [t.point3() for t in ba_output.get_tracks()]
+        triangulation_angles = [track_utils.get_max_triangulation_angle(t, cameras) for t in ba_output.get_tracks()]
+        logger.info(
+            "triangulation angles %d %d %d",
+            np.mean(triangulation_angles),
+            np.max(triangulation_angles),
+            np.median(triangulation_angles),
+        )
 
-        return i2Ti1_optimized.rotation(), Unit3(i2Ti1_optimized.translation()), valid_corr_idxs
+        return i2Ti1_optimized.rotation(), Unit3(i2Ti1_optimized.translation()), valid_corr_idxs, np.array(points3d)
 
     def __get_2view_report_from_results(
         self,
@@ -331,7 +346,7 @@ class TwoViewEstimator:
             post_ba_inlier_ratio_wrt_estimate = float(len(post_ba_v_corr_idxs)) / len(putative_corr_idxs)
 
             # TODO: Remove this hack once we can handle the lower post_ba_inlier_ratio_wrt_estimate downstream.
-            post_ba_inlier_ratio_wrt_estimate = pre_ba_inlier_ratio_wrt_estimate
+            # post_ba_inlier_ratio_wrt_estimate = pre_ba_inlier_ratio_wrt_estimate
 
             post_ba_report = self.__get_2view_report_from_results(
                 i2Ri1_computed=post_ba_i2Ri1,
@@ -339,7 +354,7 @@ class TwoViewEstimator:
                 keypoints_i1=keypoints_i1,
                 keypoints_i2=keypoints_i2,
                 verified_corr_idxs=post_ba_v_corr_idxs,
-                inlier_ratio_wrt_estimate=post_ba_inlier_ratio_wrt_estimate,
+                inlier_ratio_wrt_estimate=pre_ba_inlier_ratio_wrt_estimate,
                 gt_camera_i1=gt_camera_i1,
                 gt_camera_i2=gt_camera_i2,
                 gt_scene_mesh=gt_scene_mesh,
@@ -349,6 +364,8 @@ class TwoViewEstimator:
             post_ba_i2Ui1 = pre_ba_i2Ui1
             post_ba_v_corr_idxs = pre_ba_v_corr_idxs
             post_ba_report = dataclasses.replace(pre_ba_report)
+            post_ba_inlier_ratio_wrt_estimate = pre_ba_inlier_ratio_wrt_estimate
+            points3d = None
 
         (
             post_isp_i2Ri1,
@@ -356,8 +373,17 @@ class TwoViewEstimator:
             post_isp_v_corr_idxs,
             post_isp_report,
         ) = self.processor.run_inlier_support(post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs, post_ba_report)
+        post_ba_report.inlier_ratio_est_model = post_ba_inlier_ratio_wrt_estimate
 
-        return post_isp_i2Ri1, post_isp_i2Ui1, post_isp_v_corr_idxs, pre_ba_report, post_ba_report, post_isp_report
+        return (
+            post_isp_i2Ri1,
+            post_isp_i2Ui1,
+            post_isp_v_corr_idxs,
+            pre_ba_report,
+            post_ba_report,
+            post_isp_report,
+            points3d,
+        )
 
 
 def generate_two_view_report(
@@ -625,24 +651,26 @@ def get_two_view_reports_summary(
                 "i2_filename": images[i2].file_name,
                 "rotation_angular_error": round_fn(report.R_error_deg),
                 "translation_angular_error": round_fn(report.U_error_deg),
-                "num_inliers_gt_model": int(report.num_inliers_gt_model)
-                if report.num_inliers_gt_model is not None
-                else None,
+                "num_inliers_gt_model": (
+                    int(report.num_inliers_gt_model) if report.num_inliers_gt_model is not None else None
+                ),
                 "inlier_ratio_gt_model": round_fn(report.inlier_ratio_gt_model),
-                "inlier_avg_reproj_error_gt_model": round_fn(
-                    np.nanmean(report.reproj_error_gt_model[report.v_corr_idxs_inlier_mask_gt])
-                )
-                if report.reproj_error_gt_model is not None and report.v_corr_idxs_inlier_mask_gt is not None
-                else None,
-                "outlier_avg_reproj_error_gt_model": round_fn(
-                    np.nanmean(report.reproj_error_gt_model[np.logical_not(report.v_corr_idxs_inlier_mask_gt)])
-                )
-                if report.reproj_error_gt_model is not None and report.v_corr_idxs_inlier_mask_gt is not None
-                else None,
+                "inlier_avg_reproj_error_gt_model": (
+                    round_fn(np.nanmean(report.reproj_error_gt_model[report.v_corr_idxs_inlier_mask_gt]))
+                    if report.reproj_error_gt_model is not None and report.v_corr_idxs_inlier_mask_gt is not None
+                    else None
+                ),
+                "outlier_avg_reproj_error_gt_model": (
+                    round_fn(
+                        np.nanmean(report.reproj_error_gt_model[np.logical_not(report.v_corr_idxs_inlier_mask_gt)])
+                    )
+                    if report.reproj_error_gt_model is not None and report.v_corr_idxs_inlier_mask_gt is not None
+                    else None
+                ),
                 "inlier_ratio_est_model": round_fn(report.inlier_ratio_est_model),
-                "num_inliers_est_model": int(report.num_inliers_est_model)
-                if report.num_inliers_est_model is not None
-                else None,
+                "num_inliers_est_model": (
+                    int(report.num_inliers_est_model) if report.num_inliers_est_model is not None else None
+                ),
             }
         )
     return metrics_list
