@@ -33,6 +33,12 @@ class VerifierBase(GTSFMProcess):
             parent_plate="Two-View Estimator",
         )
 
+    def __repr__(self) -> str:
+        return (
+            f"{type(self).__name__}"
+            + f"__use_intrinsics{self._use_intrinsics_in_verification}_{self._estimation_threshold_px}px"
+        )
+
     def __init__(
         self,
         use_intrinsics_in_verification: bool,
