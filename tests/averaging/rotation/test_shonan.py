@@ -7,18 +7,22 @@ import pickle
 import random
 import unittest
 from typing import Dict, List, Tuple
+from pathlib import Path
 
 import dask
 import numpy as np
 from gtsam import Pose3, Rot3
 
 import gtsfm.utils.geometry_comparisons as geometry_comparisons
+import gtsfm.utils.io as io_utils
 import gtsfm.utils.rotation as rotation_util
 import tests.data.sample_poses as sample_poses
 from gtsfm.averaging.rotation.shonan import ShonanRotationAveraging
 from gtsfm.common.pose_prior import PosePrior, PosePriorType
 
 ROTATION_ANGLE_ERROR_THRESHOLD_DEG = 2
+TEST_DATA_ROOT = Path(__file__).resolve().parent.parent.parent / "data"
+LARGE_PROBLEM_BAL_FILE = TEST_DATA_ROOT / "problem-394-100368-pre.txt"
 
 
 class TestShonanRotationAveraging(unittest.TestCase):
@@ -212,6 +216,47 @@ class TestShonanRotationAveraging(unittest.TestCase):
         shonan_mst_init = ShonanRotationAveraging(use_mst_init=True)
         wRi_computed_with_mst_init = shonan_mst_init.run_rotation_averaging(
             num_images=len(wRi_expected),
+            i2Ri1_dict=i2Ri1_dict_noisy,
+            i1Ti2_priors={},
+            v_corr_idxs=v_corr_idxs,
+        )
+
+        self.assertTrue(
+            geometry_comparisons.compare_rotations(
+                wRi_computed_with_random_init, wRi_computed_with_mst_init, angular_error_threshold_degrees=0.1
+            )
+        )
+
+    def test_initialization_big(self):
+        """Test that the result of Shonan is not dependent on the initialization on a bigger dataset."""
+        gt_data = io_utils.read_bal(str(LARGE_PROBLEM_BAL_FILE))
+        poses = gt_data.get_camera_poses()[:15]
+        pairs: List[Tuple[int, int]] = []
+        for i in range(len(poses)):
+            for j in range(i + 1, min(i + 5, len(poses))):
+                pairs.append((i, j))
+
+        i2Ri1_dict_noisefree, _ = sample_poses.convert_data_for_rotation_averaging(
+            poses, sample_poses.generate_relative_from_global(poses, pairs)
+        )
+        v_corr_idxs = {pair: _generate_corr_idxs(random.randint(1, 10)) for pair in i2Ri1_dict_noisefree.keys()}
+
+        # Add noise to the relative rotations
+        i2Ri1_dict_noisy = {
+            pair: i2Ri1 * rotation_util.random_rotation(angle_scale_factor=0.5)
+            for pair, i2Ri1 in i2Ri1_dict_noisefree.items()
+        }
+
+        wRi_computed_with_random_init = self.obj.run_rotation_averaging(
+            num_images=len(poses),
+            i2Ri1_dict=i2Ri1_dict_noisy,
+            i1Ti2_priors={},
+            v_corr_idxs=v_corr_idxs,
+        )
+
+        shonan_mst_init = ShonanRotationAveraging(use_mst_init=True)
+        wRi_computed_with_mst_init = shonan_mst_init.run_rotation_averaging(
+            num_images=len(poses),
             i2Ri1_dict=i2Ri1_dict_noisy,
             i1Ti2_priors={},
             v_corr_idxs=v_corr_idxs,

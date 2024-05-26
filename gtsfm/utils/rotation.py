@@ -10,14 +10,16 @@ import numpy as np
 from gtsam import Rot3
 
 
-def random_rotation() -> Rot3:
+def random_rotation(angle_scale_factor: float = 0.1) -> Rot3:
     """Sample a random rotation by generating a sample from the 4d unit sphere."""
-    q = np.random.randn(4)
+    q = np.random.rand(4)
     # make unit-length quaternion
     q /= np.linalg.norm(q)
     qw, qx, qy, qz = q
     R = Rot3(qw, qx, qy, qz)
-    return R
+    axis, angle = R.axisAngle()
+    angle = angle * angle_scale_factor
+    return Rot3.AxisAngle(axis.point3(), angle)
 
 
 def initialize_global_rotations_using_mst(
