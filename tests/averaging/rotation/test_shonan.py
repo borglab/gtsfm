@@ -7,18 +7,22 @@ import pickle
 import random
 import unittest
 from typing import Dict, List, Tuple
+from pathlib import Path
 
 import dask
 import numpy as np
 from gtsam import Pose3, Rot3
 
 import gtsfm.utils.geometry_comparisons as geometry_comparisons
+import gtsfm.utils.io as io_utils
 import gtsfm.utils.rotation as rotation_util
 import tests.data.sample_poses as sample_poses
 from gtsfm.averaging.rotation.shonan import ShonanRotationAveraging
 from gtsfm.common.pose_prior import PosePrior, PosePriorType
 
 ROTATION_ANGLE_ERROR_THRESHOLD_DEG = 2
+TEST_DATA_ROOT = Path(__file__).resolve().parent.parent.parent / "data"
+LARGE_PROBLEM_BAL_FILE = TEST_DATA_ROOT / "problem-394-100368-pre.txt"
 
 
 class TestShonanRotationAveraging(unittest.TestCase):
@@ -40,7 +44,7 @@ class TestShonanRotationAveraging(unittest.TestCase):
             wRi_expected: Expected global rotations.
         """
         i1Ti2_priors: Dict[Tuple[int, int], PosePrior] = {}
-        v_corr_idxs = {(i1, i2): _generate_corr_idxs(random.randint(0, 100)) for i1, i2 in i2Ri1_input.keys()}
+        v_corr_idxs = _create_dummy_correspondences(i2Ri1_input)
         wRi_computed = self.obj.run_rotation_averaging(len(wRi_expected), i2Ri1_input, i1Ti2_priors, v_corr_idxs)
         self.assertTrue(
             geometry_comparisons.compare_rotations(wRi_computed, wRi_expected, ROTATION_ANGLE_ERROR_THRESHOLD_DEG)
@@ -101,12 +105,7 @@ class TestShonanRotationAveraging(unittest.TestCase):
                 type=PosePriorType.SOFT_CONSTRAINT,
             )
         }
-
-        v_corr_idxs = {
-            (0, 1): _generate_corr_idxs(1),
-            (0, 2): _generate_corr_idxs(1),
-        }
-
+        v_corr_idxs = _create_dummy_correspondences(i2Ri1_dict)
         wRi_computed = self.obj.run_rotation_averaging(len(expected_wRi_list), i2Ri1_dict, i1Ti2_priors, v_corr_idxs)
         self.assertTrue(
             geometry_comparisons.compare_rotations(wRi_computed, expected_wRi_list, ROTATION_ANGLE_ERROR_THRESHOLD_DEG)
@@ -121,21 +120,18 @@ class TestShonanRotationAveraging(unittest.TestCase):
             (0, 1): Rot3.RzRyRx(0, np.deg2rad(30), 0),
             (1, 2): Rot3.RzRyRx(0, 0, np.deg2rad(20)),
         }
-        v_corr_idxs = {
-            (0, 1): _generate_corr_idxs(200),
-            (1, 2): _generate_corr_idxs(500),
-        }
 
         i2Ri1_graph = dask.delayed(i2Ri1_dict)
 
-        # use the GTSAM API directly (without dask) for rotation averaging
+        # Use the GTSAM API directly (without dask) for rotation averaging
         i1Ti2_priors: Dict[Tuple[int, int], PosePrior] = {}
+        v_corr_idxs = _create_dummy_correspondences(i2Ri1_dict)
         expected_wRi_list = self.obj.run_rotation_averaging(num_poses, i2Ri1_dict, i1Ti2_priors, v_corr_idxs)
 
-        # use dask's computation graph
+        # Use dask's computation graph
         gt_wTi_list = [None] * len(expected_wRi_list)
         rotations_graph, _ = self.obj.create_computation_graph(
-            num_poses, i2Ri1_graph, i1Ti2_priors, gt_wTi_list, v_corr_idxs
+            num_poses, i2Ri1_graph, i1Ti2_priors, v_corr_idxs=v_corr_idxs, gt_wTi_list=gt_wTi_list
         )
 
         with dask.config.set(scheduler="single-threaded"):
@@ -184,6 +180,7 @@ class TestShonanRotationAveraging(unittest.TestCase):
         }
 
         relative_pose_priors: Dict[Tuple[int, int], PosePrior] = {}
+        v_corr_idxs = _create_dummy_correspondences(i2Ri1_input)
         wRi_computed = self.obj.run_rotation_averaging(num_images, i2Ri1_input, relative_pose_priors, v_corr_idxs)
         wRi_expected = [None, wTi1.rotation(), wTi2.rotation(), wTi3.rotation()]
         self.assertTrue(
@@ -223,9 +220,60 @@ class TestShonanRotationAveraging(unittest.TestCase):
             )
         )
 
+    def test_initialization_big(self):
+        """Test that the result of Shonan is not dependent on the initialization on a bigger dataset."""
+        gt_data = io_utils.read_bal(str(LARGE_PROBLEM_BAL_FILE))
+        poses = gt_data.get_camera_poses()[:15]
+        pairs: List[Tuple[int, int]] = []
+        for i in range(len(poses)):
+            for j in range(i + 1, min(i + 5, len(poses))):
+                pairs.append((i, j))
+
+        i2Ri1_dict_noisefree, _ = sample_poses.convert_data_for_rotation_averaging(
+            poses, sample_poses.generate_relative_from_global(poses, pairs)
+        )
+        v_corr_idxs = {pair: _generate_corr_idxs(random.randint(1, 10)) for pair in i2Ri1_dict_noisefree.keys()}
+
+        # Add noise to the relative rotations
+        i2Ri1_dict_noisy = {
+            pair: i2Ri1 * rotation_util.random_rotation(angle_scale_factor=0.5)
+            for pair, i2Ri1 in i2Ri1_dict_noisefree.items()
+        }
+
+        wRi_computed_with_random_init = self.obj.run_rotation_averaging(
+            num_images=len(poses),
+            i2Ri1_dict=i2Ri1_dict_noisy,
+            i1Ti2_priors={},
+            v_corr_idxs=v_corr_idxs,
+        )
+
+        shonan_mst_init = ShonanRotationAveraging(use_mst_init=True)
+        wRi_computed_with_mst_init = shonan_mst_init.run_rotation_averaging(
+            num_images=len(poses),
+            i2Ri1_dict=i2Ri1_dict_noisy,
+            i1Ti2_priors={},
+            v_corr_idxs=v_corr_idxs,
+        )
+
+        self.assertTrue(
+            geometry_comparisons.compare_rotations(
+                wRi_computed_with_random_init, wRi_computed_with_mst_init, angular_error_threshold_degrees=0.1
+            )
+        )
+
 
 def _generate_corr_idxs(num_corrs: int) -> np.ndarray:
     return np.random.randint(low=0, high=10000, size=(num_corrs, 2))
+
+
+def _create_dummy_correspondences(i2Ri1_dict: Dict[Tuple[int, int], Rot3]) -> Dict[Tuple[int, int], np.ndarray]:
+    """Create dummy verified correspondences for each edge in view graph."""
+    # Assume image has shape (img_h, img_w) = (1000,1000)
+    img_h = 1000
+    v_corr_idxs_dict = {
+        (i1, i2): np.random.randint(low=0, high=img_h, size=(i1 + i2, 2)) for i1, i2 in i2Ri1_dict.keys()
+    }
+    return v_corr_idxs_dict
 
 
 if __name__ == "__main__":
