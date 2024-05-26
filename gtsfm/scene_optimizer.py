@@ -36,6 +36,7 @@ from gtsfm.retriever.image_pairs_generator import ImagePairsGenerator
 from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.two_view_estimator import (
     POST_ISP_REPORT_TAG,
+    POST_BA_REPORT_TAG,
     VIEWGRAPH_REPORT_TAG,
     TwoViewEstimationReport,
     TwoViewEstimator,
@@ -135,6 +136,7 @@ class SceneOptimizer:
         i2Ui1_dict: Dict[Tuple[int, int], Unit3],
         v_corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
         two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
+        post_ba_two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
         num_images: int,
         images: List[Delayed],
         camera_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
@@ -187,6 +189,16 @@ class SceneOptimizer:
                     two_view_reports,
                     images,
                     filename="two_view_report_{}.json".format(POST_ISP_REPORT_TAG),
+                    save_retrieval_metrics=save_retrieval_metrics,
+                    metrics_path=self._metrics_path,
+                    plot_base_path=self._plot_base_path,
+                )
+            )
+            delayed_results.append(
+                dask.delayed(save_full_frontend_metrics)(
+                    two_view_reports,
+                    images,
+                    filename="post_ba_two_view_report_{}.json".format(POST_BA_REPORT_TAG),
                     save_retrieval_metrics=save_retrieval_metrics,
                     metrics_path=self._metrics_path,
                     plot_base_path=self._plot_base_path,
