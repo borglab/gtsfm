@@ -26,12 +26,13 @@ class RotationAveragingBase(GTSFMProcess):
     rotations.
     """
 
+    @staticmethod
     def get_ui_metadata() -> UiMetadata:
         """Returns data needed to display node and edge info for this process in the process graph."""
 
         return UiMetadata(
             display_name="Rotation Averaging",
-            input_products=("View-Graph Relative Rotations", "Relative Pose Priors"),
+            input_products=("View-Graph Relative Rotations", "Relative Pose Priors", "Verified Correspondences"),
             output_products=("Global Rotations",),
             parent_plate="Sparse Reconstruction",
         )
@@ -66,7 +67,6 @@ class RotationAveragingBase(GTSFMProcess):
         i1Ti2_priors: Dict[Tuple[int, int], PosePrior],
         v_corr_idxs: Dict[Tuple[int, int], np.ndarray],
         wTi_gt: List[Optional[Pose3]],
-        v_corr_idxs: Dict[Tuple[int, int], np.ndarray],
     ) -> Tuple[List[Optional[Rot3]], GtsfmMetricsGroup]:
         """Runs rotation averaging and computes metrics.
 
@@ -76,7 +76,6 @@ class RotationAveragingBase(GTSFMProcess):
             i1Ti2_priors: Priors on relative poses as dictionary(i1, i2): PosePrior on i1Ti2.
             v_corr_idxs: Dict mapping image pair indices (i1, i2) to indices of verified correspondences.
             wTi_gt: Ground truth global rotations to compare against.
-            v_corr_idxs: Dict mapping image pair indices (i1, i2) to indices of verified correspondences.
 
         Returns:
             Global rotations for each camera pose, i.e. wRi, as a list. The number of entries in the list is
