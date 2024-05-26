@@ -64,6 +64,7 @@ class RotationAveragingBase(GTSFMProcess):
         num_images: int,
         i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]],
         i1Ti2_priors: Dict[Tuple[int, int], PosePrior],
+        v_corr_idxs: Dict[Tuple[int, int], np.ndarray],
         wTi_gt: List[Optional[Pose3]],
         v_corr_idxs: Dict[Tuple[int, int], np.ndarray],
     ) -> Tuple[List[Optional[Rot3]], GtsfmMetricsGroup]:
@@ -73,6 +74,7 @@ class RotationAveragingBase(GTSFMProcess):
             num_images: Number of poses.
             i2Ri1_dict: Relative rotations as dictionary (i1, i2): i2Ri1.
             i1Ti2_priors: Priors on relative poses as dictionary(i1, i2): PosePrior on i1Ti2.
+            v_corr_idxs: Dict mapping image pair indices (i1, i2) to indices of verified correspondences.
             wTi_gt: Ground truth global rotations to compare against.
             v_corr_idxs: Dict mapping image pair indices (i1, i2) to indices of verified correspondences.
 
@@ -121,8 +123,8 @@ class RotationAveragingBase(GTSFMProcess):
         num_images: int,
         i2Ri1_graph: Delayed,
         i1Ti2_priors: Dict[Tuple[int, int], PosePrior],
-        gt_wTi_list: List[Optional[Pose3]],
         v_corr_idxs: Dict[Tuple[int, int], np.ndarray],
+        gt_wTi_list: List[Optional[Pose3]],
     ) -> Tuple[Delayed, Delayed]:
         """Create the computation graph for performing rotation averaging.
 
@@ -130,8 +132,8 @@ class RotationAveragingBase(GTSFMProcess):
             num_images: Number of poses.
             i2Ri1_graph: Dictionary of relative rotations as a delayed task.
             i1Ti2_priors: Priors on relative poses as (i1, i2): PosePrior on i1Ti2.
-            gt_wTi_list: Ground truth poses, to be used for evaluation.
             v_corr_idxs: Dict mapping image pair indices (i1, i2) to indices of verified correspondences.
+            gt_wTi_list: Ground truth poses, to be used for evaluation.
 
         Returns:
             Global rotations wrapped using dask.delayed.
@@ -141,8 +143,8 @@ class RotationAveragingBase(GTSFMProcess):
             num_images,
             i2Ri1_dict=i2Ri1_graph,
             i1Ti2_priors=i1Ti2_priors,
-            wTi_gt=gt_wTi_list,
             v_corr_idxs=v_corr_idxs,
+            wTi_gt=gt_wTi_list,
         )
 
         return wRis, metrics
