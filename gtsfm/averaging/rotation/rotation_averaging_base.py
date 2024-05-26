@@ -26,12 +26,13 @@ class RotationAveragingBase(GTSFMProcess):
     rotations.
     """
 
+    @staticmethod
     def get_ui_metadata() -> UiMetadata:
         """Returns data needed to display node and edge info for this process in the process graph."""
 
         return UiMetadata(
             display_name="Rotation Averaging",
-            input_products=("View-Graph Relative Rotations", "Relative Pose Priors"),
+            input_products=("View-Graph Relative Rotations", "Relative Pose Priors", "Verified Correspondences"),
             output_products=("Global Rotations",),
             parent_plate="Sparse Reconstruction",
         )
@@ -64,8 +65,8 @@ class RotationAveragingBase(GTSFMProcess):
         num_images: int,
         i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]],
         i1Ti2_priors: Dict[Tuple[int, int], PosePrior],
-        wTi_gt: List[Optional[Pose3]],
         v_corr_idxs: Dict[Tuple[int, int], np.ndarray],
+        wTi_gt: List[Optional[Pose3]],
     ) -> Tuple[List[Optional[Rot3]], GtsfmMetricsGroup]:
         """Runs rotation averaging and computes metrics.
 
@@ -73,8 +74,8 @@ class RotationAveragingBase(GTSFMProcess):
             num_images: Number of poses.
             i2Ri1_dict: Relative rotations as dictionary (i1, i2): i2Ri1.
             i1Ti2_priors: Priors on relative poses as dictionary(i1, i2): PosePrior on i1Ti2.
-            wTi_gt: Ground truth global rotations to compare against.
             v_corr_idxs: Dict mapping image pair indices (i1, i2) to indices of verified correspondences.
+            wTi_gt: Ground truth global rotations to compare against.
 
         Returns:
             Global rotations for each camera pose, i.e. wRi, as a list. The number of entries in the list is
@@ -121,8 +122,8 @@ class RotationAveragingBase(GTSFMProcess):
         num_images: int,
         i2Ri1_graph: Delayed,
         i1Ti2_priors: Dict[Tuple[int, int], PosePrior],
-        gt_wTi_list: List[Optional[Pose3]],
         v_corr_idxs: Dict[Tuple[int, int], np.ndarray],
+        gt_wTi_list: List[Optional[Pose3]],
     ) -> Tuple[Delayed, Delayed]:
         """Create the computation graph for performing rotation averaging.
 
@@ -130,8 +131,8 @@ class RotationAveragingBase(GTSFMProcess):
             num_images: Number of poses.
             i2Ri1_graph: Dictionary of relative rotations as a delayed task.
             i1Ti2_priors: Priors on relative poses as (i1, i2): PosePrior on i1Ti2.
-            gt_wTi_list: Ground truth poses, to be used for evaluation.
             v_corr_idxs: Dict mapping image pair indices (i1, i2) to indices of verified correspondences.
+            gt_wTi_list: Ground truth poses, to be used for evaluation.
 
         Returns:
             Global rotations wrapped using dask.delayed.
@@ -141,8 +142,8 @@ class RotationAveragingBase(GTSFMProcess):
             num_images,
             i2Ri1_dict=i2Ri1_graph,
             i1Ti2_priors=i1Ti2_priors,
-            wTi_gt=gt_wTi_list,
             v_corr_idxs=v_corr_idxs,
+            wTi_gt=gt_wTi_list,
         )
 
         return wRis, metrics
