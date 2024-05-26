@@ -26,12 +26,13 @@ class RotationAveragingBase(GTSFMProcess):
     rotations.
     """
 
+    @staticmethod
     def get_ui_metadata() -> UiMetadata:
         """Returns data needed to display node and edge info for this process in the process graph."""
 
         return UiMetadata(
             display_name="Rotation Averaging",
-            input_products=("View-Graph Relative Rotations", "Relative Pose Priors"),
+            input_products=("View-Graph Relative Rotations", "Relative Pose Priors", "Verified Correspondences"),
             output_products=("Global Rotations",),
             parent_plate="Sparse Reconstruction",
         )

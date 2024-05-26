@@ -20,9 +20,11 @@ from gtsam import (
     Rot3,
     ShonanAveraging3,
     ShonanAveragingParameters3,
+    Values,
 )
 
 import gtsfm.utils.logger as logger_utils
+import gtsfm.utils.rotation as rotation_util
 from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
 from gtsfm.common.pose_prior import PosePrior
 
@@ -38,7 +40,10 @@ class ShonanRotationAveraging(RotationAveragingBase):
     """Performs Shonan rotation averaging."""
 
     def __init__(
-        self, two_view_rotation_sigma: float = _DEFAULT_TWO_VIEW_ROTATION_SIGMA, weight_by_inliers: bool = True
+        self,
+        two_view_rotation_sigma: float = _DEFAULT_TWO_VIEW_ROTATION_SIGMA,
+        weight_by_inliers: bool = True,
+        use_mst_init: bool = False,
     ) -> None:
         """Initializes module.
 
@@ -50,10 +55,11 @@ class ShonanRotationAveraging(RotationAveragingBase):
                 of inlier correspondences per edge.
         """
         super().__init__()
-        self._two_view_rotation_sigma = two_view_rotation_sigma
         self._p_min = 3
         self._p_max = 64
+        self._two_view_rotation_sigma = two_view_rotation_sigma
         self._weight_by_inliers = weight_by_inliers
+        self._use_mst_init = use_mst_init
 
     def __get_shonan_params(self) -> ShonanAveragingParameters3:
         lm_params = LevenbergMarquardtParams.CeresDefaults()
@@ -108,7 +114,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         return measurements
 
     def _run_with_consecutive_ordering(
-        self, num_connected_nodes: int, measurements: gtsam.BinaryMeasurementsRot3
+        self, num_connected_nodes: int, measurements: gtsam.BinaryMeasurementsRot3, initial: Optional[Values]
     ) -> List[Optional[Rot3]]:
         """Run the rotation averaging on a connected graph w/ N keys ordered consecutively [0,...,N-1].
 
@@ -134,7 +140,9 @@ class ShonanRotationAveraging(RotationAveragingBase):
         )
         shonan = ShonanAveraging3(measurements, self.__get_shonan_params())
 
-        initial = shonan.initializeRandomly()
+        if initial is None:
+            logger.info("Using random initialization for Shonan")
+            initial = shonan.initializeRandomly()
         logger.info("Initial cost: %.5f", shonan.cost(initial))
         result, _ = shonan.run(initial, self._p_min, self._p_max)
         logger.info("Final cost: %.5f", shonan.cost(result))
@@ -203,13 +211,28 @@ class ShonanRotationAveraging(RotationAveragingBase):
             if (i1, i2) in i2Ri1_dict
         }
 
+        # Use negative of the number of correspondences as the edge weight.
+        initial_values: Optional[Values] = None
+        if self._use_mst_init:
+            logger.info("Using MST initialization for Shonan")
+            wRi_initial_ = rotation_util.initialize_global_rotations_using_mst(
+                len(nodes_with_edges),
+                i2Ri1_dict_remapped,
+                edge_weights={
+                    (i1, i2): -num_correspondences_dict.get((i1, i2), 0) for i1, i2 in i2Ri1_dict_remapped.keys()
+                },
+            )
+            initial_values = Values()
+            for i, wRi in enumerate(wRi_initial_):
+                initial_values.insert(i, wRi)
+
         def _create_factors_and_run() -> List[Rot3]:
             measurements: gtsam.BinaryMeasurementsRot3 = self.__measurements_from_2view_relative_rotations(
                 i2Ri1_dict=i2Ri1_dict_remapped, num_correspondences_dict=num_correspondences_dict
             )
             measurements.extend(self._measurements_from_pose_priors(i1Ti2_priors, old_to_new_idxs))
             wRi_list_subset = self._run_with_consecutive_ordering(
-                num_connected_nodes=len(nodes_with_edges), measurements=measurements
+                num_connected_nodes=len(nodes_with_edges), measurements=measurements, initial=initial_values
             )
             return wRi_list_subset
 
