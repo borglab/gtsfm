@@ -35,6 +35,9 @@ logger = logger_utils.get_logger()
 
 _DEFAULT_TWO_VIEW_ROTATION_SIGMA = 1.0
 
+# The threshold for the smallest eigenvalue check in GTSAM. Defaults to -1e-4 in GTSAM.
+_OPTIMALITY_THRESHOLD = -1e-5
+
 
 class ShonanRotationAveraging(RotationAveragingBase):
     """Performs Shonan rotation averaging."""
@@ -66,6 +69,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         shonan_params = ShonanAveragingParameters3(lm_params)
         shonan_params.setUseHuber(True)
         shonan_params.setCertifyOptimality(False)
+        shonan_params.setOptimalityThreshold(_OPTIMALITY_THRESHOLD)
         return shonan_params
 
     def __measurements_from_2view_relative_rotations(
