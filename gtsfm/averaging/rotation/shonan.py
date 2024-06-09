@@ -35,6 +35,9 @@ logger = logger_utils.get_logger()
 
 _DEFAULT_TWO_VIEW_ROTATION_SIGMA = 1.0
 
+# The threshold for the smallest eigenvalue check in GTSAM. Defaults to -1e-4 in GTSAM.
+_OPTIMALITY_THRESHOLD = -1e-5
+
 
 class ShonanRotationAveraging(RotationAveragingBase):
     """Performs Shonan rotation averaging."""
@@ -42,8 +45,8 @@ class ShonanRotationAveraging(RotationAveragingBase):
     def __init__(
         self,
         two_view_rotation_sigma: float = _DEFAULT_TWO_VIEW_ROTATION_SIGMA,
-        weight_by_inliers: bool = True,
-        use_mst_init: bool = False,
+        weight_by_inliers: bool = False,
+        use_mst_init: bool = True,
     ) -> None:
         """Initializes module.
 
@@ -56,7 +59,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         """
         super().__init__()
         self._p_min = 3
-        self._p_max = 64
+        self._p_max = 3
         self._two_view_rotation_sigma = two_view_rotation_sigma
         self._weight_by_inliers = weight_by_inliers
         self._use_mst_init = use_mst_init
@@ -64,8 +67,9 @@ class ShonanRotationAveraging(RotationAveragingBase):
     def __get_shonan_params(self) -> ShonanAveragingParameters3:
         lm_params = LevenbergMarquardtParams.CeresDefaults()
         shonan_params = ShonanAveragingParameters3(lm_params)
-        shonan_params.setUseHuber(False)
-        shonan_params.setCertifyOptimality(True)
+        shonan_params.setUseHuber(True)
+        shonan_params.setCertifyOptimality(False)
+        shonan_params.setOptimalityThreshold(_OPTIMALITY_THRESHOLD)
         return shonan_params
 
     def __measurements_from_2view_relative_rotations(
