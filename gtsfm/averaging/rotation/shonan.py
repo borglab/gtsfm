@@ -45,7 +45,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
     def __init__(
         self,
         two_view_rotation_sigma: float = _DEFAULT_TWO_VIEW_ROTATION_SIGMA,
-        weight_by_inliers: bool = True,
+        weight_by_inliers: bool = False,
         use_mst_init: bool = True,
     ) -> None:
         """Initializes module.

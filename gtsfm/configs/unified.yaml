@@ -69,7 +69,7 @@ SceneOptimizer:
 
     rot_avg_module:
       _target_: gtsfm.averaging.rotation.shonan.ShonanRotationAveraging
-      weight_by_inliers: True
+      weight_by_inliers: False
 
     trans_avg_module:
       _target_: gtsfm.averaging.translation.averaging_1dsfm.TranslationAveraging1DSFM
