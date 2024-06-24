@@ -246,7 +246,7 @@ class TestIoUtils(unittest.TestCase):
         ]
         img_fnames = ["P1180334.JPG", "P1180335.JPG", "P1180336.JPG", "P1180328.JPG", "P1180337.JPG"]
 
-        wTi_list_sorted, img_fnames_sorted = io_utils.sort_image_filenames_lexigraphically(wTi_list, img_fnames)
+        wTi_list_sorted, img_fnames_sorted, _ = io_utils.sort_image_filenames_lexigraphically(wTi_list, img_fnames)
 
         expected_img_fnames_sorted = ["P1180328.JPG", "P1180334.JPG", "P1180335.JPG", "P1180336.JPG", "P1180337.JPG"]
         self.assertEqual(img_fnames_sorted, expected_img_fnames_sorted)

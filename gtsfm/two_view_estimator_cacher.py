@@ -38,6 +38,7 @@ class TwoViewEstimatorCacher(TwoViewEstimator):
 
     def __init__(self, two_view_estimator_obj: TwoViewEstimator) -> None:
         self._two_view_estimator = two_view_estimator_obj
+        self._verifier_key = self._two_view_estimator._verifier.__repr__()
 
     def __repr__(self) -> str:
         return self._two_view_estimator.__repr__()
@@ -50,6 +51,8 @@ class TwoViewEstimatorCacher(TwoViewEstimator):
         self, keypoints_i1: Keypoints, keypoints_i2: Keypoints, putative_corr_idxs: np.ndarray
     ) -> str:
         """Generates a cache key according to keypoint coordinates and putative correspondence indices."""
+        if putative_corr_idxs.size == 0:  # catch no correspondences
+            return cache_utils.generate_hash_for_numpy_array(np.array([]))
 
         # Subsample correspondence indices.
         sampled_idxs = putative_corr_idxs[:NUM_CORRESPONDENCES_TO_SAMPLE_FOR_HASH]
@@ -60,7 +63,8 @@ class TwoViewEstimatorCacher(TwoViewEstimator):
         numpy_arrays_to_hash.append(keypoints_i2.coordinates[sampled_idxs[:, 1]].flatten())
 
         # Hash the concatenation of all the numpy arrays.
-        return cache_utils.generate_hash_for_numpy_array(np.concatenate(numpy_arrays_to_hash))
+        input_key = cache_utils.generate_hash_for_numpy_array(np.concatenate(numpy_arrays_to_hash))
+        return f"{self._verifier_key}_{input_key}"
 
     def __load_result_from_cache(
         self, keypoints_i1: Keypoints, keypoints_i2: Keypoints, putative_corr_idxs: np.ndarray

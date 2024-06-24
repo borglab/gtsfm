@@ -188,6 +188,7 @@ output/
 
 # Cache dir
 cache/
+*.mat
 
 # Dev notebooks
 notebooks/
