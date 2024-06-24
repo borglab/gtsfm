@@ -81,6 +81,7 @@ class UncertaintyAwareRotationAveraging(RotationAveragingBase):
         num_images: int,
         i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]],
         i1Ti2_priors: Dict[Tuple[int, int], PosePrior],
+        v_corr_idxs: Dict[Tuple[int, int], np.ndarray],
     ) -> List[Optional[Rot3]]:
         rotation_info_dict: Dict[Tuple[int, int], RotationInfo] = {
             k: RotationInfo(i2Ri1=v, covariance_mat=DUMMY_COVARIANCE) for k, v in i2Ri1_dict.items() if v is not None
