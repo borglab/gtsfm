@@ -16,6 +16,7 @@ from typing import Dict, List, NamedTuple, Optional, Tuple
 import numpy as np
 import pyceres
 from gtsam import Rot3
+import pycolmap
 import networkx as nx
 from gtsfm.common.pose_prior import PosePrior
 
@@ -165,13 +166,14 @@ class MAGSACWeightBasedLoss(pyceres.LossFunction):
         return rho
 
 
-def _to_ceres_quat(rotation: Rot3) -> np.ndarray:
+def _to_pycolmap_rigid3d(rotation: Rot3) -> pycolmap.Rigid3d:
     gtsam_quat = rotation.toQuaternion()
-    return np.array([gtsam_quat.w(), gtsam_quat.x(), gtsam_quat.y(), gtsam_quat.z()], dtype=np.float64)
+    rot = pycolmap.Rotation3d(np.array([gtsam_quat.x(), gtsam_quat.y(), gtsam_quat.z(), gtsam_quat.w()]))
+    return pycolmap.Rigid3d(rot, np.zeros(3))
 
 
-def _to_gtsam_rot(ceres_quat: np.ndarray) -> Rot3:
-    w, x, y, z = ceres_quat
+def _to_gtsam_rot(pycolmap_quat: np.ndarray) -> Rot3:
+    x, y, z, w = pycolmap_quat
     return Rot3(w, x, y, z)
 
 
@@ -179,6 +181,7 @@ def _estimate_rotations_with_customized_loss_and_covariance_ceres(
     global_orientations_init: List[Rot3],
     two_view_rotations: Dict[Tuple[int, int], RotationInfo],
     rotation_error_type: RotationErrorType = RotationErrorType.ANGLE_AXIS_COVARIANCE,
+    loss: pyceres.LossFunction = pyceres.SoftLOneLoss(0.1),
 ) -> List[Optional[Rot3]]:
     if len(two_view_rotations) == 0:
         logger.warning("Skipping nonlinear rotation optimization because no relative rotations were provided.")
@@ -188,8 +191,8 @@ def _estimate_rotations_with_customized_loss_and_covariance_ceres(
     if rotation_error_type != RotationErrorType.ANGLE_AXIS_COVARIANCE:
         raise NotImplementedError(f"Rotation error type {rotation_error_type} not implemented")
 
-    # Note(Ayush): In camera frame
-    optimization_result = [(_to_ceres_quat(wRi.inverse()), np.zeros(3)) for wRi in global_orientations_init]
+    # Note(Ayush): wRi init
+    optimization_result = [_to_pycolmap_rigid3d(wRi) for wRi in global_orientations_init]
 
     valid_rotations = set()
 
@@ -210,16 +213,18 @@ def _estimate_rotations_with_customized_loss_and_covariance_ceres(
         if rotation_error_type == RotationErrorType.ANGLE_AXIS_COVARIANCE:
             pose_cov = np.eye(6)
             pose_cov[:3, :3] = covariance
-            cost = pyceres.factors.PoseGraphRelativeCost(_to_ceres_quat(rotation_info.i2Ri1), np.zeros(3), pose_cov)
+            cost = pycolmap.cost_functions.MetricRelativePoseErrorCost(
+                _to_pycolmap_rigid3d(rotation_info.i2Ri1), np.zeros(3), pose_cov
+            )
             costs.append(cost)
             problem.add_residual_block(
                 cost,
-                pyceres.SoftLOneLoss(0.1),
+                loss,
                 [
-                    optimization_result[i1][0],
-                    optimization_result[i1][1],
-                    optimization_result[i2][0],
-                    optimization_result[i2][1],
+                    optimization_result[i1].rotation.quat,
+                    optimization_result[i1].translation,
+                    optimization_result[i2].rotation.quat,
+                    optimization_result[i2].translation,
                 ],
             )
 
@@ -228,19 +233,19 @@ def _estimate_rotations_with_customized_loss_and_covariance_ceres(
 
     valid_rotations_list = list(valid_rotations)
 
-    problem.set_parameter_block_constant(optimization_result[valid_rotations_list[0]][0])
-    problem.set_parameter_block_constant(optimization_result[valid_rotations_list[0]][1])
+    problem.set_parameter_block_constant(optimization_result[valid_rotations_list[0]].rotation.quat)
+    problem.set_parameter_block_constant(optimization_result[valid_rotations_list[0]].translation)
     for i in valid_rotations_list:
-        problem.set_manifold(optimization_result[i][0], pyceres.QuaternionManifold())
+        problem.set_manifold(optimization_result[i].rotation.quat, pyceres.QuaternionManifold())
 
     options = pyceres.SolverOptions()
     options.linear_solver_type = pyceres.LinearSolverType.SPARSE_NORMAL_CHOLESKY
-    options.minimizer_progress_to_stdout = False
+    options.minimizer_progress_to_stdout = True
     options.num_threads = -1
     summary = pyceres.SolverSummary()
     pyceres.solve(options, problem, summary)
     logger.info(summary.BriefReport())
 
-    wRis_list = [_to_gtsam_rot(ceres_quat).inverse() for ceres_quat, _ in optimization_result]
+    wRis_list = [_to_gtsam_rot(rigid3d.rotation.quat) for rigid3d in optimization_result]
 
     return [wRi if i in valid_rotations else None for i, wRi in enumerate(wRis_list)]
