@@ -1,4 +1,4 @@
-name: gtsfm-v1
+name: gtsfm-v2
 channels:
   # for priority order, we prefer pytorch as the highest priority as it supplies
   # latest stable packages for numerous deep learning based methods. conda-forge
@@ -8,7 +8,7 @@ channels:
   - conda-forge
 dependencies:
   # python essentials
-  - python=3.8
+  - python
   - pip
   # formatting and dev environment
   - black
@@ -28,30 +28,29 @@ dependencies:
   - numpy
   - nodejs
   - pandas
-  - pillow>=8.0.1
+  - pillow
   - scikit-learn
   - seaborn
   - scipy
   - hydra-core
+  - gtsam
   # 3rd party algorithms for different modules
   - cpuonly # replacement of cudatoolkit for cpu only machines
-  - pytorch>=1.12.0
-  - torchvision>=0.13.0
+  - pytorch
+  - torchvision
   - kornia
-  - pyceres
   - pycolmap
+  - opencv
   # io
   - h5py
-  - plotly=4.14.3
+  - plotly
   - tabulate
   - simplejson
+  - open3d
+  - colour
+  - pydot
+  - trimesh
   # testing
   - parameterized
-  - pip:
-      - open3d
-      - opencv-python>=4.5.4.58
-      - pydegensac
-      - colour
-      - trimesh[easy]
-      - gtsam==4.2
-      - pydot
+  # - pip:
+      # - pydegensac
