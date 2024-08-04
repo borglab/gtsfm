@@ -14,6 +14,8 @@ from dust3r.model import AsymmetricCroCo3DStereo
 from dust3r.utils.geometry import find_reciprocal_matches, xy_grid
 import numpy as np
 import torchvision.transforms as tvf
+from pathlib import Path
+import time
 
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
@@ -32,6 +34,12 @@ from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggreg
 
 ImgNorm = tvf.Compose([tvf.ToTensor(), tvf.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 logger = logger_utils.get_logger()
+MODEL_PATH = str(
+    Path(__file__).resolve().parent.parent.parent.parent
+    / "thirdparty"
+    / "dust3r"
+    / "DUSt3R_ViTLarge_BaseDecoder_512_dpt_params.pth"
+)
 
 
 def resize_image(img: Image, long_edge_size: int) -> Image:
@@ -73,11 +81,12 @@ def preprocess_image(image: Image, img_id: int) -> Tuple[Dict[str, Any], Tuple[i
 class Dust3rCorrespondenceGenerator(CorrespondenceGeneratorBase):
     """Base class for correspondence generators."""
 
-    def __init__(self, deduplicate: bool = True, nms_merge_radius: float = 0.5):
+    def __init__(self, deduplicate: bool = True, nms_merge_radius: float = 0.5, max_correspondences: int = 1000):
         super().__init__()
         self._aggregator: KeypointAggregatorBase = (
             KeypointAggregatorDedup(nms_merge_radius) if deduplicate else KeypointAggregatorUnique()
         )
+        self.max_correspondences = max_correspondences
 
     def generate_correspondences(
         self,
@@ -97,39 +106,55 @@ class Dust3rCorrespondenceGenerator(CorrespondenceGeneratorBase):
             Putative correspondence as indices of keypoints, for pairs of images.
         """
         model_name = "naver/DUSt3R_ViTLarge_BaseDecoder_512_dpt"
-        model = AsymmetricCroCo3DStereo.from_pretrained(model_name).to("cpu")
-        model_future = client.scatter(model, broadcast=False)
+        model1 = AsymmetricCroCo3DStereo.from_pretrained(model_name).eval()
+        m = client.scatter(model1, broadcast=False)
 
         def apply_dust3r(model, image1: Image, image2: Image) -> Tuple[Keypoints, Keypoints]:
+
             image1_proc, crop1, scale1 = preprocess_image(image1, 0)
             image2_proc, crop2, scale2 = preprocess_image(image2, 1)
 
-            model.to("cuda")
-            output = inference([(image1_proc, image2_proc), (image2_proc, image1_proc)], model, "cuda", batch_size=1)
+            with torch.no_grad():
+                model = model.to("cuda")
+                output = inference(
+                    [(image1_proc, image2_proc), (image2_proc, image1_proc)], model, "cuda", batch_size=1, verbose=False
+                )
 
-            scene = global_aligner(output, device="cuda", mode=GlobalAlignerMode.PairViewer)
-            confidence_masks = scene.get_masks()
-            pts3d = scene.get_pts3d()
+                scene = global_aligner(output, device="cuda", mode=GlobalAlignerMode.PairViewer, verbose=False)
+                confidence_masks = scene.get_masks()
+                confidences = scene.im_conf
+                pts3d = scene.get_pts3d()
 
-            conf1 = confidence_masks[0].cpu().numpy()
-            points2d_1 = xy_grid(*image1_proc["true_shape"][0, ::-1])[conf1]
-            points3d_1 = pts3d[0].detach().cpu().numpy()[conf1]
+                conf1 = confidence_masks[0].cpu().numpy()
+                points2d_1 = xy_grid(*image1_proc["true_shape"][0, ::-1])[conf1]
+                points3d_1 = pts3d[0].detach().cpu().numpy()[conf1]
+                conf_val1 = confidences[0].cpu().numpy()[conf1]
 
-            conf2 = confidence_masks[1].cpu().numpy()
-            points2d_2 = xy_grid(*image2_proc["true_shape"][0, ::-1])[conf2]
-            points3d_2 = pts3d[1].detach().cpu().numpy()[conf2]
+                conf2 = confidence_masks[1].cpu().numpy()
+                points2d_2 = xy_grid(*image2_proc["true_shape"][0, ::-1])[conf2]
+                points3d_2 = pts3d[1].detach().cpu().numpy()[conf2]
+                conf_val2 = confidences[1].cpu().numpy()[conf2]
 
-            reciprocal_in_P2, nn2_in_P1, num_matches = find_reciprocal_matches(points3d_1, points3d_2)
-            matches_im2 = points2d_2[reciprocal_in_P2]
-            matches_im1 = points2d_1[nn2_in_P1][reciprocal_in_P2]
-            matches_im1 = ((matches_im1 + np.array(crop1)) + 0.5) / scale1
-            matches_im2 = ((matches_im2 + np.array(crop2)) + 0.5) / scale2
+                reciprocal_in_P2, nn2_in_P1, num_matches = find_reciprocal_matches(points3d_1, points3d_2)
+                matches_im2 = points2d_2[reciprocal_in_P2]
+                matches_im1 = points2d_1[nn2_in_P1][reciprocal_in_P2]
+
+                match_conf_im2 = conf_val2[reciprocal_in_P2]
+                match_conf_im1 = conf_val1[nn2_in_P1][reciprocal_in_P2]
+
+                sort_idxs = np.argpartition(-match_conf_im2 * match_conf_im1, 10000)[:10000]
+                matches_im1 = matches_im1[sort_idxs]
+                matches_im2 = matches_im2[sort_idxs]
+
+                matches_im1 = ((matches_im1 + np.array(crop1)) + 0.5) / scale1
+                matches_im2 = ((matches_im2 + np.array(crop2)) + 0.5) / scale2
+
             return (Keypoints(matches_im1), Keypoints(matches_im2))
 
         pairwise_correspondence_futures = {
             (i1, i2): client.submit(
                 apply_dust3r,
-                model,
+                m,
                 images[i1],
                 images[i2],
             )
