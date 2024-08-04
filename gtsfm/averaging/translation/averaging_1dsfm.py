@@ -60,7 +60,7 @@ MAX_INLIER_MEASUREMENT_ERROR_DEG = 5.0
 MIN_TRACK_MEASUREMENTS_FOR_AVERAGING = 3
 
 # Number of track measurements to be added for each camera. Can be reduced to 8 for speed at the cost of some accuracy.
-TRACKS_MEASUREMENTS_PER_CAMERA = 12
+TRACKS_MEASUREMENTS_PER_CAMERA = 20
 
 # Heuristically set to limit the number of delayed tasks, as recommended by Dask:
 # https://docs.dask.org/en/stable/delayed-best-practices.html#avoid-too-many-tasks
@@ -542,7 +542,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         averaging_start_time = time.time()
         wti_list = self.__run_averaging(
             num_images=num_images,
-            w_i2Ui1_dict=w_i2Ui1_dict_inliers,
+            w_i2Ui1_dict={},
             w_i2Ui1_dict_tracks=w_i2Ui1_dict_tracks_inliers,
             wRi_list=wRi_list,
             i2Ti1_priors=i2Ti1_priors,
