@@ -60,7 +60,7 @@ MAX_INLIER_MEASUREMENT_ERROR_DEG = 5.0
 MIN_TRACK_MEASUREMENTS_FOR_AVERAGING = 3
 
 # Number of track measurements to be added for each camera. Can be reduced to 8 for speed at the cost of some accuracy.
-TRACKS_MEASUREMENTS_PER_CAMERA = 20
+TRACKS_MEASUREMENTS_PER_CAMERA = 200
 
 # Heuristically set to limit the number of delayed tasks, as recommended by Dask:
 # https://docs.dask.org/en/stable/delayed-best-practices.html#avoid-too-many-tasks
