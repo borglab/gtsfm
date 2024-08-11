@@ -273,7 +273,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         # Compute outlier weights in parallel.
         _t2 = timeit.default_timer()
         batched_outlier_weights = dask.compute(*batched_outlier_weights)
-        logger.info("Computed outlier weights using MFAS in %.2f seconds." % (timeit.default_timer() - _t2))
+        logger.info("Computed outlier weights using MFAS in %.2f seconds.", timeit.default_timer() - _t2)
 
         # Compute average outlier weight.
         outlier_weights_sum: DefaultDict[Tuple[int, int], float] = defaultdict(float)
@@ -529,13 +529,15 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             w_i2Ui1_dict_tracks = {}
 
         inlier_computation_start_time = time.time()
-        if self._reject_outliers:
-            w_i2Ui1_dict_inliers, w_i2Ui1_dict_tracks_inliers, inlier_cameras = self.compute_inliers(
-                w_i2Ui1_dict, w_i2Ui1_dict_tracks
-            )
-        else:
-            w_i2Ui1_dict_inliers = w_i2Ui1_dict
-            w_i2Ui1_dict_tracks_inliers = w_i2Ui1_dict_tracks
+        # if self._reject_outliers:
+        #     w_i2Ui1_dict_inliers, w_i2Ui1_dict_tracks_inliers, inlier_cameras = self.compute_inliers(
+        #         w_i2Ui1_dict, w_i2Ui1_dict_tracks
+        #     )
+        # else:
+        w_i2Ui1_dict_inliers = w_i2Ui1_dict
+        w_i2Ui1_dict_tracks_inliers = w_i2Ui1_dict_tracks
+
+        logger.info("Running translation averaging on %d unit translations", len(i2Ui1_dict))
 
         inlier_computation_time = time.time() - inlier_computation_start_time
 
