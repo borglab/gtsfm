@@ -25,6 +25,7 @@ logger = logger_utils.get_logger()
 def load_poses(colmap_dirpath: str) -> Dict[str, Pose3]:
     """Returns mapping from image filename to associated camera pose."""
     wTi_list, img_fnames, _, _, _, _ = io_utils.read_scene_data_from_colmap_format(colmap_dirpath)
+    # img_fnames = [f.split("/")[-1] for f in img_fnames]
 
     return dict(zip(img_fnames, wTi_list))
 
@@ -76,7 +77,7 @@ def compare_poses(baseline_dirpath: str, eval_dirpath: str, output_dirpath: str)
     if not args.use_pycolmap_alignment:
         current_wTi_list, _ = alignment_utils.align_poses_sim3_ignore_missing(baseline_wTi_list, current_wTi_list)
 
-    i2Ui1_dict_gt = metric_utils.get_twoview_translation_directions(baseline_wTi_list)
+    i2Ri1_dict_gt, i2Ui1_dict_gt = metric_utils.get_all_relative_rotations_translations(baseline_wTi_list)
 
     wRi_aligned_list, wti_aligned_list = metric_utils.get_rotations_translations_from_poses(current_wTi_list)
     baseline_wRi_list, baseline_wti_list = metric_utils.get_rotations_translations_from_poses(baseline_wTi_list)
@@ -86,9 +87,10 @@ def compare_poses(baseline_dirpath: str, eval_dirpath: str, output_dirpath: str)
     metrics.append(metric_utils.compute_translation_distance_metric(wti_aligned_list, baseline_wti_list))
     metrics.append(metric_utils.compute_relative_translation_angle_metric(i2Ui1_dict_gt, current_wTi_list))
     metrics.append(metric_utils.compute_translation_angle_metric(baseline_wTi_list, current_wTi_list))
+    metrics.append(metric_utils.compute_relative_translation_angle_metric(i2Ri1_dict_gt, current_wTi_list))
 
-    rotation_angular_errors = metrics[0]._data
-    translation_angular_errors = metrics[3]._data
+    rotation_angular_errors = metrics[2]._data
+    translation_angular_errors = metrics[4]._data
     metrics.extend(
         metric_utils.compute_pose_auc_metric(
             rotation_angular_errors, translation_angular_errors, save_dir=output_dirpath

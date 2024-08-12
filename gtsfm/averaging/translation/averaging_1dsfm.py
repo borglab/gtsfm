@@ -607,7 +607,7 @@ def compute_metrics(
         return GtsfmMetricsGroup("translation_averaging_metrics", ta_metrics)
 
     # Get ground truth translation directions for the measurements.
-    gt_i2Ui1_dict = metrics_utils.get_twoview_translation_directions(gt_wTi_list)
+    _, gt_i2Ui1_dict = metrics_utils.get_all_relative_rotations_translations(gt_wTi_list)
 
     # Angle between i2Ui1 measurement and GT i2Ui1 measurement for inliers and outliers.
     inlier_angular_errors = metrics_utils.get_measurement_angle_errors(inlier_i1_i2_pairs, i2Ui1_dict, gt_i2Ui1_dict)
