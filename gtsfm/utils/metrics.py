@@ -288,7 +288,7 @@ def compute_relative_rotation_angle_metric(
             continue
         wRi1_gt = wTi_list[i1].rotation()
         wRi2_gt = wTi_list[i2].rotation()
-        i2Ri1_gt = wRi2_gt.inverse() @ wRi1_gt
+        i2Ri1_gt = wRi2_gt.inverse().compose(wRi1_gt)
         angles.append(comp_utils.compute_relative_rotation_angle(i2Ri1, i2Ri1_gt))
     return GtsfmMetric("relative_translation_angle_error_deg", np.array(angles, dtype=np.float32))
 
