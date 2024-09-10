@@ -31,8 +31,8 @@ To run GTSfM, first, we need to create a conda environment with the required dep
 On **Linux**, with CUDA support, run:
 
 ```bash
-conda env create -f environment_linux.yml
-conda activate gtsfm-v1 # you may need "source activate gtsfm-v1" depending upon your bash and conda set-up
+mamba env create -f environment_linux.yml
+mamba activate gtsfm-v1 # you may need "source activate gtsfm-v1" depending upon your bash and conda set-up
 ```
 
 On **macOS**, there is no CUDA support, so run:

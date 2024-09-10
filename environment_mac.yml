@@ -49,14 +49,13 @@ dependencies:
   - tabulate
   - simplejson
   - pycolmap
+  - open3d
   # testing
   - parameterized
   - pip:
-      - open3d
       - opencv-python>=4.5.4.58 # pypi has a more recent distribution than conda-forge
       - pydegensac
       - colour
       - trimesh[easy]
-      - pycolmap>=0.1.0
       - gtsam==4.2
       - pydot
