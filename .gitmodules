@@ -1,3 +1,6 @@
 [submodule "thirdparty/LightGlue"]
 	path = thirdparty/LightGlue
 	url = https://github.com/cvg/LightGlue.git
+[submodule "thirdparty/RoMa"]
+	path = thirdparty/RoMa
+	url = https://github.com/Parskatt/RoMa.git

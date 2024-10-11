@@ -4,21 +4,18 @@ Authors: John Lambert
 """
 from typing import Any, Dict, List, Optional, Tuple
 
-from dask.distributed import Client, Future
 import numpy as np
-
+from dask.distributed import Client, Future
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.types import CALIBRATION_TYPE, CAMERA_TYPE
-from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
-from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_base import KeypointAggregatorBase
-from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_dedup import (
-    KeypointAggregatorDedup,
-)
-from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_unique import (
-    KeypointAggregatorUnique,
-)
+from gtsfm.frontend.correspondence_generator.correspondence_generator_base import \
+    CorrespondenceGeneratorBase
+from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_base import \
+    KeypointAggregatorBase
+from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_dedup import \
+    KeypointAggregatorDedup
 from gtsfm.frontend.matcher.image_matcher_base import ImageMatcherBase
 from gtsfm.two_view_estimator import TWO_VIEW_OUTPUT, TwoViewEstimator
 
@@ -26,17 +23,16 @@ from gtsfm.two_view_estimator import TWO_VIEW_OUTPUT, TwoViewEstimator
 class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
     """Pair-wise direct matching of images (e.g. transformer-based)."""
 
-    def __init__(self, matcher: ImageMatcherBase, deduplicate: bool = True) -> None:
+    def __init__(
+        self, matcher: ImageMatcherBase, aggregator: KeypointAggregatorBase = KeypointAggregatorDedup()
+    ) -> None:
         """
         Args:
             matcher: Matcher to use.
             deduplicate: Whether to de-duplicate with a single image the detections received from each image pair.
         """
         self._matcher = matcher
-
-        self._aggregator: KeypointAggregatorBase = (
-            KeypointAggregatorDedup() if deduplicate else KeypointAggregatorUnique()
-        )
+        self._aggregator = aggregator 
 
     def __repr__(self) -> str:
         return f"""
