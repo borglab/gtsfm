@@ -189,6 +189,7 @@ output/
 # Cache dir
 cache/
 *.mat
+*.tsv
 
 # Dev notebooks
 notebooks/
