@@ -49,9 +49,7 @@ def set_axes_equal(ax: Axes):
     ax.set_zlim3d([centroid[2] - radius, centroid[2] + radius])
 
 
-def draw_circle_cv2(
-    image: Image, x: int, y: int, color: Tuple[int, int, int], circle_size: int = 10
-) -> Image:
+def draw_circle_cv2(image: Image, x: int, y: int, color: Tuple[int, int, int], circle_size: int = 10) -> Image:
     """Draw a solid circle on the image.
 
     Args:
@@ -65,24 +63,12 @@ def draw_circle_cv2(
         Image: image with the circle drawn on it.
     """
     return Image(
-        cv.circle(
-            image.value_array,
-            center=(x, y),
-            radius=circle_size,
-            color=color,
-            thickness=-1,
-        )  # solid circle
+        cv.circle(image.value_array, center=(x, y), radius=circle_size, color=color, thickness=-1)  # solid circle
     )
 
 
 def draw_line_cv2(
-    image: Image,
-    x1: int,
-    y1: int,
-    x2: int,
-    y2: int,
-    line_color: Tuple[int, int, int],
-    line_thickness: int = 10,
+    image: Image,x1: int, y1: int, x2: int,y2: int, line_color: Tuple[int, int, int], line_thickness: int = 10
 ) -> Image:
     """Draw a line on the image from coordinates (x1, y1) to (x2, y2).
 
@@ -98,16 +84,7 @@ def draw_line_cv2(
     Returns:
         Image: image with the line drawn on it.
     """
-    return Image(
-        cv.line(
-            image.value_array,
-            (x1, y1),
-            (x2, y2),
-            line_color,
-            line_thickness,
-            cv.LINE_AA,
-        )
-    )
+    return Image(cv.line(image.value_array, (x1, y1), (x2, y2), line_color, line_thickness, cv.LINE_AA))
 
 
 def plot_twoview_correspondences(
@@ -118,7 +95,7 @@ def plot_twoview_correspondences(
     corr_idxs_i1i2: np.ndarray,
     inlier_mask: Optional[np.ndarray] = None,
     dot_color: Optional[Tuple[int, int, int]] = None,
-    max_corrs: Optional[int] = 500,
+    max_corrs: Optional[int] = 50,
 ) -> Image:
     """Plot correspondences between two images as lines between two circles.
 
@@ -135,9 +112,7 @@ def plot_twoview_correspondences(
     Returns:
         Image visualizing correspondences between two images.
     """
-    image_i1, image_i2, scale_i1, scale_i2 = image_utils.match_image_widths(
-        image_i1, image_i2
-    )
+    image_i1, image_i2, scale_i1, scale_i2 = image_utils.match_image_widths(image_i1, image_i2)
 
     result = image_utils.vstack_image_pair(image_i1, image_i2)
 
@@ -154,9 +129,7 @@ def plot_twoview_correspondences(
         x_i1 = (kps_i1.coordinates[idx_i1, 0] * scale_i1[0]).astype(np.int32)
         y_i1 = (kps_i1.coordinates[idx_i1, 1] * scale_i1[1]).astype(np.int32)
         x_i2 = (kps_i2.coordinates[idx_i2, 0] * scale_i2[0]).astype(np.int32)
-        y_i2 = (kps_i2.coordinates[idx_i2, 1] * scale_i2[1]).astype(
-            np.int32
-        ) + image_i1.height
+        y_i2 = (kps_i2.coordinates[idx_i2, 1] * scale_i2[1]).astype(np.int32) + image_i1.height
 
         # Draw correspondences with optional inlier mask.
         if inlier_mask is None:
@@ -196,13 +169,9 @@ def plot_sfm_data_3d(
 
     num_tracks = sfm_data.number_tracks()
     # Restrict 3d points to some radius of camera poses
-    points_3d = np.array(
-        [list(sfm_data.get_track(j).point3()) for j in range(num_tracks)]
-    )
+    points_3d = np.array([list(sfm_data.get_track(j).point3()) for j in range(num_tracks)])
 
-    nearby_points_3d = comp_utils.get_points_within_radius_of_cameras(
-        camera_poses, points_3d, max_plot_radius
-    )
+    nearby_points_3d = comp_utils.get_points_within_radius_of_cameras(camera_poses, points_3d, max_plot_radius)
 
     # plot 3D points
     for landmark in nearby_points_3d:
@@ -332,10 +301,7 @@ def save_sfm_data_viz(sfm_data: GtsfmData, folder_name: str) -> None:
 
 
 def save_camera_poses_viz(
-    pre_ba_sfm_data: GtsfmData,
-    post_ba_sfm_data: GtsfmData,
-    gt_pose_graph: List[Optional[Pose3]],
-    folder_name: str,
+    pre_ba_sfm_data: GtsfmData, post_ba_sfm_data: GtsfmData, gt_pose_graph: List[Optional[Pose3]], folder_name: str
 ) -> None:
     """Visualize the camera poses before and after bundle adjustment using Matplotlib, and saves plots to disk.
 

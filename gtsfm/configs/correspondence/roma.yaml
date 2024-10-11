@@ -6,4 +6,4 @@ CorrespondenceGenerator:
 
   aggregator:
     _target_: gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_dedup.KeypointAggregatorDedup
-    nms_merge_radius: 1.0
+    nms_merge_radius: 1e-4
