@@ -6,6 +6,7 @@ channels:
   # channel.
   - pytorch
   - conda-forge
+  - nvidia
 dependencies:
   # python essentials
   - python=3.8
@@ -34,10 +35,11 @@ dependencies:
   - scipy
   - hydra-core
   # 3rd party algorithms for different modules
-  - cudatoolkit>=10.2
-  - pytorch>=1.12.0
+  - pytorch-cuda=11.8
+  - pytorch
   - torchvision>=0.13.0
   - kornia
+  - pycolmap
   # io
   - h5py
   - plotly=4.14.3
@@ -50,7 +52,6 @@ dependencies:
       - opencv-python>=4.5.4.58
       - pydegensac
       - colour
-      - pycolmap==0.4.0
       - trimesh[easy]
       - gtsam==4.2
       - pydot

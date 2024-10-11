@@ -38,6 +38,7 @@ dependencies:
   - pytorch>=1.12.0
   - torchvision>=0.13.0
   - kornia
+  - pycolmap
   # io
   - h5py
   - plotly=4.14.3
@@ -50,7 +51,6 @@ dependencies:
       - opencv-python>=4.5.4.58
       - pydegensac
       - colour
-      - pycolmap==0.4.0
       - trimesh[easy]
       - gtsam==4.2
       - pydot

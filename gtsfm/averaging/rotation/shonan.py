@@ -51,7 +51,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         """
         super().__init__()
         self._two_view_rotation_sigma = two_view_rotation_sigma
-        self._p_min = 5
+        self._p_min = 3
         self._p_max = 64
         self._weight_by_inliers = weight_by_inliers
 
