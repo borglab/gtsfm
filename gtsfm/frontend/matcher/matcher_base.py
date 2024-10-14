@@ -12,10 +12,7 @@ from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 
 class MatcherBase(GTSFMProcess):
-    """Base class for all matchers.
-
-    Matchers work on a pair of descriptors and match them by their distance.
-    """
+    """Base class for all matchers."""
 
     def get_ui_metadata() -> UiMetadata:
         """Returns data needed to display node and edge info for this process in the process graph."""

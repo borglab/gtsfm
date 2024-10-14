@@ -4,9 +4,7 @@
 |:------------:| :-------------:|
 | Ubuntu 20.04.3 |  ![Linux CI](https://github.com/borglab/gtsfm/actions/workflows/test-python.yml/badge.svg?branch=master) |
 
-Georgia Tech Structure-from-Motion (GTSfM) is an end-to-end SfM pipeline based on [GTSAM](https://github.com/borglab/gtsam). GTSfM was designed from the ground-up to natively support parallel computation using [Dask](https://dask.org/). 
-
-For more details, please refer to our [arXiv preprint](https://arxiv.org/abs/2311.18801).
+### Georgia Tech Structure-from-Motion (GTSfM) is an end-to-end SfM pipeline based on [GTSAM](https://github.com/borglab/gtsam). GTSfM was designed from the ground-up to natively support parallel computation using [Dask](https://dask.org/). 
 
 <p align="left">
   <img src="https://user-images.githubusercontent.com/16724970/121294002-a4d7a400-c8ba-11eb-895e-a50305c049b6.gif" height="315" title="Olsson Lund Dataset: Door, 12 images">
@@ -23,6 +21,8 @@ For more details, please refer to our [arXiv preprint](https://arxiv.org/abs/231
 The majority of our code is governed by an MIT license and is suitable for commercial use. However, certain implementations featured in our repo (e.g., SuperPoint, SuperGlue) are governed by a non-commercial license and may not be used commercially.
 
 ## Installation
+
+<details><summary>Click to expand</summary>
 
 GTSfM requires no compilation, as Python wheels are provided for GTSAM. This repository includes external repositories as Git submodules –- don't forget to pull submodules with `git submodule update --init --recursive` or clone with `git clone --recursive https://github.com/borglab/gtsfm.git`.
 
@@ -50,7 +50,11 @@ pip install -e .
 
 Make sure that you can run `python -c "import gtsfm; import gtsam; print('hello world')"` in python, and you are good to go!
 
-## Usage Guide (Running 3D Reconstruction)
+</details>
+
+## Usage Guide
+
+<details><summary>Click to expand</summary>
 
 Before running reconstruction, if you intend to use modules with pre-trained weights, such as SuperPoint, SuperGlue, or PatchmatchNet, please first run:
 
@@ -107,19 +111,18 @@ For users that want to run GTSfM on a cluster of multiple machines, we provide s
 
 The results will be stored at `--output_root`, which is the `results` folder in the repo root by default. The poses and 3D tracks are stored in COLMAP format inside the `ba_output` subdirectory of `--output_root`. These can be visualized using the COLMAP GUI as well.
 
-### Nerfstudio
+</details>
 
-We provide a preprocessing script to convert the camera poses estimated by GTSfM to [nerfstudio](https://docs.nerf.studio/en/latest/) format:
+## Pipeline Overview
 
-```bash
-python scripts/prepare_nerfstudio.py --results_path {RESULTS_DIR} --images_dir {IMAGES_DIR}
-```
+![Alt text](assets/gtsfm-overview.svg?raw=true)
 
-The results are stored in the nerfstudio_input subdirectory inside `{RESULTS_DIR}`, which can be used directly with nerfstudio if installed:
+GTSfM attempts to make the global Structure-from-Motion process as modular as possible to allow for streamlined integration of new state-of-the-art tools. We provide details for each module of the GTSfM pipeline below.
 
-```bash
-ns-train nerfacto --data {RESULTS_DIR}/nerfstudio_input
-```
+- [Image Pairs Generator](assets/IMAGE_PAIRS_GENERATOR.md)
+- [Correspondence Generator](assets/CORRESPONDENCE_GENERATOR.md)
+- [Two View Estimator](assets/TWO_VIEW_ESTIMATOR.md)
+- [Multiview Optimizer](assets/MULTIVIEW_OPTIMIZER.md)
 
 ## Repository Structure
 
@@ -142,6 +145,20 @@ GTSfM is designed in an extremely modular way. Each module can be swapped out wi
   - `loader`: image data loaders
   - `utils`: utility functions such as serialization routines and pose comparisons, etc
 - `tests`: unit tests on every function and module
+
+## Nerfstudio
+
+We provide a preprocessing script to convert the camera poses estimated by GTSfM to [nerfstudio](https://docs.nerf.studio/en/latest/) format:
+
+```bash
+python scripts/prepare_nerfstudio.py --results_path {RESULTS_DIR} --images_dir {IMAGES_DIR}
+```
+
+The results are stored in the nerfstudio_input subdirectory inside `{RESULTS_DIR}`, which can be used directly with nerfstudio if installed:
+
+```bash
+ns-train nerfacto --data {RESULTS_DIR}/nerfstudio_input
+```
 
 ## Contributing
 
