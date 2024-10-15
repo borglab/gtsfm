@@ -7,19 +7,18 @@ that include filtering or optimizing the two-view estimates.
 Authors: Akshay Krishnan, Ayush Baid, John Lambert
 """
 import abc
+import os
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
 import dask
-import os
-import numpy as np
-from dask.delayed import Delayed
-from gtsam import Cal3Bundler, Rot3, Unit3
-
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
+import numpy as np
+from dask.delayed import Delayed
+from gtsam import Cal3Bundler, Rot3, Unit3
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.two_view_estimator import TwoViewEstimationReport
@@ -302,7 +301,7 @@ class ViewGraphEstimatorBase(GTSFMProcess):
         )
 
         # Run view graph estimation.
-        view_graph_edges = dask.delayed(self.run)(
+        view_graph_edges, i2Ri1_valid_dict, i2Ui1_valid_dict = dask.delayed(self.run, nout=3)(
             i2Ri1_dict=i2Ri1_valid_dict,
             i2Ui1_dict=i2Ui1_valid_dict,
             calibrations=calibrations,
