@@ -267,12 +267,12 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
             else:
                 key = E(len(pair_to_key))
                 pair_to_key[pair] = key
-            for kp0, kp1 in zip(mkps0, mkps1):
-                graph.add(
-                    gtsam.EssentialMatrixFactor(
-                        key, calibrations[pair[1]].calibrate(kp1), calibrations[pair[0]].calibrate(kp0), noise_model
+                for kp0, kp1 in zip(mkps0, mkps1):
+                    graph.add(
+                        gtsam.EssentialMatrixFactor(
+                            key, calibrations[pair[1]].calibrate(kp1), calibrations[pair[0]].calibrate(kp0), noise_model
+                        )
                     )
-                )
 
             # i0 -> i2
             pair = (i0, i2)
@@ -283,12 +283,12 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
             else:
                 key = E(len(pair_to_key))
                 pair_to_key[pair] = key
-            for kp0, kp1 in zip(mkps0, mkps1):
-                graph.add(
-                    gtsam.EssentialMatrixFactor(
-                        key, calibrations[pair[1]].calibrate(kp1), calibrations[pair[0]].calibrate(kp0), noise_model
+                for kp0, kp1 in zip(mkps0, mkps1):
+                    graph.add(
+                        gtsam.EssentialMatrixFactor(
+                            key, calibrations[pair[1]].calibrate(kp1), calibrations[pair[0]].calibrate(kp0), noise_model
+                        )
                     )
-                )
 
             # i1 -> i2
             pair = (i1, i2)
@@ -299,16 +299,17 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
             else:
                 key = E(len(pair_to_key))
                 pair_to_key[pair] = key
-            for kp0, kp1 in zip(mkps0, mkps1):
-                graph.add(
-                    gtsam.EssentialMatrixFactor(
-                        key, calibrations[pair[1]].calibrate(kp1), calibrations[pair[0]].calibrate(kp0), noise_model
+                for kp0, kp1 in zip(mkps0, mkps1):
+                    graph.add(
+                        gtsam.EssentialMatrixFactor(
+                            key, calibrations[pair[1]].calibrate(kp1), calibrations[pair[0]].calibrate(kp0), noise_model
+                        )
                     )
-                )
+        print("Num edges in E opt:", len(pair_to_key))
 
         # Create initial estimate.
         initial = gtsam.Values()
-        for key, pair in pair_to_key.items():
+        for pair, key in pair_to_key.items():
             initial.insert(key, gtsam.EssentialMatrix(i2Ri1_dict[pair], i2Ui1_dict[pair]))
 
         # Optimize!
@@ -318,7 +319,7 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         result = optimizer.optimize()
 
         # Add optimized rotations and translations to the dictionary.
-        for key, pair in pair_to_key.items():
+        for pair, key in pair_to_key.items():
             E_opt = result.atEssentialMatrix(key)
             i2Ri1_dict[pair] = E_opt.rotation()
             i2Ui1_dict[pair] = E_opt.direction()
