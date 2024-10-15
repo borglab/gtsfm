@@ -49,6 +49,7 @@ dependencies:
   - tabulate
   - simplejson
   - pycolmap
+  - pyparsing==3.0.9
   # testing
   - parameterized
   - pip:
