@@ -44,6 +44,7 @@ dependencies:
   - plotly=4.14.3
   - tabulate
   - simplejson
+  - pyparsing==3.0.9
   # testing
   - parameterized
   - pip:
