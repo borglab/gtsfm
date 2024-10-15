@@ -48,7 +48,7 @@ dependencies:
   # testing
   - parameterized
   - pip:
-      - open3d
+      - open3d==0.17.0
       - opencv-python>=4.5.4.58
       - pydegensac
       - colour
