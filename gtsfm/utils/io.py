@@ -11,25 +11,27 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import gtsam
-import h5py
-import numpy as np
-import open3d
-import simplejson as json
-from gtsam import Cal3Bundler, Point3, Pose3, Rot3, SfmTrack
-from PIL import Image as PILImage
-from PIL.ExifTags import GPSTAGS, TAGS
-
 import gtsfm.utils.images as image_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.reprojection as reproj_utils
 import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
+import h5py
+import numpy as np
+import open3d
+import simplejson as json
 import thirdparty.colmap.scripts.python.read_write_model as colmap_io
+from gtsam import Cal3Bundler, Point3, Pose3, Rot3, SfmTrack
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.common.sfm_track import SfmTrack2d
-from thirdparty.colmap.scripts.python.read_write_model import Camera as ColmapCamera
-from thirdparty.colmap.scripts.python.read_write_model import Image as ColmapImage
-from thirdparty.colmap.scripts.python.read_write_model import Point3D as ColmapPoint3D
+from PIL import Image as PILImage
+from PIL.ExifTags import GPSTAGS, TAGS
+from thirdparty.colmap.scripts.python.read_write_model import \
+    Camera as ColmapCamera
+from thirdparty.colmap.scripts.python.read_write_model import \
+    Image as ColmapImage
+from thirdparty.colmap.scripts.python.read_write_model import \
+    Point3D as ColmapPoint3D
 
 logger = logger_utils.get_logger()
 
