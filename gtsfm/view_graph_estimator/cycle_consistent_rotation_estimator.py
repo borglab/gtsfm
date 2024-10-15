@@ -308,8 +308,8 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
 
         # Create initial estimate.
         initial = gtsam.Values()
-        for pair in i2Ri1_dict.keys():
-            initial.insert(pair_to_key[pair], gtsam.EssentialMatrix(i2Ri1_dict[pair], i2Ui1_dict[pair]))
+        for key, pair in pair_to_key.items():
+            initial.insert(key, gtsam.EssentialMatrix(i2Ri1_dict[pair], i2Ui1_dict[pair]))
 
         # Optimize!
         params = gtsam.LevenbergMarquardtParams()
@@ -318,8 +318,8 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         result = optimizer.optimize()
 
         # Add optimized rotations and translations to the dictionary.
-        for pair in i2Ri1_dict.keys():
-            E_opt = result.atEssentialMatrix(pair_to_key[pair])
+        for key, pair in pair_to_key.items():
+            E_opt = result.atEssentialMatrix(key)
             i2Ri1_dict[pair] = E_opt.rotation()
             i2Ui1_dict[pair] = E_opt.direction()
 
