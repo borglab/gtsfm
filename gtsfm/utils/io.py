@@ -17,7 +17,7 @@ import gtsfm.utils.reprojection as reproj_utils
 import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
 import h5py
 import numpy as np
-import open3d
+#import open3d
 import simplejson as json
 import thirdparty.colmap.scripts.python.read_write_model as colmap_io
 from gtsam import Cal3Bundler, Point3, Pose3, Rot3, SfmTrack
