@@ -27,9 +27,9 @@ logger = logger_utils.get_logger()
 
 
 MIN_INLIER_RATIO = 0.01
-MIN_NUM_TRIALS = 1000
-MAX_NUM_TRIALS = 10000
-CONFIDENCE = 0.9999
+MIN_NUM_TRIALS = 10000
+MAX_NUM_TRIALS = 100000
+CONFIDENCE = 0.999999
 
 
 class LoRansac(VerifierBase):
