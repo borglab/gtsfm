@@ -22,7 +22,7 @@ from gtsfm.frontend.detector_descriptor.detector_descriptor_base import Detector
 
 
 class ColmapSIFTDetectorDescriptor(DetectorDescriptorBase):
-    """SIFT detector-descriptor using OpenCV's implementation."""
+    """SIFT detector-descriptor using Colmap's implementation."""
 
     def detect_and_describe(self, image: Image) -> Tuple[Keypoints, np.ndarray]:
         """Perform feature detection as well as their description.
@@ -40,12 +40,13 @@ class ColmapSIFTDetectorDescriptor(DetectorDescriptorBase):
         # Convert to grayscale.
         gray_image = image_utils.rgb_to_gray_cv(image)
 
-        # Create OpenCV object every time as the object is not pickle-able.
+        # Create pycolmap object every time as the object is not pickle-able.
         # TODO (travisdriver): Add GPU support
-        colmap_obj = pycolmap.Sift()
+        options = pycolmap.SiftExtractionOptions(max_num_features=self.max_keypoints)
+        colmap_obj = pycolmap.Sift(options)
 
         # Extract features.
-        features, descriptors = colmap_obj.extract(gray_image.value_array, max_num_features=self.max_keypoints)
+        features, descriptors = colmap_obj.extract(gray_image.value_array.astype(np.float32))
 
         # Convert to GTSFM's keypoints.
         # Note: Columns of features is x-coordinate, y-coordinate, scale, and orientation, respectively.
