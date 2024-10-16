@@ -2,6 +2,12 @@
 
 ![Alt text](gtsfm-overview-correspondence-generator.svg?raw=true)
 
+- [Loader](assets/LOADER.md)
+- [Image Pairs Generator](assets/IMAGE_PAIRS_GENERATOR.md)
+- **Correspondence Generator**
+- [Two View Estimator](assets/TWO_VIEW_ESTIMATOR.md)
+- [Multiview Optimizer](assets/MULTIVIEW_OPTIMIZER.md)
+
 ## What is a Correspondence Generator?
 
 The Correspondence Generator is responsible for taking in putative image pairs from the [`ImagePairsGenerator`](https://github.com/borglab/gtsfm/blob/master/gtsfm/retriever/image_pairs_generator.py) and returning keypoints for each image and correspondences between each specified image pair. Correspondence generation is implemented by the [`CorrespondenceGeneratorBase`](https://github.com/borglab/gtsfm/blob/master/gtsfm/frontend/correspondence_generator/correspondence_generator_base.py) class defined below.

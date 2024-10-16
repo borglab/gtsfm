@@ -119,6 +119,7 @@ The results will be stored at `--output_root`, which is the `results` folder in 
 
 GTSfM attempts to make the global Structure-from-Motion process as modular as possible to allow for streamlined integration of new state-of-the-art tools. We provide details for each module of the GTSfM pipeline below.
 
+- [Loader](assets/LOADER.md)
 - [Image Pairs Generator](assets/IMAGE_PAIRS_GENERATOR.md)
 - [Correspondence Generator](assets/CORRESPONDENCE_GENERATOR.md)
 - [Two View Estimator](assets/TWO_VIEW_ESTIMATOR.md)
