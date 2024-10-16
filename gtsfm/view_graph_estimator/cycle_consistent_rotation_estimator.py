@@ -110,10 +110,10 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         triplets: List[Tuple[int, int, int]] = graph_utils.extract_cyclic_triplets_from_edges(input_edges)
         logger.info("Number of triplets: %d" % len(triplets))
 
-        # # Optimize essential matrices.
-        # i2Ri1_dict, i2Ui1_dict = self.optimize_essential_matrices(
-        #     triplets, i2Ri1_dict, i2Ui1_dict, calibrations, corr_idxs_i1i2, keypoints
-        # )
+        # Optimize essential matrices.
+        i2Ri1_dict, i2Ui1_dict = self.optimize_essential_matrices(
+            triplets, i2Ri1_dict, i2Ui1_dict, calibrations, corr_idxs_i1i2, keypoints
+        )
 
         # Compute the cycle error for each triplet, and add it to its edges for aggregation.
         per_edge_errors = defaultdict(list)
