@@ -44,15 +44,11 @@ class ColmapSIFTDetectorDescriptor(DetectorDescriptorBase):
         # TODO (travisdriver): Add GPU support
         colmap_obj = pycolmap.Sift()
 
-        # Run the OpenCV code.
-        features, descriptors = colmap_obj.extract(gray_image.value_array)
+        # Extract features.
+        features, descriptors = colmap_obj.extract(gray_image.value_array, max_num_features=self.max_keypoints)
 
         # Convert to GTSFM's keypoints.
-        # TODO (travisdriver): Add scales and orientations
-        keypoints = Keypoints(coordinates=features[..., :2])
-
-        # # Filter features.
-        # keypoints, selection_idxs = keypoints.get_top_k(self.max_keypoints)
-        # descriptors = descriptors[selection_idxs]
+        # Note: Columns of features is x-coordinate, y-coordinate, scale, and orientation, respectively.
+        keypoints = Keypoints(coordinates=features[..., :2], scales=features[:, 2])
 
         return keypoints, descriptors

@@ -21,7 +21,7 @@ class Image(NamedTuple):
 
     value_array: np.ndarray
     exif_data: Optional[Dict[str, Any]] = None
-    sensor_width_db: SensorWidthDatabase = None #SensorWidthDatabase()
+    sensor_width_db: SensorWidthDatabase = SensorWidthDatabase()
     file_name: Optional[str] = None
     mask: Optional[np.ndarray] = None
 
