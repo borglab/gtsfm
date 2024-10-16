@@ -4,7 +4,7 @@ The network was proposed in 'SuperPoint: Self-Supervised Interest Point Detectio
 by wrapping over the authors' implementation.
 
 References:
-- https://arxiv.org/abs/1712.07629
+- https://openaccess.thecvf.com/content_cvpr_2018_workshops/papers/w9/DeTone_SuperPoint_Self-Supervised_Interest_CVPR_2018_paper.pdf
 - https://github.com/magicleap/SuperGluePretrainedNetwork
 
 Authors: Ayush Baid

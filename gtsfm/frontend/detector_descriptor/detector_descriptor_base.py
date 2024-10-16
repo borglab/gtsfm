@@ -17,10 +17,7 @@ logger = logger_utils.get_logger()
 
 
 class DetectorDescriptorBase(GTSFMProcess):
-    """Base class for all methods which provide a joint detector-descriptor to work on an image.
-
-    This class serves as a combination of individual detector and descriptor.
-    """
+    """Base class for all methods which provide a joint detector-descriptor to work on a single image."""
 
     def get_ui_metadata() -> UiMetadata:
         """Returns data needed to display node and edge info for this process in the process graph."""
