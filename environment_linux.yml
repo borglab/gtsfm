@@ -7,6 +7,7 @@ channels:
   - pytorch
   - conda-forge
   - nvidia
+  - open3d-admin
 dependencies:
   # python essentials
   - python=3.8
@@ -45,11 +46,11 @@ dependencies:
   - plotly=4.14.3
   - tabulate
   - simplejson
+  - open3d
   - pyparsing==3.0.9
   # testing
   - parameterized
   - pip:
-      - open3d
       - opencv-python>=4.5.4.58
       - pydegensac
       - colour
