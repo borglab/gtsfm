@@ -14,7 +14,6 @@ from typing import Tuple
 import numpy as np
 import pycolmap
 
-import gtsfm.utils.features as feature_utils
 import gtsfm.utils.images as image_utils
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
@@ -41,7 +40,7 @@ class ColmapSIFTDetectorDescriptor(DetectorDescriptorBase):
         gray_image = image_utils.rgb_to_gray_cv(image)
 
         # Create pycolmap object every time as the object is not pickle-able.
-        # TODO (travisdriver): Add GPU support
+        # Note: cannot use SiftGPU as wheels are not built with CUDA support.
         options = pycolmap.SiftExtractionOptions(max_num_features=self.max_keypoints)
         colmap_obj = pycolmap.Sift(options)
 

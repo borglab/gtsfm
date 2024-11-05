@@ -16,7 +16,6 @@ import numpy as np
 import pycolmap
 from gtsam import Cal3Bundler, Rot3, Unit3
 
-import gtsfm.frontend.verifier.verifier_base as verifier_base
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.pycolmap_utils as pycolmap_utils
 import gtsfm.utils.verification as verification_utils
