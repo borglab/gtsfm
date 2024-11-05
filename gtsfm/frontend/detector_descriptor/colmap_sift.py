@@ -42,10 +42,10 @@ class ColmapSIFTDetectorDescriptor(DetectorDescriptorBase):
         # Create pycolmap object every time as the object is not pickle-able.
         # Note: cannot use SiftGPU as wheels are not built with CUDA support.
         options = pycolmap.SiftExtractionOptions(max_num_features=self.max_keypoints)
-        colmap_obj = pycolmap.Sift(options)
+        sift_obj = pycolmap.Sift(options)
 
         # Extract features.
-        features, descriptors = colmap_obj.extract(gray_image.value_array.astype(np.float32))
+        features, descriptors = sift_obj.extract(gray_image.value_array.astype(np.float32))
 
         # Convert to GTSFM's keypoints.
         # Note: Columns of features is x-coordinate, y-coordinate, scale, and orientation, respectively.
