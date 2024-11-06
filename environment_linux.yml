@@ -38,7 +38,7 @@ dependencies:
   - pytorch-cuda=11.8
   - pytorch
   - torchvision>=0.13.0
-  - kornia
+  - kornia==0.7.3
   - pycolmap
   # io
   - h5py
