@@ -57,7 +57,8 @@ class ColmapCorrespondenceGenerator(CorrespondenceGeneratorBase):
             return Keypoints(coordinates=np.array([], dtype=np.float32))
         coordinates = self._keypoints_dict[image_id][:, :2]
         camera = self._pycolmap_db.read_camera(pycolmap_image.camera_id)
-        # Colmap extracts features in the downscaled image but scales keypoints back to the original dimensions before storing in the database.
+        # Colmap extracts features in the downscaled image 
+        # but scales keypoints back to the original dimensions before storing in the database.
         if image.width != camera.width or image.height != camera.height:
             scale = np.array([image.width / camera.width, image.height / camera.height])
             return Keypoints(
