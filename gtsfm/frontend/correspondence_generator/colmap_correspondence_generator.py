@@ -49,24 +49,41 @@ class ColmapCorrespondenceGenerator(CorrespondenceGeneratorBase):
             self._pycolmap_db.num_verified_image_pairs,
         )
 
-    def _read_keypoints(self, pycolmap_image_id: int) -> Keypoints:
+    def _read_keypoints(self, image: Image) -> Keypoints:
         """Read keypoints from pycolmap.Image object."""
-        if pycolmap_image_id not in self._keypoints_dict:
+        pycolmap_image = self._pycolmap_db.read_image_with_name(image.file_name)
+        image_id = pycolmap_image.image_id
+        if image_id not in self._keypoints_dict:
             return Keypoints(coordinates=np.array([], dtype=np.float32))
+        coordinates = self._keypoints_dict[image_id][:, :2]
+        camera = self._pycolmap_db.read_camera(pycolmap_image.camera_id)
+        # Colmap extracts features in the downscaled image but scales keypoints back to the original dimensions before storing in the database.
+        if image.width != camera.width or image.height != camera.height:
+            scale = np.array([image.width / camera.width, image.height / camera.height])
+            return Keypoints(
+                coordinates=coordinates * scale, scales=None, responses=None
+            )
+        return Keypoints(coordinates=coordinates, scales=None, responses=None)
 
-        return Keypoints(coordinates=self._keypoints_dict[pycolmap_image_id][:, :2], scales=None, responses=None)
-
-    def _read_image_ids_and_keypoints(self, images: List[Image]) -> Tuple[List[int], List[Keypoints]]:
+    def _read_image_ids_and_keypoints(
+        self, images: List[Image]
+    ) -> Tuple[List[int], List[Keypoints]]:
         """Read image ids and keypoints for the images."""
-        file_names = [image.file_name for image in images if image.file_name is not None]
-        if len(file_names) != len(images):
-            raise ValueError("All images should be associated with a file name for ColmapCorrespondenceGenerator")
-        pycolmap_images: List[pycolmap.Image] = [
-            self._pycolmap_db.read_image_with_name(file_name) for file_name in file_names
+        file_names = [
+            image.file_name for image in images if image.file_name is not None
         ]
-
-        keypoints: List[Keypoints] = [self._read_keypoints(image.image_id) for image in pycolmap_images]
-        gtsfm_id_to_pycolmap_id: List[int] = [image.image_id for image in pycolmap_images]
+        if len(file_names) != len(images):
+            raise ValueError(
+                "All images should be associated with a file name for ColmapCorrespondenceGenerator"
+            )
+        pycolmap_images: List[pycolmap.Image] = [
+            self._pycolmap_db.read_image_with_name(file_name)
+            for file_name in file_names
+        ]
+        keypoints: List[Keypoints] = [self._read_keypoints(image) for image in images]
+        gtsfm_id_to_pycolmap_id: List[int] = [
+            image.image_id for image in pycolmap_images
+        ]
 
         return gtsfm_id_to_pycolmap_id, keypoints
 
