@@ -25,7 +25,6 @@ logger = logger_utils.get_logger()
 def load_poses(colmap_dirpath: str) -> Dict[str, Pose3]:
     """Returns mapping from image filename to associated camera pose."""
     wTi_list, img_fnames, _, _, _, _ = io_utils.read_scene_data_from_colmap_format(colmap_dirpath)
-    # img_fnames = [f.split("/")[-1] for f in img_fnames]
 
     return dict(zip(img_fnames, wTi_list))
 
@@ -85,12 +84,18 @@ def compare_poses(baseline_dirpath: str, eval_dirpath: str, output_dirpath: str)
     metrics = []
     metrics.append(metric_utils.compute_rotation_angle_metric(wRi_aligned_list, baseline_wRi_list))
     metrics.append(metric_utils.compute_translation_distance_metric(wti_aligned_list, baseline_wti_list))
-    metrics.append(metric_utils.compute_relative_translation_angle_metric(i2Ui1_dict_gt, current_wTi_list))
     metrics.append(metric_utils.compute_translation_angle_metric(baseline_wTi_list, current_wTi_list))
-    metrics.append(metric_utils.compute_relative_translation_angle_metric(i2Ri1_dict_gt, current_wTi_list))
+    relative_rotation_error_metric = metric_utils.compute_relative_rotation_angle_metric(
+        i2Ri1_dict_gt, current_wTi_list
+    )
+    metrics.append(relative_rotation_error_metric)
+    relative_translation_error_metric = metric_utils.compute_relative_translation_angle_metric(
+        i2Ui1_dict_gt, current_wTi_list
+    )
+    metrics.append(relative_translation_error_metric)
 
-    rotation_angular_errors = metrics[2]._data
-    translation_angular_errors = metrics[4]._data
+    rotation_angular_errors = relative_rotation_error_metric._data
+    translation_angular_errors = relative_translation_error_metric._data
     metrics.extend(
         metric_utils.compute_pose_auc_metric(
             rotation_angular_errors, translation_angular_errors, save_dir=output_dirpath

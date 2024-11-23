@@ -281,8 +281,6 @@ def compute_relative_rotation_angle_metric(
     angles: List[Optional[float]] = []
     for i1, i2 in i2Ri1_dict:
         i2Ri1 = i2Ri1_dict[(i1, i2)]
-        # TODO(akshay-krishnan): this is wrong, we should not penalize for i2Ri1 (GT) being None.
-        # added now to be consistent with translation.
         if i2Ri1 is None or wTi_list[i1] is None or wTi_list[i2] is None:
             angles.append(None)
             continue
@@ -290,7 +288,7 @@ def compute_relative_rotation_angle_metric(
         wRi2_gt = wTi_list[i2].rotation()
         i2Ri1_gt = wRi2_gt.inverse().compose(wRi1_gt)
         angles.append(comp_utils.compute_relative_rotation_angle(i2Ri1, i2Ri1_gt))
-    return GtsfmMetric("relative_translation_angle_error_deg", np.array(angles, dtype=np.float32))
+    return GtsfmMetric("relative_rotation_angle_error_deg", np.array(angles, dtype=np.float32))
 
 
 def compute_translation_angle_metric(
@@ -325,8 +323,8 @@ def compute_translation_angle_metric(
 
 
 def compute_pose_auc_metric(
-    rotation_angular_errors: Sequence[float],
-    translation_angular_errors: Sequence[float],
+    rotation_angular_errors: Union[Sequence[float], np.ndarray],
+    translation_angular_errors: Union[Sequence[float], np.ndarray],
     thresholds_deg: Tuple[float] = (1, 2.5, 5, 10, 20),
     save_dir: Optional[str] = None,
 ) -> List[GtsfmMetric]:
@@ -394,7 +392,7 @@ def compute_ba_pose_metrics(
 def get_all_relative_rotations_translations(
     wTi_list: List[Optional[Pose3]],
 ) -> Tuple[Dict[Tuple[int, int], Optional[Rot3]], Dict[Tuple[int, int], Optional[Unit3]]]:
-    """Generate synthetic measurements of the 2-view translation directions between image pairs.
+    """Compute measurements of *all* 2-view translation directions between image pairs.
 
     Args:
         wTi_list: List of poses (e.g. could be ground truth).
