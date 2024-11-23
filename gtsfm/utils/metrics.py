@@ -257,7 +257,7 @@ def compute_translation_distance_metric(
 
 
 def compute_relative_translation_angle_metric(
-    i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]], wTi_list: List[Optional[Pose3]]
+    i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]], wTi_list: List[Optional[Pose3]], prefix: str = ""
 ) -> GtsfmMetric:
     """Computes statistics for angle between translations and direction measurements.
 
@@ -272,7 +272,7 @@ def compute_relative_translation_angle_metric(
     for i1, i2 in i2Ui1_dict:
         i2Ui1 = i2Ui1_dict[(i1, i2)]
         angles.append(comp_utils.compute_translation_to_direction_angle(i2Ui1, wTi_list[i2], wTi_list[i1]))
-    return GtsfmMetric("relative_translation_angle_error_deg", np.array(angles, dtype=np.float32))
+    return GtsfmMetric(prefix + "relative_translation_angle_error_deg", np.array(angles, dtype=np.float32))
 
 
 def compute_translation_angle_metric(
