@@ -603,7 +603,7 @@ def compute_metrics(
     """
 
     num_camera_measurements = len([k for k, val in i2Ui1_dict.items() if val is not None])
-    num_track_measurements = len([k for k, val in i2Ui1_dict_tracks.items() if val is not None])
+    num_track_measurements = len([k for k, val in w_i2Ui1_dict_tracks.items() if val is not None])
     ta_metrics = [
         GtsfmMetric("num_total_1dsfm_measurements", num_camera_measurements + num_track_measurements),
         GtsfmMetric("num_camera_1dsfm_measurements", num_camera_measurements),
@@ -642,7 +642,7 @@ def compute_metrics(
         ta_metrics.extend(
             [
                 metrics_utils.compute_relative_translation_angle_metric(
-                    measured_gt_i2Ui1_dict, wTi_aligned_list, prefix="inlier_"
+                    measured_gt_i2Ui1_dict, gt_wTi_list, prefix="inlier_"
                 ),
                 GtsfmMetric("num_inlier_1dsfm_measurements", len(inlier_i1_i2_pairs)),
                 GtsfmMetric("num_outlier_1dsfm_measurements", len(outlier_i1_i2_pairs)),
