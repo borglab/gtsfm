@@ -37,13 +37,14 @@ dependencies:
   - cpuonly # replacement of cudatoolkit for cpu only machines
   - pytorch>=1.12.0
   - torchvision>=0.13.0
-  - kornia
+  - kornia==0.7.3
   - pycolmap
   # io
   - h5py
   - plotly=4.14.3
   - tabulate
   - simplejson
+  - pyparsing==3.0.9
   # testing
   - parameterized
   - pip:
