@@ -11,6 +11,7 @@ References:
 Authors: Jing Wu, Ayush Baid, John Lambert
 """
 
+import math
 from typing import Dict, List, Optional, Set, Tuple
 
 import gtsam
@@ -79,7 +80,9 @@ class ShonanRotationAveraging(RotationAveragingBase):
                 continue
             if self._weight_by_inliers and num_correspondences_dict[(i1, i2)] > 0:
                 # ignore translation during rotation averaging
-                noise_model = gtsam.noiseModel.Isotropic.Sigma(ROT3_DOF, 1 / num_correspondences_dict[(i1, i2)])
+                noise_model = gtsam.noiseModel.Isotropic.Sigma(
+                    ROT3_DOF, 1 / math.sqrt(num_correspondences_dict[(i1, i2)])
+                )
 
             measurements.append(gtsam.BinaryMeasurementRot3(i2, i1, i2Ri1, noise_model))
 
