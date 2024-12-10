@@ -404,7 +404,9 @@ class GtsfmRunnerBase:
         end_time = time.time()
         duration_sec = end_time - start_time
         logger.info("GTSFM took %.2f minutes to compute sparse multi-view result.", duration_sec / 60)
-
+        
+        if client is not None:
+            client.shutdown()
         total_summary_metrics = GtsfmMetricsGroup(
             "total_summary_metrics", [GtsfmMetric("total_runtime_sec", duration_sec)]
         )
