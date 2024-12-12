@@ -52,7 +52,7 @@ OUTLIER_WEIGHT_THRESHOLD = 0.125
 
 NOISE_MODEL_DIMENSION = 3  # chordal distances on Unit3
 NOISE_MODEL_SIGMA = 0.01
-HUBER_LOSS_K = 1.1  # default value from GTSAM
+HUBER_LOSS_K = 0.1  # default value from GTSAM
 
 MAX_INLIER_MEASUREMENT_ERROR_DEG = 5.0
 
