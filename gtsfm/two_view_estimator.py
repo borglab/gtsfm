@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from dask.distributed import Client
 import numpy as np
+import gtsam
 from gtsam import PinholeCameraCal3Bundler, Pose3, Rot3, SfmTrack, Unit3
 
 import gtsfm.common.types as gtsfm_types
@@ -318,7 +319,17 @@ class TwoViewEstimator:
 
         # Optionally, do two-view bundle adjustment
         if self._bundle_adjust_2view and len(pre_ba_v_corr_idxs) >= self.processor._min_num_inliers_est_model:
-            post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs = self.bundle_adjust(
+            # post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs = self.bundle_adjust(
+            #     keypoints_i1,
+            #     keypoints_i2,
+            #     pre_ba_v_corr_idxs,
+            #     camera_intrinsics_i1,
+            #     camera_intrinsics_i2,
+            #     pre_ba_i2Ri1,
+            #     pre_ba_i2Ui1,
+            #     i2Ti1_prior,
+            # )
+            post_ba_i2Ri1, post_ba_i2Ui1 = optimize_essential_matrix(
                 keypoints_i1,
                 keypoints_i2,
                 pre_ba_v_corr_idxs,
@@ -326,8 +337,8 @@ class TwoViewEstimator:
                 camera_intrinsics_i2,
                 pre_ba_i2Ri1,
                 pre_ba_i2Ui1,
-                i2Ti1_prior,
             )
+            post_ba_v_corr_idxs = np.copy(pre_ba_v_corr_idxs)
             post_ba_inlier_ratio_wrt_estimate = float(len(post_ba_v_corr_idxs)) / len(putative_corr_idxs)
 
             # TODO: Remove this hack once we can handle the lower post_ba_inlier_ratio_wrt_estimate downstream.
@@ -358,6 +369,67 @@ class TwoViewEstimator:
         ) = self.processor.run_inlier_support(post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs, post_ba_report)
 
         return post_isp_i2Ri1, post_isp_i2Ui1, post_isp_v_corr_idxs, pre_ba_report, post_ba_report, post_isp_report
+
+
+def optimize_essential_matrix(
+    keypoints_i1: Keypoints,
+    keypoints_i2: Keypoints,
+    corr_idxs_i1i2: np.ndarray,
+    camera_intrinsics_i1: gtsam.Cal3Bundler,
+    camera_intrinsics_i2: gtsam.Cal3Bundler,
+    i2Ri1: Rot3,
+    i2Ui1: Unit3,
+    use_robust_loss: bool = True,
+) -> Tuple[Dict[Tuple[int, int], Rot3], Dict[Tuple[int, int], Unit3]]:
+    """Jointly optimize over all essential matrices for edges contained in triplets.
+
+    Args:
+        triplets: List of triplets in view graph.
+        i2Ri1_dict: Dict from (i1, i2) to relative rotation of i1 with respect to i2.
+        i2Ui1_dict: Dict from (i1, i2) to relative translation direction of i1 with respect to i2.
+        calibrations: List of calibrations for each image.
+        corr_idxs_i1i2: Dict from (i1, i2) to indices of verified correspondences from i1 to i2.
+        keypoints: keypoints for each images.
+        use_robust_loss: whether to use Huber loss.
+
+    Returns:
+        Optimized relative rotations and directions.
+    """
+    # Create GTSAM objects.
+    graph = gtsam.NonlinearFactorGraph()
+    initial = gtsam.Values()
+    noise_model=gtsam.noiseModel.Isotropic.Sigma(1, 1e-2)
+    if use_robust_loss:
+        huber_loss = gtsam.noiseModel.mEstimator.Huber.Create(1.345)
+        noise_model = gtsam.noiseModel.Robust.Create(huber_loss, noise_model)
+
+    # Add essential matrix factors.
+    mkps1 = keypoints_i1.coordinates[corr_idxs_i1i2[:, 0]]
+    mkps2 = keypoints_i2.coordinates[corr_idxs_i1i2[:, 1]]
+    initial.insert(0, gtsam.EssentialMatrix(i2Ri1, i2Ui1))
+    for kp1, kp2 in zip(mkps1, mkps2):
+        graph.add(
+            gtsam.EssentialMatrixFactor(
+                0,
+                camera_intrinsics_i2.calibrate(kp2),
+                camera_intrinsics_i1.calibrate(kp1),
+                noise_model,
+            )
+        )
+
+    # Optimize!
+    params = gtsam.LevenbergMarquardtParams()
+    params.setVerbosity("ERROR")
+    params.setMaxIterations(10)
+    optimizer = gtsam.LevenbergMarquardtOptimizer(graph, initial, params)
+    result = optimizer.optimize()
+
+    # Add optimized rotations and translations to the dictionary.
+    E_opt = result.atEssentialMatrix(0)
+    i2Ri1 = E_opt.rotation()
+    i2Ui1 = E_opt.direction()
+
+    return i2Ri1, i2Ui1
 
 
 def generate_two_view_report(
