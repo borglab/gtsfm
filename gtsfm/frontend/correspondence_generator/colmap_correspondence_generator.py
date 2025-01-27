@@ -19,9 +19,8 @@ from distributed import Client
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.frontend.correspondence_generator.correspondence_generator_base import (
-    CorrespondenceGeneratorBase,
-)
+from gtsfm.frontend.correspondence_generator.correspondence_generator_base import \
+    CorrespondenceGeneratorBase
 
 logger = logger_utils.get_logger()
 
@@ -40,9 +39,7 @@ class ColmapCorrespondenceGenerator(CorrespondenceGeneratorBase):
         raw_db = sqlite3.connect(database_path)
         self._keypoints_dict: Dict[int, np.ndarray] = {
             image_id: np.frombuffer(data, dtype=np.float32).reshape(rows, -1)
-            for image_id, rows, data in raw_db.execute(
-                "SELECT image_id, rows, data FROM keypoints"
-            )
+            for image_id, rows, data in raw_db.execute("SELECT image_id, rows, data FROM keypoints")
         }
         raw_db.close()
 
@@ -67,9 +64,7 @@ class ColmapCorrespondenceGenerator(CorrespondenceGeneratorBase):
         image_id = pycolmap_image.image_id
 
         if image_id not in self._keypoints_dict:
-            return Keypoints(
-                coordinates=np.array([], dtype=np.float32), scales=None, responses=None
-            )
+            return Keypoints(coordinates=np.array([], dtype=np.float32), scales=None, responses=None)
 
         coordinates = self._keypoints_dict[image_id][:, :2]
         camera = self._pycolmap_db.read_camera(pycolmap_image.camera_id)
@@ -79,15 +74,11 @@ class ColmapCorrespondenceGenerator(CorrespondenceGeneratorBase):
         if image.width != camera.width or image.height != camera.height:
             scale = np.array([image.width / camera.width, image.height / camera.height])
             scaled_coordinates = coordinates * scale
-            return Keypoints(
-                coordinates=scaled_coordinates, scales=None, responses=None
-            )
+            return Keypoints(coordinates=scaled_coordinates, scales=None, responses=None)
 
         return Keypoints(coordinates=coordinates, scales=None, responses=None)
 
-    def _read_image_ids_and_keypoints(
-        self, images: List[Image]
-    ) -> Tuple[List[int], List[Keypoints]]:
+    def _read_image_ids_and_keypoints(self, images: List[Image]) -> Tuple[List[int], List[Keypoints]]:
         """
         Read image IDs and keypoints for the images.
 
@@ -100,19 +91,12 @@ class ColmapCorrespondenceGenerator(CorrespondenceGeneratorBase):
         Raises:
             ValueError: If any image lacks a file name.
         """
-        file_names = [
-            image.file_name for image in images if image.file_name is not None
-        ]
+        file_names = [image.file_name for image in images if image.file_name is not None]
 
         if len(file_names) != len(images):
-            raise ValueError(
-                "All images should be associated with a file name for ColmapCorrespondenceGenerator."
-            )
+            raise ValueError("All images should be associated with a file name for ColmapCorrespondenceGenerator.")
 
-        pycolmap_images = [
-            self._pycolmap_db.read_image_with_name(file_name)
-            for file_name in file_names
-        ]
+        pycolmap_images = [self._pycolmap_db.read_image_with_name(file_name) for file_name in file_names]
 
         keypoints = [self._read_keypoints(image) for image in images]
         gtsfm_id_to_pycolmap_id = [image.image_id for image in pycolmap_images]
@@ -128,18 +112,14 @@ class ColmapCorrespondenceGenerator(CorrespondenceGeneratorBase):
             colmap_i1 = gtsfm_id_to_pycolmap_id[i1]
             colmap_i2 = gtsfm_id_to_pycolmap_id[i2]
 
-            two_view_geometry = self._pycolmap_db.read_two_view_geometry(
-                colmap_i1, colmap_i2
-            )
+            two_view_geometry = self._pycolmap_db.read_two_view_geometry(colmap_i1, colmap_i2)
 
             # Only read matches if we have an essential or a fundamental matrix
             if two_view_geometry.config != 2 and two_view_geometry.config != 3:
                 continue
 
             # Note(Ayush): the matches we are loading are actually post verification
-            corr_idxs[(i1, i2)] = np.array(
-                two_view_geometry.inlier_matches, dtype=np.int32
-            )
+            corr_idxs[(i1, i2)] = np.array(two_view_geometry.inlier_matches, dtype=np.int32)
 
         return corr_idxs
 
@@ -160,9 +140,7 @@ class ColmapCorrespondenceGenerator(CorrespondenceGeneratorBase):
         # Note: we will end up reading verified correspondences from the colmap DB.
         images_actual = client.gather(images)
 
-        gtsfm_id_to_pycolmap_id, keypoints = self._read_image_ids_and_keypoints(
-            images_actual
-        )
+        gtsfm_id_to_pycolmap_id, keypoints = self._read_image_ids_and_keypoints(images_actual)
         corr_idxs = self._read_matches(image_pairs, gtsfm_id_to_pycolmap_id)
 
         return keypoints, corr_idxs
