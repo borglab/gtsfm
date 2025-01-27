@@ -1,0 +1,129 @@
+add_anaconda_token: True
+add_pip_as_python_dependency: True
+aggressive_update_packages:
+  - ca-certificates
+  - certifi
+  - openssl
+allow_conda_downgrades: False
+allow_cycles: True
+allow_non_channel_urls: False
+allow_softlinks: False
+allowlist_channels: []
+always_copy: False
+always_softlink: False
+always_yes: None
+anaconda_anon_usage: True
+anaconda_upload: None
+auto_activate_base: True
+auto_stack: 0
+auto_update_conda: True
+bld_path: 
+changeps1: True
+channel_alias: https://conda.anaconda.org
+channel_priority: strict
+channel_settings: []
+channels:
+  - conda-forge
+  - defaults
+client_ssl_cert: None
+client_ssl_cert_key: None
+clobber: False
+conda_build: {}
+create_default_packages: []
+croot: /home/sma/miniconda3/conda-bld
+custom_channels:
+  pkgs/main: https://repo.anaconda.com
+  pkgs/r: https://repo.anaconda.com
+  pkgs/pro: https://repo.anaconda.com
+custom_multichannels:
+  defaults: 
+    - https://repo.anaconda.com/pkgs/main
+    - https://repo.anaconda.com/pkgs/r
+  local: 
+debug: False
+default_channels:
+  - https://repo.anaconda.com/pkgs/main
+  - https://repo.anaconda.com/pkgs/r
+default_python: 3.12
+default_threads: None
+deps_modifier: not_set
+dev: False
+disallowed_packages: []
+download_only: False
+dry_run: False
+enable_private_envs: False
+env_prompt: ({default_env}) 
+envs_dirs:
+  - /home/sma/miniconda3/envs
+  - /home/sma/.conda/envs
+envvars_force_uppercase: True
+error_upload_url: https://conda.io/conda-post/unexpected-error
+execute_threads: 1
+experimental: []
+extra_safety_checks: False
+fetch_threads: 5
+force: False
+force_32bit: False
+force_reinstall: False
+force_remove: False
+ignore_pinned: False
+json: False
+local_repodata_ttl: 1
+migrated_channel_aliases: []
+migrated_custom_channels: {}
+no_lock: False
+no_plugins: False
+non_admin_enabled: True
+notify_outdated_conda: True
+number_channel_notices: 5
+offline: False
+override_channels_enabled: True
+path_conflict: clobber
+pinned_packages: []
+pip_interop_enabled: False
+pkgs_dirs:
+  - /home/sma/miniconda3/pkgs
+  - /home/sma/.conda/pkgs
+proxy_servers: {}
+quiet: False
+register_envs: True
+remote_backoff_factor: 1
+remote_connect_timeout_secs: 9.15
+remote_max_retries: 3
+remote_read_timeout_secs: 60.0
+repodata_fns:
+  - current_repodata.json
+  - repodata.json
+repodata_threads: None
+repodata_use_zst: True
+report_errors: None
+reporters:
+  - {'backend': 'console', 'output': 'stdout', 'verbosity': 0, 'quiet': False}
+restore_free_channel: False
+rollback_enabled: True
+root_prefix: /home/sma/miniconda3
+safety_checks: warn
+sat_solver: pycosat
+separate_format_cache: False
+shortcuts: True
+shortcuts_only: []
+show_channel_urls: None
+signing_metadata_url_base: None
+solver: libmamba
+solver_ignore_timestamps: False
+ssl_verify: True
+subdir: linux-64
+subdirs:
+  - linux-64
+  - noarch
+target_prefix_override: 
+trace: False
+track_features: []
+unsatisfiable_hints: True
+unsatisfiable_hints_check_depth: 2
+update_modifier: update_specs
+use_index_cache: False
+use_local: False
+use_only_tar_bz2: False
+verbosity: 0
+verify_threads: 1
