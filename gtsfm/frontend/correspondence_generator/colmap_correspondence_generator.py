@@ -98,8 +98,8 @@ class ColmapCorrespondenceGenerator(CorrespondenceGeneratorBase):
 
         pycolmap_images = [self._pycolmap_db.read_image_with_name(file_name) for file_name in file_names]
 
-        keypoints = [self._read_keypoints(image) for image in images]
-        gtsfm_id_to_pycolmap_id = [image.image_id for image in pycolmap_images]
+        keypoints: List[Keypoints] = [self._read_keypoints(image) for image in images]
+        gtsfm_id_to_pycolmap_id: List[int] = [image.image_id for image in pycolmap_images]
 
         return gtsfm_id_to_pycolmap_id, keypoints
 
