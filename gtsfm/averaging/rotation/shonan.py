@@ -20,6 +20,8 @@ from gtsam import (
     Rot3,
     ShonanAveraging3,
     ShonanAveragingParameters3,
+    BetweenFactorPose3,
+    Pose3,
 )
 
 import gtsfm.utils.logger as logger_utils
@@ -38,7 +40,10 @@ class ShonanRotationAveraging(RotationAveragingBase):
     """Performs Shonan rotation averaging."""
 
     def __init__(
-        self, two_view_rotation_sigma: float = _DEFAULT_TWO_VIEW_ROTATION_SIGMA, weight_by_inliers: bool = True
+        self,
+        two_view_rotation_sigma: float = _DEFAULT_TWO_VIEW_ROTATION_SIGMA,
+        weight_by_inliers: bool = True,
+        use_chordal_init: bool = True,
     ) -> None:
         """Initializes module.
 
@@ -54,6 +59,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         self._p_min = 3
         self._p_max = 64
         self._weight_by_inliers = weight_by_inliers
+        self._use_chordal_init = use_chordal_init
 
     def __get_shonan_params(self) -> ShonanAveragingParameters3:
         lm_params = LevenbergMarquardtParams.CeresDefaults()
@@ -136,7 +142,11 @@ class ShonanRotationAveraging(RotationAveragingBase):
         )
         shonan = ShonanAveraging3(measurements, self.__get_shonan_params())
 
-        initial = shonan.initializeRandomly()
+        if self._use_chordal_init:
+            initial = self.chordal_initialize(measurements)
+        else:
+            initial = shonan.initializeRandomly()
+
         logger.info("Initial cost: %.5f", shonan.cost(initial))
         result, _ = shonan.run(initial, self._p_min, self._p_max)
         logger.info("Final cost: %.5f", shonan.cost(result))
@@ -162,6 +172,27 @@ class ShonanRotationAveraging(RotationAveragingBase):
             unique_nodes_with_edges.add(i2)
 
         return unique_nodes_with_edges
+
+    def chordal_initialize(self, measurements: gtsam.BinaryMeasurementsRot3) -> gtsam.Values:
+        """Initialize values using GTSAM's chordal init.
+
+        Args:
+            measurements: BinaryMeasurementsRot3 object created before running Shonan.
+
+        Returns:
+            Initial values as a gtsam.Values object.
+        """
+        graph = gtsam.NonlinearFactorGraph()
+        anchor_key = None
+        noise_model = gtsam.noiseModel.Diagonal.Variances(np.array([1e-6, 1e-6, 1e-6, 1e-4, 1e-4, 1e-4], dtype=float))
+        for measurement in measurements:
+            if anchor_key is None:
+                anchor_key = measurement.key1()
+            pose_measurement = Pose3(measurement.measured(), np.array([0.0, 0.0, 0.0]))
+            graph.add(BetweenFactorPose3(measurement.key1(), measurement.key2(), pose_measurement, noise_model))
+
+        graph.addPriorPose3(anchor_key, Pose3(), noise_model)
+        return gtsam.InitializePose3.initializeOrientations(graph)
 
     def run_rotation_averaging(
         self,
