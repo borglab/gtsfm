@@ -63,8 +63,8 @@ class ShonanRotationAveraging(RotationAveragingBase):
 
     def __get_shonan_params(self) -> ShonanAveragingParameters3:
         lm_params = LevenbergMarquardtParams.CeresDefaults()
-        lm_params.setRelativeErrorTol(0.01)
-        lm_params.setAbsoluteErrorTol(1)
+        # lm_params.setRelativeErrorTol(0.01)
+        # lm_params.setAbsoluteErrorTol(1)
         shonan_params = ShonanAveragingParameters3(lm_params)
         shonan_params.setUseHuber(False)
         shonan_params.setCertifyOptimality(True)
