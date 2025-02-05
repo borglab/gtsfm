@@ -116,6 +116,8 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         self._use_tracks_for_averaging = use_tracks_for_averaging
         self._max_delayed_calls = max_delayed_calls
 
+        np.random.seed(0)
+
     def __sample_projection_directions(
         self,
         w_i2Ui1_list: List[Unit3],
