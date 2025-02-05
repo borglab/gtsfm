@@ -57,7 +57,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         super().__init__()
         self._two_view_rotation_sigma = two_view_rotation_sigma
         self._p_min = 3
-        self._p_max = 3
+        self._p_max = 64
         self._weight_by_inliers = weight_by_inliers
         self._use_chordal_init = use_chordal_init
 
@@ -66,8 +66,11 @@ class ShonanRotationAveraging(RotationAveragingBase):
         # lm_params.setRelativeErrorTol(0.01)
         # lm_params.setAbsoluteErrorTol(1)
         shonan_params = ShonanAveragingParameters3(lm_params)
-        shonan_params.setUseHuber(True)
-        shonan_params.setCertifyOptimality(False)
+        shonan_params.setUseHuber(False)
+        shonan_params.setCertifyOptimality(True)
+        shonan_params.setGaugesWeight(0.0)
+        shonan_params.setKarcherWeight(1.0)
+        shonan_params.setAnchorWeight(0.0)
         return shonan_params
 
     def __measurements_from_2view_relative_rotations(
@@ -140,7 +143,12 @@ class ShonanRotationAveraging(RotationAveragingBase):
             len(measurements),
             num_connected_nodes,
         )
-        shonan = ShonanAveraging3(measurements, self.__get_shonan_params())
+        shonan_params = self.__get_shonan_params()
+        if self._use_chordal_init:
+            shonan_params.setKarcherWeight(0.0)
+            shonan_params.setAnchorWeight(1.0)
+            shonan_params.setAnchor(measurements[0].key1(), Rot3())
+        shonan = ShonanAveraging3(measurements, shonan_params)
 
         if self._use_chordal_init:
             initial = self.chordal_initialize(measurements)
