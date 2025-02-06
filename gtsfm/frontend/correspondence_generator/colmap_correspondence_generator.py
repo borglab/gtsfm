@@ -19,7 +19,8 @@ from distributed import Client
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
+from gtsfm.frontend.correspondence_generator.correspondence_generator_base import \
+    CorrespondenceGeneratorBase
 
 logger = logger_utils.get_logger()
 
@@ -49,23 +50,55 @@ class ColmapCorrespondenceGenerator(CorrespondenceGeneratorBase):
             self._pycolmap_db.num_verified_image_pairs,
         )
 
-    def _read_keypoints(self, pycolmap_image_id: int) -> Keypoints:
-        """Read keypoints from pycolmap.Image object."""
-        if pycolmap_image_id not in self._keypoints_dict:
-            return Keypoints(coordinates=np.array([], dtype=np.float32))
+    def _read_keypoints(self, image: Image) -> Keypoints:
+        """
+        Read keypoints from a pycolmap.Image object.
 
-        return Keypoints(coordinates=self._keypoints_dict[pycolmap_image_id][:, :2], scales=None, responses=None)
+        Args:
+            image (Image): Input image object.
+
+        Returns:
+            Keypoints: Keypoints with their coordinates, scales, and responses.
+        """
+        pycolmap_image = self._pycolmap_db.read_image_with_name(image.file_name)
+        image_id = pycolmap_image.image_id
+
+        if image_id not in self._keypoints_dict:
+            return Keypoints(coordinates=np.array([], dtype=np.float32), scales=None, responses=None)
+
+        coordinates = self._keypoints_dict[image_id][:, :2]
+        camera = self._pycolmap_db.read_camera(pycolmap_image.camera_id)
+
+        # Colmap extracts features in the downscaled image
+        # but scales keypoints back to the original dimensions before storing in the database.
+        if image.width != camera.width or image.height != camera.height:
+            scale = np.array([image.width / camera.width, image.height / camera.height])
+            scaled_coordinates = coordinates * scale
+            return Keypoints(coordinates=scaled_coordinates, scales=None, responses=None)
+
+        return Keypoints(coordinates=coordinates, scales=None, responses=None)
 
     def _read_image_ids_and_keypoints(self, images: List[Image]) -> Tuple[List[int], List[Keypoints]]:
-        """Read image ids and keypoints for the images."""
-        file_names = [image.file_name for image in images if image.file_name is not None]
-        if len(file_names) != len(images):
-            raise ValueError("All images should be associated with a file name for ColmapCorrespondenceGenerator")
-        pycolmap_images: List[pycolmap.Image] = [
-            self._pycolmap_db.read_image_with_name(file_name) for file_name in file_names
-        ]
+        """
+        Read image IDs and keypoints for the images.
 
-        keypoints: List[Keypoints] = [self._read_keypoints(image.image_id) for image in pycolmap_images]
+        Args:
+            images (List[Image]): List of input image objects.
+
+        Returns:
+            Tuple[List[int], List[Keypoints]]: A tuple containing the list of image IDs and the corresponding keypoints.
+
+        Raises:
+            ValueError: If any image lacks a file name.
+        """
+        file_names = [image.file_name for image in images if image.file_name is not None]
+
+        if len(file_names) != len(images):
+            raise ValueError("All images should be associated with a file name for ColmapCorrespondenceGenerator.")
+
+        pycolmap_images = [self._pycolmap_db.read_image_with_name(file_name) for file_name in file_names]
+
+        keypoints: List[Keypoints] = [self._read_keypoints(image) for image in images]
         gtsfm_id_to_pycolmap_id: List[int] = [image.image_id for image in pycolmap_images]
 
         return gtsfm_id_to_pycolmap_id, keypoints
