@@ -1,179 +1,280 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Point Cloud Dashboard</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-            overflow: hidden;
-        }
+  <meta charset="UTF-8" />
+  <title>Pointcloud Dashboard</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: sans-serif;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    #layout-container {
+      display: flex;
+      flex: 1;
+      position: relative;
+      padding: 10px;
+      overflow: auto; /* Enable scrolling */
+    }
 
-        h1 {
-            text-align: center;
-            margin: 10px 0;
-        }
+    #left-container {
+      flex: 1;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      padding: 20px;
+      position: relative;
+      width: 2000px; /* Expand width to allow horizontal scrolling */
+      height: 1500px; /* Expand height to allow vertical scrolling */
+      overflow: auto; /* Enable scrolling */
+    }
 
-        #main-container {
-            display: flex;
-            flex: 1;
-            height: calc(100% - 50px); /* Subtract header height */
-            overflow: hidden;
-        }
+    .window-item {
+      position: absolute;
+      width: 300px;
+      height: 200px;
+      border: 1px solid #ccc;
+      background: #fafafa;
+      text-align: center;
+      cursor: grab;
+      padding: 10px;
+      box-sizing: border-box;
+      user-select: none;
+      transition: transform 0.2s ease, width 0.3s ease, height 0.3s ease;
+    }
 
-        #main-display {
-            flex: 3;
-            height: 100%;
-            border: 1px solid black;
-            position: relative;
-            display: flex;
-            flex-direction: column;
-        }
+    .selected {
+      transform: scale(1.1);
+      border: 2px solid #007bff;
+    }
 
-        #main-buttons {
-            display: flex;
-            justify-content: center;
-            padding: 10px;
-            background-color: #f4f4f4;
-        }
+    .enlarged {
+      width: 600px;
+      height: 400px;
+      z-index: 10;
+    }
 
-        #subwindows {
-            flex: 1;
-            height: 100%;
-            border: 1px solid black;
-            overflow-y: auto;
-            padding: 10px;
-            box-sizing: border-box;
-        }
+    .delete-button {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      font-size: 16px;
+      font-weight: bold;
+      background: none;
+      color: #999;
+      border: none;
+      cursor: pointer;
+      transition: color 0.2s ease, background-color 0.2s ease;
+    }
 
-        .subwindow {
-            margin-bottom: 20px;
-            padding: 10px;
-            border: 1px solid gray;
-            background-color: #f9f9f9;
-            border-radius: 5px;
-        }
+    .delete-button:hover {
+      color: #fff;
+      background-color: #c00;
+    }
 
-        iframe {
-            width: 100%;
-            height: 300px; /* Increased default height */
-            border: none;
-            border-radius: 5px;
-        }
+    .merge-button {
+      position: fixed;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 10px 20px;
+      font-size: 16px;
+      background: #28a745;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      display: none;
+    }
 
-        button {
-            margin-top: 10px;
-            padding: 5px 10px;
-            border: none;
-            border-radius: 3px;
-            background-color: #007BFF;
-            color: white;
-            cursor: pointer;
-        }
+    .merge-button:hover {
+      background: #218838;
+    }
 
-        button:hover {
-            background-color: #0056b3;
-        }
-    </style>
+    .enlarge-button {
+      position: absolute;
+      bottom: 4px;
+      left: 4px;
+      padding: 4px 8px;
+      font-size: 14px;
+      background: #007bff;
+      color: white;
+      border: none;
+      cursor: pointer;
+      border-radius: 3px;
+    }
+
+    .enlarge-button:hover {
+      background: #0056b3;
+    }
+
+    .viser-iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      background: #eaeaea;
+    }
+
+  </style>
 </head>
 <body>
-    <h1>Point Cloud Dashboard</h1>
-    <div id="main-container">
-        <!-- Main Display -->
-        <div id="main-display">
-            <div id="main-buttons">
-                <button id="clear-display-button">Clear Display Window</button>
-            </div>
-            <iframe id="main-iframe" style="flex: 1;"></iframe>
-        </div>
+  <div id="layout-container">
+    <div id="left-container"></div>
+  </div>
 
-        <!-- Subwindows -->
-        <div id="subwindows">
-            <h2>Subwindows</h2>
-            <div id="subwindow-list"></div>
-        </div>
-    </div>
+  <button id="merge-button" class="merge-button">Merge Selected Windows</button>
 
-    <script>
-        // Fetch subwindow addresses dynamically
-        fetch('/get_subwindows')
-            .then(response => response.json())
-            .then(addresses => {
-                const subWindowList = document.getElementById('subwindow-list');
-                const mainAddress = addresses.pop(); // Main display is the last address
+  <script>
+    let windows = [];
+    let selectedWindows = [];
+    let mergeCounter = 0;
 
-                // Set the main display iframe source
-                const mainIframe = document.getElementById('main-iframe');
-                mainIframe.src = mainAddress;
-
-                // Add subwindows
-                addresses.forEach((address, index) => {
-                    createSubwindow(subWindowList, address, index);
-                });
-            })
-            .catch(error => console.error("Error fetching subwindows:", error));
-
-        // Clear display window button functionality
-        document.getElementById("clear-display-button").onclick = () => {
-            fetch('/clear_main_display', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    alert(`Error: ${data.error}`);
-                } else {
-                    alert(data.message);
-                    console.log("Cleared main display window.");
-                }
-            })
-            .catch(error => console.error("Error clearing main display:", error));
-        };
-
-        function createSubwindow(container, address, index) {
-            const subWindowDiv = document.createElement('div');
-            subWindowDiv.className = 'subwindow';
-
-            const label = document.createElement('p');
-            label.textContent = `Subwindow ${index + 1}: ${address}`;
-            subWindowDiv.appendChild(label);
-
-            const iframe = document.createElement('iframe');
-            iframe.src = address;
-            subWindowDiv.appendChild(iframe);
-
-            const button = document.createElement('button');
-            button.textContent = "Pull to Display Window";
-            button.onclick = () => {
-                fetch('/merge_pointclouds', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ workers: [`worker_${index}`] }),
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.error) {
-                        alert(`Error: ${data.error}`);
-                    } else {
-                        alert(data.message);
-                        console.log(`Merged point clouds from worker_${index} into main display.`);
-                    }
-                })
-                .catch(error => {
-                    console.error("Error merging point clouds:", error);
-                });
-            };
-            subWindowDiv.appendChild(button);
-
-            container.appendChild(subWindowDiv);
+    fetch("/get_subwindows")
+      .then(res => res.json())
+      .then(addresses => {
+        if (!addresses || addresses.length === 0) return;
+        let positions = generateNonOverlappingPositions(addresses.length);
+        for (let i = 0; i < addresses.length; i++) {
+          let key = "window_" + i;
+          createWindow(key, addresses[i], positions[i], true);
         }
-    </script>
+      })
+      .catch(err => console.error("Error fetching subwindows:", err));
+
+    function createWindow(key, address, position, isInitial = false) {
+      let container = document.getElementById("left-container");
+      let div = document.createElement("div");
+      div.classList.add("window-item");
+      div.dataset.key = key;
+      div.dataset.isInitial = isInitial;
+      div.style.left = position.x + "px";
+      div.style.top = position.y + "px";
+
+      let idLabel = document.createElement("div");
+      idLabel.textContent = key;
+      div.appendChild(idLabel);
+
+      let iframe = document.createElement("iframe");
+      iframe.classList.add("viser-iframe");
+      iframe.src = address;
+      div.appendChild(iframe);
+
+      let enlargeBtn = document.createElement("button");
+      enlargeBtn.classList.add("enlarge-button");
+      enlargeBtn.textContent = "Enlarge";
+      enlargeBtn.addEventListener("click", () => toggleEnlarge(div, enlargeBtn));
+      div.appendChild(enlargeBtn);
+
+      if (!isInitial) {
+        let deleteBtn = document.createElement("button");
+        deleteBtn.classList.add("delete-button");
+        deleteBtn.innerHTML = "&#10005;";
+        deleteBtn.addEventListener("click", e => {
+          e.stopPropagation();
+          killWindow(div);
+        });
+        div.appendChild(deleteBtn);
+      }
+
+      div.addEventListener("click", () => toggleSelect(div));
+
+      container.appendChild(div);
+      windows.push({ key, address, element: div });
+    }
+
+    function toggleSelect(div) {
+      if (div.classList.contains("selected")) {
+        div.classList.remove("selected");
+        selectedWindows = selectedWindows.filter(win => win !== div);
+      } else {
+        if (selectedWindows.length < 2) {
+          div.classList.add("selected");
+          selectedWindows.push(div);
+        }
+      }
+      updateMergeButton();
+    }
+
+    function toggleEnlarge(div, button) {
+      if (div.classList.contains("enlarged")) {
+        div.classList.remove("enlarged");
+        button.textContent = "Enlarge";
+      } else {
+        div.classList.add("enlarged");
+        button.textContent = "Recover";
+      }
+    }
+
+    function updateMergeButton() {
+      const mergeButton = document.getElementById("merge-button");
+      if (selectedWindows.length === 2) {
+        mergeButton.style.display = "block";
+      } else {
+        mergeButton.style.display = "none";
+      }
+    }
+
+    document.getElementById("merge-button").addEventListener("click", () => {
+      if (selectedWindows.length === 2) {
+        createMergedWindow(selectedWindows[0], selectedWindows[1]);
+        selectedWindows.forEach(win => win.classList.remove("selected"));
+        selectedWindows = [];
+        updateMergeButton();
+      }
+    });
+
+    function getAvailablePosition() {
+      let gridSize = 350;
+      let x = 0, y = 0;
+      while (windows.some(win => Math.abs(win.element.offsetLeft - x) < gridSize &&
+                                Math.abs(win.element.offsetTop - y) < gridSize)) {
+        x += gridSize;
+        if (x > 2000) { x = 0; y += gridSize; }
+      }
+      return { x, y };
+    }
+
+    function createMergedWindow(win1, win2) {
+      let position = getAvailablePosition();
+      let key1 = new URL(win1.querySelector("iframe").src).port;
+      let key2 = new URL(win2.querySelector("iframe").src).port;
+      fetch("/drag_drop_merge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ window1: key1, window2: key2 }),
+      })
+      .then(r => r.json())
+      .then(data => createWindow(`merge_${++mergeCounter}`, data.address, position, false));
+    }
+
+    function killWindow(div) {
+      let key = new URL(div.querySelector("iframe").src).port;
+      fetch("/kill_window", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key }),
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (!data.error) {
+          div.remove();
+        }
+      })
+      .catch(err => console.error("Kill window error:", err));
+    }
+
+    function generateNonOverlappingPositions(count) {
+      let positions = [];
+      let gridSize = 350;
+      for (let i = 0; i < count; i++) {
+        positions.push({ x: (i % 5) * gridSize, y: Math.floor(i / 5) * gridSize });
+      }
+      return positions;
+    }
+  </script>
 </body>
 </html>
