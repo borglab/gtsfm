@@ -231,6 +231,8 @@ def get_figures_for_metrics(metrics_group: GtsfmMetricsGroup) -> Tuple[str, str]
                 raise ValueError(f"Metric {metric_name} does not contain a summary.")
             # Add a scalar metric for median of 1D distributions.
             scalar_metrics["median_" + metric_name] = value[metrics.SUMMARY_KEY]["median"]
+            scalar_metrics["mean_" + metric_name] = value[metrics.SUMMARY_KEY]["mean"]
+            scalar_metrics["stddev_" + metric_name] = value[metrics.SUMMARY_KEY]["stddev"]
         else:
             scalar_metrics[metric_name] = value
     table = create_table_for_scalar_metrics(scalar_metrics)
@@ -254,8 +256,12 @@ def add_scalar_metric(scalar_metrics: Dict[str, List], metric_name: str, metric_
     # Add a scalar metric for median of 1D distributions.
     if np.isnan(metric_value[metrics.SUMMARY_KEY]["median"]):
         scalar_metrics["median_" + metric_name].append("")
+        scalar_metrics["mean_" + metric_name].append("")
+        scalar_metrics["stddev_" + metric_name].append("")
     else:
         scalar_metrics["median_" + metric_name].append(metric_value[metrics.SUMMARY_KEY]["median"])
+        scalar_metrics["mean_" + metric_name].append(metric_value[metrics.SUMMARY_KEY]["mean"])
+        scalar_metrics["stddev_" + metric_name].append(metric_value[metrics.SUMMARY_KEY]["stddev"])
 
 
 def get_figures_for_metrics_and_compare(
@@ -298,7 +304,7 @@ def get_figures_for_metrics_and_compare(
                     if isinstance(other_pipeline_metric_value, dict):
                         add_scalar_metric(scalar_metrics, gtsfm_metric_name, other_pipeline_metric_value)
                     else:
-                        other_pipeline_metric_value = {"summary": {"median": np.nan}}
+                        other_pipeline_metric_value = {"summary": {"median": np.nan, "mean": np.nan, "stddev": np.nan}}
                         add_scalar_metric(scalar_metrics, gtsfm_metric_name, other_pipeline_metric_value)
         else:
             scalar_metrics[gtsfm_metric_name].append(gtsfm_metric_value)
