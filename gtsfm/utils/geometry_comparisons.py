@@ -30,7 +30,8 @@ def compare_rotations(
     Args:
         aTi_list: 1st list of rotations.
         bTi_list: 2nd list of rotations.
-        angular_error_threshold_degrees: the threshold for angular error between two rotations.
+        angular_error_threshold_degrees: Threshold for angular error between two rotations.
+
     Returns:
         Result of the comparison.
     """
@@ -55,6 +56,7 @@ def compare_rotations(
     relative_rotations_angles = np.array(
         [compute_relative_rotation_angle(aRi, aRi_) for (aRi, aRi_) in zip(aRi_list, aRi_list_)], dtype=np.float32
     )
+    print(relative_rotations_angles)
     return np.all(relative_rotations_angles < angular_error_threshold_degrees)
 
 
