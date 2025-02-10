@@ -665,8 +665,7 @@ def compute_metrics(
     wTi_aligned_list, _ = alignment_utils.align_poses_sim3_ignore_missing(gt_wTi_list, wTi_list)
     wti_aligned_list = [wTi.translation() if wTi is not None else None for wTi in wTi_aligned_list]
     gt_wti_list = [gt_wTi.translation() if gt_wTi is not None else None for gt_wTi in gt_wTi_list]
-    i2Ui1_dict_gt = metrics_utils.get_twoview_translation_directions(gt_wTi_list)
-
+    _, gt_i2Ui1_dict = metrics_utils.get_all_relative_rotations_translations(gt_wTi_list)
     ta_metrics.extend(
         [
             metrics_utils.compute_relative_translation_angle_metric(i2Ui1_dict_gt, wTi_aligned_list),
