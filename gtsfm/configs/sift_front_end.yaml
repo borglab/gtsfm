@@ -75,7 +75,7 @@ SceneOptimizer:
       robust_measurement_noise: True
       projection_sampling_method: SAMPLE_INPUT_MEASUREMENTS
       reject_outliers: False
-      use_all_tracks_for_averaging: False
+      use_all_tracks_for_averaging: True
       use_relative_camera_poses: True
 
     data_association_module:
