@@ -52,7 +52,7 @@ OUTLIER_WEIGHT_THRESHOLD = 0.125
 
 NOISE_MODEL_DIMENSION = 3  # chordal distances on Unit3
 NOISE_MODEL_SIGMA = 0.01
-HUBER_LOSS_K = 1.345  # default value from GTSAM
+HUBER_LOSS_K = 1.3  # default value from GTSAM
 
 MAX_INLIER_MEASUREMENT_ERROR_DEG = 5.0
 
@@ -97,6 +97,8 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         reject_outliers: bool = True,
         projection_sampling_method: ProjectionSamplingMethod = ProjectionSamplingMethod.SAMPLE_WITH_UNIFORM_DENSITY,
         max_delayed_calls: int = MAX_DELAYED_CALLS,
+        use_all_tracks_for_averaging: bool = False,
+        use_relative_camera_poses: bool = True,
     ) -> None:
         """Initializes the 1DSFM averaging instance.
 
@@ -106,6 +108,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             reject_outliers: whether to perform outlier rejection with MFAS algorithm (default True).
             projection_sampling_method: ProjectionSamplingMethod to be used for directions to run 1DSfM.
             max_delayed_calls: Maximum number of concurrent delayed tasks to create.
+            use_all_tracks_for_averaging: Use
         """
         super().__init__(robust_measurement_noise)
 
@@ -115,6 +118,10 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         self._projection_sampling_method = projection_sampling_method
         self._use_tracks_for_averaging = use_tracks_for_averaging
         self._max_delayed_calls = max_delayed_calls
+        self._use_relative_camera_poses = use_relative_camera_poses
+        self._use_all_tracks_for_averaging = use_all_tracks_for_averaging
+
+        np.random.seed(0)
 
     def __sample_projection_directions(
         self,
@@ -352,6 +359,9 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 continue
             filtered_tracks.append(valid_cameras_track)
 
+        if self._use_all_tracks_for_averaging:
+            return filtered_tracks
+
         tracks_subset = []
 
         # Number of measurements per camera that we still need to add.
@@ -514,17 +524,17 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         logger.info("Running translation averaging on %d unit translations", len(i2Ui1_dict))
 
         w_i2Ui1_dict, valid_cameras = get_valid_measurements_in_world_frame(i2Ui1_dict, wRi_list)
+        if not self._use_relative_camera_poses:
+            w_i2Ui1_dict = {}
 
         start_time = time.time()
         if self._use_tracks_for_averaging:
             if tracks_2d is None:
-                logger.info("No tracks provided for translation averaging. Falling back to camera unit translations.")
-                w_i2Ui1_dict_tracks = {}
-            elif intrinsics is None or len(intrinsics) != len(wRi_list):
+                raise ValueError("Tracks must be provided when they are to be used in translation averaging.")
+            if intrinsics is None or len(intrinsics) != len(wRi_list):
                 raise ValueError("Number of intrinsics must match number of rotations when tracks are provided.")
-            else:
-                selected_tracks = self._select_tracks_for_averaging(tracks_2d, valid_cameras, intrinsics)
-                w_i2Ui1_dict_tracks = self._get_landmark_directions(selected_tracks, intrinsics, wRi_list)
+            selected_tracks = self._select_tracks_for_averaging(tracks_2d, valid_cameras, intrinsics)
+            w_i2Ui1_dict_tracks = self._get_landmark_directions(selected_tracks, intrinsics, wRi_list)
         else:
             w_i2Ui1_dict_tracks = {}
 
@@ -552,7 +562,9 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         averaging_time = time.time() - averaging_start_time
 
         # Compute the metrics.
-        ta_metrics = compute_metrics(set(w_i2Ui1_dict_inliers.keys()), i2Ui1_dict, wRi_list, wti_list, gt_wTi_list)
+        ta_metrics = compute_metrics(
+            set(w_i2Ui1_dict_inliers.keys()), i2Ui1_dict, w_i2Ui1_dict_tracks_inliers, wRi_list, wti_list, gt_wTi_list
+        )
 
         num_translations = sum([1 for wti in wti_list if wti is not None])
         logger.info("Estimated %d translations out of %d images.", num_translations, num_images)
@@ -573,6 +585,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 def compute_metrics(
     inlier_i1_i2_pairs: Set[Tuple[int, int]],
     i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]],
+    w_i2Ui1_dict_tracks: Dict[Tuple[int, int], Optional[Unit3]],
     wRi_list: List[Optional[Rot3]],
     wti_list: List[Optional[Point3]],
     gt_wTi_list: List[Optional[Pose3]],
@@ -590,14 +603,13 @@ def compute_metrics(
         - Distribution of translation direction angles for inlier measurements.
         - Distribution of translation direction angle for outlier measurements.
     """
-    outlier_i1_i2_pairs = (
-        set([pair_idx for pair_idx, val in i2Ui1_dict.items() if val is not None]) - inlier_i1_i2_pairs
-    )
-    num_total_measurements = len(inlier_i1_i2_pairs) + len(outlier_i1_i2_pairs)
+
+    num_camera_measurements = len([k for k, val in i2Ui1_dict.items() if val is not None])
+    num_track_measurements = len([k for k, val in w_i2Ui1_dict_tracks.items() if val is not None])
     ta_metrics = [
-        GtsfmMetric("num_total_1dsfm_measurements", num_total_measurements),
-        GtsfmMetric("num_inlier_1dsfm_measurements", len(inlier_i1_i2_pairs)),
-        GtsfmMetric("num_outlier_1dsfm_measurements", len(outlier_i1_i2_pairs)),
+        GtsfmMetric("num_total_1dsfm_measurements", num_camera_measurements + num_track_measurements),
+        GtsfmMetric("num_camera_1dsfm_measurements", num_camera_measurements),
+        GtsfmMetric("num_track_1dsfm_measurements", num_track_measurements),
         GtsfmMetric("num_translations_estimated", len([wti for wti in wti_list if wti is not None])),
     ]
 
@@ -609,16 +621,39 @@ def compute_metrics(
     # Get ground truth translation directions for the measurements.
     _, gt_i2Ui1_dict = metrics_utils.get_all_relative_rotations_translations(gt_wTi_list)
 
-    # Angle between i2Ui1 measurement and GT i2Ui1 measurement for inliers and outliers.
-    inlier_angular_errors = metrics_utils.get_measurement_angle_errors(inlier_i1_i2_pairs, i2Ui1_dict, gt_i2Ui1_dict)
-    outlier_angular_errors = metrics_utils.get_measurement_angle_errors(outlier_i1_i2_pairs, i2Ui1_dict, gt_i2Ui1_dict)
-    precision, recall = metrics_utils.get_precision_recall_from_errors(
-        inlier_angular_errors, outlier_angular_errors, MAX_INLIER_MEASUREMENT_ERROR_DEG
-    )
+    if len(inlier_i1_i2_pairs) > 0:
+        threshold_suffix = str(int(MAX_INLIER_MEASUREMENT_ERROR_DEG)) + "_deg"
+        outlier_i1_i2_pairs = (
+            set([pair_idx for pair_idx, val in i2Ui1_dict.items() if val is not None]) - inlier_i1_i2_pairs
+        )
+        # Angle between i2Ui1 measurement and GT i2Ui1 measurement for inliers and outliers.
+        inlier_angular_errors = metrics_utils.get_measurement_angle_errors(
+            inlier_i1_i2_pairs, i2Ui1_dict, gt_i2Ui1_dict
+        )
+        outlier_angular_errors = metrics_utils.get_measurement_angle_errors(
+            outlier_i1_i2_pairs, i2Ui1_dict, gt_i2Ui1_dict
+        )
+        precision, recall = metrics_utils.get_precision_recall_from_errors(
+            inlier_angular_errors, outlier_angular_errors, MAX_INLIER_MEASUREMENT_ERROR_DEG
+        )
 
-    measured_gt_i2Ui1_dict = {}
-    for i1, i2 in set.union(inlier_i1_i2_pairs, outlier_i1_i2_pairs):
-        measured_gt_i2Ui1_dict[(i1, i2)] = gt_i2Ui1_dict[(i1, i2)]
+        measured_gt_i2Ui1_dict = {}
+        for i1, i2 in set.union(inlier_i1_i2_pairs, outlier_i1_i2_pairs):
+            measured_gt_i2Ui1_dict[(i1, i2)] = gt_i2Ui1_dict[(i1, i2)]
+
+        ta_metrics.extend(
+            [
+                metrics_utils.compute_relative_translation_angle_metric(
+                    measured_gt_i2Ui1_dict, gt_wTi_list, prefix="inlier_"
+                ),
+                GtsfmMetric("num_inlier_1dsfm_measurements", len(inlier_i1_i2_pairs)),
+                GtsfmMetric("num_outlier_1dsfm_measurements", len(outlier_i1_i2_pairs)),
+                GtsfmMetric("1dsfm_precision_" + threshold_suffix, precision),
+                GtsfmMetric("1dsfm_recall_" + threshold_suffix, recall),
+                GtsfmMetric("1dsfm_inlier_angular_errors_deg", inlier_angular_errors),
+                GtsfmMetric("1dsfm_outlier_angular_errors_deg", outlier_angular_errors),
+            ]
+        )
 
     # Compute estimated poses after the averaging step and align them to ground truth.
     wTi_list: List[Optional[Pose3]] = []
@@ -630,15 +665,11 @@ def compute_metrics(
     wTi_aligned_list, _ = alignment_utils.align_poses_sim3_ignore_missing(gt_wTi_list, wTi_list)
     wti_aligned_list = [wTi.translation() if wTi is not None else None for wTi in wTi_aligned_list]
     gt_wti_list = [gt_wTi.translation() if gt_wTi is not None else None for gt_wTi in gt_wTi_list]
+    _, gt_i2Ui1_dict = metrics_utils.get_all_relative_rotations_translations(gt_wTi_list)
 
-    threshold_suffix = str(int(MAX_INLIER_MEASUREMENT_ERROR_DEG)) + "_deg"
     ta_metrics.extend(
         [
-            GtsfmMetric("1dsfm_precision_" + threshold_suffix, precision),
-            GtsfmMetric("1dsfm_recall_" + threshold_suffix, recall),
-            GtsfmMetric("1dsfm_inlier_angular_errors_deg", inlier_angular_errors),
-            GtsfmMetric("1dsfm_outlier_angular_errors_deg", outlier_angular_errors),
-            metrics_utils.compute_relative_translation_angle_metric(measured_gt_i2Ui1_dict, wTi_aligned_list),
+            metrics_utils.compute_relative_translation_angle_metric(gt_i2Ui1_dict, wTi_aligned_list),
             metrics_utils.compute_translation_distance_metric(wti_aligned_list, gt_wti_list),
             metrics_utils.compute_translation_angle_metric(gt_wTi_list, wTi_aligned_list),
         ]
