@@ -63,6 +63,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
 
     def __get_shonan_params(self) -> ShonanAveragingParameters3:
         lm_params = LevenbergMarquardtParams.CeresDefaults()
+        # TODO(akshay-krishnan): These parameters speed up Shonan, but disabled now because accuracy dropped slightly.
         # lm_params.setRelativeErrorTol(0.01)
         # lm_params.setAbsoluteErrorTol(1)
         shonan_params = ShonanAveragingParameters3(lm_params)
