@@ -9,24 +9,27 @@ from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
-import matplotlib.pyplot as plt
-import numpy as np
-from gtsam import Cal3Bundler, Rot3, Unit3
-
+import gtsam
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.logger as logger_utils
+import matplotlib.pyplot as plt
+import numpy as np
+from gtsam import Cal3Bundler, Rot3, Unit3
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.two_view_estimator import TwoViewEstimationReport
-from gtsfm.view_graph_estimator.view_graph_estimator_base import ViewGraphEstimatorBase
+from gtsfm.view_graph_estimator.view_graph_estimator_base import \
+    ViewGraphEstimatorBase
 
 logger = logger_utils.get_logger()
 
-# threshold for cycle consistency inference
+# Threshold for cycle consistency inference
 ERROR_THRESHOLD = 7.0
 
-# threshold for evaluation w.r.t. GT
+# Threshold for evaluation w.r.t. GT
 MAX_INLIER_MEASUREMENT_ERROR_DEG = 5.0
+
+E = gtsam.symbol_shorthand.E  # essential matrix
 
 
 class EdgeErrorAggregationCriterion(str, Enum):
@@ -105,14 +108,17 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         logger.info("Input number of edges: %d" % len(i2Ri1_dict))
         input_edges: List[Tuple[int, int]] = i2Ri1_dict.keys()
         triplets: List[Tuple[int, int, int]] = graph_utils.extract_cyclic_triplets_from_edges(input_edges)
-
         logger.info("Number of triplets: %d" % len(triplets))
 
+        # # Optimize essential matrices.
+        # i2Ri1_dict, i2Ui1_dict = self.optimize_essential_matrices(
+        #     triplets, i2Ri1_dict, i2Ui1_dict, calibrations, corr_idxs_i1i2, keypoints
+        # )
+
+        # Compute the cycle error for each triplet, and add it to its edges for aggregation.
         per_edge_errors = defaultdict(list)
         cycle_errors: List[float] = []
         max_gt_error_in_cycle = []
-
-        # Compute the cycle error for each triplet, and add it to its edges for aggregation.
         for i0, i1, i2 in triplets:  # sort order guaranteed
             error = comp_utils.compute_cyclic_rotation_error(
                 i1Ri0=i2Ri1_dict[(i0, i1)], i2Ri1=i2Ri1_dict[(i1, i2)], i2Ri0=i2Ri1_dict[(i0, i2)]
@@ -152,7 +158,7 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
             duration_sec,
         )
 
-        return valid_edges
+        return valid_edges, i2Ri1_dict, i2Ui1_dict
 
     def __save_plots(
         self,
@@ -235,3 +241,74 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
             return np.amin(edge_errors)
         elif self._edge_error_aggregation_criterion == EdgeErrorAggregationCriterion.MEDIAN_EDGE_ERROR:
             return np.median(edge_errors)
+
+
+    def optimize_essential_matrices(
+        self,
+        triplets: List[Tuple[int, int, int]], 
+        i2Ri1_dict: Dict[Tuple[int, int], Rot3],
+        i2Ui1_dict: Dict[Tuple[int, int], Unit3],
+        calibrations: List[Cal3Bundler],
+        corr_idxs_i1i2: Dict[Tuple[int, int], np.ndarray],
+        keypoints: List[Keypoints],
+        use_robust_loss: bool = True,
+    ) -> Tuple[Dict[Tuple[int, int], Rot3], Dict[Tuple[int, int], Unit3]]:
+        """Jointly optimize over all essential matrices for edges contained in triplets.
+
+        Args:
+            triplets: List of triplets in view graph.
+            i2Ri1_dict: Dict from (i1, i2) to relative rotation of i1 with respect to i2.
+            i2Ui1_dict: Dict from (i1, i2) to relative translation direction of i1 with respect to i2.
+            calibrations: List of calibrations for each image.
+            corr_idxs_i1i2: Dict from (i1, i2) to indices of verified correspondences from i1 to i2.
+            keypoints: keypoints for each images.
+            use_robust_loss: whether to use Huber loss.
+
+        Returns:
+            Optimized relative rotations and directions.
+        """
+        # Create GTSAM objects.
+        graph = gtsam.NonlinearFactorGraph()
+        initial = gtsam.Values()
+        noise_model=gtsam.noiseModel.Isotropic.Sigma(1, 1e-2)
+        if use_robust_loss:
+            huber_loss = gtsam.noiseModel.mEstimator.Huber.Create(1.345)
+            noise_model = gtsam.noiseModel.Robust.Create(huber_loss, noise_model)
+
+        # Loop through triplets and edges.
+        edge_to_key = {}
+        for i0, i1, i2 in triplets: 
+            for edge in [(i0, i1), (i0, i2), (i1, i2)]:
+                if edge not in edge_to_key and corr_idxs_i1i2[edge].shape[0] > 0:
+                    # Add graph key to dictionary for later.
+                    key = len(edge_to_key)
+                    edge_to_key[edge] = key
+
+                    # Add essential matrix factors.
+                    mkps0 = keypoints[edge[0]].coordinates[corr_idxs_i1i2[edge][:, 0]]
+                    mkps1 = keypoints[edge[1]].coordinates[corr_idxs_i1i2[edge][:, 1]]
+                    initial.insert(key, gtsam.EssentialMatrix(i2Ri1_dict[edge], i2Ui1_dict[edge]))
+                    for kp0, kp1 in zip(mkps0, mkps1):
+                        graph.add(
+                            gtsam.EssentialMatrixFactor(
+                                key,
+                                calibrations[edge[1]].calibrate(kp1),
+                                calibrations[edge[0]].calibrate(kp0),
+                                noise_model,
+                            )
+                        )
+
+        # Optimize!
+        params = gtsam.LevenbergMarquardtParams()
+        params.setVerbosity("ERROR")
+        params.setMaxIterations(10)
+        optimizer = gtsam.LevenbergMarquardtOptimizer(graph, initial, params)
+        result = optimizer.optimize()
+
+        # Add optimized rotations and translations to the dictionary.
+        for edge, key in edge_to_key.items():
+            E_opt = result.atEssentialMatrix(key)
+            i2Ri1_dict[edge] = E_opt.rotation()
+            i2Ui1_dict[edge] = E_opt.direction()
+
+        return i2Ri1_dict, i2Ui1_dict
