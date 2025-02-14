@@ -63,7 +63,7 @@ Before running reconstruction, if you intend to use modules with pre-trained wei
 ./download_model_weights.sh
 ```  
 
-## Running SfM  
+### Running SfM  
 
 To process a dataset containing only an **image directory and EXIF metadata**, ensure your dataset follows this structure:  
 
@@ -88,8 +88,6 @@ To explore all available options and configurations, run:
 ```bash
 python gtsfm/runner/run_scene_optimizer_olssonloader.py -h
 ```  
-
-### Running GTSFM with the Deep Front-End  
 
 For example, if you want to use the **Deep Front-End (recommended)** on the `"door"` dataset, run:  
 
