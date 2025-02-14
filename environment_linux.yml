@@ -1,4 +1,4 @@
-name: gtsfm-v1
+name: gtsfm-v5
 channels:
   - conda-forge
 dependencies:
@@ -20,7 +20,7 @@ dependencies:
   # core functionality and APIs
   - matplotlib>=3.5
   - networkx
-  - numpy
+  - numpy==1.26.4 # gtsam requirement
   - nodejs
   - pandas
   - pillow>=9.0.0
@@ -41,7 +41,7 @@ dependencies:
   - parameterized
   - pip:
       - torch
-      - torchvision
+      - torchvision>=0.20.0
       - open3d
       - opencv-python>=4.5.4.60
       - pydegensac
