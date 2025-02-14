@@ -1,4 +1,4 @@
-# Multiview Optimizer
+# Multi-View Optimizer
 
 ![Alt text](gtsfm-overview-two-view-estimator.svg?raw=true)
 
@@ -6,11 +6,11 @@
 - [Image Pairs Generator](assets/IMAGE_PAIRS_GENERATOR.md)
 - [Correspondence Generator](assets/CORRESPONDENCE_GENERATOR.md)
 - [Two View Estimator](assets/TWO_VIEW_ESTIMATOR.md)
-- [**Multiview Optimizer**](#what-is-a-multiview-optimizer)
+- [**Multi-View Optimizer**](#what-is-a-multi-view-optimizer)
 
-The multiview optimizer aggregates the relative poses between camera pairs obtained from the two-view optimizer and optimizes for the camera poses (3D rotation and 3D translation) in a world frame along with the 3D locations of the landmarks obtained from 2D tracks. It comprises the following modules: 
+The multi-view optimizer aggregates the relative poses between camera pairs obtained from the two-view optimizer and optimizes for the camera poses (3D rotation and 3D translation) in a world frame along with the 3D locations of the landmarks obtained from 2D tracks. It comprises the following modules: 
 
-- [Multiview Optimizer](#multiview-optimizer)
+- [Multi-View Optimizer](#multi-view-optimizer)
     - [View graph estimation](#view-graph-estimation)
     - [Rotation averaging](#rotation-averaging)
     - [Translation averaging](#translation-averaging)
