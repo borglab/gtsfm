@@ -532,7 +532,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             if tracks_2d is None:
                 raise ValueError("Tracks must be provided when they are to be used in translation averaging.")
             if intrinsics is None or len(intrinsics) != len(wRi_list):
-                raise ValueError("Number of intrinsics must match number of rotations when tracks are provided.")
+                raise ValueError("Number of intrinsics must match number of cameras when tracks are provided.")
             selected_tracks = self._select_tracks_for_averaging(tracks_2d, valid_cameras, intrinsics)
             w_i2Ui1_dict_tracks = self._get_landmark_directions(selected_tracks, intrinsics, wRi_list)
         else:
