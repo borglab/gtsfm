@@ -83,66 +83,6 @@ def fetch_smalltable_rows(
     """
 ```
 
-If you use VSCode as your editor, please use these settings:
-```
-{
-    "python.linting.pylintEnabled": true,
-    "python.linting.mypyEnabled": true,
-    "python.linting.flake8Enabled": true,
-    "python.linting.enabled": true,
-    "python.linting.pylintArgs": [
-        "--indent-string='    '",
-        "--generated-members=numpy.* ,torch.* ,cv2.* , cv.*, scipy.*, gtsam.*",
-        "--max-line-length=120"
-    ],
-    "python.linting.flake8Args": [
-        "--max-line-length",
-        "120",
-        "--ignore",
-        "E201,E202,E203,E231,W291,W293,E303,W391,E402,W503"
-    ],
-    "python.formatting.provider": "black",
-    "editor.formatOnSave": true,
-    "python.formatting.blackArgs": [
-        "--line-length=120"
-    ],
-    "editor.codeActionsOnSave": {
-        "source.organizeImports": false
-    },
-    "editor.rulers": [
-        120
-    ],
-    "[python]": {
-        "editor.insertSpaces": true,
-        "editor.tabSize": 4
-    },
-    "python.testing.unittestArgs": [
-        "-v",
-        "-s",
-        "./tests",
-        "-p",
-        "test*.py"
-    ],
-    "python.testing.pytestEnabled": true,
-    "python.testing.nosetestsEnabled": false,
-    "python.testing.unittestEnabled": true,
-    "cSpell.words": [
-        "pylint"
-    ],
-    "files.exclude": {
-        "**/__pycache__": true,
-        "**/.DS_Store": true,
-        "**/.git": true,
-        "**/.hg": true,
-        "**/.pytest_cache": true,
-        "**/.pytype": true,
-        "**/.svn": true,
-        "**/*.egg-info": true,
-        "**/*.pyc": {
-            "when": "$(basename).py"
-        },
-        "**/CVS": true,
-        "**/dask-worker-space": true
-    }
-}
-```
+We provide a `.vscode/settings.json` and pyproject.toml which configure your vscode environment to use our formatting 
+settings. This would also need installing some vscode extensions to work as expected: Flake8, Code Spell Checker, Black 
+formatter, and Pylint. 
