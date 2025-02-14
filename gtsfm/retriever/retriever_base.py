@@ -16,7 +16,7 @@ from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 class ImageMatchingRegime(str, Enum):
     SEQUENTIAL: str = "sequential"
-    RETRIEVAL: str = "retrieval"
+    RETRIEVAL: str = "retrieval"  # TODO (travisdriver): change to DESCRIPTOR-BASED
     EXHAUSTIVE: str = "exhaustive"
     SEQUENTIAL_WITH_RETRIEVAL: str = "sequential_with_retrieval"
     RIG_HILTI: str = "rig_hilti"
@@ -29,7 +29,7 @@ class RetrieverBase(GTSFMProcess):
     def __init__(self, matching_regime: ImageMatchingRegime) -> None:
         """
         Args:
-            matching_regime: identifies type of matching used for image retrieval.
+            matching_regime: identifies type of matching used for image retrieval, e.g., exhaustive, descriptor-based.
         """
         self._matching_regime = matching_regime
 
