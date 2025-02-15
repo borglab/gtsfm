@@ -24,9 +24,6 @@
         "test*.py"
     ],
 
-    "cSpell.words": ["pylint"],
-
-
     "files.exclude": {
         "**/__pycache__": true,
         "**/.DS_Store": true,
