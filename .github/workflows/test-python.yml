@@ -15,12 +15,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4.1.5
-      - uses: conda-incubator/setup-miniconda@v3
+      - uses: mamba-org/setup-micromamba@v1
         with:
-          mamba-version: "*"
-          activate-environment: gtsfm-v1
+          micromamba-version: '1.3.1-0'
           environment-file: environment_linux.yml
-          python-version: '3.10'
       - name: Environment setup
         run: |
           bash .github/scripts/setup.sh
