@@ -47,7 +47,4 @@ dependencies:
       - trimesh[easy]
       - gtsam>=4.2
       - pydot
-      # Needed for CPU vesion, used at the end so it doesn't affect other packages
-      - --index-url https://download.pytorch.org/whl/cpu
-      - torch
-      - torchvision>=0.20.0
+      # Install the torch CPU versions separately

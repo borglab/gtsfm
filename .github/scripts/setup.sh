@@ -9,6 +9,12 @@ conda init
 conda info --envs
 
 ##########################################################
+# Install PyTorch (CPU version)
+##########################################################
+
+pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+
+##########################################################
 # Install GTSFM as a module
 ##########################################################
 
