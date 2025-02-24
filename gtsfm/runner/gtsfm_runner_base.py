@@ -17,18 +17,18 @@ from hydra.utils import instantiate
 from omegaconf import OmegaConf
 
 import gtsfm.evaluation.metrics_report as metrics_report
+import gtsfm.utils.correspondence as correspondence_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.viz as viz_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm import two_view_estimator
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
-from gtsfm.frontend.correspondence_generator.image_correspondence_generator import ImageCorrespondenceGenerator
+from gtsfm.common.keypoints import Keypoints
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.scene_optimizer import SceneOptimizer
 from gtsfm.two_view_estimator import TWO_VIEW_OUTPUT, TwoViewEstimationReport, run_two_view_estimator_as_futures
-from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
 
 dask_config.set({"distributed.scheduler.worker-ttl": None})
 
@@ -81,7 +81,9 @@ class GtsfmRunnerBase:
             "--correspondence_generator_config_name",
             type=str,
             default=None,
-            help="Override flag for correspondence generator (choose from among gtsfm/configs/correspondence).",
+            action="append",
+            help="Override flag for correspondence generator (choose from among gtsfm/configs/correspondence)."
+            + "Can use multiple.",
         )
         parser.add_argument(
             "--verifier_config_name",
@@ -173,13 +175,18 @@ class GtsfmRunnerBase:
             scene_optimizer: SceneOptimizer = instantiate(main_cfg.SceneOptimizer)
 
         # Override correspondence generator.
-        if self.parsed_args.correspondence_generator_config_name is not None:
-            with hydra.initialize_config_module(config_module="gtsfm.configs.correspondence"):
-                correspondence_cfg = hydra.compose(
-                    config_name=self.parsed_args.correspondence_generator_config_name,
+        if (
+            self.parsed_args.correspondence_generator_config_name is not None
+            and len(self.parsed_args.correspondence_generator_config_name) > 0
+        ):
+            scene_optimizer.correspondence_generators = []
+            for config in self.parsed_args.correspondence_generator_config_name:
+                with hydra.initialize_config_module(config_module="gtsfm.configs.correspondence"):
+                    correspondence_cfg = hydra.compose(config_name=config)
+                    logger.info("\n\nCorrespondenceGenerator override: %s", OmegaConf.to_yaml(correspondence_cfg))
+                scene_optimizer.correspondence_generators.append(
+                    instantiate(correspondence_cfg.CorrespondenceGenerator)
                 )
-                logger.info("\n\nCorrespondenceGenerator override: " + OmegaConf.to_yaml(correspondence_cfg))
-                scene_optimizer.correspondence_generator = instantiate(correspondence_cfg.CorrespondenceGenerator)
 
         # Override verifier.
         if self.parsed_args.verifier_config_name is not None:
@@ -295,11 +302,12 @@ class GtsfmRunnerBase:
             cluster = LocalCluster(**local_cluster_kwargs)
             client = Client(cluster)
 
-        # Create process graph.
-        process_graph_generator = ProcessGraphGenerator()
-        if isinstance(self.scene_optimizer.correspondence_generator, ImageCorrespondenceGenerator):
-            process_graph_generator.is_image_correspondence = True
-        process_graph_generator.save_graph()
+        # create process graph
+        # TODO(Handle this)
+        # process_graph_generator = ProcessGraphGenerator()
+        # if isinstance(self.scene_optimizer.correspondence_generator, ImageCorrespondenceGenerator):
+        #     process_graph_generator.is_image_correspondence = True
+        # process_graph_generator.save_graph()
 
         retriever_start_time = time.time()
         with performance_report(filename="retriever-dask-report.html"):
@@ -321,13 +329,28 @@ class GtsfmRunnerBase:
 
         with performance_report(filename="correspondence-generator-dask-report.html"):
             correspondence_generation_start_time = time.time()
+            keypoints_from_all_corr_generators: List[List[Keypoints]] = []
+            putatutive_corr_idxs_from_all_corr_generators: List[Dict[Tuple[int, int], np.ndarray]] = []
+
+            for corr_generator in self.scene_optimizer.correspondence_generators:
+                (
+                    keypoints_list,
+                    putative_corr_idxs_dict,
+                ) = corr_generator.generate_correspondences(
+                    client,
+                    self.loader.get_all_images_as_futures(client),
+                    image_pair_indices,
+                )
+
+                keypoints_from_all_corr_generators.append(keypoints_list)
+                putatutive_corr_idxs_from_all_corr_generators.append(putative_corr_idxs_dict)
+
             (
                 keypoints_list,
                 putative_corr_idxs_dict,
-            ) = self.scene_optimizer.correspondence_generator.generate_correspondences(
-                client,
-                self.loader.get_all_images_as_futures(client),
-                image_pair_indices,
+            ) = correspondence_utils.merge_correspondences(
+                keypoints_from_all_corr_generators,
+                putatutive_corr_idxs_from_all_corr_generators,
             )
             correspondence_generation_duration_sec = time.time() - correspondence_generation_start_time
 

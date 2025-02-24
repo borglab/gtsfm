@@ -18,20 +18,20 @@ SceneOptimizer:
       num_matched: 10
       min_score: 0.3
 
-  correspondence_generator:
-    _target_: gtsfm.frontend.correspondence_generator.det_desc_correspondence_generator.DetDescCorrespondenceGenerator
+  correspondence_generators:
+    - _target_: gtsfm.frontend.correspondence_generator.det_desc_correspondence_generator.DetDescCorrespondenceGenerator
 
-    detector_descriptor:
-      _target_: gtsfm.frontend.cacher.detector_descriptor_cacher.DetectorDescriptorCacher
-      detector_descriptor_obj:
-        _target_: gtsfm.frontend.detector_descriptor.superpoint.SuperPointDetectorDescriptor
-        max_keypoints: 5000
+      detector_descriptor:
+        _target_: gtsfm.frontend.cacher.detector_descriptor_cacher.DetectorDescriptorCacher
+        detector_descriptor_obj:
+          _target_: gtsfm.frontend.detector_descriptor.superpoint.SuperPointDetectorDescriptor
+          max_keypoints: 5000
 
-    matcher:
-      _target_: gtsfm.frontend.cacher.matcher_cacher.MatcherCacher
-      matcher_obj:
-        _target_: gtsfm.frontend.matcher.lightglue_matcher.LightGlueMatcher
-        features: "superpoint"
+      matcher:
+        _target_: gtsfm.frontend.cacher.matcher_cacher.MatcherCacher
+        matcher_obj:
+          _target_: gtsfm.frontend.matcher.lightglue_matcher.LightGlueMatcher
+          features: "superpoint"
 
   two_view_estimator:
     _target_: gtsfm.two_view_estimator_cacher.TwoViewEstimatorCacher

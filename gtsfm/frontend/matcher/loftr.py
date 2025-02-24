@@ -9,7 +9,7 @@ References:
 
 Authors: Ayush Baid
 """
-from typing import Tuple
+from typing import Tuple, Optional
 
 import numpy as np
 import torch
@@ -28,7 +28,13 @@ CONFIDENCE_KEY = "confidence"
 class LOFTR(ImageMatcherBase):
     """LOFTR image matcher."""
 
-    def __init__(self, use_outdoor_model: bool = True, use_cuda: bool = True, min_confidence: float = 0.95) -> None:
+    def __init__(
+        self,
+        use_outdoor_model: bool = True,
+        use_cuda: bool = True,
+        min_confidence: float = 0.95,
+        max_matches: Optional[int] = None,
+    ) -> None:
         """Initialize the matcher.
 
         Args:
@@ -40,6 +46,7 @@ class LOFTR(ImageMatcherBase):
         self._model_type = "outdoor" if use_outdoor_model else "indoor"
         self._use_cuda: bool = use_cuda
         self._min_confidence = min_confidence
+        self._max_matches = max_matches
         self._matcher = LoFTRKornia(pretrained=self._model_type).eval()
 
     def match(self, image_i1: Image, image_i2: Image) -> Tuple[Keypoints, Keypoints]:
@@ -80,7 +87,15 @@ class LOFTR(ImageMatcherBase):
             _, valid_ind_i2 = keypoints_i2.filter_by_mask(image_i2.mask)
             valid_ind = np.intersect1d(valid_ind, valid_ind_i2)
 
-        return keypoints_i1.extract_indices(valid_ind), keypoints_i2.extract_indices(valid_ind)
+        keypoints_i1 = keypoints_i1.extract_indices(valid_ind)
+        keypoints_i2 = keypoints_i2.extract_indices(valid_ind)
+
+        if self._max_matches is not None and len(keypoints_i1) > self._max_matches:
+            keypoints_i1, _ = keypoints_i1.get_top_k(k=self._max_matches)
+            keypoints_i2, _ = keypoints_i2.get_top_k(k=self._max_matches)
+            valid_ind = valid_ind[: self._max_matches]
+
+        return keypoints_i1, keypoints_i2
 
     def __sort_and_filter_by_confidence(
         self, coordinates_i1: np.ndarray, coordinates_i2: np.ndarray, match_confidence: np.ndarray
