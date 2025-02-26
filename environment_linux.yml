@@ -47,5 +47,5 @@ dependencies:
       - pydegensac
       - colour
       - trimesh[easy]
-      - https://test-files.pythonhosted.org/packages/8c/94/bda093e35dc6e51211be4e1eec8dbf13e42d90afab9be6dce7c14ae78e5f/gtsam_develop-4.3a0.dev202502260401-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl
+      - https://test-files.pythonhosted.org/packages/62/25/4dc31c68c36a7abd61dc02872d641f3dca8461c48142c16045cf660fd53c/gtsam_develop-4.3a0.dev202502260358-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
       - pydot
