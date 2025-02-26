@@ -45,7 +45,7 @@ dependencies:
       - pydegensac
       - colour
       - trimesh[easy]
-      - gtsam>=4.2
+      - https://test-files.pythonhosted.org/packages/8c/94/bda093e35dc6e51211be4e1eec8dbf13e42d90afab9be6dce7c14ae78e5f/gtsam_develop-4.3a0.dev202502260401-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl
       - pydot
       - https://download.pytorch.org/whl/cpu/torch-2.5.0%2Bcpu-cp310-cp310-linux_x86_64.whl
       - https://download.pytorch.org/whl/cpu/torchvision-0.20.0%2Bcpu-cp310-cp310-linux_x86_64.whl
