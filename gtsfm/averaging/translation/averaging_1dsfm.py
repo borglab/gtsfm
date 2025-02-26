@@ -33,6 +33,7 @@ from gtsam import (
     symbol_shorthand,
     TranslationRecovery,
     Unit3,
+    LevenbergMarquardtParams
 )
 
 import gtsfm.common.types as gtsfm_types
@@ -468,20 +469,16 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         w_i1Ui2_measurements = self._binary_measurements_from_dict(w_i2Ui1_dict, w_i2Ui1_dict_tracks, noise_model)
 
         # Run the optimizer.
-        try:
-            algorithm = TranslationRecovery()
-            if len(i2Ti1_priors) > 0:
-                # scale is ignored here.
-                w_i1ti2_priors = self._binary_measurements_from_priors(i2Ti1_priors, wRi_list)
-                wti_initial = self.__get_initial_values(absolute_pose_priors)
-                wti_values = algorithm.run(w_i1Ui2_measurements, 0.0, w_i1ti2_priors, wti_initial)
-            else:
-                wti_values = algorithm.run(w_i1Ui2_measurements, scale_factor)
-        except TypeError as e:
-            # TODO(akshay-krishnan): remove when no longer supporting gtsam versions before 4.2a7.
-            logger.error("TypeError: {}".format(str(e)))
-            algorithm = TranslationRecovery(w_i1Ui2_measurements)
-            wti_values = algorithm.run(scale_factor)
+        lm_params = LevenbergMarquardtParams()
+        algorithm = TranslationRecovery(lm_params, use_bilinear_translation_factor=True)
+        if len(i2Ti1_priors) > 0:
+            # scale is ignored here.
+            w_i1ti2_priors = self._binary_measurements_from_priors(i2Ti1_priors, wRi_list)
+            wti_initial = self.__get_initial_values(absolute_pose_priors)
+            wti_values = algorithm.run(w_i1Ui2_measurements, 0.0, w_i1ti2_priors, wti_initial)
+        else:
+            wti_values = algorithm.run(w_i1Ui2_measurements, scale_factor)
+
 
         # Transforms the result to a list of Point3 objects.
         wti_list: List[Optional[Point3]] = [None] * num_images
