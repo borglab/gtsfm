@@ -150,6 +150,12 @@ class GtsfmRunnerBase:
             default=3,
             help="Number of times to retry cluster connection if it fails.",
         )
+        parser.add_argument(
+            "--num_clusters",
+            type=int,
+            default=2,
+            help="Number of images clusters to create for parallelizing reconstruction.",
+        )
         return parser
 
     @abstractmethod
@@ -271,11 +277,57 @@ class GtsfmRunnerBase:
                 " attempts. Aborting..."
             )
         return cluster
+    
+    def get_image_pair_indices(self):
+        if self.parsed_args.cluster_config:
+            cluster = self.setup_ssh_cluster_with_retries()
+            client = Client(cluster)
+            # getting first worker's IP address and port to do IO
+            io_worker = list(client.scheduler_info()["workers"].keys())[0]
+            self.loader._input_worker = io_worker
+            self.scene_optimizer._output_worker = io_worker
+        else:
+            local_cluster_kwargs = {
+                "n_workers": self.parsed_args.num_workers,
+                "threads_per_worker": self.parsed_args.threads_per_worker,
+                "dashboard_address": self.parsed_args.dashboard_port,
+            }
+            if self.parsed_args.worker_memory_limit is not None:
+                local_cluster_kwargs["memory_limit"] = self.parsed_args.worker_memory_limit
+            cluster = LocalCluster(**local_cluster_kwargs)
+            client = Client(cluster)
+
+        retriever_start_time = time.time()
+        with performance_report(filename="retriever-dask-report.html"):
+            image_pair_indices = self.scene_optimizer.image_pairs_generator.generate_image_pairs(
+                client=client,
+                images=self.loader.get_all_images_as_futures(client),
+                image_fnames=self.loader.image_filenames(),
+                plots_output_dir=self.scene_optimizer._plot_base_path,
+            )
+
+        retriever_metrics = self.scene_optimizer.image_pairs_generator._retriever.evaluate(
+            len(self.loader), image_pair_indices
+        )
+        retriever_duration_sec = time.time() - retriever_start_time
+        retriever_metrics.add_metric(GtsfmMetric("retriever_duration_sec", retriever_duration_sec))
+        logger.info("Image pair retrieval took %.2f sec.", retriever_duration_sec)
+
+        print("Total number of image pairs are", len(image_pair_indices))
+
+        clusters = [ [tuple(pair) for pair in arr.tolist()] for arr in np.array_split(image_pair_indices, self.parsed_args.num_clusters)]
+
+        for cluster in clusters: 
+            self.optimize_scene( retriever_metrics,cluster)
 
     def run(self) -> GtsfmData:
         """Run the SceneOptimizer."""
         start_time = time.time()
+        self.get_image_pair_indices()
 
+    def optimize_scene(self, retriever_metrics,image_pair_indices)->GtsfmData:
+        print("Running scene optimizer with number of image pairs:", len(image_pair_indices))
+        start_time = time.time()
         # Create dask cluster.
         if self.parsed_args.cluster_config:
             cluster = self.setup_ssh_cluster_with_retries()
@@ -301,22 +353,8 @@ class GtsfmRunnerBase:
             process_graph_generator.is_image_correspondence = True
         process_graph_generator.save_graph()
 
-        retriever_start_time = time.time()
-        with performance_report(filename="retriever-dask-report.html"):
-            image_pair_indices = self.scene_optimizer.image_pairs_generator.generate_image_pairs(
-                client=client,
-                images=self.loader.get_all_images_as_futures(client),
-                image_fnames=self.loader.image_filenames(),
-                plots_output_dir=self.scene_optimizer._plot_base_path,
-            )
-
-        retriever_metrics = self.scene_optimizer.image_pairs_generator._retriever.evaluate(
-            len(self.loader), image_pair_indices
-        )
-        retriever_duration_sec = time.time() - retriever_start_time
-        retriever_metrics.add_metric(GtsfmMetric("retriever_duration_sec", retriever_duration_sec))
-        logger.info("Image pair retrieval took %.2f sec.", retriever_duration_sec)
-
+        #split image_pair_indices into two and call this function for them.
+         
         intrinsics = self.loader.get_all_intrinsics()
 
         with performance_report(filename="correspondence-generator-dask-report.html"):
