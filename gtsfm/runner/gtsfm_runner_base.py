@@ -315,15 +315,19 @@ class GtsfmRunnerBase:
 
         print("Total number of image pairs are", len(image_pair_indices))
 
-        clusters = [ [tuple(pair) for pair in arr.tolist()] for arr in np.array_split(image_pair_indices, self.parsed_args.num_clusters)]
+        return retriever_metrics, image_pair_indices
 
-        for cluster in clusters: 
-            self.optimize_scene( retriever_metrics,cluster)
 
     def run(self) -> GtsfmData:
         """Run the SceneOptimizer."""
         start_time = time.time()
-        self.get_image_pair_indices()
+        
+        retriever_metrics, image_pair_indices = self.get_image_pair_indices()
+
+        clusters = [ [tuple(pair) for pair in arr.tolist()] for arr in np.array_split(image_pair_indices, self.parsed_args.num_clusters)]
+
+        for cluster in clusters: 
+            self.optimize_scene(retriever_metrics,cluster)
 
     def optimize_scene(self, retriever_metrics,image_pair_indices)->GtsfmData:
         print("Running scene optimizer with number of image pairs:", len(image_pair_indices))
