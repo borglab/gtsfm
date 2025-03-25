@@ -285,12 +285,12 @@ class GtsfmRunnerBase:
         """Run the SceneOptimizer."""
         start_time = time.time()
 
-        # 如果没有提供分区器，根据命令行参数创建一个
+        # Create graph partitioner if not provided
         if graph_partitioner is None:
             if self.parsed_args.graph_partitioner == "single":
                 from gtsfm.graph_partitioner.single_partition import SinglePartition
                 graph_partitioner = SinglePartition()
-            # 添加其他分区器类型的处理...
+
 
         # Create dask cluster.
         if self.parsed_args.cluster_config:
