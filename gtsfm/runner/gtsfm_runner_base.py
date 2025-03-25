@@ -278,25 +278,7 @@ class GtsfmRunnerBase:
             )
         return cluster
     
-    def get_image_pair_indices(self):
-        if self.parsed_args.cluster_config:
-            cluster = self.setup_ssh_cluster_with_retries()
-            client = Client(cluster)
-            # getting first worker's IP address and port to do IO
-            io_worker = list(client.scheduler_info()["workers"].keys())[0]
-            self.loader._input_worker = io_worker
-            self.scene_optimizer._output_worker = io_worker
-        else:
-            local_cluster_kwargs = {
-                "n_workers": self.parsed_args.num_workers,
-                "threads_per_worker": self.parsed_args.threads_per_worker,
-                "dashboard_address": self.parsed_args.dashboard_port,
-            }
-            if self.parsed_args.worker_memory_limit is not None:
-                local_cluster_kwargs["memory_limit"] = self.parsed_args.worker_memory_limit
-            cluster = LocalCluster(**local_cluster_kwargs)
-            client = Client(cluster)
-
+    def get_image_pair_indices(self, client):
         retriever_start_time = time.time()
         with performance_report(filename="retriever-dask-report.html"):
             image_pair_indices = self.scene_optimizer.image_pairs_generator.generate_image_pairs(
@@ -321,18 +303,7 @@ class GtsfmRunnerBase:
     def run(self) -> GtsfmData:
         """Run the SceneOptimizer."""
         start_time = time.time()
-        
-        retriever_metrics, image_pair_indices = self.get_image_pair_indices()
 
-        clusters = [ [tuple(pair) for pair in arr.tolist()] for arr in np.array_split(image_pair_indices, self.parsed_args.num_clusters)]
-
-        for cluster in clusters: 
-            self.optimize_scene(retriever_metrics,cluster)
-
-    def optimize_scene(self, retriever_metrics,image_pair_indices)->GtsfmData:
-        print("Running scene optimizer with number of image pairs:", len(image_pair_indices))
-        start_time = time.time()
-        # Create dask cluster.
         if self.parsed_args.cluster_config:
             cluster = self.setup_ssh_cluster_with_retries()
             client = Client(cluster)
@@ -350,7 +321,18 @@ class GtsfmRunnerBase:
                 local_cluster_kwargs["memory_limit"] = self.parsed_args.worker_memory_limit
             cluster = LocalCluster(**local_cluster_kwargs)
             client = Client(cluster)
+        
+        retriever_metrics, image_pair_indices = self.get_image_pair_indices(client)
 
+        clusters = [ [tuple(pair) for pair in arr.tolist()] for arr in np.array_split(image_pair_indices, self.parsed_args.num_clusters)]
+
+        for graph_cluster in clusters: 
+            self.optimize_scene(client, retriever_metrics, graph_cluster)
+
+    def optimize_scene(self, client, retriever_metrics,image_pair_indices)->GtsfmData:
+        print("Running scene optimizer with number of image pairs:", len(image_pair_indices))
+        start_time = time.time()
+        
         # Create process graph.
         process_graph_generator = ProcessGraphGenerator()
         if isinstance(self.scene_optimizer.correspondence_generator, ImageCorrespondenceGenerator):
