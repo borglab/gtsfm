@@ -4,9 +4,7 @@ Authors: Zongyue Liu
 """
 
 import unittest
-from typing import List, Tuple
 
-import numpy as np
 
 from gtsfm.graph_partitioner.single_partition import SinglePartition
 

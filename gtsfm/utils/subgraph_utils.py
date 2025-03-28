@@ -5,7 +5,7 @@ Authors: Zongyue Liu
 
 from typing import Dict, List, Tuple, Any
 
-import numpy as np
+
 
 
 def group_results_by_subgraph(
