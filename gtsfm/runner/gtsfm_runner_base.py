@@ -30,6 +30,7 @@ from gtsfm.scene_optimizer import SceneOptimizer
 from gtsfm.two_view_estimator import TWO_VIEW_OUTPUT, TwoViewEstimationReport, run_two_view_estimator_as_futures
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
+from gtsfm.graph_partitioner.single_partition import SinglePartition
 from gtsfm.utils.subgraph_utils import group_results_by_subgraph
 
 dask_config.set({"distributed.scheduler.worker-ttl": None})
@@ -287,10 +288,7 @@ class GtsfmRunnerBase:
 
         # Create graph partitioner if not provided
         if graph_partitioner is None:
-            if self.parsed_args.graph_partitioner == "single":
-                from gtsfm.graph_partitioner.single_partition import SinglePartition
-                graph_partitioner = SinglePartition()
-
+            graph_partitioner = SinglePartition()
 
         # Create dask cluster.
         if self.parsed_args.cluster_config:
@@ -319,7 +317,7 @@ class GtsfmRunnerBase:
 
         retriever_start_time = time.time()
         with performance_report(filename="retriever-dask-report.html"):
-            image_pairs = self.scene_optimizer.image_pairs_generator.generate_image_pairs(
+            image_pair_indices = self.scene_optimizer.image_pairs_generator.generate_image_pairs(
                 client=client,
                 images=self.loader.get_all_images_as_futures(client),
                 image_fnames=self.loader.image_filenames(),
@@ -327,7 +325,7 @@ class GtsfmRunnerBase:
             )
 
         retriever_metrics = self.scene_optimizer.image_pairs_generator._retriever.evaluate(
-            len(self.loader), image_pairs
+            len(self.loader), image_pair_indices
         )
         retriever_duration_sec = time.time() - retriever_start_time
         retriever_metrics.add_metric(GtsfmMetric("retriever_duration_sec", retriever_duration_sec))
@@ -343,7 +341,7 @@ class GtsfmRunnerBase:
             ) = self.scene_optimizer.correspondence_generator.generate_correspondences(
                 client,
                 self.loader.get_all_images_as_futures(client),
-                image_pairs,
+                image_pair_indices,
             )
             correspondence_generation_duration_sec = time.time() - correspondence_generation_start_time
 
@@ -354,7 +352,7 @@ class GtsfmRunnerBase:
                 keypoints_list,
                 putative_corr_idxs_dict,
                 intrinsics,
-                self.loader.get_relative_pose_priors(image_pairs),
+                self.loader.get_relative_pose_priors(image_pair_indices),
                 self.loader.get_gt_cameras(),
                 gt_scene_mesh=self.loader.get_gt_scene_trimesh(),
             )
@@ -394,53 +392,80 @@ class GtsfmRunnerBase:
         )
         all_metrics_groups = [retriever_metrics, two_view_agg_metrics]
 
-        # Partition image pairs if a partitioner is provided
-        if graph_partitioner is not None:
-            subgraphs = graph_partitioner.partition_image_pairs(image_pairs)
-        else:
-            # If no partitioner is provided, use a single partition
-            subgraphs = [image_pairs]
+        # Partition image pairs
+        subgraphs = graph_partitioner.partition_image_pairs(image_pair_indices)
+        logger.info(f"Partitioned into {len(subgraphs)} subgraphs")
 
         # Group results by subgraph
         subgraph_two_view_results = group_results_by_subgraph(two_view_results_dict, subgraphs)
 
         # Process each subgraph
-        all_subgraph_results = []
+        all_delayed_sfm_results = []
+        all_delayed_io = []
+        all_delayed_mvo_metrics_groups = []
+
         for idx, subgraph_result_dict in enumerate(subgraph_two_view_results):
-            logger.info(f"Processing subgraph {idx+1}/{len(subgraph_two_view_results)} with {len(subgraph_result_dict)} image pairs")
+            logger.info(f"Creating computation graph for subgraph {idx+1}/{len(subgraph_two_view_results)} with {len(subgraph_result_dict)} image pairs")
             
             # Unzip the two-view results for this subgraph
-            subgraph_i2Ri1_dict, subgraph_i2Ui1_dict, subgraph_v_corr_idxs_dict, subgraph_pre_ba_reports, subgraph_post_isp_reports = unzip_two_view_results(
+            subgraph_i2Ri1_dict, subgraph_i2Ui1_dict, subgraph_v_corr_idxs_dict, _, subgraph_post_isp_reports = unzip_two_view_results(
                 subgraph_result_dict
             )
             
-            # Run scene optimization for this subgraph
+            # Create computation graph for this subgraph
             if len(subgraph_i2Ri1_dict) > 0:  # Only process non-empty subgraphs
-                subgraph_result, _, _ = self.scene_optimizer.create_computation_graph(
+                delayed_sfm_result, delayed_io, delayed_mvo_metrics_groups = self.scene_optimizer.create_computation_graph(
                     keypoints_list=keypoints_list,
                     i2Ri1_dict=subgraph_i2Ri1_dict,
                     i2Ui1_dict=subgraph_i2Ui1_dict,
                     v_corr_idxs_dict=subgraph_v_corr_idxs_dict,
                     two_view_reports=subgraph_post_isp_reports,
                     num_images=len(self.loader),
-                    images=self.loader.get_all_images_as_futures(client),
-                    camera_intrinsics=self.loader.get_all_intrinsics(),
-                    absolute_pose_priors=self.loader.get_absolute_pose_priors(),
+                    images=self.loader.create_computation_graph_for_images(),
+                    camera_intrinsics=intrinsics,
                     relative_pose_priors=self.loader.get_relative_pose_priors(list(subgraph_i2Ri1_dict.keys())),
+                    absolute_pose_priors=self.loader.get_absolute_pose_priors(),
                     cameras_gt=self.loader.get_gt_cameras(),
                     gt_wTi_list=self.loader.get_gt_poses(),
-                    gt_scene_mesh=self.loader.get_gt_scene_trimesh()
+                    gt_scene_mesh=self.loader.get_gt_scene_trimesh(),
                 )
-                all_subgraph_results.append(subgraph_result)
+                all_delayed_sfm_results.append(delayed_sfm_result)
+                all_delayed_io.extend(delayed_io)
+                all_delayed_mvo_metrics_groups.extend(delayed_mvo_metrics_groups)
+
+        # Compute all the delayed objects
+        with performance_report(filename="scene-optimizer-dask-report.html"):
+            if all_delayed_sfm_results:
+                results = dask.compute(*all_delayed_sfm_results, *all_delayed_io, *all_delayed_mvo_metrics_groups)
+                sfm_results = results[:len(all_delayed_sfm_results)]
+                other_results = results[len(all_delayed_sfm_results):]
+                
+                # Extract metrics from results
+                mvo_metrics_groups = [x for x in other_results if isinstance(x, GtsfmMetricsGroup)]
+                all_metrics_groups.extend(mvo_metrics_groups)
+                
+                # For now, return the first non-empty result
+                sfm_result = next((r for r in sfm_results if r is not None), None)
+            else:
+                sfm_result = None
+
+        end_time = time.time()
+        duration_sec = end_time - start_time
+        logger.info("GTSFM took %.2f minutes to compute sparse multi-view result.", duration_sec / 60)
         
-        # TODO: Implement merging of subgraph results if multiple subgraphs exist
-        # For now, return the first non-empty result or None if all are empty
-        result = next((r for r in all_subgraph_results if r is not None), None)
+        if client is not None:
+            client.shutdown()
+            
+        # Add total summary metrics
+        total_summary_metrics = GtsfmMetricsGroup(
+            "total_summary_metrics", [GtsfmMetric("total_runtime_sec", duration_sec)]
+        )
+        all_metrics_groups.append(total_summary_metrics)
+
+        # Save metrics reports
+        save_metrics_reports(all_metrics_groups, os.path.join(self.scene_optimizer.output_root, "result_metrics"))
         
-        total_duration_sec = time.time() - start_time
-        logger.info("Total SfM pipeline took %.2f sec.", total_duration_sec)
-        
-        return result
+        return sfm_result
 
 
 def unzip_two_view_results(two_view_results: Dict[Tuple[int, int], TWO_VIEW_OUTPUT]) -> Tuple[

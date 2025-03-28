@@ -4,7 +4,6 @@ Authors: Zongyue Liu
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Tuple, Any
 
 import numpy as np
 
@@ -18,7 +17,7 @@ logger = logger_utils.get_logger()
 class GraphPartitionerBase(GTSFMProcess):
     """Base class for all graph partitioners in GTSFM.
 
-    Graph partitioners take a set of image pairs (or a similarity matrix) and 
+    Graph partitioners take a set of image pairs and 
     divide them into subgraphs to be processed independently.
     """
 
@@ -47,13 +46,11 @@ class GraphPartitionerBase(GTSFMProcess):
 
     @abstractmethod
     def partition_image_pairs(
-        self, image_pairs: List[Tuple[int, int]]
-    ) -> List[List[Tuple[int, int]]]:
+        self, image_pairs: list[tuple[int, int]],) -> list[list[tuple[int, int]]]:
         """Partition a set of image pairs into subgraphs.
         
         Args:
-            image_pairs: List of image pairs (i,j) where i < j.
-            
+            image_pairs: List of image pairs (i,j) where i < j.          
         Returns:
             List of subgraphs, where each subgraph is a list of image pairs.
         """

@@ -19,19 +19,13 @@ class SinglePartition(GraphPartitionerBase):
     a baseline implementation that maintains the original workflow.
     """
     
-    def __init__(self, threshold: float = 0.0):
-        """Initialize the partitioner.
-        
-        Args:
-            threshold: Minimum similarity threshold to consider an edge valid.
-                      Edges with similarity below this value are excluded.
-        """
+    def __init__(self):
+        """Initialize the partitioner."""
         super().__init__(process_name="SinglePartition")
-        self.threshold = threshold
         
     def partition_image_pairs(
-        self, image_pairs: List[Tuple[int, int]]
-    ) -> List[List[Tuple[int, int]]]:
+        self, image_pairs: list[tuple[int, int]]
+    ) -> list[list[tuple[int, int]]]:
         """Return all image pairs as a single partition.
         
         Args:
