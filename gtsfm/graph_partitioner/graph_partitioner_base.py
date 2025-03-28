@@ -3,9 +3,7 @@
 Authors: Zongyue Liu
 """
 
-from abc import ABC, abstractmethod
-
-import numpy as np
+from abc import abstractmethod
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.ui.gtsfm_process import GTSFMProcess
@@ -46,7 +44,8 @@ class GraphPartitionerBase(GTSFMProcess):
 
     @abstractmethod
     def partition_image_pairs(
-        self, image_pairs: list[tuple[int, int]],) -> list[list[tuple[int, int]]]:
+        self, image_pairs: list[tuple[int, int]]
+    ) -> list[list[tuple[int, int]]]:
         """Partition a set of image pairs into subgraphs.
         
         Args:

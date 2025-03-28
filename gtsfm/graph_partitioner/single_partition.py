@@ -3,9 +3,6 @@
 Authors: Zongyue Liu
 """
 
-from typing import Dict, List, Tuple
-import numpy as np
-
 import gtsfm.utils.logger as logger_utils
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 

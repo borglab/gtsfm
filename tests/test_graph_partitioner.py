@@ -4,9 +4,6 @@ Authors: Zongyue Liu
 """
 
 import unittest
-from typing import List, Tuple
-
-import numpy as np
 
 from gtsfm.graph_partitioner.single_partition import SinglePartition
 
@@ -30,7 +27,6 @@ class TestGraphPartitioning(unittest.TestCase):
         
         # Check that the partition contains all the original pairs
         self.assertEqual(set(partitioned_pairs[0]), set(image_pairs))
-
 
 
 if __name__ == "__main__":
