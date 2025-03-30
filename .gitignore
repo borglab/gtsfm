@@ -128,9 +128,6 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# VSCode files
-.vscode/
-
 # PyType folder
 .pytype/
 

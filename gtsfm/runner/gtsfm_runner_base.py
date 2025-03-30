@@ -11,7 +11,7 @@ import hydra
 import numpy as np
 from dask import config as dask_config
 from dask.distributed import Client, LocalCluster, SSHCluster, performance_report
-from gtsam import Pose3, Rot3, Unit3
+from gtsam import Pose3, Rot3, Unit3  # type: ignore
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
 
@@ -413,7 +413,7 @@ class GtsfmRunnerBase:
 
         # Partition image pairs
         subgraphs = self.graph_partitioner.partition_image_pairs(image_pair_indices)
-        logger.info(f"Partitioned into {len(subgraphs)} subgraphs")
+        logger.info("Partitioned into %d subgraphs", len(subgraphs))
         # Group results by subgraph
         subgraph_two_view_results = group_results_by_subgraph(two_view_results_dict, subgraphs)
 
@@ -424,8 +424,10 @@ class GtsfmRunnerBase:
 
         for idx, subgraph_result_dict in enumerate(subgraph_two_view_results):
             logger.info(
-                f"Creating computation graph for subgraph {idx + 1}/{len(subgraph_two_view_results)} "
-                f"with {    len(subgraph_result_dict)} image pairs"
+                "Creating computation graph for subgraph %d/%d with %d image pairs",
+                idx + 1,
+                len(subgraph_two_view_results),
+                len(subgraph_result_dict),
             )
             if len(subgraph_two_view_results) == 1:
                 # single partition
