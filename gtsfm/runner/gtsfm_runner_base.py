@@ -406,7 +406,10 @@ class GtsfmRunnerBase:
 
         for idx, subgraph_result_dict in enumerate(subgraph_two_view_results):
             logger.info(
-                "Creating computation graph for subgraph %d / %d with %d image pairs", idx+1, len(subgraph_two_view_results), len(subgraph_result_dict) 
+                "Creating computation graph for subgraph %d / %d with %d image pairs",
+                idx + 1,
+                len(subgraph_two_view_results),
+                len(subgraph_result_dict),
             )
 
             # Unzip the two-view results for this subgraph
