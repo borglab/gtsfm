@@ -1,0 +1,13 @@
+[tool.black]
+line-length = 120
+target-version = ['py38', 'py39', 'py310', 'py311']
+skip-string-normalization = false
+
+[tool.pylint]
+disable = ["invalid-name"]
+max-line-length = 120
+generated-members = ["numpy.*", "torch.*", "cv2.*", "cv.*", "scipy.*", "gtsam.*"]
+
+[tool.flake8]
+max-line-length = 120
+ignore = ["E201", "E202", "E203", "E231", "W291", "W293", "E303", "W391", "E402", "W503"]
