@@ -33,7 +33,7 @@ jobs:
         shell: bash -l {0}
 
     env:
-      PYTHON_VERSION: 3.8
+      PYTHON_VERSION: '3.10'
 
     steps:
       - uses: actions/checkout@v4.1.5
