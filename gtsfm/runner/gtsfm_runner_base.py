@@ -24,13 +24,13 @@ from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm import two_view_estimator
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.frontend.correspondence_generator.image_correspondence_generator import ImageCorrespondenceGenerator
+from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
+from gtsfm.graph_partitioner.single_partition import SinglePartition
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.scene_optimizer import SceneOptimizer
 from gtsfm.two_view_estimator import TWO_VIEW_OUTPUT, TwoViewEstimationReport, run_two_view_estimator_as_futures
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
-from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
-from gtsfm.graph_partitioner.single_partition import SinglePartition
 from gtsfm.utils.subgraph_utils import group_results_by_subgraph
 
 dask_config.set({"distributed.scheduler.worker-ttl": None})
@@ -394,7 +394,7 @@ class GtsfmRunnerBase:
 
         # Partition image pairs
         subgraphs = graph_partitioner.partition_image_pairs(image_pair_indices)
-        logger.info(f"Partitioned into {len(subgraphs)} subgraphs")
+        logger.info("Partitioned into %d subgraphs", len(subgraphs))
 
         # Group results by subgraph
         subgraph_two_view_results = group_results_by_subgraph(two_view_results_dict, subgraphs)
@@ -406,7 +406,7 @@ class GtsfmRunnerBase:
 
         for idx, subgraph_result_dict in enumerate(subgraph_two_view_results):
             logger.info(
-                f"Creating computation graph for subgraph {idx+1}/{len(subgraph_two_view_results)} with {len(subgraph_result_dict)} image pairs"
+                "Creating computation graph for subgraph %d / %d with %d image pairs", idx+1, len(subgraph_two_view_results), len(subgraph_result_dict) 
             )
 
             # Unzip the two-view results for this subgraph
