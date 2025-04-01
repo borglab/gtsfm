@@ -135,6 +135,9 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
             pair_indices: self.__aggregate_errors_for_edge(errors) for pair_indices, errors in per_edge_errors.items()
         }
         valid_edges = {edge for edge, error in per_edge_aggregate_error.items() if error < self._error_threshold}
+        # Add edges that were not part of a cycle.
+        valid_edges.update({edge for edge in input_edges if edge not in per_edge_aggregate_error.keys()})
+
         if output_dir:
             self.__save_plots(
                 valid_edges, cycle_errors, max_gt_error_in_cycle, per_edge_aggregate_error, two_view_reports, output_dir

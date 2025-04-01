@@ -1,53 +1,44 @@
-# Script to launch jobs over various ETH3D datasets & front-ends.
-# See https://www.eth3d.net/data/schoeps2017cvpr.pdf for more details.
+# Script to launch jobs over various Tanks & Temples datasets & front-ends.
+# https://www.tanksandtemples.org/download/
 
 USER_ROOT=$1
 CLUSTER_CONFIG=$2
 
 now=$(date +"%Y%m%d_%H%M%S")
 
-ETH3D_ROOT=/usr/local/gtsfm-data/eth3d_datasets/multi_view_training_dslr_undistorted
-#ETH3D_ROOT=/home/tdriver6/Downloads/eth3d_datasets
 
-# Includes all "high-resolution multi-view" datasets from 'training' split (i.e. w/ public GT data)
-# See https://www.eth3d.net/datasets for more information.
 datasets=(
-    courtyard
-    delivery_area
-    electro
-    facade
-    kicker
-    meadow
-    office
-    pipes
-    playground
-    relief_2
-    relief
-    terrace
-    terrains
+    barn-tanks-and-temples-410
+    courthouse-1106
+    ignatius-263
+    church-507
+    caterpillar-383
+    meetingroom-371
+    truck-251
 )
 
 max_frame_lookahead_sizes=(
-    #0
-    #5
+    # 0
+    # 5
     10
     #15
 )
 
 num_matched_sizes=(
+    # 0
     5
-    #10
-    #15
-    #20
-    #25
+    # 10
+    # 15
+    # 20
+    # 25
 )
 
 correspondence_generator_config_names=(
     sift
-    disk
     lightglue
     superglue
     loftr
+    disk
 )
 
 if [[ $CLUSTER_CONFIG ]]
@@ -61,6 +52,11 @@ fi
 for num_matched in ${num_matched_sizes[@]}; do
     for max_frame_lookahead in ${max_frame_lookahead_sizes[@]}; do
         for dataset in ${datasets[@]}; do
+
+
+            INTRINSICS_ARGS="--share_intrinsics"
+  
+
             if [[ $num_matched == 0 && $max_frame_lookahead == 0 ]]
             then
                 # Matches must come from at least some retriever.
@@ -78,10 +74,10 @@ for num_matched in ${num_matched_sizes[@]}; do
                 elif [[ $correspondence_generator_config_name == *"superglue"* ]]
                 then
                     num_workers=1
-                elif [[ $correspondence_generator_config_name == *"loftr"* ]]
+                elif [[ $correspondence_generator_config_name == *"disk"* ]]
                 then
                     num_workers=1
-                elif [[ $correspondence_generator_config_name == *"disk"* ]]
+                elif [[ $correspondence_generator_config_name == *"loftr"* ]]
                 then
                     num_workers=1
                 fi
@@ -91,33 +87,59 @@ for num_matched in ${num_matched_sizes[@]}; do
                 echo "Max frame lookahead: ${max_frame_lookahead}"
                 echo "Correspondence Generator: ${correspondence_generator_config_name}"
                 echo "Num workers: ${num_workers}"
+                echo "Intrinsics: ${INTRINSICS_ARGS}"
 
-                images_dir="${ETH3D_ROOT}/${dataset}/images"
-                colmap_files_dirpath="${ETH3D_ROOT}/${dataset}/dslr_calibration_undistorted"
-                # images_dir="${ETH3D_ROOT}/${dataset}_dslr_undistorted/${dataset}/images"
-                # colmap_files_dirpath="${ETH3D_ROOT}/${dataset}_dslr_undistorted/${dataset}/dslr_calibration_undistorted"
+
+                if [[ $dataset == *"barn-tanks-and-temples-410"* ]]
+                then
+                    dataset_root="/usr/local/gtsfm-data/TanksAndTemples/Barn"
+                    scene_name="Barn"
+                elif [[ $dataset == *"caterpillar-383"* ]]
+                then
+                    dataset_root=/usr/local/gtsfm-data/TanksAndTemples/Caterpillar
+                    scene_name="Caterpillar"
+                elif [[ $dataset == *"church-507"* ]]
+                then
+                    dataset_root=/usr/local/gtsfm-data/TanksAndTemples/Church
+                    scene_name="Church"
+                elif [[ $dataset == *"courthouse-1106"* ]]
+                then
+                    dataset_root=/usr/local/gtsfm-data/TanksAndTemples/Courthouse
+                    scene_name="Courthouse"
+                elif [[ $dataset == *"ignatius-263"* ]]
+                then
+                    dataset_root=/usr/local/gtsfm-data/TanksAndTemples/Ignatius
+                    scene_name="Ignatius"
+                elif [[ $dataset == *"meetingroom-371"* ]]
+                then
+                    dataset_root=/usr/local/gtsfm-data/TanksAndTemples/Meetingroom
+                    scene_name="Meetingroom"
+                elif [[ $dataset == *"truck-251"* ]]
+                then
+                    dataset_root=/usr/local/gtsfm-data/TanksAndTemples/Truck
+                    scene_name="Truck"
+                fi
 
                 OUTPUT_ROOT=${USER_ROOT}/${now}/${now}__${dataset}__results__num_matched${num_matched}__maxframelookahead${max_frame_lookahead}__760p__unified_${correspondence_generator_config_name}
                 mkdir -p $OUTPUT_ROOT
 
-                python gtsfm/runner/run_scene_optimizer_colmaploader.py \
+                python gtsfm/runner/run_scene_optimizer_tanks_and_temples.py \
+                --scene_name $scene_name \
                 --mvs_off \
                 --config unified \
                 --correspondence_generator_config_name $correspondence_generator_config_name \
-                --share_intrinsics \
-                --images_dir $images_dir \
-                --colmap_files_dirpath $colmap_files_dirpath \
-                --num_workers 1 \
+                --dataset_root $dataset_root \
+                --num_workers $num_workers \
                 --num_matched $num_matched \
                 --max_frame_lookahead $max_frame_lookahead \
                 --worker_memory_limit "32GB" \
                 --output_root $OUTPUT_ROOT \
                 --max_resolution 760 \
-                $CLUSTER_ARGS \
+                $INTRINSICS_ARGS $CLUSTER_ARGS \
                 2>&1 | tee $OUTPUT_ROOT/out.log
+
             done
         done
     done
 done
-
 

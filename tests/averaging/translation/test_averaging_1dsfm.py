@@ -1,7 +1,8 @@
 """Tests for 1DSFM translation averaging.
 
-Authors: Ayush Baid
+Authors: Ayush Baid, Akshay Krishnan
 """
+
 import pickle
 import unittest
 from pathlib import Path
@@ -129,7 +130,10 @@ class TestTranslationAveraging1DSFM(unittest.TestCase):
     ) -> None:
         """Helper function to run the averagaing and assert w/ expected."""
 
-        wTi_computed, _, _ = self.obj.run_translation_averaging(len(wRi_input), i2Ui1_input, wRi_input)
+        intrinsics = [Cal3_S2(fx=20, fy=20, s=0.0, u0=0, v0=0)] * len(wRi_input)
+        wTi_computed, _, _ = self.obj.run_translation_averaging(
+            len(wRi_input), i2Ui1_input, wRi_input, tracks_2d=[], intrinsics=intrinsics
+        )
         wTi_expected = [Pose3(wRi, wti) for wRi, wti in zip(wRi_input, wti_expected)]
         self.assertTrue(
             geometry_comparisons.compare_global_poses(
@@ -192,9 +196,12 @@ class TestTranslationAveraging1DSFM(unittest.TestCase):
             for i2 in range(i1 + 1, min(len(expected_wTi_list), i1 + 3)):
                 # create relative translations using global R and T.
                 i2Ui1_dict[(i1, i2)] = Unit3(expected_wTi_list[i2].between(expected_wTi_list[i1]).translation())
+        intrinsics = [Cal3_S2(fx=20, fy=20, s=0.0, u0=0, v0=0)] * len(wRi_list)
 
         # use the `run` API to get expected results, ignore the metrics
-        wTi_expected, _, _ = self.obj.run_translation_averaging(len(wRi_list), i2Ui1_dict, wRi_list)
+        wTi_expected, _, _ = self.obj.run_translation_averaging(
+            len(wRi_list), i2Ui1_dict, wRi_list, tracks_2d=[], intrinsics=intrinsics
+        )
 
         # Form computation graph and execute
         i2Ui1_graph = dask.delayed(i2Ui1_dict)
@@ -203,6 +210,8 @@ class TestTranslationAveraging1DSFM(unittest.TestCase):
             len(wRi_list),
             i2Ui1_graph,
             wRi_graph,
+            tracks_2d=[],
+            intrinsics=intrinsics,
         )
         with dask.config.set(scheduler="single-threaded"):
             wTi_computed, _, _ = dask.compute(computation_graph)[0]
@@ -285,7 +294,11 @@ class Test1dsfmAllOutliers(unittest.TestCase):
             (3, 4): np.array([0.994791, -0.033332, -0.0963361]),
         }
         i2Ui1_input = {(i, j): Unit3(t) for (i, j), t in i2Ui1_input.items()}
-        wTi_computed, _, _ = self.obj.run_translation_averaging(len(wRi_input), i2Ui1_input, wRi_input)
+        intrinsics = [Cal3_S2(fx=20, fy=20, s=0.0, u0=0, v0=0)] * len(wRi_input)
+
+        wTi_computed, _, _ = self.obj.run_translation_averaging(
+            len(wRi_input), i2Ui1_input, wRi_input, tracks_2d=[], intrinsics=intrinsics
+        )
 
         assert len(wTi_computed) == 5
         assert wTi_computed[-1] is None

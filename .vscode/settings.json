@@ -1,0 +1,42 @@
+{
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "ms-python.black-formatter",
+
+    "editor.codeActionsOnSave": {
+        "source.organizeImports": "always",
+        "source.fixAll": "always" // Fixing requires specifying a specific tool
+    },
+
+    "editor.rulers": [120],
+
+    "[python]": {
+        "editor.insertSpaces": true,
+        "editor.tabSize": 4
+    },
+
+    "python.testing.pytestEnabled": true,
+    "python.testing.unittestEnabled": true,
+    "python.testing.unittestArgs": [
+        "-v",
+        "-s",
+        "./tests",
+        "-p",
+        "test*.py"
+    ],
+
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/.DS_Store": true,
+        "**/.git": true,
+        "**/.hg": true,
+        "**/.pytest_cache": true,
+        "**/.pytype": true,
+        "**/.svn": true,
+        "**/*.egg-info": true,
+        "**/*.pyc": {
+            "when": "$(basename).py"
+        },
+        "**/CVS": true,
+        "**/dask-worker-space": true
+    }
+}
