@@ -2,6 +2,7 @@
 
 Authors: Ayush Baid, John Lambert
 """
+
 import dataclasses
 import logging
 import timeit
@@ -30,10 +31,10 @@ from gtsfm.frontend.verifier.verifier_base import VerifierBase
 logger = logger_utils.get_logger()
 
 mpl_logger = logging.getLogger("matplotlib")
-mpl_logger.setLevel(logging.WARNING)
+mpl_logger.setLevel(logging.ERROR)
 
 pil_logger = logging.getLogger("PIL")
-pil_logger.setLevel(logging.INFO)
+pil_logger.setLevel(logging.ERROR)
 
 PRE_BA_REPORT_TAG = "PRE_BA_2VIEW_REPORT"
 POST_BA_REPORT_TAG = "POST_BA_2VIEW_REPORT"
@@ -203,7 +204,7 @@ class TwoViewEstimator:
         )
         if ba_output is None:
             # Indeterminate linear system was met.
-            return None, None, np.zeros((0,2), dtype=np.int32)
+            return None, None, np.zeros((0, 2), dtype=np.int32)
 
         # Unpack results.
         valid_corr_idxs = verified_corr_idxs[triangulated_indices][valid_mask]
@@ -625,24 +626,26 @@ def get_two_view_reports_summary(
                 "i2_filename": images[i2].file_name,
                 "rotation_angular_error": round_fn(report.R_error_deg),
                 "translation_angular_error": round_fn(report.U_error_deg),
-                "num_inliers_gt_model": int(report.num_inliers_gt_model)
-                if report.num_inliers_gt_model is not None
-                else None,
+                "num_inliers_gt_model": (
+                    int(report.num_inliers_gt_model) if report.num_inliers_gt_model is not None else None
+                ),
                 "inlier_ratio_gt_model": round_fn(report.inlier_ratio_gt_model),
-                "inlier_avg_reproj_error_gt_model": round_fn(
-                    np.nanmean(report.reproj_error_gt_model[report.v_corr_idxs_inlier_mask_gt])
-                )
-                if report.reproj_error_gt_model is not None and report.v_corr_idxs_inlier_mask_gt is not None
-                else None,
-                "outlier_avg_reproj_error_gt_model": round_fn(
-                    np.nanmean(report.reproj_error_gt_model[np.logical_not(report.v_corr_idxs_inlier_mask_gt)])
-                )
-                if report.reproj_error_gt_model is not None and report.v_corr_idxs_inlier_mask_gt is not None
-                else None,
+                "inlier_avg_reproj_error_gt_model": (
+                    round_fn(np.nanmean(report.reproj_error_gt_model[report.v_corr_idxs_inlier_mask_gt]))
+                    if report.reproj_error_gt_model is not None and report.v_corr_idxs_inlier_mask_gt is not None
+                    else None
+                ),
+                "outlier_avg_reproj_error_gt_model": (
+                    round_fn(
+                        np.nanmean(report.reproj_error_gt_model[np.logical_not(report.v_corr_idxs_inlier_mask_gt)])
+                    )
+                    if report.reproj_error_gt_model is not None and report.v_corr_idxs_inlier_mask_gt is not None
+                    else None
+                ),
                 "inlier_ratio_est_model": round_fn(report.inlier_ratio_est_model),
-                "num_inliers_est_model": int(report.num_inliers_est_model)
-                if report.num_inliers_est_model is not None
-                else None,
+                "num_inliers_est_model": (
+                    int(report.num_inliers_est_model) if report.num_inliers_est_model is not None else None
+                ),
             }
         )
     return metrics_list

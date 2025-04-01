@@ -192,3 +192,7 @@ cache/
 
 # Dev notebooks
 notebooks/
+
+
+results/**
+result_metrics/**
