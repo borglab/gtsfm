@@ -90,7 +90,6 @@ class SceneOptimizer:
         self._pose_angular_error_thresh = pose_angular_error_thresh
         self.output_root = Path(output_root)
         self._output_worker = output_worker
-        self._create_output_directories()
 
     def __repr__(self) -> str:
         """Returns string representation of class."""
@@ -102,12 +101,21 @@ class SceneOptimizer:
         DenseMultiviewOptimizer: {self.dense_multiview_optimizer}
         """
 
-    def _create_output_directories(self) -> None:
+    def create_plot_base_path(self):
+        """Create plot base path."""
+        plot_base_path = self.output_root / "plots"
+        os.makedirs(plot_base_path, exist_ok=True)
+        return plot_base_path
+
+    def create_output_directories(self, partition_index: Optional[int]) -> None:
         """Create various output directories for GTSFM results, metrics, and plots."""
-        # base paths for storage
-        self._plot_base_path = self.output_root / "plots"
-        self._metrics_path = self.output_root / "result_metrics"
-        self._results_path = self.output_root / "results"
+        # Construct subfolder if partitioned
+        partition_folder = f"partition_{partition_index}" if partition_index is not None else ""
+
+        # Base paths
+        self._plot_base_path = self.output_root / "plots" / partition_folder
+        self._metrics_path = self.output_root / "result_metrics" / partition_folder
+        self._results_path = self.output_root / "results" / partition_folder
 
         # plot paths
         self._plot_correspondence_path = self._plot_base_path / "correspondences"
