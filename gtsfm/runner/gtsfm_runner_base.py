@@ -9,29 +9,27 @@ from pathlib import Path
 import dask
 import hydra
 import numpy as np
-
 from dask import config as dask_config
 from dask.distributed import Client, LocalCluster, SSHCluster, performance_report
-from gtsam import Rot3, Pose3, Unit3
+from gtsam import Pose3, Rot3, Unit3
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
 
 import gtsfm.evaluation.metrics_report as metrics_report
-import gtsfm.utils.merging as merging_utils
 import gtsfm.utils.logger as logger_utils
+import gtsfm.utils.merging as merging_utils
 import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.viz as viz_utils
-from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm import two_view_estimator
+from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.frontend.correspondence_generator.image_correspondence_generator import ImageCorrespondenceGenerator
+from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.scene_optimizer import SceneOptimizer
 from gtsfm.two_view_estimator import TWO_VIEW_OUTPUT, TwoViewEstimationReport, run_two_view_estimator_as_futures
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
-from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
-from gtsfm.graph_partitioner.single_partition import SinglePartition
 from gtsfm.utils.subgraph_utils import group_results_by_subgraph
 
 dask_config.set({"distributed.scheduler.worker-ttl": None})
@@ -55,6 +53,7 @@ class GtsfmRunnerBase:
 
         self.loader: LoaderBase = self.construct_loader()
         self.scene_optimizer: SceneOptimizer = self.construct_scene_optimizer()
+        self.graph_partitioner: GraphPartitionerBase = self.scene_optimizer.graph_partitioner
 
     def construct_argparser(self) -> argparse.ArgumentParser:
         parser = argparse.ArgumentParser(description=self.tag)
@@ -283,13 +282,9 @@ class GtsfmRunnerBase:
             )
         return cluster
 
-    def run(self, graph_partitioner: GraphPartitionerBase = None) -> GtsfmData:
+    def run(self) -> GtsfmData:
         """Run the SceneOptimizer."""
         start_time = time.time()
-
-        # Create graph partitioner if not provided
-        if graph_partitioner is None:
-            graph_partitioner = SinglePartition()
 
         # Create dask cluster.
         if self.parsed_args.cluster_config:
@@ -322,7 +317,7 @@ class GtsfmRunnerBase:
                 client=client,
                 images=self.loader.get_all_images_as_futures(client),
                 image_fnames=self.loader.image_filenames(),
-                plots_output_dir=self.scene_optimizer._plot_base_path,
+                plots_output_dir=self.scene_optimizer.create_plot_base_path(),
             )
 
         retriever_metrics = self.scene_optimizer.image_pairs_generator._retriever.evaluate(
@@ -394,9 +389,8 @@ class GtsfmRunnerBase:
         all_metrics_groups = [retriever_metrics, two_view_agg_metrics]
 
         # Partition image pairs
-        subgraphs = graph_partitioner.partition_image_pairs(image_pair_indices)
+        subgraphs = self.graph_partitioner.partition_image_pairs(image_pair_indices)
         logger.info(f"Partitioned into {len(subgraphs)} subgraphs")
-
         # Group results by subgraph
         subgraph_two_view_results = group_results_by_subgraph(two_view_results_dict, subgraphs)
 
@@ -407,9 +401,14 @@ class GtsfmRunnerBase:
 
         for idx, subgraph_result_dict in enumerate(subgraph_two_view_results):
             logger.info(
-                f"Creating computation graph for subgraph {idx+1}/{len(subgraph_two_view_results)}"
-                f"with {len(subgraph_result_dict)} image pairs"
+                f"Creating computation graph for subgraph {idx + 1}/{len(subgraph_two_view_results)} "
+                f"with {    len(subgraph_result_dict)} image pairs"
             )
+            if len(subgraph_two_view_results) == 1:
+                # single partition
+                self.scene_optimizer.create_output_directories(None)
+            else:
+                self.scene_optimizer.create_output_directories(idx + 1)
 
             # Unzip the two-view results for this subgraph
             subgraph_i2Ri1_dict, subgraph_i2Ui1_dict, subgraph_v_corr_idxs_dict, _, subgraph_post_isp_reports = (
