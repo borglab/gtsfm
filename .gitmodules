@@ -1,6 +1,6 @@
 [submodule "thirdparty/LightGlue"]
 	path = thirdparty/LightGlue
 	url = https://github.com/cvg/LightGlue.git
-[submodule "thirdparty/dust3r"]
-	path = thirdparty/dust3r
-	url = git@github.com:naver/dust3r.git
+[submodule "thirdparty/mast3r"]
+	path = thirdparty/mast3r
+	url = git@github.com:naver/mast3r.git
