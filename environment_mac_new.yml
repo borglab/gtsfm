@@ -1,0 +1,51 @@
+name: gtsfm-v1
+channels:
+  - conda-forge
+dependencies:
+  # python essentials
+  - python=3.10
+  - pip
+  # formatting and dev environment
+  - black
+  - coverage
+  - mypy
+  - pylint
+  - pytest
+  - flake8
+  - isort
+  # dask and related
+  - dask
+  - asyncssh
+  - python-graphviz
+  # core functionality and APIs
+  - matplotlib>=3.5
+  - networkx
+  - numpy==1.26.4 # gtsam requirement
+  - nodejs
+  - pandas
+  - pillow>=9.0.0
+  - scikit-learn
+  - seaborn
+  - scipy
+  - hydra-core
+  # # 3rd party algorithms for different modules
+  - kornia>=0.7.3
+  - pycolmap
+  # io
+  - h5py
+  - plotly>=5.0
+  - tabulate
+  - simplejson
+  - pyparsing>=3.0.9
+  # testing
+  - parameterized
+  - pip:
+      - torch
+      - torchvision>=0.20.0
+      - open3d
+      - opencv-python>=4.5.4.60
+      - pydegensac
+      - colour
+      - trimesh[easy]
+      - gtsam>=4.2
+      - pydot
