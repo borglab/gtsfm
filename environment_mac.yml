@@ -1,20 +1,21 @@
 name: gtsfm-v1
 channels:
-  # The GTSFM mac environment closely follows the linux conda environment file,
+  # The GTSFM Mac environment closely follows the Linux conda environment file,
   # except for two noticeable differences: no CUDA support and no DEGENSAC support.
   #
-  # for priority order, we prefer pytorch as the highest priority as it supplies
-  # latest stable packages for numerous deep learning based methods. conda-forge
-  # supplies higher versions of packages like opencv compared to the defaults
-  # channel.
-  - open3d-admin
+  # Regarding priority order: we prefer PyTorch as the highest-priority channel,
+  # as it supplies the latest stable packages for numerous deep learning methods.
+  # conda-forge provides higher versions of packages like OpenCV compared to the defaults channel.
+  #
+  # Note: this environment is tested on an M3 Ultra chip.
   - pytorch
+  - open3d-admin
   - conda-forge
 dependencies:
-  # python essentials
-  - python=3.8
+  # Python essentials
+  - python=3.10
   - pip
-  # formatting and dev environment
+  # Formatting and development environment tools
   - black
   - coverage
   - mypy
@@ -22,42 +23,42 @@ dependencies:
   - pytest
   - flake8
   - isort
-  # dask and related
-  - dask # same as dask[complete] pip distribution
+  # Dask and related dependencies
+  - dask  # Equivalent to the dask[complete] pip distribution
   - asyncssh
   - python-graphviz
-  # core functionality and APIs
-  - matplotlib==3.4.2
+  # Core functionality and APIs
+  - matplotlib>=3.5
   - networkx
-  - numpy
+  - numpy==1.26.4  # GTSAM requirement
   - nodejs
   - pandas
-  - pillow>=8.0.1
+  - pillow>=9.0.0
   - scikit-learn
   - seaborn
   - scipy
   - hydra-core
-  # 3rd party algorithms for different modules
-  - pytorch>=1.12.0
-  - torchvision>=0.13.0
-  # for M1 only:
-  # - mkl < 2022
-  - kornia
-  # io
+  # Third-party algorithms for different modules
+  - kornia>=0.7.3
+  # I/O
   - h5py
-  - plotly=4.14.3
+  - plotly>=5.0
   - tabulate
   - simplejson
+  - pyparsing>=3.0.9
   - pycolmap
-  - pyparsing==3.0.9
-  # testing
+  - open3d
+  - dash>=2.6.0
+  # Torch ecosystem
+  - pytorch
+  - torchvision
+  - torchaudio
+  # Testing utilities
   - parameterized
   - pip:
-      - open3d
-      - opencv-python>=4.5.4.58 # pypi has a more recent distribution than conda-forge
+      - opencv-python>=4.5.4.60
       - pydegensac
       - colour
       - trimesh[easy]
-      - pycolmap>=0.1.0
-      - gtsam==4.2
+      - gtsam>=4.2
       - pydot
