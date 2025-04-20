@@ -92,6 +92,77 @@ def preprocess_image(image: Image, img_id: int, device) -> Tuple[Dict[str, Any],
     )
 
 
+def symmetric_inference(model, img1, img2, device):
+    shape1 = torch.from_numpy(img1["true_shape"]).to(device, non_blocking=True)
+    shape2 = torch.from_numpy(img2["true_shape"]).to(device, non_blocking=True)
+    img1 = img1["img"].to(device, non_blocking=True)
+    img2 = img2["img"].to(device, non_blocking=True)
+
+    # compute encoder only once
+    feat1, feat2, pos1, pos2 = model._encode_image_pairs(img1, img2, shape1, shape2)
+
+    def decoder(feat1, feat2, pos1, pos2, shape1, shape2):
+        dec1, dec2 = model._decoder(feat1, pos1, feat2, pos2)
+
+        with torch.cuda.amp.autocast(enabled=False):
+            res1 = model.downstream_head1([tok.float() for tok in dec1], shape1[0])
+            res2 = model.downstream_head2([tok.float() for tok in dec2], shape2[0])
+        return res1, res2
+
+    # decoder 1-2
+    res11, res21 = decoder(feat1, feat2, pos1, pos2, shape1, shape2)
+    # decoder 2-1
+    res22, res12 = decoder(feat2, feat1, pos2, pos1, shape2, shape1)
+
+    return (res11, res21, res22, res12)
+
+
+def extract_correspondences(feats, qonfs, subsample=8, device=None, ptmap_key="pred_desc"):
+    feat11, feat21, feat22, feat12 = feats
+    qonf11, qonf21, qonf22, qonf12 = qonfs
+    assert feat11.shape[:2] == feat12.shape[:2] == qonf11.shape == qonf12.shape
+    assert feat21.shape[:2] == feat22.shape[:2] == qonf21.shape == qonf22.shape
+
+    if "3d" in ptmap_key:
+        opt = dict(device="cpu", workers=32)
+    else:
+        opt = dict(device=device, dist="dot", block_size=2**13)
+
+    # matching the two pairs
+    idx1 = []
+    idx2 = []
+    qonf1 = []
+    qonf2 = []
+    # TODO add non symmetric / pixel_tol options
+    for A, B, QA, QB in [(feat11, feat21, qonf11.cpu(), qonf21.cpu()), (feat12, feat22, qonf12.cpu(), qonf22.cpu())]:
+        nn1to2 = mast3r_ga.fast_reciprocal_NNs(A, B, subsample_or_initxy1=subsample, ret_xy=False, **opt)
+        nn2to1 = mast3r_ga.fast_reciprocal_NNs(B, A, subsample_or_initxy1=subsample, ret_xy=False, **opt)
+
+        idx1.append(np.r_[nn1to2[0], nn2to1[1]])
+        idx2.append(np.r_[nn1to2[1], nn2to1[0]])
+        qonf1.append(QA.ravel()[idx1[-1]])
+        qonf2.append(QB.ravel()[idx2[-1]])
+
+    # merge corres from opposite pairs
+    H1, W1 = feat11.shape[:2]
+    H2, W2 = feat22.shape[:2]
+    cat = np.concatenate
+
+    idx1, idx2, idx = mast3r_ga.merge_corres(cat(idx1), cat(idx2), (H1, W1), (H2, W2), ret_xy=False, ret_index=True)
+
+    shape1 = (H1, W1)
+    shape2 = (H2, W2)
+    xy1 = np.unravel_index(idx1, shape1)
+    xy2 = np.unravel_index(idx2, shape2)
+    xy1 = xy1[0].base[:, ::-1]
+    xy2 = xy2[0].base[:, ::-1]
+
+    # corres = np.unique(np.c_[idx2, idx1].view(np.int64), return_index=ret_index)
+    corres = (idx1, idx2, xy1.copy(), xy2.copy(), np.sqrt(cat(qonf1)[idx] * cat(qonf2)[idx]))
+
+    return corres
+
+
 class Mast3rCorrespondenceGenerator(CorrespondenceGeneratorBase):
     """Base class for correspondence generators."""
 
@@ -119,7 +190,7 @@ class Mast3rCorrespondenceGenerator(CorrespondenceGeneratorBase):
             List of keypoints, one entry for each input images.
             Putative correspondence as indices of keypoints, for pairs of images.
         """
-        device = torch.device("cpu")
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         model = AsymmetricMASt3R.from_pretrained(MODEL_PATH).eval()
         chkpt_tag = hash_md5(MODEL_PATH)
 
@@ -134,23 +205,23 @@ class Mast3rCorrespondenceGenerator(CorrespondenceGeneratorBase):
             with torch.no_grad():
                 model = model.to(device)
 
-                res = mast3r_ga.symmetric_inference(model, image1_proc, image2_proc, device=device)
+                res = symmetric_inference(model, image1_proc, image2_proc, device=device)
                 X11, X21, X22, X12 = [r["pts3d"][0] for r in res]
                 C11, C21, C22, C12 = [r["conf"][0] for r in res]
                 descs = [r["desc"][0] for r in res]
                 qonfs = [r["desc_conf"][0] for r in res]
 
-                matches_im1, matches_im2, scores = mast3r_ga.extract_correspondences(
+                idx1, idx2, matches_im1, matches_im2, scores = extract_correspondences(
                     descs, qonfs, device=device, subsample=subsample
                 )
                 conf_score = (C11.mean() * C12.mean() * C21.mean() * C22.mean()).sqrt().sqrt()
                 # TODO: we dont currently use this
                 matching_score = (float(conf_score), float(scores.sum()), len(scores))
 
-                matches_im1 = ((matches_im1.cpu().numpy() + np.array(crop1)) + 0.5) / scale1
-                matches_im2 = ((matches_im2.cpu().numpy() + np.array(crop2)) + 0.5) / scale2
+                matches_im1 = ((matches_im1 + np.array(crop1)) + 0.5) / scale1
+                matches_im2 = ((matches_im2 + np.array(crop2)) + 0.5) / scale2
 
-            return (Keypoints(matches_im1), Keypoints(matches_im2))
+            return (matches_im1, matches_im2, idx1, idx2)
 
         pairwise_correspondence_futures = {
             (i1, i2): client.submit(
@@ -161,9 +232,38 @@ class Mast3rCorrespondenceGenerator(CorrespondenceGeneratorBase):
             )
             for i1, i2 in image_pairs
         }
-        pairwise_correspondences: Dict[Tuple[int, int], Tuple[Keypoints, Keypoints]] = client.gather(
-            pairwise_correspondence_futures
+        pairwise_correspondences: Dict[Tuple[int, int], Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]] = (
+            client.gather(pairwise_correspondence_futures)
         )
+        logger.info("Computed correspondences for %d edges, aggregating them...", len(pairwise_correspondence_futures))
 
-        keypoints_list, putative_corr_idxs_dict = self._aggregator.aggregate(keypoints_dict=pairwise_correspondences)
+        keypoints_for_image = {}
+        indices_for_image = {}
+        putative_corr_idxs_dict = {}
+
+        def update_keypoints(image_idx, keypoints, keypoints_idx):
+            existing_idx = indices_for_image.get(image_idx, np.array([], dtype=np.int64))
+            indices_for_image[image_idx], unique_idx = np.unique(
+                np.concatenate([existing_idx, keypoints_idx]), return_index=True
+            )
+            existing_keypoints = keypoints_for_image.get(image_idx, np.array([], dtype=np.float32).reshape(0, 2))
+            keypoints_for_image[image_idx] = np.vstack([existing_keypoints, keypoints])[unique_idx]
+
+        for (i1, i2), (keypoints_i1, keypoints_i2, idx1, idx2) in pairwise_correspondences.items():
+            update_keypoints(i1, keypoints_i1, idx1)
+            update_keypoints(i2, keypoints_i2, idx2)
+
+        for (i1, i2), (keypoints_i1, keypoints_i2, idx1, idx2) in pairwise_correspondences.items():
+            kp_idx1 = (indices_for_image[i1][None, :] == idx1[:, None]).argmax(axis=1)
+            kp_idx2 = (indices_for_image[i2][None, :] == idx2[:, None]).argmax(axis=1)
+            putative_corr_idxs_dict[(i1, i2)] = np.stack([kp_idx1, kp_idx2], axis=-1).astype(np.int64)
+
+        max_idx = max(keypoints_for_image.keys())
+        keypoints_list: List[Keypoints] = [Keypoints(coordinates=np.array([]))] * (max_idx + 1)
+
+        for i, kps in keypoints_for_image.items():
+            keypoints_list[i] = Keypoints(coordinates=kps)
+
+        logger.info("Finished correspondence aggregation!")
+
         return keypoints_list, putative_corr_idxs_dict
