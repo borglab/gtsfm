@@ -12,7 +12,7 @@ import hydra
 import numpy as np
 from dask import config as dask_config
 from dask.distributed import Client, LocalCluster, SSHCluster, performance_report
-from gtsam import Rot3, Unit3
+from gtsam import Rot3, Unit3, NonlinearFactorGraph, Values, Symbol, noiseModel, PriorFactorPose3, LevenbergMarquardtOptimizer, Pose3
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
 
@@ -290,6 +290,8 @@ class GtsfmRunnerBase:
         if graph_partitioner is None:
             graph_partitioner = SinglePartition()
 
+        print("Heyoo!")
+
         # Create dask cluster.
         if self.parsed_args.cluster_config:
             cluster = self.setup_ssh_cluster_with_retries()
@@ -516,4 +518,73 @@ def save_metrics_reports(metrics_group_list: List[GtsfmMetricsGroup], metrics_pa
         metrics_group_list, os.path.join(metrics_path, "gtsfm_metrics_report.html"), None
     )
 
+def merge_two_partition_results(poses1: dict[int, gtsam.Pose3], 
+                                poses2: dict[int, gtsam.Pose3]) -> dict[int, gtsam.Pose3]:
+    """
+    Merges poses from two partitions (dictionaries mapping camera index to Pose3).
+
+    Assumes poses1 are relative to frame 'a' and poses2 are relative to frame 'b'.
+    Finds the transformation 'aTb' (from frame 'b' to frame 'a') using
+    cameras present in both dictionaries (overlapping nodes). Then transforms
+    all poses from partition 2 into frame 'a' and merges them with partition 1.
+
+    Args:
+        poses1: Dictionary {camera_index: pose_in_frame_a}.
+        poses2: Dictionary {camera_index: pose_in_frame_b}.
+
+    Returns:
+        A merged dictionary {camera_index: pose_in_frame_a}.
+
+    Raises:
+        ValueError: If no overlapping cameras are found between the two partitions.
+    """
+
+    overlapping_keys = []
+    overlapping_pose_pairs = [] #Stores tuples of (pose_a, pose_b) for overlapping nodes
+
+    for k, pose_a in poses1.items():
+        if k in poses2:
+            overlapping_keys.append(k)
+            pose_b = poses2[k]
+            overlapping_pose_pairs.append((pose_a, pose_b)) 
+
+    if not overlapping_keys:
+        raise ValueError("No overlapping cameras found between the two partitions. Cannot merge.")
     
+    #Using Factor Graph to estimate the transformation between the poses
+
+    graph = NonlinearFactorGraph()
+    initial = Values()
+
+    aTb_key = Symbol('x', 0)
+
+
+    # Adjust sigma based on expected consistency between partitions. 0.1 is a starting guess.
+    measurement_noise = noiseModel.Isotropic.Sigma(6, 0.1) #.1 std for 6dof
+
+    for aTi, bTi in overlapping_pose_pairs:
+        aTb_i = aTi.compose(bTi.inverse())
+        factor = PriorFactorPose3(aTb_key.key(), aTb_i, measurement_noise)
+        graph.add(factor)
+
+    # Estimate can be first value or just an identity matrix
+    initial.insert(aTb_key.key(), overlapping_pose_pairs[0][0].compose(overlapping_pose_pairs[0][1].inverse()))
+
+    # Optimize to find the best-fit aTb
+    try:
+        optimizer = gtsam.LevenbergMarquardtOptimizer(graph, initial)
+        result = optimizer.optimize()
+        aTb_optimized = result.atPose3(aTb_key)
+        print(f"Optimized aTb (Transformation from partition 2 frame to partition 1 frame):\n{aTb_optimized}")
+    except Exception as e:
+        print(f"GTSAM optimization failed: {e}")
+        raise RuntimeError(f"GTSAM optimization failed during merging: {e}") from e
+    
+    merged_poses = poses1.copy()
+    overlapping_keys_set = set(overlapping_keys)
+
+    for k, bTi in poses2.items():
+        if k not in overlapping_keys_set:
+            merged_poses[k] = aTb_optimized.compose(bTi)
+
+    return merged_poses
