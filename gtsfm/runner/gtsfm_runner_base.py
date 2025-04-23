@@ -518,8 +518,8 @@ def save_metrics_reports(metrics_group_list: List[GtsfmMetricsGroup], metrics_pa
         metrics_group_list, os.path.join(metrics_path, "gtsfm_metrics_report.html"), None
     )
 
-def merge_two_partition_results(poses1: dict[int, gtsam.Pose3], 
-                                poses2: dict[int, gtsam.Pose3]) -> dict[int, gtsam.Pose3]:
+def merge_two_partition_results(poses1: dict[int, Pose3], 
+                                poses2: dict[int, Pose3]) -> dict[int, Pose3]:
     """
     Merges poses from two partitions (dictionaries mapping camera index to Pose3).
 
@@ -572,7 +572,7 @@ def merge_two_partition_results(poses1: dict[int, gtsam.Pose3],
 
     # Optimize to find the best-fit aTb
     try:
-        optimizer = gtsam.LevenbergMarquardtOptimizer(graph, initial)
+        optimizer = LevenbergMarquardtOptimizer(graph, initial)
         result = optimizer.optimize()
         aTb_optimized = result.atPose3(aTb_key)
         print(f"Optimized aTb (Transformation from partition 2 frame to partition 1 frame):\n{aTb_optimized}")
