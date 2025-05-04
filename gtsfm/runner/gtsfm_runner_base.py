@@ -5,7 +5,7 @@ import os
 import time
 from abc import abstractmethod, abstractproperty
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Set
 
 import dask
 import hydra
@@ -518,15 +518,128 @@ def save_metrics_reports(metrics_group_list: List[GtsfmMetricsGroup], metrics_pa
         metrics_group_list, os.path.join(metrics_path, "gtsfm_metrics_report.html"), None
     )
 
-def merge_two_partition_results(poses1: dict[int, Pose3], 
-                                poses2: dict[int, Pose3]) -> dict[int, Pose3]:
+def _get_overlapping_keys(poses1: Dict[int, Pose3], poses2: Dict[int, Pose3]) -> List[int]:
+    """Returns keys present in both pose dictionaries, raising ValueError if none."""
+    keys = [k for k in poses1 if k in poses2]
+    if not keys:
+        raise ValueError("No overlapping cameras found between the partitions.")
+    return keys
+
+def _get_overlapping_pose_pairs(
+    poses1: Dict[int, Pose3], poses2: Dict[int, Pose3], keys: List[int]
+) -> List[Tuple[Pose3, Pose3]]:
+    """Returns list of (pose_a, pose_b) tuples for given overlapping keys."""
+    return [(poses1[k], poses2[k]) for k in keys]
+
+def _get_overlap_data(
+    poses1: Dict[int, Pose3], poses2: Dict[int, Pose3]
+) -> Tuple[List[int], List[Tuple[Pose3, Pose3]]]:
+    """Gets keys and pose pairs for overlapping cameras."""
+    keys = _get_overlapping_keys(poses1, poses2)
+    pairs = _get_overlapping_pose_pairs(poses1, poses2, keys)
+    return keys, pairs
+
+def _get_noise_model() -> noiseModel.Base:
+    """Defines the noise model for the prior factors."""
+    # Using Diagonal noise based on previous debugging, tune if needed.
+    sigmas = np.array([0.1] * 3 + [0.1] * 3) # [rot_x, rot_y, rot_z, tx, ty, tz]
+    return noiseModel.Diagonal.Sigmas(sigmas)
+
+def _create_aTb_factors(
+    overlapping_pose_pairs: List[Tuple[Pose3, Pose3]],
+    aTb_key: Symbol,
+    noise_model: noiseModel.Base,
+) -> NonlinearFactorGraph:
+    """Creates a factor graph with prior factors on aTb from overlapping poses."""
+    graph = NonlinearFactorGraph()
+    for pose_a, pose_b in overlapping_pose_pairs:
+        graph.add(PriorFactorPose3(aTb_key.key(), pose_a.compose(pose_b.inverse()), noise_model))
+    return graph
+
+def _create_aTb_initial_estimate(aTb_key: Symbol) -> Values:
+    """Creates the initial Values object with an identity estimate for aTb."""
+    initial = Values()
+    initial.insert(aTb_key.key(), Pose3()) # Use Identity Pose3
+    return initial
+
+def _prepare_graph_and_initial(
+    overlapping_pairs: List[Tuple[Pose3, Pose3]], aTb_key: Symbol
+) -> Tuple[NonlinearFactorGraph, Values]:
+    """Prepare graph and initial values for optimization."""
+    noise = _get_noise_model()
+    graph = _create_aTb_factors(overlapping_pairs, aTb_key, noise)
+    initial = _create_aTb_initial_estimate(aTb_key)
+    return graph, initial
+
+def _run_optimization(graph: NonlinearFactorGraph, initial: Values) -> Values:
+    """Runs the optimizer and returns the result values."""
+    optimizer = LevenbergMarquardtOptimizer(graph, initial)
+    result = optimizer.optimize()
+    return result
+
+def _optimize_graph_safe(graph: NonlinearFactorGraph, initial: Values) -> Values:
+    """Optimizes graph, wrapping optimization call in try-except."""
+    try:
+        return _run_optimization(graph, initial)
+    except Exception as e:
+        raise RuntimeError(f"GTSAM optimization failed during merging: {e}") from e
+
+def _extract_optimized_aTb(result: Values, aTb_key: Symbol) -> Pose3:
+    """Extracts the optimized Pose3 transformation from the Values object."""
+    aTb_optimized = result.atPose3(aTb_key.key())
+    print(f"Optimized aTb (from partition 2 frame to 1 frame):\n{aTb_optimized}")
+    return aTb_optimized
+
+def _run_and_extract_transform(
+    graph: NonlinearFactorGraph, initial: Values, aTb_key: Symbol
+) -> Pose3:
+    """Run optimization and extract the resulting transform."""
+    result = _optimize_graph_safe(graph, initial)
+    aTb = _extract_optimized_aTb(result, aTb_key)
+    return aTb
+
+def _calculate_transform(
+    overlapping_pairs: List[Tuple[Pose3, Pose3]]
+) -> Pose3:
+    """Calculates the relative transform aTb between partitions."""
+    aTb_key = Symbol('x', 0) # Define the key for the transform
+    graph, initial = _prepare_graph_and_initial(overlapping_pairs, aTb_key)
+    aTb = _run_and_extract_transform(graph, initial, aTb_key)
+    return aTb
+
+def _transform_and_add_new_poses(
+    merged_poses: Dict[int, Pose3],
+    poses2: Dict[int, Pose3],
+    overlapping_keys_set: Set[int],
+    aTb_optimized: Pose3,
+) -> None:
+    """Adds transformed non-overlapping poses from poses2 to merged_poses."""
+    for k, bTi in poses2.items():
+        if k not in overlapping_keys_set:
+            merged_poses[k] = aTb_optimized.compose(bTi)
+
+def _merge_poses_final(
+    poses1: Dict[int, Pose3],
+    poses2: Dict[int, Pose3],
+    overlapping_keys: List[int],
+    aTb_optimized: Pose3,
+) -> Dict[int, Pose3]:
+    """Performs the final merge operation using the calculated transform."""
+    merged = poses1.copy()
+    _transform_and_add_new_poses(merged, poses2, set(overlapping_keys), aTb_optimized)
+    return merged
+
+# --- Main Orchestrating Function ---
+
+def merge_two_partition_results(
+    poses1: Dict[int, Pose3], poses2: Dict[int, Pose3]
+) -> Dict[int, Pose3]:
     """
-    Merges poses from two partitions (dictionaries mapping camera index to Pose3).
+    Merges poses from two partitions by finding and applying relative transform aTb.
 
     Assumes poses1 are relative to frame 'a' and poses2 are relative to frame 'b'.
-    Finds the transformation 'aTb' (from frame 'b' to frame 'a') using
-    cameras present in both dictionaries (overlapping nodes). Then transforms
-    all poses from partition 2 into frame 'a' and merges them with partition 1.
+    Finds 'aTb' (from frame 'b' to frame 'a') via overlapping poses.
+    Transforms non-overlapping poses from partition 2 into frame 'a' and merges.
 
     Args:
         poses1: Dictionary {camera_index: pose_in_frame_a}.
@@ -537,54 +650,8 @@ def merge_two_partition_results(poses1: dict[int, Pose3],
 
     Raises:
         ValueError: If no overlapping cameras are found between the two partitions.
+        RuntimeError: If GTSAM optimization fails.
     """
-
-    overlapping_keys = []
-    overlapping_pose_pairs = [] #Stores tuples of (pose_a, pose_b) for overlapping nodes
-
-    for k, pose_a in poses1.items():
-        if k in poses2:
-            overlapping_keys.append(k)
-            pose_b = poses2[k]
-            overlapping_pose_pairs.append((pose_a, pose_b)) 
-
-    if not overlapping_keys:
-        raise ValueError("No overlapping cameras found between the two partitions. Cannot merge.")
-    
-    #Using Factor Graph to estimate the transformation between the poses
-
-    graph = NonlinearFactorGraph()
-    initial = Values()
-
-    aTb_key = Symbol('x', 0)
-
-
-    # Adjust sigma based on expected consistency between partitions. 0.1 is a starting guess.
-    measurement_noise = noiseModel.Isotropic.Sigma(6, 0.1) #.1 std for 6dof
-
-    for aTi, bTi in overlapping_pose_pairs:
-        aTb_i = aTi.compose(bTi.inverse())
-        factor = PriorFactorPose3(aTb_key.key(), aTb_i, measurement_noise)
-        graph.add(factor)
-
-    # Estimate can be first value or just an identity matrix
-    initial.insert(aTb_key.key(), overlapping_pose_pairs[0][0].compose(overlapping_pose_pairs[0][1].inverse()))
-
-    # Optimize to find the best-fit aTb
-    try:
-        optimizer = LevenbergMarquardtOptimizer(graph, initial)
-        result = optimizer.optimize()
-        aTb_optimized = result.atPose3(aTb_key)
-        print(f"Optimized aTb (Transformation from partition 2 frame to partition 1 frame):\n{aTb_optimized}")
-    except Exception as e:
-        print(f"GTSAM optimization failed: {e}")
-        raise RuntimeError(f"GTSAM optimization failed during merging: {e}") from e
-    
-    merged_poses = poses1.copy()
-    overlapping_keys_set = set(overlapping_keys)
-
-    for k, bTi in poses2.items():
-        if k not in overlapping_keys_set:
-            merged_poses[k] = aTb_optimized.compose(bTi)
-
-    return merged_poses
+    keys, pairs = _get_overlap_data(poses1, poses2)
+    aTb = _calculate_transform(pairs)
+    return _merge_poses_final(poses1, poses2, keys, aTb)
