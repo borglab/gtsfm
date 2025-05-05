@@ -1,3 +1,6 @@
 [submodule "thirdparty/LightGlue"]
 	path = thirdparty/LightGlue
 	url = https://github.com/cvg/LightGlue.git
+[submodule "thirdparty/pyvlfeat"]
+	path = thirdparty/pyvlfeat
+	url = https://github.com/u1234x1234/pyvlfeat.git
