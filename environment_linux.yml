@@ -28,6 +28,8 @@ dependencies:
   - seaborn
   - scipy
   - hydra-core
+  - cxx-compiler
+  - boost==1.78.0
   # # 3rd party algorithms for different modules
   - kornia>=0.7.3
   - pycolmap
@@ -49,3 +51,4 @@ dependencies:
       - trimesh[easy]
       - gtsam>=4.2
       - pydot
+      - -e ./thirdparty/pyvlfeat
