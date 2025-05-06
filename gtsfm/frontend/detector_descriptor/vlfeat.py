@@ -10,11 +10,11 @@ References:
 
 Authors: Matthew Woodward
 """
+import copy
 from typing import Tuple
 
-import vlfeat
 import numpy as np
-import copy
+import vlfeat
 
 import gtsfm.utils.images as image_utils
 from gtsfm.common.image import Image
