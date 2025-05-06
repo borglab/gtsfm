@@ -31,6 +31,8 @@ dependencies:
   - seaborn
   - scipy
   - hydra-core
+  - cxx-compiler
+  - boost=1.78.0
   # Third-party algorithms for different modules
   - kornia>=0.7.3
   # I/O
