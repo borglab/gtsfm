@@ -1,0 +1,60 @@
+name: gtsfm-v1
+channels:
+  # The GTSFM mac environment closely follows the linux conda environment file,
+  # except for two noticeable differences: no CUDA support and no DEGENSAC support.
+  #
+  # for priority order, we prefer pytorch as the highest priority as it supplies
+  # latest stable packages for numerous deep learning based methods. conda-forge
+  # supplies higher versions of packages like opencv compared to the defaults
+  # channel.
+  - open3d-admin
+  - pytorch
+  - conda-forge
+dependencies:
+  # python essentials
+  - python=3.10
+  - pip
+  # formatting and dev environment
+  - black
+  - coverage
+  - mypy
+  - pylint
+  - pytest
+  - flake8
+  - isort
+  # dask and related
+  - dask # same as dask[complete] pip distribution
+  - asyncssh
+  - python-graphviz
+  # core functionality and APIs
+  - matplotlib>=3.5
+  - networkx
+  - numpy==1.26.4 # gtsam requirement
+  - nodejs
+  - pandas
+  - pillow>=9.0.0
+  - scikit-learn
+  - seaborn
+  - scipy
+  - hydra-core
+  # 3rd party algorithms for different modules
+  - kornia>=0.7.3
+  # io
+  - h5py
+  - plotly>=5.0
+  - tabulate
+  - simplejson
+  - pyparsing>=3.0.9
+  - pycolmap
+  - open3d
+  - dash>=2.6.0
+  - metis
+  # testing
+  - parameterized
+  - pip:
+      - opencv-python>=4.5.4.60
+      - pydegensac
+      - colour
+      - trimesh[easy]
+      - gtsam>=4.2
+      - pydot
