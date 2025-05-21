@@ -1,3 +1,7 @@
+"""Unit tests for merging partitions functionality.
+
+Authors: Richi Dubey
+"""
 import unittest
 import numpy as np
 
