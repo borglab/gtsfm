@@ -219,6 +219,32 @@ def setup_cluster_infrastructure(config):
 def main():
     """Main function containing all computational logic"""
     
+    # === LOCAL VERSION CHECKING ===
+    import os
+    import subprocess
+    import socket
+    
+    hostname = socket.gethostname()
+    
+    try:
+        git_hash = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode().strip()[:8]
+        git_branch = subprocess.check_output(['git', 'branch', '--show-current']).decode().strip()
+        print(f"LOCAL VERSION CHECK: Host={hostname}, Branch={git_branch}, Commit={git_hash}")
+    except:
+        print(f"LOCAL VERSION CHECK: Host={hostname}, Git info unavailable")
+    
+    # Check local Keypoints file
+    try:
+        keypoints_file = 'gtsfm/common/keypoints.py'
+        mtime = os.path.getmtime(keypoints_file)
+        import datetime
+        mod_time = datetime.datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')
+        print(f"LOCAL VERSION CHECK: Keypoints.py modified at {mod_time}")
+    except:
+        print(f"LOCAL VERSION CHECK: Could not check keypoints.py modification time")
+    
+    # === END LOCAL VERSION CHECKING ===
+    
     # Load configuration
     config = load_config()
     

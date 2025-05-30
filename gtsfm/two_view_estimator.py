@@ -677,33 +677,95 @@ def run_two_view_estimator_as_futures(
         gt_scene_mesh: Optional[Any] = None,
     ) -> TWO_VIEW_OUTPUT:
         
+        # === VERSION CHECKING ===
+        import os
+        import subprocess
+        import socket
+        
+        hostname = socket.gethostname()
+        
+        # Get git commit hash and branch
+        try:
+            # Get current directory where gtsfm is located
+            gtsfm_path = os.path.dirname(os.path.dirname(__file__))
+            
+            # Get git commit hash
+            git_hash = subprocess.check_output(
+                ['git', 'rev-parse', 'HEAD'], 
+                cwd=gtsfm_path, 
+                stderr=subprocess.DEVNULL
+            ).decode().strip()[:8]
+            
+            # Get git branch
+            git_branch = subprocess.check_output(
+                ['git', 'branch', '--show-current'], 
+                cwd=gtsfm_path,
+                stderr=subprocess.DEVNULL
+            ).decode().strip()
+            
+            print(f"WORKER VERSION CHECK: Host={hostname}, Branch={git_branch}, Commit={git_hash}")
+        except:
+            print(f"WORKER VERSION CHECK: Host={hostname}, Git info unavailable")
+        
+        # Check the Keypoints file modification time
+        try:
+            keypoints_file = os.path.join(gtsfm_path, 'gtsfm', 'common', 'keypoints.py')
+            mtime = os.path.getmtime(keypoints_file)
+            import datetime
+            mod_time = datetime.datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')
+            print(f"WORKER VERSION CHECK: Keypoints.py modified at {mod_time}")
+        except:
+            print(f"WORKER VERSION CHECK: Could not check keypoints.py modification time")
+        
+        # === END VERSION CHECKING ===
+        
         # DEBUG: Check what we received
         print(f"DEBUG: keypoints_data_i1 keys: {keypoints_data_i1.keys()}")
         print(f"DEBUG: coordinates type: {type(keypoints_data_i1['coordinates'])}")
         print(f"DEBUG: coordinates value: {keypoints_data_i1['coordinates']}")
         
+        # CRITICAL FIX: Ensure coordinates are NumPy arrays
+        def ensure_numpy_array(data):
+            if isinstance(data, np.ndarray):
+                return data
+            elif hasattr(data, 'coordinates') and isinstance(data.coordinates, np.ndarray):
+                # If it's a Keypoints object, extract the coordinates
+                print(f"DEBUG: Extracting coordinates from Keypoints object")
+                return data.coordinates
+            else:
+                # Try to convert to array
+                print(f"DEBUG: Converting to numpy array")
+                return np.array(data)
+        
         try:
+            # Fix coordinates before creating Keypoints
+            coords_i1 = ensure_numpy_array(keypoints_data_i1['coordinates'])
+            coords_i2 = ensure_numpy_array(keypoints_data_i2['coordinates'])
+            
+            print(f"DEBUG: Fixed coords_i1 type: {type(coords_i1)}, shape: {getattr(coords_i1, 'shape', 'NO SHAPE')}")
+            
             # Reconstruct Keypoints objects from basic data
             keypoints_i1 = Keypoints(
-                coordinates=keypoints_data_i1['coordinates'],
+                coordinates=coords_i1,
                 scales=keypoints_data_i1['scales'],
                 responses=keypoints_data_i1['responses']
             )
             
-            # DEBUG: Check what we created
-            print(f"DEBUG: Created keypoints_i1.coordinates type: {type(keypoints_i1.coordinates)}")
-            print(f"DEBUG: Created keypoints_i1.coordinates shape: {getattr(keypoints_i1.coordinates, 'shape', 'NO SHAPE')}")
-            
-            if 'image_id' in keypoints_data_i1:
-                keypoints_i1.image_id = keypoints_data_i1['image_id']
-            
             keypoints_i2 = Keypoints(
-                coordinates=keypoints_data_i2['coordinates'],
+                coordinates=coords_i2,
                 scales=keypoints_data_i2['scales'],
                 responses=keypoints_data_i2['responses']
             )
+            
+            # Set image IDs
+            if 'image_id' in keypoints_data_i1:
+                keypoints_i1.image_id = keypoints_data_i1['image_id']
             if 'image_id' in keypoints_data_i2:
                 keypoints_i2.image_id = keypoints_data_i2['image_id']
+            
+            # DEBUG: Verify the fix worked
+            print(f"DEBUG: Final keypoints_i1.coordinates type: {type(keypoints_i1.coordinates)}")
+            print(f"DEBUG: Final keypoints_i1.coordinates shape: {keypoints_i1.coordinates.shape}")
             
         except Exception as e:
             print(f"DEBUG: Error during Keypoints creation: {e}")
