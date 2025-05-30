@@ -237,8 +237,7 @@ def main():
     try:
         keypoints_file = 'gtsfm/common/keypoints.py'
         mtime = os.path.getmtime(keypoints_file)
-        import datetime
-        mod_time = datetime.datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')
+        mod_time = datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')
         print(f"LOCAL VERSION CHECK: Keypoints.py modified at {mod_time}")
     except:
         print(f"LOCAL VERSION CHECK: Could not check keypoints.py modification time")

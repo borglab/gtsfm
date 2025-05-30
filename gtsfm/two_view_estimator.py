@@ -681,6 +681,7 @@ def run_two_view_estimator_as_futures(
         import os
         import subprocess
         import socket
+        from datetime import datetime
         
         hostname = socket.gethostname()
         
@@ -711,8 +712,7 @@ def run_two_view_estimator_as_futures(
         try:
             keypoints_file = os.path.join(gtsfm_path, 'gtsfm', 'common', 'keypoints.py')
             mtime = os.path.getmtime(keypoints_file)
-            import datetime
-            mod_time = datetime.datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')
+            mod_time = datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')
             print(f"WORKER VERSION CHECK: Keypoints.py modified at {mod_time}")
         except:
             print(f"WORKER VERSION CHECK: Could not check keypoints.py modification time")
