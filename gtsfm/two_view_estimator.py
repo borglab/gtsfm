@@ -676,22 +676,40 @@ def run_two_view_estimator_as_futures(
         gt_camera_i2: Optional[gtsfm_types.CAMERA_TYPE],
         gt_scene_mesh: Optional[Any] = None,
     ) -> TWO_VIEW_OUTPUT:
-        # Reconstruct Keypoints objects from basic data
-        keypoints_i1 = Keypoints(
-            coordinates=keypoints_data_i1['coordinates'],
-            scales=keypoints_data_i1['scales'],
-            responses=keypoints_data_i1['responses']
-        )
-        if 'image_id' in keypoints_data_i1:
-            keypoints_i1.image_id = keypoints_data_i1['image_id']
         
-        keypoints_i2 = Keypoints(
-            coordinates=keypoints_data_i2['coordinates'],
-            scales=keypoints_data_i2['scales'],
-            responses=keypoints_data_i2['responses']
-        )
-        if 'image_id' in keypoints_data_i2:
-            keypoints_i2.image_id = keypoints_data_i2['image_id']
+        # DEBUG: Check what we received
+        print(f"DEBUG: keypoints_data_i1 keys: {keypoints_data_i1.keys()}")
+        print(f"DEBUG: coordinates type: {type(keypoints_data_i1['coordinates'])}")
+        print(f"DEBUG: coordinates value: {keypoints_data_i1['coordinates']}")
+        
+        try:
+            # Reconstruct Keypoints objects from basic data
+            keypoints_i1 = Keypoints(
+                coordinates=keypoints_data_i1['coordinates'],
+                scales=keypoints_data_i1['scales'],
+                responses=keypoints_data_i1['responses']
+            )
+            
+            # DEBUG: Check what we created
+            print(f"DEBUG: Created keypoints_i1.coordinates type: {type(keypoints_i1.coordinates)}")
+            print(f"DEBUG: Created keypoints_i1.coordinates shape: {getattr(keypoints_i1.coordinates, 'shape', 'NO SHAPE')}")
+            
+            if 'image_id' in keypoints_data_i1:
+                keypoints_i1.image_id = keypoints_data_i1['image_id']
+            
+            keypoints_i2 = Keypoints(
+                coordinates=keypoints_data_i2['coordinates'],
+                scales=keypoints_data_i2['scales'],
+                responses=keypoints_data_i2['responses']
+            )
+            if 'image_id' in keypoints_data_i2:
+                keypoints_i2.image_id = keypoints_data_i2['image_id']
+            
+        except Exception as e:
+            print(f"DEBUG: Error during Keypoints creation: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
         
         return two_view_estimator.run_2view(
             keypoints_i1=keypoints_i1,

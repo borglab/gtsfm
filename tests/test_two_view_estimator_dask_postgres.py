@@ -46,6 +46,23 @@ from gtsfm.data_association.point3d_initializer import (
     TriangulationSamplingMode,
 )
 
+# Move all process management to global scope
+processes = []
+
+def cleanup():
+    """Terminate all started processes"""
+    for p in processes:
+        if p.poll() is None:
+            try:
+                p.terminate()
+                p.wait(timeout=5)
+            except:
+                p.kill()
+    print("All cluster processes cleaned up.")
+
+# Register cleanup globally
+atexit.register(cleanup)
+
 def check_port_in_use(port):
     """Check if a port is in use"""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -124,21 +141,6 @@ def initialize_database(db_params):
 
 def setup_cluster_infrastructure(config):
     """Set up SSH tunnels and start Dask scheduler"""
-    processes = []
-    
-    def cleanup():
-        """Terminate all started processes"""
-        for p in processes:
-            if p.poll() is None:
-                try:
-                    p.terminate()
-                    p.wait(timeout=5)
-                except:
-                    p.kill()
-        print("All cluster processes cleaned up.")
-    
-    atexit.register(cleanup)
-    
     # Extract configuration
     username = config['username']
     scheduler_port = config['scheduler']['port']
@@ -448,7 +450,13 @@ def main():
                     f.write("  - Relative pose estimation failed\n")
 
         print(f"\nAll results saved to: {results_dir}")
-    
+        
+        # Keep processes alive
+        print("Processes will continue running. Press Ctrl+C to stop...")
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("Termination signal received, cleaning up...")
     finally:
         # Clean up
         client.close()
