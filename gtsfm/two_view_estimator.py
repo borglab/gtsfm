@@ -1,11 +1,15 @@
 """Estimator which operates on a pair of images to compute relative pose and verified indices.
 
-Authors: Ayush Baid, John Lambert
+Authors: Ayush Baid, John Lambert, Zongyue Liu
 """
 import dataclasses
 import logging
 import timeit
 from typing import Any, Dict, List, Optional, Tuple
+import json
+import socket
+import time
+from datetime import datetime
 
 from dask.distributed import Client
 import numpy as np
@@ -402,8 +406,6 @@ class TwoViewEstimator(DaskDBModuleBase):
         ) = self.processor.run_inlier_support(post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs, post_ba_report)
 
         # Calculate computation time
-        import socket
-        import time
         start_time = time.time()
         worker_name = socket.gethostname()
         
@@ -469,7 +471,7 @@ class TwoViewEstimator(DaskDBModuleBase):
                 report_query,
                 (keypoints_i1.image_id, keypoints_i2.image_id, datetime.now(), pre_ba_inlier_ratio, post_ba_inlier_ratio, post_isp_inlier_ratio, report_data_json)
             )
-        
+
         return post_isp_i2Ri1, post_isp_i2Ui1, post_isp_v_corr_idxs, pre_ba_report, post_ba_report, post_isp_report
 
 
@@ -651,244 +653,92 @@ def aggregate_frontend_metrics(
 
 
 def run_two_view_estimator_as_futures(
-    client,
-    two_view_estimator,
-    keypoints_list,
-    putative_corr_idxs_dict,
-    camera_intrinsics,
-    relative_pose_priors=None,
-    gt_cameras=None,
-    gt_scene_mesh=None,
-):
-    """
-    在Dask集群上运行两视图估计
-    """
-    # Get database parameters
-    postgres_params = getattr(two_view_estimator, 'postgres_params', None)
-    
-    def process_two_view(
-        estimator, 
-        i1, i2, 
-        keypoints1, keypoints2, 
-        putative_corr_idxs, 
-        camera_intrinsics1, camera_intrinsics2,
-        relative_pose_prior, 
-        gt_camera1, gt_camera2, 
-        gt_scene_mesh,
-        postgres_params
-    ):
-        import socket
-        import json
-        import pickle
-        import numpy as np
-        from datetime import datetime
-        import psycopg2
-        
-        # Inline define PostgresClient on worker to avoid import errors
-        class PostgresClient:
-            def __init__(self, db_params):
-                self.db_params = db_params
-                self.conn = None
-                self.cursor = None
-            
-            def connect(self):
-                try:
-                    if self.conn is None or self.conn.closed:
-                        self.conn = psycopg2.connect(**self.db_params)
-                        self.cursor = self.conn.cursor()
-                    return True
-                except Exception as e:
-                    print(f"数据库连接失败: {e}")
-                    return False
-            
-            def close(self):
-                if self.cursor:
-                    self.cursor.close()
-                    self.cursor = None
-                if self.conn:
-                    self.conn.close()
-                    self.conn = None
-            
-            def execute(self, query, params=None):
-                if not self.connect():
-                    return False
-                
-                try:
-                    self.cursor.execute(query, params)
-                    self.conn.commit()
-                    return True
-                except Exception as e:
-                    print(f"SQL执行失败: {e}")
-                    if self.conn:
-                        self.conn.rollback()
-                    return False
-                finally:
-                    self.close()
-        
-        # Create the database connection if needed
-        db_client = None
-        if postgres_params:
-            db_client = PostgresClient(postgres_params)
-            
-            # Create required tables
-            create_table_query = """
-            CREATE TABLE IF NOT EXISTS two_view_results (
-                id SERIAL PRIMARY KEY,
-                i1 INTEGER NOT NULL,
-                i2 INTEGER NOT NULL,
-                timestamp TIMESTAMP NOT NULL,
-                verified_corr_count INTEGER,
-                inlier_ratio FLOAT,
-                rotation_matrix TEXT,
-                translation_direction TEXT,
-                success BOOLEAN NOT NULL,
-                computation_time FLOAT,
-                worker_name TEXT
-            );
-            """
-            db_client.execute(create_table_query)
-            
-            create_report_table_query = """
-            CREATE TABLE IF NOT EXISTS two_view_reports (
-                id SERIAL PRIMARY KEY,
-                i1 INTEGER NOT NULL,
-                i2 INTEGER NOT NULL,
-                timestamp TIMESTAMP NOT NULL,
-                pre_ba_inlier_ratio FLOAT,
-                post_ba_inlier_ratio FLOAT,
-                post_isp_inlier_ratio FLOAT,
-                report_data TEXT
-            );
-            """
-            db_client.execute(create_report_table_query)
-        
-        # Use the original run_2view method to get results
-        result = estimator.run_2view(
-            keypoints1, keypoints2,
-            putative_corr_idxs,
-            camera_intrinsics1, camera_intrinsics2,
-            relative_pose_prior,
-            gt_camera1, gt_camera2,
-            gt_scene_mesh
+    client: Client,
+    two_view_estimator: TwoViewEstimator,
+    keypoints_list: List[Keypoints],
+    putative_corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
+    camera_intrinsics: List[gtsfm_types.CALIBRATION_TYPE],
+    relative_pose_priors: Dict[Tuple[int, int], PosePrior],
+    gt_cameras: List[Optional[gtsfm_types.CAMERA_TYPE]],
+    gt_scene_mesh: Optional[Any],
+) -> Dict[Tuple[int, int], TWO_VIEW_OUTPUT]:
+    """Run two-view estimator for all image pairs."""
+
+    def apply_two_view_estimator_with_reconstruction(
+        two_view_estimator: TwoViewEstimator,
+        keypoints_data_i1: Dict,
+        keypoints_data_i2: Dict,
+        putative_corr_idxs: np.ndarray,
+        camera_intrinsics_i1: gtsfm_types.CALIBRATION_TYPE,
+        camera_intrinsics_i2: gtsfm_types.CALIBRATION_TYPE,
+        i2Ti1_prior: Optional[PosePrior],
+        gt_camera_i1: Optional[gtsfm_types.CAMERA_TYPE],
+        gt_camera_i2: Optional[gtsfm_types.CAMERA_TYPE],
+        gt_scene_mesh: Optional[Any] = None,
+    ) -> TWO_VIEW_OUTPUT:
+        # Reconstruct Keypoints objects from basic data
+        keypoints_i1 = Keypoints(
+            coordinates=keypoints_data_i1['coordinates'],
+            scales=keypoints_data_i1['scales'],
+            responses=keypoints_data_i1['responses']
         )
+        if 'image_id' in keypoints_data_i1:
+            keypoints_i1.image_id = keypoints_data_i1['image_id']
         
-        # Manually write results into the database
-        if db_client:
-            worker_name = socket.gethostname()
-            import time
-            start_time = time.time()
-            
-            i2Ri1, i2Ui1, v_corr_idxs, pre_ba_report, post_ba_report, post_isp_report = result
-            
-            success = (i2Ri1 is not None and i2Ui1 is not None)
-            
-            # Serialize rotation matrix and translation direction
-            def serialize_matrix(matrix):
-                if matrix is None:
-                    return None
-                
-                if isinstance(matrix, np.ndarray):
-                    return json.dumps(matrix.tolist())
-                
-                try:
-                    return json.dumps(matrix)
-                except:
-                    return pickle.dumps(matrix).hex()
-            
-            rotation_matrix = None
-            translation_direction = None
-            if success:
-                # Serialize rotation matrix and translation direction
-                if hasattr(i2Ri1, 'matrix'):
-                    rotation_matrix = serialize_matrix(i2Ri1.matrix())
-                else:
-                    rotation_matrix = serialize_matrix(i2Ri1)
-                
-                if hasattr(i2Ui1, 'point3'):
-                    translation_direction = serialize_matrix(i2Ui1.point3())
-                else:
-                    translation_direction = serialize_matrix(i2Ui1)
-            
-            # Get number of verified correspondences and inlier ratio
-            verified_corr_count = len(v_corr_idxs) if v_corr_idxs is not None else 0
-            inlier_ratio = post_isp_report.inlier_ratio_est_model if post_isp_report else 0.0
-            
-            # Insert results into the two_view_results table
-            insert_query = """
-            INSERT INTO two_view_results 
-            (i1, i2, timestamp, verified_corr_count, inlier_ratio, rotation_matrix, 
-             translation_direction, success, computation_time, worker_name)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """
-            
-            db_client.execute(
-                insert_query,
-                (i1, i2, datetime.now(), verified_corr_count, inlier_ratio, 
-                 rotation_matrix, translation_direction, success, time.time() - start_time, worker_name)
-            )
-            
-            # Save detailed report
-            pre_ba_inlier_ratio = pre_ba_report.inlier_ratio_est_model if pre_ba_report else None
-            post_ba_inlier_ratio = post_ba_report.inlier_ratio_est_model if post_ba_report else None
-            post_isp_inlier_ratio = post_isp_report.inlier_ratio_est_model if post_isp_report else None
-            
-            report_data = {
-                "pre_ba": serialize_matrix(pre_ba_report.__dict__ if pre_ba_report else None),
-                "post_ba": serialize_matrix(post_ba_report.__dict__ if post_ba_report else None),
-                "post_isp": serialize_matrix(post_isp_report.__dict__ if post_isp_report else None)
-            }
-            report_data_json = json.dumps(report_data)
-            
-            report_query = """
-            INSERT INTO two_view_reports
-            (i1, i2, timestamp, pre_ba_inlier_ratio, post_ba_inlier_ratio, post_isp_inlier_ratio, report_data)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-            """
-            
-            db_client.execute(
-                report_query,
-                (i1, i2, datetime.now(), pre_ba_inlier_ratio, post_ba_inlier_ratio, post_isp_inlier_ratio, report_data_json)
-            )
-        
-        return result
-    
-    # Submit tasks to Dask
-    two_view_output_futures = {}
-    
-    for (i1, i2), putative_corr_idxs in putative_corr_idxs_dict.items():
-        # Get relative pose priors if available
-        relative_pose_prior = None
-        if relative_pose_priors and (i1, i2) in relative_pose_priors:
-            relative_pose_prior = relative_pose_priors[(i1, i2)]
-        
-        # Get ground truth cameras if available
-        gt_camera1 = None
-        gt_camera2 = None
-        if gt_cameras:
-            gt_camera1 = gt_cameras[i1]
-            gt_camera2 = gt_cameras[i2]
-        
-        # Submit to Dask
-        future = client.submit(
-            process_two_view,
-            two_view_estimator,
-            i1, i2,
-            keypoints_list[i1], keypoints_list[i2],
-            putative_corr_idxs,
-            camera_intrinsics[i1], camera_intrinsics[i2],
-            relative_pose_prior,
-            gt_camera1, gt_camera2,
-            gt_scene_mesh,
-            postgres_params
+        keypoints_i2 = Keypoints(
+            coordinates=keypoints_data_i2['coordinates'],
+            scales=keypoints_data_i2['scales'],
+            responses=keypoints_data_i2['responses']
         )
+        if 'image_id' in keypoints_data_i2:
+            keypoints_i2.image_id = keypoints_data_i2['image_id']
         
-        two_view_output_futures[(i1, i2)] = future
-    
-    # Collect all task results
-    two_view_output_dict = {}
-    for (i1, i2), future in two_view_output_futures.items():
-        two_view_output_dict[(i1, i2)] = future.result()
-    
+        return two_view_estimator.run_2view(
+            keypoints_i1=keypoints_i1,
+            keypoints_i2=keypoints_i2,
+            putative_corr_idxs=putative_corr_idxs,
+            camera_intrinsics_i1=camera_intrinsics_i1,
+            camera_intrinsics_i2=camera_intrinsics_i2,
+            i2Ti1_prior=i2Ti1_prior,
+            gt_camera_i1=gt_camera_i1,
+            gt_camera_i2=gt_camera_i2,
+            gt_scene_mesh=gt_scene_mesh,
+        )
+
+    # Convert Keypoints to serializable dictionaries
+    keypoints_data_list = []
+    for kp in keypoints_list:
+        keypoints_data_list.append({
+            'coordinates': kp.coordinates,
+            'scales': kp.scales,
+            'responses': kp.responses,
+            'image_id': getattr(kp, 'image_id', None)
+        })
+
+    # Scatter objects to ensure proper serialization
+    two_view_estimator_future = client.scatter(two_view_estimator, broadcast=True)
+    camera_intrinsics_future = client.scatter(camera_intrinsics, broadcast=True)
+    gt_cameras_future = client.scatter(gt_cameras, broadcast=True)
+    gt_scene_mesh_future = client.scatter(gt_scene_mesh, broadcast=True)
+
+    two_view_output_futures = {
+        (i1, i2): client.submit(
+            apply_two_view_estimator_with_reconstruction,
+            two_view_estimator_future,
+            keypoints_data_list[i1],
+            keypoints_data_list[i2],
+            putative_corr_idxs,
+            camera_intrinsics_future[i1],
+            camera_intrinsics_future[i2],
+            relative_pose_priors.get((i1, i2)),
+            gt_cameras_future[i1],
+            gt_cameras_future[i2],
+            gt_scene_mesh_future,
+        )
+        for (i1, i2), putative_corr_idxs in putative_corr_idxs_dict.items()
+    }
+
+    two_view_output_dict = client.gather(two_view_output_futures)
     return two_view_output_dict
 
 

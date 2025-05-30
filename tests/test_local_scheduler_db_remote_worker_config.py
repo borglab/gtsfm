@@ -1,3 +1,29 @@
+"""
+Distributed Dask Cluster Test with PostgreSQL Integration and YAML Configuration
+
+This module implements a toy test example for setting up and running a distributed Dask cluster
+with the following components:
+- Local Dask scheduler with dashboard
+- Remote Dask workers connected via SSH tunnels
+- PostgreSQL database integration for storing computation results
+- YAML-based configuration management
+
+Key Features:
+- Automatic port conflict detection and resolution
+- SSH tunnel establishment for secure remote worker communication
+- Database initialization and result storage
+- Configurable worker and scheduler settings via YAML
+
+Architecture:
+1. Local machine runs the Dask scheduler and PostgreSQL database
+2. SSH tunnels are established to remote servers for secure communication
+3. Remote workers connect to the local scheduler through the tunnels
+4. Workers execute tasks and store results directly in the PostgreSQL database
+5. All configuration is externalized to a YAML file for easy modification
+
+
+Author: Zongyue Liu
+"""
 import subprocess
 import time
 import os

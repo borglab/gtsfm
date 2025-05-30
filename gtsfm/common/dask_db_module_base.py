@@ -1,105 +1,19 @@
-import psycopg2
+"""PostgreSQL database client for GTSFM.
+
+This module provides a client class for interacting with PostgreSQL databases, 
+handling connection management, query execution, and serialization for use 
+within the GTSFM distributed computing environment.
+
+Authors: Zongyue Liu
+"""
 from datetime import datetime
 import pickle
 import numpy as np
 import json
+import logging
+from gtsfm.common.postgres_client import PostgresClient
 
-class PostgresClient:
-    """PostgreSQL database client for handling connections and operations"""
-    
-    def __init__(self, db_params):
-        """
-        Initialize the PostgreSQL client
-        
-        Args:
-            db_params (dict): Database connection parameters including host, port, database, user, and password
-        """
-        self.db_params = db_params
-        self.conn = None
-        self.cursor = None
-    
-    def connect(self):
-        """Establish a database connection"""
-        try:
-            if self.conn is None or self.conn.closed:
-                self.conn = psycopg2.connect(**self.db_params)
-                self.cursor = self.conn.cursor()
-            return True
-        except Exception as e:
-            print(f"Database connection failed: {e}")
-            return False
-    
-    def close(self):
-        """Close the database connection"""
-        if self.cursor:
-            self.cursor.close()
-            self.cursor = None
-        if self.conn:
-            self.conn.close()
-            self.conn = None
-    
-    def execute(self, query, params=None):
-        """
-        Execute an SQL query
-        
-        Args:
-            query (str): SQL query string
-            params (tuple, optional): Query parameters
-            
-        Returns:
-            bool: Whether the execution was successful
-        """
-        # Ensure the connection is created for each operation rather than being held persistently
-        if not self.connect():
-            return False
-        
-        try:
-            self.cursor.execute(query, params)
-            self.conn.commit()
-            return True
-        except Exception as e:
-            print(f"SQL execution failed: {e}")
-            if self.conn:
-                self.conn.rollback()
-            return False
-        finally:
-            # Close the connection after execution to avoid open connections during serialization
-            self.close()
-    
-    def fetch_all(self, query, params=None):
-        """
-        Execute a query and fetch all results
-        
-        Args:
-            query (str): SQL query string
-            params (tuple, optional): Query parameters
-            
-        Returns:
-            list: List of query results, or None if failed
-        """
-        # Ensure the connection is created for each operation rather than being held persistently
-        if not self.connect():
-            return None
-        
-        try:
-            self.cursor.execute(query, params)
-            result = self.cursor.fetchall()
-            return result
-        except Exception as e:
-            print(f"Query execution failed: {e}")
-            return None
-        finally:
-            # Close the connection after execution to avoid open connections during serialization
-            self.close()
-    
-    def __getstate__(self):
-        """Custom serialization to avoid serializing connection objects"""
-        state = self.__dict__.copy()
-        # Do not serialize connection and cursor
-        state['conn'] = None
-        state['cursor'] = None
-        return state
-
+logger = logging.getLogger(__name__)
 
 class DaskDBModuleBase:
     """Base class for all modules running on Dask that interact with the database"""
@@ -131,6 +45,8 @@ class DaskDBModuleBase:
         # Recreate PostgresClient on the worker
         if self.postgres_params:
             self.db = PostgresClient(self.postgres_params)
+            # Initialize database tables if needed
+            self.init_database()
     
     def init_database(self):
         """Override in subclass to initialize required database tables"""
@@ -153,9 +69,62 @@ class DaskDBModuleBase:
         if isinstance(matrix, np.ndarray):
             return json.dumps(matrix.tolist())
         
-        # Attempt JSON serialization
+        # Handle dictionaries and lists
+        if isinstance(matrix, (dict, list)):
+            try:
+                return json.dumps(matrix)
+            except TypeError:
+                # If not JSON serializable, use pickle as a fallback
+                return pickle.dumps(matrix).hex()
+        
+        # Attempt JSON serialization for other types
         try:
             return json.dumps(matrix)
-        except:
+        except (TypeError, ValueError):
             # If not JSON serializable, use pickle as a fallback
             return pickle.dumps(matrix).hex()
+    
+    def deserialize_matrix(self, serialized_data):
+        """
+        Deserialize a matrix from JSON or pickle
+        
+        Args:
+            serialized_data (str): Serialized data
+            
+        Returns:
+            object: Deserialized object
+        """
+        if serialized_data is None:
+            return None
+        
+        try:
+            # Try JSON first
+            data = json.loads(serialized_data)
+            # Convert list back to numpy array if it looks like a matrix
+            if isinstance(data, list) and len(data) > 0:
+                if isinstance(data[0], list):  # 2D array
+                    return np.array(data)
+                elif isinstance(data[0], (int, float)):  # 1D array
+                    return np.array(data)
+            return data
+        except (json.JSONDecodeError, ValueError):
+            # Try pickle if JSON fails
+            try:
+                return pickle.loads(bytes.fromhex(serialized_data))
+            except (ValueError, pickle.UnpicklingError):
+                logger.warning(f"Failed to deserialize data: {serialized_data[:50]}...")
+                return None
+    
+    def log_database_operation(self, operation, success, error_msg=None):
+        """
+        Log database operations for debugging
+        
+        Args:
+            operation (str): Description of the operation
+            success (bool): Whether the operation was successful
+            error_msg (str, optional): Error message if operation failed
+        """
+        if success:
+            logger.debug(f"Database operation successful: {operation}")
+        else:
+            logger.error(f"Database operation failed: {operation}. Error: {error_msg}")
