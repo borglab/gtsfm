@@ -304,6 +304,10 @@ def main():
         descriptors_list.append(desc)
         print(f"Image {indices[i]}: {desc.shape[0]} keypoints")
 
+    # Fix keypoints for visualization
+    kp_i1_fixed = Keypoints(coordinates=keypoints_list[0].coordinates.coordinates if hasattr(keypoints_list[0].coordinates, 'coordinates') else keypoints_list[0].coordinates)
+    kp_i2_fixed = Keypoints(coordinates=keypoints_list[1].coordinates.coordinates if hasattr(keypoints_list[1].coordinates, 'coordinates') else keypoints_list[1].coordinates)
+
     # Feature matching
     matcher = TwoWayMatcher(ratio_test_threshold=0.8)
     print("Matching keypoints...")
@@ -455,9 +459,13 @@ def main():
                     max_viz_corrs = min(100, len(v_corr_idxs))
                     
                     try:
+                        # Fix keypoints for visualization
+                        kp_i1_fixed = Keypoints(coordinates=keypoints_list[i1].coordinates.coordinates if hasattr(keypoints_list[i1].coordinates, 'coordinates') else keypoints_list[i1].coordinates)
+                        kp_i2_fixed = Keypoints(coordinates=keypoints_list[i2].coordinates.coordinates if hasattr(keypoints_list[i2].coordinates, 'coordinates') else keypoints_list[i2].coordinates)
+
                         correspondence_image = viz.plot_twoview_correspondences(
                             images[i1], images[i2], 
-                            keypoints_list[i1], keypoints_list[i2], 
+                            kp_i1_fixed, kp_i2_fixed, 
                             v_corr_idxs[:max_viz_corrs], 
                             max_corrs=max_viz_corrs
                         )
