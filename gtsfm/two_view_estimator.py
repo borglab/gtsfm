@@ -1,17 +1,22 @@
 """Estimator which operates on a pair of images to compute relative pose and verified indices.
 
-Authors: Ayush Baid, John Lambert
+Authors: Ayush Baid, John Lambert, Zongyue Liu
 """
 import dataclasses
 import logging
 import timeit
 from typing import Any, Dict, List, Optional, Tuple
+import json
+import socket
+import time
+from datetime import datetime
 
 from dask.distributed import Client
 import numpy as np
 from gtsam import PinholeCameraCal3Bundler, Pose3, Rot3, SfmTrack, Unit3
 
 import gtsfm.common.types as gtsfm_types
+from gtsfm.common.dask_db_module_base import DaskDBModuleBase
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metric_utils
@@ -50,7 +55,7 @@ TWO_VIEW_OUTPUT = Tuple[
 ]
 
 
-class TwoViewEstimator:
+class TwoViewEstimator(DaskDBModuleBase):
     """Wrapper for running two-view relative pose estimation on image pairs in the dataset."""
 
     def __init__(
@@ -63,6 +68,7 @@ class TwoViewEstimator:
         bundle_adjust_2view_maxiters: int = 100,
         ba_reproj_error_thresholds: List[Optional[float]] = [0.5],
         allow_indeterminate_linear_system: bool = False,
+        postgres_params=None,
     ) -> None:
         """Initializes the two-view estimator from verifier.
 
@@ -77,7 +83,9 @@ class TwoViewEstimator:
                 2-view BA. The length of this list decides the number of BA stages. Defaults to [0.5] (single stage).
             allow_indeterminate_linear_system: Reject a two-view measurement if an indeterminate linear system is
                 encountered during marginal covariance computation after 2-view bundle adjustment.
+            postgres_params: PostgreSQL connection parameters
         """
+        super().__init__(postgres_params=postgres_params)
         self._verifier = verifier
         self.processor = inlier_support_processor
         self._bundle_adjust_2view = bundle_adjust_2view
@@ -92,6 +100,46 @@ class TwoViewEstimator:
             max_iterations=bundle_adjust_2view_maxiters,
             allow_indeterminate_linear_system=allow_indeterminate_linear_system,
         )
+        self.postgres_params = postgres_params  #  save connection parameters for use on remote worker
+        
+        # Initialize database
+        self.init_database()
+
+    def init_database(self):
+        """Initialize database tables"""
+        if self.db:
+            # Create two-view results table
+            create_table_query = """
+            CREATE TABLE IF NOT EXISTS two_view_results (
+                id SERIAL PRIMARY KEY,
+                i1 INTEGER NOT NULL,
+                i2 INTEGER NOT NULL,
+                timestamp TIMESTAMP NOT NULL,
+                verified_corr_count INTEGER,
+                inlier_ratio FLOAT,
+                rotation_matrix TEXT,
+                translation_direction TEXT,
+                success BOOLEAN NOT NULL,
+                computation_time FLOAT,
+                worker_name TEXT
+            );
+            """
+            self.db.execute(create_table_query)
+            
+            # Create two-view reports table
+            create_report_table_query = """
+            CREATE TABLE IF NOT EXISTS two_view_reports (
+                id SERIAL PRIMARY KEY,
+                i1 INTEGER NOT NULL,
+                i2 INTEGER NOT NULL,
+                timestamp TIMESTAMP NOT NULL,
+                pre_ba_inlier_ratio FLOAT,
+                post_ba_inlier_ratio FLOAT,
+                post_isp_inlier_ratio FLOAT,
+                report_data TEXT
+            );
+            """
+            self.db.execute(create_report_table_query)
 
     def __repr__(self) -> str:
         return f"""
@@ -357,6 +405,73 @@ class TwoViewEstimator:
             post_isp_report,
         ) = self.processor.run_inlier_support(post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs, post_ba_report)
 
+        # Calculate computation time
+        start_time = time.time()
+        worker_name = socket.gethostname()
+        
+        # Store results in the database
+        if self.db:
+            # Determine if the result is successful
+            success = (post_isp_i2Ri1 is not None and post_isp_i2Ui1 is not None)
+            
+            # Serialize rotation matrix and translation direction
+            rotation_matrix = None
+            translation_direction = None
+            if success:
+                # Serialize rotation matrix
+                if hasattr(post_isp_i2Ri1, 'matrix'):
+                    rotation_matrix = self.serialize_matrix(post_isp_i2Ri1.matrix())
+                else:
+                    rotation_matrix = self.serialize_matrix(post_isp_i2Ri1)
+                
+                # Serialize translation direction
+                if hasattr(post_isp_i2Ui1, 'point3'):
+                    translation_direction = self.serialize_matrix(post_isp_i2Ui1.point3())
+                else:
+                    translation_direction = self.serialize_matrix(post_isp_i2Ui1)
+            
+            # Get number of verified correspondences and inlier ratio
+            verified_corr_count = len(post_isp_v_corr_idxs) if post_isp_v_corr_idxs is not None else 0
+            inlier_ratio = post_isp_report.inlier_ratio_est_model if post_isp_report else 0.0
+            
+            # Insert result into the database
+            insert_query = """
+            INSERT INTO two_view_results 
+            (i1, i2, timestamp, verified_corr_count, inlier_ratio, rotation_matrix, 
+            translation_direction, success, computation_time, worker_name)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """
+            
+            self.db.execute(
+                insert_query,
+                (keypoints_i1.image_id, keypoints_i2.image_id, datetime.now(), verified_corr_count, inlier_ratio, 
+                 rotation_matrix, translation_direction, success, time.time() - start_time, worker_name)
+            )
+            
+            # save detailed report
+            pre_ba_inlier_ratio = pre_ba_report.inlier_ratio_est_model if pre_ba_report else None
+            post_ba_inlier_ratio = post_ba_report.inlier_ratio_est_model if post_ba_report else None
+            post_isp_inlier_ratio = post_isp_report.inlier_ratio_est_model if post_isp_report else None
+            
+            # Serialize report data (optional)
+            report_data = {
+                "pre_ba": self.serialize_matrix(pre_ba_report.__dict__ if pre_ba_report else None),
+                "post_ba": self.serialize_matrix(post_ba_report.__dict__ if post_ba_report else None),
+                "post_isp": self.serialize_matrix(post_isp_report.__dict__ if post_isp_report else None)
+            }
+            report_data_json = json.dumps(report_data)
+            
+            report_query = """
+            INSERT INTO two_view_reports
+            (i1, i2, timestamp, pre_ba_inlier_ratio, post_ba_inlier_ratio, post_isp_inlier_ratio, report_data)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """
+            
+            self.db.execute(
+                report_query,
+                (keypoints_i1.image_id, keypoints_i2.image_id, datetime.now(), pre_ba_inlier_ratio, post_ba_inlier_ratio, post_isp_inlier_ratio, report_data_json)
+            )
+
         return post_isp_i2Ri1, post_isp_i2Ui1, post_isp_v_corr_idxs, pre_ba_report, post_ba_report, post_isp_report
 
 
@@ -549,10 +664,10 @@ def run_two_view_estimator_as_futures(
 ) -> Dict[Tuple[int, int], TWO_VIEW_OUTPUT]:
     """Run two-view estimator for all image pairs."""
 
-    def apply_two_view_estimator(
+    def apply_two_view_estimator_with_reconstruction(
         two_view_estimator: TwoViewEstimator,
-        keypoints_i1: Keypoints,
-        keypoints_i2: Keypoints,
+        keypoints_data_i1: Dict,
+        keypoints_data_i2: Dict,
         putative_corr_idxs: np.ndarray,
         camera_intrinsics_i1: gtsfm_types.CALIBRATION_TYPE,
         camera_intrinsics_i2: gtsfm_types.CALIBRATION_TYPE,
@@ -561,6 +676,103 @@ def run_two_view_estimator_as_futures(
         gt_camera_i2: Optional[gtsfm_types.CAMERA_TYPE],
         gt_scene_mesh: Optional[Any] = None,
     ) -> TWO_VIEW_OUTPUT:
+        
+        # === VERSION CHECKING ===
+        import os
+        import subprocess
+        import socket
+        from datetime import datetime
+        
+        hostname = socket.gethostname()
+        
+        # Get git commit hash and branch
+        try:
+            # Get current directory where gtsfm is located
+            gtsfm_path = os.path.dirname(os.path.dirname(__file__))
+            
+            # Get git commit hash
+            git_hash = subprocess.check_output(
+                ['git', 'rev-parse', 'HEAD'], 
+                cwd=gtsfm_path, 
+                stderr=subprocess.DEVNULL
+            ).decode().strip()[:8]
+            
+            # Get git branch
+            git_branch = subprocess.check_output(
+                ['git', 'branch', '--show-current'], 
+                cwd=gtsfm_path,
+                stderr=subprocess.DEVNULL
+            ).decode().strip()
+            
+            print(f"WORKER VERSION CHECK: Host={hostname}, Branch={git_branch}, Commit={git_hash}")
+        except:
+            print(f"WORKER VERSION CHECK: Host={hostname}, Git info unavailable")
+        
+        # Check the Keypoints file modification time
+        try:
+            keypoints_file = os.path.join(gtsfm_path, 'gtsfm', 'common', 'keypoints.py')
+            mtime = os.path.getmtime(keypoints_file)
+            mod_time = datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')
+            print(f"WORKER VERSION CHECK: Keypoints.py modified at {mod_time}")
+        except:
+            print(f"WORKER VERSION CHECK: Could not check keypoints.py modification time")
+        
+        # === END VERSION CHECKING ===
+        
+        # DEBUG: Check what we received
+        print(f"DEBUG: keypoints_data_i1 keys: {keypoints_data_i1.keys()}")
+        print(f"DEBUG: coordinates type: {type(keypoints_data_i1['coordinates'])}")
+        print(f"DEBUG: coordinates value: {keypoints_data_i1['coordinates']}")
+        
+        # CRITICAL FIX: Ensure coordinates are NumPy arrays
+        def ensure_numpy_array(data):
+            if isinstance(data, np.ndarray):
+                return data
+            elif hasattr(data, 'coordinates') and isinstance(data.coordinates, np.ndarray):
+                # If it's a Keypoints object, extract the coordinates
+                print(f"DEBUG: Extracting coordinates from Keypoints object")
+                return data.coordinates
+            else:
+                # Try to convert to array
+                print(f"DEBUG: Converting to numpy array")
+                return np.array(data)
+        
+        try:
+            # Fix coordinates before creating Keypoints
+            coords_i1 = ensure_numpy_array(keypoints_data_i1['coordinates'])
+            coords_i2 = ensure_numpy_array(keypoints_data_i2['coordinates'])
+            
+            print(f"DEBUG: Fixed coords_i1 type: {type(coords_i1)}, shape: {getattr(coords_i1, 'shape', 'NO SHAPE')}")
+            
+            # Reconstruct Keypoints objects from basic data
+            keypoints_i1 = Keypoints(
+                coordinates=coords_i1,
+                scales=keypoints_data_i1['scales'],
+                responses=keypoints_data_i1['responses']
+            )
+            
+            keypoints_i2 = Keypoints(
+                coordinates=coords_i2,
+                scales=keypoints_data_i2['scales'],
+                responses=keypoints_data_i2['responses']
+            )
+            
+            # Set image IDs
+            if 'image_id' in keypoints_data_i1:
+                keypoints_i1.image_id = keypoints_data_i1['image_id']
+            if 'image_id' in keypoints_data_i2:
+                keypoints_i2.image_id = keypoints_data_i2['image_id']
+            
+            # DEBUG: Verify the fix worked
+            print(f"DEBUG: Final keypoints_i1.coordinates type: {type(keypoints_i1.coordinates)}")
+            print(f"DEBUG: Final keypoints_i1.coordinates shape: {keypoints_i1.coordinates.shape}")
+            
+        except Exception as e:
+            print(f"DEBUG: Error during Keypoints creation: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
+        
         return two_view_estimator.run_2view(
             keypoints_i1=keypoints_i1,
             keypoints_i2=keypoints_i2,
@@ -573,21 +785,35 @@ def run_two_view_estimator_as_futures(
             gt_scene_mesh=gt_scene_mesh,
         )
 
-    two_view_estimator_future = client.scatter(two_view_estimator, broadcast=False)
+    # Convert Keypoints to serializable dictionaries
+    keypoints_data_list = []
+    for kp in keypoints_list:
+        keypoints_data_list.append({
+            'coordinates': kp.coordinates,
+            'scales': kp.scales,
+            'responses': kp.responses,
+            'image_id': getattr(kp, 'image_id', None)
+        })
+
+    # Scatter objects to ensure proper serialization
+    two_view_estimator_future = client.scatter(two_view_estimator, broadcast=True)
+    camera_intrinsics_future = client.scatter(camera_intrinsics, broadcast=True)
+    gt_cameras_future = client.scatter(gt_cameras, broadcast=True)
+    gt_scene_mesh_future = client.scatter(gt_scene_mesh, broadcast=True)
 
     two_view_output_futures = {
         (i1, i2): client.submit(
-            apply_two_view_estimator,
+            apply_two_view_estimator_with_reconstruction,
             two_view_estimator_future,
-            keypoints_list[i1],
-            keypoints_list[i2],
+            keypoints_data_list[i1],
+            keypoints_data_list[i2],
             putative_corr_idxs,
-            camera_intrinsics[i1],
-            camera_intrinsics[i2],
+            camera_intrinsics_future[i1],
+            camera_intrinsics_future[i2],
             relative_pose_priors.get((i1, i2)),
-            gt_cameras[i1],
-            gt_cameras[i2],
-            gt_scene_mesh,
+            gt_cameras_future[i1],
+            gt_cameras_future[i2],
+            gt_scene_mesh_future,
         )
         for (i1, i2), putative_corr_idxs in putative_corr_idxs_dict.items()
     }
