@@ -45,6 +45,7 @@ from gtsfm.data_association.point3d_initializer import (
     TriangulationOptions,
     TriangulationSamplingMode,
 )
+from gtsfm.utils.ssh_tunneling import SSHTunnelManager
 
 # Move all process management to global scope
 processes = []
@@ -93,156 +94,15 @@ def load_config(config_file='gtsfm/configs/local_scheduler_postgres_remote_clust
         print(f"Error loading configuration: {e}")
         exit(1)
 
-def initialize_database(db_params):
-    """Initialize database tables for two-view estimation"""
-    try:
-        conn = psycopg2.connect(**db_params)
-        cursor = conn.cursor()
-        
-        # Create two-view results table
-        cursor.execute("""
-        CREATE TABLE IF NOT EXISTS two_view_results (
-            id SERIAL PRIMARY KEY,
-            i1 INTEGER NOT NULL,
-            i2 INTEGER NOT NULL,
-            timestamp TIMESTAMP NOT NULL,
-            verified_corr_count INTEGER,
-            inlier_ratio FLOAT,
-            rotation_matrix TEXT,
-            translation_direction TEXT,
-            success BOOLEAN NOT NULL,
-            computation_time FLOAT,
-            worker_name TEXT
-        );
-        """)
-        
-        # Create two-view reports table
-        cursor.execute("""
-        CREATE TABLE IF NOT EXISTS two_view_reports (
-            id SERIAL PRIMARY KEY,
-            i1 INTEGER NOT NULL,
-            i2 INTEGER NOT NULL,
-            timestamp TIMESTAMP NOT NULL,
-            pre_ba_inlier_ratio FLOAT,
-            post_ba_inlier_ratio FLOAT,
-            post_isp_inlier_ratio FLOAT,
-            report_data TEXT
-        );
-        """)
-        
-        conn.commit()
-        cursor.close()
-        conn.close()
-        print("Database tables created/verified successfully")
-        return True
-    except Exception as e:
-        print(f"Failed to initialize database: {e}")
-        return False
-
 def setup_cluster_infrastructure(config):
     """Set up SSH tunnels and start Dask scheduler"""
-    # Extract configuration
-    username = config['username']
-    scheduler_port = config['scheduler']['port']
-    dashboard_port = config['scheduler']['dashboard']
-    workers = config['workers']
-    workers_addresses = config['workers_addresses']
-    db_port = str(config['database']['port'])
-    
-    # Free up ports if they are in use
-    ports_to_check = [scheduler_port, dashboard_port] + list(workers_addresses.values())
-    
-    for port in ports_to_check:
-        if check_port_in_use(port):
-            print(f"Port {port} is in use. Attempting to free it...")
-            if not kill_process_on_port(port):
-                print(f"Failed to free port {port}. Please manually close the application using it.")
-                exit(1)
-            time.sleep(3)
-    
-    # Establish SSH tunnels for each worker
-    for server in workers:
-        server_address = f"{username}@{server}"
-        worker_port = workers_addresses[server]
-        
-        print(f"Establishing SSH tunnel to {server}...")
-        ssh_tunnel_cmd = [
-            "ssh", "-N", "-f", 
-            "-R", f"{scheduler_port}:localhost:{scheduler_port}", 
-            "-R", f"{db_port}:localhost:{db_port}", 
-            "-L", f"{worker_port}:localhost:{worker_port}", 
-            server_address
-        ]
-        
-        ssh_tunnel_proc = subprocess.Popen(ssh_tunnel_cmd)
-        processes.append(ssh_tunnel_proc)
-        print(f"SSH tunnel established. Process ID: {ssh_tunnel_proc.pid}")
-        time.sleep(5)
-    
-    # Start Dask scheduler
-    print("Starting Dask scheduler...")
-    dask_scheduler_cmd = [
-        "conda", "run", "-n", "gtsfm-v1", 
-        "dask-scheduler", "--port", str(scheduler_port), 
-        "--dashboard-address", f":{dashboard_port}"
-    ]
-    
-    dask_scheduler_proc = subprocess.Popen(dask_scheduler_cmd)
-    processes.append(dask_scheduler_proc)
-    print(f"Dask scheduler started. Process ID: {dask_scheduler_proc.pid}")
-    time.sleep(10)
-    
-    # Start Dask workers on remote servers
-    for server in workers:
-        server_address = f"{username}@{server}"
-        worker_port = workers_addresses[server]
-        
-        print(f"Starting Dask worker on remote server {server}...")
-        remote_cmd = (
-            f"ssh -t {server_address} 'bash -c \""
-            f"export PATH=/home/{username}/miniconda3/bin:$PATH && "
-            f"source /home/{username}/miniconda3/etc/profile.d/conda.sh && "
-            "conda activate gtsfm-v1 && "
-            f"dask-worker tcp://localhost:{scheduler_port} "
-            f"--listen-address tcp://0.0.0.0:{worker_port} "
-            f"--contact-address tcp://localhost:{worker_port}"
-            "\"'"
-        )
-        
-        dask_worker_proc = subprocess.Popen(remote_cmd, shell=True)
-        processes.append(dask_worker_proc)
-        print(f"Remote Dask worker started. Process ID: {dask_worker_proc.pid}")
-        time.sleep(5)
-    
-    return scheduler_port, processes
+    tunnel_manager = SSHTunnelManager()
+    tunnel_manager.config = config
+    scheduler_port = tunnel_manager.setup_complete_infrastructure()
+    return scheduler_port, tunnel_manager.processes
 
 def main():
     """Main function containing all computational logic"""
-    
-    # === LOCAL VERSION CHECKING ===
-    import os
-    import subprocess
-    import socket
-    
-    hostname = socket.gethostname()
-    
-    try:
-        git_hash = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode().strip()[:8]
-        git_branch = subprocess.check_output(['git', 'branch', '--show-current']).decode().strip()
-        print(f"LOCAL VERSION CHECK: Host={hostname}, Branch={git_branch}, Commit={git_hash}")
-    except:
-        print(f"LOCAL VERSION CHECK: Host={hostname}, Git info unavailable")
-    
-    # Check local Keypoints file
-    try:
-        keypoints_file = 'gtsfm/common/keypoints.py'
-        mtime = os.path.getmtime(keypoints_file)
-        mod_time = datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')
-        print(f"LOCAL VERSION CHECK: Keypoints.py modified at {mod_time}")
-    except:
-        print(f"LOCAL VERSION CHECK: Could not check keypoints.py modification time")
-    
-    # === END LOCAL VERSION CHECKING ===
     
     # Load configuration
     config = load_config()
@@ -265,12 +125,6 @@ def main():
     images_dir.mkdir(exist_ok=True)
     
     print(f"Saving results to folder: {results_dir}")
-    
-    # Initialize database
-    print("Initializing PostgreSQL database...")
-    if not initialize_database(db_params):
-        print("Failed to initialize database. Exiting.")
-        exit(1)
     
     # Set up cluster infrastructure
     print("Setting up distributed cluster...")

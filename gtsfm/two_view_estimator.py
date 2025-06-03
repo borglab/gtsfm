@@ -107,9 +107,10 @@ class TwoViewEstimator(DaskDBModuleBase):
 
     def init_database(self):
         """Initialize database tables"""
-        if self.db:
-            if not self.db.initialize_gtsfm_schema():
-                logger.warning("Failed to initialize database schema")
+        if not self.db:
+            return
+        if not self.db.initialize_gtsfm_schema():
+            logger.warning("Failed to initialize database schema")
 
     def __repr__(self) -> str:
         return f"""
