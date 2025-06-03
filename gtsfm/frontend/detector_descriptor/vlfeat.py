@@ -19,7 +19,8 @@ import vlfeat
 import gtsfm.utils.images as image_utils
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.frontend.detector_descriptor.detector_descriptor_base import DetectorDescriptorBase
+from gtsfm.frontend.detector_descriptor.detector_descriptor_base import \
+    DetectorDescriptorBase
 
 
 class VLFeatDetectorDescriptor(DetectorDescriptorBase):
@@ -34,7 +35,7 @@ class VLFeatDetectorDescriptor(DetectorDescriptorBase):
         first_octave: int = -1,
         peak_thresh: float = 1.2,
         edge_thresh: float = 10,
-        use_upright: bool = True,
+        use_upright: bool = False,
         use_root: bool = True
     ) -> None:
         """Initialize the detector-descriptor.
