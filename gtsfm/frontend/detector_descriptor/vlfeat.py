@@ -34,7 +34,7 @@ class VLFeatDetectorDescriptor(DetectorDescriptorBase):
         first_octave: int = -1,
         peak_thresh: float = 1.2,
         edge_thresh: float = 10,
-        use_upright: bool = True,
+        use_upright: bool = False,
         use_root: bool = True
     ) -> None:
         """Initialize the detector-descriptor.
