@@ -1,17 +1,22 @@
 """Estimator which operates on a pair of images to compute relative pose and verified indices.
 
-Authors: Ayush Baid, John Lambert
+Authors: Ayush Baid, John Lambert, Zongyue Liu
 """
 import dataclasses
 import logging
 import timeit
 from typing import Any, Dict, List, Optional, Tuple
+import json
+import socket
+import time
+from datetime import datetime
 
 from dask.distributed import Client
 import numpy as np
 from gtsam import PinholeCameraCal3Bundler, Pose3, Rot3, SfmTrack, Unit3
 
 import gtsfm.common.types as gtsfm_types
+from gtsfm.common.dask_db_module_base import DaskDBModuleBase
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metric_utils
@@ -50,7 +55,7 @@ TWO_VIEW_OUTPUT = Tuple[
 ]
 
 
-class TwoViewEstimator:
+class TwoViewEstimator(DaskDBModuleBase):
     """Wrapper for running two-view relative pose estimation on image pairs in the dataset."""
 
     def __init__(
@@ -63,6 +68,7 @@ class TwoViewEstimator:
         bundle_adjust_2view_maxiters: int = 100,
         ba_reproj_error_thresholds: List[Optional[float]] = [0.5],
         allow_indeterminate_linear_system: bool = False,
+        postgres_params=None,
     ) -> None:
         """Initializes the two-view estimator from verifier.
 
@@ -77,7 +83,9 @@ class TwoViewEstimator:
                 2-view BA. The length of this list decides the number of BA stages. Defaults to [0.5] (single stage).
             allow_indeterminate_linear_system: Reject a two-view measurement if an indeterminate linear system is
                 encountered during marginal covariance computation after 2-view bundle adjustment.
+            postgres_params: PostgreSQL connection parameters
         """
+        super().__init__(postgres_params=postgres_params)
         self._verifier = verifier
         self.processor = inlier_support_processor
         self._bundle_adjust_2view = bundle_adjust_2view
@@ -92,6 +100,17 @@ class TwoViewEstimator:
             max_iterations=bundle_adjust_2view_maxiters,
             allow_indeterminate_linear_system=allow_indeterminate_linear_system,
         )
+        self.postgres_params = postgres_params  #  save connection parameters for use on remote worker
+        
+        # Initialize database
+        self.init_database()
+
+    def init_database(self):
+        """Initialize database tables"""
+        if not self.db:
+            return
+        if not self.db.initialize_gtsfm_schema():
+            logger.warning("Failed to initialize database schema")
 
     def __repr__(self) -> str:
         return f"""
@@ -357,7 +376,113 @@ class TwoViewEstimator:
             post_isp_report,
         ) = self.processor.run_inlier_support(post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs, post_ba_report)
 
+        # Calculate computation time
+        start_time = time.time()
+        
+        # Store results in the database
+        self.store_computation_results(
+            keypoints_i1, keypoints_i2, post_isp_i2Ri1, post_isp_i2Ui1, 
+            post_isp_v_corr_idxs, pre_ba_report, post_ba_report, post_isp_report, 
+            start_time
+        )
+
         return post_isp_i2Ri1, post_isp_i2Ui1, post_isp_v_corr_idxs, pre_ba_report, post_ba_report, post_isp_report
+
+    def store_computation_results(self, keypoints_i1, keypoints_i2, post_isp_i2Ri1, post_isp_i2Ui1, 
+                                post_isp_v_corr_idxs, pre_ba_report, post_ba_report, post_isp_report, 
+                                start_time):
+        """Store computation results in database"""
+        if not self.db:
+            return
+        
+        # Store main results
+        self._store_main_results(keypoints_i1, keypoints_i2, post_isp_i2Ri1, post_isp_i2Ui1, 
+                               post_isp_v_corr_idxs, post_isp_report, start_time)
+        
+        # Store detailed reports  
+        self._store_detailed_reports(keypoints_i1, keypoints_i2, pre_ba_report, 
+                                   post_ba_report, post_isp_report)
+
+    def _store_main_results(self, keypoints_i1, keypoints_i2, post_isp_i2Ri1, post_isp_i2Ui1, 
+                           post_isp_v_corr_idxs, post_isp_report, start_time):
+        """Store main computation results in two_view_results table"""
+        worker_name = socket.gethostname()
+        success = (post_isp_i2Ri1 is not None and post_isp_i2Ui1 is not None)
+        
+        # Serialize geometry data
+        rotation_matrix = None
+        translation_direction = None
+        if success:
+            rotation_matrix = self._serialize_rotation(post_isp_i2Ri1)
+            translation_direction = self._serialize_translation(post_isp_i2Ui1)
+        
+        # Extract metrics
+        verified_corr_count = len(post_isp_v_corr_idxs) if post_isp_v_corr_idxs is not None else 0
+        inlier_ratio = post_isp_report.inlier_ratio_est_model if post_isp_report else None 
+        computation_time = time.time() - start_time
+        
+        # Insert into database
+        insert_query = """
+        INSERT INTO two_view_results 
+        (i1, i2, timestamp, verified_corr_count, inlier_ratio, rotation_matrix, 
+        translation_direction, success, computation_time, worker_name)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        
+        self.db.execute(
+            insert_query,
+            (keypoints_i1.image_id, keypoints_i2.image_id, datetime.now(), verified_corr_count, 
+             inlier_ratio, rotation_matrix, translation_direction, success, computation_time, worker_name)
+        )
+
+    def _store_detailed_reports(self, keypoints_i1, keypoints_i2, pre_ba_report, 
+                              post_ba_report, post_isp_report):
+        """Store detailed reports in two_view_reports table"""
+        # Extract inlier ratios
+        pre_ba_inlier_ratio = pre_ba_report.inlier_ratio_est_model if pre_ba_report else None
+        post_ba_inlier_ratio = post_ba_report.inlier_ratio_est_model if post_ba_report else None
+        post_isp_inlier_ratio = post_isp_report.inlier_ratio_est_model if post_isp_report else None
+        
+        # Serialize report data
+        report_data = {
+            "pre_ba": self._serialize_report(pre_ba_report),
+            "post_ba": self._serialize_report(post_ba_report),
+            "post_isp": self._serialize_report(post_isp_report)
+        }
+        report_data_json = json.dumps(report_data)
+        
+        # Insert into database
+        report_query = """
+        INSERT INTO two_view_reports
+        (i1, i2, timestamp, pre_ba_inlier_ratio, post_ba_inlier_ratio, post_isp_inlier_ratio, report_data)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """
+        
+        self.db.execute(
+            report_query,
+            (keypoints_i1.image_id, keypoints_i2.image_id, datetime.now(), 
+             pre_ba_inlier_ratio, post_ba_inlier_ratio, post_isp_inlier_ratio, report_data_json)
+        )
+
+    def _serialize_rotation(self, rotation):
+        """Helper method to serialize rotation matrix"""
+        if hasattr(rotation, 'matrix'):
+            return self.serialize_matrix(rotation.matrix())
+        else:
+            return self.serialize_matrix(rotation)
+
+    def _serialize_translation(self, translation):
+        """Helper method to serialize translation direction"""
+        if hasattr(translation, 'point3'):
+            return self.serialize_matrix(translation.point3())
+        else:
+            return self.serialize_matrix(translation)
+
+    def _serialize_report(self, report):
+        """Helper method to serialize report objects"""
+        if report is None:
+            return None
+        return self.serialize_matrix(report.__dict__)
 
 
 def generate_two_view_report(
@@ -573,20 +698,22 @@ def run_two_view_estimator_as_futures(
             gt_scene_mesh=gt_scene_mesh,
         )
 
-    two_view_estimator_future = client.scatter(two_view_estimator, broadcast=False)
-
+    # Only scatter the objects that serialize well
+    two_view_estimator_future = client.scatter(two_view_estimator, broadcast=True)
+    
+    # Submit tasks WITHOUT scattering keypoints (pass them directly)
     two_view_output_futures = {
         (i1, i2): client.submit(
             apply_two_view_estimator,
             two_view_estimator_future,
-            keypoints_list[i1],
-            keypoints_list[i2],
+            keypoints_list[i1],  # Pass directly, don't scatter
+            keypoints_list[i2],  # Pass directly, don't scatter
             putative_corr_idxs,
             camera_intrinsics[i1],
             camera_intrinsics[i2],
             relative_pose_priors.get((i1, i2)),
-            gt_cameras[i1],
-            gt_cameras[i2],
+            gt_cameras[i1] if gt_cameras else None,
+            gt_cameras[i2] if gt_cameras else None,
             gt_scene_mesh,
         )
         for (i1, i2), putative_corr_idxs in putative_corr_idxs_dict.items()
@@ -594,6 +721,8 @@ def run_two_view_estimator_as_futures(
 
     two_view_output_dict = client.gather(two_view_output_futures)
     return two_view_output_dict
+
+
 
 
 def get_two_view_reports_summary(
