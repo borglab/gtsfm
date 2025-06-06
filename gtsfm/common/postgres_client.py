@@ -7,17 +7,16 @@ and provides a clean interface for executing queries and managing connections.
 Authors: Zongyue Liu
 """
 import psycopg2
-import json
-import pickle
 import numpy as np
 import logging
+from typing import Dict, List, Tuple, Optional, Any
 
 logger = logging.getLogger(__name__)
 
 class PostgresClient:
     """PostgreSQL database client for handling connections and operations"""
     
-    def __init__(self, db_params):
+    def __init__(self, db_params)-> None:
         """
         Initialize the PostgreSQL client
         
@@ -44,7 +43,7 @@ class PostgresClient:
             logger.error(f"Failed to connect to database: {e}")
             return False
     
-    def close(self):
+    def close(self)-> None:
         """Close the database connection"""
         try:
             if self.cursor:
@@ -56,7 +55,7 @@ class PostgresClient:
         except Exception as e:
             logger.warning(f"Error closing database connection: {e}")
     
-    def execute(self, query, params=None):
+    def execute(self, query, params=None)-> None:
         """
         Execute an SQL query
         
@@ -82,7 +81,7 @@ class PostgresClient:
         finally:
             self.close()
     
-    def fetch_all(self, query, params=None):
+    def fetch_all(self, query: str, params: Optional[Tuple] = None) -> Optional[List[Tuple]]:
         """
         Execute a query and fetch all results
         
@@ -106,7 +105,7 @@ class PostgresClient:
         finally:
             self.close()
     
-    def fetch_one(self, query, params=None):
+    def fetch_one(self, query: str, params: Optional[Tuple] = None) -> Optional[Tuple]:
         """
         Execute a query and fetch one result
         
@@ -130,7 +129,7 @@ class PostgresClient:
         finally:
             self.close()
     
-    def table_exists(self, table_name):
+    def table_exists(self, table_name: str) -> bool:
         """
         Check if a table exists in the database
         
@@ -150,7 +149,7 @@ class PostgresClient:
         result = self.fetch_one(query, (table_name,))
         return result[0] if result else False
     
-    def create_table_if_not_exists(self, table_name, create_query):
+    def create_table_if_not_exists(self, table_name: str, create_query: str) -> bool:
         """
         Create a table if it doesn't exist
         
@@ -165,7 +164,7 @@ class PostgresClient:
             return self.execute(create_query)
         return True
     
-    def __getstate__(self):
+    def __getstate__(self) -> Dict[str, Any]:
         """Custom serialization to avoid serializing connection objects"""
         state = self.__dict__.copy()
         # Do not serialize connection and cursor
@@ -173,18 +172,18 @@ class PostgresClient:
         state['cursor'] = None
         return state
     
-    def __setstate__(self, state):
+    def __setstate__(self, state: Dict[str, Any]) -> None:
         """Custom deserialization"""
         self.__dict__.update(state)
         # Connection will be re-established when needed
     
-    def ensure_schema(self):
+    def ensure_schema(self) -> bool:
         """Ensure database schema is initialized"""
         if not self._schema_initialized:
             self._schema_initialized = self.initialize_gtsfm_schema()
         return self._schema_initialized
     
-    def execute_with_schema_check(self, query, params=None):
+    def execute_with_schema_check(self, query: str, params: Optional[Tuple] = None) -> bool:
         """Execute query after ensuring schema exists"""
         if not self.ensure_schema():
             logger.error("Failed to initialize database schema")
