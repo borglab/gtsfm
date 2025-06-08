@@ -1,6 +1,6 @@
 """Class to hold coordinates and optional metadata for keypoints, the output of detections on an image.
 
-Authors: Ayush Baid
+Authors: Ayush Baid, Zongyue Liu
 """
 import copy
 from typing import List, Optional, Tuple
@@ -257,20 +257,25 @@ class Keypoints:
         if indices.size == 0:
             return Keypoints(coordinates=np.zeros(shape=(0, 2)))
 
-        # Debug: Check for serialization corruption
-        print(f"DEBUG: extract_indices called, self.coordinates type: {type(self.coordinates)}")
-        if not isinstance(self.coordinates, np.ndarray):
-            print(f"ERROR: coordinates is {type(self.coordinates)}, expected np.ndarray")
-            print(f"coordinates value: {self.coordinates}")
-            # Try to extract coordinates if it's a Keypoints object
-            if hasattr(self.coordinates, 'coordinates'):
-                print("Attempting to fix by extracting coordinates from nested Keypoints")
-                self.coordinates = self.coordinates.coordinates
-            else:
-                raise TypeError(f"Keypoints serialization failed: coordinates became {type(self.coordinates)} instead of np.ndarray")
+        # Fix recursive serialization corruption
+        coordinates = self.coordinates
+        scales = self.scales
+        responses = self.responses
+        
+        # Unwrap nested Keypoints objects recursively
+        while isinstance(coordinates, Keypoints):
+            print(f"DEBUG: Unwrapping nested Keypoints object")
+            coordinates = coordinates.coordinates
+            if hasattr(coordinates, 'scales') and scales is None:
+                scales = coordinates.scales
+            if hasattr(coordinates, 'responses') and responses is None:
+                responses = coordinates.responses
+
+        if not isinstance(coordinates, np.ndarray):
+            raise TypeError(f"After unwrapping, coordinates is still {type(coordinates)}, expected np.ndarray")
 
         return Keypoints(
-            self.coordinates[indices],
-            None if self.scales is None else self.scales[indices],
-            None if self.responses is None else self.responses[indices],
+            coordinates[indices],
+            None if scales is None else scales[indices],
+            None if responses is None else responses[indices],
         )
