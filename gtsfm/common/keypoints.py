@@ -122,10 +122,26 @@ class Keypoints:
         if indices.size == 0:
             return Keypoints(coordinates=np.zeros(shape=(0, 2)))
 
+        # Defensive coding: Handle serialization corruption where coordinates becomes a Keypoints object
+        coordinates = self.coordinates
+        while isinstance(coordinates, Keypoints):
+            print(f"DEBUG: Auto-fixing corrupted coordinates in extract_indices")
+            coordinates = coordinates.coordinates
+        
+        scales = self.scales
+        while isinstance(scales, Keypoints):
+            print(f"DEBUG: Auto-fixing corrupted scales in extract_indices")
+            scales = scales.scales
+            
+        responses = self.responses  
+        while isinstance(responses, Keypoints):
+            print(f"DEBUG: Auto-fixing corrupted responses in extract_indices")
+            responses = responses.responses
+
         return Keypoints(
-            self.coordinates[indices],
-            None if self.scales is None else self.scales[indices],
-            None if self.responses is None else self.responses[indices],
+            coordinates[indices],
+            None if scales is None else scales[indices],
+            None if responses is None else responses[indices],
         )
 
     def get_top_k(self, k: int) -> Tuple["Keypoints", np.ndarray]:
