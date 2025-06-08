@@ -33,10 +33,76 @@ class Keypoints:
             responses: response values for the feature points. It is a 1-d array of shape N, where N is the number of
                        feature points.
         """
-        # Remove @property and use direct attribute assignment
-        self.coordinates = coordinates
-        self.scales = scales
-        self.responses = responses
+        # Store in private attributes
+        self._coordinates = coordinates
+        self._scales = scales
+        self._responses = responses
+
+    @property
+    def coordinates(self) -> np.ndarray:
+        """Get coordinates with automatic corruption fixing.
+        
+        Returns:
+            Numpy array of coordinates, with automatic fixing of serialization corruption.
+        """
+        # Auto-fix serialization corruption where coordinates becomes a Keypoints object
+        coords = self._coordinates
+        depth = 0
+        while isinstance(coords, Keypoints) and depth < 10:  # Prevent infinite loops
+            print(f"DEBUG: Auto-fixing corrupted coordinates (depth {depth})")
+            coords = coords._coordinates
+            depth += 1
+        
+        # Update the stored value to avoid repeated fixing
+        if depth > 0:
+            self._coordinates = coords
+            
+        return coords
+
+    @coordinates.setter
+    def coordinates(self, value: np.ndarray):
+        """Set coordinates."""
+        self._coordinates = value
+
+    @property
+    def scales(self) -> Optional[np.ndarray]:
+        """Get scales with automatic corruption fixing."""
+        scales = self._scales
+        depth = 0
+        while isinstance(scales, Keypoints) and depth < 10:
+            print(f"DEBUG: Auto-fixing corrupted scales (depth {depth})")
+            scales = scales._scales
+            depth += 1
+        
+        if depth > 0:
+            self._scales = scales
+            
+        return scales
+
+    @scales.setter
+    def scales(self, value: Optional[np.ndarray]):
+        """Set scales."""
+        self._scales = value
+
+    @property
+    def responses(self) -> Optional[np.ndarray]:
+        """Get responses with automatic corruption fixing."""
+        responses = self._responses
+        depth = 0
+        while isinstance(responses, Keypoints) and depth < 10:
+            print(f"DEBUG: Auto-fixing corrupted responses (depth {depth})")
+            responses = responses._responses
+            depth += 1
+        
+        if depth > 0:
+            self._responses = responses
+            
+        return responses
+
+    @responses.setter
+    def responses(self, value: Optional[np.ndarray]):
+        """Set responses."""
+        self._responses = value
 
     def __len__(self) -> int:
         """Number of descriptors."""
@@ -61,9 +127,9 @@ class Keypoints:
             Dictionary containing the object state for serialization.
         """
         return {
-            'coordinates': self.coordinates,
-            'scales': self.scales,
-            'responses': self.responses
+            'coordinates': self._coordinates,  # Use private attributes
+            'scales': self._scales,
+            'responses': self._responses
         }
     
     def __setstate__(self, state):
@@ -75,9 +141,9 @@ class Keypoints:
         Args:
             state: Dictionary containing the serialized object state.
         """
-        self.coordinates = state['coordinates']
-        self.scales = state['scales'] 
-        self.responses = state['responses']
+        self._coordinates = state['coordinates']  # Store in private attributes
+        self._scales = state['scales'] 
+        self._responses = state['responses']
 
     def __eq__(self, other: object) -> bool:
         """Checks equality with the other keypoints object."""
