@@ -1,6 +1,6 @@
-"""Class to hold coordinates and optional metadata for keypoints, the output of detections on an image.
+"""Class for 2D keypoints.
 
-Authors: Ayush Baid, Zongyue Liu
+Authors: Ayush Baid, John Lambert
 """
 import copy
 from typing import List, Optional, Tuple
@@ -8,22 +8,15 @@ from typing import List, Optional, Tuple
 import cv2 as cv
 import numpy as np
 
-# defaults for OpenCV's Keypoint attributes
-OPENCV_DEFAULT_SIZE = 2
+OPENCV_DEFAULT_SIZE = 10.0
+
+# Note: the keypoints class *should not* be implemented as NamedTuple because dask treats NamedTuple as a tuple and
+# tries to estimate the size by randomly sampling elements (number computed using len()). len() is used for the
+# number of points and not the number of attributes.
 
 
 class Keypoints:
-    """Output of detections in an image.
-
-    Coordinate system convention:
-        1. The x coordinate denotes the horizontal direction (+ve direction towards the right).
-        2. The y coordinate denotes the vertical direction (+ve direction downwards).
-        3. Origin is at the top left corner of the image.
-
-    Note: the keypoints class *should not* be implemented as NamedTuple because dask treats NamedTuple as a tuple and
-    tries to estimate the size by randomly sampling elements (number computed using len()). len() is used for the
-    number of points and not the number of attributes.
-    """
+    """Class for 2D keypoints."""
 
     def __init__(
         self,
@@ -31,78 +24,19 @@ class Keypoints:
         scales: Optional[np.ndarray] = None,
         responses: Optional[np.ndarray] = None,
     ):
-        """Initializes the attributes.
+        """Constructor for the keypoints class.
 
         Args:
-            coordinates: The (x, y) coordinates of the features, of shape Nx2.
-            scales: Optional scale of the detections, of shape N.
-            responses: Optional confidences/responses for each detection, of shape N.
+            coordinates: 2d coordinate array of shape Nx2, where N is the number of feature points. The order is (x,y).
+            scales: scale values for the feature points. It is a 1-d array of shape N, where N is the number of feature
+                    points.
+            responses: response values for the feature points. It is a 1-d array of shape N, where N is the number of
+                       feature points.
         """
-        self._coordinates = coordinates
-        self._scales = scales
-        self._responses = responses
-
-    @property
-    def coordinates(self) -> np.ndarray:
-        """Get coordinates, automatically fixing serialization corruption."""
-        coords = self._coordinates
-        
-        # Fix recursive serialization corruption
-        corruption_count = 0
-        while isinstance(coords, Keypoints):
-            print(f"DEBUG: Auto-fixing corrupted coordinates (depth {corruption_count})")
-            coords = coords._coordinates
-            corruption_count += 1
-            if corruption_count > 10:  # Prevent infinite loops
-                raise RuntimeError("Too many nested Keypoints objects - serialization corruption too deep")
-        
-        if not isinstance(coords, np.ndarray):
-            raise TypeError(f"After fixing corruption, coordinates is {type(coords)}, expected np.ndarray")
-        
-        # Cache the fixed coordinates
-        self._coordinates = coords
-        return coords
-
-    @coordinates.setter
-    def coordinates(self, value: np.ndarray):
-        """Set coordinates."""
-        self._coordinates = value
-
-    @property
-    def scales(self) -> Optional[np.ndarray]:
-        """Get scales, automatically fixing serialization corruption."""
-        scales = self._scales
-        
-        # Fix recursive serialization corruption for scales
-        while isinstance(scales, Keypoints):
-            print(f"DEBUG: Auto-fixing corrupted scales")
-            scales = scales._scales
-        
-        self._scales = scales
-        return scales
-
-    @scales.setter
-    def scales(self, value: Optional[np.ndarray]):
-        """Set scales."""
-        self._scales = value
-
-    @property
-    def responses(self) -> Optional[np.ndarray]:
-        """Get responses, automatically fixing serialization corruption."""
-        responses = self._responses
-        
-        # Fix recursive serialization corruption for responses
-        while isinstance(responses, Keypoints):
-            print(f"DEBUG: Auto-fixing corrupted responses")
-            responses = responses._responses
-        
-        self._responses = responses
-        return responses
-
-    @responses.setter
-    def responses(self, value: Optional[np.ndarray]):
-        """Set responses."""
-        self._responses = value
+        # Remove @property and use direct attribute assignment
+        self.coordinates = coordinates
+        self.scales = scales
+        self.responses = responses
 
     def __len__(self) -> int:
         """Number of descriptors."""
@@ -126,14 +60,11 @@ class Keypoints:
         Returns:
             Dictionary containing the object state for serialization.
         """
-        print(f"DEBUG: __getstate__ called, coordinates type: {type(self._coordinates)}")
-        state = {
-            'coordinates': self._coordinates,
-            'scales': self._scales,
-            'responses': self._responses
+        return {
+            'coordinates': self.coordinates,
+            'scales': self.scales,
+            'responses': self.responses
         }
-        
-        return state
     
     def __setstate__(self, state):
         """Custom deserialization for Dask distributed processing.
@@ -144,11 +75,9 @@ class Keypoints:
         Args:
             state: Dictionary containing the serialized object state.
         """
-        print(f"DEBUG: __setstate__ called, coordinates type: {type(state['coordinates'])}")
-        self._coordinates = state['coordinates']
-        self._scales = state['scales'] 
-        self._responses = state['responses']
-        print(f"DEBUG: After __setstate__, self._coordinates type: {type(self._coordinates)}")
+        self.coordinates = state['coordinates']
+        self.scales = state['scales'] 
+        self.responses = state['responses']
 
     def __eq__(self, other: object) -> bool:
         """Checks equality with the other keypoints object."""
@@ -180,6 +109,24 @@ class Keypoints:
     def __ne__(self, other: object) -> bool:
         """Checks that the other object is not equal to the current object."""
         return not self == other
+
+    def extract_indices(self, indices: np.ndarray) -> "Keypoints":
+        """Form subset with the given indices.
+
+        Args:
+            indices: Indices to extract, as a 1-D vector.
+
+        Returns:
+            Subset of data at the given indices.
+        """
+        if indices.size == 0:
+            return Keypoints(coordinates=np.zeros(shape=(0, 2)))
+
+        return Keypoints(
+            self.coordinates[indices],
+            None if self.scales is None else self.scales[indices],
+            None if self.responses is None else self.responses[indices],
+        )
 
     def get_top_k(self, k: int) -> Tuple["Keypoints", np.ndarray]:
         """Returns the top keypoints by their response values (or just the values from the front in case of missing
@@ -306,22 +253,3 @@ class Keypoints:
                 )
 
         return opencv_keypoints
-
-    def extract_indices(self, indices: np.ndarray) -> "Keypoints":
-        """Form subset with the given indices.
-
-        Args:
-            indices: Indices to extract, as a 1-D vector.
-
-        Returns:
-            Subset of data at the given indices.
-        """
-        if indices.size == 0:
-            return Keypoints(coordinates=np.zeros(shape=(0, 2)))
-
-        # Properties will automatically handle any corruption
-        return Keypoints(
-            self.coordinates[indices],
-            None if self.scales is None else self.scales[indices],
-            None if self.responses is None else self.responses[indices],
-        )

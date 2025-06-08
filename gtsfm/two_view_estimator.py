@@ -312,8 +312,27 @@ class TwoViewEstimator(DaskDBModuleBase):
         gt_camera_i1: Optional[gtsfm_types.CAMERA_TYPE],
         gt_camera_i2: Optional[gtsfm_types.CAMERA_TYPE],
         gt_scene_mesh: Optional[Any] = None,
+        i1: Optional[int] = None,
+        i2: Optional[int] = None,
     ) -> TWO_VIEW_OUTPUT:
-        """Estimate relative pose between two views, using verification."""
+        """Estimate the relative pose between two images, along with inlier correspondences.
+
+        Args:
+            keypoints_i1: Detected keypoints for image i1.
+            keypoints_i2: Detected keypoints for image i2.
+            putative_corr_idxs: Putative correspondences as indices of keypoint matches.
+            camera_intrinsics_i1: Intrinsics for image i1.
+            camera_intrinsics_i2: Intrinsics for image i2.
+            i2Ti1_prior: Prior on relative pose between two cameras.
+            gt_camera_i1: ground truth camera for image i1.
+            gt_camera_i2: ground truth camera for image i2.
+            gt_scene_mesh: scene mesh for evaluation.
+            i1: Image index for first image (for database storage)
+            i2: Image index for second image (for database storage)
+
+        Returns:
+            Estimated relative rotation, unit translation, verified correspondences, and two-view report.
+        """
         # verification on putative correspondences to obtain relative pose and verified correspondences
         (pre_ba_i2Ri1, pre_ba_i2Ui1, pre_ba_v_corr_idxs, pre_ba_inlier_ratio_wrt_estimate) = self._verifier.verify(
             keypoints_i1,
@@ -379,66 +398,99 @@ class TwoViewEstimator(DaskDBModuleBase):
         # Calculate computation time
         start_time = time.time()
         
-        # Store results in the database
+        # Store computation results in database (pass image indices)
         self.store_computation_results(
             keypoints_i1, keypoints_i2, post_isp_i2Ri1, post_isp_i2Ui1, 
             post_isp_v_corr_idxs, pre_ba_report, post_ba_report, post_isp_report, 
-            start_time
+            start_time, i1, i2
         )
 
         return post_isp_i2Ri1, post_isp_i2Ui1, post_isp_v_corr_idxs, pre_ba_report, post_ba_report, post_isp_report
 
     def store_computation_results(self, keypoints_i1, keypoints_i2, post_isp_i2Ri1, post_isp_i2Ui1, 
                                 post_isp_v_corr_idxs, pre_ba_report, post_ba_report, post_isp_report, 
-                                start_time):
-        """Store computation results in database"""
+                                start_time, i1=None, i2=None):
+        """Store computation results in database
+        
+        Args:
+            keypoints_i1: Keypoints for first image
+            keypoints_i2: Keypoints for second image  
+            post_isp_i2Ri1: Estimated rotation after ISP
+            post_isp_i2Ui1: Estimated translation after ISP
+            post_isp_v_corr_idxs: Verified correspondences after ISP
+            pre_ba_report: Report before bundle adjustment
+            post_ba_report: Report after bundle adjustment  
+            post_isp_report: Report after ISP
+            start_time: Start time of computation
+            i1: Index of first image
+            i2: Index of second image
+        """
         if not self.db:
             return
-        
-        # Store main results
+            
+        # Store main results with image indices
         self._store_main_results(keypoints_i1, keypoints_i2, post_isp_i2Ri1, post_isp_i2Ui1, 
-                               post_isp_v_corr_idxs, post_isp_report, start_time)
+                               post_isp_v_corr_idxs, post_isp_report, start_time, i1, i2)
         
-        # Store detailed reports  
+        # Store detailed reports with image indices  
         self._store_detailed_reports(keypoints_i1, keypoints_i2, pre_ba_report, 
-                                   post_ba_report, post_isp_report)
+                                   post_ba_report, post_isp_report, i1, i2)
 
     def _store_main_results(self, keypoints_i1, keypoints_i2, post_isp_i2Ri1, post_isp_i2Ui1, 
-                           post_isp_v_corr_idxs, post_isp_report, start_time):
-        """Store main computation results in two_view_results table"""
+                           post_isp_v_corr_idxs, post_isp_report, start_time, i1, i2):
+        """Store main computation results in two_view_results table
+        
+        Args:
+            keypoints_i1: Keypoints for first image
+            keypoints_i2: Keypoints for second image
+            post_isp_i2Ri1: Estimated rotation after ISP
+            post_isp_i2Ui1: Estimated translation after ISP  
+            post_isp_v_corr_idxs: Verified correspondences after ISP
+            post_isp_report: Report after ISP
+            start_time: Start time of computation
+            i1: Index of first image
+            i2: Index of second image
+        """
         worker_name = socket.gethostname()
         success = (post_isp_i2Ri1 is not None and post_isp_i2Ui1 is not None)
-            
-        # Serialize geometry data
-        rotation_matrix = None
-        translation_direction = None
-        if success:
-            rotation_matrix = self._serialize_rotation(post_isp_i2Ri1)
-            translation_direction = self._serialize_translation(post_isp_i2Ui1)
-            
-        # Extract metrics
-            verified_corr_count = len(post_isp_v_corr_idxs) if post_isp_v_corr_idxs is not None else 0
-        inlier_ratio = post_isp_report.inlier_ratio_est_model if post_isp_report else None 
+        verified_corr_count = len(post_isp_v_corr_idxs) if post_isp_v_corr_idxs is not None else 0
+        
+        # Use None as default instead of 0.0 (as suggested in code review)
+        inlier_ratio = post_isp_report.inlier_ratio_est_model if post_isp_report else None
+        
+        # Serialize transformation matrices
+        rotation_matrix = self._serialize_rotation(post_isp_i2Ri1) if post_isp_i2Ri1 else None
+        translation_direction = self._serialize_translation(post_isp_i2Ui1) if post_isp_i2Ui1 else None
+        
         computation_time = time.time() - start_time
-            
-        # Insert into database
+        
         insert_query = """
-            INSERT INTO two_view_results 
+            INSERT INTO two_view_results
             (i1, i2, timestamp, verified_corr_count, inlier_ratio, rotation_matrix, 
-            translation_direction, success, computation_time, worker_name)
+             translation_direction, success, computation_time, worker_name)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
             
         self.db.execute(
-                insert_query,
-            (keypoints_i1.image_id, keypoints_i2.image_id, datetime.now(), verified_corr_count, 
+            insert_query,
+            (i1, i2, datetime.now(), verified_corr_count,  # Use passed image indices
              inlier_ratio, rotation_matrix, translation_direction, success, computation_time, worker_name)
-            )
+        )
             
     def _store_detailed_reports(self, keypoints_i1, keypoints_i2, pre_ba_report, 
-                              post_ba_report, post_isp_report):
-        """Store detailed reports in two_view_reports table"""
-        # Extract inlier ratios
+                              post_ba_report, post_isp_report, i1, i2):
+        """Store detailed reports in two_view_reports table
+        
+        Args:
+            keypoints_i1: Keypoints for first image
+            keypoints_i2: Keypoints for second image
+            pre_ba_report: Report before bundle adjustment
+            post_ba_report: Report after bundle adjustment
+            post_isp_report: Report after ISP  
+            i1: Index of first image
+            i2: Index of second image
+        """
+        # Extract inlier ratios (use None as default instead of 0.0)
         pre_ba_inlier_ratio = pre_ba_report.inlier_ratio_est_model if pre_ba_report else None
         post_ba_inlier_ratio = post_ba_report.inlier_ratio_est_model if post_ba_report else None
         post_isp_inlier_ratio = post_isp_report.inlier_ratio_est_model if post_isp_report else None
@@ -448,7 +500,7 @@ class TwoViewEstimator(DaskDBModuleBase):
             "pre_ba": self._serialize_report(pre_ba_report),
             "post_ba": self._serialize_report(post_ba_report),
             "post_isp": self._serialize_report(post_isp_report)
-            }
+        }
         report_data_json = json.dumps(report_data)
             
         # Insert into database
@@ -459,10 +511,10 @@ class TwoViewEstimator(DaskDBModuleBase):
             """
             
         self.db.execute(
-                report_query,
-            (keypoints_i1.image_id, keypoints_i2.image_id, datetime.now(), 
+            report_query,
+            (i1, i2, datetime.now(),  # Use passed image indices
              pre_ba_inlier_ratio, post_ba_inlier_ratio, post_isp_inlier_ratio, report_data_json)
-            )
+        )
 
     def _serialize_rotation(self, rotation):
         """Helper method to serialize rotation matrix"""
@@ -685,6 +737,8 @@ def run_two_view_estimator_as_futures(
         gt_camera_i1: Optional[gtsfm_types.CAMERA_TYPE],
         gt_camera_i2: Optional[gtsfm_types.CAMERA_TYPE],
         gt_scene_mesh: Optional[Any] = None,
+        i1: Optional[int] = None,
+        i2: Optional[int] = None,
     ) -> TWO_VIEW_OUTPUT:
         return two_view_estimator.run_2view(
             keypoints_i1=keypoints_i1,
@@ -696,18 +750,20 @@ def run_two_view_estimator_as_futures(
             gt_camera_i1=gt_camera_i1,
             gt_camera_i2=gt_camera_i2,
             gt_scene_mesh=gt_scene_mesh,
+            i1=i1,
+            i2=i2,
         )
 
-    # Only scatter the objects that serialize well
+    # Only scatter the objects that serialize well (avoid scattering keypoints)
     two_view_estimator_future = client.scatter(two_view_estimator, broadcast=True)
 
-    # Submit tasks WITHOUT scattering keypoints (pass them directly)
+    # Submit tasks with image indices passed as separate parameters
     two_view_output_futures = {
         (i1, i2): client.submit(
             apply_two_view_estimator,
             two_view_estimator_future,
-            keypoints_list[i1],  # Pass directly, don't scatter
-            keypoints_list[i2],  # Pass directly, don't scatter
+            keypoints_list[i1],
+            keypoints_list[i2],
             putative_corr_idxs,
             camera_intrinsics[i1],
             camera_intrinsics[i2],
@@ -715,6 +771,8 @@ def run_two_view_estimator_as_futures(
             gt_cameras[i1] if gt_cameras else None,
             gt_cameras[i2] if gt_cameras else None,
             gt_scene_mesh,
+            i1,
+            i2,
         )
         for (i1, i2), putative_corr_idxs in putative_corr_idxs_dict.items()
     }
