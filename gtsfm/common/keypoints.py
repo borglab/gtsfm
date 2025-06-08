@@ -38,9 +38,71 @@ class Keypoints:
             scales: Optional scale of the detections, of shape N.
             responses: Optional confidences/responses for each detection, of shape N.
         """
-        self.coordinates = coordinates
-        self.scales = scales
-        self.responses = responses  # TODO(ayush): enforce the range.
+        self._coordinates = coordinates
+        self._scales = scales
+        self._responses = responses
+
+    @property
+    def coordinates(self) -> np.ndarray:
+        """Get coordinates, automatically fixing serialization corruption."""
+        coords = self._coordinates
+        
+        # Fix recursive serialization corruption
+        corruption_count = 0
+        while isinstance(coords, Keypoints):
+            print(f"DEBUG: Auto-fixing corrupted coordinates (depth {corruption_count})")
+            coords = coords._coordinates
+            corruption_count += 1
+            if corruption_count > 10:  # Prevent infinite loops
+                raise RuntimeError("Too many nested Keypoints objects - serialization corruption too deep")
+        
+        if not isinstance(coords, np.ndarray):
+            raise TypeError(f"After fixing corruption, coordinates is {type(coords)}, expected np.ndarray")
+        
+        # Cache the fixed coordinates
+        self._coordinates = coords
+        return coords
+
+    @coordinates.setter
+    def coordinates(self, value: np.ndarray):
+        """Set coordinates."""
+        self._coordinates = value
+
+    @property
+    def scales(self) -> Optional[np.ndarray]:
+        """Get scales, automatically fixing serialization corruption."""
+        scales = self._scales
+        
+        # Fix recursive serialization corruption for scales
+        while isinstance(scales, Keypoints):
+            print(f"DEBUG: Auto-fixing corrupted scales")
+            scales = scales._scales
+        
+        self._scales = scales
+        return scales
+
+    @scales.setter
+    def scales(self, value: Optional[np.ndarray]):
+        """Set scales."""
+        self._scales = value
+
+    @property
+    def responses(self) -> Optional[np.ndarray]:
+        """Get responses, automatically fixing serialization corruption."""
+        responses = self._responses
+        
+        # Fix recursive serialization corruption for responses
+        while isinstance(responses, Keypoints):
+            print(f"DEBUG: Auto-fixing corrupted responses")
+            responses = responses._responses
+        
+        self._responses = responses
+        return responses
+
+    @responses.setter
+    def responses(self, value: Optional[np.ndarray]):
+        """Set responses."""
+        self._responses = value
 
     def __len__(self) -> int:
         """Number of descriptors."""
@@ -51,8 +113,8 @@ class Keypoints:
         return (
             super().__sizeof__()
             + self.coordinates.__sizeof__()
-            + self.scales.__sizeof__()
-            + self.responses.__sizeof__()
+            + (self.scales.__sizeof__() if self.scales is not None else 0)
+            + (self.responses.__sizeof__() if self.responses is not None else 0)
         )
 
     def __getstate__(self):
@@ -64,11 +126,11 @@ class Keypoints:
         Returns:
             Dictionary containing the object state for serialization.
         """
-        print(f"DEBUG: __getstate__ called, coordinates type: {type(self.coordinates)}")
+        print(f"DEBUG: __getstate__ called, coordinates type: {type(self._coordinates)}")
         state = {
-            'coordinates': self.coordinates,
-            'scales': self.scales,
-            'responses': self.responses
+            'coordinates': self._coordinates,
+            'scales': self._scales,
+            'responses': self._responses
         }
         
         return state
@@ -83,10 +145,10 @@ class Keypoints:
             state: Dictionary containing the serialized object state.
         """
         print(f"DEBUG: __setstate__ called, coordinates type: {type(state['coordinates'])}")
-        self.coordinates = state['coordinates']
-        self.scales = state['scales'] 
-        self.responses = state['responses']
-        print(f"DEBUG: After __setstate__, self.coordinates type: {type(self.coordinates)}")
+        self._coordinates = state['coordinates']
+        self._scales = state['scales'] 
+        self._responses = state['responses']
+        print(f"DEBUG: After __setstate__, self._coordinates type: {type(self._coordinates)}")
 
     def __eq__(self, other: object) -> bool:
         """Checks equality with the other keypoints object."""
@@ -257,25 +319,9 @@ class Keypoints:
         if indices.size == 0:
             return Keypoints(coordinates=np.zeros(shape=(0, 2)))
 
-        # Fix recursive serialization corruption
-        coordinates = self.coordinates
-        scales = self.scales
-        responses = self.responses
-        
-        # Unwrap nested Keypoints objects recursively
-        while isinstance(coordinates, Keypoints):
-            print(f"DEBUG: Unwrapping nested Keypoints object")
-            coordinates = coordinates.coordinates
-            if hasattr(coordinates, 'scales') and scales is None:
-                scales = coordinates.scales
-            if hasattr(coordinates, 'responses') and responses is None:
-                responses = coordinates.responses
-
-        if not isinstance(coordinates, np.ndarray):
-            raise TypeError(f"After unwrapping, coordinates is still {type(coordinates)}, expected np.ndarray")
-
+        # Properties will automatically handle any corruption
         return Keypoints(
-            coordinates[indices],
-            None if scales is None else scales[indices],
-            None if responses is None else responses[indices],
+            self.coordinates[indices],
+            None if self.scales is None else self.scales[indices],
+            None if self.responses is None else self.responses[indices],
         )
