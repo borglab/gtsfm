@@ -109,8 +109,8 @@ class TwoViewEstimator(DaskDBModuleBase):
         """Initialize database tables"""
         if not self.db:
             return
-        if not self.db.initialize_gtsfm_schema():
-            logger.warning("Failed to initialize database schema")
+            if not self.db.initialize_gtsfm_schema():
+                logger.warning("Failed to initialize database schema")
 
     def __repr__(self) -> str:
         return f"""
@@ -408,33 +408,33 @@ class TwoViewEstimator(DaskDBModuleBase):
         """Store main computation results in two_view_results table"""
         worker_name = socket.gethostname()
         success = (post_isp_i2Ri1 is not None and post_isp_i2Ui1 is not None)
-        
+            
         # Serialize geometry data
         rotation_matrix = None
         translation_direction = None
         if success:
             rotation_matrix = self._serialize_rotation(post_isp_i2Ri1)
             translation_direction = self._serialize_translation(post_isp_i2Ui1)
-        
+            
         # Extract metrics
-        verified_corr_count = len(post_isp_v_corr_idxs) if post_isp_v_corr_idxs is not None else 0
+            verified_corr_count = len(post_isp_v_corr_idxs) if post_isp_v_corr_idxs is not None else 0
         inlier_ratio = post_isp_report.inlier_ratio_est_model if post_isp_report else None 
         computation_time = time.time() - start_time
-        
+            
         # Insert into database
         insert_query = """
-        INSERT INTO two_view_results 
-        (i1, i2, timestamp, verified_corr_count, inlier_ratio, rotation_matrix, 
-        translation_direction, success, computation_time, worker_name)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """
-        
+            INSERT INTO two_view_results 
+            (i1, i2, timestamp, verified_corr_count, inlier_ratio, rotation_matrix, 
+            translation_direction, success, computation_time, worker_name)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """
+            
         self.db.execute(
-            insert_query,
+                insert_query,
             (keypoints_i1.image_id, keypoints_i2.image_id, datetime.now(), verified_corr_count, 
              inlier_ratio, rotation_matrix, translation_direction, success, computation_time, worker_name)
-        )
-
+            )
+            
     def _store_detailed_reports(self, keypoints_i1, keypoints_i2, pre_ba_report, 
                               post_ba_report, post_isp_report):
         """Store detailed reports in two_view_reports table"""
@@ -448,21 +448,21 @@ class TwoViewEstimator(DaskDBModuleBase):
             "pre_ba": self._serialize_report(pre_ba_report),
             "post_ba": self._serialize_report(post_ba_report),
             "post_isp": self._serialize_report(post_isp_report)
-        }
+            }
         report_data_json = json.dumps(report_data)
-        
+            
         # Insert into database
         report_query = """
-        INSERT INTO two_view_reports
-        (i1, i2, timestamp, pre_ba_inlier_ratio, post_ba_inlier_ratio, post_isp_inlier_ratio, report_data)
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
-        """
-        
+            INSERT INTO two_view_reports
+            (i1, i2, timestamp, pre_ba_inlier_ratio, post_ba_inlier_ratio, post_isp_inlier_ratio, report_data)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """
+            
         self.db.execute(
-            report_query,
+                report_query,
             (keypoints_i1.image_id, keypoints_i2.image_id, datetime.now(), 
              pre_ba_inlier_ratio, post_ba_inlier_ratio, post_isp_inlier_ratio, report_data_json)
-        )
+            )
 
     def _serialize_rotation(self, rotation):
         """Helper method to serialize rotation matrix"""
@@ -700,7 +700,7 @@ def run_two_view_estimator_as_futures(
 
     # Only scatter the objects that serialize well
     two_view_estimator_future = client.scatter(two_view_estimator, broadcast=True)
-    
+
     # Submit tasks WITHOUT scattering keypoints (pass them directly)
     two_view_output_futures = {
         (i1, i2): client.submit(

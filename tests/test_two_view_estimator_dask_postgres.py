@@ -34,7 +34,6 @@ from gtsam import Pose3, PinholeCameraCal3Bundler, Unit3, Rot3
 from gtsfm.loader.yfcc_imb_loader import YfccImbLoader
 from gtsfm.frontend.detector_descriptor.sift import SIFTDetectorDescriptor
 from gtsfm.frontend.matcher.twoway_matcher import TwoWayMatcher
-from gtsfm.utils import viz
 from gtsfm.frontend.verifier.ransac import Ransac
 from gtsfm.two_view_estimator import TwoViewEstimator, run_two_view_estimator_as_futures
 from gtsfm.common.keypoints import Keypoints
