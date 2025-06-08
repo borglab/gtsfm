@@ -55,6 +55,35 @@ class Keypoints:
             + self.responses.__sizeof__()
         )
 
+    def __getstate__(self):
+        """Custom serialization for Dask distributed processing.
+        
+        Ensures that numpy arrays are properly serialized and don't get corrupted
+        during network transfer to remote workers.
+        
+        Returns:
+            Dictionary containing the object state for serialization.
+        """
+        state = {
+            'coordinates': self.coordinates,
+            'scales': self.scales,
+            'responses': self.responses
+        }
+        return state
+    
+    def __setstate__(self, state):
+        """Custom deserialization for Dask distributed processing.
+        
+        Restores the object state from the serialized dictionary, ensuring
+        that coordinates, scales, and responses remain as numpy arrays.
+        
+        Args:
+            state: Dictionary containing the serialized object state.
+        """
+        self.coordinates = state['coordinates']
+        self.scales = state['scales'] 
+        self.responses = state['responses']
+
     def __eq__(self, other: object) -> bool:
         """Checks equality with the other keypoints object."""
 
