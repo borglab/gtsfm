@@ -64,6 +64,7 @@ class Keypoints:
         Returns:
             Dictionary containing the object state for serialization.
         """
+        print(f"DEBUG: __getstate__ called, coordinates type: {type(self.coordinates)}")
         state = {
             'coordinates': self.coordinates,
             'scales': self.scales,
@@ -81,9 +82,11 @@ class Keypoints:
         Args:
             state: Dictionary containing the serialized object state.
         """
+        print(f"DEBUG: __setstate__ called, coordinates type: {type(state['coordinates'])}")
         self.coordinates = state['coordinates']
         self.scales = state['scales'] 
         self.responses = state['responses']
+        print(f"DEBUG: After __setstate__, self.coordinates type: {type(self.coordinates)}")
 
     def __eq__(self, other: object) -> bool:
         """Checks equality with the other keypoints object."""
@@ -253,6 +256,18 @@ class Keypoints:
         """
         if indices.size == 0:
             return Keypoints(coordinates=np.zeros(shape=(0, 2)))
+
+        # Debug: Check for serialization corruption
+        print(f"DEBUG: extract_indices called, self.coordinates type: {type(self.coordinates)}")
+        if not isinstance(self.coordinates, np.ndarray):
+            print(f"ERROR: coordinates is {type(self.coordinates)}, expected np.ndarray")
+            print(f"coordinates value: {self.coordinates}")
+            # Try to extract coordinates if it's a Keypoints object
+            if hasattr(self.coordinates, 'coordinates'):
+                print("Attempting to fix by extracting coordinates from nested Keypoints")
+                self.coordinates = self.coordinates.coordinates
+            else:
+                raise TypeError(f"Keypoints serialization failed: coordinates became {type(self.coordinates)} instead of np.ndarray")
 
         return Keypoints(
             self.coordinates[indices],
