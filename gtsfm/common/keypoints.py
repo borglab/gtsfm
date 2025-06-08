@@ -69,6 +69,7 @@ class Keypoints:
             'scales': self.scales,
             'responses': self.responses
         }
+        
         return state
     
     def __setstate__(self, state):
