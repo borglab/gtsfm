@@ -15,7 +15,7 @@ dependencies:
   - isort
   # dask and related
   - dask
-  - dask.distributed 
+  - distributed 
   - asyncssh
   - python-graphviz
   # core functionality and APIs
