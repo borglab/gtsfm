@@ -10,6 +10,7 @@ import pickle
 import numpy as np
 import json
 import logging
+from typing import Any, Dict, Optional, Union
 from gtsfm.common.postgres_client import PostgresClient
 
 logger = logging.getLogger(__name__)
@@ -18,19 +19,19 @@ logger = logging.getLogger(__name__)
 class DaskDBModuleBase:
     """Base class for all modules running on Dask that interact with the database"""
     
-    def __init__(self, postgres_params=None):
+    def __init__(self, postgres_params: Optional[Dict[str, Any]] = None) -> None:
         """
         Initialize the base class
         
         Args:
-            postgres_params (dict, optional): PostgreSQL connection parameters
+            postgres_params: PostgreSQL connection parameters
         """
-        self.postgres_params = postgres_params
-        self.db = None
+        self.postgres_params: Optional[Dict[str, Any]] = postgres_params
+        self.db: Optional[PostgresClient] = None
         if postgres_params:
             self.db = PostgresClient(postgres_params)
     
-    def __getstate__(self):
+    def __getstate__(self) -> Dict[str, Any]:
         """Custom serialization to avoid serializing the database connection"""
         state = self.__dict__.copy()
         # Keep connection parameters but not the connection object
@@ -39,19 +40,23 @@ class DaskDBModuleBase:
             state['db'] = None
         return state
     
-    def __setstate__(self, state):
+    def __setstate__(self, state: Dict[str, Any]) -> None:
         """Reinitialize the database client upon deserialization"""
         self.__dict__.update(state)
-        # Recreate PostgresClient on the worker
-        if self.postgres_params:
+        # Only recreate PostgresClient if postgres_params exists and is not None
+        if hasattr(self, 'postgres_params') and self.postgres_params:
             self.db = PostgresClient(self.postgres_params)
             # Initialize database tables if needed
             self.init_database()
+        else:
+            # For objects that don't have postgres functionality (like cachers)
+            self.db = None
     
-    def init_database(self):
+    def init_database(self) -> None:
         """Override in subclass to initialize required database tables"""
+        pass
     
-    def serialize_matrix(self, matrix):
+    def serialize_matrix(self, matrix: Any) -> Optional[str]:
         """
         Serialize a NumPy matrix into JSON
         
@@ -59,7 +64,7 @@ class DaskDBModuleBase:
             matrix: NumPy array or object that can be converted to JSON
             
         Returns:
-            str: JSON string
+            JSON string or None if matrix is None
         """
         if matrix is None:
             return None
@@ -83,15 +88,15 @@ class DaskDBModuleBase:
             # If not JSON serializable, use pickle as a fallback
             return pickle.dumps(matrix).hex()
     
-    def deserialize_matrix(self, serialized_data):
+    def deserialize_matrix(self, serialized_data: Optional[str]) -> Any:
         """
         Deserialize a matrix from JSON or pickle
         
         Args:
-            serialized_data (str): Serialized data
+            serialized_data: Serialized data string
             
         Returns:
-            object: Deserialized object
+            Deserialized object or None if deserialization fails
         """
         if serialized_data is None:
             return None
@@ -114,14 +119,14 @@ class DaskDBModuleBase:
                 logger.warning(f"Failed to deserialize data: {serialized_data[:50]}...")
                 return None
     
-    def log_database_operation(self, operation, success, error_msg=None):
+    def log_database_operation(self, operation: str, success: bool, error_msg: Optional[str] = None) -> None:
         """
         Log database operations for debugging
         
         Args:
-            operation (str): Description of the operation
-            success (bool): Whether the operation was successful
-            error_msg (str, optional): Error message if operation failed
+            operation: Description of the operation
+            success: Whether the operation was successful
+            error_msg: Error message if operation failed
         """
         if success:
             logger.debug(f"Database operation successful: {operation}")
