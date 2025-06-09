@@ -100,7 +100,7 @@ class TwoViewEstimator(DaskDBModuleBase):
             max_iterations=bundle_adjust_2view_maxiters,
             allow_indeterminate_linear_system=allow_indeterminate_linear_system,
         )
-        self.postgres_params = postgres_params  #  save connection parameters for use on remote worker
+        self.postgres_params = postgres_params  # save connection parameters for use on remote worker
         
         # Initialize database
         self.init_database()
@@ -408,8 +408,8 @@ class TwoViewEstimator(DaskDBModuleBase):
         return post_isp_i2Ri1, post_isp_i2Ui1, post_isp_v_corr_idxs, pre_ba_report, post_ba_report, post_isp_report
 
     def store_computation_results(self, keypoints_i1, keypoints_i2, post_isp_i2Ri1, post_isp_i2Ui1, 
-                                post_isp_v_corr_idxs, pre_ba_report, post_ba_report, post_isp_report, 
-                                start_time, i1=None, i2=None):
+                                  post_isp_v_corr_idxs, pre_ba_report, post_ba_report, post_isp_report, 
+                                  start_time, i1=None, i2=None):
         """Store computation results in database
         
         Args:
@@ -430,14 +430,14 @@ class TwoViewEstimator(DaskDBModuleBase):
             
         # Store main results with image indices
         self._store_main_results(keypoints_i1, keypoints_i2, post_isp_i2Ri1, post_isp_i2Ui1, 
-                               post_isp_v_corr_idxs, post_isp_report, start_time, i1, i2)
+                                 post_isp_v_corr_idxs, post_isp_report, start_time, i1, i2)
         
         # Store detailed reports with image indices  
         self._store_detailed_reports(keypoints_i1, keypoints_i2, pre_ba_report, 
-                                   post_ba_report, post_isp_report, i1, i2)
+                                     post_ba_report, post_isp_report, i1, i2)
 
     def _store_main_results(self, keypoints_i1, keypoints_i2, post_isp_i2Ri1, post_isp_i2Ui1, 
-                           post_isp_v_corr_idxs, post_isp_report, start_time, i1, i2):
+                            post_isp_v_corr_idxs, post_isp_report, start_time, i1, i2):
         """Store main computation results in two_view_results table
         
         Args:
@@ -478,7 +478,7 @@ class TwoViewEstimator(DaskDBModuleBase):
         )
             
     def _store_detailed_reports(self, keypoints_i1, keypoints_i2, pre_ba_report, 
-                              post_ba_report, post_isp_report, i1, i2):
+                                post_ba_report, post_isp_report, i1, i2):
         """Store detailed reports in two_view_reports table
         
         Args:

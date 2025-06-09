@@ -29,18 +29,14 @@ from datetime import datetime
 import psycopg2
 import yaml
 
-from gtsam import Pose3, PinholeCameraCal3Bundler, Unit3, Rot3
 
 from gtsfm.loader.yfcc_imb_loader import YfccImbLoader
 from gtsfm.frontend.detector_descriptor.sift import SIFTDetectorDescriptor
 from gtsfm.frontend.matcher.twoway_matcher import TwoWayMatcher
 from gtsfm.frontend.verifier.ransac import Ransac
 from gtsfm.two_view_estimator import TwoViewEstimator, run_two_view_estimator_as_futures
-from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.inlier_support_processor import InlierSupportProcessor
 from gtsfm.data_association.point3d_initializer import (
-    Point3dInitializer,
-    TriangulationExitCode,
     TriangulationOptions,
     TriangulationSamplingMode,
 )
@@ -50,6 +46,7 @@ import gtsfm.utils.viz as viz
 # Move all process management to global scope
 processes = []
 
+
 def cleanup():
     """Terminate all started processes"""
     for p in processes:
@@ -57,17 +54,20 @@ def cleanup():
             try:
                 p.terminate()
                 p.wait(timeout=5)
-            except:
+            except Exception:
                 p.kill()
     print("All cluster processes cleaned up.")
 
+
 # Register cleanup globally
 atexit.register(cleanup)
+
 
 def check_port_in_use(port):
     """Check if a port is in use"""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         return s.connect_ex(('localhost', port)) == 0
+
 
 def kill_process_on_port(port):
     """Kill process using the specified port"""
@@ -84,6 +84,7 @@ def kill_process_on_port(port):
         print(f"Error killing process on port {port}: {e}")
         return False
 
+
 def load_config(config_file='gtsfm/configs/local_scheduler_postgres_remote_cluster.yaml'):
     """Load configuration from YAML file"""
     try:
@@ -94,12 +95,14 @@ def load_config(config_file='gtsfm/configs/local_scheduler_postgres_remote_clust
         print(f"Error loading configuration: {e}")
         exit(1)
 
+
 def setup_cluster_infrastructure(config):
     """Set up SSH tunnels and start Dask scheduler"""
     tunnel_manager = SSHTunnelManager()
     tunnel_manager.config = config
     scheduler_port = tunnel_manager.setup_complete_infrastructure()
     return scheduler_port, tunnel_manager.processes
+
 
 def main():
     """Main function containing all computational logic"""
@@ -162,18 +165,12 @@ def main():
         assert isinstance(kp.coordinates, np.ndarray), f"Expected np.ndarray, got {type(kp.coordinates)}"
         print(f"  ✅ Validated: coordinates type = {type(kp.coordinates)}")
 
-    # Fix keypoints for visualization (remove this if it's causing issues)
-    try:
-        kp_i1_fixed = keypoints_list[0]  # Already correct Keypoints objects
-        kp_i2_fixed = keypoints_list[1]  # Already correct Keypoints objects
-    except Exception as e:
-        print(f"Warning: Keypoints validation issue: {e}")
 
     # Feature matching
     matcher = TwoWayMatcher(ratio_test_threshold=0.8)
     print("Matching keypoints...")
 
-    image_pairs = [(i, j) for i in range(num_images) for j in range(i+1, num_images)]
+    image_pairs = [(i, j) for i in range(num_images) for j in range(i + 1, num_images)]
     putative_corr_idxs_dict = {}
 
     for i1, i2 in image_pairs:
@@ -288,14 +285,15 @@ def main():
         summary_file = results_dir / "results_summary.txt"
         with open(summary_file, "w") as f:
             f.write(f"Two-View Estimation Summary - {timestamp}\n")
-            f.write("="*50 + "\n\n")
+            f.write("=" * 50 + "\n\n")
             f.write(f"Total time: {total_time:.2f} seconds\n")
             f.write(f"Number of images: {num_images}\n")
             f.write(f"Number of image pairs: {len(image_pairs)}\n\n")
             f.write("Results per image pair:\n")
-            f.write("-"*50 + "\n")
+            f.write("-" * 50 + "\n")
 
-        for (i1, i2), (i2Ri1, i2Ui1, v_corr_idxs, pre_ba_report, post_ba_report, post_isp_report) in two_view_output_dict.items():
+        for (i1, i2), (i2Ri1, i2Ui1, v_corr_idxs, pre_ba_report, post_ba_report, post_isp_report) in (
+                two_view_output_dict.items()):
             
             with open(summary_file, "a") as f:
                 f.write(f"\nImage Pair ({indices[i1]}, {indices[i2]}):\n")
@@ -358,5 +356,7 @@ def main():
         client.close()
         print("Dask client closed")
 
+
 if __name__ == '__main__':
     main()
+

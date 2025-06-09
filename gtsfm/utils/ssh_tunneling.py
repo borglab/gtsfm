@@ -24,6 +24,7 @@ import socket
 import yaml
 from typing import List, Dict, Any, Optional, Tuple
 
+
 class SSHTunnelManager:
     """Manages SSH tunnels and Dask cluster infrastructure"""
     
@@ -130,10 +131,10 @@ class SSHTunnelManager:
                 try:
                     p.terminate()
                     p.wait(timeout=5)
-                except:
+                except Exception:
                     try:
                         p.kill()
-                    except:
+                    except Exception:
                         pass
         print("All SSH tunnel processes cleaned up.")
     
@@ -298,6 +299,7 @@ class SSHTunnelManager:
         print(f"Infrastructure setup complete. Scheduler at localhost:{scheduler_port}")
         return scheduler_port
 
+
 # Convenience functions for backward compatibility
 def setup_cluster_infrastructure(config: Dict[str, Any]) -> Tuple[int, List[subprocess.Popen]]:
     """Legacy function for backward compatibility with existing code.
@@ -319,8 +321,10 @@ def setup_cluster_infrastructure(config: Dict[str, Any]) -> Tuple[int, List[subp
     scheduler_port = manager.setup_complete_infrastructure()
     return scheduler_port, manager.processes
 
+
 # Global instance for simple usage
 _tunnel_manager: Optional[SSHTunnelManager] = None
+
 
 def get_tunnel_manager(config_file: str = None) -> SSHTunnelManager:
     """Get or create global tunnel manager instance"""

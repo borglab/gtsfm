@@ -7,16 +7,16 @@ and provides a clean interface for executing queries and managing connections.
 Authors: Zongyue Liu
 """
 import psycopg2
-import numpy as np
 import logging
 from typing import Dict, List, Tuple, Optional, Any
 
 logger = logging.getLogger(__name__)
 
+
 class PostgresClient:
     """PostgreSQL database client for handling connections and operations"""
     
-    def __init__(self, db_params)-> None:
+    def __init__(self, db_params) -> None:
         """
         Initialize the PostgreSQL client
         
@@ -43,7 +43,7 @@ class PostgresClient:
             logger.error(f"Failed to connect to database: {e}")
             return False
     
-    def close(self)-> None:
+    def close(self) -> None:
         """Close the database connection"""
         try:
             if self.cursor:
@@ -55,7 +55,7 @@ class PostgresClient:
         except Exception as e:
             logger.warning(f"Error closing database connection: {e}")
     
-    def execute(self, query, params=None)-> None:
+    def execute(self, query, params=None) -> None:
         """
         Execute an SQL query
         

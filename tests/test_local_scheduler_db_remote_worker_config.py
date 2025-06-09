@@ -32,14 +32,15 @@ import atexit
 import dask.distributed
 import psycopg2
 import socket
-import datetime
 import yaml
+
 
 # Add function to check if a port is in use
 def check_port_in_use(port):
     """Check if a port is in use"""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         return s.connect_ex(('localhost', port)) == 0
+
 
 # Add function to kill process using a specific port
 def kill_process_on_port(port):
@@ -57,6 +58,7 @@ def kill_process_on_port(port):
         print(f"Error killing process on port {port}: {e}")
         return False
 
+
 # Load configuration from YAML file
 def load_config(config_file='gtsfm/configs/local_scheduler_postgres_remote_cluster.yaml'):
     """Load configuration from YAML file"""
@@ -67,6 +69,7 @@ def load_config(config_file='gtsfm/configs/local_scheduler_postgres_remote_clust
     except Exception as e:
         print(f"Error loading configuration: {e}")
         exit(1)
+
 
 # Load configuration
 config = load_config()
@@ -125,6 +128,7 @@ for port in ports_to_check:
 # Create a list to track all processes for later cleanup
 processes = []
 
+
 def cleanup():
     """Terminate all started processes"""
     for p in processes:
@@ -132,12 +136,14 @@ def cleanup():
             try:
                 p.terminate()
                 p.wait(timeout=5)
-            except:
+            except Exception:
                 p.kill()  # Force kill if termination fails
     print("All processes have been cleaned up.")
 
+
 # Register the cleanup function to run on exit
 atexit.register(cleanup)
+
 
 # Initialize the database table
 def initialize_database():
@@ -168,6 +174,7 @@ def initialize_database():
     except Exception as e:
         print(f"Failed to initialize database: {e}")
         return False
+
 
 # Define a function that will be executed on the workers
 def square_and_store(x):
@@ -215,6 +222,7 @@ def square_and_store(x):
     
     return result
 
+
 # Function to retrieve results from database
 def get_results_from_db():
     """Query and display results from the database"""
@@ -240,6 +248,7 @@ def get_results_from_db():
         conn.close()
     except Exception as e:
         print(f"Failed to retrieve results from database: {e}")
+
 
 # Process each worker
 for server in workers:
@@ -341,3 +350,5 @@ except KeyboardInterrupt:
     print("Termination signal received, cleaning up...")
 
 # Cleanup function will be automatically called on exit
+
+

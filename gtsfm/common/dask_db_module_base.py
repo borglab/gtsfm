@@ -6,7 +6,6 @@ within the GTSFM distributed computing environment.
 
 Authors: Zongyue Liu
 """
-from datetime import datetime
 import pickle
 import numpy as np
 import json
@@ -14,6 +13,7 @@ import logging
 from gtsfm.common.postgres_client import PostgresClient
 
 logger = logging.getLogger(__name__)
+
 
 class DaskDBModuleBase:
     """Base class for all modules running on Dask that interact with the database"""
@@ -50,7 +50,6 @@ class DaskDBModuleBase:
     
     def init_database(self):
         """Override in subclass to initialize required database tables"""
-        pass
     
     def serialize_matrix(self, matrix):
         """
