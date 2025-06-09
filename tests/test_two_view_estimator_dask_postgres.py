@@ -45,6 +45,7 @@ from gtsfm.data_association.point3d_initializer import (
     TriangulationSamplingMode,
 )
 from gtsfm.utils.ssh_tunneling import SSHTunnelManager
+import gtsfm.utils.viz as viz
 
 # Move all process management to global scope
 processes = []
@@ -149,17 +150,24 @@ def main():
     keypoints_list = []
     descriptors_list = []
 
+    # FIXED: Correct Keypoints usage to avoid serialization bug
     for i, (kp, desc) in enumerate(features):
-        # Convert to Keypoints objects with image IDs
-        keypoints_obj = Keypoints(coordinates=kp)
-        keypoints_obj.image_id = indices[i]  # Set image ID for database storage
-        keypoints_list.append(keypoints_obj)
+        # kp is already a Keypoints object from SIFT - use it directly
+        kp.image_id = indices[i]  # Set image ID for database storage
+        keypoints_list.append(kp)  # Directly append the Keypoints object
         descriptors_list.append(desc)
         print(f"Image {indices[i]}: {desc.shape[0]} keypoints")
+        
+        # Validate that coordinates are correct type
+        assert isinstance(kp.coordinates, np.ndarray), f"Expected np.ndarray, got {type(kp.coordinates)}"
+        print(f"  ✅ Validated: coordinates type = {type(kp.coordinates)}")
 
-    # Fix keypoints for visualization
-    kp_i1_fixed = Keypoints(coordinates=keypoints_list[0].coordinates.coordinates if hasattr(keypoints_list[0].coordinates, 'coordinates') else keypoints_list[0].coordinates)
-    kp_i2_fixed = Keypoints(coordinates=keypoints_list[1].coordinates.coordinates if hasattr(keypoints_list[1].coordinates, 'coordinates') else keypoints_list[1].coordinates)
+    # Fix keypoints for visualization (remove this if it's causing issues)
+    try:
+        kp_i1_fixed = keypoints_list[0]  # Already correct Keypoints objects
+        kp_i2_fixed = keypoints_list[1]  # Already correct Keypoints objects
+    except Exception as e:
+        print(f"Warning: Keypoints validation issue: {e}")
 
     # Feature matching
     matcher = TwoWayMatcher(ratio_test_threshold=0.8)
@@ -312,13 +320,11 @@ def main():
                     max_viz_corrs = min(100, len(v_corr_idxs))
                     
                     try:
-                        # Fix keypoints for visualization
-                        kp_i1_fixed = Keypoints(coordinates=keypoints_list[i1].coordinates.coordinates if hasattr(keypoints_list[i1].coordinates, 'coordinates') else keypoints_list[i1].coordinates)
-                        kp_i2_fixed = Keypoints(coordinates=keypoints_list[i2].coordinates.coordinates if hasattr(keypoints_list[i2].coordinates, 'coordinates') else keypoints_list[i2].coordinates)
+
 
                         correspondence_image = viz.plot_twoview_correspondences(
                             images[i1], images[i2], 
-                            kp_i1_fixed, kp_i2_fixed, 
+                            keypoints_list[i1], keypoints_list[i2],  # Already correct
                             v_corr_idxs[:max_viz_corrs], 
                             max_corrs=max_viz_corrs
                         )
@@ -343,6 +349,10 @@ def main():
             time.sleep(1)
     except KeyboardInterrupt:
         print("Termination signal received, cleaning up...")
+    except Exception as e:
+        print(f"❌ Error occurred: {e}")
+        import traceback
+        traceback.print_exc()
     finally:
         # Clean up
         client.close()
