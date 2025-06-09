@@ -1,6 +1,6 @@
-"""Class for 2D keypoints.
+"""Class to hold coordinates and optional metadata for keypoints, the output of detections on an image.
 
-Authors: Ayush Baid, John Lambert
+Authors: Ayush Baid
 """
 import copy
 from typing import List, Optional, Tuple
@@ -8,15 +8,22 @@ from typing import List, Optional, Tuple
 import cv2 as cv
 import numpy as np
 
-OPENCV_DEFAULT_SIZE = 10.0
-
-# Note: the keypoints class *should not* be implemented as NamedTuple because dask treats NamedTuple as a tuple and
-# tries to estimate the size by randomly sampling elements (number computed using len()). len() is used for the
-# number of points and not the number of attributes.
+# defaults for OpenCV's Keypoint attributes
+OPENCV_DEFAULT_SIZE = 2
 
 
 class Keypoints:
-    """Class for 2D keypoints."""
+    """Output of detections in an image.
+
+    Coordinate system convention:
+        1. The x coordinate denotes the horizontal direction (+ve direction towards the right).
+        2. The y coordinate denotes the vertical direction (+ve direction downwards).
+        3. Origin is at the top left corner of the image.
+
+    Note: the keypoints class *should not* be implemented as NamedTuple because dask treats NamedTuple as a tuple and
+    tries to estimate the size by randomly sampling elements (number computed using len()). len() is used for the
+    number of points and not the number of attributes.
+    """
 
     def __init__(
         self,
@@ -24,19 +31,16 @@ class Keypoints:
         scales: Optional[np.ndarray] = None,
         responses: Optional[np.ndarray] = None,
     ):
-        """Constructor for the keypoints class.
+        """Initializes the attributes.
 
         Args:
-            coordinates: 2d coordinate array of shape Nx2, where N is the number of feature points. The order is (x,y).
-            scales: scale values for the feature points. It is a 1-d array of shape N, where N is the number of feature
-                    points.
-            responses: response values for the feature points. It is a 1-d array of shape N, where N is the number of
-                       feature points.
+            coordinates: The (x, y) coordinates of the features, of shape Nx2.
+            scales: Optional scale of the detections, of shape N.
+            responses: Optional confidences/responses for each detection, of shape N.
         """
-        # Remove @property and use direct attribute assignment
         self.coordinates = coordinates
         self.scales = scales
-        self.responses = responses
+        self.responses = responses  # TODO(ayush): enforce the range.
 
     def __len__(self) -> int:
         """Number of descriptors."""
@@ -47,37 +51,9 @@ class Keypoints:
         return (
             super().__sizeof__()
             + self.coordinates.__sizeof__()
-            + (self.scales.__sizeof__() if self.scales is not None else 0)
-            + (self.responses.__sizeof__() if self.responses is not None else 0)
+            + self.scales.__sizeof__()
+            + self.responses.__sizeof__()
         )
-
-    def __getstate__(self):
-        """Custom serialization for Dask distributed processing.
-        
-        Ensures that numpy arrays are properly serialized and don't get corrupted
-        during network transfer to remote workers.
-        
-        Returns:
-            Dictionary containing the object state for serialization.
-        """
-        return {
-            'coordinates': self.coordinates,
-            'scales': self.scales,
-            'responses': self.responses
-        }
-    
-    def __setstate__(self, state):
-        """Custom deserialization for Dask distributed processing.
-        
-        Restores the object state from the serialized dictionary, ensuring
-        that coordinates, scales, and responses remain as numpy arrays.
-        
-        Args:
-            state: Dictionary containing the serialized object state.
-        """
-        self.coordinates = state['coordinates']
-        self.scales = state['scales'] 
-        self.responses = state['responses']
 
     def __eq__(self, other: object) -> bool:
         """Checks equality with the other keypoints object."""
@@ -109,24 +85,6 @@ class Keypoints:
     def __ne__(self, other: object) -> bool:
         """Checks that the other object is not equal to the current object."""
         return not self == other
-
-    def extract_indices(self, indices: np.ndarray) -> "Keypoints":
-        """Form subset with the given indices.
-
-        Args:
-            indices: Indices to extract, as a 1-D vector.
-
-        Returns:
-            Subset of data at the given indices.
-        """
-        if indices.size == 0:
-            return Keypoints(coordinates=np.zeros(shape=(0, 2)))
-
-        return Keypoints(
-            self.coordinates[indices],
-            None if self.scales is None else self.scales[indices],
-            None if self.responses is None else self.responses[indices],
-        )
 
     def get_top_k(self, k: int) -> Tuple["Keypoints", np.ndarray]:
         """Returns the top keypoints by their response values (or just the values from the front in case of missing
@@ -253,3 +211,21 @@ class Keypoints:
                 )
 
         return opencv_keypoints
+
+    def extract_indices(self, indices: np.ndarray) -> "Keypoints":
+        """Form subset with the given indices.
+
+        Args:
+            indices: Indices to extract, as a 1-D vector.
+
+        Returns:
+            Subset of data at the given indices.
+        """
+        if indices.size == 0:
+            return Keypoints(coordinates=np.zeros(shape=(0, 2)))
+
+        return Keypoints(
+            self.coordinates[indices],
+            None if self.scales is None else self.scales[indices],
+            None if self.responses is None else self.responses[indices],
+        )
