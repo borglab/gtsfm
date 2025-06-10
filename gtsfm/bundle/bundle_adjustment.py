@@ -97,6 +97,7 @@ class BundleAdjustmentOptimizer:
             measurement_noise_sigma (optional): Measurement noise sigma in pixel units.
             allow_indeterminate_linear_system: Reject a two-view measurement if an indeterminate linear system is
                 encountered during marginal covariance computation after bundle adjustment.
+            ordering_type (optional): The ordering algorithm to use for variable elimination.
         """
         self._reproj_error_thresholds = reproj_error_thresholds
         self._robust_measurement_noise = robust_measurement_noise
