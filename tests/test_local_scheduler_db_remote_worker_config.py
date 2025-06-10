@@ -36,14 +36,14 @@ import yaml
 
 
 # Add function to check if a port is in use
-def check_port_in_use(port):
+def check_port_in_use(port) -> bool:
     """Check if a port is in use"""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         return s.connect_ex(('localhost', port)) == 0
 
 
 # Add function to kill process using a specific port
-def kill_process_on_port(port):
+def kill_process_on_port(port) -> bool:
     """Kill process using the specified port"""
     try:
         result = subprocess.run(['lsof', '-i', f':{port}', '-t'], capture_output=True, text=True)
@@ -129,7 +129,7 @@ for port in ports_to_check:
 processes = []
 
 
-def cleanup():
+def cleanup() -> None:
     """Terminate all started processes"""
     for p in processes:
         if p.poll() is None:  # If the process is still running
@@ -146,7 +146,7 @@ atexit.register(cleanup)
 
 
 # Initialize the database table
-def initialize_database():
+def initialize_database() -> bool:
     """Create or reset the required database table"""
     try:
         conn = psycopg2.connect(**db_params)
@@ -177,7 +177,7 @@ def initialize_database():
 
 
 # Define a function that will be executed on the workers
-def square_and_store(x):
+def square_and_store(x) -> int:
     """Square a number and store the result in PostgreSQL database"""
     import socket
     import datetime
@@ -224,7 +224,7 @@ def square_and_store(x):
 
 
 # Function to retrieve results from database
-def get_results_from_db():
+def get_results_from_db() -> None:
     """Query and display results from the database"""
     try:
         conn = psycopg2.connect(**db_params)

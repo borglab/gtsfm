@@ -10,7 +10,7 @@ import pickle
 import numpy as np
 import json
 import logging
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional
 from gtsfm.common.postgres_client import PostgresClient
 
 logger = logging.getLogger(__name__)

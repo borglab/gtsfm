@@ -43,11 +43,11 @@ from gtsfm.data_association.point3d_initializer import (
 from gtsfm.utils.ssh_tunneling import SSHTunnelManager
 import gtsfm.utils.viz as viz
 
-# Move all process management to global scope
+
 processes = []
 
 
-def cleanup():
+def cleanup() -> None:
     """Terminate all started processes"""
     for p in processes:
         if p.poll() is None:
@@ -59,17 +59,16 @@ def cleanup():
     print("All cluster processes cleaned up.")
 
 
-# Register cleanup globally
 atexit.register(cleanup)
 
 
-def check_port_in_use(port):
+def check_port_in_use(port) -> bool:
     """Check if a port is in use"""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         return s.connect_ex(('localhost', port)) == 0
 
 
-def kill_process_on_port(port):
+def kill_process_on_port(port) -> bool:
     """Kill process using the specified port"""
     try:
         result = subprocess.run(['lsof', '-i', f':{port}', '-t'], capture_output=True, text=True)
@@ -96,7 +95,7 @@ def load_config(config_file='gtsfm/configs/local_scheduler_postgres_remote_clust
         exit(1)
 
 
-def setup_cluster_infrastructure(config):
+def setup_cluster_infrastructure(config) -> tuple[int, list[subprocess.Popen]]:
     """Set up SSH tunnels and start Dask scheduler"""
     tunnel_manager = SSHTunnelManager()
     tunnel_manager.config = config
@@ -153,17 +152,13 @@ def main():
     keypoints_list = []
     descriptors_list = []
 
-    # FIXED: Correct Keypoints usage to avoid serialization bug
+
     for i, (kp, desc) in enumerate(features):
-        # kp is already a Keypoints object from SIFT - use it directly
         kp.image_id = indices[i]  # Set image ID for database storage
         keypoints_list.append(kp)  # Directly append the Keypoints object
         descriptors_list.append(desc)
         print(f"Image {indices[i]}: {desc.shape[0]} keypoints")
         
-        # Validate that coordinates are correct type
-        assert isinstance(kp.coordinates, np.ndarray), f"Expected np.ndarray, got {type(kp.coordinates)}"
-        print(f"  ✅ Validated: coordinates type = {type(kp.coordinates)}")
 
 
     # Feature matching

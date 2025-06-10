@@ -190,7 +190,7 @@ class PostgresClient:
             return False
         return self.execute(query, params)
     
-    def initialize_gtsfm_schema(self):
+    def initialize_gtsfm_schema(self) -> bool:
         """Initialize all GTSFM-related database tables"""
         try:
             # Create two-view results table
@@ -209,7 +209,7 @@ class PostgresClient:
             logger.error(f"Failed to initialize database schema: {e}")
             return False
     
-    def _get_two_view_results_table_ddl(self):
+    def _get_two_view_results_table_ddl(self) -> str:
         """Get DDL for two_view_results table"""
         return """
         CREATE TABLE IF NOT EXISTS two_view_results (
@@ -227,7 +227,7 @@ class PostgresClient:
         );
         """
     
-    def _get_two_view_reports_table_ddl(self):
+    def _get_two_view_reports_table_ddl(self) -> str:
         """Get DDL for two_view_reports table"""
         return """
         CREATE TABLE IF NOT EXISTS two_view_reports (
