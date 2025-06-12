@@ -78,8 +78,7 @@ config = load_config()
 username = config['username']
 scheduler_port = config['scheduler']['port']
 dashboard_port = config['scheduler']['dashboard']
-workers = config['workers']
-workers_addresses = config['workers_addresses']
+workers = config['workers']  # Now a dict {hostname: port}
 
 # Database configuration
 db_params = {
@@ -93,7 +92,7 @@ db_params = {
 # Free ports at the beginning
 ports_to_check = []
 # Add worker ports
-for port in workers_addresses.values():
+for port in workers.values():
     ports_to_check.append(int(port))  # Ensure it's an integer
 # Add scheduler ports
 ports_to_check.append(scheduler_port)
@@ -251,13 +250,12 @@ def get_results_from_db() -> None:
 
 
 # Process each worker
-for server in workers:
-    server_address = f"{username}@{server}"
-    worker_port = workers_addresses[server]
+for hostname, worker_port in workers.items():
+    server_address = f"{username}@{hostname}"
     db_port = str(db_params['port'])
     
     # 1. Establish SSH tunnel
-    print(f"Establishing SSH tunnel to {server}...")
+    print(f"Establishing SSH tunnel to {hostname}...")
     ssh_tunnel_cmd = [
         "ssh", "-N", "-f", 
         "-R", f"{scheduler_port}:localhost:{scheduler_port}", 
@@ -289,11 +287,10 @@ print(f"Dask scheduler process ID: {dask_scheduler_proc.pid}")
 time.sleep(5)
 
 # 3. Start Dask workers on remote servers
-for server in workers:
-    server_address = f"{username}@{server}"
-    worker_port = workers_addresses[server]
+for hostname, worker_port in workers.items():
+    server_address = f"{username}@{hostname}"
     
-    print(f"Starting Dask worker on remote server {server}...")
+    print(f"Starting Dask worker on remote server {hostname}...")
     remote_cmd = (
         f"ssh -t {server_address} 'bash -c \""
         f"export PATH=/home/{username}/miniconda3/bin:$PATH && "

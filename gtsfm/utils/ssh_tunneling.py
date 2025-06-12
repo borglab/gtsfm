@@ -151,12 +151,11 @@ class SSHTunnelManager:
         """
         username = self.config['username']
         scheduler_port = self.config['scheduler']['port']
-        workers = self.config['workers']
-        workers_addresses = self.config['workers_addresses']
+        workers = self.config['workers']  # Now a dict {hostname: port}
         db_port = str(self.config['database']['port'])
         
         # Free up ports if needed
-        ports_to_check = [scheduler_port, self.config['scheduler']['dashboard']] + list(workers_addresses.values())
+        ports_to_check = [scheduler_port, self.config['scheduler']['dashboard']] + list(workers.values())
         
         for port in ports_to_check:
             if self.check_port_in_use(port):
@@ -166,11 +165,10 @@ class SSHTunnelManager:
                 time.sleep(3)
         
         # Establish SSH tunnels for each worker
-        for server in workers:
-            server_address = f"{username}@{server}"
-            worker_port = workers_addresses[server]
+        for hostname, worker_port in workers.items():
+            server_address = f"{username}@{hostname}"
             
-            print(f"Establishing SSH tunnel to {server}...")
+            print(f"Establishing SSH tunnel to {hostname}...")
             ssh_tunnel_cmd = [
                 "ssh", "-N", "-f", 
                 "-R", f"{scheduler_port}:localhost:{scheduler_port}", 
@@ -243,15 +241,13 @@ class SSHTunnelManager:
         """
         username = self.config['username']
         scheduler_port = self.config['scheduler']['port']
-        workers = self.config['workers']
-        workers_addresses = self.config['workers_addresses']
+        workers = self.config['workers']  # Now a dict {hostname: port}
         worker_procs = []
         
-        for server in workers:
-            server_address = f"{username}@{server}"
-            worker_port = workers_addresses[server]
+        for hostname, worker_port in workers.items():
+            server_address = f"{username}@{hostname}"
             
-            print(f"Starting Dask worker on remote server {server}...")
+            print(f"Starting Dask worker on remote server {hostname}...")
             remote_cmd = (
                 f"ssh -t {server_address} 'bash -c \""
                 f"export PATH=/home/{username}/miniconda3/bin:$PATH && "

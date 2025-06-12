@@ -179,65 +179,10 @@ class PostgresClient:
     
     def ensure_schema(self) -> bool:
         """Ensure database schema is initialized"""
-        if not self._schema_initialized:
-            self._schema_initialized = self.initialize_gtsfm_schema()
-        return self._schema_initialized
+        # Remove domain-specific schema initialization
+        # Each module should handle its own schema
+        return True
     
     def execute_with_schema_check(self, query: str, params: Optional[Tuple] = None) -> bool:
-        """Execute query after ensuring schema exists"""
-        if not self.ensure_schema():
-            logger.error("Failed to initialize database schema")
-            return False
+        """Execute query (schema checking handled by individual modules)"""
         return self.execute(query, params)
-    
-    def initialize_gtsfm_schema(self) -> bool:
-        """Initialize all GTSFM-related database tables"""
-        try:
-            # Create two-view results table
-            if not self.execute(self._get_two_view_results_table_ddl()):
-                logger.error("Failed to create two_view_results table")
-                return False
-            
-            # Create two-view reports table  
-            if not self.execute(self._get_two_view_reports_table_ddl()):
-                logger.error("Failed to create two_view_reports table")
-                return False
-            
-            logger.info("Database schema initialized successfully")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to initialize database schema: {e}")
-            return False
-    
-    def _get_two_view_results_table_ddl(self) -> str:
-        """Get DDL for two_view_results table"""
-        return """
-        CREATE TABLE IF NOT EXISTS two_view_results (
-            id SERIAL PRIMARY KEY,
-            i1 INTEGER NOT NULL,
-            i2 INTEGER NOT NULL,
-            timestamp TIMESTAMP NOT NULL,
-            verified_corr_count INTEGER,
-            inlier_ratio FLOAT,
-            rotation_matrix TEXT,
-            translation_direction TEXT,
-            success BOOLEAN NOT NULL,
-            computation_time FLOAT,
-            worker_name TEXT
-        );
-        """
-    
-    def _get_two_view_reports_table_ddl(self) -> str:
-        """Get DDL for two_view_reports table"""
-        return """
-        CREATE TABLE IF NOT EXISTS two_view_reports (
-            id SERIAL PRIMARY KEY,
-            i1 INTEGER NOT NULL,
-            i2 INTEGER NOT NULL,
-            timestamp TIMESTAMP NOT NULL,
-            pre_ba_inlier_ratio FLOAT,
-            post_ba_inlier_ratio FLOAT,
-            post_isp_inlier_ratio FLOAT,
-            report_data TEXT
-        );
-        """

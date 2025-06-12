@@ -46,7 +46,7 @@ class DaskDBModuleBase:
         # Only recreate PostgresClient if postgres_params exists and is not None
         if hasattr(self, 'postgres_params') and self.postgres_params:
             self.db = PostgresClient(self.postgres_params)
-            # Initialize database tables if needed
+            # Initialize database tables if needed - each subclass handles its own schema
             self.init_database()
         else:
             # For objects that don't have postgres functionality (like cachers)
