@@ -1,7 +1,0 @@
-
-# local scheduler
-use_local_scheduler: true
-
-# remote workers
-workers:
-  - zliu890@130.207.121.31
