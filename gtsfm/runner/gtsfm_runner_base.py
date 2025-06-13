@@ -405,7 +405,9 @@ class GtsfmRunnerBase:
         all_delayed_mvo_metrics_groups = []
 
         for idx, subgraph_result_dict in enumerate(subgraph_two_view_results):
-            logger.info(f"Creating computation graph for subgraph {idx+1}/{len(subgraph_two_view_results)} with {len(subgraph_result_dict)} image pairs")
+            logger.info(
+                f"Creating computation graph for subgraph {idx+1}/{len(subgraph_two_view_results)} "
+                f"with {len(subgraph_result_dict)} image pairs")
             
             # Unzip the two-view results for this subgraph
             subgraph_i2Ri1_dict, subgraph_i2Ui1_dict, subgraph_v_corr_idxs_dict, _, subgraph_post_isp_reports = (
@@ -414,7 +416,8 @@ class GtsfmRunnerBase:
             
             # Create computation graph for this subgraph
             if len(subgraph_i2Ri1_dict) > 0:  # Only process non-empty subgraphs
-                delayed_sfm_result, delayed_io, delayed_mvo_metrics_groups = self.scene_optimizer.create_computation_graph(
+                (delayed_sfm_result, delayed_io, 
+                 delayed_mvo_metrics_groups) = self.scene_optimizer.create_computation_graph(
                     keypoints_list=keypoints_list,
                     i2Ri1_dict=subgraph_i2Ri1_dict,
                     i2Ui1_dict=subgraph_i2Ui1_dict,
@@ -516,4 +519,4 @@ def save_metrics_reports(metrics_group_list: List[GtsfmMetricsGroup], metrics_pa
         metrics_group_list, os.path.join(metrics_path, "gtsfm_metrics_report.html"), None
     )
 
-    
+
