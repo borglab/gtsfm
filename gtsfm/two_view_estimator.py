@@ -491,32 +491,19 @@ class TwoViewEstimator(DaskDBModuleBase):
                                      post_ba_report, post_isp_report, i1, i2)
 
     def _store_main_results(self, keypoints_i1, keypoints_i2, post_isp_i2Ri1, post_isp_i2Ui1, 
-                            post_isp_v_corr_idxs, post_isp_report, start_time, i1, i2):
-        """Store main computation results in two_view_results table
-        
-        Args:
-            keypoints_i1: Keypoints for first image
-            keypoints_i2: Keypoints for second image
-            post_isp_i2Ri1: Estimated rotation after ISP
-            post_isp_i2Ui1: Estimated translation after ISP  
-            post_isp_v_corr_idxs: Verified correspondences after ISP
-            post_isp_report: Report after ISP
-            start_time: Start time of computation
-            i1: Index of first image
-            i2: Index of second image
-        """
+                            post_isp_v_corr_idxs, post_isp_report, computation_time, i1, i2):
+        """Store main computation results in two_view_results table"""
+        if not self.db:
+            return
+            
         worker_name = socket.gethostname()
         success = (post_isp_i2Ri1 is not None and post_isp_i2Ui1 is not None)
         verified_corr_count = len(post_isp_v_corr_idxs) if post_isp_v_corr_idxs is not None else 0
         
-        # Use None as default instead of 0.0 (as suggested in code review)
         inlier_ratio = post_isp_report.inlier_ratio_est_model if post_isp_report else None
         
-        # Serialize transformation matrices
         rotation_matrix = self._serialize_rotation(post_isp_i2Ri1) if post_isp_i2Ri1 else None
         translation_direction = self._serialize_translation(post_isp_i2Ui1) if post_isp_i2Ui1 else None
-        
-        computation_time = time.time() - start_time
         
         insert_query = """
             INSERT INTO two_view_results
@@ -525,12 +512,18 @@ class TwoViewEstimator(DaskDBModuleBase):
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
             
-        self.db.execute(
+        # Use the connection-managed execute method
+        success = self.db.execute_with_connection(
             insert_query,
-            (i1, i2, datetime.now(), verified_corr_count,  # Use passed image indices
+            (i1, i2, datetime.now(), verified_corr_count,
              inlier_ratio, rotation_matrix, translation_direction, success, computation_time, worker_name)
         )
-            
+        
+        if success:
+            logger.info(f"Successfully stored results for image pair ({i1}, {i2})")
+        else:
+            logger.error(f"Failed to store results for image pair ({i1}, {i2})")
+
     def _store_detailed_reports(self, keypoints_i1, keypoints_i2, pre_ba_report, 
                                 post_ba_report, post_isp_report, i1, i2):
         """Store detailed reports in two_view_reports table

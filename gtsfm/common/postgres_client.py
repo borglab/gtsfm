@@ -187,3 +187,15 @@ class PostgresClient:
     def execute_with_schema_check(self, query: str, params: Optional[Tuple] = None) -> bool:
         """Execute query (schema checking handled by individual modules)"""
         return self.execute(query, params)
+
+    def execute_with_connection(self, query: str, params: Optional[Tuple] = None) -> bool:
+        """Execute query with proper connection management"""
+        try:
+            with psycopg2.connect(**self.db_params) as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(query, params)
+                    conn.commit()
+            return True
+        except Exception as e:
+            logger.error(f"SQL execution failed: {e}")
+            return False
