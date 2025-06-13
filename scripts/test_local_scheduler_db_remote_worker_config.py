@@ -21,29 +21,32 @@ Architecture:
 4. Workers execute tasks and store results directly in the PostgreSQL database
 5. All configuration is externalized to a YAML file for easy modification
 
-
 Author: Zongyue Liu
 """
-import subprocess
-import time
+import atexit
 import os
 import signal
-import atexit
+import socket
+import subprocess
+import time
+from typing import Any, Dict, List
+
 import dask.distributed
 import psycopg2
-import socket
 import yaml
 
 
-# Add function to check if a port is in use
-def check_port_in_use(port) -> bool:
+# Global list to track processes - will be populated in main()
+processes: List[subprocess.Popen] = []
+
+
+def check_port_in_use(port: int) -> bool:
     """Check if a port is in use"""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         return s.connect_ex(('localhost', port)) == 0
 
 
-# Add function to kill process using a specific port
-def kill_process_on_port(port) -> bool:
+def kill_process_on_port(port: int) -> bool:
     """Kill process using the specified port"""
     try:
         result = subprocess.run(['lsof', '-i', f':{port}', '-t'], capture_output=True, text=True)
@@ -59,8 +62,7 @@ def kill_process_on_port(port) -> bool:
         return False
 
 
-# Load configuration from YAML file
-def load_config(config_file='gtsfm/configs/local_scheduler_postgres_remote_cluster.yaml'):
+def load_config(config_file: str = 'gtsfm/configs/local_scheduler_postgres_remote_cluster.yaml') -> Dict[str, Any]:
     """Load configuration from YAML file"""
     try:
         with open(config_file, 'r') as file:
@@ -68,70 +70,13 @@ def load_config(config_file='gtsfm/configs/local_scheduler_postgres_remote_clust
         return config
     except Exception as e:
         print(f"Error loading configuration: {e}")
-        exit(1)
-
-
-# Load configuration
-config = load_config()
-
-# Extract settings from config
-username = config['username']
-scheduler_port = config['scheduler']['port']
-dashboard_port = config['scheduler']['dashboard']
-workers = config['workers']  # Now a dict {hostname: port}
-
-# Database configuration
-db_params = {
-    'host': config['database']['host'],
-    'port': config['database']['port'],
-    'database': config['database']['database'],
-    'user': config['database']['user'],
-    'password': config['database']['password']
-}
-
-# Free ports at the beginning
-ports_to_check = []
-# Add worker ports
-for port in workers.values():
-    ports_to_check.append(int(port))  # Ensure it's an integer
-# Add scheduler ports
-ports_to_check.append(scheduler_port)
-ports_to_check.append(dashboard_port)
-
-print(f"Checking ports to free: {ports_to_check}")
-
-for port in ports_to_check:
-    if check_port_in_use(port):
-        print(f"Port {port} is in use. Attempting to free it...")
-        
-        # Try up to 3 times to free the port
-        max_attempts = 3
-        for attempt in range(max_attempts):
-            if not kill_process_on_port(port):
-                print(f"Failed to free port {port}. Please manually close the application using it.")
-                exit(1)
-            
-            # Wait longer for port to free up (3 seconds)
-            time.sleep(3)
-            
-            if not check_port_in_use(port):
-                print(f"Port {port} freed successfully.")
-                break
-            else:
-                if attempt < max_attempts - 1:
-                    print(f"Port {port} still in use. Retrying ({attempt+1}/{max_attempts})...")
-                else:
-                    print(f"Port {port} is still in use after {max_attempts} attempts. Exiting.")
-                    exit(1)
-
-# Create a list to track all processes for later cleanup
-processes = []
+        raise
 
 
 def cleanup() -> None:
     """Terminate all started processes"""
     for p in processes:
-        if p.poll() is None:  # If the process is still running
+        if p and p.poll() is None:  # If the process is still running
             try:
                 p.terminate()
                 p.wait(timeout=5)
@@ -140,12 +85,7 @@ def cleanup() -> None:
     print("All processes have been cleaned up.")
 
 
-# Register the cleanup function to run on exit
-atexit.register(cleanup)
-
-
-# Initialize the database table
-def initialize_database() -> bool:
+def initialize_database(db_params: Dict[str, Any]) -> bool:
     """Create or reset the required database table"""
     try:
         conn = psycopg2.connect(**db_params)
@@ -175,8 +115,7 @@ def initialize_database() -> bool:
         return False
 
 
-# Define a function that will be executed on the workers
-def square_and_store(x) -> int:
+def square_and_store(x: int) -> int:
     """Square a number and store the result in PostgreSQL database"""
     import socket
     import datetime
@@ -222,8 +161,7 @@ def square_and_store(x) -> int:
     return result
 
 
-# Function to retrieve results from database
-def get_results_from_db() -> None:
+def get_results_from_db(db_params: Dict[str, Any]) -> None:
     """Query and display results from the database"""
     try:
         conn = psycopg2.connect(**db_params)
@@ -249,103 +187,178 @@ def get_results_from_db() -> None:
         print(f"Failed to retrieve results from database: {e}")
 
 
-# Process each worker
-for hostname, worker_port in workers.items():
-    server_address = f"{username}@{hostname}"
-    db_port = str(db_params['port'])
+def setup_infrastructure(config: Dict[str, Any]) -> None:
+    """Set up SSH tunnels and start scheduler/workers"""
+    global processes
     
-    # 1. Establish SSH tunnel
-    print(f"Establishing SSH tunnel to {hostname}...")
-    ssh_tunnel_cmd = [
-        "ssh", "-N", "-f", 
-        "-R", f"{scheduler_port}:localhost:{scheduler_port}", 
-        "-R", f"{db_port}:localhost:{db_port}", 
-        "-L", f"{worker_port}:localhost:{worker_port}", 
-        server_address
+    # Extract settings from config
+    username = config['username']
+    scheduler_port = config['scheduler']['port']
+    dashboard_port = config['scheduler']['dashboard']
+    workers = config['workers']  # Dict {hostname: port}
+    
+    # Database configuration
+    db_params = {
+        'host': config['database']['host'],
+        'port': config['database']['port'],
+        'database': config['database']['database'],
+        'user': config['database']['user'],
+        'password': config['database']['password']
+    }
+    
+    # Free ports at the beginning
+    ports_to_check = []
+    # Add worker ports
+    for port in workers.values():
+        ports_to_check.append(int(port))
+    # Add scheduler ports
+    ports_to_check.append(scheduler_port)
+    ports_to_check.append(dashboard_port)
+    
+    print(f"Checking ports to free: {ports_to_check}")
+    
+    for port in ports_to_check:
+        if check_port_in_use(port):
+            print(f"Port {port} is in use. Attempting to free it...")
+            
+            # Try up to 3 times to free the port
+            max_attempts = 3
+            for attempt in range(max_attempts):
+                if not kill_process_on_port(port):
+                    print(f"Failed to free port {port}. Please manually close the application using it.")
+                    raise RuntimeError(f"Port {port} could not be freed")
+                
+                time.sleep(3)
+                
+                if not check_port_in_use(port):
+                    print(f"Port {port} freed successfully.")
+                    break
+                else:
+                    if attempt < max_attempts - 1:
+                        print(f"Port {port} still in use. Retrying ({attempt+1}/{max_attempts})...")
+                    else:
+                        raise RuntimeError(f"Port {port} is still in use after {max_attempts} attempts")
+    
+    # Process each worker - establish SSH tunnels
+    for hostname, worker_port in workers.items():
+        server_address = f"{username}@{hostname}"
+        db_port = str(db_params['port'])
+        
+        print(f"Establishing SSH tunnel to {hostname}...")
+        ssh_tunnel_cmd = [
+            "ssh", "-N", "-f", 
+            "-R", f"{scheduler_port}:localhost:{scheduler_port}", 
+            "-R", f"{db_port}:localhost:{db_port}", 
+            "-L", f"{worker_port}:localhost:{worker_port}", 
+            server_address
+        ]
+        
+        ssh_tunnel_proc = subprocess.Popen(ssh_tunnel_cmd)
+        processes.append(ssh_tunnel_proc)
+        print(f"SSH tunnel process ID: {ssh_tunnel_proc.pid}")
+        time.sleep(5)
+    
+    # Start Dask scheduler
+    print("Starting Dask scheduler...")
+    dask_scheduler_cmd = [
+        "conda", "run", "-n", "gtsfm-v1", 
+        "dask-scheduler", "--port", str(scheduler_port), 
+        "--dashboard-address", f":{dashboard_port}"
     ]
-
-    ssh_tunnel_proc = subprocess.Popen(ssh_tunnel_cmd)
-    processes.append(ssh_tunnel_proc)
-    print(f"SSH tunnel process ID: {ssh_tunnel_proc.pid}")
-
-    # Wait for the tunnel to establish
-    time.sleep(5)
-
-# 2. Start Dask scheduler
-print("Starting Dask scheduler...")
-dask_scheduler_cmd = [
-    "conda", "run", "-n", "gtsfm-v1", 
-    "dask-scheduler", "--port", str(scheduler_port), 
-    "--dashboard-address", f":{dashboard_port}"
-]
-
-dask_scheduler_proc = subprocess.Popen(dask_scheduler_cmd)
-processes.append(dask_scheduler_proc)
-print(f"Dask scheduler process ID: {dask_scheduler_proc.pid}")
-
-# Wait for scheduler to start
-time.sleep(5)
-
-# 3. Start Dask workers on remote servers
-for hostname, worker_port in workers.items():
-    server_address = f"{username}@{hostname}"
     
-    print(f"Starting Dask worker on remote server {hostname}...")
-    remote_cmd = (
-        f"ssh -t {server_address} 'bash -c \""
-        f"export PATH=/home/{username}/miniconda3/bin:$PATH && "
-        f"source /home/{username}/miniconda3/etc/profile.d/conda.sh && "
-        "conda activate gtsfm-v1 && "
-        f"dask-worker tcp://localhost:{scheduler_port} "
-        f"--listen-address tcp://0.0.0.0:{worker_port} "
-        f"--contact-address tcp://localhost:{worker_port}"
-        "\"'"
-    )
-
-    dask_worker_proc = subprocess.Popen(remote_cmd, shell=True)
-    processes.append(dask_worker_proc)
-    print(f"Remote Dask worker process ID: {dask_worker_proc.pid}")
-
-    # Wait for worker to connect
+    dask_scheduler_proc = subprocess.Popen(dask_scheduler_cmd)
+    processes.append(dask_scheduler_proc)
+    print(f"Dask scheduler process ID: {dask_scheduler_proc.pid}")
     time.sleep(5)
+    
+    # Start Dask workers on remote servers
+    for hostname, worker_port in workers.items():
+        server_address = f"{username}@{hostname}"
+        
+        print(f"Starting Dask worker on remote server {hostname}...")
+        remote_cmd = (
+            f"ssh -t {server_address} 'bash -c \""
+            f"export PATH=/home/{username}/miniconda3/bin:$PATH && "
+            f"source /home/{username}/miniconda3/etc/profile.d/conda.sh && "
+            "conda activate gtsfm-v1 && "
+            f"dask-worker tcp://localhost:{scheduler_port} "
+            f"--listen-address tcp://0.0.0.0:{worker_port} "
+            f"--contact-address tcp://localhost:{worker_port}"
+            "\"'"
+        )
+        
+        dask_worker_proc = subprocess.Popen(remote_cmd, shell=True)
+        processes.append(dask_worker_proc)
+        print(f"Remote Dask worker process ID: {dask_worker_proc.pid}")
+        time.sleep(5)
+    
+    return db_params, scheduler_port
 
-# 4. Create a Dask client to connect to the scheduler
-print("Creating Dask client...")
-client = dask.distributed.Client(f"tcp://localhost:{scheduler_port}")
-print(f"Dask dashboard available at: {client.dashboard_link}")
 
-# Store database parameters in client metadata for workers to access
-client.set_metadata('db_params', db_params)
+def run_test_computation(db_params: Dict[str, Any], scheduler_port: int) -> None:
+    """Run the test computation on the cluster"""
+    # Create Dask client
+    print("Creating Dask client...")
+    client = dask.distributed.Client(f"tcp://localhost:{scheduler_port}")
+    print(f"Dask dashboard available at: {client.dashboard_link}")
+    
+    # Store database parameters in client metadata for workers to access
+    client.set_metadata('db_params', db_params)
+    
+    # Initialize the database
+    print("Initializing PostgreSQL database...")
+    if not initialize_database(db_params):
+        print("Failed to initialize database. Exiting.")
+        cleanup()
+        raise RuntimeError("Database initialization failed")
+    
+    # Submit jobs to workers
+    print("Submitting jobs to workers...")
+    futures = client.map(square_and_store, range(10))
+    dask.distributed.wait(futures)
+    
+    # Collect results
+    results = client.gather(futures)
+    print("Computation results:", results)
+    
+    # Display results from database
+    get_results_from_db(db_params)
+    
+    client.close()
 
-# 5. Initialize the database
-print("Initializing PostgreSQL database...")
-if not initialize_database():
-    print("Failed to initialize database. Exiting.")
-    cleanup()
-    exit(1)
 
-# 6. Submit jobs to workers
-print("Submitting jobs to workers...")
-futures = client.map(square_and_store, range(10))
-dask.distributed.wait(futures)
+def main() -> None:
+    """Main function that orchestrates the entire test"""
+    # Register cleanup function
+    atexit.register(cleanup)
+    
+    try:
+        # Load configuration
+        config = load_config()
+        
+        # Set up infrastructure
+        db_params, scheduler_port = setup_infrastructure(config)
+        
+        # Run test computation
+        run_test_computation(db_params, scheduler_port)
+        
+        # Keep main program running until user interrupts
+        print("\nAll services have been started and test completed.")
+        print("Cluster will continue running. Press Ctrl+C to stop all services...")
+        
+        # Wait for Ctrl+C
+        while True:
+            time.sleep(1)
+            
+    except KeyboardInterrupt:
+        print("Termination signal received, cleaning up...")
+    except Exception as e:
+        print(f"Error occurred: {e}")
+        cleanup()
+        raise
 
-# 7. Collect results
-results = client.gather(futures)
-print("Computation results:", results)
 
-# 8. Display results from database
-get_results_from_db()
-
-# Keep main program running until user interrupts
-print("\nAll services have been started and test completed.")
-print("Cluster will continue running. Press Ctrl+C to stop all services...")
-try:
-    # Wait for Ctrl+C
-    while True:
-        time.sleep(1)
-except KeyboardInterrupt:
-    print("Termination signal received, cleaning up...")
-
-# Cleanup function will be automatically called on exit
+if __name__ == '__main__':
+    main()
 
 

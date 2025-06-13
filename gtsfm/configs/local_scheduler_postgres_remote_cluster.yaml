@@ -6,15 +6,9 @@ scheduler:
   port: 8788                 # Port for Dask scheduler to listen on
   dashboard: 8787        # Address for the Dask dashboard UI
 
-# remote workers
+# remote workers and SSH port
 workers:
-  - eagle.cc.gatech.edu
-
- # cotact and listen address for each worker
-workers_addresses:
-  eagle.cc.gatech.edu: 9000
-
- 
+  eagle.cc.gatech.edu: 9000 
 
 # PostgreSQL connection settings (local to the scheduler)
 database:
@@ -23,4 +17,3 @@ database:
   database: postgres         # Database name
   user: postgres             # Database username
   password: "0504"           # Database password
-

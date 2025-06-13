@@ -15,20 +15,23 @@ topology, connection parameters, and service ports.
 
 Authors: Zongyue Liu
 """
-import subprocess
-import time
+import atexit
 import os
 import signal
-import atexit
 import socket
+import subprocess
+import time
+
 import yaml
-from typing import List, Dict, Any, Optional, Tuple
+
+from typing import Any, Dict, List, Optional, Tuple
+
 
 
 class SSHTunnelManager:
     """Manages SSH tunnels and Dask cluster infrastructure"""
     
-    def __init__(self, config_file: str = 'gtsfm/configs/local_scheduler_postgres_remote_cluster.yaml') -> None:
+    def __init__(self, config_file: str) -> None:
         """Initialize the SSH tunnel manager.
         
         Args:
@@ -322,9 +325,9 @@ def setup_cluster_infrastructure(config: Dict[str, Any]) -> Tuple[int, List[subp
 _tunnel_manager: Optional[SSHTunnelManager] = None
 
 
-def get_tunnel_manager(config_file: str = None) -> SSHTunnelManager:
+def get_tunnel_manager(config_file: str) -> SSHTunnelManager:
     """Get or create global tunnel manager instance"""
     global _tunnel_manager
     if _tunnel_manager is None:
-        _tunnel_manager = SSHTunnelManager(config_file) if config_file else SSHTunnelManager()
+        _tunnel_manager = SSHTunnelManager(config_file)
     return _tunnel_manager

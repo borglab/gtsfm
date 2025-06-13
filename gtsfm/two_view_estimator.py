@@ -103,9 +103,9 @@ class TwoViewEstimator(DaskDBModuleBase):
         self.postgres_params = postgres_params  # save connection parameters for use on remote worker
         
         # Initialize database
-        self.init_database()
+        self.init_tables()
 
-    def init_database(self):
+    def init_tables(self):
         """Initialize database tables for two-view estimation"""
         if not self.db:
             return
@@ -386,6 +386,10 @@ class TwoViewEstimator(DaskDBModuleBase):
         Returns:
             Estimated relative rotation, unit translation, verified correspondences, and two-view report.
         """
+        
+        # Record start time for computation measurement
+        start_time = time.time()
+        
         # verification on putative correspondences to obtain relative pose and verified correspondences
         (pre_ba_i2Ri1, pre_ba_i2Ui1, pre_ba_v_corr_idxs, pre_ba_inlier_ratio_wrt_estimate) = self._verifier.verify(
             keypoints_i1,
@@ -448,10 +452,7 @@ class TwoViewEstimator(DaskDBModuleBase):
             post_isp_report,
         ) = self.processor.run_inlier_support(post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs, post_ba_report)
 
-        # Calculate computation time
-        start_time = time.time()
-        
-        # Store computation results in database (pass image indices)
+        # Store computation results in database (pass image indices and start time)
         self.store_computation_results(
             keypoints_i1, keypoints_i2, post_isp_i2Ri1, post_isp_i2Ui1, 
             post_isp_v_corr_idxs, pre_ba_report, post_ba_report, post_isp_report, 
@@ -569,19 +570,17 @@ class TwoViewEstimator(DaskDBModuleBase):
              pre_ba_inlier_ratio, post_ba_inlier_ratio, post_isp_inlier_ratio, report_data_json)
         )
 
-    def _serialize_rotation(self, rotation):
+    def _serialize_rotation(self, rotation: Optional[Rot3]) -> Optional[str]:
         """Helper method to serialize rotation matrix"""
-        if hasattr(rotation, 'matrix'):
-            return self.serialize_matrix(rotation.matrix())
-        else:
-            return self.serialize_matrix(rotation)
-
-    def _serialize_translation(self, translation):
+        if rotation is None:
+            return None
+        return self.serialize_matrix(rotation.matrix())
+    
+    def _serialize_translation(self, translation: Optional[Unit3]) -> Optional[str]:
         """Helper method to serialize translation direction"""
-        if hasattr(translation, 'point3'):
-            return self.serialize_matrix(translation.point3())
-        else:
-            return self.serialize_matrix(translation)
+        if translation is None:
+            return None
+        return self.serialize_matrix(translation.point3())
 
     def _serialize_report(self, report):
         """Helper method to serialize report objects"""

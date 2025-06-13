@@ -15,34 +15,33 @@ Features:
 
 Author: Zongyue Liu
 """
-from pathlib import Path
-import numpy as np
-import matplotlib.pyplot as plt
-from dask.distributed import Client, performance_report
-import time
-import subprocess
-import signal
 import atexit
-import socket
 import os
+import signal
+import socket
+import subprocess
+import time
 from datetime import datetime
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import numpy as np
 import psycopg2
 import yaml
+from dask.distributed import Client, performance_report
 
-
-from gtsfm.loader.yfcc_imb_loader import YfccImbLoader
-from gtsfm.frontend.detector_descriptor.sift import SIFTDetectorDescriptor
-from gtsfm.frontend.matcher.twoway_matcher import TwoWayMatcher
-from gtsfm.frontend.verifier.ransac import Ransac
-from gtsfm.two_view_estimator import TwoViewEstimator, run_two_view_estimator_as_futures
-from gtsfm.frontend.inlier_support_processor import InlierSupportProcessor
 from gtsfm.data_association.point3d_initializer import (
     TriangulationOptions,
     TriangulationSamplingMode,
 )
+from gtsfm.frontend.detector_descriptor.sift import SIFTDetectorDescriptor
+from gtsfm.frontend.inlier_support_processor import InlierSupportProcessor
+from gtsfm.frontend.matcher.twoway_matcher import TwoWayMatcher
+from gtsfm.frontend.verifier.ransac import Ransac
+from gtsfm.loader.yfcc_imb_loader import YfccImbLoader
+from gtsfm.two_view_estimator import TwoViewEstimator, run_two_view_estimator_as_futures
 from gtsfm.utils.ssh_tunneling import SSHTunnelManager
 import gtsfm.utils.viz as viz
-
 
 processes = []
 
@@ -95,10 +94,9 @@ def load_config(config_file='gtsfm/configs/local_scheduler_postgres_remote_clust
         exit(1)
 
 
-def setup_cluster_infrastructure(config) -> tuple[int, list[subprocess.Popen]]:
+def setup_cluster_infrastructure(config_file: str) -> tuple[int, list[subprocess.Popen]]:
     """Set up SSH tunnels and start Dask scheduler"""
-    tunnel_manager = SSHTunnelManager()
-    tunnel_manager.config = config
+    tunnel_manager = SSHTunnelManager(config_file)
     scheduler_port = tunnel_manager.setup_complete_infrastructure()
     return scheduler_port, tunnel_manager.processes
 
@@ -106,8 +104,9 @@ def setup_cluster_infrastructure(config) -> tuple[int, list[subprocess.Popen]]:
 def main():
     """Main function containing all computational logic"""
     
-    # Load configuration
-    config = load_config()
+    # Load configuration - default can be here at the application level
+    config_file = 'gtsfm/configs/local_scheduler_postgres_remote_cluster.yaml'
+    config = load_config(config_file)
     
     # Extract database parameters
     db_params = {
@@ -130,7 +129,7 @@ def main():
     
     # Set up cluster infrastructure
     print("Setting up distributed cluster...")
-    scheduler_port, processes = setup_cluster_infrastructure(config)
+    scheduler_port, processes = setup_cluster_infrastructure(config_file)
     
     # Prepare input data locally
     print("Preparing input data...")

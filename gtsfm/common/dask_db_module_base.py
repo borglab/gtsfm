@@ -6,11 +6,13 @@ within the GTSFM distributed computing environment.
 
 Authors: Zongyue Liu
 """
-import pickle
-import numpy as np
 import json
 import logging
-from typing import Any, Dict, Optional
+import pickle
+from typing import Any, Dict, Optional, Union, List
+
+import numpy as np
+
 from gtsfm.common.postgres_client import PostgresClient
 
 logger = logging.getLogger(__name__)
@@ -47,16 +49,16 @@ class DaskDBModuleBase:
         if hasattr(self, 'postgres_params') and self.postgres_params:
             self.db = PostgresClient(self.postgres_params)
             # Initialize database tables if needed - each subclass handles its own schema
-            self.init_database()
+            self.init_tables()
         else:
             # For objects that don't have postgres functionality (like cachers)
             self.db = None
     
-    def init_database(self) -> None:
+    def init_tables(self) -> None:
         """Override in subclass to initialize required database tables"""
         pass
     
-    def serialize_matrix(self, matrix: Any) -> Optional[str]:
+    def serialize_matrix(self, matrix: Optional[Union[np.ndarray, Dict, List, Any]]) -> Optional[str]:
         """
         Serialize a NumPy matrix into JSON
         
@@ -104,11 +106,10 @@ class DaskDBModuleBase:
         try:
             # Try JSON first
             data = json.loads(serialized_data)
-            # Convert list back to numpy array if it looks like a matrix
+            # Convert list to numpy array if it contains numeric data
             if isinstance(data, list) and len(data) > 0:
-                if isinstance(data[0], list):  # 2D array
-                    return np.array(data)
-                elif isinstance(data[0], (int, float)):  # 1D array
+                # Check if it looks like numeric data (handles both 1D and 2D)
+                if isinstance(data[0], (list, int, float)):
                     return np.array(data)
             return data
         except (json.JSONDecodeError, ValueError):
