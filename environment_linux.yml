@@ -1,7 +1,8 @@
-name: gtsfm-v1
+name: gtsfm-mast3r
 channels:
   - conda-forge
 dependencies:
+  - cmake=3.14.0 # for dust3r
   # python essentials
   - python=3.10
   - pip
@@ -18,7 +19,7 @@ dependencies:
   - asyncssh
   - python-graphviz
   # core functionality and APIs
-  - matplotlib>=3.5
+  - matplotlib
   - networkx
   - numpy==1.26.4 # gtsam requirement
   - nodejs
@@ -28,12 +29,12 @@ dependencies:
   - seaborn
   - scipy
   - hydra-core
-  # # 3rd party algorithms for different modules
+  # 3rd party algorithms for different modules
   - kornia>=0.7.3
   - pycolmap
   # io
   - h5py
-  - plotly>=5.0
+  - plotly
   - tabulate
   - simplejson
   - pyparsing>=3.0.9
@@ -49,3 +50,10 @@ dependencies:
       - trimesh[easy]
       - gtsam>=4.2
       - pydot
+      - roma
+      - tqdm
+      - einops
+      - tensorboard
+      - pyglet<2
+      - huggingface-hub[torch]>=0.22
+
