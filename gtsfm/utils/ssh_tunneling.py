@@ -38,6 +38,9 @@ class SSHTunnelManager:
             config_file: Path to YAML configuration file containing cluster settings,
                        SSH credentials, and port configurations
                        
+        Returns:
+            None
+                       
         Raises:
             FileNotFoundError: If the configuration file cannot be found
             yaml.YAMLError: If the configuration file contains invalid YAML
@@ -128,7 +131,15 @@ class SSHTunnelManager:
             return False
     
     def cleanup(self):
-        """Terminate all started processes"""
+        """
+        Terminate all started processes.
+        
+        Args:
+            None
+            
+        Returns:
+            None
+        """
         for p in self.processes:
             if p and p.poll() is None:
                 try:
@@ -142,12 +153,19 @@ class SSHTunnelManager:
         print("All SSH tunnel processes cleaned up.")
     
     def setup_ssh_tunnels(self) -> None:
-        """Establish SSH tunnels for all configured workers.
+        """
+        Establish SSH tunnels for all configured workers.
         
         Creates bidirectional SSH tunnels that allow:
         - Remote workers to connect back to the local Dask scheduler
         - Remote workers to access the local PostgreSQL database
         - Local machine to connect to remote worker ports
+        
+        Args:
+            None
+            
+        Returns:
+            None
         
         Raises:
             RuntimeError: If any required ports cannot be freed or SSH tunnel creation fails
@@ -186,13 +204,17 @@ class SSHTunnelManager:
             time.sleep(3)
     
     def start_dask_scheduler(self) -> subprocess.Popen:
-        """Start the Dask scheduler process on localhost.
+        """
+        Start the Dask scheduler process on localhost.
         
         Starts a Dask scheduler bound to localhost with dashboard and performs
         health checks to ensure it starts successfully.
         
+        Args:
+            None
+            
         Returns:
-            The subprocess.Popen object for the Dask scheduler process
+            subprocess.Popen: The subprocess.Popen object for the Dask scheduler process
             
         Raises:
             RuntimeError: If the scheduler fails to start within the timeout period
@@ -229,14 +251,18 @@ class SSHTunnelManager:
         return dask_scheduler_proc
     
     def start_remote_workers(self) -> List[subprocess.Popen]:
-        """Start Dask worker processes on all configured remote servers.
+        """
+        Start Dask worker processes on all configured remote servers.
         
         Connects to each remote server via SSH, activates the conda environment,
         and starts a Dask worker that connects back to the local scheduler through
         the established SSH tunnels.
         
+        Args:
+            None
+        
         Returns:
-            List of subprocess.Popen objects for the remote worker processes
+            List[subprocess.Popen]: List of subprocess.Popen objects for the remote worker processes
             
         Note:
             Workers are started with a 300-second timeout and 60-second death timeout
@@ -272,15 +298,19 @@ class SSHTunnelManager:
         return worker_procs
     
     def setup_complete_infrastructure(self) -> int:
-        """Set up the complete distributed infrastructure in sequence.
+        """
+        Set up the complete distributed infrastructure in sequence.
         
         Performs the full setup process:
         1. Establishes SSH tunnels to all workers
         2. Starts the local Dask scheduler
         3. Starts remote Dask workers
         
+        Args:
+            None
+        
         Returns:
-            The port number on which the Dask scheduler is listening
+            int: The port number on which the Dask scheduler is listening
             
         Raises:
             RuntimeError: If any step of the infrastructure setup fails
@@ -325,7 +355,15 @@ _tunnel_manager: Optional[SSHTunnelManager] = None
 
 
 def get_tunnel_manager(config_file: str) -> SSHTunnelManager:
-    """Get or create global tunnel manager instance"""
+    """
+    Get or create global tunnel manager instance.
+    
+    Args:
+        config_file: Path to YAML configuration file
+        
+    Returns:
+        SSHTunnelManager: The global tunnel manager instance
+    """
     global _tunnel_manager
     if _tunnel_manager is None:
         _tunnel_manager = SSHTunnelManager(config_file)

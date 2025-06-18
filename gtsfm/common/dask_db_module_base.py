@@ -34,7 +34,15 @@ class DaskDBModuleBase:
             self.db = PostgresClient(postgres_params)
     
     def __getstate__(self) -> Dict[str, Any]:
-        """Custom serialization to avoid serializing the database connection"""
+        """
+        Custom serialization to avoid serializing the database connection.
+        
+        Args:
+            None
+            
+        Returns:
+            Dict[str, Any]: Dictionary containing the object state with database connection removed
+        """
         state = self.__dict__.copy()
         # Keep connection parameters but not the connection object
         if 'db' in state and state['db'] is not None:
@@ -69,7 +77,15 @@ class DaskDBModuleBase:
             self.db = None
     
     def init_tables(self) -> None:
-        """Override in subclass to initialize required database tables"""
+        """
+        Override in subclass to initialize required database tables.
+        
+        Args:
+            None
+            
+        Returns:
+            None
+        """
         pass
     
     def serialize_matrix(self, matrix: Optional[Union[np.ndarray, Dict, List, Any]]) -> Optional[str]:
@@ -142,6 +158,9 @@ class DaskDBModuleBase:
             operation: Description of the operation
             success: Whether the operation was successful
             error_msg: Error message if operation failed
+            
+        Returns:
+            None
         """
         if success:
             logger.debug(f"Database operation successful: {operation}")

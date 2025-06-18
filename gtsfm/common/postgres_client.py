@@ -22,7 +22,10 @@ class PostgresClient:
         Initialize the PostgreSQL client
         
         Args:
-            db_params (dict): Database connection parameters including host, port, database, user, and password
+            db_params: Database connection parameters including host, port, database, user, and password
+            
+        Returns:
+            None
         """
         self.db_params = db_params
         self.conn = None
@@ -30,10 +33,14 @@ class PostgresClient:
         self._schema_initialized = False
     
     def connect(self) -> bool:
-        """Establish a database connection
+        """
+        Establish a database connection
+        
+        Args:
+            None
         
         Returns:
-            bool: True if the connection was successfully established
+            bool: True if the connection was successfully established, False otherwise
         """
         try:
             if self.conn is None or self.conn.closed:
@@ -45,7 +52,15 @@ class PostgresClient:
             return False
     
     def close(self) -> None:
-        """Close the database connection"""
+        """
+        Close the database connection
+        
+        Args:
+            None
+            
+        Returns:
+            None
+        """
         try:
             if self.cursor:
                 self.cursor.close()
@@ -162,7 +177,15 @@ class PostgresClient:
         return True
     
     def __getstate__(self) -> Dict[str, Any]:
-        """Custom serialization to avoid serializing connection objects"""
+        """
+        Custom serialization to avoid serializing connection objects
+        
+        Args:
+            None
+            
+        Returns:
+            Dict[str, Any]: Dictionary containing the object state with connection objects removed
+        """
         state = self.__dict__.copy()
         # Do not serialize connection and cursor
         state['conn'] = None
@@ -170,22 +193,43 @@ class PostgresClient:
         return state
     
     def __setstate__(self, state: Dict[str, Any]) -> None:
-        """Custom deserialization"""
+        """
+        Custom deserialization
+        
+        Args:
+            state: Dictionary containing the object state to restore
+            
+        Returns:
+            None
+        """
         self.__dict__.update(state)
         # Connection will be re-established when needed
     
-    def ensure_schema(self) -> bool:
-        """Ensure database schema is initialized"""
-        # Remove domain-specific schema initialization
-        # Each module should handle its own schema
-        return True
     
     def execute_with_schema_check(self, query: str, params: Optional[Tuple] = None) -> bool:
-        """Execute query (schema checking handled by individual modules)"""
+        """
+        Execute query (schema checking handled by individual modules)
+        
+        Args:
+            query: SQL query string
+            params: Query parameters
+            
+        Returns:
+            bool: True if query execution is successful, False otherwise
+        """
         return self.execute(query, params)
 
     def execute_with_connection(self, query: str, params: Optional[Tuple] = None) -> bool:
-        """Execute query with proper connection management"""
+        """
+        Execute query with proper connection management
+        
+        Args:
+            query: SQL query string
+            params: Query parameters
+            
+        Returns:
+            bool: True if query execution is successful, False otherwise
+        """
         try:
             with psycopg2.connect(**self.db_params) as conn:
                 with conn.cursor() as cursor:
