@@ -43,15 +43,29 @@ class DaskDBModuleBase:
         return state
     
     def __setstate__(self, state: Dict[str, Any]) -> None:
-        """Reinitialize the database client upon deserialization"""
+        """
+        Reinitialize the database client upon deserialization
+        
+        Args:
+            state: Dictionary containing the object state to restore
+            
+        Returns:
+            None
+        """
         self.__dict__.update(state)
         # Only recreate PostgresClient if postgres_params exists and is not None
         if hasattr(self, 'postgres_params') and self.postgres_params:
-            self.db = PostgresClient(self.postgres_params)
-            # Initialize database tables if needed - each subclass handles its own schema
-            self.init_tables()
+            try:
+                self.db = PostgresClient(self.postgres_params)
+                logger.debug("Database client recreated after deserialization")
+                # Initialize database tables if needed - each subclass handles its own schema
+                self.init_tables()
+            except Exception as e:
+                logger.error(f"Failed to recreate database client after deserialization: {e}")
+                self.db = None
         else:
             # For objects that don't have postgres functionality (like cachers)
+            logger.debug("No postgres_params found, setting db to None")
             self.db = None
     
     def init_tables(self) -> None:

@@ -288,7 +288,6 @@ class SSHTunnelManager:
         print("Setting up SSH tunnels...")
         self.setup_ssh_tunnels()
         
-        print("Starting Dask scheduler...")
         self.start_dask_scheduler()
         
         print("Starting remote workers...")

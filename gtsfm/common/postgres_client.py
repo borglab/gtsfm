@@ -58,29 +58,25 @@ class PostgresClient:
     
     def execute(self, query: str, params: Optional[Tuple] = None) -> bool:
         """
-        Execute an SQL query
+        Execute an SQL query with fresh connection (distributed-safe)
         
         Args:
-            query (str): SQL query string
-            params (tuple, optional): Query parameters
+            query: SQL query string
+            params: Query parameters
             
         Returns:
             bool: Whether the execution was successful
         """
-        if not self.connect():
-            return False
-        
         try:
-            self.cursor.execute(query, params)
-            self.conn.commit()
+            # Use fresh connection like execute_with_connection
+            with psycopg2.connect(**self.db_params) as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(query, params)
+                    conn.commit()
             return True
         except Exception as e:
             logger.error(f"SQL execution failed: {e}")
-            if self.conn:
-                self.conn.rollback()
             return False
-        finally:
-            self.close()
     
     def fetch_all(self, query: str, params: Optional[Tuple] = None) -> Optional[List[Tuple]]:
         """

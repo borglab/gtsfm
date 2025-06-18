@@ -480,15 +480,26 @@ class TwoViewEstimator(DaskDBModuleBase):
             i2: Index of second image
         """
         if not self.db:
+            logger.warning(f"No database connection available for pair ({i1}, {i2})")
             return
             
+        logger.debug(f"Storing results for image pair ({i1}, {i2})")
+        
         # Store main results with image indices
-        self._store_main_results(keypoints_i1, keypoints_i2, post_isp_i2Ri1, post_isp_i2Ui1, 
-                                 post_isp_v_corr_idxs, post_isp_report, start_time, i1, i2)
+        try:
+            self._store_main_results(keypoints_i1, keypoints_i2, post_isp_i2Ri1, post_isp_i2Ui1, 
+                                     post_isp_v_corr_idxs, post_isp_report, start_time, i1, i2)
+            logger.debug(f"Main results stored successfully for pair ({i1}, {i2})")
+        except Exception as e:
+            logger.error(f"Failed to store main results for pair ({i1}, {i2}): {e}")
         
         # Store detailed reports with image indices  
-        self._store_detailed_reports(keypoints_i1, keypoints_i2, pre_ba_report, 
-                                     post_ba_report, post_isp_report, i1, i2)
+        try:
+            self._store_detailed_reports(keypoints_i1, keypoints_i2, pre_ba_report, 
+                                         post_ba_report, post_isp_report, i1, i2)
+            logger.debug(f"Detailed reports stored successfully for pair ({i1}, {i2})")
+        except Exception as e:
+            logger.error(f"Failed to store detailed reports for pair ({i1}, {i2}): {e}")
 
     def _store_main_results(self, keypoints_i1, keypoints_i2, post_isp_i2Ri1, post_isp_i2Ui1, 
                             post_isp_v_corr_idxs, post_isp_report, computation_time, i1, i2):
@@ -496,6 +507,8 @@ class TwoViewEstimator(DaskDBModuleBase):
         if not self.db:
             return
             
+        logger.debug(f"Storing main results for pair ({i1}, {i2})")
+        
         worker_name = socket.gethostname()
         success = (post_isp_i2Ri1 is not None and post_isp_i2Ui1 is not None)
         verified_corr_count = len(post_isp_v_corr_idxs) if post_isp_v_corr_idxs is not None else 0
@@ -512,8 +525,8 @@ class TwoViewEstimator(DaskDBModuleBase):
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
             
-        # Use the connection-managed execute method
-        success = self.db.execute_with_connection(
+        # Use consistent execute method
+        success = self.db.execute(
             insert_query,
             (i1, i2, datetime.now(), verified_corr_count,
              inlier_ratio, rotation_matrix, translation_direction, success, computation_time, worker_name)
@@ -523,7 +536,7 @@ class TwoViewEstimator(DaskDBModuleBase):
             logger.info(f"Successfully stored results for image pair ({i1}, {i2})")
         else:
             logger.error(f"Failed to store results for image pair ({i1}, {i2})")
-
+            
     def _store_detailed_reports(self, keypoints_i1, keypoints_i2, pre_ba_report, 
                                 post_ba_report, post_isp_report, i1, i2):
         """Store detailed reports in two_view_reports table
@@ -537,6 +550,8 @@ class TwoViewEstimator(DaskDBModuleBase):
             i1: Index of first image
             i2: Index of second image
         """
+        logger.debug(f"Storing detailed reports for pair ({i1}, {i2})")
+        
         # Extract inlier ratios (use None as default instead of 0.0)
         pre_ba_inlier_ratio = pre_ba_report.inlier_ratio_est_model if pre_ba_report else None
         post_ba_inlier_ratio = post_ba_report.inlier_ratio_est_model if post_ba_report else None
@@ -557,11 +572,16 @@ class TwoViewEstimator(DaskDBModuleBase):
             VALUES (%s, %s, %s, %s, %s, %s, %s)
             """
             
-        self.db.execute(
+        success = self.db.execute(
             report_query,
             (i1, i2, datetime.now(),  # Use passed image indices
              pre_ba_inlier_ratio, post_ba_inlier_ratio, post_isp_inlier_ratio, report_data_json)
         )
+        
+        if success:
+            logger.debug(f"Successfully stored detailed reports for pair ({i1}, {i2})")
+        else:
+            logger.error(f"Failed to store detailed reports for pair ({i1}, {i2})")
 
     def _serialize_rotation(self, rotation: Optional[Rot3]) -> Optional[str]:
         """Helper method to serialize rotation matrix"""
