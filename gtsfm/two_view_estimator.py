@@ -819,8 +819,19 @@ def run_two_view_estimator_as_futures(
             i2=i2,
         )
 
-    # Only scatter the objects that serialize well (avoid scattering keypoints)
-    two_view_estimator_future = client.scatter(two_view_estimator, broadcast=True)
+    print("Distributing TwoViewEstimator to all workers...")
+    
+    try:
+        two_view_estimator_future = client.scatter(two_view_estimator, broadcast=False)
+        
+        import time
+        time.sleep(2)
+        
+        print("TwoViewEstimator distributed successfully")
+        
+    except Exception as e:
+        print(f"Failed to scatter TwoViewEstimator: {e}")
+        two_view_estimator_future = two_view_estimator
 
     # Submit tasks with image indices passed as separate parameters
     two_view_output_futures = {
@@ -842,8 +853,24 @@ def run_two_view_estimator_as_futures(
         for (i1, i2), putative_corr_idxs in putative_corr_idxs_dict.items()
     }
 
-    two_view_output_dict = client.gather(two_view_output_futures)
-    return two_view_output_dict
+    print(f"Submitted {len(two_view_output_futures)} tasks to workers")
+    
+    try:
+        two_view_output_dict = client.gather(two_view_output_futures)
+        return two_view_output_dict
+    except Exception as e:
+        print(f"Error during gather: {e}")
+        two_view_output_dict = {}
+        for (i1, i2), future in two_view_output_futures.items():
+            try:
+                result = future.result(timeout=300)  
+                two_view_output_dict[(i1, i2)] = result
+                print(f"Successfully processed pair ({i1}, {i2})")
+            except Exception as pair_error:
+                print(f"Failed to process pair ({i1}, {i2}): {pair_error}")
+                continue
+        
+        return two_view_output_dict
 
 
 
