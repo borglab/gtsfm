@@ -5,18 +5,20 @@ import os
 import time
 from abc import abstractmethod, abstractproperty
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Set
 
 import dask
 import hydra
 import numpy as np
+
 from dask import config as dask_config
 from dask.distributed import Client, LocalCluster, SSHCluster, performance_report
-from gtsam import Rot3, Unit3
+from gtsam import Rot3, Unit3, NonlinearFactorGraph, Values, Symbol, noiseModel, PriorFactorPose3, LevenbergMarquardtOptimizer, Pose3
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
 
 import gtsfm.evaluation.metrics_report as metrics_report
+import gtsfm.utils.merging as merging_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.viz as viz_utils
@@ -516,4 +518,27 @@ def save_metrics_reports(metrics_group_list: List[GtsfmMetricsGroup], metrics_pa
         metrics_group_list, os.path.join(metrics_path, "gtsfm_metrics_report.html"), None
     )
 
-    
+def merge_two_partition_results(
+    poses1: Dict[int, Pose3], poses2: Dict[int, Pose3]
+) -> Dict[int, Pose3]:
+    """
+    Merges poses from two partitions by finding and applying relative transform aTb.
+
+    Assumes poses1 are relative to frame 'a' and poses2 are relative to frame 'b'.
+    Finds 'aTb' (from frame 'b' to frame 'a') via overlapping poses.
+    Transforms non-overlapping poses from partition 2 into frame 'a' and merges.
+
+    Args:
+        poses1: Dictionary {camera_index: pose_in_frame_a}.
+        poses2: Dictionary {camera_index: pose_in_frame_b}.
+
+    Returns:
+        A merged dictionary {camera_index: pose_in_frame_a}.
+
+    Raises:
+        ValueError: If no overlapping cameras are found between the two partitions.
+        RuntimeError: If GTSAM optimization fails.
+    """
+    keys, pairs = merging_utils._get_overlap_data(poses1, poses2)
+    aTb = merging_utils._calculate_transform(pairs)
+    return merging_utils._merge_poses_final(poses1, poses2, keys, aTb)
