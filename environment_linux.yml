@@ -1,4 +1,4 @@
-name: gtsfm-mast3r
+name: gtsfm-v1
 channels:
   - conda-forge
 dependencies:
