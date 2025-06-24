@@ -6,8 +6,6 @@ Authors: Akshay Krishnan
 """
 
 from typing import Any, Dict, List, Tuple
-import torch
-from dask.distributed import Client, Future
 from pathlib import Path
 import sys
 
@@ -23,12 +21,12 @@ else:
     )
 
 from mast3r.model import AsymmetricMASt3R
-from mast3r.utils.misc import hash_md5
 import mast3r.cloud_opt.sparse_ga as mast3r_ga
 
 import numpy as np
+import torch
 import torchvision.transforms as tvf
-import time
+from dask.distributed import Client, Future
 
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
@@ -37,13 +35,7 @@ from gtsfm.utils import logger as logger_utils
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import (
     CorrespondenceGeneratorBase,
 )
-from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_base import KeypointAggregatorBase
-from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_dedup import (
-    KeypointAggregatorDedup,
-)
-from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_unique import (
-    KeypointAggregatorUnique,
-)
+
 
 ImgNorm = tvf.Compose([tvf.ToTensor(), tvf.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 logger = logger_utils.get_logger()
@@ -168,9 +160,6 @@ class Mast3rCorrespondenceGenerator(CorrespondenceGeneratorBase):
 
     def __init__(self, deduplicate: bool = True, nms_merge_radius: float = 0.5, max_correspondences: int = 1000):
         super().__init__()
-        self._aggregator: KeypointAggregatorBase = (
-            KeypointAggregatorDedup(nms_merge_radius) if deduplicate else KeypointAggregatorUnique()
-        )
         self.max_correspondences = max_correspondences
 
     def generate_correspondences(
@@ -192,7 +181,6 @@ class Mast3rCorrespondenceGenerator(CorrespondenceGeneratorBase):
         """
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         model = AsymmetricMASt3R.from_pretrained(MODEL_PATH).eval()
-        chkpt_tag = hash_md5(MODEL_PATH)
 
         m = client.scatter(model, broadcast=False)
         subsample = 8
@@ -215,7 +203,7 @@ class Mast3rCorrespondenceGenerator(CorrespondenceGeneratorBase):
                     descs, qonfs, device=device, subsample=subsample
                 )
                 conf_score = (C11.mean() * C12.mean() * C21.mean() * C22.mean()).sqrt().sqrt()
-                # TODO: we dont currently use this
+                # TODO: use the matching score to filter correspondences.
                 matching_score = (float(conf_score), float(scores.sum()), len(scores))
 
                 matches_im1 = ((matches_im1 + np.array(crop1)) + 0.5) / scale1
@@ -235,7 +223,9 @@ class Mast3rCorrespondenceGenerator(CorrespondenceGeneratorBase):
         pairwise_correspondences: Dict[Tuple[int, int], Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]] = (
             client.gather(pairwise_correspondence_futures)
         )
-        logger.info("Computed correspondences for %d edges, aggregating them...", len(pairwise_correspondence_futures))
+        logger.info(
+            "Mast3r computed correspondences for %d edges, aggregating them...", len(pairwise_correspondence_futures)
+        )
 
         keypoints_for_image = {}
         indices_for_image = {}
@@ -256,7 +246,10 @@ class Mast3rCorrespondenceGenerator(CorrespondenceGeneratorBase):
         for (i1, i2), (keypoints_i1, keypoints_i2, idx1, idx2) in pairwise_correspondences.items():
             kp_idx1 = (indices_for_image[i1][None, :] == idx1[:, None]).argmax(axis=1)
             kp_idx2 = (indices_for_image[i2][None, :] == idx2[:, None]).argmax(axis=1)
-            putative_corr_idxs_dict[(i1, i2)] = np.stack([kp_idx1, kp_idx2], axis=-1).astype(np.int64)
+            # TODO: use the matching score to sort/filter correspondences.
+            putative_corr_idxs_dict[(i1, i2)] = np.stack([kp_idx1, kp_idx2], axis=-1).astype(np.int64)[
+                : self.max_correspondences
+            ]
 
         max_idx = max(keypoints_for_image.keys())
         keypoints_list: List[Keypoints] = [Keypoints(coordinates=np.array([]))] * (max_idx + 1)
@@ -264,6 +257,6 @@ class Mast3rCorrespondenceGenerator(CorrespondenceGeneratorBase):
         for i, kps in keypoints_for_image.items():
             keypoints_list[i] = Keypoints(coordinates=kps)
 
-        logger.info("Finished correspondence aggregation!")
+        logger.info("Correspondence aggregation complete!")
 
         return keypoints_list, putative_corr_idxs_dict
