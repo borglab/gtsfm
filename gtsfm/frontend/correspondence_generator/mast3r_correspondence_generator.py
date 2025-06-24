@@ -45,7 +45,8 @@ _MODEL_PATH = str(
     / "checkpoints"
     / "MASt3R_ViTLarge_BaseDecoder_512_catmlpdpt_metric.pth"
 )
-
+GRID_DIVISOR = 16
+PATCH_MULTIPLIER = 8
 
 def resize_image(img: Image, long_edge_size: int) -> Image:
     """Resizes image such that longest edge is equal to long_edge_size.
