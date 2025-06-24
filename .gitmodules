@@ -3,4 +3,4 @@
 	url = https://github.com/cvg/LightGlue.git
 [submodule "thirdparty/mast3r"]
 	path = thirdparty/mast3r
-	url = git@github.com:naver/mast3r.git
+	url = https://github.com/naver/mast3r.git
