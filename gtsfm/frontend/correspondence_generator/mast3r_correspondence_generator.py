@@ -48,7 +48,15 @@ _MODEL_PATH = str(
 
 
 def resize_image(img: Image, long_edge_size: int) -> Image:
-    """Resizes image such that longest edge is equal to long_edge_size."""
+    """Resizes image such that longest edge is equal to long_edge_size.
+
+    Args:
+        img: The input image to be resized.
+        long_edge_size: The desired size for the longest edge of the image.
+
+    Returns:
+        The resized image.
+    """
     max_size = max(img.height, img.width)
     ratio = float(long_edge_size) / max_size
     new_height = int(img.height * ratio)
@@ -58,7 +66,19 @@ def resize_image(img: Image, long_edge_size: int) -> Image:
 
 
 def preprocess_image(image: Image, img_id: int, device) -> Tuple[Dict[str, Any], Tuple[int, int], float]:
-    """Resizes image such that longest edge is equal to long_edge_size."""
+    """Preprocesses image for MASt3R model input, including resizing and normalization.
+
+    Args:
+        image: The input image to be preprocessed.
+        img_id: An identifier for the image.
+        device: The device (e.g., 'cpu' or 'cuda') to which the image tensor should be moved.
+
+    Returns:
+        A tuple containing:
+        - A dictionary with the preprocessed image tensor, its true shape, id, and instance string.
+        - A tuple (x, y) representing the start coordinates of the crop applied to the image.
+        - The scaling factor applied to the image during resizing.
+    """
     H1, _, _ = image.shape
 
     # resize to longest edge being `size`.
@@ -85,6 +105,17 @@ def preprocess_image(image: Image, img_id: int, device) -> Tuple[Dict[str, Any],
 
 
 def symmetric_inference(model, img1, img2, device):
+    """Performs symmetric inference using the MASt3R model on a pair of images.
+
+    Args:
+        model: The MASt3R model.
+        img1: Preprocessed dictionary for the first image.
+        img2: Preprocessed dictionary for the second image.
+        device: The device (e.g., 'cpu' or 'cuda') to run the inference on.
+
+    Returns:
+        A tuple of four results (res11, res21, res22, res12) from the symmetric decoding process.
+    """
     shape1 = torch.from_numpy(img1["true_shape"]).to(device, non_blocking=True)
     shape2 = torch.from_numpy(img2["true_shape"]).to(device, non_blocking=True)
     img1 = img1["img"].to(device, non_blocking=True)
@@ -110,6 +141,23 @@ def symmetric_inference(model, img1, img2, device):
 
 
 def extract_correspondences(feats, qonfs, subsample=8, device=None, ptmap_key="pred_desc"):
+    """Extracts correspondences from MASt3R features and confidence scores.
+
+    Args:
+        feats: A tuple of feature tensors (feat11, feat21, feat22, feat12) from symmetric inference.
+        qonfs: A tuple of confidence score tensors (qonf11, qonf21, qonf22, qonf12) corresponding to the features.
+        subsample: Subsampling rate for nearest neighbor search.
+        device: The device (e.g., 'cpu' or 'cuda') for computation.
+        ptmap_key: Key to determine the type of point map (e.g., "pred_desc" or "3d").
+
+    Returns:
+        A tuple containing:
+        - idx1: Indices of correspondences in the first image's flattened feature space.
+        - idx2: Indices of correspondences in the second image's flattened feature space.
+        - xy1: 2D coordinates of correspondences in the first image.
+        - xy2: 2D coordinates of correspondences in the second image.
+        - scores: Confidence scores for each correspondence.
+    """
     feat11, feat21, feat22, feat12 = feats
     qonf11, qonf21, qonf22, qonf12 = qonfs
     assert feat11.shape[:2] == feat12.shape[:2] == qonf11.shape == qonf12.shape
@@ -156,9 +204,19 @@ def extract_correspondences(feats, qonfs, subsample=8, device=None, ptmap_key="p
 
 
 class Mast3rCorrespondenceGenerator(CorrespondenceGeneratorBase):
-    """Base class for correspondence generators."""
+    """Correspondence generator using the MASt3R model."""
 
     def __init__(self, deduplicate: bool = True, nms_merge_radius: float = 0.5, max_correspondences: int = 1000):
+        """Initializes the Mast3rCorrespondenceGenerator.
+
+        The Mast3r model currently generates keypoints in a fixed grid, so it does not use a keypoint aggregator.
+
+        Args:
+            deduplicate: Whether to deduplicate keypoints. Not currently used as Mast3r
+                         generates a fixed set of keypoints per image pair.
+            nms_merge_radius: Radius for Non-Maximum Suppression (NMS) merging. Not currently used.
+            max_correspondences: The maximum number of correspondences to keep for each image pair.
+        """
         super().__init__()
         self.max_correspondences = max_correspondences
 
@@ -185,8 +243,21 @@ class Mast3rCorrespondenceGenerator(CorrespondenceGeneratorBase):
         m = client.scatter(model, broadcast=False)
         subsample = 8
 
-        def apply_mast3r(model, image1: Image, image2: Image) -> Tuple[Keypoints, Keypoints]:
+        def apply_mast3r(model, image1: Image, image2: Image) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+            """Applies the MASt3R model to a pair of images to generate correspondences.
 
+            Args:
+                model: The MASt3R model instance.
+                image1: The first image.
+                image2: The second image.
+
+            Returns:
+                A tuple containing:
+                - matches_im1: Array of 2D coordinates of correspondences in the first image.
+                - matches_im2: Array of 2D coordinates of correspondences in the second image.
+                - idx1: Indices of correspondences in the first image's original feature grid.
+                - idx2: Indices of correspondences in the second image's original feature grid.
+            """
             image1_proc, crop1, scale1 = preprocess_image(image1, 0, device)
             image2_proc, crop2, scale2 = preprocess_image(image2, 1, device)
 
@@ -232,6 +303,13 @@ class Mast3rCorrespondenceGenerator(CorrespondenceGeneratorBase):
         putative_corr_idxs_dict = {}
 
         def update_keypoints(image_idx, keypoints, keypoints_idx):
+            """Helper function to update and deduplicate keypoints for a given image.
+
+            Args:
+                image_idx: The index of the image.
+                keypoints: The new keypoints to add.
+                keypoints_idx: The original indices of the new keypoints in the feature grid.
+            """
             existing_idx = indices_for_image.get(image_idx, np.array([], dtype=np.int64))
             indices_for_image[image_idx], unique_idx = np.unique(
                 np.concatenate([existing_idx, keypoints_idx]), return_index=True
