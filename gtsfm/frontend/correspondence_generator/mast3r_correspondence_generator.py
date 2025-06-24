@@ -37,9 +37,8 @@ from gtsfm.frontend.correspondence_generator.correspondence_generator_base impor
 )
 
 
-ImgNorm = tvf.Compose([tvf.ToTensor(), tvf.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 logger = logger_utils.get_logger()
-MODEL_PATH = str(
+_MODEL_PATH = str(
     Path(__file__).resolve().parent.parent.parent.parent
     / "thirdparty"
     / "mast3r"
@@ -71,6 +70,7 @@ def preprocess_image(image: Image, img_id: int, device) -> Tuple[Dict[str, Any],
     halfw, halfh = ((2 * cx) // 16) * 8, ((2 * cy) // 16) * 8
     crop_start = (cx - halfw, cy - halfh)
     img = img[crop_start[1] : cy + halfh, crop_start[0] : cx + halfw]
+    ImgNorm = tvf.Compose([tvf.ToTensor(), tvf.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
     return (
         dict(
@@ -180,7 +180,7 @@ class Mast3rCorrespondenceGenerator(CorrespondenceGeneratorBase):
             Putative correspondence as indices of keypoints, for pairs of images.
         """
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        model = AsymmetricMASt3R.from_pretrained(MODEL_PATH).eval()
+        model = AsymmetricMASt3R.from_pretrained(_MODEL_PATH).eval()
 
         m = client.scatter(model, broadcast=False)
         subsample = 8
