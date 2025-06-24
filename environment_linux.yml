@@ -2,7 +2,6 @@ name: gtsfm-mast3r
 channels:
   - conda-forge
 dependencies:
-  - cmake=3.14.0 # for dust3r
   # python essentials
   - python=3.10
   - pip
@@ -50,6 +49,7 @@ dependencies:
       - trimesh[easy]
       - gtsam>=4.2
       - pydot
+      # dust3r/mast3r
       - roma
       - tqdm
       - einops
