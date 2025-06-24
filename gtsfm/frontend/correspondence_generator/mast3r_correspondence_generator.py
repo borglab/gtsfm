@@ -87,7 +87,7 @@ def preprocess_image(image: Image, img_id: int, device) -> Tuple[Dict[str, Any],
     scale_factor = float(H) / H1
 
     cx, cy = W // 2, H // 2
-    halfw, halfh = ((2 * cx) // 16) * 8, ((2 * cy) // 16) * 8
+    halfw, halfh = ((2 * cx) // GRID_DIVISOR) * PATCH_MULTIPLIER, ((2 * cy) // GRID_DIVISOR) * PATCH_MULTIPLIER
     crop_start = (cx - halfw, cy - halfh)
     img = img[crop_start[1] : cy + halfh, crop_start[0] : cx + halfw]
     ImgNorm = tvf.Compose([tvf.ToTensor(), tvf.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
