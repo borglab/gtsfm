@@ -13,7 +13,17 @@ import numpy as np
 
 from dask import config as dask_config
 from dask.distributed import Client, LocalCluster, SSHCluster, performance_report
-from gtsam import Rot3, Unit3, NonlinearFactorGraph, Values, Symbol, noiseModel, PriorFactorPose3, LevenbergMarquardtOptimizer, Pose3
+from gtsam import (
+    Rot3,
+    Unit3,
+    NonlinearFactorGraph,
+    Values,
+    Symbol,
+    noiseModel,
+    PriorFactorPose3,
+    LevenbergMarquardtOptimizer,
+    Pose3,
+)
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
 
@@ -407,29 +417,34 @@ class GtsfmRunnerBase:
         all_delayed_mvo_metrics_groups = []
 
         for idx, subgraph_result_dict in enumerate(subgraph_two_view_results):
-            logger.info(f"Creating computation graph for subgraph {idx+1}/{len(subgraph_two_view_results)} with {len(subgraph_result_dict)} image pairs")
-            
+            logger.info(
+                f"Creating computation graph for subgraph {idx+1}/{len(subgraph_two_view_results)}"
+                f"with {len(subgraph_result_dict)} image pairs"
+            )
+
             # Unzip the two-view results for this subgraph
             subgraph_i2Ri1_dict, subgraph_i2Ui1_dict, subgraph_v_corr_idxs_dict, _, subgraph_post_isp_reports = (
                 unzip_two_view_results(subgraph_result_dict)
             )
-            
+
             # Create computation graph for this subgraph
             if len(subgraph_i2Ri1_dict) > 0:  # Only process non-empty subgraphs
-                delayed_sfm_result, delayed_io, delayed_mvo_metrics_groups = self.scene_optimizer.create_computation_graph(
-                    keypoints_list=keypoints_list,
-                    i2Ri1_dict=subgraph_i2Ri1_dict,
-                    i2Ui1_dict=subgraph_i2Ui1_dict,
-                    v_corr_idxs_dict=subgraph_v_corr_idxs_dict,
-                    two_view_reports=subgraph_post_isp_reports,
-                    num_images=len(self.loader),
-                    images=self.loader.create_computation_graph_for_images(),
-                    camera_intrinsics=intrinsics,
-                    relative_pose_priors=self.loader.get_relative_pose_priors(list(subgraph_i2Ri1_dict.keys())),
-                    absolute_pose_priors=self.loader.get_absolute_pose_priors(),
-                    cameras_gt=self.loader.get_gt_cameras(),
-                    gt_wTi_list=self.loader.get_gt_poses(),
-                    gt_scene_mesh=self.loader.get_gt_scene_trimesh(),
+                delayed_sfm_result, delayed_io, delayed_mvo_metrics_groups = (
+                    self.scene_optimizer.create_computation_graph(
+                        keypoints_list=keypoints_list,
+                        i2Ri1_dict=subgraph_i2Ri1_dict,
+                        i2Ui1_dict=subgraph_i2Ui1_dict,
+                        v_corr_idxs_dict=subgraph_v_corr_idxs_dict,
+                        two_view_reports=subgraph_post_isp_reports,
+                        num_images=len(self.loader),
+                        images=self.loader.create_computation_graph_for_images(),
+                        camera_intrinsics=intrinsics,
+                        relative_pose_priors=self.loader.get_relative_pose_priors(list(subgraph_i2Ri1_dict.keys())),
+                        absolute_pose_priors=self.loader.get_absolute_pose_priors(),
+                        cameras_gt=self.loader.get_gt_cameras(),
+                        gt_wTi_list=self.loader.get_gt_poses(),
+                        gt_scene_mesh=self.loader.get_gt_scene_trimesh(),
+                    )
                 )
                 all_delayed_sfm_results.append(delayed_sfm_result)
                 all_delayed_io.extend(delayed_io)
@@ -439,13 +454,13 @@ class GtsfmRunnerBase:
         with performance_report(filename="scene-optimizer-dask-report.html"):
             if all_delayed_sfm_results:
                 results = dask.compute(*all_delayed_sfm_results, *all_delayed_io, *all_delayed_mvo_metrics_groups)
-                sfm_results = results[:len(all_delayed_sfm_results)]
-                other_results = results[len(all_delayed_sfm_results):]
-                
+                sfm_results = results[: len(all_delayed_sfm_results)]
+                other_results = results[len(all_delayed_sfm_results) :]
+
                 # Extract metrics from results
                 mvo_metrics_groups = [x for x in other_results if isinstance(x, GtsfmMetricsGroup)]
                 all_metrics_groups.extend(mvo_metrics_groups)
-                
+
                 # For now, return the first non-empty result
                 sfm_result = next((r for r in sfm_results if r is not None), None)
             else:
@@ -454,10 +469,10 @@ class GtsfmRunnerBase:
         end_time = time.time()
         duration_sec = end_time - start_time
         logger.info("GTSFM took %.2f minutes to compute sparse multi-view result.", duration_sec / 60)
-        
+
         if client is not None:
             client.shutdown()
-            
+
         # Add total summary metrics
         total_summary_metrics = GtsfmMetricsGroup(
             "total_summary_metrics", [GtsfmMetric("total_runtime_sec", duration_sec)]
@@ -466,7 +481,7 @@ class GtsfmRunnerBase:
 
         # Save metrics reports
         save_metrics_reports(all_metrics_groups, os.path.join(self.scene_optimizer.output_root, "result_metrics"))
-        
+
         return sfm_result
 
 
@@ -518,9 +533,8 @@ def save_metrics_reports(metrics_group_list: List[GtsfmMetricsGroup], metrics_pa
         metrics_group_list, os.path.join(metrics_path, "gtsfm_metrics_report.html"), None
     )
 
-def merge_two_partition_results(
-    poses1: Dict[int, Pose3], poses2: Dict[int, Pose3]
-) -> Dict[int, Pose3]:
+
+def merge_two_partition_results(poses1: Dict[int, Pose3], poses2: Dict[int, Pose3]) -> Dict[int, Pose3]:
     """
     Merges poses from two partitions by finding and applying relative transform aTb.
 
