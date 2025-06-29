@@ -7,6 +7,7 @@ from abc import abstractmethod, abstractproperty
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
+import dask
 import hydra
 import numpy as np
 
