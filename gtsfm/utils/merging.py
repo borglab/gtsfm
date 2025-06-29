@@ -4,10 +4,8 @@ Authors: Richi Dubey
 """
 
 import numpy as np
-from typing import Any, Dict, List, Tuple, Set
+from typing import Dict, List, Tuple, Set
 from gtsam import (
-    Rot3,
-    Unit3,
     NonlinearFactorGraph,
     Values,
     Symbol,

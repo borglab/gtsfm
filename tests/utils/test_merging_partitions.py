@@ -4,30 +4,13 @@ Authors: Richi Dubey
 """
 
 import unittest
+
+import gtsam
 import numpy as np
 
-# --- GTSAM Imports ---
-# Attempt to import gtsam, provide helpful error message if missing
-try:
-    import gtsam
-except ImportError:
-    print("*" * 80)
-    print("WARN: GTSAM import failed. Skipping GTSAM-dependent tests.")
-    print("Please install GTSAM (e.g., 'pip install gtsam') to run these tests.")
-    print("*" * 80)
-    gtsam = None  # Set to None so tests can be conditionally skipped
-
-# --- Function Under Test ---
-try:
-    from gtsfm.runner.gtsfm_runner_base import merge_two_partition_results
-
-    GTSFM_AVAILABLE = True
-except ImportError as e:
-    print(f"WARN: Could not import merge_two_partition_results: {e}")
-    GTSFM_AVAILABLE = False  # Set flag if import fails
+from gtsfm.runner.gtsfm_runner_base import merge_two_partition_results
 
 
-# --- Helper function for comparing Pose3 dictionaries ---
 def assert_pose_dicts_equal(test_case, dict1, dict2, tolerance=1e-6):
     """Asserts two dictionaries mapping int to gtsam.Pose3 are equal."""
     test_case.assertIsInstance(dict1, dict)
@@ -39,8 +22,6 @@ def assert_pose_dicts_equal(test_case, dict1, dict2, tolerance=1e-6):
         )
 
 
-# --- Test Class ---
-@unittest.skipIf(gtsam is None or not GTSFM_AVAILABLE, "GTSAM not found or gtsfm_runner_base import failed")
 class TestMergeTwoPartitionResults(unittest.TestCase):
     """Tests the merge_two_partition_results function."""
 
@@ -139,23 +120,9 @@ class TestMergeTwoPartitionResults(unittest.TestCase):
 
     def test_empty_poses2(self):
         """Test merging when the second partition is empty."""
-        poses1 = {0: self.pose0, 1: self.pose1}
-        poses2 = {}
-        # Expected result is just poses1, as there's nothing to merge.
-        # The function technically finds no overlap, but returns early
-        # before raising the error if poses2 is empty. Let's check the code...
-        # The loop `for k, bTi in poses2.items():` won't execute.
-        # The code will successfully find `aTb` if there *was* overlap, but
-        # the merging part doesn't happen. If there was *no* overlap, it errors.
-        # Let's refine test cases based on this understanding.
-
         # Case 1: No overlap (poses1 has keys, poses2 is empty) -> Should raise error
         with self.assertRaisesRegex(ValueError, "No overlapping cameras found"):
             merge_two_partition_results({0: self.pose0}, {})  # No overlap
-
-        # Case 2: Overlap exists (but poses2 is empty). This scenario is impossible
-        # by definition (overlap requires poses2 to have common keys).
-        # The code *should* raise ValueError if poses1 is non-empty and poses2 is empty.
 
     def test_both_empty(self):
         """Test merging when both partitions are empty."""

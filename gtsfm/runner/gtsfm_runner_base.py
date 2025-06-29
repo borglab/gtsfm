@@ -5,9 +5,8 @@ import os
 import time
 from abc import abstractmethod, abstractproperty
 from pathlib import Path
-from typing import Any, Dict, List, Tuple, Set
+from typing import Any, Dict, List, Tuple
 
-import dask
 import hydra
 import numpy as np
 
@@ -16,12 +15,6 @@ from dask.distributed import Client, LocalCluster, SSHCluster, performance_repor
 from gtsam import (
     Rot3,
     Unit3,
-    NonlinearFactorGraph,
-    Values,
-    Symbol,
-    noiseModel,
-    PriorFactorPose3,
-    LevenbergMarquardtOptimizer,
     Pose3,
 )
 from hydra.utils import instantiate
