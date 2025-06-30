@@ -4,7 +4,6 @@ Authors: Richi Dubey
 """
 
 import numpy as np
-from typing import Dict, List, Tuple, Set
 from gtsam import (
     NonlinearFactorGraph,
     Values,
@@ -16,7 +15,7 @@ from gtsam import (
 )
 
 
-def _get_overlapping_keys(poses1: Dict[int, Pose3], poses2: Dict[int, Pose3]) -> List[int]:
+def _get_overlapping_keys(poses1: dict[int, Pose3], poses2: dict[int, Pose3]) -> list[int]:
     """Returns keys present in both pose dictionaries, raising ValueError if none."""
     keys = [k for k in poses1 if k in poses2]
     if not keys:
@@ -25,15 +24,15 @@ def _get_overlapping_keys(poses1: Dict[int, Pose3], poses2: Dict[int, Pose3]) ->
 
 
 def _get_overlapping_pose_pairs(
-    poses1: Dict[int, Pose3], poses2: Dict[int, Pose3], keys: List[int]
-) -> List[Tuple[Pose3, Pose3]]:
+    poses1: dict[int, Pose3], poses2: dict[int, Pose3], keys: list[int]
+) -> list[tuple[Pose3, Pose3]]:
     """Returns list of (pose_a, pose_b) tuples for given overlapping keys."""
     return [(poses1[k], poses2[k]) for k in keys]
 
 
 def _get_overlap_data(
-    poses1: Dict[int, Pose3], poses2: Dict[int, Pose3]
-) -> Tuple[List[int], List[Tuple[Pose3, Pose3]]]:
+    poses1: dict[int, Pose3], poses2: dict[int, Pose3]
+) -> tuple[list[int], list[tuple[Pose3, Pose3]]]:
     """Gets keys and pose pairs for overlapping cameras."""
     keys = _get_overlapping_keys(poses1, poses2)
     pairs = _get_overlapping_pose_pairs(poses1, poses2, keys)
@@ -48,7 +47,7 @@ def _get_noise_model() -> noiseModel.Base:
 
 
 def _create_aTb_factors(
-    overlapping_pose_pairs: List[Tuple[Pose3, Pose3]],
+    overlapping_pose_pairs: list[tuple[Pose3, Pose3]],
     aTb_key: Symbol,
     noise_model: noiseModel.Base,
 ) -> NonlinearFactorGraph:
@@ -67,8 +66,8 @@ def _create_aTb_initial_estimate(aTb_key: Symbol) -> Values:
 
 
 def _prepare_graph_and_initial(
-    overlapping_pairs: List[Tuple[Pose3, Pose3]], aTb_key: Symbol
-) -> Tuple[NonlinearFactorGraph, Values]:
+    overlapping_pairs: list[tuple[Pose3, Pose3]], aTb_key: Symbol
+) -> tuple[NonlinearFactorGraph, Values]:
     """Prepare graph and initial values for optimization."""
     noise = _get_noise_model()
     graph = _create_aTb_factors(overlapping_pairs, aTb_key, noise)
@@ -105,7 +104,7 @@ def _run_and_extract_transform(graph: NonlinearFactorGraph, initial: Values, aTb
     return aTb
 
 
-def _calculate_transform(overlapping_pairs: List[Tuple[Pose3, Pose3]]) -> Pose3:
+def _calculate_transform(overlapping_pairs: list[tuple[Pose3, Pose3]]) -> Pose3:
     """Calculates the relative transform aTb between partitions."""
     aTb_key = Symbol("x", 0)  # Define the key for the transform
     graph, initial = _prepare_graph_and_initial(overlapping_pairs, aTb_key)
@@ -114,9 +113,9 @@ def _calculate_transform(overlapping_pairs: List[Tuple[Pose3, Pose3]]) -> Pose3:
 
 
 def _transform_and_add_new_poses(
-    merged_poses: Dict[int, Pose3],
-    poses2: Dict[int, Pose3],
-    overlapping_keys_set: Set[int],
+    merged_poses: dict[int, Pose3],
+    poses2: dict[int, Pose3],
+    overlapping_keys_set: set[int],
     aTb_optimized: Pose3,
 ) -> None:
     """Adds transformed non-overlapping poses from poses2 to merged_poses."""
@@ -126,11 +125,11 @@ def _transform_and_add_new_poses(
 
 
 def _merge_poses_final(
-    poses1: Dict[int, Pose3],
-    poses2: Dict[int, Pose3],
-    overlapping_keys: List[int],
+    poses1: dict[int, Pose3],
+    poses2: dict[int, Pose3],
+    overlapping_keys: list[int],
     aTb_optimized: Pose3,
-) -> Dict[int, Pose3]:
+) -> dict[int, Pose3]:
     """Performs the final merge operation using the calculated transform."""
     merged = poses1.copy()
     _transform_and_add_new_poses(merged, poses2, set(overlapping_keys), aTb_optimized)
