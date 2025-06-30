@@ -5,7 +5,6 @@ import os
 import time
 from abc import abstractmethod, abstractproperty
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
 
 import dask
 import hydra
@@ -52,7 +51,7 @@ class GtsfmRunnerBase:
     def tag(self):
         pass
 
-    def __init__(self, override_args: Any = None) -> None:
+    def __init__(self, override_args = None) -> None:
         argparser: argparse.ArgumentParser = self.construct_argparser()
         self.parsed_args: argparse.Namespace = argparser.parse_args(args=override_args)
         if self.parsed_args.dask_tmpdir:
@@ -479,19 +478,19 @@ class GtsfmRunnerBase:
         return sfm_result
 
 
-def unzip_two_view_results(two_view_results: Dict[Tuple[int, int], TWO_VIEW_OUTPUT]) -> Tuple[
-    Dict[Tuple[int, int], Rot3],
-    Dict[Tuple[int, int], Unit3],
-    Dict[Tuple[int, int], np.ndarray],
-    Dict[Tuple[int, int], TwoViewEstimationReport],
-    Dict[Tuple[int, int], TwoViewEstimationReport],
+def unzip_two_view_results(two_view_results: dict[tuple[int, int], TWO_VIEW_OUTPUT]) -> tuple[
+    dict[tuple[int, int], Rot3],
+    dict[tuple[int, int], Unit3],
+    dict[tuple[int, int], np.ndarray],
+    dict[tuple[int, int], TwoViewEstimationReport],
+    dict[tuple[int, int], TwoViewEstimationReport],
 ]:
     """Unzip the tuple TWO_VIEW_OUTPUT into 1 dictionary for 1 element in the tuple."""
-    i2Ri1_dict: Dict[Tuple[int, int], Rot3] = {}
-    i2Ui1_dict: Dict[Tuple[int, int], Unit3] = {}
-    v_corr_idxs_dict: Dict[Tuple[int, int], np.ndarray] = {}
-    pre_ba_two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport] = {}
-    post_isp_two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport] = {}
+    i2Ri1_dict: dict[tuple[int, int], Rot3] = {}
+    i2Ui1_dict: dict[tuple[int, int], Unit3] = {}
+    v_corr_idxs_dict: dict[tuple[int, int], np.ndarray] = {}
+    pre_ba_two_view_reports_dict: dict[tuple[int, int], TwoViewEstimationReport] = {}
+    post_isp_two_view_reports_dict: dict[tuple[int, int], TwoViewEstimationReport] = {}
 
     for (i1, i2), two_view_output in two_view_results.items():
         # Value is ordered as (post_isp_i2Ri1, post_isp_i2Ui1, post_isp_v_corr_idxs,
@@ -511,11 +510,11 @@ def unzip_two_view_results(two_view_results: Dict[Tuple[int, int], TWO_VIEW_OUTP
     return i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, pre_ba_two_view_reports_dict, post_isp_two_view_reports_dict
 
 
-def save_metrics_reports(metrics_group_list: List[GtsfmMetricsGroup], metrics_path: str) -> None:
+def save_metrics_reports(metrics_group_list: list[GtsfmMetricsGroup], metrics_path: str) -> None:
     """Saves metrics to JSON and HTML report.
 
     Args:
-        metrics_graph: List of GtsfmMetricsGroup from different modules wrapped as Delayed.
+        metrics_graph: list of GtsfmMetricsGroup from different modules wrapped as Delayed.
         metrics_path: Path to directory where computed metrics will be saved.
     """
 
@@ -528,7 +527,7 @@ def save_metrics_reports(metrics_group_list: List[GtsfmMetricsGroup], metrics_pa
     )
 
 
-def merge_two_partition_results(poses1: Dict[int, Pose3], poses2: Dict[int, Pose3]) -> Dict[int, Pose3]:
+def merge_two_partition_results(poses1: dict[int, Pose3], poses2: dict[int, Pose3]) -> dict[int, Pose3]:
     """
     Merges poses from two partitions by finding and applying relative transform aTb.
 
@@ -537,8 +536,8 @@ def merge_two_partition_results(poses1: Dict[int, Pose3], poses2: Dict[int, Pose
     Transforms non-overlapping poses from partition 2 into frame 'a' and merges.
 
     Args:
-        poses1: Dictionary {camera_index: pose_in_frame_a}.
-        poses2: Dictionary {camera_index: pose_in_frame_b}.
+        poses1: dictionary {camera_index: pose_in_frame_a}.
+        poses2: dictionary {camera_index: pose_in_frame_b}.
 
     Returns:
         A merged dictionary {camera_index: pose_in_frame_a}.
