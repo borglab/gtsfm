@@ -12,11 +12,8 @@ import numpy as np
 
 from dask import config as dask_config
 from dask.distributed import Client, LocalCluster, SSHCluster, performance_report
-from gtsam import (
-    Rot3,
-    Unit3,
-    Pose3,
-)
+from gtsam import Rot3, Pose3, Unit3
+
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
 
@@ -51,7 +48,7 @@ class GtsfmRunnerBase:
     def tag(self):
         pass
 
-    def __init__(self, override_args = None) -> None:
+    def __init__(self, override_args=None) -> None:
         argparser: argparse.ArgumentParser = self.construct_argparser()
         self.parsed_args: argparse.Namespace = argparser.parse_args(args=override_args)
         if self.parsed_args.dask_tmpdir:
