@@ -13,7 +13,6 @@ import numpy as np
 from dask import config as dask_config
 from dask.distributed import Client, LocalCluster, SSHCluster, performance_report
 from gtsam import Rot3, Pose3, Unit3
-
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
 
