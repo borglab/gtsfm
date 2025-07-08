@@ -28,12 +28,12 @@ dependencies:
   - seaborn
   - scipy
   - hydra-core
-  # # 3rd party algorithms for different modules
+  # 3rd party algorithms for different modules
   - kornia>=0.7.3
   - pycolmap
   # io
   - h5py
-  - plotly>=5.0
+  - plotly
   - tabulate
   - simplejson
   - pyparsing>=3.0.9
@@ -49,3 +49,11 @@ dependencies:
       - trimesh[easy]
       - gtsam>=4.2
       - pydot
+      # dust3r/mast3r
+      - roma
+      - tqdm
+      - einops
+      - tensorboard
+      - pyglet<2
+      - huggingface-hub[torch]>=0.22
+
