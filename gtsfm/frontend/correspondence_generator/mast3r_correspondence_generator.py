@@ -48,26 +48,9 @@ _MODEL_PATH = str(
 GRID_DIVISOR = 16
 PATCH_MULTIPLIER = 8
 
-def resize_image(img: Image, long_edge_size: int) -> Image:
-    """Resizes image such that longest edge is equal to long_edge_size.
-
-    Args:
-        img: The input image to be resized.
-        long_edge_size: The desired size for the longest edge of the image.
-
-    Returns:
-        The resized image.
-    """
-    max_size = max(img.height, img.width)
-    ratio = float(long_edge_size) / max_size
-    new_height = int(img.height * ratio)
-    new_width = int(img.width * ratio)
-    new_image = image_utils.resize_image(img, new_height, new_width)
-    return new_image
-
 
 def preprocess_image(image: Image, img_id: int, device) -> Tuple[Dict[str, Any], Tuple[int, int], float]:
-    """Preprocesses image for MASt3R model input, including resizing and normalization.
+    """Preprocesses image for MASt3R model: rescale, crop to a multiple of patch size, convert to tensor, normalize.
 
     Args:
         image: The input image to be preprocessed.
@@ -83,7 +66,7 @@ def preprocess_image(image: Image, img_id: int, device) -> Tuple[Dict[str, Any],
     H1, _, _ = image.shape
 
     # resize to longest edge being `size`.
-    img = resize_image(image, long_edge_size=512).value_array
+    img = image_utils.resize_to_max_size(image, long_edge_size=512).value_array
     H, W, _ = img.shape
     scale_factor = float(H) / H1
 
@@ -107,6 +90,12 @@ def preprocess_image(image: Image, img_id: int, device) -> Tuple[Dict[str, Any],
 
 def symmetric_inference(model, img1, img2, device):
     """Performs symmetric inference using the MASt3R model on a pair of images.
+
+    By symmetry, we mean that the model computes 4 different point maps:
+        - with img1 as the reference frame (res11, res21)
+        - with img2 as the reference frame (res22, res12)
+
+    Each result is a pixel-aligned point map in the respective coordinate frame, along with confidence.
 
     Args:
         model: The MASt3R model.
@@ -204,6 +193,49 @@ def extract_correspondences(feats, qonfs, subsample=8, device=None, ptmap_key="p
     return corres
 
 
+def apply_mast3r(model, image1: Image, image2: Image) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Applies the MASt3R model to a pair of images to generate correspondences.
+
+    Args:
+        model: The MASt3R model instance.
+        image1: The first image.
+        image2: The second image.
+
+    Returns:
+        A tuple containing:
+        - matches_im1: Array of 2D coordinates of correspondences in the first image.
+        - matches_im2: Array of 2D coordinates of correspondences in the second image.
+        - idx1: Indices of correspondences in the first image's original feature grid.
+        - idx2: Indices of correspondences in the second image's original feature grid.
+    """
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    image1_proc, crop1, scale1 = preprocess_image(image1, 0, device)
+    image2_proc, crop2, scale2 = preprocess_image(image2, 1, device)
+
+    subsample = 8
+
+    with torch.no_grad():
+        model = model.to(device)
+
+        res = symmetric_inference(model, image1_proc, image2_proc, device=device)
+        X11, X21, X22, X12 = [r["pts3d"][0] for r in res]
+        C11, C21, C22, C12 = [r["conf"][0] for r in res]
+        descs = [r["desc"][0] for r in res]
+        qonfs = [r["desc_conf"][0] for r in res]
+
+        idx1, idx2, matches_im1, matches_im2, scores = extract_correspondences(
+            descs, qonfs, device=device, subsample=subsample
+        )
+        conf_score = (C11.mean() * C12.mean() * C21.mean() * C22.mean()).sqrt().sqrt()
+        # TODO: use the matching score to filter correspondences.
+        matching_score = (float(conf_score), float(scores.sum()), len(scores))
+
+        matches_im1 = ((matches_im1 + np.array(crop1)) + 0.5) / scale1
+        matches_im2 = ((matches_im2 + np.array(crop2)) + 0.5) / scale2
+
+    return (matches_im1, matches_im2, idx1, idx2)
+
+
 class Mast3rCorrespondenceGenerator(CorrespondenceGeneratorBase):
     """Correspondence generator using the MASt3R model."""
 
@@ -238,50 +270,9 @@ class Mast3rCorrespondenceGenerator(CorrespondenceGeneratorBase):
             List of keypoints, one entry for each input images.
             Putative correspondence as indices of keypoints, for pairs of images.
         """
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         model = AsymmetricMASt3R.from_pretrained(_MODEL_PATH).eval()
 
         m = client.scatter(model, broadcast=False)
-        subsample = 8
-
-        def apply_mast3r(model, image1: Image, image2: Image) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-            """Applies the MASt3R model to a pair of images to generate correspondences.
-
-            Args:
-                model: The MASt3R model instance.
-                image1: The first image.
-                image2: The second image.
-
-            Returns:
-                A tuple containing:
-                - matches_im1: Array of 2D coordinates of correspondences in the first image.
-                - matches_im2: Array of 2D coordinates of correspondences in the second image.
-                - idx1: Indices of correspondences in the first image's original feature grid.
-                - idx2: Indices of correspondences in the second image's original feature grid.
-            """
-            image1_proc, crop1, scale1 = preprocess_image(image1, 0, device)
-            image2_proc, crop2, scale2 = preprocess_image(image2, 1, device)
-
-            with torch.no_grad():
-                model = model.to(device)
-
-                res = symmetric_inference(model, image1_proc, image2_proc, device=device)
-                X11, X21, X22, X12 = [r["pts3d"][0] for r in res]
-                C11, C21, C22, C12 = [r["conf"][0] for r in res]
-                descs = [r["desc"][0] for r in res]
-                qonfs = [r["desc_conf"][0] for r in res]
-
-                idx1, idx2, matches_im1, matches_im2, scores = extract_correspondences(
-                    descs, qonfs, device=device, subsample=subsample
-                )
-                conf_score = (C11.mean() * C12.mean() * C21.mean() * C22.mean()).sqrt().sqrt()
-                # TODO: use the matching score to filter correspondences.
-                matching_score = (float(conf_score), float(scores.sum()), len(scores))
-
-                matches_im1 = ((matches_im1 + np.array(crop1)) + 0.5) / scale1
-                matches_im2 = ((matches_im2 + np.array(crop2)) + 0.5) / scale2
-
-            return (matches_im1, matches_im2, idx1, idx2)
 
         pairwise_correspondence_futures = {
             (i1, i2): client.submit(

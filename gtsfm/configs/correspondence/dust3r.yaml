@@ -1,3 +1,0 @@
-
-CorrespondenceGenerator:
-  _target_: gtsfm.frontend.correspondence_generator.dust3r_correspondence_generator.Dust3rCorrespondenceGenerator
