@@ -7,7 +7,7 @@ represent explicit image keys and associated edge groupings.
 Authors: Shicong Ma
 """
 
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Tuple
 
 import gtsam
 import networkx as nx
