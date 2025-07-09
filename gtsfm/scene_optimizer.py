@@ -31,6 +31,8 @@ from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.densify.mvs_base import MVSBase
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
+from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
+from gtsfm.graph_partitioner.single_partition import SinglePartition
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.retriever.image_pairs_generator import ImagePairsGenerator
 from gtsfm.retriever.retriever_base import ImageMatchingRegime
@@ -75,6 +77,7 @@ class SceneOptimizer:
         pose_angular_error_thresh: float = 3,  # in degrees
         output_root: str = DEFAULT_OUTPUT_ROOT,
         output_worker: Optional[str] = None,
+        graph_partitioner: Optional[GraphPartitionerBase] = SinglePartition(),
     ) -> None:
         self.image_pairs_generator = image_pairs_generator
         self.correspondence_generator = correspondence_generator
@@ -90,6 +93,7 @@ class SceneOptimizer:
         self._pose_angular_error_thresh = pose_angular_error_thresh
         self.output_root = Path(output_root)
         self._output_worker = output_worker
+        self.graph_partitioner = graph_partitioner
 
     def __repr__(self) -> str:
         """Returns string representation of class."""

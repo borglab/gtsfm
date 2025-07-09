@@ -55,7 +55,7 @@ class GtsfmRunnerBase:
 
         self.loader: LoaderBase = self.construct_loader()
         self.scene_optimizer: SceneOptimizer = self.construct_scene_optimizer()
-        self.graph_partitioner: GraphPartitionerBase = self.construct_graph_partitioner()
+        self.graph_partitioner: GraphPartitionerBase = self.scene_optimizer.graph_partitioner
 
     def construct_argparser(self) -> argparse.ArgumentParser:
         parser = argparse.ArgumentParser(description=self.tag)
@@ -159,7 +159,7 @@ class GtsfmRunnerBase:
             "--graph_partitioner",
             type=str,
             default="single",
-            choices=["single", "binary_tree_eight_partitions", "other_partitioner_types"],
+            choices=["single", "other_partitioner_types"],
             help="Type of graph partitioner to use. Default is 'single' (SinglePartition).",
         )
         return parser
@@ -252,12 +252,6 @@ class GtsfmRunnerBase:
 
         logger.info("\n\nSceneOptimizer: " + str(scene_optimizer))
         return scene_optimizer
-
-    def construct_graph_partitioner(self):
-        graph_partition_input = self.parsed_args.graph_partitioner
-        if graph_partition_input == "binary_tree_eight_partitions":
-            return BinaryTreePartition(max_depth=3)
-        return SinglePartition()
 
     def setup_ssh_cluster_with_retries(self) -> SSHCluster:
         """Sets up SSH Cluster allowing multiple retries upon connection failures."""
