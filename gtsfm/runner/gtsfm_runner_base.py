@@ -409,7 +409,8 @@ class GtsfmRunnerBase:
 
         for idx, subgraph_result_dict in enumerate(subgraph_two_view_results):
             logger.info(
-                f"Creating computation graph for subgraph {idx+1}/{len(subgraph_two_view_results)} with {len(subgraph_result_dict)} image pairs"
+                f"Creating computation graph for subgraph {idx + 1}/{len(subgraph_two_view_results)} "
+                f"with {    len(subgraph_result_dict)} image pairs"
             )
             if len(subgraph_two_view_results) == 1:
                 # single partition

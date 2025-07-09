@@ -89,7 +89,8 @@ class BinaryTreePartition(GraphPartitionerBase):
 
             logger.info(
                 f"Partition {i}:\n"
-                f"  Explicit Image Keys that only exists within the current partition ({len(explicit_keys)}): {sorted(explicit_keys)}\n"
+                f"  Explicit Image Keys that only exist within the current partition "
+                f"({len(explicit_keys)}): {sorted(explicit_keys)}\n"
                 f"  Internal Edges ({len(edges_within)}): {edges_within}\n"
                 f"  Shared Edges   ({len(edges_shared)})"
             )
