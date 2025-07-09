@@ -7,7 +7,7 @@ represent explicit image keys and associated edge groupings.
 Authors: Shicong Ma
 """
 
-from typing import Dict, List, Tuple
+from typing import Dict, List, Set, Tuple
 
 import gtsam
 import networkx as nx
@@ -92,7 +92,7 @@ class BinaryTreePartition(GraphPartitionerBase):
                 f"  Explicit Image Keys that only exist within the current partition "
                 f"({len(explicit_keys)}): {sorted(explicit_keys)}\n"
                 f"  Internal Edges ({len(edges_within)}): {edges_within}\n"
-                f"  Shared Edges   ({len(edges_shared)})"
+                f"  Shared Edges   ({len(edges_shared)}): {edges_shared}\n"
             )
 
         return image_pairs_per_partition
@@ -162,25 +162,35 @@ class BinaryTreePartition(GraphPartitionerBase):
         """
         if node.is_leaf():
             explicit_keys = set(node.keys)
-            edges_within_explicit = []
-            edges_with_shared = []
-
-            for u, v in nx_graph.edges():
-                if u in explicit_keys and v in explicit_keys:
-                    edges_within_explicit.append((gtsam.Symbol(u).index(), gtsam.Symbol(v).index()))
-                elif u in explicit_keys or v in explicit_keys:
-                    edges_with_shared.append((gtsam.Symbol(u).index(), gtsam.Symbol(v).index()))
-
             return [
                 {
                     "explicit_keys": [gtsam.Symbol(u).index() for u in explicit_keys],
                     "explicit_count": len(explicit_keys),
-                    "edges_within_explicit": edges_within_explicit,
-                    "edges_with_shared": edges_with_shared,
+                    "edges_within_explicit": [
+                        (gtsam.Symbol(u).index(), gtsam.Symbol(v).index())
+                        for u, v in nx_graph.edges()
+                        if u in explicit_keys and v in explicit_keys
+                    ],
+                    "edges_with_shared": [],  # placeholder
                 }
             ]
 
-        # Collect from both children
+        # Recursively compute for children
         left_partitions = self._compute_leaf_partition_details(node.left, nx_graph)
         right_partitions = self._compute_leaf_partition_details(node.right, nx_graph)
+
+        if node.left.is_leaf() and node.right.is_leaf():
+            left_keys = set(node.left.keys)
+            right_keys = set(node.right.keys)
+
+            shared_edges = [
+                (gtsam.Symbol(u).index(), gtsam.Symbol(v).index())
+                for u, v in nx_graph.edges()
+                if (u in left_keys and v in right_keys) or (u in right_keys and v in left_keys)
+            ]
+
+            # Directly assign shared edges to the only two leaf partitions
+            left_partitions[0]["edges_with_shared"] = shared_edges
+            right_partitions[0]["edges_with_shared"] = shared_edges
+
         return left_partitions + right_partitions
