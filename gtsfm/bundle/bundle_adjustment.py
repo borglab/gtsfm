@@ -77,6 +77,7 @@ class BundleAdjustmentOptimizer:
         calibration_prior_noise_sigma: float = 1e-5,
         measurement_noise_sigma: float = 1.0,
         allow_indeterminate_linear_system: bool = True,
+        ordering_type: str = "METIS",
     ) -> None:
         """Initializes the parameters for bundle adjustment module.
 
@@ -96,6 +97,7 @@ class BundleAdjustmentOptimizer:
             measurement_noise_sigma (optional): Measurement noise sigma in pixel units.
             allow_indeterminate_linear_system: Reject a two-view measurement if an indeterminate linear system is
                 encountered during marginal covariance computation after bundle adjustment.
+            ordering_type (optional): The ordering algorithm to use for variable elimination.
         """
         self._reproj_error_thresholds = reproj_error_thresholds
         self._robust_measurement_noise = robust_measurement_noise
@@ -105,6 +107,7 @@ class BundleAdjustmentOptimizer:
         self._calibration_prior_noise_sigma = calibration_prior_noise_sigma
         self._measurement_noise_sigma = measurement_noise_sigma
         self._allow_indeterminate_linear_system = allow_indeterminate_linear_system
+        self._ordering_type = ordering_type
 
     def __map_to_calibration_variable(self, camera_idx: int) -> int:
         return 0 if self._shared_calib else camera_idx
@@ -276,6 +279,8 @@ class BundleAdjustmentOptimizer:
         """Optimize the factor graph."""
         params = gtsam.LevenbergMarquardtParams()
         params.setVerbosityLM("ERROR")
+        params.setOrderingType(self._ordering_type)
+
         if self._max_iterations:
             params.setMaxIterations(self._max_iterations)
         lm = gtsam.LevenbergMarquardtOptimizer(graph, initial_values, params)

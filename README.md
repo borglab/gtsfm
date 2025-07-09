@@ -50,15 +50,22 @@ pip install -e .
 
 Make sure that you can run `python -c "import gtsfm; import gtsam; print('hello world')"` in python, and you are good to go!
 
+## Try It on Google Colab  
+
+For a quick hands-on example, check out this Colab notebook [![Colab notebook](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1H375PLnh-w5XhUOjrGoSAmczjqGYggD8?usp=sharing#scrollTo=2N_uauEtNlUP)
+
+
 ## Usage Guide (Running 3D Reconstruction)
 
-Before running reconstruction, if you intend to use modules with pre-trained weights, such as SuperPoint, SuperGlue, or PatchmatchNet, please first run:
+Before running reconstruction, if you intend to use modules with pre-trained weights (e.g., **SuperPoint, SuperGlue, or PatchmatchNet**), first download the model weights by running:  
 
 ```bash
 ./download_model_weights.sh
-```
+```  
 
-To run SfM with a dataset with only an image directory and EXIF, with image file names ending with "jpg", please create the following file structure like
+### Running SfM  
+
+To process a dataset containing only an **image directory and EXIF metadata**, ensure your dataset follows this structure:  
 
 ```
 └── {DATASET_NAME}
@@ -66,46 +73,72 @@ To run SfM with a dataset with only an image directory and EXIF, with image file
                ├── image1.jpg
                ├── image2.jpg
                ├── image3.jpg
-```
+```  
 
-and run
-
-```python
-python gtsfm/runner/run_scene_optimizer_olssonloader.py --config_name {CONFIG_NAME} --dataset_root {DATASET_ROOT} --num_workers {NUM_WORKERS}
-```
-
-For example, if you had 4 cores available and wanted to use the Deep Front-End (recommended) on the "door" dataset, you should run:
+Then, run the following command:  
 
 ```bash
-python gtsfm/runner/run_scene_optimizer_olssonloader.py --dataset_root tests/data/set1_lund_door --config_name deep_front_end.yaml --num_workers 4
-```
+python gtsfm/runner/run_scene_optimizer_olssonloader.py --config_name {CONFIG_NAME} --dataset_root {DATASET_ROOT} --num_workers {NUM_WORKERS}
+```  
 
-(or however many workers you desire).
+### Command-line Options  
 
-You can view/monitor the distributed computation using the [Dask dashboard](http://localhost:8787/status).
+To explore all available options and configurations, run:  
 
-Currently we require EXIF data embedded into your images (or you can provide ground truth intrinsics in the expected format for an Olsson dataset, or COLMAP-exported text data, etc.)
+```bash
+python gtsfm/runner/run_scene_optimizer_olssonloader.py -h
+```  
 
-If you would like to compare GTSfM output with COLMAP output, please run:
+For example, if you want to use the **Deep Front-End (recommended)** on the `"door"` dataset, run:  
 
-```python
+```bash
+python gtsfm/runner/run_scene_optimizer_olssonloader.py --dataset_root tests/data/set1_lund_door --config_name deep_front_end.yaml --num_workers 1
+```  
+
+You can monitor the distributed computation using the [Dask dashboard](http://localhost:8787/status).  
+**Note:** The dashboard will only display activity while tasks are actively running.  
+
+### Required Image Metadata  
+
+Currently, we require **EXIF data** embedded into your images. Alternatively, you can provide:  
+- Ground truth intrinsics in the expected format for an **Olsson dataset**  
+- **COLMAP-exported** text data  
+
+### Comparing GTSFM Output with COLMAP Output  
+
+To compare GTSFM output with COLMAP, use the following command:  
+
+```bash
 python gtsfm/runner/run_scene_optimizer_colmaploader.py --config_name {CONFIG_NAME} --images_dir {IMAGES_DIR} --colmap_files_dirpath {COLMAP_FILES_DIRPATH} --num_workers {NUM_WORKERS} --max_frame_lookahead {MAX_FRAME_LOOKAHEAD}
-```
+```  
 
-where `COLMAP_FILES_DIRPATH` is a directory where .txt files such as `cameras.txt`, `images.txt`, etc have been saved.
+where:  
+- **`COLMAP_FILES_DIRPATH`** is the directory containing `.txt` files such as `cameras.txt`, `images.txt`, etc.  
 
-To visualize the result using Open3D, run:
+### Visualizing Results with Open3D  
+
+To visualize the reconstructed scene using **Open3D**, run:  
 
 ```bash
 python gtsfm/visualization/view_scene.py
-```
+```  
 
-For users that are working with the same dataset repeatedly, we provide functionality to cache front-end results for
-GTSfM for very fast inference afterwards. For more information, please refer to [`gtsfm/frontend/cacher/README.md`](https://github.com/borglab/gtsfm/tree/master/gtsfm/frontend/cacher).
+### Speeding Up Front-End Processing  
 
-For users that want to run GTSfM on a cluster of multiple machines, we provide setup instructions here: [`CLUSTER.md`](https://github.com/borglab/gtsfm/tree/master/CLUSTER.md)
+For users who work with the **same dataset repeatedly**, GTSFM allows **caching front-end results** for faster inference.  
+Refer to the detailed guide:  
+📄 [GTSFM Front-End Cacher README](https://github.com/borglab/gtsfm/tree/master/gtsfm/frontend/cacher)  
 
-The results will be stored at `--output_root`, which is the `results` folder in the repo root by default. The poses and 3D tracks are stored in COLMAP format inside the `ba_output` subdirectory of `--output_root`. These can be visualized using the COLMAP GUI as well.
+### Running GTSFM on a Multi-Machine Cluster  
+
+For users who want to run GTSFM on a **cluster of multiple machines**, follow the setup instructions here:  
+📄 [CLUSTER.md](https://github.com/borglab/gtsfm/tree/master/CLUSTER.md)  
+
+### Where Are the Results Stored?  
+
+- The output will be saved in `--output_root`, which defaults to the `results` folder in the repo root.  
+- **Poses and 3D tracks** are stored in **COLMAP format** inside the `ba_output` subdirectory of `--output_root`.  
+- You can **visualize** these using the **COLMAP GUI**.
 
 ### Nerfstudio
 

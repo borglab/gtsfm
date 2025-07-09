@@ -257,7 +257,7 @@ def compute_translation_distance_metric(
 
 
 def compute_relative_translation_angle_metric(
-    i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]], wTi_list: List[Optional[Pose3]]
+    i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]], wTi_list: List[Optional[Pose3]], prefix: str = ""
 ) -> GtsfmMetric:
     """Computes statistics for angle between translations and direction measurements.
 
@@ -272,7 +272,23 @@ def compute_relative_translation_angle_metric(
     for i1, i2 in i2Ui1_dict:
         i2Ui1 = i2Ui1_dict[(i1, i2)]
         angles.append(comp_utils.compute_translation_to_direction_angle(i2Ui1, wTi_list[i2], wTi_list[i1]))
-    return GtsfmMetric("relative_translation_angle_error_deg", np.array(angles, dtype=np.float32))
+    return GtsfmMetric(prefix + "relative_translation_angle_error_deg", np.array(angles, dtype=np.float32))
+
+
+def compute_relative_rotation_angle_metric(
+    i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]], wTi_list: List[Optional[Pose3]]
+):
+    angles: List[Optional[float]] = []
+    for i1, i2 in i2Ri1_dict:
+        i2Ri1 = i2Ri1_dict[(i1, i2)]
+        if i2Ri1 is None or wTi_list[i1] is None or wTi_list[i2] is None:
+            angles.append(None)
+            continue
+        wRi1_gt = wTi_list[i1].rotation()
+        wRi2_gt = wTi_list[i2].rotation()
+        i2Ri1_gt = wRi2_gt.inverse().compose(wRi1_gt)
+        angles.append(comp_utils.compute_relative_rotation_angle(i2Ri1, i2Ri1_gt))
+    return GtsfmMetric("relative_rotation_angle_error_deg", np.array(angles, dtype=np.float32))
 
 
 def compute_translation_angle_metric(
@@ -307,8 +323,8 @@ def compute_translation_angle_metric(
 
 
 def compute_pose_auc_metric(
-    rotation_angular_errors: Sequence[float],
-    translation_angular_errors: Sequence[float],
+    rotation_angular_errors: Union[Sequence[float], np.ndarray],
+    translation_angular_errors: Union[Sequence[float], np.ndarray],
     thresholds_deg: Tuple[float] = (1, 2.5, 5, 10, 20),
     save_dir: Optional[str] = None,
 ) -> List[GtsfmMetric]:
@@ -354,7 +370,7 @@ def compute_ba_pose_metrics(
     Returns:
         A group of metrics that describe errors associated with a bundle adjustment result (w.r.t. GT).
     """
-    i2Ui1_dict_gt = get_twoview_translation_directions(gt_wTi_list)
+    i2Ri1_dict_gt, i2Ui1_dict_gt = get_all_relative_rotations_translations(gt_wTi_list)
 
     wRi_aligned_list, wti_aligned_list = get_rotations_translations_from_poses(computed_wTi_list)
     gt_wRi_list, gt_wti_list = get_rotations_translations_from_poses(gt_wTi_list)
@@ -364,16 +380,19 @@ def compute_ba_pose_metrics(
     metrics.append(compute_translation_distance_metric(wti_aligned_list, gt_wti_list))
     metrics.append(compute_relative_translation_angle_metric(i2Ui1_dict_gt, computed_wTi_list))
     metrics.append(compute_translation_angle_metric(gt_wTi_list, computed_wTi_list))
+    metrics.append(compute_relative_rotation_angle_metric(i2Ri1_dict_gt, computed_wTi_list))
 
-    rotation_angular_errors = metrics[0]._data
-    translation_angular_errors = metrics[3]._data
+    rotation_angular_errors = metrics[2]._data
+    translation_angular_errors = metrics[4]._data
     metrics.extend(compute_pose_auc_metric(rotation_angular_errors, translation_angular_errors, save_dir=save_dir))
 
     return GtsfmMetricsGroup(name="ba_pose_error_metrics", metrics=metrics)
 
 
-def get_twoview_translation_directions(wTi_list: List[Optional[Pose3]]) -> Dict[Tuple[int, int], Optional[Unit3]]:
-    """Generate synthetic measurements of the 2-view translation directions between image pairs.
+def get_all_relative_rotations_translations(
+    wTi_list: List[Optional[Pose3]],
+) -> Tuple[Dict[Tuple[int, int], Optional[Rot3]], Dict[Tuple[int, int], Optional[Unit3]]]:
+    """Compute measurements of *all* 2-view translation directions between image pairs.
 
     Args:
         wTi_list: List of poses (e.g. could be ground truth).
@@ -385,16 +404,19 @@ def get_twoview_translation_directions(wTi_list: List[Optional[Pose3]]) -> Dict[
 
     # check against all possible image pairs -- compute unit translation directions
     i2Ui1_dict = {}
+    i2Ri1_dict = {}
     possible_img_pair_idxs = list(itertools.combinations(range(number_images), 2))
     for i1, i2 in possible_img_pair_idxs:
         # compute the exact relative pose
         if wTi_list[i1] is None or wTi_list[i2] is None:
-            i2Ui1 = None
+            i2Ri1, i2Ui1 = None
         else:
             i2Ti1 = wTi_list[i2].between(wTi_list[i1])
             i2Ui1 = Unit3(i2Ti1.translation())
+            i2Ri1 = i2Ti1.rotation()
         i2Ui1_dict[(i1, i2)] = i2Ui1
-    return i2Ui1_dict
+        i2Ri1_dict[(i1, i2)] = i2Ri1
+    return i2Ri1_dict, i2Ui1_dict
 
 
 def get_precision_recall_from_errors(

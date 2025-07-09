@@ -16,7 +16,6 @@ import numpy as np
 import pycolmap
 from gtsam import Cal3Bundler, Rot3, Unit3
 
-import gtsfm.frontend.verifier.verifier_base as verifier_base
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.pycolmap_utils as pycolmap_utils
 import gtsfm.utils.verification as verification_utils
@@ -26,10 +25,11 @@ from gtsfm.frontend.verifier.verifier_base import VerifierBase
 logger = logger_utils.get_logger()
 
 
+# Default Colmap params.
 MIN_INLIER_RATIO = 0.01
-MIN_NUM_TRIALS = 100000
-MAX_NUM_TRIALS = 1000000
-CONFIDENCE = 0.999999
+MIN_NUM_TRIALS = 1000
+MAX_NUM_TRIALS = 10000
+CONFIDENCE = 0.9999
 
 
 class LoRansac(VerifierBase):
@@ -37,6 +37,10 @@ class LoRansac(VerifierBase):
         self,
         use_intrinsics_in_verification: bool,
         estimation_threshold_px: float,
+        min_inlier_ratio: float = MIN_INLIER_RATIO,
+        min_num_trials: int = MIN_NUM_TRIALS,
+        max_num_trials: int = MAX_NUM_TRIALS,
+        confidence: float = CONFIDENCE,
     ) -> None:
         """Initializes the verifier.
 
@@ -50,14 +54,15 @@ class LoRansac(VerifierBase):
                 Sampson distance.
         """
         super().__init__(use_intrinsics_in_verification, estimation_threshold_px)
-        self._min_matches = (
-            verifier_base.NUM_MATCHES_REQ_E_MATRIX
-            if self._use_intrinsics_in_verification
-            else verifier_base.NUM_MATCHES_REQ_F_MATRIX
+        self._ransac_options = pycolmap.RANSACOptions(
+            {
+                "max_error": self._estimation_threshold_px,
+                "min_num_trials": min_num_trials,
+                "max_num_trials": max_num_trials,
+                "min_inlier_ratio": min_inlier_ratio,
+                "confidence": confidence,
+            }
         )
-
-        # for failure, i2Ri1 = None, and i2Ui1 = None, and no verified correspondences, and inlier_ratio_est_model = 0
-        self._failure_result = (None, None, np.array([], dtype=np.uint64), 0.0)
 
     def __estimate_essential_matrix(
         self,
@@ -85,15 +90,7 @@ class LoRansac(VerifierBase):
             uv_i2,
             camera_i1,
             camera_i2,
-            pycolmap.RANSACOptions(
-                {
-                    "max_error": self._estimation_threshold_px,
-                    "min_num_trials": MIN_NUM_TRIALS,
-                    "max_num_trials": MAX_NUM_TRIALS,
-                    "min_inlier_ratio": MIN_INLIER_RATIO,
-                    "confidence": CONFIDENCE,
-                }
-            ),
+            self._ransac_options,
         )
         return result_dict
 
@@ -131,19 +128,7 @@ class LoRansac(VerifierBase):
         if self._use_intrinsics_in_verification:
             result_dict = self.__estimate_essential_matrix(uv_i1, uv_i2, camera_intrinsics_i1, camera_intrinsics_i2)
         else:
-            result_dict = pycolmap.fundamental_matrix_estimation(
-                uv_i1,
-                uv_i2,
-                pycolmap.RANSACOptions(
-                    {
-                        "max_error": self._estimation_threshold_px,
-                        "min_num_trials": MIN_NUM_TRIALS,
-                        "max_num_trials": MAX_NUM_TRIALS,
-                        "min_inlier_ratio": MIN_INLIER_RATIO,
-                        "confidence": CONFIDENCE,
-                    }
-                ),
-            )
+            result_dict = pycolmap.fundamental_matrix_estimation(uv_i1, uv_i2, self._ransac_options)
 
         if not result_dict:
             matrix_type = "Essential" if self._use_intrinsics_in_verification else "Fundamental"
@@ -153,7 +138,15 @@ class LoRansac(VerifierBase):
         num_inliers = result_dict["num_inliers"]
         inlier_ratio_est_model = num_inliers / match_indices.shape[0]
 
-        inlier_mask = np.array(result_dict["inliers"])
+        # Backward compatible: support both old 'inliers' and new 'inlier_mask'
+        if "inlier_mask" in result_dict:
+            # New pycolmap 3.11+
+            inlier_mask = np.array(result_dict["inlier_mask"])
+        elif "inliers" in result_dict:
+            # Old pycolmap <=3.10
+            inlier_mask = np.array(result_dict["inliers"])
+        else:
+            raise KeyError("LoRANSAC result_dict missing both 'inliers' and 'inlier_mask'.")
         v_corr_idxs = match_indices[inlier_mask]
         if self._use_intrinsics_in_verification:
             # case where E-matrix was estimated
