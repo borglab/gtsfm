@@ -8,7 +8,7 @@ import unittest
 from typing import List
 
 import numpy as np
-from gtsam import Cal3_S2, Cal3Bundler, PinholeCameraCal3Bundler, Point3, Pose3, Rot3, SfmTrack, Similarity3
+from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Point3, Pose3, Rot3, SfmTrack, Similarity3
 from gtsam.examples import SFMdata
 
 import gtsfm.utils.alignment as alignment_utils

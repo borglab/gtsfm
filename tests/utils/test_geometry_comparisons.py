@@ -7,7 +7,7 @@ import unittest
 from unittest.mock import patch
 
 import numpy as np
-from gtsam import Cal3_S2, Point3, Pose3, Rot3, Unit3
+from gtsam import Point3, Pose3, Rot3, Unit3
 from gtsam.examples import SFMdata
 
 import gtsfm.utils.geometry_comparisons as geometry_comparisons
