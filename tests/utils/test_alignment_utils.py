@@ -16,7 +16,7 @@ import gtsfm.utils.metrics as metrics_utils
 import tests.data.sample_poses as sample_poses
 from gtsfm.common.gtsfm_data import GtsfmData
 
-POSE_LIST = SFMdata.createPoses(Cal3_S2())
+POSE_LIST = SFMdata.posesOnCircle(R=40)
 
 ROT3_EULER_ANGLE_ERROR_THRESHOLD = 1e-2
 POINT3_RELATIVE_ERROR_THRESH = 1e-1
@@ -297,7 +297,6 @@ class TestAlignmentUtils(unittest.TestCase):
             assert np.allclose(aTi.rotation().matrix(), aTi_.rotation().matrix(), atol=1e-3)
             assert np.allclose(aTi.translation(), aTi_.translation(), atol=1e-3)
 
-
     def test_ransac_align_poses_sim3_ignore_two_missing_estimated_poses(self) -> None:
         """Unit test for simple case of 3 poses (one is an outlier with massive translation error.)"""
 
@@ -323,7 +322,6 @@ class TestAlignmentUtils(unittest.TestCase):
         assert np.allclose(aligned_bTi_list_est[1].translation(), np.array([50.0114, 0.0576299, 0]), atol=1e-3)
         assert np.allclose(aligned_bTi_list_est[2].translation(), np.array([-0.0113879, 9.94237, 0]), atol=1e-3)
 
-
     def test_ransac_align_poses_sim3_if_no_ground_truth_provided(self) -> None:
         aTi_list = [
             None,
@@ -340,7 +338,6 @@ class TestAlignmentUtils(unittest.TestCase):
 
         aligned_bTi_list_est, aSb = alignment_utils.align_poses_sim3_ignore_missing(aTi_list, bTi_list)
         assert isinstance(aSb, Similarity3)
-
 
     def test_align_gtsfm_data_via_Sim3_to_poses_skydio32(self) -> None:
         """Real data, from Skydio-32 sequence with the SIFT front-end.

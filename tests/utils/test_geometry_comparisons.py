@@ -12,7 +12,7 @@ from gtsam.examples import SFMdata
 
 import gtsfm.utils.geometry_comparisons as geometry_comparisons
 
-POSE_LIST = SFMdata.createPoses(Cal3_S2())
+POSE_LIST = SFMdata.posesOnCircle(R=40)
 
 ROT3_EULER_ANGLE_ERROR_THRESHOLD = 1e-2
 POINT3_RELATIVE_ERROR_THRESH = 1e-1
