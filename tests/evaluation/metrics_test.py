@@ -1,7 +1,8 @@
-"""Tests for GtsfmMetric and GtsfmMetricsGroup. 
+"""Tests for GtsfmMetric and GtsfmMetricsGroup.
 
 Authors: Akshay Krishnan
 """
+
 import copy
 import os
 import tempfile
@@ -81,16 +82,16 @@ class TestGtsfmMetric(unittest.TestCase):
         metric = GtsfmMetric("empty_metric", data)
         self.assertEqual(metric.name, "empty_metric")
         np.testing.assert_equal(metric.data, data)
-        np.testing.assert_equal(list(metric.summary.values()), [np.NaN for _ in range(5)])
+        np.testing.assert_equal(list(metric.summary.values()), [np.nan for _ in range(5)])
         self.assertEqual(metric.plot_type, GtsfmMetric.PlotType.BOX)
 
     def test_create_all_nan_metric(self) -> None:
         """Check that a 1D distribution metric created has the right attributes."""
-        data = np.array([np.NaN for _ in range(5)], dtype=np.float32)
+        data = np.array([np.nan for _ in range(5)], dtype=np.float32)
         metric = GtsfmMetric("nan_metric", data)
         self.assertEqual(metric.name, "nan_metric")
         np.testing.assert_equal(metric.data, data)
-        np.testing.assert_equal(list(metric.summary.values()), [np.NaN for _ in range(5)])
+        np.testing.assert_equal(list(metric.summary.values()), [np.nan for _ in range(5)])
         self.assertEqual(metric.plot_type, GtsfmMetric.PlotType.BOX)
 
     def test_parses_from_dict_scalar(self) -> None:
@@ -155,14 +156,14 @@ class TestGtsfmMetricsGroup(unittest.TestCase):
         """Check that saving to and reading from JSON preserves all data in a GtsfmMetric."""
         metrics_list = []
         metrics_list.append(GtsfmMetric(name="metric1", data=2))
-        metrics_list.append(GtsfmMetric(name="metric2", data=np.array([np.NaN, -2.0, 999, 0.0])))
+        metrics_list.append(GtsfmMetric(name="metric2", data=np.array([np.nan, -2.0, 999, 0.0])))
         pre_json_metrics_group = GtsfmMetricsGroup(name="test_metrics", metrics=metrics_list)
-        # The np.NaN here is not a special case (unlike in test_io_utils.py)
+        # The np.nan here is not a special case (unlike in test_io_utils.py)
         # because GtsfmMetricsGroup casts all lists to np.array types on init.
         #
         # Here, all "null" from JSON are read in as None types in a list. Then,
         # in the init() of GtsfmMetricsGroup, those None types are cast to
-        # np.NaN when the list is cast to an np.array, dtype=np.float32.
+        # np.nan when the list is cast to an np.array, dtype=np.float32.
         #
         # (This only works when dtype=float, but that is because NaN is not an
         # option for other types like np.int.)

@@ -26,7 +26,7 @@ CAMERA_INTRINSICS = Cal3_S2(
     v0=IMAGE_H // 2,
 )
 # set dummy camera poses as described in GTSAM example
-CAMERA_POSES = SFMdata.createPoses(CAMERA_INTRINSICS)
+CAMERA_POSES = SFMdata.posesOnCircle(R=40)
 # set dummy camera instances
 CAMERAS = [PinholeCameraCal3_S2(CAMERA_POSES[i], CAMERA_INTRINSICS) for i in range(len(CAMERA_POSES))]
 
