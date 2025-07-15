@@ -8,7 +8,7 @@ from typing import List, Optional, Tuple
 
 import gtsam
 import numpy as np
-from gtsam import Pose3, Pose3Pairs, Rot3, Rot3Vector, Similarity3
+from gtsam import Pose3, Pose3Pairs, Rot3, Similarity3
 from scipy.spatial.transform import Rotation
 
 import gtsfm.utils.metrics as metric_utils
