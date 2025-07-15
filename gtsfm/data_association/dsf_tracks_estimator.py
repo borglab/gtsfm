@@ -84,7 +84,7 @@ class DsfTracksEstimator(TracksEstimatorBase):
             else:
                 erroneous_track_count += 1
 
-        erroneous_track_pct = erroneous_track_count / len(key_set) * 100 if len(key_set) > 0 else np.NaN
+        erroneous_track_pct = erroneous_track_count / len(key_set) * 100 if len(key_set) > 0 else np.nan
         logger.info(
             f"DSF Union-Find: {erroneous_track_pct:.2f}% of tracks discarded from multiple obs. in a single image."
         )
