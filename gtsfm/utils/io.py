@@ -2,7 +2,6 @@
 
 Authors: Ayush Baid, John Lambert
 """
-
 import glob
 import os
 import pickle
@@ -16,7 +15,7 @@ import h5py
 import numpy as np
 import open3d
 import simplejson as json
-from gtsam import Cal3Bundler, Cal3DS2, Point3, Pose3, Rot3, SfmTrack
+from gtsam import Cal3Bundler, Point3, Pose3, Rot3, SfmTrack
 from PIL import Image as PILImage
 from PIL.ExifTags import GPSTAGS, TAGS
 
@@ -224,16 +223,10 @@ def colmap2gtsfm(
         elif camera_model_name == "RADIAL":
             f, cx, cy, k1, k2 = cameras[img.camera_id].params[:5]
             fx = f
-        elif camera_model_name == "OPENCV":
-            fx, fy, cx, cy, k1, k2, p1, p2 = cameras[img.camera_id].params[:8]
         else:
             raise ValueError(f"Unsupported COLMAP camera type: {camera_model_name}")
 
-        if camera_model_name == "OPENCV":
-            intrinsics_gtsfm.append(Cal3DS2(fx, fy, 0.0, cx, cy, k1, k2, p1, p2))
-        else:
-            intrinsics_gtsfm.append(Cal3Bundler(fx, k1, k2, cx, cy))
-
+        intrinsics_gtsfm.append(Cal3Bundler(fx, k1, k2, cx, cy))
         image_id_to_idx[img.id] = idx
         img_h, img_w = cameras[img.camera_id].height, cameras[img.camera_id].width
         img_dims.append((img_h, img_w))
