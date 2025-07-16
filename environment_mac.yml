@@ -31,6 +31,8 @@ dependencies:
   - seaborn
   - scipy
   - hydra-core
+  - cxx-compiler
+  - boost=1.78.0
   # Third-party algorithms for different modules
   - kornia>=0.7.3
   # I/O
@@ -52,3 +54,4 @@ dependencies:
       - trimesh[easy]
       - gtsam>=4.2
       - pydot
+      - git+https://github.com/MatthewCWoodward/pyvlfeat.git@de9a616
