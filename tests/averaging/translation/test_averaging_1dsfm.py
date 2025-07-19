@@ -184,8 +184,7 @@ class TestTranslationAveraging1DSFM(unittest.TestCase):
         This test is copied from GTSAM's TranslationAveragingExample.
         """
 
-        fx, fy, s, u0, v0 = 50.0, 50.0, 0.0, 50.0, 50.0
-        expected_wTi_list = SFMdata.createPoses(Cal3_S2(fx, fy, s, u0, v0))
+        expected_wTi_list = SFMdata.posesOnCircle(R=40)
 
         wRi_list = [x.rotation() for x in expected_wTi_list]
 
