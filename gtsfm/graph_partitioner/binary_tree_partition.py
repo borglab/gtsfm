@@ -186,12 +186,12 @@ class BinaryTreePartition(GraphPartitionerBase):
         leaf_idx_counter = [0]  # mutable counter to track leaf index
         node_to_idx = dict()
 
-        def dfs(n: BinaryTreeNode) -> List[Dict]:
-            if n.is_leaf():
+        def dfs(node: BinaryTreeNode) -> List[Dict]:
+            if node.is_leaf():
                 idx = leaf_idx_counter[0]
                 leaf_idx_counter[0] += 1
-                node_to_idx[n] = idx
-                exclusive_keys = set(n.keys)
+                node_to_idx[node] = idx
+                exclusive_keys = set(node.keys)
                 return [
                     {
                         "exclusive_keys": [gtsam.Symbol(u).index() for u in exclusive_keys],
@@ -203,19 +203,19 @@ class BinaryTreePartition(GraphPartitionerBase):
                     }
                 ]
 
-            left_part = dfs(n.left)
-            right_part = dfs(n.right)
+            left_part = dfs(node.left)
+            right_part = dfs(node.right)
 
-            if n.left.is_leaf() and n.right.is_leaf():
-                left_keys = set(n.left.keys)
-                right_keys = set(n.right.keys)
+            if node.left.is_leaf() and node.right.is_leaf():
+                left_keys = set(node.left.keys)
+                right_keys = set(node.right.keys)
                 shared_edges = [
                     (gtsam.Symbol(u).index(), gtsam.Symbol(v).index())
                     for u, v in nx_graph.edges()
                     if (u in left_keys and v in right_keys) or (u in right_keys and v in left_keys)
                 ]
-                i = node_to_idx[n.left]
-                j = node_to_idx[n.right]
+                i = node_to_idx[node.left]
+                j = node_to_idx[node.right]
                 shared_edge_map[(i, j)] = shared_edges
 
             return left_part + right_part
