@@ -95,13 +95,20 @@ class TestBinaryTreePartition(unittest.TestCase):
         image_pairs = [(0, 1), (1, 2), (2, 3)]
         partitioner = BinaryTreePartition(max_depth=1)
         partitions = partitioner.partition_image_pairs(image_pairs)
+        shared = partitioner.get_shared_edges()
+
+        # Check number of partitions
         self.assertEqual(len(partitions), 2)
 
-        # All original edges should appear in at least one partition (either internal or shared)
-        flattened = set()
-        for p in partitions:
-            for u, v in p:
+        # Gather all exclusive edges
+        flattened = set((min(u, v), max(u, v)) for p in partitions for u, v in p)
+
+        # Add shared edges
+        for shared_edges in shared.values():
+            for u, v in shared_edges:
                 flattened.add((min(u, v), max(u, v)))
+
+        # All input edges should appear
         for u, v in image_pairs:
             self.assertIn((min(u, v), max(u, v)), flattened)
 
@@ -134,7 +141,7 @@ class TestBinaryTreePartition(unittest.TestCase):
 
     def test_build_graphs(self):
         """Test that _build_graphs constructs the correct symbolic and networkx graphs."""
-        partitioner = BinaryTreePartition()
+        partitioner = BinaryTreePartition(max_depth=1)
         test_pairs = [(0, 1), (1, 2)]
         sfg, keys, nxg = partitioner._build_graphs(test_pairs)
 
@@ -189,14 +196,19 @@ class TestBinaryTreePartition(unittest.TestCase):
         root.left = left
         root.right = right
 
-        details = partitioner._compute_leaf_partition_details(root, nxg)
-        self.assertEqual(len(details), 2)
+        leaf_details, shared_map = partitioner._compute_leaf_partition_details(root, nxg)
 
-        # Check that shared edge (1,2) is included in both
+        self.assertEqual(len(leaf_details), 2)
+
+        # Collect internal and shared edges
         flattened_edges = set()
-        for d in details:
-            for u, v in d["edges_within_explicit"] + d["edges_with_shared"]:
+        for d in leaf_details:
+            for u, v in d["edges_within_exclusive"]:
                 flattened_edges.add((min(u, v), max(u, v)))
+        for shared_edges in shared_map.values():
+            for u, v in shared_edges:
+                flattened_edges.add((min(u, v), max(u, v)))
+
         for u, v in image_pairs:
             self.assertIn((min(u, v), max(u, v)), flattened_edges)
 

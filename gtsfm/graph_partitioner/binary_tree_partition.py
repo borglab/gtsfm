@@ -2,12 +2,13 @@
 
 This partitioner recursively partitions image pair graphs into a binary tree
 structure up to a specified depth, using METIS-based ordering. Leaf nodes
-represent explicit image keys and associated edge groupings.
+represent exclusive image keys and associated edge groupings.
 
 Authors: Shicong Ma
 """
 
-from typing import Dict, List, Tuple
+from math import ceil, log2
+from typing import Dict, List, Optional, Tuple
 
 import gtsam
 import networkx as nx
@@ -43,15 +44,25 @@ class BinaryTreeNode:
 class BinaryTreePartition(GraphPartitionerBase):
     """Graph partitioner that uses a binary tree to recursively divide image pairs."""
 
-    def __init__(self, max_depth: int = 2):
+    def __init__(self, max_depth: Optional[int] = None, num_cameras_per_cluster: Optional[int] = None):
         """
         Initialize the BinaryTreePartition object.
 
         Args:
             max_depth: Maximum depth of the binary tree; results in 2^depth partitions.
+            num_cameras_per_cluster: Desired number of cameras per cluster; used to compute max_depth.
         """
         super().__init__(process_name="BinaryTreePartition")
-        self.max_depth = max_depth
+
+        if max_depth is not None:
+            self.max_depth = max_depth
+        elif num_cameras_per_cluster is not None:
+            self._num_cameras_per_cluster = num_cameras_per_cluster
+            self.max_depth = None  # to be inferred later
+        else:
+            raise ValueError("Either max_depth or num_cameras_per_cluster must be provided")
+
+        self.shared_edge_map: Dict[Tuple[int, int], List[Tuple[int, int]]] = {}
 
     def partition_image_pairs(self, image_pairs: List[Tuple[int, int]]) -> List[List[Tuple[int, int]]]:
         """Partition image pairs into subgroups using a binary tree.
@@ -60,11 +71,17 @@ class BinaryTreePartition(GraphPartitionerBase):
             image_pairs: List of image index pairs (i, j), where i < j.
 
         Returns:
-            A list of image pair subsets, one for each leaf in the binary tree.
+            A list of image pair subsets (internal only), one for each leaf.
         """
         if not image_pairs:
             logger.warning("No image pairs provided for partitioning.")
             return []
+
+        all_nodes = set(i for ij in image_pairs for i in ij)
+        num_cameras = len(all_nodes)
+
+        if self.max_depth is None:
+            self.max_depth = ceil(log2(num_cameras / self._num_cameras_per_cluster))
 
         symbol_graph, _, nx_graph = self._build_graphs(image_pairs)
         ordering = gtsam.Ordering.MetisSymbolicFactorGraph(symbol_graph)
@@ -73,29 +90,31 @@ class BinaryTreePartition(GraphPartitionerBase):
         num_leaves = 2**self.max_depth
         image_pairs_per_partition = [[] for _ in range(num_leaves)]
 
-        partition_details = self._compute_leaf_partition_details(binary_tree_root_node, nx_graph)
+        partition_details, leaf_node_map = self._compute_leaf_partition_details(binary_tree_root_node, nx_graph)
 
         logger.info(f"BinaryTreePartition: partitioned into {len(partition_details)} leaf nodes.")
 
         for i in range(num_leaves):
-            edges_explicit = partition_details[i].get("edges_within_explicit", [])
-            edges_shared = partition_details[i].get("edges_with_shared", [])
-            image_pairs_per_partition[i] = edges_explicit + edges_shared
+            edges_exclusive = partition_details[i].get("edges_within_exclusive", [])
+            image_pairs_per_partition[i] = edges_exclusive
 
         for i, part in enumerate(partition_details):
-            explicit_keys = part.get("explicit_keys", [])
-            edges_within = part.get("edges_within_explicit", [])
-            edges_shared = part.get("edges_with_shared", [])
+            exclusive_keys = part.get("exclusive_keys", [])
+            edges_within = part.get("edges_within_exclusive", [])
 
             logger.info(
-                f"Partition {i}:\n"
-                f"  Explicit Image Keys that only exist within the current partition "
-                f"({len(explicit_keys)}): {sorted(explicit_keys)}\n"
+                f"Partition {i}:"
+                f"  Exclusive Image Keys ({len(exclusive_keys)}): {sorted(exclusive_keys)}\n"
                 f"  Internal Edges ({len(edges_within)}): {edges_within}\n"
-                f"  Shared Edges   ({len(edges_shared)}): {edges_shared}\n"
             )
 
+        self.shared_edge_map = {(i, j): shared_edges for (i, j), shared_edges in leaf_node_map.items() if shared_edges}
+
         return image_pairs_per_partition
+
+    def get_shared_edges(self) -> Dict[Tuple[int, int], List[Tuple[int, int]]]:
+        """Getter for shared edges between leaf partitions."""
+        return self.shared_edge_map
 
     def _build_graphs(self, image_pairs: List[Tuple[int, int]]) -> Tuple[SymbolicFactorGraph, List[int], nx.Graph]:
         """Construct GTSAM and NetworkX graphs from image pairs.
@@ -150,7 +169,7 @@ class BinaryTreePartition(GraphPartitionerBase):
         self,
         node: BinaryTreeNode,
         nx_graph: nx.Graph,
-    ) -> List[Dict]:
+    ) -> Tuple[List[Dict], Dict[Tuple[int, int], List[Tuple[int, int]]]]:
         """Recursively traverse the binary tree and return partition details per leaf.
 
         Args:
@@ -158,39 +177,48 @@ class BinaryTreePartition(GraphPartitionerBase):
             nx_graph: NetworkX graph built from image pairs.
 
         Returns:
-            A list of dictionaries containing partition details per leaf node.
+            A tuple:
+                - List of dictionaries containing exclusive keys and edges per leaf node.
+                - Mapping of (leaf_idx_a, leaf_idx_b) to shared edges.
         """
-        if node.is_leaf():
-            explicit_keys = set(node.keys)
-            return [
-                {
-                    "explicit_keys": [gtsam.Symbol(u).index() for u in explicit_keys],
-                    "explicit_count": len(explicit_keys),
-                    "edges_within_explicit": [
-                        (gtsam.Symbol(u).index(), gtsam.Symbol(v).index())
-                        for u, v in nx_graph.edges()
-                        if u in explicit_keys and v in explicit_keys
-                    ],
-                    "edges_with_shared": [],  # placeholder
-                }
-            ]
+        leaf_details = []
+        shared_edge_map = dict()
+        leaf_idx_counter = [0]  # mutable counter to track leaf index
+        node_to_idx = dict()
 
-        # Recursively compute for children
-        left_partitions = self._compute_leaf_partition_details(node.left, nx_graph)
-        right_partitions = self._compute_leaf_partition_details(node.right, nx_graph)
+        def dfs(n: BinaryTreeNode) -> List[Dict]:
+            if n.is_leaf():
+                idx = leaf_idx_counter[0]
+                leaf_idx_counter[0] += 1
+                node_to_idx[n] = idx
+                exclusive_keys = set(n.keys)
+                return [
+                    {
+                        "exclusive_keys": [gtsam.Symbol(u).index() for u in exclusive_keys],
+                        "edges_within_exclusive": [
+                            (gtsam.Symbol(u).index(), gtsam.Symbol(v).index())
+                            for u, v in nx_graph.edges()
+                            if u in exclusive_keys and v in exclusive_keys
+                        ],
+                    }
+                ]
 
-        if node.left.is_leaf() and node.right.is_leaf():
-            left_keys = set(node.left.keys)
-            right_keys = set(node.right.keys)
+            left_part = dfs(n.left)
+            right_part = dfs(n.right)
 
-            shared_edges = [
-                (gtsam.Symbol(u).index(), gtsam.Symbol(v).index())
-                for u, v in nx_graph.edges()
-                if (u in left_keys and v in right_keys) or (u in right_keys and v in left_keys)
-            ]
+            if n.left.is_leaf() and n.right.is_leaf():
+                left_keys = set(n.left.keys)
+                right_keys = set(n.right.keys)
+                shared_edges = [
+                    (gtsam.Symbol(u).index(), gtsam.Symbol(v).index())
+                    for u, v in nx_graph.edges()
+                    if (u in left_keys and v in right_keys) or (u in right_keys and v in left_keys)
+                ]
+                i = node_to_idx[n.left]
+                j = node_to_idx[n.right]
+                shared_edge_map[(i, j)] = shared_edges
 
-            # Directly assign shared edges to the only two leaf partitions
-            left_partitions[0]["edges_with_shared"] = shared_edges
-            right_partitions[0]["edges_with_shared"] = shared_edges
+            return left_part + right_part
 
-        return left_partitions + right_partitions
+        leaf_details = dfs(node)
+        return leaf_details, shared_edge_map

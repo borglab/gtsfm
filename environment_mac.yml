@@ -1,14 +1,11 @@
 name: gtsfm-v1
 channels:
-  # The GTSFM Mac environment closely follows the Linux conda environment file,
-  # except for two noticeable differences: no CUDA support and no DEGENSAC support.
-  # Note: this environment is tested on an M3 Ultra chip.
   - conda-forge
 dependencies:
-  # Python essentials
+  # python essentials
   - python=3.10
   - pip
-  # Formatting and development environment tools
+  # formatting and dev environment
   - black
   - coverage
   - mypy
@@ -16,14 +13,14 @@ dependencies:
   - pytest
   - flake8
   - isort
-  # Dask and related dependencies
-  - dask  # Equivalent to the dask[complete] pip distribution
+  # dask and related
+  - dask
   - asyncssh
   - python-graphviz
-  # Core functionality and APIs
+  # core functionality and APIs
   - matplotlib>=3.5
   - networkx
-  - numpy==1.26.4  # GTSAM requirement
+  - numpy==1.26.4 # gtsam requirement
   - nodejs
   - pandas
   - pillow>=9.0.0
@@ -31,16 +28,16 @@ dependencies:
   - seaborn
   - scipy
   - hydra-core
-  # Third-party algorithms for different modules
+  # # 3rd party algorithms for different modules
   - kornia>=0.7.3
-  # I/O
+  - pycolmap==3.11.1
+  # io
   - h5py
   - plotly>=5.0
   - tabulate
   - simplejson
   - pyparsing>=3.0.9
-  - pycolmap
-  # Testing utilities
+  # testing
   - parameterized
   - pip:
       - torch
@@ -50,5 +47,5 @@ dependencies:
       - pydegensac
       - colour
       - trimesh[easy]
-      - gtsam>=4.2
+      - gtsam==4.3a0
       - pydot
