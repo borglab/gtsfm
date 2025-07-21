@@ -113,7 +113,12 @@ class BinaryTreePartition(GraphPartitionerBase):
         return image_pairs_per_partition
 
     def get_inter_partition_edges(self) -> Dict[Tuple[int, int], List[Tuple[int, int]]]:
-        """Getter for inter-partition edges between leaf partitions."""
+        """Getter for inter-partition edges between leaf partitions.
+
+        Returns:
+            A dictionary mapping (leaf_idx_a, leaf_idx_b) to a list of edges
+            connecting nodes in the two leaf partitions. Only sibling pairs are included.
+        """
         return self.inter_partition_edges_map
 
     def _build_graphs(self, image_pairs: List[Tuple[int, int]]) -> Tuple[SymbolicFactorGraph, List[int], nx.Graph]:
@@ -206,6 +211,8 @@ class BinaryTreePartition(GraphPartitionerBase):
             left_part = dfs(node.left)
             right_part = dfs(node.right)
 
+            # Identify inter-partition edges between two sibling leaf nodes,
+            # and map them using their assigned leaf indices.
             if node.left.is_leaf() and node.right.is_leaf():
                 left_keys = set(node.left.keys)
                 right_keys = set(node.right.keys)
