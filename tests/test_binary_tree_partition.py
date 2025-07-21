@@ -95,17 +95,16 @@ class TestBinaryTreePartition(unittest.TestCase):
         image_pairs = [(0, 1), (1, 2), (2, 3)]
         partitioner = BinaryTreePartition(max_depth=1)
         partitions = partitioner.partition_image_pairs(image_pairs)
-        shared = partitioner.get_shared_edges()
+        inter = partitioner.get_inter_partition_edges()
 
         # Check number of partitions
         self.assertEqual(len(partitions), 2)
 
-        # Gather all exclusive edges
+        # Gather all intra-partition and inter-partition edges
         flattened = set((min(u, v), max(u, v)) for p in partitions for u, v in p)
 
-        # Add shared edges
-        for shared_edges in shared.values():
-            for u, v in shared_edges:
+        for inter_edges in inter.values():
+            for u, v in inter_edges:
                 flattened.add((min(u, v), max(u, v)))
 
         # All input edges should appear
@@ -182,7 +181,7 @@ class TestBinaryTreePartition(unittest.TestCase):
         self.assertEqual(sum(len(n.keys) for n in leaf_nodes), 8)
 
     def test_compute_leaf_partition_details(self):
-        """Test that leaf partitions correctly report internal and shared edges."""
+        """Test that leaf partitions correctly report intra- and inter-partition edges."""
         partitioner = BinaryTreePartition(max_depth=1)
         image_pairs = [(0, 1), (1, 2), (2, 3)]  # Line graph
 
@@ -196,17 +195,16 @@ class TestBinaryTreePartition(unittest.TestCase):
         root.left = left
         root.right = right
 
-        leaf_details, shared_map = partitioner._compute_leaf_partition_details(root, nxg)
+        leaf_details, inter_edges_map = partitioner._compute_leaf_partition_details(root, nxg)
 
         self.assertEqual(len(leaf_details), 2)
 
-        # Collect internal and shared edges
         flattened_edges = set()
         for d in leaf_details:
-            for u, v in d["edges_within_exclusive"]:
+            for u, v in d["intra_partition_edges"]:
                 flattened_edges.add((min(u, v), max(u, v)))
-        for shared_edges in shared_map.values():
-            for u, v in shared_edges:
+        for inter_edges in inter_edges_map.values():
+            for u, v in inter_edges:
                 flattened_edges.add((min(u, v), max(u, v)))
 
         for u, v in image_pairs:
