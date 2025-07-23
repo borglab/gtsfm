@@ -15,7 +15,7 @@ import h5py
 import numpy as np
 import open3d
 import simplejson as json
-from gtsam import Cal3Bundler, Point3, Pose3, Rot3, SfmTrack
+from gtsam import Cal3Bundler, Cal3DS2, Point3, Pose3, Rot3, SfmTrack
 from PIL import Image as PILImage
 from PIL.ExifTags import GPSTAGS, TAGS
 
@@ -216,13 +216,16 @@ def colmap2gtsfm(
             fx = f
         elif camera_model_name == "FULL_OPENCV":
             # See https://github.com/colmap/colmap/blob/1f6812e333a1e4b2ef56aa74e2c3873e4e3a40cd/src/colmap/sensor/models.h#L273  # noqa: E501
-            fx, fy, cx, cy = cameras[img.camera_id].params[:4]
+            fx, fy, cx, cy, k1, k2 = cameras[img.camera_id].params[:6]
         elif camera_model_name == "PINHOLE":
             # See https://github.com/colmap/colmap/blob/1f6812e333a1e4b2ef56aa74e2c3873e4e3a40cd/src/colmap/sensor/models.h#L196  # noqa: E501
             fx, fy, cx, cy = cameras[img.camera_id].params[:4]
         elif camera_model_name == "RADIAL":
             f, cx, cy, k1, k2 = cameras[img.camera_id].params[:5]
-            fx = f
+            fx, fy = f, f
+        elif camera_model_name == "OPENCV":
+            # See https://github.com/colmap/colmap/blob/1f6812e333a1e4b2ef56aa74e2c3873e4e3a40cd/src/colmap/sensor/models.h#L257  # noqa: E501
+            fx, fy, cx, cy, k1, k2 = cameras[img.camera_id].params[:6]
         else:
             raise ValueError(f"Unsupported COLMAP camera type: {camera_model_name}")
 
