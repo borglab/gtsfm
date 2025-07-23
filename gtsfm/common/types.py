@@ -31,8 +31,6 @@ def get_camera_class_for_calibration(calibration: CALIBRATION_TYPE) -> CAMERA_TY
     Returns:
         Camera class needed for the calibration object.
     """
-    print(f"Using camera class for calibration: {calibration}")
-    print(f"Calibration type: {type(calibration)}")
     if isinstance(calibration, gtsam.Cal3Bundler):
         return gtsam.PinholeCameraCal3Bundler
     if isinstance(calibration, gtsam.Cal3DS2):

@@ -67,7 +67,6 @@ class ColmapLoader(LoaderBase):
         wTi_list, img_fnames, self._calibrations, _, _, _ = io_utils.read_scene_data_from_colmap_format(
             colmap_files_dirpath
         )
-        print("Calibration types:", [type(calib) for calib in self._calibrations])
         # TODO in future PR: if img_fnames is None, default to using everything inside image directory
 
         if self._calibrations is None:
@@ -150,7 +149,6 @@ class ColmapLoader(LoaderBase):
             # get intrinsics from exif
             intrinsics = io_utils.load_image(self._image_paths[index]).get_intrinsics_from_exif()
         else:
-            print("calibration type inside loader while calling get_camera_intrinsics_full_res:", type(self._calibrations[index]))
             intrinsics = self._calibrations[index]
 
         return intrinsics

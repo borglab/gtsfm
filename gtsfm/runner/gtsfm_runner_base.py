@@ -333,7 +333,6 @@ class GtsfmRunnerBase:
         logger.info("Image pair retrieval took %.2f sec.", retriever_duration_sec)
 
         intrinsics = self.loader.get_all_intrinsics()
-        print("Calibration types in runner after calling get_all_intrinsics:", [type(calib) for calib in intrinsics])
 
         with performance_report(filename="correspondence-generator-dask-report.html"):
             correspondence_generation_start_time = time.time()
