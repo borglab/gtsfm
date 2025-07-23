@@ -31,6 +31,8 @@ from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.densify.mvs_base import MVSBase
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
+from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
+from gtsfm.graph_partitioner.single_partition import SinglePartition
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.retriever.image_pairs_generator import ImagePairsGenerator
 from gtsfm.retriever.retriever_base import ImageMatchingRegime
@@ -75,6 +77,7 @@ class SceneOptimizer:
         pose_angular_error_thresh: float = 3,  # in degrees
         output_root: str = DEFAULT_OUTPUT_ROOT,
         output_worker: Optional[str] = None,
+        graph_partitioner: Optional[GraphPartitionerBase] = SinglePartition(),
     ) -> None:
         self.image_pairs_generator = image_pairs_generator
         self.correspondence_generator = correspondence_generator
@@ -90,7 +93,7 @@ class SceneOptimizer:
         self._pose_angular_error_thresh = pose_angular_error_thresh
         self.output_root = Path(output_root)
         self._output_worker = output_worker
-        self._create_output_directories()
+        self.graph_partitioner = graph_partitioner
 
     def __repr__(self) -> str:
         """Returns string representation of class."""
@@ -102,12 +105,21 @@ class SceneOptimizer:
         DenseMultiviewOptimizer: {self.dense_multiview_optimizer}
         """
 
-    def _create_output_directories(self) -> None:
+    def create_plot_base_path(self):
+        """Create plot base path."""
+        plot_base_path = self.output_root / "plots"
+        os.makedirs(plot_base_path, exist_ok=True)
+        return plot_base_path
+
+    def create_output_directories(self, partition_index: Optional[int]) -> None:
         """Create various output directories for GTSFM results, metrics, and plots."""
-        # base paths for storage
-        self._plot_base_path = self.output_root / "plots"
-        self._metrics_path = self.output_root / "result_metrics"
-        self._results_path = self.output_root / "results"
+        # Construct subfolder if partitioned
+        partition_folder = f"partition_{partition_index}" if partition_index is not None else ""
+
+        # Base paths
+        self._plot_base_path = self.output_root / "plots" / partition_folder
+        self._metrics_path = self.output_root / "result_metrics" / partition_folder
+        self._results_path = self.output_root / "results" / partition_folder
 
         # plot paths
         self._plot_correspondence_path = self._plot_base_path / "correspondences"
