@@ -10,7 +10,7 @@ from typing import Dict, List, Optional, Tuple
 import dask
 from dask.delayed import Delayed
 from dask.distributed import Client, Future
-from gtsam import Cal3Bundler, Pose3
+from gtsam import Cal3Bundler, Cal3DS2, Pose3
 from trimesh import Trimesh
 
 import gtsfm.common.types as gtsfm_types
@@ -215,13 +215,29 @@ class LoaderBase(GTSFMProcess):
         scale_u, scale_v, _, _ = img_utils.get_downsampling_factor_per_axis(
             img_full_res.height, img_full_res.width, self._max_resolution
         )
-        return Cal3Bundler(
-            fx=intrinsics_full_res.fx() * scale_u,
-            k1=0.0,
-            k2=0.0,
-            u0=intrinsics_full_res.px() * scale_u,
-            v0=intrinsics_full_res.py() * scale_v,
-        )
+        if isinstance(intrinsics_full_res, Cal3Bundler):
+            rescaled_intrinsics = Cal3Bundler(
+                fx=intrinsics_full_res.fx() * scale_u,
+                k1=0.0,
+                k2=0.0,
+                u0=intrinsics_full_res.px() * scale_u,
+                v0=intrinsics_full_res.py() * scale_v,
+            )
+        elif isinstance(intrinsics_full_res, Cal3DS2):
+            rescaled_intrinsics = Cal3DS2(
+                fx=intrinsics_full_res.fx() * scale_u,
+                fy=intrinsics_full_res.fy() * scale_v,
+                s=intrinsics_full_res.skew() * scale_u,
+                u0=intrinsics_full_res.px() * scale_u,
+                v0=intrinsics_full_res.py() * scale_v,
+                k1=intrinsics_full_res.k1(),
+                k2=intrinsics_full_res.k2(),
+                #p1=intrinsics_full_res.p1(),  # TODO(travisdriver): figure out how to access p1 and p2
+                #p2=intrinsics_full_res.p2(),
+            )
+        else:
+            raise ValueError(f"Unsupported calibration type {type(intrinsics_full_res)} for rescaling intrinsics.")
+        return rescaled_intrinsics
 
     def get_camera_intrinsics(self, index: int) -> Optional[gtsfm_types.CALIBRATION_TYPE]:
         """Get the camera intrinsics at the given index, for a possibly resized image.

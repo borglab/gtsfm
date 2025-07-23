@@ -214,6 +214,7 @@ def init_cameras(
     """
     cameras = {}
 
+    print("In MVO init_cameras the calibration type is:", type(intrinsics_list[0]))
     camera_class = gtsfm_types.get_camera_class_for_calibration(intrinsics_list[0])
     for idx, (wTi) in enumerate(wTi_list):
         if wTi is None:

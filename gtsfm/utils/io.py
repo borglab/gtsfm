@@ -15,7 +15,7 @@ import h5py
 import numpy as np
 import open3d
 import simplejson as json
-from gtsam import Cal3Bundler, Point3, Pose3, Rot3, SfmTrack
+from gtsam import Cal3Bundler, Cal3DS2, Point3, Pose3, Rot3, SfmTrack
 from PIL import Image as PILImage
 from PIL.ExifTags import GPSTAGS, TAGS
 
@@ -212,7 +212,7 @@ def colmap2gtsfm(
         k1, k2 = 0.0, 0.0
         if camera_model_name == "SIMPLE_RADIAL":
             # See https://github.com/colmap/colmap/blob/1f6812e333a1e4b2ef56aa74e2c3873e4e3a40cd/src/colmap/sensor/models.h#L212  # noqa: E501
-            f, cx, cy, k = cameras[img.camera_id].params[:4]
+            f, cx, cy, k1 = cameras[img.camera_id].params[:4]
             fx = f
         elif camera_model_name == "FULL_OPENCV":
             # See https://github.com/colmap/colmap/blob/1f6812e333a1e4b2ef56aa74e2c3873e4e3a40cd/src/colmap/sensor/models.h#L273  # noqa: E501
@@ -229,7 +229,8 @@ def colmap2gtsfm(
         else:
             raise ValueError(f"Unsupported COLMAP camera type: {camera_model_name}")
 
-        intrinsics_gtsfm.append(Cal3Bundler(fx, k1, k2, cx, cy))
+        #intrinsics_gtsfm.append(Cal3Bundler(fx, k1, k2, cx, cy))
+        intrinsics_gtsfm.append(Cal3DS2(fx, fy, 0.0, cx, cy, k1, k2, 0.0, 0.0))
         image_id_to_idx[img.id] = idx
         img_h, img_w = cameras[img.camera_id].height, cameras[img.camera_id].width
         img_dims.append((img_h, img_w))
@@ -556,6 +557,7 @@ def read_scene_data_from_colmap_format(
     img_fnames, wTi_list, calibrations, _, point_cloud, rgb, img_dims = colmap2gtsfm(
         cameras, images, points3d, load_sfmtracks=False
     )
+    print("Calibration type:", type(calibrations[0]))
 
     if any(x is None for x in [wTi_list, img_fnames, calibrations, point_cloud, rgb]):
         raise RuntimeError("One or more of the requested model data products was not found.")
