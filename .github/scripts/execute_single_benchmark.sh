@@ -27,8 +27,8 @@ elif [ "$DATASET_NAME" == "notre-dame-20" ]; then
   IMAGES_DIR=notre-dame-20/images
   COLMAP_FILES_DIRPATH=notre-dame-20/notre-dame-20-colmap
 elif [ "$DATASET_NAME" == "gerrard-hall-100" ]; then
-  IMAGES_DIR=gerrard-hall-100/images
-  COLMAP_FILES_DIRPATH=gerrard-hall-100/colmap-3.7-sparse-txt-2023-07-27
+  IMAGES_DIR=gerrard-hall/images
+  COLMAP_FILES_DIRPATH=gerrard-hall/sparse
 elif [ "$DATASET_NAME" == "south-building-128" ]; then
   IMAGES_DIR=south-building-128/images
   #COLMAP_FILES_DIRPATH=south-building-128/colmap-official-2016-10-05

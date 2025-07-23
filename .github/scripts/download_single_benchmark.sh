@@ -64,8 +64,8 @@ function download_and_unzip_dataset_files {
     ZIP_FNAME=2011205_rc3.zip
 
   elif [ "$DATASET_NAME" == "gerrard-hall-100" ]; then
-    WGET_URL1=https://github.com/johnwlambert/gtsfm-datasets-mirror/releases/download/gerrard-hall-100/gerrard-hall-100.zip
-    ZIP_FNAME=gerrard-hall-100.zip
+    WGET_URL1=https://github.com/colmap/colmap/releases/download/3.11.1/gerrard-hall.zip
+    ZIP_FNAME=gerrard-hall.zip
 
   elif [ "$DATASET_NAME" == "south-building-128" ]; then
     WGET_URL1=https://github.com/johnwlambert/gtsfm-datasets-mirror/releases/download/south-building-128/south-building-128.zip
@@ -125,7 +125,7 @@ function download_and_unzip_dataset_files {
     tar -xvf cache_rc3_deep.tar.gz
 
   elif [ "$DATASET_NAME" == "gerrard-hall-100" ]; then
-    unzip gerrard-hall-100.zip
+    unzip gerrard-hall.zip
 
   elif [ "$DATASET_NAME" == "south-building-128" ]; then
     unzip south-building-128.zip
