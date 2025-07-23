@@ -9,7 +9,7 @@ from typing import List, Optional
 
 import numpy as np
 import scipy.io
-from gtsam import Cal3Bundler, Cal3DS2, Pose3, SfmTrack
+from gtsam import Cal3Bundler, Pose3, SfmTrack
 
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.verification as verification_utils

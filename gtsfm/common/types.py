@@ -19,10 +19,7 @@ def get_camera_class_for_calibration(calibration: CALIBRATION_TYPE):
     Returns:
         Camera class needed for the calibration object.
     """
-    print("Determining camera class for calibration:", calibration, type(calibration))
     if isinstance(calibration, Cal3Bundler):
-        print("Using PinholeCameraCal3Bundler for calibration:", calibration)
         return PinholeCameraCal3Bundler
     else:
-        print("Using PinholeCameraCal3Fisheye for calibration:", calibration)
         return PinholeCameraCal3Fisheye
