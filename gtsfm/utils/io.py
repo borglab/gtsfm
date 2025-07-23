@@ -229,7 +229,7 @@ def colmap2gtsfm(
             raise ValueError(f"Unsupported COLMAP camera type: {camera_model_name}")
 
         if camera_model_name in ["SIMPLE_RADIAL", "RADIAL"]:
-            intrinsics_gtsfm.append(Cal3Bundler(fx, k1, k2, cx, cy))
+            intrinsics_gtsfm.append(Cal3Bundler(f, k1, k2, cx, cy))
         elif camera_model_name in ["PINHOLE"]:
             intrinsics_gtsfm.append(Cal3DS2(fx, fy, 0.0, cx, cy, 0.0, 0.0))
         elif camera_model_name in ["FULL_OPENCV", "OPENCV"]:
