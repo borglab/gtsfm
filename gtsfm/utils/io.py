@@ -15,7 +15,7 @@ import h5py
 import numpy as np
 import open3d
 import simplejson as json
-from gtsam import Cal3Bundler, Cal3DS2, Point3, Pose3, Rot3, SfmTrack
+from gtsam import Cal3Bundler, Cal3_S2, Cal3DS2, Point3, Pose3, Rot3, SfmTrack
 from PIL import Image as PILImage
 from PIL.ExifTags import GPSTAGS, TAGS
 
@@ -209,10 +209,10 @@ def colmap2gtsfm(
         camera_model_name = cameras[img.camera_id].model
 
         # Default to zero-valued radial distortion coefficients (quadratic and quartic).
-        k1, k2 = 0.0, 0.0
         if camera_model_name == "SIMPLE_RADIAL":
             # See https://github.com/colmap/colmap/blob/1f6812e333a1e4b2ef56aa74e2c3873e4e3a40cd/src/colmap/sensor/models.h#L212  # noqa: E501
             f, cx, cy, k1 = cameras[img.camera_id].params
+            k2 = 0.0
         elif camera_model_name == "FULL_OPENCV":
             # See https://github.com/colmap/colmap/blob/1f6812e333a1e4b2ef56aa74e2c3873e4e3a40cd/src/colmap/sensor/models.h#L273  # noqa: E501
             fx, fy, cx, cy, k1, k2, p1, p2 = cameras[img.camera_id].params[:8]
@@ -232,7 +232,7 @@ def colmap2gtsfm(
             intrinsics_gtsfm.append(Cal3Bundler(f, k1, k2, cx, cy))
         elif camera_model_name in ["PINHOLE"]:
             # TODO(travisdriver): Use Cal3_S2 instead.
-            intrinsics_gtsfm.append(Cal3DS2(fx, fy, 0.0, cx, cy, 0.0, 0.0))
+            intrinsics_gtsfm.append(Cal3_S2(fx, fy, 0.0, cx, cy))
         elif camera_model_name in ["FULL_OPENCV", "OPENCV"]:
             intrinsics_gtsfm.append(Cal3DS2(fx, fy, 0.0, cx, cy, k1, k2, p1, p2))
         else:

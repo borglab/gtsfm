@@ -592,6 +592,8 @@ def values_to_gtsfm_data(values: Values, initial_data: GtsfmData, shared_calib: 
         cal3_value_extraction_lambda = lambda i: values.atCal3Bundler(K(0 if shared_calib else i))
     elif isinstance(initial_data.get_camera(0), gtsam.PinholeCameraCal3DS2):
         cal3_value_extraction_lambda = lambda i: values.atCal3DS2(K(0 if shared_calib else i))
+    elif isinstance(initial_data.get_camera(0), gtsam.PinholeCameraCal3_S2):
+        cal3_value_extraction_lambda = lambda i: values.atCal3_S2(K(0 if shared_calib else i))
     else:
         raise ValueError(
             "Unsupported camera calibration type: {}".format(type(initial_data.get_camera(0)).__name__)
