@@ -68,8 +68,8 @@ function download_and_unzip_dataset_files {
     ZIP_FNAME=gerrard-hall.zip
 
   elif [ "$DATASET_NAME" == "south-building-128" ]; then
-    WGET_URL1=https://github.com/johnwlambert/gtsfm-datasets-mirror/releases/download/south-building-128/south-building-128.zip
-    ZIP_FNAME=south-building-128.zip
+    WGET_URL1=https://github.com/colmap/colmap/releases/download/3.11.1/south-building.zip
+    ZIP_FNAME=south-building.zip
   fi
 
   # Download the data.
@@ -128,7 +128,7 @@ function download_and_unzip_dataset_files {
     unzip gerrard-hall.zip
 
   elif [ "$DATASET_NAME" == "south-building-128" ]; then
-    unzip south-building-128.zip
+    unzip south-building.zip
 
   fi
 }
