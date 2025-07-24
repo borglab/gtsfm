@@ -10,11 +10,10 @@ Authors: Sushmita Warrier, Xiaolong Wu, John Lambert, Travis Driver
 import itertools
 import sys
 from enum import Enum
-from typing import Dict, List, NamedTuple, Optional, Tuple, Union
+from typing import Dict, List, NamedTuple, Optional, Tuple
 
 import gtsam
 import numpy as np
-from gtsam import CameraSetCal3Bundler, CameraSetCal3Fisheye, PinholeCameraCal3Bundler, Point2Vector, SfmTrack
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.logger as logger_utils
@@ -136,9 +135,7 @@ class Point3dInitializer:
             raise ValueError("No camera positions were estimated, so triangulation is not feasible.")
 
         sample_camera = list(self.track_camera_dict.values())[0]
-        self._camera_set_class = (
-            CameraSetCal3Bundler if isinstance(sample_camera, PinholeCameraCal3Bundler) else CameraSetCal3Fisheye
-        )
+        self._camera_set_class = gtsfm_types.get_camera_set_class_for_calibration(sample_camera.calibration())
 
     def execute_ransac_variant(self, track_2d: SfmTrack2d) -> np.ndarray:
         """Execute RANSAC algorithm to find best subset 2d measurements for a 3d point.
@@ -180,7 +177,7 @@ class Point3dInitializer:
             camera_estimates.append(self.track_camera_dict.get(i1))
             camera_estimates.append(self.track_camera_dict.get(i2))
 
-            img_measurements = Point2Vector()
+            img_measurements = gtsam.Point2Vector()
             img_measurements.append(uv1)
             img_measurements.append(uv2)
 
@@ -222,7 +219,9 @@ class Point3dInitializer:
 
         return best_inliers
 
-    def triangulate(self, track_2d: SfmTrack2d) -> Tuple[Optional[SfmTrack], Optional[float], TriangulationExitCode]:
+    def triangulate(
+        self, track_2d: SfmTrack2d
+    ) -> Tuple[Optional[gtsam.SfmTrack], Optional[float], TriangulationExitCode]:
         """Triangulates 3D point according to the configured triangulation mode.
 
         Args:
@@ -281,7 +280,7 @@ class Point3dInitializer:
             return None, avg_track_reproj_error, TriangulationExitCode.EXCEEDS_REPROJ_THRESH
 
         # Create a gtsam.SfmTrack with the triangulated 3D point and associated 2D measurements.
-        track_3d = SfmTrack(triangulated_pt)
+        track_3d = gtsam.SfmTrack(triangulated_pt)
         for i, uv in inlier_track.measurements:
             track_3d.addMeasurement(i, uv)
 
@@ -349,7 +348,7 @@ class Point3dInitializer:
 
     def extract_measurements(
         self, track: SfmTrack2d
-    ) -> Tuple[Union[CameraSetCal3Bundler, CameraSetCal3Fisheye], Point2Vector]:
+    ) -> Tuple[gtsfm_types.CAMERA_SET_TYPE, gtsam.Point2Vector]:
         """Convert measurements in a track into GTSAM primitive types for triangulation arguments.
 
         Returns None, None if less than 2 measurements were found with estimated camera poses after averaging.
@@ -362,7 +361,7 @@ class Point3dInitializer:
             Vector of 2d points pertaining to track measurements
         """
         track_cameras = self._camera_set_class()
-        track_measurements = Point2Vector()  # vector of 2d points
+        track_measurements = gtsam.Point2Vector()  # vector of 2d points
 
         # Compile valid measurements.
         for i, uv in track.measurements:

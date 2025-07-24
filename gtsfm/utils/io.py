@@ -15,7 +15,7 @@ import h5py
 import numpy as np
 import open3d
 import simplejson as json
-from gtsam import Cal3Bundler, Point3, Pose3, Rot3, SfmTrack
+from gtsam import Cal3Bundler, Cal3_S2, Cal3DS2, Point3, Pose3, Rot3, SfmTrack
 from PIL import Image as PILImage
 from PIL.ExifTags import GPSTAGS, TAGS
 
@@ -209,24 +209,35 @@ def colmap2gtsfm(
         camera_model_name = cameras[img.camera_id].model
 
         # Default to zero-valued radial distortion coefficients (quadratic and quartic).
-        k1, k2 = 0.0, 0.0
         if camera_model_name == "SIMPLE_RADIAL":
             # See https://github.com/colmap/colmap/blob/1f6812e333a1e4b2ef56aa74e2c3873e4e3a40cd/src/colmap/sensor/models.h#L212  # noqa: E501
-            f, cx, cy, k = cameras[img.camera_id].params[:4]
-            fx = f
+            f, cx, cy, k1 = cameras[img.camera_id].params
+            k2 = 0.0
         elif camera_model_name == "FULL_OPENCV":
             # See https://github.com/colmap/colmap/blob/1f6812e333a1e4b2ef56aa74e2c3873e4e3a40cd/src/colmap/sensor/models.h#L273  # noqa: E501
-            fx, fy, cx, cy = cameras[img.camera_id].params[:4]
+            fx, fy, cx, cy, k1, k2, p1, p2 = cameras[img.camera_id].params[:8]
         elif camera_model_name == "PINHOLE":
             # See https://github.com/colmap/colmap/blob/1f6812e333a1e4b2ef56aa74e2c3873e4e3a40cd/src/colmap/sensor/models.h#L196  # noqa: E501
-            fx, fy, cx, cy = cameras[img.camera_id].params[:4]
+            fx, fy, cx, cy = cameras[img.camera_id].params
         elif camera_model_name == "RADIAL":
-            f, cx, cy, k1, k2 = cameras[img.camera_id].params[:5]
-            fx = f
+            # See https://github.com/colmap/colmap/blob/1f6812e333a1e4b2ef56aa74e2c3873e4e3a40cd/src/colmap/sensor/models.h#L227  # noqa: E501
+            f, cx, cy, k1, k2 = cameras[img.camera_id].params
+        elif camera_model_name == "OPENCV":
+            # See https://github.com/colmap/colmap/blob/1f6812e333a1e4b2ef56aa74e2c3873e4e3a40cd/src/colmap/sensor/models.h#L241  # noqa: E501
+            fx, fy, cx, cy, k1, k2, p1, p2 = cameras[img.camera_id].params
         else:
             raise ValueError(f"Unsupported COLMAP camera type: {camera_model_name}")
 
-        intrinsics_gtsfm.append(Cal3Bundler(fx, k1, k2, cx, cy))
+        if camera_model_name in ["SIMPLE_RADIAL", "RADIAL"]:
+            intrinsics_gtsfm.append(Cal3Bundler(f, k1, k2, cx, cy))
+        elif camera_model_name in ["PINHOLE"]:
+            # TODO(travisdriver): Use Cal3_S2 instead.
+            intrinsics_gtsfm.append(Cal3_S2(fx, fy, 0.0, cx, cy))
+        elif camera_model_name in ["FULL_OPENCV", "OPENCV"]:
+            intrinsics_gtsfm.append(Cal3DS2(fx, fy, 0.0, cx, cy, k1, k2, p1, p2))
+        else:
+            raise ValueError(f"Unsupported COLMAP camera type: {camera_model_name}")
+
         image_id_to_idx[img.id] = idx
         img_h, img_w = cameras[img.camera_id].height, cameras[img.camera_id].width
         img_dims.append((img_h, img_w))
