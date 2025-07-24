@@ -44,8 +44,6 @@ X = symbol_shorthand.X  # camera pose
 K = symbol_shorthand.K  # calibration
 
 CAM_POSE3_DOF = 6  # 6 dof for pose of camera
-CAM_CAL3BUNDLER_DOF = 3  # 3 dof for f, k1, k2 for intrinsics of camera
-CAM_CAL3FISHEYE_DOF = 9
 IMG_MEASUREMENT_DIM = 2  # 2d measurements (u,v) have 2 dof
 POINT3_DOF = 3  # 3d points have 3 dof
 

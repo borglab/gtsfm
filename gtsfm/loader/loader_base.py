@@ -232,8 +232,8 @@ class LoaderBase(GTSFMProcess):
                 v0=intrinsics_full_res.py() * scale_v,
                 k1=intrinsics_full_res.k1(),
                 k2=intrinsics_full_res.k2(),
-                #p1=intrinsics_full_res.p1(),  # TODO(travisdriver): figure out how to access p1 and p2
-                #p2=intrinsics_full_res.p2(),
+                # p1=intrinsics_full_res.p1(),  # TODO(travisdriver): figure out how to access p1 and p2
+                # p2=intrinsics_full_res.p2(),
             )
         else:
             raise ValueError(f"Unsupported calibration type {type(intrinsics_full_res)} for rescaling intrinsics.")

@@ -10,7 +10,7 @@ Authors: Sushmita Warrier, Xiaolong Wu, John Lambert, Travis Driver
 import itertools
 import sys
 from enum import Enum
-from typing import Dict, List, NamedTuple, Optional, Tuple, Union
+from typing import Dict, List, NamedTuple, Optional, Tuple
 
 import gtsam
 import numpy as np
@@ -219,7 +219,9 @@ class Point3dInitializer:
 
         return best_inliers
 
-    def triangulate(self, track_2d: SfmTrack2d) -> Tuple[Optional[gtsam.SfmTrack], Optional[float], TriangulationExitCode]:
+    def triangulate(
+        self, track_2d: SfmTrack2d
+    ) -> Tuple[Optional[gtsam.SfmTrack], Optional[float], TriangulationExitCode]:
         """Triangulates 3D point according to the configured triangulation mode.
 
         Args:
