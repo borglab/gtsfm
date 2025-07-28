@@ -5,31 +5,34 @@ import os
 import time
 from abc import abstractmethod, abstractproperty
 from pathlib import Path
+from typing import Any, Dict, List, Tuple, Set
 
 import dask
 import hydra
 import numpy as np
+
 from dask import config as dask_config
 from dask.distributed import Client, LocalCluster, SSHCluster, performance_report
-from gtsam import Pose3, Rot3, Unit3
+from gtsam import Rot3, Unit3, NonlinearFactorGraph, Values, Symbol, noiseModel, PriorFactorPose3, LevenbergMarquardtOptimizer, Pose3
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
 
 import gtsfm.evaluation.metrics_report as metrics_report
-import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.merging as merging_utils
+import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.viz as viz_utils
-from gtsfm import two_view_estimator
 from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm import two_view_estimator
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.frontend.correspondence_generator.image_correspondence_generator import ImageCorrespondenceGenerator
-from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.scene_optimizer import SceneOptimizer
 from gtsfm.two_view_estimator import TWO_VIEW_OUTPUT, TwoViewEstimationReport, run_two_view_estimator_as_futures
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
+from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
+from gtsfm.graph_partitioner.single_partition import SinglePartition
 from gtsfm.utils.subgraph_utils import group_results_by_subgraph
 
 dask_config.set({"distributed.scheduler.worker-ttl": None})
@@ -45,7 +48,7 @@ class GtsfmRunnerBase:
     def tag(self):
         pass
 
-    def __init__(self, override_args=None) -> None:
+    def __init__(self, override_args: Any = None) -> None:
         argparser: argparse.ArgumentParser = self.construct_argparser()
         self.parsed_args: argparse.Namespace = argparser.parse_args(args=override_args)
         if self.parsed_args.dask_tmpdir:
@@ -53,7 +56,6 @@ class GtsfmRunnerBase:
 
         self.loader: LoaderBase = self.construct_loader()
         self.scene_optimizer: SceneOptimizer = self.construct_scene_optimizer()
-        self.graph_partitioner: GraphPartitionerBase = self.scene_optimizer.graph_partitioner
 
     def construct_argparser(self) -> argparse.ArgumentParser:
         parser = argparse.ArgumentParser(description=self.tag)
@@ -121,6 +123,7 @@ class GtsfmRunnerBase:
             "--share_intrinsics", action="store_true", help="Shares the intrinsics between all the cameras."
         )
         parser.add_argument("--mvs_off", action="store_true", help="Turn off dense MVS reconstruction")
+        parser.add_argument("--gs_off", action="store_true", help="Turn off Gaussian Splatting")
         parser.add_argument(
             "--output_root",
             type=str,
@@ -247,6 +250,9 @@ class GtsfmRunnerBase:
 
         if self.parsed_args.mvs_off:
             scene_optimizer.run_dense_optimizer = False
+        
+        if self.parsed_args.gs_off:
+            scene_optimizer.run_gaussian_splatting_optimizer = False
 
         logger.info("\n\nSceneOptimizer: " + str(scene_optimizer))
         return scene_optimizer
@@ -282,9 +288,13 @@ class GtsfmRunnerBase:
             )
         return cluster
 
-    def run(self) -> GtsfmData:
+    def run(self, graph_partitioner: GraphPartitionerBase = None) -> GtsfmData:
         """Run the SceneOptimizer."""
         start_time = time.time()
+
+        # Create graph partitioner if not provided
+        if graph_partitioner is None:
+            graph_partitioner = SinglePartition()
 
         # Create dask cluster.
         if self.parsed_args.cluster_config:
@@ -317,7 +327,7 @@ class GtsfmRunnerBase:
                 client=client,
                 images=self.loader.get_all_images_as_futures(client),
                 image_fnames=self.loader.image_filenames(),
-                plots_output_dir=self.scene_optimizer.create_plot_base_path(),
+                plots_output_dir=self.scene_optimizer._plot_base_path,
             )
 
         retriever_metrics = self.scene_optimizer.image_pairs_generator._retriever.evaluate(
@@ -389,8 +399,9 @@ class GtsfmRunnerBase:
         all_metrics_groups = [retriever_metrics, two_view_agg_metrics]
 
         # Partition image pairs
-        subgraphs = self.graph_partitioner.partition_image_pairs(image_pair_indices)
+        subgraphs = graph_partitioner.partition_image_pairs(image_pair_indices)
         logger.info(f"Partitioned into {len(subgraphs)} subgraphs")
+
         # Group results by subgraph
         subgraph_two_view_results = group_results_by_subgraph(two_view_results_dict, subgraphs)
 
@@ -400,39 +411,29 @@ class GtsfmRunnerBase:
         all_delayed_mvo_metrics_groups = []
 
         for idx, subgraph_result_dict in enumerate(subgraph_two_view_results):
-            logger.info(
-                f"Creating computation graph for subgraph {idx + 1}/{len(subgraph_two_view_results)} "
-                f"with {    len(subgraph_result_dict)} image pairs"
-            )
-            if len(subgraph_two_view_results) == 1:
-                # single partition
-                self.scene_optimizer.create_output_directories(None)
-            else:
-                self.scene_optimizer.create_output_directories(idx + 1)
-
+            logger.info(f"Creating computation graph for subgraph {idx+1}/{len(subgraph_two_view_results)} with {len(subgraph_result_dict)} image pairs")
+            
             # Unzip the two-view results for this subgraph
             subgraph_i2Ri1_dict, subgraph_i2Ui1_dict, subgraph_v_corr_idxs_dict, _, subgraph_post_isp_reports = (
                 unzip_two_view_results(subgraph_result_dict)
             )
-
+            
             # Create computation graph for this subgraph
             if len(subgraph_i2Ri1_dict) > 0:  # Only process non-empty subgraphs
-                delayed_sfm_result, delayed_io, delayed_mvo_metrics_groups = (
-                    self.scene_optimizer.create_computation_graph(
-                        keypoints_list=keypoints_list,
-                        i2Ri1_dict=subgraph_i2Ri1_dict,
-                        i2Ui1_dict=subgraph_i2Ui1_dict,
-                        v_corr_idxs_dict=subgraph_v_corr_idxs_dict,
-                        two_view_reports=subgraph_post_isp_reports,
-                        num_images=len(self.loader),
-                        images=self.loader.create_computation_graph_for_images(),
-                        camera_intrinsics=intrinsics,
-                        relative_pose_priors=self.loader.get_relative_pose_priors(list(subgraph_i2Ri1_dict.keys())),
-                        absolute_pose_priors=self.loader.get_absolute_pose_priors(),
-                        cameras_gt=self.loader.get_gt_cameras(),
-                        gt_wTi_list=self.loader.get_gt_poses(),
-                        gt_scene_mesh=self.loader.get_gt_scene_trimesh(),
-                    )
+                delayed_sfm_result, delayed_io, delayed_mvo_metrics_groups = self.scene_optimizer.create_computation_graph(
+                    keypoints_list=keypoints_list,
+                    i2Ri1_dict=subgraph_i2Ri1_dict,
+                    i2Ui1_dict=subgraph_i2Ui1_dict,
+                    v_corr_idxs_dict=subgraph_v_corr_idxs_dict,
+                    two_view_reports=subgraph_post_isp_reports,
+                    num_images=len(self.loader),
+                    images=self.loader.create_computation_graph_for_images(),
+                    camera_intrinsics=intrinsics,
+                    relative_pose_priors=self.loader.get_relative_pose_priors(list(subgraph_i2Ri1_dict.keys())),
+                    absolute_pose_priors=self.loader.get_absolute_pose_priors(),
+                    cameras_gt=self.loader.get_gt_cameras(),
+                    gt_wTi_list=self.loader.get_gt_poses(),
+                    gt_scene_mesh=self.loader.get_gt_scene_trimesh(),
                 )
                 all_delayed_sfm_results.append(delayed_sfm_result)
                 all_delayed_io.extend(delayed_io)
@@ -442,13 +443,13 @@ class GtsfmRunnerBase:
         with performance_report(filename="scene-optimizer-dask-report.html"):
             if all_delayed_sfm_results:
                 results = dask.compute(*all_delayed_sfm_results, *all_delayed_io, *all_delayed_mvo_metrics_groups)
-                sfm_results = results[: len(all_delayed_sfm_results)]
-                other_results = results[len(all_delayed_sfm_results) :]
-
+                sfm_results = results[:len(all_delayed_sfm_results)]
+                other_results = results[len(all_delayed_sfm_results):]
+                
                 # Extract metrics from results
                 mvo_metrics_groups = [x for x in other_results if isinstance(x, GtsfmMetricsGroup)]
                 all_metrics_groups.extend(mvo_metrics_groups)
-
+                
                 # For now, return the first non-empty result
                 sfm_result = next((r for r in sfm_results if r is not None), None)
             else:
@@ -457,10 +458,10 @@ class GtsfmRunnerBase:
         end_time = time.time()
         duration_sec = end_time - start_time
         logger.info("GTSFM took %.2f minutes to compute sparse multi-view result.", duration_sec / 60)
-
+        
         if client is not None:
             client.shutdown()
-
+            
         # Add total summary metrics
         total_summary_metrics = GtsfmMetricsGroup(
             "total_summary_metrics", [GtsfmMetric("total_runtime_sec", duration_sec)]
@@ -469,23 +470,23 @@ class GtsfmRunnerBase:
 
         # Save metrics reports
         save_metrics_reports(all_metrics_groups, os.path.join(self.scene_optimizer.output_root, "result_metrics"))
-
+        
         return sfm_result
 
 
-def unzip_two_view_results(two_view_results: dict[tuple[int, int], TWO_VIEW_OUTPUT]) -> tuple[
-    dict[tuple[int, int], Rot3],
-    dict[tuple[int, int], Unit3],
-    dict[tuple[int, int], np.ndarray],
-    dict[tuple[int, int], TwoViewEstimationReport],
-    dict[tuple[int, int], TwoViewEstimationReport],
+def unzip_two_view_results(two_view_results: Dict[Tuple[int, int], TWO_VIEW_OUTPUT]) -> Tuple[
+    Dict[Tuple[int, int], Rot3],
+    Dict[Tuple[int, int], Unit3],
+    Dict[Tuple[int, int], np.ndarray],
+    Dict[Tuple[int, int], TwoViewEstimationReport],
+    Dict[Tuple[int, int], TwoViewEstimationReport],
 ]:
     """Unzip the tuple TWO_VIEW_OUTPUT into 1 dictionary for 1 element in the tuple."""
-    i2Ri1_dict: dict[tuple[int, int], Rot3] = {}
-    i2Ui1_dict: dict[tuple[int, int], Unit3] = {}
-    v_corr_idxs_dict: dict[tuple[int, int], np.ndarray] = {}
-    pre_ba_two_view_reports_dict: dict[tuple[int, int], TwoViewEstimationReport] = {}
-    post_isp_two_view_reports_dict: dict[tuple[int, int], TwoViewEstimationReport] = {}
+    i2Ri1_dict: Dict[Tuple[int, int], Rot3] = {}
+    i2Ui1_dict: Dict[Tuple[int, int], Unit3] = {}
+    v_corr_idxs_dict: Dict[Tuple[int, int], np.ndarray] = {}
+    pre_ba_two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport] = {}
+    post_isp_two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport] = {}
 
     for (i1, i2), two_view_output in two_view_results.items():
         # Value is ordered as (post_isp_i2Ri1, post_isp_i2Ui1, post_isp_v_corr_idxs,
@@ -505,11 +506,11 @@ def unzip_two_view_results(two_view_results: dict[tuple[int, int], TWO_VIEW_OUTP
     return i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, pre_ba_two_view_reports_dict, post_isp_two_view_reports_dict
 
 
-def save_metrics_reports(metrics_group_list: list[GtsfmMetricsGroup], metrics_path: str) -> None:
+def save_metrics_reports(metrics_group_list: List[GtsfmMetricsGroup], metrics_path: str) -> None:
     """Saves metrics to JSON and HTML report.
 
     Args:
-        metrics_graph: list of GtsfmMetricsGroup from different modules wrapped as Delayed.
+        metrics_graph: List of GtsfmMetricsGroup from different modules wrapped as Delayed.
         metrics_path: Path to directory where computed metrics will be saved.
     """
 
@@ -521,8 +522,9 @@ def save_metrics_reports(metrics_group_list: list[GtsfmMetricsGroup], metrics_pa
         metrics_group_list, os.path.join(metrics_path, "gtsfm_metrics_report.html"), None
     )
 
-
-def merge_two_partition_results(poses1: dict[int, Pose3], poses2: dict[int, Pose3]) -> dict[int, Pose3]:
+def merge_two_partition_results(
+    poses1: Dict[int, Pose3], poses2: Dict[int, Pose3]
+) -> Dict[int, Pose3]:
     """
     Merges poses from two partitions by finding and applying relative transform aTb.
 
@@ -531,8 +533,8 @@ def merge_two_partition_results(poses1: dict[int, Pose3], poses2: dict[int, Pose
     Transforms non-overlapping poses from partition 2 into frame 'a' and merges.
 
     Args:
-        poses1: dictionary {camera_index: pose_in_frame_a}.
-        poses2: dictionary {camera_index: pose_in_frame_b}.
+        poses1: Dictionary {camera_index: pose_in_frame_a}.
+        poses2: Dictionary {camera_index: pose_in_frame_b}.
 
     Returns:
         A merged dictionary {camera_index: pose_in_frame_a}.

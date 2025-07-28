@@ -25,14 +25,15 @@ import gtsfm.utils.ellipsoid as ellipsoid_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.viz as viz_utils
+import gtsfm.splat.utils as gtsfm_utils
+import gtsfm.splat.rendering as gtsfm_rendering
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.densify.mvs_base import MVSBase
+from gtsfm.splat.gs_base import GSBase
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
-from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
-from gtsfm.graph_partitioner.single_partition import SinglePartition
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.retriever.image_pairs_generator import ImagePairsGenerator
 from gtsfm.retriever.retriever_base import ImageMatchingRegime
@@ -71,29 +72,29 @@ class SceneOptimizer:
         two_view_estimator: TwoViewEstimator,
         multiview_optimizer: MultiViewOptimizer,
         dense_multiview_optimizer: Optional[MVSBase] = None,
+        gaussian_splatting_optimizer: Optional[GSBase] = None,
         save_two_view_correspondences_viz: bool = False,
         save_3d_viz: bool = False,
         save_gtsfm_data: bool = True,
         pose_angular_error_thresh: float = 3,  # in degrees
         output_root: str = DEFAULT_OUTPUT_ROOT,
         output_worker: Optional[str] = None,
-        graph_partitioner: Optional[GraphPartitionerBase] = SinglePartition(),
     ) -> None:
         self.image_pairs_generator = image_pairs_generator
         self.correspondence_generator = correspondence_generator
         self.two_view_estimator = two_view_estimator
         self.multiview_optimizer = multiview_optimizer
         self.dense_multiview_optimizer = dense_multiview_optimizer
+        self.gaussian_splatting_optimizer = gaussian_splatting_optimizer
 
         self._save_two_view_correspondences_viz = save_two_view_correspondences_viz
         self._save_3d_viz = save_3d_viz
-        self.run_dense_optimizer = self.dense_multiview_optimizer is not None
 
         self._save_gtsfm_data = save_gtsfm_data
         self._pose_angular_error_thresh = pose_angular_error_thresh
         self.output_root = Path(output_root)
         self._output_worker = output_worker
-        self.graph_partitioner = graph_partitioner
+        self._create_output_directories()
 
     def __repr__(self) -> str:
         """Returns string representation of class."""
@@ -103,29 +104,24 @@ class SceneOptimizer:
         {self.two_view_estimator}
         {self.multiview_optimizer}
         DenseMultiviewOptimizer: {self.dense_multiview_optimizer}
+        GaussianSplattingOptimizer: {self.gaussian_splatting_optimizer}
         """
 
-    def create_plot_base_path(self):
-        """Create plot base path."""
-        plot_base_path = self.output_root / "plots"
-        os.makedirs(plot_base_path, exist_ok=True)
-        return plot_base_path
-
-    def create_output_directories(self, partition_index: Optional[int]) -> None:
+    def _create_output_directories(self) -> None:
         """Create various output directories for GTSFM results, metrics, and plots."""
-        # Construct subfolder if partitioned
-        partition_folder = f"partition_{partition_index}" if partition_index is not None else ""
-
-        # Base paths
-        self._plot_base_path = self.output_root / "plots" / partition_folder
-        self._metrics_path = self.output_root / "result_metrics" / partition_folder
-        self._results_path = self.output_root / "results" / partition_folder
+        # base paths for storage
+        self._plot_base_path = self.output_root / "plots"
+        self._metrics_path = self.output_root / "result_metrics"
+        self._results_path = self.output_root / "results"
 
         # plot paths
         self._plot_correspondence_path = self._plot_base_path / "correspondences"
         self._plot_ba_input_path = self._plot_base_path / "ba_input"
         self._plot_results_path = self._plot_base_path / "results"
         self._mvs_ply_save_fpath = self._results_path / "mvs_output" / "dense_pointcloud.ply"
+
+        self._gaussian_splatting_path = self._results_path/ "gaussian_splatting_output"
+        self._interp_video_save_fpath = self._results_path / "gaussian_splatting_output" / "interpolated_path.mp4"
 
         # make directories for persisting data
         os.makedirs(self._plot_base_path, exist_ok=True)
@@ -135,6 +131,8 @@ class SceneOptimizer:
         os.makedirs(self._plot_correspondence_path, exist_ok=True)
         os.makedirs(self._plot_ba_input_path, exist_ok=True)
         os.makedirs(self._plot_results_path, exist_ok=True)
+
+        os.makedirs(self._gaussian_splatting_path, exist_ok=True)
 
         # Save duplicate directories within React folders.
         os.makedirs(REACT_RESULTS_PATH, exist_ok=True)
@@ -256,7 +254,7 @@ class SceneOptimizer:
                         )
                     )
 
-        if self.run_dense_optimizer and self.dense_multiview_optimizer is not None:
+        if self.dense_multiview_optimizer is not None:
             img_dict_graph = dask.delayed(get_image_dictionary)(images)
             (
                 dense_points_graph,
@@ -281,6 +279,32 @@ class SceneOptimizer:
                 metrics_graph_list.append(densify_metrics_graph)
             if downsampling_metrics_graph is not None:
                 metrics_graph_list.append(downsampling_metrics_graph)
+        
+        if self.gaussian_splatting_optimizer is not None:
+            img_dict_graph = dask.delayed(get_image_dictionary)(images)
+            (
+                splats_graph,
+                cfg_graph
+            ) = self.gaussian_splatting_optimizer.create_computation_graph(img_dict_graph, ba_output_graph)
+
+            annotation = dask.annotate(workers=self._output_worker) if self._output_worker else dask.annotate()
+            with annotation:
+                delayed_results.append(
+                    dask.delayed(gtsfm_utils.save_splats)(
+                        save_path=str(self._gaussian_splatting_path),
+                        splats=splats_graph
+                    )
+                )
+                delayed_results.append(
+                    dask.delayed(gtsfm_rendering.generate_interpolated_video)(
+                        images_graph = img_dict_graph, 
+                        sfm_result_graph = ba_output_graph,
+                        cfg_result_graph = cfg_graph,
+                        video_path = self._interp_video_save_fpath,
+                        splats=splats_graph
+                    )
+                )
+
 
         # Save metrics to JSON and generate HTML report.
         annotation = dask.annotate(workers=self._output_worker) if self._output_worker else dask.annotate()
