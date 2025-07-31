@@ -2,6 +2,7 @@
 
 Authors: Ayush Baid
 """
+
 from typing import List, Tuple
 
 import cv2 as cv
@@ -126,6 +127,24 @@ def resize_image(image: Image, new_height: int, new_width: int) -> Image:
         resized_mask = None
 
     return Image(value_array=resized_value_array, file_name=image.file_name, mask=resized_mask)
+
+
+def resize_to_max_size(img: Image, long_edge_size: int) -> Image:
+    """Resizes image such that longest edge is equal to long_edge_size.
+
+    Args:
+        img: The input image to be resized.
+        long_edge_size: The desired size for the longest edge of the image.
+
+    Returns:
+        The resized image.
+    """
+    max_size = max(img.height, img.width)
+    ratio = float(long_edge_size) / max_size
+    new_height = int(img.height * ratio)
+    new_width = int(img.width * ratio)
+    new_image = resize_image(img, new_height, new_width)
+    return new_image
 
 
 def get_rescaling_factor_per_axis(img_h: int, img_w: int, max_resolution: int) -> Tuple[float, float, int, int]:
