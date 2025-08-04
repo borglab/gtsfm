@@ -269,7 +269,6 @@ class SceneOptimizer:
                     )
 
         if self.run_dense_optimizer and self.dense_multiview_optimizer is not None:
-            print('inside dense')
             img_dict_graph = dask.delayed(get_image_dictionary)(images)
             (
                 dense_points_graph,
@@ -296,7 +295,6 @@ class SceneOptimizer:
                 metrics_graph_list.append(downsampling_metrics_graph)
         
         if self.run_gaussian_splatting_optimizer and self.gaussian_splatting_optimizer is not None:
-            print('Inside gaussian')
             img_dict_graph = dask.delayed(get_image_dictionary)(images)
             (
                 splats_graph,
