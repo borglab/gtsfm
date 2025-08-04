@@ -1,0 +1,31 @@
+gaussian_splatting_optimizer:
+  _target_: gtsfm.splat.gaussian_splatting.GaussianSplatting
+  cfg:
+    _target_: gtsfm.splat.gaussian_splatting.Config
+    num_downscales: 2
+    max_steps: 7000
+    init_type: "sfm"
+    init_num_pts: 100000
+    near_plane: 0.01
+    far_plane: 1e10
+    warmup_length: 500
+    refine_every: 100
+    cull_alpha_thresh: 0.005
+    cull_scale_thresh: 0.2
+    reset_alpha_every: 30
+    densify_grad_thresh: 0.0002
+    densify_size_thresh: 0.01
+    cull_screen_size: 0.15
+    split_screen_size: 0.05
+    stop_screen_size_at: 5000
+    stop_split_at: 5000
+    n_split_samples: 2
+    use_absgrad: True
+    means_lr: 1.6e-4
+    scales_lr: 5e-3
+    opacities_lr: 5e-2
+    quats_lr: 1e-3
+    sh0_lr: 2.5e-3
+    shN_lr: 0.000125 #2.5e-3 / 20
+    fps: 30
+    num_frames: 20

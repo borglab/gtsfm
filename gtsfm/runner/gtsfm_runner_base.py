@@ -99,6 +99,12 @@ class GtsfmRunnerBase:
             help="Override flag for retriever (choose from among gtsfm/configs/retriever).",
         )
         parser.add_argument(
+            "--gaussian_splatting_config_name",
+            type=str,
+            default="base_gs",
+            help="Override flag for your own gaussian splatting implementation.",
+        )
+        parser.add_argument(
             "--max_resolution",
             type=int,
             default=760,
@@ -120,7 +126,8 @@ class GtsfmRunnerBase:
         parser.add_argument(
             "--share_intrinsics", action="store_true", help="Shares the intrinsics between all the cameras."
         )
-        parser.add_argument("--mvs_off", action="store_true", help="Turn off dense MVS reconstruction")
+        parser.add_argument("--run_mvs", action="store_true", help="Run dense MVS reconstruction")
+        parser.add_argument("--run_gs", action="store_true", help="Run Gaussian Splatting")
         parser.add_argument(
             "--output_root",
             type=str,
@@ -209,6 +216,15 @@ class GtsfmRunnerBase:
                 logger.info("\n\nRetriever override: " + OmegaConf.to_yaml(retriever_cfg))
                 scene_optimizer.image_pairs_generator._retriever = instantiate(retriever_cfg.retriever)
 
+        # Override gaussian splatting
+        if self.parsed_args.gaussian_splatting_config_name is not None:
+            with hydra.initialize_config_module(config_module="gtsfm.configs.gaussian_splatting"):
+                gs_cfg = hydra.compose(
+                    config_name=self.parsed_args.gaussian_splatting_config_name,
+                )
+                logger.info("\n\nGaussian Splatting override: " + OmegaConf.to_yaml(gs_cfg))
+                scene_optimizer.gaussian_splatting_optimizer = instantiate(gs_cfg.gaussian_splatting_optimizer)
+
         if self.parsed_args.max_frame_lookahead is not None:
             if scene_optimizer.image_pairs_generator._retriever._matching_regime in [
                 ImageMatchingRegime.SEQUENTIAL,
@@ -245,8 +261,11 @@ class GtsfmRunnerBase:
                     f"{scene_optimizer.image_pairs_generator._retriever._matching_regime}"
                 )
 
-        if self.parsed_args.mvs_off:
+        if not self.parsed_args.run_mvs:
             scene_optimizer.run_dense_optimizer = False
+        
+        if not self.parsed_args.run_gs:
+            scene_optimizer.run_gaussian_splatting_optimizer = False
 
         logger.info("\n\nSceneOptimizer: " + str(scene_optimizer))
         return scene_optimizer

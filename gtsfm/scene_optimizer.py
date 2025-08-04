@@ -25,11 +25,14 @@ import gtsfm.utils.ellipsoid as ellipsoid_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.viz as viz_utils
+import gtsfm.utils.splat as splat_utils
+import gtsfm.splat.rendering as gtsfm_rendering
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.densify.mvs_base import MVSBase
+from gtsfm.splat.gs_base import GSBase
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.graph_partitioner.single_partition import SinglePartition
@@ -71,6 +74,7 @@ class SceneOptimizer:
         two_view_estimator: TwoViewEstimator,
         multiview_optimizer: MultiViewOptimizer,
         dense_multiview_optimizer: Optional[MVSBase] = None,
+        gaussian_splatting_optimizer: Optional[GSBase] = None,
         save_two_view_correspondences_viz: bool = False,
         save_3d_viz: bool = False,
         save_gtsfm_data: bool = True,
@@ -84,10 +88,12 @@ class SceneOptimizer:
         self.two_view_estimator = two_view_estimator
         self.multiview_optimizer = multiview_optimizer
         self.dense_multiview_optimizer = dense_multiview_optimizer
+        self.gaussian_splatting_optimizer = gaussian_splatting_optimizer
 
         self._save_two_view_correspondences_viz = save_two_view_correspondences_viz
         self._save_3d_viz = save_3d_viz
         self.run_dense_optimizer = self.dense_multiview_optimizer is not None
+        self.run_gaussian_splatting_optimizer = self.gaussian_splatting_optimizer is not None
 
         self._save_gtsfm_data = save_gtsfm_data
         self._pose_angular_error_thresh = pose_angular_error_thresh
@@ -103,6 +109,7 @@ class SceneOptimizer:
         {self.two_view_estimator}
         {self.multiview_optimizer}
         DenseMultiviewOptimizer: {self.dense_multiview_optimizer}
+        GaussianSplattingOptimizer: {self.gaussian_splatting_optimizer}
         """
 
     def create_plot_base_path(self):
@@ -126,6 +133,9 @@ class SceneOptimizer:
         self._plot_ba_input_path = self._plot_base_path / "ba_input"
         self._plot_results_path = self._plot_base_path / "results"
         self._mvs_ply_save_fpath = self._results_path / "mvs_output" / "dense_pointcloud.ply"
+        
+        self._gs_save_path = self._results_path/ "gs_output"
+        self._interp_video_save_fpath = self._results_path / "gs_output" / "interpolated_path.mp4"
 
         # make directories for persisting data
         os.makedirs(self._plot_base_path, exist_ok=True)
@@ -135,6 +145,8 @@ class SceneOptimizer:
         os.makedirs(self._plot_correspondence_path, exist_ok=True)
         os.makedirs(self._plot_ba_input_path, exist_ok=True)
         os.makedirs(self._plot_results_path, exist_ok=True)
+        
+        os.makedirs(self._gs_save_path, exist_ok=True)
 
         # Save duplicate directories within React folders.
         os.makedirs(REACT_RESULTS_PATH, exist_ok=True)
@@ -257,6 +269,7 @@ class SceneOptimizer:
                     )
 
         if self.run_dense_optimizer and self.dense_multiview_optimizer is not None:
+            print('inside dense')
             img_dict_graph = dask.delayed(get_image_dictionary)(images)
             (
                 dense_points_graph,
@@ -281,6 +294,32 @@ class SceneOptimizer:
                 metrics_graph_list.append(densify_metrics_graph)
             if downsampling_metrics_graph is not None:
                 metrics_graph_list.append(downsampling_metrics_graph)
+        
+        if self.run_gaussian_splatting_optimizer and self.gaussian_splatting_optimizer is not None:
+            print('Inside gaussian')
+            img_dict_graph = dask.delayed(get_image_dictionary)(images)
+            (
+                splats_graph,
+                cfg_graph
+            ) = self.gaussian_splatting_optimizer.create_computation_graph(img_dict_graph, ba_output_graph)
+
+            annotation = dask.annotate(workers=self._output_worker) if self._output_worker else dask.annotate()
+            with annotation:
+                delayed_results.append(
+                    dask.delayed(splat_utils.save_splats)(
+                        save_path=str(self._gs_save_path),
+                        splats=splats_graph
+                    )
+                )
+                delayed_results.append(
+                    dask.delayed(gtsfm_rendering.generate_interpolated_video)(
+                        images_graph = img_dict_graph, 
+                        sfm_result_graph = ba_output_graph,
+                        cfg_result_graph = cfg_graph,
+                        splats_graph=splats_graph,
+                        video_path = self._interp_video_save_fpath,
+                    )
+                )
 
         # Save metrics to JSON and generate HTML report.
         annotation = dask.annotate(workers=self._output_worker) if self._output_worker else dask.annotate()
