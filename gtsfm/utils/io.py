@@ -231,7 +231,6 @@ def colmap2gtsfm(
         if camera_model_name in ["SIMPLE_RADIAL", "RADIAL"]:
             intrinsics_gtsfm.append(Cal3Bundler(f, k1, k2, cx, cy))
         elif camera_model_name in ["PINHOLE"]:
-            # TODO(travisdriver): Use Cal3_S2 instead.
             intrinsics_gtsfm.append(Cal3_S2(fx, fy, 0.0, cx, cy))
         elif camera_model_name in ["FULL_OPENCV", "OPENCV"]:
             intrinsics_gtsfm.append(Cal3DS2(fx, fy, 0.0, cx, cy, k1, k2, p1, p2))
