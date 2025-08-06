@@ -120,8 +120,10 @@ def gtsfm_calibration_to_colmap_camera(camera_id, calibration: CALIBRATION_TYPE,
                 calibration.py(), 
                 calibration.k1(), 
                 calibration.k2(), 
-                calibration.p1(), 
-                calibration.p2(),
+                0.0, 
+                0.0,
+                # calibration.p1(), 
+                # calibration.p2(),
             ],
         )
     else:
