@@ -1,6 +1,6 @@
 """Common definitions and helper functions for calibration and camera types
 
-Authors: Ayush Baid
+Authors: Ayush Baid, Travis Driver
 """
 from typing import Union
 

@@ -1,13 +1,16 @@
-"""Utility to convert GTSAM types to pycolmap types.
+"""Utilities for converting between GTSAM to pycolmap types.
 
 Authors: John Lambert
 """
 
 import pycolmap
-from gtsam import Cal3Bundler
+import gtsam
+
+from gtsfm.common.types import CALIBRATION_TYPE
+from thirdparty.colmap.scripts.python.read_write_model import Camera as ColmapCamera
 
 
-def get_pycolmap_camera(camera_intrinsics: Cal3Bundler) -> pycolmap.Camera:
+def get_pycolmap_camera(camera_intrinsics: gtsam.Cal3Bundler) -> pycolmap.Camera:
     """Convert Cal3Bundler intrinsics to a pycolmap-compatible format (a dictionary).
 
     See https://colmap.github.io/cameras.html#camera-models for info about the COLMAP camera models.
@@ -35,3 +38,91 @@ def get_pycolmap_camera(camera_intrinsics: Cal3Bundler) -> pycolmap.Camera:
         params=[focal_length, cx, cy],
     )
     return camera_dict
+
+def colmap_camera_to_gtsam_calibration(camera: ColmapCamera) -> CALIBRATION_TYPE:
+    """Convert a pycolmap camera to a GTSAM Cal3Bundler object.
+
+    Args:
+        camera: A pycolmap camera object.
+
+    Returns:
+        A GTSAM Calibration object.
+    """
+    # TODO(travisdriver): use pycolmap cameras.
+    camera_model_name = camera.model
+
+    # Default to zero-valued radial distortion coefficients (quadratic and quartic).
+    if camera_model_name == "SIMPLE_RADIAL":
+        # See https://github.com/colmap/colmap/blob/1f6812e333a1e4b2ef56aa74e2c3873e4e3a40cd/src/colmap/sensor/models.h#L212  # noqa: E501
+        f, cx, cy, k1 = camera.params
+        k2 = 0.0
+    elif camera_model_name == "FULL_OPENCV":
+        # See https://github.com/colmap/colmap/blob/1f6812e333a1e4b2ef56aa74e2c3873e4e3a40cd/src/colmap/sensor/models.h#L273  # noqa: E501
+        fx, fy, cx, cy, k1, k2, p1, p2 = camera.params[:8]
+    elif camera_model_name == "PINHOLE":
+        # See https://github.com/colmap/colmap/blob/1f6812e333a1e4b2ef56aa74e2c3873e4e3a40cd/src/colmap/sensor/models.h#L196  # noqa: E501
+        fx, fy, cx, cy = camera.params
+    elif camera_model_name == "RADIAL":
+        # See https://github.com/colmap/colmap/blob/1f6812e333a1e4b2ef56aa74e2c3873e4e3a40cd/src/colmap/sensor/models.h#L227  # noqa: E501
+        f, cx, cy, k1, k2 = camera.params
+    elif camera_model_name == "OPENCV":
+        # See https://github.com/colmap/colmap/blob/1f6812e333a1e4b2ef56aa74e2c3873e4e3a40cd/src/colmap/sensor/models.h#L241  # noqa: E501
+        fx, fy, cx, cy, k1, k2, p1, p2 = camera.params
+    else:
+        raise ValueError(f"Unsupported COLMAP camera type: {camera_model_name}")
+
+    if camera_model_name in ["SIMPLE_RADIAL", "RADIAL"]:
+        intrinsics_gtsfm = gtsam.Cal3Bundler(f, k1, k2, cx, cy)
+    elif camera_model_name in ["PINHOLE"]:
+        intrinsics_gtsfm = gtsam.Cal3_S2(fx, fy, 0.0, cx, cy)
+    elif camera_model_name in ["FULL_OPENCV", "OPENCV"]:
+        intrinsics_gtsfm = gtsam.Cal3DS2(fx, fy, 0.0, cx, cy, k1, k2, p1, p2)
+    else:
+        raise ValueError(f"Unsupported COLMAP camera type: {camera_model_name}")
+
+    return intrinsics_gtsfm
+
+def gtsfm_calibration_to_colmap_camera(camera_id, calibration: CALIBRATION_TYPE, height: int, width: int) -> ColmapCamera:
+    """Convert a GTSAM calibration object to a pycolmap camera.
+
+    Args:
+        calibration: A GTSAM Calibration object.
+
+    Returns:
+        A pycolmap camera object.
+    """
+    if isinstance(calibration, gtsam.Cal3Bundler):
+        return ColmapCamera(
+            model="SIMPLE_RADIAL",
+            id=camera_id,
+            width=width,
+            height=height,
+            params=[calibration.fx(), calibration.px(), calibration.py(), calibration.k1(), calibration.k2()],
+        )
+    elif isinstance(calibration, gtsam.Cal3_S2):
+        return ColmapCamera(
+            model="PINHOLE",
+            id=camera_id,
+            width=width,
+            height=height,
+            params=[calibration.fx(), calibration.fy(), calibration.px(), calibration.py()],
+        )
+    elif isinstance(calibration, gtsam.Cal3DS2):
+        return ColmapCamera(
+            model="OPENCV",
+            id=camera_id,
+            width=width,
+            height=height,
+            params=[
+                calibration.fx(), 
+                calibration.fy(), 
+                calibration.px(), 
+                calibration.py(), 
+                calibration.k1(), 
+                calibration.k2(), 
+                calibration.p1(), 
+                calibration.p2(),
+            ],
+        )
+    else:
+        raise ValueError(f"Unsupported calibration type: {type(calibration)}")
