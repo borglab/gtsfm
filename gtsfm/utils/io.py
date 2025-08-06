@@ -15,7 +15,7 @@ import h5py
 import numpy as np
 import open3d
 import simplejson as json
-from gtsam import Cal3Bundler, Cal3_S2, Cal3DS2, Point3, Pose3, Rot3, SfmTrack
+from gtsam import Cal3Bundler, Point3, Pose3, Rot3, SfmTrack
 from PIL import Image as PILImage
 from PIL.ExifTags import GPSTAGS, TAGS
 
@@ -313,9 +313,6 @@ def write_cameras(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> 
     os.makedirs(save_dir, exist_ok=True)
 
     # TODO: handle shared intrinsics
-    # Assumes all camera models have five intrinsic parameters
-    camera_model = "RADIAL"
-
     file_path = os.path.join(save_dir, "cameras.txt")
     with open(file_path, "w") as f:
         f.write("# Camera list with one line of data per camera:\n")
@@ -330,6 +327,7 @@ def write_cameras(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> 
             to_write = [colmap_cam.id, colmap_cam.model, colmap_cam.width, colmap_cam.height, *colmap_cam.params]
             line = " ".join([str(elem) for elem in to_write])
             f.write(line + "\n")
+
 
 def read_images_txt(fpath: str) -> Tuple[List[Pose3], List[str]]:
     """Read camera poses and image file names from a COLMAP-format images.txt file.

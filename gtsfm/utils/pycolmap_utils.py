@@ -39,6 +39,7 @@ def get_pycolmap_camera(camera_intrinsics: gtsam.Cal3Bundler) -> pycolmap.Camera
     )
     return camera_dict
 
+
 def colmap_camera_to_gtsam_calibration(camera: ColmapCamera) -> CALIBRATION_TYPE:
     """Convert a pycolmap camera to a GTSAM Cal3Bundler object.
 
@@ -82,7 +83,10 @@ def colmap_camera_to_gtsam_calibration(camera: ColmapCamera) -> CALIBRATION_TYPE
 
     return intrinsics_gtsfm
 
-def gtsfm_calibration_to_colmap_camera(camera_id, calibration: CALIBRATION_TYPE, height: int, width: int) -> ColmapCamera:
+
+def gtsfm_calibration_to_colmap_camera(
+    camera_id, calibration: CALIBRATION_TYPE, height: int, width: int
+) -> ColmapCamera:
     """Convert a GTSAM calibration object to a pycolmap camera.
 
     Args:

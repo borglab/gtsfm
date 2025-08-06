@@ -16,10 +16,34 @@ from gtsfm.common.types import (
 
 # Define the expected types for the calibration objects
 CALIBRATION_OBJECTS = [
-    (gtsam.Cal3Bundler(), gtsam.PinholeCameraCal3Bundler, gtsam.CameraSetCal3Bundler, gtsam.PriorFactorCal3Bundler, gtsam.GeneralSFMFactor2Cal3Bundler),
-    (gtsam.Cal3_S2(), gtsam.PinholeCameraCal3_S2, gtsam.CameraSetCal3_S2, gtsam.PriorFactorCal3_S2, gtsam.GeneralSFMFactor2Cal3_S2),
-    (gtsam.Cal3DS2(), gtsam.PinholeCameraCal3DS2, gtsam.CameraSetCal3DS2, gtsam.PriorFactorCal3DS2, gtsam.GeneralSFMFactor2Cal3DS2),
-    (gtsam.Cal3Fisheye(), gtsam.PinholeCameraCal3Fisheye, gtsam.CameraSetCal3Fisheye, gtsam.PriorFactorCal3Fisheye, gtsam.GeneralSFMFactor2Cal3Fisheye),
+    (
+        gtsam.Cal3Bundler(), 
+        gtsam.PinholeCameraCal3Bundler, 
+        gtsam.CameraSetCal3Bundler, gtsam.
+        PriorFactorCal3Bundler, 
+        gtsam.GeneralSFMFactor2Cal3Bundler,
+    ),
+    (
+        gtsam.Cal3_S2(), 
+        gtsam.PinholeCameraCal3_S2, 
+        gtsam.CameraSetCal3_S2, 
+        gtsam.PriorFactorCal3_S2, 
+        gtsam.GeneralSFMFactor2Cal3_S2,
+    ),
+    (
+        gtsam.Cal3DS2(), 
+        gtsam.PinholeCameraCal3DS2, 
+        gtsam.CameraSetCal3DS2, 
+        gtsam.PriorFactorCal3DS2, 
+        gtsam.GeneralSFMFactor2Cal3DS2,
+    ),
+    (
+        gtsam.Cal3Fisheye(), 
+        gtsam.PinholeCameraCal3Fisheye, 
+        gtsam.CameraSetCal3Fisheye, 
+        gtsam.PriorFactorCal3Fisheye, 
+        gtsam.GeneralSFMFactor2Cal3Fisheye,
+    ),
 ]
 
 # Create specific parameter lists for each test
@@ -30,6 +54,7 @@ SFM_FACTOR_PARAMS = [(c[0], c[4]) for c in CALIBRATION_OBJECTS]
 
 # List of invalid inputs remains the same
 INVALID_INPUTS = [None, "a_string", 123, object(), gtsam.Pose2()]
+
 
 class TestGtsamHelpers:
     """Test suite for GTSAM helper functions."""
