@@ -52,4 +52,3 @@ dependencies:
       - gsplat==1.5.3
       - torchmetrics==1.7.3
       - tyro==0.9.24
-      
