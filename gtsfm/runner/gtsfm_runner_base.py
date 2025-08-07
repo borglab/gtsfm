@@ -10,7 +10,8 @@ import dask
 import hydra
 import numpy as np
 from dask import config as dask_config
-from dask.distributed import Client, LocalCluster, SSHCluster, performance_report
+from dask.distributed import (Client, LocalCluster, SSHCluster,
+                              performance_report)
 from gtsam import Pose3, Rot3, Unit3
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
@@ -23,12 +24,14 @@ import gtsfm.utils.viz as viz_utils
 from gtsfm import two_view_estimator
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
-from gtsfm.frontend.correspondence_generator.image_correspondence_generator import ImageCorrespondenceGenerator
+from gtsfm.frontend.correspondence_generator.image_correspondence_generator import \
+    ImageCorrespondenceGenerator
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.scene_optimizer import SceneOptimizer
-from gtsfm.two_view_estimator import TWO_VIEW_OUTPUT, TwoViewEstimationReport, run_two_view_estimator_as_futures
+from gtsfm.two_view_estimator import (TWO_VIEW_OUTPUT, TwoViewEstimationReport,
+                                      run_two_view_estimator_as_futures)
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
 from gtsfm.utils.subgraph_utils import group_results_by_subgraph
 
@@ -324,6 +327,9 @@ class GtsfmRunnerBase:
             cluster = LocalCluster(**local_cluster_kwargs)
             client = Client(cluster)
 
+        # Display Dask dashboard URL before processing starts
+        print(f"\n🚀 Dask Dashboard available at: {client.dashboard_link}")
+        
         # Create process graph.
         process_graph_generator = ProcessGraphGenerator()
         if isinstance(self.scene_optimizer.correspondence_generator, ImageCorrespondenceGenerator):

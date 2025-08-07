@@ -25,26 +25,23 @@ import gtsfm.utils.ellipsoid as ellipsoid_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.viz as viz_utils
-import gtsfm.utils.splat as splat_utils
-import gtsfm.splat.rendering as gtsfm_rendering
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.densify.mvs_base import MVSBase
-from gtsfm.splat.gs_base import GSBase
-from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
+from gtsfm.frontend.correspondence_generator.correspondence_generator_base import \
+    CorrespondenceGeneratorBase
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.graph_partitioner.single_partition import SinglePartition
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.retriever.image_pairs_generator import ImagePairsGenerator
 from gtsfm.retriever.retriever_base import ImageMatchingRegime
-from gtsfm.two_view_estimator import (
-    POST_ISP_REPORT_TAG,
-    VIEWGRAPH_REPORT_TAG,
-    TwoViewEstimationReport,
-    TwoViewEstimator,
-)
+from gtsfm.splat.gs_base import GSBase
+from gtsfm.two_view_estimator import (POST_ISP_REPORT_TAG,
+                                      VIEWGRAPH_REPORT_TAG,
+                                      TwoViewEstimationReport,
+                                      TwoViewEstimator)
 
 matplotlib.use("Agg")
 
@@ -74,7 +71,7 @@ class SceneOptimizer:
         two_view_estimator: TwoViewEstimator,
         multiview_optimizer: MultiViewOptimizer,
         dense_multiview_optimizer: Optional[MVSBase] = None,
-        gaussian_splatting_optimizer: Optional[GSBase] = None,
+        gaussian_splatting_optimizer: Optional[any] = None,
         save_two_view_correspondences_viz: bool = False,
         save_3d_viz: bool = False,
         save_gtsfm_data: bool = True,
@@ -295,6 +292,8 @@ class SceneOptimizer:
                 metrics_graph_list.append(downsampling_metrics_graph)
         
         if self.run_gaussian_splatting_optimizer and self.gaussian_splatting_optimizer is not None:
+            import gtsfm.splat.rendering as gtsfm_rendering
+            import gtsfm.utils.splat as splat_utils
             img_dict_graph = dask.delayed(get_image_dictionary)(images)
             (
                 splats_graph,
