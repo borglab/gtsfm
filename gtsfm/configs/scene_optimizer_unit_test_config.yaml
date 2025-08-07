@@ -76,3 +76,8 @@ SceneOptimizer:
 
   dense_multiview_optimizer:
     _target_: gtsfm.densify.mvs_patchmatchnet.MVSPatchmatchNet
+  
+  gaussian_splatting_optimizer:
+    _target_: gtsfm.splat.gaussian_splatting.GaussianSplatting
+    cfg:
+      _target_: gtsfm.splat.gaussian_splatting.Config

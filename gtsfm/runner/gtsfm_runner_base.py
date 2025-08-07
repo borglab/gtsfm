@@ -10,7 +10,8 @@ import dask
 import hydra
 import numpy as np
 from dask import config as dask_config
-from dask.distributed import Client, LocalCluster, SSHCluster, performance_report
+from dask.distributed import (Client, LocalCluster, SSHCluster,
+                              performance_report)
 from gtsam import Pose3, Rot3, Unit3
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
@@ -23,12 +24,14 @@ import gtsfm.utils.viz as viz_utils
 from gtsfm import two_view_estimator
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
-from gtsfm.frontend.correspondence_generator.image_correspondence_generator import ImageCorrespondenceGenerator
+from gtsfm.frontend.correspondence_generator.image_correspondence_generator import \
+    ImageCorrespondenceGenerator
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.scene_optimizer import SceneOptimizer
-from gtsfm.two_view_estimator import TWO_VIEW_OUTPUT, TwoViewEstimationReport, run_two_view_estimator_as_futures
+from gtsfm.two_view_estimator import (TWO_VIEW_OUTPUT, TwoViewEstimationReport,
+                                      run_two_view_estimator_as_futures)
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
 from gtsfm.utils.subgraph_utils import group_results_by_subgraph
 
@@ -99,6 +102,12 @@ class GtsfmRunnerBase:
             help="Override flag for retriever (choose from among gtsfm/configs/retriever).",
         )
         parser.add_argument(
+            "--gaussian_splatting_config_name",
+            type=str,
+            default="base_gs",
+            help="Override flag for your own gaussian splatting implementation.",
+        )
+        parser.add_argument(
             "--max_resolution",
             type=int,
             default=760,
@@ -120,7 +129,8 @@ class GtsfmRunnerBase:
         parser.add_argument(
             "--share_intrinsics", action="store_true", help="Shares the intrinsics between all the cameras."
         )
-        parser.add_argument("--mvs_off", action="store_true", help="Turn off dense MVS reconstruction")
+        parser.add_argument("--run_mvs", action="store_true", help="Run dense MVS reconstruction")
+        parser.add_argument("--run_gs", action="store_true", help="Run Gaussian Splatting")
         parser.add_argument(
             "--output_root",
             type=str,
@@ -209,6 +219,15 @@ class GtsfmRunnerBase:
                 logger.info("\n\nRetriever override: " + OmegaConf.to_yaml(retriever_cfg))
                 scene_optimizer.image_pairs_generator._retriever = instantiate(retriever_cfg.retriever)
 
+        # Override gaussian splatting
+        if self.parsed_args.gaussian_splatting_config_name is not None:
+            with hydra.initialize_config_module(config_module="gtsfm.configs.gaussian_splatting"):
+                gs_cfg = hydra.compose(
+                    config_name=self.parsed_args.gaussian_splatting_config_name,
+                )
+                logger.info("\n\nGaussian Splatting override: " + OmegaConf.to_yaml(gs_cfg))
+                scene_optimizer.gaussian_splatting_optimizer = instantiate(gs_cfg.gaussian_splatting_optimizer)
+
         if self.parsed_args.max_frame_lookahead is not None:
             if scene_optimizer.image_pairs_generator._retriever._matching_regime in [
                 ImageMatchingRegime.SEQUENTIAL,
@@ -245,8 +264,11 @@ class GtsfmRunnerBase:
                     f"{scene_optimizer.image_pairs_generator._retriever._matching_regime}"
                 )
 
-        if self.parsed_args.mvs_off:
+        if not self.parsed_args.run_mvs:
             scene_optimizer.run_dense_optimizer = False
+        
+        if not self.parsed_args.run_gs:
+            scene_optimizer.run_gaussian_splatting_optimizer = False
 
         logger.info("\n\nSceneOptimizer: " + str(scene_optimizer))
         return scene_optimizer
@@ -305,6 +327,9 @@ class GtsfmRunnerBase:
             cluster = LocalCluster(**local_cluster_kwargs)
             client = Client(cluster)
 
+        # Display Dask dashboard URL before processing starts
+        print(f"\n🚀 Dask Dashboard available at: {client.dashboard_link}")
+        
         # Create process graph.
         process_graph_generator = ProcessGraphGenerator()
         if isinstance(self.scene_optimizer.correspondence_generator, ImageCorrespondenceGenerator):

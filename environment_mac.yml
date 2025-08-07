@@ -39,6 +39,7 @@ dependencies:
   - pyparsing>=3.0.9
   # testing
   - parameterized
+  - wget
   - pip:
       - torch
       - torchvision>=0.20.0
