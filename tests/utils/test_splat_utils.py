@@ -7,14 +7,12 @@ import os
 import tempfile
 import unittest
 
-import numpy as np
 import torch
 
 from gtsfm.utils.splat import (
     auto_orient_and_center_poses,
     get_rotation_matrix_from_two_vectors,
     get_viewmat,
-    num_sh_bases,
     random_quat_tensor,
     rescale_output_resolution,
     save_splats,
