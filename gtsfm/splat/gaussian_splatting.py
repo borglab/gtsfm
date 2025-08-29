@@ -87,7 +87,7 @@ class Config:
     num_frames: int = 10
 
 
-if sys.platform == "darwin":
+if sys.platform == "darwin" or not torch.cuda.is_available():
 
     class GaussianSplatting:
         def __init__(self, *args, **kwargs):
