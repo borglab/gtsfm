@@ -30,18 +30,18 @@ from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.densify.mvs_base import MVSBase
-from gtsfm.frontend.correspondence_generator.correspondence_generator_base import \
-    CorrespondenceGeneratorBase
+from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.graph_partitioner.single_partition import SinglePartition
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.retriever.image_pairs_generator import ImagePairsGenerator
 from gtsfm.retriever.retriever_base import ImageMatchingRegime
-from gtsfm.splat.gs_base import GSBase
-from gtsfm.two_view_estimator import (POST_ISP_REPORT_TAG,
-                                      VIEWGRAPH_REPORT_TAG,
-                                      TwoViewEstimationReport,
-                                      TwoViewEstimator)
+from gtsfm.two_view_estimator import (
+    POST_ISP_REPORT_TAG,
+    VIEWGRAPH_REPORT_TAG,
+    TwoViewEstimationReport,
+    TwoViewEstimator,
+)
 
 matplotlib.use("Agg")
 
@@ -130,8 +130,8 @@ class SceneOptimizer:
         self._plot_ba_input_path = self._plot_base_path / "ba_input"
         self._plot_results_path = self._plot_base_path / "results"
         self._mvs_ply_save_fpath = self._results_path / "mvs_output" / "dense_pointcloud.ply"
-        
-        self._gs_save_path = self._results_path/ "gs_output"
+
+        self._gs_save_path = self._results_path / "gs_output"
         self._interp_video_save_fpath = self._results_path / "gs_output" / "interpolated_path.mp4"
 
         # make directories for persisting data
@@ -142,7 +142,7 @@ class SceneOptimizer:
         os.makedirs(self._plot_correspondence_path, exist_ok=True)
         os.makedirs(self._plot_ba_input_path, exist_ok=True)
         os.makedirs(self._plot_results_path, exist_ok=True)
-        
+
         os.makedirs(self._gs_save_path, exist_ok=True)
 
         # Save duplicate directories within React folders.
@@ -290,31 +290,29 @@ class SceneOptimizer:
                 metrics_graph_list.append(densify_metrics_graph)
             if downsampling_metrics_graph is not None:
                 metrics_graph_list.append(downsampling_metrics_graph)
-        
+
         if self.run_gaussian_splatting_optimizer and self.gaussian_splatting_optimizer is not None:
+            # this is an intentional exception from the norm to support mac implementation
             import gtsfm.splat.rendering as gtsfm_rendering
             import gtsfm.utils.splat as splat_utils
+
             img_dict_graph = dask.delayed(get_image_dictionary)(images)
-            (
-                splats_graph,
-                cfg_graph
-            ) = self.gaussian_splatting_optimizer.create_computation_graph(img_dict_graph, ba_output_graph)
+            (splats_graph, cfg_graph) = self.gaussian_splatting_optimizer.create_computation_graph(
+                img_dict_graph, ba_output_graph
+            )
 
             annotation = dask.annotate(workers=self._output_worker) if self._output_worker else dask.annotate()
             with annotation:
                 delayed_results.append(
-                    dask.delayed(splat_utils.save_splats)(
-                        save_path=str(self._gs_save_path),
-                        splats=splats_graph
-                    )
+                    dask.delayed(splat_utils.save_splats)(save_path=str(self._gs_save_path), splats=splats_graph)
                 )
                 delayed_results.append(
                     dask.delayed(gtsfm_rendering.generate_interpolated_video)(
-                        images_graph = img_dict_graph, 
-                        sfm_result_graph = ba_output_graph,
-                        cfg_result_graph = cfg_graph,
+                        images_graph=img_dict_graph,
+                        sfm_result_graph=ba_output_graph,
+                        cfg_result_graph=cfg_graph,
                         splats_graph=splats_graph,
-                        video_path = self._interp_video_save_fpath,
+                        video_fpath=self._interp_video_save_fpath,
                     )
                 )
 

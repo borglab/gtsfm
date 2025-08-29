@@ -3,18 +3,20 @@
 Authors: Harneet Singh Khanuja
 """
 
-from gsplat import export_splats
-import torch
-import numpy as np
-from typing import Tuple, Literal
-import cv2
-import random
-from sklearn.neighbors import NearestNeighbors
 import math
+import random
+from typing import Literal, Tuple
+
+import cv2
+import numpy as np
+import torch
+from gsplat import export_splats
+from sklearn.neighbors import NearestNeighbors
+
 from gtsfm.utils import logger as logger_utils
 
-
 logger = logger_utils.get_logger()
+
 
 def save_splats(save_path, splats):
     opacities = splats["opacities"].squeeze()
@@ -33,7 +35,7 @@ def save_splats(save_path, splats):
     logger.info(f"Successfully saved Gaussian splats .ply file to {save_path}/gaussian_splats.ply")
 
 
-# mimics the rotation_matrix_between function from https://github.com/nerfstudio-project/nerfstudio/blob/main/nerfstudio/cameras/camera_utils.py
+# See https://github.com/nerfstudio-project/nerfstudio/blob/main/nerfstudio/cameras/camera_utils.py
 def get_rotation_matrix_from_two_vectors(vec1: torch.Tensor, vec2: torch.Tensor) -> torch.Tensor:
     """
     Get the rotation matrix that rotates vec1 to vec2.
@@ -61,7 +63,7 @@ def get_rotation_matrix_from_two_vectors(vec1: torch.Tensor, vec2: torch.Tensor)
     return torch.eye(3) + torch.sin(theta) * skew_sym_mat + (1 - torch.cos(theta)) * (skew_sym_mat @ skew_sym_mat)
 
 
-# this function is taken from https://github.com/nerfstudio-project/nerfstudio/blob/main/nerfstudio/cameras/camera_utils.py and has reduced functionality
+# See https://github.com/nerfstudio-project/nerfstudio/blob/main/nerfstudio/cameras/camera_utils.py
 def auto_orient_and_center_poses(
     poses: torch.Tensor,
     method: Literal["up", "none"] = "none",
@@ -76,7 +78,7 @@ def auto_orient_and_center_poses(
     """
     origins = poses[..., :3, 3]
     mean_origin = torch.mean(origins, dim=0)
-    
+
     translation = torch.zeros_like(mean_origin)
     if center_method == "poses":
         translation = mean_origin
@@ -94,19 +96,18 @@ def auto_orient_and_center_poses(
         pass
     else:
         raise ValueError(f"Unknown orientation method: {method}")
-    
+
     transform = torch.cat([R, R @ -translation[..., None]], dim=-1)
     poses_new = transform.to(poses.device) @ poses
 
     return poses_new, transform
 
-# follows _undistort_image function from https://github.com/nerfstudio-project/nerfstudio/blob/main/nerfstudio/data/utils/dataloaders.py
-def _undistort_image(
-    distortion_params: np.ndarray, image: np.ndarray, K: np.ndarray
-):
-    assert distortion_params[3] == 0, (
-        "We don't support the 4th Brown parameter for image undistortion, Only k1, k2, k3, p1, p2 can be non-zero."
-    )
+
+# See https://github.com/nerfstudio-project/nerfstudio/blob/main/nerfstudio/data/utils/dataloaders.py
+def _undistort_image(distortion_params: np.ndarray, image: np.ndarray, K: np.ndarray):
+    assert (
+        distortion_params[3] == 0
+    ), "We don't support the 4th Brown parameter for image undistortion, Only k1, k2, k3, p1, p2 can be non-zero."
     # we rearrange the distortion parameters because OpenCV expects the order (k1, k2, p1, p2, k3)
     # see https://docs.opencv.org/4.x/dc/dbb/tutorial_py_calibration.html
     # The last two zeros are for k4 and k5, which are not used in this context.
@@ -117,25 +118,25 @@ def _undistort_image(
             distortion_params[4],
             distortion_params[5],
             distortion_params[2],
-            0, # k4 is not used
-            0, # k5 is not used
-            0, # k6 is not used
+            0,  # k4 is not used
+            0,  # k5 is not used
+            0,  # k6 is not used
         ]
     )
-    
+
     # because OpenCV expects the pixel coord to be top-left, we need to shift the principal point by 0.5
     # see https://github.com/nerfstudio-project/nerfstudio/issues/3048
     K_shifted = K.copy()
     K_shifted[0, 2] -= 0.5
     K_shifted[1, 2] -= 0.5
-    
+
     if np.any(distortion_params_cv):
         newK, roi = cv2.getOptimalNewCameraMatrix(K_shifted, distortion_params_cv, (image.shape[1], image.shape[0]), 1)
         image = cv2.undistort(image, K_shifted, distortion_params_cv, None, newK)
     else:
         newK = K_shifted
         roi = 0, 0, image.shape[1], image.shape[0]
-        
+
     # crop the image and update the intrinsics accordingly
     x, y, w, h = roi
     image = image[y : y + h, x : x + w]
@@ -148,25 +149,22 @@ def _undistort_image(
 
     return K, image
 
-def rescale_output_resolution(
-        Ks,
-        scaling_factor
-    ):
-        """Rescale the output resolution of the cameras.
 
-        Args:
-            scaling_factor: Scaling factor to apply to the output resolution.
-            scale_rounding_mode: round down or round up when calculating the scaled image height and width
-        """
-        Ks[..., 0, 0] *= scaling_factor
-        Ks[..., 1, 1] *= scaling_factor
-        Ks[..., 0, 2] *= scaling_factor
-        Ks[..., 1, 2] *= scaling_factor
-        return Ks
+def rescale_output_resolution(Ks, scaling_factor):
+    """Rescale the output resolution of the cameras.
 
-def k_nearest_sklearn(
-    x: torch.Tensor, k: int, metric: str = "euclidean"
-):
+    Args:
+        scaling_factor: Scaling factor to apply to the output resolution.
+        scale_rounding_mode: round down or round up when calculating the scaled image height and width
+    """
+    Ks[..., 0, 0] *= scaling_factor
+    Ks[..., 1, 1] *= scaling_factor
+    Ks[..., 0, 2] *= scaling_factor
+    Ks[..., 1, 2] *= scaling_factor
+    return Ks
+
+
+def k_nearest_sklearn(x: torch.Tensor, k: int, metric: str = "euclidean"):
     """
     Find k-nearest neighbors using sklearn's NearestNeighbors.
 
@@ -185,6 +183,7 @@ def k_nearest_sklearn(
 
     distances, indices = nn_model.kneighbors(x_np)
     return torch.tensor(distances[:, 1:], dtype=torch.float32), torch.tensor(indices[:, 1:], dtype=torch.int64)
+
 
 def random_quat_tensor(N: int):
     """
@@ -210,6 +209,7 @@ def random_quat_tensor(N: int):
         dim=-1,
     )
 
+
 def num_sh_bases(degree: int) -> int:
     """
     Returns the number of spherical harmonic bases for a given degree.
@@ -219,10 +219,12 @@ def num_sh_bases(degree: int) -> int:
     assert degree <= MAX_SH_DEGREE, f"We don't support degree greater than {MAX_SH_DEGREE}."
     return (degree + 1) ** 2
 
+
 def set_random_seed(seed: int):
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
+
 
 @torch.compile()
 def get_viewmat(camera_to_world: torch.Tensor) -> torch.Tensor:
@@ -230,7 +232,7 @@ def get_viewmat(camera_to_world: torch.Tensor) -> torch.Tensor:
     Converts a batch of camera-to-world matrices to gsplat's world-to-camera format.
     This function is compiled with torch.compile for a speed boost.
     It converts to the gsplat standard ([Right, Down, Forward]).
-    
+
     Args:
         camera_to_world: A tensor of camera-to-world matrices with shape [N, 4, 4].
     Returns:
@@ -245,4 +247,5 @@ def get_viewmat(camera_to_world: torch.Tensor) -> torch.Tensor:
     viewmat[:, :3, :3] = R_inv
     viewmat[:, :3, 3:4] = T_inv
     viewmat[:, 3, 3] = 1.0
+    return viewmat
     return viewmat

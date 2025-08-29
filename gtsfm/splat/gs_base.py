@@ -2,11 +2,11 @@
 
 Authors: Harneet Singh Khanuja
 """
+
 import abc
-from typing import Dict, Tuple
+from typing import Dict
 
 import dask
-import numpy as np
 from dask.delayed import Delayed
 
 from gtsfm.common.gtsfm_data import GtsfmData
@@ -32,9 +32,7 @@ class GSBase(GTSFMProcess):
         pass
 
     @abc.abstractmethod
-    def splatify(
-        self, images: Dict[int, Image], sfm_result: GtsfmData
-    ):
+    def splatify(self, images: Dict[int, Image], sfm_result: GtsfmData):
         """Create 3D gaussians using Gaussian Splatting.
 
         Args:
@@ -46,9 +44,7 @@ class GSBase(GTSFMProcess):
             cfg: Config class object which will be used while rendering
         """
 
-    def create_computation_graph(
-        self, images_graph: Delayed, sfm_result_graph: Delayed
-    ) -> Delayed:
+    def create_computation_graph(self, images_graph: Delayed, sfm_result_graph: Delayed) -> Delayed:
         """Generates the computation graph for performing the gaussian splats and the config parameters.
 
         Args:
@@ -58,8 +54,6 @@ class GSBase(GTSFMProcess):
         Returns:
             Delayed task for splats computation on the input images
         """
-        splats_graph, cfg_graph = dask.delayed(self.splatify, nout=2)(
-            images_graph, sfm_result_graph
-        )
+        splats_graph, cfg_graph = dask.delayed(self.splatify, nout=2)(images_graph, sfm_result_graph)
 
         return splats_graph, cfg_graph

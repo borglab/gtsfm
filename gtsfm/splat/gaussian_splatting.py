@@ -2,6 +2,7 @@
 
 Authors: Harneet Singh Khanuja
 """
+
 import itertools
 import math
 import sys
@@ -18,15 +19,23 @@ from gtsfm.common.image import Image
 
 logger = logger_utils.get_logger()
 
+_SH0_NORMALIZATION_FACTOR = 0.28209479177387814
+
+# Size of the cube to initialize random gaussians within
+# See https://github.com/nerfstudio-project/nerfstudio/blob/main/nerfstudio/models/splatfacto.py
+RANDOM_SCALE = 10.0
+
+
 @dataclass
 class Config:
     """
     Parameters for Gaussian Splatting training
     """
+
     # --- Progressive Resolution Training ---
     num_downscales: int = 2
     resolution_schedule: int = 3000
-    
+
     # --- Dataset Settings ---
     batch_size: int = 1
 
@@ -42,7 +51,7 @@ class Config:
 
     # --- Loss and Regularization ---
     ssim_lambda: float = 0.2
-    random_bkgd: bool = True 
+    random_bkgd: bool = True
 
     # --- Rendering Parameters ---
     near_plane: float = 0.01
@@ -77,12 +86,15 @@ class Config:
     fps: int = 30
     num_frames: int = 10
 
+
 if sys.platform == "darwin":
+
     class GaussianSplatting:
         def __init__(self, *args, **kwargs):
-            """ Gaussian Splatting is not supported on Mac (darwin).
-                Please run on Linux with CUDA and gsplat installed."""
+            """Gaussian Splatting is not supported on Mac (darwin).
+            Please run on Linux with CUDA and gsplat installed."""
             pass
+
 else:
     from gsplat.rendering import rasterization
     from gsplat.strategy import DefaultStrategy
@@ -91,10 +103,15 @@ else:
     from gtsfm.splat.gs_base import GSBase
     from gtsfm.splat.gs_data import GaussianSplattingData
     from gtsfm.utils import logger as logger_utils
-    from gtsfm.utils.splat import (get_viewmat, k_nearest_sklearn,
-                                   num_sh_bases, random_quat_tensor,
-                                   rescale_output_resolution, set_random_seed)
-    
+    from gtsfm.utils.splat import (
+        get_viewmat,
+        k_nearest_sklearn,
+        num_sh_bases,
+        random_quat_tensor,
+        rescale_output_resolution,
+        set_random_seed,
+    )
+
     class GaussianSplatting(GSBase):
         def __init__(self, cfg: Config):
 
@@ -103,7 +120,7 @@ else:
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
             self.training = True
             self.strategy = DefaultStrategy(
-                prune_opa= self.cfg.cull_alpha_thresh,
+                prune_opa=self.cfg.cull_alpha_thresh,
                 grow_grad2d=self.cfg.densify_grad_thresh,
                 grow_scale3d=self.cfg.densify_size_thresh,
                 grow_scale2d=self.cfg.split_screen_size,
@@ -116,13 +133,13 @@ else:
                 absgrad=self.cfg.use_absgrad,
                 revised_opacity=False,
                 verbose=True,
-                )
+            )
             self.strategy_state = self.strategy.initialize_state(scene_scale=1.0)
             self.ssim = StructuralSimilarityIndexMeasure(data_range=1.0).to(self.device)
 
-            
         def _create_splats_with_optimizers(
             self,
+            full_dataset,
             init_type: str = "random",
             init_num_pts: int = 100_000,
             init_opacity: float = 0.1,
@@ -135,10 +152,10 @@ else:
             sh_degree: int = 3,
             batch_size: int = 1,
         ):
-            
             """
             Create the initial Gaussian Splats with parameters defined in the Config class
             Args:
+                full_dataset: Dataset class for Gaussian Splatting training data
                 init_type: intialization from random points or sfm points
                 init_num_pts: Number of randomly initialized gaussians
                 init_opacity: Initial opacity value of the gaussians
@@ -150,21 +167,25 @@ else:
                 shN_lr: learning rate for the all other degrees of the spherical harmonics of the gaussians
                 sh_degree: degree for the spherical harmonics
                 batch_size: batch size for the setup
+
+            Returns:
+                splats: Initialized 3D Gaussian Splats defining the entire scene
+                optimizers: dictionary with optimizer parameters for different parameters of splats
             """
-            
-            use_sfm_init = (init_type == "sfm" and self.full_dataset.points is not None)
-            
+
+            use_sfm_init = init_type == "sfm" and full_dataset.points is not None
+
             if use_sfm_init:
                 logger.info("Initializing from SfM points.")
-                points = torch.from_numpy(self.full_dataset.points).float()
-                sh0_values = (torch.from_numpy(self.full_dataset.point_colors).float() - 0.5) / 0.28209479177387814
+                points = torch.from_numpy(full_dataset.points).float()
+                sh0_values = (torch.from_numpy(full_dataset.point_colors).float() - 0.5) / _SH0_NORMALIZATION_FACTOR
                 features_dc = torch.nn.Parameter(sh0_values)
             else:
+                # See https://github.com/nerfstudio-project/nerfstudio/blob/main/nerfstudio/models/splatfacto.py
                 if init_type == "sfm":
                     logger.info("Warning: 'sfm' init chosen but no points found. Falling back to 'random'.")
                 logger.info(f"Initializing with {init_num_pts} random points.")
-                random_scale = 10.0
-                points = torch.nn.Parameter((torch.rand((init_num_pts, 3)) - 0.5) * random_scale)
+                points = torch.nn.Parameter((torch.rand((init_num_pts, 3)) - 0.5) * RANDOM_SCALE)
                 features_dc = torch.nn.Parameter(torch.rand(init_num_pts, 3))
 
             logger.info("Calculating initial scales based on nearest neighbors...")
@@ -176,7 +197,6 @@ else:
             quats = torch.nn.Parameter(random_quat_tensor(num_points))
             dim_sh = num_sh_bases(sh_degree)
 
-            
             features_rest = torch.nn.Parameter(torch.zeros((num_points, dim_sh - 1, 3)))
 
             opacities = torch.nn.Parameter(torch.logit(init_opacity * torch.ones(num_points, 1)))
@@ -192,25 +212,27 @@ else:
             params.append(("sh0", initial_colors[:, :1, :], sh0_lr))
             params.append(("shN", initial_colors[:, 1:, :], shN_lr))
 
-            self.splats = torch.nn.ParameterDict({n: v for n, v, _ in params}).to(self.device)
-            
-            self.optimizer_class = torch.optim.Adam
-            
-            self.optimizers = {
-                name: self.optimizer_class(
-                    [{"params": self.splats[name], "lr": lr * math.sqrt(batch_size), "name": name}],
+            splats = torch.nn.ParameterDict({n: v for n, v, _ in params}).to(self.device)
+
+            optimizer_class = torch.optim.Adam
+
+            optimizers = {
+                name: optimizer_class(
+                    [{"params": splats[name], "lr": lr * math.sqrt(batch_size), "name": name}],
                     eps=1e-15 / math.sqrt(batch_size),
                     betas=(1 - batch_size * (1 - 0.9), 1 - batch_size * (1 - 0.999)),
                 )
                 for name, _, lr in params
             }
 
+            return splats, optimizers
+
         def _get_downscale_factor(self, step: int) -> int:
             """
             Get the factor by how much the image and intrinsics should be rescaled for progressive resolution training
             Args:
                 step: the current step iteration of the training
-            
+
             Returns:
                 factor: the factor for rescaling image and intrinsics
             """
@@ -226,7 +248,7 @@ else:
             Args:
                 image: the image to be rescaled
                 d: the rescale factor
-            
+
             Returns:
                 downscaled_image: the resized image
             """
@@ -240,6 +262,7 @@ else:
 
         def _rasterize_splats(
             self,
+            splats,
             camtoworlds: Tensor,
             Ks: Tensor,
             width: int,
@@ -248,16 +271,16 @@ else:
             **kwargs,
         ) -> Tuple[Tensor, Tensor, Dict]:
 
-            means = self.splats["means"]
-            quats = self.splats["quats"]
-            scales = torch.exp(self.splats["scales"])
-            opacities = torch.sigmoid(self.splats["opacities"]).squeeze(-1)
-            
-            sh0, shN = self.splats["sh0"], self.splats["shN"]
+            means = splats["means"]
+            quats = splats["quats"]
+            scales = torch.exp(splats["scales"])
+            opacities = torch.sigmoid(splats["opacities"]).squeeze(-1)
+
+            sh0, shN = splats["sh0"], splats["shN"]
             colors = torch.cat([sh0, shN], 1)
 
             rasterize_mode = "antialiased" if self.cfg.antialiased else "classic"
-            
+
             viewmats = get_viewmat(camtoworlds)
 
             return rasterization(
@@ -276,54 +299,61 @@ else:
                 render_mode=render_mode,
                 **kwargs,
             )
-        
-        def _train(self):
+
+        def _train(self, full_dataset, splats, optimizers):
             """
-            The main training function which defines the dataloader 
+            The main training function which defines the dataloader
             and iterates max_steps times to refine the gaussian splats
+
+            Args:
+                full_dataset: Dataset class for Gaussian Splatting training data
+                splats: Initialized 3D Gaussian Splats defining the entire scene
+                optimizers: dictionary with optimizer parameters for different parameters of splats
+
+            Returns:
+                splats: finetuned 3D Gaussian Splats defining the entire scene
             """
-            
+
             max_steps = self.cfg.max_steps
             init_step = 0
 
             schedulers = [
-                torch.optim.lr_scheduler.ExponentialLR(
-                    self.optimizers["means"], gamma=0.01 ** (1.0 / max_steps)
-                ),
+                torch.optim.lr_scheduler.ExponentialLR(optimizers["means"], gamma=0.01 ** (1.0 / max_steps)),
             ]
 
             trainloader = torch.utils.data.DataLoader(
-                self.full_dataset,
+                full_dataset,
                 batch_size=self.cfg.batch_size,
                 shuffle=True,
                 num_workers=0,
                 persistent_workers=False,
                 pin_memory=True,
             )
-            trainloader_iter = iter(itertools.cycle(trainloader)) 
+            trainloader_iter = iter(itertools.cycle(trainloader))
 
             for step in range(init_step, max_steps):
                 data = next(trainloader_iter)
-                
+
                 camtoworlds = data["camtoworld"].to(self.device)
                 image_full_res = data["image"].to(self.device)
                 Ks_full_res = data["K"].to(self.device)
 
                 d = self._get_downscale_factor(step)
                 if d > 1:
-                    height = math.floor(image_full_res.shape[1] * (1/d))
-                    width = math.floor(image_full_res.shape[2] * (1/d))
+                    height = math.floor(image_full_res.shape[1] * (1 / d))
+                    width = math.floor(image_full_res.shape[2] * (1 / d))
                     pixels = self._resize_image(image_full_res, d)
                     Ks = Ks_full_res.clone()
-                    Ks = rescale_output_resolution(Ks, 1/d)
+                    Ks = rescale_output_resolution(Ks, 1 / d)
                 else:
                     height, width = image_full_res.shape[1:3]
                     pixels = image_full_res
                     Ks = Ks_full_res
-                
+
                 sh_degree_to_use = min(step // self.cfg.sh_degree_interval, self.cfg.sh_degree)
 
                 renders, alphas, info = self._rasterize_splats(
+                    splats=splats,
                     camtoworlds=camtoworlds,
                     Ks=Ks,
                     width=width,
@@ -331,35 +361,29 @@ else:
                     sh_degree=sh_degree_to_use,
                     near_plane=self.cfg.near_plane,
                     far_plane=self.cfg.far_plane,
-                    render_mode="RGB"
+                    render_mode="RGB",
                 )
-                colors = renders[:,..., :3]
+                colors = renders[:, ..., :3]
 
-                self.strategy.step_pre_backward(
-                    self.splats, self.optimizers, self.strategy_state, step, info
-                )
+                self.strategy.step_pre_backward(splats, optimizers, self.strategy_state, step, info)
 
-                self.background_color = torch.tensor(
-                    [0.1490, 0.1647, 0.2157]
-                )
+                background_color = torch.tensor([0.1490, 0.1647, 0.2157])
                 if self.cfg.random_bkgd and self.training:
                     background = torch.rand(3, device=self.device)
                 else:
-                    background = self.background_color.to(self.device)
+                    background = background_color.to(self.device)
                 alphas = alphas[:, ...]
 
                 colors = colors + background.unsqueeze(0).unsqueeze(0) * (1.0 - alphas)
                 colors = torch.clamp(colors, 0.0, 1.0)
 
                 l1loss = F.l1_loss(colors, pixels)
-                ssimloss = 1.0 - self.ssim(
-                    colors.permute(0, 3, 1, 2), pixels.permute(0, 3, 1, 2)
-                )
-                loss = l1loss * (1.0 -self. cfg.ssim_lambda) + ssimloss * self.cfg.ssim_lambda
+                ssimloss = 1.0 - self.ssim(colors.permute(0, 3, 1, 2), pixels.permute(0, 3, 1, 2))
+                loss = l1loss * (1.0 - self.cfg.ssim_lambda) + ssimloss * self.cfg.ssim_lambda
 
                 loss.backward()
 
-                for optimizer in self.optimizers.values():
+                for optimizer in optimizers.values():
                     optimizer.step()
                     optimizer.zero_grad(set_to_none=True)
 
@@ -367,9 +391,10 @@ else:
                     scheduler.step()
 
                 self.strategy.step_post_backward(
-                    self.splats, self.optimizers, self.strategy_state, step, info,
-                    packed=self.cfg.packed
+                    splats, optimizers, self.strategy_state, step, info, packed=self.cfg.packed
                 )
+
+            return splats
 
         def splatify(self, images_graph: Dict[int, Image], sfm_result_graph: GtsfmData):
             """
@@ -380,27 +405,27 @@ else:
                 sfm_result_graph: A GtsfmData object containing poses, points, etc.
 
             Returns:
-                splats: 3D Gaussian Splats defining the entire scene
+                splats: finetuned 3D Gaussian Splats defining the entire scene
                 cfg: Config file with training parameters
             """
 
-            self.full_dataset = GaussianSplattingData(images_graph, sfm_result_graph)
-            
-            
-            self._create_splats_with_optimizers(
-                init_type = self.cfg.init_type,
-                init_num_pts = self.cfg.init_num_pts,
-                init_opacity = self.cfg.init_opacity,
-                means_lr = self.cfg.means_lr,
-                scales_lr = self.cfg.scales_lr,
-                opacities_lr = self.cfg.opacities_lr,
-                quats_lr = self.cfg.quats_lr,
-                sh0_lr = self.cfg.sh0_lr,
-                shN_lr = self.cfg.shN_lr,
-                sh_degree = self.cfg.sh_degree,
-                batch_size = self.cfg.batch_size,
+            full_dataset = GaussianSplattingData(images_graph, sfm_result_graph)
+
+            splats, optimizers = self._create_splats_with_optimizers(
+                full_dataset=full_dataset,
+                init_type=self.cfg.init_type,
+                init_num_pts=self.cfg.init_num_pts,
+                init_opacity=self.cfg.init_opacity,
+                means_lr=self.cfg.means_lr,
+                scales_lr=self.cfg.scales_lr,
+                opacities_lr=self.cfg.opacities_lr,
+                quats_lr=self.cfg.quats_lr,
+                sh0_lr=self.cfg.sh0_lr,
+                shN_lr=self.cfg.shN_lr,
+                sh_degree=self.cfg.sh_degree,
+                batch_size=self.cfg.batch_size,
             )
 
-            self._train()
+            splats = self._train(full_dataset, splats, optimizers)
 
-            return self.splats, self.cfg
+            return splats, self.cfg
