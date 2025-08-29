@@ -10,6 +10,7 @@ import cv2
 import numpy as np
 import scipy
 import torch
+from gsplat import export_splats
 
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
@@ -187,3 +188,28 @@ def generate_interpolated_video(
         writer.write(canvas_bgr)
     writer.release()
     logger.info(f"Interpolated video saved to {video_fpath}")
+
+
+# See https://github.com/nerfstudio-project/gsplat/blob/main/gsplat/exporter.py
+def save_splats(save_path, splats):
+    """
+    Export a Gaussian Splats model to bytes.
+
+    Args:
+        save_path: Output folder path.
+        splats: 3D Gaussian splats defining the scene
+    """
+    opacities = splats["opacities"].squeeze()
+
+    export_splats(
+        means=splats["means"],
+        scales=splats["scales"],
+        quats=splats["quats"],
+        opacities=opacities,
+        sh0=splats["sh0"],
+        shN=splats["shN"],
+        format="ply",
+        save_to=f"{save_path}/gaussian_splats.ply",
+    )
+
+    logger.info(f"Successfully saved Gaussian splats .ply file to {save_path}/gaussian_splats.ply")

@@ -294,7 +294,6 @@ class SceneOptimizer:
         if self.run_gaussian_splatting_optimizer and self.gaussian_splatting_optimizer is not None:
             # this is an intentional exception from the norm to support mac implementation
             import gtsfm.splat.rendering as gtsfm_rendering
-            import gtsfm.utils.splat as splat_utils
 
             img_dict_graph = dask.delayed(get_image_dictionary)(images)
             (splats_graph, cfg_graph) = self.gaussian_splatting_optimizer.create_computation_graph(
@@ -304,7 +303,7 @@ class SceneOptimizer:
             annotation = dask.annotate(workers=self._output_worker) if self._output_worker else dask.annotate()
             with annotation:
                 delayed_results.append(
-                    dask.delayed(splat_utils.save_splats)(save_path=str(self._gs_save_path), splats=splats_graph)
+                    dask.delayed(gtsfm_rendering.save_splats)(save_path=str(self._gs_save_path), splats=splats_graph)
                 )
                 delayed_results.append(
                     dask.delayed(gtsfm_rendering.generate_interpolated_video)(

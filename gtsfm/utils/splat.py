@@ -10,37 +10,11 @@ from typing import Literal, Tuple
 import cv2
 import numpy as np
 import torch
-from gsplat import export_splats
 from sklearn.neighbors import NearestNeighbors
 
 from gtsfm.utils import logger as logger_utils
 
 logger = logger_utils.get_logger()
-
-
-# See https://github.com/nerfstudio-project/gsplat/blob/main/gsplat/exporter.py
-def save_splats(save_path, splats):
-    """
-    Export a Gaussian Splats model to bytes.
-
-    Args:
-        save_path: Output folder path.
-        splats: 3D Gaussian splats defining the scene
-    """
-    opacities = splats["opacities"].squeeze()
-
-    export_splats(
-        means=splats["means"],
-        scales=splats["scales"],
-        quats=splats["quats"],
-        opacities=opacities,
-        sh0=splats["sh0"],
-        shN=splats["shN"],
-        format="ply",
-        save_to=f"{save_path}/gaussian_splats.ply",
-    )
-
-    logger.info(f"Successfully saved Gaussian splats .ply file to {save_path}/gaussian_splats.ply")
 
 
 # See https://github.com/nerfstudio-project/nerfstudio/blob/main/nerfstudio/cameras/camera_utils.py
