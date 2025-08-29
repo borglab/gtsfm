@@ -22,7 +22,14 @@ from torch import Tensor
 from torchmetrics.image import PeakSignalNoiseRatio, StructuralSimilarityIndexMeasure
 from torchmetrics.image.lpip import LearnedPerceptualImagePatchSimilarity
 
-from gtsfm.utils.splat import get_viewmat, k_nearest_sklearn, num_sh_bases, random_quat_tensor, set_random_seed
+from gtsfm.utils.splat import (
+    get_viewmat,
+    k_nearest_sklearn,
+    num_sh_bases,
+    random_quat_tensor,
+    rescale_output_resolution,
+    set_random_seed,
+)
 
 
 @dataclass
@@ -159,23 +166,6 @@ def create_splats_with_optimizers(
         for name, _, lr in params
     }
     return splats, optimizers
-
-
-def rescale_output_resolution(Ks, scaling_factor):
-    """Rescale the output resolution of the cameras.
-
-    Args:
-        scaling_factor: Scaling factor to apply to the output resolution.
-        scale_rounding_mode: round down or round up when calculating the scaled image height and width
-    """
-    # print('Before rescaling during training', Ks.shape, Ks)
-    Ks[..., 0, 0] *= scaling_factor
-    Ks[..., 1, 1] *= scaling_factor
-    Ks[..., 0, 2] *= scaling_factor
-    Ks[..., 1, 2] *= scaling_factor
-    # print('Scaling factor', scaling_factor)
-    # print('After rescaling during training', Ks.shape, Ks)
-    return Ks
 
 
 class Runner:
@@ -509,6 +499,9 @@ if __name__ == "__main__":
     }
     cfg = tyro.extras.overridable_config_cli(configs)
 
+    cli(main, cfg, verbose=True)
+
+    cli(main, cfg, verbose=True)
     cli(main, cfg, verbose=True)
 
     cli(main, cfg, verbose=True)

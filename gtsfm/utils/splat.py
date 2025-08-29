@@ -150,6 +150,7 @@ def _undistort_image(distortion_params: np.ndarray, image: np.ndarray, K: np.nda
     return K, image
 
 
+# See https://github.com/nerfstudio-project/nerfstudio/blob/main/nerfstudio/cameras/cameras.py
 def rescale_output_resolution(Ks, scaling_factor):
     """Rescale the output resolution of the cameras.
 
@@ -185,6 +186,7 @@ def k_nearest_sklearn(x: torch.Tensor, k: int, metric: str = "euclidean"):
     return torch.tensor(distances[:, 1:], dtype=torch.float32), torch.tensor(indices[:, 1:], dtype=torch.int64)
 
 
+# See https://github.com/nerfstudio-project/nerfstudio/blob/main/nerfstudio/utils/math.py
 def random_quat_tensor(N: int):
     """
     Defines a random quaternion tensor.
@@ -210,6 +212,7 @@ def random_quat_tensor(N: int):
     )
 
 
+# See https://github.com/nerfstudio-project/nerfstudio/blob/main/nerfstudio/utils/spherical_harmonics.py
 def num_sh_bases(degree: int) -> int:
     """
     Returns the number of spherical harmonic bases for a given degree.
@@ -221,11 +224,15 @@ def num_sh_bases(degree: int) -> int:
 
 
 def set_random_seed(seed: int):
+    """
+    Setting random seed for making the program deterministic
+    """
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
 
 
+# See https://github.com/nerfstudio-project/nerfstudio/blob/main/nerfstudio/models/splatfacto.py
 @torch.compile()
 def get_viewmat(camera_to_world: torch.Tensor) -> torch.Tensor:
     """
