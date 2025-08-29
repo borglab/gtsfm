@@ -18,7 +18,15 @@ from gtsfm.utils import logger as logger_utils
 logger = logger_utils.get_logger()
 
 
+# See https://github.com/nerfstudio-project/gsplat/blob/main/gsplat/exporter.py
 def save_splats(save_path, splats):
+    """
+    Export a Gaussian Splats model to bytes.
+
+    Args:
+        save_path: Output folder path.
+        splats: 3D Gaussian splats defining the scene
+    """
     opacities = splats["opacities"].squeeze()
 
     export_splats(
@@ -39,6 +47,13 @@ def save_splats(save_path, splats):
 def get_rotation_matrix_from_two_vectors(vec1: torch.Tensor, vec2: torch.Tensor) -> torch.Tensor:
     """
     Get the rotation matrix that rotates vec1 to vec2.
+
+    Args:
+        vec1: source vector
+        vec2: target vector
+
+    Returns
+        The rotation matrix that rotates vec1 to vec2.
     """
     a = vec1 / torch.linalg.norm(vec1)
     b = vec2 / torch.linalg.norm(vec2)
@@ -75,6 +90,10 @@ def auto_orient_and_center_poses(
         poses: The poses to orient.
         method: The method to use for orientation.
         center_method: The method to use to center the poses.
+
+    Returns:
+        poses: oriented and centered poses
+        transform: the transformation matrix to orient and center (will be used for the SfM points)
     """
     origins = poses[..., :3, 3]
     mean_origin = torch.mean(origins, dim=0)
@@ -105,6 +124,18 @@ def auto_orient_and_center_poses(
 
 # See https://github.com/nerfstudio-project/nerfstudio/blob/main/nerfstudio/data/utils/dataloaders.py
 def _undistort_image(distortion_params: np.ndarray, image: np.ndarray, K: np.ndarray):
+    """
+    Undistorts an image
+
+    Args:
+        distortion_params: the undistortion parameters
+        image: image to be undistorted
+        K: camera intrinsics matrix
+
+    Returns:
+        K: updated camera intrinsics matrix
+        image: undistorted image
+    """
     assert (
         distortion_params[3] == 0
     ), "We don't support the 4th Brown parameter for image undistortion, Only k1, k2, k3, p1, p2 can be non-zero."
@@ -155,8 +186,11 @@ def rescale_output_resolution(Ks, scaling_factor):
     """Rescale the output resolution of the cameras.
 
     Args:
-        scaling_factor: Scaling factor to apply to the output resolution.
-        scale_rounding_mode: round down or round up when calculating the scaled image height and width
+        Ks: camera intrinsics matrix
+        scaling_factor: Scaling factor.
+
+    Returns:
+        Rescaled camera intrinsics matrix
     """
     Ks[..., 0, 0] *= scaling_factor
     Ks[..., 1, 1] *= scaling_factor

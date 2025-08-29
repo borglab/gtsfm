@@ -26,7 +26,16 @@ def normalize(x: np.ndarray) -> np.ndarray:
 
 
 def viewmatrix(lookdir: np.ndarray, up: np.ndarray, position: np.ndarray) -> np.ndarray:
-    """Construct lookat view matrix."""
+    """Construct lookat view matrix.
+
+    Args:
+        lookdir: the direction the camera is looking (forward vector).
+        up: the up vector for the camera.
+        position: the position of the camera in world coordinates.
+
+    Returns:
+        The lookat view matrix
+    """
     vec2 = normalize(lookdir)
     vec0 = normalize(np.cross(up, vec2))
     vec1 = normalize(np.cross(vec2, vec0))
@@ -37,7 +46,15 @@ def viewmatrix(lookdir: np.ndarray, up: np.ndarray, position: np.ndarray) -> np.
 # See https://github.com/nerfstudio-project/gsplat/blob/main/examples/datasets/traj.py
 # Helper function for generate_interpolated_path function
 def poses_to_points(poses, dist):
-    """Converts from pose matrices to (position, lookat, up) format."""
+    """Converts from pose matrices to (position, lookat, up) format.
+
+    Args:
+        poses: (n, 3, 4) array of input pose keyframes.
+        dist: Scalar distance to place lookat and up points from the camera origin
+
+    Returns:
+        Array of points with [position, lookat, up] for each pose.
+    """
     pos = poses[:, :3, -1]
     lookat = poses[:, :3, -1] - dist * poses[:, :3, 2]
     up = poses[:, :3, -1] + dist * poses[:, :3, 1]
@@ -46,13 +63,29 @@ def poses_to_points(poses, dist):
 
 # Helper function for generate_interpolated_path function
 def points_to_poses(points):
-    """Converts from (position, lookat, up) format to pose matrices."""
+    """Converts from (position, lookat, up) format to pose matrices.
+
+    Args:
+        points: array of points with [position, lookat, up] for each pose.
+    Returns:
+        Array of new camera poses.
+    """
     return np.array([viewmatrix(p - l, u - p, p) for p, l, u in points])
 
 
 # Helper function for generate_interpolated_path function
 def b_spline_interpolate(points, n, k, s):
-    """Runs multidimensional B-spline interpolation on the input points."""
+    """Runs multidimensional B-spline interpolation on the input points.
+
+    Args:
+        points: array of points with [position, lookat, up] for each pose.
+        n: n_interp * (n - 1) total poses.
+        k: polynomial degree of B-spline.
+        s: parameter for spline smoothing, 0 forces exact interpolation.
+
+    Returns:
+        Interpolated points along the spline in (position, lookat, up) format.
+    """
     sh = points.shape
     pts = np.reshape(points, (sh[0], -1))
     k = min(k, sh[0] - 1)
@@ -76,14 +109,14 @@ def generate_interpolated_path(
     Spline is calculated with poses in format (position, lookat-point, up-point).
 
     Args:
-      poses: (n, 3, 4) array of input pose keyframes.
-      n_interp: returned path will have n_interp * (n - 1) total poses.
-      spline_degree: polynomial degree of B-spline.
-      smoothness: parameter for spline smoothing, 0 forces exact interpolation.
-      rot_weight: relative weighting of rotation/translation in spline solve.
+        poses: (n, 3, 4) array of input pose keyframes.
+        n_interp: returned path will have n_interp * (n - 1) total poses.
+        spline_degree: polynomial degree of B-spline.
+        smoothness: parameter for spline smoothing, 0 forces exact interpolation.
+        rot_weight: relative weighting of rotation/translation in spline solve.
 
     Returns:
-      Array of new camera poses with shape (n_interp * (n - 1), 3, 4).
+        Array of new camera poses with shape (n_interp * (n - 1), 3, 4).
     """
     points = poses_to_points(poses, dist=rot_weight)
     new_points = b_spline_interpolate(points, n_interp * (points.shape[0] - 1), k=spline_degree, s=smoothness)

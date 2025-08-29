@@ -270,6 +270,24 @@ else:
             render_mode: str,
             **kwargs,
         ) -> Tuple[Tensor, Tensor, Dict]:
+            """
+            Wrapper around the gsplat rasterization function
+
+            Args:
+                splats: 3D Gaussian splats
+                camtoworlds: camera-to-world matrices
+                Ks: camera intrinsic matrices
+                width: width of the rendered image
+                height: height of the rendered image
+                render_mode: rendering mode, 'RGB' or 'RGB+ED' for color and depth
+                **kwargs: Additional arguments to pass to the rasterizer
+
+            Returns:
+                A tuple containing:
+                    renders: rendered output tensor
+                    alphas: rendered alpha channel
+                    info: dictionary with internal data from the rasterizer
+            """
 
             means = splats["means"]
             quats = splats["quats"]
