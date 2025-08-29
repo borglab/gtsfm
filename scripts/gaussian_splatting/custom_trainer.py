@@ -500,8 +500,3 @@ if __name__ == "__main__":
     cfg = tyro.extras.overridable_config_cli(configs)
 
     cli(main, cfg, verbose=True)
-
-    cli(main, cfg, verbose=True)
-    cli(main, cfg, verbose=True)
-
-    cli(main, cfg, verbose=True)

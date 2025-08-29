@@ -255,4 +255,3 @@ def get_viewmat(camera_to_world: torch.Tensor) -> torch.Tensor:
     viewmat[:, :3, 3:4] = T_inv
     viewmat[:, 3, 3] = 1.0
     return viewmat
-    return viewmat
