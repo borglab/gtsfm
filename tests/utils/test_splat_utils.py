@@ -3,8 +3,6 @@
 Authors: Harneet Singh Khanuja
 """
 
-import os
-import tempfile
 import unittest
 
 import torch
