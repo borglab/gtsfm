@@ -97,7 +97,7 @@ def gtsfm_calibration_to_colmap_camera(
     """
     if isinstance(calibration, gtsam.Cal3Bundler):
         return ColmapCamera(
-            model="SIMPLE_RADIAL",
+            model="RADIAL",
             id=camera_id,
             width=width,
             height=height,
