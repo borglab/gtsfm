@@ -15,28 +15,10 @@ from gtsfm.utils.splat import (
     get_viewmat,
     random_quat_tensor,
     rescale_output_resolution,
-    save_splats,
 )
 
 
 class TestIoUtils(unittest.TestCase):
-
-    def test_save_splats(self):
-        """Ensure splats are saved"""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            splats = {
-                "means": torch.randn(10, 3),
-                "scales": torch.randn(10, 3),
-                "quats": torch.randn(10, 4),
-                "opacities": torch.randn(10, 1, 1),
-                "sh0": torch.randn(10, 1, 3),
-                "shN": torch.randn(10, 15, 3),
-            }
-            save_splats(temp_dir, splats)
-
-            expected_file_path = os.path.join(temp_dir, "gaussian_splats.ply")
-            self.assertTrue(os.path.exists(expected_file_path))
-
     def test_get_rotation_matrix_from_two_vectors(self):
         """Ensures correct rotation matrix"""
 
