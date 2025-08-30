@@ -38,5 +38,12 @@
         },
         "**/CVS": true,
         "**/dask-worker-space": true
-    }
+    },
+    "cSpell.words": [
+        "Gtsfm",
+        "keypoints",
+        "Olsson",
+        "partitioner",
+        "VIEWGRAPH"
+    ]
 }

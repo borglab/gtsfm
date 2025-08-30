@@ -53,8 +53,7 @@ if [ "$LOADER_NAME" == "olsson-loader" ]; then
     --correspondence_generator_config_name ${CONFIG_NAME} \
     --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
     --max_resolution ${MAX_RESOLUTION} \
-    ${SHARE_INTRINSICS_ARG} \
-    --mvs_off
+    ${SHARE_INTRINSICS_ARG}
 
 elif [ "$LOADER_NAME" == "colmap-loader" ]; then
   python gtsfm/runner/run_scene_optimizer_colmaploader.py \
@@ -64,8 +63,7 @@ elif [ "$LOADER_NAME" == "colmap-loader" ]; then
     --correspondence_generator_config_name ${CONFIG_NAME} \
     --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
     --max_resolution ${MAX_RESOLUTION} \
-    ${SHARE_INTRINSICS_ARG} \
-    --mvs_off
+    ${SHARE_INTRINSICS_ARG}
 
 elif [ "$LOADER_NAME" == "astrovision" ]; then
   python gtsfm/runner/run_scene_optimizer_astrovision.py \
@@ -74,6 +72,5 @@ elif [ "$LOADER_NAME" == "astrovision" ]; then
     --correspondence_generator_config_name ${CONFIG_NAME} \
     --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
     --max_resolution ${MAX_RESOLUTION} \
-    ${SHARE_INTRINSICS_ARG} \
-    --mvs_off
+    ${SHARE_INTRINSICS_ARG}
 fi
