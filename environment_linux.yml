@@ -33,7 +33,7 @@ dependencies:
   - pycolmap==3.11.1
   # io
   - h5py
-  - plotly
+  - plotly>=5.0
   - tabulate
   - simplejson
   - pyparsing>=3.0.9
