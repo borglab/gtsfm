@@ -27,6 +27,7 @@ import thirdparty.colmap.scripts.python.read_write_model as colmap_io
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.common.sfm_track import SfmTrack2d
+from gtsfm.utils.pycolmap_utils import colmap_camera_to_gtsam_calibration, gtsfm_calibration_to_colmap_camera
 from thirdparty.colmap.scripts.python.read_write_model import Camera as ColmapCamera
 from thirdparty.colmap.scripts.python.read_write_model import Image as ColmapImage
 from thirdparty.colmap.scripts.python.read_write_model import Point3D as ColmapPoint3D
@@ -206,27 +207,7 @@ def colmap2gtsfm(
     for idx, img in enumerate(images.values()):
         wTi_gtsfm.append(Pose3(Rot3(img.qvec2rotmat()), img.tvec).inverse())
         img_fnames.append(img.name)
-        camera_model_name = cameras[img.camera_id].model
-
-        # Default to zero-valued radial distortion coefficients (quadratic and quartic).
-        k1, k2 = 0.0, 0.0
-        if camera_model_name == "SIMPLE_RADIAL":
-            # See https://github.com/colmap/colmap/blob/1f6812e333a1e4b2ef56aa74e2c3873e4e3a40cd/src/colmap/sensor/models.h#L212  # noqa: E501
-            f, cx, cy, k = cameras[img.camera_id].params[:4]
-            fx = f
-        elif camera_model_name == "FULL_OPENCV":
-            # See https://github.com/colmap/colmap/blob/1f6812e333a1e4b2ef56aa74e2c3873e4e3a40cd/src/colmap/sensor/models.h#L273  # noqa: E501
-            fx, fy, cx, cy = cameras[img.camera_id].params[:4]
-        elif camera_model_name == "PINHOLE":
-            # See https://github.com/colmap/colmap/blob/1f6812e333a1e4b2ef56aa74e2c3873e4e3a40cd/src/colmap/sensor/models.h#L196  # noqa: E501
-            fx, fy, cx, cy = cameras[img.camera_id].params[:4]
-        elif camera_model_name == "RADIAL":
-            f, cx, cy, k1, k2 = cameras[img.camera_id].params[:5]
-            fx = f
-        else:
-            raise ValueError(f"Unsupported COLMAP camera type: {camera_model_name}")
-
-        intrinsics_gtsfm.append(Cal3Bundler(fx, k1, k2, cx, cy))
+        intrinsics_gtsfm.append(colmap_camera_to_gtsam_calibration(cameras[img.camera_id]))
         image_id_to_idx[img.id] = idx
         img_h, img_w = cameras[img.camera_id].height, cameras[img.camera_id].width
         img_dims.append((img_h, img_w))
@@ -332,9 +313,6 @@ def write_cameras(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> 
     os.makedirs(save_dir, exist_ok=True)
 
     # TODO: handle shared intrinsics
-    # Assumes all camera models have five intrinsic parameters
-    camera_model = "RADIAL"
-
     file_path = os.path.join(save_dir, "cameras.txt")
     with open(file_path, "w") as f:
         f.write("# Camera list with one line of data per camera:\n")
@@ -344,19 +322,11 @@ def write_cameras(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> 
         f.write(f"# Number of cameras: {len(gtsfm_data.get_valid_camera_indices())}\n")
 
         for i in gtsfm_data.get_valid_camera_indices():
-            camera = gtsfm_data.get_camera(i)
-            calibration = camera.calibration()
-
-            fx = calibration.fx()
-            u0 = calibration.px()
-            v0 = calibration.py()
-            k1 = calibration.k1()
-            k2 = calibration.k2()
-
-            image_height = images[i].height
-            image_width = images[i].width
-
-            f.write(f"{i} {camera_model} {image_width} {image_height} {fx} {u0} {v0} {k1} {k2}\n")
+            gtsfm_cal = gtsfm_data.get_camera(i).calibration()
+            colmap_cam = gtsfm_calibration_to_colmap_camera(i, gtsfm_cal, images[i].height, images[i].width)
+            to_write = [colmap_cam.id, colmap_cam.model, colmap_cam.width, colmap_cam.height, *colmap_cam.params]
+            line = " ".join([str(elem) for elem in to_write])
+            f.write(line + "\n")
 
 
 def read_images_txt(fpath: str) -> Tuple[List[Pose3], List[str]]:
