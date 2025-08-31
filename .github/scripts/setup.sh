@@ -15,7 +15,7 @@ conda info --envs
 cd $GITHUB_WORKSPACE
 pip install -e .
 git submodule init
-git submodule update
+git submodule update --recursive
 
 ##########################################################
 # Download pre-trained model weights
