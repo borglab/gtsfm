@@ -62,3 +62,4 @@ dependencies:
       - tyro==0.9.24
       - einops
       - huggingface-hub
+      - roma # Rotation Manipiulation Library

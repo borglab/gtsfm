@@ -52,3 +52,4 @@ dependencies:
       - pydot
       - einops
       - huggingface-hub
+      - roma # Rotation Manipiulation Library
