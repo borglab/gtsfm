@@ -61,3 +61,4 @@ dependencies:
       - torchmetrics==1.7.3
       - tyro==0.9.24
       - einops
+      - huggingface-hub
