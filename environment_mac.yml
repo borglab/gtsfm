@@ -50,3 +50,4 @@ dependencies:
       - trimesh[easy]
       - gtsam==4.3a0
       - pydot
+      - einops
