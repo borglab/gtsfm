@@ -4,6 +4,7 @@ with radius 40m.
 
 Authors: Ayush Baid
 """
+
 import copy
 import pickle
 import unittest
@@ -11,7 +12,7 @@ from pathlib import Path
 from typing import List
 
 import numpy as np
-from gtsam import Cal3_S2, Cal3Bundler, PinholeCameraCal3Bundler, Point2, Point3, Pose3, Rot3
+from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Point2, Point3, Pose3, Rot3
 from gtsam.examples import SFMdata
 
 from gtsfm.common.sfm_track import SfmMeasurement, SfmTrack2d
@@ -30,12 +31,7 @@ DOOR_DATASET_PATH = DATA_ROOT_PATH / "set1_lund_door"
 # focal length set to 50 px, with `px`, `py` set to zero
 CALIBRATION = Cal3Bundler(50, 0, 0, 0, 0)
 # Generate 8 camera poses arranged in a circle of radius 40 m
-CAMERAS = {
-    i: PinholeCameraCal3Bundler(pose, CALIBRATION)
-    for i, pose in enumerate(
-        SFMdata.createPoses(Cal3_S2(CALIBRATION.fx(), CALIBRATION.fx(), 0, CALIBRATION.px(), CALIBRATION.py()))
-    )
-}
+CAMERAS = {i: PinholeCameraCal3Bundler(pose, CALIBRATION) for i, pose in enumerate(SFMdata.posesOnCircle(R=40))}
 LANDMARK_POINT = Point3(0.0, 0.0, 0.0)
 MEASUREMENTS = [SfmMeasurement(i, cam.project(LANDMARK_POINT)) for i, cam in CAMERAS.items()]
 

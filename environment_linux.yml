@@ -31,7 +31,7 @@ dependencies:
   - hydra-core
   # # 3rd party algorithms for different modules
   - kornia>=0.7.3
-  - pycolmap
+  - pycolmap==3.11.1
   # io
   - h5py
   - plotly>=5.0
@@ -42,12 +42,15 @@ dependencies:
   # testing
   - parameterized
   - pip:
-      - torch
-      - torchvision>=0.20.0
+      - torch==2.5.1
+      - torchvision==0.20.1
       - open3d
       - opencv-python>=4.5.4.60
       - pydegensac
       - colour
       - trimesh[easy]
-      - gtsam>=4.2
+      - gtsam==4.3a0
       - pydot
+      - gsplat==1.5.3
+      - torchmetrics==1.7.3
+      - tyro==0.9.24

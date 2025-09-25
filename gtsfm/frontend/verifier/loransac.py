@@ -86,7 +86,11 @@ class LoRansac(VerifierBase):
         camera_i2: pycolmap.Camera = pycolmap_utils.get_pycolmap_camera(camera_intrinsics_i2)
 
         result_dict = pycolmap.essential_matrix_estimation(
-            uv_i1, uv_i2, camera_i1, camera_i2, self._ransac_options,
+            uv_i1,
+            uv_i2,
+            camera_i1,
+            camera_i2,
+            self._ransac_options,
         )
         return result_dict
 
@@ -134,7 +138,15 @@ class LoRansac(VerifierBase):
         num_inliers = result_dict["num_inliers"]
         inlier_ratio_est_model = num_inliers / match_indices.shape[0]
 
-        inlier_mask = np.array(result_dict["inliers"])
+        # Backward compatible: support both old 'inliers' and new 'inlier_mask'
+        if "inlier_mask" in result_dict:
+            # New pycolmap 3.11+
+            inlier_mask = np.array(result_dict["inlier_mask"])
+        elif "inliers" in result_dict:
+            # Old pycolmap <=3.10
+            inlier_mask = np.array(result_dict["inliers"])
+        else:
+            raise KeyError("LoRANSAC result_dict missing both 'inliers' and 'inlier_mask'.")
         v_corr_idxs = match_indices[inlier_mask]
         if self._use_intrinsics_in_verification:
             # case where E-matrix was estimated
