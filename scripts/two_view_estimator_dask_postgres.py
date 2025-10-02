@@ -152,7 +152,7 @@ def main():
     cwd = Path.cwd()
     folder_path = cwd / "tests" / "data" / "imb_reichstag"
 
-    indices = [0, 1, 2, 3]  
+    indices = [0, 1, 2, 3, 4, 5]  
     num_images = len(indices)
 
     # Load images and camera intrinsics
@@ -235,6 +235,19 @@ def main():
     
     # Store database parameters in client metadata for workers to access
     client.set_metadata('db_params', db_params)
+    
+    # Wait for all workers to connect
+    expected_workers = len(config['workers'])
+    print(f"Waiting for {expected_workers} workers to connect...")
+    
+    timeout = 60  # seconds
+    start_wait = time.time()
+    while len(client.scheduler_info()['workers']) < expected_workers:
+        if time.time() - start_wait > timeout:
+            print(f"Timeout: Only {len(client.scheduler_info()['workers'])} workers connected")
+            break
+        print(f"Currently {len(client.scheduler_info()['workers'])}/{expected_workers} workers connected. Waiting...")
+        time.sleep(3)  # 增加等待时间到3秒
     
     print(f"Cluster workers: {len(client.scheduler_info()['workers'])}")
     for worker_id, worker_info in client.scheduler_info()['workers'].items():
