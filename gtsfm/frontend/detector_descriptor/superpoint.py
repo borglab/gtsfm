@@ -43,6 +43,13 @@ class SuperPointDetectorDescriptor(DetectorDescriptorBase):
         super().__init__(max_keypoints=max_keypoints)
         self._use_cuda = use_cuda
         self._config = {"weights_path": weights_path}
+
+        if not Path(weights_path).exists():
+            raise FileNotFoundError(
+                f"SuperPoint weights not found at {weights_path}. "
+                f"Please run 'bash download_model_weights.sh' from the repo root."
+            )
+
         self._model = SuperPoint(self._config).eval()
 
     def detect_and_describe(self, image: Image) -> Tuple[Keypoints, np.ndarray]:

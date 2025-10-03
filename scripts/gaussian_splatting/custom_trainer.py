@@ -470,6 +470,9 @@ class Runner:
 def main(local_rank: int, world_rank, world_size: int, cfg: Config):
     """Main training function."""
     if cfg.ckpt is not None:
+        if not os.path.exists(cfg.ckpt):
+            print(f"Checkpoint file not found at {cfg.ckpt}")
+            exit(1)
         print(f"Loading checkpoint from {cfg.ckpt}")
         ckpt_data = torch.load(cfg.ckpt, map_location="cpu")
 
