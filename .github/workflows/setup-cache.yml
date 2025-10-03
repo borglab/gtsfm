@@ -1,0 +1,19 @@
+name: Setup micromamba cache
+
+on: [pull_request, workflow_dispatch]
+
+jobs:
+  setup-cache:
+    name: Setup micromamba cache
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -l {0}
+
+    steps:
+      - uses: actions/checkout@v4.1.5
+      - uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-file: environment_linux_cpuonly.yml
+          # persist only for runs on this commit.
+          cache-environment-key: environment-${{ github.sha }}
