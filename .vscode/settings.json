@@ -49,6 +49,7 @@
         "densification",
         "epipolar",
         "facecolor",
+        "finfo",
         "fnames",
         "ggplot",
         "Gtsfm",
