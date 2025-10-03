@@ -12,8 +12,8 @@ from typing import Dict, List, Optional, Sequence, Set, Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
-import seaborn as sns
-from gtsam import Cal3Bundler, EssentialMatrix, PinholeCameraCal3Bundler, Point3, Pose3, Rot3, Unit3
+import seaborn as sns  # type: ignore
+from gtsam import Cal3Bundler, EssentialMatrix, PinholeCameraCal3Bundler, Pose3, Rot3, Unit3
 from trimesh import Trimesh
 
 import gtsfm.utils.geometry_comparisons as comp_utils
@@ -153,15 +153,15 @@ def mesh_inlier_correspondences(
 
     Returns:
         is_inlier: (N, ) mask of inlier correspondences.
-        reproj_err: Maximum error between forward-projected ground truth landmark and corresponding keypoints
+        reprojection_error: Maximum error between forward-projected ground truth landmark and corresponding keypoints
 
     Raises:
         ValueError: If the number of keypoints do not match.
     """
     if len(keypoints_i1) != len(keypoints_i2):
         raise ValueError("Keypoints must have same counts")
-    n_corrs = len(keypoints_i1)
-    is_inlier = np.zeros(n_corrs, dtype=bool)
+    n_correspondences = len(keypoints_i1)
+    is_inlier = np.zeros(n_correspondences, dtype=bool)
 
     # Perform ray tracing to compute keypoint intersections.
     keypoint_ind_i1, intersections_i1 = compute_keypoint_intersections(keypoints_i1, gt_camera_i1, gt_scene_mesh)
@@ -169,22 +169,22 @@ def mesh_inlier_correspondences(
     keypoint_ind, i1_idx, i2_idx = np.intersect1d(keypoint_ind_i1, keypoint_ind_i2, return_indices=True)
 
     # Forward project intersections into other image to compute error.
-    reproj_err = np.array([np.nan] * len(keypoints_i1))
+    reprojection_error = np.array([np.nan] * len(keypoints_i1))
     for i in range(len(keypoint_ind)):
         uv_i1 = keypoints_i1.coordinates[keypoint_ind[i]]
         uv_i2 = keypoints_i2.coordinates[keypoint_ind[i]]
-        uv_i2i1, success_flag_i1 = gt_camera_i1.projectSafe(intersections_i2[i2_idx[i]])
-        uv_i1i2, success_flag_i2 = gt_camera_i2.projectSafe(intersections_i1[i1_idx[i]])
+        uv_i2i1, success_flag_i1 = gt_camera_i1.projectSafe(intersections_i2[i2_idx[i]])  # type: ignore
+        uv_i1i2, success_flag_i2 = gt_camera_i2.projectSafe(intersections_i1[i1_idx[i]])  # type: ignore
         if success_flag_i1 and success_flag_i2:
             err_i2i1 = np.linalg.norm(uv_i1 - uv_i2i1)
             err_i1i2 = np.linalg.norm(uv_i2 - uv_i1i2)
-            is_inlier[keypoint_ind[i]] = max(err_i2i1, err_i1i2) < dist_threshold
-            reproj_err[keypoint_ind[i]] = max(err_i2i1, err_i1i2)
+            is_inlier[keypoint_ind[i]] = max(float(err_i2i1), float(err_i1i2)) < dist_threshold
+            reprojection_error[keypoint_ind[i]] = max(float(err_i2i1), float(err_i1i2))
         else:
             is_inlier[keypoint_ind[i]] = False
-            reproj_err[keypoint_ind[i]] = np.nan
+            reprojection_error[keypoint_ind[i]] = np.nan
 
-    return is_inlier, reproj_err
+    return is_inlier, reprojection_error
 
 
 def compute_keypoint_intersections(
@@ -201,18 +201,20 @@ def compute_keypoint_intersections(
         keypoint_ind: (M,) array of keypoint indices whose corresponding ray intersected the ground truth mesh.
         intersections_locations: (M, 3), array of ray intersection locations.
     """
-    num_kpts = len(keypoints)
-    src = np.repeat(gt_camera.pose().translation().reshape((-1, 3)), num_kpts, axis=0)  # At_i1A
-    drc = np.asarray([gt_camera.backproject(keypoints.coordinates[i], depth=1.0) - src[i, :] for i in range(num_kpts)])
+    num_keypoints = len(keypoints)
+    src = np.repeat(gt_camera.pose().translation().reshape((-1, 3)), num_keypoints, axis=0)  # At_i1A
+    drc = np.asarray(
+        [gt_camera.backproject(keypoints.coordinates[i], depth=1.0) - src[i, :] for i in range(num_keypoints)]
+    )
     start_time = timeit.default_timer()
     intersections, keypoint_ind, _ = gt_scene_mesh.ray.intersects_location(src, drc, multiple_hits=False)
     if verbose:
-        logger.debug("Case %d rays in %.6f seconds.", num_kpts, timeit.default_timer() - start_time)
+        logger.debug("Case %d rays in %.6f seconds.", num_keypoints, timeit.default_timer() - start_time)
 
     return keypoint_ind, intersections
 
 
-def compute_rotation_angle_metric(wRi_list: List[Optional[Rot3]], gt_wRi_list: List[Optional[Pose3]]) -> GtsfmMetric:
+def compute_rotation_angle_metric(wRi_list: List[Optional[Rot3]], gt_wRi_list: List[Optional[Rot3]]) -> GtsfmMetric:
     """Computes statistics for the angle between estimated and GT rotations.
 
     Assumes that the estimated and GT rotations have been aligned and do not
@@ -235,7 +237,7 @@ def compute_rotation_angle_metric(wRi_list: List[Optional[Rot3]], gt_wRi_list: L
 
 
 def compute_translation_distance_metric(
-    wti_list: List[Optional[Point3]], gt_wti_list: List[Optional[Point3]]
+    wti_list: List[Optional[np.ndarray]], gt_wti_list: List[Optional[np.ndarray]]
 ) -> GtsfmMetric:
     """Computes statistics for the distance between estimated and GT translations.
 
@@ -284,15 +286,15 @@ def compute_relative_rotation_angle_metric(
         if i2Ri1 is None or wTi_list[i1] is None or wTi_list[i2] is None:
             angles.append(None)
             continue
-        wRi1_gt = wTi_list[i1].rotation()
-        wRi2_gt = wTi_list[i2].rotation()
-        i2Ri1_gt = wRi2_gt.inverse().compose(wRi1_gt)
+        wRi1_gt = wTi_list[i1].rotation()  # type: ignore
+        wRi2_gt = wTi_list[i2].rotation()  # type: ignore
+        i2Ri1_gt = wRi2_gt.between(wRi1_gt)
         angles.append(comp_utils.compute_relative_rotation_angle(i2Ri1, i2Ri1_gt))
     return GtsfmMetric("relative_rotation_angle_error_deg", np.array(angles, dtype=np.float32))
 
 
 def compute_translation_angle_metric(
-    gt_wTi_list: List[Optional[Pose3]], wTi_list: List[Optional[Pose3]]
+    gt_wTi_list: Sequence[Optional[Pose3]], wTi_list: Sequence[Optional[Pose3]]
 ) -> GtsfmMetric:
     """Compute global translation angular errors from aligned pose graphs.
 
@@ -312,7 +314,7 @@ def compute_translation_angle_metric(
 
     angles = []
     for wTi, wTi_gt in zip(wTi_list, gt_wTi_list):
-        if wTi is not None:
+        if wTi and wTi_gt:
             wUi_est = Unit3(wTi.translation())
             wUi_gt = Unit3(wTi_gt.translation())
             angle = comp_utils.compute_relative_unit_translation_angle(wUi_est, wUi_gt)
@@ -325,7 +327,7 @@ def compute_translation_angle_metric(
 def compute_pose_auc_metric(
     rotation_angular_errors: Union[Sequence[float], np.ndarray],
     translation_angular_errors: Union[Sequence[float], np.ndarray],
-    thresholds_deg: Tuple[float] = (1, 2.5, 5, 10, 20),
+    thresholds_deg: Sequence[float] = (1.0, 2.5, 5.0, 10.0, 20.0),
     save_dir: Optional[str] = None,
 ) -> List[GtsfmMetric]:
     """Computes "Pose AUC" metric from rotation & translation angular errors.
@@ -347,16 +349,16 @@ def compute_pose_auc_metric(
         raise ValueError("# of rotation and translation angular errors must match.")
 
     pose_errors = np.maximum(rotation_angular_errors, translation_angular_errors)
-    aucs = pose_auc(pose_errors, thresholds_deg, save_dir=save_dir)
+    AUCs = pose_auc(pose_errors, thresholds_deg, save_dir=save_dir)
     metrics = []
-    for threshold, auc in zip(thresholds_deg, aucs):
+    for threshold, auc in zip(thresholds_deg, AUCs):
         metrics.append(GtsfmMetric(f"pose_auc_@{threshold}_deg", auc))
     return metrics
 
 
 def compute_ba_pose_metrics(
-    gt_wTi_list: List[Pose3],
-    computed_wTi_list: List[Pose3],
+    gt_wTi_list: List[Optional[Pose3]],
+    computed_wTi_list: List[Optional[Pose3]],
     save_dir: Optional[str] = None,
 ) -> GtsfmMetricsGroup:
     """Compute pose errors w.r.t. GT for the bundle adjustment result.
@@ -409,9 +411,9 @@ def get_all_relative_rotations_translations(
     for i1, i2 in possible_img_pair_idxs:
         # compute the exact relative pose
         if wTi_list[i1] is None or wTi_list[i2] is None:
-            i2Ri1, i2Ui1 = None
+            i2Ri1, i2Ui1 = None, None
         else:
-            i2Ti1 = wTi_list[i2].between(wTi_list[i1])
+            i2Ti1 = wTi_list[i2].between(wTi_list[i1])  # type: ignore
             i2Ui1 = Unit3(i2Ti1.translation())
             i2Ri1 = i2Ti1.rotation()
         i2Ui1_dict[(i1, i2)] = i2Ui1
@@ -445,10 +447,10 @@ def get_precision_recall_from_errors(
 
 def get_rotations_translations_from_poses(
     poses: List[Optional[Pose3]],
-) -> Tuple[List[Optional[Rot3]], List[Optional[Point3]]]:
+) -> Tuple[List[Optional[Rot3]], List[Optional[np.ndarray]]]:
     """Decompose each 6-dof pose to a 3-dof rotation and 3-dof position"""
-    rotations = []
-    translations = []
+    rotations: List[Optional[Rot3]] = []
+    translations: List[Optional[np.ndarray]] = []
     for pose in poses:
         if pose is None:
             rotations.append(None)
@@ -577,7 +579,7 @@ def pose_auc(errors: np.ndarray, thresholds: Sequence[float], save_dir: Optional
     # Prepend `0` value to each array.
     recall = (np.arange(len(errors) + 1)) / len(errors)
     errors = np.array([0.0, *errors.tolist()])
-    aucs = []
+    AUCs = []
     for t in thresholds:
         # Find indices where elements should be inserted to maintain order.
         last_index = np.searchsorted(errors, t)
@@ -586,7 +588,7 @@ def pose_auc(errors: np.ndarray, thresholds: Sequence[float], save_dir: Optional
         if save_dir is not None:
             _ = plt.figure(dpi=200, facecolor="white")
             plt.style.use("ggplot")
-            sns.set_style({"font.family": "Times New Roman"})
+            sns.set_style({"font.family": "DejaVu Serif"})
             plt.scatter(e, r, 20, color="k", marker=".")
             plt.plot(e, r, color="r")
             plt.ylabel("Recall")
@@ -601,9 +603,9 @@ def pose_auc(errors: np.ndarray, thresholds: Sequence[float], save_dir: Optional
 
         # Integrate along the given axis using the composite trapezoidal rule.
         # As AUC = \int y(x) dx.
-        auc_nonunit = np.trapz(y=r, x=e)
+        auc_non_unit: float = np.trapezoid(y=r, x=e)
         # Divide by length of x-axis, as recall & precision usually would be [0,1],
         # but here x-axis (error) extends up to threshold `t`.
-        auc_unit = auc_nonunit / t
-        aucs.append(auc_unit)
-    return aucs
+        auc_unit = auc_non_unit / t
+        AUCs.append(auc_unit)
+    return AUCs
