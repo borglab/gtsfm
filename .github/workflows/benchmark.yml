@@ -7,7 +7,7 @@ jobs:
     name: Benchmark
     runs-on: ubuntu-latest
     concurrency:
-      group: micromamba-cache-${{ github.sha }}
+      group: micromamba-cache-${{ github.event.pull_request.number }}-${{ github.sha }}
       cancel-in-progress: false
     strategy:
       # Prevents other configs from being canceled if one of them fails.
