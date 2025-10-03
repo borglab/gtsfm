@@ -3,8 +3,23 @@ name: CI
 on: [pull_request, workflow_dispatch]
 
 jobs:
+  mamba-setup:
+    name: Populate micromamba cache
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -l {0}
+
+    steps:
+      - uses: actions/checkout@v4.1.5
+      - uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-file: environment_linux_cpuonly.yml
+          cache-environment-key: environment-${{ github.sha }}
+
   test:
     name: Unit tests and python checks
+    needs: mamba-setup
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -38,7 +53,7 @@ jobs:
 
   benchmark:
     name: Benchmark
-    needs: test
+    needs: mamba-setup
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
