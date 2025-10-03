@@ -3,7 +3,7 @@
 import argparse
 import os
 import time
-from abc import abstractmethod, abstractproperty
+from abc import abstractmethod
 from pathlib import Path
 
 import dask
@@ -41,7 +41,8 @@ REACT_METRICS_PATH = DEFAULT_OUTPUT_ROOT / "rtf_vis_tool" / "src" / "result_metr
 
 
 class GtsfmRunnerBase:
-    @abstractproperty
+    @property
+    @abstractmethod
     def tag(self):
         pass
 
@@ -53,7 +54,7 @@ class GtsfmRunnerBase:
 
         self.loader: LoaderBase = self.construct_loader()
         self.scene_optimizer: SceneOptimizer = self.construct_scene_optimizer()
-        self.graph_partitioner: GraphPartitionerBase = self.scene_optimizer.graph_partitioner
+        self.graph_partitioner: GraphPartitionerBase | None = self.scene_optimizer.graph_partitioner
 
     def construct_argparser(self) -> argparse.ArgumentParser:
         parser = argparse.ArgumentParser(description=self.tag)
@@ -178,7 +179,7 @@ class GtsfmRunnerBase:
 
         All configs are relative to the gtsfm module.
         """
-        with hydra.initialize_config_module(config_module="gtsfm.configs"):
+        with hydra.initialize_config_module(config_module="gtsfm.configs", version_base=None):
             overrides = ["+SceneOptimizer.output_root=" + str(self.parsed_args.output_root)]
             if self.parsed_args.share_intrinsics:
                 overrides.append("SceneOptimizer.multiview_optimizer.bundle_adjustment_module.shared_calib=True")
@@ -191,7 +192,7 @@ class GtsfmRunnerBase:
 
         # Override correspondence generator.
         if self.parsed_args.correspondence_generator_config_name is not None:
-            with hydra.initialize_config_module(config_module="gtsfm.configs.correspondence"):
+            with hydra.initialize_config_module(config_module="gtsfm.configs.correspondence", version_base=None):
                 correspondence_cfg = hydra.compose(
                     config_name=self.parsed_args.correspondence_generator_config_name,
                 )
@@ -200,7 +201,7 @@ class GtsfmRunnerBase:
 
         # Override verifier.
         if self.parsed_args.verifier_config_name is not None:
-            with hydra.initialize_config_module(config_module="gtsfm.configs.verifier"):
+            with hydra.initialize_config_module(config_module="gtsfm.configs.verifier", version_base=None):
                 verifier_cfg = hydra.compose(
                     config_name=self.parsed_args.verifier_config_name,
                 )
@@ -209,7 +210,7 @@ class GtsfmRunnerBase:
 
         # Override retriever.
         if self.parsed_args.retriever_config_name is not None:
-            with hydra.initialize_config_module(config_module="gtsfm.configs.retriever"):
+            with hydra.initialize_config_module(config_module="gtsfm.configs.retriever", version_base=None):
                 retriever_cfg = hydra.compose(
                     config_name=self.parsed_args.retriever_config_name,
                 )
@@ -218,7 +219,7 @@ class GtsfmRunnerBase:
 
         # Override gaussian splatting
         if self.parsed_args.gaussian_splatting_config_name is not None:
-            with hydra.initialize_config_module(config_module="gtsfm.configs.gaussian_splatting"):
+            with hydra.initialize_config_module(config_module="gtsfm.configs.gaussian_splatting", version_base=None):
                 gs_cfg = hydra.compose(
                     config_name=self.parsed_args.gaussian_splatting_config_name,
                 )

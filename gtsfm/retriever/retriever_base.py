@@ -15,12 +15,12 @@ from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 
 class ImageMatchingRegime(str, Enum):
-    SEQUENTIAL: str = "sequential"
-    RETRIEVAL: str = "retrieval"
-    EXHAUSTIVE: str = "exhaustive"
-    SEQUENTIAL_WITH_RETRIEVAL: str = "sequential_with_retrieval"
-    RIG_HILTI: str = "rig_hilti"
-    SEQUENTIAL_HILTI: str = "sequential_hilti"
+    SEQUENTIAL = "sequential"
+    RETRIEVAL = "retrieval"
+    EXHAUSTIVE = "exhaustive"
+    SEQUENTIAL_WITH_RETRIEVAL = "sequential_with_retrieval"
+    RIG_HILTI = "rig_hilti"
+    SEQUENTIAL_HILTI = "sequential_hilti"
 
 
 class RetrieverBase(GTSFMProcess):
@@ -39,8 +39,8 @@ class RetrieverBase(GTSFMProcess):
 
         return UiMetadata(
             display_name="Image Retriever",
-            input_products="Image Loader",
-            output_products="Image Pair Indices",
+            input_products=("Image Loader",),
+            output_products=("Image Pair Indices",),
             parent_plate="Loader and Retriever",
         )
 
