@@ -227,12 +227,7 @@ def compute_rotation_angle_metric(wRi_list: List[Optional[Rot3]], gt_wRi_list: L
     Returns:
         A GtsfmMetric for the N rotation angle errors, in degrees.
     """
-    errors = []
-    for wRi, gt_wRi in zip(wRi_list, gt_wRi_list):
-        if wRi is not None and gt_wRi is not None:
-            errors.append(comp_utils.compute_relative_rotation_angle(wRi, gt_wRi))
-        else:
-            errors.append(np.nan)
+    errors = [comp_utils.compute_relative_rotation_angle(wRi, gt_wRi) for wRi, gt_wRi in zip(wRi_list, gt_wRi_list)]
     return GtsfmMetric("rotation_angle_error_deg", errors)
 
 
@@ -251,10 +246,7 @@ def compute_translation_distance_metric(
     Returns:
         A statistics dict of the metrics errors in degrees.
     """
-    errors = []
-    for wti, gt_wti in zip(wti_list, gt_wti_list):
-        if wti is not None and gt_wti is not None:
-            errors.append(comp_utils.compute_points_distance_l2(wti, gt_wti))
+    errors = [comp_utils.compute_points_distance_l2(wti, gt_wti) for wti, gt_wti in zip(wti_list, gt_wti_list)]
     return GtsfmMetric("translation_error_distance", errors)
 
 
