@@ -9,8 +9,8 @@ import numpy as np
 from gtsam import Point3, Pose3, Rot3, Unit3
 from scipy.spatial.transform import Rotation
 
-import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.alignment as alignment_utils
+import gtsfm.utils.logger as logger_utils
 
 EPSILON = np.finfo(float).eps
 
@@ -235,7 +235,7 @@ def compute_cyclic_rotation_error(i1Ri0: Rot3, i2Ri1: Rot3, i2Ri0: Rot3) -> floa
     Returns:
         Cyclic rotation error in degrees.
     """
-    i0Ri0_from_cycle = i2Ri0.inverse().compose(i2Ri1).compose(i1Ri0)
+    i0Ri0_from_cycle = i2Ri0.between(i2Ri1).compose(i1Ri0)
     return compute_relative_rotation_angle(Rot3(), i0Ri0_from_cycle)
 
 
