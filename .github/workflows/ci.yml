@@ -3,8 +3,8 @@ name: CI
 on: [pull_request, workflow_dispatch]
 
 jobs:
-  setup:
-    name: Setup Environment
+  test:
+    name: Unit tests and python checks
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -22,21 +22,6 @@ jobs:
           pip install pytest-cov
           pip install flake8
           conda info
-
-  test:
-    name: Unit tests and python checks
-    needs: setup
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        shell: bash -l {0}
-
-    steps:
-      - uses: actions/checkout@v4.1.5
-      - uses: mamba-org/setup-micromamba@v2
-        with:
-          environment-file: environment_linux_cpuonly.yml
-          cache-environment-key: environment-${{ github.sha }}
       - name: Flake check
         run: |
           flake8 --max-line-length 120 --ignore E201,E202,E203,E231,W291,W293,E303,W391,E402,W503,E731 gtsfm tests
@@ -53,7 +38,7 @@ jobs:
 
   benchmark:
     name: Benchmark
-    needs: setup
+    needs: test
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -117,17 +102,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4.1.5
-      - name: Cache frontend
-        uses: actions/cache@v4
-        env:
-          CACHE_NUMBER_FRONTEND: 0
-        with:
-          path: cache
-          key: ${{ matrix.config_dataset_info[0] }}-${{ matrix.config_dataset_info[1] }}-${{ matrix.config_dataset_info[2] }}-${{ matrix.config_dataset_info[6] }}-${{ env.CACHE_NUMBER_FRONTEND }}
       - uses: mamba-org/setup-micromamba@v2
         with:
           environment-file: environment_linux_cpuonly.yml
           cache-environment-key: environment-${{ github.sha }}
+      - name: Environment setup
+        run: |
+          bash .github/scripts/setup.sh
+          conda info
       - name: Prepare dataset
         run: |
           DATASET_NAME=${{ matrix.config_dataset_info[1] }}
