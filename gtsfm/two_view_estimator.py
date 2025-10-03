@@ -513,7 +513,11 @@ class TwoViewEstimator(DaskDBModuleBase):
         success = (post_isp_i2Ri1 is not None and post_isp_i2Ui1 is not None)
         verified_corr_count = len(post_isp_v_corr_idxs) if post_isp_v_corr_idxs is not None else 0
         
+        # Convert numpy scalar to Python float to ensure PostgreSQL compatibility
+        # psycopg2 cannot properly serialize numpy.float64, causing "schema np does not exist" errors
         inlier_ratio = post_isp_report.inlier_ratio_est_model if post_isp_report else None
+        if inlier_ratio is not None:
+            inlier_ratio = float(inlier_ratio)
         
         rotation_matrix = self._serialize_rotation(post_isp_i2Ri1) if post_isp_i2Ri1 else None
         translation_direction = self._serialize_translation(post_isp_i2Ui1) if post_isp_i2Ui1 else None
@@ -525,11 +529,11 @@ class TwoViewEstimator(DaskDBModuleBase):
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
             
-        # Use consistent execute method
+        # Ensure all numeric parameters are Python native types (not numpy scalars)
         success = self.db.execute(
             insert_query,
-            (i1, i2, datetime.now(), verified_corr_count,
-             inlier_ratio, rotation_matrix, translation_direction, success, computation_time, worker_name)
+            (int(i1), int(i2), datetime.now(), int(verified_corr_count),
+             inlier_ratio, rotation_matrix, translation_direction, success, float(computation_time), worker_name)
         )
         
         if success:
@@ -552,10 +556,19 @@ class TwoViewEstimator(DaskDBModuleBase):
         """
         logger.debug(f"Storing detailed reports for pair ({i1}, {i2})")
         
-        # Extract inlier ratios (use None as default instead of 0.0)
+        # Extract inlier ratios and convert numpy scalars to Python floats
+        # This prevents PostgreSQL serialization errors with numpy types
         pre_ba_inlier_ratio = pre_ba_report.inlier_ratio_est_model if pre_ba_report else None
+        if pre_ba_inlier_ratio is not None:
+            pre_ba_inlier_ratio = float(pre_ba_inlier_ratio)
+            
         post_ba_inlier_ratio = post_ba_report.inlier_ratio_est_model if post_ba_report else None
+        if post_ba_inlier_ratio is not None:
+            post_ba_inlier_ratio = float(post_ba_inlier_ratio)
+            
         post_isp_inlier_ratio = post_isp_report.inlier_ratio_est_model if post_isp_report else None
+        if post_isp_inlier_ratio is not None:
+            post_isp_inlier_ratio = float(post_isp_inlier_ratio)
         
         # Serialize report data
         report_data = {
@@ -572,9 +585,10 @@ class TwoViewEstimator(DaskDBModuleBase):
             VALUES (%s, %s, %s, %s, %s, %s, %s)
             """
             
+        # Ensure image indices are Python int type
         success = self.db.execute(
             report_query,
-            (i1, i2, datetime.now(),  # Use passed image indices
+            (int(i1), int(i2), datetime.now(),
              pre_ba_inlier_ratio, post_ba_inlier_ratio, post_isp_inlier_ratio, report_data_json)
         )
         
