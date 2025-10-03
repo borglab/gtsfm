@@ -2,6 +2,7 @@
 
 Authors: Ren Liu
 """
+
 import time
 from pathlib import Path
 from typing import Dict, List, Tuple
@@ -107,7 +108,7 @@ class MVSPatchmatchNet(MVSBase):
             drop_last=False,
         )
 
-        model = PatchmatchNet(
+        patchmatch_model = PatchmatchNet(
             patchmatch_interval_scale=INTERVAL_SCALE,
             propagation_range=PROPAGATION_RANGE,
             patchmatch_iteration=NUM_ITERS,
@@ -115,16 +116,15 @@ class MVSPatchmatchNet(MVSBase):
             propagate_neighbors=PROPAGATE_NEIGHBORS,
             evaluate_neighbors=EVALUATE_NEIGHBORS,
         )
-        model = nn.DataParallel(model)
+        model = nn.DataParallel(patchmatch_model)
 
         # Check if cuda devices are available, and load the pretrained model
         #   the pretrained checkpoint should be pre-downloaded using gtsfm/download_model_weights.sh
         if not PATCHMATCHNET_WEIGHTS_PATH.exists():
-            logger.error(
-                "PatchmatchNet weights not found at %s. Please run 'bash download_model_weights.sh' from the repo root.",
-                PATCHMATCHNET_WEIGHTS_PATH,
+            raise FileNotFoundError(
+                f"PatchmatchNet weights not found at {PATCHMATCHNET_WEIGHTS_PATH}. "
+                "Please run 'bash download_model_weights.sh' from the repo root."
             )
-            exit(1)
 
         if torch.cuda.is_available():
             model.cuda()
@@ -138,7 +138,7 @@ class MVSPatchmatchNet(MVSBase):
         depth_est_list = {}
         confidence_est_list = {}
 
-        batch_times = []
+        batch_times: list[float] = []
 
         logger.info("Starting PatchMatchNet inference...")
         with torch.no_grad():
@@ -197,7 +197,7 @@ class MVSPatchmatchNet(MVSBase):
             name=METRICS_GROUP,
             metrics=[
                 GtsfmMetric(name="num_valid_reference_views", data=len(loader)),
-                GtsfmMetric(name="elapsed_time_per_ref_img(sec)", data=batch_times),
+                GtsfmMetric(name="elapsed_time_per_ref_img(sec)", data=np.array(batch_times)),
             ],
         )
         # merge filtering metrics to densify metrics
@@ -280,7 +280,7 @@ class MVSPatchmatchNet(MVSBase):
             #   by checking whether the confidence is larger than the pre-defined confidence threshold
             confidence_mask = confidence > min_conf_thresh
 
-            all_srcview_depth_ests = []
+            all_src_view_depth_estimates = []
 
             # Compute the geometric mask, the value of geo_mask_sum means the number of source views where
             #   the reference depth is valid according to the geometric thresholds
@@ -304,10 +304,10 @@ class MVSPatchmatchNet(MVSBase):
                     max_geo_depth_thresh,
                 )
                 geo_mask_sum += geo_mask.astype(np.int32)
-                all_srcview_depth_ests.append(depth_reprojected)
+                all_src_view_depth_estimates.append(depth_reprojected)
 
-            depth_est_averaged = (sum(all_srcview_depth_ests) + ref_depth_est) / (geo_mask_sum + 1)
-            # Valid points requires at least 3 source views validated under geometric threshoulds
+            depth_est_averaged = (sum(all_src_view_depth_estimates) + ref_depth_est) / (geo_mask_sum + 1)
+            # Valid points requires at least 3 source views validated under geometric thresholds
             geo_mask = geo_mask_sum >= min_num_consistent_views
 
             # Combine geometric mask and confidence mask
@@ -372,7 +372,7 @@ class MVSPatchmatchNet(MVSBase):
         # compute the proportion of valid pixels in the joint masks among all reference views
         filtering_metrics.append(GtsfmMetric(name="joint_mask_valid_ratios", data=joint_mask_ratios))
         filtering_metrics.append(
-            GtsfmMetric(name="reprojection_errors", data=reprojection_errors, store_full_data=False)
+            GtsfmMetric(name="reprojection_errors", data=np.array(reprojection_errors), store_full_data=False)
         )
 
         return dense_points, dense_point_colors, GtsfmMetricsGroup(name="filtering metrics", metrics=filtering_metrics)
@@ -392,7 +392,7 @@ def compute_filtered_reprojection_error(
         2. Project these points to a source view by ref_extrinsics, src_extrinsics and src intrinsics.
         3. Use the source depth map to calculate the depths of reprojected pixel by interpolation.
         4. Compute coordinates of each reprojected pixel at source camera frame by src_intrinsics.
-        5. Reproject these points to the reference view by src_extrinsics, ref_extrinsics, and ref intrinsics.
+        5. Re-project these points to the reference view by src_extrinsics, ref_extrinsics, and ref intrinsics.
         6. Compute the reprojection errors by Euclidean distance and filter the errors by the joint mask.
 
     Args:
@@ -407,7 +407,7 @@ def compute_filtered_reprojection_error(
         list of filtered reprojection errors among all source views in the reference view
     """
     # initialize reprojection err list
-    reproj_errs = []
+    reprojection_errors = []
 
     # get reference view estimated depth map
     ref_depth_est = depth_list[ref_view][0]
@@ -428,7 +428,13 @@ def compute_filtered_reprojection_error(
         src_depth_est = depth_list[src_view][0]
 
         # compute reprojected coordinates
-        _, u_reprojected, v_reprojected, _, _, = patchmatchnet_eval.reproject_with_depth(
+        (
+            _,
+            u_reprojected,
+            v_reprojected,
+            _,
+            _,
+        ) = patchmatchnet_eval.reproject_with_depth(
             ref_depth_est,
             ref_intrinsics,
             ref_extrinsics,
@@ -438,7 +444,7 @@ def compute_filtered_reprojection_error(
         )
 
         # compute reprojection error
-        reproj_err = np.hypot((u_reprojected - u_ref), (v_reprojected - v_ref))[joint_mask]
+        reprojection_error = np.hypot((u_reprojected - u_ref), (v_reprojected - v_ref))[joint_mask]
         # record reprojection errors
-        reproj_errs.extend(reproj_err[reproj_err < max_reprojection_err].tolist())
-    return reproj_errs
+        reprojection_errors.extend(reprojection_error[reprojection_error < max_reprojection_err].tolist())
+    return reprojection_errors
