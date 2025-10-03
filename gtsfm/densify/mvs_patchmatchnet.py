@@ -119,6 +119,13 @@ class MVSPatchmatchNet(MVSBase):
 
         # Check if cuda devices are available, and load the pretrained model
         #   the pretrained checkpoint should be pre-downloaded using gtsfm/download_model_weights.sh
+        if not PATCHMATCHNET_WEIGHTS_PATH.exists():
+            logger.error(
+                "PatchmatchNet weights not found at %s. Please run 'bash download_model_weights.sh' from the repo root.",
+                PATCHMATCHNET_WEIGHTS_PATH,
+            )
+            exit(1)
+
         if torch.cuda.is_available():
             model.cuda()
             state_dict = torch.load(PATCHMATCHNET_WEIGHTS_PATH)

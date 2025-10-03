@@ -192,3 +192,10 @@ cache/
 
 # Dev notebooks
 notebooks/
+
+# Secret files
+.env
+*.env
+.envrc
+**/secrets.*
+/coiled-token.txt
