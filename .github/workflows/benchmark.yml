@@ -1,10 +1,6 @@
 name: Benchmark GTSFM on select datasets using SIFT and Deep front-ends
 
-on:
-  workflow_run:
-    workflows: ["Setup micromamba cache"]
-    types:
-      - completed
+on: [pull_request, workflow_dispatch]
 
 jobs:
   benchmark:
