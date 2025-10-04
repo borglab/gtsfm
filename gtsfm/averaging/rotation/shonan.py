@@ -16,12 +16,12 @@ from typing import Dict, List, Optional, Set, Tuple
 import gtsam
 import numpy as np
 from gtsam import (
+    BetweenFactorPose3,
     LevenbergMarquardtParams,
+    Pose3,
     Rot3,
     ShonanAveraging3,
     ShonanAveragingParameters3,
-    BetweenFactorPose3,
-    Pose3,
 )
 
 import gtsfm.utils.logger as logger_utils
@@ -160,7 +160,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         result, _ = shonan.run(initial, self._p_min, self._p_max)
         logger.info("Final cost: %.5f", shonan.cost(result))
 
-        wRi_list_consecutive = [None] * num_connected_nodes
+        wRi_list_consecutive: list[None | Rot3] = [None] * num_connected_nodes
         for i in range(num_connected_nodes):
             if result.exists(i):
                 wRi_list_consecutive[i] = result.atRot3(i)
