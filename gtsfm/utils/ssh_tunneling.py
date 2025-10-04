@@ -265,8 +265,8 @@ class SSHTunnelManager:
             List[subprocess.Popen]: List of subprocess.Popen objects for the remote worker processes
             
         Note:
-            Workers are started with a 300-second timeout and 60-second death timeout
-            for robustness in distributed environments
+            Workers are started without timeout to allow long-running computations.
+            Death timeout set to 300 seconds for better stability.
         """
         username = self.config['username']
         scheduler_port = self.config['scheduler']['port']
@@ -282,18 +282,22 @@ class SSHTunnelManager:
                 f"export PATH=/home/{username}/miniconda3/bin:$PATH && "
                 f"source /home/{username}/miniconda3/etc/profile.d/conda.sh && "
                 "conda activate gtsfm-v1 && "
-                f"timeout 300 dask-worker tcp://localhost:{scheduler_port} "
+                f"dask-worker tcp://localhost:{scheduler_port} "
                 f"--listen-address tcp://0.0.0.0:{worker_port} "
                 f"--contact-address tcp://localhost:{worker_port} "
-                "--death-timeout 60"
+                "--death-timeout 300 "
+                "--lifetime 7200 "  # Add lifetime limit (2 hours) for safety
+                "--nanny-port 0"    # Let system assign nanny port dynamically
                 "\"'"
             )
             
             dask_worker_proc = subprocess.Popen(remote_cmd, shell=True)
             self.processes.append(dask_worker_proc)
             worker_procs.append(dask_worker_proc)
-            print(f"Remote Dask worker started. Process ID: {dask_worker_proc.pid}")
-            time.sleep(3)
+            print(f"Remote Dask worker started on {hostname}. Process ID: {dask_worker_proc.pid}")
+            print(f"  - Worker will listen on port {worker_port}")
+            print(f"  - Connecting to scheduler at tcp://localhost:{scheduler_port}")
+            time.sleep(5)  # Increased wait time for worker to stabilize
         
         return worker_procs
     

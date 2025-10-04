@@ -152,7 +152,7 @@ def main():
     cwd = Path.cwd()
     folder_path = cwd / "tests" / "data" / "imb_reichstag"
 
-    indices = [0, 1, 2, 3, 4, 5]  
+    indices = [0, 1, 2]  
     num_images = len(indices)
 
     # Load images and camera intrinsics
@@ -162,7 +162,7 @@ def main():
 
     # Feature detection and description
     detector_descriptor = SIFTDetectorDescriptor()
-    print("Detecting keypoints...")
+    print("[LOCAL MACHINE] Detecting keypoints...")
     features = [detector_descriptor.detect_and_describe(image) for image in images]
     keypoints_list = []
     descriptors_list = []
@@ -178,7 +178,7 @@ def main():
 
     # Feature matching
     matcher = TwoWayMatcher(ratio_test_threshold=0.8)
-    print("Matching keypoints...")
+    print("[LOCAL MACHINE] Matching keypoints...")
 
     image_pairs = [(i, j) for i in range(num_images) for j in range(i + 1, num_images)]
     putative_corr_idxs_dict = {}
