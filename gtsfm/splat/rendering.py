@@ -26,18 +26,18 @@ def normalize(x: np.ndarray) -> np.ndarray:
     return x / np.linalg.norm(x)
 
 
-def viewmatrix(lookdir: np.ndarray, up: np.ndarray, position: np.ndarray) -> np.ndarray:
-    """Construct lookat view matrix.
+def view_matrix(viewing_direction: np.ndarray, up: np.ndarray, position: np.ndarray) -> np.ndarray:
+    """Construct look_at view matrix.
 
     Args:
-        lookdir: the direction the camera is looking (forward vector).
+        viewing_direction: the direction the camera is looking (forward vector).
         up: the up vector for the camera.
         position: the position of the camera in world coordinates.
 
     Returns:
-        The lookat view matrix
+        The look_at view matrix
     """
-    vec2 = normalize(lookdir)
+    vec2 = normalize(viewing_direction)
     vec0 = normalize(np.cross(up, vec2))
     vec1 = normalize(np.cross(vec2, vec0))
     m = np.stack([vec0, vec1, vec2, position], axis=1)
@@ -47,31 +47,31 @@ def viewmatrix(lookdir: np.ndarray, up: np.ndarray, position: np.ndarray) -> np.
 # See https://github.com/nerfstudio-project/gsplat/blob/main/examples/datasets/traj.py
 # Helper function for generate_interpolated_path function
 def poses_to_points(poses, dist):
-    """Converts from pose matrices to (position, lookat, up) format.
+    """Converts from pose matrices to (position, look_at, up) format.
 
     Args:
         poses: (n, 3, 4) array of input pose keyframes.
-        dist: Scalar distance to place lookat and up points from the camera origin
+        dist: Scalar distance to place look_at and up points from the camera origin
 
     Returns:
-        Array of points with [position, lookat, up] for each pose.
+        Array of points with [position, look_at, up] for each pose.
     """
     pos = poses[:, :3, -1]
-    lookat = poses[:, :3, -1] - dist * poses[:, :3, 2]
+    look_at = poses[:, :3, -1] - dist * poses[:, :3, 2]
     up = poses[:, :3, -1] + dist * poses[:, :3, 1]
-    return np.stack([pos, lookat, up], 1)
+    return np.stack([pos, look_at, up], 1)
 
 
 # Helper function for generate_interpolated_path function
 def points_to_poses(points):
-    """Converts from (position, lookat, up) format to pose matrices.
+    """Converts from (position, look_at, up) format to pose matrices.
 
     Args:
-        points: array of points with [position, lookat, up] for each pose.
+        points: array of points with [position, look_at, up] for each pose.
     Returns:
         Array of new camera poses.
     """
-    return np.array([viewmatrix(p - l, u - p, p) for p, l, u in points])
+    return np.array([view_matrix(p - l, u - p, p) for p, l, u in points])
 
 
 # Helper function for generate_interpolated_path function
@@ -79,13 +79,13 @@ def b_spline_interpolate(points, n, k, s):
     """Runs multidimensional B-spline interpolation on the input points.
 
     Args:
-        points: array of points with [position, lookat, up] for each pose.
+        points: array of points with [position, look_at, up] for each pose.
         n: n_interp * (n - 1) total poses.
         k: polynomial degree of B-spline.
         s: parameter for spline smoothing, 0 forces exact interpolation.
 
     Returns:
-        Interpolated points along the spline in (position, lookat, up) format.
+        Interpolated points along the spline in (position, look_at, up) format.
     """
     sh = points.shape
     pts = np.reshape(points, (sh[0], -1))
@@ -107,7 +107,7 @@ def generate_interpolated_path(
 ):
     """Creates a smooth spline path between input keyframe camera poses.
 
-    Spline is calculated with poses in format (position, lookat-point, up-point).
+    Spline is calculated with poses in format (position, look_at-point, up-point).
 
     Args:
         poses: (n, 3, 4) array of input pose keyframes.
@@ -138,8 +138,7 @@ def generate_interpolated_video(
             video_fpath: location where the video will be saved
     """
     cfg = cfg_result_graph
-    gs = GaussianSplatting(cfg)
-    gs.training = False
+    gs = GaussianSplatting(cfg, training=False)
     splats = splats_graph
     num_frames = cfg.num_frames
     fps = cfg.fps
@@ -165,7 +164,7 @@ def generate_interpolated_video(
         camtoworlds = camtoworlds_all[i : i + 1]
         Ks = K[None]
 
-        renders, _, _ = gs._rasterize_splats(
+        renders, _, _ = gs.rasterize_splats(
             splats=splats,
             camtoworlds=camtoworlds,
             Ks=Ks,

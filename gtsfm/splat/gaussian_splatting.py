@@ -95,6 +95,9 @@ if sys.platform == "darwin" or not torch.cuda.is_available():
             Please run on Linux with CUDA and gsplat installed."""
             pass
 
+        def rasterize_splats(self, *args, **kwargs):
+            raise NotImplementedError("Gaussian Splatting is not supported on Mac (darwin).")
+
 else:
     from gsplat.rendering import rasterization
     from gsplat.strategy import DefaultStrategy
@@ -113,12 +116,12 @@ else:
     )
 
     class GaussianSplatting(GSBase):
-        def __init__(self, cfg: Config):
+        def __init__(self, cfg: Config, training: bool = True):
 
             set_random_seed(42)
             self.cfg = cfg
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
-            self.training = True
+            self.training = training
             self.strategy = DefaultStrategy(
                 prune_opa=self.cfg.cull_alpha_thresh,
                 grow_grad2d=self.cfg.densify_grad_thresh,
@@ -260,7 +263,7 @@ else:
             downscaled = F.conv2d(image_permuted, weight, stride=d, groups=in_channels)
             return downscaled.permute(0, 2, 3, 1)
 
-        def _rasterize_splats(
+        def rasterize_splats(
             self,
             splats,
             camtoworlds: Tensor,
@@ -370,7 +373,7 @@ else:
 
                 sh_degree_to_use = min(step // self.cfg.sh_degree_interval, self.cfg.sh_degree)
 
-                renders, alphas, info = self._rasterize_splats(
+                renders, alphas, info = self.rasterize_splats(
                     splats=splats,
                     camtoworlds=camtoworlds,
                     Ks=Ks,
