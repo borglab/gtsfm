@@ -42,16 +42,25 @@
     },
     "cSpell.words": [
         "Akshay",
+        "argparser",
         "Ayush",
         "backproject",
         "Baid",
+        "Colmap",
+        "colmaploader",
         "cudnn",
+        "Dask",
         "densification",
+        "downsampled",
         "epipolar",
+        "exif",
+        "Extrinsics",
         "facecolor",
         "finfo",
         "fnames",
+        "gerrard",
         "ggplot",
+        "gtsam",
         "Gtsfm",
         "HILTI",
         "idxs",
@@ -60,8 +69,10 @@
         "keypoints",
         "Krishnan",
         "meshgrid",
+        "nerfstudio",
         "netvlad",
         "Olsson",
+        "olssonloader",
         "partitioner",
         "Patchmatch",
         "patchmatchnet",
@@ -77,7 +88,11 @@
         "xlabel",
         "ylabel"
     ],
-    "[yaml]": {
-        "editor.defaultFormatter": "redhat.vscode-yaml"
-    }
+    "python-envs.pythonProjects": [
+        {
+            "path": "",
+            "envManager": "ms-python.python:conda",
+            "packageManager": "ms-python.python:conda"
+        }
+    ],
 }
