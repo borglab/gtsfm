@@ -107,6 +107,12 @@ For example, if you want to use the **Deep Front-End (recommended)** on the `"do
 python gtsfm/runner/run_scene_optimizer_olssonloader.py --dataset_root tests/data/set1_lund_door --config_name deep_front_end.yaml --num_workers 1
 ```  
 
+Or, for a dataset dataset with metadata formatted in the COLMAP style
+```bash
+python gtsfm/runner/run_scene_optimizer_colmaploader.py --images_dir datasets/gerrard-hall/images \
+  --colmap_files_dirpath datasets/gerrard-hall/sparse --config_name deep_front_end.yaml --num_workers 5
+```  
+
 You can monitor the distributed computation using the [Dask dashboard](http://localhost:8787/status).  
 **Note:** The dashboard will only display activity while tasks are actively running.  
 
