@@ -119,6 +119,7 @@ def test_database_connection(db_params):
 
 def main():
     """Main function containing all computational logic"""
+    import sys
     
     # Load configuration - default can be here at the application level
     config_file = 'gtsfm/configs/local_scheduler_postgres_remote_cluster.yaml'
@@ -142,17 +143,20 @@ def main():
     images_dir.mkdir(exist_ok=True)
     
     print(f"Saving results to folder: {results_dir}")
+    sys.stdout.flush()
     
     # Set up cluster infrastructure
     print("Setting up distributed cluster...")
+    sys.stdout.flush()
     scheduler_port, processes = setup_cluster_infrastructure(config_file)
     
     # Prepare input data locally
     print("Preparing input data...")
+    sys.stdout.flush()
     cwd = Path.cwd()
     folder_path = cwd / "tests" / "data" / "imb_reichstag"
 
-    indices = [0, 1, 2]  
+    indices = [0, 1, 2, 3]  
     num_images = len(indices)
 
     # Load images and camera intrinsics
@@ -163,6 +167,7 @@ def main():
     # Feature detection and description
     detector_descriptor = SIFTDetectorDescriptor()
     print("[LOCAL MACHINE] Detecting keypoints...")
+    sys.stdout.flush()
     features = [detector_descriptor.detect_and_describe(image) for image in images]
     keypoints_list = []
     descriptors_list = []
@@ -175,10 +180,10 @@ def main():
         print(f"Image {indices[i]}: {desc.shape[0]} keypoints")
         
 
-
     # Feature matching
     matcher = TwoWayMatcher(ratio_test_threshold=0.8)
     print("[LOCAL MACHINE] Matching keypoints...")
+    sys.stdout.flush()
 
     image_pairs = [(i, j) for i in range(num_images) for j in range(i + 1, num_images)]
     putative_corr_idxs_dict = {}
@@ -230,15 +235,15 @@ def main():
 
     # Connect to Dask cluster
     print("Connecting to Dask cluster...")
+    sys.stdout.flush()
     client = Client(f"tcp://localhost:{scheduler_port}")
     print(f"Connected to Dask cluster: {client.dashboard_link}")
-    
-    # Store database parameters in client metadata for workers to access
-    client.set_metadata('db_params', db_params)
+    sys.stdout.flush()
     
     # Wait for all workers to connect
     expected_workers = len(config['workers'])
     print(f"Waiting for {expected_workers} workers to connect...")
+    sys.stdout.flush()
     
     timeout = 60  # seconds
     start_wait = time.time()
@@ -247,14 +252,16 @@ def main():
             print(f"Timeout: Only {len(client.scheduler_info()['workers'])} workers connected")
             break
         print(f"Currently {len(client.scheduler_info()['workers'])}/{expected_workers} workers connected. Waiting...")
-        time.sleep(3)  # 增加等待时间到3秒
+        time.sleep(3)
     
     print(f"Cluster workers: {len(client.scheduler_info()['workers'])}")
+    sys.stdout.flush()
     for worker_id, worker_info in client.scheduler_info()['workers'].items():
         host = worker_info.get('host', 'unknown')
         port = worker_info.get('port', 'unknown')
         worker_address = f"{host}:{port}" if 'port' in worker_info else host
         print(f"  - Worker: {worker_id}, Address: {worker_address}")
+    sys.stdout.flush()
 
     try:
         # Test database connection
@@ -263,9 +270,14 @@ def main():
             return
 
         # Run distributed two-view estimation
-        print("Running distributed two-view estimation...")
+        print("[MAIN] Running distributed two-view estimation...")
+        sys.stdout.flush()
+        
         with performance_report(filename=str(results_dir / "dask_performance_report.html")):
             start_time = time.time()
+            
+            print("[MAIN] Calling run_two_view_estimator_as_futures...")
+            sys.stdout.flush()
             
             two_view_output_dict = run_two_view_estimator_as_futures(
                 client=client,
@@ -278,15 +290,23 @@ def main():
                 gt_scene_mesh=gt_scene_mesh
             )
 
+            print(f"[MAIN] run_two_view_estimator_as_futures returned {len(two_view_output_dict)} results")
+            sys.stdout.flush()
+            
             total_time = time.time() - start_time
-            print(f"Distributed computation completed in {total_time:.2f} seconds")
+            print(f"[MAIN] Distributed computation completed in {total_time:.2f} seconds")
+            sys.stdout.flush()
 
         # Query database for results
+        print("[MAIN] Querying database for results...")
+        sys.stdout.flush()
+        
         try:
             conn = psycopg2.connect(**db_params)
             cursor = conn.cursor()
             
-            print("\nQuerying two-view results from database:")
+            print("\n[MAIN] Two-view results from database:")
+            sys.stdout.flush()
             cursor.execute("""
             SELECT i1, i2, verified_corr_count, inlier_ratio, success, computation_time, worker_name
             FROM two_view_results
@@ -301,14 +321,17 @@ def main():
             for row in results:
                 i1, i2, corr_count, inlier_ratio, success, comp_time, worker = row
                 print(f"({i1}, {i2}) | {corr_count:8d} | {inlier_ratio:.4f} | {success} | {comp_time:.4f} | {worker}")
+            sys.stdout.flush()
             
             cursor.close()
             conn.close()
         except Exception as e:
-            print(f"Database query failed: {e}")
+            print(f"[MAIN] Database query failed: {e}")
+            sys.stdout.flush()
 
         # Process and save results
-        print("\nProcessing results...")
+        print("\n[MAIN] Processing results...")
+        sys.stdout.flush()
         
         summary_file = results_dir / "results_summary.txt"
         with open(summary_file, "w") as f:
@@ -329,11 +352,12 @@ def main():
             if i2Ri1 is not None and i2Ui1 is not None:
                 ypr_deg = np.degrees(i2Ri1.xyz()) if i2Ri1 else None
                 
-                print(f"Image Pair ({indices[i1]}, {indices[i2]}):")
+                print(f"[MAIN] Image Pair ({indices[i1]}, {indices[i2]}):")
                 print(f"  - Verified correspondences: {len(v_corr_idxs)}")
                 print(f"  - Relative rotation (yaw, pitch, roll): {ypr_deg}")
                 print(f"  - Relative translation direction: {i2Ui1.point3().T}")
                 print(f"  - Inlier ratio: {post_isp_report.inlier_ratio_est_model:.4f}")
+                sys.stdout.flush()
                 
                 with open(summary_file, "a") as f:
                     f.write(f"  - Verified correspondences: {len(v_corr_idxs)}\n")
@@ -346,11 +370,9 @@ def main():
                     max_viz_corrs = min(100, len(v_corr_idxs))
                     
                     try:
-
-
                         correspondence_image = viz.plot_twoview_correspondences(
                             images[i1], images[i2], 
-                            keypoints_list[i1], keypoints_list[i2],  # Already correct
+                            keypoints_list[i1], keypoints_list[i2],
                             v_corr_idxs[:max_viz_corrs], 
                             max_corrs=max_viz_corrs
                         )
@@ -361,28 +383,37 @@ def main():
                         plt.savefig(images_dir / f"correspondences_{indices[i1]}_{indices[i2]}.png")
                         plt.close()
                     except Exception as e:
-                        print(f"Visualization error for pair ({indices[i1]}, {indices[i2]}): {e}")
+                        print(f"[MAIN] Visualization error for pair ({indices[i1]}, {indices[i2]}): {e}")
+                        sys.stdout.flush()
             else:
-                print(f"Image Pair ({indices[i1]}, {indices[i2]}): Relative pose estimation failed")
+                print(f"[MAIN] Image Pair ({indices[i1]}, {indices[i2]}): Relative pose estimation failed")
+                sys.stdout.flush()
                 with open(summary_file, "a") as f:
                     f.write("  - Relative pose estimation failed\n")
 
-        print(f"\nAll results saved to: {results_dir}")
+        print(f"\n[MAIN] All results saved to: {results_dir}")
+        sys.stdout.flush()
         
         # Keep processes alive
-        print("Processes will continue running. Press Ctrl+C to stop...")
+        print("[MAIN] Processes will continue running. Press Ctrl+C to stop...")
+        sys.stdout.flush()
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        print("Termination signal received, cleaning up...")
+        print("\n[MAIN] Termination signal received, cleaning up...")
+        sys.stdout.flush()
     except Exception as e:
-        print(f"❌ Error occurred: {e}")
+        print(f"[MAIN] ❌ Error occurred: {e}")
         import traceback
         traceback.print_exc()
+        sys.stdout.flush()
     finally:
         # Clean up
+        print("[MAIN] Closing Dask client...")
+        sys.stdout.flush()
         client.close()
-        print("Dask client closed")
+        print("[MAIN] Dask client closed")
+        sys.stdout.flush()
 
 
 if __name__ == '__main__':

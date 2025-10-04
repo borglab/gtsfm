@@ -869,19 +869,32 @@ def run_two_view_estimator_as_futures(
 
     print(f"Submitted {len(two_view_output_futures)} tasks to workers")
     
+    import sys
+    print("[DEBUG] About to gather results...")
+    sys.stdout.flush()
+    
     try:
+        print("[DEBUG] Calling client.gather()...")
+        sys.stdout.flush()
         two_view_output_dict = client.gather(two_view_output_futures)
+        print(f"[DEBUG] client.gather() completed, got {len(two_view_output_dict)} results")
+        sys.stdout.flush()
         return two_view_output_dict
     except Exception as e:
-        print(f"Error during gather: {e}")
+        print(f"[DEBUG] Error during gather: {e}")
+        sys.stdout.flush()
         two_view_output_dict = {}
         for (i1, i2), future in two_view_output_futures.items():
+            print(f"[DEBUG] Manually gathering result for pair ({i1}, {i2})...")
+            sys.stdout.flush()
             try:
                 result = future.result(timeout=300)  
                 two_view_output_dict[(i1, i2)] = result
-                print(f"Successfully processed pair ({i1}, {i2})")
+                print(f"[DEBUG] Successfully processed pair ({i1}, {i2})")
+                sys.stdout.flush()
             except Exception as pair_error:
-                print(f"Failed to process pair ({i1}, {i2}): {pair_error}")
+                print(f"[DEBUG] Failed to process pair ({i1}, {i2}): {pair_error}")
+                sys.stdout.flush()
                 continue
         
         return two_view_output_dict
