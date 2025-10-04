@@ -30,6 +30,7 @@ import socket
 import subprocess
 import time
 from typing import Any, Dict, List
+from functools import partial
 
 import dask.distributed
 import psycopg2
@@ -115,12 +116,13 @@ def initialize_database(db_params: Dict[str, Any]) -> bool:
         return False
 
 
-def square_and_store(x: int) -> int:
+def square_and_store(x: int, db_params: Dict[str, Any]) -> int:
     """Square a number and store the result in PostgreSQL database"""
     import socket
     import datetime
     import psycopg2
-    from dask.distributed import worker_client
+    import sys
+    import time
     
     # Get worker information
     worker_name = socket.gethostname()
@@ -128,36 +130,39 @@ def square_and_store(x: int) -> int:
     
     # Perform calculation
     result = x ** 2
-    print(f"Worker {worker_name} squaring {x} = {result} at {current_time}")
+    print(f"[WORKER {worker_name}] Starting: squaring {x} = {result} at {current_time}", flush=True)
+    sys.stdout.flush()
     
-    # Connect to the database via the tunnel
-    with worker_client() as client:
-        # Get the database params from client configuration
-        db_params = client.get_metadata('db_params')
+    # Add a small delay to simulate real work and allow task distribution
+    time.sleep(0.1)
+    
+    try:
+        # Connect to PostgreSQL from the worker
+        conn = psycopg2.connect(**db_params)
+        cursor = conn.cursor()
         
-        try:
-            # Connect to PostgreSQL from the worker
-            conn = psycopg2.connect(**db_params)
-            cursor = conn.cursor()
-            
-            # Insert result directly from worker with additional information
-            cursor.execute(
-                """
-                INSERT INTO squared_numbers 
-                (original_number, squared_number, worker_name, processed_time) 
-                VALUES (%s, %s, %s, %s)
-                """,
-                (x, result, worker_name, current_time)
-            )
-            
-            # Commit and close
-            conn.commit()
-            cursor.close()
-            conn.close()
-            print(f"Worker {worker_name} successfully stored result for {x}")
-        except Exception as e:
-            print(f"Worker {worker_name} failed to connect to database: {e}")
+        # Insert result directly from worker with additional information
+        cursor.execute(
+            """
+            INSERT INTO squared_numbers 
+            (original_number, squared_number, worker_name, processed_time) 
+            VALUES (%s, %s, %s, %s)
+            """,
+            (x, result, worker_name, current_time)
+        )
+        
+        # Commit and close
+        conn.commit()
+        cursor.close()
+        conn.close()
+        print(f"[WORKER {worker_name}] Successfully stored result for {x}", flush=True)
+        sys.stdout.flush()
+    except Exception as e:
+        print(f"[WORKER {worker_name}] Failed to connect to database: {e}", flush=True)
+        sys.stdout.flush()
     
+    print(f"[WORKER {worker_name}] About to return {result} for input {x}", flush=True)
+    sys.stdout.flush()
     return result
 
 
@@ -297,63 +302,159 @@ def setup_infrastructure(config: Dict[str, Any]) -> None:
 
 def run_test_computation(db_params: Dict[str, Any], scheduler_port: int) -> None:
     """Run the test computation on the cluster"""
-    # Create Dask client
-    print("Creating Dask client...")
-    client = dask.distributed.Client(f"tcp://localhost:{scheduler_port}")
-    print(f"Dask dashboard available at: {client.dashboard_link}")
+    import sys
     
-    # Store database parameters in client metadata for workers to access
-    client.set_metadata('db_params', db_params)
+    # Create Dask client
+    print("[MAIN] Creating Dask client...", flush=True)
+    sys.stdout.flush()
+    client = dask.distributed.Client(f"tcp://localhost:{scheduler_port}")
+    print(f"[MAIN] Dask client created. Dashboard: {client.dashboard_link}", flush=True)
+    sys.stdout.flush()
+    
+    # Wait for all workers to connect
+    print("[MAIN] Waiting for workers to connect...", flush=True)
+    sys.stdout.flush()
+    while len(client.scheduler_info()['workers']) < 2:
+        print(f"[MAIN] Currently {len(client.scheduler_info()['workers'])} worker(s) connected. Waiting for 2...", flush=True)
+        time.sleep(1)
+    print(f"[MAIN] All {len(client.scheduler_info()['workers'])} workers connected!", flush=True)
+    sys.stdout.flush()
     
     # Initialize the database
-    print("Initializing PostgreSQL database...")
+    print("[MAIN] Initializing PostgreSQL database...", flush=True)
+    sys.stdout.flush()
     if not initialize_database(db_params):
-        print("Failed to initialize database. Exiting.")
+        print("[MAIN] Failed to initialize database. Exiting.", flush=True)
         cleanup()
         raise RuntimeError("Database initialization failed")
+    print("[MAIN] Database initialized successfully", flush=True)
+    sys.stdout.flush()
     
-    # Submit jobs to workers
-    print("Submitting jobs to workers...")
-    futures = client.map(square_and_store, range(10))
-    dask.distributed.wait(futures)
+    # Submit jobs to workers - pass db_params as an argument using partial
+    # Use more tasks to ensure distribution across workers
+    num_tasks = 100
+    print(f"[MAIN] Submitting {num_tasks} jobs to workers...", flush=True)
+    sys.stdout.flush()
+    square_func = partial(square_and_store, db_params=db_params)
+    futures = client.map(square_func, range(num_tasks))
+    print(f"[MAIN] Submitted {len(futures)} tasks", flush=True)
+    sys.stdout.flush()
     
-    # Collect results
-    results = client.gather(futures)
-    print("Computation results:", results)
+    print("[MAIN] Waiting for tasks to complete...", flush=True)
+    sys.stdout.flush()
     
-    # Display results from database
+    # Use wait with a timeout and check for errors
+    done, not_done = dask.distributed.wait(futures, timeout=60)
+    print(f"[MAIN] Wait completed! Tasks done: {len(done)}, Tasks pending: {len(not_done)}", flush=True)
+    sys.stdout.flush()
+    
+    if not_done:
+        print(f"[MAIN] WARNING: {len(not_done)} tasks did not complete!", flush=True)
+        for i, future in enumerate(not_done):
+            print(f"[MAIN]   Pending future {i}: {future}", flush=True)
+        sys.stdout.flush()
+    
+    # Collect results and check for exceptions
+    print("[MAIN] Gathering results...", flush=True)
+    sys.stdout.flush()
+    results = []
+    for i, future in enumerate(futures):
+        try:
+            result = future.result(timeout=5)
+            results.append(result)
+        except Exception as e:
+            print(f"[MAIN] Error in future {i}: {e}", flush=True)
+            import traceback
+            traceback.print_exc()
+            sys.stdout.flush()
+    
+    print(f"[MAIN] All {len(results)} results gathered successfully", flush=True)
+    sys.stdout.flush()
+    
+    # Display results from database (this runs on the LOCAL machine)
+    print("\n[MAIN] Querying database from local machine...", flush=True)
+    sys.stdout.flush()
     get_results_from_db(db_params)
     
+    # Show worker statistics
+    print("\n[MAIN] Worker Statistics:", flush=True)
+    sys.stdout.flush()
+    try:
+        conn = psycopg2.connect(**db_params)
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT worker_name, COUNT(*) as task_count 
+            FROM squared_numbers 
+            GROUP BY worker_name
+            ORDER BY worker_name
+        """)
+        worker_stats = cursor.fetchall()
+        print("Worker Name    | Tasks Processed")
+        print("-" * 40)
+        for worker, count in worker_stats:
+            print(f"{worker:15s} | {count}")
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        print(f"Failed to get worker statistics: {e}")
+    sys.stdout.flush()
+    
+    print("[MAIN] Closing client...", flush=True)
+    sys.stdout.flush()
     client.close()
+    print("[MAIN] Client closed successfully", flush=True)
+    sys.stdout.flush()
 
 
 def main() -> None:
     """Main function that orchestrates the entire test"""
+    import sys
+    
+    print("[MAIN] Starting main function...", flush=True)
+    sys.stdout.flush()
+    
     # Register cleanup function
     atexit.register(cleanup)
     
     try:
         # Load configuration
+        print("[MAIN] Loading configuration...", flush=True)
+        sys.stdout.flush()
         config = load_config()
+        print("[MAIN] Configuration loaded", flush=True)
+        sys.stdout.flush()
         
         # Set up infrastructure
+        print("[MAIN] Setting up infrastructure...", flush=True)
+        sys.stdout.flush()
         db_params, scheduler_port = setup_infrastructure(config)
+        print("[MAIN] Infrastructure setup complete", flush=True)
+        sys.stdout.flush()
         
         # Run test computation
+        print("[MAIN] Running test computation...", flush=True)
+        sys.stdout.flush()
         run_test_computation(db_params, scheduler_port)
+        print("[MAIN] Test computation complete!", flush=True)
+        sys.stdout.flush()
         
         # Keep main program running until user interrupts
-        print("\nAll services have been started and test completed.")
-        print("Cluster will continue running. Press Ctrl+C to stop all services...")
+        print("\n[MAIN] All services have been started and test completed.")
+        print("[MAIN] Cluster will continue running. Press Ctrl+C to stop all services...")
+        sys.stdout.flush()
         
         # Wait for Ctrl+C
         while True:
             time.sleep(1)
             
     except KeyboardInterrupt:
-        print("Termination signal received, cleaning up...")
+        print("\n[MAIN] Termination signal received, cleaning up...")
+        sys.stdout.flush()
     except Exception as e:
-        print(f"Error occurred: {e}")
+        print(f"[MAIN] Error occurred: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.stdout.flush()
         cleanup()
         raise
 
