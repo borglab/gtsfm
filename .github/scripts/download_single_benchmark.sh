@@ -1,4 +1,21 @@
 #!/bin/bash
+# This file defines the workflow for downloading, preparing, and storing datasets required for evaluation in CI.
+#
+# Datasets processed by this file are downloaded and extracted in the current working directory.
+# The script takes two arguments:
+#   1) DATASET_NAME: name of the dataset to be downloaded. Supported datasets are:
+#       - skydio-8
+#       - skydio-32
+#       - skydio-501
+#       - notre-dame-20
+#       - palace-fine-arts-281
+#       - 2011205_rc3
+#       - gerrard-hall-100
+#       - south-building-128
+#   2) DATASET_SRC: source from which to download the dataset. Supported sources are:
+#       - wget
+#       - test_data
+#
 
 DATASET_NAME=$1
 DATASET_SRC=$2
