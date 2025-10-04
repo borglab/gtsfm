@@ -185,6 +185,7 @@ result_metrics/
 
 # Folder created by hydra
 output/
+datasets/
 
 # Cache dir
 cache/

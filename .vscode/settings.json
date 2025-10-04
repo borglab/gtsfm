@@ -44,16 +44,25 @@
         "absgrad",
         "Densification",
         "Akshay",
+        "argparser",
         "Ayush",
         "backproject",
         "Baid",
+        "Colmap",
+        "colmaploader",
         "cudnn",
+        "Dask",
         "densification",
+        "downsampled",
         "epipolar",
+        "exif",
+        "Extrinsics",
         "facecolor",
         "finfo",
         "fnames",
+        "gerrard",
         "ggplot",
+        "gtsam",
         "Gtsfm",
         "Harneet",
         "HILTI",
@@ -64,8 +73,10 @@
         "Khanuja",
         "Krishnan",
         "meshgrid",
+        "nerfstudio",
         "netvlad",
         "Olsson",
+        "olssonloader",
         "partitioner",
         "splatfacto",
         "Patchmatch",
@@ -82,7 +93,11 @@
         "xlabel",
         "ylabel"
     ],
-    "[yaml]": {
-        "editor.defaultFormatter": "redhat.vscode-yaml"
-    }
+    "python-envs.pythonProjects": [
+        {
+            "path": "",
+            "envManager": "ms-python.python:conda",
+            "packageManager": "ms-python.python:conda"
+        }
+    ],
 }
