@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import List, Tuple
 
 import numpy as np
-from gtsam import Cal3Bundler, Pose3, Rot3
+from gtsam import Cal3Bundler, Pose3, Rot3  # type: ignore
 
 import gtsfm.utils.alignment as alignment_utils
 import gtsfm.utils.io as io_utils
@@ -60,7 +60,7 @@ def view_scene(args: argparse.Namespace) -> None:
     mean_pt = compute_point_cloud_center_robust(point_cloud)
 
     # Zero-center the point cloud (about estimated center).
-    zcwTw = Pose3(Rot3(np.eye(3)), -mean_pt)
+    zcwTw = Pose3(Rot3(), -mean_pt)
     # expression below is equivalent to applying zcwTw.transformFrom() to each world point
     point_cloud -= mean_pt
     is_nearby = np.linalg.norm(point_cloud, axis=1) < args.max_range

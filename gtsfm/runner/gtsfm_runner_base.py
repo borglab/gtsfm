@@ -348,7 +348,7 @@ class GtsfmRunnerBase:
         )
         retriever_duration_sec = time.time() - retriever_start_time
         retriever_metrics.add_metric(GtsfmMetric("retriever_duration_sec", retriever_duration_sec))
-        logger.info("Image pair retrieval took %.2f sec.", retriever_duration_sec)
+        logger.info("Image pair retrieval took %.2f min.", retriever_duration_sec / 60.0)
 
         intrinsics = self.loader.get_all_intrinsics()
 

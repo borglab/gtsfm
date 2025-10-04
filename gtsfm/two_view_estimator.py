@@ -6,10 +6,10 @@ Authors: Ayush Baid, John Lambert
 import dataclasses
 import logging
 import timeit
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-from dask.distributed import Client
 import numpy as np
+from dask.distributed import Client
 from gtsam import PinholeCameraCal3Bundler, Pose3, Rot3, SfmTrack, Unit3
 
 import gtsfm.common.types as gtsfm_types
@@ -543,7 +543,7 @@ def run_two_view_estimator_as_futures(
     two_view_estimator: TwoViewEstimator,
     keypoints_list: List[Keypoints],
     putative_corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
-    camera_intrinsics: List[gtsfm_types.CALIBRATION_TYPE],
+    camera_intrinsics: Sequence[gtsfm_types.CALIBRATION_TYPE],
     relative_pose_priors: Dict[Tuple[int, int], PosePrior],
     gt_cameras: List[Optional[gtsfm_types.CAMERA_TYPE]],
     gt_scene_mesh: Optional[Any],
