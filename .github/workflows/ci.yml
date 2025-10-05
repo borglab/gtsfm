@@ -39,9 +39,11 @@ jobs:
           conda info
       - name: Flake check
         run: |
+          set -e
           flake8 --max-line-length 120 --ignore E201,E202,E203,E231,W291,W293,E303,W391,E402,W503,E731 gtsfm tests
       - name: Unit tests
         run: |
+          set -e
           pytest tests --cov gtsfm \
             --ignore tests/repro_tests \
             --ignore tests/loader/test_argoverse_dataset_loader.py \
@@ -49,7 +51,8 @@ jobs:
           coverage report
       - name: React-Three-Fiber app tests
         run: |
-          cd rtf_vis_tool && npm install --legacy-peer-deps && npm test a
+          set -e
+          cd rtf_vis_tool && npm install --legacy-peer-deps && npm test
 
   benchmark:
     name: Benchmark
