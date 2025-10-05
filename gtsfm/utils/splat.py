@@ -10,6 +10,7 @@ from typing import Literal, Tuple
 import cv2
 import numpy as np
 import torch
+from scipy.spatial.transform import Rotation
 from sklearn.neighbors import NearestNeighbors
 
 from gtsfm.utils import logger as logger_utils
@@ -263,3 +264,29 @@ def get_viewmat(camera_to_world: torch.Tensor) -> torch.Tensor:
     viewmat[:, :3, 3:4] = T_inv
     viewmat[:, 3, 3] = 1.0
     return viewmat
+
+
+def transform_gaussian(gaussianA, sim3_B_A):
+    """
+    Transforms a Gaussian Splat from one coordinate system to another using gtsam.Similarity3
+    Args:
+        gaussianA (dict): A dictionary representing the Gaussian in coordinate system A.
+        sim3_B_A (gtsfm.Similarity3): The transformation from coordinate system A to B.
+    Returns:
+        gaussianB: A dictionary representing the Gaussian in coordinate system B.
+    """
+    meanA = gaussianA["means"]
+    meanB = sim3_B_A.transformFrom(meanA)
+
+    rotationBA = Rotation.from_matrix(sim3_B_A.rotation().matrix())
+    rotationB = (rotationBA * Rotation.from_quat(gaussianA["quats"])).as_quat()
+
+    scaleB = sim3_B_A.scale() * gaussianA["scales"]
+
+    # we only update the means, quats and scales (which both result in covariance) as opacity and color do not change.
+    gaussianB = gaussianA.copy()
+    gaussianB["means"] = meanB
+    gaussianB["quats"] = rotationB
+    gaussianB["scales"] = scaleB
+
+    return gaussianB

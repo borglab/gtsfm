@@ -5,7 +5,10 @@ Authors: Harneet Singh Khanuja
 
 import unittest
 
+import gtsam
+import numpy as np
 import torch
+from scipy.spatial.transform import Rotation
 
 from gtsfm.utils.splat import (
     auto_orient_and_center_poses,
@@ -13,10 +16,15 @@ from gtsfm.utils.splat import (
     get_viewmat,
     random_quat_tensor,
     rescale_output_resolution,
+    transform_gaussian,
 )
 
 
 class TestIoUtils(unittest.TestCase):
+    """
+    Class to test util functions for Gaussian Splatting
+    """
+
     def test_get_rotation_matrix_from_two_vectors(self):
         """Ensures correct rotation matrix"""
 
@@ -85,6 +93,58 @@ class TestIoUtils(unittest.TestCase):
         w2c_torch = torch.linalg.inv(c2w)
 
         self.assertTrue(torch.allclose(w2c_func, w2c_torch))
+
+    def test_transform_gaussian(self):
+        """Ensures correct transformation from coordinate system A to B"""
+
+        base_gaussian = {
+            "means": np.array([0.5, 0, 0]),
+            "quats": Rotation.from_euler("y", 45, degrees=True).as_quat(),
+            "scales": np.array([0.3, 0.15, 0.05]),
+        }
+
+        # --- Test 1: Translation Only ---
+        rot1 = gtsam.Rot3()
+        trans1 = gtsam.Point3(1.5, 1, 0.5)
+        scale1 = 1.0
+        sim3_1 = gtsam.Similarity3(rot1, trans1, scale1)
+        gauss_B_1 = transform_gaussian(base_gaussian, sim3_1)
+        expected_mean_1 = base_gaussian["means"] + trans1
+        np.testing.assert_allclose(gauss_B_1["means"], expected_mean_1)
+
+        # --- Test 2: Rotation Only ---
+        rot2 = gtsam.Rot3.Rz(np.deg2rad(90))
+        trans2 = gtsam.Point3(0, 0, 0)
+        scale2 = 1.0
+        sim3_2 = gtsam.Similarity3(rot2, trans2, scale2)
+        gauss_B_2 = transform_gaussian(base_gaussian, sim3_2)
+        expected_mean_2 = rot2.matrix() @ base_gaussian["means"]
+        np.testing.assert_allclose(gauss_B_2["means"], expected_mean_2, atol=1e-7)
+
+        # --- Test 3: Scale Only ---
+        rot3 = gtsam.Rot3()
+        trans3 = gtsam.Point3(0, 0, 0)
+        scale3 = 2.5
+        sim3_3 = gtsam.Similarity3(rot3, trans3, scale3)
+        gauss_B_3 = transform_gaussian(base_gaussian, sim3_3)
+        expected_mean_3 = scale3 * base_gaussian["means"]
+        expected_scale_3 = scale3 * base_gaussian["scales"]
+        np.testing.assert_allclose(gauss_B_3["means"], expected_mean_3, atol=1e-7)
+        np.testing.assert_allclose(gauss_B_3["scales"], expected_scale_3, atol=1e-7)
+
+        # --- Test 4: Combined Transformation ---
+        R_4 = Rotation.from_euler("xyz", [30, 45, 60], degrees=True).as_matrix()
+        rot4 = gtsam.Rot3(R_4)
+        trans4 = gtsam.Point3(-1, 0.5, 1)
+        scale4 = 0.5
+        sim3_4 = gtsam.Similarity3(rot4, trans4, scale4)
+        gauss_B_4 = transform_gaussian(base_gaussian, sim3_4)
+        expected_mean_4 = scale4 * (R_4 @ base_gaussian["means"] + trans4)
+        expected_scale_4 = scale4 * base_gaussian["scales"]
+        expected_quat_4 = (Rotation.from_matrix(R_4) * Rotation.from_quat(base_gaussian["quats"])).as_quat()
+        np.testing.assert_allclose(gauss_B_4["means"], expected_mean_4, atol=1e-7)
+        np.testing.assert_allclose(gauss_B_4["scales"], expected_scale_4, atol=1e-7)
+        np.testing.assert_allclose(gauss_B_4["quats"], expected_quat_4, atol=1e-7)
 
 
 if __name__ == "__main__":
