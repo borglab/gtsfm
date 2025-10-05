@@ -179,7 +179,7 @@ class LoaderBase(GTSFMProcess):
             target_h,
             target_w,
         ) = img_utils.get_downsampling_factor_per_axis(img_full_res.height, img_full_res.width, self._max_resolution)
-        logger.info(
+        logger.debug(
             "Image %d resized from (H,W)=(%d,%d) -> (%d,%d)",
             index,
             img_full_res.height,
