@@ -1,21 +1,23 @@
-""" Create 2D-3D data association as a precursor to Bundle Adjustment.
+"""Create 2D-3D data association as a precursor to Bundle Adjustment.
 1. Forms feature tracks from verified correspondences and global poses.
 2. Estimates 3D landmark for each track (Ransac and simple triangulation modes available)
 3. Filters tracks based on reprojection error.
 
-References: 
+References:
 1. Richard I. Hartley and Peter Sturm. Triangulation. Computer Vision and Image Understanding, Vol. 68, No. 2,
    November, pp. 146–157, 1997
 
 Authors: Sushmita Warrier, Xiaolong Wu, John Lambert, Travis Driver
 """
+
 import os
 import time
 from collections import Counter
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import dask
+import gtsam
 import numpy as np
 from dask.delayed import Delayed
 from gtsam import SfmTrack
@@ -81,7 +83,7 @@ class DataAssociation(GTSFMProcess):
         sfm_tracks: List[Optional[SfmTrack]],
         avg_track_reproj_errors: List[Optional[float]],
         triangulation_exit_codes: List[TriangulationExitCode],
-        cameras_gt: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
+        cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
         relative_pose_priors: Dict[Tuple[int, int], Optional[PosePrior]],
         images: Optional[List[Image]] = None,
     ) -> Tuple[GtsfmData, GtsfmMetricsGroup]:
@@ -118,7 +120,11 @@ class DataAssociation(GTSFMProcess):
         for i, camera in cameras.items():
             triangulated_data.add_camera(i, camera)
 
-        exit_codes_wrt_gt = track_utils.classify_tracks2d_with_gt_cameras(tracks=tracks_2d, cameras_gt=cameras_gt)
+        # If GT cameras are available and all are PinholeCameraCal3Bundler, compute the exit codes w.r.t. GT cameras.
+        exit_codes_wrt_gt = None
+        pinhole_bundler_cams = [cam for cam in cameras_gt if isinstance(cam, gtsam.PinholeCameraCal3Bundler)]
+        if len(pinhole_bundler_cams) == len(cameras_gt):
+            exit_codes_wrt_gt = track_utils.classify_tracks2d_with_gt_cameras(tracks_2d, pinhole_bundler_cams)
 
         # Add valid tracks where triangulation was successful.
         exit_codes_wrt_computed: List[TriangulationExitCode] = []
@@ -277,7 +283,7 @@ class DataAssociation(GTSFMProcess):
         num_images: int,
         cameras: Dict[int, gtsfm_types.CAMERA_TYPE],
         tracks_2d: List[SfmTrack2d],
-        cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
+        cameras_gt: Sequence[Optional[gtsfm_types.CAMERA_TYPE]],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         images: Optional[List[Delayed]] = None,
     ) -> Tuple[GtsfmData, GtsfmMetricsGroup]:
