@@ -75,6 +75,9 @@
         "meshgrid",
         "nerfstudio",
         "netvlad",
+        "noexif",
+        "noextrinsics",
+        "nointrinsics",
         "Olsson",
         "olssonloader",
         "partitioner",
@@ -87,17 +90,17 @@
         "reprojection",
         "searchsorted",
         "sfmdata",
+        "Shicong",
+        "splatfacto",
         "tocuda",
         "twoview",
         "VIEWGRAPH",
         "xlabel",
-        "ylabel"
+        "ylabel",
+        "Zongyue"
     ],
-    "python-envs.pythonProjects": [
-        {
-            "path": "",
-            "envManager": "ms-python.python:conda",
-            "packageManager": "ms-python.python:conda"
-        }
-    ],
+    "[yaml]": {
+        "editor.defaultFormatter": "redhat.vscode-yaml"
+    },
+    "python.analysis.typeCheckingMode": "standard"
 }

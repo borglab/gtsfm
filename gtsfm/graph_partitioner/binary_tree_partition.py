@@ -10,8 +10,8 @@ Authors: Shicong Ma
 from math import ceil, log2
 from typing import Dict, List, Optional, Tuple
 
-import gtsam
-import networkx as nx
+import gtsam  # type: ignore
+import networkx as nx  # type: ignore
 from gtsam import SymbolicFactorGraph
 
 import gtsfm.utils.logger as logger_utils
