@@ -289,7 +289,7 @@ def transform_gaussian(gaussianA: dict, bSa: gtsam.Similarity3) -> dict:
 
     scaleB = torch.log(torch.tensor(bSa.scale())) + gaussianA["scale"]
 
-    # we only update the means, quaternions and scales (which both result in covariance) as opacity and color do not change.
+    # we only update the means, quaternions and scales (covariance) as opacity and color do not change.
     gaussianB = gaussianA.copy()
     gaussianB["mean"] = meanB
     gaussianB["quaternion"] = rotationB
