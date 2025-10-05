@@ -8,6 +8,7 @@ import random
 from typing import Literal, Tuple
 
 import cv2
+import gtsam
 import numpy as np
 import torch
 from sklearn.neighbors import NearestNeighbors
@@ -263,3 +264,35 @@ def get_viewmat(camera_to_world: torch.Tensor) -> torch.Tensor:
     viewmat[:, :3, 3:4] = T_inv
     viewmat[:, 3, 3] = 1.0
     return viewmat
+
+
+def transform_gaussian(gaussianA: dict, bSa: gtsam.Similarity3) -> dict:
+    """
+    Transforms a Gaussian Splat from one coordinate system to another using gtsam.Similarity3
+    Args:
+        gaussianA (dict): A dictionary representing the Gaussian in coordinate system A.
+        bSa (gtsam.Similarity3): The transformation from coordinate system A to B.
+    Returns:
+        gaussianB: A dictionary representing the Gaussian in coordinate system B.
+    """
+    meanA = gaussianA["mean"]
+    meanB = torch.Tensor(bSa.transformFrom(meanA))
+
+    w = gaussianA["quaternion"][0]
+    x = gaussianA["quaternion"][1]
+    y = gaussianA["quaternion"][2]
+    z = gaussianA["quaternion"][3]
+
+    q = gtsam.Rot3.Quaternion(w, x, y, z)
+    bRa = bSa.rotation()
+    rotationB = torch.Tensor((bRa * q).toQuaternion().coeffs())[[3, 0, 1, 2]]
+
+    scaleB = torch.log(torch.tensor(bSa.scale())) + gaussianA["scale"]
+
+    # we only update the means, quaternions and scales (covariance) as opacity and color do not change.
+    gaussianB = gaussianA.copy()
+    gaussianB["mean"] = meanB
+    gaussianB["quaternion"] = rotationB
+    gaussianB["scale"] = scaleB
+
+    return gaussianB
