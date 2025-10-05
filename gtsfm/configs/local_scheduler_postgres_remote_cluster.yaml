@@ -1,5 +1,5 @@
 # SSH login credentials for remote cluster
-username: YOUR_USERNAME_HERE
+# username: ${SSH_USERNAME}
 
 # Dask scheduler configuration, local
 scheduler:
@@ -8,12 +8,13 @@ scheduler:
 
 # remote workers and SSH port
 workers:
-  host1.cc.gatech.edu: portnumber
+  hornet.cc.gatech.edu: 9000
+  eagle.cc.gatech.edu: 9001
 
 # PostgreSQL connection settings (local to the scheduler)
 database:
   host: localhost            # PostgreSQL host (usually localhost if tunneled)
   port: 5432                 # PostgreSQL port
-  database: YOUR_DB_NAME        # Database name
-  user: YOUR_DB_USERNAME             # Database username
-  password: "YOUR_DB_PASSWORD"           # Database password
+  database: postgres        # Database name
+  # user: ${POSTGRES_USER}
+  # password: ${POSTGRES_PASSWORD}

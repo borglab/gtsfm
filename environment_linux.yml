@@ -5,6 +5,7 @@ dependencies:
   # python essentials
   - python=3.10
   - pip
+  - python-dotenv
   # formatting and dev environment
   - black
   - coverage
