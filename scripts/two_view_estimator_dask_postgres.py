@@ -15,6 +15,7 @@ Features:
 
 Author: Zongyue Liu
 """
+
 import atexit
 import os
 import signal
@@ -64,14 +65,14 @@ atexit.register(cleanup)
 def check_port_in_use(port) -> bool:
     """Check if a port is in use"""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        return s.connect_ex(('localhost', port)) == 0
+        return s.connect_ex(("localhost", port)) == 0
 
 
 def kill_process_on_port(port) -> bool:
     """Kill process using the specified port"""
     try:
-        result = subprocess.run(['lsof', '-i', f':{port}', '-t'], capture_output=True, text=True)
-        pids = result.stdout.strip().split('\n')
+        result = subprocess.run(["lsof", "-i", f":{port}", "-t"], capture_output=True, text=True)
+        pids = result.stdout.strip().split("\n")
         for pid in pids:
             if pid:
                 print(f"Killing process {pid} using port {port}")
@@ -83,10 +84,10 @@ def kill_process_on_port(port) -> bool:
         return False
 
 
-def load_config(config_file='gtsfm/configs/local_scheduler_postgres_remote_cluster.yaml'):
+def load_config(config_file="gtsfm/configs/local_scheduler_postgres_remote_cluster.yaml"):
     """Load configuration from YAML file"""
     try:
-        with open(config_file, 'r') as file:
+        with open(config_file, "r") as file:
             config = yaml.safe_load(file)
         return config
     except Exception as e:
@@ -108,55 +109,53 @@ def test_database_connection(db_params):
         cursor = conn.cursor()
         cursor.execute("SELECT version()")
         version = cursor.fetchone()
-        print(f"✅ Database connection successful: {version[0]}")
+        print(f"Database connection successful: {version[0]}")
         cursor.close()
         conn.close()
         return True
     except Exception as e:
-        print(f"❌ Database connection failed: {e}")
+        print(f"Database connection failed: {e}")
         return False
 
 
 def main():
     """Main function containing all computational logic"""
-    import sys
-    
+
     # Load configuration - default can be here at the application level
-    config_file = 'gtsfm/configs/local_scheduler_postgres_remote_cluster.yaml'
+    config_file = "gtsfm/configs/local_scheduler_postgres_remote_cluster.yaml"
     config = load_config(config_file)
-    
+
     # Extract database parameters
     db_params = {
-        'host': config['database']['host'],
-        'port': config['database']['port'],
-        'database': config['database']['database'],
-        'user': config['database']['user'],
-        'password': config['database']['password']
+        "host": config["database"]["host"],
+        "port": config["database"]["port"],
+        "database": config["database"]["database"],
+        "user": config["database"]["user"],
+        "password": config["database"]["password"],
     }
-    
+
     # Create result folder
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     results_dir = Path(f"two_view_results_{timestamp}")
     results_dir.mkdir(exist_ok=True)
-    
+
     images_dir = results_dir / "images"
     images_dir.mkdir(exist_ok=True)
-    
+
     print(f"Saving results to folder: {results_dir}")
-    sys.stdout.flush()
-    
+
     # Set up cluster infrastructure
     print("Setting up distributed cluster...")
-    sys.stdout.flush()
+
     scheduler_port, processes = setup_cluster_infrastructure(config_file)
-    
+
     # Prepare input data locally
     print("Preparing input data...")
-    sys.stdout.flush()
+
     cwd = Path.cwd()
     folder_path = cwd / "tests" / "data" / "imb_reichstag"
 
-    indices = [0, 1, 2, 3]  
+    indices = [0, 1, 2, 3, 4]
     num_images = len(indices)
 
     # Load images and camera intrinsics
@@ -167,23 +166,20 @@ def main():
     # Feature detection and description
     detector_descriptor = SIFTDetectorDescriptor()
     print("[LOCAL MACHINE] Detecting keypoints...")
-    sys.stdout.flush()
+
     features = [detector_descriptor.detect_and_describe(image) for image in images]
     keypoints_list = []
     descriptors_list = []
-
 
     for i, (kp, desc) in enumerate(features):
         kp.image_id = indices[i]  # Set image ID for database storage
         keypoints_list.append(kp)  # Directly append the Keypoints object
         descriptors_list.append(desc)
         print(f"Image {indices[i]}: {desc.shape[0]} keypoints")
-        
 
     # Feature matching
     matcher = TwoWayMatcher(ratio_test_threshold=0.8)
     print("[LOCAL MACHINE] Matching keypoints...")
-    sys.stdout.flush()
 
     image_pairs = [(i, j) for i in range(num_images) for j in range(i + 1, num_images)]
     putative_corr_idxs_dict = {}
@@ -191,32 +187,27 @@ def main():
     for i1, i2 in image_pairs:
         image_shape_i1 = images[i1].value_array.shape
         image_shape_i2 = images[i2].value_array.shape
-        
+
         match_indices = matcher.match(
             keypoints_list[i1].coordinates,
             keypoints_list[i2].coordinates,
-            descriptors_list[i1], 
-            descriptors_list[i2], 
+            descriptors_list[i1],
+            descriptors_list[i2],
             image_shape_i1,
-            image_shape_i2
+            image_shape_i2,
         )
-        
+
         if match_indices.shape[0] > 0:
             putative_corr_idxs_dict[(i1, i2)] = match_indices
             print(f"Image pair ({indices[i1]}, {indices[i2]}): {match_indices.shape[0]} matches")
 
     # Create verifier and inlier processor
     verifier = Ransac(use_intrinsics_in_verification=False, estimation_threshold_px=2)
-    inlier_support_processor = InlierSupportProcessor(
-        min_num_inliers_est_model=20,
-        min_inlier_ratio_est_model=0.1
-    )
+    inlier_support_processor = InlierSupportProcessor(min_num_inliers_est_model=20, min_inlier_ratio_est_model=0.1)
 
     # Create two-view estimator with database integration
     triangulation_options = TriangulationOptions(
-        mode=TriangulationSamplingMode.NO_RANSAC,
-        min_triangulation_angle=1.0,
-        reproj_error_threshold=4.0
+        mode=TriangulationSamplingMode.NO_RANSAC, min_triangulation_angle=1.0, reproj_error_threshold=4.0
     )
 
     two_view_estimator = TwoViewEstimator(
@@ -225,7 +216,7 @@ def main():
         bundle_adjust_2view=True,
         eval_threshold_px=4,
         triangulation_options=triangulation_options,
-        postgres_params=db_params
+        postgres_params=db_params,
     )
 
     # Set empty pose priors and ground truth cameras
@@ -235,34 +226,28 @@ def main():
 
     # Connect to Dask cluster
     print("Connecting to Dask cluster...")
-    sys.stdout.flush()
     client = Client(f"tcp://localhost:{scheduler_port}")
     print(f"Connected to Dask cluster: {client.dashboard_link}")
-    sys.stdout.flush()
-    
+
     # Wait for all workers to connect
-    expected_workers = len(config['workers'])
+    expected_workers = len(config["workers"])
     print(f"Waiting for {expected_workers} workers to connect...")
-    sys.stdout.flush()
-    
+
     timeout = 60  # seconds
     start_wait = time.time()
-    while len(client.scheduler_info()['workers']) < expected_workers:
+    while len(client.scheduler_info()["workers"]) < expected_workers:
         if time.time() - start_wait > timeout:
             print(f"Timeout: Only {len(client.scheduler_info()['workers'])} workers connected")
             break
         print(f"Currently {len(client.scheduler_info()['workers'])}/{expected_workers} workers connected. Waiting...")
         time.sleep(3)
-    
-    print(f"Cluster workers: {len(client.scheduler_info()['workers'])}")
-    sys.stdout.flush()
-    for worker_id, worker_info in client.scheduler_info()['workers'].items():
-        host = worker_info.get('host', 'unknown')
-        port = worker_info.get('port', 'unknown')
-        worker_address = f"{host}:{port}" if 'port' in worker_info else host
-        print(f"  - Worker: {worker_id}, Address: {worker_address}")
-    sys.stdout.flush()
 
+    print(f"Cluster workers: {len(client.scheduler_info()['workers'])}")
+    for worker_id, worker_info in client.scheduler_info()["workers"].items():
+        host = worker_info.get("host", "unknown")
+        port = worker_info.get("port", "unknown")
+        worker_address = f"{host}:{port}" if "port" in worker_info else host
+        print(f"  - Worker: {worker_id}, Address: {worker_address}")
     try:
         # Test database connection
         if not test_database_connection(db_params):
@@ -271,14 +256,12 @@ def main():
 
         # Run distributed two-view estimation
         print("[MAIN] Running distributed two-view estimation...")
-        sys.stdout.flush()
-        
+
         with performance_report(filename=str(results_dir / "dask_performance_report.html")):
             start_time = time.time()
-            
+
             print("[MAIN] Calling run_two_view_estimator_as_futures...")
-            sys.stdout.flush()
-            
+
             two_view_output_dict = run_two_view_estimator_as_futures(
                 client=client,
                 two_view_estimator=two_view_estimator,
@@ -287,52 +270,53 @@ def main():
                 camera_intrinsics=camera_intrinsics,
                 relative_pose_priors=relative_pose_priors,
                 gt_cameras=gt_cameras,
-                gt_scene_mesh=gt_scene_mesh
+                gt_scene_mesh=gt_scene_mesh,
             )
 
             print(f"[MAIN] run_two_view_estimator_as_futures returned {len(two_view_output_dict)} results")
-            sys.stdout.flush()
-            
+
             total_time = time.time() - start_time
             print(f"[MAIN] Distributed computation completed in {total_time:.2f} seconds")
-            sys.stdout.flush()
 
         # Query database for results
         print("[MAIN] Querying database for results...")
-        sys.stdout.flush()
-        
+
         try:
             conn = psycopg2.connect(**db_params)
             cursor = conn.cursor()
-            
+
             print("\n[MAIN] Two-view results from database:")
-            sys.stdout.flush()
-            cursor.execute("""
-            SELECT i1, i2, verified_corr_count, inlier_ratio, success, computation_time, worker_name
+
+            cursor.execute(
+                """
+            SELECT i1, i2, timestamp, verified_corr_count, inlier_ratio, success, computation_time, worker_name
             FROM two_view_results
             WHERE timestamp >= %s
             ORDER BY i1, i2
-            """, (datetime.now().replace(hour=0, minute=0, second=0, microsecond=0),))
-            
+            """,
+                (datetime.now().replace(hour=0, minute=0, second=0, microsecond=0),),
+            )
+
             results = cursor.fetchall()
-            
-            print("Image Pair | Verified Matches | Inlier Ratio | Success | Computation Time (s) | Worker")
-            print("-" * 90)
+
+            print(
+                "Image Pair | Timestamp                  | Verified Matches | Inlier Ratio | Success | Computation Time (s) | Worker"
+            )
+            print("-" * 120)
             for row in results:
-                i1, i2, corr_count, inlier_ratio, success, comp_time, worker = row
-                print(f"({i1}, {i2}) | {corr_count:8d} | {inlier_ratio:.4f} | {success} | {comp_time:.4f} | {worker}")
-            sys.stdout.flush()
-            
+                i1, i2, timestamp, corr_count, inlier_ratio, success, comp_time, worker = row
+                print(
+                    f"({i1}, {i2}) | {timestamp} | {corr_count:8d} | {inlier_ratio:.4f} | {success} | {comp_time:.4f} | {worker}"
+                )
+
             cursor.close()
             conn.close()
         except Exception as e:
             print(f"[MAIN] Database query failed: {e}")
-            sys.stdout.flush()
 
         # Process and save results
         print("\n[MAIN] Processing results...")
-        sys.stdout.flush()
-        
+
         summary_file = results_dir / "results_summary.txt"
         with open(summary_file, "w") as f:
             f.write(f"Two-View Estimation Summary - {timestamp}\n")
@@ -343,40 +327,47 @@ def main():
             f.write("Results per image pair:\n")
             f.write("-" * 50 + "\n")
 
-        for (i1, i2), (i2Ri1, i2Ui1, v_corr_idxs, pre_ba_report, post_ba_report, post_isp_report) in (
-                two_view_output_dict.items()):
-            
+        for (i1, i2), (
+            i2Ri1,
+            i2Ui1,
+            v_corr_idxs,
+            pre_ba_report,
+            post_ba_report,
+            post_isp_report,
+        ) in two_view_output_dict.items():
+
             with open(summary_file, "a") as f:
                 f.write(f"\nImage Pair ({indices[i1]}, {indices[i2]}):\n")
-                
+
             if i2Ri1 is not None and i2Ui1 is not None:
                 ypr_deg = np.degrees(i2Ri1.xyz()) if i2Ri1 else None
-                
+
                 print(f"[MAIN] Image Pair ({indices[i1]}, {indices[i2]}):")
                 print(f"  - Verified correspondences: {len(v_corr_idxs)}")
                 print(f"  - Relative rotation (yaw, pitch, roll): {ypr_deg}")
                 print(f"  - Relative translation direction: {i2Ui1.point3().T}")
                 print(f"  - Inlier ratio: {post_isp_report.inlier_ratio_est_model:.4f}")
-                sys.stdout.flush()
-                
+
                 with open(summary_file, "a") as f:
                     f.write(f"  - Verified correspondences: {len(v_corr_idxs)}\n")
                     f.write(f"  - Relative rotation (yaw, pitch, roll): {ypr_deg}\n")
                     f.write(f"  - Relative translation direction: {i2Ui1.point3().T}\n")
                     f.write(f"  - Inlier ratio: {post_isp_report.inlier_ratio_est_model:.4f}\n")
-                
+
                 # Visualize correspondences
                 if len(v_corr_idxs) > 0:
                     max_viz_corrs = min(100, len(v_corr_idxs))
-                    
+
                     try:
                         correspondence_image = viz.plot_twoview_correspondences(
-                            images[i1], images[i2], 
-                            keypoints_list[i1], keypoints_list[i2],
-                            v_corr_idxs[:max_viz_corrs], 
-                            max_corrs=max_viz_corrs
+                            images[i1],
+                            images[i2],
+                            keypoints_list[i1],
+                            keypoints_list[i2],
+                            v_corr_idxs[:max_viz_corrs],
+                            max_corrs=max_viz_corrs,
                         )
-                        
+
                         plt.figure(figsize=(12, 10))
                         plt.imshow(correspondence_image.value_array)
                         plt.title(f"Image Pair ({indices[i1]}, {indices[i2]}) Verified Correspondences")
@@ -384,38 +375,36 @@ def main():
                         plt.close()
                     except Exception as e:
                         print(f"[MAIN] Visualization error for pair ({indices[i1]}, {indices[i2]}): {e}")
-                        sys.stdout.flush()
+
             else:
                 print(f"[MAIN] Image Pair ({indices[i1]}, {indices[i2]}): Relative pose estimation failed")
-                sys.stdout.flush()
+
                 with open(summary_file, "a") as f:
                     f.write("  - Relative pose estimation failed\n")
 
         print(f"\n[MAIN] All results saved to: {results_dir}")
-        sys.stdout.flush()
-        
+
         # Keep processes alive
         print("[MAIN] Processes will continue running. Press Ctrl+C to stop...")
-        sys.stdout.flush()
+
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
         print("\n[MAIN] Termination signal received, cleaning up...")
-        sys.stdout.flush()
+
     except Exception as e:
         print(f"[MAIN] ❌ Error occurred: {e}")
         import traceback
+
         traceback.print_exc()
-        sys.stdout.flush()
+
     finally:
         # Clean up
         print("[MAIN] Closing Dask client...")
-        sys.stdout.flush()
+
         client.close()
         print("[MAIN] Dask client closed")
-        sys.stdout.flush()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
-
