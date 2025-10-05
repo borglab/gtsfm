@@ -164,6 +164,7 @@ class TestIoUtils(unittest.TestCase):
             io_utils.write_cameras(gtsfm_data, images, tempdir)
             recovered_calibrations, _ = io_utils.read_cameras_txt(cameras_fpath)
 
+        assert recovered_calibrations is not None
         self.assertEqual(len(original_calibrations), len(recovered_calibrations))
 
         for i in range(len(recovered_calibrations)):

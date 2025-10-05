@@ -2,6 +2,7 @@
 
 Authors: Ayush Baid, John Lambert
 """
+
 import glob
 import os
 import pickle
@@ -10,18 +11,18 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import gtsam
-import h5py
-import numpy as np
+import gtsam  # type: ignore
+import h5py  # type: ignore
+import numpy as np  # type: ignore
 import open3d
-import simplejson as json
+import simplejson as json  # type: ignore
 from gtsam import Cal3Bundler, Point3, Pose3, Rot3, SfmTrack
 from PIL import Image as PILImage
 from PIL.ExifTags import GPSTAGS, TAGS
 
 import gtsfm.utils.images as image_utils
 import gtsfm.utils.logger as logger_utils
-import gtsfm.utils.reprojection as reproj_utils
+import gtsfm.utils.reprojection as reprojection
 import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
 import thirdparty.colmap.scripts.python.read_write_model as colmap_io
 from gtsfm.common.gtsfm_data import GtsfmData
@@ -69,8 +70,8 @@ def load_image(img_path: str) -> Image:
         exif_data = parsed_data
 
     img_fname = Path(img_path).name
-    original_image = original_image.convert("RGB") if original_image.mode != "RGB" else original_image
-    return Image(value_array=np.asarray(original_image), exif_data=exif_data, file_name=img_fname)
+    converted_image = original_image.convert("RGB") if original_image.mode != "RGB" else original_image
+    return Image(value_array=np.asarray(converted_image), exif_data=exif_data, file_name=img_fname)
 
 
 def save_image(image: Image, img_path: str) -> None:
@@ -261,39 +262,27 @@ def read_cameras_txt(
 
     calibrations = []
     img_dims = []
-    for line in lines[3:]:
+    for i, line in enumerate(lines[3:]):
         cam_params = line.split()
         # Note that u0 is px, and v0 is py
         model = cam_params[1]
+        img_w = int(cam_params[2])
+        img_h = int(cam_params[3])
         # Currently only handles SIMPLE RADIAL and RADIAL camera models
         assert model in ["SIMPLE_RADIAL", "RADIAL", "PINHOLE"]
         if model == "SIMPLE_RADIAL":
-            _, _, img_w, img_h, fx, u0, v0, k1 = cam_params[:8]
-            img_w, img_h, fx, u0, v0, k1 = int(img_w), int(img_h), float(fx), float(u0), float(v0), float(k1)
+            fx, u0, v0, k1 = map(float, cam_params[4:8])
             # Convert COLMAP's SIMPLE_RADIAL to GTSAM's Cal3Bundler:
             # Add second radial distortion coefficient of value zero.
             k2 = 0.0
         elif model == "RADIAL":
-            _, _, img_w, img_h, fx, u0, v0, k1, k2 = cam_params[:9]
-            img_w, img_h, fx, u0, v0, k1, k2 = (
-                int(img_w),
-                int(img_h),
-                float(fx),
-                float(u0),
-                float(v0),
-                float(k1),
-                float(k2),
-            )
+            fx, u0, v0, k1, k2 = map(float, cam_params[4:9])
         elif model == "PINHOLE":
-            _, _, img_w, img_h, fx, _, u0, v0 = cam_params[:9]
-            img_w, img_h, fx, u0, v0 = (
-                int(img_w),
-                int(img_h),
-                float(fx),
-                float(u0),
-                float(v0),
-            )
+            fx, _, u0, v0 = map(float, cam_params[4:8])
             k1, k2 = 0.0, 0.0
+        else:
+            logger.warning("Camera %d model %s not supported. Skipping this camera." % (i, model))
+            continue
         calibrations.append(Cal3Bundler(fx, k1, k2, u0, v0))
         img_dims.append((img_h, img_w))
     assert len(calibrations) == num_cams
@@ -322,7 +311,9 @@ def write_cameras(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> 
         f.write(f"# Number of cameras: {len(gtsfm_data.get_valid_camera_indices())}\n")
 
         for i in gtsfm_data.get_valid_camera_indices():
-            gtsfm_cal = gtsfm_data.get_camera(i).calibration()
+            camera_i = gtsfm_data.get_camera(i)
+            assert camera_i is not None, "Camera %d is None" % i
+            gtsfm_cal = camera_i.calibration()
             colmap_cam = gtsfm_calibration_to_colmap_camera(i, gtsfm_cal, images[i].height, images[i].width)
             to_write = [colmap_cam.id, colmap_cam.model, colmap_cam.width, colmap_cam.height, *colmap_cam.params]
             line = " ".join([str(elem) for elem in to_write])
@@ -558,9 +549,9 @@ def write_points(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> N
             track = gtsfm_data.get_track(j)
 
             r, g, b = image_utils.get_average_point_color(track, images)
-            _, avg_track_reproj_error = reproj_utils.compute_track_reprojection_errors(gtsfm_data._cameras, track)
+            _, avg_track_error = reprojection.compute_track_reprojection_errors(gtsfm_data._cameras, track)
             x, y, z = track.point3()
-            f.write(f"{j} {x} {y} {z} {r} {g} {b} {np.round(avg_track_reproj_error, 2)} ")
+            f.write(f"{j} {x} {y} {z} {r} {g} {b} {np.round(avg_track_error, 2)} ")
 
             for k in range(track.numberMeasurements()):
                 i, uv_measured = track.measurement(k)

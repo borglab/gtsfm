@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import numpy as np
-from gtsam import PinholeCameraCal3Bundler, Pose3
+from gtsam import Cal3_S2, PinholeCameraCal3_S2, Pose3
 
 import gtsfm.utils.io as io_utils
 import thirdparty.colmap.scripts.python.read_write_model as colmap_io
@@ -172,9 +172,9 @@ class TestAstrovisionLoader(unittest.TestCase):
             sfmtrack = self.loader.get_sfmtrack(idx_sfmtrack)
             for idx_meas in range(sfmtrack.numberMeasurements()):
                 image_id, uv_measured = sfmtrack.measurement(idx_meas)
-                cal3 = self.loader.get_camera_intrinsics(image_id)
+                cal3: Cal3_S2 = self.loader.get_camera_intrinsics(image_id)
                 wTi = self.loader.get_camera_pose(image_id)
-                cam = PinholeCameraCal3Bundler(wTi, cal3)
+                cam = PinholeCameraCal3_S2(wTi, cal3)
                 uv_expected, _ = cam.projectSafe(sfmtrack.point3())
                 uvs_measured.append(uv_measured)
                 uvs_expected.append(uv_expected)
