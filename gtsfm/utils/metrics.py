@@ -13,7 +13,7 @@ from typing import Dict, List, Optional, Sequence, Set, Tuple, Union
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns  # type: ignore
-from gtsam import Cal3Bundler, EssentialMatrix, PinholeCameraCal3Bundler, Pose3, Rot3, Unit3
+from gtsam import Cal3Bundler, EssentialMatrix, PinholeCameraCal3Bundler, Pose3, Rot3, Unit3  # type: ignore
 from trimesh import Trimesh
 
 import gtsfm.utils.geometry_comparisons as comp_utils
@@ -414,7 +414,7 @@ def get_all_relative_rotations_translations(
 
 
 def get_precision_recall_from_errors(
-    positive_errors: List[Optional[float]], negative_errors: List[Optional[float]], max_positive_error: float
+    positive_errors: Sequence[Optional[float]], negative_errors: Sequence[Optional[float]], max_positive_error: float
 ) -> Tuple[float, float]:
     """Computes the precision and recall from a list of errors for positive and negative classes.
     True positives are those for which the error is less than max_positive_error.
