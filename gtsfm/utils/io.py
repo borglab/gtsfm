@@ -181,7 +181,9 @@ def colmap2gtsfm(
     images: Dict[int, ColmapImage],
     points3D: Dict[int, ColmapPoint3D],
     load_sfmtracks: bool = False,
-) -> Tuple[List[str], List[Pose3], List[str], Optional[List[Point3]], np.ndarray, np.ndarray, List[Tuple[int, int]]]:
+) -> Tuple[
+    List[str], List[Pose3], List[str], Optional[List[np.ndarray]], np.ndarray, np.ndarray, List[Tuple[int, int]]
+]:
     """Converts COLMAP-formatted variables to GTSfM format.
 
     Args:
