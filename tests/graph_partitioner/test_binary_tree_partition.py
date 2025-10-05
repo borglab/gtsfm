@@ -12,7 +12,7 @@ Author: Shicong Ma
 import unittest
 from typing import List, Tuple
 
-import gtsam
+from gtsam.symbol_shorthand import X  # type: ignore
 
 from gtsfm.graph_partitioner.binary_tree_partition import BinaryTreeNode, BinaryTreePartition
 
@@ -50,6 +50,7 @@ class TestBinaryTreePartition(unittest.TestCase):
         """Test that partitioner creates the correct number of leaf partitions."""
         partitioner = BinaryTreePartition(max_depth=2)
         partitions = partitioner.partition_image_pairs(self.image_pairs)
+        assert partitioner.max_depth is not None
         expected_num_leaves = 2**partitioner.max_depth
         self.assertEqual(len(partitions), expected_num_leaves)
 
@@ -122,7 +123,7 @@ class TestBinaryTreePartition(unittest.TestCase):
             {"size": lambda self: 8, "at": lambda self, idx: ord("a") + idx},  # returns int ASCII code
         )()
 
-        root = partitioner._build_binary_partition(ordering)
+        root = partitioner._build_binary_partition(ordering)  # type: ignore
 
         leaf_nodes = []
 
@@ -135,6 +136,7 @@ class TestBinaryTreePartition(unittest.TestCase):
                 dfs(node.right)
 
         dfs(root)
+        assert partitioner.max_depth is not None
         self.assertEqual(len(leaf_nodes), 2**partitioner.max_depth)
         self.assertTrue(all(n.depth == partitioner.max_depth for n in leaf_nodes))
 
@@ -148,10 +150,7 @@ class TestBinaryTreePartition(unittest.TestCase):
         self.assertEqual(sfg.size(), len(test_pairs))
 
         # Check nx graph has correct nodes and edges
-        self.assertEqual(
-            set(nxg.edges()),
-            {(gtsam.symbol("x", 0), gtsam.symbol("x", 1)), (gtsam.symbol("x", 1), gtsam.symbol("x", 2))},
-        )
+        self.assertEqual(set(nxg.edges()), {(X(0), X(1)), (X(1), X(2))})
         self.assertEqual(len(nxg.nodes), 3)
         self.assertEqual(len(keys), 3)
 
@@ -162,7 +161,7 @@ class TestBinaryTreePartition(unittest.TestCase):
         # Fake ordering: integers 0 through 7
         ordering = type("FakeOrdering", (), {"size": lambda self: 8, "at": lambda self, idx: idx})()
 
-        root = partitioner._build_binary_partition(ordering)
+        root = partitioner._build_binary_partition(ordering)  # type: ignore
 
         # Collect leaf nodes and check depth
         leaf_nodes = []
@@ -176,6 +175,7 @@ class TestBinaryTreePartition(unittest.TestCase):
                 dfs(node.right)
 
         dfs(root)
+        assert partitioner.max_depth is not None
         self.assertEqual(len(leaf_nodes), 2**partitioner.max_depth)
         self.assertTrue(all(n.depth == partitioner.max_depth for n in leaf_nodes))
         self.assertEqual(sum(len(n.keys) for n in leaf_nodes), 8)
@@ -189,8 +189,8 @@ class TestBinaryTreePartition(unittest.TestCase):
         _, _, nxg = partitioner._build_graphs(image_pairs)
 
         # Manually create a binary tree with leaves split as [0,1] and [2,3]
-        left = BinaryTreeNode([gtsam.symbol("x", 0), gtsam.symbol("x", 1)], depth=1)
-        right = BinaryTreeNode([gtsam.symbol("x", 2), gtsam.symbol("x", 3)], depth=1)
+        left = BinaryTreeNode([X(0), X(1)], depth=1)
+        right = BinaryTreeNode([X(2), X(3)], depth=1)
         root = BinaryTreeNode([], depth=0)
         root.left = left
         root.right = right
