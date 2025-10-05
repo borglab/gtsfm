@@ -2,6 +2,7 @@
 
 Authors: Ayush Baid, John Lambert, Akshay Krishnan
 """
+
 import unittest
 from collections import defaultdict
 from types import SimpleNamespace
@@ -9,7 +10,7 @@ from typing import List, Tuple
 from unittest import mock
 
 import numpy as np
-from gtsam import EssentialMatrix, Rot3, Unit3
+from gtsam import EssentialMatrix, Rot3, Unit3  # type: ignore
 
 import gtsfm.utils.graph as graph_utils
 
@@ -74,7 +75,7 @@ class TestGraphUtils(unittest.TestCase):
         self.assertCountEqual(list(computed_relative_unit_translations.keys()), expected_edges)
 
         # check the actual Rot3 and Unit3 values
-        for (i1, i2) in expected_edges:
+        for i1, i2 in expected_edges:
             self.assertTrue(computed_relative_rotations[(i1, i2)].equals(input_relative_rotations[(i1, i2)], 1e-2))
             self.assertTrue(
                 computed_relative_unit_translations[(i1, i2)].equals(input_relative_unit_translations[(i1, i2)], 1e-2)
@@ -277,13 +278,13 @@ def extract_triplets_brute_force(edges: List[Tuple[int, int]]) -> List[Tuple[int
     """
     triplets = set()
 
-    for (i1, i2) in edges:
-        for (j1, j2) in edges:
-            for (k1, k2) in edges:
+    for i1, i2 in edges:
+        for j1, j2 in edges:
+            for k1, k2 in edges:
                 # check how many nodes are spanned by these 3 edges
-                cycle_nodes = set([i1, i2]).union(set([j1, j2])).union(set([k1, k2]))
+                cycle_nodes_set = set([i1, i2]).union(set([j1, j2])).union(set([k1, k2]))
                 # sort them in increasing order
-                cycle_nodes = tuple(sorted(cycle_nodes))
+                cycle_nodes = tuple(sorted(cycle_nodes_set))
 
                 # nodes cannot be repeated
                 unique_edges = set([(i1, i2), (j1, j2), (k1, k2)])
