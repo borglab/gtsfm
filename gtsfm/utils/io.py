@@ -262,7 +262,7 @@ def read_cameras_txt(
 
     calibrations = []
     img_dims = []
-    for line in lines[3:]:
+    for i, line in enumerate(lines[3:]):
         cam_params = line.split()
         # Note that u0 is px, and v0 is py
         model = cam_params[1]
@@ -281,7 +281,8 @@ def read_cameras_txt(
             fx, _, u0, v0 = map(float, cam_params[4:8])
             k1, k2 = 0.0, 0.0
         else:
-            raise ValueError(f"Camera model {model} not supported.")
+            logger.warning("Camera %d model %s not supported. Skipping this camera." % (i, model))
+            continue
         calibrations.append(Cal3Bundler(fx, k1, k2, u0, v0))
         img_dims.append((img_h, img_w))
     assert len(calibrations) == num_cams
@@ -310,7 +311,9 @@ def write_cameras(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> 
         f.write(f"# Number of cameras: {len(gtsfm_data.get_valid_camera_indices())}\n")
 
         for i in gtsfm_data.get_valid_camera_indices():
-            gtsfm_cal = gtsfm_data.get_camera(i).calibration()
+            camera_i = gtsfm_data.get_camera(i)
+            assert camera_i is not None, "Camera %d is None" % i
+            gtsfm_cal = camera_i.calibration()
             colmap_cam = gtsfm_calibration_to_colmap_camera(i, gtsfm_cal, images[i].height, images[i].width)
             to_write = [colmap_cam.id, colmap_cam.model, colmap_cam.width, colmap_cam.height, *colmap_cam.params]
             line = " ".join([str(elem) for elem in to_write])

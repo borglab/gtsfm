@@ -55,9 +55,6 @@ def colmap_camera_to_gtsam_calibration(camera: ColmapCamera) -> CALIBRATION_TYPE
     # Default to zero-valued radial distortion coefficients (quadratic and quartic).
     if camera_model_name == "SIMPLE_RADIAL":
         # See https://github.com/colmap/colmap/blob/1f6812e333a1e4b2ef56aa74e2c3873e4e3a40cd/src/colmap/sensor/models.h#L212  # noqa: E501
-        assert (
-            len(camera.params) == 4
-        ), f"Expected 4 parameters for SIMPLE_RADIAL, got {len(camera.params)}:{camera.params}"
         f, cx, cy, k1 = camera.params
         k2 = 0.0
     elif camera_model_name == "FULL_OPENCV":
@@ -100,7 +97,7 @@ def gtsfm_calibration_to_colmap_camera(
     """
     if isinstance(calibration, gtsam.Cal3Bundler):
         return ColmapCamera(
-            model="SIMPLE_RADIAL",
+            model="RADIAL",
             id=camera_id,
             width=width,
             height=height,
