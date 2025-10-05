@@ -8,9 +8,9 @@ import random
 from typing import Literal, Tuple
 
 import cv2
+import gtsam
 import numpy as np
 import torch
-from scipy.spatial.transform import Rotation
 from sklearn.neighbors import NearestNeighbors
 
 from gtsfm.utils import logger as logger_utils
@@ -266,27 +266,34 @@ def get_viewmat(camera_to_world: torch.Tensor) -> torch.Tensor:
     return viewmat
 
 
-def transform_gaussian(gaussianA, sim3_B_A):
+def transform_gaussian(gaussianA: dict, bSa: gtsam.Similarity3) -> dict:
     """
     Transforms a Gaussian Splat from one coordinate system to another using gtsam.Similarity3
     Args:
         gaussianA (dict): A dictionary representing the Gaussian in coordinate system A.
-        sim3_B_A (gtsfm.Similarity3): The transformation from coordinate system A to B.
+        bSa (gtsam.Similarity3): The transformation from coordinate system A to B.
     Returns:
         gaussianB: A dictionary representing the Gaussian in coordinate system B.
     """
-    meanA = gaussianA["means"]
-    meanB = sim3_B_A.transformFrom(meanA)
+    meanA = gaussianA["mean"]
+    meanB = torch.Tensor(bSa.transformFrom(meanA))
 
-    rotationBA = Rotation.from_matrix(sim3_B_A.rotation().matrix())
-    rotationB = (rotationBA * Rotation.from_quat(gaussianA["quats"])).as_quat()
+    gaussianA_quaternion = gaussianA["quaternion"].toQuaternion()
+    w = gaussianA_quaternion.w()
+    x = gaussianA_quaternion.x()
+    y = gaussianA_quaternion.y()
+    z = gaussianA_quaternion.z()
 
-    scaleB = sim3_B_A.scale() * gaussianA["scales"]
+    q = gtsam.Rot3.Quaternion(w, x, y, z)
+    bRa = bSa.rotation()
+    rotationB = torch.Tensor((bRa * q).toQuaternion().coeffs())[[3, 0, 1, 2]]
 
-    # we only update the means, quats and scales (which both result in covariance) as opacity and color do not change.
+    scaleB = torch.log(torch.tensor(bSa.scale())) + gaussianA["scale"]
+
+    # we only update the means, quaternions and scales (which both result in covariance) as opacity and color do not change.
     gaussianB = gaussianA.copy()
-    gaussianB["means"] = meanB
-    gaussianB["quats"] = rotationB
-    gaussianB["scales"] = scaleB
+    gaussianB["mean"] = meanB
+    gaussianB["quaternion"] = rotationB
+    gaussianB["scale"] = scaleB
 
     return gaussianB
