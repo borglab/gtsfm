@@ -84,9 +84,7 @@ def colmap_camera_to_gtsam_calibration(camera: ColmapCamera) -> CALIBRATION_TYPE
     return intrinsics_gtsfm
 
 
-def gtsfm_calibration_to_colmap_camera(
-    camera_id, calibration: CALIBRATION_TYPE, height: int, width: int
-) -> ColmapCamera:
+def gtsfm_calibration_to_colmap_camera(camera_id, calibration: gtsam.Cal3, height: int, width: int) -> ColmapCamera:
     """Convert a GTSAM calibration object to a pycolmap camera.
 
     Args:

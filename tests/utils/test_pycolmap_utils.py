@@ -2,15 +2,14 @@
 
 Author: Travis Driver
 """
-import unittest
-import numpy as np
-import gtsam
 
+import unittest
+
+import gtsam  # type: ignore
+import numpy as np
+
+from gtsfm.utils.pycolmap_utils import colmap_camera_to_gtsam_calibration, gtsfm_calibration_to_colmap_camera
 from thirdparty.colmap.scripts.python.read_write_model import Camera as ColmapCamera
-from gtsfm.utils.pycolmap_utils import (
-    colmap_camera_to_gtsam_calibration,
-    gtsfm_calibration_to_colmap_camera,
-)
 
 
 class TestPycolmapUtils(unittest.TestCase):
@@ -54,7 +53,7 @@ class TestPycolmapUtils(unittest.TestCase):
         self.assertAlmostEqual(cam_rt.params[1], params[1])  # cx
         self.assertAlmostEqual(cam_rt.params[2], params[2])  # cy
         self.assertAlmostEqual(cam_rt.params[3], params[3])  # k1
-        self.assertAlmostEqual(cam_rt.params[4], 0.0)        # k2 default
+        self.assertAlmostEqual(cam_rt.params[4], 0.0)  # k2 default
         self.assertIsInstance(calib, gtsam.Cal3Bundler)
 
     def test_round_trip_pinhole(self):
@@ -79,10 +78,22 @@ class TestPycolmapUtils(unittest.TestCase):
 
     def test_round_trip_full_opencv(self):
         # FULL_OPENCV has 12 params; only the first 8 used currently.
-        params = np.array([
-            1100.0, 1090.0, 630.0, 470.0, 0.02, -0.01, 0.002, -0.001,  # fx, fy, cx, cy, k1,k2,p1,p2
-            0.0, 0.0, 0.0, 0.0  # remaining unused params (k3, k4, k5, k6 for example)
-        ])
+        params = np.array(
+            [
+                1100.0,
+                1090.0,
+                630.0,
+                470.0,
+                0.02,
+                -0.01,
+                0.002,
+                -0.001,  # fx, fy, cx, cy, k1,k2,p1,p2
+                0.0,
+                0.0,
+                0.0,
+                0.0,  # remaining unused params (k3, k4, k5, k6 for example)
+            ]
+        )
         cam = ColmapCamera(id=4, model="FULL_OPENCV", width=1260, height=940, params=params)
         cam_rt, calib = self._round_trip(cam)
         # After round-trip we only get OPENCV (8 params, last two zeros)
@@ -96,7 +107,7 @@ class TestPycolmapUtils(unittest.TestCase):
     # ------------------------------------------------------------------
     # GTSAM -> COLMAP -> GTSAM direction tests
     # ------------------------------------------------------------------
-    def _gtsam_round_trip(self, calibration: gtsam.Cal3):
+    def _gtsam_round_trip(self, calibration: gtsam.Cal3) -> tuple[gtsam.Cal3, ColmapCamera]:
         """Helper: convert GTSAM calibration to COLMAP camera and back.
 
         Returns (calibration_rt, colmap_cam).
@@ -115,11 +126,12 @@ class TestPycolmapUtils(unittest.TestCase):
         # Expect RADIAL camera
         self.assertEqual(cam.model, "RADIAL")
         self.assertIsInstance(calib_rt, gtsam.Cal3Bundler)
-        self.assertAlmostEqual(calib_rt.fx(), f)
-        self.assertAlmostEqual(calib_rt.k1(), k1)
-        self.assertAlmostEqual(calib_rt.k2(), k2)
-        self.assertAlmostEqual(calib_rt.px(), cx)
-        self.assertAlmostEqual(calib_rt.py(), cy)
+        if isinstance(calib_rt, gtsam.Cal3Bundler):
+            self.assertAlmostEqual(calib_rt.fx(), f)
+            self.assertAlmostEqual(calib_rt.k1(), k1)
+            self.assertAlmostEqual(calib_rt.k2(), k2)
+            self.assertAlmostEqual(calib_rt.px(), cx)
+            self.assertAlmostEqual(calib_rt.py(), cy)
 
     def test_gtsam_round_trip_cal3_s2(self):
         fx, fy, cx, cy = 1200.0, 1180.0, 512.0, 384.0
@@ -140,12 +152,13 @@ class TestPycolmapUtils(unittest.TestCase):
         self.assertEqual(cam.model, "OPENCV")
         self.assertIsInstance(calib_rt, gtsam.Cal3DS2)
         # p1,p2 remain zero
-        self.assertAlmostEqual(calib_rt.fx(), fx)
-        self.assertAlmostEqual(calib_rt.fy(), fy)
-        self.assertAlmostEqual(calib_rt.k1(), k1)
-        self.assertAlmostEqual(calib_rt.k2(), k2)
-        # self.assertAlmostEqual(calib_rt.p1(), 0.0)
-        # self.assertAlmostEqual(calib_rt.p2(), 0.0)
+        if isinstance(calib_rt, gtsam.Cal3DS2):
+            self.assertAlmostEqual(calib_rt.fx(), fx)
+            self.assertAlmostEqual(calib_rt.fy(), fy)
+            self.assertAlmostEqual(calib_rt.k1(), k1)
+            self.assertAlmostEqual(calib_rt.k2(), k2)
+            # self.assertAlmostEqual(calib_rt.p1(), 0.0)
+            # self.assertAlmostEqual(calib_rt.p2(), 0.0)
 
     def test_gtsam_round_trip_cal3ds2_nonzero_p1p2_lost(self):
         fx, fy, cx, cy = 1000.0, 990.0, 640.0, 480.0
@@ -155,15 +168,16 @@ class TestPycolmapUtils(unittest.TestCase):
         # Document current limitation: p1,p2 become zeros.
         self.assertEqual(cam.model, "OPENCV")
         self.assertIsInstance(calib_rt, gtsam.Cal3DS2)
-        self.assertAlmostEqual(calib_rt.fx(), fx)
-        self.assertAlmostEqual(calib_rt.fy(), fy)
-        self.assertAlmostEqual(calib_rt.k1(), k1)
-        self.assertAlmostEqual(calib_rt.k2(), k2)
-        # self.assertAlmostEqual(calib_rt.p1(), 0.0)
-        # self.assertAlmostEqual(calib_rt.p2(), 0.0)
-        # Ensure information loss actually occurred
-        # self.assertNotAlmostEqual(p1, calib_rt.p1())
-        # self.assertNotAlmostEqual(p2, calib_rt.p2())
+        if isinstance(calib_rt, gtsam.Cal3DS2):
+            self.assertAlmostEqual(calib_rt.fx(), fx)
+            self.assertAlmostEqual(calib_rt.fy(), fy)
+            self.assertAlmostEqual(calib_rt.k1(), k1)
+            self.assertAlmostEqual(calib_rt.k2(), k2)
+            # self.assertAlmostEqual(calib_rt.p1(), 0.0)
+            # self.assertAlmostEqual(calib_rt.p2(), 0.0)
+            # Ensure information loss actually occurred
+            # self.assertNotAlmostEqual(p1, calib_rt.p1())
+            # self.assertNotAlmostEqual(p2, calib_rt.p2())
 
 
 if __name__ == "__main__":
