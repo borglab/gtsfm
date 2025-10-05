@@ -10,10 +10,10 @@ Author: Shicong Ma
 """
 
 import unittest
-from typing import List, Tuple
 
 from gtsam.symbol_shorthand import X  # type: ignore
 
+from gtsfm.common.types import ImagePairs
 from gtsfm.graph_partitioner.binary_tree_partition import BinaryTreeNode, BinaryTreePartition
 
 
@@ -26,7 +26,7 @@ class TestBinaryTreePartition(unittest.TestCase):
         self.total_nodes = self.rows * self.cols
         self.image_pairs = self._create_grid_edges(self.rows, self.cols)
 
-    def _create_grid_edges(self, rows: int, cols: int) -> List[Tuple[int, int]]:
+    def _create_grid_edges(self, rows: int, cols: int) -> ImagePairs:
         """Create a simple 2D grid of image pairs.
 
         Args:

@@ -15,24 +15,24 @@ import time
 import timeit
 from collections import defaultdict
 from enum import Enum
-from typing import DefaultDict, Dict, List, Optional, Set, Tuple, Any
+from typing import Any, DefaultDict, Dict, List, Optional, Set, Tuple
 
 import dask
 import gtsam
 import numpy as np
 from distributed.worker import get_client
 from gtsam import (
-    BinaryMeasurementsPoint3,
+    MFAS,
     BinaryMeasurementPoint3,
+    BinaryMeasurementsPoint3,
     BinaryMeasurementsUnit3,
     BinaryMeasurementUnit3,
-    MFAS,
     Point3,
     Pose3,
     Rot3,
-    symbol_shorthand,
     TranslationRecovery,
     Unit3,
+    symbol_shorthand,
 )
 
 import gtsfm.common.types as gtsfm_types
@@ -43,6 +43,7 @@ import gtsfm.utils.sampling as sampling_utils
 from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.sfm_track import SfmTrack2d
+from gtsfm.common.types import ImagePairs
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
 # Hyperparameters for 1D-SFM
@@ -502,7 +503,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         i2Ti1_priors: Dict[Tuple[int, int], PosePrior] = {},
         scale_factor: float = 1.0,
         gt_wTi_list: List[Optional[Pose3]] = [],
-    ) -> Tuple[List[Optional[Pose3]], Optional[GtsfmMetricsGroup], Optional[List[Tuple[int, int]]]]:
+    ) -> Tuple[List[Optional[Pose3]], Optional[GtsfmMetricsGroup], Optional[ImagePairs]]:
         """Run the translation averaging.
 
         Args:

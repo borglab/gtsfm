@@ -6,6 +6,7 @@ Authors: Zongyue Liu
 from abc import abstractmethod
 
 import gtsfm.utils.logger as logger_utils
+from gtsfm.common.types import ImagePairs
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 logger = logger_utils.get_logger()
@@ -42,7 +43,7 @@ class GraphPartitionerBase(GTSFMProcess):
         )
 
     @abstractmethod
-    def partition_image_pairs(self, image_pairs: list[tuple[int, int]]) -> list[list[tuple[int, int]]]:
+    def partition_image_pairs(self, image_pairs: ImagePairs) -> list[ImagePairs]:
         """Partition a set of image pairs into subgraphs.
 
         Args:

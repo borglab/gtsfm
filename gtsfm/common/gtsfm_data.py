@@ -8,13 +8,14 @@ import itertools
 import logging
 from typing import Any, Dict, List, Optional, Tuple
 
-import gtsam
+import gtsam  # type: ignore
 import numpy as np
 from gtsam import Pose3, SfmTrack, Similarity3
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.graph as graph_utils
-import gtsfm.utils.reprojection as reproj_utils
+import gtsfm.utils.reprojection as reprojection
+from gtsfm.common.types import ImagePairs
 
 logger = logging.getLogger(__name__)
 
@@ -235,9 +236,7 @@ class GtsfmData:
         track_lengths = [self.get_track(j).numberMeasurements() for j in range(self.number_tracks())]
         return np.array(track_lengths, dtype=np.uint32)
 
-    def select_largest_connected_component(
-        self, extra_camera_edges: Optional[List[Tuple[int, int]]] = None
-    ) -> "GtsfmData":
+    def select_largest_connected_component(self, extra_camera_edges: Optional[ImagePairs] = None) -> "GtsfmData":
         """Selects the subset of data belonging to the largest connected component of the graph where the edges are
         between cameras which feature in the same track.
 
@@ -324,7 +323,7 @@ class GtsfmData:
         """
         scene_reproj_errors: List[float] = []
         for track in self._tracks:
-            track_errors, _ = reproj_utils.compute_track_reprojection_errors(self._cameras, track)
+            track_errors, _ = reprojection.compute_track_reprojection_errors(self._cameras, track)
             # passing an array argument to .extend() will convert the array to a list, and append its elements
             scene_reproj_errors.extend(track_errors)
 
@@ -396,7 +395,7 @@ class GtsfmData:
         Returns:
             validity of the track.
         """
-        errors, avg_reproj_error = reproj_utils.compute_track_reprojection_errors(self._cameras, track)
+        errors, avg_reproj_error = reprojection.compute_track_reprojection_errors(self._cameras, track)
         # track is valid as all measurements have error below the threshold
         cheirality_success = np.all(~np.isnan(errors))
         return np.all(errors < reproj_err_thresh) and cheirality_success

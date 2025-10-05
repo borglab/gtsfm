@@ -4,18 +4,20 @@ Reference: https://github.com/cvg/Hierarchical-Localization/blob/master/hloc/pai
 https://openaccess.thecvf.com/content_cvpr_2016/papers/Arandjelovic_NetVLAD_CNN_Architecture_CVPR_2016_paper.pdf
 Authors: John Lambert
 """
+
 import math
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
 import gtsfm.utils.logger as logger_utils
-from gtsfm.retriever.retriever_base import RetrieverBase, ImageMatchingRegime
+from gtsfm.common.types import ImagePairs
+from gtsfm.retriever.retriever_base import ImageMatchingRegime, RetrieverBase
 
 logger = logger_utils.get_logger()
 MAX_NUM_IMAGES = 10000
@@ -56,7 +58,7 @@ class NetVLADRetriever(RetrieverBase):
         global_descriptors: Optional[List[np.ndarray]],
         image_fnames: List[str],
         plots_output_dir: Optional[Path] = None,
-    ) -> List[Tuple[int, int]]:
+    ) -> ImagePairs:
         """Compute potential image pairs.
 
         Args:
@@ -150,7 +152,7 @@ class NetVLADRetriever(RetrieverBase):
 
     def compute_pairs_from_similarity_matrix(
         self, sim: torch.Tensor, image_fnames: List[str], plots_output_dir: Optional[Path] = None
-    ) -> List[Tuple[int, int]]:
+    ) -> ImagePairs:
         """
 
         Args:
@@ -195,7 +197,7 @@ class NetVLADRetriever(RetrieverBase):
 
 def pairs_from_score_matrix(
     scores: torch.Tensor, invalid: np.array, num_select: int, min_score: Optional[float] = None
-) -> List[Tuple[int, int]]:
+) -> ImagePairs:
     """Identify image pairs from a score matrix.
 
     Note: Similarity computation here is based off of Paul-Edouard Sarlin's HLOC:

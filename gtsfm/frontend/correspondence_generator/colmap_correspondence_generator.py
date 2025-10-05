@@ -19,6 +19,7 @@ from distributed import Client
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.common.types import ImagePairs
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
 
 logger = logger_utils.get_logger()
@@ -103,7 +104,7 @@ class ColmapCorrespondenceGenerator(CorrespondenceGeneratorBase):
         return gtsfm_id_to_pycolmap_id, keypoints
 
     def _read_matches(
-        self, image_pairs: List[Tuple[int, int]], gtsfm_id_to_pycolmap_id: List[int]
+        self, image_pairs: ImagePairs, gtsfm_id_to_pycolmap_id: List[int]
     ) -> Dict[Tuple[int, int], np.ndarray]:
         """Read matches for image pairs."""
         corr_idxs: Dict[Tuple[int, int], np.ndarray] = {}
@@ -123,7 +124,7 @@ class ColmapCorrespondenceGenerator(CorrespondenceGeneratorBase):
         return corr_idxs
 
     def generate_correspondences(
-        self, client: Client, images: List[Future], image_pairs: List[Tuple[int, int]]
+        self, client: Client, images: List[Future], image_pairs: ImagePairs
     ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
         """Apply the correspondence generator to generate putative correspondences.
 
