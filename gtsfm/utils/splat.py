@@ -278,11 +278,10 @@ def transform_gaussian(gaussianA: dict, bSa: gtsam.Similarity3) -> dict:
     meanA = gaussianA["mean"]
     meanB = torch.Tensor(bSa.transformFrom(meanA))
 
-    gaussianA_quaternion = gaussianA["quaternion"].toQuaternion()
-    w = gaussianA_quaternion.w()
-    x = gaussianA_quaternion.x()
-    y = gaussianA_quaternion.y()
-    z = gaussianA_quaternion.z()
+    w = gaussianA["quaternion"][0]
+    x = gaussianA["quaternion"][1]
+    y = gaussianA["quaternion"][2]
+    z = gaussianA["quaternion"][3]
 
     q = gtsam.Rot3.Quaternion(w, x, y, z)
     bRa = bSa.rotation()
