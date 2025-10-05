@@ -564,7 +564,7 @@ class TwoViewEstimator(DaskDBModuleBase):
 
         insert_query = """
             INSERT INTO two_view_results
-            (i1, i2, timestamp, verified_corr_count, inlier_ratio, rotation_matrix, 
+            (i1, i2, timestamp, verified_corr_count, inlier_ratio, rotation_matrix,
              translation_direction, success, computation_time, worker_name)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
@@ -881,7 +881,7 @@ def run_two_view_estimator_as_futures(
         import sys
 
         worker_name = socket.gethostname()
-        print(f"[WORKER {worker_name}] Processing pair ({i1}, {i2})", flush=True)
+        print(f"[WORKER {worker_name}] Processing pair ({i1}, {i2})")
         sys.stdout.flush()
 
         result = two_view_estimator.run_2view(
@@ -898,7 +898,7 @@ def run_two_view_estimator_as_futures(
             i2=i2,
         )
 
-        print(f"[WORKER {worker_name}] Completed pair ({i1}, {i2})", flush=True)
+        print(f"[WORKER {worker_name}] Completed pair ({i1}, {i2})")
         return result
 
     print("Submitting tasks directly to workers (no scatter needed)...")

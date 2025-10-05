@@ -30,6 +30,10 @@ import numpy as np
 import psycopg2
 import yaml
 from dask.distributed import Client, performance_report
+from dotenv import load_dotenv
+
+# Load environment variables from .env file at the start
+load_dotenv()
 
 from gtsfm.loader.yfcc_imb_loader import YfccImbLoader
 from gtsfm.frontend.detector_descriptor.sift import SIFTDetectorDescriptor
@@ -85,10 +89,27 @@ def kill_process_on_port(port) -> bool:
 
 
 def load_config(config_file="gtsfm/configs/local_scheduler_postgres_remote_cluster.yaml"):
-    """Load configuration from YAML file"""
+    """Load configuration from YAML file and merge with environment variables"""
     try:
         with open(config_file, "r") as file:
             config = yaml.safe_load(file)
+
+        # Override with environment variables if they exist
+        if "SSH_USERNAME" in os.environ:
+            config["username"] = os.environ["SSH_USERNAME"]
+
+        if "database" in config:
+            if "POSTGRES_HOST" in os.environ:
+                config["database"]["host"] = os.environ["POSTGRES_HOST"]
+            if "POSTGRES_PORT" in os.environ:
+                config["database"]["port"] = int(os.environ["POSTGRES_PORT"])
+            if "POSTGRES_DATABASE" in os.environ:
+                config["database"]["database"] = os.environ["POSTGRES_DATABASE"]
+            if "POSTGRES_USER" in os.environ:
+                config["database"]["user"] = os.environ["POSTGRES_USER"]
+            if "POSTGRES_PASSWORD" in os.environ:
+                config["database"]["password"] = os.environ["POSTGRES_PASSWORD"]
+
         return config
     except Exception as e:
         print(f"Error loading configuration: {e}")
@@ -298,15 +319,16 @@ def main():
             )
 
             results = cursor.fetchall()
-
             print(
-                "Image Pair | Timestamp                  | Verified Matches | Inlier Ratio | Success | Computation Time (s) | Worker"
+                "Image Pair | Timestamp                  | Verified Matches | Inlier Ratio | Success | "
+                "Computation Time (s) | Worker"
             )
             print("-" * 120)
             for row in results:
                 i1, i2, timestamp, corr_count, inlier_ratio, success, comp_time, worker = row
                 print(
-                    f"({i1}, {i2}) | {timestamp} | {corr_count:8d} | {inlier_ratio:.4f} | {success} | {comp_time:.4f} | {worker}"
+                    f"({i1:2d}, {i2:2d}) | {timestamp} | {corr_count:8d} | "
+                    f"{inlier_ratio:.4f} | {success} | {comp_time:.4f} | {worker}"
                 )
 
             cursor.close()
@@ -394,9 +416,6 @@ def main():
 
     except Exception as e:
         print(f"[MAIN] ❌ Error occurred: {e}")
-        import traceback
-
-        traceback.print_exc()
 
     finally:
         # Clean up
