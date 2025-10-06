@@ -78,7 +78,7 @@ class SceneOptimizer:
         pose_angular_error_thresh: float = 3,  # in degrees
         output_root: str = DEFAULT_OUTPUT_ROOT,
         output_worker: Optional[str] = None,
-        graph_partitioner: Optional[GraphPartitionerBase] = SinglePartition(),
+        graph_partitioner: GraphPartitionerBase = SinglePartition(),
     ) -> None:
         self.image_pairs_generator = image_pairs_generator
         self.correspondence_generator = correspondence_generator
