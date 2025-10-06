@@ -50,6 +50,6 @@ dependencies:
       - https://download.pytorch.org/whl/cpu/torch-2.5.0%2Bcpu-cp310-cp310-linux_x86_64.whl
       - https://download.pytorch.org/whl/cpu/torchvision-0.20.0%2Bcpu-cp310-cp310-linux_x86_64.whl
       - einops
-      - huggingface-hub
+      - huggingface-hub[torch]==0.34.4
       - roma # Rotation Manipiulation Library
 

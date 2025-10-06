@@ -55,11 +55,8 @@ dependencies:
       - einops
       - tensorboard
       - pyglet<2
-      - huggingface-hub[torch]>=0.22
+      - huggingface-hub[torch]==0.34.4
       # 3DGS
       - gsplat==1.5.3
       - torchmetrics==1.7.3
       - tyro==0.9.24
-      - einops
-      - huggingface-hub
-      - roma # Rotation Manipiulation Library
