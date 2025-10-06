@@ -15,7 +15,7 @@ from gtsam import Pose3, SfmTrack, Similarity3
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.reprojection as reprojection
-from gtsfm.common.types import ImagePairs
+from gtsfm.products.visibility_graph import ImageIndexPairs
 
 logger = logging.getLogger(__name__)
 
@@ -236,7 +236,7 @@ class GtsfmData:
         track_lengths = [self.get_track(j).numberMeasurements() for j in range(self.number_tracks())]
         return np.array(track_lengths, dtype=np.uint32)
 
-    def select_largest_connected_component(self, extra_camera_edges: Optional[ImagePairs] = None) -> "GtsfmData":
+    def select_largest_connected_component(self, extra_camera_edges: Optional[ImageIndexPairs] = None) -> "GtsfmData":
         """Selects the subset of data belonging to the largest connected component of the graph where the edges are
         between cameras which feature in the same track.
 

@@ -17,7 +17,7 @@ import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.logger as logger_utils
 import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.common.types import CAMERA_TYPE, ImagePairs
+from gtsfm.common.types import CAMERA_TYPE, ImageIndexPairs
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
 from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_base import KeypointAggregatorBase
 from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_dedup import (
@@ -52,7 +52,7 @@ class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
         self,
         client: Client,
         images: List[Future],
-        image_pairs: ImagePairs,
+        image_pairs: ImageIndexPairs,
         num_sampled_3d_points: int = 5000,
     ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
         """Apply the correspondence generator to generate putative correspondences (in parallel).

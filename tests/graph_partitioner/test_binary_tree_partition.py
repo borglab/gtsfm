@@ -13,8 +13,8 @@ import unittest
 
 from gtsam.symbol_shorthand import X  # type: ignore
 
-from gtsfm.common.types import ImagePairs
 from gtsfm.graph_partitioner.binary_tree_partition import BinaryTreeNode, BinaryTreePartition
+from gtsfm.products.visibility_graph import ImageIndexPairs
 
 
 class TestBinaryTreePartition(unittest.TestCase):
@@ -26,7 +26,7 @@ class TestBinaryTreePartition(unittest.TestCase):
         self.total_nodes = self.rows * self.cols
         self.image_pairs = self._create_grid_edges(self.rows, self.cols)
 
-    def _create_grid_edges(self, rows: int, cols: int) -> ImagePairs:
+    def _create_grid_edges(self, rows: int, cols: int) -> ImageIndexPairs:
         """Create a simple 2D grid of image pairs.
 
         Args:

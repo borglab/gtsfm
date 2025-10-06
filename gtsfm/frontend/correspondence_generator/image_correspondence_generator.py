@@ -11,7 +11,7 @@ from dask.distributed import Client, Future
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
-from gtsfm.common.types import CALIBRATION_TYPE, CAMERA_TYPE, ImagePairs
+from gtsfm.common.types import CALIBRATION_TYPE, CAMERA_TYPE, ImageIndexPairs
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
 from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_base import KeypointAggregatorBase
 from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_dedup import (
@@ -50,7 +50,7 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
         self,
         client: Client,
         images: List[Future],
-        image_pairs: ImagePairs,
+        image_pairs: ImageIndexPairs,
     ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
         """Apply the correspondence generator to generate putative correspondences.
 
@@ -86,7 +86,7 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
         self,
         client: Client,
         images: List[Image],
-        image_pairs: ImagePairs,
+        image_pairs: ImageIndexPairs,
         camera_intrinsics: List[CALIBRATION_TYPE],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         gt_cameras: List[Optional[CAMERA_TYPE]],
