@@ -16,11 +16,12 @@ from typing import Optional, Tuple
 
 import numpy as np
 import pydegensac
-from gtsam import Cal3Bundler, Rot3, Unit3
+from gtsam import Rot3, Unit3  # type: ignore
 
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.verification as verification_utils
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.common.types import CALIBRATION_TYPE
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 
 logger = logger_utils.get_logger()
@@ -54,9 +55,9 @@ class Degensac(VerifierBase):
         keypoints_i1: Keypoints,
         keypoints_i2: Keypoints,
         match_indices: np.ndarray,
-        camera_intrinsics_i1: Cal3Bundler,
-        camera_intrinsics_i2: Cal3Bundler,
-    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray]:
+        camera_intrinsics_i1: CALIBRATION_TYPE,
+        camera_intrinsics_i2: CALIBRATION_TYPE,
+    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray, float]:
         """Performs verification of correspondences between two images to recover the relative pose and indices of
         verified correspondences.
 
@@ -84,7 +85,7 @@ class Degensac(VerifierBase):
         inlier_idxs = np.where(inlier_mask.ravel() == 1)[0]
 
         v_corr_idxs = match_indices[inlier_idxs]
-        inlier_ratio_est_model = np.mean(inlier_mask)
+        inlier_ratio_est_model = float(np.mean(inlier_mask))
 
         i2Ei1_matrix = verification_utils.fundamental_to_essential_matrix(
             i2Fi1, camera_intrinsics_i1, camera_intrinsics_i2

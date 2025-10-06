@@ -16,7 +16,7 @@ import h5py  # type: ignore
 import numpy as np  # type: ignore
 import open3d
 import simplejson as json  # type: ignore
-from gtsam import Cal3Bundler, Point3, Pose3, Rot3, SfmTrack
+from gtsam import Cal3Bundler, Pose3, Rot3, SfmTrack
 from PIL import Image as PILImage
 from PIL.ExifTags import GPSTAGS, TAGS
 
@@ -181,7 +181,9 @@ def colmap2gtsfm(
     images: Dict[int, ColmapImage],
     points3D: Dict[int, ColmapPoint3D],
     load_sfmtracks: bool = False,
-) -> Tuple[List[str], List[Pose3], List[str], Optional[List[Point3]], np.ndarray, np.ndarray, List[Tuple[int, int]]]:
+) -> Tuple[
+    List[str], List[Pose3], List[str], Optional[List[np.ndarray]], np.ndarray, np.ndarray, List[Tuple[int, int]]
+]:
     """Converts COLMAP-formatted variables to GTSfM format.
 
     Args:

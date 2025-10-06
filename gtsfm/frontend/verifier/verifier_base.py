@@ -2,13 +2,15 @@
 
 Authors: Ayush Baid, John Lambert
 """
+
 import abc
 from typing import Optional, Tuple
 
 import numpy as np
-from gtsam import Cal3Bundler, Rot3, Unit3
+from gtsam import Rot3, Unit3  # type: ignore
 
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.common.types import CALIBRATION_TYPE
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 NUM_MATCHES_REQ_E_MATRIX = 5
@@ -29,7 +31,7 @@ class VerifierBase(GTSFMProcess):
         return UiMetadata(
             display_name="Verifier",
             input_products=("Keypoints", "Putative Correspondences", "Camera Intrinsics"),
-            output_products=("Relative Rotation", "Relative Translation", "Verified Correspondences", "Inlier Ratio"),
+            output_products=("Relative Rotation", "Relative Translation", "Verified Correspondences"),
             parent_plate="Two-View Estimator",
         )
 
@@ -67,8 +69,8 @@ class VerifierBase(GTSFMProcess):
         keypoints_i1: Keypoints,
         keypoints_i2: Keypoints,
         match_indices: np.ndarray,
-        camera_intrinsics_i1: Cal3Bundler,
-        camera_intrinsics_i2: Cal3Bundler,
+        camera_intrinsics_i1: CALIBRATION_TYPE,
+        camera_intrinsics_i2: CALIBRATION_TYPE,
     ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray, float]:
         """Performs verification of correspondences between two images to recover the relative pose and indices of
         verified correspondences.

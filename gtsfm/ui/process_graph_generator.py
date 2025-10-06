@@ -15,9 +15,12 @@ from pathlib import Path
 from typing import Set
 
 import pydot
+import gtsfm.utils.logger as logger_utils
 
 from gtsfm.ui.gtsfm_process import UiMetadata
 from gtsfm.ui.registry import RegistryHolder
+
+logger = logger_utils.get_logger()
 
 PLOTS_ROOT = os.path.join(Path(__file__).resolve().parent.parent.parent, "plots")
 DEFAULT_GRAPH_VIZ_OUTPUT_PATH = os.path.join(PLOTS_ROOT, "process_graph_output.svg")
@@ -44,8 +47,8 @@ class ProcessGraphGenerator:
         self._main_graph = pydot.Dot(graph_type="digraph", fontname="Veranda", bgcolor="white")
 
         # dict of pydot Clusters for plates
-        # http://robertyu.com/wikiperdido/Pydot%20Clusters
-        self._plate_to_cluster = {}
+        # https://github.com/pydot/pydot/blob/59784f4f00bad80d47d03c48b3d96ecc7bc7a265/src/pydot/core.py#L1581
+        self._plate_to_cluster: dict[str, pydot.Cluster] = {}
 
         self._test_mode = test_mode
         self.is_image_correspondence = is_image_correspondence
@@ -64,8 +67,8 @@ class ProcessGraphGenerator:
                 continue
             self._add_nodes_to_graph(metadata)
 
-        for plate_name, cluster in self._plate_to_cluster.items():
-            self._main_graph.add_subgraph(cluster)
+        for cluster in self._plate_to_cluster.values():
+            self._main_graph.add_subgraph(cluster)  # type: ignore
 
     def _get_metadata_from_registry(self) -> Set[UiMetadata]:
         """Get a set of unique_metadata from the central registry.
@@ -121,19 +124,19 @@ class ProcessGraphGenerator:
 
         display_name = metadata.display_name
 
-        # Autocast strings to one-element tuples.
+        # Auto-cast strings to one-element tuples.
         output_products = metadata.output_products
         if isinstance(output_products, str):
             output_products = (output_products,)
 
-        # Autocast strings to one-element tuples.
+        # Auto-cast strings to one-element tuples.
         input_products = metadata.input_products
         if isinstance(input_products, str):
             input_products = (input_products,)
 
-        cluster = self._main_graph
-        if metadata.parent_plate is not None:
-            cluster = self._plate_to_cluster[metadata.parent_plate]
+        cluster = (
+            self._plate_to_cluster[metadata.parent_plate] if metadata.parent_plate is not None else self._main_graph
+        )
 
         # Add Nodes for processes and output_products in the same plate.
         # don't add input_products as Nodes to ensure output_products are in the same plate as their processes
@@ -159,7 +162,8 @@ class ProcessGraphGenerator:
         save_dir = os.path.dirname(filepath)
         Path(save_dir).mkdir(parents=True, exist_ok=True)
 
+        logger.info("📊 Saving process graph to %s", filepath)
         if filepath.endswith(".png"):
-            self._main_graph.write_png(filepath)
+            self._main_graph.write_png(filepath)  # type: ignore
         elif filepath.endswith(".svg"):
-            self._main_graph.write_svg(filepath)
+            self._main_graph.write_svg(filepath)  # type: ignore

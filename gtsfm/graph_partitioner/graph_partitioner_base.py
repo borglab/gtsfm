@@ -37,7 +37,7 @@ class GraphPartitionerBase(GTSFMProcess):
         """
         return UiMetadata(
             display_name="Graph Partitioner",
-            input_products=("Image Pairs",),
+            input_products=("Image Pair Indices",),
             output_products=("Subgraphs",),
             parent_plate="Preprocessing",
         )

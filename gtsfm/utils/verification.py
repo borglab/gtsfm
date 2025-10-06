@@ -2,14 +2,16 @@
 
 Authors: Ayush Baid
 """
+
 from typing import Optional, Tuple
 
 import cv2 as cv
 import numpy as np
-import scipy
-from gtsam import Cal3Bundler, EssentialMatrix, Pose3, Rot3, Unit3
+import scipy  # type: ignore
+from gtsam import EssentialMatrix, Pose3, Rot3, Unit3  # type: ignore
 
 import gtsfm.utils.features as feature_utils
+from gtsfm.common.types import CALIBRATION_TYPE
 import gtsfm.utils.logger as logger_utils
 
 logger = logger_utils.get_logger()
@@ -17,8 +19,8 @@ logger = logger_utils.get_logger()
 EPS = 1e-8  # constant used to prevent division by zero error.
 
 
-def decompose_camera_projection_matrix(M: np.ndarray) -> Pose3:
-    """Recovera camera pose from a 3x4 projection matrix.
+def decompose_camera_projection_matrix(M: np.ndarray) -> tuple[np.ndarray, Pose3]:
+    """Recover a camera pose from a 3x4 projection matrix.
 
     Reference: https://johnwlambert.github.io/cam-calibration/#decomposition
 
@@ -33,7 +35,7 @@ def decompose_camera_projection_matrix(M: np.ndarray) -> Pose3:
     """
     m4 = M[:, 3]
     Q = M[:3, :3]
-    wtc = np.linalg.inv(-Q) @ m4
+    wtc: np.ndarray = np.linalg.inv(-Q) @ m4
 
     K, cRw = scipy.linalg.rq(Q)
 
@@ -53,8 +55,8 @@ def recover_relative_pose_from_essential_matrix(
     i2Ei1: Optional[np.ndarray],
     verified_coordinates_i1: np.ndarray,
     verified_coordinates_i2: np.ndarray,
-    camera_intrinsics_i1: Cal3Bundler,
-    camera_intrinsics_i2: Cal3Bundler,
+    camera_intrinsics_i1: CALIBRATION_TYPE,
+    camera_intrinsics_i2: CALIBRATION_TYPE,
 ) -> Tuple[Optional[Rot3], Optional[Unit3]]:
     """Recovers the relative rotation and translation direction from essential matrix and verified correspondences
     using opencv's API.
@@ -95,7 +97,7 @@ def recover_relative_pose_from_essential_matrix(
 
 
 def fundamental_to_essential_matrix(
-    i2Fi1: np.ndarray, camera_intrinsics_i1: Cal3Bundler, camera_intrinsics_i2: Cal3Bundler
+    i2Fi1: np.ndarray, camera_intrinsics_i1: CALIBRATION_TYPE, camera_intrinsics_i2: CALIBRATION_TYPE
 ) -> np.ndarray:
     """Converts the fundamental matrix to essential matrix using camera intrinsics.
 
@@ -111,7 +113,7 @@ def fundamental_to_essential_matrix(
 
 
 def essential_to_fundamental_matrix(
-    i2Ei1: EssentialMatrix, camera_intrinsics_i1: Cal3Bundler, camera_intrinsics_i2: Cal3Bundler
+    i2Ei1: EssentialMatrix, camera_intrinsics_i1: CALIBRATION_TYPE, camera_intrinsics_i2: CALIBRATION_TYPE
 ) -> np.ndarray:
     """Converts the essential matrix to fundamental matrix using camera intrinsics.
 

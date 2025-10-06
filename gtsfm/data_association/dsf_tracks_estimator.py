@@ -86,7 +86,7 @@ class DsfTracksEstimator(TracksEstimatorBase):
 
         erroneous_track_pct = erroneous_track_count / len(key_set) * 100 if len(key_set) > 0 else np.nan
         logger.info(
-            f"DSF Union-Find: {erroneous_track_pct:.2f}% of tracks discarded from multiple obs. in a single image."
+            "DSF Union-Find: %.2f%% of tracks discarded from multiple obs. in a single image." % erroneous_track_pct
         )
         duration = time.time() - start_time
         logger.info("DsfTracksEstimator took %.2f sec. to estimate %d tracks.", duration, len(track_2d_list))

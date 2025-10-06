@@ -2,6 +2,7 @@
 
 Authors: John Lambert
 """
+
 import pathlib
 import unittest
 from typing import Dict, Tuple
@@ -10,11 +11,11 @@ import numpy as np
 
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.cacher.image_matcher_cacher import ImageMatcherCacher
-from gtsfm.frontend.matcher.loftr import LOFTR
-from gtsfm.loader.olsson_loader import OlssonLoader
 from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_dedup import (
     KeypointAggregatorDedup,
 )
+from gtsfm.frontend.matcher.loftr import LOFTR
+from gtsfm.loader.olsson_loader import OlssonLoader
 from tests.frontend.correspondence_generator.keypoint_aggregator import test_keypoint_aggregator_base
 
 DATA_ROOT_PATH = pathlib.Path(__file__).resolve().parent.parent.parent.parent / "data"
@@ -46,7 +47,7 @@ class TestKeypointAggregatorDedup(test_keypoint_aggregator_base.TestKeypointAggr
           (0,2)  -- (3,3)
           (0,0)  -- (4,4)
         """
-        keypoints_dict: Dict[Tuple[int, int], Keypoints] = {
+        keypoints_dict: Dict[Tuple[int, int], Tuple[Keypoints, Keypoints]] = {
             (0, 1): (
                 Keypoints(coordinates=np.array([[0, 0]], dtype=np.float32)),
                 Keypoints(coordinates=np.array([[1, 1]], dtype=np.float32)),

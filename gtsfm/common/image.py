@@ -6,7 +6,7 @@ Authors: Ayush Baid
 from typing import Any, Dict, NamedTuple, Optional, Tuple
 
 import numpy as np
-from gtsam import Cal3Bundler
+from gtsam import Cal3Bundler  # type: ignore
 
 from gtsfm.common.sensor_width_database import SensorWidthDatabase
 
@@ -51,6 +51,9 @@ class Image(NamedTuple):
 
         sensor_width_mm = 0.0
 
+        if self.exif_data is None:
+            raise ValueError("EXIF data is None, cannot compute sensor width from EXIF.")
+
         # Read `ExifImageWidth` and `FocalPlaneXResolution`.
         pixel_x_dim = self.exif_data.get("ExifImageWidth")
         focal_plane_x_res = self.exif_data.get("FocalPlaneXResolution")
@@ -76,7 +79,7 @@ class Image(NamedTuple):
     def get_intrinsics_from_exif(self) -> Optional[Cal3Bundler]:
         """Constructs the camera intrinsics from exif tag.
 
-        Equation: focal_px=max(w_px,h_px)∗focal_mm / ccdw_mm
+        Equation: focal_px=max(w_px,h_px) * focal_mm / sensor_width_mm
 
         Ref:
         - https://www.awaresystems.be/imaging/tiff/tifftags/privateifd/exif.html
@@ -116,8 +119,8 @@ class Image(NamedTuple):
             sensor_width_mm = 0.0
             try:
                 sensor_width_mm = self.sensor_width_db.lookup(
-                    self.exif_data.get("Make"),
-                    self.exif_data.get("Model"),
+                    self.exif_data["Make"],
+                    self.exif_data["Model"],
                 )
             except (AttributeError, LookupError):
                 sensor_width_mm = self.__compute_sensor_width_from_exif()
