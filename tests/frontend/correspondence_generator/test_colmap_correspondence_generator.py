@@ -3,8 +3,8 @@
 Authors: Ayush Baid.
 """
 
-from pathlib import Path
 import unittest
+from pathlib import Path
 
 from dask.distributed import Client
 
@@ -37,8 +37,8 @@ class TestColmapCorrespondenceGenerator(unittest.TestCase):
         self.assertEqual(len(match_indices), len(IMAGE_PAIRS))
 
         # Assert that we get a min of 100 keypoints and matches, as it was an easy dataset
-        for i, kpts in enumerate(keypoints):
-            self.assertGreaterEqual(len(kpts), 100, f"Image {i} has {len(kpts)} < 100 of keypoints")
+        for i, keypoints_i in enumerate(keypoints):
+            self.assertGreaterEqual(len(keypoints_i), 100, f"Image {i} has {len(keypoints_i)} < 100 of keypoints")
 
         for pair_tuple, corr_idxs in match_indices.items():
             self.assertGreaterEqual(len(corr_idxs), 100, f"Pair {pair_tuple} has {len(corr_idxs)} < 100 matches")

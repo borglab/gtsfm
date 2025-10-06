@@ -92,7 +92,7 @@ class GtsfmMetric:
             # Cast to a numpy array.
             if isinstance(data, list):
                 # Replace None with NaN.
-                data = [x if x is not None else np.NaN for x in data]
+                data = [x if x is not None else np.nan for x in data]
                 if all(isinstance(x, int) for x in data):
                     data = np.array(data, dtype=np.int32)
             if not isinstance(data, np.ndarray):
@@ -173,7 +173,7 @@ class GtsfmMetric:
         if data.ndim != 1:
             raise ValueError("Metric must be a 1D distribution to get summary.")
         if data.size == 0 or np.isnan(data).all():
-            return {"min": np.NaN, "max": np.NaN, "median": np.NaN, "mean": np.NaN, "stddev": np.NaN}
+            return {"min": np.nan, "max": np.nan, "median": np.nan, "mean": np.nan, "stddev": np.nan}
         summary = {
             "min": np.nanmin(data).tolist(),
             "max": np.nanmax(data).tolist(),

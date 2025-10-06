@@ -30,7 +30,7 @@ dependencies:
   - hydra-core
   # # 3rd party algorithms for different modules
   - kornia>=0.7.3
-  - pycolmap
+  - pycolmap==3.11.1
   # io
   - h5py
   - plotly>=5.0
@@ -45,7 +45,7 @@ dependencies:
       - pydegensac
       - colour
       - trimesh[easy]
-      - gtsam>=4.2
+      - gtsam==4.3a0
       - pydot
       - https://download.pytorch.org/whl/cpu/torch-2.5.0%2Bcpu-cp310-cp310-linux_x86_64.whl
       - https://download.pytorch.org/whl/cpu/torchvision-0.20.0%2Bcpu-cp310-cp310-linux_x86_64.whl

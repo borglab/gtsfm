@@ -24,12 +24,22 @@ The majority of our code is governed by an MIT license and is suitable for comme
 
 ## Installation
 
-GTSfM requires no compilation, as Python wheels are provided for GTSAM. This repository includes external repositories as Git submodules –- don't forget to pull submodules with `git submodule update --init --recursive` or clone with `git clone --recursive https://github.com/borglab/gtsfm.git`.
+GTSfM requires no compilation, as Python wheels are provided for GTSAM.
+
+### Initialize Git submodules
+
+This repository includes external repositories as Git submodules, so, unless you cloned with `git clone --recursive` you need to initialize:
+```bash
+git submodule update --init --recursive
+```
+
+### Create a Conda Environment
 
 To run GTSfM, first, we need to create a conda environment with the required dependencies.
 
-On **Linux**, with CUDA support, run:
+[Install MiniConda](https://www.anaconda.com/docs/getting-started/miniconda/install) if needed, then:
 
+On **Linux**, with CUDA support, run:
 ```bash
 conda env create -f environment_linux.yml
 conda activate gtsfm-v1 # you may need "source activate gtsfm-v1" depending upon your bash and conda set-up
@@ -41,6 +51,8 @@ On **macOS**, there is no CUDA support, so run:
 conda env create -f environment_mac.yml
 conda activate gtsfm-v1
 ```
+
+### Install `gtsfm` as a module
 
 Now, install `gtsfm` as a module:
 
@@ -93,6 +105,12 @@ For example, if you want to use the **Deep Front-End (recommended)** on the `"do
 
 ```bash
 python gtsfm/runner/run_scene_optimizer_olssonloader.py --dataset_root tests/data/set1_lund_door --config_name deep_front_end.yaml --num_workers 1
+```  
+
+Or, for a dataset dataset with metadata formatted in the COLMAP style
+```bash
+python gtsfm/runner/run_scene_optimizer_colmaploader.py --images_dir datasets/gerrard-hall/images \
+  --colmap_files_dirpath datasets/gerrard-hall/sparse --config_name deep_front_end.yaml --num_workers 5
 ```  
 
 You can monitor the distributed computation using the [Dask dashboard](http://localhost:8787/status).  
