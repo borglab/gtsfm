@@ -37,8 +37,7 @@ BENCHMARK_YAML_FPATH = Path(__file__).parent.parent.parent / ".github" / "workfl
 
 
 TABLE_NAMES = [
-    "Verifier Summary Pre Ba 2view Report",
-    "Verifier Summary Post Ba 2view Report",
+    "Retriever Metrics",
     "Verifier Summary Post Inlier Support Processor 2view Report",
     "View Graph Estimation Metrics",
     "Verifier Summary Viewgraph 2view Report",
@@ -46,6 +45,7 @@ TABLE_NAMES = [
     "Translation Averaging Metrics",
     "Data Association Metrics",
     "Bundle Adjustment Metrics",
+    "Total Summary Metrics",
 ]
 
 RED_HEX = "#df0101"
