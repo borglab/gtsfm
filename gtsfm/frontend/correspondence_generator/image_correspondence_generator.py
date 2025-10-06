@@ -11,7 +11,7 @@ from dask.distributed import Client, Future
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
-from gtsfm.common.types import CALIBRATION_TYPE, CAMERA_TYPE, ImageIndexPairs
+from gtsfm.common.types import CALIBRATION_TYPE, CAMERA_TYPE
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
 from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_base import KeypointAggregatorBase
 from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_dedup import (
@@ -21,6 +21,7 @@ from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggreg
     KeypointAggregatorUnique,
 )
 from gtsfm.frontend.matcher.image_matcher_base import ImageMatcherBase
+from gtsfm.products.visibility_graph import ImageIndexPairs
 from gtsfm.two_view_estimator import TWO_VIEW_OUTPUT, TwoViewEstimator
 
 
