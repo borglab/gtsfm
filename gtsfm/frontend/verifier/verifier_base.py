@@ -31,7 +31,7 @@ class VerifierBase(GTSFMProcess):
         return UiMetadata(
             display_name="Verifier",
             input_products=("Keypoints", "Putative Correspondences", "Camera Intrinsics"),
-            output_products=("Relative Rotation", "Relative Translation", "Verified Correspondences", "Inlier Ratio"),
+            output_products=("Relative Rotation", "Relative Translation", "Verified Correspondences"),
             parent_plate="Two-View Estimator",
         )
 
