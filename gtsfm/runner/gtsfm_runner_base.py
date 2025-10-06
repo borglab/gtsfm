@@ -1,6 +1,7 @@
 """Base class for runner that executes SfM."""
 
 import argparse
+import logging
 import os
 import time
 from abc import abstractmethod
@@ -52,6 +53,13 @@ class GtsfmRunnerBase:
         self.parsed_args: argparse.Namespace = argparser.parse_args(args=override_args)
         if self.parsed_args.dask_tmpdir:
             dask.config.set({"temporary_directory": DEFAULT_OUTPUT_ROOT / self.parsed_args.dask_tmpdir})
+
+        # Get the numeric level from the string
+        log_level = getattr(logging, self.parsed_args.log.upper(), None)
+
+        # 5. Configure the logging system
+        # A good format includes the timestamp, level name, and message
+        logging.basicConfig(level=log_level)
 
         self.loader: LoaderBase = self.construct_loader()
         self.scene_optimizer: SceneOptimizer = self.construct_scene_optimizer()
@@ -168,6 +176,13 @@ class GtsfmRunnerBase:
             default="single",
             choices=["single", "other_partitioner_types"],
             help="Type of graph partitioner to use. Default is 'single' (SinglePartition).",
+        )
+        parser.add_argument(
+            "-l",
+            "--log",
+            choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+            default="INFO",  # Set a default level
+            help="Set the logging level",
         )
         return parser
 
@@ -417,6 +432,7 @@ class GtsfmRunnerBase:
         all_metrics_groups = [retriever_metrics, two_view_agg_metrics]
 
         # Partition image pairs
+        assert self.graph_partitioner is not None, "Graph partitioner is not set up!"
         subgraphs = self.graph_partitioner.partition_image_pairs(image_pair_indices)
         logger.info("Partitioned into %d subgraphs", len(subgraphs))
         # Group results by subgraph
@@ -467,6 +483,8 @@ class GtsfmRunnerBase:
                 all_delayed_sfm_results.append(delayed_sfm_result)
                 all_delayed_io.extend(delayed_io)
                 all_delayed_mvo_metrics_groups.extend(delayed_mvo_metrics_groups)
+            else:
+                logger.warning(f"Skipping subgraph {idx+1} as it has no valid two-view results.")
 
         # Compute all the delayed objects
         with performance_report(filename="scene-optimizer-dask-report.html"):

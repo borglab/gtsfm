@@ -18,7 +18,7 @@ import gtsfm.utils.images as img_utils
 import gtsfm.utils.io as io_utils
 from gtsfm.common.image import Image
 from gtsfm.common.pose_prior import PosePrior
-from gtsfm.common.types import ImagePairs
+from gtsfm.products.visibility_graph import ImageIndexPairs
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 logger = logging.getLogger(__name__)
@@ -318,7 +318,7 @@ class LoaderBase(GTSFMProcess):
         """
         return None
 
-    def get_relative_pose_priors(self, pairs: ImagePairs) -> Dict[Tuple[int, int], PosePrior]:
+    def get_relative_pose_priors(self, pairs: ImageIndexPairs) -> Dict[Tuple[int, int], PosePrior]:
         """Get *all* relative pose priors for i2Ti1
 
         Args:
@@ -411,7 +411,7 @@ class LoaderBase(GTSFMProcess):
         N = len(self)
         return [self.get_image_shape(i) for i in range(N)]
 
-    def get_valid_pairs(self) -> ImagePairs:
+    def get_valid_pairs(self) -> ImageIndexPairs:
         """Get the valid pairs of images for this loader.
 
         Returns:

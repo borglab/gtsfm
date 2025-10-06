@@ -11,7 +11,7 @@ from typing import List, Optional
 import numpy as np
 
 import gtsfm.utils.logger as logger_utils
-from gtsfm.common.types import ImagePairs
+from gtsfm.products.visibility_graph import ImageIndexPairs
 from gtsfm.retriever.retriever_base import ImageMatchingRegime, RetrieverBase
 
 logger = logger_utils.get_logger()
@@ -37,7 +37,7 @@ class SequentialRetriever(RetrieverBase):
         global_descriptors: Optional[List[np.ndarray]],  # pylint: disable=unused-argument
         image_fnames: List[str],
         plots_output_dir: Optional[Path] = None,  # pylint: disable=unused-argument
-    ) -> ImagePairs:
+    ) -> ImageIndexPairs:
         """Compute potential image pairs.
 
         Args:

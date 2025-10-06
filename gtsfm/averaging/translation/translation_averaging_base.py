@@ -13,8 +13,8 @@ from gtsam import Pose3, Rot3, Unit3  # type: ignore
 import gtsfm.common.types as gtsfm_types
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.sfm_track import SfmTrack2d
-from gtsfm.common.types import ImagePairs
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
+from gtsfm.products.visibility_graph import ImageIndexPairs
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 
@@ -61,7 +61,7 @@ class TranslationAveragingBase(GTSFMProcess):
         i2Ti1_priors: Dict[Tuple[int, int], PosePrior] = {},
         scale_factor: float = 1.0,
         gt_wTi_list: List[Optional[Pose3]] = [],
-    ) -> Tuple[List[Optional[Pose3]], Optional[GtsfmMetricsGroup], Optional[ImagePairs]]:
+    ) -> Tuple[List[Optional[Pose3]], Optional[GtsfmMetricsGroup], Optional[ImageIndexPairs]]:
         """Run the translation averaging, and combine the estimated global translations with global rotations.
 
         Args:

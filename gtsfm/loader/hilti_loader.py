@@ -28,8 +28,8 @@ import gtsfm.utils.logger as logger_utils
 from gtsfm.common.constraint import Constraint
 from gtsfm.common.image import Image
 from gtsfm.common.pose_prior import PosePrior, PosePriorType
-from gtsfm.common.types import ImagePairs
 from gtsfm.loader.loader_base import LoaderBase
+from gtsfm.products.visibility_graph import ImageIndexPairs
 
 logger = logger_utils.get_logger()
 
@@ -304,7 +304,7 @@ class HiltiLoader(LoaderBase):
         """Map image index to rig index."""
         return rig_index * NUM_CAMS + camera_idx
 
-    def get_relative_pose_priors(self, pairs: ImagePairs) -> Dict[Tuple[int, int], PosePrior]:
+    def get_relative_pose_priors(self, pairs: ImageIndexPairs) -> Dict[Tuple[int, int], PosePrior]:
         pairs = set(pairs)
         # For every rig index, add a "star" from camera 2 to 0,1,3,4:
         for rig_index in range(self.num_rig_poses):

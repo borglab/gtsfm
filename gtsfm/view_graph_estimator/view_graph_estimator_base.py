@@ -22,8 +22,8 @@ import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.common.types import ImagePairs
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
+from gtsfm.products.visibility_graph import ImageIndexPairs
 from gtsfm.two_view_estimator import TwoViewEstimationReport
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
@@ -93,7 +93,7 @@ class ViewGraphEstimatorBase(GTSFMProcess):
 
     def _get_valid_input_edges(
         self, i2Ri1_dict: Dict[Tuple[int, int], Rot3], i2Ui1_dict: Dict[Tuple[int, int], Unit3]
-    ) -> ImagePairs:
+    ) -> ImageIndexPairs:
         """Gets the input edges (i1, i2):
         1. i1 < i2
         2. i2Ri1 and i2Ui1 are both not None.
@@ -165,7 +165,7 @@ class ViewGraphEstimatorBase(GTSFMProcess):
         i2Ui1_dict: Dict[Tuple[int, int], Unit3],
         calibrations: List[Cal3Bundler],
         two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
-        view_graph_edges: ImagePairs,
+        view_graph_edges: ImageIndexPairs,
         plots_output_dir: Path = PLOT_BASE_PATH,
     ) -> GtsfmMetricsGroup:
         """Metric computation for the view optimizer by selecting a subset of two-view reports for the pairs which

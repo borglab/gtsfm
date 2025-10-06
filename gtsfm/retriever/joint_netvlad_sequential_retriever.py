@@ -9,7 +9,7 @@ from typing import List, Optional
 import numpy as np
 
 import gtsfm.utils.logger as logger_utils
-from gtsfm.common.types import ImagePairs
+from gtsfm.products.visibility_graph import ImageIndexPairs
 from gtsfm.retriever.netvlad_retriever import NetVLADRetriever
 from gtsfm.retriever.retriever_base import ImageMatchingRegime, RetrieverBase
 from gtsfm.retriever.sequential_retriever import SequentialRetriever
@@ -45,7 +45,7 @@ class JointNetVLADSequentialRetriever(RetrieverBase):
         global_descriptors: Optional[List[np.ndarray]],
         image_fnames: List[str],
         plots_output_dir: Optional[Path] = None,
-    ) -> ImagePairs:
+    ) -> ImageIndexPairs:
         """Compute potential image pairs.
 
         Args:
@@ -65,7 +65,7 @@ class JointNetVLADSequentialRetriever(RetrieverBase):
 
         return self._aggregate_pairs(sim_pairs=sim_pairs, seq_pairs=seq_pairs)
 
-    def _aggregate_pairs(self, sim_pairs: ImagePairs, seq_pairs: ImagePairs) -> ImagePairs:
+    def _aggregate_pairs(self, sim_pairs: ImageIndexPairs, seq_pairs: ImageIndexPairs) -> ImageIndexPairs:
         """Aggregate all image pair indices from both similarity-based and sequential retrieval.
 
         Args:

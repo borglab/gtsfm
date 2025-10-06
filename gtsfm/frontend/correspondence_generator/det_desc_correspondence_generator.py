@@ -10,10 +10,10 @@ from dask.distributed import Client, Future
 
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.common.types import ImagePairs
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
 from gtsfm.frontend.detector_descriptor.detector_descriptor_base import DetectorDescriptorBase
 from gtsfm.frontend.matcher.matcher_base import MatcherBase
+from gtsfm.products.visibility_graph import ImageIndexPairs
 
 
 class DetDescCorrespondenceGenerator(CorrespondenceGeneratorBase):
@@ -34,7 +34,7 @@ class DetDescCorrespondenceGenerator(CorrespondenceGeneratorBase):
         self,
         client: Client,
         images: List[Future],
-        image_pairs: ImagePairs,
+        image_pairs: ImageIndexPairs,
     ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
         """Apply the correspondence generator to generate putative correspondences.
 

@@ -7,9 +7,6 @@ from typing import Union
 
 import gtsam  # type: ignore
 
-# For defining/using graph_partitioner modules:
-ImagePairs = list[tuple[int, int]]  # list of (i,j) index pairs
-
 CALIBRATION_TYPE = Union[gtsam.Cal3Bundler, gtsam.Cal3_S2, gtsam.Cal3DS2, gtsam.Cal3Fisheye]
 CAMERA_TYPE = Union[
     gtsam.PinholeCameraCal3Bundler,

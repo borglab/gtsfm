@@ -15,8 +15,8 @@ from gtsam import Ordering, Symbol, SymbolicFactorGraph  # type: ignore
 from gtsam.symbol_shorthand import X  # type: ignore
 
 import gtsfm.utils.logger as logger_utils
-from gtsfm.common.types import ImagePairs
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
+from gtsfm.products.visibility_graph import ImageIndexPairs
 
 logger = logger_utils.get_logger()
 
@@ -62,9 +62,9 @@ class BinaryTreePartition(GraphPartitionerBase):
             # self.max_depth to be inferred later
             self._num_cameras_per_cluster = num_cameras_per_cluster
 
-        self.inter_partition_edges_map: Dict[Tuple[int, int], ImagePairs] = {}
+        self.inter_partition_edges_map: Dict[Tuple[int, int], ImageIndexPairs] = {}
 
-    def partition_image_pairs(self, image_pairs: ImagePairs) -> List[ImagePairs]:
+    def partition_image_pairs(self, image_pairs: ImageIndexPairs) -> List[ImageIndexPairs]:
         """Partition image pairs into subgroups using a binary tree.
 
         Args:
@@ -88,7 +88,7 @@ class BinaryTreePartition(GraphPartitionerBase):
         binary_tree_root_node = self._build_binary_partition(ordering)
 
         num_leaves = 2**self.max_depth
-        image_pairs_per_partition: List[ImagePairs] = [[] for _ in range(num_leaves)]
+        image_pairs_per_partition: List[ImageIndexPairs] = [[] for _ in range(num_leaves)]
 
         partition_details, inter_partition_edges = self._compute_leaf_partition_details(binary_tree_root_node, nx_graph)
 
@@ -112,7 +112,7 @@ class BinaryTreePartition(GraphPartitionerBase):
 
         return image_pairs_per_partition
 
-    def get_inter_partition_edges(self) -> Dict[Tuple[int, int], ImagePairs]:
+    def get_inter_partition_edges(self) -> Dict[Tuple[int, int], ImageIndexPairs]:
         """Getter for inter-partition edges between leaf partitions.
 
         Returns:
@@ -121,7 +121,7 @@ class BinaryTreePartition(GraphPartitionerBase):
         """
         return self.inter_partition_edges_map
 
-    def _build_graphs(self, image_pairs: ImagePairs) -> Tuple[SymbolicFactorGraph, List[int], nx.Graph]:
+    def _build_graphs(self, image_pairs: ImageIndexPairs) -> Tuple[SymbolicFactorGraph, List[int], nx.Graph]:
         """Construct GTSAM and NetworkX graphs from image pairs.
 
         Args:
@@ -174,7 +174,7 @@ class BinaryTreePartition(GraphPartitionerBase):
         self,
         node: BinaryTreeNode,
         nx_graph: nx.Graph,
-    ) -> Tuple[List[Dict], Dict[Tuple[int, int], ImagePairs]]:
+    ) -> Tuple[List[Dict], Dict[Tuple[int, int], ImageIndexPairs]]:
         """Recursively traverse the binary tree and return partition details per leaf.
 
         Args:

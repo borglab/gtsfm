@@ -43,8 +43,8 @@ import gtsfm.utils.sampling as sampling_utils
 from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.sfm_track import SfmTrack2d
-from gtsfm.common.types import ImagePairs
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
+from gtsfm.products.visibility_graph import ImageIndexPairs
 
 # Hyperparameters for 1D-SFM
 # maximum number of times 1dsfm will project the Unit3's to a 1d subspace for outlier rejection
@@ -503,7 +503,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         i2Ti1_priors: Dict[Tuple[int, int], PosePrior] = {},
         scale_factor: float = 1.0,
         gt_wTi_list: List[Optional[Pose3]] = [],
-    ) -> Tuple[List[Optional[Pose3]], Optional[GtsfmMetricsGroup], Optional[ImagePairs]]:
+    ) -> Tuple[List[Optional[Pose3]], Optional[GtsfmMetricsGroup], Optional[ImageIndexPairs]]:
         """Run the translation averaging.
 
         Args:

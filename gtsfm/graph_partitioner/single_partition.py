@@ -4,8 +4,8 @@ Authors: Zongyue Liu
 """
 
 import gtsfm.utils.logger as logger_utils
-from gtsfm.common.types import ImagePairs
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
+from gtsfm.products.visibility_graph import ImageIndexPairs
 
 logger = logger_utils.get_logger()
 
@@ -21,7 +21,7 @@ class SinglePartition(GraphPartitionerBase):
         """Initialize the partitioner."""
         super().__init__(process_name="SinglePartition")
 
-    def partition_image_pairs(self, image_pairs: ImagePairs) -> list[ImagePairs]:
+    def partition_image_pairs(self, image_pairs: ImageIndexPairs) -> list[ImageIndexPairs]:
         """Return all image pairs as a single partition.
 
         Args:

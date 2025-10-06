@@ -16,7 +16,7 @@ jobs:
         shell: bash -l {0}
 
     steps:
-      - uses: actions/checkout@v4.1.7
+      - uses: actions/checkout@v5.0.0
       - uses: conda-incubator/setup-miniconda@v3
         with:
           mamba-version: "*"

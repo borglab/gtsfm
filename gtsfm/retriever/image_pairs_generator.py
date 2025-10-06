@@ -10,8 +10,8 @@ import numpy as np
 from dask.distributed import Client, Future
 
 from gtsfm.common.image import Image
-from gtsfm.common.types import ImagePairs
 from gtsfm.frontend.global_descriptor.global_descriptor_base import GlobalDescriptorBase
+from gtsfm.products.visibility_graph import ImageIndexPairs
 from gtsfm.retriever.retriever_base import RetrieverBase
 
 
@@ -29,7 +29,7 @@ class ImagePairsGenerator:
 
     def generate_image_pairs(
         self, client: Client, images: List[Future], image_fnames: List[str], plots_output_dir: Optional[Path] = None
-    ) -> ImagePairs:
+    ) -> ImageIndexPairs:
         def apply_global_descriptor(global_descriptor: GlobalDescriptorBase, image: Image) -> np.ndarray:
             return global_descriptor.describe(image=image)
 

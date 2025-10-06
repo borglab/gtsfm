@@ -18,7 +18,7 @@ import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.common.types import ImagePairs
+from gtsfm.products.visibility_graph import ImageIndexPairs
 from gtsfm.two_view_estimator import TwoViewEstimationReport
 from gtsfm.view_graph_estimator.view_graph_estimator_base import ViewGraphEstimatorBase
 
@@ -105,7 +105,7 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         start_time = time.time()
 
         logger.info("Input number of edges: %d" % len(i2Ri1_dict))
-        input_edges: ImagePairs = list(i2Ri1_dict.keys())
+        input_edges: ImageIndexPairs = list(i2Ri1_dict.keys())
         triplets: List[Tuple[int, int, int]] = graph_utils.extract_cyclic_triplets_from_edges(input_edges)
 
         logger.info("Number of triplets: %d" % len(triplets))

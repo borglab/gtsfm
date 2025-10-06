@@ -16,7 +16,7 @@ import numpy as np
 import torch
 
 import gtsfm.utils.logger as logger_utils
-from gtsfm.common.types import ImagePairs
+from gtsfm.products.visibility_graph import ImageIndexPairs
 from gtsfm.retriever.retriever_base import ImageMatchingRegime, RetrieverBase
 
 logger = logger_utils.get_logger()
@@ -58,7 +58,7 @@ class NetVLADRetriever(RetrieverBase):
         global_descriptors: Optional[List[np.ndarray]],
         image_fnames: List[str],
         plots_output_dir: Optional[Path] = None,
-    ) -> ImagePairs:
+    ) -> ImageIndexPairs:
         """Compute potential image pairs.
 
         Args:
@@ -152,7 +152,7 @@ class NetVLADRetriever(RetrieverBase):
 
     def compute_pairs_from_similarity_matrix(
         self, sim: torch.Tensor, image_fnames: List[str], plots_output_dir: Optional[Path] = None
-    ) -> ImagePairs:
+    ) -> ImageIndexPairs:
         """
 
         Args:
@@ -197,7 +197,7 @@ class NetVLADRetriever(RetrieverBase):
 
 def pairs_from_score_matrix(
     scores: torch.Tensor, invalid: np.array, num_select: int, min_score: Optional[float] = None
-) -> ImagePairs:
+) -> ImageIndexPairs:
     """Identify image pairs from a score matrix.
 
     Note: Similarity computation here is based off of Paul-Edouard Sarlin's HLOC:
