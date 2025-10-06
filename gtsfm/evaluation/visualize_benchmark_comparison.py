@@ -282,13 +282,10 @@ def generate_dashboard(master_path: Path, branch_path: Path, output_path: Path) 
                         percentage_change *= -1
                     elif "outlier" in metric_name and "error" not in metric_name:
                         percentage_change *= -1
-                    elif "EXCEEDS" in metric_name:
-                        percentage_change *= -1
-                    elif "failure_ratio" in metric_name:
-                        percentage_change *= -1
-                    elif "duration" in metric_name:
-                        percentage_change *= -1
-                    elif "CHEIRALITY_FAILURE" in metric_name:
+                    elif any(
+                        keyword in metric_name
+                        for keyword in ["EXCEEDS", "failure_ratio", "duration", "runtime", "CHEIRALITY_FAILURE"]
+                    ):
                         percentage_change *= -1
                     benchmark_table_vals[metric_name][label] = (
                         round(float(master_val), 4) if master_val else np.nan,
