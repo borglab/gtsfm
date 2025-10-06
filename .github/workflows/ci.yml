@@ -1,6 +1,11 @@
 name: CI
 
-on: [pull_request, workflow_dispatch]
+on:
+  pull_request:
+    paths-ignore:
+      - "rtf_vis_tool/**"
+      - "gtsfm/visualization/**"
+  workflow_dispatch:
 
 jobs:
   mamba-setup:
