@@ -12,7 +12,7 @@ Authors: Ayush Baid, Sushmita Warrier, John Lambert, Travis Driver
 import time
 from typing import Dict, List, Tuple
 
-import gtsam
+import gtsam  # type: ignore
 import numpy as np
 
 import gtsfm.utils.logger as logger_utils
@@ -71,7 +71,7 @@ class CppDsfTracksEstimator(TracksEstimatorBase):
         for keypoint in keypoints_list:
             keypoints_vector.append(gtsam.gtsfm.Keypoints(keypoint.coordinates))
 
-        tracks = gtsam.gtsfm.tracksFromPairwiseMatches(matches_map, keypoints_vector, verbose=True)
+        tracks = gtsam.gtsfm.tracksFromPairwiseMatches(matches_map, keypoints_vector, verbose=False)
 
         track_2d_list = []
         for track in tracks:
