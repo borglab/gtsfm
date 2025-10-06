@@ -16,7 +16,7 @@ import h5py  # type: ignore
 import numpy as np  # type: ignore
 import open3d
 import simplejson as json  # type: ignore
-from gtsam import Cal3Bundler, Point3, Pose3, Rot3, SfmTrack
+from gtsam import Cal3Bundler, Pose3, Rot3, SfmTrack
 from PIL import Image as PILImage
 from PIL.ExifTags import GPSTAGS, TAGS
 
