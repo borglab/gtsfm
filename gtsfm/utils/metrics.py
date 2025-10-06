@@ -13,7 +13,7 @@ from typing import Dict, List, Optional, Sequence, Set, Tuple, Union
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns  # type: ignore
-from gtsam import Cal3Bundler, EssentialMatrix, PinholeCameraCal3Bundler, Pose3, Rot3, Unit3  # type: ignore
+from gtsam import EssentialMatrix, PinholeCameraCal3Bundler, Pose3, Rot3, Unit3  # type: ignore
 from trimesh import Trimesh
 
 import gtsfm.utils.geometry_comparisons as comp_utils
@@ -21,6 +21,7 @@ import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.verification as verification_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.common.types import CALIBRATION_TYPE
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -100,8 +101,8 @@ def compute_correspondence_metrics(
 def epipolar_inlier_correspondences(
     keypoints_i1: Keypoints,
     keypoints_i2: Keypoints,
-    intrinsics_i1: Cal3Bundler,
-    intrinsics_i2: Cal3Bundler,
+    intrinsics_i1: CALIBRATION_TYPE,
+    intrinsics_i2: CALIBRATION_TYPE,
     i2Ti1: Pose3,
     dist_threshold: float,
 ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:

@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 from dask.distributed import Client
-from gtsam import PinholeCameraCal3Bundler, Pose3, Rot3, SfmTrack, Unit3
+from gtsam import PinholeCameraCal3Bundler, Pose3, Rot3, SfmTrack, Unit3  # type: ignore
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.geometry_comparisons as comp_utils
@@ -288,8 +288,8 @@ class TwoViewEstimator:
         keypoints_i1: Keypoints,
         keypoints_i2: Keypoints,
         putative_corr_idxs: np.ndarray,
-        camera_intrinsics_i1: Optional[gtsfm_types.CALIBRATION_TYPE],
-        camera_intrinsics_i2: Optional[gtsfm_types.CALIBRATION_TYPE],
+        camera_intrinsics_i1: gtsfm_types.CALIBRATION_TYPE,
+        camera_intrinsics_i2: gtsfm_types.CALIBRATION_TYPE,
         i2Ti1_prior: Optional[PosePrior],
         gt_camera_i1: Optional[gtsfm_types.CAMERA_TYPE],
         gt_camera_i2: Optional[gtsfm_types.CAMERA_TYPE],
@@ -361,6 +361,15 @@ class TwoViewEstimator:
         return post_isp_i2Ri1, post_isp_i2Ui1, post_isp_v_corr_idxs, pre_ba_report, post_ba_report, post_isp_report
 
 
+def _masked_nanmean(model: Optional[np.ndarray], mask: Optional[np.ndarray], invert_mask: bool = False) -> float:
+    """Helper function to compute nanmean of model[mask] with None checks."""
+    if model is not None and mask is not None and len(mask) > 0:
+        final_mask = np.logical_not(mask) if invert_mask else mask
+        if np.any(final_mask):  # Ensure there is at least one True value in the mask
+            return float(np.nanmean(model[final_mask]))
+    return float("nan")
+
+
 def generate_two_view_report(
     inlier_ratio_est_model: float,
     v_corr_idxs: np.ndarray,
@@ -376,9 +385,9 @@ def generate_two_view_report(
         inlier_ratio_gt_model = (
             np.count_nonzero(v_corr_idxs_inlier_mask_gt) / v_corr_idxs.shape[0] if len(v_corr_idxs) > 0 else 0.0
         )
-        inlier_avg_reproj_error_gt_model = np.mean(reproj_error_gt_model[v_corr_idxs_inlier_mask_gt])
-        outlier_avg_reproj_error_gt_model = np.nanmean(
-            reproj_error_gt_model[np.logical_not(v_corr_idxs_inlier_mask_gt)]
+        inlier_avg_reproj_error_gt_model = _masked_nanmean(reproj_error_gt_model, v_corr_idxs_inlier_mask_gt)
+        outlier_avg_reproj_error_gt_model = _masked_nanmean(
+            reproj_error_gt_model, v_corr_idxs_inlier_mask_gt, invert_mask=True
         )
     else:
         num_inliers_gt_model = 0
@@ -631,16 +640,14 @@ def get_two_view_reports_summary(
                 ),
                 "inlier_ratio_gt_model": round_fn(report.inlier_ratio_gt_model),
                 "inlier_avg_reproj_error_gt_model": (
-                    round_fn(np.nanmean(report.reproj_error_gt_model[report.v_corr_idxs_inlier_mask_gt]))
-                    if report.reproj_error_gt_model is not None and report.v_corr_idxs_inlier_mask_gt is not None
-                    else None
+                    round_fn(_masked_nanmean(report.reproj_error_gt_model, report.v_corr_idxs_inlier_mask_gt))
                 ),
                 "outlier_avg_reproj_error_gt_model": (
                     round_fn(
-                        np.nanmean(report.reproj_error_gt_model[np.logical_not(report.v_corr_idxs_inlier_mask_gt)])
+                        _masked_nanmean(
+                            report.reproj_error_gt_model, report.v_corr_idxs_inlier_mask_gt, invert_mask=True
+                        )
                     )
-                    if report.reproj_error_gt_model is not None and report.v_corr_idxs_inlier_mask_gt is not None
-                    else None
                 ),
                 "inlier_ratio_est_model": round_fn(report.inlier_ratio_est_model),
                 "num_inliers_est_model": (
