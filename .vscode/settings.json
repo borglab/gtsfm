@@ -74,6 +74,7 @@
         "keypoint",
         "keypoints",
         "Khanuja",
+        "Klopschitz",
         "kneighbors",
         "Krishnan",
         "linalg",
@@ -81,11 +82,18 @@
         "ndarray",
         "nerfstudio",
         "netvlad",
+        "noexif",
+        "noextrinsics",
+        "nointrinsics",
         "Olsson",
         "olssonloader",
         "partitioner",
+        "partitioners",
+        "splatfacto",
         "Patchmatch",
         "patchmatchnet",
+        "Pollefeys",
+        "pycolmap",
         "ransac",
         "reproject",
         "reprojected",
@@ -93,6 +101,7 @@
         "Rodrigues",
         "searchsorted",
         "sfmdata",
+        "Shicong",
         "splatfacto",
         "tocuda",
         "twoview",
@@ -102,7 +111,8 @@
         "VIEWGRAPH",
         "viewmat",
         "xlabel",
-        "ylabel"
+        "ylabel",
+        "Zongyue"
     ],
     "python-envs.pythonProjects": [
         {
@@ -111,4 +121,8 @@
             "packageManager": "ms-python.python:conda"
         }
     ],
+    "[yaml]": {
+        "editor.defaultFormatter": "redhat.vscode-yaml"
+    },
+    "python.analysis.typeCheckingMode": "standard"
 }

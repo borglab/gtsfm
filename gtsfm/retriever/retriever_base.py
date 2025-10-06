@@ -6,11 +6,12 @@ Authors: John Lambert
 import abc
 from enum import Enum
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 import numpy as np
 
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
+from gtsfm.products.visibility_graph import ImageIndexPairs
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 
@@ -50,7 +51,7 @@ class RetrieverBase(GTSFMProcess):
         global_descriptors: Optional[List[np.ndarray]],
         image_fnames: List[str],
         plots_output_dir: Optional[Path] = None,
-    ) -> List[Tuple[int, int]]:
+    ) -> ImageIndexPairs:
         """Compute potential image pairs.
 
         Args:
@@ -62,7 +63,7 @@ class RetrieverBase(GTSFMProcess):
             List of (i1,i2) image pairs.
         """
 
-    def evaluate(self, num_images, image_pair_indices: List[Tuple[int, int]]) -> GtsfmMetricsGroup:
+    def evaluate(self, num_images, image_pair_indices: ImageIndexPairs) -> GtsfmMetricsGroup:
         """Evaluates the retriever result.
 
         Args:

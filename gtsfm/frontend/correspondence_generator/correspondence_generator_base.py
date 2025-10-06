@@ -2,13 +2,15 @@
 
 Authors: John Lambert
 """
+
 from abc import abstractmethod
 from typing import Dict, List, Tuple
 
-from dask.distributed import Client, Future
 import numpy as np
+from dask.distributed import Client, Future
 
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.products.visibility_graph import ImageIndexPairs
 
 
 class CorrespondenceGeneratorBase:
@@ -19,7 +21,7 @@ class CorrespondenceGeneratorBase:
         self,
         client: Client,
         images: List[Future],
-        image_pairs: List[Tuple[int, int]],
+        image_pairs: ImageIndexPairs,
     ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
         """Apply the correspondence generator to generate putative correspondences.
 

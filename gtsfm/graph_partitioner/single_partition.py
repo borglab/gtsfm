@@ -5,29 +5,28 @@ Authors: Zongyue Liu
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
+from gtsfm.products.visibility_graph import ImageIndexPairs
 
 logger = logger_utils.get_logger()
 
 
 class SinglePartition(GraphPartitionerBase):
     """Graph partitioner that returns all edges as a single partition.
-    
-    This implementation doesn't actually partition the graph but serves as 
+
+    This implementation doesn't actually partition the graph but serves as
     a baseline implementation that maintains the original workflow.
     """
-    
+
     def __init__(self):
         """Initialize the partitioner."""
         super().__init__(process_name="SinglePartition")
-        
-    def partition_image_pairs(
-        self, image_pairs: list[tuple[int, int]]
-    ) -> list[list[tuple[int, int]]]:
+
+    def partition_image_pairs(self, image_pairs: ImageIndexPairs) -> list[ImageIndexPairs]:
         """Return all image pairs as a single partition.
-        
+
         Args:
             image_pairs: List of image pairs (i,j) where i < j.
-                               
+
         Returns:
             A list containing a single subgraph with all valid edges.
         """

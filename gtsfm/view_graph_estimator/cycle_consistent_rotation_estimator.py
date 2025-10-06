@@ -2,6 +2,7 @@
 
 Authors: John Lambert, Ayush Baid, Akshay Krishnan
 """
+
 import os
 import time
 from collections import defaultdict
@@ -11,12 +12,13 @@ from typing import Dict, List, Optional, Set, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
-from gtsam import Cal3Bundler, Rot3, Unit3
+from gtsam import Cal3Bundler, Rot3, Unit3  # type: ignore
 
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.products.visibility_graph import ImageIndexPairs
 from gtsfm.two_view_estimator import TwoViewEstimationReport
 from gtsfm.view_graph_estimator.view_graph_estimator_base import ViewGraphEstimatorBase
 
@@ -32,7 +34,7 @@ MAX_INLIER_MEASUREMENT_ERROR_DEG = 5.0
 class EdgeErrorAggregationCriterion(str, Enum):
     """Aggregate cycle errors over each edge by choosing one of the following summary statistics:
 
-    MIN: Choose the mininum cycle error of all cyles this edge appears in. An edge that appears in ANY cycle
+    MIN: Choose the minimum cycle error of all cycles this edge appears in. An edge that appears in ANY cycle
         with low error is accepted. High recall, but can have low precision, as false positives can enter
         (error was randomly cancelled out by another error, meaning accepted).
     MEDIAN: Choose the median cycle error. robust summary statistic. At least half of the time, this edge
@@ -103,7 +105,7 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         start_time = time.time()
 
         logger.info("Input number of edges: %d" % len(i2Ri1_dict))
-        input_edges: List[Tuple[int, int]] = i2Ri1_dict.keys()
+        input_edges: ImageIndexPairs = list(i2Ri1_dict.keys())
         triplets: List[Tuple[int, int, int]] = graph_utils.extract_cyclic_triplets_from_edges(input_edges)
 
         logger.info("Number of triplets: %d" % len(triplets))

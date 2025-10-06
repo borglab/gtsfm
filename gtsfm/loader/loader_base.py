@@ -1,4 +1,4 @@
-""" Base class for Loaders.
+"""Base class for Loaders.
 
 Authors: Frank Dellaert and Ayush Baid
 """
@@ -10,7 +10,7 @@ from typing import Dict, List, Optional, Tuple
 import dask
 from dask.delayed import Delayed
 from dask.distributed import Client, Future
-from gtsam import Cal3Bundler, Cal3_S2, Cal3DS2, Pose3
+from gtsam import Cal3_S2, Cal3Bundler, Cal3DS2, Pose3  # type: ignore
 from trimesh import Trimesh
 
 import gtsfm.common.types as gtsfm_types
@@ -18,6 +18,7 @@ import gtsfm.utils.images as img_utils
 import gtsfm.utils.io as io_utils
 from gtsfm.common.image import Image
 from gtsfm.common.pose_prior import PosePrior
+from gtsfm.products.visibility_graph import ImageIndexPairs
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 logger = logging.getLogger(__name__)
@@ -317,7 +318,7 @@ class LoaderBase(GTSFMProcess):
         """
         return None
 
-    def get_relative_pose_priors(self, pairs: List[Tuple[int, int]]) -> Dict[Tuple[int, int], PosePrior]:
+    def get_relative_pose_priors(self, pairs: ImageIndexPairs) -> Dict[Tuple[int, int], PosePrior]:
         """Get *all* relative pose priors for i2Ti1
 
         Args:
@@ -410,7 +411,7 @@ class LoaderBase(GTSFMProcess):
         N = len(self)
         return [self.get_image_shape(i) for i in range(N)]
 
-    def get_valid_pairs(self) -> List[Tuple[int, int]]:
+    def get_valid_pairs(self) -> ImageIndexPairs:
         """Get the valid pairs of images for this loader.
 
         Returns:

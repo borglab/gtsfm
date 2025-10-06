@@ -2,6 +2,7 @@
 
 Authors: John Lambert
 """
+
 from typing import Dict, List, Tuple
 
 import numpy as np
@@ -12,6 +13,7 @@ from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
 from gtsfm.frontend.detector_descriptor.detector_descriptor_base import DetectorDescriptorBase
 from gtsfm.frontend.matcher.matcher_base import MatcherBase
+from gtsfm.products.visibility_graph import ImageIndexPairs
 
 
 class DetDescCorrespondenceGenerator(CorrespondenceGeneratorBase):
@@ -32,7 +34,7 @@ class DetDescCorrespondenceGenerator(CorrespondenceGeneratorBase):
         self,
         client: Client,
         images: List[Future],
-        image_pairs: List[Tuple[int, int]],
+        image_pairs: ImageIndexPairs,
     ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
         """Apply the correspondence generator to generate putative correspondences.
 

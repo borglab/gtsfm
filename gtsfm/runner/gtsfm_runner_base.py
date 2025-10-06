@@ -1,11 +1,11 @@
 """Base class for runner that executes SfM."""
 
 import argparse
+import logging
 import os
 import time
 from abc import abstractmethod
 from pathlib import Path
-import logging
 
 import dask
 import hydra
@@ -58,7 +58,7 @@ class GtsfmRunnerBase:
 
         # 5. Configure the logging system
         # A good format includes the timestamp, level name, and message
-        logging.basicConfig(level=log_level, format="%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s")
+        logging.basicConfig(level=log_level)
 
         self.loader: LoaderBase = self.construct_loader()
         self.scene_optimizer: SceneOptimizer = self.construct_scene_optimizer()
@@ -427,6 +427,7 @@ class GtsfmRunnerBase:
         all_metrics_groups = [retriever_metrics, two_view_agg_metrics]
 
         # Partition image pairs
+        assert self.graph_partitioner is not None, "Graph partitioner is not set up!"
         subgraphs = self.graph_partitioner.partition_image_pairs(image_pair_indices)
         logger.info(f"Partitioned into {len(subgraphs)} subgraphs")
         # Group results by subgraph

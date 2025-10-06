@@ -214,7 +214,9 @@ def compute_keypoint_intersections(
     return keypoint_ind, intersections
 
 
-def compute_rotation_angle_metric(wRi_list: List[Optional[Rot3]], gt_wRi_list: List[Optional[Rot3]]) -> GtsfmMetric:
+def compute_rotation_angle_metric(
+    wRi_list: Sequence[Optional[Rot3]], gt_wRi_list: Sequence[Optional[Rot3]]
+) -> GtsfmMetric:
     """Computes statistics for the angle between estimated and GT rotations.
 
     Assumes that the estimated and GT rotations have been aligned and do not
@@ -232,7 +234,7 @@ def compute_rotation_angle_metric(wRi_list: List[Optional[Rot3]], gt_wRi_list: L
 
 
 def compute_translation_distance_metric(
-    wti_list: List[Optional[np.ndarray]], gt_wti_list: List[Optional[np.ndarray]]
+    wti_list: Sequence[Optional[np.ndarray]], gt_wti_list: Sequence[Optional[np.ndarray]]
 ) -> GtsfmMetric:
     """Computes statistics for the distance between estimated and GT translations.
 
