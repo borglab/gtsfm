@@ -188,7 +188,8 @@ class TwoViewEstimator:
             cameras, keypoints_i1, keypoints_i2, verified_corr_idxs
         )
         logger.debug("Performed DA in %.6f seconds.", timeit.default_timer() - start_time)
-        logger.debug("Triangulated %d correspondences out of %d.", len(triangulated_tracks), len(verified_corr_idxs))
+        logger.info("Triangulated %d correspondences out of %d.", len(triangulated_tracks), len(verified_corr_idxs))
+        print("============================", len(triangulated_tracks), len(verified_corr_idxs))
 
         if len(triangulated_tracks) == 0:
             return i2Ti1_initial.rotation(), Unit3(i2Ti1_initial.translation()), np.zeros(shape=(0, 2), dtype=np.int32)
@@ -594,6 +595,7 @@ def run_two_view_estimator_as_futures(
     }
 
     two_view_output_dict = client.gather(two_view_output_futures)
+    print(two_view_output_dict)
     return two_view_output_dict
 
 
