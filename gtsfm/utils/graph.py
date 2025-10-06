@@ -2,6 +2,7 @@
 
 Authors: Ayush Baid, John Lambert, Akshay Krishnan
 """
+
 from collections import defaultdict
 from typing import DefaultDict, Dict, List, Optional, Set, Tuple
 
@@ -75,6 +76,12 @@ def prune_to_largest_connected_component(
         if i1 in nodes_in_pruned_graph and i2 in nodes_in_pruned_graph:
             selected_edges.append((i1, i2))
 
+    logger.info(
+        "Pruned to largest connected component with %d nodes and %d edges.",
+        len(nodes_in_pruned_graph),
+        len(selected_edges),
+    )
+
     # Return the subset of original input.
     return (
         {k: rotations[k] for k in selected_edges},
@@ -97,7 +104,7 @@ def create_adjacency_list(edges: List[Tuple[int, int]]) -> DefaultDict[int, Set[
     """
     adj_list = defaultdict(set)
 
-    for (a, b) in edges:
+    for a, b in edges:
         adj_list[a].add(b)
         adj_list[b].add(a)
 
@@ -127,7 +134,7 @@ def extract_cyclic_triplets_from_edges(edges: List[Tuple[int, int]]) -> List[Tup
     triplets = set()
 
     # find intersections
-    for (a, b) in edges:
+    for a, b in edges:
         if a > b:
             a, b = b, a
 
