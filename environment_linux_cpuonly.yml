@@ -1,14 +1,9 @@
 name: gtsfm-v1
 channels:
-  # for priority order, we prefer pytorch as the highest priority as it supplies
-  # latest stable packages for numerous deep learning based methods. conda-forge
-  # supplies higher versions of packages like opencv compared to the defaults
-  # channel.
-  - pytorch
   - conda-forge
 dependencies:
   # python essentials
-  - python=3.8
+  - python=3.10
   - pip
   # formatting and dev environment
   - black
@@ -19,38 +14,38 @@ dependencies:
   - flake8
   - isort
   # dask and related
-  - dask # same as dask[complete] pip distribution
+  - dask
   - asyncssh
   - python-graphviz
   # core functionality and APIs
-  - matplotlib==3.4.2
+  - matplotlib>=3.5
   - networkx
-  - numpy
+  - numpy==1.26.4 # gtsam requirement
   - nodejs
   - pandas
-  - pillow>=8.0.1
+  - pillow>=9.0.0
   - scikit-learn
   - seaborn
   - scipy
   - hydra-core
-  # 3rd party algorithms for different modules
-  - cpuonly # replacement of cudatoolkit for cpu only machines
-  - pytorch>=1.12.0
-  - torchvision>=0.13.0
-  - kornia
-  - pycolmap
+  # # 3rd party algorithms for different modules
+  - kornia>=0.7.3
+  - pycolmap==3.11.1
   # io
   - h5py
-  - plotly=4.14.3
+  - plotly>=5.0
   - tabulate
   - simplejson
+  - pyparsing>=3.0.9
   # testing
   - parameterized
   - pip:
       - open3d
-      - opencv-python>=4.5.4.58
+      - opencv-python>=4.5.4.60
       - pydegensac
       - colour
       - trimesh[easy]
-      - gtsam==4.2
+      - gtsam==4.3a0
       - pydot
+      - https://download.pytorch.org/whl/cpu/torch-2.5.0%2Bcpu-cp310-cp310-linux_x86_64.whl
+      - https://download.pytorch.org/whl/cpu/torchvision-0.20.0%2Bcpu-cp310-cp310-linux_x86_64.whl

@@ -44,8 +44,8 @@ class TestProcessGraphGenerator(unittest.TestCase):
 
         output_raw_dot = process_graph_generator._main_graph.to_string()
 
-        self.assertTrue("GTSFMProcess" not in output_raw_dot)
-        self.assertTrue("Fake" not in output_raw_dot)
+        self.assertNotIn("GTSFMProcess", output_raw_dot)
+        self.assertNotIn("Fake", output_raw_dot)
 
     def test_build_graph(self):
         """Check that the test nodes are in the graph and connected correctly.
@@ -58,16 +58,16 @@ class TestProcessGraphGenerator(unittest.TestCase):
         output_raw_dot = process_graph_generator._main_graph.to_string()
 
         # can't assert the full graph directly because the REGISTRY will have other classes
-        self.assertTrue("FakeImageLoader [" in output_raw_dot)
-        self.assertTrue('"Internal Data" [' in output_raw_dot)
-        self.assertTrue('FakeImageLoader -> "Internal Data"  [' in output_raw_dot)
-        self.assertTrue('"Raw Images" -> FakeImageLoader  [' in output_raw_dot)
-        self.assertTrue('FakeOutput -> "GTSFM Output"  [' in output_raw_dot)
-        self.assertTrue('"Internal Data" -> FakeOutput  [' in output_raw_dot)
-        self.assertTrue("subgraph cluster_ParentPlate" in output_raw_dot)
-        self.assertTrue("label=ParentPlate" in output_raw_dot)
-        self.assertTrue("FakeOutput [" in output_raw_dot)
-        self.assertTrue('"GTSFM Output" [' in output_raw_dot)
+        self.assertIn("FakeImageLoader [", output_raw_dot)
+        self.assertIn('"Internal Data" [', output_raw_dot)
+        self.assertIn('FakeImageLoader -> "Internal Data"', output_raw_dot)
+        self.assertIn('"Raw Images" -> FakeImageLoader', output_raw_dot)
+        self.assertIn('FakeOutput -> "GTSFM Output"', output_raw_dot)
+        self.assertIn('"Internal Data" -> FakeOutput', output_raw_dot)
+        self.assertIn("subgraph cluster_ParentPlate", output_raw_dot)
+        self.assertIn("label=ParentPlate", output_raw_dot)
+        self.assertIn("FakeOutput [", output_raw_dot)
+        self.assertIn('"GTSFM Output" [', output_raw_dot)
 
 
 if __name__ == "__main__":

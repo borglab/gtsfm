@@ -125,36 +125,40 @@ def main(experiment_roots: Sequence[Path], output_fpath: str) -> None:
     table = defaultdict(list)
     headers = ["method_name"]
 
-    method_idx = 0
     for experiment_root in experiment_roots:
         dirpath = Path(experiment_root) / "result_metrics"
         frontend_name = Path(experiment_root).name
-        table["method_name"].append(frontend_name)
 
-        for json_fname, metric_names, nickname in zip(
-            SECTION_FILE_NAMES,
-            SECTION_METRIC_LISTS,
-            SECTION_NICKNAMES,
-        ):
-            section_name = Path(json_fname).stem
-            print(f"{dirpath}/{json_fname}")
-            json_data = io_utils.read_json_file(f"{dirpath}/{json_fname}")[section_name]
-            for metric_name in metric_names:
-                full_metric_name = f"{nickname}_" + " ".join(metric_name.split("_"))
-                if method_idx == 0:
-                    headers.append(full_metric_name)
+        try:
+            metrics = {"method_name": frontend_name}
+            for json_fname, metric_names, nickname in zip(
+                SECTION_FILE_NAMES,
+                SECTION_METRIC_LISTS,
+                SECTION_NICKNAMES,
+            ):
+                section_name = Path(json_fname).stem
+                print(f"{dirpath}/{json_fname}")
+                json_data = io_utils.read_json_file(f"{dirpath}/{json_fname}")[section_name]
 
-                if "pose_auc_" in metric_name and metric_name in SCALAR_METRIC_NAMES:
-                    table[full_metric_name].append(json_data[metric_name] * 100)
-                elif metric_name in SCALAR_METRIC_NAMES:
-                    print(f"{metric_name}: {json_data[metric_name]}")
-                    table[full_metric_name].append(json_data[metric_name])
-                else:
-                    med = f"{json_data[metric_name]['summary']['median']:.1f}"
-                    mean = f"{json_data[metric_name]['summary']['mean']:.1f}"
-                    print(f"Med / Median {metric_name}: {med} / {mean}")
-                    table[full_metric_name].append(f"{med} / {mean}")
-        method_idx += 1
+                for metric_name in metric_names:
+                    full_metric_name = f"{nickname}_" + " ".join(metric_name.split("_"))
+                    if full_metric_name not in headers:
+                        headers.append(full_metric_name)
+
+                    if "pose_auc_" in metric_name and metric_name in SCALAR_METRIC_NAMES:
+                        metrics[full_metric_name] = json_data[metric_name] * 100
+                    elif metric_name in SCALAR_METRIC_NAMES:
+                        print(f"{metric_name}: {json_data[metric_name]}")
+                        metrics[full_metric_name] = json_data[metric_name]
+                    else:
+                        med = f"{json_data[metric_name]['summary']['median']:.1f}"
+                        mean = f"{json_data[metric_name]['summary']['mean']:.1f}"
+                        print(f"Med / Median {metric_name}: {med} / {mean}")
+                        metrics[full_metric_name] = f"{med} / {mean}"
+        except FileNotFoundError:
+            continue
+        for k, val in metrics.items():
+            table[k].append(val)
 
     # We treat the defaultdict as a table (dict of iterables).
     stdout_lines = tabulate(table, headers, tablefmt="fancy_grid")
@@ -178,7 +182,10 @@ def _make_runtime_pie_chart(experiment_roots: Sequence[Path]) -> None:
             SECTION_NICKNAMES,
         ):
             section_name = Path(json_fname).stem
-            json_data = io_utils.read_json_file(f"{dirpath}/{json_fname}")[section_name]
+            try:
+                json_data = io_utils.read_json_file(f"{dirpath}/{json_fname}")[section_name]
+            except FileNotFoundError:
+                continue
             for metric_name in metric_names:
                 full_metric_name = f"{nickname}_" + " ".join(metric_name.split("_"))
                 if "sec" not in metric_name:

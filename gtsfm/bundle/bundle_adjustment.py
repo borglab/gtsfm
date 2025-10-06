@@ -15,13 +15,8 @@ import numpy as np
 from dask.delayed import Delayed
 from gtsam import (
     BetweenFactorPose3,
-    GeneralSFMFactor2Cal3Bundler,
-    GeneralSFMFactor2Cal3Fisheye,
     NonlinearFactorGraph,
-    PinholeCameraCal3Bundler,
     PinholeCameraCal3Fisheye,
-    PriorFactorCal3Bundler,
-    PriorFactorCal3Fisheye,
     PriorFactorPose3,
     SfmTrack,
     Values,
@@ -49,8 +44,6 @@ X = symbol_shorthand.X  # camera pose
 K = symbol_shorthand.K  # calibration
 
 CAM_POSE3_DOF = 6  # 6 dof for pose of camera
-CAM_CAL3BUNDLER_DOF = 3  # 3 dof for f, k1, k2 for intrinsics of camera
-CAM_CAL3FISHEYE_DOF = 9
 IMG_MEASUREMENT_DIM = 2  # 2d measurements (u,v) have 2 dof
 POINT3_DOF = 3  # 3d points have 3 dof
 
@@ -77,6 +70,7 @@ class BundleAdjustmentOptimizer:
         calibration_prior_noise_sigma: float = 1e-5,
         measurement_noise_sigma: float = 1.0,
         allow_indeterminate_linear_system: bool = True,
+        ordering_type: str = "METIS",
     ) -> None:
         """Initializes the parameters for bundle adjustment module.
 
@@ -96,6 +90,7 @@ class BundleAdjustmentOptimizer:
             measurement_noise_sigma (optional): Measurement noise sigma in pixel units.
             allow_indeterminate_linear_system: Reject a two-view measurement if an indeterminate linear system is
                 encountered during marginal covariance computation after bundle adjustment.
+            ordering_type (optional): The ordering algorithm to use for variable elimination.
         """
         self._reproj_error_thresholds = reproj_error_thresholds
         self._robust_measurement_noise = robust_measurement_noise
@@ -105,6 +100,7 @@ class BundleAdjustmentOptimizer:
         self._calibration_prior_noise_sigma = calibration_prior_noise_sigma
         self._measurement_noise_sigma = measurement_noise_sigma
         self._allow_indeterminate_linear_system = allow_indeterminate_linear_system
+        self._ordering_type = ordering_type
 
     def __map_to_calibration_variable(self, camera_idx: int) -> int:
         return 0 if self._shared_calib else camera_idx
@@ -118,7 +114,10 @@ class BundleAdjustmentOptimizer:
         if self._robust_measurement_noise:
             measurement_noise = gtsam.noiseModel.Robust(gtsam.noiseModel.mEstimator.Huber(1.345), measurement_noise)
 
-        sfm_factor_class = GeneralSFMFactor2Cal3Fisheye if is_fisheye_calibration else GeneralSFMFactor2Cal3Bundler
+        # Note: Assumes all calibration types are the same.
+        sfm_factor_class = gtsfm_types.get_sfm_factor_for_calibration(
+            initial_data.get_camera(0).calibration()
+        )
         for j in range(initial_data.number_tracks()):
             track = initial_data.get_track(j)  # SfmTrack
             # Retrieve the SfmMeasurement objects.
@@ -189,8 +188,11 @@ class BundleAdjustmentOptimizer:
         """Generate prior factors on calibration parameters of the cameras."""
         graph = NonlinearFactorGraph()
 
-        calibration_prior_factor_class = PriorFactorCal3Fisheye if is_fisheye_calibration else PriorFactorCal3Bundler
-        calibration_prior_factor_dof = CAM_CAL3FISHEYE_DOF if is_fisheye_calibration else CAM_CAL3BUNDLER_DOF
+        # Note: Assumes all calibration types are the same.
+        calibration_prior_factor_class = gtsfm_types.get_prior_factor_for_calibration(
+            initial_data.get_camera(cameras_to_model[0]).calibration()
+        )
+        calibration_prior_factor_dof = initial_data.get_camera(cameras_to_model[0]).calibration().dim()
         if self._shared_calib:
             graph.push_back(
                 calibration_prior_factor_class(
@@ -276,6 +278,8 @@ class BundleAdjustmentOptimizer:
         """Optimize the factor graph."""
         params = gtsam.LevenbergMarquardtParams()
         params.setVerbosityLM("ERROR")
+        params.setOrderingType(self._ordering_type)
+
         if self._max_iterations:
             params.setMaxIterations(self._max_iterations)
         lm = gtsam.LevenbergMarquardtOptimizer(graph, initial_values, params)
@@ -582,12 +586,21 @@ def values_to_gtsfm_data(values: Values, initial_data: GtsfmData, shared_calib: 
     """
     result = GtsfmData(initial_data.number_images())
 
-    is_fisheye_calibration = isinstance(initial_data.get_camera(0), PinholeCameraCal3Fisheye)
-    if is_fisheye_calibration:
+    if isinstance(initial_data.get_camera(0), gtsam.PinholeCameraCal3Fisheye):
         cal3_value_extraction_lambda = lambda i: values.atCal3Fisheye(K(0 if shared_calib else i))
-    else:
+    elif isinstance(initial_data.get_camera(0), gtsam.PinholeCameraCal3Bundler):
         cal3_value_extraction_lambda = lambda i: values.atCal3Bundler(K(0 if shared_calib else i))
-    camera_class = PinholeCameraCal3Fisheye if is_fisheye_calibration else PinholeCameraCal3Bundler
+    elif isinstance(initial_data.get_camera(0), gtsam.PinholeCameraCal3DS2):
+        cal3_value_extraction_lambda = lambda i: values.atCal3DS2(K(0 if shared_calib else i))
+    elif isinstance(initial_data.get_camera(0), gtsam.PinholeCameraCal3_S2):
+        cal3_value_extraction_lambda = lambda i: values.atCal3_S2(K(0 if shared_calib else i))
+    else:
+        raise ValueError(
+            "Unsupported camera calibration type: {}".format(type(initial_data.get_camera(0)).__name__)
+        )
+    camera_class = gtsfm_types.get_camera_class_for_calibration(
+        initial_data.get_camera(0).calibration()
+    )
 
     # Add cameras.
     for i in initial_data.get_valid_camera_indices():

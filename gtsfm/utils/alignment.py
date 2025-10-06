@@ -8,7 +8,7 @@ from typing import List, Optional, Tuple
 
 import gtsam
 import numpy as np
-from gtsam import Pose3, Pose3Pairs, Rot3, Rot3Vector, Similarity3
+from gtsam import Pose3, Pose3Pairs, Rot3, Similarity3
 from scipy.spatial.transform import Rotation
 
 import gtsfm.utils.metrics as metric_utils
@@ -38,7 +38,7 @@ def align_rotations(aRi_list: List[Optional[Rot3]], bRi_list: List[Optional[Rot3
         aRi.compose(bRi.inverse()) for aRi, bRi in zip(aRi_list, bRi_list) if aRi is not None and bRi is not None
     ]
     if len(aRb_list) > 0:
-        aRb = gtsam.FindKarcherMean(Rot3Vector(aRb_list))
+        aRb = gtsam.FindKarcherMeanRot3(aRb_list)
     else:
         aRb = Rot3()
 

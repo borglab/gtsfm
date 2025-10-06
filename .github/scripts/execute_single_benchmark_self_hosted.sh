@@ -48,8 +48,7 @@ elif [ "$LOADER_NAME" == "colmap-loader" ]; then
     --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
     --max_resolution ${MAX_RESOLUTION} \
     ${SHARE_INTRINSICS_ARG} \
-    --num_workers 1 \
-    --mvs_off
+    --num_workers 1
 
 elif [ "$LOADER_NAME" == "astrovision" ]; then
   python gtsfm/runner/run_scene_optimizer_astrovision.py \
