@@ -3,8 +3,8 @@
 Authors: John Lambert
 """
 
-import pycolmap
 import gtsam
+import pycolmap
 
 from gtsfm.common.types import CALIBRATION_TYPE
 from thirdparty.colmap.scripts.python.read_write_model import Camera as ColmapCamera
@@ -84,9 +84,7 @@ def colmap_camera_to_gtsam_calibration(camera: ColmapCamera) -> CALIBRATION_TYPE
     return intrinsics_gtsfm
 
 
-def gtsfm_calibration_to_colmap_camera(
-    camera_id, calibration: CALIBRATION_TYPE, height: int, width: int
-) -> ColmapCamera:
+def gtsfm_calibration_to_colmap_camera(camera_id, calibration: gtsam.Cal3, height: int, width: int) -> ColmapCamera:
     """Convert a GTSAM calibration object to a pycolmap camera.
 
     Args:
@@ -97,7 +95,7 @@ def gtsfm_calibration_to_colmap_camera(
     """
     if isinstance(calibration, gtsam.Cal3Bundler):
         return ColmapCamera(
-            model="SIMPLE_RADIAL",
+            model="RADIAL",
             id=camera_id,
             width=width,
             height=height,
@@ -118,15 +116,15 @@ def gtsfm_calibration_to_colmap_camera(
             width=width,
             height=height,
             params=[
-                calibration.fx(), 
-                calibration.fy(), 
-                calibration.px(), 
-                calibration.py(), 
-                calibration.k1(), 
-                calibration.k2(), 
-                0.0, 
+                calibration.fx(),
+                calibration.fy(),
+                calibration.px(),
+                calibration.py(),
+                calibration.k1(),
+                calibration.k2(),
                 0.0,
-                # calibration.p1(), 
+                0.0,
+                # calibration.p1(),
                 # calibration.p2(),
             ],
         )

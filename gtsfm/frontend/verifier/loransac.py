@@ -85,7 +85,7 @@ class LoRansac(VerifierBase):
         camera_i1: pycolmap.Camera = pycolmap_utils.get_pycolmap_camera(camera_intrinsics_i1)
         camera_i2: pycolmap.Camera = pycolmap_utils.get_pycolmap_camera(camera_intrinsics_i2)
 
-        result_dict = pycolmap.essential_matrix_estimation(
+        result_dict = pycolmap.estimate_essential_matrix(
             uv_i1,
             uv_i2,
             camera_i1,
@@ -128,7 +128,7 @@ class LoRansac(VerifierBase):
         if self._use_intrinsics_in_verification:
             result_dict = self.__estimate_essential_matrix(uv_i1, uv_i2, camera_intrinsics_i1, camera_intrinsics_i2)
         else:
-            result_dict = pycolmap.fundamental_matrix_estimation(uv_i1, uv_i2, self._ransac_options)
+            result_dict = pycolmap.estimate_fundamental_matrix(uv_i1, uv_i2, self._ransac_options)
 
         if not result_dict:
             matrix_type = "Essential" if self._use_intrinsics_in_verification else "Fundamental"

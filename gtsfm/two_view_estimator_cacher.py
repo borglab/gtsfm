@@ -2,6 +2,7 @@
 
 Authors: Ayush Baid
 """
+
 import logging
 from pathlib import Path
 from typing import Any, List, Optional
@@ -27,10 +28,10 @@ CACHE_ROOT_PATH = Path(__file__).resolve().parent.parent / "cache"
 logger = logger_utils.get_logger()
 
 mpl_logger = logging.getLogger("matplotlib")
-mpl_logger.setLevel(logging.WARNING)
+mpl_logger.setLevel(logging.ERROR)
 
 pil_logger = logging.getLogger("PIL")
-pil_logger.setLevel(logging.INFO)
+pil_logger.setLevel(logging.ERROR)
 
 
 class TwoViewEstimatorCacher(TwoViewEstimator):

@@ -37,6 +37,7 @@ dependencies:
   - tabulate
   - simplejson
   - pyparsing>=3.0.9
+  - psycopg2 # Added for PostgreSQL support
   # testing
   - parameterized
   - wget

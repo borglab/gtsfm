@@ -31,10 +31,10 @@ from gtsfm.frontend.verifier.verifier_base import VerifierBase
 logger = logger_utils.get_logger()
 
 mpl_logger = logging.getLogger("matplotlib")
-mpl_logger.setLevel(logging.WARNING)
+mpl_logger.setLevel(logging.ERROR)
 
 pil_logger = logging.getLogger("PIL")
-pil_logger.setLevel(logging.INFO)
+pil_logger.setLevel(logging.ERROR)
 
 PRE_BA_REPORT_TAG = "PRE_BA_2VIEW_REPORT"
 POST_BA_REPORT_TAG = "POST_BA_2VIEW_REPORT"
