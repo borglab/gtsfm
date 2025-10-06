@@ -7,7 +7,6 @@ Authors: John Lambert, Neha Upadhyay
 """
 
 import argparse
-import os
 import tempfile
 import zipfile
 from collections import defaultdict
@@ -33,7 +32,7 @@ MAX_NUM_CHARS_ARTIFACT_FNAME = 35
 MIN_RENDERABLE_PERCENT_CHANGE = -20
 MAX_RENDERABLE_PERCENT_CHANGE = 20
 
-DASHBOARD_HTML_SAVE_FPATH = Path(__file__).parent.parent.parent / "visual_comparison_dashboard.html"
+DEFAULT_DASHBOARD_HTML_SAVE_FPATH = Path(__file__).parent.parent.parent / "visual_comparison_dashboard.html"
 BENCHMARK_YAML_FPATH = Path(__file__).parent.parent.parent / ".github" / "workflows" / "ci.yml"
 
 
@@ -178,46 +177,52 @@ def generate_artifact_fnames_from_workflow(workflow_yaml_fpath: str) -> List[str
     return artifact_fnames
 
 
-def extract_zip_if_needed(artifact_path: str, extract_dir: str) -> str:
+def extract_zip_if_needed(artifact_path: Path, extract_dir: Path) -> Path:
     """Extract zip file if it exists, otherwise return the original path.
 
     Args:
-        artifact_path: Path that might be a zip file or directory
-        extract_dir: Directory to extract to if it's a zip file
+        artifact_path: Path object that might be a zip file or directory
+        extract_dir: Path object to extract to if it's a zip file
 
     Returns:
         Path to the extracted directory or original directory
     """
-    zip_path = f"{artifact_path}.zip"
+    # Check for the artifact in its original form, with .zip, and with .zip.zip
+    possible_paths = [
+        artifact_path,
+        artifact_path.with_suffix(".zip"),
+        artifact_path.with_suffix(".zip.zip"),
+    ]
 
-    # Check if zip file exists
-    if os.path.exists(zip_path) and not os.path.exists(artifact_path):
-        print(f"Extracting {zip_path} to {extract_dir}")
-        with zipfile.ZipFile(zip_path, "r") as zip_ref:
-            zip_ref.extractall(extract_dir)
-        return artifact_path
-    elif os.path.exists(artifact_path):
-        return artifact_path
-    else:
-        raise FileNotFoundError(f"Neither {artifact_path} nor {zip_path} exists")
+    for path in possible_paths:
+        if path.is_dir():
+            # If it's already a directory, return as is
+            return path
+        elif path.is_file() and zipfile.is_zipfile(path):
+            # If it's a file and a valid zip file, extract it
+            with zipfile.ZipFile(path, "r") as zip_ref:
+                zip_ref.extractall(extract_dir)
+            return extract_dir
+
+    raise FileNotFoundError(f"{artifact_path} is neither a directory nor a valid zip file in any expected form")
 
 
-def generate_dashboard(curr_master_dirpath: str, new_branch_dirpath: str) -> None:
+def generate_dashboard(master_path: Path, branch_path: Path, output_path: Path) -> None:
     """Generate a dashboard showing a visual representation of the diff against master on all benchmarks.
 
     This script expects to find the metrics in CI artifact files and saves to the main repo directory.
     TODO(johnwlambert): read metrics from JSON, instead of from the HTML report.
 
     Args:
-        curr_master_dirpath: path to directory containing benchmark artifacts for the master branch.
-        new_branch_dirpath: path to directory containing benchmark artifacts for a new branch.
+        master_path: path to directory containing benchmark artifacts for the master branch.
+        branch_path: path to directory containing benchmark artifacts for a new branch.
     """
     zip_artifacts = generate_artifact_fnames_from_workflow(workflow_yaml_fpath=str(BENCHMARK_YAML_FPATH))
 
     # Create temporary directories for extraction
     with tempfile.TemporaryDirectory() as temp_master_dir, tempfile.TemporaryDirectory() as temp_branch_dir:
 
-        f = open(DASHBOARD_HTML_SAVE_FPATH, mode="w")
+        f = open(output_path, mode="w")
 
         # Write HTML headers.
         f.write("<!DOCTYPE html>" "<html>")
@@ -239,15 +244,15 @@ def generate_dashboard(curr_master_dirpath: str, new_branch_dirpath: str) -> Non
 
                 try:
                     # Handle master directory
-                    master_artifact_path = f"{curr_master_dirpath}/results-{artifact_name}"
-                    master_extracted_path = extract_zip_if_needed(master_artifact_path, temp_master_dir)
+                    master_artifact_path = master_path / f"results-{artifact_name}"
+                    master_extracted_path = extract_zip_if_needed(master_artifact_path, Path(temp_master_dir))
 
                     # Handle branch directory
-                    branch_artifact_path = f"{new_branch_dirpath}/results-{artifact_name}"
-                    branch_extracted_path = extract_zip_if_needed(branch_artifact_path, temp_branch_dir)
+                    branch_artifact_path = branch_path / f"results-{artifact_name}"
+                    branch_extracted_path = extract_zip_if_needed(branch_artifact_path, Path(temp_branch_dir))
 
-                    report1_fpath = f"{master_extracted_path}/result_metrics/gtsfm_metrics_report.html"
-                    report2_fpath = f"{branch_extracted_path}/result_metrics/gtsfm_metrics_report.html"
+                    report1_fpath = master_extracted_path / "result_metrics" / "gtsfm_metrics_report.html"
+                    report2_fpath = branch_extracted_path / "result_metrics" / "gtsfm_metrics_report.html"
 
                     tables_dict1 = report_utils.extract_tables_from_report(report1_fpath)
                     tables_dict2 = report_utils.extract_tables_from_report(report2_fpath)
@@ -325,17 +330,24 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--curr_master_dirpath",
+        "--master_path",
         required=True,
         help="Path to directory containing benchmark artifacts for the master branch.",
     )
     parser.add_argument(
-        "--new_branch_dirpath",
+        "--branch_path",
         required=True,
         help="Path to directory containing benchmark artifacts for a new branch.",
     )
+    parser.add_argument(
+        "--output_path",
+        required=False,
+        default=DEFAULT_DASHBOARD_HTML_SAVE_FPATH,
+        help="Optional path to save the generated dashboard HTML file. Defaults to 'visual_comparison_dashboard.html'.",
+    )
     args = parser.parse_args()
     generate_dashboard(
-        curr_master_dirpath=args.curr_master_dirpath,
-        new_branch_dirpath=args.new_branch_dirpath,
+        master_path=Path(args.master_path),
+        branch_path=Path(args.branch_path),
+        output_path=Path(args.output_path),
     )

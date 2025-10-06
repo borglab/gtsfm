@@ -8,14 +8,14 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
-from tabulate import tabulate
+from tabulate import tabulate  # type: ignore
 
 SINGLE_REPORT_TABLES = Dict[str, Dict[str, Any]]
 # contains info about each metric, from two separate reports
 MERGED_REPORT_TABLES = Dict[str, List[Tuple[str, Any, Any]]]
 
 
-def extract_tables_from_report(report_fpath: str) -> SINGLE_REPORT_TABLES:
+def extract_tables_from_report(report_fpath: Path) -> SINGLE_REPORT_TABLES:
     """Given an HTML text file containing HTML table info (and Plotly rendering code), rip out the table information
     for each table.
 
@@ -26,7 +26,7 @@ def extract_tables_from_report(report_fpath: str) -> SINGLE_REPORT_TABLES:
         table_dict: Dictionary mapping the names of GTSFM modules to their associated table information.
             Each table is represented as a map from metric names to their associated values.
     """
-    if not Path(report_fpath).exists():
+    if not report_fpath.exists():
         raise FileNotFoundError(f"HTML report missing. File path '{report_fpath}' does not exist.")
 
     with open(report_fpath, "r") as f:
@@ -38,8 +38,8 @@ def extract_tables_from_report(report_fpath: str) -> SINGLE_REPORT_TABLES:
     old_start_token_tab_name = 'font-size:25px;font-family:Arial">'
     old_end_token_tab_name = "</p><table>"
 
-    start_token_submetric = "<tr><td>"
-    end_token_submetric = "</td></tr>"
+    start_token_sub_metric = "<tr><td>"
+    end_token_sub_metric = "</td></tr>"
 
     metric_html_boilerplate = '</td><td style="text-align: right;">'
 
@@ -58,10 +58,10 @@ def extract_tables_from_report(report_fpath: str) -> SINGLE_REPORT_TABLES:
                 curr_tab_name = line[s + len(old_start_token_tab_name) : e]
 
         # check to see if is a row of a table, containing info about one metric.
-        s = line.find(start_token_submetric)
+        s = line.find(start_token_sub_metric)
         if s != -1:
-            e = line.find(end_token_submetric)
-            metric_info = line[s + len(start_token_submetric) : e]
+            e = line.find(end_token_sub_metric)
+            metric_info = line[s + len(start_token_sub_metric) : e]
 
             # break apart the metric name and the associated value
             metric_name, metric_val = metric_info.split(metric_html_boilerplate)
@@ -97,7 +97,7 @@ def print_tables_tabulate(merged_tables_dict: MERGED_REPORT_TABLES, table_format
         print()
 
 
-def merge_reports(report1_fpath: str, report2_fpath: str, output_format: str) -> None:
+def merge_reports(report1_fpath: Path, report2_fpath: Path, output_format: str) -> None:
     """Combine all tables from two reports into a single table, for side-by-side comparisons."""
     tables_dict1 = extract_tables_from_report(report1_fpath)
     tables_dict2 = extract_tables_from_report(report2_fpath)
