@@ -427,7 +427,8 @@ class GtsfmRunnerBase:
         all_metrics_groups = [retriever_metrics, two_view_agg_metrics]
 
         # Partition image pairs
-        subgraphs = self.graph_partitioner.run(image_pair_indices)
+        assert self.graph_partitioner is not None, "Graph partitioner is not set up!"
+        subgraphs = self.graph_partitioner.partition_image_pairs(image_pair_indices)
         logger.info(f"Partitioned into {len(subgraphs)} subgraphs")
         # Group results by subgraph
         subgraph_two_view_results = group_results_by_subgraph(two_view_results_dict, subgraphs)
