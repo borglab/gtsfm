@@ -502,7 +502,7 @@ class TwoViewEstimator(DaskDBModuleBase):
             i2: Index of second image
         """
         if not self.db:
-            logger.warning(f"No database connection available for pair ({i1}, {i2})")
+            logger.debug(f"No database connection available for pair ({i1}, {i2})")
             return
 
         logger.debug(f"Storing results for image pair ({i1}, {i2})")
@@ -867,8 +867,6 @@ def run_two_view_estimator_as_futures(
     ) -> TWO_VIEW_OUTPUT:
 
         worker_name = socket.gethostname()
-        logger = logging.getLogger(__name__)
-
         logger.info(f"[WORKER {worker_name}] Processing pair ({i1}, {i2})")
         sys.stdout.flush()
 
@@ -889,7 +887,6 @@ def run_two_view_estimator_as_futures(
         logger.info(f"[WORKER {worker_name}] Completed pair ({i1}, {i2})")
         return result
 
-    logger = logging.getLogger(__name__)
     logger.info("Submitting tasks directly to workers ...")
 
     # Submit tasks with image indices passed as separate parameters
