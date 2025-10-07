@@ -914,8 +914,8 @@ def run_two_view_estimator_as_futures(
     logger.info("Waiting for all tasks to complete...")
 
     try:
-        two_view_output_dict = client.gather(two_view_output_futures, errors="raise")
-        logger.info(f"Gathered {len(two_view_output_dict)} results")
+        two_view_output_dict = client.gather(two_view_output_futures, errors="skip")
+        logger.info("Gathered %d results", len(two_view_output_dict))
         return two_view_output_dict
     except Exception as e:
         logger.error(f"Error during gather: {e}")
