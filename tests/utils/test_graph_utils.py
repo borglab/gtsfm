@@ -227,7 +227,7 @@ class TestGraphUtils(unittest.TestCase):
 
     def test_create_adjacency_list_empty(self) -> None:
         """Ensure the generated adjacency graph is empty, when no edges are provided."""
-        edges = []
+        edges: list[tuple[int, int]] = []
         adj_list = graph_utils.create_adjacency_list(edges)
 
         assert len(adj_list.keys()) == 0
@@ -298,7 +298,7 @@ def extract_triplets_brute_force(edges: List[Tuple[int, int]]) -> List[Tuple[int
 def generate_random_essential_matrix() -> EssentialMatrix:
     rotation_angles = np.random.uniform(low=0.0, high=2 * np.pi, size=(3,))
     R = Rot3.RzRyRx(rotation_angles[0], rotation_angles[1], rotation_angles[2])
-    t = np.random.uniform(low=-1.0, high=1.0, size=(3,))
+    t: np.ndarray = np.random.uniform(low=-1.0, high=1.0, size=(3,))
 
     return EssentialMatrix(R, Unit3(t))
 
