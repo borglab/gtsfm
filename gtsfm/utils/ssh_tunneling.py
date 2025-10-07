@@ -1,7 +1,7 @@
-"""SSH Tunnel Management Module for GTSFM Distributed Computing.
+"""SSH Tunnel Management Module for GTSfM Distributed Computing.
 
 This module provides the SSHTunnelManager class and utility functions for setting up
-and managing SSH tunnels between local and remote machines in a distributed GTSFM
+and managing SSH tunnels between local and remote machines in a distributed GTSfM
 computing environment. It handles:
 
 - SSH tunnel establishment for Dask scheduler and worker communication
@@ -17,6 +17,7 @@ Authors: Zongyue Liu
 """
 
 import atexit
+import json
 import os
 import signal
 import socket
@@ -68,6 +69,10 @@ class SSHTunnelManager:
             # Override with environment variables if they exist
             if "SSH_USERNAME" in os.environ:
                 config["username"] = os.environ["SSH_USERNAME"]
+
+            # Load workers from environment variable
+            if "DASK_WORKERS" in os.environ:
+                config["workers"] = json.loads(os.environ["DASK_WORKERS"])
 
             if "database" in config:
                 if "POSTGRES_HOST" in os.environ:

@@ -934,7 +934,7 @@ def run_two_view_estimator_as_futures(
     except Exception as e:
         print(f"Error during gather: {e}")
 
-        return two_view_output_dict
+        return {}
 
 
 def get_two_view_reports_summary(
@@ -944,8 +944,6 @@ def get_two_view_reports_summary(
     """Converts the TwoViewEstimationReports to a summary dict for each image pair.
 
     Args:
-        two_view_report_dict: Front-end metrics for pairs of images.
-        images: List of all images for this scene, in order of image/frame index.
         two_view_report_dict: Front-end metrics for pairs of images.
         images: List of all images for this scene, in order of image/frame index.
 

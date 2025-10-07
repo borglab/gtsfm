@@ -7,9 +7,9 @@ scheduler:
   dashboard: 8787        # Address for the Dask dashboard UI
 
 # remote workers and SSH port
-workers:
-  hornet.cc.gatech.edu: 9000
-  eagle.cc.gatech.edu: 9001
+# Workers should be defined in .env file as a JSON string:
+# DASK_WORKERS='{"worker1.example.com": 9000, "worker2.example.com": 9001}'
+workers: {}
 
 # PostgreSQL connection settings (local to the scheduler)
 database:
