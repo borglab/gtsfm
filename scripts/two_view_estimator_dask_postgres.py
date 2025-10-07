@@ -24,8 +24,12 @@ import subprocess
 import time
 from datetime import datetime
 from pathlib import Path
+import sys
 
 import matplotlib.pyplot as plt
+import matplotlib
+
+matplotlib.use("Agg")  # Use non-interactive backend to prevent display issues
 import numpy as np
 import psycopg2
 import yaml
@@ -369,6 +373,7 @@ def main():
                 print(f"  - Relative rotation (yaw, pitch, roll): {ypr_deg}")
                 print(f"  - Relative translation direction: {i2Ui1.point3().T}")
                 print(f"  - Inlier ratio: {post_isp_report.inlier_ratio_est_model:.4f}")
+                sys.stdout.flush()
 
                 with open(summary_file, "a") as f:
                     f.write(f"  - Verified correspondences: {len(v_corr_idxs)}\n")
@@ -381,6 +386,9 @@ def main():
                     max_viz_corrs = min(100, len(v_corr_idxs))
 
                     try:
+                        print(f"[MAIN] Starting visualization for pair ({indices[i1]}, {indices[i2]})...")
+                        sys.stdout.flush()
+
                         correspondence_image = viz.plot_twoview_correspondences(
                             images[i1],
                             images[i2],
@@ -395,19 +403,32 @@ def main():
                         plt.title(f"Image Pair ({indices[i1]}, {indices[i2]}) Verified Correspondences")
                         plt.savefig(images_dir / f"correspondences_{indices[i1]}_{indices[i2]}.png")
                         plt.close()
+
+                        print(f"[MAIN] Visualization complete for pair ({indices[i1]}, {indices[i2]})")
+                        sys.stdout.flush()
                     except Exception as e:
                         print(f"[MAIN] Visualization error for pair ({indices[i1]}, {indices[i2]}): {e}")
+                        sys.stdout.flush()
 
             else:
                 print(f"[MAIN] Image Pair ({indices[i1]}, {indices[i2]}): Relative pose estimation failed")
+                sys.stdout.flush()
 
                 with open(summary_file, "a") as f:
                     f.write("  - Relative pose estimation failed\n")
 
+            print(f"[MAIN] Completed processing for pair ({indices[i1]}, {indices[i2]})")
+            sys.stdout.flush()
+
+        print(f"[MAIN] Loop completed, processed {len(two_view_output_dict)} pairs")
+        sys.stdout.flush()
+
         print(f"\n[MAIN] All results saved to: {results_dir}")
+        sys.stdout.flush()
 
         # Keep processes alive
         print("[MAIN] Processes will continue running. Press Ctrl+C to stop...")
+        sys.stdout.flush()
 
         while True:
             time.sleep(1)
