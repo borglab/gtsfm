@@ -429,10 +429,11 @@ class BundleAdjustmentOptimizer:
                 verbose,
             )
             # Print intermediate results.
-            logger.info(
-                "[BA Step %d/%d] Error: %.2f, Number of tracks: %d"
-                % (step + 1, num_ba_steps, final_error, filtered_result.number_tracks())
-            )
+            if num_ba_steps > 1:
+                logger.info(
+                    "[BA Step %d/%d] Error: %.2f, Number of tracks: %d"
+                    % (step + 1, num_ba_steps, final_error, filtered_result.number_tracks())
+                )
 
         return optimized_data, filtered_result, valid_mask
 
