@@ -1,18 +1,25 @@
 """Estimator which operates on a pair of images to compute relative pose and verified indices.
 
-Authors: Ayush Baid, John Lambert
+Authors: Ayush Baid, John Lambert, Zongyue Liu
 """
 
 import dataclasses
+import json
 import logging
+import numpy as np
+import socket
+import sys
+import time
 import timeit
+
+from datetime import datetime
+from dask.distributed import Client
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-import numpy as np
-from dask.distributed import Client
 from gtsam import PinholeCameraCal3Bundler, Pose3, Rot3, SfmTrack, Unit3  # type: ignore
 
 import gtsfm.common.types as gtsfm_types
+from gtsfm.common.dask_db_module_base import DaskDBModuleBase
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metric_utils
@@ -51,7 +58,7 @@ TWO_VIEW_OUTPUT = Tuple[
 ]
 
 
-class TwoViewEstimator:
+class TwoViewEstimator(DaskDBModuleBase):
     """Wrapper for running two-view relative pose estimation on image pairs in the dataset."""
 
     def __init__(
@@ -64,6 +71,7 @@ class TwoViewEstimator:
         bundle_adjust_2view_maxiters: int = 100,
         ba_reproj_error_thresholds: List[Optional[float]] = [0.5],
         allow_indeterminate_linear_system: bool = False,
+        postgres_params=None,
     ) -> None:
         """Initializes the two-view estimator from verifier.
 
@@ -78,7 +86,9 @@ class TwoViewEstimator:
                 2-view BA. The length of this list decides the number of BA stages. Defaults to [0.5] (single stage).
             allow_indeterminate_linear_system: Reject a two-view measurement if an indeterminate linear system is
                 encountered during marginal covariance computation after 2-view bundle adjustment.
+            postgres_params: PostgreSQL connection parameters
         """
+        super().__init__(postgres_params=postgres_params)
         self._verifier = verifier
         self.processor = inlier_support_processor
         self._bundle_adjust_2view = bundle_adjust_2view
@@ -93,6 +103,70 @@ class TwoViewEstimator:
             max_iterations=bundle_adjust_2view_maxiters,
             allow_indeterminate_linear_system=allow_indeterminate_linear_system,
         )
+        self.postgres_params = postgres_params  # save connection parameters for use on remote worker
+
+        # Initialize database
+        self.init_tables()
+
+    def init_tables(self):
+        """Initialize database tables for two-view estimation"""
+        if not self.db:
+            return
+
+        if not self._initialize_two_view_schema():
+            logger.warning("Failed to initialize two-view database schema")
+
+    def _initialize_two_view_schema(self) -> bool:
+        """Initialize two-view estimation database tables"""
+        try:
+            # Create two-view results table
+            if not self.db.execute(self._get_two_view_results_table_ddl()):
+                logger.error("Failed to create two_view_results table")
+                return False
+
+            # Create two-view reports table
+            if not self.db.execute(self._get_two_view_reports_table_ddl()):
+                logger.error("Failed to create two_view_reports table")
+                return False
+
+            logger.info("Two-view database schema initialized successfully")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to initialize two-view database schema: {e}")
+            return False
+
+    def _get_two_view_results_table_ddl(self) -> str:
+        """Get DDL for two_view_results table"""
+        return """
+        CREATE TABLE IF NOT EXISTS two_view_results (
+            id SERIAL PRIMARY KEY,
+            i1 INTEGER NOT NULL,
+            i2 INTEGER NOT NULL,
+            timestamp TIMESTAMPTZ NOT NULL,
+            verified_corr_count INTEGER,
+            inlier_ratio FLOAT,
+            rotation_matrix TEXT,
+            translation_direction TEXT,
+            success BOOLEAN NOT NULL,
+            computation_time FLOAT,
+            worker_name TEXT
+        );
+        """
+
+    def _get_two_view_reports_table_ddl(self) -> str:
+        """Get DDL for two_view_reports table"""
+        return """
+        CREATE TABLE IF NOT EXISTS two_view_reports (
+            id SERIAL PRIMARY KEY,
+            i1 INTEGER NOT NULL,
+            i2 INTEGER NOT NULL,
+            timestamp TIMESTAMPTZ NOT NULL,
+            pre_ba_inlier_ratio FLOAT,
+            post_ba_inlier_ratio FLOAT,
+            post_isp_inlier_ratio FLOAT,
+            report_data TEXT
+        );
+        """
 
     def __repr__(self) -> str:
         return f"""
@@ -294,8 +368,31 @@ class TwoViewEstimator:
         gt_camera_i1: Optional[gtsfm_types.CAMERA_TYPE],
         gt_camera_i2: Optional[gtsfm_types.CAMERA_TYPE],
         gt_scene_mesh: Optional[Any] = None,
+        i1: Optional[int] = None,
+        i2: Optional[int] = None,
     ) -> TWO_VIEW_OUTPUT:
-        """Estimate relative pose between two views, using verification."""
+        """Estimate the relative pose between two images, along with inlier correspondences.
+
+        Args:
+            keypoints_i1: Detected keypoints for image i1.
+            keypoints_i2: Detected keypoints for image i2.
+            putative_corr_idxs: Putative correspondences as indices of keypoint matches.
+            camera_intrinsics_i1: Intrinsics for image i1.
+            camera_intrinsics_i2: Intrinsics for image i2.
+            i2Ti1_prior: Prior on relative pose between two cameras.
+            gt_camera_i1: ground truth camera for image i1.
+            gt_camera_i2: ground truth camera for image i2.
+            gt_scene_mesh: scene mesh for evaluation.
+            i1: Image index for first image (for database storage)
+            i2: Image index for second image (for database storage)
+
+        Returns:
+            Estimated relative rotation, unit translation, verified correspondences, and two-view report.
+        """
+
+        # Record start time for computation measurement
+        start_time = time.time()
+
         # verification on putative correspondences to obtain relative pose and verified correspondences
         (pre_ba_i2Ri1, pre_ba_i2Ui1, pre_ba_v_corr_idxs, pre_ba_inlier_ratio_wrt_estimate) = self._verifier.verify(
             keypoints_i1,
@@ -358,7 +455,191 @@ class TwoViewEstimator:
             post_isp_report,
         ) = self.processor.run_inlier_support(post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs, post_ba_report)
 
+        # Store computation results in database (pass image indices and start time)
+        self.store_computation_results(
+            keypoints_i1,
+            keypoints_i2,
+            post_isp_i2Ri1,
+            post_isp_i2Ui1,
+            post_isp_v_corr_idxs,
+            pre_ba_report,
+            post_ba_report,
+            post_isp_report,
+            start_time,
+            i1,
+            i2,
+        )
+
         return post_isp_i2Ri1, post_isp_i2Ui1, post_isp_v_corr_idxs, pre_ba_report, post_ba_report, post_isp_report
+
+    def store_computation_results(
+        self,
+        keypoints_i1,
+        keypoints_i2,
+        post_isp_i2Ri1,
+        post_isp_i2Ui1,
+        post_isp_v_corr_idxs,
+        pre_ba_report,
+        post_ba_report,
+        post_isp_report,
+        start_time,
+        i1=None,
+        i2=None,
+    ):
+        """Store computation results in database
+
+        Args:
+            keypoints_i1: Keypoints for first image
+            keypoints_i2: Keypoints for second image
+            post_isp_i2Ri1: Estimated rotation after ISP
+            post_isp_i2Ui1: Estimated translation after ISP
+            post_isp_v_corr_idxs: Verified correspondences after ISP
+            pre_ba_report: Report before bundle adjustment
+            post_ba_report: Report after bundle adjustment
+            post_isp_report: Report after ISP
+            start_time: Start time of computation
+            i1: Index of first image
+            i2: Index of second image
+        """
+        if not self.db:
+            logger.warning(f"No database connection available for pair ({i1}, {i2})")
+            return
+
+        logger.debug(f"Storing results for image pair ({i1}, {i2})")
+
+        # Store main results with image indices
+        try:
+            self._store_main_results(
+                keypoints_i1,
+                keypoints_i2,
+                post_isp_i2Ri1,
+                post_isp_i2Ui1,
+                post_isp_v_corr_idxs,
+                post_isp_report,
+                start_time,
+                i1,
+                i2,
+            )
+            logger.debug(f"Main results stored successfully for pair ({i1}, {i2})")
+        except Exception as e:
+            logger.error(f"Failed to store main results for pair ({i1}, {i2}): {e}")
+
+        # Store detailed reports with image indices
+        try:
+            self._store_detailed_reports(
+                keypoints_i1, keypoints_i2, pre_ba_report, post_ba_report, post_isp_report, i1, i2
+            )
+            logger.debug(f"Detailed reports stored successfully for pair ({i1}, {i2})")
+        except Exception as e:
+            logger.error(f"Failed to store detailed reports for pair ({i1}, {i2}): {e}")
+
+    def _store_main_results(
+        self,
+        keypoints_i1,
+        keypoints_i2,
+        post_isp_i2Ri1,
+        post_isp_i2Ui1,
+        post_isp_v_corr_idxs,
+        post_isp_report,
+        computation_time,
+        i1,
+        i2,
+    ):
+        """Store main computation results in two_view_results table"""
+        if not self.db:
+            return
+
+        logger.debug(f"Storing main results for pair ({i1}, {i2})")
+
+        worker_name = socket.gethostname()
+        success = post_isp_i2Ri1 is not None and post_isp_i2Ui1 is not None
+        verified_corr_count = len(post_isp_v_corr_idxs) if post_isp_v_corr_idxs is not None else 0
+
+        inlier_ratio = post_isp_report.inlier_ratio_est_model if post_isp_report else None
+        rotation_matrix = self.serialize_data(post_isp_i2Ri1.matrix() if post_isp_i2Ri1 else None)
+        translation_direction = self.serialize_data(post_isp_i2Ui1.point3() if post_isp_i2Ui1 else None)
+
+        insert_query = """
+            INSERT INTO two_view_results
+            (i1, i2, timestamp, verified_corr_count, inlier_ratio, rotation_matrix,
+             translation_direction, success, computation_time, worker_name)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """
+
+        success = self.db.execute(
+            insert_query,
+            (
+                int(i1),
+                int(i2),
+                datetime.now(),
+                int(verified_corr_count),
+                inlier_ratio,
+                rotation_matrix,
+                translation_direction,
+                success,
+                float(computation_time),
+                worker_name,
+            ),
+        )
+
+        if success:
+            logger.info(f"Successfully stored results for image pair ({i1}, {i2})")
+        else:
+            logger.error(f"Failed to store results for image pair ({i1}, {i2})")
+
+    def _store_detailed_reports(
+        self, keypoints_i1, keypoints_i2, pre_ba_report, post_ba_report, post_isp_report, i1, i2
+    ):
+        """Store detailed reports in two_view_reports table
+
+        Args:
+            keypoints_i1: Keypoints for first image
+            keypoints_i2: Keypoints for second image
+            pre_ba_report: Report before bundle adjustment
+            post_ba_report: Report after bundle adjustment
+            post_isp_report: Report after ISP
+            i1: Index of first image
+            i2: Index of second image
+        """
+        logger.debug(f"Storing detailed reports for pair ({i1}, {i2})")
+
+        # Extract inlier ratios (already Python floats from generate_two_view_report)
+        pre_ba_inlier_ratio = pre_ba_report.inlier_ratio_est_model if pre_ba_report else None
+        post_ba_inlier_ratio = post_ba_report.inlier_ratio_est_model if post_ba_report else None
+        post_isp_inlier_ratio = post_isp_report.inlier_ratio_est_model if post_isp_report else None
+
+        # Serialize report data
+        report_data = {
+            "pre_ba": self.serialize_data(pre_ba_report.__dict__ if pre_ba_report else None),
+            "post_ba": self.serialize_data(post_ba_report.__dict__ if post_ba_report else None),
+            "post_isp": self.serialize_data(post_isp_report.__dict__ if post_isp_report else None),
+        }
+        report_data_json = json.dumps(report_data)
+
+        # Insert into database
+        report_query = """
+            INSERT INTO two_view_reports
+            (i1, i2, timestamp, pre_ba_inlier_ratio, post_ba_inlier_ratio, post_isp_inlier_ratio, report_data)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """
+
+        success = self.db.execute(
+            report_query,
+            (
+                int(i1),
+                int(i2),
+                datetime.now(),
+                pre_ba_inlier_ratio,
+                post_ba_inlier_ratio,
+                post_isp_inlier_ratio,
+                report_data_json,
+            ),
+        )
+
+        if success:
+            logger.debug(f"Successfully stored detailed reports for pair ({i1}, {i2})")
+        else:
+            logger.error(f"Failed to store detailed reports for pair ({i1}, {i2})")
 
 
 def _masked_nanmean(model: Optional[np.ndarray], mask: Optional[np.ndarray], invert_mask: bool = False) -> float:
@@ -397,17 +678,27 @@ def generate_two_view_report(
 
     # Generate report.
     two_view_report = TwoViewEstimationReport(
-        inlier_ratio_est_model=inlier_ratio_est_model,
+        inlier_ratio_est_model=float(inlier_ratio_est_model),
         num_inliers_est_model=v_corr_idxs.shape[0],
         num_inliers_gt_model=num_inliers_gt_model,
-        inlier_ratio_gt_model=inlier_ratio_gt_model,
+        inlier_ratio_gt_model=(
+            float(inlier_ratio_gt_model) if not isinstance(inlier_ratio_gt_model, float) else inlier_ratio_gt_model
+        ),
         v_corr_idxs_inlier_mask_gt=v_corr_idxs_inlier_mask_gt,
         v_corr_idxs=v_corr_idxs,
-        R_error_deg=R_error_deg,
-        U_error_deg=U_error_deg,
+        R_error_deg=float(R_error_deg) if R_error_deg is not None else None,
+        U_error_deg=float(U_error_deg) if U_error_deg is not None else None,
         reproj_error_gt_model=reproj_error_gt_model,
-        inlier_avg_reproj_error_gt_model=inlier_avg_reproj_error_gt_model,
-        outlier_avg_reproj_error_gt_model=outlier_avg_reproj_error_gt_model,
+        inlier_avg_reproj_error_gt_model=(
+            float(inlier_avg_reproj_error_gt_model)
+            if not isinstance(inlier_avg_reproj_error_gt_model, float)
+            else inlier_avg_reproj_error_gt_model
+        ),
+        outlier_avg_reproj_error_gt_model=(
+            float(outlier_avg_reproj_error_gt_model)
+            if not isinstance(outlier_avg_reproj_error_gt_model, float)
+            else outlier_avg_reproj_error_gt_model
+        ),
     )
     return two_view_report
 
@@ -570,8 +861,17 @@ def run_two_view_estimator_as_futures(
         gt_camera_i1: Optional[gtsfm_types.CAMERA_TYPE],
         gt_camera_i2: Optional[gtsfm_types.CAMERA_TYPE],
         gt_scene_mesh: Optional[Any] = None,
+        i1: Optional[int] = None,
+        i2: Optional[int] = None,
     ) -> TWO_VIEW_OUTPUT:
-        return two_view_estimator.run_2view(
+
+        worker_name = socket.gethostname()
+        logger = logging.getLogger(__name__)
+
+        logger.info(f"[WORKER {worker_name}] Processing pair ({i1}, {i2})")
+        sys.stdout.flush()
+
+        result = two_view_estimator.run_2view(
             keypoints_i1=keypoints_i1,
             keypoints_i2=keypoints_i2,
             putative_corr_idxs=putative_corr_idxs,
@@ -581,29 +881,46 @@ def run_two_view_estimator_as_futures(
             gt_camera_i1=gt_camera_i1,
             gt_camera_i2=gt_camera_i2,
             gt_scene_mesh=gt_scene_mesh,
+            i1=i1,
+            i2=i2,
         )
 
-    two_view_estimator_future = client.scatter(two_view_estimator, broadcast=False)
+        logger.info(f"[WORKER {worker_name}] Completed pair ({i1}, {i2})")
+        return result
 
+    logger = logging.getLogger(__name__)
+    logger.info("Submitting tasks directly to workers ...")
+
+    # Submit tasks with image indices passed as separate parameters
     two_view_output_futures = {
         (i1, i2): client.submit(
             apply_two_view_estimator,
-            two_view_estimator_future,
+            two_view_estimator,
             keypoints_list[i1],
             keypoints_list[i2],
             putative_corr_idxs,
             camera_intrinsics[i1],
             camera_intrinsics[i2],
             relative_pose_priors.get((i1, i2)),
-            gt_cameras[i1],
-            gt_cameras[i2],
+            gt_cameras[i1] if gt_cameras else None,
+            gt_cameras[i2] if gt_cameras else None,
             gt_scene_mesh,
+            i1,
+            i2,
         )
         for (i1, i2), putative_corr_idxs in putative_corr_idxs_dict.items()
     }
 
-    two_view_output_dict = client.gather(two_view_output_futures)
-    return two_view_output_dict
+    logger.info(f"Submitted {len(two_view_output_futures)} tasks to workers")
+    logger.info("Waiting for all tasks to complete...")
+
+    try:
+        two_view_output_dict = client.gather(two_view_output_futures, errors="raise")
+        logger.info(f"Gathered {len(two_view_output_dict)} results")
+        return two_view_output_dict
+    except Exception as e:
+        logger.error(f"Error during gather: {e}")
+        return {}
 
 
 def get_two_view_reports_summary(

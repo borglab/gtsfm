@@ -96,6 +96,8 @@ class TwoViewEstimatorCacher(TwoViewEstimator):
         gt_camera_i1: Optional[gtsfm_types.CAMERA_TYPE],
         gt_camera_i2: Optional[gtsfm_types.CAMERA_TYPE],
         gt_scene_mesh: Optional[Any] = None,
+        i1: Optional[int] = None,
+        i2: Optional[int] = None,
     ) -> TWO_VIEW_OUTPUT:
         """Loads 2-view estimation result if it exists in cache, otherwise re-runs two view estimator from scratch."""
         result = self.__load_result_from_cache(keypoints_i1, keypoints_i2, putative_corr_idxs)
@@ -113,6 +115,8 @@ class TwoViewEstimatorCacher(TwoViewEstimator):
             gt_camera_i1=gt_camera_i1,
             gt_camera_i2=gt_camera_i2,
             gt_scene_mesh=gt_scene_mesh,
+            i1=i1,
+            i2=i2,
         )
 
         self.__save_result_to_cache(keypoints_i1, keypoints_i2, putative_corr_idxs, result)
