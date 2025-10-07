@@ -5,7 +5,7 @@
 
 References:
 1. Richard I. Hartley and Peter Sturm. Triangulation. Computer Vision and Image Understanding, Vol. 68, No. 2,
-   November, pp. 146–157, 1997
+   November, pp. 146-157, 1997
 
 Authors: Sushmita Warrier, Xiaolong Wu, John Lambert, Travis Driver
 """
@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Tuple
 
 import dask
-import gtsam
+import gtsam  # type: ignore
 import numpy as np
 from dask.delayed import Delayed
 from gtsam import SfmTrack
@@ -56,6 +56,7 @@ class DataAssociation(GTSFMProcess):
     triangulation_options: TriangulationOptions
     save_track_patches_viz: Optional[bool] = False
 
+    @staticmethod
     def get_ui_metadata() -> UiMetadata:
         """Returns data needed to display node and edge info for this process in the process graph."""
 
@@ -231,7 +232,7 @@ class DataAssociation(GTSFMProcess):
 
         Returns:
             sfm_tracks: List of triangulated tracks.
-            avg_track_repoj_errors: List of average reprojection errors per track.
+            avg_track_reproj_errors: List of average reprojection errors per track.
             triangulation_exit_codes: Exit codes for each triangulation call.
         """
 
