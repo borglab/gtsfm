@@ -1,6 +1,6 @@
 """LightGlue matcher implementation
 
-The network was proposed in 'LightGlue: Local Feature Matching at Light Speed' and is implemented by wrapping over 
+The network was proposed in 'LightGlue: Local Feature Matching at Light Speed' and is implemented by wrapping over
 author's source-code.
 
 Note: the pretrained model only supports SuperPoint or DISK detections currently.
@@ -10,15 +10,14 @@ References:
 
 Authors: Travis Driver
 """
-from typing import Tuple
+
+from typing import Optional, Tuple
 
 import numpy as np
 import torch
 
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.matcher.matcher_base import MatcherBase
-from thirdparty.LightGlue.lightglue.lightglue import LightGlue
-from thirdparty.LightGlue.lightglue.utils import rbd
 
 
 class LightGlueMatcher(MatcherBase):
@@ -28,7 +27,15 @@ class LightGlueMatcher(MatcherBase):
         """Initialize the configuration and the parameters."""
         super().__init__()
         self._use_cuda = use_cuda
-        self._model = LightGlue(features=features).eval()
+        self._features = features
+        self._model: Optional[torch.nn.Module] = None  # Lazy loading - only create when needed
+
+    def _ensure_model_loaded(self):
+        """Lazy loading of the LightGlue model to avoid import warnings when using cache."""
+        if self._model is None:
+            from thirdparty.LightGlue.lightglue.lightglue import LightGlue
+
+            self._model = LightGlue(features=self._features).eval()
 
     def match(
         self,
@@ -58,6 +65,10 @@ class LightGlueMatcher(MatcherBase):
         Returns:
             Match indices (sorted by confidence), as matrix of shape (N, 2), where N < min(N1, N2).
         """
+        # Ensure model is loaded only when actually needed
+        self._ensure_model_loaded()
+        assert self._model is not None, "Model should be loaded by now"
+
         device = torch.device("cuda" if self._use_cuda and torch.cuda.is_available() else "cpu")
         self._model.to(device)
 
@@ -86,7 +97,12 @@ class LightGlueMatcher(MatcherBase):
 
         # Match!
         with torch.no_grad():
+            assert self._model is not None, "Model should be loaded by now"
             matches = self._model({"image0": feats_i1, "image1": feats_i2})
+
+        # Import rbd when needed to avoid triggering warnings on import
+        from thirdparty.LightGlue.lightglue.utils import rbd
+
         feats_i1, feats_i2, matches = [rbd(x) for x in [feats_i1, feats_i2, matches]]  # remove batch dimension
         matches = matches["matches"].detach().cpu().numpy()  # indices with shape (N, 2)
 
