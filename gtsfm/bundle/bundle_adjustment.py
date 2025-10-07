@@ -14,6 +14,7 @@ import gtsam  # type: ignore
 import numpy as np
 from dask.delayed import Delayed
 from gtsam import BetweenFactorPose3, NonlinearFactorGraph, PinholeCameraCal3Fisheye, PriorFactorPose3, SfmTrack, Values
+from gtsam.noiseModel import Diagonal, Isotropic, Robust, mEstimator  # type: ignore
 from gtsam.symbol_shorthand import K, P, X  # type: ignore
 
 import gtsfm.common.types as gtsfm_types
@@ -102,9 +103,9 @@ class BundleAdjustmentOptimizer:
         graph = NonlinearFactorGraph()
 
         # noise model for measurements -- one pixel in u and v
-        measurement_noise = gtsam.noiseModel.Isotropic.Sigma(IMG_MEASUREMENT_DIM, self._measurement_noise_sigma)
+        measurement_noise = Isotropic.Sigma(IMG_MEASUREMENT_DIM, self._measurement_noise_sigma)
         if self._robust_measurement_noise:
-            measurement_noise = gtsam.noiseModel.Robust(gtsam.noiseModel.mEstimator.Huber(1.345), measurement_noise)
+            measurement_noise = Robust(mEstimator.Huber(1.345), measurement_noise)
 
         # Note: Assumes all calibration types are the same.
         first_camera = initial_data.get_camera(first_valid_camera_idx)
@@ -144,7 +145,7 @@ class BundleAdjustmentOptimizer:
                     X(i1),
                     X(i2),
                     i2Ti1_prior.value.inverse(),
-                    gtsam.noiseModel.Diagonal.Sigmas(i2Ti1_prior.covariance),
+                    Diagonal.Sigmas(i2Ti1_prior.covariance),
                 )
             )
 
@@ -170,7 +171,7 @@ class BundleAdjustmentOptimizer:
                 PriorFactorPose3(
                     X(first_valid_camera_idx),
                     first_camera.pose(),
-                    gtsam.noiseModel.Isotropic.Sigma(CAM_POSE3_DOF, self._cam_pose3_prior_noise_sigma),
+                    Isotropic.Sigma(CAM_POSE3_DOF, self._cam_pose3_prior_noise_sigma),
                 )
             )
 
@@ -187,27 +188,30 @@ class BundleAdjustmentOptimizer:
         first_camera = initial_data.get_camera(first_valid_camera_idx)
         assert first_camera is not None, "First camera in initial data is None"
         calibration_prior_factor_class = gtsfm_types.get_prior_factor_for_calibration(first_camera.calibration())
-        calibration_prior_factor_dof = first_camera.calibration().dim()
+        calibration_dim = first_camera.calibration().dim()
+        noise_model = Isotropic.Sigma(calibration_dim, self._calibration_prior_noise_sigma)
         if self._shared_calib:
             graph.push_back(
                 calibration_prior_factor_class(
                     K(self.__map_to_calibration_variable(first_valid_camera_idx)),
                     first_camera.calibration(),
-                    gtsam.noiseModel.Isotropic.Sigma(calibration_prior_factor_dof, self._calibration_prior_noise_sigma),
+                    noise_model,
                 )  # type: ignore
             )
         else:
             for i in cameras_to_model:
                 camera_i = initial_data.get_camera(i)
                 assert camera_i is not None, f"Camera {i} in initial data is None"
+                if camera_i.calibration().dim() != calibration_dim:
+                    raise ValueError(
+                        "BundleAdjustmentOptimizer: Assumption that all calibration types are the same is violated"
+                    )
                 graph.push_back(
                     calibration_prior_factor_class(
                         K(self.__map_to_calibration_variable(i)),
                         camera_i.calibration(),
-                        gtsam.noiseModel.Isotropic.Sigma(
-                            calibration_prior_factor_dof, self._calibration_prior_noise_sigma
-                        ),  # type: ignore
-                    )
+                        noise_model,
+                    )  # type: ignore
                 )
 
         return graph
@@ -246,16 +250,14 @@ class BundleAdjustmentOptimizer:
 
         # Also add a prior on the position of the first landmark to fix the scale
         graph.push_back(
-            gtsam.PriorFactorPoint3(
-                P(0), initial_data.get_track(0).point3(), gtsam.noiseModel.Isotropic.Sigma(POINT3_DOF, 0.1)
-            )
+            gtsam.PriorFactorPoint3(P(0), initial_data.get_track(0).point3(), Isotropic.Sigma(POINT3_DOF, 0.1))
         )
 
         return graph
 
     def __initial_values(self, initial_data: GtsfmData) -> Values:
         """Initialize all the variables in the factor graph."""
-        initial_values = gtsam.Values()
+        initial_values = Values()
 
         # Add each camera.
         for loop_idx, i in enumerate(initial_data.get_valid_camera_indices()):
@@ -421,11 +423,10 @@ class BundleAdjustmentOptimizer:
                 verbose,
             )
             # Print intermediate results.
-            if num_ba_steps > 1:
-                logger.info(
-                    "[BA Step %d/%d] Error: %.2f, Number of tracks: %d"
-                    % (step + 1, num_ba_steps, final_error, filtered_result.number_tracks())
-                )
+            logger.info(
+                "[BA Step %d/%d] Error: %.2f, Number of tracks: %d"
+                % (step + 1, num_ba_steps, final_error, filtered_result.number_tracks())
+            )
 
         return optimized_data, filtered_result, valid_mask
 
