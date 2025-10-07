@@ -290,7 +290,7 @@ class BundleAdjustmentOptimizer:
         result_values = lm.optimize()
 
         elapsed_time = time.time() - start_time
-        logger.info(f"⏱️ Factor graph optimization completed in {elapsed_time:.2f} seconds.")
+        logger.info(f"🚀 Factor graph optimization completed in {elapsed_time:.2f} seconds.")
 
         return result_values
 

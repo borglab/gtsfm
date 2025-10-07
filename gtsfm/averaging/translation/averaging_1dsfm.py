@@ -281,7 +281,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         # Compute outlier weights in parallel.
         _t2 = timeit.default_timer()
         batched_outlier_weights = dask.compute(*batched_outlier_weights)
-        logger.info("⏱️ Computed outlier weights using MFAS in %.2f seconds." % (timeit.default_timer() - _t2))
+        logger.info("🚀 Computed outlier weights using MFAS in %.2f seconds." % (timeit.default_timer() - _t2))
 
         # Compute average outlier weight.
         outlier_weights_sum: DefaultDict[Tuple[int, int], float] = defaultdict(float)
@@ -575,7 +575,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             Pose3(wRi, wti) if wRi is not None and wti is not None else None for wRi, wti in zip(wRi_list, wti_list)
         ]
         total_time = time.time() - start_time
-        logger.info("⏱️ Translation averaging took %.4f seconds.", total_time)
+        logger.info("🚀 Translation averaging took %.4f seconds.", total_time)
         ta_metrics.add_metric(GtsfmMetric("total_duration_sec", total_time))
         ta_metrics.add_metric(GtsfmMetric("outlier_rejection_duration_sec", inlier_computation_time))
         ta_metrics.add_metric(GtsfmMetric("optimization_duration_sec", averaging_time))

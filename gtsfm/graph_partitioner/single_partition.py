@@ -24,11 +24,11 @@ class SinglePartition(GraphPartitionerBase):
     def run(self, graph: VisibilityGraph) -> list[VisibilityGraph]:
         """Return all visibility graph as a single partition.
 
-                Args:
-                    graph: List of visibility graph (i,j) where i < j.
-        run
-                Returns:
-                    A list containing a single subgraph with all valid edges.
+        Args:
+            graph: input visibility graph.
+
+        Returns:
+            A list containing a single element: the input visibility graph.
         """
         logger.info(f"SinglePartition: returning all {len(graph)} pairs as a single partition")
         return [graph]

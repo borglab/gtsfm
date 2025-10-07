@@ -74,7 +74,7 @@ class Mast3rCorrespondenceGenerator(CorrespondenceGeneratorBase):
         Args:
             client: Dask client, used to execute the front-end as futures.
             images: List of all images, as futures.
-            image_pairs: The visibility graph defining which image pairs to process.
+            visibility_graph: The visibility graph defining which image pairs to process.
 
         Returns:
             List of keypoints, one entry for each input images.

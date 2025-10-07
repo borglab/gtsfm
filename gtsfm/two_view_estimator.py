@@ -6,24 +6,23 @@ Authors: Ayush Baid, John Lambert, Zongyue Liu
 import dataclasses
 import json
 import logging
-import numpy as np
 import socket
 import sys
 import time
 import timeit
-
 from datetime import datetime
-from dask.distributed import Client
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+import numpy as np
+from dask.distributed import Client
 from gtsam import PinholeCameraCal3Bundler, Pose3, Rot3, SfmTrack, Unit3  # type: ignore
 
 import gtsfm.common.types as gtsfm_types
-from gtsfm.common.dask_db_module_base import DaskDBModuleBase
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metric_utils
 from gtsfm.bundle.two_view_ba import TwoViewBundleAdjustment
+from gtsfm.common.dask_db_module_base import DaskDBModuleBase
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
@@ -252,8 +251,8 @@ class TwoViewEstimator(DaskDBModuleBase):
         # Set the i1 camera pose as the global coordinate system.
         camera_class = gtsfm_types.get_camera_class_for_calibration(camera_intrinsics_i1)
         cameras = {
-            0: camera_class(Pose3(), camera_intrinsics_i1),
-            1: camera_class(i2Ti1_initial.inverse(), camera_intrinsics_i2),
+            0: camera_class(Pose3(), camera_intrinsics_i1),  # type: ignore
+            1: camera_class(i2Ti1_initial.inverse(), camera_intrinsics_i2),  # type: ignore
         }
 
         # Triangulate!
@@ -261,7 +260,7 @@ class TwoViewEstimator(DaskDBModuleBase):
         triangulated_indices, triangulated_tracks = self.triangulate_two_view_correspondences(
             cameras, keypoints_i1, keypoints_i2, verified_corr_idxs
         )
-        logger.debug("⏱️ Performed DA in %.6f seconds.", timeit.default_timer() - start_time)
+        logger.debug("🚀 Performed DA in %.6f seconds.", timeit.default_timer() - start_time)
         logger.info("Triangulated %d correspondences out of %d.", len(triangulated_tracks), len(verified_corr_idxs))
 
         if len(triangulated_tracks) == 0:
@@ -287,7 +286,7 @@ class TwoViewEstimator(DaskDBModuleBase):
             logger.warning("2-view BA failed...")
             return i2Ri1_initial, i2Ui1_initial, valid_corr_idxs
         i2Ti1_optimized = wTi2.between(wTi1)
-        logger.debug("⏱️ Performed 2-view BA in %.6f seconds.", timeit.default_timer() - start_time)
+        logger.debug("🚀 Performed 2-view BA in %.6f seconds.", timeit.default_timer() - start_time)
 
         return i2Ti1_optimized.rotation(), Unit3(i2Ti1_optimized.translation()), valid_corr_idxs
 

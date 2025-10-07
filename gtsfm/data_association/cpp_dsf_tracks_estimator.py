@@ -84,5 +84,5 @@ class CppDsfTracksEstimator(TracksEstimatorBase):
             track_2d_list.append(track_)
 
         duration = time.time() - start_time
-        logger.info("⏱️ CppDsfTracksEstimator took %.2f sec. to estimate %d tracks.", duration, len(track_2d_list))
+        logger.info("🚀 CppDsfTracksEstimator took %.2f sec. to estimate %d tracks.", duration, len(track_2d_list))
         return track_2d_list
