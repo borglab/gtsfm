@@ -868,7 +868,6 @@ def run_two_view_estimator_as_futures(
             gt_scene_mesh=gt_scene_mesh,
             i1=i1,
             i2=i2,
-            key=f"{i1}-{i2}",
         )
         for (i1, i2), putative_corr_idxs in putative_corr_idxs_dict.items()
     }

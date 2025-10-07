@@ -85,9 +85,7 @@ class Mast3rCorrespondenceGenerator(CorrespondenceGeneratorBase):
         m = client.scatter(model, broadcast=False)
 
         pairwise_correspondence_futures = {
-            (i1, i2): client.submit(
-                Mast3rCorrespondenceGenerator.apply_mast3r, m, images[i1], images[i2], key=f"{i1}-{i2}"
-            )
+            (i1, i2): client.submit(Mast3rCorrespondenceGenerator.apply_mast3r, m, images[i1], images[i2])
             for i1, i2 in visibility_graph
         }
         pairwise_correspondences: Dict[Tuple[int, int], Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]] = (

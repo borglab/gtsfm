@@ -76,7 +76,6 @@ class DetDescCorrespondenceGenerator(CorrespondenceGeneratorBase):
                 features_futures[i2],
                 im_shape_i1=image_shapes_futures[i1],
                 im_shape_i2=image_shapes_futures[i2],
-                key=f"{i1}-{i2}",
             )
             for (i1, i2) in visibility_graph
         }

@@ -115,7 +115,6 @@ class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
                 camera_i2=loader.get_camera(index=i2),
                 open3d_mesh_fpath=open3d_mesh_path,
                 points=sampled_points,
-                key=f"{i1}-{i2}",
             )
             for i1, i2 in visibility_graph
         }
