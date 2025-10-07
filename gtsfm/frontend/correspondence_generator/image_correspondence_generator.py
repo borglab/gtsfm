@@ -2,10 +2,11 @@
 
 Authors: John Lambert
 """
+
 from typing import Any, Dict, List, Optional, Tuple
 
-from dask.distributed import Client, Future
 import numpy as np
+from dask.distributed import Client, Future
 
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
@@ -20,6 +21,7 @@ from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggreg
     KeypointAggregatorUnique,
 )
 from gtsfm.frontend.matcher.image_matcher_base import ImageMatcherBase
+from gtsfm.products.visibility_graph import ImageIndexPairs
 from gtsfm.two_view_estimator import TWO_VIEW_OUTPUT, TwoViewEstimator
 
 
@@ -49,7 +51,7 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
         self,
         client: Client,
         images: List[Future],
-        image_pairs: List[Tuple[int, int]],
+        image_pairs: ImageIndexPairs,
     ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
         """Apply the correspondence generator to generate putative correspondences.
 
@@ -85,7 +87,7 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
         self,
         client: Client,
         images: List[Image],
-        image_pairs: List[Tuple[int, int]],
+        image_pairs: ImageIndexPairs,
         camera_intrinsics: List[CALIBRATION_TYPE],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         gt_cameras: List[Optional[CAMERA_TYPE]],

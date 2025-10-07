@@ -14,12 +14,13 @@ from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 import pycolmap
-from gtsam import Cal3Bundler, Rot3, Unit3
+from gtsam import Rot3, Unit3  # type: ignore
 
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.pycolmap_utils as pycolmap_utils
 import gtsfm.utils.verification as verification_utils
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.common.types import CALIBRATION_TYPE
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 
 logger = logger_utils.get_logger()
@@ -68,8 +69,8 @@ class LoRansac(VerifierBase):
         self,
         uv_i1: np.ndarray,
         uv_i2: np.ndarray,
-        camera_intrinsics_i1: Cal3Bundler,
-        camera_intrinsics_i2: Cal3Bundler,
+        camera_intrinsics_i1: CALIBRATION_TYPE,
+        camera_intrinsics_i2: CALIBRATION_TYPE,
     ) -> Dict[str, Any]:
         """Use the pycolmap Pybind wrapper to estimate an Essential matrix using LORANSAC.
 
@@ -85,7 +86,7 @@ class LoRansac(VerifierBase):
         camera_i1: pycolmap.Camera = pycolmap_utils.get_pycolmap_camera(camera_intrinsics_i1)
         camera_i2: pycolmap.Camera = pycolmap_utils.get_pycolmap_camera(camera_intrinsics_i2)
 
-        result_dict = pycolmap.essential_matrix_estimation(
+        result_dict = pycolmap.estimate_essential_matrix(
             uv_i1,
             uv_i2,
             camera_i1,
@@ -99,8 +100,8 @@ class LoRansac(VerifierBase):
         keypoints_i1: Keypoints,
         keypoints_i2: Keypoints,
         match_indices: np.ndarray,
-        camera_intrinsics_i1: Cal3Bundler,
-        camera_intrinsics_i2: Cal3Bundler,
+        camera_intrinsics_i1: CALIBRATION_TYPE,
+        camera_intrinsics_i2: CALIBRATION_TYPE,
     ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray, float]:
         """Performs verification of correspondences between two images to recover the relative pose and indices of
         verified correspondences.
@@ -128,7 +129,7 @@ class LoRansac(VerifierBase):
         if self._use_intrinsics_in_verification:
             result_dict = self.__estimate_essential_matrix(uv_i1, uv_i2, camera_intrinsics_i1, camera_intrinsics_i2)
         else:
-            result_dict = pycolmap.fundamental_matrix_estimation(uv_i1, uv_i2, self._ransac_options)
+            result_dict = pycolmap.estimate_fundamental_matrix(uv_i1, uv_i2, self._ransac_options)
 
         if not result_dict:
             matrix_type = "Essential" if self._use_intrinsics_in_verification else "Fundamental"

@@ -1,24 +1,26 @@
 """Unit test for the DataAssociation class (and implicitly the Point3dInitializer class).
 
 Triangulation examples from:
-     borglab/gtsam/python/gtsam/tests/test_Triangulation.py 
+     borglab/gtsam/python/gtsam/tests/test_Triangulation.py
      gtsam/geometry/tests/testTriangulation.cpp
 
 Authors: Sushmita Warrier, Xiaolong Wu, John Lambert
 """
+
 import unittest
 from typing import Dict, List, Tuple
 
 import dask
 import numpy as np
-from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Point2Vector, Point3, Pose3, Pose3Vector, Rot3
-from gtsam.utils.test_case import GtsamTestCase
+from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Point2Vector, Point3, Pose3, Pose3Vector, Rot3  # type: ignore
+from gtsam.utils.test_case import GtsamTestCase  # type: ignore
 
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.data_association.data_assoc import DataAssociation
 from gtsfm.data_association.dsf_tracks_estimator import DsfTracksEstimator
 from gtsfm.data_association.point3d_initializer import TriangulationOptions, TriangulationSamplingMode
+from gtsfm.products.visibility_graph import ImageIndexPairs
 
 
 def get_pose3_vector(num_poses: int) -> Pose3Vector:
@@ -44,8 +46,8 @@ def get_pose3_vector(num_poses: int) -> Pose3Vector:
 
 
 def generate_noisy_2d_measurements(
-    world_point: Point3, calibrations: List[Cal3Bundler], per_image_noise_vecs: np.ndarray, poses: Pose3Vector
-) -> Tuple[List[Keypoints], List[Tuple[int, int]], Dict[int, PinholeCameraCal3Bundler]]:
+    world_point: np.ndarray, calibrations: List[Cal3Bundler], per_image_noise_vecs: np.ndarray, poses: Pose3Vector
+) -> Tuple[List[Keypoints], ImageIndexPairs, Dict[int, PinholeCameraCal3Bundler]]:
     """
     Generate PinholeCameras from specified poses and calibrations, and then generate
     1 measurement per camera of a given 3d point.

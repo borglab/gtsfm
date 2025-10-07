@@ -4,13 +4,15 @@ Only useful for temporally ordered data.
 
 Authors: John Lambert
 """
+
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 import numpy as np
 
 import gtsfm.utils.logger as logger_utils
-from gtsfm.retriever.retriever_base import RetrieverBase, ImageMatchingRegime
+from gtsfm.products.visibility_graph import ImageIndexPairs
+from gtsfm.retriever.retriever_base import ImageMatchingRegime, RetrieverBase
 
 logger = logger_utils.get_logger()
 
@@ -35,7 +37,7 @@ class SequentialRetriever(RetrieverBase):
         global_descriptors: Optional[List[np.ndarray]],  # pylint: disable=unused-argument
         image_fnames: List[str],
         plots_output_dir: Optional[Path] = None,  # pylint: disable=unused-argument
-    ) -> List[Tuple[int, int]]:
+    ) -> ImageIndexPairs:
         """Compute potential image pairs.
 
         Args:

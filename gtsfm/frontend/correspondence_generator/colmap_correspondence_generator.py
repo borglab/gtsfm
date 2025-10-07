@@ -1,6 +1,6 @@
 """Correspondence generator which reads from a Colmap db.
 
-References: 
+References:
 - Colmap github
 - Pycolmap github
 
@@ -19,8 +19,8 @@ from distributed import Client
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.frontend.correspondence_generator.correspondence_generator_base import \
-    CorrespondenceGeneratorBase
+from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
+from gtsfm.products.visibility_graph import ImageIndexPairs
 
 logger = logger_utils.get_logger()
 
@@ -60,7 +60,7 @@ class ColmapCorrespondenceGenerator(CorrespondenceGeneratorBase):
         Returns:
             Keypoints: Keypoints with their coordinates, scales, and responses.
         """
-        pycolmap_image = self._pycolmap_db.read_image_with_name(image.file_name)
+        pycolmap_image = self._pycolmap_db.read_image(image.file_name)
         image_id = pycolmap_image.image_id
 
         if image_id not in self._keypoints_dict:
@@ -96,7 +96,7 @@ class ColmapCorrespondenceGenerator(CorrespondenceGeneratorBase):
         if len(file_names) != len(images):
             raise ValueError("All images should be associated with a file name for ColmapCorrespondenceGenerator.")
 
-        pycolmap_images = [self._pycolmap_db.read_image_with_name(file_name) for file_name in file_names]
+        pycolmap_images = [self._pycolmap_db.read_image(file_name) for file_name in file_names]
 
         keypoints: List[Keypoints] = [self._read_keypoints(image) for image in images]
         gtsfm_id_to_pycolmap_id: List[int] = [image.image_id for image in pycolmap_images]
@@ -104,7 +104,7 @@ class ColmapCorrespondenceGenerator(CorrespondenceGeneratorBase):
         return gtsfm_id_to_pycolmap_id, keypoints
 
     def _read_matches(
-        self, image_pairs: List[Tuple[int, int]], gtsfm_id_to_pycolmap_id: List[int]
+        self, image_pairs: ImageIndexPairs, gtsfm_id_to_pycolmap_id: List[int]
     ) -> Dict[Tuple[int, int], np.ndarray]:
         """Read matches for image pairs."""
         corr_idxs: Dict[Tuple[int, int], np.ndarray] = {}
@@ -124,7 +124,7 @@ class ColmapCorrespondenceGenerator(CorrespondenceGeneratorBase):
         return corr_idxs
 
     def generate_correspondences(
-        self, client: Client, images: List[Future], image_pairs: List[Tuple[int, int]]
+        self, client: Client, images: List[Future], image_pairs: ImageIndexPairs
     ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
         """Apply the correspondence generator to generate putative correspondences.
 

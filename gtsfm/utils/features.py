@@ -2,13 +2,14 @@
 
 Authors: Ayush Baid
 """
+
 from typing import List, Optional, Tuple
 
 import cv2 as cv
 import numpy as np
-from gtsam import Cal3Bundler
 
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.common.types import CALIBRATION_TYPE
 
 EPS = 1e-8
 
@@ -37,7 +38,7 @@ def cast_to_gtsfm_keypoints(keypoints: List[cv.KeyPoint]) -> Keypoints:
     )
 
 
-def normalize_coordinates(coordinates: np.ndarray, intrinsics: Cal3Bundler) -> np.ndarray:
+def normalize_coordinates(coordinates: np.ndarray, intrinsics: CALIBRATION_TYPE) -> np.ndarray:
     """Normalize 2D coordinates using camera intrinsics.
 
     Args:

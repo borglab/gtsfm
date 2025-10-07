@@ -2,14 +2,15 @@
 
 Authors: John Lambert
 """
+
 import tempfile
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from dask.distributed import Client, Future
 import numpy as np
 import open3d
 import trimesh
+from dask.distributed import Client, Future
 from gtsam import Pose3
 
 import gtsfm.common.types as gtsfm_types
@@ -27,7 +28,7 @@ from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggreg
 )
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.loader.tanks_and_temples_loader import TanksAndTemplesLoader
-
+from gtsfm.products.visibility_graph import ImageIndexPairs
 
 logger = logger_utils.get_logger()
 
@@ -52,7 +53,7 @@ class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
         self,
         client: Client,
         images: List[Future],
-        image_pairs: List[Tuple[int, int]],
+        image_pairs: ImageIndexPairs,
         num_sampled_3d_points: int = 5000,
     ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
         """Apply the correspondence generator to generate putative correspondences (in parallel).

@@ -128,9 +128,6 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# VSCode files
-.vscode/
-
 # PyType folder
 .pytype/
 
@@ -185,6 +182,7 @@ result_metrics/
 
 # Folder created by hydra
 output/
+datasets/
 
 # Cache dir
 cache/

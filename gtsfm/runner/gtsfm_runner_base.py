@@ -1,6 +1,7 @@
 """Base class for runner that executes SfM."""
 
 import argparse
+import logging
 import os
 import time
 from abc import abstractmethod
@@ -11,7 +12,7 @@ import hydra
 import numpy as np
 from dask import config as dask_config
 from dask.distributed import Client, LocalCluster, SSHCluster, performance_report
-from gtsam import Pose3, Rot3, Unit3
+from gtsam import Pose3, Rot3, Unit3  # type: ignore
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
 
@@ -22,6 +23,7 @@ import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.viz as viz_utils
 from gtsfm import two_view_estimator
 from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm.common.types import CALIBRATION_TYPE
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.frontend.correspondence_generator.image_correspondence_generator import ImageCorrespondenceGenerator
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
@@ -43,8 +45,8 @@ REACT_METRICS_PATH = DEFAULT_OUTPUT_ROOT / "rtf_vis_tool" / "src" / "result_metr
 class GtsfmRunnerBase:
     @property
     @abstractmethod
-    def tag(self):
-        pass
+    def tag(self) -> str:
+        return "Base GTSFM Runner"
 
     def __init__(self, override_args=None) -> None:
         argparser: argparse.ArgumentParser = self.construct_argparser()
@@ -52,9 +54,16 @@ class GtsfmRunnerBase:
         if self.parsed_args.dask_tmpdir:
             dask.config.set({"temporary_directory": DEFAULT_OUTPUT_ROOT / self.parsed_args.dask_tmpdir})
 
+        # Get the numeric level from the string
+        log_level = getattr(logging, self.parsed_args.log.upper(), None)
+
+        # 5. Configure the logging system
+        # A good format includes the timestamp, level name, and message
+        logging.basicConfig(level=log_level)
+
         self.loader: LoaderBase = self.construct_loader()
         self.scene_optimizer: SceneOptimizer = self.construct_scene_optimizer()
-        self.graph_partitioner: GraphPartitionerBase | None = self.scene_optimizer.graph_partitioner
+        self.graph_partitioner: GraphPartitionerBase = self.scene_optimizer.graph_partitioner
 
     def construct_argparser(self) -> argparse.ArgumentParser:
         parser = argparse.ArgumentParser(description=self.tag)
@@ -167,6 +176,13 @@ class GtsfmRunnerBase:
             default="single",
             choices=["single", "other_partitioner_types"],
             help="Type of graph partitioner to use. Default is 'single' (SinglePartition).",
+        )
+        parser.add_argument(
+            "-l",
+            "--log",
+            choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+            default="INFO",  # Set a default level
+            help="Set the logging level",
         )
         return parser
 
@@ -348,9 +364,15 @@ class GtsfmRunnerBase:
         )
         retriever_duration_sec = time.time() - retriever_start_time
         retriever_metrics.add_metric(GtsfmMetric("retriever_duration_sec", retriever_duration_sec))
-        logger.info("Image pair retrieval took %.2f sec.", retriever_duration_sec)
+        logger.info("Image pair retrieval took %.2f min.", retriever_duration_sec / 60.0)
 
-        intrinsics = self.loader.get_all_intrinsics()
+        maybe_intrinsics = self.loader.get_all_intrinsics()
+        # Check if maybe_intrinsics has any None values
+        if any(intrinsic is None for intrinsic in maybe_intrinsics):
+            raise ValueError("Some intrinsics are None. Please ensure all intrinsics are provided.")
+
+        # If all intrinsics are valid, cast them to the correct type
+        intrinsics: list[CALIBRATION_TYPE] = maybe_intrinsics  # type: ignore
 
         with performance_report(filename="correspondence-generator-dask-report.html"):
             correspondence_generation_start_time = time.time()
@@ -365,7 +387,7 @@ class GtsfmRunnerBase:
             correspondence_generation_duration_sec = time.time() - correspondence_generation_start_time
 
             two_view_estimation_start_time = time.time()
-            two_view_results_dict = run_two_view_estimator_as_futures(
+            two_view_results_dict: dict[tuple[int, int], TWO_VIEW_OUTPUT] = run_two_view_estimator_as_futures(
                 client,
                 self.scene_optimizer.two_view_estimator,
                 keypoints_list,
@@ -377,9 +399,7 @@ class GtsfmRunnerBase:
             )
             two_view_estimation_duration_sec = time.time() - two_view_estimation_start_time
 
-        i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, pre_ba_two_view_reports_dict, post_isp_two_view_reports_dict = (
-            unzip_two_view_results(two_view_results_dict)
-        )
+        _, _, v_corr_idxs_dict, _, post_isp_two_view_reports_dict = unzip_two_view_results(two_view_results_dict)
 
         if self.scene_optimizer._save_two_view_correspondences_viz:
             for i1, i2 in v_corr_idxs_dict.keys():
@@ -412,8 +432,9 @@ class GtsfmRunnerBase:
         all_metrics_groups = [retriever_metrics, two_view_agg_metrics]
 
         # Partition image pairs
+        assert self.graph_partitioner is not None, "Graph partitioner is not set up!"
         subgraphs = self.graph_partitioner.partition_image_pairs(image_pair_indices)
-        logger.info(f"Partitioned into {len(subgraphs)} subgraphs")
+        logger.info("Partitioned into %d subgraphs", len(subgraphs))
         # Group results by subgraph
         subgraph_two_view_results = group_results_by_subgraph(two_view_results_dict, subgraphs)
 
@@ -424,8 +445,10 @@ class GtsfmRunnerBase:
 
         for idx, subgraph_result_dict in enumerate(subgraph_two_view_results):
             logger.info(
-                f"Creating computation graph for subgraph {idx + 1}/{len(subgraph_two_view_results)} "
-                f"with {    len(subgraph_result_dict)} image pairs"
+                "Creating computation graph for subgraph %d / %d with %d image pairs",
+                idx + 1,
+                len(subgraph_two_view_results),
+                len(subgraph_result_dict),
             )
             if len(subgraph_two_view_results) == 1:
                 # single partition
@@ -449,7 +472,7 @@ class GtsfmRunnerBase:
                         two_view_reports=subgraph_post_isp_reports,
                         num_images=len(self.loader),
                         images=self.loader.create_computation_graph_for_images(),
-                        camera_intrinsics=intrinsics,
+                        camera_intrinsics=maybe_intrinsics,  # TODO(Frank): really? None is allowed?
                         relative_pose_priors=self.loader.get_relative_pose_priors(list(subgraph_i2Ri1_dict.keys())),
                         absolute_pose_priors=self.loader.get_absolute_pose_priors(),
                         cameras_gt=self.loader.get_gt_cameras(),
@@ -460,6 +483,8 @@ class GtsfmRunnerBase:
                 all_delayed_sfm_results.append(delayed_sfm_result)
                 all_delayed_io.extend(delayed_io)
                 all_delayed_mvo_metrics_groups.extend(delayed_mvo_metrics_groups)
+            else:
+                logger.warning(f"Skipping subgraph {idx+1} as it has no valid two-view results.")
 
         # Compute all the delayed objects
         with performance_report(filename="scene-optimizer-dask-report.html"):

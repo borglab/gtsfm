@@ -2,14 +2,16 @@
 
 Authors: John Lambert
 """
+
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 import numpy as np
 
 import gtsfm.utils.logger as logger_utils
+from gtsfm.products.visibility_graph import ImageIndexPairs
 from gtsfm.retriever.netvlad_retriever import NetVLADRetriever
-from gtsfm.retriever.retriever_base import RetrieverBase, ImageMatchingRegime
+from gtsfm.retriever.retriever_base import ImageMatchingRegime, RetrieverBase
 from gtsfm.retriever.sequential_retriever import SequentialRetriever
 
 logger = logger_utils.get_logger()
@@ -43,7 +45,7 @@ class JointNetVLADSequentialRetriever(RetrieverBase):
         global_descriptors: Optional[List[np.ndarray]],
         image_fnames: List[str],
         plots_output_dir: Optional[Path] = None,
-    ) -> List[Tuple[int, int]]:
+    ) -> ImageIndexPairs:
         """Compute potential image pairs.
 
         Args:
@@ -63,9 +65,7 @@ class JointNetVLADSequentialRetriever(RetrieverBase):
 
         return self._aggregate_pairs(sim_pairs=sim_pairs, seq_pairs=seq_pairs)
 
-    def _aggregate_pairs(
-        self, sim_pairs: List[Tuple[int, int]], seq_pairs: List[Tuple[int, int]]
-    ) -> List[Tuple[int, int]]:
+    def _aggregate_pairs(self, sim_pairs: ImageIndexPairs, seq_pairs: ImageIndexPairs) -> ImageIndexPairs:
         """Aggregate all image pair indices from both similarity-based and sequential retrieval.
 
         Args:

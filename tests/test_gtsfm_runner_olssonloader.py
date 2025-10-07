@@ -1,12 +1,11 @@
-"""Unit tests for the scene-optimizer class.
+"""Integration tests for the scene-optimizer class.
 
 Authors: Ayush Baid, John Lambert
 """
+
 from pathlib import Path
 
-import numpy as np
 import pytest
-from gtsam import EssentialMatrix, Rot3, Unit3
 
 import gtsfm.utils.geometry_comparisons as comp_utils
 from gtsfm.common.gtsfm_data import GtsfmData
@@ -17,6 +16,8 @@ TEST_DATA_WITH_GT = DATA_ROOT_PATH / "set1_lund_door"
 TEST_DATA_NO_GT = DATA_ROOT_PATH / "set3_lund_door_nointrinsics_noextrinsics"
 
 
+@pytest.mark.slow
+@pytest.mark.integration
 @pytest.mark.parametrize("dataset_path", [TEST_DATA_WITH_GT, TEST_DATA_NO_GT])
 def test_gtsfm_runner_olssonloader(dataset_path):
     print("Running {}", dataset_path)
@@ -37,11 +38,3 @@ def test_gtsfm_runner_olssonloader(dataset_path):
         expected_poses = [runner.loader.get_camera_pose(i) for i in connected_camera_idxs]
 
         assert comp_utils.compare_global_poses(computed_poses, expected_poses, trans_err_atol=1.0, trans_err_rtol=0.1)
-
-
-def generate_random_essential_matrix() -> EssentialMatrix:
-    rotation_angles = np.random.uniform(low=0.0, high=2 * np.pi, size=(3,))
-    R = Rot3.RzRyRx(rotation_angles[0], rotation_angles[1], rotation_angles[2])
-    t = np.random.uniform(low=-1.0, high=1.0, size=(3,))
-
-    return EssentialMatrix(R, Unit3(t))

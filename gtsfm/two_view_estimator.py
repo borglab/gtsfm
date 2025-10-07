@@ -4,18 +4,19 @@ Authors: Ayush Baid, John Lambert, Zongyue Liu
 """
 
 import dataclasses
-import logging
-import timeit
-from typing import Any, Dict, List, Optional, Tuple
 import json
+import logging
+import numpy as np
 import socket
 import sys
 import time
-from datetime import datetime
+import timeit
 
+from datetime import datetime
 from dask.distributed import Client
-import numpy as np
-from gtsam import PinholeCameraCal3Bundler, Pose3, Rot3, SfmTrack, Unit3
+from typing import Any, Dict, List, Optional, Sequence, Tuple
+
+from gtsam import PinholeCameraCal3Bundler, Pose3, Rot3, SfmTrack, Unit3  # type: ignore
 
 import gtsfm.common.types as gtsfm_types
 from gtsfm.common.dask_db_module_base import DaskDBModuleBase
@@ -37,10 +38,10 @@ from gtsfm.frontend.verifier.verifier_base import VerifierBase
 logger = logger_utils.get_logger()
 
 mpl_logger = logging.getLogger("matplotlib")
-mpl_logger.setLevel(logging.WARNING)
+mpl_logger.setLevel(logging.ERROR)
 
 pil_logger = logging.getLogger("PIL")
-pil_logger.setLevel(logging.INFO)
+pil_logger.setLevel(logging.ERROR)
 
 PRE_BA_REPORT_TAG = "PRE_BA_2VIEW_REPORT"
 POST_BA_REPORT_TAG = "POST_BA_2VIEW_REPORT"
@@ -261,7 +262,8 @@ class TwoViewEstimator(DaskDBModuleBase):
             cameras, keypoints_i1, keypoints_i2, verified_corr_idxs
         )
         logger.debug("Performed DA in %.6f seconds.", timeit.default_timer() - start_time)
-        logger.debug("Triangulated %d correspondences out of %d.", len(triangulated_tracks), len(verified_corr_idxs))
+        logger.info("Triangulated %d correspondences out of %d.", len(triangulated_tracks), len(verified_corr_idxs))
+        print("============================", len(triangulated_tracks), len(verified_corr_idxs))
 
         if len(triangulated_tracks) == 0:
             return i2Ti1_initial.rotation(), Unit3(i2Ti1_initial.translation()), np.zeros(shape=(0, 2), dtype=np.int32)
@@ -361,8 +363,8 @@ class TwoViewEstimator(DaskDBModuleBase):
         keypoints_i1: Keypoints,
         keypoints_i2: Keypoints,
         putative_corr_idxs: np.ndarray,
-        camera_intrinsics_i1: Optional[gtsfm_types.CALIBRATION_TYPE],
-        camera_intrinsics_i2: Optional[gtsfm_types.CALIBRATION_TYPE],
+        camera_intrinsics_i1: gtsfm_types.CALIBRATION_TYPE,
+        camera_intrinsics_i2: gtsfm_types.CALIBRATION_TYPE,
         i2Ti1_prior: Optional[PosePrior],
         gt_camera_i1: Optional[gtsfm_types.CAMERA_TYPE],
         gt_camera_i2: Optional[gtsfm_types.CAMERA_TYPE],
@@ -641,6 +643,15 @@ class TwoViewEstimator(DaskDBModuleBase):
             logger.error(f"Failed to store detailed reports for pair ({i1}, {i2})")
 
 
+def _masked_nanmean(model: Optional[np.ndarray], mask: Optional[np.ndarray], invert_mask: bool = False) -> float:
+    """Helper function to compute nanmean of model[mask] with None checks."""
+    if model is not None and mask is not None and len(mask) > 0:
+        final_mask = np.logical_not(mask) if invert_mask else mask
+        if np.any(final_mask):  # Ensure there is at least one True value in the mask
+            return float(np.nanmean(model[final_mask]))
+    return float("nan")
+
+
 def generate_two_view_report(
     inlier_ratio_est_model: float,
     v_corr_idxs: np.ndarray,
@@ -656,9 +667,9 @@ def generate_two_view_report(
         inlier_ratio_gt_model = (
             np.count_nonzero(v_corr_idxs_inlier_mask_gt) / v_corr_idxs.shape[0] if len(v_corr_idxs) > 0 else 0.0
         )
-        inlier_avg_reproj_error_gt_model = np.mean(reproj_error_gt_model[v_corr_idxs_inlier_mask_gt])
-        outlier_avg_reproj_error_gt_model = np.nanmean(
-            reproj_error_gt_model[np.logical_not(v_corr_idxs_inlier_mask_gt)]
+        inlier_avg_reproj_error_gt_model = _masked_nanmean(reproj_error_gt_model, v_corr_idxs_inlier_mask_gt)
+        outlier_avg_reproj_error_gt_model = _masked_nanmean(
+            reproj_error_gt_model, v_corr_idxs_inlier_mask_gt, invert_mask=True
         )
     else:
         num_inliers_gt_model = 0
@@ -833,7 +844,7 @@ def run_two_view_estimator_as_futures(
     two_view_estimator: TwoViewEstimator,
     keypoints_list: List[Keypoints],
     putative_corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
-    camera_intrinsics: List[gtsfm_types.CALIBRATION_TYPE],
+    camera_intrinsics: Sequence[gtsfm_types.CALIBRATION_TYPE],
     relative_pose_priors: Dict[Tuple[int, int], PosePrior],
     gt_cameras: List[Optional[gtsfm_types.CAMERA_TYPE]],
     gt_scene_mesh: Optional[Any],
@@ -947,16 +958,14 @@ def get_two_view_reports_summary(
                 ),
                 "inlier_ratio_gt_model": round_fn(report.inlier_ratio_gt_model),
                 "inlier_avg_reproj_error_gt_model": (
-                    round_fn(np.nanmean(report.reproj_error_gt_model[report.v_corr_idxs_inlier_mask_gt]))
-                    if report.reproj_error_gt_model is not None and report.v_corr_idxs_inlier_mask_gt is not None
-                    else None
+                    round_fn(_masked_nanmean(report.reproj_error_gt_model, report.v_corr_idxs_inlier_mask_gt))
                 ),
                 "outlier_avg_reproj_error_gt_model": (
                     round_fn(
-                        np.nanmean(report.reproj_error_gt_model[np.logical_not(report.v_corr_idxs_inlier_mask_gt)])
+                        _masked_nanmean(
+                            report.reproj_error_gt_model, report.v_corr_idxs_inlier_mask_gt, invert_mask=True
+                        )
                     )
-                    if report.reproj_error_gt_model is not None and report.v_corr_idxs_inlier_mask_gt is not None
-                    else None
                 ),
                 "inlier_ratio_est_model": round_fn(report.inlier_ratio_est_model),
                 "num_inliers_est_model": (

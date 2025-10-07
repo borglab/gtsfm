@@ -2,17 +2,19 @@
 
 Authors: Ayush Baid, Akshay Krishnan
 """
+
 import abc
 from typing import Dict, List, Optional, Tuple
 
 import dask
 from dask.delayed import Delayed
-from gtsam import Pose3, Rot3, Unit3
+from gtsam import Pose3, Rot3, Unit3  # type: ignore
 
 import gtsfm.common.types as gtsfm_types
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
+from gtsfm.products.visibility_graph import ImageIndexPairs
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 
@@ -22,6 +24,7 @@ class TranslationAveragingBase(GTSFMProcess):
     This class generates global unit translation estimates from pairwise relative unit translation and global rotations.
     """
 
+    @staticmethod
     def get_ui_metadata() -> UiMetadata:
         """Returns data needed to display node and edge info for this process in the process graph."""
 
@@ -58,7 +61,7 @@ class TranslationAveragingBase(GTSFMProcess):
         i2Ti1_priors: Dict[Tuple[int, int], PosePrior] = {},
         scale_factor: float = 1.0,
         gt_wTi_list: List[Optional[Pose3]] = [],
-    ) -> Tuple[List[Optional[Pose3]], Optional[GtsfmMetricsGroup], Optional[List[Tuple[int, int]]]]:
+    ) -> Tuple[List[Optional[Pose3]], Optional[GtsfmMetricsGroup], Optional[ImageIndexPairs]]:
         """Run the translation averaging, and combine the estimated global translations with global rotations.
 
         Args:

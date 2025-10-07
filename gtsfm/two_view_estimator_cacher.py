@@ -2,6 +2,7 @@
 
 Authors: Ayush Baid
 """
+
 import logging
 from pathlib import Path
 from typing import Any, List, Optional
@@ -27,10 +28,10 @@ CACHE_ROOT_PATH = Path(__file__).resolve().parent.parent / "cache"
 logger = logger_utils.get_logger()
 
 mpl_logger = logging.getLogger("matplotlib")
-mpl_logger.setLevel(logging.WARNING)
+mpl_logger.setLevel(logging.ERROR)
 
 pil_logger = logging.getLogger("PIL")
-pil_logger.setLevel(logging.INFO)
+pil_logger.setLevel(logging.ERROR)
 
 
 class TwoViewEstimatorCacher(TwoViewEstimator):
@@ -89,8 +90,8 @@ class TwoViewEstimatorCacher(TwoViewEstimator):
         keypoints_i1: Keypoints,
         keypoints_i2: Keypoints,
         putative_corr_idxs: np.ndarray,
-        camera_intrinsics_i1: Optional[gtsfm_types.CALIBRATION_TYPE],
-        camera_intrinsics_i2: Optional[gtsfm_types.CALIBRATION_TYPE],
+        camera_intrinsics_i1: gtsfm_types.CALIBRATION_TYPE,
+        camera_intrinsics_i2: gtsfm_types.CALIBRATION_TYPE,
         i2Ti1_prior: Optional[PosePrior],
         gt_camera_i1: Optional[gtsfm_types.CAMERA_TYPE],
         gt_camera_i2: Optional[gtsfm_types.CAMERA_TYPE],

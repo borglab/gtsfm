@@ -54,10 +54,10 @@ REACT_RESULTS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "
 logger = logger_utils.get_logger()
 
 mpl_logger = logging.getLogger("matplotlib")
-mpl_logger.setLevel(logging.WARNING)
+mpl_logger.setLevel(logging.ERROR)
 
 pil_logger = logging.getLogger("PIL")
-pil_logger.setLevel(logging.INFO)
+pil_logger.setLevel(logging.ERROR)
 
 
 class SceneOptimizer:
@@ -78,7 +78,7 @@ class SceneOptimizer:
         pose_angular_error_thresh: float = 3,  # in degrees
         output_root: str = DEFAULT_OUTPUT_ROOT,
         output_worker: Optional[str] = None,
-        graph_partitioner: Optional[GraphPartitionerBase] = SinglePartition(),
+        graph_partitioner: GraphPartitionerBase = SinglePartition(),
     ) -> None:
         self.image_pairs_generator = image_pairs_generator
         self.correspondence_generator = correspondence_generator
@@ -459,7 +459,7 @@ def save_gtsfm_data(
 
     end_time = time.time()
     duration_sec = end_time - start_time
-    logger.info("GtsfmData I/O took %.2f sec.", duration_sec)
+    logger.info("GtsfmData I/O took %.2f min.", duration_sec / 60.0)
 
 
 def save_full_frontend_metrics(

@@ -2,16 +2,16 @@
 
 Authors: Ayush Baid, Travis Driver
 """
+
 from typing import Union
 
-import gtsam
-
+import gtsam  # type: ignore
 
 CALIBRATION_TYPE = Union[gtsam.Cal3Bundler, gtsam.Cal3_S2, gtsam.Cal3DS2, gtsam.Cal3Fisheye]
 CAMERA_TYPE = Union[
-    gtsam.PinholeCameraCal3Bundler, 
-    gtsam.PinholeCameraCal3_S2, 
-    gtsam.PinholeCameraCal3DS2, 
+    gtsam.PinholeCameraCal3Bundler,
+    gtsam.PinholeCameraCal3_S2,
+    gtsam.PinholeCameraCal3DS2,
     gtsam.PinholeCameraCal3Fisheye,
 ]
 CAMERA_SET_TYPE = Union[

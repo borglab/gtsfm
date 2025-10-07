@@ -115,9 +115,7 @@ class BundleAdjustmentOptimizer:
             measurement_noise = gtsam.noiseModel.Robust(gtsam.noiseModel.mEstimator.Huber(1.345), measurement_noise)
 
         # Note: Assumes all calibration types are the same.
-        sfm_factor_class = gtsfm_types.get_sfm_factor_for_calibration(
-            initial_data.get_camera(0).calibration()
-        )
+        sfm_factor_class = gtsfm_types.get_sfm_factor_for_calibration(initial_data.get_camera(0).calibration())
         for j in range(initial_data.number_tracks()):
             track = initial_data.get_track(j)  # SfmTrack
             # Retrieve the SfmMeasurement objects.
@@ -473,7 +471,7 @@ class BundleAdjustmentOptimizer:
                 logger.info(
                     "[BA Stage @ thresh=%.2f px %d/%d] Error: %.2f, Number of tracks: %d"
                     % (
-                        reproj_error_thresh,
+                        reproj_error_thresh if reproj_error_thresh is not None else float("nan"),
                         step + 1,
                         num_ba_steps,
                         final_error,
@@ -595,12 +593,8 @@ def values_to_gtsfm_data(values: Values, initial_data: GtsfmData, shared_calib: 
     elif isinstance(initial_data.get_camera(0), gtsam.PinholeCameraCal3_S2):
         cal3_value_extraction_lambda = lambda i: values.atCal3_S2(K(0 if shared_calib else i))
     else:
-        raise ValueError(
-            "Unsupported camera calibration type: {}".format(type(initial_data.get_camera(0)).__name__)
-        )
-    camera_class = gtsfm_types.get_camera_class_for_calibration(
-        initial_data.get_camera(0).calibration()
-    )
+        raise ValueError("Unsupported camera calibration type: {}".format(type(initial_data.get_camera(0)).__name__))
+    camera_class = gtsfm_types.get_camera_class_for_calibration(initial_data.get_camera(0).calibration())
 
     # Add cameras.
     for i in initial_data.get_valid_camera_indices():

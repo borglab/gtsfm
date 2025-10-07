@@ -6,6 +6,7 @@ from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 class TwoViewBundleAdjustment(GTSFMProcess, BundleAdjustmentOptimizer):
     """Adds UI metadata for two-view bundle adjustment to BundleAdjustmentOptimizer."""
 
+    @staticmethod
     def get_ui_metadata() -> UiMetadata:
         """Returns data needed to display node and edge info for this process in the process graph."""
 

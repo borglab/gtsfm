@@ -51,3 +51,6 @@ dependencies:
       - trimesh[easy]
       - gtsam==4.3a0
       - pydot
+      - einops
+      - huggingface-hub[torch]==0.34.4
+      - roma # Rotation Manipiulation Library
