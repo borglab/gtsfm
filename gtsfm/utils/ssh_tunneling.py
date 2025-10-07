@@ -30,8 +30,8 @@ import logging
 
 from typing import Any, Dict, List, Optional, Tuple
 
-# Change this line to be explicit about path and override behavior
-load_dotenv(os.path.join(os.path.dirname(__file__), ".env"), override=True)
+# Look for .env in the same directory as the config files
+load_dotenv(os.path.join(os.path.dirname(__file__), "../configs/.env"), override=True)
 
 # Set up logger for this module
 logger = logging.getLogger(__name__)
