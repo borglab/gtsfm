@@ -70,7 +70,9 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
 
         image_matcher_future = client.scatter(self._matcher, broadcast=False)
         pairwise_correspondence_futures = {
-            (i1, i2): client.submit(apply_image_matcher, image_matcher_future, image_i1=images[i1], image_i2=images[i2])
+            (i1, i2): client.submit(
+                apply_image_matcher, image_matcher_future, image_i1=images[i1], image_i2=images[i2], key=f"{i1}-{i2}"
+            )
             for i1, i2 in visibility_graph
         }
 
@@ -119,7 +121,9 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
         image_matcher_future = client.scatter(self._matcher, broadcast=False)
         two_view_estimator_future = client.scatter(two_view_estimator, broadcast=False)
         pairwise_correspondence_futures = {
-            (i1, i2): client.submit(apply_image_matcher, image_matcher_future, image_i1=images[i1], image_i2=images[i2])
+            (i1, i2): client.submit(
+                apply_image_matcher, image_matcher_future, image_i1=images[i1], image_i2=images[i2], key=f"{i1}-{i2}"
+            )
             for i1, i2 in visibility_graph
         }
 
@@ -144,6 +148,7 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
                 gt_scene_mesh=gt_scene_mesh,
                 i1=i1,
                 i2=i2,
+                key=f"{i1}-{i2}",
             )
             for (i1, i2) in visibility_graph
         }

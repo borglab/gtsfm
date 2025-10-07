@@ -828,8 +828,8 @@ def aggregate_frontend_metrics(
             GtsfmMetric("pose_errors_deg", pose_errors),
             GtsfmMetric("inlier_ratio_wrt_gt_model", inlier_ratio_gt_model_all_pairs),
             GtsfmMetric("inlier_ratio_wrt_est_model", inlier_ratio_est_model_all_pairs),
-            GtsfmMetric("num_inliers_est_model", num_inliers_est_model_all_pairs),
-            GtsfmMetric("num_inliers_gt_model", num_inliers_gt_model_all_pairs),
+            GtsfmMetric("num_inliers_est_model", np.array(num_inliers_est_model_all_pairs)),
+            GtsfmMetric("num_inliers_gt_model", np.array(num_inliers_gt_model_all_pairs)),
         ],
     )
     return frontend_metrics
@@ -868,6 +868,7 @@ def run_two_view_estimator_as_futures(
             gt_scene_mesh=gt_scene_mesh,
             i1=i1,
             i2=i2,
+            key=f"{i1}-{i2}",
         )
         for (i1, i2), putative_corr_idxs in putative_corr_idxs_dict.items()
     }
