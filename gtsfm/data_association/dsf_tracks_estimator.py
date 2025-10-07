@@ -89,5 +89,5 @@ class DsfTracksEstimator(TracksEstimatorBase):
             "DSF Union-Find: %.2f%% of tracks discarded from multiple obs. in a single image." % erroneous_track_pct
         )
         duration = time.time() - start_time
-        logger.info("DsfTracksEstimator took %.2f sec. to estimate %d tracks.", duration, len(track_2d_list))
+        logger.info("⏱️ DsfTracksEstimator took %.2f sec. to estimate %d tracks.", duration, len(track_2d_list))
         return track_2d_list

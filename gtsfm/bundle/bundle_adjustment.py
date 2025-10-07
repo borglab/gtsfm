@@ -277,6 +277,8 @@ class BundleAdjustmentOptimizer:
 
     def __optimize_factor_graph(self, graph: NonlinearFactorGraph, initial_values: Values) -> Values:
         """Optimize the factor graph."""
+        start_time = time.time()
+
         params = gtsam.LevenbergMarquardtParams()
         params.setVerbosityLM("ERROR")
         params.setOrderingType(self._ordering_type)
@@ -286,6 +288,10 @@ class BundleAdjustmentOptimizer:
         lm = gtsam.LevenbergMarquardtOptimizer(graph, initial_values, params)
 
         result_values = lm.optimize()
+
+        elapsed_time = time.time() - start_time
+        logger.info(f"⏱️ Factor graph optimization completed in {elapsed_time:.2f} seconds.")
+
         return result_values
 
     def __cameras_to_model(

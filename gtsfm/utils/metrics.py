@@ -210,7 +210,7 @@ def compute_keypoint_intersections(
     start_time = timeit.default_timer()
     intersections, keypoint_ind, _ = gt_scene_mesh.ray.intersects_location(src, drc, multiple_hits=False)
     if verbose:
-        logger.debug("Case %d rays in %.6f seconds.", num_keypoints, timeit.default_timer() - start_time)
+        logger.debug("⏱️ Case %d rays in %.6f seconds.", num_keypoints, timeit.default_timer() - start_time)
 
     return keypoint_ind, intersections
 

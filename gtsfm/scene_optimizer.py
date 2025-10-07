@@ -459,7 +459,7 @@ def save_gtsfm_data(
 
     end_time = time.time()
     duration_sec = end_time - start_time
-    logger.info("GtsfmData I/O took %.2f min.", duration_sec / 60.0)
+    logger.info("⏱️ GtsfmData I/O took %.2f min.", duration_sec / 60.0)
 
 
 def save_full_frontend_metrics(
