@@ -65,14 +65,12 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
             Putative correspondence as indices of keypoints, for pairs of images.
         """
 
-        def apply_image_matcher(
-            image_matcher: ImageMatcherBase, image_i1: Image, image_i2: Image
-        ) -> Tuple[Keypoints, Keypoints]:
-            return image_matcher.match(image_i1=image_i1, image_i2=image_i2)
+        def apply_image_matcher(image_matcher: ImageMatcherBase, **kwargs) -> Tuple[Keypoints, Keypoints]:
+            return image_matcher.match(**kwargs)
 
         image_matcher_future = client.scatter(self._matcher, broadcast=False)
         pairwise_correspondence_futures = {
-            (i1, i2): client.submit(apply_image_matcher, image_matcher_future, images[i1], images[i2])
+            (i1, i2): client.submit(apply_image_matcher, image_matcher_future, image_i1=images[i1], image_i2=images[i2])
             for i1, i2 in visibility_graph
         }
 
@@ -112,39 +110,16 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
             Two view output for visibility graph pairs.
         """
 
-        def apply_image_matcher(
-            image_matcher: ImageMatcherBase, image_i1: Image, image_i2: Image
-        ) -> Tuple[Keypoints, Keypoints]:
-            return image_matcher.match(image_i1=image_i1, image_i2=image_i2)
+        def apply_image_matcher(image_matcher: ImageMatcherBase, **kwargs) -> Tuple[Keypoints, Keypoints]:
+            return image_matcher.match(**kwargs)
 
-        def apply_two_view_estimator(
-            two_view_estimator: TwoViewEstimator,
-            keypoints_i1: Keypoints,
-            keypoints_i2: Keypoints,
-            putative_corr_idxs: np.ndarray,
-            camera_intrinsics_i1: CALIBRATION_TYPE,
-            camera_intrinsics_i2: CALIBRATION_TYPE,
-            i2Ti1_prior: Optional[PosePrior],
-            gt_camera_i1: Optional[CAMERA_TYPE],
-            gt_camera_i2: Optional[CAMERA_TYPE],
-            gt_scene_mesh: Optional[Any] = None,
-        ) -> TWO_VIEW_OUTPUT:
-            return two_view_estimator.run_2view(
-                keypoints_i1=keypoints_i1,
-                keypoints_i2=keypoints_i2,
-                putative_corr_idxs=putative_corr_idxs,
-                camera_intrinsics_i1=camera_intrinsics_i1,
-                camera_intrinsics_i2=camera_intrinsics_i2,
-                i2Ti1_prior=i2Ti1_prior,
-                gt_camera_i1=gt_camera_i1,
-                gt_camera_i2=gt_camera_i2,
-                gt_scene_mesh=gt_scene_mesh,
-            )
+        def apply_two_view_estimator(two_view_estimator: TwoViewEstimator, **kwargs) -> TWO_VIEW_OUTPUT:
+            return two_view_estimator.run_2view(**kwargs)
 
         image_matcher_future = client.scatter(self._matcher, broadcast=False)
         two_view_estimator_future = client.scatter(two_view_estimator, broadcast=False)
         pairwise_correspondence_futures = {
-            (i1, i2): client.submit(apply_image_matcher, image_matcher_future, images[i1], images[i2])
+            (i1, i2): client.submit(apply_image_matcher, image_matcher_future, image_i1=images[i1], image_i2=images[i2])
             for i1, i2 in visibility_graph
         }
 
@@ -158,15 +133,17 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
             (i1, i2): client.submit(
                 apply_two_view_estimator,
                 two_view_estimator_future,
-                keypoints_list[i1],
-                keypoints_list[i2],
-                putative_corr_idxs_dict[(i1, i2)],
-                camera_intrinsics[i1],
-                camera_intrinsics[i2],
-                relative_pose_priors.get((i1, i2)),
-                gt_cameras[i1],
-                gt_cameras[i2],
-                gt_scene_mesh,
+                keypoints1=keypoints_list[i1],
+                keypoints2=keypoints_list[i2],
+                putative_corr_idxs=putative_corr_idxs_dict[(i1, i2)],
+                camera_intrinsics_i1=camera_intrinsics[i1],
+                camera_intrinsics_i2=camera_intrinsics[i2],
+                i2Ti1_prior=relative_pose_priors.get((i1, i2)),
+                gt_camera_i1=gt_cameras[i1],
+                gt_camera_i2=gt_cameras[i2],
+                gt_scene_mesh=gt_scene_mesh,
+                i1=i1,
+                i2=i2,
             )
             for (i1, i2) in visibility_graph
         }
