@@ -117,6 +117,7 @@ class TwoViewEstimator(DaskDBModuleBase):
 
     def _initialize_two_view_schema(self) -> bool:
         """Initialize two-view estimation database tables"""
+        assert self.db is not None, "Database connection not initialized"
         try:
             # Create two-view results table
             if not self.db.execute(self._get_two_view_results_table_ddl()):
@@ -622,6 +623,7 @@ class TwoViewEstimator(DaskDBModuleBase):
             VALUES (%s, %s, %s, %s, %s, %s, %s)
             """
 
+        assert self.db is not None, "Database connection should be available here"
         success = self.db.execute(
             report_query,
             (
@@ -914,7 +916,7 @@ def run_two_view_estimator_as_futures(
     logger.info("Waiting for all tasks to complete...")
 
     try:
-        two_view_output_dict = client.gather(two_view_output_futures, errors="skip")
+        two_view_output_dict = client.gather(two_view_output_futures, errors="raise")
         logger.info("Gathered %d results", len(two_view_output_dict))
         return two_view_output_dict
     except Exception as e:

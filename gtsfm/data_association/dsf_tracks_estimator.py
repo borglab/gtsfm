@@ -11,7 +11,7 @@ Authors: Ayush Baid, Sushmita Warrier, John Lambert, Travis Driver
 import time
 from typing import Dict, List, Tuple
 
-import gtsam
+import gtsam  # type: ignore
 import numpy as np
 
 import gtsfm.utils.logger as logger_utils

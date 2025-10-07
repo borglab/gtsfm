@@ -111,8 +111,8 @@ class DataAssociation(GTSFMProcess):
         # Track lengths w/o triangulation check.
         track_lengths_2d = np.array(list(map(lambda x: int(x.number_measurements()), tracks_2d)), dtype=np.uint32)
 
-        logger.debug("[Data association] input number of tracks: %s", len(tracks_2d))
-        logger.debug("[Data association] input avg. track length: %s", np.mean(track_lengths_2d))
+        logger.debug("Input number of tracks: %s", len(tracks_2d))
+        logger.debug("Input avg. track length: %s", np.mean(track_lengths_2d))
 
         # Form GtsfmData object after triangulation.
         triangulated_data = GtsfmData(num_images)
@@ -170,8 +170,8 @@ class DataAssociation(GTSFMProcess):
         mean_3d_track_length, median_3d_track_length = connected_data.get_track_length_statistics()
         track_lengths_3d = connected_data.get_track_lengths()
 
-        logger.debug("[Data association] output number of tracks: %s", num_accepted_tracks)
-        logger.debug("[Data association] output avg. track length: %.2f", mean_3d_track_length)
+        logger.debug("output number of tracks: %s", num_accepted_tracks)
+        logger.debug("output avg. track length: %.2f", mean_3d_track_length)
 
         data_assoc_metrics = GtsfmMetricsGroup(
             "data_association_metrics",
@@ -317,7 +317,7 @@ class DataAssociation(GTSFMProcess):
         data_assoc_metrics.add_metric(GtsfmMetric("triangulation_runtime_sec", triangulation_runtime_sec))
         data_assoc_metrics.add_metric(GtsfmMetric("gtsfm_data_creation_runtime", gtsfm_data_creation_runtime))
         data_assoc_metrics.add_metric(GtsfmMetric("total_duration_sec", total_duration_sec))
-        logger.info("🚀 [Data association] runtime duration: %.2f sec.", total_duration_sec)
+        logger.info("🚀 runtime duration: %.2f sec.", total_duration_sec)
         return ba_input, data_assoc_metrics
 
     def create_computation_graph(
