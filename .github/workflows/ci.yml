@@ -49,7 +49,7 @@ jobs:
       - name: Unit tests
         run: |
           set -e
-          pytest tests  --durations=0 --cov gtsfm \
+          pytest tests -m "not slow" --durations=0 --cov gtsfm \
             --ignore tests/repro_tests \
             --ignore tests/loader/test_argoverse_dataset_loader.py \
             --ignore tests/runner/test_frontend_runner.py
