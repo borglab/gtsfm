@@ -92,7 +92,7 @@ class BinaryTreePartition(GraphPartitionerBase):
 
         partition_details, inter_partition_edges = self._compute_leaf_partition_details(binary_tree_root_node, nx_graph)
 
-        logger.info(f"BinaryTreePartition: partitioned into {len(partition_details)} leaf nodes.")
+        logger.info("%d leaf nodes.", len(partition_details))
 
         for i in range(num_leaves):
             intra_partition_edges = partition_details[i].get("intra_partition_edges", [])
@@ -102,11 +102,8 @@ class BinaryTreePartition(GraphPartitionerBase):
             exclusive_keys = part.get("exclusive_keys", [])
             intra_edges = part.get("intra_partition_edges", [])
 
-            logger.info(
-                f"Partition {i}:"
-                f"  Exclusive Image Keys ({len(exclusive_keys)}): {sorted(exclusive_keys)}\n"
-                f"  Intra-partition Edges ({len(intra_edges)}): {intra_edges}\n"
-            )
+            logger.info("Partition %d: keys (%d): %s", i, len(exclusive_keys), sorted(exclusive_keys))
+            logger.info("Partition %d: intra-partition Edges (%d): %s", i, len(intra_edges), intra_edges)
 
         self.inter_partition_edges_map = {(i, j): edges for (i, j), edges in inter_partition_edges.items() if edges}
 
