@@ -9,6 +9,7 @@ import timeit
 from typing import Any, Dict, List, Optional, Tuple
 import json
 import socket
+import sys
 import time
 from datetime import datetime
 
@@ -553,12 +554,7 @@ class TwoViewEstimator(DaskDBModuleBase):
         success = post_isp_i2Ri1 is not None and post_isp_i2Ui1 is not None
         verified_corr_count = len(post_isp_v_corr_idxs) if post_isp_v_corr_idxs is not None else 0
 
-        # Convert numpy scalar to Python float to ensure PostgreSQL compatibility
-        # psycopg2 cannot properly serialize numpy.float64, causing "schema np does not exist" errors
         inlier_ratio = post_isp_report.inlier_ratio_est_model if post_isp_report else None
-        if inlier_ratio is not None:
-            inlier_ratio = float(inlier_ratio)
-
         rotation_matrix = self.serialize_data(post_isp_i2Ri1.matrix() if post_isp_i2Ri1 else None)
         translation_direction = self.serialize_data(post_isp_i2Ui1.point3() if post_isp_i2Ui1 else None)
 
@@ -569,7 +565,6 @@ class TwoViewEstimator(DaskDBModuleBase):
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
 
-        # Ensure all numeric parameters are Python native types (not numpy scalars)
         success = self.db.execute(
             insert_query,
             (
@@ -607,19 +602,10 @@ class TwoViewEstimator(DaskDBModuleBase):
         """
         logger.debug(f"Storing detailed reports for pair ({i1}, {i2})")
 
-        # Extract inlier ratios and convert numpy scalars to Python floats
-        # This prevents PostgreSQL serialization errors with numpy types
+        # Extract inlier ratios (already Python floats from generate_two_view_report)
         pre_ba_inlier_ratio = pre_ba_report.inlier_ratio_est_model if pre_ba_report else None
-        if pre_ba_inlier_ratio is not None:
-            pre_ba_inlier_ratio = float(pre_ba_inlier_ratio)
-
         post_ba_inlier_ratio = post_ba_report.inlier_ratio_est_model if post_ba_report else None
-        if post_ba_inlier_ratio is not None:
-            post_ba_inlier_ratio = float(post_ba_inlier_ratio)
-
         post_isp_inlier_ratio = post_isp_report.inlier_ratio_est_model if post_isp_report else None
-        if post_isp_inlier_ratio is not None:
-            post_isp_inlier_ratio = float(post_isp_inlier_ratio)
 
         # Serialize report data
         report_data = {
@@ -636,7 +622,6 @@ class TwoViewEstimator(DaskDBModuleBase):
             VALUES (%s, %s, %s, %s, %s, %s, %s)
             """
 
-        # Ensure image indices are Python int type
         success = self.db.execute(
             report_query,
             (
@@ -683,17 +668,27 @@ def generate_two_view_report(
 
     # Generate report.
     two_view_report = TwoViewEstimationReport(
-        inlier_ratio_est_model=inlier_ratio_est_model,
+        inlier_ratio_est_model=float(inlier_ratio_est_model),
         num_inliers_est_model=v_corr_idxs.shape[0],
         num_inliers_gt_model=num_inliers_gt_model,
-        inlier_ratio_gt_model=inlier_ratio_gt_model,
+        inlier_ratio_gt_model=(
+            float(inlier_ratio_gt_model) if not isinstance(inlier_ratio_gt_model, float) else inlier_ratio_gt_model
+        ),
         v_corr_idxs_inlier_mask_gt=v_corr_idxs_inlier_mask_gt,
         v_corr_idxs=v_corr_idxs,
-        R_error_deg=R_error_deg,
-        U_error_deg=U_error_deg,
+        R_error_deg=float(R_error_deg) if R_error_deg is not None else None,
+        U_error_deg=float(U_error_deg) if U_error_deg is not None else None,
         reproj_error_gt_model=reproj_error_gt_model,
-        inlier_avg_reproj_error_gt_model=inlier_avg_reproj_error_gt_model,
-        outlier_avg_reproj_error_gt_model=outlier_avg_reproj_error_gt_model,
+        inlier_avg_reproj_error_gt_model=(
+            float(inlier_avg_reproj_error_gt_model)
+            if not isinstance(inlier_avg_reproj_error_gt_model, float)
+            else inlier_avg_reproj_error_gt_model
+        ),
+        outlier_avg_reproj_error_gt_model=(
+            float(outlier_avg_reproj_error_gt_model)
+            if not isinstance(outlier_avg_reproj_error_gt_model, float)
+            else outlier_avg_reproj_error_gt_model
+        ),
     )
     return two_view_report
 
@@ -859,11 +854,11 @@ def run_two_view_estimator_as_futures(
         i1: Optional[int] = None,
         i2: Optional[int] = None,
     ) -> TWO_VIEW_OUTPUT:
-        import socket
-        import sys
 
         worker_name = socket.gethostname()
-        print(f"[WORKER {worker_name}] Processing pair ({i1}, {i2})")
+        logger = logging.getLogger(__name__)
+
+        logger.info(f"[WORKER {worker_name}] Processing pair ({i1}, {i2})")
         sys.stdout.flush()
 
         result = two_view_estimator.run_2view(
@@ -880,16 +875,17 @@ def run_two_view_estimator_as_futures(
             i2=i2,
         )
 
-        print(f"[WORKER {worker_name}] Completed pair ({i1}, {i2})")
+        logger.info(f"[WORKER {worker_name}] Completed pair ({i1}, {i2})")
         return result
 
-    print("Submitting tasks directly to workers (no scatter needed)...")
+    logger = logging.getLogger(__name__)
+    logger.info("Submitting tasks directly to workers ...")
 
     # Submit tasks with image indices passed as separate parameters
     two_view_output_futures = {
         (i1, i2): client.submit(
             apply_two_view_estimator,
-            two_view_estimator,  # Pass directly - no scatter/broadcast
+            two_view_estimator,
             keypoints_list[i1],
             keypoints_list[i2],
             putative_corr_idxs,
@@ -905,17 +901,15 @@ def run_two_view_estimator_as_futures(
         for (i1, i2), putative_corr_idxs in putative_corr_idxs_dict.items()
     }
 
-    print(f"Submitted {len(two_view_output_futures)} tasks to workers")
-
-    print("Waiting for all tasks to complete...")
+    logger.info(f"Submitted {len(two_view_output_futures)} tasks to workers")
+    logger.info("Waiting for all tasks to complete...")
 
     try:
         two_view_output_dict = client.gather(two_view_output_futures, errors="raise")
-        print(f"Gathered {len(two_view_output_dict)} results")
+        logger.info(f"Gathered {len(two_view_output_dict)} results")
         return two_view_output_dict
     except Exception as e:
-        print(f"Error during gather: {e}")
-
+        logger.error(f"Error during gather: {e}")
         return {}
 
 
