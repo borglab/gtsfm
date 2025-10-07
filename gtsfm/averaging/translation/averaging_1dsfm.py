@@ -18,7 +18,7 @@ from enum import Enum
 from typing import Any, DefaultDict, Dict, List, Optional, Set, Tuple
 
 import dask
-import gtsam
+import gtsam  # type: ignore
 import numpy as np
 from distributed.worker import get_client
 from gtsam import (
@@ -44,7 +44,7 @@ from gtsfm.averaging.translation.translation_averaging_base import TranslationAv
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
-from gtsfm.products.visibility_graph import ImageIndexPairs
+from gtsfm.products.visibility_graph import AnnotatedVisibilityGraph, ImageIndexPair, ImageIndexPairs
 
 # Hyperparameters for 1D-SFM
 # maximum number of times 1dsfm will project the Unit3's to a 1d subspace for outlier rejection
@@ -72,7 +72,7 @@ logger = logger_utils.get_logger()
 C = symbol_shorthand.A  # for camera translation variables
 L = symbol_shorthand.B  # for track (landmark) translation variables
 
-RelativeDirectionsDict = Dict[Tuple[int, int], Unit3]
+RelativeDirectionsDict = AnnotatedVisibilityGraph[Unit3]
 DUMMY_NOISE_MODEL = gtsam.noiseModel.Isotropic.Sigma(3, 1e-2)  # MFAS does not use this.
 
 
@@ -158,7 +158,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
     def _binary_measurements_from_dict(
         w_i2Ui1_dict: RelativeDirectionsDict,
         w_iUj_dict_tracks: RelativeDirectionsDict,
-        noise_model: gtsam.noiseModel,
+        noise_model: gtsam.noiseModel.Base,
     ) -> BinaryMeasurementsUnit3:
         """Gets a list of BinaryMeasurementUnit3 by combining measurements in w_i2Ui1_dict and w_i2Ui1_dict_tracks.
 
@@ -179,7 +179,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         return w_i1Ui2_measurements
 
     def _binary_measurements_from_priors(
-        self, i2Ti1_priors: Dict[Tuple[int, int], PosePrior], wRi_list: List[Rot3]
+        self, i2Ti1_priors: AnnotatedVisibilityGraph[PosePrior], wRi_list: List[Rot3]
     ) -> BinaryMeasurementsPoint3:
         """Converts the priors from relative Pose3 priors to relative Point3 measurements in world frame.
 
@@ -218,7 +218,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         w_i2Ui1_dict: RelativeDirectionsDict,
         w_iUj_dict_tracks: RelativeDirectionsDict,
         directions: List[Unit3],
-    ) -> Dict[Tuple[int, int], float]:
+    ) -> AnnotatedVisibilityGraph[float]:
         """Runs MFAS on a batch of directions."""
         w_i1Ui2_measurements = TranslationAveraging1DSFM._binary_measurements_from_dict(
             w_i2Ui1_dict, w_iUj_dict_tracks, DUMMY_NOISE_MODEL
@@ -229,7 +229,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             #   KeyPairDoubleMap objects.
             results.append(dict(MFAS(w_i1Ui2_measurements, dir).computeOutlierWeights()))
 
-        return results
+        return results  # TODO(akshay-krishnan):result is supposed to be dict but returns list
 
     def compute_inliers(
         self,
@@ -284,7 +284,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         logger.info("🚀 Computed outlier weights using MFAS in %.2f seconds." % (timeit.default_timer() - _t2))
 
         # Compute average outlier weight.
-        outlier_weights_sum: DefaultDict[Tuple[int, int], float] = defaultdict(float)
+        outlier_weights_sum: DefaultDict[ImageIndexPair, float] = defaultdict(float)
         inliers = set()
         for batch_outlier_weights in batched_outlier_weights:
             for outlier_weight_dict in batch_outlier_weights:
@@ -371,7 +371,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         improvement = [t.number_measurements() for t in filtered_tracks]  # how much cover each track would add
 
         # preparation: make a lookup from camera to tracks in the camera
-        camera_track_lookup = {c: [] for c in valid_cameras}
+        camera_track_lookup: Dict[int, List[int]] = {c: [] for c in valid_cameras}
 
         for track_id, track in enumerate(filtered_tracks):
             for j in range(track.number_measurements()):
@@ -422,12 +422,15 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 measurement = track.measurement(j)
                 cam_idx = measurement.i
 
-                if intrinsics[cam_idx] is None or wRi_list[cam_idx] is None:
-                    raise ValueError("Camera intrinsics or rotation cannot be None for input track measurements")
+                # TODO(akshay-krishnan): consider changing input type and checking elsewhere
+                intrinsics_i = intrinsics[cam_idx]
+                wRi = wRi_list[cam_idx]
+                assert wRi is not None, "Camera must have valid rotation to use tracks for averaging."
+                assert intrinsics_i is not None, "Camera must be calibrated to use tracks for averaging."
 
-                measurement_xy = intrinsics[cam_idx].calibrate(measurement.uv)
-                measurement_homog = Point3(measurement_xy[0], measurement_xy[1], 1.0)
-                w_cam_U_track = Unit3(wRi_list[cam_idx].rotate(Unit3(measurement_homog).point3()))
+                measurement_xy = intrinsics_i.calibrate(measurement.uv)
+                measurement_homogeneous = Point3(measurement_xy[0], measurement_xy[1], 1.0)
+                w_cam_U_track = Unit3(wRi.rotate(Unit3(measurement_homogeneous).point3()))
 
                 # Direction starts at camera, but first index is track_id.
                 landmark_directions[(track_id, cam_idx)] = w_cam_U_track
@@ -439,10 +442,10 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         w_i2Ui1_dict: RelativeDirectionsDict,
         w_i2Ui1_dict_tracks: RelativeDirectionsDict,
         wRi_list: List[Optional[Rot3]],
-        i2Ti1_priors: Dict[Tuple[int, int], PosePrior],
+        i2Ti1_priors: AnnotatedVisibilityGraph[PosePrior],
         absolute_pose_priors: List[Optional[PosePrior]],
         scale_factor: float,
-    ) -> List[Optional[Point3]]:
+    ) -> List[Optional[np.ndarray]]:
         """Runs the averaging optimization.
 
         Args:
@@ -452,7 +455,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             wRi_list: camera rotations in world frame.
             i2Ti1_priors: relative pose priors.
             absolute_pose_priors: absolute pose priors.
-            scale_factor: scale factor for the esimated translations.
+            scale_factor: scale factor for the estimated translations.
 
         Returns:
             List of camera translations in world frame, with as many entries as the number of images.
@@ -485,7 +488,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             wti_values = algorithm.run(scale_factor)
 
         # Transforms the result to a list of Point3 objects.
-        wti_list: List[Optional[Point3]] = [None] * num_images
+        wti_list: List[Optional[np.ndarray]] = [None] * num_images
         for i in range(num_images):
             if wRi_list[i] is not None and wti_values.exists(C(i)):
                 wti_list[i] = wti_values.atPoint3(C(i))
@@ -495,12 +498,12 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
     def run_translation_averaging(
         self,
         num_images: int,
-        i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]],
+        i2Ui1_dict: AnnotatedVisibilityGraph[Optional[Unit3]],
         wRi_list: List[Optional[Rot3]],
         tracks_2d: Optional[List[SfmTrack2d]] = None,
         intrinsics: Optional[List[Optional[gtsfm_types.CALIBRATION_TYPE]]] = None,
         absolute_pose_priors: List[Optional[PosePrior]] = [],
-        i2Ti1_priors: Dict[Tuple[int, int], PosePrior] = {},
+        i2Ti1_priors: Dict[ImageIndexPair, PosePrior] = {},
         scale_factor: float = 1.0,
         gt_wTi_list: List[Optional[Pose3]] = [],
     ) -> Tuple[List[Optional[Pose3]], Optional[GtsfmMetricsGroup], Optional[ImageIndexPairs]]:
@@ -584,11 +587,11 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
 
 def compute_metrics(
-    inlier_i1_i2_pairs: Set[Tuple[int, int]],
-    i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]],
-    w_i2Ui1_dict_tracks: Dict[Tuple[int, int], Optional[Unit3]],
+    inlier_i1_i2_pairs: Set[ImageIndexPair],
+    i2Ui1_dict: AnnotatedVisibilityGraph[Optional[Unit3]],
+    w_i2Ui1_dict_tracks: AnnotatedVisibilityGraph[Optional[Unit3]],
     wRi_list: List[Optional[Rot3]],
-    wti_list: List[Optional[Point3]],
+    wti_list: List[Optional[np.ndarray]],
     gt_wTi_list: List[Optional[Pose3]],
 ) -> GtsfmMetricsGroup:
     """Computes the translation averaging metrics as a metrics group.
@@ -651,8 +654,8 @@ def compute_metrics(
                 GtsfmMetric("num_outlier_1dsfm_measurements", len(outlier_i1_i2_pairs)),
                 GtsfmMetric("1dsfm_precision_" + threshold_suffix, precision),
                 GtsfmMetric("1dsfm_recall_" + threshold_suffix, recall),
-                GtsfmMetric("1dsfm_inlier_angular_errors_deg", inlier_angular_errors),
-                GtsfmMetric("1dsfm_outlier_angular_errors_deg", outlier_angular_errors),
+                GtsfmMetric("1dsfm_inlier_angular_errors_deg", np.array(inlier_angular_errors)),
+                GtsfmMetric("1dsfm_outlier_angular_errors_deg", np.array(outlier_angular_errors)),
             ]
         )
 
@@ -680,7 +683,7 @@ def compute_metrics(
 
 
 def get_valid_measurements_in_world_frame(
-    i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]], wRi_list: List[Optional[Rot3]]
+    i2Ui1_dict: AnnotatedVisibilityGraph[Optional[Unit3]], wRi_list: List[Optional[Rot3]]
 ) -> Tuple[RelativeDirectionsDict, Set[int]]:
     """Returns measurements for which both cameras have valid rotations, transformed to the world frame.
 
