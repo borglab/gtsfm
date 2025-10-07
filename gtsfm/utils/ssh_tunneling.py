@@ -74,6 +74,12 @@ class SSHTunnelManager:
             if "SSH_USERNAME" in os.environ:
                 config["username"] = os.environ["SSH_USERNAME"]
 
+            # Add conda environment override
+            if "CONDA_ENV_NAME" in os.environ:
+                config["conda_env"] = os.environ["CONDA_ENV_NAME"]
+            elif "conda_env" not in config:
+                config["conda_env"] = "gtsfm-v1"  # Default fallback value
+
             # Define required environment variables for database
             REQUIRED_DB_ENV_VARS = {
                 "POSTGRES_HOST": "database host",
@@ -275,13 +281,14 @@ class SSHTunnelManager:
         """
         scheduler_port = self.config["scheduler"]["port"]
         dashboard_port = self.config["scheduler"]["dashboard"]
+        conda_env = self.config["conda_env"]
 
         logger.info("Starting Dask scheduler...")
         dask_scheduler_cmd = [
             "conda",
             "run",
             "-n",
-            "gtsfm-v1",
+            conda_env,  # Use configured environment name
             "dask-scheduler",
             "--host",
             "localhost",
@@ -332,6 +339,7 @@ class SSHTunnelManager:
         scheduler_port = self.config["scheduler"]["port"]
         workers = self.config["workers"]  # Now a dict {hostname: port}
         worker_procs = []
+        conda_env = self.config["conda_env"]  # Get configured environment name
 
         for hostname, worker_port in workers.items():
             server_address = f"{username}@{hostname}"
@@ -341,7 +349,7 @@ class SSHTunnelManager:
                 f"ssh -t {server_address} 'bash -c \""
                 f"export PATH=/home/{username}/miniconda3/bin:$PATH && "
                 f"source /home/{username}/miniconda3/etc/profile.d/conda.sh && "
-                "conda activate gtsfm-v1 && "
+                f"conda activate {conda_env} && "  # Use configured environment name
                 f"dask-worker tcp://localhost:{scheduler_port} "
                 f"--listen-address tcp://0.0.0.0:{worker_port} "
                 f"--contact-address tcp://localhost:{worker_port} "
