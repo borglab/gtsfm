@@ -26,10 +26,14 @@ import time
 
 import yaml
 from dotenv import load_dotenv
+import logging
 
 from typing import Any, Dict, List, Optional, Tuple
 
 load_dotenv()
+
+# Set up logger for this module
+logger = logging.getLogger(__name__)
 
 
 class SSHTunnelManager:
@@ -70,25 +74,44 @@ class SSHTunnelManager:
             if "SSH_USERNAME" in os.environ:
                 config["username"] = os.environ["SSH_USERNAME"]
 
-            # Load workers from environment variable
+            # Define required environment variables for database
+            REQUIRED_DB_ENV_VARS = {
+                "POSTGRES_HOST": "database host",
+                "POSTGRES_PORT": "database port",
+                "POSTGRES_DATABASE": "database name",
+                "POSTGRES_USER": "database user",
+                "POSTGRES_PASSWORD": "database password",
+            }
+
+            def validate_db_environment():
+                """Validate that all required database environment variables are set."""
+                missing_vars = []
+                for var, description in REQUIRED_DB_ENV_VARS.items():
+                    if var not in os.environ:
+                        missing_vars.append(f"{var} ({description})")
+
+                if missing_vars:
+                    raise EnvironmentError(
+                        f"Missing required database environment variables: {', '.join(missing_vars)}"
+                    )
+
+            # Validate all required database environment variables are present
+            validate_db_environment()
+
+            # Now safely set the config values knowing they exist
+            config["database"]["host"] = os.environ["POSTGRES_HOST"]
+            config["database"]["port"] = int(os.environ["POSTGRES_PORT"])
+            config["database"]["database"] = os.environ["POSTGRES_DATABASE"]
+            config["database"]["user"] = os.environ["POSTGRES_USER"]
+            config["database"]["password"] = os.environ["POSTGRES_PASSWORD"]
+
+            # For DASK_WORKERS, since it's optional, we can keep the existing check
             if "DASK_WORKERS" in os.environ:
                 config["workers"] = json.loads(os.environ["DASK_WORKERS"])
 
-            if "database" in config:
-                if "POSTGRES_HOST" in os.environ:
-                    config["database"]["host"] = os.environ["POSTGRES_HOST"]
-                if "POSTGRES_PORT" in os.environ:
-                    config["database"]["port"] = int(os.environ["POSTGRES_PORT"])
-                if "POSTGRES_DATABASE" in os.environ:
-                    config["database"]["database"] = os.environ["POSTGRES_DATABASE"]
-                if "POSTGRES_USER" in os.environ:
-                    config["database"]["user"] = os.environ["POSTGRES_USER"]
-                if "POSTGRES_PASSWORD" in os.environ:
-                    config["database"]["password"] = os.environ["POSTGRES_PASSWORD"]
-
             return config
         except Exception as e:
-            print(f"Error loading configuration: {e}")
+            logger.error(f"Error loading configuration: {e}")
             raise
 
     def check_port_in_use(self, port: int) -> bool:
@@ -124,7 +147,7 @@ class SSHTunnelManager:
 
             for pid in pids:
                 if pid:
-                    print(f"Killing process {pid} using port {port}")
+                    logger.info(f"Killing process {pid} using port {port}")
                     try:
                         os.kill(int(pid), signal.SIGTERM)
                     except ProcessLookupError:
@@ -134,11 +157,11 @@ class SSHTunnelManager:
             for i in range(max_wait):
                 time.sleep(1)
                 if not self.check_port_in_use(port):
-                    print(f"Port {port} successfully freed after {i+1} seconds")
+                    logger.info(f"Port {port} successfully freed after {i+1} seconds")
                     return True
 
             # If still in use, try SIGKILL
-            print(f"Port {port} still in use after SIGTERM, trying SIGKILL...")
+            logger.warning(f"Port {port} still in use after SIGTERM, trying SIGKILL...")
             result = subprocess.run(["lsof", "-i", f":{port}", "-t"], capture_output=True, text=True)
             pids = result.stdout.strip().split("\n")
             for pid in pids:
@@ -153,7 +176,7 @@ class SSHTunnelManager:
             return not self.check_port_in_use(port)
 
         except Exception as e:
-            print(f"Error killing process on port {port}: {e}")
+            logger.error(f"Error killing process on port {port}: {e}")
             return False
 
     def cleanup(self):
@@ -176,7 +199,7 @@ class SSHTunnelManager:
                         p.kill()
                     except Exception:
                         pass
-        print("All SSH tunnel processes cleaned up.")
+        logger.info("All SSH tunnel processes cleaned up.")
 
     def setup_ssh_tunnels(self) -> None:
         """
@@ -206,7 +229,7 @@ class SSHTunnelManager:
 
         for port in ports_to_check:
             if self.check_port_in_use(port):
-                print(f"Port {port} is in use. Attempting to free it...")
+                logger.info(f"Port {port} is in use. Attempting to free it...")
                 if not self.kill_process_on_port(port):
                     raise RuntimeError(f"Failed to free port {port}")
                 time.sleep(3)
@@ -215,7 +238,7 @@ class SSHTunnelManager:
         for hostname, worker_port in workers.items():
             server_address = f"{username}@{hostname}"
 
-            print(f"Establishing SSH tunnel to {hostname}...")
+            logger.info(f"Establishing SSH tunnel to {hostname}...")
             ssh_tunnel_cmd = [
                 "ssh",
                 "-N",
@@ -231,7 +254,7 @@ class SSHTunnelManager:
 
             ssh_tunnel_proc = subprocess.Popen(ssh_tunnel_cmd)
             self.processes.append(ssh_tunnel_proc)
-            print(f"SSH tunnel established. Process ID: {ssh_tunnel_proc.pid}")
+            logger.info(f"SSH tunnel established. Process ID: {ssh_tunnel_proc.pid}")
             time.sleep(3)
 
     def start_dask_scheduler(self) -> subprocess.Popen:
@@ -253,7 +276,7 @@ class SSHTunnelManager:
         scheduler_port = self.config["scheduler"]["port"]
         dashboard_port = self.config["scheduler"]["dashboard"]
 
-        print("Starting Dask scheduler...")
+        logger.info("Starting Dask scheduler...")
         dask_scheduler_cmd = [
             "conda",
             "run",
@@ -271,16 +294,16 @@ class SSHTunnelManager:
 
         dask_scheduler_proc = subprocess.Popen(dask_scheduler_cmd)
         self.processes.append(dask_scheduler_proc)
-        print(f"Dask scheduler started. Process ID: {dask_scheduler_proc.pid}")
+        logger.info(f"Dask scheduler started. Process ID: {dask_scheduler_proc.pid}")
 
         time.sleep(5)
 
         max_retries = 10
         for i in range(max_retries):
             if self.check_port_in_use(scheduler_port):
-                print(f"Scheduler health check passed on attempt {i+1}")
+                logger.info(f"Scheduler health check passed on attempt {i+1}")
                 break
-            print(f"Waiting for scheduler to start... attempt {i+1}/{max_retries}")
+            logger.info(f"Waiting for scheduler to start... attempt {i+1}/{max_retries}")
             time.sleep(2)
         else:
             raise RuntimeError("Scheduler failed to start properly")
@@ -313,7 +336,7 @@ class SSHTunnelManager:
         for hostname, worker_port in workers.items():
             server_address = f"{username}@{hostname}"
 
-            print(f"Starting Dask worker on remote server {hostname}...")
+            logger.info(f"Starting Dask worker on remote server {hostname}...")
             remote_cmd = (
                 f"ssh -t {server_address} 'bash -c \""
                 f"export PATH=/home/{username}/miniconda3/bin:$PATH && "
@@ -331,9 +354,9 @@ class SSHTunnelManager:
             dask_worker_proc = subprocess.Popen(remote_cmd, shell=True)
             self.processes.append(dask_worker_proc)
             worker_procs.append(dask_worker_proc)
-            print(f"Remote Dask worker started on {hostname}. Process ID: {dask_worker_proc.pid}")
-            print(f"  - Worker will listen on port {worker_port}")
-            print(f"  - Connecting to scheduler at tcp://localhost:{scheduler_port}")
+            logger.info(f"Remote Dask worker started on {hostname}. Process ID: {dask_worker_proc.pid}")
+            logger.info(f"  - Worker will listen on port {worker_port}")
+            logger.info(f"  - Connecting to scheduler at tcp://localhost:{scheduler_port}")
             time.sleep(5)  # Increased wait time for worker to stabilize
 
         return worker_procs
@@ -356,16 +379,16 @@ class SSHTunnelManager:
         Raises:
             RuntimeError: If any step of the infrastructure setup fails
         """
-        print("Setting up SSH tunnels...")
+        logger.info("Setting up SSH tunnels...")
         self.setup_ssh_tunnels()
 
         self.start_dask_scheduler()
 
-        print("Starting remote workers...")
+        logger.info("Starting remote workers...")
         self.start_remote_workers()
 
         scheduler_port = self.config["scheduler"]["port"]
-        print(f"Infrastructure setup complete. Scheduler at localhost:{scheduler_port}")
+        logger.info(f"Infrastructure setup complete. Scheduler at localhost:{scheduler_port}")
         return scheduler_port
 
 
