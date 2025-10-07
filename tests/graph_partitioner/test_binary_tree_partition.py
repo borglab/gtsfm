@@ -49,7 +49,7 @@ class TestBinaryTreePartition(unittest.TestCase):
     def test_partition_leaf_count(self):
         """Test that partitioner creates the correct number of leaf partitions."""
         partitioner = BinaryTreePartition(max_depth=2)
-        partitions = partitioner.partition_image_pairs(self.image_pairs)
+        partitions = partitioner.run(self.image_pairs)
         assert partitioner.max_depth is not None
         expected_num_leaves = 2**partitioner.max_depth
         self.assertEqual(len(partitions), expected_num_leaves)
@@ -57,7 +57,7 @@ class TestBinaryTreePartition(unittest.TestCase):
     def test_no_duplicate_undirected_edges(self):
         """Test that undirected edges are not duplicated (e.g., both (u,v) and (v,u))."""
         partitioner = BinaryTreePartition(max_depth=2)
-        partitions = partitioner.partition_image_pairs(self.image_pairs)
+        partitions = partitioner.run(self.image_pairs)
         undirected_edges = set()
         for partition in partitions:
             for u, v in partition:
@@ -68,7 +68,7 @@ class TestBinaryTreePartition(unittest.TestCase):
     def test_edge_validity(self):
         """Test that all edges are valid integer indices within the image grid."""
         partitioner = BinaryTreePartition(max_depth=2)
-        partitions = partitioner.partition_image_pairs(self.image_pairs)
+        partitions = partitioner.run(self.image_pairs)
         for partition in partitions:
             for u, v in partition:
                 self.assertIsInstance(u, int)
@@ -81,21 +81,21 @@ class TestBinaryTreePartition(unittest.TestCase):
     def test_non_empty_partitions(self):
         """Test that at least one partition contains edges."""
         partitioner = BinaryTreePartition(max_depth=2)
-        partitions = partitioner.partition_image_pairs(self.image_pairs)
+        partitions = partitioner.run(self.image_pairs)
         non_empty_count = sum(1 for p in partitions if len(p) > 0)
         self.assertGreater(non_empty_count, 0)
 
     def test_empty_input(self):
         """Test that empty image pair input returns an empty partition list."""
         partitioner = BinaryTreePartition(max_depth=2)
-        partitions = partitioner.partition_image_pairs([])
+        partitions = partitioner.run([])
         self.assertEqual(partitions, [])
 
     def test_known_input_partition(self):
         """Test partitioning of a simple known image pair set."""
         image_pairs = [(0, 1), (1, 2), (2, 3)]
         partitioner = BinaryTreePartition(max_depth=1)
-        partitions = partitioner.partition_image_pairs(image_pairs)
+        partitions = partitioner.run(image_pairs)
         inter = partitioner.get_inter_partition_edges()
 
         # Check number of partitions

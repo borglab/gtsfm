@@ -6,7 +6,7 @@ Authors: Zongyue Liu
 from abc import abstractmethod
 
 import gtsfm.utils.logger as logger_utils
-from gtsfm.products.visibility_graph import ImageIndexPairs
+from gtsfm.products.visibility_graph import VisibilityGraph
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 logger = logger_utils.get_logger()
@@ -15,8 +15,8 @@ logger = logger_utils.get_logger()
 class GraphPartitionerBase(GTSFMProcess):
     """Base class for all graph partitioners in GTSFM.
 
-    Graph partitioners take a set of image pairs and
-    divide them into subgraphs to be processed independently.
+    Graph partitioners take a set of visibility graph and
+    partitions it into subgraphs to be processed independently.
     """
 
     def __init__(self, process_name: str = "GraphPartitioner"):
@@ -37,18 +37,18 @@ class GraphPartitionerBase(GTSFMProcess):
         """
         return UiMetadata(
             display_name="Graph Partitioner",
-            input_products=("Image Pair Indices",),
+            input_products=("Visibility Graph",),
             output_products=("Subgraphs",),
             parent_plate="Preprocessing",
         )
 
     @abstractmethod
-    def partition_image_pairs(self, image_pairs: ImageIndexPairs) -> list[ImageIndexPairs]:
-        """Partition a set of image pairs into subgraphs.
+    def run(self, graph: VisibilityGraph) -> list[VisibilityGraph]:
+        """Partition a set of visibility graph into subgraphs.
 
         Args:
-            image_pairs: List of image pairs (i,j) where i < j.
+            graph: a visibility graph.
         Returns:
-            List of subgraphs, where each subgraph is a list of image pairs.
+            List of subgraphs, where each subgraph is a visibility graph.
         """
         pass

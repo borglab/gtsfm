@@ -21,7 +21,7 @@ from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggreg
     KeypointAggregatorUnique,
 )
 from gtsfm.frontend.matcher.image_matcher_base import ImageMatcherBase
-from gtsfm.products.visibility_graph import ImageIndexPairs
+from gtsfm.products.visibility_graph import VisibilityGraph
 from gtsfm.two_view_estimator import TWO_VIEW_OUTPUT, TwoViewEstimator
 
 
@@ -51,14 +51,14 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
         self,
         client: Client,
         images: List[Future],
-        image_pairs: ImageIndexPairs,
+        visibility_graph: VisibilityGraph,
     ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
         """Apply the correspondence generator to generate putative correspondences.
 
         Args:
             client: Dask client, used to execute the front-end as futures.
             images: List of all images, as futures.
-            image_pairs: Indices of the pairs of images to estimate two-view pose and correspondences.
+            visibility_graph: The visibility graph defining which image pairs to process.
 
         Returns:
             List of keypoints, one entry for each input images.
@@ -73,7 +73,7 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
         image_matcher_future = client.scatter(self._matcher, broadcast=False)
         pairwise_correspondence_futures = {
             (i1, i2): client.submit(apply_image_matcher, image_matcher_future, images[i1], images[i2])
-            for i1, i2 in image_pairs
+            for i1, i2 in visibility_graph
         }
 
         pairwise_correspondences: Dict[Tuple[int, int], Tuple[Keypoints, Keypoints]] = client.gather(
@@ -87,7 +87,7 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
         self,
         client: Client,
         images: List[Image],
-        image_pairs: ImageIndexPairs,
+        visibility_graph: VisibilityGraph,
         camera_intrinsics: List[CALIBRATION_TYPE],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         gt_cameras: List[Optional[CAMERA_TYPE]],
@@ -100,7 +100,7 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
         Args:
             client: Dask client, used to execute the front-end as futures.
             images: List of all images.
-            image_pairs: Indices of the pairs of images to estimate two-view pose and correspondences.
+            visibility_graph: The visibility graph defining which image pairs to process.
             camera_intrinsics: List of all camera intrinsics.
             relative_pose_priors: Priors on relative pose between two cameras.
             gt_cameras: GT cameras, used to evaluate metrics.
@@ -109,7 +109,7 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
 
         Returns:
             List of keypoints, one entry for each input images.
-            Two view output for image_pairs.
+            Two view output for visibility graph pairs.
         """
 
         def apply_image_matcher(
@@ -145,7 +145,7 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
         two_view_estimator_future = client.scatter(two_view_estimator, broadcast=False)
         pairwise_correspondence_futures = {
             (i1, i2): client.submit(apply_image_matcher, image_matcher_future, images[i1], images[i2])
-            for i1, i2 in image_pairs
+            for i1, i2 in visibility_graph
         }
 
         pairwise_correspondences: Dict[Tuple[int, int], Tuple[Keypoints, Keypoints]] = client.gather(
@@ -168,7 +168,7 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
                 gt_cameras[i2],
                 gt_scene_mesh,
             )
-            for (i1, i2) in image_pairs
+            for (i1, i2) in visibility_graph
         }
 
         two_view_output_dict = client.gather(two_view_output_futures)

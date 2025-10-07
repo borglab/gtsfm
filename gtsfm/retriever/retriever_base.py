@@ -11,7 +11,7 @@ from typing import List, Optional
 import numpy as np
 
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
-from gtsfm.products.visibility_graph import ImageIndexPairs
+from gtsfm.products.visibility_graph import VisibilityGraph
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 
@@ -41,7 +41,7 @@ class RetrieverBase(GTSFMProcess):
         return UiMetadata(
             display_name="Image Retriever",
             input_products=("Image Loader",),
-            output_products=("Image Pair Indices",),
+            output_products=("Visibility Graph",),
             parent_plate="Loader and Retriever",
         )
 
@@ -51,7 +51,7 @@ class RetrieverBase(GTSFMProcess):
         global_descriptors: Optional[List[np.ndarray]],
         image_fnames: List[str],
         plots_output_dir: Optional[Path] = None,
-    ) -> ImageIndexPairs:
+    ) -> VisibilityGraph:
         """Compute potential image pairs.
 
         Args:
@@ -60,15 +60,15 @@ class RetrieverBase(GTSFMProcess):
             plots_output_dir: Directory to save plots to. If None, plots are not saved.
 
         Returns:
-            List of (i1,i2) image pairs.
+            Visibility graph representing image pair connections.
         """
 
-    def evaluate(self, num_images, image_pair_indices: ImageIndexPairs) -> GtsfmMetricsGroup:
+    def evaluate(self, num_images, visibility_graph: VisibilityGraph) -> GtsfmMetricsGroup:
         """Evaluates the retriever result.
 
         Args:
             num_images: the number of images in the dataset.
-            image_pair_indices: (i1,i2) image pairs.
+            visibility_graph: The visibility graph representing image pair connections.
 
         Returns:
             Retriever metrics group.
@@ -78,7 +78,7 @@ class RetrieverBase(GTSFMProcess):
             metric_group_name,
             [
                 GtsfmMetric("num_input_images", num_images),
-                GtsfmMetric("num_retrieved_image_pairs", len(image_pair_indices)),
+                GtsfmMetric("num_retrieved_image_pairs", len(visibility_graph)),
             ],
         )
         return retriever_metrics

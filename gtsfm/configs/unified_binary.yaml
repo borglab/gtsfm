@@ -9,7 +9,7 @@ SceneOptimizer:
 
   graph_partitioner:
     _target_: gtsfm.graph_partitioner.binary_tree_partition.BinaryTreePartition
-    max_depth: 2
+    max_depth: 1
 
   image_pairs_generator:
     _target_: gtsfm.retriever.image_pairs_generator.ImagePairsGenerator

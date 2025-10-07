@@ -5,7 +5,7 @@ Authors: Zongyue Liu
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
-from gtsfm.products.visibility_graph import ImageIndexPairs
+from gtsfm.products.visibility_graph import VisibilityGraph
 
 logger = logger_utils.get_logger()
 
@@ -21,14 +21,14 @@ class SinglePartition(GraphPartitionerBase):
         """Initialize the partitioner."""
         super().__init__(process_name="SinglePartition")
 
-    def partition_image_pairs(self, image_pairs: ImageIndexPairs) -> list[ImageIndexPairs]:
-        """Return all image pairs as a single partition.
+    def run(self, graph: VisibilityGraph) -> list[VisibilityGraph]:
+        """Return all visibility graph as a single partition.
 
-        Args:
-            image_pairs: List of image pairs (i,j) where i < j.
-
-        Returns:
-            A list containing a single subgraph with all valid edges.
+                Args:
+                    graph: List of visibility graph (i,j) where i < j.
+        run
+                Returns:
+                    A list containing a single subgraph with all valid edges.
         """
-        logger.info(f"SinglePartition: returning all {len(image_pairs)} pairs as a single partition")
-        return [image_pairs]
+        logger.info(f"SinglePartition: returning all {len(graph)} pairs as a single partition")
+        return [graph]

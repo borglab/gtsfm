@@ -54,12 +54,10 @@ class GtsfmRunnerBase:
         if self.parsed_args.dask_tmpdir:
             dask.config.set({"temporary_directory": DEFAULT_OUTPUT_ROOT / self.parsed_args.dask_tmpdir})
 
-        # Get the numeric level from the string
+        # Configure the logging system
         log_level = getattr(logging, self.parsed_args.log.upper(), None)
-
-        # 5. Configure the logging system
-        # A good format includes the timestamp, level name, and message
-        logging.basicConfig(level=log_level)
+        if log_level is not None:
+            logger.setLevel(log_level)
 
         self.loader: LoaderBase = self.construct_loader()
         self.scene_optimizer: SceneOptimizer = self.construct_scene_optimizer()
@@ -352,7 +350,7 @@ class GtsfmRunnerBase:
 
         retriever_start_time = time.time()
         with performance_report(filename="retriever-dask-report.html"):
-            image_pair_indices = self.scene_optimizer.image_pairs_generator.generate_image_pairs(
+            visibility_graph = self.scene_optimizer.image_pairs_generator.run(
                 client=client,
                 images=self.loader.get_all_images_as_futures(client),
                 image_fnames=self.loader.image_filenames(),
@@ -360,7 +358,7 @@ class GtsfmRunnerBase:
             )
 
         retriever_metrics = self.scene_optimizer.image_pairs_generator._retriever.evaluate(
-            len(self.loader), image_pair_indices
+            len(self.loader), visibility_graph
         )
         retriever_duration_sec = time.time() - retriever_start_time
         retriever_metrics.add_metric(GtsfmMetric("retriever_duration_sec", retriever_duration_sec))
@@ -382,7 +380,7 @@ class GtsfmRunnerBase:
             ) = self.scene_optimizer.correspondence_generator.generate_correspondences(
                 client,
                 self.loader.get_all_images_as_futures(client),
-                image_pair_indices,
+                visibility_graph,
             )
             correspondence_generation_duration_sec = time.time() - correspondence_generation_start_time
 
@@ -393,7 +391,7 @@ class GtsfmRunnerBase:
                 keypoints_list,
                 putative_corr_idxs_dict,
                 intrinsics,
-                self.loader.get_relative_pose_priors(image_pair_indices),
+                self.loader.get_relative_pose_priors(visibility_graph),
                 self.loader.get_gt_cameras(),
                 gt_scene_mesh=self.loader.get_gt_scene_trimesh(),
             )
@@ -433,7 +431,7 @@ class GtsfmRunnerBase:
 
         # Partition image pairs
         assert self.graph_partitioner is not None, "Graph partitioner is not set up!"
-        subgraphs = self.graph_partitioner.partition_image_pairs(image_pair_indices)
+        subgraphs = self.graph_partitioner.run(visibility_graph)
         logger.info("Partitioned into %d subgraphs", len(subgraphs))
         # Group results by subgraph
         subgraph_two_view_results = group_results_by_subgraph(two_view_results_dict, subgraphs)

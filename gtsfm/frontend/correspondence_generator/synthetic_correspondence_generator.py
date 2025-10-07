@@ -28,7 +28,7 @@ from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggreg
 )
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.loader.tanks_and_temples_loader import TanksAndTemplesLoader
-from gtsfm.products.visibility_graph import ImageIndexPairs
+from gtsfm.products.visibility_graph import VisibilityGraph
 
 logger = logger_utils.get_logger()
 
@@ -53,7 +53,7 @@ class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
         self,
         client: Client,
         images: List[Future],
-        image_pairs: ImageIndexPairs,
+        visibility_graph: VisibilityGraph,
         num_sampled_3d_points: int = 5000,
     ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
         """Apply the correspondence generator to generate putative correspondences (in parallel).
@@ -61,7 +61,7 @@ class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
         Args:
             client: Dask client, used to execute the front-end as futures.
             images: List of all images, as futures.
-            image_pairs: Indices of the pairs of images to estimate two-view pose and correspondences.
+            visibility_graph: The visibility graph defining which image pairs to process.
             num_sampled_3d_points: Number of 3d points to sample from the mesh surface and to project.
 
         Returns:
@@ -127,7 +127,7 @@ class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
                 open3d_mesh_path,
                 sampled_points,
             )
-            for i1, i2 in image_pairs
+            for i1, i2 in visibility_graph
         }
 
         pairwise_correspondences: Dict[Tuple[int, int], Tuple[Keypoints, Keypoints]] = client.gather(
@@ -171,7 +171,7 @@ def generate_synthetic_correspondences_for_image_pair(
     # TODO(johnwlambert): Vectorize this code. On CPU, rays cannot be simultaneously cast against mesh
     # due to RAM limitations.
     for point in points:
-        # Try projecting point into each camera. If inside FOV of both and unoccluded by mesh, keep.
+        # Try projecting point into each camera. If inside FOV of both and un-occluded by mesh, keep.
         uv_i1 = verify_camera_fov_and_occlusion(camera_i1, point, trimesh_mesh, image_height_px, image_width_px)
         uv_i2 = verify_camera_fov_and_occlusion(camera_i2, point, trimesh_mesh, image_height_px, image_width_px)
         if uv_i1 is not None and uv_i2 is not None:
@@ -296,14 +296,14 @@ def load_from_trimesh(mesh_path: str) -> trimesh.Trimesh:
 
 def _make_line_plot(point1: np.ndarray, point2: np.ndarray) -> open3d.geometry.LineSet:
     """Plot a line segment from `point1` to `point2` using Open3D."""
-    verts_worldfr = np.array([point1, point2])
+    verticals_world_frame = np.array([point1, point2])
     lines = [[0, 1]]
     # Color is in range [0,1]
     color = (0, 0, 1)
     colors = [color for i in range(len(lines))]
 
     line_set = open3d.geometry.LineSet(
-        points=open3d.utility.Vector3dVector(verts_worldfr),
+        points=open3d.utility.Vector3dVector(verticals_world_frame),
         lines=open3d.utility.Vector2iVector(lines),
     )
     line_set.colors = open3d.utility.Vector3dVector(colors)

@@ -20,7 +20,7 @@ import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
-from gtsfm.products.visibility_graph import ImageIndexPairs
+from gtsfm.products.visibility_graph import VisibilityGraph
 
 logger = logger_utils.get_logger()
 
@@ -104,7 +104,7 @@ class ColmapCorrespondenceGenerator(CorrespondenceGeneratorBase):
         return gtsfm_id_to_pycolmap_id, keypoints
 
     def _read_matches(
-        self, image_pairs: ImageIndexPairs, gtsfm_id_to_pycolmap_id: List[int]
+        self, image_pairs: VisibilityGraph, gtsfm_id_to_pycolmap_id: List[int]
     ) -> Dict[Tuple[int, int], np.ndarray]:
         """Read matches for image pairs."""
         corr_idxs: Dict[Tuple[int, int], np.ndarray] = {}
@@ -124,14 +124,14 @@ class ColmapCorrespondenceGenerator(CorrespondenceGeneratorBase):
         return corr_idxs
 
     def generate_correspondences(
-        self, client: Client, images: List[Future], image_pairs: ImageIndexPairs
+        self, client: Client, images: List[Future], visibility_graph: VisibilityGraph
     ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
         """Apply the correspondence generator to generate putative correspondences.
 
         Args:
             client: Dask client, used to execute the front-end as futures.
             images: List of all images, as futures.
-            image_pairs: Indices of the pairs of images to estimate two-view pose and correspondences.
+            visibility_graph: The visibility graph defining which image pairs to process.
 
         Returns:
             List of keypoints, one entry for each input images.
@@ -141,6 +141,6 @@ class ColmapCorrespondenceGenerator(CorrespondenceGeneratorBase):
         images_actual = client.gather(images)
 
         gtsfm_id_to_pycolmap_id, keypoints = self._read_image_ids_and_keypoints(images_actual)
-        corr_idxs = self._read_matches(image_pairs, gtsfm_id_to_pycolmap_id)
+        corr_idxs = self._read_matches(visibility_graph, gtsfm_id_to_pycolmap_id)
 
         return keypoints, corr_idxs
