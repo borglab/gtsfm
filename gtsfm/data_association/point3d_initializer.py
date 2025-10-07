@@ -1,6 +1,6 @@
 """Algorithms to initialize 3D landmark point from measurements at known camera poses.
 
-References:
+References: 
 1. Richard I. Hartley and Peter Sturm. Triangulation. Computer Vision and Image Understanding, Vol. 68, No. 2,
    November, pp. 146–157, 1997
 
@@ -324,7 +324,7 @@ class Point3dInitializer:
                 wTc2 = self.track_camera_dict[i2].pose()
 
                 # Rough approximation approximation of baseline between the 2 cameras
-                scores[k] = np.linalg.norm(wTc1.between(wTc2).translation())
+                scores[k] = np.linalg.norm(wTc1.inverse().compose(wTc2).translation())
 
         # Check the validity of scores.
         if sum(scores) <= 0.0:
@@ -346,7 +346,9 @@ class Point3dInitializer:
 
         return sample_indices.tolist()
 
-    def extract_measurements(self, track: SfmTrack2d) -> Tuple[gtsfm_types.CAMERA_SET_TYPE, gtsam.Point2Vector]:
+    def extract_measurements(
+        self, track: SfmTrack2d
+    ) -> Tuple[gtsfm_types.CAMERA_SET_TYPE, gtsam.Point2Vector]:
         """Convert measurements in a track into GTSAM primitive types for triangulation arguments.
 
         Returns None, None if less than 2 measurements were found with estimated camera poses after averaging.

@@ -1,0 +1,20 @@
+# SSH login credentials for remote cluster
+# username: ${SSH_USERNAME}
+
+# Dask scheduler configuration, local
+scheduler:
+  port: 8788                 # Port for Dask scheduler to listen on
+  dashboard: 8787        # Address for the Dask dashboard UI
+
+# remote workers and SSH port
+# Workers should be defined in .env file as a JSON string:
+# DASK_WORKERS='{"worker1.example.com": 9000, "worker2.example.com": 9001}'
+workers: {}
+
+# PostgreSQL connection settings (local to the scheduler)
+database:
+  host: localhost            # PostgreSQL host (usually localhost if tunneled)
+  port: 5432                 # PostgreSQL port
+  database: postgres        # Database name
+  # user: ${POSTGRES_USER}
+  # password: ${POSTGRES_PASSWORD}

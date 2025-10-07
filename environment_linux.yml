@@ -5,6 +5,7 @@ dependencies:
   # python essentials
   - python=3.10
   - pip
+  - python-dotenv
   # formatting and dev environment
   - black
   - coverage
@@ -15,6 +16,7 @@ dependencies:
   - isort
   # dask and related
   - dask
+  - distributed 
   - asyncssh
   - python-graphviz
   # core functionality and APIs
@@ -37,6 +39,7 @@ dependencies:
   - tabulate
   - simplejson
   - pyparsing>=3.0.9
+  - psycopg2          # Added for PostgreSQL support
   # testing
   - parameterized
   - pip:
