@@ -57,7 +57,7 @@ def colorscale_from_list(requested_colors: List[str]) -> List[str]:
     """Create hex color scale to interpolate between requested colors.
 
     Args:
-        colors: requested colors.
+        requested_colors (List[str]): requested colors.
 
     Returns:
         color scale: list of length (NUM_COLORS_COLORMAP+1) representing a list of colors.
@@ -216,6 +216,7 @@ def generate_dashboard(master_path: Path, branch_path: Path, output_path: Path) 
     Args:
         master_path: path to directory containing benchmark artifacts for the master branch.
         branch_path: path to directory containing benchmark artifacts for a new branch.
+        output_path: path to the output HTML file where the dashboard will be saved
     """
     zip_artifacts = generate_artifact_fnames_from_workflow(workflow_yaml_fpath=str(BENCHMARK_YAML_FPATH))
 
