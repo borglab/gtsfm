@@ -3,7 +3,6 @@
 Authors: Xiaolong Wu, John Lambert, Ayush Baid
 """
 
-import logging
 import time
 from collections import Counter
 from pathlib import Path
@@ -19,6 +18,7 @@ from gtsam.symbol_shorthand import K, P, X  # type: ignore
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.alignment as alignment_utils
+import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.tracks as track_utils
 from gtsfm.common.gtsfm_data import GtsfmData
@@ -38,7 +38,7 @@ CAM_POSE3_DOF = 6  # 6 dof for pose of camera
 IMG_MEASUREMENT_DIM = 2  # 2d measurements (u,v) have 2 dof
 POINT3_DOF = 3  # 3d points have 3 dof
 
-logger = logging.getLogger(__name__)
+logger = logger_utils.get_logger()
 
 
 class BundleAdjustmentOptimizer:

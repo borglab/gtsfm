@@ -4,7 +4,6 @@ Authors: Frank Dellaert and Ayush Baid
 """
 
 import abc
-import logging
 from typing import Dict, List, Optional, Tuple
 
 import dask
@@ -16,12 +15,13 @@ from trimesh import Trimesh
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.images as img_utils
 import gtsfm.utils.io as io_utils
+import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.products.visibility_graph import VisibilityGraph
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
-logger = logging.getLogger(__name__)
+logger = logger_utils.get_logger()
 
 
 class LoaderBase(GTSFMProcess):
