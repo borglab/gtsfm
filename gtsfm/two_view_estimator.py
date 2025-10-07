@@ -559,8 +559,8 @@ class TwoViewEstimator(DaskDBModuleBase):
         if inlier_ratio is not None:
             inlier_ratio = float(inlier_ratio)
 
-        rotation_matrix = self._serialize_rotation(post_isp_i2Ri1) if post_isp_i2Ri1 else None
-        translation_direction = self._serialize_translation(post_isp_i2Ui1) if post_isp_i2Ui1 else None
+        rotation_matrix = self.serialize_data(post_isp_i2Ri1.matrix() if post_isp_i2Ri1 else None)
+        translation_direction = self.serialize_data(post_isp_i2Ui1.point3() if post_isp_i2Ui1 else None)
 
         insert_query = """
             INSERT INTO two_view_results
@@ -623,9 +623,9 @@ class TwoViewEstimator(DaskDBModuleBase):
 
         # Serialize report data
         report_data = {
-            "pre_ba": self._serialize_report(pre_ba_report),
-            "post_ba": self._serialize_report(post_ba_report),
-            "post_isp": self._serialize_report(post_isp_report),
+            "pre_ba": self.serialize_data(pre_ba_report.__dict__ if pre_ba_report else None),
+            "post_ba": self.serialize_data(post_ba_report.__dict__ if post_ba_report else None),
+            "post_isp": self.serialize_data(post_isp_report.__dict__ if post_isp_report else None),
         }
         report_data_json = json.dumps(report_data)
 
@@ -654,24 +654,6 @@ class TwoViewEstimator(DaskDBModuleBase):
             logger.debug(f"Successfully stored detailed reports for pair ({i1}, {i2})")
         else:
             logger.error(f"Failed to store detailed reports for pair ({i1}, {i2})")
-
-    def _serialize_rotation(self, rotation: Optional[Rot3]) -> Optional[str]:
-        """Helper method to serialize rotation matrix"""
-        if rotation is None:
-            return None
-        return self.serialize_matrix(rotation.matrix())
-
-    def _serialize_translation(self, translation: Optional[Unit3]) -> Optional[str]:
-        """Helper method to serialize translation direction"""
-        if translation is None:
-            return None
-        return self.serialize_matrix(translation.point3())
-
-    def _serialize_report(self, report):
-        """Helper method to serialize report objects"""
-        if report is None:
-            return None
-        return self.serialize_matrix(report.__dict__)
 
 
 def generate_two_view_report(
