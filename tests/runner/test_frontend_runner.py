@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Union
 
 import numpy as np
+import pytest
 from gtsam import Pose3
 from scipy.spatial.transform import Rotation
 
@@ -26,6 +27,7 @@ from gtsfm.two_view_estimator import TwoViewEstimator
 TEST_DATA_ROOT_PATH = Path(__file__).resolve().parent.parent / "data"
 
 
+@pytest.mark.slow
 class TestFrontend(unittest.TestCase):
     """Tests a combined FeatureExtractor and TwoViewEstimator using an Argoverse image pair."""
 

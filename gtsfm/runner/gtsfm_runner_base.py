@@ -45,8 +45,8 @@ REACT_METRICS_PATH = DEFAULT_OUTPUT_ROOT / "rtf_vis_tool" / "src" / "result_metr
 class GtsfmRunnerBase:
     @property
     @abstractmethod
-    def tag(self):
-        pass
+    def tag(self) -> str:
+        return "Base GTSFM Runner"
 
     def __init__(self, override_args=None) -> None:
         argparser: argparse.ArgumentParser = self.construct_argparser()

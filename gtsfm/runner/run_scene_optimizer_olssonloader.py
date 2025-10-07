@@ -13,7 +13,9 @@ logger = logger_utils.get_logger()
 
 
 class GtsfmRunnerOlssonLoader(GtsfmRunnerBase):
-    tag = "GTSFM on Dataset in Olsson's Lund format"
+    @property
+    def tag(self) -> str:
+        return "GTSFM on Dataset in Olsson's Lund format"
 
     def construct_argparser(self) -> argparse.ArgumentParser:
         parser = super(GtsfmRunnerOlssonLoader, self).construct_argparser()

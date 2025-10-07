@@ -1,6 +1,11 @@
 name: CI
 
-on: [pull_request, workflow_dispatch]
+on:
+  pull_request:
+    paths-ignore:
+      - "rtf_vis_tool/**"
+      - "gtsfm/visualization/**"
+  workflow_dispatch:
 
 jobs:
   mamba-setup:
@@ -44,7 +49,7 @@ jobs:
       - name: Unit tests
         run: |
           set -e
-          pytest tests  --durations=0 --cov gtsfm \
+          pytest tests -m "not slow" --durations=0 --cov gtsfm \
             --ignore tests/repro_tests \
             --ignore tests/loader/test_argoverse_dataset_loader.py \
             --ignore tests/runner/test_frontend_runner.py
@@ -85,6 +90,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@v5.0.0
+      - name: Cache frontend
+        uses: actions/cache@v4
+        env:
+          # Increase this value to reset cache
+          CACHE_NUMBER_FRONTEND: 0
+        with:
+          path: cache
+          key: ${{ matrix.config_dataset_info[0] }}-${{ matrix.config_dataset_info[1] }}-${{ matrix.config_dataset_info[2] }}-${{ matrix.config_dataset_info[6] }}-${{ env.CACHE_NUMBER_FRONTEND }}
       - uses: mamba-org/setup-micromamba@v2
         with:
           environment-file: environment_linux_cpuonly.yml
