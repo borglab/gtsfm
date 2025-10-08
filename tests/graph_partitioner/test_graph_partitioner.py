@@ -20,7 +20,7 @@ class TestGraphPartitioning(unittest.TestCase):
         partitioner = SinglePartition()
 
         # Get partitioned result
-        partitioned_pairs = partitioner.partition_image_pairs(image_pairs)
+        partitioned_pairs = partitioner.run(image_pairs)
 
         # Check that we get exactly one partition
         self.assertEqual(len(partitioned_pairs), 1)

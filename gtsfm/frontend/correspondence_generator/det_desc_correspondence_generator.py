@@ -13,7 +13,7 @@ from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
 from gtsfm.frontend.detector_descriptor.detector_descriptor_base import DetectorDescriptorBase
 from gtsfm.frontend.matcher.matcher_base import MatcherBase
-from gtsfm.products.visibility_graph import ImageIndexPairs
+from gtsfm.products.visibility_graph import VisibilityGraph
 
 
 class DetDescCorrespondenceGenerator(CorrespondenceGeneratorBase):
@@ -34,14 +34,14 @@ class DetDescCorrespondenceGenerator(CorrespondenceGeneratorBase):
         self,
         client: Client,
         images: List[Future],
-        image_pairs: ImageIndexPairs,
+        visibility_graph: VisibilityGraph,
     ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
         """Apply the correspondence generator to generate putative correspondences.
 
         Args:
             client: Dask client, used to execute the front-end as futures.
             images: List of all images, as futures.
-            image_pairs: Indices of the pairs of images to estimate two-view pose and correspondences.
+            visibility_graph: The visibility graph defining which image pairs to process.
 
         Returns:
             List of keypoints, one entry for each input images.
@@ -79,7 +79,7 @@ class DetDescCorrespondenceGenerator(CorrespondenceGeneratorBase):
                 image_shapes_futures[i1],
                 image_shapes_futures[i2],
             )
-            for (i1, i2) in image_pairs
+            for (i1, i2) in visibility_graph
         }
 
         putative_corr_idxs_dict = client.gather(putative_corr_idxs_futures)

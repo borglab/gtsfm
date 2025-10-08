@@ -53,4 +53,4 @@ dependencies:
       - pydot
       - einops
       - huggingface-hub[torch]==0.34.4
-      - roma # Rotation Manipiulation Library
+      - roma # Rotation Manipulation Library

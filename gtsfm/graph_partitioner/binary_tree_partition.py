@@ -1,8 +1,8 @@
 """Implementation of a binary tree graph partitioner.
 
-This partitioner recursively partitions image pair graphs into a binary tree
+This partitioner recursively partitions a visibility graph into a binary tree
 structure up to a specified depth, using METIS-based ordering. Leaf nodes
-represent exclusive image keys and associated edge groupings.
+represent subgraphs with no vertex overlap (i.e., a partition!).
 
 Authors: Shicong Ma
 """
@@ -16,13 +16,13 @@ from gtsam.symbol_shorthand import X  # type: ignore
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
-from gtsfm.products.visibility_graph import ImageIndexPairs
+from gtsfm.products.visibility_graph import VisibilityGraph
 
 logger = logger_utils.get_logger()
 
 
 class BinaryTreeNode:
-    """Node class for a binary tree representing partitioned sets of image keys."""
+    """Node class for a binary tree representing partitioned visibility graphs."""
 
     def __init__(self, keys: List[int], depth: int):
         """
@@ -43,7 +43,7 @@ class BinaryTreeNode:
 
 
 class BinaryTreePartition(GraphPartitionerBase):
-    """Graph partitioner that uses a binary tree to recursively divide image pairs."""
+    """Graph partitioner that uses a binary tree to recursively divide a visibility graph."""
 
     def __init__(self, max_depth: Optional[int] = None, num_cameras_per_cluster: Optional[int] = None):
         """
@@ -62,37 +62,37 @@ class BinaryTreePartition(GraphPartitionerBase):
             # self.max_depth to be inferred later
             self._num_cameras_per_cluster = num_cameras_per_cluster
 
-        self.inter_partition_edges_map: Dict[Tuple[int, int], ImageIndexPairs] = {}
+        self.inter_partition_edges_map: Dict[Tuple[int, int], VisibilityGraph] = {}
 
-    def partition_image_pairs(self, image_pairs: ImageIndexPairs) -> List[ImageIndexPairs]:
-        """Partition image pairs into subgroups using a binary tree.
+    def run(self, graph: VisibilityGraph) -> List[VisibilityGraph]:
+        """Partition visibility graph into subgraphs using a binary tree.
 
         Args:
-            image_pairs: List of image index pairs (i, j), where i < j.
+            graph: a visibility graph.
 
         Returns:
-            A list of image pair subsets (intra-partition only), one for each leaf.
+            A list of visibility graphs (subgraphs), one for each leaf.
         """
-        if not image_pairs:
-            logger.warning("No image pairs provided for partitioning.")
+        if not graph:
+            logger.warning("No visibility graph provided for partitioning.")
             return []
 
-        all_nodes = set(i for ij in image_pairs for i in ij)
+        all_nodes = set(i for ij in graph for i in ij)
         num_cameras = len(all_nodes)
 
         if self.max_depth is None:
             self.max_depth = ceil(log2(num_cameras / self._num_cameras_per_cluster))
 
-        symbol_graph, _, nx_graph = self._build_graphs(image_pairs)
+        symbol_graph, _, nx_graph = self._build_graphs(graph)
         ordering = Ordering.MetisSymbolicFactorGraph(symbol_graph)
         binary_tree_root_node = self._build_binary_partition(ordering)
 
         num_leaves = 2**self.max_depth
-        image_pairs_per_partition: List[ImageIndexPairs] = [[] for _ in range(num_leaves)]
+        image_pairs_per_partition: List[VisibilityGraph] = [[] for _ in range(num_leaves)]
 
         partition_details, inter_partition_edges = self._compute_leaf_partition_details(binary_tree_root_node, nx_graph)
 
-        logger.info(f"BinaryTreePartition: partitioned into {len(partition_details)} leaf nodes.")
+        logger.info("%d leaf nodes.", len(partition_details))
 
         for i in range(num_leaves):
             intra_partition_edges = partition_details[i].get("intra_partition_edges", [])
@@ -102,17 +102,14 @@ class BinaryTreePartition(GraphPartitionerBase):
             exclusive_keys = part.get("exclusive_keys", [])
             intra_edges = part.get("intra_partition_edges", [])
 
-            logger.info(
-                f"Partition {i}:"
-                f"  Exclusive Image Keys ({len(exclusive_keys)}): {sorted(exclusive_keys)}\n"
-                f"  Intra-partition Edges ({len(intra_edges)}): {intra_edges}\n"
-            )
+            logger.info("Partition %d: keys (%d): %s", i, len(exclusive_keys), sorted(exclusive_keys))
+            logger.info("Partition %d: intra-partition Edges (%d): %s", i, len(intra_edges), intra_edges)
 
         self.inter_partition_edges_map = {(i, j): edges for (i, j), edges in inter_partition_edges.items() if edges}
 
         return image_pairs_per_partition
 
-    def get_inter_partition_edges(self) -> Dict[Tuple[int, int], ImageIndexPairs]:
+    def get_inter_partition_edges(self) -> Dict[Tuple[int, int], VisibilityGraph]:
         """Getter for inter-partition edges between leaf partitions.
 
         Returns:
@@ -121,11 +118,11 @@ class BinaryTreePartition(GraphPartitionerBase):
         """
         return self.inter_partition_edges_map
 
-    def _build_graphs(self, image_pairs: ImageIndexPairs) -> Tuple[SymbolicFactorGraph, List[int], nx.Graph]:
-        """Construct GTSAM and NetworkX graphs from image pairs.
+    def _build_graphs(self, graph: VisibilityGraph) -> Tuple[SymbolicFactorGraph, List[int], nx.Graph]:
+        """Construct GTSAM and NetworkX graphs from visibility graph.
 
         Args:
-            image_pairs: List of image index pairs.
+            graph: List of image index pairs.
 
         Returns:
             A tuple of (SymbolicFactorGraph, list of keys, NetworkX graph).
@@ -134,7 +131,7 @@ class BinaryTreePartition(GraphPartitionerBase):
         nxg = nx.Graph()
         keys = set()
 
-        for i, j in image_pairs:
+        for i, j in graph:
             key_i = X(i)
             key_j = X(j)
             keys.add(key_i)
@@ -174,12 +171,12 @@ class BinaryTreePartition(GraphPartitionerBase):
         self,
         node: BinaryTreeNode,
         nx_graph: nx.Graph,
-    ) -> Tuple[List[Dict], Dict[Tuple[int, int], ImageIndexPairs]]:
+    ) -> Tuple[List[Dict], Dict[Tuple[int, int], VisibilityGraph]]:
         """Recursively traverse the binary tree and return partition details per leaf.
 
         Args:
             node: Current binary tree node being processed.
-            nx_graph: NetworkX graph built from image pairs.
+            nx_graph: NetworkX graph built from visibility graph.
 
         Returns:
             A tuple:

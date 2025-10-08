@@ -11,7 +11,7 @@ Authors: Ayush Baid, Sushmita Warrier, John Lambert, Travis Driver
 import time
 from typing import Dict, List, Tuple
 
-import gtsam
+import gtsam  # type: ignore
 import numpy as np
 
 import gtsfm.utils.logger as logger_utils
@@ -89,5 +89,5 @@ class DsfTracksEstimator(TracksEstimatorBase):
             "DSF Union-Find: %.2f%% of tracks discarded from multiple obs. in a single image." % erroneous_track_pct
         )
         duration = time.time() - start_time
-        logger.info("DsfTracksEstimator took %.2f sec. to estimate %d tracks.", duration, len(track_2d_list))
+        logger.info("� DsfTracksEstimator took %.2f sec. to estimate %d tracks.", duration, len(track_2d_list))
         return track_2d_list

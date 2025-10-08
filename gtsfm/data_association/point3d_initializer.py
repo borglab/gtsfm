@@ -1,6 +1,6 @@
 """Algorithms to initialize 3D landmark point from measurements at known camera poses.
 
-References: 
+References:
 1. Richard I. Hartley and Peter Sturm. Triangulation. Computer Vision and Image Understanding, Vol. 68, No. 2,
    November, pp. 146–157, 1997
 
@@ -12,7 +12,7 @@ import sys
 from enum import Enum
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
-import gtsam
+import gtsam  # type: ignore
 import numpy as np
 
 import gtsfm.common.types as gtsfm_types
@@ -38,8 +38,8 @@ class TriangulationExitCode(Enum):
     # TODO(travisdriver): enforce exit codes in unit tests
     SUCCESS = 0  # successfully estimated 3d point from measurements
     CHEIRALITY_FAILURE = 1  # cheirality exception from gtsam.triangulatePoint3
-    INLIERS_UNDERCONSTRAINED = 2  # insufficent number of inlier measurements
-    POSES_UNDERCONSTRAINED = 3  # insufficent number of estimated camera poses
+    INLIERS_UNDERCONSTRAINED = 2  # insufficient number of inlier measurements
+    POSES_UNDERCONSTRAINED = 3  # insufficient number of estimated camera poses
     EXCEEDS_REPROJ_THRESH = 4  # estimated 3d point exceeds reprojection threshold
     LOW_TRIANGULATION_ANGLE = 5  # maximum triangulation angle lower than threshold
 
@@ -74,7 +74,7 @@ class TriangulationOptions(NamedTuple):
             cameras. Tracks for which the maximum angle at any two cameras is less then this threshold will be rejected.
         min_inlier_ratio: A priori assumed minimum probability that a point is an inlier.
         confidence: Desired confidence that at least one hypothesis is outlier free.
-        dyn_num_hypotheses_multiplier: multiplication factor for dynamically computed hyptheses based on confidence.
+        dyn_num_hypotheses_multiplier: multiplication factor for dynamically computed hypotheses based on confidence.
         min_num_hypotheses: Minimum number of hypotheses.
         max_num_hypotheses: Maximum number of hypotheses.
     """
@@ -168,12 +168,12 @@ class Point3dInitializer:
             i1, uv1 = track_2d.measurements[k1]
             i2, uv2 = track_2d.measurements[k2]
 
-            # Check for unestimated cameras.
+            # Check for un-estimated cameras.
             if self.track_camera_dict.get(i1) is None or self.track_camera_dict.get(i2) is None:
-                logger.warning("Unestimated cameras found at indices %d or %d. Skipping them.", i1, i2)
+                logger.warning("Un-estimated cameras found at indices %d or %d. Skipping them.", i1, i2)
                 continue
 
-            camera_estimates = self._camera_set_class()
+            camera_estimates = self._camera_set_class()  # type: ignore
             camera_estimates.append(self.track_camera_dict.get(i1))
             camera_estimates.append(self.track_camera_dict.get(i2))
 
@@ -346,9 +346,7 @@ class Point3dInitializer:
 
         return sample_indices.tolist()
 
-    def extract_measurements(
-        self, track: SfmTrack2d
-    ) -> Tuple[gtsfm_types.CAMERA_SET_TYPE, gtsam.Point2Vector]:
+    def extract_measurements(self, track: SfmTrack2d) -> Tuple[gtsfm_types.CAMERA_SET_TYPE, gtsam.Point2Vector]:
         """Convert measurements in a track into GTSAM primitive types for triangulation arguments.
 
         Returns None, None if less than 2 measurements were found with estimated camera poses after averaging.
@@ -360,17 +358,17 @@ class Point3dInitializer:
             Vector of individual camera calibrations pertaining to track
             Vector of 2d points pertaining to track measurements
         """
-        track_cameras = self._camera_set_class()
+        track_cameras = self._camera_set_class()  # type: ignore
         track_measurements = gtsam.Point2Vector()  # vector of 2d points
 
         # Compile valid measurements.
         for i, uv in track.measurements:
-            # check for unestimated cameras
+            # check for un-estimated cameras
             if i in self.track_camera_dict and self.track_camera_dict.get(i) is not None:
                 track_cameras.append(self.track_camera_dict.get(i))
                 track_measurements.append(uv)
             else:
-                logger.warning("Unestimated cameras found at index %d. Skipping them.", i)
+                logger.warning("Un-estimated cameras found at index %d. Skipping them.", i)
 
         # Triangulation is underconstrained with <2 measurements.
         if len(track_cameras) < 2:

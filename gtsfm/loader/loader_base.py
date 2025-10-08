@@ -4,7 +4,6 @@ Authors: Frank Dellaert and Ayush Baid
 """
 
 import abc
-import logging
 from typing import Dict, List, Optional, Tuple
 
 import dask
@@ -16,12 +15,13 @@ from trimesh import Trimesh
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.images as img_utils
 import gtsfm.utils.io as io_utils
+import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
 from gtsfm.common.pose_prior import PosePrior
-from gtsfm.products.visibility_graph import ImageIndexPairs
+from gtsfm.products.visibility_graph import VisibilityGraph
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
-logger = logging.getLogger(__name__)
+logger = logger_utils.get_logger()
 
 
 class LoaderBase(GTSFMProcess):
@@ -30,6 +30,7 @@ class LoaderBase(GTSFMProcess):
     The loader provides APIs to get an image, either directly or as a dask delayed task
     """
 
+    @staticmethod
     def get_ui_metadata() -> UiMetadata:
         """Returns data needed to display node and edge info for this process in the process graph."""
 
@@ -318,17 +319,17 @@ class LoaderBase(GTSFMProcess):
         """
         return None
 
-    def get_relative_pose_priors(self, pairs: ImageIndexPairs) -> Dict[Tuple[int, int], PosePrior]:
+    def get_relative_pose_priors(self, visibility_graph: VisibilityGraph) -> Dict[Tuple[int, int], PosePrior]:
         """Get *all* relative pose priors for i2Ti1
 
         Args:
-            pairs: All (i1,i2) pairs of image pairs
+            visibility_graph: The visibility graph defining which image pairs to get priors for
 
         Returns:
             A dictionary of PosePriors (or None) for all pairs.
         """
 
-        pairs = {pair: self.get_relative_pose_prior(*pair) for pair in pairs}
+        pairs = {pair: self.get_relative_pose_prior(*pair) for pair in visibility_graph}
         return {pair: prior for pair, prior in pairs.items() if prior is not None}
 
     def get_absolute_pose_prior(self, idx: int) -> Optional[PosePrior]:
@@ -411,11 +412,11 @@ class LoaderBase(GTSFMProcess):
         N = len(self)
         return [self.get_image_shape(i) for i in range(N)]
 
-    def get_valid_pairs(self) -> ImageIndexPairs:
+    def get_valid_pairs(self) -> VisibilityGraph:
         """Get the valid pairs of images for this loader.
 
         Returns:
-            List of valid index pairs.
+            Visibility graph of valid index pairs.
         """
         pairs = []
 
