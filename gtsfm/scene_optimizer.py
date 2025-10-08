@@ -3,7 +3,6 @@
 Authors: Ayush Baid, John Lambert
 """
 
-import logging
 import os
 import shutil
 import time

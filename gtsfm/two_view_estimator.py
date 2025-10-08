@@ -5,7 +5,6 @@ Authors: Ayush Baid, John Lambert, Zongyue Liu
 
 import dataclasses
 import json
-import logging
 import socket
 import sys
 import time
