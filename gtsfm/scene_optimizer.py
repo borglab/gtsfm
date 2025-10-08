@@ -53,12 +53,6 @@ REACT_RESULTS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "
 
 logger = logger_utils.get_logger()
 
-mpl_logger = logging.getLogger("matplotlib")
-mpl_logger.setLevel(logging.ERROR)
-
-pil_logger = logging.getLogger("PIL")
-pil_logger.setLevel(logging.ERROR)
-
 
 class SceneOptimizer:
     """Wrapper combining different modules to run the whole pipeline on a
