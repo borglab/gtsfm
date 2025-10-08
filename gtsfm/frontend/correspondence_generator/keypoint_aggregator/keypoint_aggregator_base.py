@@ -38,6 +38,6 @@ class KeypointAggregatorBase(GTSFMProcess):
 
         Returns:
             keypoints_list: List of N Keypoints objects for N images.
-            putative_corr_idxs_dict: Mapping from image pair (i1,i2) to putative correspondence indices.
+            putative_correspondences: Mapping from image pair (i1,i2) to putative correspondence indices.
               Correspondence indices are represented by an array of shape (K,2), for K correspondences.
         """

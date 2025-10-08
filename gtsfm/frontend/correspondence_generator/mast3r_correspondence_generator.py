@@ -97,7 +97,7 @@ class Mast3rCorrespondenceGenerator(CorrespondenceGeneratorBase):
 
         keypoints_for_image = {}
         indices_for_image = {}
-        putative_corr_idxs_dict = {}
+        putative_correspondences = {}
 
         def update_keypoints(image_idx, keypoints, keypoints_idx):
             """Helper function to update and deduplicate keypoints for a given image.
@@ -122,7 +122,7 @@ class Mast3rCorrespondenceGenerator(CorrespondenceGeneratorBase):
             kp_idx1 = (indices_for_image[i1][None, :] == idx1[:, None]).argmax(axis=1)
             kp_idx2 = (indices_for_image[i2][None, :] == idx2[:, None]).argmax(axis=1)
             # TODO: use the matching score to sort/filter correspondences.
-            putative_corr_idxs_dict[(i1, i2)] = np.stack([kp_idx1, kp_idx2], axis=-1).astype(np.int64)[
+            putative_correspondences[(i1, i2)] = np.stack([kp_idx1, kp_idx2], axis=-1).astype(np.int64)[
                 : self.max_correspondences
             ]
 
@@ -134,7 +134,7 @@ class Mast3rCorrespondenceGenerator(CorrespondenceGeneratorBase):
 
         logger.info("Correspondence aggregation complete!")
 
-        return keypoints_list, putative_corr_idxs_dict
+        return keypoints_list, putative_correspondences
 
     @staticmethod
     def preprocess_image(image: Image, img_id: int, device) -> Tuple[Dict[str, Any], Tuple[int, int], float]:

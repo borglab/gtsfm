@@ -26,7 +26,7 @@ class KeypointAggregatorUnique(KeypointAggregatorBase):
 
         Returns:
             keypoints_list: list of N Keypoints objects for N images.
-            putative_corr_idxs_dict: mapping from image pair (i1,i2) to putative correspondence indices.
+            putative_correspondences: mapping from image pair (i1,i2) to putative correspondence indices.
               Correspondence indices are represented by an array of shape (K,2), for K correspondences.
         """
         image_indices = set()
@@ -37,7 +37,7 @@ class KeypointAggregatorUnique(KeypointAggregatorBase):
         # Determine length of the output list of Keypoints objects.
         max_img_idx = max(image_indices)
 
-        putative_corr_idxs_dict = {}
+        putative_correspondences = {}
         per_image_kpt_coordinates = {i: np.zeros((0, 2)) for i in image_indices}
 
         for (i1, i2), (keypoints_i1, keypoints_i2) in keypoints_dict.items():
@@ -56,10 +56,10 @@ class KeypointAggregatorUnique(KeypointAggregatorBase):
             putative_corr_idxs = np.stack([np.array(global_i1_indices), np.array(global_i2_indices)], axis=-1).astype(
                 np.uint16
             )
-            putative_corr_idxs_dict[(i1, i2)] = putative_corr_idxs
+            putative_correspondences[(i1, i2)] = putative_corr_idxs
 
         keypoints_list: List[Keypoints] = [Keypoints(coordinates=np.array([]))] * (max_img_idx + 1)
         for i in per_image_kpt_coordinates.keys():
             keypoints_list[i] = Keypoints(coordinates=per_image_kpt_coordinates[i])
 
-        return keypoints_list, putative_corr_idxs_dict
+        return keypoints_list, putative_correspondences

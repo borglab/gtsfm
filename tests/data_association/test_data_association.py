@@ -20,7 +20,7 @@ from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.data_association.data_assoc import DataAssociation
 from gtsfm.data_association.dsf_tracks_estimator import DsfTracksEstimator
 from gtsfm.data_association.point3d_initializer import TriangulationOptions, TriangulationSamplingMode
-from gtsfm.products.visibility_graph import ImageIndexPairs
+from gtsfm.products.visibility_graph import AnnotatedGraph, ImageIndexPairs
 
 
 def get_pose3_vector(num_poses: int) -> Pose3Vector:
@@ -84,11 +84,9 @@ def generate_noisy_2d_measurements(
     return keypoints_list, img_idxs, cameras
 
 
-def get_2d_tracks(
-    corr_idxs_dict: Dict[Tuple[int, int], np.ndarray], keypoints_list: List[Keypoints]
-) -> List[SfmTrack2d]:
+def get_2d_tracks(correspondences: AnnotatedGraph[np.ndarray], keypoints_list: List[Keypoints]) -> List[SfmTrack2d]:
     tracks_estimator = DsfTracksEstimator()
-    return tracks_estimator.run(corr_idxs_dict, keypoints_list)
+    return tracks_estimator.run(correspondences, keypoints_list)
 
 
 class TestDataAssociation(GtsamTestCase):
@@ -295,12 +293,12 @@ class TestDataAssociation(GtsamTestCase):
         }
 
         # just have one track, chaining cams 0->1 , and cams 1->2
-        corr_idxs_dict = {(0, 1): np.array([[0, 0]], dtype=np.int32), (1, 2): np.array([[0, 0]], dtype=np.int32)}
+        correspondences = {(0, 1): np.array([[0, 0]], dtype=np.int32), (1, 2): np.array([[0, 0]], dtype=np.int32)}
         keypoints_shared = Keypoints(coordinates=np.array([[20.0, 10.0]]))
 
         # will lead to a cheirality exception because keypoints are identical in two cameras
         # no track will be formed, and thus connected component will be empty
-        tracks_2d = get_2d_tracks(corr_idxs_dict, [keypoints_shared] * 3)
+        tracks_2d = get_2d_tracks(correspondences, [keypoints_shared] * 3)
         sfm_tracks, avg_track_reproj_errors, triangulation_exit_codes = da.run_triangulation(
             cameras=cameras, tracks_2d=tracks_2d
         )

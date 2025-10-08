@@ -80,8 +80,8 @@ class DetDescCorrespondenceGenerator(CorrespondenceGeneratorBase):
             for (i1, i2) in visibility_graph
         }
 
-        putative_corr_idxs_dict = client.gather(putative_corr_idxs_futures)
+        putative_correspondences = client.gather(putative_corr_idxs_futures)
         keypoints_futures = client.map(lambda f: f[0], features_futures)
         keypoints_list = client.gather(keypoints_futures)
 
-        return keypoints_list, putative_corr_idxs_dict
+        return keypoints_list, putative_correspondences

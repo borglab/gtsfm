@@ -336,12 +336,12 @@ class GtsfmRunnerBase:
         ) = self._run_correspondence_and_two_view(client, visibility_graph, intrinsics)
 
         # Extract only the fields we need from the two_view_results
-        v_corr_idxs_dict = {(i1, i2): output.v_corr_idxs for (i1, i2), output in two_view_results.items()}
+        verified_correspondences = {(i1, i2): output.v_corr_idxs for (i1, i2), output in two_view_results.items()}
         post_isp_two_view_reports_dict = {
             (i1, i2): output.post_isp_report for (i1, i2), output in two_view_results.items()
         }
 
-        self._maybe_save_two_view_viz(keypoints_list, v_corr_idxs_dict, post_isp_two_view_reports_dict)
+        self._maybe_save_two_view_viz(keypoints_list, verified_correspondences, post_isp_two_view_reports_dict)
         two_view_agg_metrics = two_view_estimator.aggregate_frontend_metrics(
             two_view_reports_dict=post_isp_two_view_reports_dict,
             angular_err_threshold_deg=self.scene_optimizer._pose_angular_error_thresh,
@@ -451,7 +451,7 @@ class GtsfmRunnerBase:
             correspondence_generation_start_time = time.time()
             (
                 keypoints_list,
-                putative_corr_idxs_dict,
+                putative_correspondences,
             ) = self.scene_optimizer.correspondence_generator.generate_correspondences(
                 client,
                 self.loader.get_all_images_as_futures(client),
@@ -463,7 +463,7 @@ class GtsfmRunnerBase:
                 client,
                 self.scene_optimizer.two_view_estimator,
                 keypoints_list,
-                putative_corr_idxs_dict,
+                putative_correspondences,
                 intrinsics,
                 self.loader.get_relative_pose_priors(visibility_graph),
                 self.loader.get_gt_cameras(),
@@ -477,9 +477,9 @@ class GtsfmRunnerBase:
             two_view_estimation_duration_sec,
         )
 
-    def _maybe_save_two_view_viz(self, keypoints_list, v_corr_idxs_dict, post_isp_two_view_reports_dict):
+    def _maybe_save_two_view_viz(self, keypoints_list, verified_correspondences, post_isp_two_view_reports_dict):
         if self.scene_optimizer._save_two_view_correspondences_viz:
-            for i1, i2 in v_corr_idxs_dict.keys():
+            for i1, i2 in verified_correspondences.keys():
                 image_i1 = self.loader.get_image(i1)
                 image_i2 = self.loader.get_image(i2)
                 viz_utils.save_twoview_correspondences_viz(
@@ -487,7 +487,7 @@ class GtsfmRunnerBase:
                     image_i2,
                     keypoints_list[i1],
                     keypoints_list[i2],
-                    v_corr_idxs_dict[(i1, i2)],
+                    verified_correspondences[(i1, i2)],
                     two_view_report=post_isp_two_view_reports_dict[(i1, i2)],
                     file_path=os.path.join(
                         self.scene_optimizer._plot_correspondence_path,

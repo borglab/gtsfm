@@ -101,7 +101,7 @@ class MultiViewOptimizer:
         i2Ui1_dict = {
             (i1, i2): output.i2Ui1 for (i1, i2), output in two_view_results.items() if output.i2Ui1 is not None
         }
-        v_corr_idxs_dict = {(i1, i2): output.v_corr_idxs for (i1, i2), output in two_view_results.items()}
+        verified_correspondences = {(i1, i2): output.v_corr_idxs for (i1, i2), output in two_view_results.items()}
         two_view_reports_dict = {(i1, i2): output.post_isp_report for (i1, i2), output in two_view_results.items()}
 
         # Create debug directory.
@@ -141,7 +141,7 @@ class MultiViewOptimizer:
         else:
             viewgraph_i2Ri1_graph = delayed(i2Ri1_dict)
             viewgraph_i2Ui1_graph = delayed(i2Ui1_dict)
-            viewgraph_v_corr_idxs_graph = delayed(v_corr_idxs_dict)
+            viewgraph_v_corr_idxs_graph = delayed(verified_correspondences)
             viewgraph_two_view_reports_graph = delayed(two_view_reports_dict)
             viewgraph_estimation_metrics = delayed(GtsfmMetricsGroup("view_graph_estimation_metrics", []))
 
@@ -228,14 +228,12 @@ def init_cameras(
     return cameras
 
 
-def get_2d_tracks(
-    corr_idxs_dict: Dict[Tuple[int, int], np.ndarray], keypoints_list: List[Keypoints]
-) -> List[SfmTrack2d]:
+def get_2d_tracks(correspondences: AnnotatedGraph[np.ndarray], keypoints_list: List[Keypoints]) -> List[SfmTrack2d]:
     tracks_estimator = CppDsfTracksEstimator()
-    return tracks_estimator.run(corr_idxs_dict, keypoints_list)
+    return tracks_estimator.run(correspondences, keypoints_list)
 
 
-def filter_corr_by_idx(correspondences: Dict[Tuple[int, int], np.ndarray], idxs: List[Tuple[int, int]]):
+def filter_corr_by_idx(correspondences: AnnotatedGraph[np.ndarray], idxs: List[Tuple[int, int]]):
     """Filter correspondences by indices.
 
     Args:

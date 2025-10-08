@@ -83,8 +83,8 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
             pairwise_correspondence_futures
         )
 
-        keypoints_list, putative_corr_idxs_dict = self._aggregator.aggregate(keypoints_dict=pairwise_correspondences)
-        return keypoints_list, putative_corr_idxs_dict
+        keypoints_list, putative_correspondences = self._aggregator.aggregate(keypoints_dict=pairwise_correspondences)
+        return keypoints_list, putative_correspondences
 
     def generate_correspondences_and_estimate_two_view(
         self,
@@ -137,7 +137,7 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
             pairwise_correspondence_futures
         )
 
-        keypoints_list, putative_corr_idxs_dict = self._aggregator.aggregate(keypoints_dict=pairwise_correspondences)
+        keypoints_list, putative_correspondences = self._aggregator.aggregate(keypoints_dict=pairwise_correspondences)
 
         two_view_result_futures = {
             (i1, i2): client.submit(
@@ -145,7 +145,7 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
                 two_view_estimator_future,
                 keypoints1=keypoints_list[i1],
                 keypoints2=keypoints_list[i2],
-                putative_corr_idxs=putative_corr_idxs_dict[(i1, i2)],
+                putative_corr_idxs=putative_correspondences[(i1, i2)],
                 camera_intrinsics_i1=camera_intrinsics[i1],
                 camera_intrinsics_i2=camera_intrinsics[i2],
                 i2Ti1_prior=relative_pose_priors.get((i1, i2)),

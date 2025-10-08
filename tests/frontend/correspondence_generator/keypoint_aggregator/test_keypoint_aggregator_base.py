@@ -2,6 +2,7 @@
 
 Author: John Lambert
 """
+
 import unittest
 from typing import Dict, Tuple
 
@@ -47,25 +48,25 @@ class TestKeypointAggregatorBase(unittest.TestCase):
             ),
         }
 
-        keypoints_list, putative_corr_idxs_dict = self.aggregator.aggregate(keypoints_dict)
+        keypoints_list, putative_correspondences = self.aggregator.aggregate(keypoints_dict)
 
         assert len(keypoints_list) == 3
         assert all([isinstance(kps, Keypoints) for kps in keypoints_list])
 
-        expected_putative_corr_idxs_dict = {
+        expected_putative_correspondences = {
             (0, 1): np.array([[0, 0]]),
             (1, 2): np.array([[1, 0]]),
             (0, 2): np.array([[1, 1]]),
         }
 
-        assert putative_corr_idxs_dict.keys() == expected_putative_corr_idxs_dict.keys()
+        assert putative_correspondences.keys() == expected_putative_correspondences.keys()
 
         # Should have putative correspondence indices across 3 image pairs.
-        assert len(putative_corr_idxs_dict) == 3
-        for (i1, i2), putative_corr_idxs in putative_corr_idxs_dict.items():
+        assert len(putative_correspondences) == 3
+        for (i1, i2), putative_corr_idxs in putative_correspondences.items():
             assert isinstance(putative_corr_idxs, np.ndarray)
             assert putative_corr_idxs.shape == (1, 2)
-            assert np.allclose(putative_corr_idxs_dict[(i1, i2)], expected_putative_corr_idxs_dict[(i1, i2)])
+            assert np.allclose(putative_correspondences[(i1, i2)], expected_putative_correspondences[(i1, i2)])
 
         expected_image0_kps = np.array([[0.0, 0.0], [0.0, 2.0]])
         assert np.allclose(keypoints_list[0].coordinates, expected_image0_kps)
