@@ -749,7 +749,7 @@ def compute_relative_pose_metrics(
 
 
 def aggregate_frontend_metrics(
-    two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
+    two_view_reports_dict: AnnotatedGraph[TwoViewEstimationReport],
     angular_err_threshold_deg: float,
     metric_group_name: str,
 ) -> GtsfmMetricsGroup:
@@ -785,8 +785,14 @@ def aggregate_frontend_metrics(
 
         inlier_ratio_gt_model_all_pairs.append(report.inlier_ratio_gt_model)
         inlier_ratio_est_model_all_pairs.append(report.inlier_ratio_est_model)
-        num_inliers_gt_model_all_pairs.append(report.num_inliers_gt_model)
-        num_inliers_est_model_all_pairs.append(report.num_inliers_est_model)
+
+        # Only append non-None values for GT model inliers
+        if report.num_inliers_gt_model is not None:
+            num_inliers_gt_model_all_pairs.append(report.num_inliers_gt_model)
+
+        # Only append non-None values for estimated model inliers
+        if report.num_inliers_est_model is not None:
+            num_inliers_est_model_all_pairs.append(report.num_inliers_est_model)
 
     rot3_angular_errors = np.array(rot3_angular_errors_list, dtype=float)
     trans_angular_errors = np.array(trans_angular_errors_list, dtype=float)
@@ -904,7 +910,7 @@ def run_two_view_estimator_as_futures(
 
 
 def get_two_view_reports_summary(
-    two_view_report_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
+    two_view_report_dict: AnnotatedGraph[TwoViewEstimationReport],
     images: List[Image],
 ) -> List[Dict[str, Any]]:
     """Converts the TwoViewEstimationReports to a summary dict for each image pair.
