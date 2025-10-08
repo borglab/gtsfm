@@ -40,14 +40,29 @@ POST_BA_REPORT_TAG = "POST_BA_2VIEW_REPORT"
 POST_ISP_REPORT_TAG = "POST_INLIER_SUPPORT_PROCESSOR_2VIEW_REPORT"
 VIEWGRAPH_REPORT_TAG = "VIEWGRAPH_2VIEW_REPORT"
 
-TWO_VIEW_OUTPUT = Tuple[
-    Optional[Rot3],
-    Optional[Unit3],
-    np.ndarray,
-    TwoViewEstimationReport,
-    TwoViewEstimationReport,
-    TwoViewEstimationReport,
-]
+
+@dataclasses.dataclass
+class TwoViewOutput:
+    """Output from two-view estimation containing poses and reports.
+
+    The first three fields (i2Ri1, i2Ui1, v_corr_idxs) represent the final pose estimates
+    after Inlier Support Processor (ISP) filtering.
+
+    Args:
+        i2Ri1: Estimated relative rotation from i1 to i2 (post-ISP).
+        i2Ui1: Estimated relative unit translation from i1 to i2 (post-ISP).
+        v_corr_idxs: Verified correspondence indices (post-ISP).
+        pre_ba_report: Two-view estimation report before bundle adjustment.
+        post_ba_report: Two-view estimation report after bundle adjustment.
+        post_isp_report: Two-view estimation report after inlier support processing.
+    """
+
+    i2Ri1: Optional[Rot3]
+    i2Ui1: Optional[Unit3]
+    v_corr_idxs: np.ndarray
+    pre_ba_report: TwoViewEstimationReport
+    post_ba_report: TwoViewEstimationReport
+    post_isp_report: TwoViewEstimationReport
 
 
 class TwoViewEstimator(DaskDBModuleBase):
@@ -363,7 +378,7 @@ class TwoViewEstimator(DaskDBModuleBase):
         gt_scene_mesh: Optional[Any] = None,
         i1: Optional[int] = None,
         i2: Optional[int] = None,
-    ) -> TWO_VIEW_OUTPUT:
+    ) -> TwoViewOutput:
         """Estimate the relative pose between two images, along with inlier correspondences.
 
         Args:
@@ -472,7 +487,14 @@ class TwoViewEstimator(DaskDBModuleBase):
         logger.debug(f"[WORKER {worker_name}] Completed pair ({i1}, {i2})")
         sys.stdout.flush()
 
-        return post_isp_i2Ri1, post_isp_i2Ui1, post_isp_v_corr_idxs, pre_ba_report, post_ba_report, post_isp_report
+        return TwoViewOutput(
+            i2Ri1=post_isp_i2Ri1,
+            i2Ui1=post_isp_i2Ui1,
+            v_corr_idxs=post_isp_v_corr_idxs,
+            pre_ba_report=pre_ba_report,
+            post_ba_report=post_ba_report,
+            post_isp_report=post_isp_report,
+        )
 
     def store_computation_results(
         self,
@@ -840,10 +862,10 @@ def run_two_view_estimator_as_futures(
     relative_pose_priors: Dict[Tuple[int, int], PosePrior],
     gt_cameras: List[Optional[gtsfm_types.CAMERA_TYPE]],
     gt_scene_mesh: Optional[Any],
-) -> Dict[Tuple[int, int], TWO_VIEW_OUTPUT]:
+) -> Dict[Tuple[int, int], TwoViewOutput]:
     """Run two-view estimator for all image pairs."""
 
-    def apply_two_view_estimator(two_view_estimator: TwoViewEstimator, **kwargs) -> TWO_VIEW_OUTPUT:
+    def apply_two_view_estimator(two_view_estimator: TwoViewEstimator, **kwargs) -> TwoViewOutput:
         return two_view_estimator.run_2view(**kwargs)
 
     logger.info("Submitting tasks directly to workers ...")

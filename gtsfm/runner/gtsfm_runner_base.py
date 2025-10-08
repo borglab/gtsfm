@@ -32,7 +32,7 @@ from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.products.visibility_graph import AnnotatedGraph, VisibilityGraph
 from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.scene_optimizer import SceneOptimizer
-from gtsfm.two_view_estimator import TWO_VIEW_OUTPUT, TwoViewEstimationReport, run_two_view_estimator_as_futures
+from gtsfm.two_view_estimator import TwoViewEstimationReport, TwoViewOutput, run_two_view_estimator_as_futures
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
 from gtsfm.utils.subgraph_utils import group_results_by_subgraph
 
@@ -441,7 +441,7 @@ class GtsfmRunnerBase:
     ) -> tuple[
         list[Keypoints],
         AnnotatedGraph[np.ndarray],
-        AnnotatedGraph[TWO_VIEW_OUTPUT],
+        AnnotatedGraph[TwoViewOutput],
         float,
         float,
         AnnotatedGraph[TwoViewEstimationReport],
@@ -459,7 +459,7 @@ class GtsfmRunnerBase:
             )
             correspondence_generation_duration_sec = time.time() - correspondence_generation_start_time
             two_view_estimation_start_time = time.time()
-            two_view_results_dict: AnnotatedGraph[TWO_VIEW_OUTPUT] = run_two_view_estimator_as_futures(
+            two_view_results_dict: AnnotatedGraph[TwoViewOutput] = run_two_view_estimator_as_futures(
                 client,
                 self.scene_optimizer.two_view_estimator,
                 keypoints_list,
@@ -535,14 +535,14 @@ class GtsfmRunnerBase:
             return None, [], []
 
 
-def unzip_two_view_results(two_view_results: AnnotatedGraph[TWO_VIEW_OUTPUT]) -> tuple[
+def unzip_two_view_results(two_view_results: AnnotatedGraph[TwoViewOutput]) -> tuple[
     AnnotatedGraph[Rot3],
     AnnotatedGraph[Unit3],
     AnnotatedGraph[np.ndarray],
     AnnotatedGraph[TwoViewEstimationReport],
     AnnotatedGraph[TwoViewEstimationReport],
 ]:
-    """Unzip the tuple TWO_VIEW_OUTPUT into 1 dictionary for 1 element in the tuple."""
+    """Unzip the TwoViewOutput dataclass into separate dictionaries for each field."""
     i2Ri1_dict: AnnotatedGraph[Rot3] = {}
     i2Ui1_dict: AnnotatedGraph[Unit3] = {}
     v_corr_idxs_dict: AnnotatedGraph[np.ndarray] = {}
@@ -550,19 +550,16 @@ def unzip_two_view_results(two_view_results: AnnotatedGraph[TWO_VIEW_OUTPUT]) ->
     post_isp_two_view_reports_dict: AnnotatedGraph[TwoViewEstimationReport] = {}
 
     for (i1, i2), two_view_output in two_view_results.items():
-        # Value is ordered as (post_isp_i2Ri1, post_isp_i2Ui1, post_isp_v_corr_idxs,
-        # pre_ba_report, post_ba_report, post_isp_report).
-        i2Ri1 = two_view_output[0]
-        i2Ui1 = two_view_output[1]
-        if i2Ri1 is None or i2Ui1 is None:
+        # Access fields by name instead of index
+        if two_view_output.i2Ri1 is None or two_view_output.i2Ui1 is None:
             logger.debug("Skip %d, %d since None", i1, i2)
             continue
 
-    i2Ri1_dict[(i1, i2)] = i2Ri1
-    i2Ui1_dict[(i1, i2)] = i2Ui1
-    v_corr_idxs_dict[(i1, i2)] = two_view_output[2]
-    pre_ba_two_view_reports_dict[(i1, i2)] = two_view_output[3]
-    post_isp_two_view_reports_dict[(i1, i2)] = two_view_output[5]
+        i2Ri1_dict[(i1, i2)] = two_view_output.i2Ri1
+        i2Ui1_dict[(i1, i2)] = two_view_output.i2Ui1
+        v_corr_idxs_dict[(i1, i2)] = two_view_output.v_corr_idxs
+        pre_ba_two_view_reports_dict[(i1, i2)] = two_view_output.pre_ba_report
+        post_isp_two_view_reports_dict[(i1, i2)] = two_view_output.post_isp_report
 
     return i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, pre_ba_two_view_reports_dict, post_isp_two_view_reports_dict
 

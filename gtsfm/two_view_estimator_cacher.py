@@ -14,7 +14,7 @@ import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
-from gtsfm.two_view_estimator import TWO_VIEW_OUTPUT, TwoViewEstimator
+from gtsfm.two_view_estimator import TwoViewEstimator, TwoViewOutput
 
 # Number of first K keypoints from each image to use to create cache key.
 NUM_KEYPOINTS_TO_SAMPLE_FOR_HASH = 10
@@ -62,7 +62,7 @@ class TwoViewEstimatorCacher(TwoViewEstimator):
 
     def __load_result_from_cache(
         self, keypoints_i1: Keypoints, keypoints_i2: Keypoints, putative_corr_idxs: np.ndarray
-    ) -> Optional[TWO_VIEW_OUTPUT]:
+    ) -> Optional[TwoViewOutput]:
         """Loads cached result, if it exists."""
         cache_key = self.__generate_cache_key(keypoints_i1, keypoints_i2, putative_corr_idxs)
         cache_path = self.__get_cache_path(cache_key=cache_key)
@@ -71,9 +71,9 @@ class TwoViewEstimatorCacher(TwoViewEstimator):
         return cached_data
 
     def __save_result_to_cache(
-        self, keypoints_i1: Keypoints, keypoints_i2: Keypoints, putative_corr_idxs: np.ndarray, result: TWO_VIEW_OUTPUT
+        self, keypoints_i1: Keypoints, keypoints_i2: Keypoints, putative_corr_idxs: np.ndarray, result: TwoViewOutput
     ) -> None:
-        """Saves the result (`TWO_VIEW_OUTPUT` 6-tuple) to the cache."""
+        """Saves the result (`TwoViewOutput` dataclass) to the cache."""
         cache_key = self.__generate_cache_key(keypoints_i1, keypoints_i2, putative_corr_idxs)
         cache_path = self.__get_cache_path(cache_key=cache_key)
         io_utils.write_to_bz2_file(result, cache_path)
@@ -91,7 +91,7 @@ class TwoViewEstimatorCacher(TwoViewEstimator):
         gt_scene_mesh: Optional[Any] = None,
         i1: Optional[int] = None,
         i2: Optional[int] = None,
-    ) -> TWO_VIEW_OUTPUT:
+    ) -> TwoViewOutput:
         """Loads 2-view estimation result if it exists in cache, otherwise re-runs two view estimator from scratch."""
         result = self.__load_result_from_cache(keypoints_i1, keypoints_i2, putative_corr_idxs)
 

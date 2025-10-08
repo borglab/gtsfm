@@ -35,18 +35,15 @@ from dotenv import load_dotenv
 # Load environment variables from .env file at the start
 load_dotenv()
 
-from gtsfm.loader.yfcc_imb_loader import YfccImbLoader
+import gtsfm.utils.viz as viz
+from gtsfm.data_association.point3d_initializer import TriangulationOptions, TriangulationSamplingMode
 from gtsfm.frontend.detector_descriptor.sift import SIFTDetectorDescriptor
+from gtsfm.frontend.inlier_support_processor import InlierSupportProcessor
 from gtsfm.frontend.matcher.twoway_matcher import TwoWayMatcher
 from gtsfm.frontend.verifier.ransac import Ransac
+from gtsfm.loader.yfcc_imb_loader import YfccImbLoader
 from gtsfm.two_view_estimator import TwoViewEstimator, run_two_view_estimator_as_futures
-from gtsfm.frontend.inlier_support_processor import InlierSupportProcessor
-from gtsfm.data_association.point3d_initializer import (
-    TriangulationOptions,
-    TriangulationSamplingMode,
-)
 from gtsfm.utils.ssh_tunneling import SSHTunnelManager
-import gtsfm.utils.viz as viz
 
 processes = []
 
@@ -349,14 +346,14 @@ def main():
             f.write("Results per image pair:\n")
             f.write("-" * 50 + "\n")
 
-        for (i1, i2), (
-            i2Ri1,
-            i2Ui1,
-            v_corr_idxs,
-            pre_ba_report,
-            post_ba_report,
-            post_isp_report,
-        ) in two_view_output_dict.items():
+        for (i1, i2), two_view_output in two_view_output_dict.items():
+            # Extract fields from the dataclass
+            i2Ri1 = two_view_output.i2Ri1
+            i2Ui1 = two_view_output.i2Ui1
+            v_corr_idxs = two_view_output.v_corr_idxs
+            pre_ba_report = two_view_output.pre_ba_report
+            post_ba_report = two_view_output.post_ba_report
+            post_isp_report = two_view_output.post_isp_report
 
             with open(summary_file, "a") as f:
                 f.write(f"\nImage Pair ({indices[i1]}, {indices[i2]}):\n")
