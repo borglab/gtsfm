@@ -9,10 +9,9 @@ from pathlib import Path
 
 import dask
 import hydra
-import numpy as np
 from dask import config as dask_config
 from dask.distributed import Client, LocalCluster, SSHCluster, performance_report
-from gtsam import Pose3, Rot3, Unit3  # type: ignore
+from gtsam import Pose3  # type: ignore
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
 
@@ -32,7 +31,7 @@ from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.products.visibility_graph import AnnotatedGraph, VisibilityGraph
 from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.scene_optimizer import SceneOptimizer
-from gtsfm.two_view_estimator import TwoViewEstimationReport, TwoViewOutput, run_two_view_estimator_as_futures
+from gtsfm.two_view_estimator import TwoViewOutput, run_two_view_estimator_as_futures
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
 from gtsfm.utils.subgraph_utils import group_results_by_subgraph
 
@@ -331,13 +330,17 @@ class GtsfmRunnerBase:
         intrinsics: list[CALIBRATION_TYPE] = maybe_intrinsics  # type: ignore
         (
             keypoints_list,  # This is a list of Keypoints, not np.ndarray
-            putative_corr_idxs_dict,
-            two_view_results_dict,
+            two_view_results,
             correspondence_generation_duration_sec,
             two_view_estimation_duration_sec,
-            post_isp_two_view_reports_dict,
-            v_corr_idxs_dict,
         ) = self._run_correspondence_and_two_view(client, visibility_graph, intrinsics)
+
+        # Extract only the fields we need from the two_view_results
+        v_corr_idxs_dict = {(i1, i2): output.v_corr_idxs for (i1, i2), output in two_view_results.items()}
+        post_isp_two_view_reports_dict = {
+            (i1, i2): output.post_isp_report for (i1, i2), output in two_view_results.items()
+        }
+
         self._maybe_save_two_view_viz(keypoints_list, v_corr_idxs_dict, post_isp_two_view_reports_dict)
         two_view_agg_metrics = two_view_estimator.aggregate_frontend_metrics(
             two_view_reports_dict=post_isp_two_view_reports_dict,
@@ -354,7 +357,7 @@ class GtsfmRunnerBase:
         assert self.graph_partitioner is not None, "Graph partitioner is not set up!"
         subgraphs = self.graph_partitioner.run(visibility_graph)
         logger.info("Partitioned into %d subgraphs", len(subgraphs))
-        subgraph_two_view_results = group_results_by_subgraph(two_view_results_dict, subgraphs)
+        subgraph_two_view_results = group_results_by_subgraph(two_view_results, subgraphs)
         all_delayed_sfm_results = []
         all_delayed_io = []
         all_delayed_mvo_metrics_groups = []
@@ -440,12 +443,9 @@ class GtsfmRunnerBase:
         self, client: Client, visibility_graph: VisibilityGraph, intrinsics: list[CALIBRATION_TYPE]
     ) -> tuple[
         list[Keypoints],
-        AnnotatedGraph[np.ndarray],
         AnnotatedGraph[TwoViewOutput],
         float,
         float,
-        AnnotatedGraph[TwoViewEstimationReport],
-        AnnotatedGraph[np.ndarray],
     ]:
         with performance_report(filename="correspondence-generator-dask-report.html"):
             correspondence_generation_start_time = time.time()
@@ -459,7 +459,7 @@ class GtsfmRunnerBase:
             )
             correspondence_generation_duration_sec = time.time() - correspondence_generation_start_time
             two_view_estimation_start_time = time.time()
-            two_view_results_dict: AnnotatedGraph[TwoViewOutput] = run_two_view_estimator_as_futures(
+            two_view_results: AnnotatedGraph[TwoViewOutput] = run_two_view_estimator_as_futures(
                 client,
                 self.scene_optimizer.two_view_estimator,
                 keypoints_list,
@@ -470,15 +470,11 @@ class GtsfmRunnerBase:
                 gt_scene_mesh=self.loader.get_gt_scene_trimesh(),
             )
             two_view_estimation_duration_sec = time.time() - two_view_estimation_start_time
-        _, _, v_corr_idxs_dict, _, post_isp_two_view_reports_dict = unzip_two_view_results(two_view_results_dict)
         return (
             keypoints_list,
-            putative_corr_idxs_dict,
-            two_view_results_dict,
+            two_view_results,
             correspondence_generation_duration_sec,
             two_view_estimation_duration_sec,
-            post_isp_two_view_reports_dict,
-            v_corr_idxs_dict,
         )
 
     def _maybe_save_two_view_viz(self, keypoints_list, v_corr_idxs_dict, post_isp_two_view_reports_dict):
@@ -510,20 +506,22 @@ class GtsfmRunnerBase:
             self.scene_optimizer.create_output_directories(None)
         else:
             self.scene_optimizer.create_output_directories(idx + 1)
-        subgraph_i2Ri1_dict, subgraph_i2Ui1_dict, subgraph_v_corr_idxs_dict, _, subgraph_post_isp_reports = (
-            unzip_two_view_results(subgraph_result_dict)
-        )
-        if len(subgraph_i2Ri1_dict) > 0:
+
+        # Filter to only include valid two-view results
+        valid_results_dict = {
+            (i1, i2): output
+            for (i1, i2), output in subgraph_result_dict.items()
+            if output.i2Ri1 is not None and output.i2Ui1 is not None
+        }
+
+        if len(valid_results_dict) > 0:
             delayed_sfm_result, delayed_io, delayed_mvo_metrics_groups = self.scene_optimizer.create_computation_graph(
                 keypoints_list=keypoints_list,
-                i2Ri1_dict=subgraph_i2Ri1_dict,
-                i2Ui1_dict=subgraph_i2Ui1_dict,
-                v_corr_idxs_dict=subgraph_v_corr_idxs_dict,
-                two_view_reports=subgraph_post_isp_reports,
+                two_view_results=valid_results_dict,
                 num_images=len(self.loader),
                 images=self.loader.create_computation_graph_for_images(),
                 camera_intrinsics=maybe_intrinsics,  # TODO(Frank): really? None is allowed?
-                relative_pose_priors=self.loader.get_relative_pose_priors(list(subgraph_i2Ri1_dict.keys())),
+                relative_pose_priors=self.loader.get_relative_pose_priors(list(valid_results_dict.keys())),
                 absolute_pose_priors=self.loader.get_absolute_pose_priors(),
                 cameras_gt=self.loader.get_gt_cameras(),
                 gt_wTi_list=self.loader.get_gt_poses(),
@@ -533,35 +531,6 @@ class GtsfmRunnerBase:
         else:
             logger.warning(f"Skipping subgraph {idx+1} as it has no valid two-view results.")
             return None, [], []
-
-
-def unzip_two_view_results(two_view_results: AnnotatedGraph[TwoViewOutput]) -> tuple[
-    AnnotatedGraph[Rot3],
-    AnnotatedGraph[Unit3],
-    AnnotatedGraph[np.ndarray],
-    AnnotatedGraph[TwoViewEstimationReport],
-    AnnotatedGraph[TwoViewEstimationReport],
-]:
-    """Unzip the TwoViewOutput dataclass into separate dictionaries for each field."""
-    i2Ri1_dict: AnnotatedGraph[Rot3] = {}
-    i2Ui1_dict: AnnotatedGraph[Unit3] = {}
-    v_corr_idxs_dict: AnnotatedGraph[np.ndarray] = {}
-    pre_ba_two_view_reports_dict: AnnotatedGraph[TwoViewEstimationReport] = {}
-    post_isp_two_view_reports_dict: AnnotatedGraph[TwoViewEstimationReport] = {}
-
-    for (i1, i2), two_view_output in two_view_results.items():
-        # Access fields by name instead of index
-        if two_view_output.i2Ri1 is None or two_view_output.i2Ui1 is None:
-            logger.debug("Skip %d, %d since None", i1, i2)
-            continue
-
-        i2Ri1_dict[(i1, i2)] = two_view_output.i2Ri1
-        i2Ui1_dict[(i1, i2)] = two_view_output.i2Ui1
-        v_corr_idxs_dict[(i1, i2)] = two_view_output.v_corr_idxs
-        pre_ba_two_view_reports_dict[(i1, i2)] = two_view_output.pre_ba_report
-        post_isp_two_view_reports_dict[(i1, i2)] = two_view_output.post_isp_report
-
-    return i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, pre_ba_two_view_reports_dict, post_isp_two_view_reports_dict
 
 
 def save_metrics_reports(metrics_group_list: list[GtsfmMetricsGroup], metrics_path: str) -> None:

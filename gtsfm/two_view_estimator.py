@@ -52,17 +52,17 @@ class TwoViewOutput:
         i2Ri1: Estimated relative rotation from i1 to i2 (post-ISP).
         i2Ui1: Estimated relative unit translation from i1 to i2 (post-ISP).
         v_corr_idxs: Verified correspondence indices (post-ISP).
-        pre_ba_report: Two-view estimation report before bundle adjustment.
-        post_ba_report: Two-view estimation report after bundle adjustment.
-        post_isp_report: Two-view estimation report after inlier support processing.
+        pre_ba_report: Two-view estimation report before bundle adjustment (optional).
+        post_ba_report: Two-view estimation report after bundle adjustment (optional).
+        post_isp_report: Two-view estimation report after inlier support processing (optional).
     """
 
     i2Ri1: Optional[Rot3]
     i2Ui1: Optional[Unit3]
     v_corr_idxs: np.ndarray
-    pre_ba_report: TwoViewEstimationReport
-    post_ba_report: TwoViewEstimationReport
-    post_isp_report: TwoViewEstimationReport
+    pre_ba_report: Optional[TwoViewEstimationReport]
+    post_ba_report: Optional[TwoViewEstimationReport]
+    post_isp_report: Optional[TwoViewEstimationReport]
 
 
 class TwoViewEstimator(DaskDBModuleBase):

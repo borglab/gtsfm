@@ -23,8 +23,8 @@ import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
-from gtsfm.products.visibility_graph import ImageIndexPairs
-from gtsfm.two_view_estimator import TwoViewEstimationReport
+from gtsfm.products.visibility_graph import AnnotatedGraph, ImageIndexPairs
+from gtsfm.two_view_estimator import TwoViewEstimationReport, TwoViewOutput
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 PLOT_BASE_PATH = Path(__file__).resolve().parent.parent.parent / "plots"
@@ -253,25 +253,17 @@ class ViewGraphEstimatorBase(GTSFMProcess):
 
     def create_computation_graph(
         self,
-        i2Ri1_dict: Dict[Tuple[int, int], Rot3],
-        i2Ui1_dict: Dict[Tuple[int, int], Unit3],
+        two_view_results: AnnotatedGraph[TwoViewOutput],
         calibrations: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
-        corr_idxs_i1i2: Dict[Tuple[int, int], np.ndarray],
         keypoints: List[Keypoints],
-        two_view_reports: Optional[Dict[Tuple[int, int], TwoViewEstimationReport]],
         debug_output_dir: Optional[Path] = None,
     ) -> Tuple[Delayed, Delayed, Delayed, Delayed, Delayed]:
         """Create the computation graph for ViewGraph estimation and metric evaluation.
 
         Args:
-            i2Ri1_dict: Dict from (i1, i2) to relative rotation of i1 with respect to i2, wrapped as Delayed.
-            i2Ui1_dict: Dict from (i1, i2) to relative translation direction of i1 with respect to i2,
-                wrapped as Delayed.
+            two_view_results: TwoViewOutput results for image pairs.
             calibrations: list of calibrations for each image, wrapped as Delayed.
-            corr_idxs_i1i2: Dict from (i1, i2) to indices of verified correspondences from i1 to i2,
-                wrapped as Delayed.
             keypoints: keypoints for each image, wrapped as Delayed.
-            two_view_reports: Dict from (i1, i2) to TwoViewEstimationReport that contains metrics, wrapped as Delayed.
             debug_output_dir: Path to directory where outputs for debugging will be saved.
 
         Returns:
@@ -279,9 +271,19 @@ class ViewGraphEstimatorBase(GTSFMProcess):
             - Dict of i2Ri1 in the view graph
             - Dict of i2Ui1 in the view graph
             - Dict of corr_idxs_i1i2 in the view graph
-            - Dict of two_view_reports in the view graph
-            - GtsfmMetricsGroup with the view graph estimation metrics
+            - Dict of two view estimation reports in the view graph
+            - View graph estimation metrics (combined across all edges)
         """
+
+        # Extract individual dictionaries from TwoViewOutput dataclass
+        i2Ri1_dict = {
+            (i1, i2): output.i2Ri1 for (i1, i2), output in two_view_results.items() if output.i2Ri1 is not None
+        }
+        i2Ui1_dict = {
+            (i1, i2): output.i2Ui1 for (i1, i2), output in two_view_results.items() if output.i2Ui1 is not None
+        }
+        corr_idxs_i1i2 = {(i1, i2): output.v_corr_idxs for (i1, i2), output in two_view_results.items()}
+        two_view_reports = {(i1, i2): output.post_isp_report for (i1, i2), output in two_view_results.items()}
 
         # create debug directory for cycle_consistency
         plot_cycle_consist_path = None

@@ -14,7 +14,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import Pose3, Rot3, Similarity3, Unit3
+from gtsam import Pose3, Similarity3
 from trimesh import Trimesh
 
 import gtsfm.common.types as gtsfm_types
@@ -40,6 +40,7 @@ from gtsfm.two_view_estimator import (
     VIEWGRAPH_REPORT_TAG,
     TwoViewEstimationReport,
     TwoViewEstimator,
+    TwoViewOutput,
 )
 
 matplotlib.use("Agg")
@@ -145,10 +146,7 @@ class SceneOptimizer:
     def create_computation_graph(
         self,
         keypoints_list: List[Keypoints],
-        i2Ri1_dict: Dict[Tuple[int, int], Rot3],
-        i2Ui1_dict: Dict[Tuple[int, int], Unit3],
-        v_corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
-        two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
+        two_view_results: Dict[Tuple[int, int], TwoViewOutput],
         num_images: int,
         images: List[Delayed],
         camera_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
@@ -160,6 +158,13 @@ class SceneOptimizer:
     ) -> Tuple[Delayed, List[Delayed], List[Delayed]]:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
         logger.info(f"Results, plots, and metrics will be saved at {self.output_root}")
+
+        # Extract the post-ISP reports for metrics and visualization
+        two_view_reports = {
+            (i1, i2): output.post_isp_report
+            for (i1, i2), output in two_view_results.items()
+            if output.i2Ri1 is not None and output.i2Ui1 is not None
+        }
 
         delayed_results: List[Delayed] = []
 
@@ -173,13 +178,10 @@ class SceneOptimizer:
             images=images,
             num_images=num_images,
             keypoints_list=keypoints_list,
-            i2Ri1_dict=i2Ri1_dict,
-            i2Ui1_dict=i2Ui1_dict,
-            v_corr_idxs_dict=v_corr_idxs_dict,
+            two_view_results=two_view_results,
             all_intrinsics=camera_intrinsics,
             absolute_pose_priors=absolute_pose_priors,
             relative_pose_priors=relative_pose_priors,
-            two_view_reports_dict=two_view_reports,
             cameras_gt=cameras_gt,
             gt_wTi_list=gt_wTi_list,
             output_root=self.output_root,
