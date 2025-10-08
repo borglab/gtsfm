@@ -61,6 +61,7 @@ jobs:
 
   benchmark:
     name: Benchmark
+    if: ${{ !contains(github.event.pull_request.title, '[skip benchmarks]') }}
     needs: mamba-setup
     runs-on: ubuntu-latest
     strategy:
