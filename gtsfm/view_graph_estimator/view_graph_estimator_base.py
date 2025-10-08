@@ -72,7 +72,7 @@ class ViewGraphEstimatorBase(GTSFMProcess):
         calibrations: List[Cal3Bundler],
         corr_idxs_i1i2: Dict[Tuple[int, int], np.ndarray],
         keypoints: List[Keypoints],
-        two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
+        two_view_reports: AnnotatedGraph[TwoViewEstimationReport],
     ) -> Set[Tuple[int, int]]:
         """Estimates the view graph, needs to be implemented by the derived class.
 
@@ -126,13 +126,13 @@ class ViewGraphEstimatorBase(GTSFMProcess):
         i2Ri1_dict: Dict[Tuple[int, int], Rot3],
         i2Ui1_dict: Dict[Tuple[int, int], Unit3],
         corr_idxs_i1i2: Dict[Tuple[int, int], np.ndarray],
-        two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
+        two_view_reports: AnnotatedGraph[TwoViewEstimationReport],
         edges_to_select: Set[Tuple[int, int]],
     ) -> Tuple[
         Dict[Tuple[int, int], Rot3],
         Dict[Tuple[int, int], Unit3],
         Dict[Tuple[int, int], np.ndarray],
-        Dict[Tuple[int, int], TwoViewEstimationReport],
+        AnnotatedGraph[TwoViewEstimationReport],
     ]:
         """Filters the dictionaries of 2-view results with the image-pair edges.
 
@@ -164,7 +164,7 @@ class ViewGraphEstimatorBase(GTSFMProcess):
         i2Ri1_dict: Dict[Tuple[int, int], Rot3],
         i2Ui1_dict: Dict[Tuple[int, int], Unit3],
         calibrations: List[Cal3Bundler],
-        two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
+        two_view_reports: AnnotatedGraph[TwoViewEstimationReport],
         view_graph_edges: ImageIndexPairs,
         plots_output_dir: Path = PLOT_BASE_PATH,
     ) -> GtsfmMetricsGroup:

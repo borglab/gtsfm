@@ -33,6 +33,7 @@ from gtsfm.frontend.correspondence_generator.correspondence_generator_base impor
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.graph_partitioner.single_partition import SinglePartition
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
+from gtsfm.products.visibility_graph import AnnotatedGraph
 from gtsfm.retriever.image_pairs_generator import ImagePairsGenerator
 from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.two_view_estimator import (
@@ -458,7 +459,7 @@ def save_gtsfm_data(
 
 
 def save_full_frontend_metrics(
-    two_view_report_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
+    two_view_report_dict: AnnotatedGraph[TwoViewEstimationReport],
     images: List[Image],
     filename: str,
     metrics_path: Path,

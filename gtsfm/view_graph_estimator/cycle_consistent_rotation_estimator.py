@@ -18,7 +18,7 @@ import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.products.visibility_graph import ImageIndexPairs
+from gtsfm.products.visibility_graph import AnnotatedGraph, ImageIndexPairs
 from gtsfm.two_view_estimator import TwoViewEstimationReport
 from gtsfm.view_graph_estimator.view_graph_estimator_base import ViewGraphEstimatorBase
 
@@ -84,7 +84,7 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         calibrations: List[Cal3Bundler],
         corr_idxs_i1i2: Dict[Tuple[int, int], np.ndarray],
         keypoints: List[Keypoints],
-        two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
+        two_view_reports: AnnotatedGraph[TwoViewEstimationReport],
         output_dir: Optional[Path] = None,
     ) -> Set[Tuple[int, int]]:
         """Estimates the view graph using the rotation consistency constraint in a cycle of 3 edges.
@@ -162,7 +162,7 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         cycle_errors: List[float],
         max_gt_error_in_cycle: List[float],
         per_edge_aggregate_error: Dict[Tuple[int, int], float],
-        two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
+        two_view_reports_dict: AnnotatedGraph[TwoViewEstimationReport],
         output_dir: Path,
     ) -> None:
         """Saves plots of aggregate error vs GT error for each edge, and cyclic error vs max GT error for each cycle.
