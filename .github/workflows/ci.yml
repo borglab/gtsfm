@@ -96,7 +96,7 @@ jobs:
         uses: actions/cache@v4
         env:
           # Increase this value to reset cache
-          CACHE_NUMBER_FRONTEND: 0
+          CACHE_NUMBER_FRONTEND: 1
         with:
           path: cache
           key: ${{ matrix.config_dataset_info[0] }}-${{ matrix.config_dataset_info[1] }}-${{ matrix.config_dataset_info[2] }}-${{ matrix.config_dataset_info[6] }}-${{ env.CACHE_NUMBER_FRONTEND }}
