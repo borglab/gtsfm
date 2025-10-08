@@ -40,7 +40,7 @@ from gtsfm.two_view_estimator import (
     VIEWGRAPH_REPORT_TAG,
     TwoViewEstimationReport,
     TwoViewEstimator,
-    TwoViewOutput,
+    TwoViewResult,
 )
 
 matplotlib.use("Agg")
@@ -146,7 +146,7 @@ class SceneOptimizer:
     def create_computation_graph(
         self,
         keypoints_list: List[Keypoints],
-        two_view_results: Dict[Tuple[int, int], TwoViewOutput],
+        two_view_results: Dict[Tuple[int, int], TwoViewResult],
         num_images: int,
         images: List[Delayed],
         camera_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],

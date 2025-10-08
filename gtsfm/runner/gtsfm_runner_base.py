@@ -31,7 +31,7 @@ from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.products.visibility_graph import AnnotatedGraph, VisibilityGraph
 from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.scene_optimizer import SceneOptimizer
-from gtsfm.two_view_estimator import TwoViewOutput, run_two_view_estimator_as_futures
+from gtsfm.two_view_estimator import TwoViewResult, run_two_view_estimator_as_futures
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
 from gtsfm.utils.subgraph_utils import group_results_by_subgraph
 
@@ -443,7 +443,7 @@ class GtsfmRunnerBase:
         self, client: Client, visibility_graph: VisibilityGraph, intrinsics: list[CALIBRATION_TYPE]
     ) -> tuple[
         list[Keypoints],
-        AnnotatedGraph[TwoViewOutput],
+        AnnotatedGraph[TwoViewResult],
         float,
         float,
     ]:
@@ -459,7 +459,7 @@ class GtsfmRunnerBase:
             )
             correspondence_generation_duration_sec = time.time() - correspondence_generation_start_time
             two_view_estimation_start_time = time.time()
-            two_view_results: AnnotatedGraph[TwoViewOutput] = run_two_view_estimator_as_futures(
+            two_view_results: AnnotatedGraph[TwoViewResult] = run_two_view_estimator_as_futures(
                 client,
                 self.scene_optimizer.two_view_estimator,
                 keypoints_list,

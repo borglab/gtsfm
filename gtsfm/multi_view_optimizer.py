@@ -24,7 +24,7 @@ from gtsfm.data_association.cpp_dsf_tracks_estimator import CppDsfTracksEstimato
 from gtsfm.data_association.data_assoc import DataAssociation
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 from gtsfm.products.visibility_graph import AnnotatedGraph
-from gtsfm.two_view_estimator import TwoViewOutput
+from gtsfm.two_view_estimator import TwoViewResult
 from gtsfm.view_graph_estimator.cycle_consistent_rotation_estimator import (
     CycleConsistentRotationViewGraphEstimator,
     EdgeErrorAggregationCriterion,
@@ -65,7 +65,7 @@ class MultiViewOptimizer:
         images: List[Delayed],
         num_images: int,
         keypoints_list: List[Keypoints],
-        two_view_results: AnnotatedGraph[TwoViewOutput],
+        two_view_results: AnnotatedGraph[TwoViewResult],
         all_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
         absolute_pose_priors: List[Optional[PosePrior]],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
@@ -79,7 +79,7 @@ class MultiViewOptimizer:
             images: List of all images in the scene, as delayed.
             num_images: Number of images in the scene.
             keypoints_list: Keypoints for images.
-            two_view_results: TwoViewOutput results for image pairs.
+            two_view_results: TwoViewResult results for image pairs.
             all_intrinsics: intrinsics for images.
             absolute_pose_priors: Priors on the camera poses.
             relative_pose_priors: Priors on the pose between camera pairs.
@@ -94,7 +94,7 @@ class MultiViewOptimizer:
             List of GtsfmMetricGroups from different modules, wrapped up as Delayed.
         """
 
-        # Extract individual dictionaries from TwoViewOutput dataclass
+        # Extract individual dictionaries from TwoViewResult dataclass
         i2Ri1_dict = {
             (i1, i2): output.i2Ri1 for (i1, i2), output in two_view_results.items() if output.i2Ri1 is not None
         }
@@ -124,7 +124,7 @@ class MultiViewOptimizer:
                 debug_output_dir,
             )
 
-            # Second view graph estimator expects the same TwoViewOutput format
+            # Second view graph estimator expects the same TwoViewResult format
             # Since ViewGraphEstimatorBase now uses the new signature, we pass two_view_results directly
             (
                 viewgraph_i2Ri1_graph,
@@ -133,7 +133,7 @@ class MultiViewOptimizer:
                 viewgraph_two_view_reports_graph,
                 viewgraph_estimation_metrics,
             ) = self.view_graph_estimator_v2.create_computation_graph(
-                two_view_results,  # Pass the original TwoViewOutput dict
+                two_view_results,  # Pass the original TwoViewResult dict
                 all_intrinsics,
                 keypoints_list,
                 debug_output_dir / "2" if debug_output_dir else None,

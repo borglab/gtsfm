@@ -24,7 +24,7 @@ import gtsfm.utils.metrics as metrics_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.products.visibility_graph import AnnotatedGraph, ImageIndexPairs
-from gtsfm.two_view_estimator import TwoViewEstimationReport, TwoViewOutput
+from gtsfm.two_view_estimator import TwoViewEstimationReport, TwoViewResult
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 PLOT_BASE_PATH = Path(__file__).resolve().parent.parent.parent / "plots"
@@ -253,7 +253,7 @@ class ViewGraphEstimatorBase(GTSFMProcess):
 
     def create_computation_graph(
         self,
-        two_view_results: AnnotatedGraph[TwoViewOutput],
+        two_view_results: AnnotatedGraph[TwoViewResult],
         calibrations: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
         keypoints: List[Keypoints],
         debug_output_dir: Optional[Path] = None,
@@ -261,7 +261,7 @@ class ViewGraphEstimatorBase(GTSFMProcess):
         """Create the computation graph for ViewGraph estimation and metric evaluation.
 
         Args:
-            two_view_results: TwoViewOutput results for image pairs.
+            two_view_results: TwoViewResult results for image pairs.
             calibrations: list of calibrations for each image, wrapped as Delayed.
             keypoints: keypoints for each image, wrapped as Delayed.
             debug_output_dir: Path to directory where outputs for debugging will be saved.
@@ -275,7 +275,7 @@ class ViewGraphEstimatorBase(GTSFMProcess):
             - View graph estimation metrics (combined across all edges)
         """
 
-        # Extract individual dictionaries from TwoViewOutput dataclass
+        # Extract individual dictionaries from TwoViewResult dataclass
         i2Ri1_dict = {
             (i1, i2): output.i2Ri1 for (i1, i2), output in two_view_results.items() if output.i2Ri1 is not None
         }

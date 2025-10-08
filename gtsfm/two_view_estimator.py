@@ -42,7 +42,7 @@ VIEWGRAPH_REPORT_TAG = "VIEWGRAPH_2VIEW_REPORT"
 
 
 @dataclasses.dataclass
-class TwoViewOutput:
+class TwoViewResult:
     """Output from two-view estimation containing poses and reports.
 
     The first three fields (i2Ri1, i2Ui1, v_corr_idxs) represent the final pose estimates
@@ -378,7 +378,7 @@ class TwoViewEstimator(DaskDBModuleBase):
         gt_scene_mesh: Optional[Any] = None,
         i1: Optional[int] = None,
         i2: Optional[int] = None,
-    ) -> TwoViewOutput:
+    ) -> TwoViewResult:
         """Estimate the relative pose between two images, along with inlier correspondences.
 
         Args:
@@ -487,7 +487,7 @@ class TwoViewEstimator(DaskDBModuleBase):
         logger.debug(f"[WORKER {worker_name}] Completed pair ({i1}, {i2})")
         sys.stdout.flush()
 
-        return TwoViewOutput(
+        return TwoViewResult(
             i2Ri1=post_isp_i2Ri1,
             i2Ui1=post_isp_i2Ui1,
             v_corr_idxs=post_isp_v_corr_idxs,
@@ -862,16 +862,16 @@ def run_two_view_estimator_as_futures(
     relative_pose_priors: Dict[Tuple[int, int], PosePrior],
     gt_cameras: List[Optional[gtsfm_types.CAMERA_TYPE]],
     gt_scene_mesh: Optional[Any],
-) -> Dict[Tuple[int, int], TwoViewOutput]:
+) -> Dict[Tuple[int, int], TwoViewResult]:
     """Run two-view estimator for all image pairs."""
 
-    def apply_two_view_estimator(two_view_estimator: TwoViewEstimator, **kwargs) -> TwoViewOutput:
+    def apply_two_view_estimator(two_view_estimator: TwoViewEstimator, **kwargs) -> TwoViewResult:
         return two_view_estimator.run_2view(**kwargs)
 
     logger.info("Submitting tasks directly to workers ...")
 
     # Submit tasks with image indices passed as separate parameters
-    two_view_output_futures = {
+    two_view_result_futures = {
         (i1, i2): client.submit(
             apply_two_view_estimator,
             two_view_estimator,
@@ -890,13 +890,13 @@ def run_two_view_estimator_as_futures(
         for (i1, i2), putative_corr_idxs in putative_corr_idxs_dict.items()
     }
 
-    logger.info(f"Submitted {len(two_view_output_futures)} tasks to workers")
+    logger.info(f"Submitted {len(two_view_result_futures)} tasks to workers")
     logger.info("Waiting for all tasks to complete...")
 
     try:
-        two_view_output_dict = client.gather(two_view_output_futures, errors="raise")
-        logger.info("Gathered %d results", len(two_view_output_dict))
-        return two_view_output_dict
+        two_view_result_dict = client.gather(two_view_result_futures, errors="raise")
+        logger.info("Gathered %d results", len(two_view_result_dict))
+        return two_view_result_dict
     except Exception as e:
         logger.error(f"Error during gather: {e}")
         return {}

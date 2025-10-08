@@ -280,7 +280,7 @@ def main():
 
             print("[MAIN] Calling run_two_view_estimator_as_futures...")
 
-            two_view_output_dict = run_two_view_estimator_as_futures(
+            two_view_result_dict = run_two_view_estimator_as_futures(
                 client=client,
                 two_view_estimator=two_view_estimator,
                 keypoints_list=keypoints_list,
@@ -291,7 +291,7 @@ def main():
                 gt_scene_mesh=gt_scene_mesh,
             )
 
-            print(f"[MAIN] run_two_view_estimator_as_futures returned {len(two_view_output_dict)} results")
+            print(f"[MAIN] run_two_view_estimator_as_futures returned {len(two_view_result_dict)} results")
 
             total_time = time.time() - start_time
             print(f"[MAIN] Distributed computation completed in {total_time:.2f} seconds")
@@ -346,14 +346,14 @@ def main():
             f.write("Results per image pair:\n")
             f.write("-" * 50 + "\n")
 
-        for (i1, i2), two_view_output in two_view_output_dict.items():
+        for (i1, i2), two_view_result in two_view_result_dict.items():
             # Extract fields from the dataclass
-            i2Ri1 = two_view_output.i2Ri1
-            i2Ui1 = two_view_output.i2Ui1
-            v_corr_idxs = two_view_output.v_corr_idxs
-            pre_ba_report = two_view_output.pre_ba_report
-            post_ba_report = two_view_output.post_ba_report
-            post_isp_report = two_view_output.post_isp_report
+            i2Ri1 = two_view_result.i2Ri1
+            i2Ui1 = two_view_result.i2Ui1
+            v_corr_idxs = two_view_result.v_corr_idxs
+            pre_ba_report = two_view_result.pre_ba_report
+            post_ba_report = two_view_result.post_ba_report
+            post_isp_report = two_view_result.post_isp_report
 
             with open(summary_file, "a") as f:
                 f.write(f"\nImage Pair ({indices[i1]}, {indices[i2]}):\n")
