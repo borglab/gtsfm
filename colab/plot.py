@@ -124,7 +124,7 @@ def plot_camera(
 
 def plot_camera_colmap(fig, image, camera, name=None, **kwargs):
     """Plot a camera frustum from PyCOLMAP objects"""
-    world_t_camera = image.cam_from_world.inverse()
+    world_t_camera = image.cam_from_world().inverse()
     plot_camera(
         fig,
         world_t_camera.rotation.matrix(),
@@ -162,8 +162,8 @@ def plot_reconstruction(
         p3D
         for _, p3D in rec.points3D.items()
         if (
-            (p3D.xyz >= bbs[0]).all()
-            and (p3D.xyz <= bbs[1]).all()
+            (p3D.xyz >= bbs.min).all()
+            and (p3D.xyz <= bbs.max).all()
             and p3D.error <= max_reproj_error
             and p3D.track.length() >= min_track_length
         )
