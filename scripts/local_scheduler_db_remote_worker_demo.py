@@ -25,15 +25,19 @@ Author: Zongyue Liu
 """
 
 import atexit
+import datetime
+import json
+import logging
 import os
+import psycopg2
 import signal
 import socket
 import subprocess
 import time
+import traceback
+
 from typing import Any, Dict, List
 from functools import partial
-import datetime
-import psycopg2
 
 import dask.distributed
 import yaml
@@ -41,6 +45,10 @@ from dotenv import load_dotenv
 
 # Load environment variables from .env file at the start
 load_dotenv()
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+logger = logging.getLogger(__name__)
 
 # Global list to track processes - will be populated in main()
 processes: List[subprocess.Popen] = []
@@ -59,12 +67,12 @@ def kill_process_on_port(port: int) -> bool:
         pids = result.stdout.strip().split("\n")
         for pid in pids:
             if pid:
-                print(f"Killing process {pid} using port {port}")
+                logger.info(f"Killing process {pid} using port {port}")
                 os.kill(int(pid), signal.SIGTERM)
                 time.sleep(1)  # Give process time to terminate
         return True
     except Exception as e:
-        print(f"Error killing process on port {port}: {e}")
+        logger.error(f"Error killing process on port {port}: {e}")
         return False
 
 
@@ -90,9 +98,16 @@ def load_config(config_file: str = "gtsfm/configs/local_scheduler_postgres_remot
             if "POSTGRES_PASSWORD" in os.environ:
                 config["database"]["password"] = os.environ["POSTGRES_PASSWORD"]
 
+        # Override workers with environment variable if it exists
+        if "DASK_WORKERS" in os.environ:
+            try:
+                config["workers"] = json.loads(os.environ["DASK_WORKERS"])
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to parse DASK_WORKERS environment variable: {e}")
+
         return config
     except Exception as e:
-        print(f"Error loading configuration: {e}")
+        logger.error(f"Error loading configuration: {e}")
         raise
 
 
@@ -105,7 +120,7 @@ def cleanup() -> None:
                 p.wait(timeout=5)
             except Exception:
                 p.kill()  # Force kill if termination fails
-    print("All processes have been cleaned up.")
+    logger.info("All processes have been cleaned up.")
 
 
 def initialize_database(db_params: Dict[str, Any]) -> bool:
@@ -132,15 +147,24 @@ def initialize_database(db_params: Dict[str, Any]) -> bool:
         conn.commit()
         cursor.close()
         conn.close()
-        print("Database table created successfully with proper schema")
+        logger.info("Database table created successfully with proper schema")
         return True
     except Exception as e:
-        print(f"Failed to initialize database: {e}")
+        logger.error(f"Failed to initialize database: {e}")
         return False
 
 
-def square_and_store(x: int, db_params: Dict[str, Any]) -> int:
+def square_and_store(x: int, db_params_tuple: tuple) -> int:
     """Square a number and store the result in PostgreSQL database"""
+
+    # Reconstruct db_params from tuple
+    db_params = {
+        "host": db_params_tuple[0],
+        "port": db_params_tuple[1],
+        "database": db_params_tuple[2],
+        "user": db_params_tuple[3],
+        "password": db_params_tuple[4],
+    }
 
     # Get worker information
     worker_name = socket.gethostname()
@@ -148,7 +172,7 @@ def square_and_store(x: int, db_params: Dict[str, Any]) -> int:
 
     # Perform calculation
     result = x**2
-    print(f"[WORKER {worker_name}] Starting: squaring {x} = {result} at {current_time}")
+    logger.debug(f"[WORKER {worker_name}] Starting: squaring {x} = {result} at {current_time}")
 
     # Add a small delay to simulate real work and allow task distribution
     time.sleep(0.1)
@@ -172,12 +196,12 @@ def square_and_store(x: int, db_params: Dict[str, Any]) -> int:
         conn.commit()
         cursor.close()
         conn.close()
-        print(f"[WORKER {worker_name}] Successfully stored result for {x}")
+        logger.debug(f"[WORKER {worker_name}] Successfully stored result for {x}")
 
     except Exception as e:
-        print(f"[WORKER {worker_name}] Failed to connect to database: {e}")
+        logger.error(f"[WORKER {worker_name}] Failed to connect to database: {e}")
 
-    print(f"[WORKER {worker_name}] About to return {result} for input {x}")
+    logger.debug(f"[WORKER {worker_name}] About to return {result} for input {x}")
 
     return result
 
@@ -197,17 +221,17 @@ def get_results_from_db(db_params: Dict[str, Any]) -> None:
         )
         db_results = cursor.fetchall()
 
-        print("\nResults from PostgreSQL database:")
-        print("Number | Square | Worker | Time")
-        print("-" * 60)
+        logger.info("\nResults from PostgreSQL database:")
+        logger.info("Number | Square | Worker | Time")
+        logger.info("-" * 60)
         for row in db_results:
             original, squared, worker, timestamp = row
-            print(f"{original:6d} | {squared:6d} | {worker:15s} | {timestamp}")
+            logger.info(f"{original:6d} | {squared:6d} | {worker:15s} | {timestamp}")
 
         cursor.close()
         conn.close()
     except Exception as e:
-        print(f"Failed to retrieve results from database: {e}")
+        logger.error(f"Failed to retrieve results from database: {e}")
 
 
 def setup_infrastructure(config: Dict[str, Any]) -> None:
@@ -238,27 +262,27 @@ def setup_infrastructure(config: Dict[str, Any]) -> None:
     ports_to_check.append(scheduler_port)
     ports_to_check.append(dashboard_port)
 
-    print(f"Checking ports to free: {ports_to_check}")
+    logger.info(f"Checking ports to free: {ports_to_check}")
 
     for port in ports_to_check:
         if check_port_in_use(port):
-            print(f"Port {port} is in use. Attempting to free it...")
+            logger.warning(f"Port {port} is in use. Attempting to free it...")
 
             # Try up to 3 times to free the port
             max_attempts = 3
             for attempt in range(max_attempts):
                 if not kill_process_on_port(port):
-                    print(f"Failed to free port {port}. Please manually close the application using it.")
+                    logger.error(f"Failed to free port {port}. Please manually close the application using it.")
                     raise RuntimeError(f"Port {port} could not be freed")
 
                 time.sleep(3)
 
                 if not check_port_in_use(port):
-                    print(f"Port {port} freed successfully.")
+                    logger.info(f"Port {port} freed successfully.")
                     break
                 else:
                     if attempt < max_attempts - 1:
-                        print(f"Port {port} still in use. Retrying ({attempt+1}/{max_attempts})...")
+                        logger.warning(f"Port {port} still in use. Retrying ({attempt+1}/{max_attempts})...")
                     else:
                         raise RuntimeError(f"Port {port} is still in use after {max_attempts} attempts")
 
@@ -267,7 +291,7 @@ def setup_infrastructure(config: Dict[str, Any]) -> None:
         server_address = f"{username}@{hostname}"
         db_port = str(db_params["port"])
 
-        print(f"Establishing SSH tunnel to {hostname}...")
+        logger.info(f"Establishing SSH tunnel to {hostname}...")
         ssh_tunnel_cmd = [
             "ssh",
             "-N",
@@ -283,11 +307,11 @@ def setup_infrastructure(config: Dict[str, Any]) -> None:
 
         ssh_tunnel_proc = subprocess.Popen(ssh_tunnel_cmd)
         processes.append(ssh_tunnel_proc)
-        print(f"SSH tunnel process ID: {ssh_tunnel_proc.pid}")
+        logger.info(f"SSH tunnel process ID: {ssh_tunnel_proc.pid}")
         time.sleep(5)
 
     # Start Dask scheduler
-    print("Starting Dask scheduler...")
+    logger.info("Starting Dask scheduler...")
     dask_scheduler_cmd = [
         "conda",
         "run",
@@ -302,14 +326,14 @@ def setup_infrastructure(config: Dict[str, Any]) -> None:
 
     dask_scheduler_proc = subprocess.Popen(dask_scheduler_cmd)
     processes.append(dask_scheduler_proc)
-    print(f"Dask scheduler process ID: {dask_scheduler_proc.pid}")
+    logger.info(f"Dask scheduler process ID: {dask_scheduler_proc.pid}")
     time.sleep(5)
 
     # Start Dask workers on remote servers
     for hostname, worker_port in workers.items():
         server_address = f"{username}@{hostname}"
 
-        print(f"Starting Dask worker on remote server {hostname}...")
+        logger.info(f"Starting Dask worker on remote server {hostname}...")
         remote_cmd = (
             f"ssh -t {server_address} 'bash -c \""
             f"export PATH=/home/{username}/miniconda3/bin:$PATH && "
@@ -323,7 +347,7 @@ def setup_infrastructure(config: Dict[str, Any]) -> None:
 
         dask_worker_proc = subprocess.Popen(remote_cmd, shell=True)
         processes.append(dask_worker_proc)
-        print(f"Remote Dask worker process ID: {dask_worker_proc.pid}")
+        logger.info(f"Remote Dask worker process ID: {dask_worker_proc.pid}")
         time.sleep(5)
 
     return db_params, scheduler_port
@@ -333,74 +357,72 @@ def run_test_computation(db_params: Dict[str, Any], scheduler_port: int) -> None
     """Run the test computation on the cluster"""
 
     # Create Dask client
-    print("[MAIN] Creating Dask client...")
+    logger.info("[MAIN] Creating Dask client...")
 
     client = dask.distributed.Client(f"tcp://localhost:{scheduler_port}")
-    print(f"[MAIN] Dask client created. Dashboard: {client.dashboard_link}")
+    logger.info(f"[MAIN] Dask client created. Dashboard: {client.dashboard_link}")
 
     # Wait for all workers to connect
-    print("[MAIN] Waiting for workers to connect...")
+    logger.info("[MAIN] Waiting for workers to connect...")
 
     while len(client.scheduler_info()["workers"]) < 2:
-        print(
-            f"[MAIN] Currently {len(client.scheduler_info()['workers'])} worker(s) connected. Waiting for 2...",
-            flush=True,
-        )
+        logger.info(f"[MAIN] Currently {len(client.scheduler_info()['workers'])} worker(s) connected. Waiting for 2...")
         time.sleep(1)
-    print(f"[MAIN] All {len(client.scheduler_info()['workers'])} workers connected!")
+    logger.info(f"[MAIN] All {len(client.scheduler_info()['workers'])} workers connected!")
 
     # Initialize the database
-    print("[MAIN] Initializing PostgreSQL database...")
+    logger.info("[MAIN] Initializing PostgreSQL database...")
 
     if not initialize_database(db_params):
-        print("[MAIN] Failed to initialize database. Exiting.")
+        logger.error("[MAIN] Failed to initialize database. Exiting.")
         cleanup()
         raise RuntimeError("Database initialization failed")
-    print("[MAIN] Database initialized successfully")
+    logger.info("[MAIN] Database initialized successfully")
 
-    # Submit jobs to workers - pass db_params as an argument using partial
-    # Use more tasks to ensure distribution across workers
     num_tasks = 100
-    print(f"[MAIN] Submitting {num_tasks} jobs to workers...")
+    logger.info(f"[MAIN] Submitting {num_tasks} jobs to workers...")
 
-    square_func = partial(square_and_store, db_params=db_params)
-    futures = client.map(square_func, range(num_tasks))
-    print(f"[MAIN] Submitted {len(futures)} tasks")
+    # Scatter the INPUT DATA (numbers to square) to workers
+    logger.info("[MAIN] Scattering input numbers to workers")
+    numbers_to_square = list(range(num_tasks))
+    numbers_futures = client.scatter(numbers_to_square, broadcast=True)
+    logger.info(f"[MAIN] Numbers scattered: {len(numbers_futures)} values")
 
-    print("[MAIN] Waiting for tasks to complete...")
+    db_params_tuple = (
+        db_params["host"],
+        db_params["port"],
+        db_params["database"],
+        db_params["user"],
+        db_params["password"],
+    )
 
-    # Use wait with a timeout and check for errors
-    done, not_done = dask.distributed.wait(futures, timeout=60)
-    print(f"[MAIN] Wait completed! Tasks done: {len(done)}, Tasks pending: {len(not_done)}")
+    # Submit calculation tasks using the scattered numbers
+    futures_dict = {i: client.submit(square_and_store, numbers_futures[i], db_params_tuple) for i in range(num_tasks)}
+    logger.info(f"[MAIN] Submitted {len(futures_dict)} calculation tasks")
 
-    if not_done:
-        print(f"[MAIN] WARNING: {len(not_done)} tasks did not complete!")
-        for i, future in enumerate(not_done):
-            print(f"[MAIN]   Pending future {i}: {future}")
+    logger.info("[MAIN] Gathering results from all tasks...")
 
-    # Collect results and check for exceptions
-    print("[MAIN] Gathering results...")
+    # Use client.gather() to collect all results
+    try:
+        results_dict = client.gather(futures_dict)
+        logger.info(f"[MAIN] All {len(results_dict)} results gathered successfully")
 
-    results = []
-    for i, future in enumerate(futures):
-        try:
-            result = future.result(timeout=5)
-            results.append(result)
-        except Exception as e:
-            print(f"[MAIN] Error in future {i}: {e}")
-            import traceback
+        # Convert dict to list if needed
+        results = [results_dict[i] for i in range(num_tasks)]
+        logger.info(f"[MAIN] Results: {results}")
 
-            traceback.print_exc()
-
-    print(f"[MAIN] All {len(results)} results gathered successfully")
+    except Exception as e:
+        logger.error(f"[MAIN] Error during gather: {e}")
+        traceback.print_exc()
+        results = []
 
     # Display results from database (this runs on the LOCAL machine)
-    print("\n[MAIN] Querying database from local machine...")
+    logger.info("\n[MAIN] Querying database from local machine...")
 
     get_results_from_db(db_params)
 
     # Show worker statistics
-    print("\n[MAIN] Worker Statistics:")
+    logger.info("\n[MAIN] Worker Statistics:")
 
     try:
         conn = psycopg2.connect(**db_params)
@@ -414,62 +436,56 @@ def run_test_computation(db_params: Dict[str, Any], scheduler_port: int) -> None
         """
         )
         worker_stats = cursor.fetchall()
-        print("Worker Name    | Tasks Processed")
-        print("-" * 40)
+        logger.info("Worker Name    | Tasks Processed")
+        logger.info("-" * 40)
         for worker, count in worker_stats:
-            print(f"{worker:15s} | {count}")
+            logger.info(f"{worker:15s} | {count}")
         cursor.close()
         conn.close()
     except Exception as e:
-        print(f"Failed to get worker statistics: {e}")
+        logger.error(f"Failed to get worker statistics: {e}")
 
-    print("[MAIN] Closing client...")
+    logger.info("[MAIN] Closing client...")
 
     client.close()
-    print("[MAIN] Client closed successfully")
+    logger.info("[MAIN] Client closed successfully")
 
 
 def main() -> None:
     """Main function that orchestrates the entire test"""
 
-    print("[MAIN] Starting main function...")
+    logger.info("[MAIN] Starting main function...")
 
     # Register cleanup function
     atexit.register(cleanup)
 
     try:
-        # Load configuration
-        print("[MAIN] Loading configuration...")
+        logger.info("[MAIN] Loading configuration...")
 
         config = load_config()
-        print("[MAIN] Configuration loaded")
 
-        # Set up infrastructure
-        print("[MAIN] Setting up infrastructure...")
+        logger.info("[MAIN] Setting up infrastructure...")
 
         db_params, scheduler_port = setup_infrastructure(config)
-        print("[MAIN] Infrastructure setup complete")
 
         # Run test computation
-        print("[MAIN] Running test computation...")
+        logger.info("[MAIN] Running test computation...")
 
         run_test_computation(db_params, scheduler_port)
-        print("[MAIN] Test computation complete!")
 
         # Keep main program running until user interrupts
-        print("\n[MAIN] All services have been started and test completed.")
-        print("[MAIN] Cluster will continue running. Press Ctrl+C to stop all services...")
+        logger.info("\n[MAIN] All services have been started and test completed.")
+        logger.info("[MAIN] Cluster will continue running. Press Ctrl+C to stop all services...")
 
         # Wait for Ctrl+C
         while True:
             time.sleep(1)
 
     except KeyboardInterrupt:
-        print("\n[MAIN] Termination signal received, cleaning up...")
+        logger.info("\n[MAIN] Termination signal received, cleaning up...")
 
     except Exception as e:
-        print(f"[MAIN] Error occurred: {e}")
-        import traceback
+        logger.error(f"[MAIN] Error occurred: {e}")
 
         traceback.print_exc()
 
