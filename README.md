@@ -64,7 +64,7 @@ Make sure that you can run `python -c "import gtsfm; import gtsam; print('hello 
 
 ## Try It on Google Colab  
 
-For a quick hands-on example, check out this Colab notebook [![Colab notebook](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kathirgounder/gtsfm/blob/master/notebooks/gtsfm_colab.ipynb)
+For a quick hands-on example, check out this Colab notebook [![Colab notebook](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/kathirgounder/gtsfm/blob/colab_fix/notebooks/gtsfm_colab.ipynb)
 
 
 ## Usage Guide (Running 3D Reconstruction)
