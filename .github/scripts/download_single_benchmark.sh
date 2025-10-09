@@ -55,6 +55,7 @@ validate_args() {
 get_dataset_dir() {
     local dataset_name="$1"
     case "$dataset_name" in
+        door-12) echo "tests/data/set1_lund_door" ;;
         skydio-8) echo "skydio_crane_mast_8imgs_with_exif" ;;
         skydio-32) echo "skydio-32" ;;
         skydio-501) echo "skydio-crane-mast-501-images" ;;
@@ -117,6 +118,10 @@ download_dataset_files() {
     log INFO "Downloading $dataset_name dataset files..."
     
     case "$dataset_name" in
+        door-12)
+            log INFO "door-12 dataset uses test_data source - no download needed"
+            return 0
+            ;;
         skydio-8)
             download_file "https://github.com/johnwlambert/gtsfm-datasets-mirror/releases/download/gtsfm-ci-small-datasets/skydio_crane_mast_8imgs_with_exif.zip"
             ;;
@@ -161,7 +166,25 @@ safe_extract_archive() {
     
     case "$archive" in
         *.tar.gz)
-            tar -xzf "$archive" $extract_args && rm "$archive"
+            # Check if it's actually gzip-compressed first
+            if file "$archive" | grep -q "gzip compressed"; then
+                # True gzip-compressed tar
+                if tar -xzf "$archive" $extract_args; then
+                    rm "$archive"
+                else
+                    log ERROR "Failed to extract gzip-compressed tar: $archive"
+                    return 1
+                fi
+            else
+                # Not gzip-compressed, try as regular tar
+                log WARN "File $archive is not gzip-compressed despite .tar.gz extension"
+                if tar -xf "$archive" $extract_args; then
+                    rm "$archive"
+                else
+                    log ERROR "Failed to extract $archive as regular tar"
+                    return 1
+                fi
+            fi
             ;;
         *.zip)
             unzip -qq "$archive" $extract_args && rm "$archive"
@@ -214,6 +237,10 @@ organize_cache_files() {
 # =============================================================================
 # DATASET EXTRACTION HANDLERS
 # =============================================================================
+
+extract_door_12() {
+    log INFO "door-12 uses existing test data - no extraction needed"
+}
 
 extract_skydio_8() {
     safe_extract_archive "skydio_crane_mast_8imgs_with_exif.zip"

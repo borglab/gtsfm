@@ -43,6 +43,7 @@ Examples:
     $SCRIPT_NAME notre-dame-20 lightglue 15 colmap-loader 760 false
 
 EOF
+    show_all_datasets
 }
 
 validate_args() {

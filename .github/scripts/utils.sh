@@ -120,6 +120,7 @@ get_script_dir() {
 # =============================================================================
 
 readonly GTSFM_DATASETS=(
+    "door-12"
     "skydio-8"
     "skydio-32" 
     "skydio-501"
@@ -137,6 +138,7 @@ readonly CACHE_DIR="../cache"
 get_dataset_info() {
     local dataset_name="$1"
     case "$dataset_name" in
+        door-12)              echo "Test dataset - Lund door sequence (test_data only)" ;;
         skydio-8)             echo "8 images from Skydio-501 crane (~39MB)" ;;
         skydio-32)            echo "32 images from Skydio-501 crane (~175MB)" ;;
         skydio-501)           echo "501-image Crane Mast collection (~2.9GB + 1.5GB cache)" ;;
@@ -155,5 +157,15 @@ show_all_datasets() {
     for dataset in "${GTSFM_DATASETS[@]}"; do
         printf "    %-20s %s\n" "$dataset" "$(get_dataset_info "$dataset")"
     done
+    echo ""
+}
+
+# Show categorized dataset summary
+show_dataset_summary() {
+    echo "Available datasets (${#GTSFM_DATASETS[@]} total):"
+    echo "    Test:   door-12 (test_data only)"
+    echo "    Small:  skydio-8, notre-dame-20"
+    echo "    Medium: skydio-32, palace-fine-arts-281"  
+    echo "    Large:  2011205_rc3, gerrard-hall-100, south-building-128, skydio-501"
     echo ""
 }

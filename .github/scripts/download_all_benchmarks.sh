@@ -39,11 +39,7 @@ Examples:
     $SCRIPT_NAME test_data   # Use test data source
 
 EOF
-    echo "Available datasets (${#GTSFM_DATASETS[@]} total):"
-    echo "    Small:  skydio-8, notre-dame-20"
-    echo "    Medium: skydio-32, palace-fine-arts-281"  
-    echo "    Large:  2011205_rc3, gerrard-hall-100, south-building-128, skydio-501"
-    echo ""
+    show_dataset_summary
 }
 
 # =============================================================================
