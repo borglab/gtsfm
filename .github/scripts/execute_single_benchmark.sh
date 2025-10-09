@@ -11,28 +11,18 @@
 
 set -euo pipefail
 
+# Source shared utilities
+source "$(dirname "$0")/utils.sh"
+
 # =============================================================================
 # CONSTANTS AND CONFIGURATION
 # =============================================================================
 
 readonly SCRIPT_NAME="$(basename "$0")"
-readonly BENCHMARK_DIR="benchmarks"
 
 # =============================================================================
 # UTILITY FUNCTIONS
 # =============================================================================
-
-log() {
-    local level="$1"
-    shift
-    case "$level" in
-        INFO)  echo "ℹ️  $*" ;;
-        WARN)  echo "⚠️  $*" >&2 ;;
-        ERROR) echo "❌ $*" >&2 ;;
-        SUCCESS) echo "✅ $*" ;;
-        *) echo "$*" ;;
-    esac
-}
 
 usage() {
     cat << EOF
@@ -69,38 +59,9 @@ validate_args() {
         exit 1
     fi
     
-    # Validate dataset name
-    case "$dataset_name" in
-        door-12|palace-fine-arts-281|2011205_rc3|skydio-8|skydio-32|skydio-501|notre-dame-20|gerrard-hall-100|south-building-128)
-            ;;
-        *)
-            log ERROR "Invalid dataset name '$dataset_name'"
-            usage
-            exit 1
-            ;;
-    esac
-    
-    # Validate loader name
-    case "$loader_name" in
-        olsson-loader|colmap-loader|astrovision)
-            ;;
-        *)
-            log ERROR "Invalid loader name '$loader_name'"
-            usage
-            exit 1
-            ;;
-    esac
-    
-    # Validate share_intrinsics
-    case "$share_intrinsics" in
-        true|false)
-            ;;
-        *)
-            log ERROR "Invalid share_intrinsics value '$share_intrinsics' (must be true or false)"
-            usage
-            exit 1
-            ;;
-    esac
+    validate_dataset "$dataset_name" || { usage; exit 1; }
+    validate_loader "$loader_name" || { usage; exit 1; }
+    validate_boolean "$share_intrinsics" "share_intrinsics" || { usage; exit 1; }
 }
 
 # =============================================================================
@@ -228,10 +189,7 @@ main() {
     local share_intrinsics="${6:-}"
     
     # Handle help requests
-    if [[ "$dataset_name" =~ ^(-h|--help|help)$ ]]; then
-        usage
-        exit 0
-    fi
+    show_help_if_requested "$dataset_name" usage
     
     validate_args "$dataset_name" "$config_name" "$max_frame_lookahead" "$loader_name" "$max_resolution" "$share_intrinsics"
     

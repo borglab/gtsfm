@@ -11,42 +11,19 @@
 
 set -euo pipefail
 
+# Source shared utilities
+source "$(dirname "$0")/utils.sh"
+
 # =============================================================================
 # CONSTANTS AND CONFIGURATION
 # =============================================================================
 
 readonly SCRIPT_NAME="$(basename "$0")"
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly VALID_SOURCES="wget test_data"
-
-# List of all supported datasets
-readonly DATASETS=(
-    "skydio-8"
-    "skydio-32" 
-    "skydio-501"
-    "notre-dame-20"
-    "palace-fine-arts-281"
-    "2011205_rc3"
-    "gerrard-hall-100"
-    "south-building-128"
-)
+readonly SCRIPT_DIR="$(get_script_dir)"
 
 # =============================================================================
 # UTILITY FUNCTIONS
 # =============================================================================
-
-log() {
-    local level="$1"
-    shift
-    case "$level" in
-        INFO)  echo "ℹ️  $*" ;;
-        WARN)  echo "⚠️  $*" >&2 ;;
-        ERROR) echo "❌ $*" >&2 ;;
-        SUCCESS) echo "✅ $*" ;;
-        HEADER) echo "🚀 $*" ;;
-        *) echo "$*" ;;
-    esac
-}
 
 usage() {
     cat << EOF
@@ -61,29 +38,12 @@ Examples:
     $SCRIPT_NAME wget        # Download all datasets from GitHub releases
     $SCRIPT_NAME test_data   # Use test data source
 
-Available datasets (8 total):
-    Small:  skydio-8 (~39MB), notre-dame-20 (~41MB)
-    Medium: skydio-32 (~175MB), palace-fine-arts-281 (~184MB)
-    Large:  2011205_rc3 (~205MB total), gerrard-hall-100 (~1.0GB)
-            south-building-128 (~472MB), skydio-501 (~4.4GB total)
-
 EOF
-}
-
-validate_args() {
-    local source="$1"
-    
-    if [[ -z "$source" ]]; then
-        log ERROR "Missing required source argument"
-        usage
-        exit 1
-    fi
-    
-    if [[ ! " $VALID_SOURCES " =~ " $source " ]]; then
-        log ERROR "Invalid source '$source'"
-        echo "Valid sources: $VALID_SOURCES"
-        exit 1
-    fi
+    echo "Available datasets (${#GTSFM_DATASETS[@]} total):"
+    echo "    Small:  skydio-8, notre-dame-20"
+    echo "    Medium: skydio-32, palace-fine-arts-281"  
+    echo "    Large:  2011205_rc3, gerrard-hall-100, south-building-128, skydio-501"
+    echo ""
 }
 
 # =============================================================================
@@ -95,9 +55,9 @@ download_all_datasets() {
     local failed_datasets=()
     local successful_datasets=()
     
-    log HEADER "Starting batch download of ${#DATASETS[@]} datasets"
+    log HEADER "Starting batch download of ${#GTSFM_DATASETS[@]} datasets"
     
-    for dataset in "${DATASETS[@]}"; do
+    for dataset in "${GTSFM_DATASETS[@]}"; do
         log INFO "Processing dataset: $dataset"
         echo ""
         
@@ -124,7 +84,7 @@ download_all_datasets() {
         return 1
     fi
     
-    log SUCCESS "All ${#DATASETS[@]} benchmark datasets downloaded successfully!"
+    log SUCCESS "All ${#GTSFM_DATASETS[@]} benchmark datasets downloaded successfully!"
     return 0
 }
 
@@ -132,12 +92,9 @@ main() {
     local source="${1:-}"
     
     # Handle help requests
-    if [[ "$source" =~ ^(-h|--help|help)$ ]]; then
-        usage
-        exit 0
-    fi
+    show_help_if_requested "$source" usage
     
-    validate_args "$source"
+    validate_source "$source" || { usage; exit 1; }
     
     log INFO "GTSFM Batch Benchmark Downloader"
     log INFO "Source: $source"

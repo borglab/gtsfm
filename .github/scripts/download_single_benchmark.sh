@@ -11,30 +11,18 @@
 
 set -euo pipefail
 
+# Source shared utilities
+source "$(dirname "$0")/utils.sh"
+
 # =============================================================================
 # CONSTANTS AND CONFIGURATION
 # =============================================================================
 
 readonly SCRIPT_NAME="$(basename "$0")"
-readonly BENCHMARK_DIR="benchmarks"
-readonly CACHE_DIR="../cache"
-readonly VALID_SOURCES="wget test_data"
 
 # =============================================================================
 # UTILITY FUNCTIONS
 # =============================================================================
-
-log() {
-    local level="$1"
-    shift
-    case "$level" in
-        INFO)  echo "ℹ️  $*" ;;
-        WARN)  echo "⚠️  $*" >&2 ;;
-        ERROR) echo "❌ $*" >&2 ;;
-        SUCCESS) echo "✅ $*" ;;
-        *) echo "$*" ;;
-    esac
-}
 
 usage() {
     cat << EOF
@@ -46,17 +34,8 @@ Arguments:
     dataset_name    Name of the dataset to download
     source          Download source (wget|test_data)
 
-Available datasets:
-    skydio-8             8 images from Skydio-501 crane (~39MB)
-    skydio-32            32 images from Skydio-501 crane (~175MB)
-    skydio-501           501-image Crane Mast collection (~2.9GB + 1.5GB cache)
-    notre-dame-20        Notre Dame cathedral dataset (~41MB)
-    palace-fine-arts-281 Palace of Fine Arts, San Francisco (~184MB)
-    2011205_rc3          NASA Dawn mission Asteroid 4 Vesta (~128MB + 77MB cache)
-    gerrard-hall-100     Gerrard Hall building (~1.0GB)
-    south-building-128   South Building dataset (~472MB)
-
 EOF
+    show_all_datasets
 }
 
 validate_args() {
@@ -69,23 +48,8 @@ validate_args() {
         exit 1
     fi
     
-    # Check if dataset name is valid
-    case "$dataset_name" in
-        skydio-8|skydio-32|skydio-501|notre-dame-20|palace-fine-arts-281|2011205_rc3|gerrard-hall-100|south-building-128)
-            ;;
-        *)
-            log ERROR "Invalid dataset name '$dataset_name'"
-            usage
-            exit 1
-            ;;
-    esac
-    
-    # Check if source is valid
-    if [[ ! " $VALID_SOURCES " =~ " $source " ]]; then
-        log ERROR "Invalid source '$source'"
-        echo "Valid sources: $VALID_SOURCES"
-        exit 1
-    fi
+    validate_dataset "$dataset_name" || { usage; exit 1; }
+    validate_source "$source" || { usage; exit 1; }
 }
 
 get_dataset_dir() {
@@ -329,16 +293,7 @@ process_dataset() {
     
     # Get description for the dataset
     local desc
-    case "$dataset_name" in
-        skydio-8) desc="8 images from Skydio-501 crane" ;;
-        skydio-32) desc="32 images from Skydio-501 crane" ;;
-        skydio-501) desc="501-image Crane Mast collection (includes cache)" ;;
-        notre-dame-20) desc="Notre Dame cathedral dataset" ;;
-        palace-fine-arts-281) desc="Palace of Fine Arts, San Francisco" ;;
-        2011205_rc3) desc="NASA Dawn mission Asteroid 4 Vesta (includes cache)" ;;
-        gerrard-hall-100) desc="Gerrard Hall building" ;;
-        south-building-128) desc="South Building dataset" ;;
-    esac
+    desc="$(get_dataset_info "$dataset_name")"
     
     log INFO "Processing $dataset_name: $desc"
     
@@ -365,10 +320,7 @@ main() {
     local source="${2:-}"
     
     # Handle help requests
-    if [[ "$dataset_name" =~ ^(-h|--help|help)$ ]]; then
-        usage
-        exit 0
-    fi
+    show_help_if_requested "$dataset_name" usage
     
     validate_args "$dataset_name" "$source"
     
