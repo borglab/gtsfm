@@ -13,7 +13,7 @@ fi
 
 MASTER_PR="$1"
 BRANCH_PR="$2"
-OUTPUT_FILE="compare_${MASTER_PR}_${BRANCH_PR}.html"
+OUTPUT_FILE="comparisons/compare_${MASTER_PR}_${BRANCH_PR}.html"
 
 # Run the comparison
 python gtsfm/evaluation/visualize_benchmark_comparison.py \
