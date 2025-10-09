@@ -1,7 +1,7 @@
 #!/bin/bash
 # This file defines the workflow for downloading, preparing, and storing datasets required for evaluation in CI.
 #
-# Datasets processed by this file are downloaded and extracted in the current working directory.
+# Datasets processed by this file are downloaded and extracted in the benchmarks/ directory.
 # The script takes two arguments:
 #   1) DATASET_NAME: name of the dataset to be downloaded. Supported datasets are:
 #       - skydio-8
@@ -14,13 +14,18 @@
 #       - south-building-128
 #   2) DATASET_SRC: source from which to download the dataset. Supported sources are:
 #       - wget
-#       - test_data
 #
 
 DATASET_NAME=$1
 DATASET_SRC=$2
 
 echo "Dataset: ${DATASET_NAME}, Download Source: ${DATASET_SRC}"
+
+# Create benchmark directory if it doesn't exist and change to it
+BENCHMARK_DIR="benchmarks"
+mkdir -p $BENCHMARK_DIR
+cd $BENCHMARK_DIR
+echo "Working in directory: $(pwd)"
 
 function retry {
   local retries=$1
@@ -60,6 +65,7 @@ function download_and_unzip_dataset_files {
     WGET_URL1=https://github.com/johnwlambert/gtsfm-datasets-mirror/releases/download/skydio-crane-mast-501-images/skydio-crane-mast-501-images1.tar.gz
     WGET_URL2=https://github.com/johnwlambert/gtsfm-datasets-mirror/releases/download/skydio-crane-mast-501-images/skydio-crane-mast-501-images2.tar.gz
     WGET_URL3=https://github.com/johnwlambert/gtsfm-datasets-mirror/releases/download/skydio-501-colmap-pseudo-gt/skydio-501-colmap-pseudo-gt.tar.gz
+    WGET_URL4=https://github.com/johnwlambert/gtsfm-cache/releases/download/skydio-501-lookahead50-deep-front-end-cache/skydio-501-lookahead50-deep-front-end-cache.tar.gz
 
   elif [ "$DATASET_NAME" == "notre-dame-20" ]; then
     # Description: TODO
@@ -102,8 +108,10 @@ function download_and_unzip_dataset_files {
     if [ ! -z "$WGET_URL3" ]; then
       retry 10 wget $WGET_URL3
     fi
-    echo $WGET_URL1
-    echo $WGET_URL2
+    # Check if $WGET_URL4 has been set.
+    if [ ! -z "$WGET_URL4" ]; then
+      retry 10 wget $WGET_URL4
+    fi
   fi
 
   # Extract the data, configure arguments for runner.
@@ -114,21 +122,23 @@ function download_and_unzip_dataset_files {
     unzip -qq skydio_crane_mast_32imgs_w_colmap_GT.zip -d skydio-32
 
   elif [ "$DATASET_NAME" == "skydio-501" ]; then
-    tar -xvzf skydio-crane-mast-501-images1.tar.gz
-    tar -xvzf skydio-crane-mast-501-images2.tar.gz
-    tar -xvzf skydio-501-colmap-pseudo-gt.tar.gz
+    tar -xzf skydio-crane-mast-501-images1.tar.gz
+    tar -xzf skydio-crane-mast-501-images2.tar.gz
+    tar -xzf skydio-501-colmap-pseudo-gt.tar.gz
     IMAGES_DIR="skydio-crane-mast-501-images"
     mkdir $IMAGES_DIR
     mv skydio-crane-mast-501-images1/* $IMAGES_DIR
     mv skydio-crane-mast-501-images2/* $IMAGES_DIR
+    rm -rf skydio-crane-mast-501-images1
+    rm -rf skydio-crane-mast-501-images2
 
-    mkdir -p cache/detector_descriptor
-    mkdir -p cache/matcher
-    wget https://github.com/johnwlambert/gtsfm-cache/releases/download/skydio-501-lookahead50-deep-front-end-cache/skydio-501-lookahead50-deep-front-end-cache.tar.gz
+    mkdir -p ../cache/detector_descriptor
+    mkdir -p ../cache/matcher
     mkdir skydio-501-cache
-    tar -xvzf skydio-501-lookahead50-deep-front-end-cache.tar.gz --directory skydio-501-cache
-    cp skydio-501-cache/cache/detector_descriptor/* cache/detector_descriptor/
-    cp skydio-501-cache/cache/matcher/* cache/matcher/
+    tar -xzf skydio-501-lookahead50-deep-front-end-cache.tar.gz --directory skydio-501-cache
+    find skydio-501-cache/cache/detector_descriptor/ -type f -exec mv {} ../cache/detector_descriptor/ \;
+    find skydio-501-cache/cache/matcher/ -type f -exec mv {} ../cache/matcher/ \;
+    rm -rf skydio-501-cache
 
   elif [ "$DATASET_NAME" == "notre-dame-20" ]; then
     unzip -qq notre-dame-20.zip
@@ -139,13 +149,13 @@ function download_and_unzip_dataset_files {
 
   elif [ "$DATASET_NAME" == "2011205_rc3" ]; then
     unzip -qq 2011205_rc3.zip
-    tar -xvf cache_rc3_deep.tar.gz
+    tar -xf cache_rc3_deep.tar.gz
 
   elif [ "$DATASET_NAME" == "gerrard-hall-100" ]; then
-    unzip gerrard-hall.zip
+    unzip -qq gerrard-hall.zip
 
   elif [ "$DATASET_NAME" == "south-building-128" ]; then
-    unzip south-building.zip
+    unzip -qq south-building.zip
 
   fi
 }

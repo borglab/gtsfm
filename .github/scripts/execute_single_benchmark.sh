@@ -7,31 +7,34 @@ LOADER_NAME=$4
 MAX_RESOLUTION=$5
 SHARE_INTRINSICS=$6
 
+# Base directory for all benchmark datasets
+BENCHMARK_DIR="benchmarks"
+
 # Extract the data, configure arguments for runner.
 if [ "$DATASET_NAME" == "door-12" ]; then
   DATASET_ROOT=tests/data/set1_lund_door
 elif [ "$DATASET_NAME" == "palace-fine-arts-281" ]; then
-  DATASET_ROOT="palace-fine-arts-281"
+  DATASET_ROOT="${BENCHMARK_DIR}/palace-fine-arts-281"
 elif [ "$DATASET_NAME" == "2011205_rc3" ]; then
-  DATASET_ROOT="2011205_rc3"
+  DATASET_ROOT="${BENCHMARK_DIR}/2011205_rc3"
 elif [ "$DATASET_NAME" == "skydio-8" ]; then
-  IMAGES_DIR=skydio_crane_mast_8imgs_with_exif/images
-  COLMAP_FILES_DIRPATH=skydio_crane_mast_8imgs_with_exif/crane_mast_8imgs_colmap_output
+  IMAGES_DIR=${BENCHMARK_DIR}/skydio_crane_mast_8imgs_with_exif/images
+  COLMAP_FILES_DIRPATH=${BENCHMARK_DIR}/skydio_crane_mast_8imgs_with_exif/crane_mast_8imgs_colmap_output
 elif [ "$DATASET_NAME" == "skydio-32" ]; then
-  IMAGES_DIR=skydio-32/images
-  COLMAP_FILES_DIRPATH=skydio-32/colmap_crane_mast_32imgs
+  IMAGES_DIR=${BENCHMARK_DIR}/skydio-32/images
+  COLMAP_FILES_DIRPATH=${BENCHMARK_DIR}/skydio-32/colmap_crane_mast_32imgs
 elif [ "$DATASET_NAME" == "skydio-501" ]; then
-  IMAGES_DIR="skydio-crane-mast-501-images"
-  COLMAP_FILES_DIRPATH="skydio-501-colmap-pseudo-gt"
+  IMAGES_DIR="${BENCHMARK_DIR}/skydio-crane-mast-501-images"
+  COLMAP_FILES_DIRPATH="${BENCHMARK_DIR}/skydio-501-colmap-pseudo-gt"
 elif [ "$DATASET_NAME" == "notre-dame-20" ]; then
-  IMAGES_DIR=notre-dame-20/images
-  COLMAP_FILES_DIRPATH=notre-dame-20/notre-dame-20-colmap
+  IMAGES_DIR=${BENCHMARK_DIR}/notre-dame-20/images
+  COLMAP_FILES_DIRPATH=${BENCHMARK_DIR}/notre-dame-20/notre-dame-20-colmap
 elif [ "$DATASET_NAME" == "gerrard-hall-100" ]; then
-  IMAGES_DIR=gerrard-hall/images
-  COLMAP_FILES_DIRPATH=gerrard-hall/sparse
+  IMAGES_DIR=${BENCHMARK_DIR}/gerrard-hall/images
+  COLMAP_FILES_DIRPATH=${BENCHMARK_DIR}/gerrard-hall/sparse
 elif [ "$DATASET_NAME" == "south-building-128" ]; then
-  IMAGES_DIR=south-building/images
-  COLMAP_FILES_DIRPATH=south-building/sparse
+  IMAGES_DIR=${BENCHMARK_DIR}/south-building/images
+  COLMAP_FILES_DIRPATH=${BENCHMARK_DIR}/south-building/sparse
 fi
 
 echo "Config: ${CONFIG_NAME}, Loader: ${LOADER_NAME}"
