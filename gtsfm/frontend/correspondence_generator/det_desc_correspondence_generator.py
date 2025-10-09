@@ -58,16 +58,14 @@ class DetDescCorrespondenceGenerator(CorrespondenceGeneratorBase):
             feature_matcher: MatcherBase,
             features_i1: Tuple[Keypoints, np.ndarray],
             features_i2: Tuple[Keypoints, np.ndarray],
-            im_shape_i1: Tuple[int, int, int],
-            im_shape_i2: Tuple[int, int, int],
+            **kwargs,
         ) -> np.ndarray:
-            return feature_matcher.match(
-                features_i1[0], features_i2[0], features_i1[1], features_i2[1], im_shape_i1, im_shape_i2
-            )
+            return feature_matcher.match(features_i1[0], features_i2[0], features_i1[1], features_i2[1], **kwargs)
 
         det_desc_future = client.scatter(self._detector_descriptor, broadcast=False)
-        feature_matcher_future = client.scatter(self._matcher, broadcast=False)
         features_futures = [client.submit(apply_det_desc, det_desc_future, image) for image in images]
+        del det_desc_future  # free memory (on workers)
+        feature_matcher_future = client.scatter(self._matcher, broadcast=False)
         image_shapes_futures = [client.submit(get_image_shape, image) for image in images]
 
         putative_corr_idxs_futures = {
@@ -76,8 +74,8 @@ class DetDescCorrespondenceGenerator(CorrespondenceGeneratorBase):
                 feature_matcher_future,
                 features_futures[i1],
                 features_futures[i2],
-                image_shapes_futures[i1],
-                image_shapes_futures[i2],
+                im_shape_i1=image_shapes_futures[i1],
+                im_shape_i2=image_shapes_futures[i2],
             )
             for (i1, i2) in visibility_graph
         }

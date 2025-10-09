@@ -37,7 +37,7 @@ class LoaderBase(GTSFMProcess):
         # based on gtsfm/runner/gtsfm_runner_base.py
         return UiMetadata(
             display_name="Image Loader",
-            input_products="Source Directory",
+            input_products=("Source Directory",),
             output_products=(
                 "Images",
                 "Camera Intrinsics",
@@ -134,7 +134,7 @@ class LoaderBase(GTSFMProcess):
 
         camera_type = gtsfm_types.get_camera_class_for_calibration(intrinsics)
 
-        return camera_type(pose, intrinsics)
+        return camera_type(pose, intrinsics)  # type: ignore
 
     def is_valid_pair(self, idx1: int, idx2: int) -> bool:
         """Checks if (idx1, idx2) is a valid pair. idx1 < idx2 is required.
@@ -287,7 +287,7 @@ class LoaderBase(GTSFMProcess):
         Determine how the camera intrinsics and images should be jointly rescaled based on desired img. resolution.
         Each loader implementation should set a `_max_resolution` attribute.
 
-        The returned intrinsics are the same as the camera intrinsics, but this behavior can be changed by overridding
+        The returned intrinsics are the same as the camera intrinsics, but this behavior can be changed by overriding
         `get_gt_camera_intrinsics_full_res` in derived classes.
 
         Args:

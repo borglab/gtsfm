@@ -17,7 +17,6 @@ import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.logger as logger_utils
 import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.common.types import CAMERA_TYPE
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
 from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_base import KeypointAggregatorBase
 from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_dedup import (
@@ -102,30 +101,19 @@ class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
         # TODO(johnwlambert): Remove assumption that image pair shares the same image shape.
         image_height_px, image_width_px, _ = loader.get_image(0).shape
 
-        def apply_synthetic_corr_generator(
-            loader_: LoaderBase,
-            camera_i1: CAMERA_TYPE,
-            camera_i2: CAMERA_TYPE,
-            open3d_mesh_fpath: str,
-            points: np.ndarray,
-        ) -> Tuple[Keypoints, Keypoints]:
+        def apply_synthetic_corr_generator(loader_: LoaderBase, **kwargs) -> Tuple[Keypoints, Keypoints]:
             return generate_synthetic_correspondences_for_image_pair(
-                camera_i1,
-                camera_i2,
-                open3d_mesh_fpath,
-                points,
-                image_height_px=image_height_px,
-                image_width_px=image_width_px,
+                image_height_px=image_height_px, image_width_px=image_width_px, **kwargs
             )
 
         pairwise_correspondence_futures = {
             (i1, i2): client.submit(
                 apply_synthetic_corr_generator,
                 loader_future,
-                loader.get_camera(index=i1),
-                loader.get_camera(index=i2),
-                open3d_mesh_path,
-                sampled_points,
+                camera_i1=loader.get_camera(index=i1),
+                camera_i2=loader.get_camera(index=i2),
+                open3d_mesh_fpath=open3d_mesh_path,
+                points=sampled_points,
             )
             for i1, i2 in visibility_graph
         }

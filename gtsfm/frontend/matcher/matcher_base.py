@@ -2,6 +2,7 @@
 
 Authors: Ayush Baid
 """
+
 import abc
 from typing import Tuple
 
@@ -17,6 +18,7 @@ class MatcherBase(GTSFMProcess):
     Matchers work on a pair of descriptors and match them by their distance.
     """
 
+    @staticmethod
     def get_ui_metadata() -> UiMetadata:
         """Returns data needed to display node and edge info for this process in the process graph."""
 

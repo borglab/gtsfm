@@ -390,6 +390,10 @@ class TwoViewEstimator(DaskDBModuleBase):
             Estimated relative rotation, unit translation, verified correspondences, and two-view report.
         """
 
+        worker_name = socket.gethostname()
+        logger.info(f"[WORKER {worker_name}] Processing pair ({i1}, {i2})")
+        sys.stdout.flush()
+
         # Record start time for computation measurement
         start_time = time.time()
 
@@ -469,6 +473,8 @@ class TwoViewEstimator(DaskDBModuleBase):
             i1,
             i2,
         )
+
+        logger.info(f"[WORKER {worker_name}] Completed pair ({i1}, {i2})")
 
         return post_isp_i2Ri1, post_isp_i2Ui1, post_isp_v_corr_idxs, pre_ba_report, post_ba_report, post_isp_report
 
@@ -679,27 +685,17 @@ def generate_two_view_report(
 
     # Generate report.
     two_view_report = TwoViewEstimationReport(
-        inlier_ratio_est_model=float(inlier_ratio_est_model),
+        inlier_ratio_est_model=inlier_ratio_est_model,
         num_inliers_est_model=v_corr_idxs.shape[0],
         num_inliers_gt_model=num_inliers_gt_model,
-        inlier_ratio_gt_model=(
-            float(inlier_ratio_gt_model) if not isinstance(inlier_ratio_gt_model, float) else inlier_ratio_gt_model
-        ),
+        inlier_ratio_gt_model=inlier_ratio_gt_model,
         v_corr_idxs_inlier_mask_gt=v_corr_idxs_inlier_mask_gt,
         v_corr_idxs=v_corr_idxs,
-        R_error_deg=float(R_error_deg) if R_error_deg is not None else None,
-        U_error_deg=float(U_error_deg) if U_error_deg is not None else None,
+        R_error_deg=R_error_deg,
+        U_error_deg=U_error_deg,
         reproj_error_gt_model=reproj_error_gt_model,
-        inlier_avg_reproj_error_gt_model=(
-            float(inlier_avg_reproj_error_gt_model)
-            if not isinstance(inlier_avg_reproj_error_gt_model, float)
-            else inlier_avg_reproj_error_gt_model
-        ),
-        outlier_avg_reproj_error_gt_model=(
-            float(outlier_avg_reproj_error_gt_model)
-            if not isinstance(outlier_avg_reproj_error_gt_model, float)
-            else outlier_avg_reproj_error_gt_model
-        ),
+        inlier_avg_reproj_error_gt_model=inlier_avg_reproj_error_gt_model,
+        outlier_avg_reproj_error_gt_model=outlier_avg_reproj_error_gt_model,
     )
     return two_view_report
 
@@ -832,8 +828,8 @@ def aggregate_frontend_metrics(
             GtsfmMetric("pose_errors_deg", pose_errors),
             GtsfmMetric("inlier_ratio_wrt_gt_model", inlier_ratio_gt_model_all_pairs),
             GtsfmMetric("inlier_ratio_wrt_est_model", inlier_ratio_est_model_all_pairs),
-            GtsfmMetric("num_inliers_est_model", num_inliers_est_model_all_pairs),
-            GtsfmMetric("num_inliers_gt_model", num_inliers_gt_model_all_pairs),
+            GtsfmMetric("num_inliers_est_model", np.array(num_inliers_est_model_all_pairs)),
+            GtsfmMetric("num_inliers_gt_model", np.array(num_inliers_gt_model_all_pairs)),
         ],
     )
     return frontend_metrics
@@ -851,41 +847,8 @@ def run_two_view_estimator_as_futures(
 ) -> Dict[Tuple[int, int], TWO_VIEW_OUTPUT]:
     """Run two-view estimator for all image pairs."""
 
-    def apply_two_view_estimator(
-        two_view_estimator: TwoViewEstimator,
-        keypoints_i1: Keypoints,
-        keypoints_i2: Keypoints,
-        putative_corr_idxs: np.ndarray,
-        camera_intrinsics_i1: gtsfm_types.CALIBRATION_TYPE,
-        camera_intrinsics_i2: gtsfm_types.CALIBRATION_TYPE,
-        i2Ti1_prior: Optional[PosePrior],
-        gt_camera_i1: Optional[gtsfm_types.CAMERA_TYPE],
-        gt_camera_i2: Optional[gtsfm_types.CAMERA_TYPE],
-        gt_scene_mesh: Optional[Any] = None,
-        i1: Optional[int] = None,
-        i2: Optional[int] = None,
-    ) -> TWO_VIEW_OUTPUT:
-
-        worker_name = socket.gethostname()
-        logger.info(f"[WORKER {worker_name}] Processing pair ({i1}, {i2})")
-        sys.stdout.flush()
-
-        result = two_view_estimator.run_2view(
-            keypoints_i1=keypoints_i1,
-            keypoints_i2=keypoints_i2,
-            putative_corr_idxs=putative_corr_idxs,
-            camera_intrinsics_i1=camera_intrinsics_i1,
-            camera_intrinsics_i2=camera_intrinsics_i2,
-            i2Ti1_prior=i2Ti1_prior,
-            gt_camera_i1=gt_camera_i1,
-            gt_camera_i2=gt_camera_i2,
-            gt_scene_mesh=gt_scene_mesh,
-            i1=i1,
-            i2=i2,
-        )
-
-        logger.info(f"[WORKER {worker_name}] Completed pair ({i1}, {i2})")
-        return result
+    def apply_two_view_estimator(two_view_estimator: TwoViewEstimator, **kwargs) -> TWO_VIEW_OUTPUT:
+        return two_view_estimator.run_2view(**kwargs)
 
     logger.info("Submitting tasks directly to workers ...")
 
@@ -894,17 +857,17 @@ def run_two_view_estimator_as_futures(
         (i1, i2): client.submit(
             apply_two_view_estimator,
             two_view_estimator,
-            keypoints_list[i1],
-            keypoints_list[i2],
-            putative_corr_idxs,
-            camera_intrinsics[i1],
-            camera_intrinsics[i2],
-            relative_pose_priors.get((i1, i2)),
-            gt_cameras[i1] if gt_cameras else None,
-            gt_cameras[i2] if gt_cameras else None,
-            gt_scene_mesh,
-            i1,
-            i2,
+            keypoints_i1=keypoints_list[i1],
+            keypoints_i2=keypoints_list[i2],
+            putative_corr_idxs=putative_corr_idxs,
+            camera_intrinsics_i1=camera_intrinsics[i1],
+            camera_intrinsics_i2=camera_intrinsics[i2],
+            i2Ti1_prior=relative_pose_priors.get((i1, i2)),
+            gt_camera_i1=gt_cameras[i1],
+            gt_camera_i2=gt_cameras[i2],
+            gt_scene_mesh=gt_scene_mesh,
+            i1=i1,
+            i2=i2,
         )
         for (i1, i2), putative_corr_idxs in putative_corr_idxs_dict.items()
     }
