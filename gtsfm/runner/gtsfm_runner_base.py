@@ -325,12 +325,12 @@ class GtsfmRunnerBase:
         all_metrics_groups = []
 
         # Retriever
-        logger.info("Running image pair retrieval...")
+        logger.info("🔥 GTSFM: Running image pair retrieval...")
         retriever_metrics, visibility_graph, retriever_duration_sec = self._run_retriever(client)
         all_metrics_groups.append(retriever_metrics)
 
         # Correspondence and Two-View Estimation
-        logger.info("Running correspondence generation and two-view estimation...")
+        logger.info("🔥 GTSFM: Running correspondence generation and two-view estimation...")
         maybe_intrinsics, intrinsics = self._get_intrinsics_or_raise()
         (keypoints_list, two_view_results, correspondence_duration_sec, tve_duration_sec) = (
             self._run_correspondence_and_two_view(client, visibility_graph, intrinsics)
@@ -341,7 +341,7 @@ class GtsfmRunnerBase:
         all_metrics_groups.append(two_view_agg_metrics)
 
         # Partition the view graph
-        logger.info("Partitioning the view graph...")
+        logger.info("🔥 GTSFM: Partitioning the view graph...")
         assert self.graph_partitioner is not None, "Graph partitioner is not set up!"
         subgraphs = self.graph_partitioner.run(visibility_graph)
         num_subgraphs = len(subgraphs)
@@ -364,7 +364,7 @@ class GtsfmRunnerBase:
             all_delayed_mvo_metrics_groups.extend(delayed_mvo_metrics_groups)
 
         # Compute the entire graph via Dask
-        logger.info("Starting distributed computation with Dask...")
+        logger.info("🔥 GTSFM: Starting distributed computation with Dask...")
         with performance_report(filename="scene-optimizer-dask-report.html"):
             if all_delayed_sfm_results:
                 results = dask.compute(*all_delayed_sfm_results, *all_delayed_io, *all_delayed_mvo_metrics_groups)
