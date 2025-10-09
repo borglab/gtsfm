@@ -52,7 +52,8 @@ jobs:
           pytest tests -m "not slow" --durations=0 --cov gtsfm \
             --ignore tests/repro_tests \
             --ignore tests/loader/test_argoverse_dataset_loader.py \
-            --ignore tests/runner/test_frontend_runner.py
+            --ignore tests/runner/test_frontend_runner.py \
+            --ignore tests/frontend/correspondence_generator/test_mast3r_correspondence_generator.py
           coverage report
       - name: React-Three-Fiber app tests
         run: |

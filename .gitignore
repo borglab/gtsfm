@@ -197,3 +197,4 @@ notebooks/
 .envrc
 **/secrets.*
 /coiled-token.txt
+benchmarks/**
