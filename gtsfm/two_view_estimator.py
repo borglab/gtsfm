@@ -65,6 +65,10 @@ class TwoViewResult:
     post_ba_report: Optional[TwoViewEstimationReport]
     post_isp_report: Optional[TwoViewEstimationReport]
 
+    def valid(self) -> bool:
+        """Check if both i2Ri1 and i2Ui1 are not None."""
+        return self.i2Ri1 is not None and self.i2Ui1 is not None
+
 
 class TwoViewEstimator(DaskDBModuleBase):
     """Wrapper for running two-view relative pose estimation on image pairs in the dataset."""
