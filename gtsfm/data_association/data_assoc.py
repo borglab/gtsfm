@@ -39,6 +39,7 @@ logger = logger_utils.get_logger()
 # Heuristically set to limit the number of delayed tasks, as recommended by Dask:
 # https://docs.dask.org/en/stable/delayed-best-practices.html#avoid-too-many-tasks
 MAX_DELAYED_TRIANGULATION_CALLS = 1e3
+MIN_TRACKS_PER_BATCH = 500
 
 
 @dataclass(frozen=True)
@@ -249,7 +250,7 @@ class DataAssociation(GTSFMProcess):
         point3d_initializer = Point3dInitializer(cameras, self.triangulation_options)
 
         # Loop through tracks and and generate delayed triangulation tasks.
-        batch_size = int(np.ceil(len(tracks_2d) / MAX_DELAYED_TRIANGULATION_CALLS))
+        batch_size = max(int(np.ceil(len(tracks_2d) / MAX_DELAYED_TRIANGULATION_CALLS)), MIN_TRACKS_PER_BATCH)
         triangulation_results = []
         if batch_size == 1:
             for track_2d in tracks_2d:
