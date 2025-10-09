@@ -51,16 +51,28 @@ function retry {
 function download_and_unzip_dataset_files {
   # Prepare the download URLs.
   if [ "$DATASET_NAME" == "skydio-8" ]; then
+    if [ -d "skydio_crane_mast_8imgs_with_exif" ]; then
+      echo "Dataset $DATASET_NAME already exists, skipping download."
+      return 0
+    fi
     # Description: 8 images from Skydio-501 facing a single crane face
     WGET_URL1=https://github.com/johnwlambert/gtsfm-datasets-mirror/releases/download/gtsfm-ci-small-datasets/skydio_crane_mast_8imgs_with_exif.zip
     ZIP_FNAME=skydio-8.zip
 
   elif [ "$DATASET_NAME" == "skydio-32" ]; then
+    if [ -d "skydio-32" ]; then
+      echo "Dataset $DATASET_NAME already exists, skipping download."
+      return 0
+    fi
     # Description: 32 images from Skydio-501 facing a single crane face
     WGET_URL1=https://github.com/johnwlambert/gtsfm-datasets-mirror/releases/download/gtsfm-ci-small-datasets/skydio_crane_mast_32imgs_w_colmap_GT.zip
     ZIP_FNAME=skydio-32.zip
 
   elif [ "$DATASET_NAME" == "skydio-501" ]; then
+    if [ -d "skydio-crane-mast-501-images" ]; then
+      echo "Dataset $DATASET_NAME already exists, skipping download."
+      return 0
+    fi
     # 501-image Crane Mast collection released by Skydio via Sketchfab
     WGET_URL1=https://github.com/johnwlambert/gtsfm-datasets-mirror/releases/download/skydio-crane-mast-501-images/skydio-crane-mast-501-images1.tar.gz
     WGET_URL2=https://github.com/johnwlambert/gtsfm-datasets-mirror/releases/download/skydio-crane-mast-501-images/skydio-crane-mast-501-images2.tar.gz
@@ -68,11 +80,19 @@ function download_and_unzip_dataset_files {
     WGET_URL4=https://github.com/johnwlambert/gtsfm-cache/releases/download/skydio-501-lookahead50-deep-front-end-cache/skydio-501-lookahead50-deep-front-end-cache.tar.gz
 
   elif [ "$DATASET_NAME" == "notre-dame-20" ]; then
+    if [ -d "notre-dame-20" ]; then
+      echo "Dataset $DATASET_NAME already exists, skipping download."
+      return 0
+    fi
     # Description: TODO
     WGET_URL1=https://github.com/johnwlambert/gtsfm-datasets-mirror/releases/download/gtsfm-ci-small-datasets/notre-dame-20.zip
     ZIP_FNAME=notre-dame-20.zip
 
   elif [ "$DATASET_NAME" == "palace-fine-arts-281" ]; then
+    if [ -d "palace-fine-arts-281" ]; then
+      echo "Dataset $DATASET_NAME already exists, skipping download."
+      return 0
+    fi
     # Description: 281 images captured at the Palace of Fine Arts in San Francisco, CA. Images and pseudo-ground truth
     # poses from Carl Olsson's page: https://www.maths.lth.se/matematiklth/personal/calle/dataset/dataset.html
     WGET_URL1=https://github.com/johnwlambert/gtsfm-datasets-mirror/releases/download/palace-fine-arts-281/fine_arts_palace.zip
@@ -80,6 +100,10 @@ function download_and_unzip_dataset_files {
     ZIP_FNAME=fine_arts_palace.zip
 
   elif [ "$DATASET_NAME" == "2011205_rc3" ]; then
+    if [ -d "2011205_rc3" ]; then
+      echo "Dataset $DATASET_NAME already exists, skipping download."
+      return 0
+    fi
     # Description: images captured during the Rotation Characterization 3 (RC3) phase of NASA's Dawn mission to Asteroid 4
     #   Vesta.
     WGET_URL1=https://www.dropbox.com/s/q02mgq1unbw068t/2011205_rc3.zip
@@ -87,10 +111,18 @@ function download_and_unzip_dataset_files {
     ZIP_FNAME=2011205_rc3.zip
 
   elif [ "$DATASET_NAME" == "gerrard-hall-100" ]; then
+    if [ -d "gerrard-hall" ]; then
+      echo "Dataset $DATASET_NAME already exists, skipping download."
+      return 0
+    fi
     WGET_URL1=https://github.com/colmap/colmap/releases/download/3.11.1/gerrard-hall.zip
     ZIP_FNAME=gerrard-hall.zip
 
   elif [ "$DATASET_NAME" == "south-building-128" ]; then
+    if [ -d "south-building" ]; then
+      echo "Dataset $DATASET_NAME already exists, skipping download."
+      return 0
+    fi
     WGET_URL1=https://github.com/colmap/colmap/releases/download/3.11.1/south-building.zip
     ZIP_FNAME=south-building.zip
   fi
@@ -116,15 +148,15 @@ function download_and_unzip_dataset_files {
 
   # Extract the data, configure arguments for runner.
   if [ "$DATASET_NAME" == "skydio-8" ]; then
-    unzip -qq skydio_crane_mast_8imgs_with_exif.zip
+    unzip -qq skydio_crane_mast_8imgs_with_exif.zip && rm skydio_crane_mast_8imgs_with_exif.zip
 
   elif [ "$DATASET_NAME" == "skydio-32" ]; then
-    unzip -qq skydio_crane_mast_32imgs_w_colmap_GT.zip -d skydio-32
+    unzip -qq skydio_crane_mast_32imgs_w_colmap_GT.zip -d skydio-32 && rm skydio_crane_mast_32imgs_w_colmap_GT.zip
 
   elif [ "$DATASET_NAME" == "skydio-501" ]; then
-    tar -xzf skydio-crane-mast-501-images1.tar.gz
-    tar -xzf skydio-crane-mast-501-images2.tar.gz
-    tar -xzf skydio-501-colmap-pseudo-gt.tar.gz
+    tar -xzf skydio-crane-mast-501-images1.tar.gz && rm skydio-crane-mast-501-images1.tar.gz
+    tar -xzf skydio-crane-mast-501-images2.tar.gz && rm skydio-crane-mast-501-images2.tar.gz
+    tar -xzf skydio-501-colmap-pseudo-gt.tar.gz && rm skydio-501-colmap-pseudo-gt.tar.gz
     IMAGES_DIR="skydio-crane-mast-501-images"
     mkdir $IMAGES_DIR
     mv skydio-crane-mast-501-images1/* $IMAGES_DIR
@@ -135,35 +167,47 @@ function download_and_unzip_dataset_files {
     mkdir -p ../cache/detector_descriptor
     mkdir -p ../cache/matcher
     mkdir skydio-501-cache
-    tar -xzf skydio-501-lookahead50-deep-front-end-cache.tar.gz --directory skydio-501-cache
+    tar -xzf skydio-501-lookahead50-deep-front-end-cache.tar.gz --directory skydio-501-cache && rm skydio-501-lookahead50-deep-front-end-cache.tar.gz
     find skydio-501-cache/cache/detector_descriptor/ -type f -exec mv {} ../cache/detector_descriptor/ \;
     find skydio-501-cache/cache/matcher/ -type f -exec mv {} ../cache/matcher/ \;
     rm -rf skydio-501-cache
 
   elif [ "$DATASET_NAME" == "notre-dame-20" ]; then
-    unzip -qq notre-dame-20.zip
+    unzip -qq notre-dame-20.zip && rm notre-dame-20.zip
 
   elif [ "$DATASET_NAME" == "palace-fine-arts-281" ]; then
     mkdir -p palace-fine-arts-281
-    unzip -qq fine_arts_palace.zip -d palace-fine-arts-281/images
+    unzip -qq fine_arts_palace.zip -d palace-fine-arts-281/images && rm fine_arts_palace.zip
+    # Move data.mat into the dataset directory
+    if [ -f "data.mat" ]; then
+      mv data.mat palace-fine-arts-281/
+    fi
 
   elif [ "$DATASET_NAME" == "2011205_rc3" ]; then
-    unzip -qq 2011205_rc3.zip
-    tar -xf cache_rc3_deep.tar.gz
+    unzip -qq 2011205_rc3.zip && rm 2011205_rc3.zip
+    tar -xf cache_rc3_deep.tar.gz && rm cache_rc3_deep.tar.gz
+    # Move cache files to main project cache directory (cache_rc3_deep.tar.gz extracts to cache/)
+    if [ -d "cache" ]; then
+      mkdir -p ../cache
+      if [ -d "cache/detector_descriptor" ]; then
+        mkdir -p ../cache/detector_descriptor
+        find cache/detector_descriptor/ -type f -exec mv {} ../cache/detector_descriptor/ \;
+      fi
+      if [ -d "cache/matcher" ]; then
+        mkdir -p ../cache/matcher
+        find cache/matcher/ -type f -exec mv {} ../cache/matcher/ \;
+      fi
+      rm -rf cache
+    fi
 
   elif [ "$DATASET_NAME" == "gerrard-hall-100" ]; then
-    unzip -qq gerrard-hall.zip
+    unzip -qq gerrard-hall.zip && rm gerrard-hall.zip
 
   elif [ "$DATASET_NAME" == "south-building-128" ]; then
-    unzip -qq south-building.zip
+    unzip -qq south-building.zip && rm south-building.zip
 
   fi
 }
 
 # Retry in case of corrupted file ("End-of-central-directory signature not found")
 retry 5 download_and_unzip_dataset_files
-
-# Set up directories
-if [ "$DATASET_NAME" == "palace-fine-arts-281" ]; then
-  mv data.mat palace-fine-arts-281/
-fi
