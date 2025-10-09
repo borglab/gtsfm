@@ -3,7 +3,6 @@
 Authors: Ayush Baid, John Lambert
 """
 
-import logging
 import os
 import shutil
 import time
@@ -52,12 +51,6 @@ REACT_METRICS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "
 REACT_RESULTS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "public" / "results"
 
 logger = logger_utils.get_logger()
-
-mpl_logger = logging.getLogger("matplotlib")
-mpl_logger.setLevel(logging.ERROR)
-
-pil_logger = logging.getLogger("PIL")
-pil_logger.setLevel(logging.ERROR)
 
 
 class SceneOptimizer:

@@ -5,7 +5,6 @@ Authors: Ayush Baid, John Lambert, Zongyue Liu
 
 import dataclasses
 import json
-import logging
 import socket
 import sys
 import time
@@ -35,12 +34,6 @@ from gtsfm.frontend.inlier_support_processor import InlierSupportProcessor
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 
 logger = logger_utils.get_logger()
-
-mpl_logger = logging.getLogger("matplotlib")
-mpl_logger.setLevel(logging.ERROR)
-
-pil_logger = logging.getLogger("PIL")
-pil_logger.setLevel(logging.ERROR)
 
 PRE_BA_REPORT_TAG = "PRE_BA_2VIEW_REPORT"
 POST_BA_REPORT_TAG = "POST_BA_2VIEW_REPORT"
@@ -391,7 +384,7 @@ class TwoViewEstimator(DaskDBModuleBase):
         """
 
         worker_name = socket.gethostname()
-        logger.info(f"[WORKER {worker_name}] Processing pair ({i1}, {i2})")
+        logger.debug(f"[WORKER {worker_name}] Processing pair ({i1}, {i2})")
         sys.stdout.flush()
 
         # Record start time for computation measurement
@@ -474,7 +467,10 @@ class TwoViewEstimator(DaskDBModuleBase):
             i2,
         )
 
-        logger.info(f"[WORKER {worker_name}] Completed pair ({i1}, {i2})")
+        duration = time.time() - start_time
+        logger.info("🚀 TVE took %.2f sec. on pair (%d, %d)", duration, i1, i2)
+        logger.debug(f"[WORKER {worker_name}] Completed pair ({i1}, {i2})")
+        sys.stdout.flush()
 
         return post_isp_i2Ri1, post_isp_i2Ui1, post_isp_v_corr_idxs, pre_ba_report, post_ba_report, post_isp_report
 

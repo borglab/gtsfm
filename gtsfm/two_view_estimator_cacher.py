@@ -3,7 +3,6 @@
 Authors: Ayush Baid
 """
 
-import logging
 from pathlib import Path
 from typing import Any, List, Optional
 
@@ -11,11 +10,11 @@ import numpy as np
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.cache as cache_utils
-import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.io as io_utils
+import gtsfm.utils.logger as logger_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
-from gtsfm.two_view_estimator import TwoViewEstimator, TWO_VIEW_OUTPUT
+from gtsfm.two_view_estimator import TWO_VIEW_OUTPUT, TwoViewEstimator
 
 # Number of first K keypoints from each image to use to create cache key.
 NUM_KEYPOINTS_TO_SAMPLE_FOR_HASH = 10
@@ -26,12 +25,6 @@ NUM_CORRESPONDENCES_TO_SAMPLE_FOR_HASH = 10
 CACHE_ROOT_PATH = Path(__file__).resolve().parent.parent / "cache"
 
 logger = logger_utils.get_logger()
-
-mpl_logger = logging.getLogger("matplotlib")
-mpl_logger.setLevel(logging.ERROR)
-
-pil_logger = logging.getLogger("PIL")
-pil_logger.setLevel(logging.ERROR)
 
 
 class TwoViewEstimatorCacher(TwoViewEstimator):
@@ -103,8 +96,10 @@ class TwoViewEstimatorCacher(TwoViewEstimator):
         result = self.__load_result_from_cache(keypoints_i1, keypoints_i2, putative_corr_idxs)
 
         if result is not None:
+            logger.info("Loaded two-view estimation result for image pair (%s, %s) from cache. 🎉", i1, i2)
             return result
 
+        logger.info("No cached result found for image pair (%s, %s) 😞. Running two-view estimator...", i1, i2)
         result = self._two_view_estimator.run_2view(
             keypoints_i1=keypoints_i1,
             keypoints_i2=keypoints_i2,
