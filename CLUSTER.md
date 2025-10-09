@@ -38,3 +38,4 @@ GTSfM uses the [SSHCluster](https://docs.dask.org/en/stable/deploying-ssh.html#d
     - ```
       scp -r username@host:machine/results/path /local/computer/directory
       ```
+ps. Please utilize `gtsfm/utils/ssh_passwordless_setup.py` to facilitate the set up
