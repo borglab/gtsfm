@@ -174,7 +174,7 @@ class AstrovisionLoader(LoaderBase):
         if index < 0 or index >= len(self):
             raise IndexError(f"Image index {index} is invalid")
         intrinsics = self._calibrations[index]
-        logger.info("Loading ground truth calibration.")
+        logger.debug("Loading ground truth calibration.")
 
         return intrinsics
 

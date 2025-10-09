@@ -27,10 +27,9 @@ from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.frontend.correspondence_generator.image_correspondence_generator import ImageCorrespondenceGenerator
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.loader.loader_base import LoaderBase
-from gtsfm.products.visibility_graph import AnnotatedGraph
 from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.scene_optimizer import SceneOptimizer
-from gtsfm.two_view_estimator import TwoViewEstimationReport, run_two_view_estimator_as_futures
+from gtsfm.two_view_estimator import run_two_view_estimator_as_futures
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
 from gtsfm.utils.subgraph_utils import group_results_by_subgraph
 
@@ -349,6 +348,7 @@ class GtsfmRunnerBase:
         subgraph_two_view_results = group_results_by_subgraph(two_view_results, subgraphs)
 
         # Create back-end computation subgraphs.
+        logger.info("🔥 GTSFM: Create back-end computation subgraphs...")
         all_delayed_sfm_results = []
         all_delayed_io = []
         all_delayed_mvo_metrics_groups = []

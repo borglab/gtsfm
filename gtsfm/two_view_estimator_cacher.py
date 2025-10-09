@@ -96,7 +96,7 @@ class TwoViewEstimatorCacher(TwoViewEstimator):
         result = self.__load_result_from_cache(keypoints_i1, keypoints_i2, putative_corr_idxs)
 
         if result is not None:
-            logger.info("Loaded two-view estimation result for image pair (%s, %s) from cache. 🎉", i1, i2)
+            logger.debug("Loaded two-view estimation result for image pair (%s, %s) from cache. 🎉", i1, i2)
             return result
 
         logger.info("No cached result found for image pair (%s, %s) 😞. Running two-view estimator...", i1, i2)
