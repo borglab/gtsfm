@@ -152,7 +152,7 @@ class SceneOptimizer:
         images: List[Delayed],
         camera_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
         absolute_pose_priors: List[Optional[PosePrior]],
-        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
+        relative_pose_priors: AnnotatedGraph[PosePrior],
         cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
         gt_wTi_list: List[Optional[Pose3]],
         gt_scene_mesh: Optional[Trimesh] = None,
@@ -452,7 +452,7 @@ def save_gtsfm_data(
 
 
 def save_full_frontend_metrics(
-    two_view_report_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
+    two_view_report_dict: AnnotatedGraph[TwoViewEstimationReport],
     images: List[Image],
     filename: str,
     metrics_path: Path,

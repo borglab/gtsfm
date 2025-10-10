@@ -128,6 +128,9 @@ class MultiViewOptimizer:
                 two_view_reports,
                 debug_output_dir,
             )
+
+            # Second view graph estimator expects the same TwoViewResult format
+            # Since ViewGraphEstimatorBase now uses the new signature, we pass two_view_results directly
             (
                 viewgraph_i2Ri1_graph,
                 viewgraph_i2Ui1_graph,
@@ -188,7 +191,11 @@ class MultiViewOptimizer:
             images,
         )
         ba_result_graph, ba_metrics_graph = self.ba_optimizer.create_computation_graph(
-            ba_input_graph, absolute_pose_priors, relative_pose_priors, cameras_gt, save_dir=output_root
+            ba_input_graph,
+            absolute_pose_priors,
+            relative_pose_priors,
+            cameras_gt,
+            save_dir=str(output_root) if output_root else None,
         )
 
         multiview_optimizer_metrics_graph = [
@@ -229,14 +236,12 @@ def init_cameras(
     return cameras
 
 
-def get_2d_tracks(
-    corr_idxs_dict: Dict[Tuple[int, int], np.ndarray], keypoints_list: List[Keypoints]
-) -> List[SfmTrack2d]:
+def get_2d_tracks(correspondences: AnnotatedGraph[np.ndarray], keypoints_list: List[Keypoints]) -> List[SfmTrack2d]:
     tracks_estimator = CppDsfTracksEstimator()
-    return tracks_estimator.run(corr_idxs_dict, keypoints_list)
+    return tracks_estimator.run(correspondences, keypoints_list)
 
 
-def filter_corr_by_idx(correspondences: Dict[Tuple[int, int], np.ndarray], idxs: List[Tuple[int, int]]):
+def filter_corr_by_idx(correspondences: AnnotatedGraph[np.ndarray], idxs: List[Tuple[int, int]]):
     """Filter correspondences by indices.
 
     Args:
