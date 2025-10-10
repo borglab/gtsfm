@@ -147,25 +147,18 @@ class SceneOptimizer:
     def create_computation_graph(
         self,
         keypoints_list: List[Keypoints],
-        two_view_results: Dict[Tuple[int, int], TwoViewResult],
+        two_view_results: AnnotatedGraph[TwoViewResult],
         num_images: int,
         images: List[Delayed],
         camera_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
         absolute_pose_priors: List[Optional[PosePrior]],
-        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
+        relative_pose_priors: AnnotatedGraph[PosePrior],
         cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
         gt_wTi_list: List[Optional[Pose3]],
         gt_scene_mesh: Optional[Trimesh] = None,
     ) -> Tuple[Delayed, List[Delayed], List[Delayed]]:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
         logger.info(f"Results, plots, and metrics will be saved at {self.output_root}")
-
-        # Extract the post-ISP reports for metrics and visualization
-        two_view_reports = {
-            (i1, i2): output.post_isp_report
-            for (i1, i2), output in two_view_results.items()
-            if output.i2Ri1 is not None and output.i2Ui1 is not None
-        }
 
         delayed_results: List[Delayed] = []
 
@@ -189,6 +182,9 @@ class SceneOptimizer:
         )
         if view_graph_two_view_reports is not None:
             two_view_reports_post_viewgraph_estimator = view_graph_two_view_reports
+
+        # Extract the post-ISP reports for metrics and visualization
+        two_view_reports = {edge: output.post_isp_report for edge, output in two_view_results.items()}
 
         # Persist all front-end metrics and their summaries.
         # TODO(akshay-krishnan): this delays saving the frontend reports until MVO has completed, not ideal.

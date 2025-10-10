@@ -14,7 +14,6 @@ from gtsam import PinholeCameraCal3Bundler, Rot3, Unit3
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
-from gtsfm.products.visibility_graph import AnnotatedGraph
 
 logger = logger_utils.get_logger()
 
@@ -152,7 +151,7 @@ def extract_cyclic_triplets_from_edges(edges: List[Tuple[int, int]]) -> List[Tup
 
 def draw_view_graph_topology(
     edges: List[Tuple[int, int]],
-    two_view_reports: AnnotatedGraph[TwoViewEstimationReport],
+    two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
     title: str,
     save_fpath: str,
     cameras_gt: Optional[List[PinholeCameraCal3Bundler]] = None,

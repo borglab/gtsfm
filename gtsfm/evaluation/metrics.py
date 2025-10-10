@@ -1,7 +1,7 @@
 """Classes to store metrics computed in different GTSfM modules.
 
 The GtsfmMetric class stores a single metric, and the GtsfmMetricsGroup stores a list of metrics.
-These classes are used to compute statistics on the metrics (min, max, etc), 
+These classes are used to compute statistics on the metrics (min, max, etc),
 save them to JSON, parse metrics from JSON, and plot them.
 
 Authors: Akshay Krishnan
@@ -68,8 +68,8 @@ class GtsfmMetric:
         data: Optional[Union[float, Distribution1D]] = None,
         summary: Optional[Dict[str, Any]] = None,
         store_full_data: bool = True,
-        plot_type: PlotType = None,
-    ) -> GtsfmMetric:
+        plot_type: PlotType | None = None,
+    ):
         """Creates a GtsfmMetric.
 
         Args:
@@ -268,7 +268,7 @@ class GtsfmMetricsGroup:
     }
     """
 
-    def __init__(self, name: str, metrics: List[GtsfmMetric]) -> GtsfmMetricsGroup:
+    def __init__(self, name: str, metrics: List[GtsfmMetric]):
         self._name = name
         self._metrics = metrics
 

@@ -276,14 +276,10 @@ class ViewGraphEstimatorBase(GTSFMProcess):
         """
 
         # Extract individual dictionaries from TwoViewResult dataclass
-        i2Ri1_dict = {
-            (i1, i2): output.i2Ri1 for (i1, i2), output in two_view_results.items() if output.i2Ri1 is not None
-        }
-        i2Ui1_dict = {
-            (i1, i2): output.i2Ui1 for (i1, i2), output in two_view_results.items() if output.i2Ui1 is not None
-        }
-        corr_idxs_i1i2 = {(i1, i2): output.v_corr_idxs for (i1, i2), output in two_view_results.items()}
-        two_view_reports = {(i1, i2): output.post_isp_report for (i1, i2), output in two_view_results.items()}
+        i2Ri1_dict = {edge: output.i2Ri1 for edge, output in two_view_results.items()}
+        i2Ui1_dict = {edge: output.i2Ui1 for edge, output in two_view_results.items()}
+        corr_idxs_i1i2 = {edge: output.v_corr_idxs for edge, output in two_view_results.items()}
+        two_view_reports = {edge: output.post_isp_report for edge, output in two_view_results.items()}
 
         # create debug directory for cycle_consistency
         plot_cycle_consist_path = None
@@ -292,6 +288,7 @@ class ViewGraphEstimatorBase(GTSFMProcess):
             os.makedirs(plot_cycle_consist_path, exist_ok=True)
 
         # Remove all invalid edges in the input dicts.
+        # TODO(Frank): This should be true by construction
         valid_edges = dask.delayed(self._get_valid_input_edges)(
             i2Ri1_dict=i2Ri1_dict,
             i2Ui1_dict=i2Ui1_dict,

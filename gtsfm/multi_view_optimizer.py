@@ -94,16 +94,6 @@ class MultiViewOptimizer:
             List of GtsfmMetricGroups from different modules, wrapped up as Delayed.
         """
 
-        # Extract individual dictionaries from TwoViewResult dataclass
-        i2Ri1_dict = {
-            (i1, i2): output.i2Ri1 for (i1, i2), output in two_view_results.items() if output.i2Ri1 is not None
-        }
-        i2Ui1_dict = {
-            (i1, i2): output.i2Ui1 for (i1, i2), output in two_view_results.items() if output.i2Ui1 is not None
-        }
-        verified_correspondences = {(i1, i2): output.v_corr_idxs for (i1, i2), output in two_view_results.items()}
-        two_view_reports_dict = {(i1, i2): output.post_isp_report for (i1, i2), output in two_view_results.items()}
-
         # Create debug directory.
         debug_output_dir = None
         if output_root:
@@ -139,10 +129,14 @@ class MultiViewOptimizer:
                 debug_output_dir / "2" if debug_output_dir else None,
             )
         else:
-            viewgraph_i2Ri1_graph = delayed(i2Ri1_dict)
-            viewgraph_i2Ui1_graph = delayed(i2Ui1_dict)
-            viewgraph_v_corr_idxs_graph = delayed(verified_correspondences)
-            viewgraph_two_view_reports_graph = delayed(two_view_reports_dict)
+            viewgraph_i2Ri1_graph = delayed({edge: output.i2Ri1 for edge, output in two_view_results.items()})
+            viewgraph_i2Ui1_graph = delayed({edge: output.i2Ui1 for edge, output in two_view_results.items()})
+            viewgraph_v_corr_idxs_graph = delayed(
+                {edge: output.v_corr_idxs for edge, output in two_view_results.items()}
+            )
+            viewgraph_two_view_reports_graph = delayed(
+                {edge: output.post_isp_report for edge, output in two_view_results.items()}
+            )
             viewgraph_estimation_metrics = delayed(GtsfmMetricsGroup("view_graph_estimation_metrics", []))
 
         # Prune the graph to a single connected component.
