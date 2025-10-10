@@ -120,6 +120,7 @@
         "noexif",
         "noextrinsics",
         "nointrinsics",
+        "nout",
         "nthreads",
         "Olsson",
         "olssonloader",
