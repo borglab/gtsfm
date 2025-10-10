@@ -55,30 +55,6 @@ REACT_RESULTS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "
 logger = logger_utils.get_logger()
 
 
-def unzip_two_view_results(two_view_results):
-    """OBSOLETE: Unzip the tuple TwoViewResult into 1 dictionary for 1 element in the tuple."""
-    i2Ri1_dict = {}
-    i2Ui1_dict = {}
-    v_corr_idxs_dict = {}
-    pre_ba_two_view_reports_dict = {}
-    post_isp_two_view_reports_dict = {}
-
-    for (i1, i2), result in two_view_results.items():
-        # Value is ordered as (post_isp_i2Ri1, post_isp_i2Ui1, post_isp_v_corr_idxs,
-        # pre_ba_report, post_ba_report, post_isp_report).
-        if not result.valid():
-            logger.debug("Skip %d, %d since None", i1, i2)
-            continue
-
-        i2Ri1_dict[(i1, i2)] = result.i2Ri1
-        i2Ui1_dict[(i1, i2)] = result.i2Ui1
-        v_corr_idxs_dict[(i1, i2)] = result.v_corr_idxs
-        pre_ba_two_view_reports_dict[(i1, i2)] = result.pre_ba_report
-        post_isp_two_view_reports_dict[(i1, i2)] = result.post_isp_report
-
-    return i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, pre_ba_two_view_reports_dict, post_isp_two_view_reports_dict
-
-
 class SceneOptimizer:
     """Wrapper combining different modules to run the whole pipeline on a
     loader."""
@@ -184,9 +160,6 @@ class SceneOptimizer:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
         logger.info(f"Results, plots, and metrics will be saved at {self.output_root}")
 
-        # Unzip the two-view results for this subgraph
-        i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, _, two_view_reports = unzip_two_view_results(two_view_results)
-
         delayed_results: List[Delayed] = []
 
         # Note: the MultiviewOptimizer returns BA input and BA output that are aligned to GT via Sim(3).
@@ -199,13 +172,10 @@ class SceneOptimizer:
             images=images,
             num_images=num_images,
             keypoints_list=keypoints_list,
-            i2Ri1_dict=i2Ri1_dict,
-            i2Ui1_dict=i2Ui1_dict,
-            v_corr_idxs_dict=v_corr_idxs_dict,
+            two_view_results=two_view_results,
             all_intrinsics=camera_intrinsics,
             absolute_pose_priors=absolute_pose_priors,
             relative_pose_priors=relative_pose_priors,
-            two_view_reports_dict=two_view_reports,
             cameras_gt=cameras_gt,
             gt_wTi_list=gt_wTi_list,
             output_root=self.output_root,
@@ -224,7 +194,7 @@ class SceneOptimizer:
         with annotation:
             delayed_results.append(
                 delayed(save_full_frontend_metrics)(
-                    two_view_reports,
+                    {ij: r.post_isp_report for ij, r in two_view_results.items()},
                     images,
                     filename="two_view_report_{}.json".format(POST_ISP_REPORT_TAG),
                     save_retrieval_metrics=save_retrieval_metrics,
