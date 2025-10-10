@@ -14,7 +14,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import Pose3, Similarity3
+from gtsam import Pose3, Rot3, Similarity3, Unit3
 from trimesh import Trimesh
 
 import gtsfm.common.types as gtsfm_types
@@ -33,7 +33,6 @@ from gtsfm.frontend.correspondence_generator.correspondence_generator_base impor
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.graph_partitioner.single_partition import SinglePartition
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
-from gtsfm.products.visibility_graph import AnnotatedGraph
 from gtsfm.retriever.image_pairs_generator import ImagePairsGenerator
 from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.two_view_estimator import (
@@ -41,7 +40,6 @@ from gtsfm.two_view_estimator import (
     VIEWGRAPH_REPORT_TAG,
     TwoViewEstimationReport,
     TwoViewEstimator,
-    TwoViewResult,
 )
 
 matplotlib.use("Agg")
@@ -147,12 +145,15 @@ class SceneOptimizer:
     def create_computation_graph(
         self,
         keypoints_list: List[Keypoints],
-        two_view_results: AnnotatedGraph[TwoViewResult],
+        i2Ri1_dict: Dict[Tuple[int, int], Rot3],
+        i2Ui1_dict: Dict[Tuple[int, int], Unit3],
+        v_corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
+        two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
         num_images: int,
         images: List[Delayed],
         camera_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
         absolute_pose_priors: List[Optional[PosePrior]],
-        relative_pose_priors: AnnotatedGraph[PosePrior],
+        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
         gt_wTi_list: List[Optional[Pose3]],
         gt_scene_mesh: Optional[Trimesh] = None,
@@ -172,19 +173,19 @@ class SceneOptimizer:
             images=images,
             num_images=num_images,
             keypoints_list=keypoints_list,
-            two_view_results=two_view_results,
+            i2Ri1_dict=i2Ri1_dict,
+            i2Ui1_dict=i2Ui1_dict,
+            v_corr_idxs_dict=v_corr_idxs_dict,
             all_intrinsics=camera_intrinsics,
             absolute_pose_priors=absolute_pose_priors,
             relative_pose_priors=relative_pose_priors,
+            two_view_reports_dict=two_view_reports,
             cameras_gt=cameras_gt,
             gt_wTi_list=gt_wTi_list,
             output_root=self.output_root,
         )
         if view_graph_two_view_reports is not None:
             two_view_reports_post_viewgraph_estimator = view_graph_two_view_reports
-
-        # Extract the post-ISP reports for metrics and visualization
-        two_view_reports = {edge: output.post_isp_report for edge, output in two_view_results.items()}
 
         # Persist all front-end metrics and their summaries.
         # TODO(akshay-krishnan): this delays saving the frontend reports until MVO has completed, not ideal.
@@ -455,7 +456,7 @@ def save_gtsfm_data(
 
 
 def save_full_frontend_metrics(
-    two_view_report_dict: AnnotatedGraph[TwoViewEstimationReport],
+    two_view_report_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
     images: List[Image],
     filename: str,
     metrics_path: Path,
