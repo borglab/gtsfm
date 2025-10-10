@@ -81,7 +81,7 @@ class KeypointAggregatorDedup(KeypointAggregatorBase):
 
         Returns:
             keypoints_list: List of N Keypoints objects for N images.
-            putative_correspondences: Mapping from image pair (i1,i2) to putative correspondence indices.
+            putative_corr_idxs_dict: Mapping from image pair (i1,i2) to putative correspondence indices.
               Correspondence indices are represented by an array of shape (K,2), for K correspondences.
         """
         image_indices = set()
@@ -91,7 +91,7 @@ class KeypointAggregatorDedup(KeypointAggregatorBase):
 
         max_img_idx = max(image_indices)
 
-        putative_correspondences = {}
+        putative_corr_idxs_dict = {}
         per_image_kpt_coordinates = {i: np.zeros((0, 2)) for i in image_indices}
 
         # TODO(johnwlambert): use efficient algo (DSF) to find tracks once C++ variant implemented,
@@ -107,7 +107,7 @@ class KeypointAggregatorDedup(KeypointAggregatorBase):
                 i=i2, keypoints=keypoints_i2, per_image_kpt_coordinates=per_image_kpt_coordinates
             )
             putative_corr_idxs = np.stack([i1_indices, i2_indices], axis=-1).astype(np.int32)
-            putative_correspondences[(i1, i2)] = putative_corr_idxs
+            putative_corr_idxs_dict[(i1, i2)] = putative_corr_idxs
 
         logger.info(f"Merged {self.duplicates_found} duplicates during de-duplication.")
         # Reset global state.
@@ -118,7 +118,7 @@ class KeypointAggregatorDedup(KeypointAggregatorBase):
             keypoints_list[i] = Keypoints(coordinates=per_image_kpt_coordinates[i])
             _assert_keypoints_rank(keypoints_list[i])
 
-        return keypoints_list, putative_correspondences
+        return keypoints_list, putative_corr_idxs_dict
 
 
 def _assert_keypoints_rank(keypoints: Keypoints) -> None:

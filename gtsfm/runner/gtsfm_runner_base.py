@@ -330,13 +330,13 @@ class GtsfmRunnerBase:
 
         logger.info("🔥 GTSFM: Running correspondence generation...")
         maybe_intrinsics, intrinsics = self._get_intrinsics_or_raise()
-        keypoints, putative_correspondences, correspondence_duration_sec = self._run_correspondence_generation(
+        keypoints, putative_corr_idxs_dict, correspondence_duration_sec = self._run_correspondence_generation(
             client, visibility_graph
         )
 
         logger.info("🔥 GTSFM: Running two-view estimation...")
         all_two_view_results, tve_duration_sec = self._run_two_view_estimation(
-            client, visibility_graph, keypoints, putative_correspondences, intrinsics
+            client, visibility_graph, keypoints, putative_corr_idxs_dict, intrinsics
         )
         # TODO(Frank): does this pull *all* results to the client?
         two_view_results = {edge: tvr for edge, tvr in all_two_view_results.items() if tvr.valid()}
@@ -347,7 +347,8 @@ class GtsfmRunnerBase:
         )
 
         logger.info("🔥 GTSFM: Partitioning the view graph...")
-        # NOTE(Frank): I am passing all_two_view_results here, not two_view_results, because I use the old unzip still in process_subgraph
+        # NOTE(Frank): I am passing all_two_view_results here, not two_view_results,
+        # because I use the old unzip still in process_subgraph
         subgraph_two_view_results = self._partition_view_graph(visibility_graph, all_two_view_results)
 
         logger.info("🔥 GTSFM: Create back-end computation subgraphs...")

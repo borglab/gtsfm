@@ -122,8 +122,8 @@ class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
             pairwise_correspondence_futures
         )
 
-        keypoints_list, putative_correspondences = self._aggregator.aggregate(keypoints_dict=pairwise_correspondences)
-        return keypoints_list, putative_correspondences
+        keypoints_list, putative_corr_idxs_dict = self._aggregator.aggregate(keypoints_dict=pairwise_correspondences)
+        return keypoints_list, putative_corr_idxs_dict
 
 
 def generate_synthetic_correspondences_for_image_pair(

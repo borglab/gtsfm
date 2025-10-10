@@ -200,7 +200,7 @@ def main():
     print("[LOCAL MACHINE] Matching keypoints...")
 
     image_pairs = [(i, j) for i in range(num_images) for j in range(i + 1, num_images)]
-    putative_correspondences = {}
+    putative_corr_idxs_dict = {}
 
     for i1, i2 in image_pairs:
         image_shape_i1 = images[i1].value_array.shape
@@ -216,7 +216,7 @@ def main():
         )
 
         if match_indices.shape[0] > 0:
-            putative_correspondences[(i1, i2)] = match_indices
+            putative_corr_idxs_dict[(i1, i2)] = match_indices
             print(f"Image pair ({indices[i1]}, {indices[i2]}): {match_indices.shape[0]} matches")
 
     # Create verifier and inlier processor
@@ -284,7 +284,7 @@ def main():
                 client=client,
                 two_view_estimator=two_view_estimator,
                 keypoints_list=keypoints_list,
-                putative_correspondences=putative_correspondences,
+                putative_corr_idxs_dict=putative_corr_idxs_dict,
                 camera_intrinsics=camera_intrinsics,
                 relative_pose_priors=relative_pose_priors,
                 gt_cameras=gt_cameras,
