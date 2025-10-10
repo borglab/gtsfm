@@ -32,30 +32,6 @@ from gtsfm.view_graph_estimator.cycle_consistent_rotation_estimator import (
 from gtsfm.view_graph_estimator.view_graph_estimator_base import ViewGraphEstimatorBase
 
 
-def unzip_two_view_results(two_view_results):
-    """OBSOLETE: Unzip the tuple TwoViewResult into 1 dictionary for 1 element in the tuple."""
-    i2Ri1_dict = {}
-    i2Ui1_dict = {}
-    v_corr_idxs_dict = {}
-    pre_ba_two_view_reports_dict = {}
-    post_isp_two_view_reports_dict = {}
-
-    for (i1, i2), result in two_view_results.items():
-        # Value is ordered as (post_isp_i2Ri1, post_isp_i2Ui1, post_isp_v_corr_idxs,
-        # pre_ba_report, post_ba_report, post_isp_report).
-        if not result.valid():
-            logger.debug("Skip %d, %d since None", i1, i2)
-            continue
-
-        i2Ri1_dict[(i1, i2)] = result.i2Ri1
-        i2Ui1_dict[(i1, i2)] = result.i2Ui1
-        v_corr_idxs_dict[(i1, i2)] = result.v_corr_idxs
-        pre_ba_two_view_reports_dict[(i1, i2)] = result.pre_ba_report
-        post_isp_two_view_reports_dict[(i1, i2)] = result.post_isp_report
-
-    return i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, pre_ba_two_view_reports_dict, post_isp_two_view_reports_dict
-
-
 class MultiViewOptimizer:
     def __init__(
         self,
@@ -118,8 +94,17 @@ class MultiViewOptimizer:
             List of GtsfmMetricGroups from different modules, wrapped up as Delayed.
         """
 
-        # Unzip the two-view results for this subgraph
-        i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, _, two_view_reports = unzip_two_view_results(two_view_results)
+        # We assume all two-view results here are *valid* (T and U not None)
+        i2Ri1_dict = {}
+        i2Ui1_dict = {}
+        v_corr_idxs_dict = {}
+        two_view_reports = {}
+
+        for ij, r in two_view_results.items():
+            i2Ri1_dict[ij] = r.i2Ri1
+            i2Ui1_dict[ij] = r.i2Ui1
+            v_corr_idxs_dict[ij] = r.v_corr_idxs
+            two_view_reports[ij] = r.post_isp_report
 
         # Create debug directory.
         debug_output_dir = None
