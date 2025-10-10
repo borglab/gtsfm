@@ -6,8 +6,8 @@ Author: John Lambert
 import argparse
 
 import gtsfm.utils.logger as logger_utils
-from gtsfm.loader.tanks_and_temples_loader import TanksAndTemplesLoader
 from gtsfm.loader.loader_base import LoaderBase
+from gtsfm.loader.tanks_and_temples_loader import TanksAndTemplesLoader
 from gtsfm.runner.gtsfm_runner_base import GtsfmRunnerBase
 
 logger = logger_utils.get_logger()
@@ -15,7 +15,9 @@ logger = logger_utils.get_logger()
 
 # TODO(johnwlambert,travisdriver): Make this generic for any dataset with a GT mesh.
 class GtsfmRunnerSyntheticTanksAndTemplesLoader(GtsfmRunnerBase):
-    tag = "GTSFM with LiDAR scans, COLMAP camera poses, and image names stored in Tanks and Temples format"
+    @property
+    def tag(self) -> str:
+        return "GTSFM with LiDAR scans, COLMAP camera poses, and image names stored in Tanks and Temples format"
 
     def construct_argparser(self) -> argparse.ArgumentParser:
         parser = super().construct_argparser()

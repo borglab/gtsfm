@@ -2,6 +2,7 @@
 
 Authors: Ayush Baid
 """
+
 import argparse
 
 import gtsfm.utils.logger as logger_utils
@@ -13,7 +14,9 @@ logger = logger_utils.get_logger()
 
 
 class GtsfmRunnerHiltiLoader(GtsfmRunnerBase):
-    tag = "GTSFM for the hilti loader"
+    @property
+    def tag(self) -> str:
+        return "GTSFM for the hilti loader"
 
     def construct_argparser(self) -> argparse.ArgumentParser:
         parser = super(GtsfmRunnerHiltiLoader, self).construct_argparser()

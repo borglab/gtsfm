@@ -42,7 +42,7 @@ class TestAstrovisionLoader(unittest.TestCase):
             data_dir,
             gt_scene_mesh_path=gt_scene_mesh_path,
             use_gt_extrinsics=True,
-            use_gt_sfmtracks=True,
+            use_gt_sfm_tracks=True,
             max_frame_lookahead=2,
         )
 
@@ -52,7 +52,7 @@ class TestAstrovisionLoader(unittest.TestCase):
         assert self.loader._gt_scene_trimesh.vertices.shape[0] == 5002
         assert self.loader._gt_scene_trimesh.faces.shape[0] == 10000
         assert self.loader._use_gt_extrinsics
-        assert self.loader._use_gt_sfmtracks
+        assert self.loader._use_gt_sfm_tracks
         assert self.loader._max_frame_lookahead == 2
 
     def test_len(self) -> None:
@@ -99,23 +99,23 @@ class TestAstrovisionLoader(unittest.TestCase):
         img0 = self.loader.get_image(0)
         assert isinstance(img0, Image)
 
-    def test_get_sfmtrack_valid_index(self) -> None:
-        """Tests that get_sfmtrack works for all valid indices."""
+    def test_get_sfm_track_valid_index(self) -> None:
+        """Tests that get_sfm_track works for all valid indices."""
         for idx_sfmtrack in TEST_SFMTRACKS_INDICES:
-            sfmtrack = self.loader.get_sfmtrack(idx_sfmtrack)
+            sfmtrack = self.loader.get_sfm_track(idx_sfmtrack)
             self.assertIsNotNone(sfmtrack.point3())
 
-    def test_get_sfmtrack_invalid_index(self) -> None:
-        """Test that get_sfmtrack raises an exception on an invalid index."""
+    def test_get_sfm_track_invalid_index(self) -> None:
+        """Test that get_sfm_track raises an exception on an invalid index."""
         # negative index
         with self.assertRaises(IndexError):
-            self.loader.get_sfmtrack(-1)
+            self.loader.get_sfm_track(-1)
         # len() as index
         with self.assertRaises(IndexError):
-            self.loader.get_sfmtrack(self.loader.num_sfmtracks)
+            self.loader.get_sfm_track(self.loader.num_sfmtracks)
         # index > len()
         with self.assertRaises(IndexError):
-            self.loader.get_sfmtrack(99999)
+            self.loader.get_sfm_track(99999)
 
     def test_image_contents(self) -> None:
         """Test the actual image which is being fetched by the loader at an index.
@@ -142,7 +142,7 @@ class TestAstrovisionLoader(unittest.TestCase):
     def test_sfmtracks_point3(self) -> None:
         """Tests that the 3D point of the SfmTrack matches the AstroVision data."""
         sfmtracks_point3s = [
-            self.loader.get_sfmtrack(sfmtrack_idx).point3().flatten() for sfmtrack_idx in TEST_SFMTRACKS_INDICES
+            self.loader.get_sfm_track(sfmtrack_idx).point3().flatten() for sfmtrack_idx in TEST_SFMTRACKS_INDICES
         ]
         astrovision_point3s = [self.points3d[point3d_id].xyz.flatten() for point3d_id in TEST_POINT3D_IDS]
         # np.testing.assert_allclose(sfmtracks_point3s, self.loader._gt_scene_trimesh.vertices[TEST_POINT3D_IDS])
@@ -151,7 +151,7 @@ class TestAstrovisionLoader(unittest.TestCase):
     def test_sfmtracks_measurements(self) -> None:
         """Tests that the SfmTrack measurements match the AstroVision data."""
         for idx in range(len(TEST_SFMTRACKS_INDICES)):
-            sfmtrack = self.loader.get_sfmtrack(TEST_SFMTRACKS_INDICES[idx])
+            sfmtrack = self.loader.get_sfm_track(TEST_SFMTRACKS_INDICES[idx])
             sfmtrack_measurements = [
                 sfmtrack.measurement(image_idx)[1].flatten() for image_idx in range(sfmtrack.numberMeasurements())
             ]
@@ -169,7 +169,7 @@ class TestAstrovisionLoader(unittest.TestCase):
         """
         uvs_measured, uvs_expected = [], []
         for idx_sfmtrack in TEST_SFMTRACKS_INDICES:
-            sfmtrack = self.loader.get_sfmtrack(idx_sfmtrack)
+            sfmtrack = self.loader.get_sfm_track(idx_sfmtrack)
             for idx_meas in range(sfmtrack.numberMeasurements()):
                 image_id, uv_measured = sfmtrack.measurement(idx_meas)
                 cal3: Cal3_S2 = self.loader.get_camera_intrinsics(image_id)

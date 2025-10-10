@@ -186,7 +186,7 @@ def colmap2gtsfm(
     List[str],
     List[Pose3],
     List[CALIBRATION_TYPE],
-    Optional[List[np.ndarray]],
+    Optional[List[SfmTrack]],
     np.ndarray,
     np.ndarray,
     List[Tuple[int, int]],
@@ -230,7 +230,7 @@ def colmap2gtsfm(
     # Convert COLMAP's Point3D to SfmTrack.
     if len(points3D) == 0 and load_sfm_tracks:
         raise RuntimeError("No SfMTrack data provided to loader.")
-    sfm_tracks_gtsfm = None
+    sfm_tracks_gtsfm: list[SfmTrack] | None = None
     if len(points3D) > 0 and load_sfm_tracks:
         sfm_tracks_gtsfm = []
         for point3D in points3D.values():

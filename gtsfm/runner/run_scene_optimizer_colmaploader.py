@@ -9,7 +9,9 @@ logger = logger_utils.get_logger()
 
 
 class GtsfmRunnerColmapLoader(GtsfmRunnerBase):
-    tag = "GTSFM with intrinsics and image names stored in COLMAP-format"
+    @property
+    def tag(self) -> str:
+        return "GTSFM with intrinsics and image names stored in COLMAP-format"
 
     def construct_argparser(self) -> argparse.ArgumentParser:
         parser = super(GtsfmRunnerColmapLoader, self).construct_argparser()

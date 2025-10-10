@@ -2,6 +2,7 @@
 
 Authors: Yanwei Du
 """
+
 import argparse
 
 import gtsfm.utils.logger as logger_utils
@@ -15,7 +16,9 @@ logger = logger_utils.get_logger()
 class GtsfmRunnerOneDSFMLoader(GtsfmRunnerBase):
     """Runner for datasets used in 1DSFM and Colmap papers."""
 
-    tag = "Run GTSFM on dataset from 1DSFM."
+    @property
+    def tag(self) -> str:
+        return "Run GTSFM on dataset from 1DSFM."
 
     def construct_argparser(self) -> argparse.ArgumentParser:
         parser = super(GtsfmRunnerOneDSFMLoader, self).construct_argparser()
