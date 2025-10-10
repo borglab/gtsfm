@@ -8,6 +8,7 @@ from pathlib import Path
 
 import dask
 import dask.config
+
 import hydra
 from dask import config as dask_config
 from dask.distributed import Client, LocalCluster, SSHCluster, performance_report
@@ -29,6 +30,7 @@ from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 
 # Loader configuration helpers
 from gtsfm.loader.configuration import add_loader_args, build_loader_overrides
+from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.scene_optimizer import SceneOptimizer
 from gtsfm.two_view_estimator import run_two_view_estimator_as_futures
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
@@ -52,7 +54,7 @@ class GtsfmRunner:
         argparser: argparse.ArgumentParser = self.construct_argparser()
         self.parsed_args: argparse.Namespace = argparser.parse_args(args=override_args)
         if self.parsed_args.dask_tmpdir:
-            dask.config.set({"temporary_directory": DEFAULT_OUTPUT_ROOT / self.parsed_args.dask_tmpdir})
+            dask_config.set({"temporary_directory": DEFAULT_OUTPUT_ROOT / self.parsed_args.dask_tmpdir})
 
         # Configure the logging system
         log_level = getattr(logging, self.parsed_args.log.upper(), None)
@@ -60,7 +62,6 @@ class GtsfmRunner:
             logger.setLevel(log_level)
 
         self.scene_optimizer: SceneOptimizer = self.construct_scene_optimizer()
-        self.graph_partitioner: GraphPartitionerBase = self.scene_optimizer.graph_partitioner
 
     def construct_argparser(self) -> argparse.ArgumentParser:
         parser = argparse.ArgumentParser(description=self.tag)
@@ -300,79 +301,6 @@ class GtsfmRunner:
             )
         return cluster
 
-    def run(self) -> GtsfmData:
-        """Run the SceneOptimizer."""
-        start_time = time.time()
-        all_metrics_groups = []
-        self._create_process_graph()
-
-        # Create Dask client
-        client = self._create_dask_client()
-
-        logger.info("🔥 GTSFM: Running image pair retrieval...")
-        retriever_metrics, visibility_graph = self._run_retriever(client)
-        all_metrics_groups.append(retriever_metrics)
-
-        logger.info("🔥 GTSFM: Running correspondence generation...")
-        maybe_intrinsics, intrinsics = self._get_intrinsics_or_raise()
-        keypoints, putative_corr_idxs_dict, correspondence_duration_sec = self._run_correspondence_generation(
-            client, visibility_graph
-        )
-
-        logger.info("🔥 GTSFM: Running two-view estimation...")
-        two_view_results, tve_duration_sec = self._run_two_view_estimation(
-            client, visibility_graph, keypoints, putative_corr_idxs_dict, intrinsics
-        )
-
-        # Aggregate two-view metrics
-        all_metrics_groups.append(
-            self._aggregate_two_view_metrics(keypoints, two_view_results, correspondence_duration_sec, tve_duration_sec)
-        )
-
-        logger.info("🔥 GTSFM: Partitioning the view graph...")
-        subgraph_list = self._partition_view_graph(visibility_graph, two_view_results)
-
-        logger.info("🔥 GTSFM: Create back-end computation subgraphs...")
-        all_delayed_sfm_results = []
-        all_delayed_io = []
-        all_delayed_mvo_metrics_groups = []
-        num_subgraphs = len(subgraph_list)
-        for idx, subgraph_two_view_results in enumerate(subgraph_list):
-            delayed_sfm_result, delayed_io, delayed_mvo_metrics_groups = self._process_subgraph(
-                idx, subgraph_two_view_results, keypoints, maybe_intrinsics, num_subgraphs
-            )
-            if delayed_sfm_result is not None:
-                all_delayed_sfm_results.append(delayed_sfm_result)
-            all_delayed_io.extend(delayed_io)
-            all_delayed_mvo_metrics_groups.extend(delayed_mvo_metrics_groups)
-
-        logger.info("🔥 GTSFM: Starting distributed computation with Dask...")
-        with performance_report(filename="dask_reports/scene-optimizer.html"):
-            if all_delayed_sfm_results:
-                results = dask.compute(*all_delayed_sfm_results, *all_delayed_io, *all_delayed_mvo_metrics_groups)
-                sfm_results = results[: len(all_delayed_sfm_results)]
-                other_results = results[len(all_delayed_sfm_results) :]
-                mvo_metrics_groups = [x for x in other_results if isinstance(x, GtsfmMetricsGroup)]
-                all_metrics_groups.extend(mvo_metrics_groups)
-                sfm_result = next((r for r in sfm_results if r is not None), None)
-            else:
-                sfm_result = None
-
-        # Log total time taken and save metrics report
-        end_time = time.time()
-        duration_sec = end_time - start_time
-        logger.info("🔥 GTSFM took %.2f minutes to compute sparse multi-view result.", duration_sec / 60)
-        total_summary_metrics = GtsfmMetricsGroup(
-            "total_summary_metrics", [GtsfmMetric("total_runtime_sec", duration_sec)]
-        )
-        all_metrics_groups.append(total_summary_metrics)
-        save_metrics_reports(all_metrics_groups, os.path.join(self.scene_optimizer.output_root, "result_metrics"))
-
-        # Shutdown the Dask client
-        if client is not None:
-            client.shutdown()
-        return sfm_result  # type: ignore
-
     def _create_dask_client(self):
         if self.parsed_args.cluster_config:
             cluster = self.setup_ssh_cluster_with_retries()
@@ -396,198 +324,11 @@ class GtsfmRunner:
         print(f"\n🚀 Dask Dashboard available at: {client.dashboard_link}")
         return client
 
-    def _create_process_graph(self):
-        process_graph_generator = ProcessGraphGenerator()
-        if isinstance(self.scene_optimizer.correspondence_generator, ImageCorrespondenceGenerator):
-            process_graph_generator.is_image_correspondence = True
-        process_graph_generator.save_graph()
+    def run(self) -> None:
+        """Just create the client and call scene optimizer."""
+        client = self._create_dask_client()
+        self.scene_optimizer.run(client)
 
-    def _run_retriever(self, client):
-        retriever_start_time = time.time()
-        with performance_report(filename="dask_reports/retriever.html"):
-            visibility_graph = self.scene_optimizer.image_pairs_generator.run(
-                client=client,
-                images=self.scene_optimizer.loader.get_all_images_as_futures(client),
-                image_fnames=self.scene_optimizer.loader.image_filenames(),
-                plots_output_dir=self.scene_optimizer.create_plot_base_path(),
-            )
-        retriever_metrics = self.scene_optimizer.image_pairs_generator._retriever.evaluate(
-            len(self.scene_optimizer.loader), visibility_graph
-        )
-        retriever_duration_sec = time.time() - retriever_start_time
-        retriever_metrics.add_metric(GtsfmMetric("retriever_duration_sec", retriever_duration_sec))
-        logger.info("🚀 Image pair retrieval took %.2f min.", retriever_duration_sec / 60.0)
-        return retriever_metrics, visibility_graph
-
-    def _get_intrinsics_or_raise(self):
-        maybe_intrinsics = self.scene_optimizer.loader.get_all_intrinsics()
-        # Check if maybe_intrinsics has any None values
-        if any(intrinsic is None for intrinsic in maybe_intrinsics):
-            raise ValueError("Some intrinsics are None. Please ensure all intrinsics are provided.")
-
-        # If all intrinsics are valid, cast them to the correct type
-        intrinsics: list[CALIBRATION_TYPE] = maybe_intrinsics  # type: ignore
-        return maybe_intrinsics, intrinsics
-
-    def _run_correspondence_generation(self, client, visibility_graph):
-        with performance_report(filename="dask_reports/correspondence-generator.html"):
-            correspondence_generation_start_time = time.time()
-            (
-                keypoints_list,
-                putative_corr_idxs_dict,
-            ) = self.scene_optimizer.correspondence_generator.generate_correspondences(
-                client,
-                self.scene_optimizer.loader.get_all_images_as_futures(client),
-                visibility_graph,
-            )
-            correspondence_generation_duration_sec = time.time() - correspondence_generation_start_time
-        return keypoints_list, putative_corr_idxs_dict, correspondence_generation_duration_sec
-
-    def _run_two_view_estimation(self, client, visibility_graph, keypoints_list, putative_corr_idxs_dict, intrinsics):
-        with performance_report(filename="dask_reports/two-view-estimation.html"):
-            two_view_estimation_start_time = time.time()
-            # TODO(Frank):this pulls *all* results to one machine! We might not want this.
-            all_two_view_results = run_two_view_estimator_as_futures(
-                client,
-                self.scene_optimizer.two_view_estimator,
-                keypoints_list,
-                putative_corr_idxs_dict,
-                intrinsics,
-                self.scene_optimizer.loader.get_relative_pose_priors(visibility_graph),
-                self.scene_optimizer.loader.get_gt_cameras(),
-                gt_scene_mesh=self.scene_optimizer.loader.get_gt_scene_trimesh(),
-            )
-            two_view_estimation_duration_sec = time.time() - two_view_estimation_start_time
-        # TODO(Frank): We might not be able to do this in a distributed manner
-        two_view_results = {edge: tvr for edge, tvr in all_two_view_results.items() if tvr.valid()}
-        return two_view_results, two_view_estimation_duration_sec
-
-    def _maybe_save_two_view_viz(self, keypoints_list, two_view_results):
-        if self.scene_optimizer._save_two_view_correspondences_viz:
-            for (i1, i2), output in two_view_results.items():
-                image_i1 = self.scene_optimizer.loader.get_image(i1)
-                image_i2 = self.scene_optimizer.loader.get_image(i2)
-                viz_utils.save_twoview_correspondences_viz(
-                    image_i1,
-                    image_i2,
-                    keypoints_list[i1],
-                    keypoints_list[i2],
-                    output.v_corr_idxs,
-                    two_view_report=output.post_isp_report,
-                    file_path=os.path.join(
-                        self.scene_optimizer._plot_correspondence_path,
-                        f"{i1}_{i2}__{image_i1.file_name}_{image_i2.file_name}.jpg",
-                    ),
-                )
-
-    def _aggregate_two_view_metrics(
-        self, keypoints_list, two_view_results, correspondence_generation_duration_sec, two_view_estimation_duration_sec
-    ):
-        self._maybe_save_two_view_viz(keypoints_list, two_view_results)
-
-        post_isp_two_view_reports_dict = {edge: output.post_isp_report for edge, output in two_view_results.items()}
-        two_view_agg_metrics = two_view_estimator.aggregate_frontend_metrics(
-            two_view_reports_dict=post_isp_two_view_reports_dict,
-            angular_err_threshold_deg=self.scene_optimizer._pose_angular_error_thresh,
-            metric_group_name="verifier_summary_{}".format(two_view_estimator.POST_ISP_REPORT_TAG),
-        )
-        two_view_agg_metrics.add_metric(
-            GtsfmMetric("total_correspondence_generation_duration_sec", correspondence_generation_duration_sec)
-        )
-        two_view_agg_metrics.add_metric(
-            GtsfmMetric("total_two_view_estimation_duration_sec", two_view_estimation_duration_sec)
-        )
-        return two_view_agg_metrics
-
-    def _partition_view_graph(self, visibility_graph, two_view_results):
-        assert self.graph_partitioner is not None, "Graph partitioner is not set up!"
-        subgraphs = self.graph_partitioner.run(visibility_graph)
-        if len(subgraphs) == 1:
-            # single partition
-            return [two_view_results]
-        else:
-            logger.info("Partitioned into %d subgraphs", len(subgraphs))
-            # Group results by subgraph
-            return group_results_by_subgraph(two_view_results, subgraphs)
-
-    def _process_subgraph(self, idx, subgraph_two_view_results, keypoints_list, maybe_intrinsics, num_subgraphs):
-        logger.info(
-            "Creating computation graph for subgraph %d / %d with %d image pairs",
-            idx + 1,
-            num_subgraphs,
-            len(subgraph_two_view_results),
-        )
-        if num_subgraphs > 1:
-            self.scene_optimizer.create_output_directories(idx + 1)
-        else:
-            # Single-partition run: write directly under {output_root}/results
-            self.scene_optimizer.create_output_directories(None)
-
-        if len(subgraph_two_view_results) > 0:
-            # TODO(Frank): would be nice if relative pose prior was part of TwoViewResult
-            # TODO(Frank): I think the loader should compute a Delayed dataclass, or a future
-
-            return self.scene_optimizer.create_computation_graph(
-                keypoints_list=keypoints_list,
-                two_view_results=subgraph_two_view_results,
-                num_images=len(self.scene_optimizer.loader),
-                images=self.scene_optimizer.loader.create_computation_graph_for_images(),
-                camera_intrinsics=maybe_intrinsics,  # TODO(Frank): really? None is allowed?
-                relative_pose_priors=self.scene_optimizer.loader.get_relative_pose_priors(
-                    list(subgraph_two_view_results.keys())
-                ),
-                absolute_pose_priors=self.scene_optimizer.loader.get_absolute_pose_priors(),
-                cameras_gt=self.scene_optimizer.loader.get_gt_cameras(),
-                gt_wTi_list=self.scene_optimizer.loader.get_gt_poses(),
-                gt_scene_mesh=self.scene_optimizer.loader.get_gt_scene_trimesh(),
-            )
-        else:
-            logger.warning(f"Skipping subgraph {idx+1} as it has no valid two-view results.")
-            return None, [], []
-
-
-def save_metrics_reports(metrics_group_list: list[GtsfmMetricsGroup], metrics_path: str) -> None:
-    """Saves metrics to JSON and HTML report.
-
-    Args:
-        metrics_graph: list of GtsfmMetricsGroup from different modules wrapped as Delayed.
-        metrics_path: Path to directory where computed metrics will be saved.
-    """
-
-    # Save metrics to JSON
-    metrics_utils.save_metrics_as_json(metrics_group_list, metrics_path)
-    metrics_utils.save_metrics_as_json(metrics_group_list, str(REACT_METRICS_PATH))
-
-    metrics_report.generate_metrics_report_html(
-        metrics_group_list, os.path.join(metrics_path, "gtsfm_metrics_report.html"), None
-    )
-
-
-def merge_two_partition_results(poses1: dict[int, Pose3], poses2: dict[int, Pose3]) -> dict[int, Pose3]:
-    """
-    Merges poses from two partitions by finding and applying relative transform aTb.
-
-    Assumes poses1 are relative to frame 'a' and poses2 are relative to frame 'b'.
-    Finds 'aTb' (from frame 'b' to frame 'a') via overlapping poses.
-    Transforms non-overlapping poses from partition 2 into frame 'a' and merges.
-
-    Args:
-        poses1: dictionary {camera_index: pose_in_frame_a}.
-        poses2: dictionary {camera_index: pose_in_frame_b}.
-
-    Returns:
-        A merged dictionary {camera_index: pose_in_frame_a}.
-
-    Raises:
-        ValueError: If no overlapping cameras are found between the two partitions.
-        RuntimeError: If GTSAM optimization fails.
-    """
-    keys, pairs = merging_utils._get_overlap_data(poses1, poses2)
-    aTb = merging_utils._calculate_transform(pairs)
-    return merging_utils._merge_poses_final(poses1, poses2, keys, aTb)
-
-
-if __name__ == "__main__":
-    # Entry point for direct execution
-    runner = GtsfmRunner()
-    runner.run()
+        # Shutdown the Dask client
+        if client is not None:
+            client.shutdown()
