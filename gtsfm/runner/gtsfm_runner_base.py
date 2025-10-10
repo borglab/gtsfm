@@ -347,7 +347,8 @@ class GtsfmRunnerBase:
         )
 
         logger.info("🔥 GTSFM: Partitioning the view graph...")
-        subgraph_two_view_results = self._partition_view_graph(visibility_graph, two_view_results)
+        # NOTE(Frank): I am passing all_two_view_results here, not two_view_results, because I use the old unzip still in process_subgraph
+        subgraph_two_view_results = self._partition_view_graph(visibility_graph, all_two_view_results)
 
         logger.info("🔥 GTSFM: Create back-end computation subgraphs...")
         all_delayed_sfm_results = []
@@ -537,9 +538,18 @@ class GtsfmRunnerBase:
         if len(subgraph_result_dict) > 0:
             # TODO(Frank): would be nice if relative pose prior was part of TwoViewResult
             # TODO(Frank): I think the loader should compute a Delayed dataclass, or a future
+
+            # Unzip the two-view results for this subgraph
+            subgraph_i2Ri1_dict, subgraph_i2Ui1_dict, subgraph_v_corr_idxs_dict, _, subgraph_post_isp_reports = (
+                unzip_two_view_results(subgraph_result_dict)
+            )
+
             return self.scene_optimizer.create_computation_graph(
                 keypoints_list=keypoints_list,
-                two_view_results=subgraph_result_dict,
+                i2Ri1_dict=subgraph_i2Ri1_dict,
+                i2Ui1_dict=subgraph_i2Ui1_dict,
+                v_corr_idxs_dict=subgraph_v_corr_idxs_dict,
+                two_view_reports=subgraph_post_isp_reports,
                 num_images=len(self.loader),
                 images=self.loader.create_computation_graph_for_images(),
                 camera_intrinsics=maybe_intrinsics,  # TODO(Frank): really? None is allowed?
