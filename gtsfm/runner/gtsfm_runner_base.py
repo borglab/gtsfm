@@ -335,11 +335,9 @@ class GtsfmRunnerBase:
         )
 
         logger.info("🔥 GTSFM: Running two-view estimation...")
-        all_two_view_results, tve_duration_sec = self._run_two_view_estimation(
+        two_view_results, tve_duration_sec = self._run_two_view_estimation(
             client, visibility_graph, keypoints, putative_corr_idxs_dict, intrinsics
         )
-        # TODO(Frank): does this pull *all* results to the client?
-        two_view_results = {edge: tvr for edge, tvr in all_two_view_results.items() if tvr.valid()}
 
         # Aggregate two-view metrics
         all_metrics_groups.append(
@@ -347,9 +345,7 @@ class GtsfmRunnerBase:
         )
 
         logger.info("🔥 GTSFM: Partitioning the view graph...")
-        # NOTE(Frank): I am passing all_two_view_results here, not two_view_results,
-        # because I use the old unzip still in process_subgraph
-        subgraph_two_view_results = self._partition_view_graph(visibility_graph, all_two_view_results)
+        subgraph_two_view_results = self._partition_view_graph(visibility_graph, two_view_results)
 
         logger.info("🔥 GTSFM: Create back-end computation subgraphs...")
         all_delayed_sfm_results = []
@@ -464,7 +460,8 @@ class GtsfmRunnerBase:
     def _run_two_view_estimation(self, client, visibility_graph, keypoints_list, putative_corr_idxs_dict, intrinsics):
         with performance_report(filename="dask_reports/two-view-estimation.html"):
             two_view_estimation_start_time = time.time()
-            two_view_results = run_two_view_estimator_as_futures(
+            # TODO(Frank):this pulls *all* results to one machine! We might not want this.
+            all_two_view_results = run_two_view_estimator_as_futures(
                 client,
                 self.scene_optimizer.two_view_estimator,
                 keypoints_list,
@@ -475,6 +472,8 @@ class GtsfmRunnerBase:
                 gt_scene_mesh=self.loader.get_gt_scene_trimesh(),
             )
             two_view_estimation_duration_sec = time.time() - two_view_estimation_start_time
+        # TODO(Frank): We might not be able to do this in a distributed manner
+        two_view_results = {edge: tvr for edge, tvr in all_two_view_results.items() if tvr.valid()}
         return two_view_results, two_view_estimation_duration_sec
 
     def _maybe_save_two_view_viz(self, keypoints_list, two_view_results):

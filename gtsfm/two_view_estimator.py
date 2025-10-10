@@ -905,6 +905,7 @@ def run_two_view_estimator_as_futures(
     logger.info("Waiting for all tasks to complete...")
 
     try:
+        # TODO(Frank): This pulls all results back to scheduler! We don't want this.
         two_view_result_dict = client.gather(two_view_result_futures, errors="raise")
         logger.info("Gathered %d results", len(two_view_result_dict))
         return two_view_result_dict
