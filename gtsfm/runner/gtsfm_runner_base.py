@@ -27,7 +27,6 @@ from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.frontend.correspondence_generator.image_correspondence_generator import ImageCorrespondenceGenerator
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.loader.loader_base import LoaderBase
-from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.scene_optimizer import SceneOptimizer
 from gtsfm.two_view_estimator import run_two_view_estimator_as_futures
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
@@ -242,9 +241,15 @@ class GtsfmRunnerBase:
         # Set retriever specific params if specified with CLI.
         retriever = scene_optimizer.image_pairs_generator._retriever
         if self.parsed_args.max_frame_lookahead is not None:
-            retriever.set_max_frame_lookahead(self.parsed_args.max_frame_lookahead)
+            try:
+                retriever.set_max_frame_lookahead(self.parsed_args.max_frame_lookahead)
+            except Exception as e:
+                logger.warning(f"Failed to set max_frame_lookahead: {e}")
         if self.parsed_args.num_matched is not None:
-            retriever.set_num_matched(self.parsed_args.num_matched)
+            try:
+                retriever.set_num_matched(self.parsed_args.num_matched)
+            except Exception as e:
+                logger.warning(f"Failed to set num_matched: {e}")
 
         if not self.parsed_args.run_mvs:
             scene_optimizer.run_dense_optimizer = False
