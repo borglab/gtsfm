@@ -30,6 +30,7 @@ from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.scene_optimizer import SceneOptimizer
 from gtsfm.two_view_estimator import run_two_view_estimator_as_futures
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
+from gtsfm.utils.configuration import log_configuration_summary, log_full_configuration, log_key_parameters
 from gtsfm.utils.subgraph_utils import group_results_by_subgraph
 
 dask_config.set({"distributed.scheduler.worker-ttl": None})
@@ -191,6 +192,7 @@ class GtsfmRunnerBase:
 
         All configs are relative to the gtsfm module.
         """
+        logger.info(f"📁 Config File: {self.parsed_args.config_name}")
         with hydra.initialize_config_module(config_module="gtsfm.configs", version_base=None):
             overrides = ["+SceneOptimizer.output_root=" + str(self.parsed_args.output_root)]
             if self.parsed_args.share_intrinsics:
@@ -200,6 +202,7 @@ class GtsfmRunnerBase:
                 config_name=self.parsed_args.config_name,
                 overrides=overrides,
             )
+            logger.info("⏳ Instantiating SceneOptimizer...")
             scene_optimizer: SceneOptimizer = instantiate(main_cfg.SceneOptimizer)
 
         # Override correspondence generator.
@@ -208,7 +211,9 @@ class GtsfmRunnerBase:
                 correspondence_cfg = hydra.compose(
                     config_name=self.parsed_args.correspondence_generator_config_name,
                 )
-                logger.info("\n\nCorrespondenceGenerator override: " + OmegaConf.to_yaml(correspondence_cfg))
+                logger.info(
+                    f"🔄 Applying Correspondence Override: " f"{self.parsed_args.correspondence_generator_config_name}"
+                )
                 scene_optimizer.correspondence_generator = instantiate(correspondence_cfg.CorrespondenceGenerator)
 
         # Override verifier.
@@ -217,7 +222,7 @@ class GtsfmRunnerBase:
                 verifier_cfg = hydra.compose(
                     config_name=self.parsed_args.verifier_config_name,
                 )
-                logger.info("\n\nVerifier override: " + OmegaConf.to_yaml(verifier_cfg))
+                logger.info(f"🔄 Applying Verifier Override: {self.parsed_args.verifier_config_name}")
                 scene_optimizer.two_view_estimator._verifier = instantiate(verifier_cfg.verifier)
 
         # Override retriever.
@@ -226,7 +231,7 @@ class GtsfmRunnerBase:
                 retriever_cfg = hydra.compose(
                     config_name=self.parsed_args.retriever_config_name,
                 )
-                logger.info("\n\nRetriever override: " + OmegaConf.to_yaml(retriever_cfg))
+                logger.info(f"🔄 Applying Retriever Override: {self.parsed_args.retriever_config_name}")
                 scene_optimizer.image_pairs_generator._retriever = instantiate(retriever_cfg.retriever)
 
         # Override gaussian splatting
@@ -235,7 +240,9 @@ class GtsfmRunnerBase:
                 gs_cfg = hydra.compose(
                     config_name=self.parsed_args.gaussian_splatting_config_name,
                 )
-                logger.info("\n\nGaussian Splatting override: " + OmegaConf.to_yaml(gs_cfg))
+                logger.info(
+                    f"🔄 Applying Gaussian Splatting Override: " f"{self.parsed_args.gaussian_splatting_config_name}"
+                )
                 scene_optimizer.gaussian_splatting_optimizer = instantiate(gs_cfg.gaussian_splatting_optimizer)
 
         # Set retriever specific params if specified with CLI.
@@ -257,12 +264,15 @@ class GtsfmRunnerBase:
         if not self.parsed_args.run_gs:
             scene_optimizer.run_gaussian_splatting_optimizer = False
 
-        logger.info("\n\nSceneOptimizer: " + str(scene_optimizer))
+        log_configuration_summary(main_cfg, logger)
+        log_key_parameters(main_cfg, logger)
+        log_full_configuration(main_cfg, logger)
         return scene_optimizer
 
-    def setup_ssh_cluster_with_retries(self) -> SSHCluster:
+    def setup_ssh_cluster_with_retries(self):
         """Sets up SSH Cluster allowing multiple retries upon connection failures."""
-        workers = OmegaConf.load(os.path.join("gtsfm", "configs", self.parsed_args.cluster_config))["workers"]
+        config = OmegaConf.load(os.path.join("gtsfm", "configs", self.parsed_args.cluster_config))
+        workers = dict(config)["workers"]
         scheduler = workers[0]
         connected = False
         retry_count = 0

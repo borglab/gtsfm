@@ -1,4 +1,4 @@
-""" LoFTR image matcher.
+"""LoFTR image matcher.
 
 The network was proposed in "LoFTR: Detector-Free Local Feature Matching with Transformers" and we wrap Kornia's API
 to use the matcher in GTSFM.
@@ -9,6 +9,7 @@ References:
 
 Authors: Ayush Baid
 """
+
 from typing import Tuple
 
 import numpy as np
@@ -16,6 +17,7 @@ import torch
 from kornia.feature import LoFTR as LoFTRKornia
 
 import gtsfm.utils.images as image_utils
+import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.matcher.image_matcher_base import ImageMatcherBase
@@ -40,6 +42,8 @@ class LOFTR(ImageMatcherBase):
         self._model_type = "outdoor" if use_outdoor_model else "indoor"
         self._use_cuda: bool = use_cuda
         self._min_confidence = min_confidence
+        logger = logger_utils.get_logger()
+        logger.info("⏳ Loading LoFTR model weights...")
         self._matcher = LoFTRKornia(pretrained=self._model_type).eval()
 
     def match(self, image_i1: Image, image_i2: Image) -> Tuple[Keypoints, Keypoints]:
