@@ -32,6 +32,7 @@ from gtsfm.data_association.point3d_initializer import Point3dInitializer, Trian
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.frontend.inlier_support_processor import InlierSupportProcessor
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
+from gtsfm.products.visibility_graph import AnnotatedGraph
 
 logger = logger_utils.get_logger()
 
@@ -40,14 +41,33 @@ POST_BA_REPORT_TAG = "POST_BA_2VIEW_REPORT"
 POST_ISP_REPORT_TAG = "POST_INLIER_SUPPORT_PROCESSOR_2VIEW_REPORT"
 VIEWGRAPH_REPORT_TAG = "VIEWGRAPH_2VIEW_REPORT"
 
-TWO_VIEW_OUTPUT = Tuple[
-    Optional[Rot3],
-    Optional[Unit3],
-    np.ndarray,
-    TwoViewEstimationReport,
-    TwoViewEstimationReport,
-    TwoViewEstimationReport,
-]
+
+@dataclasses.dataclass
+class TwoViewResult:
+    """Output from two-view estimation containing poses and reports.
+
+    The first three fields (i2Ri1, i2Ui1, v_corr_idxs) represent the final pose estimates
+    after Inlier Support Processor (ISP) filtering.
+
+    Args:
+        i2Ri1: Estimated relative rotation from i1 to i2 (post-ISP).
+        i2Ui1: Estimated relative unit translation from i1 to i2 (post-ISP).
+        v_corr_idxs: Verified correspondence indices (post-ISP).
+        pre_ba_report: Two-view estimation report before bundle adjustment (optional).
+        post_ba_report: Two-view estimation report after bundle adjustment (optional).
+        post_isp_report: Two-view estimation report after inlier support processing (optional).
+    """
+
+    i2Ri1: Optional[Rot3]
+    i2Ui1: Optional[Unit3]
+    v_corr_idxs: np.ndarray
+    pre_ba_report: Optional[TwoViewEstimationReport]
+    post_ba_report: Optional[TwoViewEstimationReport]
+    post_isp_report: Optional[TwoViewEstimationReport]
+
+    def valid(self) -> bool:
+        """Check if both i2Ri1 and i2Ui1 are not None."""
+        return self.i2Ri1 is not None and self.i2Ui1 is not None
 
 
 class TwoViewEstimator(DaskDBModuleBase):
@@ -363,7 +383,7 @@ class TwoViewEstimator(DaskDBModuleBase):
         gt_scene_mesh: Optional[Any] = None,
         i1: Optional[int] = None,
         i2: Optional[int] = None,
-    ) -> TWO_VIEW_OUTPUT:
+    ) -> TwoViewResult:
         """Estimate the relative pose between two images, along with inlier correspondences.
 
         Args:
@@ -472,7 +492,14 @@ class TwoViewEstimator(DaskDBModuleBase):
         logger.debug(f"[WORKER {worker_name}] Completed pair ({i1}, {i2})")
         sys.stdout.flush()
 
-        return post_isp_i2Ri1, post_isp_i2Ui1, post_isp_v_corr_idxs, pre_ba_report, post_ba_report, post_isp_report
+        return TwoViewResult(
+            i2Ri1=post_isp_i2Ri1,
+            i2Ui1=post_isp_i2Ui1,
+            v_corr_idxs=post_isp_v_corr_idxs,
+            pre_ba_report=pre_ba_report,
+            post_ba_report=post_ba_report,
+            post_isp_report=post_isp_report,
+        )
 
     def store_computation_results(
         self,
@@ -726,7 +753,7 @@ def compute_relative_pose_metrics(
 
 
 def aggregate_frontend_metrics(
-    two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
+    two_view_reports_dict: AnnotatedGraph[TwoViewEstimationReport],
     angular_err_threshold_deg: float,
     metric_group_name: str,
 ) -> GtsfmMetricsGroup:
@@ -762,8 +789,14 @@ def aggregate_frontend_metrics(
 
         inlier_ratio_gt_model_all_pairs.append(report.inlier_ratio_gt_model)
         inlier_ratio_est_model_all_pairs.append(report.inlier_ratio_est_model)
-        num_inliers_gt_model_all_pairs.append(report.num_inliers_gt_model)
-        num_inliers_est_model_all_pairs.append(report.num_inliers_est_model)
+
+        # Only append non-None values for GT model inliers
+        if report.num_inliers_gt_model is not None:
+            num_inliers_gt_model_all_pairs.append(report.num_inliers_gt_model)
+
+        # Only append non-None values for estimated model inliers
+        if report.num_inliers_est_model is not None:
+            num_inliers_est_model_all_pairs.append(report.num_inliers_est_model)
 
     rot3_angular_errors = np.array(rot3_angular_errors_list, dtype=float)
     trans_angular_errors = np.array(trans_angular_errors_list, dtype=float)
@@ -835,21 +868,21 @@ def run_two_view_estimator_as_futures(
     client: Client,
     two_view_estimator: TwoViewEstimator,
     keypoints_list: List[Keypoints],
-    putative_corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
+    putative_corr_idxs_dict: AnnotatedGraph[np.ndarray],
     camera_intrinsics: Sequence[gtsfm_types.CALIBRATION_TYPE],
     relative_pose_priors: Dict[Tuple[int, int], PosePrior],
     gt_cameras: List[Optional[gtsfm_types.CAMERA_TYPE]],
     gt_scene_mesh: Optional[Any],
-) -> Dict[Tuple[int, int], TWO_VIEW_OUTPUT]:
+) -> Dict[Tuple[int, int], TwoViewResult]:
     """Run two-view estimator for all image pairs."""
 
-    def apply_two_view_estimator(two_view_estimator: TwoViewEstimator, **kwargs) -> TWO_VIEW_OUTPUT:
+    def apply_two_view_estimator(two_view_estimator: TwoViewEstimator, **kwargs) -> TwoViewResult:
         return two_view_estimator.run_2view(**kwargs)
 
     logger.info("Submitting tasks directly to workers ...")
 
     # Submit tasks with image indices passed as separate parameters
-    two_view_output_futures = {
+    two_view_result_futures = {
         (i1, i2): client.submit(
             apply_two_view_estimator,
             two_view_estimator,
@@ -868,20 +901,21 @@ def run_two_view_estimator_as_futures(
         for (i1, i2), putative_corr_idxs in putative_corr_idxs_dict.items()
     }
 
-    logger.info(f"Submitted {len(two_view_output_futures)} tasks to workers")
+    logger.info(f"Submitted {len(two_view_result_futures)} tasks to workers")
     logger.info("Waiting for all tasks to complete...")
 
     try:
-        two_view_output_dict = client.gather(two_view_output_futures, errors="raise")
-        logger.info("Gathered %d results", len(two_view_output_dict))
-        return two_view_output_dict
+        # TODO(Frank): This pulls all results back to scheduler! We don't want this.
+        two_view_result_dict = client.gather(two_view_result_futures, errors="raise")
+        logger.info("Gathered %d results", len(two_view_result_dict))
+        return two_view_result_dict
     except Exception as e:
         logger.error(f"Error during gather: {e}")
         return {}
 
 
 def get_two_view_reports_summary(
-    two_view_report_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
+    two_view_report_dict: AnnotatedGraph[TwoViewEstimationReport],
     images: List[Image],
 ) -> List[Dict[str, Any]]:
     """Converts the TwoViewEstimationReports to a summary dict for each image pair.

@@ -236,7 +236,7 @@ class TestIoUtils(unittest.TestCase):
             self.assertEqual(data_from_json["data"][0], None)
             np.testing.assert_allclose(data["data"][1:], data_from_json["data"][1:])
 
-    def test_sort_image_filenames_lexigraphically(self) -> None:
+    def test_sort_image_filenames_lexicographically(self) -> None:
         """Tests that 5 image-camera pose pairs are sorted jointly according to file name."""
         wTi_list = [
             Pose3(Rot3(), np.array([0, 0, 34])),
@@ -247,7 +247,7 @@ class TestIoUtils(unittest.TestCase):
         ]
         img_fnames = ["P1180334.JPG", "P1180335.JPG", "P1180336.JPG", "P1180328.JPG", "P1180337.JPG"]
 
-        wTi_list_sorted, img_fnames_sorted, _ = io_utils.sort_image_filenames_lexigraphically(wTi_list, img_fnames)
+        wTi_list_sorted, img_fnames_sorted, _ = io_utils.sort_image_filenames_lexicographically(wTi_list, img_fnames)
 
         expected_img_fnames_sorted = ["P1180328.JPG", "P1180334.JPG", "P1180335.JPG", "P1180336.JPG", "P1180337.JPG"]
         self.assertEqual(img_fnames_sorted, expected_img_fnames_sorted)

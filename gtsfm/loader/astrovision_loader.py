@@ -80,7 +80,7 @@ class AstrovisionLoader(LoaderBase):
         cameras, images, points3d = colmap_io.read_model(path=data_dir, ext=".bin")
 
         img_fnames, self._wTi_list, self._calibrations, self._sfmtracks, _, _, _ = io_utils.colmap2gtsfm(
-            cameras, images, points3d, load_sfmtracks=use_gt_sfmtracks
+            cameras, images, points3d, load_sfm_tracks=use_gt_sfmtracks
         )
 
         # Read in scene mesh as Trimesh object.
@@ -174,7 +174,7 @@ class AstrovisionLoader(LoaderBase):
         if index < 0 or index >= len(self):
             raise IndexError(f"Image index {index} is invalid")
         intrinsics = self._calibrations[index]
-        logger.info("Loading ground truth calibration.")
+        logger.debug("Loading ground truth calibration.")
 
         return intrinsics
 

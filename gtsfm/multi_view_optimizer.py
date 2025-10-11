@@ -3,18 +3,18 @@
 Authors: Ayush Baid, John Lambert
 """
 
+import os
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import dask
 import numpy as np
-import os
 from dask.delayed import Delayed
-from pathlib import Path
 from gtsam import Pose3, Rot3, Unit3
 
 import gtsfm.common.types as gtsfm_types
-import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.alignment as alignment_utils
+import gtsfm.utils.graph as graph_utils
 from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
 from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
 from gtsfm.bundle.global_ba import GlobalBundleAdjustment

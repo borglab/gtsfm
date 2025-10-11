@@ -5,6 +5,7 @@ metrics from GTSfM.
 
 Authors: Jon Womack
 """
+
 import os
 from typing import Dict, List
 
@@ -32,7 +33,7 @@ def compute_metrics_from_txt(
     Returns:
         other_pipeline_metrics: A dictionary of metrics from another pipeline that are comparable with GTSfM
     """
-    _, _, intrinsics_gtsfm, sfmtracks, _, _, _ = io_utils.colmap2gtsfm(cameras, images, points3d, load_sfmtracks=True)
+    _, _, intrinsics_gtsfm, sfmtracks, _, _, _ = io_utils.colmap2gtsfm(cameras, images, points3d, load_sfm_tracks=True)
 
     num_cameras = len(intrinsics_gtsfm)
     unfiltered_track_lengths = []

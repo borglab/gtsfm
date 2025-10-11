@@ -11,4 +11,4 @@ VisibilityGraph = ImageIndexPairs  # if we mean the graph and not a subset of ed
 
 T = TypeVar("T")
 
-AnnotatedVisibilityGraph = dict[ImageIndexPair, T]  # (i,j) -> T
+AnnotatedGraph = dict[ImageIndexPair, T]  # (i,j) -> T

@@ -2,7 +2,11 @@
 
 This is the front end system for GTSFM
 
-The front end accepts input images and produces geometrically verified feature point matches for each pair of input images.
+The front end accepts input images and produces geometrically verified feature point matches for each pair of input images. The complete output is encapsulated in a `TwoViewResult` dataclass.
+
+## TwoViewResult Lifecycle
+
+📖 **[The Lifecycle of a TwoViewResult](two_view_result_lifecycle.md)** - Comprehensive documentation of how `TwoViewResult` objects are created, processed, and consumed throughout the GTSFM pipeline.
 
 # Organization
 

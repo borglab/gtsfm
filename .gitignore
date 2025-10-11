@@ -133,8 +133,8 @@ dmypy.json
 
 # Dask workspace
 dask-worker-space/
+dask_reports/
 dask-report.html
-*-dask-report.html
 
 # Third party model code
 thirdparty/models/

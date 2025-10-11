@@ -22,7 +22,7 @@ from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggreg
 )
 from gtsfm.frontend.matcher.image_matcher_base import ImageMatcherBase
 from gtsfm.products.visibility_graph import VisibilityGraph
-from gtsfm.two_view_estimator import TWO_VIEW_OUTPUT, TwoViewEstimator
+from gtsfm.two_view_estimator import TwoViewEstimator, TwoViewResult
 
 
 class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
@@ -96,7 +96,7 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
         gt_cameras: List[Optional[CAMERA_TYPE]],
         gt_scene_mesh: Optional[Any],
         two_view_estimator: TwoViewEstimator,
-    ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], TWO_VIEW_OUTPUT]]:
+    ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], TwoViewResult]]:
         """Apply the correspondence generator to generate putative correspondences and subsequently process them with
         two view estimator to complete the front-end.
 
@@ -118,7 +118,7 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
         def apply_image_matcher(image_matcher: ImageMatcherBase, **kwargs) -> Tuple[Keypoints, Keypoints]:
             return image_matcher.match(**kwargs)
 
-        def apply_two_view_estimator(two_view_estimator: TwoViewEstimator, **kwargs) -> TWO_VIEW_OUTPUT:
+        def apply_two_view_estimator(two_view_estimator: TwoViewEstimator, **kwargs) -> TwoViewResult:
             return two_view_estimator.run_2view(**kwargs)
 
         image_matcher_future = client.scatter(self._matcher, broadcast=False)
@@ -139,7 +139,7 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
 
         keypoints_list, putative_corr_idxs_dict = self._aggregator.aggregate(keypoints_dict=pairwise_correspondences)
 
-        two_view_output_futures = {
+        two_view_result_futures = {
             (i1, i2): client.submit(
                 apply_two_view_estimator,
                 two_view_estimator_future,
@@ -158,5 +158,5 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
             for (i1, i2) in visibility_graph
         }
 
-        two_view_output_dict = client.gather(two_view_output_futures)
-        return keypoints_list, two_view_output_dict
+        two_view_result_dict = client.gather(two_view_result_futures)
+        return keypoints_list, two_view_result_dict
