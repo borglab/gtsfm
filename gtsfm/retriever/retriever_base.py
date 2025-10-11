@@ -4,7 +4,6 @@ Authors: John Lambert
 """
 
 import abc
-from enum import Enum
 from pathlib import Path
 from typing import List, Optional
 
@@ -15,24 +14,8 @@ from gtsfm.products.visibility_graph import VisibilityGraph
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 
-class ImageMatchingRegime(str, Enum):
-    SEQUENTIAL = "sequential"
-    RETRIEVAL = "retrieval"
-    EXHAUSTIVE = "exhaustive"
-    SEQUENTIAL_WITH_RETRIEVAL = "sequential_with_retrieval"
-    RIG_HILTI = "rig_hilti"
-    SEQUENTIAL_HILTI = "sequential_hilti"
-
-
 class RetrieverBase(GTSFMProcess):
     """Base class for image retriever implementations."""
-
-    def __init__(self, matching_regime: ImageMatchingRegime) -> None:
-        """
-        Args:
-            matching_regime: identifies type of matching used for image retrieval.
-        """
-        self._matching_regime = matching_regime
 
     @staticmethod
     def get_ui_metadata() -> UiMetadata:
@@ -44,6 +27,14 @@ class RetrieverBase(GTSFMProcess):
             output_products=("Visibility Graph",),
             parent_plate="Loader and Retriever",
         )
+
+    def set_max_frame_lookahead(self, n) -> None:
+        """If supported, set the maximum frame lookahead for sequential matching."""
+        raise AttributeError(f"{type(self).__name__} has no max_frame_lookahead")
+
+    def set_num_matched(self, n) -> None:
+        """If supported, set the maximum number of matched frames for similarity matching."""
+        raise AttributeError(f"{type(self).__name__} has no num_matched")
 
     @abc.abstractmethod
     def get_image_pairs(

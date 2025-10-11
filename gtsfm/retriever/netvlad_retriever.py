@@ -17,7 +17,7 @@ import torch
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.products.visibility_graph import VisibilityGraph
-from gtsfm.retriever.retriever_base import ImageMatchingRegime, RetrieverBase
+from gtsfm.retriever.retriever_base import RetrieverBase
 
 logger = logger_utils.get_logger()
 MAX_NUM_IMAGES = 10000
@@ -40,7 +40,6 @@ class NetVLADRetriever(RetrieverBase):
             min_score: Minimum allowed similarity score to accept a match.
             blocksize: Size of matching sub-blocks when creating similarity matrix.
         """
-        super().__init__(matching_regime=ImageMatchingRegime.RETRIEVAL)
         self._num_matched = num_matched
         self._blocksize = blocksize
         self._min_score = min_score
@@ -52,6 +51,10 @@ class NetVLADRetriever(RetrieverBase):
             Block size: {self._blocksize}
             Minimum score: {self._min_score}
         """
+
+    def set_num_matched(self, n) -> None:
+        """Set the number of matched frames for similarity matching."""
+        self._num_matched = n
 
     def get_image_pairs(
         self,

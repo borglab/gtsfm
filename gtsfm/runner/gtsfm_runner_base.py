@@ -27,7 +27,6 @@ from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.frontend.correspondence_generator.image_correspondence_generator import ImageCorrespondenceGenerator
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.loader.loader_base import LoaderBase
-from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.scene_optimizer import SceneOptimizer
 from gtsfm.two_view_estimator import run_two_view_estimator_as_futures
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
@@ -239,41 +238,18 @@ class GtsfmRunnerBase:
                 logger.info("\n\nGaussian Splatting override: " + OmegaConf.to_yaml(gs_cfg))
                 scene_optimizer.gaussian_splatting_optimizer = instantiate(gs_cfg.gaussian_splatting_optimizer)
 
+        # Set retriever specific params if specified with CLI.
+        retriever = scene_optimizer.image_pairs_generator._retriever
         if self.parsed_args.max_frame_lookahead is not None:
-            if scene_optimizer.image_pairs_generator._retriever._matching_regime in [
-                ImageMatchingRegime.SEQUENTIAL,
-                ImageMatchingRegime.SEQUENTIAL_HILTI,
-            ]:
-                scene_optimizer.image_pairs_generator._retriever._max_frame_lookahead = (
-                    self.parsed_args.max_frame_lookahead
-                )
-            elif (
-                scene_optimizer.image_pairs_generator._retriever._matching_regime
-                == ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL
-            ):
-                scene_optimizer.image_pairs_generator._retriever._seq_retriever._max_frame_lookahead = (
-                    self.parsed_args.max_frame_lookahead
-                )
-            else:
-                raise ValueError(
-                    "`max_frame_lookahead` arg is incompatible with retriever matching regime "
-                    f"{scene_optimizer.image_pairs_generator._retriever._matching_regime}"
-                )
+            try:
+                retriever.set_max_frame_lookahead(self.parsed_args.max_frame_lookahead)
+            except Exception as e:
+                logger.warning(f"Failed to set max_frame_lookahead: {e}")
         if self.parsed_args.num_matched is not None:
-            if (
-                scene_optimizer.image_pairs_generator._retriever._matching_regime
-                == ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL
-            ):
-                scene_optimizer.image_pairs_generator._retriever._similarity_retriever._num_matched = (
-                    self.parsed_args.num_matched
-                )
-            elif scene_optimizer.image_pairs_generator._retriever._matching_regime == ImageMatchingRegime.RETRIEVAL:
-                scene_optimizer.image_pairs_generator._retriever._num_matched = self.parsed_args.num_matched
-            else:
-                raise ValueError(
-                    "`num_matched` arg is incompatible with retriever matching regime "
-                    f"{scene_optimizer.image_pairs_generator._retriever._matching_regime}"
-                )
+            try:
+                retriever.set_num_matched(self.parsed_args.num_matched)
+            except Exception as e:
+                logger.warning(f"Failed to set num_matched: {e}")
 
         if not self.parsed_args.run_mvs:
             scene_optimizer.run_dense_optimizer = False
