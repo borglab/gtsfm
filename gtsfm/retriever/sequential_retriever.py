@@ -12,7 +12,7 @@ import numpy as np
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.products.visibility_graph import VisibilityGraph
-from gtsfm.retriever.retriever_base import ImageMatchingRegime, RetrieverBase
+from gtsfm.retriever.retriever_base import RetrieverBase
 
 logger = logger_utils.get_logger()
 
@@ -23,7 +23,6 @@ class SequentialRetriever(RetrieverBase):
         Args:
             max_frame_lookahead: Maximum number of consecutive frames to consider for matching/co-visibility.
         """
-        super().__init__(matching_regime=ImageMatchingRegime.SEQUENTIAL)
         self._max_frame_lookahead = max_frame_lookahead
 
     def __repr__(self) -> str:

@@ -7,14 +7,14 @@ import os
 import shutil
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from dask.base import annotate
 from dask.delayed import Delayed, delayed
-from gtsam import Pose3, Similarity3
+from gtsam import Pose3, Similarity3  # type: ignore
 from trimesh import Trimesh
 
 import gtsfm.common.types as gtsfm_types
@@ -36,7 +36,6 @@ from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.products.two_view_result import TwoViewResult
 from gtsfm.products.visibility_graph import AnnotatedGraph
 from gtsfm.retriever.image_pairs_generator import ImagePairsGenerator
-from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.two_view_estimator import (
     POST_ISP_REPORT_TAG,
     VIEWGRAPH_REPORT_TAG,
@@ -66,7 +65,7 @@ class SceneOptimizer:
         two_view_estimator: TwoViewEstimator,
         multiview_optimizer: MultiViewOptimizer,
         dense_multiview_optimizer: Optional[MVSBase] = None,
-        gaussian_splatting_optimizer: Optional[any] = None,
+        gaussian_splatting_optimizer: Optional[Any] = None,
         save_two_view_correspondences_viz: bool = False,
         save_3d_viz: bool = False,
         save_gtsfm_data: bool = True,
@@ -186,10 +185,6 @@ class SceneOptimizer:
         # Persist all front-end metrics and their summaries.
         # TODO(akshay-krishnan): this delays saving the frontend reports until MVO has completed, not ideal.
         metrics_graph_list: List[Delayed] = []
-        save_retrieval_metrics = self.image_pairs_generator._retriever._matching_regime in [
-            ImageMatchingRegime.RETRIEVAL,
-            ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL,
-        ]
         annotation = annotate(workers=self._output_worker) if self._output_worker else annotate()
         with annotation:
             delayed_results.append(
@@ -197,7 +192,6 @@ class SceneOptimizer:
                     {ij: r.post_isp_report for ij, r in two_view_results.items()},
                     images,
                     filename="two_view_report_{}.json".format(POST_ISP_REPORT_TAG),
-                    save_retrieval_metrics=save_retrieval_metrics,
                     metrics_path=self._metrics_path,
                     plot_base_path=self._plot_base_path,
                 )
@@ -209,7 +203,6 @@ class SceneOptimizer:
                     two_view_reports_post_viewgraph_estimator,
                     images,
                     filename="two_view_report_{}.json".format(VIEWGRAPH_REPORT_TAG),
-                    save_retrieval_metrics=save_retrieval_metrics,
                     metrics_path=self._metrics_path,
                     plot_base_path=self._plot_base_path,
                 )
@@ -457,7 +450,6 @@ def save_full_frontend_metrics(
     filename: str,
     metrics_path: Path,
     plot_base_path: Path,
-    save_retrieval_metrics: bool = True,
 ) -> None:
     """Converts the TwoViewEstimationReports for all image pairs to a Dict and saves it as JSON.
 
@@ -465,7 +457,6 @@ def save_full_frontend_metrics(
         two_view_report_dict: Front-end metrics for pairs of images.
         images: List of all images for this scene, in order of image/frame index.
         filename: File name to use when saving report to JSON.
-        matching_regime: Regime used for image pair selection in retriever.
         metrics_path: Path to directory where metrics will be saved.
         plot_base_path: Path to directory where plots will be saved.
     """
@@ -476,10 +467,10 @@ def save_full_frontend_metrics(
     # Save duplicate copy of 'frontend_full.json' within React Folder.
     io_utils.save_json_file(os.path.join(REACT_METRICS_PATH, filename), metrics_list)
 
-    # All retreival metrics need GT, no need to save them if GT is not available.
+    # All retrieval metrics need GT, no need to save them if GT is not available.
     gt_available = any([report.R_error_deg is not None for report in two_view_report_dict.values()])
 
-    if save_retrieval_metrics and "VIEWGRAPH_2VIEW_REPORT" in filename and gt_available:
+    if "VIEWGRAPH_2VIEW_REPORT" in filename and gt_available:
         # must come after two-view report file is written to disk in the Dask dependency graph.
         _save_retrieval_two_view_metrics(metrics_path, plot_base_path)
 
