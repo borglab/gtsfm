@@ -13,6 +13,7 @@ def _log_divider(logger) -> None:
     """Log a visual divider for better readability."""
     logger.info("🔧" + "=" * 78 + "🔧")
 
+
 def _extract_algorithm_name(target_path: str) -> str:
     """Extract a readable algorithm name from a target path."""
     if not target_path:
@@ -35,6 +36,7 @@ def _extract_algorithm_name(target_path: str) -> str:
     readable = re.sub(r"(?<!^)(?=[A-Z])", " ", class_name)
 
     return readable.strip()
+
 
 def log_configuration_summary(cfg, logger) -> None:
     """Log a concise, user-friendly configuration summary."""
@@ -60,6 +62,7 @@ def log_configuration_summary(cfg, logger) -> None:
             logger.info(f"{emoji_name}: {algorithm_name}")
         except Exception:
             logger.info(f"{emoji_name}: Unknown")
+
 
 def log_key_parameters(cfg, logger) -> None:
     """Log key parameters from the configuration."""
@@ -88,17 +91,23 @@ def log_key_parameters(cfg, logger) -> None:
         pass
 
 
-
 def format_config_section(cfg_section, section_name: str, indent: int = 0) -> str:
     """Format a configuration section for human-readable display."""
     indent_str = "  " * indent
-    
+
+    # Handle ListConfig objects differently
+    if OmegaConf.is_list(cfg_section):
+        list_values = [str(item) for item in cfg_section]
+        formatted_list = "[" + ", ".join(list_values) + "]"
+        lines = [f"{indent_str}🔸 {section_name}: {formatted_list}"]
+        return "\n".join(lines)
+
     # If this section has a _target_, show the class name
     if hasattr(cfg_section, "_target_"):
         class_name = cfg_section._target_.split(".")[-1]
-        lines = [f"{indent_str}� {section_name}.{class_name}"]
+        lines = [f"{indent_str}🔸 {section_name} = {class_name}"]
     else:
-        lines = [f"{indent_str}� {section_name}"]
+        lines = [f"{indent_str}🔸 {section_name}"]
 
     try:
         # Show key parameters (not _target_ or nested objects)
@@ -119,10 +128,7 @@ def format_config_section(cfg_section, section_name: str, indent: int = 0) -> st
     return "\n".join(lines)
 
 
-def log_full_configuration(
-    main_cfg,
-    logger
-) -> None:
+def log_full_configuration(main_cfg, logger) -> None:
     """Log the complete configuration hierarchy."""
     _log_divider(logger)
     logger.info("🔧 GTSFM COMPLETE CONFIGURATION")
@@ -130,12 +136,13 @@ def log_full_configuration(
 
     # Render the full configuration hierarchy
     for key, value in main_cfg.items():
-        if OmegaConf.is_config(value):
-            logger.info(format_config_section(value, key))
+        if OmegaConf.is_config(value) or OmegaConf.is_list(value):
+            logger.info("\n" + format_config_section(value, key))
         else:
-            logger.info(f"• {key}: {value}")
+            logger.info("\n" + f"• {key}: {value}")
 
     _log_divider(logger)
+
 
 def _get_nested_attr(obj, path: str):
     """Get nested attribute from object using dot notation."""

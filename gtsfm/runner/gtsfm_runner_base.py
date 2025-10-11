@@ -10,7 +10,7 @@ from pathlib import Path
 import dask
 import hydra
 from dask import config as dask_config
-from dask.distributed import Client, LocalCluster, SpecCluster, performance_report
+from dask.distributed import Client, LocalCluster, SSHCluster, performance_report
 from gtsam import Pose3  # type: ignore
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
@@ -202,6 +202,7 @@ class GtsfmRunnerBase:
                 config_name=self.parsed_args.config_name,
                 overrides=overrides,
             )
+            logger.info("⏳ Instantiating SceneOptimizer...")
             scene_optimizer: SceneOptimizer = instantiate(main_cfg.SceneOptimizer)
 
         # Override correspondence generator.
@@ -268,7 +269,7 @@ class GtsfmRunnerBase:
         log_full_configuration(main_cfg, logger)
         return scene_optimizer
 
-    def setup_ssh_cluster_with_retries(self) -> SpecCluster:
+    def setup_ssh_cluster_with_retries(self):
         """Sets up SSH Cluster allowing multiple retries upon connection failures."""
         config = OmegaConf.load(os.path.join("gtsfm", "configs", self.parsed_args.cluster_config))
         workers = dict(config)["workers"]
