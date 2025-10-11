@@ -66,7 +66,7 @@ class TestAstrovisionLoader(unittest.TestCase):
     def test_sfmtracks(self) -> None:
         """Ensure we have one sfmtrack per mesh vertex"""
         # there are 4 images and 1465 tracks in 2011212_opnav_022
-        assert self.loader.num_sfmtracks == 1465
+        assert self.loader.num_sfm_tracks == 1465
         assert len(self.loader._sfmtracks) == 1465
 
     def test_get_image_valid_index(self) -> None:
@@ -112,7 +112,7 @@ class TestAstrovisionLoader(unittest.TestCase):
             self.loader.get_sfm_track(-1)
         # len() as index
         with self.assertRaises(IndexError):
-            self.loader.get_sfm_track(self.loader.num_sfmtracks)
+            self.loader.get_sfm_track(self.loader.num_sfm_tracks)
         # index > len()
         with self.assertRaises(IndexError):
             self.loader.get_sfm_track(99999)
