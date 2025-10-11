@@ -92,43 +92,44 @@ for num_matched in ${num_matched_sizes[@]}; do
 
                 if [[ $dataset == *"barn-tanks-and-temples-410"* ]]
                 then
-                    dataset_dir="/usr/local/gtsfm-data/TanksAndTemples/Barn"
+                    dataset_root="/usr/local/gtsfm-data/TanksAndTemples/Barn"
                     scene_name="Barn"
                 elif [[ $dataset == *"caterpillar-383"* ]]
                 then
-                    dataset_dir=/usr/local/gtsfm-data/TanksAndTemples/Caterpillar
+                    dataset_root=/usr/local/gtsfm-data/TanksAndTemples/Caterpillar
                     scene_name="Caterpillar"
                 elif [[ $dataset == *"church-507"* ]]
                 then
-                    dataset_dir=/usr/local/gtsfm-data/TanksAndTemples/Church
+                    dataset_root=/usr/local/gtsfm-data/TanksAndTemples/Church
                     scene_name="Church"
                 elif [[ $dataset == *"courthouse-1106"* ]]
                 then
-                    dataset_dir=/usr/local/gtsfm-data/TanksAndTemples/Courthouse
+                    dataset_root=/usr/local/gtsfm-data/TanksAndTemples/Courthouse
                     scene_name="Courthouse"
                 elif [[ $dataset == *"ignatius-263"* ]]
                 then
-                    dataset_dir=/usr/local/gtsfm-data/TanksAndTemples/Ignatius
+                    dataset_root=/usr/local/gtsfm-data/TanksAndTemples/Ignatius
                     scene_name="Ignatius"
                 elif [[ $dataset == *"meetingroom-371"* ]]
                 then
-                    dataset_dir=/usr/local/gtsfm-data/TanksAndTemples/Meetingroom
+                    dataset_root=/usr/local/gtsfm-data/TanksAndTemples/Meetingroom
                     scene_name="Meetingroom"
                 elif [[ $dataset == *"truck-251"* ]]
                 then
-                    dataset_dir=/usr/local/gtsfm-data/TanksAndTemples/Truck
+                    dataset_root=/usr/local/gtsfm-data/TanksAndTemples/Truck
                     scene_name="Truck"
                 fi
 
                 OUTPUT_ROOT=${USER_ROOT}/${now}/${now}__${dataset}__results__num_matched${num_matched}__maxframelookahead${max_frame_lookahead}__760p__unified_${correspondence_generator_config_name}
                 mkdir -p $OUTPUT_ROOT
 
-                python gtsfm/runner/run_scene_optimizer_tanks_and_temples.py \
+                python gtsfm/runner.py \
+                --loader tanks_and_temples_loader \
                 --scene_name $scene_name \
-                --mvs_off \
-                --config unified \
+                --dataset_dir $dataset_root \
+                --run_mvs false \
+                --config_name unified \
                 --correspondence_generator_config_name $correspondence_generator_config_name \
-                --dataset_dir $dataset_dir \
                 --num_workers $num_workers \
                 --num_matched $num_matched \
                 --max_frame_lookahead $max_frame_lookahead \
