@@ -183,7 +183,9 @@ class GtsfmRunner:
         parser.add_argument(
             "--loader",
             type=str,
-            help="Loader type (e.g., 'colmap_loader', 'hilti_loader', 'astrovision_loader')",
+            help="Loader type. Available options: colmap_loader, hilti_loader, astrovision_loader, "
+            "olsson_loader, argoverse_loader, mobilebrick_loader, one_d_sfm_loader, "
+            "tanks_and_temples_loader, yfcc_imb_loader",
         )
 
         # Common loader arguments
@@ -200,6 +202,37 @@ class GtsfmRunner:
         parser.add_argument("--base_folder", type=str, help="Base folder for dataset (Hilti loader)")
         parser.add_argument("--max_length", type=int, help="Maximum number of images/timestamps to process")
         parser.add_argument("--scene_name", type=str, help="Name of the scene (for Tanks and Temples, etc.)")
+
+        # Argoverse-specific arguments
+        parser.add_argument("--log_id", type=str, help="Unique ID of vehicle log (Argoverse)")
+        parser.add_argument("--stride", type=int, help="Sampling rate, e.g. every N images (Argoverse)")
+        parser.add_argument("--max_num_imgs", type=int, help="Maximum number of images to load (Argoverse)")
+        parser.add_argument("--max_lookahead_sec", type=float, help="Maximum lookahead in seconds (Argoverse)")
+        parser.add_argument("--camera_name", type=str, help="Camera name to use (Argoverse)")
+
+        # MobileBrick-specific arguments
+        parser.add_argument(
+            "--use_gt_intrinsics", action="store_true", help="Use ground truth intrinsics (MobileBrick)"
+        )
+
+        # 1DSFM-specific arguments
+        parser.add_argument("--enable_no_exif", action="store_true", help="Read images without EXIF (1DSFM)")
+        parser.add_argument("--default_focal_length_factor", type=float, help="Default focal length factor (1DSFM)")
+
+        # Tanks and Temples-specific arguments
+        parser.add_argument("--poses_fpath", type=str, help="Path to poses file (Tanks and Temples)")
+        parser.add_argument(
+            "--bounding_polyhedron_json_fpath",
+            type=str,
+            help="Path to bounding polyhedron JSON (Tanks and Temples)",
+        )
+        parser.add_argument("--ply_alignment_fpath", type=str, help="Path to PLY alignment file (Tanks and Temples)")
+        parser.add_argument("--lidar_ply_fpath", type=str, help="Path to LiDAR PLY file (Tanks and Temples)")
+        parser.add_argument("--colmap_ply_fpath", type=str, help="Path to COLMAP PLY file (Tanks and Temples)")
+        parser.add_argument("--max_num_images", type=int, help="Maximum number of images (Tanks and Temples)")
+
+        # YFCC IMB-specific arguments
+        parser.add_argument("--co_visibility_threshold", type=float, help="Co-visibility threshold (YFCC IMB)")
 
         return parser
 
@@ -234,6 +267,51 @@ class GtsfmRunner:
                 overrides.append(f"loader.max_length={self.parsed_args.max_length}")
             if self.parsed_args.scene_name:
                 overrides.append(f"loader.scene_name={self.parsed_args.scene_name}")
+
+            # Argoverse-specific overrides
+            if self.parsed_args.log_id:
+                overrides.append(f"loader.log_id={self.parsed_args.log_id}")
+            if self.parsed_args.stride is not None:
+                overrides.append(f"loader.stride={self.parsed_args.stride}")
+            if self.parsed_args.max_num_imgs is not None:
+                overrides.append(f"loader.max_num_imgs={self.parsed_args.max_num_imgs}")
+            if self.parsed_args.max_lookahead_sec is not None:
+                overrides.append(f"loader.max_lookahead_sec={self.parsed_args.max_lookahead_sec}")
+            if self.parsed_args.camera_name:
+                overrides.append(f"loader.camera_name={self.parsed_args.camera_name}")
+
+            # MobileBrick-specific overrides
+            if self.parsed_args.use_gt_intrinsics:
+                overrides.append(f"loader.use_gt_intrinsics={self.parsed_args.use_gt_intrinsics}")
+            if self.parsed_args.max_frame_lookahead is not None:
+                overrides.append(f"loader.max_frame_lookahead={self.parsed_args.max_frame_lookahead}")
+
+            # 1DSFM-specific overrides
+            if self.parsed_args.enable_no_exif:
+                overrides.append(f"loader.enable_no_exif={self.parsed_args.enable_no_exif}")
+            if self.parsed_args.default_focal_length_factor is not None:
+                overrides.append(f"loader.default_focal_length_factor={self.parsed_args.default_focal_length_factor}")
+
+            # Tanks and Temples-specific overrides
+            if self.parsed_args.poses_fpath:
+                overrides.append(f"loader.poses_fpath={self.parsed_args.poses_fpath}")
+            if self.parsed_args.bounding_polyhedron_json_fpath:
+                overrides.append(
+                    f"loader.bounding_polyhedron_json_fpath={self.parsed_args.bounding_polyhedron_json_fpath}"
+                )
+            if self.parsed_args.ply_alignment_fpath:
+                overrides.append(f"loader.ply_alignment_fpath={self.parsed_args.ply_alignment_fpath}")
+            if self.parsed_args.lidar_ply_fpath:
+                overrides.append(f"loader.lidar_ply_fpath={self.parsed_args.lidar_ply_fpath}")
+            if self.parsed_args.colmap_ply_fpath:
+                overrides.append(f"loader.colmap_ply_fpath={self.parsed_args.colmap_ply_fpath}")
+            if self.parsed_args.max_num_images is not None:
+                overrides.append(f"loader.max_num_images={self.parsed_args.max_num_images}")
+
+            # YFCC IMB-specific overrides
+            if self.parsed_args.co_visibility_threshold is not None:
+                overrides.append(f"loader.co_visibility_threshold={self.parsed_args.co_visibility_threshold}")
+
             # Override max_resolution for loader if specified
             overrides.append(f"loader.max_resolution={self.parsed_args.max_resolution}")
 

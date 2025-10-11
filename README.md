@@ -77,6 +77,8 @@ Before running reconstruction, if you intend to use modules with pre-trained wei
 
 ### Running SfM  
 
+> **📝 Note**: GTSfM supports many dataset types using different loaders. See the [Loader Usage Examples](#unified-runner-usage-examples) section for the recommended approach using `--loader` arguments.
+
 To process a dataset containing only an **image directory and EXIF metadata**, ensure your dataset follows this structure:  
 
 ```
@@ -90,7 +92,12 @@ To process a dataset containing only an **image directory and EXIF metadata**, e
 Then, run the following command:  
 
 ```bash
-python gtsfm/runner/run_scene_optimizer_olssonloader.py --config_name {CONFIG_NAME} --dataset_dir {DATASET_ROOT} --num_workers {NUM_WORKERS}
+python -m gtsfm.runner.gtsfm_runner_base --config_name {CONFIG_NAME} --loader olsson_loader --dataset_root {DATASET_ROOT} --num_workers {NUM_WORKERS}
+```
+
+Or using the legacy runner:
+```bash
+python gtsfm/runner/run_scene_optimizer_olssonloader.py --config_name {CONFIG_NAME} --dataset_root {DATASET_ROOT} --num_workers {NUM_WORKERS}
 ```  
 
 ### Command-line Options  
@@ -104,13 +111,13 @@ python gtsfm/runner/run_scene_optimizer_olssonloader.py -h
 For example, if you want to use the **Deep Front-End (recommended)** on the `"door"` dataset, run:  
 
 ```bash
-python gtsfm/runner/run_scene_optimizer_olssonloader.py --dataset_dir tests/data/set1_lund_door --config_name deep_front_end.yaml --num_workers 1
+python gtsfm/runner/run_scene_optimizer_olssonloader.py --dataset_root tests/data/set1_lund_door --config_name deep_front_end.yaml --num_workers 1
 ```  
 
 Or, for a dataset dataset with metadata formatted in the COLMAP style
 ```bash
 python gtsfm/runner/run_scene_optimizer_colmaploader.py --images_dir datasets/gerrard-hall/images \
-  --dataset_dir datasets/gerrard-hall/sparse --config_name deep_front_end.yaml --num_workers 5
+  --colmap_files_dirpath datasets/gerrard-hall/sparse --config_name deep_front_end.yaml --num_workers 5
 ```  
 
 You can monitor the distributed computation using the [Dask dashboard](http://localhost:8787/status).  
@@ -127,7 +134,7 @@ Currently, we require **EXIF data** embedded into your images. Alternatively, yo
 To compare GTSFM output with COLMAP, use the following command:  
 
 ```bash
-python gtsfm/runner/run_scene_optimizer_colmaploader.py --config_name {CONFIG_NAME} --images_dir {IMAGES_DIR} --dataset_dir {COLMAP_FILES_DIRPATH} --num_workers {NUM_WORKERS} --max_frame_lookahead {MAX_FRAME_LOOKAHEAD}
+python gtsfm/runner/run_scene_optimizer_colmaploader.py --config_name {CONFIG_NAME} --images_dir {IMAGES_DIR} --colmap_files_dirpath {COLMAP_FILES_DIRPATH} --num_workers {NUM_WORKERS} --max_frame_lookahead {MAX_FRAME_LOOKAHEAD}
 ```  
 
 where:  
@@ -170,6 +177,118 @@ The results are stored in the nerfstudio_input subdirectory inside `{RESULTS_DIR
 
 ```bash
 ns-train nerfacto --data {RESULTS_DIR}/nerfstudio_input
+```
+
+## Loader Usage Examples
+
+GTSfM provides a single unified runner that supports all dataset types through Hydra configuration.
+
+### Basic Usage
+
+The unified runner supports all loaders through the `--loader` argument:
+
+```bash
+python -m gtsfm.runner.gtsfm_runner_base \
+  --config_name <config_file> \
+  --loader <loader_type> \
+  [loader-specific arguments]
+```
+
+### Available Loaders
+
+The following loader types are supported:
+- `colmap_loader` - COLMAP format datasets
+- `hilti_loader` - Hilti SLAM challenge datasets  
+- `astrovision_loader` - AstroVision space datasets
+- `olsson_loader` - Olsson format datasets
+- `argoverse_loader` - Argoverse autonomous driving datasets
+- `mobilebrick_loader` - MobileBrick datasets
+- `one_d_sfm_loader` - 1DSFM format datasets
+- `tanks_and_temples_loader` - Tanks and Temples benchmark datasets
+- `yfcc_imb_loader` - YFCC Image Matching Benchmark datasets
+
+For the complete list of available arguments for each loader, run:
+```bash
+python -m gtsfm.runner.gtsfm_runner_base --help
+```
+
+### Dataset-Specific Examples
+
+#### COLMAP Dataset
+```bash
+python -m gtsfm.runner.gtsfm_runner_base \
+  --config_name sift_front_end.yaml \
+  --loader colmap_loader \
+  --images_dir /path/to/images \
+  --colmap_files_dirpath /path/to/colmap
+```
+
+#### Hilti Dataset
+```bash
+python -m gtsfm.runner.gtsfm_runner_base \
+  --config_name deep_front_end_hilti.yaml \
+  --loader hilti_loader \
+  --dataset_dirpath /path/to/hilti
+```
+
+#### AstroVision Dataset
+```bash
+python -m gtsfm.runner.gtsfm_runner_base \
+  --config_name sift_front_end_astrovision.yaml \
+  --loader astrovision_loader \
+  --dataset_dirpath /path/to/astrovision
+```
+
+#### Olsson Dataset  
+```bash
+python -m gtsfm.runner.gtsfm_runner_base \
+  --config_name sift_front_end.yaml \
+  --loader olsson_loader \
+  --dataset_root /path/to/olsson
+```
+
+#### Argoverse Dataset
+```bash
+python -m gtsfm.runner.gtsfm_runner_base \
+  --config_name sift_front_end.yaml \
+  --loader argoverse_loader \
+  --dataset_dir /path/to/argoverse \
+  --log_id <vehicle_log_id>
+```
+
+#### MobileBrick Dataset
+```bash
+python -m gtsfm.runner.gtsfm_runner_base \
+  --config_name sift_front_end.yaml \
+  --loader mobilebrick_loader \
+  --data_dir /path/to/mobilebrick
+```
+
+#### 1DSFM Dataset
+```bash
+python -m gtsfm.runner.gtsfm_runner_base \
+  --config_name sift_front_end.yaml \
+  --loader one_d_sfm_loader \
+  --folder /path/to/1dsfm
+```
+
+#### Tanks and Temples Dataset
+```bash
+python -m gtsfm.runner.gtsfm_runner_base \
+  --config_name sift_front_end.yaml \
+  --loader tanks_and_temples_loader \
+  --img_dir /path/to/images \
+  --poses_fpath /path/to/poses.log \
+  --bounding_polyhedron_json_fpath /path/to/bounds.json \
+  --ply_alignment_fpath /path/to/alignment.txt
+```
+
+#### YFCC IMB Dataset
+```bash
+python -m gtsfm.runner.gtsfm_runner_base \
+  --config_name sift_front_end.yaml \
+  --loader yfcc_imb_loader \
+  --folder /path/to/yfcc_imb
 ```
 
 ## Repository Structure
