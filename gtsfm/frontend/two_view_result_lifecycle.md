@@ -1,6 +1,6 @@
 # The Lifecycle of a TwoViewResult
 
-This document provides a concise overview of how [`TwoViewResult`](../two_view_estimator.py) objects flow through the GTSFM pipeline.
+This document provides a concise overview of how [`TwoViewResult`](../products/two_view_result.py) objects flow through the GTSFM pipeline.
 
 ## Overview
 

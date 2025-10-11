@@ -21,8 +21,9 @@ from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggreg
     KeypointAggregatorUnique,
 )
 from gtsfm.frontend.matcher.image_matcher_base import ImageMatcherBase
+from gtsfm.products.two_view_result import TwoViewResult
 from gtsfm.products.visibility_graph import VisibilityGraph
-from gtsfm.two_view_estimator import TwoViewEstimator, TwoViewResult
+from gtsfm.two_view_estimator import TwoViewEstimator
 
 
 class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):

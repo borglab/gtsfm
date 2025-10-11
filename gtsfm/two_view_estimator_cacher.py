@@ -14,7 +14,8 @@ import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
-from gtsfm.two_view_estimator import TwoViewEstimator, TwoViewResult
+from gtsfm.products.two_view_result import TwoViewResult
+from gtsfm.two_view_estimator import TwoViewEstimator
 
 # Number of first K keypoints from each image to use to create cache key.
 NUM_KEYPOINTS_TO_SAMPLE_FOR_HASH = 10
