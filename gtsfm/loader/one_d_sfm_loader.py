@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 from typing import List, Optional
 
-from gtsam import Cal3Bundler, Pose3
+from gtsam import Cal3Bundler, Pose3  # type:ignore
 
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils

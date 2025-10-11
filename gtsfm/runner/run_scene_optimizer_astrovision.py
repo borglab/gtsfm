@@ -2,6 +2,7 @@
 
 Author: Travis Driver
 """
+
 import argparse
 
 import gtsfm.utils.logger as logger_utils
@@ -13,7 +14,9 @@ logger = logger_utils.get_logger()
 
 
 class GtsfmRunnerAstrovisionLoader(GtsfmRunnerBase):
-    tag = "Run GTSfM on AstroVision segment"
+    @property
+    def tag(self) -> str:
+        return "Run GTSfM on AstroVision segment"
 
     def construct_argparser(self) -> argparse.ArgumentParser:
         parser = super(GtsfmRunnerAstrovisionLoader, self).construct_argparser()
@@ -36,7 +39,7 @@ class GtsfmRunnerAstrovisionLoader(GtsfmRunnerBase):
         loader = AstrovisionLoader(
             data_dir=self.parsed_args.data_dir,
             use_gt_extrinsics=True,
-            use_gt_sfmtracks=False,
+            use_gt_sfm_tracks=False,
             max_frame_lookahead=self.parsed_args.max_frame_lookahead,
             max_resolution=self.parsed_args.max_resolution,
             gt_scene_mesh_path=self.parsed_args.scene_mesh_path,

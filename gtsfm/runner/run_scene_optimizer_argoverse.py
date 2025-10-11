@@ -8,7 +8,9 @@ from gtsfm.runner.gtsfm_runner_base import GtsfmRunnerBase
 class GtsfmRunnerArgoverse(GtsfmRunnerBase):
     """Runner for datasets from Argoverse self-driving dataset"""
 
-    tag = "Run GTSFM on scene from Argoverse."
+    @property
+    def tag(self) -> str:
+        return "Run GTSFM on scene from Argoverse."
 
     def construct_argparser(self) -> ArgumentParser:
         parser = super().construct_argparser()
@@ -35,7 +37,7 @@ class GtsfmRunnerArgoverse(GtsfmRunnerBase):
             "--stride",
             default=10,
             type=int,
-            help="image subsampling interval, e.g. every 2 images, every 4 images, etc.",
+            help="image sub-sampling interval, e.g. every 2 images, every 4 images, etc.",
         )
         parser.add_argument(
             "--max_num_imgs",

@@ -6,12 +6,10 @@ Authors: Akshay Krishnan
 """
 
 import os
-from pathlib import Path
 from typing import List, Optional
 
 import numpy as np
-
-from gtsam import Cal3Bundler, Pose3, Rot3
+from gtsam import Cal3Bundler, Pose3, Rot3  # type:ignore
 
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
@@ -60,12 +58,12 @@ class MobilebrickLoader(LoaderBase):
         for i in range(self._num_images):
             pose_file = os.path.join(self._poses_dir, f"{i:06d}.txt")
             wTi_mat = np.loadtxt(pose_file)
-            wTi = Pose3(Rot3(wTi_mat[:3, :3]), wTi_mat[:3, 3])
+            wTi = Pose3(Rot3(wTi_mat[:3, :3]), wTi_mat[:3, 3])  # type: ignore
             self._wTi.append(wTi)
 
-    def image_filenames(self) -> List[Path]:
+    def image_filenames(self) -> List[str]:
         """Return the file names corresponding to each image index."""
-        return [Path(fpath) for fpath in sorted(os.listdir(self._image_dir))]
+        return [fpath for fpath in sorted(os.listdir(self._image_dir))]
 
     def __len__(self) -> int:
         """The number of images in the dataset.
@@ -130,7 +128,11 @@ class MobilebrickLoader(LoaderBase):
             return self._gt_intrinsics[index]
         else:
             # 0.8 is better than the default factor of 1.2 for this dataset, but it has not been fully tuned.
-            return io_utils.load_image(self._image_paths[index]).get_intrinsics(default_focal_length_factor=0.8)
+            image = io_utils.load_image(self._image_paths[index])
+            assert image is not None, "Image could not be read."
+            calibration = image.get_intrinsics(default_focal_length_factor=0.8)
+            assert calibration is not None, "Calibration could not be retrieved."
+            return calibration
 
     def get_camera_pose(self, index: int) -> Optional[Pose3]:
         """Get the camera pose (in world coordinates) at the given index.

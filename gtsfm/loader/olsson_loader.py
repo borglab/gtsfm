@@ -8,8 +8,8 @@ from pathlib import Path
 from typing import List, Optional
 
 import numpy as np
-import scipy.io
-from gtsam import Cal3Bundler, Pose3, SfmTrack
+import scipy.io  # type: ignore
+from gtsam import Cal3Bundler, Pose3, SfmTrack  # type: ignore
 
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.verification as verification_utils
@@ -25,7 +25,7 @@ class OlssonLoader(LoaderBase):
     The mat-file contains Olsson's reconstruction. The variable P{i} contains camera i
     and the imnames(i).name contains the name of the corresponding image.
     "U"" are the reconstructed 3D points and "u_uncalib" contains the feature points for each image.
-    "u_uncalib" contains two cells; u_uncalib.points{i} contains imagepoints and u_uncalib.index{i}
+    "u_uncalib" contains two cells; u_uncalib.points{i} contains image points and u_uncalib.index{i}
     contains the indices of the 3D points corresponding to u_uncalib.points{i}.
 
     Folder layout structure:
@@ -103,7 +103,7 @@ class OlssonLoader(LoaderBase):
             measurements_2d = []
             for k in range(track_3d.numberMeasurements()):
                 i, uv = track_3d.measurement(k)
-                measurements_2d.append(SfmMeasurement(i, uv)) 
+                measurements_2d.append(SfmMeasurement(i, uv))
             tracks_2d.append(SfmTrack2d(measurements_2d))
         return tracks_2d
 
@@ -124,15 +124,15 @@ class OlssonLoader(LoaderBase):
 
                 # u_uncalib.points{i} contains homogeneous image keypoints w/ shape (3, num_visible_points).
                 # Transpose to (num_visible_points, 3)
-                keypoint_coords = data['u_uncalib'][0,0][1][i][0].T
+                keypoint_coords = data["u_uncalib"][0, 0][1][i][0].T
 
                 # u_uncalib.index{i} contains the indices of the 3D points corresponding to u_uncalib.points{i}.
                 # shape: (1, num_visible_points)
-                if j not in data['u_uncalib'][0,0][2][i][0]:
+                if j not in data["u_uncalib"][0, 0][2][i][0]:
                     continue
 
-                k = np.argwhere(data['u_uncalib'][0,0][2][i][0][0] == j)[0]
-                uv = np.squeeze(keypoint_coords[k,:2])
+                k = np.argwhere(data["u_uncalib"][0, 0][2][i][0][0] == j)[0]
+                uv = np.squeeze(keypoint_coords[k, :2])
                 track_3d.addMeasurement(i, uv)
 
             if track_3d.numberMeasurements() == 0:
@@ -141,7 +141,6 @@ class OlssonLoader(LoaderBase):
             tracks.append(track_3d)
 
         return tracks
-
 
     def image_filenames(self) -> List[str]:
         """Return the file names corresponding to each image index."""

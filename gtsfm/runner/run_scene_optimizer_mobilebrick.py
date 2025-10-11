@@ -2,6 +2,7 @@
 
 Authors: Akshay Krishnan
 """
+
 import argparse
 
 import gtsfm.utils.logger as logger_utils
@@ -15,7 +16,9 @@ logger = logger_utils.get_logger()
 class GtsfmRunnerMobilebrickLoader(GtsfmRunnerBase):
     """Runner for the Mobilebrick dataset."""
 
-    tag = "Run GTSFM on dataset from MobileBrick."
+    @property
+    def tag(self) -> str:
+        return "Run GTSFM on dataset from MobileBrick."
 
     def construct_argparser(self) -> argparse.ArgumentParser:
         parser = super(GtsfmRunnerMobilebrickLoader, self).construct_argparser()

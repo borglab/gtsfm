@@ -75,6 +75,10 @@ class ArgoverseDatasetLoader(LoaderBase):
         self._world_pose = Pose3(Rot3(), np.zeros((3, 1)))
         self._world_pose = self.get_camera_pose(0)
 
+    def image_filenames(self) -> list[str]:
+        """Return the file names corresponding to each image index."""
+        return [Path(path).name for path in self._image_paths]
+
     def load_camera_calibration(self, log_id: str, camera_name: str) -> None:
         """Load extrinsics and intrinsics from disk."""
         calib_data = self._dl.get_log_calibration_data(log_id)

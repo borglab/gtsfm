@@ -6,8 +6,8 @@ Authors: Frank Dellaert and Ayush Baid
 import abc
 from typing import Dict, List, Optional, Tuple
 
-import dask
-from dask.delayed import Delayed
+from dask.base import annotate as dask_annotate
+from dask.delayed import Delayed, delayed
 from dask.distributed import Client, Future
 from gtsam import Cal3_S2, Cal3Bundler, Cal3DS2, Pose3  # type: ignore
 from trimesh import Trimesh
@@ -359,9 +359,9 @@ class LoaderBase(GTSFMProcess):
             List of delayed tasks for images.
         """
         N = len(self)
-        annotation = dask.annotate(workers=self._input_worker) if self._input_worker else dask.annotate()
+        annotation = dask_annotate(workers=self._input_worker) if self._input_worker else dask_annotate()
         with annotation:
-            delayed_images = [dask.delayed(self.get_image)(i) for i in range(N)]
+            delayed_images = [delayed(self.get_image)(i) for i in range(N)]
         return delayed_images
 
     def get_all_images_as_futures(self, client: Client) -> List[Future]:
