@@ -16,6 +16,7 @@ from typing import Optional, Tuple
 import numpy as np
 import torch
 
+import gtsfm.utils.logger as logger_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.matcher.matcher_base import MatcherBase
 
@@ -35,6 +36,8 @@ class LightGlueMatcher(MatcherBase):
         if self._model is None:
             from thirdparty.LightGlue.lightglue.lightglue import LightGlue
 
+            logger = logger_utils.get_logger()
+            logger.info("⏳ Loading LightGlue model weights...")
             self._model = LightGlue(features=self._features).eval()
 
     def match(

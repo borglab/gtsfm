@@ -80,6 +80,7 @@ class Mast3rCorrespondenceGenerator(CorrespondenceGeneratorBase):
             List of keypoints, one entry for each input images.
             Putative correspondence as indices of keypoints, for pairs of images.
         """
+        logger.info("⏳ Loading MASt3R model weights...")
         model = AsymmetricMASt3R.from_pretrained(_MODEL_PATH).eval()
 
         m = client.scatter(model, broadcast=False)

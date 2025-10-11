@@ -12,6 +12,7 @@ Authors: John Lambert, Travis Driver
 import numpy as np
 import torch
 
+import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
 from gtsfm.frontend.global_descriptor.global_descriptor_base import GlobalDescriptorBase
 from thirdparty.hloc.netvlad import NetVLAD
@@ -22,6 +23,8 @@ class NetVLADGlobalDescriptor(GlobalDescriptorBase):
 
     def __init__(self) -> None:
         """ """
+        logger = logger_utils.get_logger()
+        logger.info("⏳ Loading NetVLAD model weights...")
         self._model = NetVLAD().eval()
 
     def describe(self, image: Image) -> np.ndarray:

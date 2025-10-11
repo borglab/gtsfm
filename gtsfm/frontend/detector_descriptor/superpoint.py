@@ -9,6 +9,7 @@ References:
 
 Authors: Ayush Baid
 """
+
 from pathlib import Path
 from typing import Tuple, Union
 
@@ -16,6 +17,7 @@ import numpy as np
 import torch
 
 import gtsfm.utils.images as image_utils
+import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.detector_descriptor.detector_descriptor_base import DetectorDescriptorBase
@@ -50,6 +52,8 @@ class SuperPointDetectorDescriptor(DetectorDescriptorBase):
                 f"Please run 'bash download_model_weights.sh' from the repo root."
             )
 
+        logger = logger_utils.get_logger()
+        logger.info("⏳ Loading SuperPoint model weights...")
         self._model = SuperPoint(self._config).eval()
 
     def detect_and_describe(self, image: Image) -> Tuple[Keypoints, np.ndarray]:

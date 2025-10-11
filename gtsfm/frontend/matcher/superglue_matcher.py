@@ -1,6 +1,6 @@
 """SuperGlue matcher implementation
 
-The network was proposed in 'SuperGlue: Learning Feature Matching with Graph Neural Networks' and is implemented by 
+The network was proposed in 'SuperGlue: Learning Feature Matching with Graph Neural Networks' and is implemented by
 wrapping over author's source-code.
 
 Note: the pretrained model only supports SuperPoint detections currently.
@@ -11,11 +11,13 @@ References:
 
 Authors: Ayush Baid, John Lambert
 """
+
 from typing import Tuple
 
 import numpy as np
 import torch
 
+import gtsfm.utils.logger as logger_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.matcher.matcher_base import MatcherBase
 from thirdparty.SuperGluePretrainedNetwork.models.superglue import SuperGlue
@@ -38,6 +40,8 @@ class SuperGlueMatcher(MatcherBase):
             "sinkhorn_iterations": DEFAULT_NUM_SINKHORN_ITERATIONS,
         }
         self._use_cuda = use_cuda
+        logger = logger_utils.get_logger()
+        logger.info("⏳ Loading SuperGlue model weights...")
         self._model = SuperGlue(self._config).eval()
 
     def match(

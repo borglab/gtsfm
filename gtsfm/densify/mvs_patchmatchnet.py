@@ -126,6 +126,7 @@ class MVSPatchmatchNet(MVSBase):
                 "Please run 'bash download_model_weights.sh' from the repo root."
             )
 
+        logger.info("⏳ Loading PatchMatchNet model weights...")
         if torch.cuda.is_available():
             model.cuda()
             state_dict = torch.load(PATCHMATCHNET_WEIGHTS_PATH)
