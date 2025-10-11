@@ -351,9 +351,9 @@ class GtsfmRunnerBase:
         all_delayed_sfm_results = []
         all_delayed_io = []
         all_delayed_mvo_metrics_groups = []
-        for idx, subgraph_result_dict in enumerate(subgraph_two_view_results):
+        for idx, subgraph_two_view_results in enumerate(subgraph_two_view_results):
             delayed_sfm_result, delayed_io, delayed_mvo_metrics_groups = self._process_subgraph(
-                idx, subgraph_result_dict, keypoints, maybe_intrinsics, len(subgraph_two_view_results)
+                idx, subgraph_two_view_results, keypoints, maybe_intrinsics, len(subgraph_two_view_results)
             )
             if delayed_sfm_result is not None:
                 all_delayed_sfm_results.append(delayed_sfm_result)
@@ -525,35 +525,27 @@ class GtsfmRunnerBase:
             # Group results by subgraph
             return group_results_by_subgraph(two_view_results, subgraphs)
 
-    def _process_subgraph(self, idx, subgraph_result_dict, keypoints_list, maybe_intrinsics, num_subgraphs):
+    def _process_subgraph(self, idx, subgraph_two_view_results, keypoints_list, maybe_intrinsics, num_subgraphs):
         logger.info(
             "Creating computation graph for subgraph %d / %d with %d image pairs",
             idx + 1,
             num_subgraphs,
-            len(subgraph_result_dict),
+            len(subgraph_two_view_results),
         )
         if num_subgraphs > 1:
             self.scene_optimizer.create_output_directories(idx + 1)
 
-        if len(subgraph_result_dict) > 0:
+        if len(subgraph_two_view_results) > 0:
             # TODO(Frank): would be nice if relative pose prior was part of TwoViewResult
             # TODO(Frank): I think the loader should compute a Delayed dataclass, or a future
 
-            # Unzip the two-view results for this subgraph
-            subgraph_i2Ri1_dict, subgraph_i2Ui1_dict, subgraph_v_corr_idxs_dict, _, subgraph_post_isp_reports = (
-                unzip_two_view_results(subgraph_result_dict)
-            )
-
             return self.scene_optimizer.create_computation_graph(
                 keypoints_list=keypoints_list,
-                i2Ri1_dict=subgraph_i2Ri1_dict,
-                i2Ui1_dict=subgraph_i2Ui1_dict,
-                v_corr_idxs_dict=subgraph_v_corr_idxs_dict,
-                two_view_reports=subgraph_post_isp_reports,
+                two_view_results=subgraph_two_view_results,
                 num_images=len(self.loader),
                 images=self.loader.create_computation_graph_for_images(),
                 camera_intrinsics=maybe_intrinsics,  # TODO(Frank): really? None is allowed?
-                relative_pose_priors=self.loader.get_relative_pose_priors(list(subgraph_result_dict.keys())),
+                relative_pose_priors=self.loader.get_relative_pose_priors(list(subgraph_two_view_results.keys())),
                 absolute_pose_priors=self.loader.get_absolute_pose_priors(),
                 cameras_gt=self.loader.get_gt_cameras(),
                 gt_wTi_list=self.loader.get_gt_poses(),
@@ -562,30 +554,6 @@ class GtsfmRunnerBase:
         else:
             logger.warning(f"Skipping subgraph {idx+1} as it has no valid two-view results.")
             return None, [], []
-
-
-def unzip_two_view_results(two_view_results):
-    """OBSOLETE: Unzip the tuple TwoViewResult into 1 dictionary for 1 element in the tuple."""
-    i2Ri1_dict = {}
-    i2Ui1_dict = {}
-    v_corr_idxs_dict = {}
-    pre_ba_two_view_reports_dict = {}
-    post_isp_two_view_reports_dict = {}
-
-    for (i1, i2), result in two_view_results.items():
-        # Value is ordered as (post_isp_i2Ri1, post_isp_i2Ui1, post_isp_v_corr_idxs,
-        # pre_ba_report, post_ba_report, post_isp_report).
-        if not result.valid():
-            logger.debug("Skip %d, %d since None", i1, i2)
-            continue
-
-        i2Ri1_dict[(i1, i2)] = result.i2Ri1
-        i2Ui1_dict[(i1, i2)] = result.i2Ui1
-        v_corr_idxs_dict[(i1, i2)] = result.v_corr_idxs
-        pre_ba_two_view_reports_dict[(i1, i2)] = result.pre_ba_report
-        post_isp_two_view_reports_dict[(i1, i2)] = result.post_isp_report
-
-    return i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, pre_ba_two_view_reports_dict, post_isp_two_view_reports_dict
 
 
 def save_metrics_reports(metrics_group_list: list[GtsfmMetricsGroup], metrics_path: str) -> None:

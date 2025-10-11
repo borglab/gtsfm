@@ -12,9 +12,8 @@ import os
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
-import dask
 import numpy as np
-from dask.delayed import Delayed
+from dask.delayed import Delayed, delayed
 from gtsam import Cal3Bundler, Rot3, Unit3  # type: ignore
 
 import gtsfm.common.types as gtsfm_types
@@ -23,7 +22,7 @@ import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
-from gtsfm.products.visibility_graph import ImageIndexPairs
+from gtsfm.products.visibility_graph import AnnotatedGraph, ImageIndexPairs
 from gtsfm.two_view_estimator import TwoViewEstimationReport
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
@@ -72,7 +71,7 @@ class ViewGraphEstimatorBase(GTSFMProcess):
         calibrations: List[Cal3Bundler],
         corr_idxs_i1i2: Dict[Tuple[int, int], np.ndarray],
         keypoints: List[Keypoints],
-        two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
+        two_view_reports: AnnotatedGraph[TwoViewEstimationReport],
     ) -> Set[Tuple[int, int]]:
         """Estimates the view graph, needs to be implemented by the derived class.
 
@@ -126,13 +125,13 @@ class ViewGraphEstimatorBase(GTSFMProcess):
         i2Ri1_dict: Dict[Tuple[int, int], Rot3],
         i2Ui1_dict: Dict[Tuple[int, int], Unit3],
         corr_idxs_i1i2: Dict[Tuple[int, int], np.ndarray],
-        two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
+        two_view_reports: AnnotatedGraph[TwoViewEstimationReport],
         edges_to_select: Set[Tuple[int, int]],
     ) -> Tuple[
         Dict[Tuple[int, int], Rot3],
         Dict[Tuple[int, int], Unit3],
         Dict[Tuple[int, int], np.ndarray],
-        Dict[Tuple[int, int], TwoViewEstimationReport],
+        AnnotatedGraph[TwoViewEstimationReport],
     ]:
         """Filters the dictionaries of 2-view results with the image-pair edges.
 
@@ -164,12 +163,12 @@ class ViewGraphEstimatorBase(GTSFMProcess):
         i2Ri1_dict: Dict[Tuple[int, int], Rot3],
         i2Ui1_dict: Dict[Tuple[int, int], Unit3],
         calibrations: List[Cal3Bundler],
-        two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
+        two_view_reports: AnnotatedGraph[TwoViewEstimationReport],
         view_graph_edges: ImageIndexPairs,
         plots_output_dir: Path = PLOT_BASE_PATH,
     ) -> GtsfmMetricsGroup:
         """Metric computation for the view optimizer by selecting a subset of two-view reports for the pairs which
-        are the edges of the view-graph. This can be overrided by implementations to define custom metrics.
+        are the edges of the view-graph. This can be overrode by implementations to define custom metrics.
 
         Args:
             i2Ri1_dict: Dict from (i1, i2) to relative rotation of i1 with respect to i2.
@@ -258,20 +257,18 @@ class ViewGraphEstimatorBase(GTSFMProcess):
         calibrations: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
         corr_idxs_i1i2: Dict[Tuple[int, int], np.ndarray],
         keypoints: List[Keypoints],
-        two_view_reports: Optional[Dict[Tuple[int, int], TwoViewEstimationReport]],
+        two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
         debug_output_dir: Optional[Path] = None,
     ) -> Tuple[Delayed, Delayed, Delayed, Delayed, Delayed]:
         """Create the computation graph for ViewGraph estimation and metric evaluation.
 
         Args:
-            i2Ri1_dict: Dict from (i1, i2) to relative rotation of i1 with respect to i2, wrapped as Delayed.
-            i2Ui1_dict: Dict from (i1, i2) to relative translation direction of i1 with respect to i2,
-                wrapped as Delayed.
-            calibrations: list of calibrations for each image, wrapped as Delayed.
-            corr_idxs_i1i2: Dict from (i1, i2) to indices of verified correspondences from i1 to i2,
-                wrapped as Delayed.
-            keypoints: keypoints for each image, wrapped as Delayed.
-            two_view_reports: Dict from (i1, i2) to TwoViewEstimationReport that contains metrics, wrapped as Delayed.
+            i2Ri1_dict: Dict from (i1, i2) to relative rotation of i1 with respect to i2.
+            i2Ui1_dict: Dict from (i1, i2) to relative translation direction of i1 with respect to i2.
+            calibrations: list of calibrations for each image.
+            corr_idxs_i1i2: Dict from (i1, i2) to indices of verified correspondences from i1 to i2.
+            keypoints: keypoints for each image.
+            two_view_reports: Dict from (i1, i2) to TwoViewEstimationReport that contains metrics.
             debug_output_dir: Path to directory where outputs for debugging will be saved.
 
         Returns:
@@ -290,11 +287,12 @@ class ViewGraphEstimatorBase(GTSFMProcess):
             os.makedirs(plot_cycle_consist_path, exist_ok=True)
 
         # Remove all invalid edges in the input dicts.
-        valid_edges = dask.delayed(self._get_valid_input_edges)(
+        # TODO(Frank): This should be true by construction
+        valid_edges = delayed(self._get_valid_input_edges)(
             i2Ri1_dict=i2Ri1_dict,
             i2Ui1_dict=i2Ui1_dict,
         )
-        i2Ri1_valid_dict, i2Ui1_valid_dict, corr_idxs_i1i2_valid, two_view_reports_valid = dask.delayed(
+        i2Ri1_valid_dict, i2Ui1_valid_dict, corr_idxs_i1i2_valid, two_view_reports_valid = delayed(
             self._filter_with_edges, nout=4
         )(
             i2Ri1_dict=i2Ri1_dict,
@@ -305,7 +303,7 @@ class ViewGraphEstimatorBase(GTSFMProcess):
         )
 
         # Run view graph estimation.
-        view_graph_edges = dask.delayed(self.run)(
+        view_graph_edges = delayed(self.run)(
             i2Ri1_dict=i2Ri1_valid_dict,
             i2Ui1_dict=i2Ui1_valid_dict,
             calibrations=calibrations,
@@ -316,7 +314,7 @@ class ViewGraphEstimatorBase(GTSFMProcess):
         )
 
         # Remove all edges that are not in the view graph.
-        i2Ri1_filtered, i2Ui1_filtered, corr_idxs_i1i2_filtered, two_view_reports_filtered = dask.delayed(
+        i2Ri1_filtered, i2Ui1_filtered, corr_idxs_i1i2_filtered, two_view_reports_filtered = delayed(
             self._filter_with_edges, nout=4
         )(
             i2Ri1_dict=i2Ri1_valid_dict,
@@ -326,7 +324,7 @@ class ViewGraphEstimatorBase(GTSFMProcess):
             edges_to_select=view_graph_edges,
         )
 
-        view_graph_estimation_metrics = dask.delayed(self.compute_metrics)(
+        view_graph_estimation_metrics = delayed(self.compute_metrics)(
             i2Ri1_dict=i2Ri1_valid_dict,
             i2Ui1_dict=i2Ui1_valid_dict,
             calibrations=calibrations,

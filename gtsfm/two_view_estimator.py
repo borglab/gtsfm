@@ -32,6 +32,7 @@ from gtsfm.data_association.point3d_initializer import Point3dInitializer, Trian
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.frontend.inlier_support_processor import InlierSupportProcessor
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
+from gtsfm.products.two_view_result import TwoViewResult
 from gtsfm.products.visibility_graph import AnnotatedGraph
 
 logger = logger_utils.get_logger()
@@ -40,34 +41,6 @@ PRE_BA_REPORT_TAG = "PRE_BA_2VIEW_REPORT"
 POST_BA_REPORT_TAG = "POST_BA_2VIEW_REPORT"
 POST_ISP_REPORT_TAG = "POST_INLIER_SUPPORT_PROCESSOR_2VIEW_REPORT"
 VIEWGRAPH_REPORT_TAG = "VIEWGRAPH_2VIEW_REPORT"
-
-
-@dataclasses.dataclass
-class TwoViewResult:
-    """Output from two-view estimation containing poses and reports.
-
-    The first three fields (i2Ri1, i2Ui1, v_corr_idxs) represent the final pose estimates
-    after Inlier Support Processor (ISP) filtering.
-
-    Args:
-        i2Ri1: Estimated relative rotation from i1 to i2 (post-ISP).
-        i2Ui1: Estimated relative unit translation from i1 to i2 (post-ISP).
-        v_corr_idxs: Verified correspondence indices (post-ISP).
-        pre_ba_report: Two-view estimation report before bundle adjustment (optional).
-        post_ba_report: Two-view estimation report after bundle adjustment (optional).
-        post_isp_report: Two-view estimation report after inlier support processing (optional).
-    """
-
-    i2Ri1: Optional[Rot3]
-    i2Ui1: Optional[Unit3]
-    v_corr_idxs: np.ndarray
-    pre_ba_report: Optional[TwoViewEstimationReport]
-    post_ba_report: Optional[TwoViewEstimationReport]
-    post_isp_report: Optional[TwoViewEstimationReport]
-
-    def valid(self) -> bool:
-        """Check if both i2Ri1 and i2Ui1 are not None."""
-        return self.i2Ri1 is not None and self.i2Ui1 is not None
 
 
 class TwoViewEstimator(DaskDBModuleBase):

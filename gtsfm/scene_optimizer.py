@@ -9,12 +9,12 @@ import time
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-import dask
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
-from dask.delayed import Delayed
-from gtsam import Pose3, Rot3, Similarity3, Unit3
+from dask.base import annotate
+from dask.delayed import Delayed, delayed
+from gtsam import Pose3, Similarity3
 from trimesh import Trimesh
 
 import gtsfm.common.types as gtsfm_types
@@ -33,6 +33,8 @@ from gtsfm.frontend.correspondence_generator.correspondence_generator_base impor
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.graph_partitioner.single_partition import SinglePartition
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
+from gtsfm.products.two_view_result import TwoViewResult
+from gtsfm.products.visibility_graph import AnnotatedGraph
 from gtsfm.retriever.image_pairs_generator import ImagePairsGenerator
 from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.two_view_estimator import (
@@ -145,15 +147,12 @@ class SceneOptimizer:
     def create_computation_graph(
         self,
         keypoints_list: List[Keypoints],
-        i2Ri1_dict: Dict[Tuple[int, int], Rot3],
-        i2Ui1_dict: Dict[Tuple[int, int], Unit3],
-        v_corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
-        two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
+        two_view_results: AnnotatedGraph[TwoViewResult],
         num_images: int,
         images: List[Delayed],
         camera_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
         absolute_pose_priors: List[Optional[PosePrior]],
-        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
+        relative_pose_priors: AnnotatedGraph[PosePrior],
         cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
         gt_wTi_list: List[Optional[Pose3]],
         gt_scene_mesh: Optional[Trimesh] = None,
@@ -173,13 +172,10 @@ class SceneOptimizer:
             images=images,
             num_images=num_images,
             keypoints_list=keypoints_list,
-            i2Ri1_dict=i2Ri1_dict,
-            i2Ui1_dict=i2Ui1_dict,
-            v_corr_idxs_dict=v_corr_idxs_dict,
+            two_view_results=two_view_results,
             all_intrinsics=camera_intrinsics,
             absolute_pose_priors=absolute_pose_priors,
             relative_pose_priors=relative_pose_priors,
-            two_view_reports_dict=two_view_reports,
             cameras_gt=cameras_gt,
             gt_wTi_list=gt_wTi_list,
             output_root=self.output_root,
@@ -194,11 +190,11 @@ class SceneOptimizer:
             ImageMatchingRegime.RETRIEVAL,
             ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL,
         ]
-        annotation = dask.annotate(workers=self._output_worker) if self._output_worker else dask.annotate()
+        annotation = annotate(workers=self._output_worker) if self._output_worker else annotate()
         with annotation:
             delayed_results.append(
-                dask.delayed(save_full_frontend_metrics)(
-                    two_view_reports,
+                delayed(save_full_frontend_metrics)(
+                    {ij: r.post_isp_report for ij, r in two_view_results.items()},
                     images,
                     filename="two_view_report_{}.json".format(POST_ISP_REPORT_TAG),
                     save_retrieval_metrics=save_retrieval_metrics,
@@ -209,7 +205,7 @@ class SceneOptimizer:
 
             # TODO(Ayush): pass only image name instead of the whole image. And delete images from memory.
             delayed_results.append(
-                dask.delayed(save_full_frontend_metrics)(
+                delayed(save_full_frontend_metrics)(
                     two_view_reports_post_viewgraph_estimator,
                     images,
                     filename="two_view_report_{}.json".format(VIEWGRAPH_REPORT_TAG),
@@ -219,7 +215,7 @@ class SceneOptimizer:
                 )
             )
             metrics_graph_list.append(
-                dask.delayed(two_view_estimator.aggregate_frontend_metrics)(
+                delayed(two_view_estimator.aggregate_frontend_metrics)(
                     two_view_reports_post_viewgraph_estimator,
                     self._pose_angular_error_thresh,
                     metric_group_name="verifier_summary_{}".format(VIEWGRAPH_REPORT_TAG),
@@ -231,15 +227,15 @@ class SceneOptimizer:
             metrics_graph_list.extend(optimizer_metrics_graph)
 
         # Modify BA input, BA output, and GT poses to have point clouds and frustums aligned with x,y,z axes.
-        ba_input_graph, ba_output_graph, gt_wTi_list = dask.delayed(align_estimated_gtsfm_data, nout=3)(
+        ba_input_graph, ba_output_graph, gt_wTi_list = delayed(align_estimated_gtsfm_data, nout=3)(
             ba_input_graph, ba_output_graph, gt_wTi_list
         )
 
-        annotation = dask.annotate(workers=self._output_worker) if self._output_worker else dask.annotate()
+        annotation = annotate(workers=self._output_worker) if self._output_worker else annotate()
         with annotation:
             if self._save_gtsfm_data:
                 delayed_results.append(
-                    dask.delayed(save_gtsfm_data)(
+                    delayed(save_gtsfm_data)(
                         images,
                         ba_input_graph,
                         ba_output_graph,
@@ -259,7 +255,7 @@ class SceneOptimizer:
                     )
 
         if self.run_dense_optimizer and self.dense_multiview_optimizer is not None:
-            img_dict_graph = dask.delayed(get_image_dictionary)(images)
+            img_dict_graph = delayed(get_image_dictionary)(images)
             (
                 dense_points_graph,
                 dense_point_colors_graph,
@@ -268,10 +264,10 @@ class SceneOptimizer:
             ) = self.dense_multiview_optimizer.create_computation_graph(img_dict_graph, ba_output_graph)
 
             # Cast to string as Open3d cannot use PosixPath's for I/O -- only string file paths are accepted.
-            annotation = dask.annotate(workers=self._output_worker) if self._output_worker else dask.annotate()
+            annotation = annotate(workers=self._output_worker) if self._output_worker else annotate()
             with annotation:
                 delayed_results.append(
-                    dask.delayed(io_utils.save_point_cloud_as_ply)(
+                    delayed(io_utils.save_point_cloud_as_ply)(
                         save_fpath=str(self._mvs_ply_save_fpath),
                         points=dense_points_graph,
                         rgb=dense_point_colors_graph,
@@ -288,18 +284,18 @@ class SceneOptimizer:
             # this is an intentional exception from the norm to support mac implementation
             import gtsfm.splat.rendering as gtsfm_rendering
 
-            img_dict_graph = dask.delayed(get_image_dictionary)(images)
+            img_dict_graph = delayed(get_image_dictionary)(images)
             (splats_graph, cfg_graph) = self.gaussian_splatting_optimizer.create_computation_graph(
                 img_dict_graph, ba_output_graph
             )
 
-            annotation = dask.annotate(workers=self._output_worker) if self._output_worker else dask.annotate()
+            annotation = annotate(workers=self._output_worker) if self._output_worker else annotate()
             with annotation:
                 delayed_results.append(
-                    dask.delayed(gtsfm_rendering.save_splats)(save_path=str(self._gs_save_path), splats=splats_graph)
+                    delayed(gtsfm_rendering.save_splats)(save_path=str(self._gs_save_path), splats=splats_graph)
                 )
                 delayed_results.append(
-                    dask.delayed(gtsfm_rendering.generate_interpolated_video)(
+                    delayed(gtsfm_rendering.generate_interpolated_video)(
                         images_graph=img_dict_graph,
                         sfm_result_graph=ba_output_graph,
                         cfg_result_graph=cfg_graph,
@@ -309,7 +305,7 @@ class SceneOptimizer:
                 )
 
         # Save metrics to JSON and generate HTML report.
-        annotation = dask.annotate(workers=self._output_worker) if self._output_worker else dask.annotate()
+        annotation = annotate(workers=self._output_worker) if self._output_worker else annotate()
 
         # return the entry with just the sfm result
         return ba_output_graph, delayed_results, metrics_graph_list
@@ -371,10 +367,10 @@ def save_matplotlib_visualizations(
         A list of Delayed objects after saving the different visualizations.
     """
     viz_graph_list = []
-    viz_graph_list.append(dask.delayed(viz_utils.save_sfm_data_viz)(aligned_ba_input_graph, plot_ba_input_path))
-    viz_graph_list.append(dask.delayed(viz_utils.save_sfm_data_viz)(aligned_ba_output_graph, plot_results_path))
+    viz_graph_list.append(delayed(viz_utils.save_sfm_data_viz)(aligned_ba_input_graph, plot_ba_input_path))
+    viz_graph_list.append(delayed(viz_utils.save_sfm_data_viz)(aligned_ba_output_graph, plot_results_path))
     viz_graph_list.append(
-        dask.delayed(viz_utils.save_camera_poses_viz)(
+        delayed(viz_utils.save_camera_poses_viz)(
             aligned_ba_input_graph, aligned_ba_output_graph, gt_pose_graph, plot_results_path
         )
     )
@@ -456,7 +452,7 @@ def save_gtsfm_data(
 
 
 def save_full_frontend_metrics(
-    two_view_report_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
+    two_view_report_dict: AnnotatedGraph[TwoViewEstimationReport],
     images: List[Image],
     filename: str,
     metrics_path: Path,

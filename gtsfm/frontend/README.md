@@ -2,11 +2,19 @@
 
 This is the front end system for GTSFM
 
-The front end accepts input images and produces geometrically verified feature point matches for each pair of input images. The complete output is encapsulated in a `TwoViewResult` dataclass.
+The front end accepts input images and produces geometrically verified feature point matches for each pair of input images. The complete output is encapsulated in a [`TwoViewResult`](../products/two_view_result.py) dataclass.
 
 ## TwoViewResult Lifecycle
 
 📖 **[The Lifecycle of a TwoViewResult](two_view_result_lifecycle.md)** - Comprehensive documentation of how `TwoViewResult` objects are created, processed, and consumed throughout the GTSFM pipeline.
+
+The `TwoViewResult` dataclass is defined in [`gtsfm.products.two_view_result`](../products/two_view_result.py) and contains:
+
+- **Pose estimates**: Relative rotation (`i2Ri1`) and translation (`i2Ui1`) 
+- **Correspondences**: Verified correspondence indices (`v_corr_idxs`)
+- **Processing reports**: Metrics and statistics from each stage (pre-BA, post-BA, post-ISP)
+
+This structured output enables downstream multi-view optimization components to access both the final estimates and intermediate results for quality assessment and debugging.
 
 # Organization
 
