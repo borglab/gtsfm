@@ -24,28 +24,39 @@ class MobilebrickLoader(LoaderBase):
 
     def __init__(
         self,
-        data_dir: str,
+        dataset_dir: str,
+        images_dir: Optional[str] = None,
         use_gt_intrinsics: bool = False,
         max_frame_lookahead: int = 5,
         max_resolution: int = 1024,
         input_worker: Optional[str] = None,
     ) -> None:
-        """ """
+        """Initialize loader for MobileBrick dataset.
+
+        Args:
+            dataset_dir: Path to dataset directory.
+            images_dir: Path to images directory. If None, defaults to {dataset_dir}/image.
+            use_gt_intrinsics: Whether to use ground truth intrinsics.
+            max_frame_lookahead: Maximum frame lookahead for matching.
+            max_resolution: Maximum image resolution.
+            input_worker: Optional input worker specification.
+        """
         super().__init__(max_resolution=max_resolution, input_worker=input_worker)
 
+        self._dataset_dir = dataset_dir
+        self._images_dir = images_dir or os.path.join(dataset_dir, "image")
         self._use_gt_intrinsics = use_gt_intrinsics
         self._max_frame_lookahead = max_frame_lookahead
-        self._image_dir = os.path.join(data_dir, "image")
-        self._num_images = len(os.listdir(self._image_dir))
+        self._num_images = len(os.listdir(self._images_dir))
 
         # Cache image paths
         self._image_paths = []
         for i in range(self._num_images):
-            image_path = os.path.join(self._image_dir, f"{i:06d}.jpg")
+            image_path = os.path.join(self._images_dir, f"{i:06d}.jpg")
             self._image_paths.append(image_path)
 
         # Load GT intrinsics
-        intrinsics_dir = os.path.join(data_dir, "intrinsic")
+        intrinsics_dir = os.path.join(self._dataset_dir, "intrinsic")
         self._gt_intrinsics = []
         for i in range(self._num_images):
             intrinsics_file = os.path.join(intrinsics_dir, f"{i:06d}.txt")
@@ -53,7 +64,7 @@ class MobilebrickLoader(LoaderBase):
             self._gt_intrinsics.append(Cal3Bundler((K[0, 0] + K[1, 1]) / 2, 0, 0, K[0, 2], K[1, 2]))
 
         # Load GT poses
-        self._poses_dir = os.path.join(data_dir, "pose")
+        self._poses_dir = os.path.join(self._dataset_dir, "pose")
         self._wTi = []
         for i in range(self._num_images):
             pose_file = os.path.join(self._poses_dir, f"{i:06d}.txt")
@@ -63,7 +74,7 @@ class MobilebrickLoader(LoaderBase):
 
     def image_filenames(self) -> List[str]:
         """Return the file names corresponding to each image index."""
-        return [fpath for fpath in sorted(os.listdir(self._image_dir))]
+        return [fpath for fpath in sorted(os.listdir(self._images_dir))]
 
     def __len__(self) -> int:
         """The number of images in the dataset.

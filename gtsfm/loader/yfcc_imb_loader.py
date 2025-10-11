@@ -21,12 +21,12 @@ class YfccImbLoader(LoaderBase):
     Code ref: https://github.com/vcg-uvic/image-matching-benchmark/blob/master/compute_stereo.py
     """
 
-    def __init__(self, folder: str, coviz_thresh: float = 0.1, max_resolution: int = 760) -> None:
+    def __init__(self, dataset_dir: str, co_visibility_threshold: float = 0.1, max_resolution: int = 760) -> None:
         """Initializes the loader.
 
         Args:
-            folder: the base folder of the dataset.
-            coviz_thresh (optional): threshold for covisibility between two images to be considered a valid pair.
+            dataset_dir: the base dataset directory.
+            co_visibility_threshold (optional): threshold for co-visibility between two images to be considered valid.
                                      Defaults to 0.1.
             max_resolution: integer representing maximum length of image's short side, i.e.
                the smaller of the height/width of the image. e.g. for 1080p (1920 x 1080),
@@ -34,12 +34,12 @@ class YfccImbLoader(LoaderBase):
                greater than the max_resolution, it will be downsampled to match the max_resolution.
         """
         super().__init__(max_resolution)
-        self._folder = folder
+        self._dataset_dir = dataset_dir
 
-        # load all the image pairs according to the covisibility threshold used
+        # load all the image pairs according to the co-visibility threshold used
         # in IMB's reporting
         visibility_file = osp.join(
-            self._folder,
+            self._dataset_dir,
             "new-vis-pairs",
             "keys-th-{:0.1f}.npy".format(coviz_thresh),
         )
@@ -99,7 +99,7 @@ class YfccImbLoader(LoaderBase):
 
         image_name = self._image_names[index]
 
-        file_name = osp.join(self._folder, "images", "{}.jpg".format(image_name))
+        file_name = osp.join(self._dataset_dir, "images", "{}.jpg".format(image_name))
 
         return io_utils.load_image(file_name)
 
@@ -150,7 +150,7 @@ class YfccImbLoader(LoaderBase):
             list of all cameras.
         """
 
-        file_path_template = osp.join(self._folder, "calibration", "calibration_{}.h5")
+        file_path_template = osp.join(self._dataset_dir, "calibration", "calibration_{}.h5")
 
         pose_list = []
 
