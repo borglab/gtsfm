@@ -33,6 +33,15 @@ class JointNetVLADSequentialRetriever(RetrieverBase):
         self._similarity_retriever = NetVLADRetriever(num_matched=num_matched, min_score=min_score)
         self._seq_retriever = SequentialRetriever(max_frame_lookahead=max_frame_lookahead)
 
+    def set_max_frame_lookahead(self, n) -> None:
+        """Set the maximum frame lookahead for sequential matching."""
+        self._seq_retriever.set_max_frame_lookahead(n)
+
+    def set_num_matched(self, n) -> None:
+        """Set the number of matched frames for similarity matching."""
+        self._num_matched = n
+        self._similarity_retriever.set_num_matched(n)
+
     def __repr__(self) -> str:
         return f"""
         JointNetVLADSequentialRetriever:

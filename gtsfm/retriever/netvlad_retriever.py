@@ -53,6 +53,10 @@ class NetVLADRetriever(RetrieverBase):
             Minimum score: {self._min_score}
         """
 
+    def set_num_matched(self, n) -> None:
+        """Set the number of matched frames for similarity matching."""
+        self._num_matched = n
+
     def get_image_pairs(
         self,
         global_descriptors: Optional[List[np.ndarray]],

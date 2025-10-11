@@ -45,6 +45,14 @@ class RetrieverBase(GTSFMProcess):
             parent_plate="Loader and Retriever",
         )
 
+    def set_max_frame_lookahead(self, n) -> None:
+        """If supported, set the maximum frame lookahead for sequential matching."""
+        raise AttributeError(f"{type(self).__name__} has no max_frame_lookahead")
+
+    def set_num_matched(self, n) -> None:
+        """If supported, set the maximum number of matched frames for similarity matching."""
+        raise AttributeError(f"{type(self).__name__} has no num_matched")
+
     @abc.abstractmethod
     def get_image_pairs(
         self,

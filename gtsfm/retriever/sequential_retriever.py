@@ -32,6 +32,10 @@ class SequentialRetriever(RetrieverBase):
            Max. frame lookahead {self._max_frame_lookahead}
         """
 
+    def set_max_frame_lookahead(self, n) -> None:
+        """Set the maximum frame lookahead for sequential matching."""
+        self._max_frame_lookahead = n
+
     def get_image_pairs(
         self,
         global_descriptors: Optional[List[np.ndarray]],  # pylint: disable=unused-argument

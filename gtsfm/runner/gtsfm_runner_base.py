@@ -239,41 +239,12 @@ class GtsfmRunnerBase:
                 logger.info("\n\nGaussian Splatting override: " + OmegaConf.to_yaml(gs_cfg))
                 scene_optimizer.gaussian_splatting_optimizer = instantiate(gs_cfg.gaussian_splatting_optimizer)
 
+        # Set retriever specific params if specified with CLI.
+        retriever = scene_optimizer.image_pairs_generator._retriever
         if self.parsed_args.max_frame_lookahead is not None:
-            if scene_optimizer.image_pairs_generator._retriever._matching_regime in [
-                ImageMatchingRegime.SEQUENTIAL,
-                ImageMatchingRegime.SEQUENTIAL_HILTI,
-            ]:
-                scene_optimizer.image_pairs_generator._retriever._max_frame_lookahead = (
-                    self.parsed_args.max_frame_lookahead
-                )
-            elif (
-                scene_optimizer.image_pairs_generator._retriever._matching_regime
-                == ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL
-            ):
-                scene_optimizer.image_pairs_generator._retriever._seq_retriever._max_frame_lookahead = (
-                    self.parsed_args.max_frame_lookahead
-                )
-            else:
-                raise ValueError(
-                    "`max_frame_lookahead` arg is incompatible with retriever matching regime "
-                    f"{scene_optimizer.image_pairs_generator._retriever._matching_regime}"
-                )
+            retriever.set_max_frame_lookahead(self.parsed_args.max_frame_lookahead)
         if self.parsed_args.num_matched is not None:
-            if (
-                scene_optimizer.image_pairs_generator._retriever._matching_regime
-                == ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL
-            ):
-                scene_optimizer.image_pairs_generator._retriever._similarity_retriever._num_matched = (
-                    self.parsed_args.num_matched
-                )
-            elif scene_optimizer.image_pairs_generator._retriever._matching_regime == ImageMatchingRegime.RETRIEVAL:
-                scene_optimizer.image_pairs_generator._retriever._num_matched = self.parsed_args.num_matched
-            else:
-                raise ValueError(
-                    "`num_matched` arg is incompatible with retriever matching regime "
-                    f"{scene_optimizer.image_pairs_generator._retriever._matching_regime}"
-                )
+            retriever.set_num_matched(self.parsed_args.num_matched)
 
         if not self.parsed_args.run_mvs:
             scene_optimizer.run_dense_optimizer = False
