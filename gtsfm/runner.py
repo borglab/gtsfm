@@ -183,23 +183,17 @@ class GtsfmRunner:
         parser.add_argument(
             "--loader",
             type=str,
+            default="olsson_loader",
             help="Loader type. Available options: colmap_loader, hilti_loader, astrovision_loader, "
             "olsson_loader, argoverse_loader, mobilebrick_loader, one_d_sfm_loader, "
-            "tanks_and_temples_loader, yfcc_imb_loader",
+            "tanks_and_temples_loader, yfcc_imb_loader. Default: olsson_loader",
         )
 
-        # Common loader arguments
-        parser.add_argument("--images_dir", type=str, help="Path to directory containing image files")
+        # Standardized loader arguments
+        parser.add_argument("--dataset_dir", type=str, help="Path to dataset directory")
         parser.add_argument(
-            "--colmap_files_dirpath",
-            type=str,
-            help="Path to directory containing COLMAP files (images.txt, points3D.txt, cameras.txt)",
+            "--images_dir", type=str, help="Path to images directory (optional, defaults depend on loader)"
         )
-        parser.add_argument(
-            "--dataset_dirpath", type=str, help="Path to dataset directory (for Hilti, Astrovision, etc.)"
-        )
-        parser.add_argument("--dataset_root", type=str, help="Root directory for dataset")
-        parser.add_argument("--base_folder", type=str, help="Base folder for dataset (Hilti loader)")
         parser.add_argument("--max_length", type=int, help="Maximum number of images/timestamps to process")
         parser.add_argument("--scene_name", type=str, help="Name of the scene (for Tanks and Temples, etc.)")
 
@@ -251,22 +245,15 @@ class GtsfmRunner:
             if self.parsed_args.loader:
                 overrides.append(f"loader={self.parsed_args.loader}")
 
-            # Add loader-specific parameter overrides
+            # Standardized loader parameter overrides
+            if self.parsed_args.dataset_dir:
+                overrides.append(f"loader.dataset_dir={self.parsed_args.dataset_dir}")
             if self.parsed_args.images_dir:
                 overrides.append(f"loader.images_dir={self.parsed_args.images_dir}")
-            if self.parsed_args.colmap_files_dirpath:
-                overrides.append(f"loader.colmap_files_dirpath={self.parsed_args.colmap_files_dirpath}")
-            if self.parsed_args.dataset_dirpath:
-                overrides.append(f"loader.base_folder={self.parsed_args.dataset_dirpath}")
-                overrides.append(f"loader.data_dir={self.parsed_args.dataset_dirpath}")
-            if self.parsed_args.base_folder:
-                overrides.append(f"loader.base_folder={self.parsed_args.base_folder}")
-            if self.parsed_args.dataset_root:
-                overrides.append(f"loader.folder={self.parsed_args.dataset_root}")
+
+            # Loader-specific parameter overrides
             if self.parsed_args.max_length is not None:
                 overrides.append(f"loader.max_length={self.parsed_args.max_length}")
-            if self.parsed_args.scene_name:
-                overrides.append(f"loader.scene_name={self.parsed_args.scene_name}")
 
             # Argoverse-specific overrides
             if self.parsed_args.log_id:
@@ -700,3 +687,9 @@ def merge_two_partition_results(poses1: dict[int, Pose3], poses2: dict[int, Pose
     keys, pairs = merging_utils._get_overlap_data(poses1, poses2)
     aTb = merging_utils._calculate_transform(pairs)
     return merging_utils._merge_poses_final(poses1, poses2, keys, aTb)
+
+
+if __name__ == "__main__":
+    # Entry point for direct execution
+    runner = GtsfmRunner()
+    runner.run()
