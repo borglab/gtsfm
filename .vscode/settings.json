@@ -149,6 +149,7 @@
         "olssonloader",
         "OneDSFM",
         "Opencv",
+        "opnav",
         "partitioner",
         "partitioners",
         "Patchmatch",
