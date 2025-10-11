@@ -1,9 +1,10 @@
 # Tanks and Temples Loader Configuration
 _target_: gtsfm.loader.tanks_and_temples_loader.TanksAndTemplesLoader
-img_dir: ??? # Required - path to images directory
+dataset_dir: ??? # Required - path to dataset directory
 poses_fpath: ??? # Required - path to .log file containing COLMAP poses
 bounding_polyhedron_json_fpath: ??? # Required - path to bounding polyhedron JSON
 ply_alignment_fpath: ??? # Required - path to alignment text file
+images_dir: null # Optional - path to images directory (defaults to {dataset_dir}/images)
 lidar_ply_fpath: null # optional - path to LiDAR scan PLY file
 colmap_ply_fpath: null # optional - path to COLMAP reconstructed PLY file
 max_resolution: 1080

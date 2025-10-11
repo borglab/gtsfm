@@ -1,6 +1,7 @@
 # 1DSFM Loader Configuration
 _target_: gtsfm.loader.one_d_sfm_loader.OneDSFMLoader
-folder: ??? # Required - base folder containing image sequence
+dataset_dir: ??? # Required - base dataset directory containing image sequence
+images_dir: null # Optional - path to images directory (defaults to {dataset_dir}/images)
 max_resolution: 640
 enable_no_exif: false # flag to read images without exif
 default_focal_length_factor: 1.2 # default focal length factor for images without exif

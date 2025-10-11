@@ -219,8 +219,8 @@ python -m gtsfm.runner.gtsfm_runner_base --help
 python -m gtsfm.runner.gtsfm_runner_base \
   --config_name sift_front_end.yaml \
   --loader colmap_loader \
-  --images_dir /path/to/images \
-  --colmap_files_dirpath /path/to/colmap
+  --dataset_dir /path/to/colmap_dataset \
+  --images_dir /path/to/images  # optional, defaults to {dataset_dir}/images
 ```
 
 #### Hilti Dataset
@@ -228,7 +228,8 @@ python -m gtsfm.runner.gtsfm_runner_base \
 python -m gtsfm.runner.gtsfm_runner_base \
   --config_name deep_front_end_hilti.yaml \
   --loader hilti_loader \
-  --dataset_dirpath /path/to/hilti
+  --dataset_dir /path/to/hilti_dataset \
+  --images_dir /path/to/custom_images  # optional, defaults to {dataset_dir}/images
 ```
 
 #### AstroVision Dataset
@@ -236,7 +237,8 @@ python -m gtsfm.runner.gtsfm_runner_base \
 python -m gtsfm.runner.gtsfm_runner_base \
   --config_name sift_front_end_astrovision.yaml \
   --loader astrovision_loader \
-  --dataset_dirpath /path/to/astrovision
+  --dataset_dir /path/to/astrovision_dataset \
+  --images_dir /path/to/custom_images  # optional, defaults to {dataset_dir}/images
 ```
 
 #### Olsson Dataset  
@@ -244,7 +246,8 @@ python -m gtsfm.runner.gtsfm_runner_base \
 python -m gtsfm.runner.gtsfm_runner_base \
   --config_name sift_front_end.yaml \
   --loader olsson_loader \
-  --dataset_root /path/to/olsson
+  --dataset_dir /path/to/olsson_dataset \
+  --images_dir /path/to/custom_images  # optional, defaults to {dataset_dir}/images
 ```
 
 #### Argoverse Dataset
@@ -261,7 +264,8 @@ python -m gtsfm.runner.gtsfm_runner_base \
 python -m gtsfm.runner.gtsfm_runner_base \
   --config_name sift_front_end.yaml \
   --loader mobilebrick_loader \
-  --data_dir /path/to/mobilebrick
+  --dataset_dir /path/to/mobilebrick_dataset \
+  --images_dir /path/to/custom_images  # optional, defaults to {dataset_dir}/image
 ```
 
 #### 1DSFM Dataset
@@ -269,7 +273,8 @@ python -m gtsfm.runner.gtsfm_runner_base \
 python -m gtsfm.runner.gtsfm_runner_base \
   --config_name sift_front_end.yaml \
   --loader one_d_sfm_loader \
-  --folder /path/to/1dsfm
+  --dataset_dir /path/to/1dsfm_dataset \
+  --images_dir /path/to/custom_images  # optional, defaults to {dataset_dir}/images
 ```
 
 #### Tanks and Temples Dataset
@@ -277,10 +282,11 @@ python -m gtsfm.runner.gtsfm_runner_base \
 python -m gtsfm.runner.gtsfm_runner_base \
   --config_name sift_front_end.yaml \
   --loader tanks_and_temples_loader \
-  --img_dir /path/to/images \
+  --dataset_dir /path/to/tanks_and_temples \
   --poses_fpath /path/to/poses.log \
   --bounding_polyhedron_json_fpath /path/to/bounds.json \
-  --ply_alignment_fpath /path/to/alignment.txt
+  --ply_alignment_fpath /path/to/alignment.txt \
+  --images_dir /path/to/custom_images  # optional, defaults to {dataset_dir}/images
 ```
 
 #### YFCC IMB Dataset
@@ -288,12 +294,12 @@ python -m gtsfm.runner.gtsfm_runner_base \
 python -m gtsfm.runner.gtsfm_runner_base \
   --config_name sift_front_end.yaml \
   --loader yfcc_imb_loader \
-  --folder /path/to/yfcc_imb
+  --dataset_dir /path/to/yfcc_imb_dataset
 ```
 
 ## Repository Structure
 
-GTSfM is designed in an extremely modular way. Each module can be swapped out with a new one, as long as it implements the API of the module's abstract base class. The code is organized as follows:
+GTSfM is designed in a modular way. Each module can be swapped out with a new one, as long as it implements the API of the module's abstract base class. The code is organized as follows:
 
 - `gtsfm`: source code, organized as:
   - `averaging`
@@ -322,7 +328,7 @@ Contributions are always welcome! Please be aware of our [contribution guideline
 If you use GTSfM, please cite our paper: 
 
 ```
-@misc{baid2023distributed,
+@misc{Baid23_distributedDeepSfm,
       title={Distributed Global Structure-from-Motion with a Deep Front-End}, 
       author={Ayush Baid and John Lambert and Travis Driver and Akshay Krishnan and Hayk Stepanyan and Frank Dellaert},
       year={2023},

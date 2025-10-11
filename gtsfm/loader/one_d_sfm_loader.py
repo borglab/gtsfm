@@ -39,7 +39,6 @@ class OneDSFMLoader(LoaderBase):
         max_resolution: int = 640,
         enable_no_exif: bool = False,
         default_focal_length_factor: float = 1.2,
-        input_worker: Optional[str] = None,
     ) -> None:
         """Initializes to load from a specified dataset directory on disk.
 
@@ -55,7 +54,7 @@ class OneDSFMLoader(LoaderBase):
             of image if exif data is not available. The value has not been tuned for performance, 1.2 would be a
             good start.
         """
-        super().__init__(max_resolution, input_worker)
+        super().__init__(max_resolution=max_resolution)
         self._dataset_dir = dataset_dir
         self._images_dir = images_dir or os.path.join(dataset_dir, "images")
         self._default_focal_length_factor = default_focal_length_factor

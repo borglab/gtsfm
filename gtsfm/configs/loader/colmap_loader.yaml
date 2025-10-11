@@ -1,5 +1,5 @@
 # COLMAP Loader Configuration
 _target_: gtsfm.loader.colmap_loader.ColmapLoader
-colmap_files_dirpath: ??? # Required - path to COLMAP files directory
-images_dir: ??? # Required - path to images directory
+dataset_dir: ??? # Required - path to COLMAP files directory
+images_dir: null # Optional - path to images directory (defaults to {dataset_dir}/images)
 max_resolution: 760

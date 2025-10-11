@@ -41,7 +41,6 @@ class AstrovisionLoader(LoaderBase):
         use_gt_masks: bool = False,
         max_frame_lookahead: int = 2,
         max_resolution: int = 1024,
-        input_worker: Optional[str] = None,
     ) -> None:
         """Initialize loader from a specified dataset directory on disk.
 
@@ -74,7 +73,7 @@ class AstrovisionLoader(LoaderBase):
             FileNotFoundError: If `dataset_dir` doesn't exist or image path does not exist.
             RuntimeError: If ground truth camera calibrations not provided.
         """
-        super().__init__(max_resolution, input_worker)
+        super().__init__(max_resolution)
         self._dataset_dir = dataset_dir
         self._images_dir = images_dir or os.path.join(dataset_dir, "images")
         self._use_gt_extrinsics = use_gt_extrinsics
@@ -91,16 +90,17 @@ class AstrovisionLoader(LoaderBase):
         )
 
         # Read in scene mesh as Trimesh object.
-        self._gt_scene_trimesh: Optional[Trimesh] = None
         if gt_scene_mesh_path is not None:
             if not Path(gt_scene_mesh_path).exists():
                 raise FileNotFoundError(f"No mesh found at {gt_scene_mesh_path}")
             self._gt_scene_trimesh = trimesh.load(gt_scene_mesh_path, process=False, maintain_order=True)
             logger.info(
                 "AstroVision loader read in mesh with %d vertices and %d faces.",
-                self._gt_scene_trimesh.vertices.shape[0],  # type: ignore
-                self._gt_scene_trimesh.faces.shape[0],  # type: ignore
+                self._gt_scene_trimesh.vertices.shape[0],
+                self._gt_scene_trimesh.faces.shape[0],
             )
+        else:
+            self._gt_scene_trimesh = None
 
         # Camera intrinsics are currently required due to absence of EXIF data and difficulty in approximating focal
         # length (usually 10000 to 100000 pixels).

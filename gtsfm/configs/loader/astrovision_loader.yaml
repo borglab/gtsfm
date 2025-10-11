@@ -1,5 +1,6 @@
 # Astrovision Loader Configuration
 _target_: gtsfm.loader.astrovision_loader.AstrovisionLoader
-data_dir: ??? # Required - path to AstroVision segment directory
+dataset_dir: ??? # Required - path to AstroVision dataset directory
+images_dir: null # Optional - path to images directory (defaults to {dataset_dir}/images)
 max_resolution: 1080
 scene_mesh_path: null # Optional - path to triangular surface mesh
