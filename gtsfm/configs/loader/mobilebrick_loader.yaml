@@ -1,0 +1,7 @@
+# MobileBrick Loader Configuration
+_target_: gtsfm.loader.mobilebrick_loader.MobilebrickLoader
+data_dir: ??? # Required - path to MobileBrick dataset directory
+use_gt_intrinsics: false # whether to use ground truth intrinsics
+max_frame_lookahead: 5 # maximum frame lookahead
+max_resolution: 1024
+input_worker: null # optional input worker specification

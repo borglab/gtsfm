@@ -1,0 +1,5 @@
+# Hilti Loader Configuration
+_target_: gtsfm.loader.hilti_loader.HiltiLoader
+base_folder: ??? # Required - path to Hilti dataset directory
+max_length: null # Optional - maximum number of timestamps to process
+max_resolution: 1080

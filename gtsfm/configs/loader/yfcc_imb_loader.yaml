@@ -1,0 +1,5 @@
+# YFCC IMB Loader Configuration
+_target_: gtsfm.loader.yfcc_imb_loader.YfccImbLoader
+folder: ??? # Required - base folder of the YFCC IMB dataset
+co_visibility_threshold: 0.1 # threshold for covisibility between images
+max_resolution: 760
