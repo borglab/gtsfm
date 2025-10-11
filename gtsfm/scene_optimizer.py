@@ -32,6 +32,7 @@ from gtsfm.densify.mvs_base import MVSBase
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.graph_partitioner.single_partition import SinglePartition
+from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.products.two_view_result import TwoViewResult
 from gtsfm.products.visibility_graph import AnnotatedGraph
@@ -60,6 +61,7 @@ class SceneOptimizer:
 
     def __init__(
         self,
+        loader: LoaderBase,
         image_pairs_generator: ImagePairsGenerator,
         correspondence_generator: CorrespondenceGeneratorBase,
         two_view_estimator: TwoViewEstimator,
@@ -74,6 +76,7 @@ class SceneOptimizer:
         output_worker: Optional[str] = None,
         graph_partitioner: GraphPartitionerBase = SinglePartition(),
     ) -> None:
+        self.loader = loader
         self.image_pairs_generator = image_pairs_generator
         self.correspondence_generator = correspondence_generator
         self.two_view_estimator = two_view_estimator

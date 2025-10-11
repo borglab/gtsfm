@@ -4,10 +4,10 @@ import argparse
 import logging
 import os
 import time
-from abc import abstractmethod
 from pathlib import Path
 
 import dask
+import dask.config
 import hydra
 from dask import config as dask_config
 from dask.distributed import Client, LocalCluster, SSHCluster, performance_report
@@ -26,7 +26,6 @@ from gtsfm.common.types import CALIBRATION_TYPE
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.frontend.correspondence_generator.image_correspondence_generator import ImageCorrespondenceGenerator
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
-from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.scene_optimizer import SceneOptimizer
 from gtsfm.two_view_estimator import run_two_view_estimator_as_futures
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
@@ -41,11 +40,10 @@ DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent.parent.parent
 REACT_METRICS_PATH = DEFAULT_OUTPUT_ROOT / "rtf_vis_tool" / "src" / "result_metrics"
 
 
-class GtsfmRunnerBase:
+class GtsfmRunner:
     @property
-    @abstractmethod
     def tag(self) -> str:
-        return "Base GTSFM Runner"
+        return "Unified GTSFM Runner"
 
     def __init__(self, override_args=None) -> None:
         argparser: argparse.ArgumentParser = self.construct_argparser()
@@ -58,7 +56,6 @@ class GtsfmRunnerBase:
         if log_level is not None:
             logger.setLevel(log_level)
 
-        self.loader: LoaderBase = self.construct_loader()
         self.scene_optimizer: SceneOptimizer = self.construct_scene_optimizer()
         self.graph_partitioner: GraphPartitionerBase = self.scene_optimizer.graph_partitioner
 
@@ -181,11 +178,30 @@ class GtsfmRunnerBase:
             default="INFO",  # Set a default level
             help="Set the logging level",
         )
-        return parser
 
-    @abstractmethod
-    def construct_loader(self) -> LoaderBase:
-        pass
+        # Loader configuration
+        parser.add_argument(
+            "--loader",
+            type=str,
+            help="Loader type (e.g., 'colmap_loader', 'hilti_loader', 'astrovision_loader')",
+        )
+
+        # Common loader arguments
+        parser.add_argument("--images_dir", type=str, help="Path to directory containing image files")
+        parser.add_argument(
+            "--colmap_files_dirpath",
+            type=str,
+            help="Path to directory containing COLMAP files (images.txt, points3D.txt, cameras.txt)",
+        )
+        parser.add_argument(
+            "--dataset_dirpath", type=str, help="Path to dataset directory (for Hilti, Astrovision, etc.)"
+        )
+        parser.add_argument("--dataset_root", type=str, help="Root directory for dataset")
+        parser.add_argument("--base_folder", type=str, help="Base folder for dataset (Hilti loader)")
+        parser.add_argument("--max_length", type=int, help="Maximum number of images/timestamps to process")
+        parser.add_argument("--scene_name", type=str, help="Name of the scene (for Tanks and Temples, etc.)")
+
+        return parser
 
     def construct_scene_optimizer(self) -> SceneOptimizer:
         """Construct scene optimizer.
@@ -197,6 +213,29 @@ class GtsfmRunnerBase:
             overrides = ["+SceneOptimizer.output_root=" + str(self.parsed_args.output_root)]
             if self.parsed_args.share_intrinsics:
                 overrides.append("SceneOptimizer.multiview_optimizer.bundle_adjustment_module.shared_calib=True")
+
+            # Add loader overrides based on command line arguments
+            if self.parsed_args.loader:
+                overrides.append(f"loader={self.parsed_args.loader}")
+
+            # Add loader-specific parameter overrides
+            if self.parsed_args.images_dir:
+                overrides.append(f"loader.images_dir={self.parsed_args.images_dir}")
+            if self.parsed_args.colmap_files_dirpath:
+                overrides.append(f"loader.colmap_files_dirpath={self.parsed_args.colmap_files_dirpath}")
+            if self.parsed_args.dataset_dirpath:
+                overrides.append(f"loader.base_folder={self.parsed_args.dataset_dirpath}")
+                overrides.append(f"loader.data_dir={self.parsed_args.dataset_dirpath}")
+            if self.parsed_args.base_folder:
+                overrides.append(f"loader.base_folder={self.parsed_args.base_folder}")
+            if self.parsed_args.dataset_root:
+                overrides.append(f"loader.folder={self.parsed_args.dataset_root}")
+            if self.parsed_args.max_length is not None:
+                overrides.append(f"loader.max_length={self.parsed_args.max_length}")
+            if self.parsed_args.scene_name:
+                overrides.append(f"loader.scene_name={self.parsed_args.scene_name}")
+            # Override max_resolution for loader if specified
+            overrides.append(f"loader.max_resolution={self.parsed_args.max_resolution}")
 
             main_cfg = hydra.compose(
                 config_name=self.parsed_args.config_name,
@@ -379,7 +418,7 @@ class GtsfmRunnerBase:
             client = Client(cluster)
             # getting first worker's IP address and port to do IO
             io_worker = list(client.scheduler_info()["workers"].keys())[0]
-            self.loader._input_worker = io_worker
+            self.scene_optimizer.loader._input_worker = io_worker
             self.scene_optimizer._output_worker = io_worker
         else:
             local_cluster_kwargs = {
@@ -407,12 +446,12 @@ class GtsfmRunnerBase:
         with performance_report(filename="dask_reports/retriever.html"):
             visibility_graph = self.scene_optimizer.image_pairs_generator.run(
                 client=client,
-                images=self.loader.get_all_images_as_futures(client),
-                image_fnames=self.loader.image_filenames(),
+                images=self.scene_optimizer.loader.get_all_images_as_futures(client),
+                image_fnames=self.scene_optimizer.loader.image_filenames(),
                 plots_output_dir=self.scene_optimizer.create_plot_base_path(),
             )
         retriever_metrics = self.scene_optimizer.image_pairs_generator._retriever.evaluate(
-            len(self.loader), visibility_graph
+            len(self.scene_optimizer.loader), visibility_graph
         )
         retriever_duration_sec = time.time() - retriever_start_time
         retriever_metrics.add_metric(GtsfmMetric("retriever_duration_sec", retriever_duration_sec))
@@ -420,7 +459,7 @@ class GtsfmRunnerBase:
         return retriever_metrics, visibility_graph
 
     def _get_intrinsics_or_raise(self):
-        maybe_intrinsics = self.loader.get_all_intrinsics()
+        maybe_intrinsics = self.scene_optimizer.loader.get_all_intrinsics()
         # Check if maybe_intrinsics has any None values
         if any(intrinsic is None for intrinsic in maybe_intrinsics):
             raise ValueError("Some intrinsics are None. Please ensure all intrinsics are provided.")
@@ -437,7 +476,7 @@ class GtsfmRunnerBase:
                 putative_corr_idxs_dict,
             ) = self.scene_optimizer.correspondence_generator.generate_correspondences(
                 client,
-                self.loader.get_all_images_as_futures(client),
+                self.scene_optimizer.loader.get_all_images_as_futures(client),
                 visibility_graph,
             )
             correspondence_generation_duration_sec = time.time() - correspondence_generation_start_time
@@ -453,9 +492,9 @@ class GtsfmRunnerBase:
                 keypoints_list,
                 putative_corr_idxs_dict,
                 intrinsics,
-                self.loader.get_relative_pose_priors(visibility_graph),
-                self.loader.get_gt_cameras(),
-                gt_scene_mesh=self.loader.get_gt_scene_trimesh(),
+                self.scene_optimizer.loader.get_relative_pose_priors(visibility_graph),
+                self.scene_optimizer.loader.get_gt_cameras(),
+                gt_scene_mesh=self.scene_optimizer.loader.get_gt_scene_trimesh(),
             )
             two_view_estimation_duration_sec = time.time() - two_view_estimation_start_time
         # TODO(Frank): We might not be able to do this in a distributed manner
@@ -465,8 +504,8 @@ class GtsfmRunnerBase:
     def _maybe_save_two_view_viz(self, keypoints_list, two_view_results):
         if self.scene_optimizer._save_two_view_correspondences_viz:
             for (i1, i2), output in two_view_results.items():
-                image_i1 = self.loader.get_image(i1)
-                image_i2 = self.loader.get_image(i2)
+                image_i1 = self.scene_optimizer.loader.get_image(i1)
+                image_i2 = self.scene_optimizer.loader.get_image(i2)
                 viz_utils.save_twoview_correspondences_viz(
                     image_i1,
                     image_i2,
@@ -528,14 +567,16 @@ class GtsfmRunnerBase:
             return self.scene_optimizer.create_computation_graph(
                 keypoints_list=keypoints_list,
                 two_view_results=subgraph_two_view_results,
-                num_images=len(self.loader),
-                images=self.loader.create_computation_graph_for_images(),
+                num_images=len(self.scene_optimizer.loader),
+                images=self.scene_optimizer.loader.create_computation_graph_for_images(),
                 camera_intrinsics=maybe_intrinsics,  # TODO(Frank): really? None is allowed?
-                relative_pose_priors=self.loader.get_relative_pose_priors(list(subgraph_two_view_results.keys())),
-                absolute_pose_priors=self.loader.get_absolute_pose_priors(),
-                cameras_gt=self.loader.get_gt_cameras(),
-                gt_wTi_list=self.loader.get_gt_poses(),
-                gt_scene_mesh=self.loader.get_gt_scene_trimesh(),
+                relative_pose_priors=self.scene_optimizer.loader.get_relative_pose_priors(
+                    list(subgraph_two_view_results.keys())
+                ),
+                absolute_pose_priors=self.scene_optimizer.loader.get_absolute_pose_priors(),
+                cameras_gt=self.scene_optimizer.loader.get_gt_cameras(),
+                gt_wTi_list=self.scene_optimizer.loader.get_gt_poses(),
+                gt_scene_mesh=self.scene_optimizer.loader.get_gt_scene_trimesh(),
             )
         else:
             logger.warning(f"Skipping subgraph {idx+1} as it has no valid two-view results.")

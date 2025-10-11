@@ -99,7 +99,7 @@ def format_config_section(cfg_section, section_name: str, indent: int = 0) -> st
     if OmegaConf.is_list(cfg_section):
         list_values = [str(item) for item in cfg_section]
         formatted_list = "[" + ", ".join(list_values) + "]"
-        lines = [f"{indent_str}🔸 {section_name}: {formatted_list}"]
+        lines = [f"{indent_str} {section_name}: {formatted_list}"]
         return "\n".join(lines)
 
     # If this section has a _target_, show the class name
