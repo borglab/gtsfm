@@ -5,14 +5,14 @@ Authors: Richi Dubey
 
 import unittest
 
-import gtsam
 import numpy as np
+from gtsam import Point3, Pose3, Rot3  # type: ignore
 
-from gtsfm.runner.gtsfm_runner_base import merge_two_partition_results
+from gtsfm.utils.merging import merge_two_partition_results
 
 
 def assert_pose_dicts_equal(test_case, dict1, dict2, tolerance=1e-6):
-    """Asserts two dictionaries mapping int to gtsam.Pose3 are equal."""
+    """Asserts two dictionaries mapping int to Pose3 are equal."""
     test_case.assertIsInstance(dict1, dict)
     test_case.assertIsInstance(dict2, dict)
     test_case.assertSetEqual(set(dict1.keys()), set(dict2.keys()))
@@ -27,16 +27,16 @@ class TestMergeTwoPartitionResults(unittest.TestCase):
 
     def setUp(self):
         """Set up common poses for tests."""
-        self.pose0 = gtsam.Pose3()  # Identity
-        self.pose1 = gtsam.Pose3(gtsam.Rot3.Yaw(np.pi / 4), gtsam.Point3(1, 0, 0))
-        self.pose2 = gtsam.Pose3(gtsam.Rot3.Roll(np.pi / 6), gtsam.Point3(0, 2, 0))
-        self.pose3 = gtsam.Pose3(gtsam.Rot3.Pitch(np.pi / 3), gtsam.Point3(0, 0, 3))
+        self.pose0 = Pose3()  # Identity
+        self.pose1 = Pose3(Rot3.Yaw(np.pi / 4), Point3(1, 0, 0))
+        self.pose2 = Pose3(Rot3.Roll(np.pi / 6), Point3(0, 2, 0))
+        self.pose3 = Pose3(Rot3.Pitch(np.pi / 3), Point3(0, 0, 3))
 
         # Define a transformation between hypothetical frames 'a' and 'b'
         # aTb: Transformation from frame 'b' to frame 'a'
-        self.aTb_translation = gtsam.Pose3(gtsam.Rot3(), gtsam.Point3(5, -5, 10))
-        self.aTb_rotation = gtsam.Pose3(gtsam.Rot3.Rodrigues(0.1, 0.2, 0.3), gtsam.Point3())
-        self.aTb_combined = gtsam.Pose3(gtsam.Rot3.Ypr(0.1, 0.2, 0.3), gtsam.Point3(1, 2, 3))
+        self.aTb_translation = Pose3(Rot3(), Point3(5, -5, 10))
+        self.aTb_rotation = Pose3(Rot3.Rodrigues(0.1, 0.2, 0.3), Point3())
+        self.aTb_combined = Pose3(Rot3.Ypr(0.1, 0.2, 0.3), Point3(1, 2, 3))
 
     def test_no_overlap(self):
         """Test merging when there are no common camera indices."""

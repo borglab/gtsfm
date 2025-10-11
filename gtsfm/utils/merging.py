@@ -3,16 +3,11 @@
 Authors: Richi Dubey
 """
 
+import gtsam.noiseModel as noiseModel  # type: ignore
 import numpy as np
-from gtsam import (
-    NonlinearFactorGraph,
-    Values,
-    Symbol,
-    noiseModel,
-    PriorFactorPose3,
-    LevenbergMarquardtOptimizer,
-    Pose3,
-)
+from gtsam import LevenbergMarquardtOptimizer, NonlinearFactorGraph, Pose3, PriorFactorPose3, Symbol, Values
+
+import gtsfm.utils.merging as merging_utils
 
 
 def _get_overlapping_keys(poses1: dict[int, Pose3], poses2: dict[int, Pose3]) -> list[int]:
@@ -42,7 +37,7 @@ def _get_overlap_data(
 def _get_noise_model() -> noiseModel.Base:
     """Defines the noise model for the prior factors."""
     # Using Diagonal noise based on previous debugging, tune if needed.
-    sigmas = np.array([0.1] * 3 + [0.1] * 3)  # [rot_x, rot_y, rot_z, tx, ty, tz]
+    sigmas: np.ndarray = np.array([0.1] * 3 + [0.1] * 3)  # [rot_x, rot_y, rot_z, tx, ty, tz]
     return noiseModel.Diagonal.Sigmas(sigmas)
 
 
@@ -93,7 +88,6 @@ def _optimize_graph_safe(graph: NonlinearFactorGraph, initial: Values) -> Values
 def _extract_optimized_aTb(result: Values, aTb_key: Symbol) -> Pose3:
     """Extracts the optimized Pose3 transformation from the Values object."""
     aTb_optimized = result.atPose3(aTb_key.key())
-    print(f"Optimized aTb (from partition 2 frame to 1 frame):\n{aTb_optimized}")
     return aTb_optimized
 
 
@@ -134,3 +128,27 @@ def _merge_poses_final(
     merged = poses1.copy()
     _transform_and_add_new_poses(merged, poses2, set(overlapping_keys), aTb_optimized)
     return merged
+
+
+def merge_two_partition_results(poses1: dict[int, Pose3], poses2: dict[int, Pose3]) -> dict[int, Pose3]:
+    """
+    Merges poses from two partitions by finding and applying relative transform aTb.
+
+    Assumes poses1 are relative to frame 'a' and poses2 are relative to frame 'b'.
+    Finds 'aTb' (from frame 'b' to frame 'a') via overlapping poses.
+    Transforms non-overlapping poses from partition 2 into frame 'a' and merges.
+
+    Args:
+        poses1: dictionary {camera_index: pose_in_frame_a}.
+        poses2: dictionary {camera_index: pose_in_frame_b}.
+
+    Returns:
+        A merged dictionary {camera_index: pose_in_frame_a}.
+
+    Raises:
+        ValueError: If no overlapping cameras are found between the two partitions.
+        RuntimeError: If GTSAM optimization fails.
+    """
+    keys, pairs = merging_utils._get_overlap_data(poses1, poses2)
+    aTb = merging_utils._calculate_transform(pairs)
+    return merging_utils._merge_poses_final(poses1, poses2, keys, aTb)
