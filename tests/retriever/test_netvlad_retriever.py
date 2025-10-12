@@ -6,10 +6,10 @@ Authors: John Lambert
 import unittest
 from pathlib import Path
 
+from gtsfm.frontend.global_descriptor.netvlad_global_descriptor import NetVLADGlobalDescriptor
 from gtsfm.loader.colmap_loader import ColmapLoader
 from gtsfm.loader.olsson_loader import OlssonLoader
 from gtsfm.retriever.netvlad_retriever import NetVLADRetriever
-from gtsfm.frontend.global_descriptor.netvlad_global_descriptor import NetVLADGlobalDescriptor
 
 DATA_ROOT_PATH = Path(__file__).resolve().parent.parent / "data"
 DOOR_DATA_ROOT = DATA_ROOT_PATH / "set1_lund_door"
@@ -27,7 +27,7 @@ class TestNetVLADRetriever(unittest.TestCase):
         images_dir = SKYDIO_DATA_ROOT / "images"
 
         loader = ColmapLoader(
-            colmap_files_dirpath=str(colmap_files_dirpath),
+            dataset_dir=str(colmap_files_dirpath),
             images_dir=str(images_dir),
             max_resolution=760,
         )

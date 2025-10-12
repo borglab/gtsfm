@@ -2,17 +2,17 @@
 
 Author: John Lambert
 """
+
 import unittest
 from pathlib import Path
 
 import numpy as np
-from gtsam import Cal3Bundler, Unit3
+from gtsam import Cal3Bundler, Unit3  # type: ignore
 
 import gtsfm.utils.geometry_comparisons as geom_comp_utils
 from gtsfm.common.image import Image
-from gtsfm.loader.tanks_and_temples_loader import TanksAndTemplesLoader
 from gtsfm.frontend.verifier.loransac import LoRansac
-
+from gtsfm.loader.tanks_and_temples_loader import TanksAndTemplesLoader
 
 _TEST_DATA_ROOT = Path(__file__).resolve().parent.parent / "data" / "tanks_and_temples_barn"
 
@@ -24,14 +24,15 @@ class TanksAndTemplesLoaderTest(unittest.TestCase):
         lidar_ply_fpath = None
         colmap_ply_fpath = None
 
-        img_dir = _TEST_DATA_ROOT / scene_name
+        images_dir = _TEST_DATA_ROOT / scene_name
         poses_fpath = _TEST_DATA_ROOT / f"{scene_name}_COLMAP_SfM.log"
         ply_alignment_fpath = _TEST_DATA_ROOT / f"{scene_name}_trans.txt"
         bounding_polyhedron_json_fpath = _TEST_DATA_ROOT / f"{scene_name}.json"
 
         # Note: PLY files are not provided here, as they are too large to include as test data (300 MB each).
         self.loader = TanksAndTemplesLoader(
-            img_dir=str(img_dir),
+            dataset_dir=str(_TEST_DATA_ROOT),
+            images_dir=str(images_dir),
             poses_fpath=str(poses_fpath),
             bounding_polyhedron_json_fpath=str(bounding_polyhedron_json_fpath),
             ply_alignment_fpath=str(ply_alignment_fpath),
@@ -145,4 +146,3 @@ class TanksAndTemplesLoaderTest(unittest.TestCase):
         #         geom_comp_utils.compute_relative_unit_translation_angle(i2Ui1_expected, i2Ui1_computed),
         #         DIRECTION_ANGULAR_ERROR_DEG_THRESHOLD,
         #     )
-

@@ -6,7 +6,7 @@ Authors: Akshay Krishnan
 import unittest
 from pathlib import Path
 
-from gtsam import Cal3Bundler, Pose3
+from gtsam import Cal3Bundler, Pose3  # type: ignore
 
 from gtsfm.common.image import Image
 from gtsfm.loader.mobilebrick_loader import MobilebrickLoader
@@ -26,7 +26,7 @@ class TestMobileBrickLoader(unittest.TestCase):
         """Set up the loader for the test."""
         super().setUp()
 
-        self.loader = MobilebrickLoader(data_dir=str(DEFAULT_FOLDER))
+        self.loader = MobilebrickLoader(dataset_dir=str(DEFAULT_FOLDER))
 
     def test_length(self) -> None:
         """Test the number of all images in the loader."""
