@@ -92,31 +92,31 @@ for num_matched in ${num_matched_sizes[@]}; do
 
                 if [[ $dataset == *"barn-tanks-and-temples-410"* ]]
                 then
-                    dataset_root="/usr/local/gtsfm-data/TanksAndTemples/Barn"
+                    dataset_dir="/usr/local/gtsfm-data/TanksAndTemples/Barn"
                     scene_name="Barn"
                 elif [[ $dataset == *"caterpillar-383"* ]]
                 then
-                    dataset_root=/usr/local/gtsfm-data/TanksAndTemples/Caterpillar
+                    dataset_dir=/usr/local/gtsfm-data/TanksAndTemples/Caterpillar
                     scene_name="Caterpillar"
                 elif [[ $dataset == *"church-507"* ]]
                 then
-                    dataset_root=/usr/local/gtsfm-data/TanksAndTemples/Church
+                    dataset_dir=/usr/local/gtsfm-data/TanksAndTemples/Church
                     scene_name="Church"
                 elif [[ $dataset == *"courthouse-1106"* ]]
                 then
-                    dataset_root=/usr/local/gtsfm-data/TanksAndTemples/Courthouse
+                    dataset_dir=/usr/local/gtsfm-data/TanksAndTemples/Courthouse
                     scene_name="Courthouse"
                 elif [[ $dataset == *"ignatius-263"* ]]
                 then
-                    dataset_root=/usr/local/gtsfm-data/TanksAndTemples/Ignatius
+                    dataset_dir=/usr/local/gtsfm-data/TanksAndTemples/Ignatius
                     scene_name="Ignatius"
                 elif [[ $dataset == *"meetingroom-371"* ]]
                 then
-                    dataset_root=/usr/local/gtsfm-data/TanksAndTemples/Meetingroom
+                    dataset_dir=/usr/local/gtsfm-data/TanksAndTemples/Meetingroom
                     scene_name="Meetingroom"
                 elif [[ $dataset == *"truck-251"* ]]
                 then
-                    dataset_root=/usr/local/gtsfm-data/TanksAndTemples/Truck
+                    dataset_dir=/usr/local/gtsfm-data/TanksAndTemples/Truck
                     scene_name="Truck"
                 fi
 
@@ -126,7 +126,7 @@ for num_matched in ${num_matched_sizes[@]}; do
                 ./run \
                 --loader tanks_and_temples_loader \
                 --scene_name $scene_name \
-                --dataset_dir $dataset_root \
+                --dataset_dir $dataset_dir \
                 --run_mvs false \
                 --config_name unified \
                 --correspondence_generator_config_name $correspondence_generator_config_name \
