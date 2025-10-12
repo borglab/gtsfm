@@ -31,7 +31,7 @@ class GtsfmRunner:
 
     def __init__(self, override_args=None) -> None:
         argparser: argparse.ArgumentParser = self.construct_argparser()
-        self.parsed_args: argparse.Namespace = argparser.parse_args(args=override_args)
+        self.parsed_args, self._hydra_cli_overrides = argparser.parse_known_args(args=override_args)
         if self.parsed_args.dask_tmpdir:
             dask_config.set({"temporary_directory": DEFAULT_OUTPUT_ROOT / self.parsed_args.dask_tmpdir})
 
@@ -172,6 +172,9 @@ class GtsfmRunner:
             overrides.extend(
                 build_loader_overrides(self.parsed_args, default_max_resolution=self.parsed_args.max_resolution)
             )
+
+            if getattr(self, "_hydra_cli_overrides", None):
+                overrides.extend(self._hydra_cli_overrides)
 
             main_cfg = hydra.compose(
                 config_name=self.parsed_args.config_name,
