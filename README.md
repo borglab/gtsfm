@@ -92,7 +92,7 @@ To process a dataset containing only an **image directory and EXIF metadata**, e
 Then, run the following command:  
 
 ```bash
-./run --config_name {CONFIG_NAME} --loader olsson_loader --dataset_dir {DATASET_DIR} --num_workers {NUM_WORKERS}
+./run --config_name {CONFIG_NAME} --loader olsson --dataset_dir {DATASET_DIR} --num_workers {NUM_WORKERS}
 ```
 
 ### Command-line Options
@@ -116,7 +116,7 @@ Example (deep front-end on Olsson, single worker):
 ```bash
 ./run --dataset_dir tests/data/set1_lund_door \
       --config_name deep_front_end.yaml \
-      --loader olsson_loader \
+      --loader olsson \
       --num_workers 1 \
       SceneOptimizer.loader.max_resolution=1200
 ```
@@ -125,7 +125,7 @@ For a dataset with metadata formatted in the COLMAP style:
 ```bash
 ./run --dataset_dir datasets/gerrard-hall \
       --config_name deep_front_end.yaml \
-      --loader colmap_loader \
+      --loader colmap \
       --num_workers 5 \
       SceneOptimizer.loader.use_gt_intrinsics=true \
       SceneOptimizer.loader.use_gt_extrinsics=true
@@ -145,7 +145,7 @@ Currently, we require **EXIF data** embedded into your images. Alternatively, yo
 To compare GTSFM output with COLMAP, use the following command:  
 
 ```bash
-./run --config_name {CONFIG_NAME} --loader colmap_loader --dataset_dir {DATASET_DIR} --num_workers {NUM_WORKERS} --max_frame_lookahead {MAX_FRAME_LOOKAHEAD}
+./run --config_name {CONFIG_NAME} --loader colmap --dataset_dir {DATASET_DIR} --num_workers {NUM_WORKERS} --max_frame_lookahead {MAX_FRAME_LOOKAHEAD}
 ```  
 
 ### Visualizing Results with Open3D  
@@ -207,15 +207,15 @@ The runner supports all loaders through `--loader`, `--dataset_dir`, and `--imag
 ### Available Loaders
 
 The following loader types are supported:
-- `colmap_loader` - COLMAP format datasets
-- `hilti_loader` - Hilti SLAM challenge datasets  
-- `astrovision_loader` - AstroVision space datasets
-- `olsson_loader` - Olsson format datasets
-- `argoverse_loader` - Argoverse autonomous driving datasets
-- `mobilebrick_loader` - MobileBrick datasets
-- `one_d_sfm_loader` - 1DSFM format datasets
-- `tanks_and_temples_loader` - Tanks and Temples benchmark datasets
-- `yfcc_imb_loader` - YFCC Image Matching Benchmark datasets
+- `colmap` - COLMAP format datasets
+- `hilti` - Hilti SLAM challenge datasets  
+- `astrovision` - AstroVision space datasets
+- `olsson` - Olsson format datasets
+- `argoverse` - Argoverse autonomous driving datasets
+- `mobilebrick` - MobileBrick datasets
+- `one_d_sfm` - 1DSFM format datasets
+- `tanks_and_temples` - Tanks and Temples benchmark datasets
+- `yfcc_imb` - YFCC Image Matching Benchmark datasets
 
 For the complete list of available arguments for each loader, run:
 ```bash
@@ -226,7 +226,7 @@ For the complete list of available arguments for each loader, run:
 ```bash
 ./run \
   --config_name sift_front_end.yaml \
-  --loader olsson_loader \
+  --loader olsson \
   --dataset_dir /path/to/olsson_dataset \
   SceneOptimizer.loader.max_resolution=1200
 ```
@@ -235,7 +235,7 @@ For the complete list of available arguments for each loader, run:
 ```bash
 ./run \
   --config_name sift_front_end.yaml \
-  --loader colmap_loader \
+  --loader colmap \
   --dataset_dir /path/to/colmap_dataset \
   SceneOptimizer.loader.use_gt_intrinsics=true \
   SceneOptimizer.loader.use_gt_extrinsics=true
