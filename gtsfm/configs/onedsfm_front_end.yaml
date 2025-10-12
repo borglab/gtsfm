@@ -6,7 +6,7 @@ SceneOptimizer:
   pose_angular_error_thresh: 5 # degrees
 
   loader:
-    _target_: gtsfm.loader.onedsfm_loader.OneDSFMLoader
+    _target_: gtsfm.loader.OneDSFM
     dataset_dir: ???
 
   image_pairs_generator:

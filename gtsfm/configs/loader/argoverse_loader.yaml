@@ -1,5 +1,5 @@
 # Argoverse Dataset Loader Configuration
-_target_: gtsfm.loader.argoverse_dataset_loader.ArgoverseDatasetLoader
+_target_: gtsfm.loader.Argoverse
 dataset_dir: ??? # Required - directory where raw Argoverse logs are stored
 log_id: ??? # Required - unique ID of vehicle log
 stride: 5 # sampling rate, e.g. every 5 images

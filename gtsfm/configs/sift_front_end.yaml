@@ -3,7 +3,7 @@
 SceneOptimizer:
   _target_: gtsfm.scene_optimizer.SceneOptimizer
   loader:
-    _target_: gtsfm.loader.colmap_loader.ColmapLoader
+    _target_: gtsfm.loader.Colmap
   save_gtsfm_data: True
   save_two_view_correspondences_viz: False
   save_3d_viz: False

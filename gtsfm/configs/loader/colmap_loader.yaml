@@ -1,5 +1,5 @@
 # COLMAP Loader Configuration
-_target_: gtsfm.loader.colmap_loader.ColmapLoader
+_target_: gtsfm.loader.Colmap
 dataset_dir: ??? # Required - path to COLMAP files directory
 images_dir: null # Optional - path to images directory (defaults to {dataset_dir}/images)
 use_gt_intrinsics: true # Whether to use ground truth intrinsics from COLMAP

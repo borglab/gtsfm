@@ -1,5 +1,5 @@
 # Astrovision Loader Configuration
-_target_: gtsfm.loader.astrovision_loader.AstrovisionLoader
+_target_: gtsfm.loader.Astrovision
 dataset_dir: ??? # Required - path to AstroVision dataset directory
 images_dir: null # Optional - path to images directory (defaults to {dataset_dir}/images)
 max_resolution: 1080

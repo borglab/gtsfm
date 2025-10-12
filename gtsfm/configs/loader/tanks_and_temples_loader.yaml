@@ -1,5 +1,5 @@
 # Tanks and Temples Loader Configuration
-_target_: gtsfm.loader.tanks_and_temples_loader.TanksAndTemplesLoader
+_target_: gtsfm.loader.TanksAndTemples
 dataset_dir: ??? # Required - path to dataset directory
 poses_fpath: ??? # Required - path to .log file containing COLMAP poses
 bounding_polyhedron_json_fpath: ??? # Required - path to bounding polyhedron JSON

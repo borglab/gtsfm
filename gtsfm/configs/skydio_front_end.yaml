@@ -8,7 +8,7 @@ SceneOptimizer:
   pose_angular_error_thresh: 5 # degrees
 
   loader:
-    _target_: gtsfm.loader.colmap_loader.ColmapLoader
+    _target_: gtsfm.loader.Colmap
     dataset_dir: ??? # Required - path to COLMAP files directory
     images_dir: null # Optional - path to images directory (defaults to {dataset_dir}/images)
     max_resolution: 760

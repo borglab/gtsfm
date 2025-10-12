@@ -4,7 +4,7 @@ SceneOptimizer:
   _target_: gtsfm.scene_optimizer.SceneOptimizer
 
   loader:
-    _target_: gtsfm.loader.olsson_loader.OlssonLoader
+    _target_: gtsfm.loader.Olsson
   save_gtsfm_data: True
   save_two_view_correspondences_viz: False
   save_3d_viz: False

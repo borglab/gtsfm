@@ -1,5 +1,5 @@
 # MobileBrick Loader Configuration
-_target_: gtsfm.loader.mobilebrick_loader.MobilebrickLoader
+_target_: gtsfm.loader.MobileBrick
 dataset_dir: ??? # Required - path to MobileBrick dataset directory
 images_dir: null # Optional - path to images directory (defaults to {dataset_dir}/image)
 use_gt_intrinsics: false # whether to use ground truth intrinsics

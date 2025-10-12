@@ -1,5 +1,5 @@
 # Olsson Loader Configuration
-_target_: gtsfm.loader.olsson_loader.OlssonLoader
+_target_: gtsfm.loader.Olsson
 dataset_dir: ??? # Required - path to dataset directory
 images_dir: null # Optional - path to images directory (defaults to {dataset_dir}/images)
 max_resolution: 760
