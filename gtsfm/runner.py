@@ -66,6 +66,17 @@ class GtsfmRunner:
         parser = argparse.ArgumentParser(description=self.tag)
 
         parser.add_argument(
+            "--config_name",
+            type=str,
+            default="sift_front_end.yaml",
+            help="Master config, including back-end configuration. Options include `unified_config.yaml`,"
+            " `sift_front_end.yaml`, `deep_front_end.yaml`, etc.",
+        )
+
+        # Loader configuration
+        add_loader_args(parser)
+
+        parser.add_argument(
             "--num_workers",
             type=int,
             default=1,
@@ -79,13 +90,6 @@ class GtsfmRunner:
         )
         parser.add_argument(
             "--worker_memory_limit", type=str, default="8GB", help="Memory limit per worker, e.g. `8GB`"
-        )
-        parser.add_argument(
-            "--config_name",
-            type=str,
-            default="sift_front_end.yaml",
-            help="Master config, including back-end configuration. Options include `unified_config.yaml`,"
-            " `sift_front_end.yaml`, `deep_front_end.yaml`, etc.",
         )
         parser.add_argument(
             "--correspondence_generator_config_name",
@@ -110,13 +114,6 @@ class GtsfmRunner:
             type=str,
             default="base_gs",
             help="Override flag for your own gaussian splatting implementation.",
-        )
-        parser.add_argument(
-            "--max_resolution",
-            type=int,
-            default=760,
-            help="integer representing maximum length of image's short side"
-            " e.g. for 1080p (1920 x 1080), max_resolution would be 1080",
         )
         parser.add_argument(
             "--max_frame_lookahead",
@@ -182,9 +179,6 @@ class GtsfmRunner:
             help="Set the logging level",
         )
 
-        # Loader configuration (moved to gtsfm.loader.configuration)
-        add_loader_args(parser)
-
         return parser
 
     def construct_scene_optimizer(self) -> SceneOptimizer:
@@ -209,15 +203,6 @@ class GtsfmRunner:
             )
         logger.info("⏳ Instantiating SceneOptimizer...")
         scene_optimizer: SceneOptimizer = instantiate(main_cfg.SceneOptimizer)
-
-        # Honor CLI-provided input worker by setting it post-instantiation (constructor may not accept it)
-        if getattr(self.parsed_args, "input_worker", None):
-            try:
-                scene_optimizer.loader._input_worker = self.parsed_args.input_worker
-            except Exception as e:
-                logger.warning(f"Failed to set loader._input_worker from CLI: {e}")
-
-        # Loader is now recursively instantiated by Hydra; no manual instantiation required.
 
         # Override correspondence generator.
         if self.parsed_args.correspondence_generator_config_name is not None:

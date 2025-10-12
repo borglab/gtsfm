@@ -39,7 +39,9 @@ def add_loader_args(parser: ArgumentParser) -> None:
     parser.add_argument(
         "--max_resolution",
         type=int,
-        help="Maximum length of the image's short side (overrides config's SceneOptimizer.loader.max_resolution)",
+        default=760,
+        help="integer representing maximum length of image's short side"
+        " e.g. for 1080p (1920 x 1080), max_resolution would be 1080",
     )
     parser.add_argument(
         "--input_worker",
@@ -49,7 +51,9 @@ def add_loader_args(parser: ArgumentParser) -> None:
     )
 
 
-def build_loader_overrides(args: Namespace, default_max_resolution: Optional[int] = None) -> List[str]:
+def build_loader_overrides(
+    args: Namespace, default_max_resolution: Optional[int] = None, default_input_worker: Optional[str] = None
+) -> List[str]:
     """Construct Hydra overrides for portable loader settings."""
     overrides: List[str] = []
 
@@ -69,7 +73,10 @@ def build_loader_overrides(args: Namespace, default_max_resolution: Optional[int
     elif default_max_resolution is not None:
         overrides.append(f"SceneOptimizer.loader.max_resolution={default_max_resolution}")
 
-    # Note: input_worker cannot be passed via Hydra for loaders whose __init__ doesn't accept it.
-    # The runner sets loader._input_worker post-instantiation if args.input_worker is provided.
+    # Max resolution: prefer explicit CLI, otherwise use provided default
+    if getattr(args, "input_worker", None) is not None:
+        overrides.append(f"SceneOptimizer.loader.input_worker={args.input_worker}")
+    elif default_input_worker is not None:
+        overrides.append(f"SceneOptimizer.loader.input_worker={default_input_worker}")
 
     return overrides
