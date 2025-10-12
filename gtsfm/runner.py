@@ -3,39 +3,18 @@
 import argparse
 import logging
 import os
-import time
 from pathlib import Path
-
-import dask
-import dask.config
 
 import hydra
 from dask import config as dask_config
-from dask.distributed import Client, LocalCluster, SSHCluster, performance_report
-from gtsam import Pose3  # type: ignore
+from dask.distributed import Client, LocalCluster, SSHCluster
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
 
-import gtsfm.evaluation.metrics_report as metrics_report
 import gtsfm.utils.logger as logger_utils
-import gtsfm.utils.merging as merging_utils
-import gtsfm.utils.metrics as metrics_utils
-import gtsfm.utils.viz as viz_utils
-from gtsfm import two_view_estimator
-from gtsfm.common.gtsfm_data import GtsfmData
-from gtsfm.common.types import CALIBRATION_TYPE
-from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
-from gtsfm.frontend.correspondence_generator.image_correspondence_generator import ImageCorrespondenceGenerator
-from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
-
-# Loader configuration helpers
 from gtsfm.loader.configuration import add_loader_args, build_loader_overrides
-from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.scene_optimizer import SceneOptimizer
-from gtsfm.two_view_estimator import run_two_view_estimator_as_futures
-from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
 from gtsfm.utils.configuration import log_configuration_summary, log_full_configuration, log_key_parameters
-from gtsfm.utils.subgraph_utils import group_results_by_subgraph
 
 dask_config.set({"distributed.scheduler.worker-ttl": None})
 
@@ -77,44 +56,12 @@ class GtsfmRunner:
         # Loader configuration
         add_loader_args(parser)
 
-        parser.add_argument(
-            "--num_workers",
-            type=int,
-            default=1,
-            help="Number of workers to start (processes, by default).",
-        )
-        parser.add_argument(
-            "--threads_per_worker",
-            type=int,
-            default=1,
-            help="Number of threads per each worker.",
-        )
-        parser.add_argument(
-            "--worker_memory_limit", type=str, default="8GB", help="Memory limit per worker, e.g. `8GB`"
-        )
-        parser.add_argument(
-            "--correspondence_generator_config_name",
-            type=str,
-            default=None,
-            help="Override flag for correspondence generator (choose from among gtsfm/configs/correspondence).",
-        )
-        parser.add_argument(
-            "--verifier_config_name",
-            type=str,
-            default=None,
-            help="Override flag for verifier (choose from among gtsfm/configs/verifier).",
-        )
+        # Retriever
         parser.add_argument(
             "--retriever_config_name",
             type=str,
             default=None,
             help="Override flag for retriever (choose from among gtsfm/configs/retriever).",
-        )
-        parser.add_argument(
-            "--gaussian_splatting_config_name",
-            type=str,
-            default="base_gs",
-            help="Override flag for your own gaussian splatting implementation.",
         )
         parser.add_argument(
             "--max_frame_lookahead",
@@ -128,42 +75,19 @@ class GtsfmRunner:
             default=None,
             help="Number of K potential matches to provide per query. These are the top `K` matches per query.",
         )
+
+        # Rest of pipeline
         parser.add_argument(
-            "--share_intrinsics", action="store_true", help="Shares the intrinsics between all the cameras."
-        )
-        parser.add_argument("--run_mvs", action="store_true", help="Run dense MVS reconstruction")
-        parser.add_argument("--run_gs", action="store_true", help="Run Gaussian Splatting")
-        parser.add_argument(
-            "--output_root",
-            type=str,
-            default=DEFAULT_OUTPUT_ROOT,
-            help="Root directory. Results, plots and metrics will be stored in subdirectories,"
-            " e.g. {output_root}/results",
-        )
-        parser.add_argument(
-            "--dask_tmpdir",
+            "--correspondence_generator_config_name",
             type=str,
             default=None,
-            help="tmp directory for dask workers, uses dask's default (/tmp) if not set",
+            help="Override flag for correspondence generator (choose from among gtsfm/configs/correspondence).",
         )
         parser.add_argument(
-            "--cluster_config",
+            "--verifier_config_name",
             type=str,
             default=None,
-            help="config listing IP worker addresses for the cluster,"
-            " first worker is used as scheduler and should contain the dataset",
-        )
-        parser.add_argument(
-            "--dashboard_port",
-            type=str,
-            default=":8787",
-            help="dask dashboard port number",
-        )
-        parser.add_argument(
-            "--num_retry_cluster_connection",
-            type=int,
-            default=3,
-            help="Number of times to retry cluster connection if it fails.",
+            help="Override flag for verifier (choose from among gtsfm/configs/verifier).",
         )
         parser.add_argument(
             "--graph_partitioner",
@@ -173,11 +97,62 @@ class GtsfmRunner:
             help="Type of graph partitioner to use. Default is 'single' (SinglePartition).",
         )
         parser.add_argument(
+            "--share_intrinsics", action="store_true", help="Shares the intrinsics between all the cameras."
+        )
+        parser.add_argument("--run_mvs", action="store_true", help="Run dense MVS reconstruction")
+        parser.add_argument("--run_gs", action="store_true", help="Run Gaussian Splatting")
+        parser.add_argument(
+            "--gaussian_splatting_config_name",
+            type=str,
+            default="base_gs",
+            help="Override flag for your own gaussian splatting implementation.",
+        )
+
+        # Logging and output configuration
+        parser.add_argument(
+            "--output_root",
+            type=str,
+            default=DEFAULT_OUTPUT_ROOT,
+            help="Root directory. Results, plots and metrics will be stored in subdirectories,"
+            " e.g. {output_root}/results",
+        )
+        parser.add_argument(
             "-l",
             "--log",
             choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
             default="INFO",  # Set a default level
             help="Set the logging level",
+        )
+
+        # SSH Cluster setup
+        parser.add_argument(
+            "--cluster_config",
+            type=str,
+            default=None,
+            help="config listing IP worker addresses for the cluster,"
+            " first worker is used as scheduler and should contain the dataset",
+        )
+        parser.add_argument(
+            "--num_retry_cluster_connection",
+            type=int,
+            default=3,
+            help="Number of times to retry cluster connection if it fails.",
+        )
+
+        # Dask configuration
+        parser.add_argument(
+            "--num_workers", type=int, default=1, help="Number of workers to start (processes, by default)."
+        )
+        parser.add_argument("--threads_per_worker", type=int, default=1, help="Number of threads per each worker.")
+        parser.add_argument(
+            "--worker_memory_limit", type=str, default="8GB", help="Memory limit per worker, e.g. `8GB`"
+        )
+        parser.add_argument("--dashboard_port", type=str, default=":8787", help="dask dashboard port number")
+        parser.add_argument(
+            "--dask_tmpdir",
+            type=str,
+            default=None,
+            help="tmp directory for dask workers, uses dask's default (/tmp) if not set",
         )
 
         return parser
@@ -291,6 +266,7 @@ class GtsfmRunner:
                     },
                 )
                 connected = True
+                return cluster
             except Exception as e:
                 logger.info(f"Worker failed to start: {str(e)}")
                 retry_count += 1
@@ -299,7 +275,6 @@ class GtsfmRunner:
                 f"Connection to cluster could not be established after {self.parsed_args.num_retry_cluster_connection}"
                 " attempts. Aborting..."
             )
-        return cluster
 
     def _create_dask_client(self):
         if self.parsed_args.cluster_config:
@@ -332,3 +307,9 @@ class GtsfmRunner:
         # Shutdown the Dask client
         if client is not None:
             client.shutdown()
+
+
+if __name__ == "__main__":
+    # Entry point for direct execution
+    runner = GtsfmRunner()
+    runner.run()

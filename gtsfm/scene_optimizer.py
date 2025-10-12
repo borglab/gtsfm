@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from dask.base import annotate, compute
 from dask.delayed import Delayed, delayed
+from dask.distributed import performance_report
 from gtsam import Pose3, Similarity3  # type: ignore
 from trimesh import Trimesh
 
@@ -214,7 +215,7 @@ class SceneOptimizer:
             # TODO(Ayush): pass only image name instead of the whole image. And delete images from memory.
             delayed_results.append(
                 delayed(save_full_frontend_metrics)(
-                    two_view_reports_post_viewgraph_estimator,
+                    two_view_reports_post_viewgraph_estimator,  # type: ignore
                     images,
                     filename="two_view_report_{}.json".format(VIEWGRAPH_REPORT_TAG),
                     metrics_path=self._metrics_path,
@@ -223,7 +224,7 @@ class SceneOptimizer:
             )
             metrics_graph_list.append(
                 delayed(two_view_estimator.aggregate_frontend_metrics)(
-                    two_view_reports_post_viewgraph_estimator,
+                    two_view_reports_post_viewgraph_estimator,  # type: ignore
                     self._pose_angular_error_thresh,
                     metric_group_name="verifier_summary_{}".format(VIEWGRAPH_REPORT_TAG),
                 )
@@ -255,7 +256,7 @@ class SceneOptimizer:
                         save_matplotlib_visualizations(
                             aligned_ba_input_graph=ba_input_graph,
                             aligned_ba_output_graph=ba_output_graph,
-                            gt_pose_graph=gt_wTi_list,
+                            gt_pose_graph=gt_wTi_list,  # type: ignore
                             plot_ba_input_path=self._plot_ba_input_path,
                             plot_results_path=self._plot_results_path,
                         )
@@ -364,7 +365,7 @@ class SceneOptimizer:
             if all_delayed_sfm_results:
                 results = compute(*all_delayed_sfm_results, *all_delayed_io, *all_delayed_mvo_metrics_groups)
                 sfm_results = results[: len(all_delayed_sfm_results)]
-                other_results = results[len(all_delayed_sfm_results) :]
+                other_results = results[len(all_delayed_sfm_results) :]  # noqa: E203
                 mvo_metrics_groups = [x for x in other_results if isinstance(x, GtsfmMetricsGroup)]
                 all_metrics_groups.extend(mvo_metrics_groups)
                 sfm_result = next((r for r in sfm_results if r is not None), None)
