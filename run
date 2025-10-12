@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # GTSfM unified runner script
 # Usage: ./run [arguments...]
-# Example: ./run --config_name sift_front_end.yaml --loader olsson_loader --dataset_dir /path/to/data
+# Example: ./run --config_name sift_front_end.yaml --loader olsson --dataset_dir /path/to/data
 
-exec python gtsfm/runner.py "$@"
+if [ "$#" -eq 0 ]; then
+  exec python gtsfm/runner.py --help
+else
+  exec python gtsfm/runner.py "$@"
+fi
