@@ -345,15 +345,14 @@ class SceneOptimizer:
         )
 
         logger.info("🔥 GTSFM: Partitioning the view graph...")
-        subgraph_two_view_results = self._partition_view_graph(visibility_graph, two_view_results)
-
-        logger.info("🔥 GTSFM: Create back-end computation subgraphs...")
+        subgraph_list = self._partition_view_graph(visibility_graph, two_view_results)
         all_delayed_sfm_results = []
         all_delayed_io = []
         all_delayed_mvo_metrics_groups = []
-        for idx, subgraph_two_view_results in enumerate(subgraph_two_view_results):
+        num_subgraphs = len(subgraph_list)
+        for idx, subgraph_two_view_results in enumerate(subgraph_list):
             delayed_sfm_result, delayed_io, delayed_mvo_metrics_groups = self._process_subgraph(
-                idx, subgraph_two_view_results, keypoints, maybe_intrinsics, len(subgraph_two_view_results)
+                idx, subgraph_two_view_results, keypoints, maybe_intrinsics, num_subgraphs
             )
             if delayed_sfm_result is not None:
                 all_delayed_sfm_results.append(delayed_sfm_result)
@@ -490,7 +489,6 @@ class SceneOptimizer:
         subgraphs = self.graph_partitioner.run(visibility_graph)
         if len(subgraphs) == 1:
             # single partition
-            self.create_output_directories(None)
             return [two_view_results]
         else:
             logger.info("Partitioned into %d subgraphs", len(subgraphs))
@@ -506,6 +504,9 @@ class SceneOptimizer:
         )
         if num_subgraphs > 1:
             self.create_output_directories(idx + 1)
+        else:
+            # Single-partition run: write directly under {output_root}/results
+            self.create_output_directories(None)
 
         if len(subgraph_two_view_results) > 0:
             # TODO(Frank): would be nice if relative pose prior was part of TwoViewResult
