@@ -244,13 +244,13 @@ class GtsfmRunner:
 
             # Add loader overrides based on command line arguments
             if self.parsed_args.loader:
-                overrides.append(f"+SceneOptimizer/loader={self.parsed_args.loader}")
+                overrides.append(f"+loader@SceneOptimizer.loader={self.parsed_args.loader}")
 
             # Standardized loader parameter overrides
             if self.parsed_args.dataset_dir:
-                overrides.append(f"+SceneOptimizer.loader.dataset_dir={self.parsed_args.dataset_dir}")
+                overrides.append(f"SceneOptimizer.loader.dataset_dir={self.parsed_args.dataset_dir}")
             if self.parsed_args.images_dir:
-                overrides.append(f"+SceneOptimizer.loader.images_dir={self.parsed_args.images_dir}")
+                overrides.append(f"SceneOptimizer.loader.images_dir={self.parsed_args.images_dir}")
 
             # Loader-specific parameter overrides
             if self.parsed_args.max_length is not None:
@@ -273,9 +273,9 @@ class GtsfmRunner:
                 "mobilebrick_loader",
                 "colmap_loader",
             ]:
-                overrides.append(f"+SceneOptimizer.loader.use_gt_intrinsics={self.parsed_args.use_gt_intrinsics}")
+                overrides.append(f"SceneOptimizer.loader.use_gt_intrinsics={self.parsed_args.use_gt_intrinsics}")
             if self.parsed_args.use_gt_extrinsics and self.parsed_args.loader == "colmap_loader":
-                overrides.append(f"+SceneOptimizer.loader.use_gt_extrinsics={self.parsed_args.use_gt_extrinsics}")
+                overrides.append(f"SceneOptimizer.loader.use_gt_extrinsics={self.parsed_args.use_gt_extrinsics}")
 
             # Argoverse-specific overrides that support max_frame_lookahead
             if self.parsed_args.max_frame_lookahead is not None and self.parsed_args.loader in [
@@ -321,14 +321,16 @@ class GtsfmRunner:
                 )
 
             # Override max_resolution for loader if specified
-            overrides.append(f"+SceneOptimizer.loader.max_resolution={self.parsed_args.max_resolution}")
+            overrides.append(f"SceneOptimizer.loader.max_resolution={self.parsed_args.max_resolution}")
 
             main_cfg = hydra.compose(
                 config_name=self.parsed_args.config_name,
                 overrides=overrides,
             )
-            logger.info("⏳ Instantiating SceneOptimizer...")
-            scene_optimizer: SceneOptimizer = instantiate(main_cfg.SceneOptimizer)
+        logger.info("⏳ Instantiating SceneOptimizer...")
+        scene_optimizer: SceneOptimizer = instantiate(main_cfg.SceneOptimizer)
+
+        # Loader is now recursively instantiated by Hydra; no manual instantiation required.
 
         # Override correspondence generator.
         if self.parsed_args.correspondence_generator_config_name is not None:
