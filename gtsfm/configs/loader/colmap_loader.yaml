@@ -5,3 +5,4 @@ images_dir: null # Optional - path to images directory (defaults to {dataset_dir
 use_gt_intrinsics: true # Whether to use ground truth intrinsics from COLMAP
 use_gt_extrinsics: true # Whether to use ground truth extrinsics from COLMAP
 max_resolution: 760
+input_worker: null # optional input worker specification

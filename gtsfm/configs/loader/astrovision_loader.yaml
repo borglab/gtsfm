@@ -4,3 +4,8 @@ dataset_dir: ??? # Required - path to AstroVision dataset directory
 images_dir: null # Optional - path to images directory (defaults to {dataset_dir}/images)
 max_resolution: 1080
 gt_scene_mesh_path: null # Optional - path to triangular surface mesh
+input_worker: null # optional input worker specification
+use_gt_extrinsics: true # Whether to use ground truth extrinsics
+use_gt_sfm_tracks: false # Whether to use ground truth SFM tracks
+use_gt_masks: false # Whether to use ground truth masks
+max_frame_lookahead: 2 # Maximum frame lookahead
