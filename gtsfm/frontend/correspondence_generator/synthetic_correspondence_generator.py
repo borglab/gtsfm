@@ -35,14 +35,14 @@ logger = logger_utils.get_logger()
 class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
     """Pair-wise synthetic keypoint correspondence generator."""
 
-    def __init__(self, dataset_root: str, scene_name: str, deduplicate: bool = True) -> None:
+    def __init__(self, dataset_dir: str, scene_name: str, deduplicate: bool = True) -> None:
         """
         Args:
-            dataset_root: Path to where Tanks & Temples dataset is stored.
+            dataset_dir: Path to where Tanks & Temples dataset is stored.
             scene_name: Name of scene from Tanks & Temples dataset.
             deduplicate: Whether to de-duplicate with a single image the detections received from each image pair.
         """
-        self._dataset_root = dataset_root
+        self._dataset_root = dataset_dir
         self._scene_name = scene_name
         self._aggregator: KeypointAggregatorBase = (
             KeypointAggregatorDedup() if deduplicate else KeypointAggregatorUnique()
@@ -67,15 +67,15 @@ class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
             List of keypoints, with one entry for each input image.
             Putative correspondences as indices of keypoints (N,2), for pairs of images (i1,i2).
         """
-        dataset_root = self._dataset_root
+        dataset_dir = self._dataset_root
         scene_name = self._scene_name
 
-        img_dir = f"{dataset_root}/{scene_name}"
-        poses_fpath = f"{dataset_root}/{scene_name}_COLMAP_SfM.log"
-        lidar_ply_fpath = f"{dataset_root}/{scene_name}.ply"
-        colmap_ply_fpath = f"{dataset_root}/{scene_name}_COLMAP.ply"
-        ply_alignment_fpath = f"{dataset_root}/{scene_name}_trans.txt"
-        bounding_polyhedron_json_fpath = f"{dataset_root}/{scene_name}.json"
+        img_dir = f"{dataset_dir}/{scene_name}"
+        poses_fpath = f"{dataset_dir}/{scene_name}_COLMAP_SfM.log"
+        lidar_ply_fpath = f"{dataset_dir}/{scene_name}.ply"
+        colmap_ply_fpath = f"{dataset_dir}/{scene_name}_COLMAP.ply"
+        ply_alignment_fpath = f"{dataset_dir}/{scene_name}_trans.txt"
+        bounding_polyhedron_json_fpath = f"{dataset_dir}/{scene_name}.json"
         loader = TanksAndTemplesLoader(
             img_dir=img_dir,
             poses_fpath=poses_fpath,
