@@ -26,7 +26,7 @@ class GtsfmRunnerOlssonLoader(GtsfmRunnerBase):
 
     def construct_loader(self) -> LoaderBase:
         loader = OlssonLoader(
-            self.parsed_args.dataset_root,
+            self.parsed_args.dataset_dir,
             max_frame_lookahead=self.parsed_args.max_frame_lookahead,
             max_resolution=self.parsed_args.max_resolution,
         )

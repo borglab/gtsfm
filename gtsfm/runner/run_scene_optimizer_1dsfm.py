@@ -29,7 +29,7 @@ class GtsfmRunnerOneDSFMLoader(GtsfmRunnerBase):
 
     def construct_loader(self) -> LoaderBase:
         loader = OneDSFMLoader(
-            folder=self.parsed_args.dataset_root,
+            folder=self.parsed_args.dataset_dir,
             enable_no_exif=self.parsed_args.enable_no_exif,
             default_focal_length_factor=self.parsed_args.default_focal_length_factor,
         )
