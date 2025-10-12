@@ -1,4 +1,4 @@
-# Front-end configuration that leverages PyColmap for feature extraction and verfiication.
+# Front-end configuration that leverages PyColmap for feature extraction and verification.
 
 SceneOptimizer:
   _target_: gtsfm.scene_optimizer.SceneOptimizer

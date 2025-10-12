@@ -1,11 +1,9 @@
 # Default SIFT front-end configuration.
 
-defaults:
-  - loader: colmap_loader
-
 SceneOptimizer:
   _target_: gtsfm.scene_optimizer.SceneOptimizer
-  loader: ${loader}
+  loader:
+    _target_: gtsfm.loader.colmap_loader.ColmapLoader
   save_gtsfm_data: True
   save_two_view_correspondences_viz: False
   save_3d_viz: False

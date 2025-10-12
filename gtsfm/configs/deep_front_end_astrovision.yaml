@@ -8,6 +8,9 @@ SceneOptimizer:
   save_3d_viz: False
   pose_angular_error_thresh: 5 # degrees
 
+  loader:
+    _target_: gtsfm.loader.astrovision_loader.AstrovisionLoader
+
   image_pairs_generator:
     _target_: gtsfm.retriever.image_pairs_generator.ImagePairsGenerator
     global_descriptor:

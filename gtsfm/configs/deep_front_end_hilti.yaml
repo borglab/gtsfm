@@ -5,13 +5,18 @@ SceneOptimizer:
   save_3d_viz: False
   pose_angular_error_thresh: 5 # degrees
 
+  loader:
+    _target_: gtsfm.loader.hilti_loader.HiltiLoader
+    image_dir: "/path/to/images"
+    metadata_dir: "/path/to/metadata"
+    use_gt_intrinsics: True
+
   image_pairs_generator:
     _target_: gtsfm.retriever.image_pairs_generator.ImagePairsGenerator
     retriever:
       _target_: gtsfm.retriever.sequential_retriever.SequentialRetriever
       max_frame_lookahead: 20
 
-  
   detector_descriptor:
     _target_: gtsfm.frontend.cacher.detector_descriptor_cacher.DetectorDescriptorCacher
     detector_descriptor_obj:
@@ -86,7 +91,7 @@ SceneOptimizer:
   # comment out to not run
   # dense_multiview_optimizer:
   #   _target_: gtsfm.densify.mvs_patchmatchnet.MVSPatchmatchNet
-  
+
   # gaussian_splatting_optimizer:
   #   _target_: gtsfm.splat.gaussian_splatting.GaussianSplatting
   #   cfg:
