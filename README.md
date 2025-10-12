@@ -95,17 +95,12 @@ Then, run the following command:
 ./run --config_name {CONFIG_NAME} --loader olsson_loader --dataset_dir {DATASET_DIR} --num_workers {NUM_WORKERS}
 ```
 
-Or using the Python module directly:
-```bash
-python -m gtsfm.runner --config_name {CONFIG_NAME} --loader olsson_loader --dataset_dir {DATASET_DIR} --num_workers {NUM_WORKERS}
-```  
-
 ### Command-line Options  
 
 To explore all available options and configurations, run:  
 
 ```bash
-./run -h
+./run --help
 ```  
 
 For example, if you want to use the **Deep Front-End (recommended)** on the `"door"` dataset, run:  

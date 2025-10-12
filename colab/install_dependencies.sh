@@ -38,7 +38,7 @@ pip install -e .
 
 # Verify installation
 echo "Verifying installation..."
-python gtsfm/runner.py --help
+./run --help
 
 echo "Installation complete!"
 

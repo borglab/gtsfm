@@ -100,14 +100,16 @@ for num_matched in ${num_matched_sizes[@]}; do
                 OUTPUT_ROOT=${USER_ROOT}/${now}/${now}__${dataset}__results__num_matched${num_matched}__maxframelookahead${max_frame_lookahead}__760p__unified_${correspondence_generator_config_name}
                 mkdir -p $OUTPUT_ROOT
 
-                python gtsfm/runner.py \
+                ./run \
                 --loader colmap_loader \
                 --run_mvs false \
                 --config_name unified \
                 --correspondence_generator_config_name $correspondence_generator_config_name \
                 --share_intrinsics \
-                --dataset_dir "$(dirname "$images_dir")" \
+                --dataset_dir $colmap_files_dirpath \
                 --images_dir $images_dir \
+                --use_gt_intrinsics \
+                --use_gt_extrinsics \
                 --num_workers 1 \
                 --num_matched $num_matched \
                 --max_frame_lookahead $max_frame_lookahead \

@@ -136,7 +136,7 @@ execute_gtsfm() {
     case "$loader_name" in
         olsson-loader)
             log INFO "Running with Olsson loader on $DATASET_ROOT"
-            python gtsfm/runner.py \
+            ./run \
                 --loader olsson_loader \
                 --dataset_dir "$DATASET_ROOT" \
                 --config_name unified \
@@ -150,10 +150,12 @@ execute_gtsfm() {
             log INFO "Running with COLMAP loader"
             log INFO "Images: $IMAGES_DIR"
             log INFO "COLMAP files: $COLMAP_FILES_DIRPATH"
-            python gtsfm/runner.py \
+            ./run \
                 --loader colmap_loader \
-                --dataset_dir "$(dirname "$IMAGES_DIR")" \
+                --dataset_dir "$COLMAP_FILES_DIRPATH" \
                 --images_dir "$IMAGES_DIR" \
+                --use_gt_intrinsics \
+                --use_gt_extrinsics \
                 --config_name unified \
                 --correspondence_generator_config_name "$config_name" \
                 --max_frame_lookahead "$max_frame_lookahead" \
@@ -163,7 +165,7 @@ execute_gtsfm() {
             
         astrovision)
             log INFO "Running with AstroVision loader on $DATASET_ROOT"
-            python gtsfm/runner.py \
+            ./run \
                 --loader astrovision_loader \
                 --dataset_dir "$DATASET_ROOT" \
                 --config_name unified \

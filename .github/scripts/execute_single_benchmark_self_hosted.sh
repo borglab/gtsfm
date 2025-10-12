@@ -31,7 +31,7 @@ fi
 
 # Run GTSFM on the dataset.
 if [ "$LOADER_NAME" == "olsson-loader" ]; then
-  python gtsfm/runner.py \
+  ./run \
     --loader olsson_loader \
     --dataset_dir $DATASET_PREFIX/$DATASET_ROOT \
     --config_name ${CONFIG_NAME}.yaml \
@@ -42,10 +42,12 @@ if [ "$LOADER_NAME" == "olsson-loader" ]; then
 #     --correspondence_generator_config_name loftr.yaml \
 
 elif [ "$LOADER_NAME" == "colmap-loader" ]; then
-  python gtsfm/runner.py \
+  ./run \
     --loader colmap_loader \
-    --dataset_dir $DATASET_PREFIX \
+    --dataset_dir $DATASET_PREFIX/$COLMAP_FILES_DIRPATH \
     --images_dir ${IMAGES_DIR} \
+    --use_gt_intrinsics \
+    --use_gt_extrinsics \
     --config_name ${CONFIG_NAME}.yaml \
     --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
     --max_resolution ${MAX_RESOLUTION} \
@@ -53,7 +55,7 @@ elif [ "$LOADER_NAME" == "colmap-loader" ]; then
     --num_workers 1
 
 elif [ "$LOADER_NAME" == "astrovision" ]; then
-  python gtsfm/runner.py \
+  ./run \
     --loader astrovision_loader \
     --dataset_dir $DATASET_PREFIX/$DATASET_ROOT \
     --config_name ${CONFIG_NAME}.yaml \

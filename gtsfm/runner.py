@@ -204,10 +204,11 @@ class GtsfmRunner:
         parser.add_argument("--max_lookahead_sec", type=float, help="Maximum lookahead in seconds (Argoverse)")
         parser.add_argument("--camera_name", type=str, help="Camera name to use (Argoverse)")
 
-        # MobileBrick-specific arguments
+        # MobileBrick/COLMAP-specific arguments
         parser.add_argument(
-            "--use_gt_intrinsics", action="store_true", help="Use ground truth intrinsics (MobileBrick)"
+            "--use_gt_intrinsics", action="store_true", help="Use ground truth intrinsics (MobileBrick/COLMAP)"
         )
+        parser.add_argument("--use_gt_extrinsics", action="store_true", help="Use ground truth extrinsics (COLMAP)")
 
         # 1DSFM-specific arguments
         parser.add_argument("--enable_no_exif", action="store_true", help="Read images without EXIF (1DSFM)")
@@ -243,7 +244,8 @@ class GtsfmRunner:
 
             # Add loader overrides based on command line arguments
             if self.parsed_args.loader:
-                overrides.append(f"loader={self.parsed_args.loader}")
+                overrides.append("~loader")
+                overrides.append(f"+loader={self.parsed_args.loader}")
 
             # Standardized loader parameter overrides
             if self.parsed_args.dataset_dir:
@@ -256,47 +258,63 @@ class GtsfmRunner:
                 overrides.append(f"loader.max_length={self.parsed_args.max_length}")
 
             # Argoverse-specific overrides
-            if self.parsed_args.log_id:
+            if self.parsed_args.log_id and self.parsed_args.loader == "argoverse_loader":
                 overrides.append(f"loader.log_id={self.parsed_args.log_id}")
-            if self.parsed_args.stride is not None:
+            if self.parsed_args.stride is not None and self.parsed_args.loader == "argoverse_loader":
                 overrides.append(f"loader.stride={self.parsed_args.stride}")
-            if self.parsed_args.max_num_imgs is not None:
+            if self.parsed_args.max_num_imgs is not None and self.parsed_args.loader == "argoverse_loader":
                 overrides.append(f"loader.max_num_imgs={self.parsed_args.max_num_imgs}")
-            if self.parsed_args.max_lookahead_sec is not None:
+            if self.parsed_args.max_lookahead_sec is not None and self.parsed_args.loader == "argoverse_loader":
                 overrides.append(f"loader.max_lookahead_sec={self.parsed_args.max_lookahead_sec}")
-            if self.parsed_args.camera_name:
+            if self.parsed_args.camera_name and self.parsed_args.loader == "argoverse_loader":
                 overrides.append(f"loader.camera_name={self.parsed_args.camera_name}")
 
-            # MobileBrick-specific overrides
-            if self.parsed_args.use_gt_intrinsics:
+            # MobileBrick/COLMAP-specific overrides
+            if self.parsed_args.use_gt_intrinsics and self.parsed_args.loader in [
+                "mobilebrick_loader",
+                "colmap_loader",
+            ]:
                 overrides.append(f"loader.use_gt_intrinsics={self.parsed_args.use_gt_intrinsics}")
-            if self.parsed_args.max_frame_lookahead is not None:
+            if self.parsed_args.use_gt_extrinsics and self.parsed_args.loader == "colmap_loader":
+                overrides.append(f"loader.use_gt_extrinsics={self.parsed_args.use_gt_extrinsics}")
+
+            # Argoverse-specific overrides that support max_frame_lookahead
+            if self.parsed_args.max_frame_lookahead is not None and self.parsed_args.loader in [
+                "argoverse_loader",
+                "hilti_loader",
+            ]:
                 overrides.append(f"loader.max_frame_lookahead={self.parsed_args.max_frame_lookahead}")
 
             # 1DSFM-specific overrides
-            if self.parsed_args.enable_no_exif:
+            if self.parsed_args.enable_no_exif and self.parsed_args.loader == "one_d_sfm_loader":
                 overrides.append(f"loader.enable_no_exif={self.parsed_args.enable_no_exif}")
-            if self.parsed_args.default_focal_length_factor is not None:
+            if (
+                self.parsed_args.default_focal_length_factor is not None
+                and self.parsed_args.loader == "one_d_sfm_loader"
+            ):
                 overrides.append(f"loader.default_focal_length_factor={self.parsed_args.default_focal_length_factor}")
 
             # Tanks and Temples-specific overrides
-            if self.parsed_args.poses_fpath:
+            if self.parsed_args.poses_fpath and self.parsed_args.loader == "tanks_and_temples_loader":
                 overrides.append(f"loader.poses_fpath={self.parsed_args.poses_fpath}")
-            if self.parsed_args.bounding_polyhedron_json_fpath:
+            if (
+                self.parsed_args.bounding_polyhedron_json_fpath
+                and self.parsed_args.loader == "tanks_and_temples_loader"
+            ):
                 overrides.append(
                     f"loader.bounding_polyhedron_json_fpath={self.parsed_args.bounding_polyhedron_json_fpath}"
                 )
-            if self.parsed_args.ply_alignment_fpath:
+            if self.parsed_args.ply_alignment_fpath and self.parsed_args.loader == "tanks_and_temples_loader":
                 overrides.append(f"loader.ply_alignment_fpath={self.parsed_args.ply_alignment_fpath}")
-            if self.parsed_args.lidar_ply_fpath:
+            if self.parsed_args.lidar_ply_fpath and self.parsed_args.loader == "tanks_and_temples_loader":
                 overrides.append(f"loader.lidar_ply_fpath={self.parsed_args.lidar_ply_fpath}")
-            if self.parsed_args.colmap_ply_fpath:
+            if self.parsed_args.colmap_ply_fpath and self.parsed_args.loader == "tanks_and_temples_loader":
                 overrides.append(f"loader.colmap_ply_fpath={self.parsed_args.colmap_ply_fpath}")
-            if self.parsed_args.max_num_images is not None:
+            if self.parsed_args.max_num_images is not None and self.parsed_args.loader == "tanks_and_temples_loader":
                 overrides.append(f"loader.max_num_images={self.parsed_args.max_num_images}")
 
             # YFCC IMB-specific overrides
-            if self.parsed_args.co_visibility_threshold is not None:
+            if self.parsed_args.co_visibility_threshold is not None and self.parsed_args.loader == "yfcc_imb_loader":
                 overrides.append(f"loader.co_visibility_threshold={self.parsed_args.co_visibility_threshold}")
 
             # Override max_resolution for loader if specified

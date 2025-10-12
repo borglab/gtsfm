@@ -123,7 +123,7 @@ for num_matched in ${num_matched_sizes[@]}; do
                 OUTPUT_ROOT=${USER_ROOT}/${now}/${now}__${dataset}__results__num_matched${num_matched}__maxframelookahead${max_frame_lookahead}__760p__unified_${correspondence_generator_config_name}
                 mkdir -p $OUTPUT_ROOT
 
-                python gtsfm/runner.py \
+                ./run \
                 --loader tanks_and_temples_loader \
                 --scene_name $scene_name \
                 --dataset_dir $dataset_root \

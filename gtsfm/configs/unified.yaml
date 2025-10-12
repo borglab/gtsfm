@@ -1,7 +1,12 @@
 # Default front-end configuration.
 
+defaults:
+  - loader: olsson_loader
+  - _self_
+
 SceneOptimizer:
   _target_: gtsfm.scene_optimizer.SceneOptimizer
+  loader: ${loader}
   save_gtsfm_data: True
   save_two_view_correspondences_viz: False
   save_3d_viz: False
