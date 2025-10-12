@@ -137,7 +137,7 @@ execute_gtsfm() {
         olsson-loader)
             log INFO "Running with Olsson loader on $DATASET_ROOT"
             ./run \
-                --loader olsson_loader \
+                --loader olsson \
                 --dataset_dir "$DATASET_ROOT" \
                 --config_name unified \
                 --correspondence_generator_config_name "$config_name" \
@@ -151,7 +151,7 @@ execute_gtsfm() {
             log INFO "Images: $IMAGES_DIR"
             log INFO "COLMAP files: $COLMAP_FILES_DIRPATH"
             ./run \
-                --loader colmap_loader \
+                --loader colmap \
                 --dataset_dir "$COLMAP_FILES_DIRPATH" \
                 --images_dir "$IMAGES_DIR" \
                 --config_name unified \
@@ -164,7 +164,7 @@ execute_gtsfm() {
         astrovision)
             log INFO "Running with AstroVision loader on $DATASET_ROOT"
             ./run \
-                --loader astrovision_loader \
+                --loader astrovision \
                 --dataset_dir "$DATASET_ROOT" \
                 --config_name unified \
                 --correspondence_generator_config_name "$config_name" \

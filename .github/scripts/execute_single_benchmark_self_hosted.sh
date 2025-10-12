@@ -32,7 +32,7 @@ fi
 # Run GTSFM on the dataset.
 if [ "$LOADER_NAME" == "olsson-loader" ]; then
   ./run \
-    --loader olsson_loader \
+    --loader olsson \
     --dataset_dir $DATASET_PREFIX/$DATASET_ROOT \
     --config_name ${CONFIG_NAME}.yaml \
     --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
@@ -43,7 +43,7 @@ if [ "$LOADER_NAME" == "olsson-loader" ]; then
 
 elif [ "$LOADER_NAME" == "colmap-loader" ]; then
   ./run \
-    --loader colmap_loader \
+    --loader colmap \
     --dataset_dir $DATASET_PREFIX/$COLMAP_FILES_DIRPATH \
     --images_dir ${IMAGES_DIR} \
     --config_name ${CONFIG_NAME}.yaml \
@@ -54,7 +54,7 @@ elif [ "$LOADER_NAME" == "colmap-loader" ]; then
 
 elif [ "$LOADER_NAME" == "astrovision" ]; then
   ./run \
-    --loader astrovision_loader \
+    --loader astrovision \
     --dataset_dir $DATASET_PREFIX/$DATASET_ROOT \
     --config_name ${CONFIG_NAME}.yaml \
     --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \

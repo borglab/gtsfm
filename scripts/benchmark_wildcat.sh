@@ -197,7 +197,7 @@ for num_matched in ${num_matched_sizes[@]}; do
                 if [[ $loader == *"olsson"* ]]
                 then
                     ./run \
-                    --loader olsson_loader \
+                    --loader olsson \
                     --run_mvs false \
                     --config_name unified \
                     --correspondence_generator_config_name $correspondence_generator_config_name \
@@ -213,7 +213,7 @@ for num_matched in ${num_matched_sizes[@]}; do
                 elif [[ $loader == *"colmap"* ]]
                 then
                     ./run \
-                    --loader colmap_loader \
+                    --loader colmap \
                     --run_mvs false \
                     --config_name unified \
                     --correspondence_generator_config_name $correspondence_generator_config_name \
@@ -230,7 +230,7 @@ for num_matched in ${num_matched_sizes[@]}; do
                 elif [[ $loader == *"astrovision"* ]]
                 then
                     ./run \
-                    --loader astrovision_loader \
+                    --loader astrovision \
                     --run_mvs false \
                     --config_name unified \
                     --correspondence_generator_config_name $correspondence_generator_config_name \

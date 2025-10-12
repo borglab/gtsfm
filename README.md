@@ -222,7 +222,7 @@ For the complete list of available arguments for each loader, run:
 ./run --help
 ```
 
-### Example: OlssonLoader (images + EXIF)
+### Example: Olsson Loader (images + EXIF)
 ```bash
 ./run \
   --config_name sift_front_end.yaml \
@@ -231,7 +231,7 @@ For the complete list of available arguments for each loader, run:
   SceneOptimizer.loader.max_resolution=1200
 ```
 
-### Example: ColmapLoader (COLMAP text export)
+### Example: Colmap Loader (COLMAP text export)
 ```bash
 ./run \
   --config_name sift_front_end.yaml \

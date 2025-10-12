@@ -101,7 +101,7 @@ for num_matched in ${num_matched_sizes[@]}; do
                 mkdir -p $OUTPUT_ROOT
 
                 ./run \
-                --loader colmap_loader \
+                --loader colmap \
                 --run_mvs false \
                 --config_name unified \
                 --correspondence_generator_config_name $correspondence_generator_config_name \

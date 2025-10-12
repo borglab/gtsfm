@@ -124,7 +124,7 @@ for num_matched in ${num_matched_sizes[@]}; do
                 mkdir -p $OUTPUT_ROOT
 
                 ./run \
-                --loader tanks_and_temples_loader \
+                --loader tanks_and_temples \
                 --scene_name $scene_name \
                 --dataset_dir $dataset_dir \
                 --run_mvs false \
