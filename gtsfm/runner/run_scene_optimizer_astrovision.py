@@ -37,7 +37,7 @@ class GtsfmRunnerAstrovisionLoader(GtsfmRunnerBase):
     def construct_loader(self) -> LoaderBase:
         """Initialize loader."""
         loader = AstrovisionLoader(
-            data_dir=self.parsed_args.data_dir,
+            dataset_dir=self.parsed_args.dataset_dir,
             use_gt_extrinsics=True,
             use_gt_sfm_tracks=False,
             max_frame_lookahead=self.parsed_args.max_frame_lookahead,

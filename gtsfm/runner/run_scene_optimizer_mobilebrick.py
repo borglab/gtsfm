@@ -28,7 +28,7 @@ class GtsfmRunnerMobilebrickLoader(GtsfmRunnerBase):
 
     def construct_loader(self) -> LoaderBase:
         loader = MobilebrickLoader(
-            data_dir=self.parsed_args.data_dir,
+            dataset_dir=self.parsed_args.dataset_dir,
             use_gt_intrinsics=self.parsed_args.use_gt_intrinsics,
             max_frame_lookahead=self.parsed_args.max_frame_lookahead,
             max_resolution=self.parsed_args.max_resolution,
