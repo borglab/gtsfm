@@ -13,7 +13,7 @@ def add_loader_args(parser: ArgumentParser) -> None:
     """Register *portable* loader-related CLI arguments on the given parser.
 
     Only universal knobs live here; all other loader-specific settings must be passed as Hydra overrides
-    on `SceneOptimizer.loader.*`.
+    on `loader.*`.
     """
     # Loader selection (Hydra config key under gtsfm/configs/loader/)
     parser.add_argument(
@@ -59,24 +59,24 @@ def build_loader_overrides(
 
     # Loader choice (swap the nested node)
     if getattr(args, "loader", None):
-        overrides.append(f"+loader@SceneOptimizer.loader={args.loader}")
+        overrides.append(f"+loader@loader={args.loader}")
 
     # Dataset locations
     if getattr(args, "dataset_dir", None):
-        overrides.append(f"SceneOptimizer.loader.dataset_dir={args.dataset_dir}")
+        overrides.append(f"loader.dataset_dir={args.dataset_dir}")
     if getattr(args, "images_dir", None):
-        overrides.append(f"SceneOptimizer.loader.images_dir={args.images_dir}")
+        overrides.append(f"loader.images_dir={args.images_dir}")
 
     # Max resolution: prefer explicit CLI, otherwise use provided default
     if getattr(args, "max_resolution", None) is not None:
-        overrides.append(f"SceneOptimizer.loader.max_resolution={args.max_resolution}")
+        overrides.append(f"loader.max_resolution={args.max_resolution}")
     elif default_max_resolution is not None:
-        overrides.append(f"SceneOptimizer.loader.max_resolution={default_max_resolution}")
+        overrides.append(f"loader.max_resolution={default_max_resolution}")
 
     # Max resolution: prefer explicit CLI, otherwise use provided default
     if getattr(args, "input_worker", None) is not None:
-        overrides.append(f"SceneOptimizer.loader.input_worker={args.input_worker}")
+        overrides.append(f"loader.input_worker={args.input_worker}")
     elif default_input_worker is not None:
-        overrides.append(f"SceneOptimizer.loader.input_worker={default_input_worker}")
+        overrides.append(f"loader.input_worker={default_input_worker}")
 
     return overrides

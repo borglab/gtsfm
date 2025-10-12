@@ -25,10 +25,6 @@ REACT_METRICS_PATH = DEFAULT_OUTPUT_ROOT / "rtf_vis_tool" / "src" / "result_metr
 
 
 class GtsfmRunner:
-    @property
-    def tag(self) -> str:
-        return "Unified GTSFM Runner"
-
     def __init__(self, override_args=None) -> None:
         argparser: argparse.ArgumentParser = self.construct_argparser()
         self.parsed_args, self._hydra_cli_overrides = argparser.parse_known_args(args=override_args)
@@ -43,7 +39,7 @@ class GtsfmRunner:
         self.scene_optimizer: SceneOptimizer = self.construct_scene_optimizer()
 
     def construct_argparser(self) -> argparse.ArgumentParser:
-        parser = argparse.ArgumentParser(description=self.tag)
+        parser = argparse.ArgumentParser(description="GTSFM Runner")
 
         parser.add_argument(
             "--config_name",
@@ -164,9 +160,9 @@ class GtsfmRunner:
         """
         logger.info(f"📁 Config File: {self.parsed_args.config_name}")
         with hydra.initialize_config_module(config_module="gtsfm.configs", version_base=None):
-            overrides = ["+SceneOptimizer.output_root=" + str(self.parsed_args.output_root)]
+            overrides = ["+output_root=" + str(self.parsed_args.output_root)]
             if self.parsed_args.share_intrinsics:
-                overrides.append("SceneOptimizer.multiview_optimizer.bundle_adjustment_module.shared_calib=True")
+                overrides.append("multiview_optimizer.bundle_adjustment_module.shared_calib=True")
 
             # Loader-related overrides centralized in gtsfm.loader.configuration
             overrides.extend(
@@ -180,8 +176,8 @@ class GtsfmRunner:
                 config_name=self.parsed_args.config_name,
                 overrides=overrides,
             )
-        logger.info("⏳ Instantiating SceneOptimizer...")
-        scene_optimizer: SceneOptimizer = instantiate(main_cfg.SceneOptimizer)
+        logger.info("⏳ Instantiating ..")
+        scene_optimizer: SceneOptimizer = instantiate(main_cfg)
 
         # Override correspondence generator.
         if self.parsed_args.correspondence_generator_config_name is not None:
