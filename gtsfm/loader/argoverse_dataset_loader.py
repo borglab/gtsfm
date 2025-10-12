@@ -31,6 +31,7 @@ class ArgoverseDatasetLoader(LoaderBase):
         max_lookahead_sec: float = 2,
         camera_name: str = "ring_front_center",
         max_resolution: int = 760,
+        input_worker: Optional[str] = None,
     ) -> None:
         """Select the image paths and their corresponding timestamps for images to feed to GTSFM.
         Args:
@@ -43,7 +44,7 @@ class ArgoverseDatasetLoader(LoaderBase):
                max_resolution would be 1080. If the image resolution max(height, width) is
                greater than the max_resolution, it will be downsampled to match the max_resolution.
         """
-        super().__init__(max_resolution)
+        super().__init__(max_resolution, input_worker)
         self._log_id = log_id
         self._dl = SimpleArgoverseTrackingDataLoader(data_dir=dataset_dir, labels_dir=dataset_dir)
         self.load_camera_calibration(log_id, camera_name)

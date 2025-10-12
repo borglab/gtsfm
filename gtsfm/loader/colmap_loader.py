@@ -45,6 +45,7 @@ class ColmapLoader(LoaderBase):
         use_gt_intrinsics: bool = True,
         use_gt_extrinsics: bool = True,
         max_resolution: int = 760,
+        input_worker: Optional[str] = None,
     ) -> None:
         """Initializes to load from a specified dataset directory on disk.
 
@@ -60,7 +61,7 @@ class ColmapLoader(LoaderBase):
                max_resolution would be 1080. If the image resolution max(height, width) is
                greater than the max_resolution, it will be downsampled to match the max_resolution.
         """
-        super().__init__(max_resolution)
+        super().__init__(max_resolution, input_worker)
         self._dataset_dir = dataset_dir
         self._images_dir = images_dir or os.path.join(dataset_dir, "images")
         self._use_gt_intrinsics = use_gt_intrinsics

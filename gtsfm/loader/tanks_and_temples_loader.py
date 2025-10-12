@@ -60,6 +60,7 @@ class TanksAndTemplesLoader(LoaderBase):
         colmap_ply_fpath: Optional[str] = None,
         max_resolution: int = 1080,
         max_num_images: Optional[int] = None,
+        input_worker: Optional[str] = None,
     ) -> None:
         """Initializes image file paths and GT camera poses.
 
@@ -78,7 +79,7 @@ class TanksAndTemplesLoader(LoaderBase):
             colmap_ply_fpath: Path to COLMAP reconstructed point cloud, in PLY format. Omitted for unit tests.
             max_num_images: Maximum number of images to use for reconstruction.
         """
-        super().__init__(max_resolution)
+        super().__init__(max_resolution, input_worker)
         self._dataset_dir = dataset_dir
         self._images_dir = images_dir or os.path.join(dataset_dir, "images")
         self.lidar_ply_fpath = lidar_ply_fpath
