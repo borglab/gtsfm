@@ -41,7 +41,7 @@ class MobilebrickLoader(LoaderBase):
             max_resolution: Maximum image resolution.
             input_worker: Optional input worker specification.
         """
-        super().__init__(max_resolution=max_resolution, input_worker=input_worker)
+        super().__init__(max_resolution, input_worker)
 
         self._dataset_dir = dataset_dir
         self._images_dir = images_dir or os.path.join(dataset_dir, "image")

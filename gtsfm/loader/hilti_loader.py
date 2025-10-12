@@ -59,6 +59,7 @@ class HiltiLoader(LoaderBase):
         images_dir: Optional[str] = None,
         max_length: Optional[int] = None,
         max_resolution: int = 1080,
+        input_worker: Optional[str] = None,
     ) -> None:
         """Initializes, loads calibration, constraints, and pose priors.
 
@@ -69,7 +70,7 @@ class HiltiLoader(LoaderBase):
             max_resolution: integer representing maximum length of image's short side
                e.g. for 1080p (1920 x 1080), max_resolution would be 1080
         """
-        super().__init__(max_resolution)
+        super().__init__(max_resolution, input_worker)
         self._dataset_dir: Path = Path(dataset_dir)
         self._images_dir: Path = Path(images_dir) if images_dir else self._dataset_dir / IMAGES_FOLDER
         self._max_length = max_length
