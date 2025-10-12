@@ -410,6 +410,7 @@ def save_gtsfm_data(
         ba_output_data: GtsfmData output to bundle adjustment.
         results_path: Path to directory where GTSFM results will be saved.
     """
+    logger.info("Saving GtsfmData to %s", results_path)
     start_time = time.time()
 
     output_dir = results_path
@@ -482,7 +483,7 @@ def _save_retrieval_two_view_metrics(metrics_path: Path, plot_base_path: Path) -
     """Compare 2-view similarity scores with their 2-view pose errors after viewgraph estimation."""
     sim_fpath = plot_base_path / "netvlad_similarity_matrix.txt"
     if not sim_fpath.exists():
-        logger.warning(msg="NetVLAD similarity matrix not found. Skipping retrieval metrics.")
+        logger.warning("NetVLAD similarity matrix not found at %s. Skipping retrieval metrics." % sim_fpath)
         return
 
     sim = np.loadtxt(str(sim_fpath), delimiter=",")
