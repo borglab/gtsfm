@@ -219,8 +219,6 @@ for num_matched in ${num_matched_sizes[@]}; do
                     --correspondence_generator_config_name $correspondence_generator_config_name \
                     --dataset_dir $colmap_files_dirpath \
                     --images_dir $images_dir \
-                    --use_gt_intrinsics \
-                    --use_gt_extrinsics \
                     --num_workers $num_workers \
                     --num_matched $num_matched \
                     --max_frame_lookahead $max_frame_lookahead \

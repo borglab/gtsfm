@@ -154,8 +154,6 @@ execute_gtsfm() {
                 --loader colmap_loader \
                 --dataset_dir "$COLMAP_FILES_DIRPATH" \
                 --images_dir "$IMAGES_DIR" \
-                --use_gt_intrinsics \
-                --use_gt_extrinsics \
                 --config_name unified \
                 --correspondence_generator_config_name "$config_name" \
                 --max_frame_lookahead "$max_frame_lookahead" \

@@ -46,8 +46,6 @@ elif [ "$LOADER_NAME" == "colmap-loader" ]; then
     --loader colmap_loader \
     --dataset_dir $DATASET_PREFIX/$COLMAP_FILES_DIRPATH \
     --images_dir ${IMAGES_DIR} \
-    --use_gt_intrinsics \
-    --use_gt_extrinsics \
     --config_name ${CONFIG_NAME}.yaml \
     --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
     --max_resolution ${MAX_RESOLUTION} \

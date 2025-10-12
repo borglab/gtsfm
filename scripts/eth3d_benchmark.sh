@@ -108,8 +108,6 @@ for num_matched in ${num_matched_sizes[@]}; do
                 --share_intrinsics \
                 --dataset_dir $colmap_files_dirpath \
                 --images_dir $images_dir \
-                --use_gt_intrinsics \
-                --use_gt_extrinsics \
                 --num_workers 1 \
                 --num_matched $num_matched \
                 --max_frame_lookahead $max_frame_lookahead \
