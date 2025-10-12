@@ -21,7 +21,7 @@ TEST_DATA_NO_GT = DATA_ROOT_PATH / "set3_lund_door_nointrinsics_noextrinsics"
 @pytest.mark.parametrize("dataset_path", [TEST_DATA_WITH_GT, TEST_DATA_NO_GT])
 def test_gtsfm_runner_olssonloader(dataset_path):
     print("Running {}", dataset_path)
-    runner = GtsfmRunnerOlssonLoader(override_args=["--dataset_root", str(dataset_path)])
+    runner = GtsfmRunnerOlssonLoader(override_args=["--dataset_dir", str(dataset_path)])
     runner.parsed_args.dataset_root = str(dataset_path)
     sfm_result = runner.run()
 

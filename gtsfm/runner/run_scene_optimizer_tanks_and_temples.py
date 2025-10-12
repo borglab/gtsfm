@@ -23,7 +23,7 @@ class GtsfmRunnerSyntheticTanksAndTemplesLoader(GtsfmRunnerBase):
         parser = super().construct_argparser()
 
         parser.add_argument(
-            "--dataset_root", type=str, required=True, help="Path to dir, for unzipped file containing packaged data."
+            "--dataset_dir", type=str, required=True, help="Path to dir, for unzipped file containing packaged data."
         )
         parser.add_argument("--scene_name", type=str, required=True, help="Name of dataset scene.")
         parser.add_argument(

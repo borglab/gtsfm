@@ -22,7 +22,7 @@ class GtsfmRunnerMobilebrickLoader(GtsfmRunnerBase):
 
     def construct_argparser(self) -> argparse.ArgumentParser:
         parser = super(GtsfmRunnerMobilebrickLoader, self).construct_argparser()
-        parser.add_argument("--data_dir", type=str, default="", help="")
+        parser.add_argument("--dataset_dir", type=str, default="", help="")
         parser.add_argument("--use_gt_intrinsics", type=bool, default=False, help="")
         return parser
 

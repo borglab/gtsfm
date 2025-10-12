@@ -22,7 +22,7 @@ class GtsfmRunnerOneDSFMLoader(GtsfmRunnerBase):
 
     def construct_argparser(self) -> argparse.ArgumentParser:
         parser = super(GtsfmRunnerOneDSFMLoader, self).construct_argparser()
-        parser.add_argument("--dataset_root", type=str, default="", help="")
+        parser.add_argument("--dataset_dir", type=str, default="", help="")
         parser.add_argument("--enable_no_exif", action="store_true", help="")
         parser.add_argument("--default_focal_length_factor", type=float, default=1.2, help="")
         return parser

@@ -23,11 +23,11 @@ class TestNetVLADRetriever(unittest.TestCase):
 
     def test_netvlad_retriever_crane_mast(self) -> None:
         """Test the NetVLAD retriever on 2 frames of the Skydio Crane-Mast dataset."""
-        colmap_files_dirpath = SKYDIO_DATA_ROOT
+        dataset_dir = SKYDIO_DATA_ROOT
         images_dir = SKYDIO_DATA_ROOT / "images"
 
         loader = ColmapLoader(
-            dataset_dir=str(colmap_files_dirpath),
+            dataset_dir=str(dataset_dir),
             images_dir=str(images_dir),
             max_resolution=760,
         )

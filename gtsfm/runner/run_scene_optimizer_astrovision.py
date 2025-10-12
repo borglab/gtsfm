@@ -22,7 +22,7 @@ class GtsfmRunnerAstrovisionLoader(GtsfmRunnerBase):
         parser = super(GtsfmRunnerAstrovisionLoader, self).construct_argparser()
 
         parser.add_argument(
-            "--data_dir", "-d", type=str, required=True, help="path to directory containing AstroVision segment"
+            "--dataset_dir", "-d", type=str, required=True, help="path to directory containing AstroVision segment"
         )
         parser.add_argument(
             "--scene_mesh_path",

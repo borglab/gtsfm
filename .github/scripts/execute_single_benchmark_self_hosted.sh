@@ -32,7 +32,7 @@ fi
 # Run GTSFM on the dataset.
 if [ "$LOADER_NAME" == "olsson-loader" ]; then
   python gtsfm/runner/run_scene_optimizer_olssonloader.py \
-    --dataset_root $DATASET_PREFIX/$DATASET_ROOT \
+    --dataset_dir $DATASET_PREFIX/$DATASET_ROOT \
     --config_name ${CONFIG_NAME}.yaml \
     --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
     --max_resolution ${MAX_RESOLUTION} \
@@ -43,7 +43,7 @@ if [ "$LOADER_NAME" == "olsson-loader" ]; then
 elif [ "$LOADER_NAME" == "colmap-loader" ]; then
   python gtsfm/runner/run_scene_optimizer_colmaploader.py \
     --images_dir $DATASET_PREFIX/${IMAGES_DIR} \
-    --colmap_files_dirpath $DATASET_PREFIX/$COLMAP_FILES_DIRPATH \
+    --dataset_dir $DATASET_PREFIX/$COLMAP_FILES_DIRPATH \
     --config_name ${CONFIG_NAME}.yaml \
     --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
     --max_resolution ${MAX_RESOLUTION} \
@@ -52,7 +52,7 @@ elif [ "$LOADER_NAME" == "colmap-loader" ]; then
 
 elif [ "$LOADER_NAME" == "astrovision" ]; then
   python gtsfm/runner/run_scene_optimizer_astrovision.py \
-    --data_dir $DATASET_PREFIX/$DATASET_ROOT \
+    --dataset_dir $DATASET_PREFIX/$DATASET_ROOT \
     --config_name ${CONFIG_NAME}.yaml \
     --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
     --max_resolution ${MAX_RESOLUTION} \

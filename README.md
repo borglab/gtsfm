@@ -90,7 +90,7 @@ To process a dataset containing only an **image directory and EXIF metadata**, e
 Then, run the following command:  
 
 ```bash
-python gtsfm/runner/run_scene_optimizer_olssonloader.py --config_name {CONFIG_NAME} --dataset_root {DATASET_ROOT} --num_workers {NUM_WORKERS}
+python gtsfm/runner/run_scene_optimizer_olssonloader.py --config_name {CONFIG_NAME} --dataset_dir {DATASET_ROOT} --num_workers {NUM_WORKERS}
 ```  
 
 ### Command-line Options  
@@ -104,13 +104,13 @@ python gtsfm/runner/run_scene_optimizer_olssonloader.py -h
 For example, if you want to use the **Deep Front-End (recommended)** on the `"door"` dataset, run:  
 
 ```bash
-python gtsfm/runner/run_scene_optimizer_olssonloader.py --dataset_root tests/data/set1_lund_door --config_name deep_front_end.yaml --num_workers 1
+python gtsfm/runner/run_scene_optimizer_olssonloader.py --dataset_dir tests/data/set1_lund_door --config_name deep_front_end.yaml --num_workers 1
 ```  
 
 Or, for a dataset dataset with metadata formatted in the COLMAP style
 ```bash
 python gtsfm/runner/run_scene_optimizer_colmaploader.py --images_dir datasets/gerrard-hall/images \
-  --colmap_files_dirpath datasets/gerrard-hall/sparse --config_name deep_front_end.yaml --num_workers 5
+  --dataset_dir datasets/gerrard-hall/sparse --config_name deep_front_end.yaml --num_workers 5
 ```  
 
 You can monitor the distributed computation using the [Dask dashboard](http://localhost:8787/status).  
@@ -127,7 +127,7 @@ Currently, we require **EXIF data** embedded into your images. Alternatively, yo
 To compare GTSFM output with COLMAP, use the following command:  
 
 ```bash
-python gtsfm/runner/run_scene_optimizer_colmaploader.py --config_name {CONFIG_NAME} --images_dir {IMAGES_DIR} --colmap_files_dirpath {COLMAP_FILES_DIRPATH} --num_workers {NUM_WORKERS} --max_frame_lookahead {MAX_FRAME_LOOKAHEAD}
+python gtsfm/runner/run_scene_optimizer_colmaploader.py --config_name {CONFIG_NAME} --images_dir {IMAGES_DIR} --dataset_dir {COLMAP_FILES_DIRPATH} --num_workers {NUM_WORKERS} --max_frame_lookahead {MAX_FRAME_LOOKAHEAD}
 ```  
 
 where:  

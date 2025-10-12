@@ -26,7 +26,7 @@ GTSfM uses the [SSHCluster](https://docs.dask.org/en/stable/deploying-ssh.html#d
 5. Log into scheduler again and download the data to scheduler machine.
 6. Run gtsfm with `-–cluster_config` flag enabled, for example
     - ```
-      python /home/username/gtsfm/gtsfm/runner run_scene_optimizer_colmaploader.py --images_dir /home/username/gtsfm/skydio-32/images/ --config_name sift_front_end.yaml --colmap_files_dirpath /home/hstepanyan3/gtsfm/skydio-32/colmap_crane_mast_32imgs/ --cluster_config cluster.yaml
+      python /home/username/gtsfm/gtsfm/runner run_scene_optimizer_colmaploader.py --images_dir /home/username/gtsfm/skydio-32/images/ --config_name sift_front_end.yaml --dataset_dir /home/hstepanyan3/gtsfm/skydio-32/colmap_crane_mast_32imgs/ --cluster_config cluster.yaml
       ```
     - Always provide absolute paths for all directories
 7. If you would like to check out the dask dashboard, you will need to do port forwarding from machine to your local computer:

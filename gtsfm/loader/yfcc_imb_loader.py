@@ -4,6 +4,7 @@ References: https://www.cs.ubc.ca/research/image-matching-challenge/
 
 Authors: Ayush Baid
 """
+
 import os.path as osp
 from typing import List, Optional
 
@@ -41,7 +42,7 @@ class YfccImbLoader(LoaderBase):
         visibility_file = osp.join(
             self._dataset_dir,
             "new-vis-pairs",
-            "keys-th-{:0.1f}.npy".format(coviz_thresh),
+            "keys-th-{:0.1f}.npy".format(co_visibility_threshold),
         )
 
         image_pairs = list()  # list of image pairs
