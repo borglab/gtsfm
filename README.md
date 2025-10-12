@@ -95,27 +95,44 @@ Then, run the following command:
 ./run --config_name {CONFIG_NAME} --loader olsson_loader --dataset_dir {DATASET_DIR} --num_workers {NUM_WORKERS}
 ```
 
-### Command-line Options  
+### Command-line Options
 
-To explore all available options and configurations, run:  
+The runner exposes five portable CLI arguments for dataset selection and universal loader configuration:
 
+- `--loader` — which loader to use (e.g., `olsson_loader`, `colmap_loader`)
+- `--dataset_dir` — path to the dataset root
+- `--images_dir` — optional path to the image directory (defaults depend on loader)
+- `--max_resolution` — maximum length of the image’s short side (overrides config)
+- `--input_worker` — optional Dask worker address to pin image I/O (advanced; runner sets this post‑instantiation)
+
+**All other loader‑specific settings** (anything beyond the five above) must be specified using **Hydra overrides** on the nested config node `SceneOptimizer.loader.*`. This is standard Hydra behavior: use dot‑notation keys with `=` assignments.
+
+To discover all available overrides for a given loader, open its YAML in `gtsfm/configs/loader/` and/or run:
 ```bash
 ./run --help
-```  
+```
 
-For example, if you want to use the **Deep Front-End (recommended)** on the `"door"` dataset, run:  
-
+Example (deep front-end on Olsson, single worker):
 ```bash
-./run --dataset_dir tests/data/set1_lund_door --config_name deep_front_end.yaml --loader olsson_loader --num_workers 1
-```  
+./run --dataset_dir tests/data/set1_lund_door \
+      --config_name deep_front_end.yaml \
+      --loader olsson_loader \
+      --num_workers 1 \
+      SceneOptimizer.loader.max_resolution=1200
+```
 
-Or, for a dataset with metadata formatted in the COLMAP style:
+For a dataset with metadata formatted in the COLMAP style:
 ```bash
-./run --dataset_dir datasets/gerrard-hall --config_name deep_front_end.yaml --loader colmap_loader --num_workers 5
-```  
+./run --dataset_dir datasets/gerrard-hall \
+      --config_name deep_front_end.yaml \
+      --loader colmap_loader \
+      --num_workers 5 \
+      SceneOptimizer.loader.use_gt_intrinsics=true \
+      SceneOptimizer.loader.use_gt_extrinsics=true
+```
 
 You can monitor the distributed computation using the [Dask dashboard](http://localhost:8787/status).  
-**Note:** The dashboard will only display activity while tasks are actively running.  
+**Note:** The dashboard will only display activity while tasks are actively running, but comprehensive performance reports can be found in the `dask_reports` folder.
 
 ### Required Image Metadata  
 
@@ -172,25 +189,19 @@ ns-train nerfacto --data {RESULTS_DIR}/nerfstudio_input
 
 ## Loader Usage Examples
 
-GTSfM provides a single unified runner that supports all dataset types through Hydra configuration.
+The runner supports all loaders through `--loader`, `--dataset_dir`, and `--images_dir`. Any additional, loader‑specific settings are passed as **Hydra overrides** on the nested node `SceneOptimizer.loader.*` (this is standard Hydra usage).
 
-### Basic Usage
-
-The unified runner supports all loaders through the `--loader` argument:
-
+**General pattern**
 ```bash
 ./run \
   --config_name <config_file> \
   --loader <loader_type> \
-  [loader-specific arguments]
-```
-
-Or using the Python module directly:
-```bash
-python -m gtsfm.runner \
-  --config_name <config_file> \
-  --loader <loader_type> \
-  [loader-specific arguments]
+  --dataset_dir <path> \
+  [--images_dir <path>] \
+  [--max_resolution <int>] \
+  [--input_worker <address>] \
+  SceneOptimizer.loader.<param>=<value> \
+  [SceneOptimizer.loader.<param2>=<value2> ...]
 ```
 
 ### Available Loaders
@@ -211,90 +222,26 @@ For the complete list of available arguments for each loader, run:
 ./run --help
 ```
 
-### Dataset-Specific Examples
-
-#### COLMAP Dataset
-```bash
-./run \
-  --config_name sift_front_end.yaml \
-  --loader colmap_loader \
-  --dataset_dir /path/to/colmap_dataset \
-  --images_dir /path/to/images  # optional, defaults to {dataset_dir}/images
-```
-
-#### Hilti Dataset
-```bash
-./run \
-  --config_name deep_front_end_hilti.yaml \
-  --loader hilti_loader \
-  --dataset_dir /path/to/hilti_dataset \
-  --images_dir /path/to/custom_images  # optional, defaults to {dataset_dir}/images
-```
-
-#### AstroVision Dataset
-```bash
-./run \
-  --config_name sift_front_end_astrovision.yaml \
-  --loader astrovision_loader \
-  --dataset_dir /path/to/astrovision_dataset \
-  --images_dir /path/to/custom_images  # optional, defaults to {dataset_dir}/images
-```
-
-#### Olsson Dataset  
+### Example: OlssonLoader (images + EXIF)
 ```bash
 ./run \
   --config_name sift_front_end.yaml \
   --loader olsson_loader \
   --dataset_dir /path/to/olsson_dataset \
-  --images_dir /path/to/custom_images  # optional, defaults to {dataset_dir}/images
+  SceneOptimizer.loader.max_resolution=1200
 ```
 
-#### Argoverse Dataset
+### Example: ColmapLoader (COLMAP text export)
 ```bash
 ./run \
   --config_name sift_front_end.yaml \
-  --loader argoverse_loader \
-  --dataset_dir /path/to/argoverse \
-  --log_id <vehicle_log_id>
+  --loader colmap_loader \
+  --dataset_dir /path/to/colmap_dataset \
+  SceneOptimizer.loader.use_gt_intrinsics=true \
+  SceneOptimizer.loader.use_gt_extrinsics=true
 ```
 
-#### MobileBrick Dataset
-```bash
-./run \
-  --config_name sift_front_end.yaml \
-  --loader mobilebrick_loader \
-  --dataset_dir /path/to/mobilebrick_dataset \
-  --images_dir /path/to/custom_images  # optional, defaults to {dataset_dir}/image
-```
-
-#### 1DSFM Dataset
-```bash
-./run \
-  --config_name sift_front_end.yaml \
-  --loader one_d_sfm_loader \
-  --dataset_dir /path/to/1dsfm_dataset \
-  --images_dir /path/to/custom_images  # optional, defaults to {dataset_dir}/images
-```
-
-#### Tanks and Temples Dataset
-```bash
-./run \
-  --config_name sift_front_end.yaml \
-  --loader tanks_and_temples_loader \
-  --dataset_dir /path/to/tanks_and_temples \
-  --poses_fpath /path/to/poses.log \
-  --bounding_polyhedron_json_fpath /path/to/bounds.json \
-  --ply_alignment_fpath /path/to/alignment.txt \
-  --images_dir /path/to/custom_images  # optional, defaults to {dataset_dir}/images
-```
-
-#### YFCC IMB Dataset
-```bash
-./run \
-  --config_name sift_front_end.yaml \
-  --loader yfcc_imb_loader \
-  --dataset_dir /path/to/yfcc_imb_dataset
-```
+> Tip: consult `gtsfm/configs/loader/<loader_name>.yaml` for the full set of fields supported by each loader.
 
 ## Repository Structure
 

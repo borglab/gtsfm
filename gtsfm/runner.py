@@ -210,6 +210,13 @@ class GtsfmRunner:
         logger.info("⏳ Instantiating SceneOptimizer...")
         scene_optimizer: SceneOptimizer = instantiate(main_cfg.SceneOptimizer)
 
+        # Honor CLI-provided input worker by setting it post-instantiation (constructor may not accept it)
+        if getattr(self.parsed_args, "input_worker", None):
+            try:
+                scene_optimizer.loader._input_worker = self.parsed_args.input_worker
+            except Exception as e:
+                logger.warning(f"Failed to set loader._input_worker from CLI: {e}")
+
         # Loader is now recursively instantiated by Hydra; no manual instantiation required.
 
         # Override correspondence generator.
