@@ -77,6 +77,11 @@ class BinaryTreePartition(GraphPartitionerBase):
             logger.warning("No visibility graph provided for partitioning.")
             return []
 
+        # Check that all pairs are (i, j) with i < j
+        for i, j in graph:
+            if not i < j:
+                raise ValueError(f"VisibilityGraph contains invalid pair ({i}, {j}): i must be less than j.")
+
         all_nodes = set(i for ij in graph for i in ij)
         num_cameras = len(all_nodes)
 
@@ -102,8 +107,9 @@ class BinaryTreePartition(GraphPartitionerBase):
             exclusive_keys = part.get("exclusive_keys", [])
             intra_edges = part.get("intra_partition_edges", [])
 
-            logger.info("Partition %d: keys (%d): %s", i, len(exclusive_keys), sorted(exclusive_keys))
-            logger.info("Partition %d: intra-partition Edges (%d): %s", i, len(intra_edges), intra_edges)
+            logger.info("Partition %d: keys (%d): %s", i + 1, len(exclusive_keys), sorted(exclusive_keys))
+            logger.info("Partition %d: num intra-partition edges: %d", i + 1, len(intra_edges))
+            logger.debug("Partition %d: intra-partition edges: %s", i + 1, intra_edges)
 
         self.inter_partition_edges_map = {(i, j): edges for (i, j), edges in inter_partition_edges.items() if edges}
 
