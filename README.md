@@ -95,22 +95,38 @@ Then, run the following command:
 ./run --config_name {CONFIG_NAME} --loader olsson --dataset_dir {DATASET_DIR} --num_workers {NUM_WORKERS}
 ```
 
-### Command-line Options
+### Loader Options
 
 The runner exposes five portable CLI arguments for dataset selection and universal loader configuration:
 
-- `--loader` — which loader to use (e.g., `olsson_loader`, `colmap_loader`)
+- `--loader` — which loader to use (e.g., `olsson`, `colmap`)
 - `--dataset_dir` — path to the dataset root
 - `--images_dir` — optional path to the image directory (defaults depend on loader)
 - `--max_resolution` — maximum length of the image’s short side (overrides config)
 - `--input_worker` — optional Dask worker address to pin image I/O (advanced; runner sets this post‑instantiation)
 
-**All other loader‑specific settings** (anything beyond the five above) must be specified using **Hydra overrides** on the nested config node `SceneOptimizer.loader.*`. This is standard Hydra behavior: use dot‑notation keys with `=` assignments.
+**All other loader‑specific settings** (anything beyond the five above) must be specified using **Hydra overrides** on the nested config node `loader.*`. This is standard Hydra behavior: use dot‑notation keys with `=` assignments.
 
-To discover all available overrides for a given loader, open its YAML in `gtsfm/configs/loader/` and/or run:
+To discover all available overrides for a given loader, open its YAML in `gtsfm/configs/loader/`
+#### Required Image Metadata  
+
+Currently, we require **EXIF data** embedded into your images. Alternatively, you can provide:  
+- Ground truth intrinsics in the expected format for an **Olsson dataset**  
+- **COLMAP-exported** text data  
+
+
+### Additional CLI Arguments
+
+- `--run_mvs` — enables dense Multi-View Stereo (MVS) reconstruction after the sparse SfM pipeline.
+- `--run_gs` — enables Gaussian Splatting for dense scene representation.
+
+Many other dask-related arguments are available. Run 
 ```bash
 ./run --help
 ```
+for more information.
+
+### Examples
 
 Example (deep front-end on Olsson, single worker):
 ```bash
@@ -118,7 +134,7 @@ Example (deep front-end on Olsson, single worker):
       --config_name deep_front_end.yaml \
       --loader olsson \
       --num_workers 1 \
-      SceneOptimizer.loader.max_resolution=1200
+      loader.max_resolution=1200
 ```
 
 For a dataset with metadata formatted in the COLMAP style:
@@ -127,18 +143,12 @@ For a dataset with metadata formatted in the COLMAP style:
       --config_name deep_front_end.yaml \
       --loader colmap \
       --num_workers 5 \
-      SceneOptimizer.loader.use_gt_intrinsics=true \
-      SceneOptimizer.loader.use_gt_extrinsics=true
+      loader.use_gt_intrinsics=true \
+      loader.use_gt_extrinsics=true
 ```
 
 You can monitor the distributed computation using the [Dask dashboard](http://localhost:8787/status).  
 **Note:** The dashboard will only display activity while tasks are actively running, but comprehensive performance reports can be found in the `dask_reports` folder.
-
-### Required Image Metadata  
-
-Currently, we require **EXIF data** embedded into your images. Alternatively, you can provide:  
-- Ground truth intrinsics in the expected format for an **Olsson dataset**  
-- **COLMAP-exported** text data  
 
 ### Comparing GTSFM Output with COLMAP Output  
 
@@ -187,9 +197,9 @@ The results are stored in the nerfstudio_input subdirectory inside `{RESULTS_DIR
 ns-train nerfacto --data {RESULTS_DIR}/nerfstudio_input
 ```
 
-## Loader Usage Examples
+## More Loader Details
 
-The runner supports all loaders through `--loader`, `--dataset_dir`, and `--images_dir`. Any additional, loader‑specific settings are passed as **Hydra overrides** on the nested node `SceneOptimizer.loader.*` (this is standard Hydra usage).
+The runner supports all loaders through `--loader`, `--dataset_dir`, and `--images_dir`. Any additional, loader‑specific settings are passed as **Hydra overrides** on the nested node `loader.*` (this is standard Hydra usage).
 
 **General pattern**
 ```bash
@@ -200,8 +210,8 @@ The runner supports all loaders through `--loader`, `--dataset_dir`, and `--imag
   [--images_dir <path>] \
   [--max_resolution <int>] \
   [--input_worker <address>] \
-  SceneOptimizer.loader.<param>=<value> \
-  [SceneOptimizer.loader.<param2>=<value2> ...]
+  loader.<param>=<value> \
+  [loader.<param2>=<value2> ...]
 ```
 
 ### Available Loaders
@@ -228,7 +238,7 @@ For the complete list of available arguments for each loader, run:
   --config_name sift_front_end.yaml \
   --loader olsson \
   --dataset_dir /path/to/olsson_dataset \
-  SceneOptimizer.loader.max_resolution=1200
+  loader.max_resolution=1200
 ```
 
 ### Example: Colmap Loader (COLMAP text export)
@@ -237,8 +247,8 @@ For the complete list of available arguments for each loader, run:
   --config_name sift_front_end.yaml \
   --loader colmap \
   --dataset_dir /path/to/colmap_dataset \
-  SceneOptimizer.loader.use_gt_intrinsics=true \
-  SceneOptimizer.loader.use_gt_extrinsics=true
+  loader.use_gt_intrinsics=true \
+  loader.use_gt_extrinsics=true
 ```
 
 > Tip: consult `gtsfm/configs/loader/<loader_name>.yaml` for the full set of fields supported by each loader.

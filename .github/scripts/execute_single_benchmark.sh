@@ -84,27 +84,27 @@ configure_dataset_paths() {
             ;;
         skydio-8)
             IMAGES_DIR="${BENCHMARK_DIR}/skydio_crane_mast_8imgs_with_exif/images"
-            COLMAP_FILES_DIRPATH="${BENCHMARK_DIR}/skydio_crane_mast_8imgs_with_exif/crane_mast_8imgs_colmap_output"
+            DATASET_DIR="${BENCHMARK_DIR}/skydio_crane_mast_8imgs_with_exif/crane_mast_8imgs_colmap_output"
             ;;
         skydio-32)
             IMAGES_DIR="${BENCHMARK_DIR}/skydio-32/images"
-            COLMAP_FILES_DIRPATH="${BENCHMARK_DIR}/skydio-32/colmap_crane_mast_32imgs"
+            DATASET_DIR="${BENCHMARK_DIR}/skydio-32/colmap_crane_mast_32imgs"
             ;;
         skydio-501)
             IMAGES_DIR="${BENCHMARK_DIR}/skydio-crane-mast-501-images"
-            COLMAP_FILES_DIRPATH="${BENCHMARK_DIR}/skydio-501-colmap-pseudo-gt"
+            DATASET_DIR="${BENCHMARK_DIR}/skydio-501-colmap-pseudo-gt"
             ;;
         notre-dame-20)
             IMAGES_DIR="${BENCHMARK_DIR}/notre-dame-20/images"
-            COLMAP_FILES_DIRPATH="${BENCHMARK_DIR}/notre-dame-20/notre-dame-20-colmap"
+            DATASET_DIR="${BENCHMARK_DIR}/notre-dame-20/notre-dame-20-colmap"
             ;;
         gerrard-hall-100)
             IMAGES_DIR="${BENCHMARK_DIR}/gerrard-hall/images"
-            COLMAP_FILES_DIRPATH="${BENCHMARK_DIR}/gerrard-hall/sparse"
+            DATASET_DIR="${BENCHMARK_DIR}/gerrard-hall/sparse"
             ;;
         south-building-128)
             IMAGES_DIR="${BENCHMARK_DIR}/south-building/images"
-            COLMAP_FILES_DIRPATH="${BENCHMARK_DIR}/south-building/sparse"
+            DATASET_DIR="${BENCHMARK_DIR}/south-building/sparse"
             ;;
         *)
             log ERROR "Unknown dataset: $dataset_name"
@@ -149,10 +149,10 @@ execute_gtsfm() {
         colmap-loader)
             log INFO "Running with COLMAP loader"
             log INFO "Images: $IMAGES_DIR"
-            log INFO "COLMAP files: $COLMAP_FILES_DIRPATH"
+            log INFO "COLMAP files: $DATASET_DIR"
             ./run \
                 --loader colmap \
-                --dataset_dir "$COLMAP_FILES_DIRPATH" \
+                --dataset_dir "$DATASET_DIR" \
                 --images_dir "$IMAGES_DIR" \
                 --config_name unified \
                 --correspondence_generator_config_name "$config_name" \

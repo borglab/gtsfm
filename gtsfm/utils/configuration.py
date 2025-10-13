@@ -48,11 +48,11 @@ def log_configuration_summary(cfg, logger) -> None:
     components = [
         (
             "🔍 Feature Detector/Descriptor",
-            "SceneOptimizer.correspondence_generator.detector_descriptor.detector_descriptor_obj",
+            "correspondence_generator.detector_descriptor.detector_descriptor_obj",
         ),
-        ("🔗 Feature Matcher", "SceneOptimizer.correspondence_generator.matcher.matcher_obj"),
-        ("🔎 Image Retriever", "SceneOptimizer.image_pairs_generator.retriever"),
-        ("✅ Verifier", "SceneOptimizer.two_view_estimator.two_view_estimator_obj.verifier"),
+        ("🔗 Feature Matcher", "correspondence_generator.matcher.matcher_obj"),
+        ("🔎 Image Retriever", "image_pairs_generator.retriever"),
+        ("✅ Verifier", "two_view_estimator.two_view_estimator_obj.verifier"),
     ]
 
     for emoji_name, path in components:
@@ -69,22 +69,20 @@ def log_key_parameters(cfg, logger) -> None:
     logger.info("📊 Key Parameters:")
 
     try:
-        max_keypoints_path = (
-            "SceneOptimizer.correspondence_generator" ".detector_descriptor.detector_descriptor_obj.max_keypoints"
-        )
+        max_keypoints_path = "correspondence_generator" ".detector_descriptor.detector_descriptor_obj.max_keypoints"
         max_keypoints = _get_nested_attr(cfg, max_keypoints_path)
         logger.info(f"   • Max Keypoints: {max_keypoints}")
     except Exception:
         pass
 
     try:
-        num_matched = _get_nested_attr(cfg, "SceneOptimizer.image_pairs_generator.retriever.num_matched")
+        num_matched = _get_nested_attr(cfg, "image_pairs_generator.retriever.num_matched")
         logger.info(f"   • Images Matched per Query: {num_matched}")
     except Exception:
         pass
 
     try:
-        ratio_path = "SceneOptimizer.correspondence_generator" ".matcher.matcher_obj.ratio_test_threshold"
+        ratio_path = "correspondence_generator" ".matcher.matcher_obj.ratio_test_threshold"
         ratio_thresh = _get_nested_attr(cfg, ratio_path)
         logger.info(f"   • Ratio Test Threshold: {ratio_thresh}")
     except Exception:

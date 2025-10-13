@@ -1,98 +1,97 @@
-SceneOptimizer:
-  _target_: gtsfm.scene_optimizer.SceneOptimizer
-  save_gtsfm_data: True
-  save_two_view_correspondences_viz: False
-  save_3d_viz: False
-  pose_angular_error_thresh: 5 # degrees
+# @package _global_
+_target_: gtsfm.scene_optimizer.SceneOptimizer
+save_gtsfm_data: True
+save_two_view_correspondences_viz: False
+save_3d_viz: False
+pose_angular_error_thresh: 5 # degrees
 
-  loader:
-    _target_: gtsfm.loader.Hilti
-    image_dir: "/path/to/images"
-    metadata_dir: "/path/to/metadata"
-    use_gt_intrinsics: True
+loader:
+  _target_: gtsfm.loader.Hilti
+  image_dir: "/path/to/images"
+  metadata_dir: "/path/to/metadata"
+  use_gt_intrinsics: True
 
-  image_pairs_generator:
-    _target_: gtsfm.retriever.image_pairs_generator.ImagePairsGenerator
-    retriever:
-      _target_: gtsfm.retriever.sequential_retriever.SequentialRetriever
-      max_frame_lookahead: 20
+image_pairs_generator:
+  _target_: gtsfm.retriever.image_pairs_generator.ImagePairsGenerator
+  retriever:
+    _target_: gtsfm.retriever.sequential_retriever.SequentialRetriever
+    max_frame_lookahead: 20
 
-  detector_descriptor:
-    _target_: gtsfm.frontend.cacher.detector_descriptor_cacher.DetectorDescriptorCacher
-    detector_descriptor_obj:
-      _target_: gtsfm.frontend.detector_descriptor.superpoint.SuperPointDetectorDescriptor
-      max_keypoints: 5000
+detector_descriptor:
+  _target_: gtsfm.frontend.cacher.detector_descriptor_cacher.DetectorDescriptorCacher
+  detector_descriptor_obj:
+    _target_: gtsfm.frontend.detector_descriptor.superpoint.SuperPointDetectorDescriptor
+    max_keypoints: 5000
 
-  two_view_estimator:
-    _target_: gtsfm.two_view_estimator_cacher.TwoViewEstimatorCacher
-    two_view_estimator_obj:
-      _target_: gtsfm.two_view_estimator.TwoViewEstimator
-      bundle_adjust_2view: True
-      eval_threshold_px: 4 # in px
-      ba_reproj_error_thresholds: [0.5]
-      bundle_adjust_2view_maxiters: 5
+two_view_estimator:
+  _target_: gtsfm.two_view_estimator_cacher.TwoViewEstimatorCacher
+  two_view_estimator_obj:
+    _target_: gtsfm.two_view_estimator.TwoViewEstimator
+    bundle_adjust_2view: True
+    eval_threshold_px: 4 # in px
+    ba_reproj_error_thresholds: [0.5]
+    bundle_adjust_2view_maxiters: 5
 
-      matcher:
-        _target_: gtsfm.frontend.cacher.matcher_cacher.MatcherCacher
-        matcher_obj:
-          _target_: gtsfm.frontend.matcher.superglue_matcher.SuperGlueMatcher
-          use_outdoor_model: True
+    matcher:
+      _target_: gtsfm.frontend.cacher.matcher_cacher.MatcherCacher
+      matcher_obj:
+        _target_: gtsfm.frontend.matcher.superglue_matcher.SuperGlueMatcher
+        use_outdoor_model: True
 
-      verifier:
-        _target_: gtsfm.frontend.verifier.ransac.Ransac
-        use_intrinsics_in_verification: True
-        estimation_threshold_px: 4 # for H/E/F estimators
+    verifier:
+      _target_: gtsfm.frontend.verifier.ransac.Ransac
+      use_intrinsics_in_verification: True
+      estimation_threshold_px: 4 # for H/E/F estimators
 
-      triangulation_options:
-        _target_: gtsfm.data_association.point3d_initializer.TriangulationOptions
-        mode:
-          _target_: gtsfm.data_association.point3d_initializer.TriangulationSamplingMode
-          value: NO_RANSAC
+    triangulation_options:
+      _target_: gtsfm.data_association.point3d_initializer.TriangulationOptions
+      mode:
+        _target_: gtsfm.data_association.point3d_initializer.TriangulationSamplingMode
+        value: NO_RANSAC
 
-      inlier_support_processor:
-        _target_: gtsfm.two_view_estimator.InlierSupportProcessor
-        min_num_inliers_est_model: 15
-        min_inlier_ratio_est_model: 0.1
+    inlier_support_processor:
+      _target_: gtsfm.two_view_estimator.InlierSupportProcessor
+      min_num_inliers_est_model: 15
+      min_inlier_ratio_est_model: 0.1
 
-  multiview_optimizer:
-    _target_: gtsfm.multi_view_optimizer.MultiViewOptimizer
-
-    # comment out to not run
-    # view_graph_estimator:
-    #   _target_: gtsfm.view_graph_estimator.cycle_consistent_rotation_estimator.CycleConsistentRotationViewGraphEstimator
-    #   edge_error_aggregation_criterion: MEDIAN_EDGE_ERROR
-
-    rot_avg_module:
-      _target_: gtsfm.averaging.rotation.rig_shonan.RigShonanRotationAveraging
-
-    trans_avg_module:
-      _target_: gtsfm.averaging.translation.rig_1dsfm.RigTranslationAveraging1DSFM
-      robust_measurement_noise: True
-      projection_sampling_method: SAMPLE_INPUT_MEASUREMENTS
-
-    data_association_module:
-      _target_: gtsfm.data_association.data_assoc.DataAssociation
-      min_track_len: 2
-      triangulation_options:
-        _target_: gtsfm.data_association.point3d_initializer.TriangulationOptions
-        reproj_error_threshold: 10
-        mode:
-          _target_: gtsfm.data_association.point3d_initializer.TriangulationSamplingMode
-          value: RANSAC_SAMPLE_UNIFORM
-        max_num_hypotheses: 100
-      save_track_patches_viz: False
-
-    bundle_adjustment_module:
-      _target_: gtsfm.bundle.rig_bundle_adjustment.RigBundleAdjustmentOptimizer.
-      reproj_error_thresholds: [10, 5, 3] # for (multistage) post-optimization filtering
-      robust_measurement_noise: True
-      shared_calib: False
+multiview_optimizer:
+  _target_: gtsfm.multi_view_optimizer.MultiViewOptimizer
 
   # comment out to not run
-  # dense_multiview_optimizer:
-  #   _target_: gtsfm.densify.mvs_patchmatchnet.MVSPatchmatchNet
+  # view_graph_estimator:
+  #   _target_: gtsfm.view_graph_estimator.cycle_consistent_rotation_estimator.CycleConsistentRotationViewGraphEstimator
+  #   edge_error_aggregation_criterion: MEDIAN_EDGE_ERROR
 
-  # gaussian_splatting_optimizer:
-  #   _target_: gtsfm.splat.gaussian_splatting.GaussianSplatting
-  #   cfg:
-  #     _target_: gtsfm.splat.gaussian_splatting.Config
+  rot_avg_module:
+    _target_: gtsfm.averaging.rotation.rig_shonan.RigShonanRotationAveraging
+
+  trans_avg_module:
+    _target_: gtsfm.averaging.translation.rig_1dsfm.RigTranslationAveraging1DSFM
+    robust_measurement_noise: True
+    projection_sampling_method: SAMPLE_INPUT_MEASUREMENTS
+
+  data_association_module:
+    _target_: gtsfm.data_association.data_assoc.DataAssociation
+    min_track_len: 2
+    triangulation_options:
+      _target_: gtsfm.data_association.point3d_initializer.TriangulationOptions
+      reproj_error_threshold: 10
+      mode:
+        _target_: gtsfm.data_association.point3d_initializer.TriangulationSamplingMode
+        value: RANSAC_SAMPLE_UNIFORM
+      max_num_hypotheses: 100
+    save_track_patches_viz: False
+
+  bundle_adjustment_module:
+    _target_: gtsfm.bundle.rig_bundle_adjustment.RigBundleAdjustmentOptimizer.
+    reproj_error_thresholds: [10, 5, 3] # for (multistage) post-optimization filtering
+    robust_measurement_noise: True
+    shared_calib: False
+# comment out to not run
+# dense_multiview_optimizer:
+#   _target_: gtsfm.densify.mvs_patchmatchnet.MVSPatchmatchNet
+
+# gaussian_splatting_optimizer:
+#   _target_: gtsfm.splat.gaussian_splatting.GaussianSplatting
+#   cfg:
+#     _target_: gtsfm.splat.gaussian_splatting.Config

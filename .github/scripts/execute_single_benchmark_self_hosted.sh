@@ -15,7 +15,7 @@ SHARE_INTRINSICS=$6
 # Extract the data, configure arguments for runner.
 if [ "$DATASET_NAME" == "skydio-501" ]; then
   IMAGES_DIR="skydio-crane-mast-501-images"
-  COLMAP_FILES_DIRPATH="skydio-501-colmap-pseudo-gt"
+  DATASET_DIR="skydio-501-colmap-pseudo-gt"
 fi
 
 echo "Config: ${CONFIG_NAME}, Loader: ${LOADER_NAME}"
@@ -44,7 +44,7 @@ if [ "$LOADER_NAME" == "olsson-loader" ]; then
 elif [ "$LOADER_NAME" == "colmap-loader" ]; then
   ./run \
     --loader colmap \
-    --dataset_dir $DATASET_PREFIX/$COLMAP_FILES_DIRPATH \
+    --dataset_dir $DATASET_PREFIX/$DATASET_DIR \
     --images_dir ${IMAGES_DIR} \
     --config_name ${CONFIG_NAME}.yaml \
     --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
