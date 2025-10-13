@@ -95,11 +95,11 @@ Then, run the following command:
 ./run --config_name {CONFIG_NAME} --loader olsson --dataset_dir {DATASET_DIR} --num_workers {NUM_WORKERS}
 ```
 
-### Command-line Options
+### Loader Options
 
 The runner exposes five portable CLI arguments for dataset selection and universal loader configuration:
 
-- `--loader` — which loader to use (e.g., `olsson_loader`, `colmap_loader`)
+- `--loader` — which loader to use (e.g., `olsson`, `colmap`)
 - `--dataset_dir` — path to the dataset root
 - `--images_dir` — optional path to the image directory (defaults depend on loader)
 - `--max_resolution` — maximum length of the image’s short side (overrides config)
@@ -107,10 +107,26 @@ The runner exposes five portable CLI arguments for dataset selection and univers
 
 **All other loader‑specific settings** (anything beyond the five above) must be specified using **Hydra overrides** on the nested config node `loader.*`. This is standard Hydra behavior: use dot‑notation keys with `=` assignments.
 
-To discover all available overrides for a given loader, open its YAML in `gtsfm/configs/loader/` and/or run:
+To discover all available overrides for a given loader, open its YAML in `gtsfm/configs/loader/`
+#### Required Image Metadata  
+
+Currently, we require **EXIF data** embedded into your images. Alternatively, you can provide:  
+- Ground truth intrinsics in the expected format for an **Olsson dataset**  
+- **COLMAP-exported** text data  
+
+
+### Additional CLI Arguments
+
+- `--run_mvs` — enables dense Multi-View Stereo (MVS) reconstruction after the sparse SfM pipeline.
+- `--run_gs` — enables Gaussian Splatting for dense scene representation.
+
+Many other dask-related arguments are available. Run 
 ```bash
 ./run --help
 ```
+for more information.
+
+### Examples
 
 Example (deep front-end on Olsson, single worker):
 ```bash
@@ -133,12 +149,6 @@ For a dataset with metadata formatted in the COLMAP style:
 
 You can monitor the distributed computation using the [Dask dashboard](http://localhost:8787/status).  
 **Note:** The dashboard will only display activity while tasks are actively running, but comprehensive performance reports can be found in the `dask_reports` folder.
-
-### Required Image Metadata  
-
-Currently, we require **EXIF data** embedded into your images. Alternatively, you can provide:  
-- Ground truth intrinsics in the expected format for an **Olsson dataset**  
-- **COLMAP-exported** text data  
 
 ### Comparing GTSFM Output with COLMAP Output  
 
@@ -187,7 +197,7 @@ The results are stored in the nerfstudio_input subdirectory inside `{RESULTS_DIR
 ns-train nerfacto --data {RESULTS_DIR}/nerfstudio_input
 ```
 
-## Loader Usage Examples
+## More Loader Details
 
 The runner supports all loaders through `--loader`, `--dataset_dir`, and `--images_dir`. Any additional, loader‑specific settings are passed as **Hydra overrides** on the nested node `loader.*` (this is standard Hydra usage).
 
