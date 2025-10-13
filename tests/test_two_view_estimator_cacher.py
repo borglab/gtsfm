@@ -8,12 +8,12 @@ import numpy as np
 from gtsam import Cal3Bundler
 
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.products.two_view_result import TwoViewResult
 from gtsfm.two_view_estimator_cacher import TwoViewEstimatorCacher
-
 
 ROOT_PATH = Path(__file__).resolve().parent.parent
 
-_DUMMY_OUTPUT = (None, None, None, None, None, None)
+_DUMMY_OUTPUT = TwoViewResult(None, None, np.array([]), None, None, None)
 
 
 class TestTwoViewEstimatorCacher(unittest.TestCase):
