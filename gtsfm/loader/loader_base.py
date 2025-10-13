@@ -34,7 +34,7 @@ class LoaderBase(GTSFMProcess):
     def get_ui_metadata() -> UiMetadata:
         """Returns data needed to display node and edge info for this process in the process graph."""
 
-        # based on gtsfm/runner/gtsfm_runner_base.py
+        # based on gtsfm/runner.py
         return UiMetadata(
             display_name="Image Loader",
             input_products=("Source Directory",),

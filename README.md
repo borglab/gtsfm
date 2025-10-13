@@ -77,6 +77,8 @@ Before running reconstruction, if you intend to use modules with pre-trained wei
 
 ### Running SfM  
 
+GTSfM provides a unified runner that supports all dataset types through Hydra configuration.
+
 To process a dataset containing only an **image directory and EXIF metadata**, ensure your dataset follows this structure:  
 
 ```
@@ -90,31 +92,47 @@ To process a dataset containing only an **image directory and EXIF metadata**, e
 Then, run the following command:  
 
 ```bash
-python gtsfm/runner/run_scene_optimizer_olssonloader.py --config_name {CONFIG_NAME} --dataset_dir {DATASET_ROOT} --num_workers {NUM_WORKERS}
-```  
+./run --config_name {CONFIG_NAME} --loader olsson --dataset_dir {DATASET_DIR} --num_workers {NUM_WORKERS}
+```
 
-### Command-line Options  
+### Command-line Options
 
-To explore all available options and configurations, run:  
+The runner exposes five portable CLI arguments for dataset selection and universal loader configuration:
 
+- `--loader` — which loader to use (e.g., `olsson_loader`, `colmap_loader`)
+- `--dataset_dir` — path to the dataset root
+- `--images_dir` — optional path to the image directory (defaults depend on loader)
+- `--max_resolution` — maximum length of the image’s short side (overrides config)
+- `--input_worker` — optional Dask worker address to pin image I/O (advanced; runner sets this post‑instantiation)
+
+**All other loader‑specific settings** (anything beyond the five above) must be specified using **Hydra overrides** on the nested config node `SceneOptimizer.loader.*`. This is standard Hydra behavior: use dot‑notation keys with `=` assignments.
+
+To discover all available overrides for a given loader, open its YAML in `gtsfm/configs/loader/` and/or run:
 ```bash
-python gtsfm/runner/run_scene_optimizer_olssonloader.py -h
-```  
+./run --help
+```
 
-For example, if you want to use the **Deep Front-End (recommended)** on the `"door"` dataset, run:  
-
+Example (deep front-end on Olsson, single worker):
 ```bash
-python gtsfm/runner/run_scene_optimizer_olssonloader.py --dataset_dir tests/data/set1_lund_door --config_name deep_front_end.yaml --num_workers 1
-```  
+./run --dataset_dir tests/data/set1_lund_door \
+      --config_name deep_front_end.yaml \
+      --loader olsson \
+      --num_workers 1 \
+      SceneOptimizer.loader.max_resolution=1200
+```
 
-Or, for a dataset dataset with metadata formatted in the COLMAP style
+For a dataset with metadata formatted in the COLMAP style:
 ```bash
-python gtsfm/runner/run_scene_optimizer_colmaploader.py --images_dir datasets/gerrard-hall/images \
-  --dataset_dir datasets/gerrard-hall/sparse --config_name deep_front_end.yaml --num_workers 5
-```  
+./run --dataset_dir datasets/gerrard-hall \
+      --config_name deep_front_end.yaml \
+      --loader colmap \
+      --num_workers 5 \
+      SceneOptimizer.loader.use_gt_intrinsics=true \
+      SceneOptimizer.loader.use_gt_extrinsics=true
+```
 
 You can monitor the distributed computation using the [Dask dashboard](http://localhost:8787/status).  
-**Note:** The dashboard will only display activity while tasks are actively running.  
+**Note:** The dashboard will only display activity while tasks are actively running, but comprehensive performance reports can be found in the `dask_reports` folder.
 
 ### Required Image Metadata  
 
@@ -127,11 +145,8 @@ Currently, we require **EXIF data** embedded into your images. Alternatively, yo
 To compare GTSFM output with COLMAP, use the following command:  
 
 ```bash
-python gtsfm/runner/run_scene_optimizer_colmaploader.py --config_name {CONFIG_NAME} --images_dir {IMAGES_DIR} --dataset_dir {COLMAP_FILES_DIRPATH} --num_workers {NUM_WORKERS} --max_frame_lookahead {MAX_FRAME_LOOKAHEAD}
+./run --config_name {CONFIG_NAME} --loader colmap --dataset_dir {DATASET_DIR} --num_workers {NUM_WORKERS} --max_frame_lookahead {MAX_FRAME_LOOKAHEAD}
 ```  
-
-where:  
-- **`COLMAP_FILES_DIRPATH`** is the directory containing `.txt` files such as `cameras.txt`, `images.txt`, etc.  
 
 ### Visualizing Results with Open3D  
 
@@ -172,9 +187,65 @@ The results are stored in the nerfstudio_input subdirectory inside `{RESULTS_DIR
 ns-train nerfacto --data {RESULTS_DIR}/nerfstudio_input
 ```
 
+## Loader Usage Examples
+
+The runner supports all loaders through `--loader`, `--dataset_dir`, and `--images_dir`. Any additional, loader‑specific settings are passed as **Hydra overrides** on the nested node `SceneOptimizer.loader.*` (this is standard Hydra usage).
+
+**General pattern**
+```bash
+./run \
+  --config_name <config_file> \
+  --loader <loader_type> \
+  --dataset_dir <path> \
+  [--images_dir <path>] \
+  [--max_resolution <int>] \
+  [--input_worker <address>] \
+  SceneOptimizer.loader.<param>=<value> \
+  [SceneOptimizer.loader.<param2>=<value2> ...]
+```
+
+### Available Loaders
+
+The following loader types are supported:
+- `colmap` - COLMAP format datasets
+- `hilti` - Hilti SLAM challenge datasets  
+- `astrovision` - AstroVision space datasets
+- `olsson` - Olsson format datasets
+- `argoverse` - Argoverse autonomous driving datasets
+- `mobilebrick` - MobileBrick datasets
+- `one_d_sfm` - 1DSFM format datasets
+- `tanks_and_temples` - Tanks and Temples benchmark datasets
+- `yfcc_imb` - YFCC Image Matching Benchmark datasets
+
+For the complete list of available arguments for each loader, run:
+```bash
+./run --help
+```
+
+### Example: Olsson Loader (images + EXIF)
+```bash
+./run \
+  --config_name sift_front_end.yaml \
+  --loader olsson \
+  --dataset_dir /path/to/olsson_dataset \
+  SceneOptimizer.loader.max_resolution=1200
+```
+
+### Example: Colmap Loader (COLMAP text export)
+```bash
+./run \
+  --config_name sift_front_end.yaml \
+  --loader colmap \
+  --dataset_dir /path/to/colmap_dataset \
+  SceneOptimizer.loader.use_gt_intrinsics=true \
+  SceneOptimizer.loader.use_gt_extrinsics=true
+```
+
+> Tip: consult `gtsfm/configs/loader/<loader_name>.yaml` for the full set of fields supported by each loader.
+
 ## Repository Structure
 
-GTSfM is designed in an extremely modular way. Each module can be swapped out with a new one, as long as it implements the API of the module's abstract base class. The code is organized as follows:
+GTSfM is designed in a modular way. Each module can be swapped out with a new one, as long as it implements the API of the module's abstract base class. The code is organized as follows:
 
 - `gtsfm`: source code, organized as:
   - `averaging`
@@ -203,7 +274,7 @@ Contributions are always welcome! Please be aware of our [contribution guideline
 If you use GTSfM, please cite our paper: 
 
 ```
-@misc{baid2023distributed,
+@misc{Baid23_distributedDeepSfm,
       title={Distributed Global Structure-from-Motion with a Deep Front-End}, 
       author={Ayush Baid and John Lambert and Travis Driver and Akshay Krishnan and Hayk Stepanyan and Frank Dellaert},
       year={2023},

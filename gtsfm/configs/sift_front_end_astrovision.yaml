@@ -7,6 +7,9 @@ SceneOptimizer:
   save_3d_viz: False
   pose_angular_error_thresh: 5 # degrees
 
+  loader:
+    _target_: gtsfm.loader.Astrovision
+
   image_pairs_generator:
     _target_: gtsfm.retriever.image_pairs_generator.ImagePairsGenerator
     global_descriptor:
@@ -94,7 +97,7 @@ SceneOptimizer:
 
   dense_multiview_optimizer:
     _target_: gtsfm.densify.mvs_patchmatchnet.MVSPatchmatchNet
-  
+
   gaussian_splatting_optimizer:
     _target_: gtsfm.splat.gaussian_splatting.GaussianSplatting
     cfg:

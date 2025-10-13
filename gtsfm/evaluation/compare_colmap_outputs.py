@@ -12,12 +12,12 @@ import pycolmap
 from gtsam import Pose3, Similarity3
 from scipy.spatial.transform import Rotation
 
-import gtsfm.runner.gtsfm_runner_base as runner_base
 import gtsfm.utils.alignment as alignment_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metric_utils
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
+from gtsfm.runner import save_metrics_reports
 
 logger = logger_utils.get_logger()
 
@@ -104,7 +104,7 @@ def compare_poses(baseline_dirpath: str, eval_dirpath: str, output_dirpath: str)
 
     ba_pose_metrics = GtsfmMetricsGroup(name="ba_pose_error_metrics", metrics=metrics)
 
-    runner_base.save_metrics_reports([ba_pose_metrics], metrics_path=output_dirpath)
+    save_metrics_reports([ba_pose_metrics], metrics_path=output_dirpath)
 
 
 if __name__ == "__main__":

@@ -113,14 +113,14 @@ for num_matched in ${num_matched_sizes[@]}; do
                 then
                     loader=colmap
                     images_dir=/usr/local/gtsfm-data/Tanks_and_Temples_Barn_410/Barn
-                    dataset_dir=/usr/local/gtsfm-data/Tanks_and_Temples_Barn_410/colmap_gt_2023_11_15_2250_highquality
+                    colmap_files_dirpath=/usr/local/gtsfm-data/Tanks_and_Temples_Barn_410/colmap_gt_2023_11_15_2250_highquality
 
                 elif [[ $dataset == *"palace-fine-arts-281"* ]]
                 then
                     # loader=olsson
                     # dataset_dir=/usr/local/gtsfm-data/palace-fine-arts-281
                     loader=colmap
-                    dataset_dir=/usr/local/gtsfm-data/palace_colmap_gt_2023_11_22
+                    colmap_files_dirpath=/usr/local/gtsfm-data/palace_colmap_gt_2023_11_22
                     images_dir=/usr/local/gtsfm-data/palace-fine-arts-281/images
 
                 elif [[ $dataset == *"ecole-superieure-de-guerre-35"* ]]
@@ -128,7 +128,7 @@ for num_matched in ${num_matched_sizes[@]}; do
                     # loader=olsson
                     # dataset_dir=/usr/local/gtsfm-data/ecole-superieure-de-guerre-35
                     loader=colmap
-                    dataset_dir=/usr/local/gtsfm-data/ecole_superieure_colmap_gt_2023_11_22/txt_gt
+                    colmap_files_dirpath=/usr/local/gtsfm-data/ecole_superieure_colmap_gt_2023_11_22/txt_gt
                     images_dir=/usr/local/gtsfm-data/ecole-superieure-de-guerre-35/images
 
                 elif [[ $dataset == *"fort-channing-gate-singapore-27"* ]]
@@ -141,7 +141,7 @@ for num_matched in ${num_matched_sizes[@]}; do
                     # loader=olsson
                     # dataset_dir=/usr/local/gtsfm-data/skansen-kronan-gothenburg-131
                     loader=colmap
-                    dataset_dir=/usr/local/gtsfm-data/skansen_colmap_gt_2023_11_22
+                    colmap_files_dirpath=/usr/local/gtsfm-data/skansen_colmap_gt_2023_11_22
                     images_dir=/usr/local/gtsfm-data/skansen-kronan-gothenburg-131/images
 
                 elif [[ $dataset == *"nijo-castle-gate-19"* ]]
@@ -154,7 +154,7 @@ for num_matched in ${num_matched_sizes[@]}; do
                     # loader=olsson
                     # dataset_dir=/usr/local/gtsfm-data/kings-college-cambridge-328
                     loader=colmap
-                    dataset_dir=/usr/local/gtsfm-data/kings_college_colmap_gt_2023_11_22
+                    colmap_files_dirpath=/usr/local/gtsfm-data/kings_college_colmap_gt_2023_11_22
                     images_dir=/usr/local/gtsfm-data/kings-college-cambridge-328/images
 
                 elif [[ $dataset == *"spilled-blood-cathedral-st-petersburg-781"* ]]
@@ -162,14 +162,14 @@ for num_matched in ${num_matched_sizes[@]}; do
                     # loader=olsson
                     # dataset_dir=/usr/local/gtsfm-data/spilled-blood-cathedral-st-petersburg-781
                     loader=colmap
-                    dataset_dir=/usr/local/gtsfm-data/colmap-spilled-blood-gt
+                    colmap_files_dirpath=/usr/local/gtsfm-data/colmap-spilled-blood-gt
                     images_dir=/usr/local/gtsfm-data/spilled-blood-cathedral-st-petersburg-781/images
 
                 elif [[ $dataset == *"skydio-crane-mast-501"* ]]
                 then
                     loader=colmap
                     images_dir=/usr/local/gtsfm-data/skydio-crane-mast-501/skydio-crane-mast-501-images
-                    dataset_dir=/usr/local/gtsfm-data/skydio-crane-mast-501/skydio-501-colmap-pseudo-gt
+                    colmap_files_dirpath=/usr/local/gtsfm-data/skydio-crane-mast-501/skydio-501-colmap-pseudo-gt
                 elif [[ $dataset == *"2011205_rc3"* ]]
                 then
                     loader=astrovision
@@ -178,17 +178,17 @@ for num_matched in ${num_matched_sizes[@]}; do
                 then
                     loader=colmap
                     images_dir=/usr/local/gtsfm-data/south-building-128/images
-                    dataset_dir=/usr/local/gtsfm-data/south-building-128/colmap-2023-07-28-txt
+                    colmap_files_dirpath=/usr/local/gtsfm-data/south-building-128/colmap-2023-07-28-txt
                 elif [[ $dataset == *"gerrard-hall-100"* ]]
                 then
                     loader=colmap
                     images_dir=/usr/local/gtsfm-data/gerrard-hall-100/images
-                    dataset_dir=/usr/local/gtsfm-data/gerrard-hall-100/colmap-3.7-sparse-txt-2023-07-27
+                    colmap_files_dirpath=/usr/local/gtsfm-data/gerrard-hall-100/colmap-3.7-sparse-txt-2023-07-27
                 elif [[ $dataset == *"gendarmenmarkt-1463"* ]]
                 then
                     loader=colmap
                     images_dir=/usr/local/gtsfm-data/Gendarmenmarkt/images
-                    dataset_dir=/usr/local/gtsfm-data/Gendarmenmarkt/gendarmenmark/im_size_full/0
+                    colmap_files_dirpath=/usr/local/gtsfm-data/Gendarmenmarkt/gendarmenmark/im_size_full/0
                 fi
 
                 OUTPUT_ROOT=${USER_ROOT}/${now}/${now}__${dataset}__results__num_matched${num_matched}__maxframelookahead${max_frame_lookahead}__760p__unified_${correspondence_generator_config_name}
@@ -196,9 +196,10 @@ for num_matched in ${num_matched_sizes[@]}; do
 
                 if [[ $loader == *"olsson"* ]]
                 then
-                    python gtsfm/runner/run_scene_optimizer_olssonloader.py \
-                    --mvs_off \
-                    --config unified \
+                    ./run \
+                    --loader olsson \
+                    --run_mvs false \
+                    --config_name unified \
                     --correspondence_generator_config_name $correspondence_generator_config_name \
                     --dataset_dir $dataset_dir \
                     --num_workers $num_workers \
@@ -211,12 +212,13 @@ for num_matched in ${num_matched_sizes[@]}; do
                     2>&1 | tee $OUTPUT_ROOT/out.log
                 elif [[ $loader == *"colmap"* ]]
                 then
-                    python gtsfm/runner/run_scene_optimizer_colmaploader.py \
-                    --mvs_off \
-                    --config unified \
+                    ./run \
+                    --loader colmap \
+                    --run_mvs false \
+                    --config_name unified \
                     --correspondence_generator_config_name $correspondence_generator_config_name \
+                    --dataset_dir $colmap_files_dirpath \
                     --images_dir $images_dir \
-                    --dataset_dir $dataset_dir \
                     --num_workers $num_workers \
                     --num_matched $num_matched \
                     --max_frame_lookahead $max_frame_lookahead \
@@ -227,9 +229,10 @@ for num_matched in ${num_matched_sizes[@]}; do
                     2>&1 | tee $OUTPUT_ROOT/out.log
                 elif [[ $loader == *"astrovision"* ]]
                 then
-                    python gtsfm/runner/run_scene_optimizer_astrovision.py \
-                    --mvs_off \
-                    --config unified \
+                    ./run \
+                    --loader astrovision \
+                    --run_mvs false \
+                    --config_name unified \
                     --correspondence_generator_config_name $correspondence_generator_config_name \
                     --dataset_dir $data_dir \
                     --num_workers $num_workers \

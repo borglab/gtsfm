@@ -7,9 +7,8 @@ SceneOptimizer:
   save_3d_viz: False
   pose_angular_error_thresh: 5 # degrees
 
-  graph_partitioner:
-    _target_: gtsfm.graph_partitioner.binary_tree_partition.BinaryTreePartition
-    max_depth: 1
+  loader:
+    _target_: gtsfm.loader.Olsson
 
   image_pairs_generator:
     _target_: gtsfm.retriever.image_pairs_generator.ImagePairsGenerator
@@ -62,6 +61,10 @@ SceneOptimizer:
         _target_: gtsfm.two_view_estimator.InlierSupportProcessor
         min_num_inliers_est_model: 15
         min_inlier_ratio_est_model: 0.1
+
+  graph_partitioner:
+    _target_: gtsfm.graph_partitioner.binary_tree_partition.BinaryTreePartition
+    max_depth: 1
 
   multiview_optimizer:
     _target_: gtsfm.multi_view_optimizer.MultiViewOptimizer

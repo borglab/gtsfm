@@ -1,0 +1,10 @@
+# Argoverse Dataset Loader Configuration
+_target_: gtsfm.loader.Argoverse
+dataset_dir: ??? # Required - directory where raw Argoverse logs are stored
+log_id: ??? # Required - unique ID of vehicle log
+stride: 5 # sampling rate, e.g. every 5 images
+max_num_imgs: 20 # number of images to load
+max_lookahead_sec: 2.0 # maximum lookahead in seconds
+camera_name: "ring_front_center" # camera name to use
+max_resolution: 760
+input_worker: null # optional input worker specification

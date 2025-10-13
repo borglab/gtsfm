@@ -22,7 +22,13 @@ class YfccImbLoader(LoaderBase):
     Code ref: https://github.com/vcg-uvic/image-matching-benchmark/blob/master/compute_stereo.py
     """
 
-    def __init__(self, dataset_dir: str, co_visibility_threshold: float = 0.1, max_resolution: int = 760) -> None:
+    def __init__(
+        self,
+        dataset_dir: str,
+        co_visibility_threshold: float = 0.1,
+        max_resolution: int = 760,
+        input_worker: Optional[str] = None,
+    ) -> None:
         """Initializes the loader.
 
         Args:
@@ -34,7 +40,7 @@ class YfccImbLoader(LoaderBase):
                max_resolution would be 1080. If the image resolution max(height, width) is
                greater than the max_resolution, it will be downsampled to match the max_resolution.
         """
-        super().__init__(max_resolution)
+        super().__init__(max_resolution, input_worker)
         self._dataset_dir = dataset_dir
 
         # load all the image pairs according to the co-visibility threshold used
