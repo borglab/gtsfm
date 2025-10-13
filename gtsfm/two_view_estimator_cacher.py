@@ -69,6 +69,12 @@ class TwoViewEstimatorCacher(TwoViewEstimator):
         cache_path = self.__get_cache_path(cache_key=cache_key)
         # If bz2 file does not exist, `None` will be returned.
         cached_data = io_utils.read_from_bz2_file(cache_path)
+        if not isinstance(cached_data, TwoViewResult):
+            if isinstance(cached_data, tuple) and len(cached_data) == 6:
+                # Convert six-tuple to TwoViewResult
+                cached_data = TwoViewResult(*cached_data)
+            else:
+                return None
         return cached_data
 
     def __save_result_to_cache(
