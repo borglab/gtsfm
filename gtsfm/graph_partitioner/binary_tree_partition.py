@@ -7,6 +7,7 @@ represent subgraphs with no vertex overlap (i.e., a partition!).
 Authors: Shicong Ma
 """
 
+from dataclasses import dataclass
 from math import ceil, log2
 from typing import Dict, List, Optional, Tuple
 
@@ -40,6 +41,12 @@ class BinaryTreeNode:
     def is_leaf(self) -> bool:
         """Check whether this node is a leaf node."""
         return self.left is None and self.right is None
+
+
+@dataclass
+class LeafPartitionDetails:
+    exclusive_keys: List[int]
+    intra_partition_edges: VisibilityGraph
 
 
 class BinaryTreePartition(GraphPartitionerBase):
@@ -100,12 +107,12 @@ class BinaryTreePartition(GraphPartitionerBase):
         logger.info("%d leaf nodes.", len(partition_details))
 
         for i in range(num_leaves):
-            intra_partition_edges = partition_details[i].get("intra_partition_edges", [])
+            intra_partition_edges = partition_details[i].intra_partition_edges
             image_pairs_per_partition[i] = intra_partition_edges
 
         for i, part in enumerate(partition_details):
-            exclusive_keys = part.get("exclusive_keys", [])
-            intra_edges = part.get("intra_partition_edges", [])
+            exclusive_keys = part.exclusive_keys
+            intra_edges = part.intra_partition_edges
 
             logger.info("Partition %d: keys (%d): %s", i + 1, len(exclusive_keys), sorted(exclusive_keys))
             logger.info("Partition %d: num intra-partition edges: %d", i + 1, len(intra_edges))
@@ -177,7 +184,7 @@ class BinaryTreePartition(GraphPartitionerBase):
         self,
         node: BinaryTreeNode,
         nx_graph: nx.Graph,
-    ) -> Tuple[List[Dict], Dict[Tuple[int, int], VisibilityGraph]]:
+    ) -> Tuple[List[LeafPartitionDetails], Dict[Tuple[int, int], VisibilityGraph]]:
         """Recursively traverse the binary tree and return partition details per leaf.
 
         Args:
@@ -186,7 +193,7 @@ class BinaryTreePartition(GraphPartitionerBase):
 
         Returns:
             A tuple:
-                - List of dictionaries containing exclusive keys and intra-partition edges per leaf node.
+                - List of LeafPartitionDetails objects, one per leaf node.
                 - Mapping of (leaf_idx_a, leaf_idx_b) to inter-partition edges.
         """
         leaf_details = []
@@ -194,21 +201,21 @@ class BinaryTreePartition(GraphPartitionerBase):
         leaf_idx_counter = [0]  # mutable counter to track leaf index
         node_to_idx = dict()
 
-        def dfs(node: BinaryTreeNode) -> List[Dict]:
+        def dfs(node: BinaryTreeNode) -> List[LeafPartitionDetails]:
             if node.is_leaf():
                 idx = leaf_idx_counter[0]
                 leaf_idx_counter[0] += 1
                 node_to_idx[node] = idx
                 exclusive_keys = set(node.keys)
                 return [
-                    {
-                        "exclusive_keys": [Symbol(u).index() for u in exclusive_keys],
-                        "intra_partition_edges": [
+                    LeafPartitionDetails(
+                        exclusive_keys=[Symbol(u).index() for u in exclusive_keys],
+                        intra_partition_edges=[
                             (Symbol(u).index(), Symbol(v).index())
                             for u, v in nx_graph.edges()
                             if u in exclusive_keys and v in exclusive_keys
                         ],
-                    }
+                    )
                 ]
 
             assert node.left is not None and node.right is not None
