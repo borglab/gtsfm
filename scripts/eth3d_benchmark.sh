@@ -93,9 +93,9 @@ for num_matched in ${num_matched_sizes[@]}; do
                 echo "Num workers: ${num_workers}"
 
                 images_dir="${ETH3D_ROOT}/${dataset}/images"
-                colmap_files_dirpath="${ETH3D_ROOT}/${dataset}/dslr_calibration_undistorted"
+                dataset_dir="${ETH3D_ROOT}/${dataset}/dslr_calibration_undistorted"
                 # images_dir="${ETH3D_ROOT}/${dataset}_dslr_undistorted/${dataset}/images"
-                # colmap_files_dirpath="${ETH3D_ROOT}/${dataset}_dslr_undistorted/${dataset}/dslr_calibration_undistorted"
+                # dataset_dir="${ETH3D_ROOT}/${dataset}_dslr_undistorted/${dataset}/dslr_calibration_undistorted"
 
                 OUTPUT_ROOT=${USER_ROOT}/${now}/${now}__${dataset}__results__num_matched${num_matched}__maxframelookahead${max_frame_lookahead}__760p__unified_${correspondence_generator_config_name}
                 mkdir -p $OUTPUT_ROOT
@@ -106,7 +106,7 @@ for num_matched in ${num_matched_sizes[@]}; do
                 --correspondence_generator_config_name $correspondence_generator_config_name \
                 --share_intrinsics \
                 --images_dir $images_dir \
-                --colmap_files_dirpath $colmap_files_dirpath \
+                --dataset_dir $dataset_dir \
                 --num_workers 1 \
                 --num_matched $num_matched \
                 --max_frame_lookahead $max_frame_lookahead \

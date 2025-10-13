@@ -20,7 +20,7 @@ class GtsfmRunnerColmapLoader(GtsfmRunnerBase):
             "--images_dir", type=str, required=True, help="path to directory containing png, jpeg, or jpg images files"
         )
         parser.add_argument(
-            "--colmap_files_dirpath",
+            "--dataset_dir",
             type=str,
             required=True,
             help="path to directory containing images.txt, points3D.txt, and cameras.txt",
@@ -30,7 +30,7 @@ class GtsfmRunnerColmapLoader(GtsfmRunnerBase):
 
     def construct_loader(self) -> LoaderBase:
         loader = ColmapLoader(
-            colmap_files_dirpath=self.parsed_args.colmap_files_dirpath,
+            dataset_dir=self.parsed_args.dataset_dir,
             images_dir=self.parsed_args.images_dir,
             max_resolution=self.parsed_args.max_resolution,
         )

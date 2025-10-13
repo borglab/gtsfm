@@ -5,6 +5,7 @@ See https://www.tanksandtemples.org/download/ for more information.
 Author: John Lambert
 """
 
+import os
 from enum import Enum, auto
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -50,14 +51,16 @@ class MeshReconstructionType(Enum):
 class TanksAndTemplesLoader(LoaderBase):
     def __init__(
         self,
-        img_dir: str,
+        dataset_dir: str,
         poses_fpath: str,
         bounding_polyhedron_json_fpath: str,
         ply_alignment_fpath: str,
+        images_dir: Optional[str] = None,
         lidar_ply_fpath: Optional[str] = None,
         colmap_ply_fpath: Optional[str] = None,
         max_resolution: int = 1080,
         max_num_images: Optional[int] = None,
+        input_worker: Optional[str] = None,
     ) -> None:
         """Initializes image file paths and GT camera poses.
 
@@ -65,7 +68,8 @@ class TanksAndTemplesLoader(LoaderBase):
         We move everything to the COLMAP coordinate frame.
 
         Args:
-            img_dir: Path to where images of a single scene are stored.
+            dataset_dir: Path to dataset directory containing scene data.
+            images_dir: Path to images directory. If None, defaults to {dataset_dir}/images.
             poses_fpath: Path to .log file containing COLMAP-reconstructed camera poses.
             bounding_polyhedron_json_fpath: Path to JSON file containing specification of bounding polyhedron
                 to crop the COLMAP reconstructed point cloud.
@@ -75,11 +79,13 @@ class TanksAndTemplesLoader(LoaderBase):
             colmap_ply_fpath: Path to COLMAP reconstructed point cloud, in PLY format. Omitted for unit tests.
             max_num_images: Maximum number of images to use for reconstruction.
         """
-        super().__init__(max_resolution)
+        super().__init__(max_resolution, input_worker)
+        self._dataset_dir = dataset_dir
+        self._images_dir = images_dir or os.path.join(dataset_dir, "images")
         self.lidar_ply_fpath = lidar_ply_fpath
         self.colmap_ply_fpath = colmap_ply_fpath
         self.bounding_polyhedron_json_fpath = bounding_polyhedron_json_fpath
-        self._image_paths = sorted(list(Path(img_dir).glob("*.jpg")))
+        self._image_paths = sorted(list(Path(self._images_dir).glob("*.jpg")))
 
         # Load the Sim(3), not SE(3), transform between LiDAR global coordinate frame and COLMAP global coordinate
         # frame.

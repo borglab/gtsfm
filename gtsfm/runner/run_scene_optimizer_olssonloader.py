@@ -20,13 +20,13 @@ class GtsfmRunnerOlssonLoader(GtsfmRunnerBase):
     def construct_argparser(self) -> argparse.ArgumentParser:
         parser = super(GtsfmRunnerOlssonLoader, self).construct_argparser()
 
-        parser.add_argument("--dataset_root", type=str, default=os.path.join(DATA_ROOT, "set1_lund_door"), help="")
+        parser.add_argument("--dataset_dir", type=str, default=os.path.join(DATA_ROOT, "set1_lund_door"), help="")
 
         return parser
 
     def construct_loader(self) -> LoaderBase:
         loader = OlssonLoader(
-            self.parsed_args.dataset_root,
+            self.parsed_args.dataset_dir,
             max_frame_lookahead=self.parsed_args.max_frame_lookahead,
             max_resolution=self.parsed_args.max_resolution,
         )

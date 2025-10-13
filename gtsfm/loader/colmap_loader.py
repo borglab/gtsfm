@@ -40,18 +40,19 @@ class ColmapLoader(LoaderBase):
 
     def __init__(
         self,
-        colmap_files_dirpath: str,
-        images_dir: str,
+        dataset_dir: str,
+        images_dir: Optional[str] = None,
         use_gt_intrinsics: bool = True,
         use_gt_extrinsics: bool = True,
         max_resolution: int = 760,
+        input_worker: Optional[str] = None,
     ) -> None:
-        """Initializes to load from a specified folder on disk.
+        """Initializes to load from a specified dataset directory on disk.
 
         Args:
-            colmap_files_dirpath: Path to directory containing COLMAP-exported data, with images.txt
+            dataset_dir: Path to directory containing COLMAP-exported data, with images.txt
                 and cameras.txt files.
-            images_dir: Path to directory containing images files.
+            images_dir: Path to directory containing images files. If None, defaults to {dataset_dir}/images.
             use_gt_intrinsics: Whether to use ground truth intrinsics. If COLMAP calibration is
                not found on disk, then use_gt_intrinsics will be set to false automatically.
             use_gt_extrinsics: Whether to use ground truth extrinsics.
@@ -60,12 +61,14 @@ class ColmapLoader(LoaderBase):
                max_resolution would be 1080. If the image resolution max(height, width) is
                greater than the max_resolution, it will be downsampled to match the max_resolution.
         """
-        super().__init__(max_resolution)
+        super().__init__(max_resolution, input_worker)
+        self._dataset_dir = dataset_dir
+        self._images_dir = images_dir or os.path.join(dataset_dir, "images")
         self._use_gt_intrinsics = use_gt_intrinsics
         self._use_gt_extrinsics = use_gt_extrinsics
 
         wTi_list, img_fnames, self._calibrations, _, _, _ = io_utils.read_scene_data_from_colmap_format(
-            colmap_files_dirpath
+            self._dataset_dir
         )
         # TODO in future PR: if img_fnames is None, default to using everything inside image directory
 
@@ -85,7 +88,7 @@ class ColmapLoader(LoaderBase):
         # If one of the images is not found on disk, the assigned image indices will be re-ordered on disk
         # to skip the missing image.
         for img_fname, wTi in zip(img_fnames, wTi_list):
-            img_fpath = os.path.join(images_dir, img_fname)
+            img_fpath = os.path.join(self._images_dir, img_fname)
             if not Path(img_fpath).exists():
                 continue
             self._img_fnames.append(img_fname)

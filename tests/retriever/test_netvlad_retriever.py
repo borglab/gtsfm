@@ -6,10 +6,10 @@ Authors: John Lambert
 import unittest
 from pathlib import Path
 
+from gtsfm.frontend.global_descriptor.netvlad_global_descriptor import NetVLADGlobalDescriptor
 from gtsfm.loader.colmap_loader import ColmapLoader
 from gtsfm.loader.olsson_loader import OlssonLoader
 from gtsfm.retriever.netvlad_retriever import NetVLADRetriever
-from gtsfm.frontend.global_descriptor.netvlad_global_descriptor import NetVLADGlobalDescriptor
 
 DATA_ROOT_PATH = Path(__file__).resolve().parent.parent / "data"
 DOOR_DATA_ROOT = DATA_ROOT_PATH / "set1_lund_door"
@@ -23,11 +23,11 @@ class TestNetVLADRetriever(unittest.TestCase):
 
     def test_netvlad_retriever_crane_mast(self) -> None:
         """Test the NetVLAD retriever on 2 frames of the Skydio Crane-Mast dataset."""
-        colmap_files_dirpath = SKYDIO_DATA_ROOT
+        dataset_dir = SKYDIO_DATA_ROOT
         images_dir = SKYDIO_DATA_ROOT / "images"
 
         loader = ColmapLoader(
-            colmap_files_dirpath=str(colmap_files_dirpath),
+            dataset_dir=str(dataset_dir),
             images_dir=str(images_dir),
             max_resolution=760,
         )
@@ -43,7 +43,7 @@ class TestNetVLADRetriever(unittest.TestCase):
 
     def test_netvlad_retriever_door(self) -> None:
         """Test the NetVLAD retriever on 12 frames of the Lund Door Dataset."""
-        loader = OlssonLoader(folder=str(DOOR_DATA_ROOT))
+        loader = OlssonLoader(dataset_dir=str(DOOR_DATA_ROOT))
         retriever = NetVLADRetriever(num_matched=2)
 
         descriptors = [self.global_descriptor.describe(loader.get_image(i)) for i in range(len(loader))]

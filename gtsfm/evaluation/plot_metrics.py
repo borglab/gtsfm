@@ -1,8 +1,9 @@
-"""Script to generate a report of metrics with tables and plots 
-using the metrics that have been logged as JSON in a previous run of the pipeline. 
+"""Script to generate a report of metrics with tables and plots
+using the metrics that have been logged as JSON in a previous run of the pipeline.
 
 Authors: Akshay Krishnan
 """
+
 import argparse
 import os
 from pathlib import Path
@@ -96,7 +97,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--metrics_dir", default="result_metrics", help="Directory containing the metrics json files.")
     parser.add_argument(
-        "--colmap_files_dirpath",
+        "--dataset_dir",
         default=None,
         type=str,
         help="Directory containing COLMAP output as cameras.txt, images.txt, and points3D.txt",
@@ -112,10 +113,10 @@ if __name__ == "__main__":
         "--reproj_error_threshold", default=3, help="Reprojection error threshold for filtering tracks."
     )
     args = parser.parse_args()
-    if args.colmap_files_dirpath is not None:
+    if args.dataset_dir is not None:
         colmap_json_dirpath = os.path.join(args.metrics_dir, "colmap")
         save_other_metrics(
-            args.colmap_files_dirpath, colmap_json_dirpath, args.reproj_error_threshold
+            args.dataset_dir, colmap_json_dirpath, args.reproj_error_threshold
         )  # saves metrics to the json path
     else:
         colmap_json_dirpath = None

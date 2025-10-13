@@ -34,15 +34,18 @@ class OneDSFMLoader(LoaderBase):
 
     def __init__(
         self,
-        folder: str,
+        dataset_dir: str,
+        images_dir: Optional[str] = None,
         max_resolution: int = 640,
         enable_no_exif: bool = False,
         default_focal_length_factor: float = 1.2,
+        input_worker: Optional[str] = None,
     ) -> None:
-        """Initializes to load from a specified folder on disk.
+        """Initializes to load from a specified dataset directory on disk.
 
         Args:
-            folder: the base folder which contains image sequence.
+            dataset_dir: the base dataset directory which contains image sequence.
+            images_dir: path to images directory. If None, defaults to {dataset_dir}/images.
             max_resolution: integer representing maximum length of image's short side, i.e.
                 the smaller of the height/width of the image. e.g. for 1080p (1920 x 1080),
                 max_resolution would be 1080. If the image resolution max(height, width) is
@@ -52,11 +55,13 @@ class OneDSFMLoader(LoaderBase):
             of image if exif data is not available. The value has not been tuned for performance, 1.2 would be a
             good start.
         """
-        super().__init__(max_resolution=max_resolution)
+        super().__init__(max_resolution, input_worker)
+        self._dataset_dir = dataset_dir
+        self._images_dir = images_dir or os.path.join(dataset_dir, "images")
         self._default_focal_length_factor = default_focal_length_factor
 
         # Fetch all the file names in /images folder.
-        search_path = os.path.join(folder, "images")
+        search_path = self._images_dir
 
         if enable_no_exif:
             self._image_paths = io_utils.get_sorted_image_names_in_dir(search_path)

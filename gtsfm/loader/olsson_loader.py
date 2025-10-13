@@ -37,16 +37,19 @@ class OlssonLoader(LoaderBase):
 
     def __init__(
         self,
-        folder: str,
+        dataset_dir: str,
+        images_dir: Optional[str] = None,
         use_gt_intrinsics: bool = True,
         use_gt_extrinsics: bool = True,
         max_frame_lookahead: int = 20,
         max_resolution: int = 760,
+        input_worker: Optional[str] = None,
     ) -> None:
-        """Initializes to load from a specified folder on disk.
+        """Initializes to load from a specified dataset directory on disk.
 
         Args:
-            folder: The base folder for a given scene.
+            dataset_dir: The base dataset directory for a given scene.
+            images_dir: Path to images directory. If None, defaults to {dataset_dir}/images.
             use_gt_intrinsics: Whether to use ground truth intrinsics.
             use_gt_extrinsics: Whether to use ground truth extrinsics.
             max_resolution: Integer representing maximum length of image's short side, i.e.
@@ -54,19 +57,22 @@ class OlssonLoader(LoaderBase):
                max_resolution would be 1080. If the image resolution max(height, width) is
                greater than the max_resolution, it will be downsampled to match the max_resolution.
         """
-        super().__init__(max_resolution)
-        self._folder = folder
+        super().__init__(max_resolution, input_worker)
+        self._dataset_dir = dataset_dir
+        self._images_dir = images_dir or os.path.join(dataset_dir, "images")
         self._use_gt_intrinsics = use_gt_intrinsics
         self._use_gt_extrinsics = use_gt_extrinsics
         self._max_frame_lookahead = max_frame_lookahead
 
-        self._image_paths = io_utils.get_sorted_image_names_in_dir(os.path.join(folder, "images"))
+        self._image_paths = io_utils.get_sorted_image_names_in_dir(self._images_dir)
         self._num_imgs = len(self._image_paths)
 
         if self._num_imgs == 0:
-            raise RuntimeError(f"Loader could not find any images with the specified file extension in {folder}")
+            raise RuntimeError(
+                f"Loader could not find any images with the specified file extension in {self._images_dir}"
+            )
 
-        cam_matrices_fpath = os.path.join(folder, "data.mat")
+        cam_matrices_fpath = os.path.join(self._dataset_dir, "data.mat")
         if not Path(cam_matrices_fpath).exists():
             # Not available, so no choice
             self._use_gt_intrinsics = False
@@ -109,7 +115,7 @@ class OlssonLoader(LoaderBase):
 
     def get_gt_tracks_3d(self) -> List[SfmTrack]:
         """Retrieves 3d ground-truth point tracks."""
-        cam_matrices_fpath = os.path.join(self._folder, "data.mat")
+        cam_matrices_fpath = os.path.join(self._dataset_dir, "data.mat")
         if not Path(cam_matrices_fpath).exists():
             raise ValueError("Ground truth data file missing.")
 
