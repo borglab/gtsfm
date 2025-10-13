@@ -68,7 +68,7 @@ class GtsfmRunner:
         parser.add_argument(
             "--config_name",
             type=str,
-            default="sift_front_end.yaml",
+            default="sift_front_end",
             help="Master config, including back-end configuration. Options include `unified_config.yaml`,"
             " `sift_front_end.yaml`, `deep_front_end.yaml`, etc.",
         )
