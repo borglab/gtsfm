@@ -123,15 +123,15 @@ class SceneOptimizer:
         os.makedirs(plot_base_path, exist_ok=True)
         return plot_base_path
 
-    def create_output_directories(self, partition_index: Optional[int]) -> None:
+    def create_output_directories(self, subgraph_index: Optional[int]) -> None:
         """Create various output directories for GTSFM results, metrics, and plots."""
         # Construct subfolder if partitioned
-        partition_folder = f"partition_{partition_index}" if partition_index is not None else ""
+        subgraph_folder = f"subgraph_{subgraph_index}" if subgraph_index is not None else ""
 
         # Base paths
-        self._plot_base_path = self.output_root / "plots" / partition_folder
-        self._metrics_path = self.output_root / "result_metrics" / partition_folder
-        self._results_path = self.output_root / "results" / partition_folder
+        self._plot_base_path = self.output_root / "plots" / subgraph_folder
+        self._metrics_path = self.output_root / "result_metrics" / subgraph_folder
+        self._results_path = self.output_root / "results" / subgraph_folder
 
         # plot paths
         self._plot_correspondence_path = self._plot_base_path / "correspondences"
