@@ -12,7 +12,7 @@ from typing import Any, Optional
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
-from dask.base import annotate, compute
+from dask.base import annotate
 from dask.delayed import Delayed, delayed
 from dask.distributed import performance_report
 from gtsam import Pose3, Similarity3  # type: ignore
@@ -66,6 +66,22 @@ REACT_RESULTS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "
 logger = logger_utils.get_logger()
 
 
+def print_types(obj, indent=0):
+    prefix = "  " * indent
+    if isinstance(obj, dict):
+        print(f"{prefix}dict:")
+        for k, v in obj.items():
+            print(f"{prefix}  key: {type(k)}")
+            print_types(v, indent + 2)
+    elif isinstance(obj, (list, tuple)):
+        print(f"{prefix}{type(obj).__name__}:")
+        for i, item in enumerate(obj):
+            print(f"{prefix}  [{i}]:")
+            print_types(item, indent + 2)
+    else:
+        print(f"{prefix}{type(obj)}")
+
+
 class SceneOptimizer:
     """Wrapper combining different modules to run the whole pipeline on a
     loader."""
@@ -77,6 +93,7 @@ class SceneOptimizer:
         correspondence_generator: CorrespondenceGeneratorBase,
         two_view_estimator: TwoViewEstimator,
         multiview_optimizer: MultiViewOptimizer,
+        graph_partitioner: GraphPartitionerBase = SinglePartitioner(),
         dense_multiview_optimizer: Optional[MVSBase] = None,
         gaussian_splatting_optimizer: Optional[Any] = None,
         save_two_view_correspondences_viz: bool = False,
@@ -85,12 +102,12 @@ class SceneOptimizer:
         pose_angular_error_thresh: float = 3,  # in degrees
         output_root: str = DEFAULT_OUTPUT_ROOT,
         output_worker: Optional[str] = None,
-        graph_partitioner: GraphPartitionerBase = SinglePartitioner(),
     ) -> None:
         self.loader = loader
         self.image_pairs_generator = image_pairs_generator
         self.correspondence_generator = correspondence_generator
         self.two_view_estimator = two_view_estimator
+        self.graph_partitioner = graph_partitioner
         self.multiview_optimizer = multiview_optimizer
         self.dense_multiview_optimizer = dense_multiview_optimizer
         self.gaussian_splatting_optimizer = gaussian_splatting_optimizer
@@ -104,7 +121,7 @@ class SceneOptimizer:
         self._pose_angular_error_thresh = pose_angular_error_thresh
         self.output_root = Path(output_root)
         self._output_worker = output_worker
-        self.graph_partitioner = graph_partitioner
+        logger.info(f"Results, plots, and metrics will be saved at {self.output_root}")
 
     def __repr__(self) -> str:
         """Returns string representation of class."""
@@ -171,7 +188,6 @@ class SceneOptimizer:
         gt_scene_mesh: Optional[Trimesh] = None,
     ) -> tuple[Delayed, list[Delayed], list[Delayed]]:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
-        logger.info(f"Results, plots, and metrics will be saved at {self.output_root}")
 
         delayed_results: list[Delayed] = []
 
@@ -316,7 +332,7 @@ class SceneOptimizer:
         # return the entry with just the sfm result
         return ba_output_graph, delayed_results, metrics_graph_list
 
-    def run(self, client) -> GtsfmData:
+    def run(self, client) -> None:
         """Run the SceneOptimizer."""
         start_time = time.time()
         all_metrics_groups = []
@@ -333,41 +349,64 @@ class SceneOptimizer:
         )
 
         logger.info("🔥 GTSFM: Running two-view estimation...")
-        two_view_results, tve_duration_sec = self._run_two_view_estimation(
+        two_view_result_futures, tve_duration_sec = self._run_two_view_estimation(
             client, visibility_graph, keypoints, putative_corr_idxs_dict, intrinsics
         )
 
         # Aggregate two-view metrics
+        # TODO(Frank): this brings everything back ! We might not want this.
+        two_view_results = client.gather(two_view_result_futures)
         all_metrics_groups.append(
             self._aggregate_two_view_metrics(keypoints, two_view_results, correspondence_duration_sec, tve_duration_sec)
         )
 
         logger.info("🔥 GTSFM: Partitioning the view graph...")
-        clustered_results = self._partition_view_graph(visibility_graph, two_view_results)
-        all_delayed_sfm_results = []
-        all_delayed_io = []
-        all_delayed_mvo_metrics_groups = []
-        num_clusters = len(clustered_results)
-        for idx, cluster_two_view_results in enumerate(clustered_results):
-            delayed_sfm_result, delayed_io, delayed_mvo_metrics_groups = self._process_cluster(
-                idx, cluster_two_view_results, keypoints, maybe_intrinsics, num_clusters
-            )
-            if delayed_sfm_result is not None:
-                all_delayed_sfm_results.append(delayed_sfm_result)
-            all_delayed_io.extend(delayed_io)
-            all_delayed_mvo_metrics_groups.extend(delayed_mvo_metrics_groups)
+        assert self.graph_partitioner is not None, "Graph partitioner is not set up!"
+        cluster_tree = self.graph_partitioner.run(visibility_graph)
+        self.graph_partitioner.log_partition_details(cluster_tree)
+        num_leaves = len(cluster_tree.leaves())
+        if num_leaves == 1:
+            self.create_output_directories(None)  # Single-cluster_tree run: write directly under {output_root}/results
 
-        logger.info("🔥 GTSFM: Starting distributed computation with Dask...")
+        logger.info("🔥 GTSFM: Starting to solve subgraphs...")
+        futures = []
+        for index, leaf in enumerate(cluster_tree.leaves(), 1):
+            cluster_two_view_results = leaf.filter_edges(two_view_results)
+            if num_leaves > 1:
+                logger.info(
+                    "Creating computation graph for leaf cluster %d/%d with %d image pairs",
+                    index,
+                    num_leaves,
+                    len(leaf.edges),
+                )
+                self.create_output_directories(index)
+
+            if len(cluster_two_view_results) == 0:
+                logger.warning(f"Skipping subgraph {index} as it has no valid two-view results.")
+                continue
+            # TODO(Frank): would be nice if relative pose prior was part of TwoViewResult
+            # TODO(Frank): I think the loader should compute a Delayed dataclass, or a future
+
+            delayed_result_io_reports = self.create_computation_graph(
+                keypoints_list=keypoints,
+                two_view_results=cluster_two_view_results,
+                num_images=len(self.loader),
+                images=self.loader.create_computation_graph_for_images(),
+                camera_intrinsics=maybe_intrinsics,  # TODO(Frank): really? None is allowed?
+                relative_pose_priors=self.loader.get_relative_pose_priors(list(cluster_two_view_results.keys())),
+                absolute_pose_priors=self.loader.get_absolute_pose_priors(),
+                cameras_gt=self.loader.get_gt_cameras(),
+                gt_wTi_list=self.loader.get_gt_poses(),
+                gt_scene_mesh=self.loader.get_gt_scene_trimesh(),
+            )
+            print_types(delayed_result_io_reports)
+            futures.append(client.compute(delayed_result_io_reports))
+
+        logger.info("🔥 GTSFM: Running the computation graph...")
         with performance_report(filename="dask_reports/scene-optimizer.html"):
-            if all_delayed_sfm_results:
-                results = compute(*all_delayed_sfm_results, *all_delayed_io, *all_delayed_mvo_metrics_groups)
-                sfm_results = results[: len(all_delayed_sfm_results)]
-                other_results = results[len(all_delayed_sfm_results) :]  # noqa: E203
-                mvo_metrics_groups = [x for x in other_results if isinstance(x, GtsfmMetricsGroup)]
-                all_metrics_groups.extend(mvo_metrics_groups)
-                sfm_result = next((r for r in sfm_results if r is not None), None)
-            else:
-                sfm_result = None
+            results = client.gather(futures)
+            # add to all_metrics_groups
+            print_types(results)
 
         # Log total time taken and save metrics report
         end_time = time.time()
@@ -378,8 +417,6 @@ class SceneOptimizer:
         )
         all_metrics_groups.append(total_summary_metrics)
         save_metrics_reports(all_metrics_groups, os.path.join(self.output_root, "result_metrics"))
-
-        return sfm_result  # type: ignore
 
     def _create_process_graph(self):
         process_graph_generator = ProcessGraphGenerator()
@@ -430,7 +467,7 @@ class SceneOptimizer:
         with performance_report(filename="dask_reports/two-view-estimation.html"):
             two_view_estimation_start_time = time.time()
             # TODO(Frank):this pulls *all* results to one machine! We might not want this.
-            all_two_view_results = run_two_view_estimator_as_futures(
+            two_view_result_futures = run_two_view_estimator_as_futures(
                 client,
                 self.two_view_estimator,
                 keypoints_list,
@@ -441,9 +478,7 @@ class SceneOptimizer:
                 gt_scene_mesh=self.loader.get_gt_scene_trimesh(),
             )
             two_view_estimation_duration_sec = time.time() - two_view_estimation_start_time
-        # TODO(Frank): We might not be able to do this in a distributed manner
-        two_view_results = {edge: tvr for edge, tvr in all_two_view_results.items() if tvr.valid()}
-        return two_view_results, two_view_estimation_duration_sec
+        return two_view_result_futures, two_view_estimation_duration_sec
 
     def _maybe_save_two_view_viz(self, keypoints_list, two_view_results):
         if self._save_two_view_correspondences_viz:
@@ -481,54 +516,6 @@ class SceneOptimizer:
             GtsfmMetric("total_two_view_estimation_duration_sec", two_view_estimation_duration_sec)
         )
         return two_view_agg_metrics
-
-    def _partition_view_graph(self, visibility_graph, two_view_results):
-        assert self.graph_partitioner is not None, "Graph partitioner is not set up!"
-        cluster_tree = self.graph_partitioner.run(visibility_graph)
-        if cluster_tree.is_empty():
-            logger.warning("Graph partitioner returned an empty cluster_tree; running single-cluster pipeline.")
-            self.create_output_directories(None)
-            return [two_view_results]
-
-        grouped_results = cluster_tree.group_by_leaf(two_view_results)
-        if len(grouped_results) <= 1:
-            # Single-cluster run: write directly under {output_root}/results, no need to log extra details
-            self.create_output_directories(None)
-            return grouped_results or [two_view_results]
-
-        # Log and group results by cluster
-        self.graph_partitioner.log_partition_details(cluster_tree)
-        return grouped_results
-
-    def _process_cluster(self, idx, cluster_two_view_results, keypoints_list, maybe_intrinsics, num_clusters):
-        logger.info(
-            "Creating computation graph for cluster %d/%d with %d image pairs",
-            idx + 1,
-            num_clusters,
-            len(cluster_two_view_results),
-        )
-        if num_clusters > 1:
-            self.create_output_directories(idx + 1)
-
-        if len(cluster_two_view_results) > 0:
-            # TODO(Frank): would be nice if relative pose prior was part of TwoViewResult
-            # TODO(Frank): I think the loader should compute a Delayed dataclass, or a future
-
-            return self.create_computation_graph(
-                keypoints_list=keypoints_list,
-                two_view_results=cluster_two_view_results,
-                num_images=len(self.loader),
-                images=self.loader.create_computation_graph_for_images(),
-                camera_intrinsics=maybe_intrinsics,  # TODO(Frank): really? None is allowed?
-                relative_pose_priors=self.loader.get_relative_pose_priors(list(cluster_two_view_results.keys())),
-                absolute_pose_priors=self.loader.get_absolute_pose_priors(),
-                cameras_gt=self.loader.get_gt_cameras(),
-                gt_wTi_list=self.loader.get_gt_poses(),
-                gt_scene_mesh=self.loader.get_gt_scene_trimesh(),
-            )
-        else:
-            logger.warning(f"Skipping cluster {idx+1} as it has no valid two-view results.")
-            return None, [], []
 
 
 def get_image_dictionary(image_list: list[Image]) -> dict[int, Image]:
