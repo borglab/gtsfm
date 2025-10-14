@@ -7,7 +7,7 @@ represent subgraphs with no vertex overlap (i.e., a partition!).
 Authors: Shicong Ma and Frank Dellaert
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from math import ceil, log2
 from typing import Dict, List, Optional, Set, Tuple
 
