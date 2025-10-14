@@ -292,9 +292,8 @@ class SceneOptimizer:
             # this is an intentional exception from the norm to support mac implementation
             import gtsfm.splat.rendering as gtsfm_rendering
 
-            img_dict_graph = delayed(get_image_dictionary)(images)
             (splats_graph, cfg_graph) = self.gaussian_splatting_optimizer.create_computation_graph(
-                img_dict_graph, ba_output_graph
+                images, ba_output_graph
             )
 
             annotation = annotate(workers=self._output_worker) if self._output_worker else annotate()
@@ -304,7 +303,7 @@ class SceneOptimizer:
                 )
                 delayed_results.append(
                     delayed(gtsfm_rendering.generate_interpolated_video)(
-                        images_graph=img_dict_graph,
+                        images=images,
                         sfm_result_graph=ba_output_graph,
                         cfg_result_graph=cfg_graph,
                         splats_graph=splats_graph,

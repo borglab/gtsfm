@@ -91,7 +91,7 @@ class TestIoUtils(unittest.TestCase):
 
         base_gaussian = {
             "mean": torch.Tensor([0.5, 0, 0]),
-            "quaternion": torch.Tensor([0.92387953, 0, 0.38268343, 0]),
+            "quat": torch.Tensor([0.92387953, 0, 0.38268343, 0]),
             "scale": torch.log(torch.Tensor([0.3, 0.15, 0.05])),
         }
 
@@ -134,16 +134,16 @@ class TestIoUtils(unittest.TestCase):
         expected_mean_4 = scale4 * (torch.Tensor(R_4) @ base_gaussian["mean"] + trans4)
         expected_scale_4 = torch.log(scale4) + base_gaussian["scale"]
         base_gaussian_quaternion = gtsam.Rot3(
-            base_gaussian["quaternion"][0],
-            base_gaussian["quaternion"][1],
-            base_gaussian["quaternion"][2],
-            base_gaussian["quaternion"][3],
+            base_gaussian["quat"][0],
+            base_gaussian["quat"][1],
+            base_gaussian["quat"][2],
+            base_gaussian["quat"][3],
         )
         expected_rotation_4 = R_4 @ base_gaussian_quaternion.matrix()
         torch.allclose(gauss_B_4["mean"], expected_mean_4.to(torch.float32))
         torch.allclose(gauss_B_4["scale"], expected_scale_4)
         torch.allclose(
-            gauss_B_4["quaternion"], torch.Tensor(gtsam.Rot3(expected_rotation_4).toQuaternion().coeffs()[[3, 0, 1, 2]])
+            gauss_B_4["quat"], torch.Tensor(gtsam.Rot3(expected_rotation_4).toQuaternion().coeffs()[[3, 0, 1, 2]])
         )
 
 

@@ -159,13 +159,13 @@ else:
             Create the initial Gaussian Splats with parameters defined in the Config class
             Args:
                 full_dataset: Dataset class for Gaussian Splatting training data
-                init_type: intialization from random points or sfm points
+                init_type: initialization from random points or sfm points
                 init_num_pts: Number of randomly initialized gaussians
                 init_opacity: Initial opacity value of the gaussians
                 means_lr: learning rate for the means of the gaussians
-                scales_lr: learning rate for the means of the gaussians
+                scales_lr: learning rate for the scales of the gaussians
                 opacities_lr: learning rate for the opacities of the gaussians
-                quats_lr: learning rate for the 3D rotation (covariance) of the gaussians
+                quats_lr: learning rate for the 3D rotation of the gaussians
                 sh0_lr: learning rate for the 0th degree of the spherical harmonics of the gaussians
                 shN_lr: learning rate for the all other degrees of the spherical harmonics of the gaussians
                 sh_degree: degree for the spherical harmonics
@@ -187,7 +187,7 @@ else:
                 # See https://github.com/nerfstudio-project/nerfstudio/blob/main/nerfstudio/models/splatfacto.py
                 if init_type == "sfm":
                     logger.info("Warning: 'sfm' init chosen but no points found. Falling back to 'random'.")
-                logger.info(f"Initializing with {init_num_pts} random points.")
+                logger.info("Initializing with %s random points.", init_num_pts)
                 points = torch.nn.Parameter((torch.rand((init_num_pts, 3)) - 0.5) * RANDOM_SCALE)
                 features_dc = torch.nn.Parameter(torch.rand(init_num_pts, 3))
 
@@ -266,7 +266,7 @@ else:
         def rasterize_splats(
             self,
             splats,
-            camtoworlds: Tensor,
+            wTi_tensor: Tensor,
             Ks: Tensor,
             width: int,
             height: int,
@@ -278,7 +278,7 @@ else:
 
             Args:
                 splats: 3D Gaussian splats
-                camtoworlds: camera-to-world matrices
+                wTi_tensor: camera-to-world matrices
                 Ks: camera intrinsic matrices
                 width: width of the rendered image
                 height: height of the rendered image
@@ -302,7 +302,7 @@ else:
 
             rasterize_mode = "antialiased" if self.cfg.antialiased else "classic"
 
-            viewmats = get_viewmat(camtoworlds)
+            viewmats = get_viewmat(wTi_tensor)
 
             return rasterization(
                 means=means,
@@ -317,7 +317,7 @@ else:
                 packed=self.cfg.packed,
                 absgrad=self.strategy.absgrad,
                 rasterize_mode=rasterize_mode,
-                render_mode=render_mode,
+                render_mode=render_mode,  # type: ignore
                 **kwargs,
             )
 
@@ -355,7 +355,7 @@ else:
             for step in range(init_step, max_steps):
                 data = next(trainloader_iter)
 
-                camtoworlds = data["camtoworld"].to(self.device)
+                wTi_tensor = data["wTc"].to(self.device)
                 image_full_res = data["image"].to(self.device)
                 Ks_full_res = data["K"].to(self.device)
 
@@ -375,7 +375,7 @@ else:
 
                 renders, alphas, info = self.rasterize_splats(
                     splats=splats,
-                    camtoworlds=camtoworlds,
+                    wTi_tensor=wTi_tensor,
                     Ks=Ks,
                     width=width,
                     height=height,

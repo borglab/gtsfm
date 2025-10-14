@@ -56,8 +56,8 @@ def get_rotation_matrix_from_two_vectors(vec1: torch.Tensor, vec2: torch.Tensor)
 # See https://github.com/nerfstudio-project/nerfstudio/blob/main/nerfstudio/cameras/camera_utils.py
 def auto_orient_and_center_poses(
     poses: torch.Tensor,
-    method: Literal["up", "none"] = "none",
-    center_method: Literal["poses", "none"] = "poses",
+    method: str | Literal["up", "none"] = "none",
+    center_method: str | Literal["poses", "none"] = "poses",
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Orients and centers the poses.
@@ -243,19 +243,19 @@ def set_random_seed(seed: int):
 
 # See https://github.com/nerfstudio-project/nerfstudio/blob/main/nerfstudio/models/splatfacto.py
 @torch.compile()
-def get_viewmat(camera_to_world: torch.Tensor) -> torch.Tensor:
+def get_viewmat(wTi_tensor: torch.Tensor) -> torch.Tensor:
     """
     Converts a batch of camera-to-world matrices to gsplat's world-to-camera format.
     This function is compiled with torch.compile for a speed boost.
     It converts to the gsplat standard ([Right, Down, Forward]).
 
     Args:
-        camera_to_world: A tensor of camera-to-world matrices with shape [N, 4, 4].
+        wTi_tensor: A tensor of camera-to-world matrices with shape [N, 4, 4].
     Returns:
         A tensor of world-to-camera matrices with shape [N, 4, 4].
     """
-    R = camera_to_world[:, :3, :3]  # [N, 3, 3]
-    T = camera_to_world[:, :3, 3:4]  # [N, 3, 1]
+    R = wTi_tensor[:, :3, :3]  # [N, 3, 3]
+    T = wTi_tensor[:, :3, 3:4]  # [N, 3, 1]
     # analytic matrix inverse to get world2camera matrix
     R_inv = R.transpose(1, 2)
     T_inv = -torch.bmm(R_inv, T)
@@ -278,10 +278,10 @@ def transform_gaussian(gaussianA: dict, bSa: gtsam.Similarity3) -> dict:
     meanA = gaussianA["mean"]
     meanB = torch.Tensor(bSa.transformFrom(meanA))
 
-    w = gaussianA["quaternion"][0]
-    x = gaussianA["quaternion"][1]
-    y = gaussianA["quaternion"][2]
-    z = gaussianA["quaternion"][3]
+    w = gaussianA["quat"][0]
+    x = gaussianA["quat"][1]
+    y = gaussianA["quat"][2]
+    z = gaussianA["quat"][3]
 
     q = gtsam.Rot3.Quaternion(w, x, y, z)
     bRa = bSa.rotation()
@@ -292,7 +292,7 @@ def transform_gaussian(gaussianA: dict, bSa: gtsam.Similarity3) -> dict:
     # we only update the means, quaternions and scales (covariance) as opacity and color do not change.
     gaussianB = gaussianA.copy()
     gaussianB["mean"] = meanB
-    gaussianB["quaternion"] = rotationB
+    gaussianB["quat"] = rotationB
     gaussianB["scale"] = scaleB
 
     return gaussianB
