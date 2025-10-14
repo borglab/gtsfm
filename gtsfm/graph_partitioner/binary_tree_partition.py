@@ -4,16 +4,14 @@ This partitioner recursively partitions a visibility graph into a binary tree
 structure up to a specified depth, using METIS-based ordering. Leaf nodes
 represent subgraphs with no vertex overlap (i.e., a partition!).
 
-Authors: Shicong Ma
+Authors: Shicong Ma and Frank Dellaert
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from math import ceil, log2
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
-import networkx as nx  # type: ignore
-from gtsam import Ordering, Symbol, SymbolicFactorGraph  # type: ignore
-from gtsam.symbol_shorthand import X  # type: ignore
+from gtsam import Ordering, SymbolicFactorGraph  # type: ignore
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
@@ -25,7 +23,13 @@ logger = logger_utils.get_logger()
 class BinaryTreeNode:
     """Node class for a binary tree representing partitioned visibility graphs."""
 
-    def __init__(self, keys: List[int], depth: int):
+    def __init__(
+        self,
+        keys: List[int],
+        depth: int,
+        left: Optional["BinaryTreeNode"] = None,
+        right: Optional["BinaryTreeNode"] = None,
+    ):
         """
         Initialize a BinaryTreeNode.
 
@@ -34,8 +38,8 @@ class BinaryTreeNode:
             depth: Depth level in the binary tree.
         """
         self.keys = keys  # Only at leaves
-        self.left: Optional[BinaryTreeNode] = None
-        self.right: Optional[BinaryTreeNode] = None
+        self.left = left
+        self.right = right
         self.depth = depth
 
     def is_leaf(self) -> bool:
@@ -43,9 +47,9 @@ class BinaryTreeNode:
         return self.left is None and self.right is None
 
 
-@dataclass
+@dataclass(frozen=True)
 class LeafPartitionDetails:
-    exclusive_keys: List[int]
+    exclusive_keys: Set[int]
     intra_partition_edges: VisibilityGraph
 
 
@@ -95,14 +99,14 @@ class BinaryTreePartition(GraphPartitionerBase):
         if self.max_depth is None:
             self.max_depth = ceil(log2(num_cameras / self._num_cameras_per_cluster))
 
-        symbol_graph, _, nx_graph = self._build_graphs(graph)
-        ordering = Ordering.MetisSymbolicFactorGraph(symbol_graph)
+        sfg = self._build_symbolic_factor_graph(graph)
+        ordering = Ordering.MetisSymbolicFactorGraph(sfg)
         binary_tree_root_node = self._build_binary_partition(ordering)
 
         num_leaves = 2**self.max_depth
         image_pairs_per_partition: List[VisibilityGraph] = [[] for _ in range(num_leaves)]
 
-        partition_details, inter_partition_edges = self._compute_leaf_partition_details(binary_tree_root_node, nx_graph)
+        partition_details, inter_partition_edges = self._compute_leaf_partition_details(binary_tree_root_node, graph)
 
         logger.info("%d leaf nodes.", len(partition_details))
 
@@ -114,7 +118,7 @@ class BinaryTreePartition(GraphPartitionerBase):
             exclusive_keys = part.exclusive_keys
             intra_edges = part.intra_partition_edges
 
-            logger.info("Partition %d: keys (%d): %s", i + 1, len(exclusive_keys), sorted(exclusive_keys))
+            logger.info("Partition %d: keys (%d): %s", i + 1, len(exclusive_keys), exclusive_keys)
             logger.info("Partition %d: num intra-partition edges: %d", i + 1, len(intra_edges))
             logger.debug("Partition %d: intra-partition edges: %s", i + 1, intra_edges)
 
@@ -131,29 +135,19 @@ class BinaryTreePartition(GraphPartitionerBase):
         """
         return self.inter_partition_edges_map
 
-    def _build_graphs(self, graph: VisibilityGraph) -> Tuple[SymbolicFactorGraph, List[int], nx.Graph]:
-        """Construct GTSAM and NetworkX graphs from visibility graph.
+    def _build_symbolic_factor_graph(self, graph: VisibilityGraph) -> SymbolicFactorGraph:
+        """Construct GTSAM graph from visibility graph.
 
         Args:
             graph: List of image index pairs.
 
         Returns:
-            A tuple of (SymbolicFactorGraph, list of keys, NetworkX graph).
+            A SymbolicFactorGraph.
         """
         sfg = SymbolicFactorGraph()
-        nxg = nx.Graph()
-        keys = set()
-
         for i, j in graph:
-            key_i = X(i)
-            key_j = X(j)
-            keys.add(key_i)
-            keys.add(key_j)
-
-            sfg.push_factor(key_i, key_j)
-            nxg.add_edge(key_i, key_j)
-
-        return sfg, list(keys), nxg
+            sfg.push_factor(i, j)
+        return sfg
 
     def _build_binary_partition(self, ordering: Ordering) -> BinaryTreeNode:
         """Build a binary tree of image keys based on a given ordering.
@@ -170,35 +164,31 @@ class BinaryTreePartition(GraphPartitionerBase):
             if depth == self.max_depth:
                 return BinaryTreeNode(keys, depth)
 
+            # NOTE(Frank): this is totally wrong: we should use Metis post-ordering
+            # to split the keys into two sets with minimal edge cuts.
             mid = len(keys) // 2
             left_node = split(keys[:mid], depth + 1)
             right_node = split(keys[mid:], depth + 1)
-            node = BinaryTreeNode([], depth)
-            node.left = left_node
-            node.right = right_node
-            return node
+            return BinaryTreeNode([], depth, left_node, right_node)
 
         return split(ordered_keys, 0)
 
     def _compute_leaf_partition_details(
-        self,
-        node: BinaryTreeNode,
-        nx_graph: nx.Graph,
+        self, node: BinaryTreeNode, graph: VisibilityGraph
     ) -> Tuple[List[LeafPartitionDetails], Dict[Tuple[int, int], VisibilityGraph]]:
         """Recursively traverse the binary tree and return partition details per leaf.
 
         Args:
             node: Current binary tree node being processed.
-            nx_graph: NetworkX graph built from visibility graph.
-
+            graph: Visibility graph.
         Returns:
             A tuple:
-                - List of LeafPartitionDetails objects, one per leaf node.
+                - List of LeafPartitionDetails objects per leaf node.
                 - Mapping of (leaf_idx_a, leaf_idx_b) to inter-partition edges.
         """
         leaf_details = []
         inter_partition_edges = dict()
-        leaf_idx_counter = [0]  # mutable counter to track leaf index
+        leaf_idx_counter = [0]
         node_to_idx = dict()
 
         def dfs(node: BinaryTreeNode) -> List[LeafPartitionDetails]:
@@ -209,12 +199,8 @@ class BinaryTreePartition(GraphPartitionerBase):
                 exclusive_keys = set(node.keys)
                 return [
                     LeafPartitionDetails(
-                        exclusive_keys=[Symbol(u).index() for u in exclusive_keys],
-                        intra_partition_edges=[
-                            (Symbol(u).index(), Symbol(v).index())
-                            for u, v in nx_graph.edges()
-                            if u in exclusive_keys and v in exclusive_keys
-                        ],
+                        exclusive_keys=exclusive_keys,
+                        intra_partition_edges=[(i, j) for i, j in graph if i in exclusive_keys and j in exclusive_keys],
                     )
                 ]
 
@@ -225,16 +211,17 @@ class BinaryTreePartition(GraphPartitionerBase):
             # Identify inter-partition edges between two sibling leaf nodes,
             # and map them using their assigned leaf indices.
             if node.left.is_leaf() and node.right.is_leaf():
-                left_keys = set(node.left.keys)
-                right_keys = set(node.right.keys)
-                shared_edges = [
-                    (Symbol(u).index(), Symbol(v).index())
-                    for u, v in nx_graph.edges()
-                    if (u in left_keys and v in right_keys) or (u in right_keys and v in left_keys)
-                ]
-                i = node_to_idx[node.left]
-                j = node_to_idx[node.right]
-                inter_partition_edges[(i, j)] = shared_edges
+                left_keys_set = set(node.left.keys)
+                right_keys_set = set(node.right.keys)
+
+                shared_edges = []
+                for i, j in graph:
+                    if (i in left_keys_set and j in right_keys_set) or (i in right_keys_set and j in left_keys_set):
+                        shared_edges.append((i, j))
+
+                left_index = node_to_idx[node.left]
+                right_index = node_to_idx[node.right]
+                inter_partition_edges[(left_index, right_index)] = shared_edges
 
             return left_part + right_part
 
