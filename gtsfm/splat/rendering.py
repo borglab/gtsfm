@@ -132,7 +132,7 @@ def generate_interpolated_video(
     Renders a video with interpolated poses from the training poses
     Args:
             images_graph: computation graph for images.
-            sfm_result_graph: computation graph for SFM output
+            sfm_result_graph: computation graph for SfM output
             cfg_result_graph: computation graph for the training Config parameters
             splats_graph: computation graph for the gaussian splats
             video_fpath: location where the video will be saved
@@ -144,29 +144,29 @@ def generate_interpolated_video(
     fps = cfg.fps
     device = "cuda" if torch.cuda.is_available() else "cpu"
     full_dataset = GaussianSplattingData(images_graph, sfm_result_graph)
-    camtoworlds_all = generate_interpolated_path(full_dataset._camtoworlds, num_frames)
+    wTi_np = generate_interpolated_path(full_dataset.wTi_tensor, num_frames, spline_degree=2)
 
-    camtoworlds_all = np.concatenate(
+    wTi_np = np.concatenate(
         [
-            camtoworlds_all,
-            np.repeat(np.array([[[0.0, 0.0, 0.0, 1.0]]]), len(camtoworlds_all), axis=0),
+            wTi_np,
+            np.repeat(np.array([[[0.0, 0.0, 0.0, 1.0]]]), len(wTi_np), axis=0),
         ],
         axis=1,
     )
-    camtoworlds_all = torch.from_numpy(camtoworlds_all).float().to(device)
-    K = torch.from_numpy(full_dataset._intrinsics[0]).float().to(device)
+    wTi_tensor = torch.from_numpy(wTi_np).float().to(device)
+    K = torch.from_numpy(full_dataset.intrinsics[0]).float().to(device)
     height, width = full_dataset.actual_img_dims[0]
     frame_size = (width * 2, height)
 
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # type: ignore
     writer = cv2.VideoWriter(video_fpath, fourcc, fps, frame_size)
-    for i in range(len(camtoworlds_all)):
-        camtoworlds = camtoworlds_all[i : i + 1]
+    for i in range(len(wTi_tensor)):
+        wTc_tensor = wTi_tensor[i : i + 1]
         Ks = K[None]
 
         renders, _, _ = gs.rasterize_splats(
             splats=splats,
-            camtoworlds=camtoworlds,
+            wTi_tensor=wTc_tensor,
             Ks=Ks,
             width=width,
             height=height,
@@ -186,7 +186,7 @@ def generate_interpolated_video(
         canvas_bgr = cv2.cvtColor(canvas, cv2.COLOR_RGB2BGR)
         writer.write(canvas_bgr)
     writer.release()
-    logger.info(f"Interpolated video saved to {video_fpath}")
+    logger.info("Interpolated video saved to %s", video_fpath)
 
 
 # See https://github.com/nerfstudio-project/gsplat/blob/main/gsplat/exporter.py
@@ -211,4 +211,4 @@ def save_splats(save_path, splats):
         save_to=f"{save_path}/gaussian_splats.ply",
     )
 
-    logger.info(f"Successfully saved Gaussian splats .ply file to {save_path}/gaussian_splats.ply")
+    logger.info("Successfully saved Gaussian splats .ply file to %s/gaussian_splats.ply", save_path)

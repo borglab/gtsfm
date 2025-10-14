@@ -44,20 +44,21 @@ class GaussianSplattingData(Dataset):
         self._num_valid_cameras = len(valid_camera_idxs)
 
         self._images = [images[i] for gs_i, i in self._gaussiansplatting_idx_to_camera_idx.items()]
+        self._all_images = [images[i] for i in range(len(images))]
 
         # Get actual image dimensions from the Image objects
         self.actual_img_dims = [
             (images[i].height, images[i].width) for gs_i, i in self._gaussiansplatting_idx_to_camera_idx.items()
         ]
 
-        self._intrinsics = [
-            self._sfm_result.get_camera(i).calibration().K()
+        self.intrinsics = [
+            self._sfm_result.get_camera(i).calibration().K()  # type: ignore
             for gs_i, i in self._gaussiansplatting_idx_to_camera_idx.items()
         ]
 
-        self._dataparser_outputs = self._generate_dataparser_outputs_from_gtsfm_data(self._sfm_result, self._images)
+        self._dataparser_outputs = self._generate_dataparser_outputs_from_gtsfm_data(self._sfm_result, self._all_images)
 
-        self._camtoworlds = self._dataparser_outputs["cameras"]["camera_to_worlds"].numpy()
+        self.wTi_tensor = self._dataparser_outputs["cameras"]["wTi_tensor"].numpy()
 
         self._scene_scale = self._dataparser_outputs["dataparser_scale"]
         self.transform_matrix = self._dataparser_outputs["transform_matrix"]
@@ -70,9 +71,13 @@ class GaussianSplattingData(Dataset):
             transform_matrix_torch = self.transform_matrix.float()
             points_homogeneous = F.pad(points_torch, (0, 1), "constant", 1.0)
             transform_4x4 = torch.cat(
-                [transform_matrix_torch, torch.tensor([[0.0, 0.0, 0.0, 1.0]], device=transform_matrix_torch.device)],
-                axis=0,
+                (
+                    transform_matrix_torch,
+                    torch.tensor([[0.0, 0.0, 0.0, 1.0]], device=transform_matrix_torch.device),
+                ),
+                dim=0,
             )
+
             points_transformed = (transform_4x4 @ points_homogeneous.T).T
             points_transformed[:, :3] *= self._scene_scale
             self.points = points_transformed[:, :3].numpy()
@@ -86,9 +91,13 @@ class GaussianSplattingData(Dataset):
         Returns:
         """
 
-        wTi_list = [gtsfm_data.get_camera(i).pose() for gs_i, i in self._gaussiansplatting_idx_to_camera_idx.items()]
+        wTi_list = [
+            gtsfm_data.get_camera(i).pose()  # type: ignore
+            for gs_i, i in self._gaussiansplatting_idx_to_camera_idx.items()
+        ]
         calibrations = [
-            gtsfm_data.get_camera(i).calibration() for gs_i, i in self._gaussiansplatting_idx_to_camera_idx.items()
+            gtsfm_data.get_camera(i).calibration()  # type: ignore
+            for gs_i, i in self._gaussiansplatting_idx_to_camera_idx.items()
         ]
 
         tracks = gtsfm_data.get_tracks()
@@ -106,7 +115,7 @@ class GaussianSplattingData(Dataset):
     def _process_scene_data(self, wTi_list, calibrations, point_cloud, rgb) -> Dict:
         """Processing logic for data from any source
         Args:
-            wTi_list: camera poses camera-to-worls
+            wTi_list: camera poses camera-to-worlds
             calibrations: intrinsics for all valid images
             point_cloud: sfm points in the 3D space
             rgb: colors associated with sfm points
@@ -119,8 +128,8 @@ class GaussianSplattingData(Dataset):
                 "point_cloud": sfm points in the 3D space
                 "rgb": colors associated with sfm points
         """
-        poses = np.stack([wTi.matrix() for wTi in wTi_list])
-        poses = torch.from_numpy(poses.astype(np.float32))
+        poses_np = np.stack([wTi.matrix() for wTi in wTi_list])
+        poses = torch.from_numpy(poses_np.astype(np.float32))
 
         poses, transform_matrix = auto_orient_and_center_poses(
             poses,
@@ -141,16 +150,16 @@ class GaussianSplattingData(Dataset):
         height_list, width_list = [], []
         distortion_params_list = []
 
-        for i in range(len(calibrations)):
-            fx = float(calibrations[i].fx())
-            fy = float(calibrations[i].fy())
-            cx = float(calibrations[i].px())
-            cy = float(calibrations[i].py())
+        for i, calib in enumerate(calibrations):
+            fx = float(calib.fx())
+            fy = float(calib.fy())
+            cx = float(calib.px())
+            cy = float(calib.py())
 
             distortion_params = torch.tensor(
                 [
-                    calibrations[i].k1(),
-                    calibrations[i].k2(),
+                    calib.k1(),
+                    calib.k2(),
                     0.0,
                     0.0,
                     0.0,
@@ -176,7 +185,7 @@ class GaussianSplattingData(Dataset):
             "cy": torch.tensor(cy_list, dtype=torch.float32),
             "height": torch.tensor(height_list, dtype=torch.int32),
             "width": torch.tensor(width_list, dtype=torch.int32),
-            "camera_to_worlds": poses[:, :3, :4],
+            "wTi_tensor": poses[:, :3, :4],
             "distortion_params": torch.stack(distortion_params_list, dim=0),
         }
 
@@ -204,26 +213,26 @@ class GaussianSplattingData(Dataset):
         Returns:
             Dictionary containing:
                 "K": camera intrinsic matrix for a particular image
-                "camtoworld": camera-to-world matrix for a particular image
+                "wTc": camera-to-world matrix for a particular image
                 "image": the 2D image
                 "image_id": index of the image
         """
         image = self._images[index].value_array
 
-        K = self._intrinsics[index]
+        K = self.intrinsics[index]
         distortion_params = self._dataparser_outputs["cameras"]["distortion_params"][index].numpy()
 
         # Undistort the image and update intrinsics
         if np.any(distortion_params):
             K, image = _undistort_image(distortion_params, image, K)
 
-        c2w = self._dataparser_outputs["cameras"]["camera_to_worlds"][index].numpy()
+        wTc = self._dataparser_outputs["cameras"]["wTi_tensor"][index].numpy()
 
         image = image.astype(np.float32) / 255.0
 
         data = {
             "K": torch.from_numpy(K).float(),
-            "camtoworld": torch.from_numpy(c2w).float(),
+            "wTc": torch.from_numpy(wTc).float(),
             "image": torch.from_numpy(image).float(),
             "image_id": torch.tensor(index, dtype=torch.int32),
         }
