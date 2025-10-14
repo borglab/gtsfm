@@ -487,7 +487,8 @@ class SceneOptimizer:
         assert self.graph_partitioner is not None, "Graph partitioner is not set up!"
         partition = self.graph_partitioner.run(visibility_graph)
         if len(partition.subgraphs) == 1:
-            # single subgraph, no need to log partition details
+            # Single-subgraph run: write directly under {output_root}/results, no need to log partition details
+            self.create_output_directories(None)
             return [two_view_results]
         else:
             # Log and group results by subgraph
@@ -503,9 +504,6 @@ class SceneOptimizer:
         )
         if num_subgraphs > 1:
             self.create_output_directories(idx + 1)
-        else:
-            # Single-subgraph run: write directly under {output_root}/results
-            self.create_output_directories(None)
 
         if len(subgraph_two_view_results) > 0:
             # TODO(Frank): would be nice if relative pose prior was part of TwoViewResult
