@@ -47,7 +47,8 @@ class TestBinaryTreePartition(unittest.TestCase):
     def test_partition_leaf_count(self):
         """Test that partitioner creates the correct number of leaf partitions."""
         partitioner = BinaryTreePartition(max_depth=2)
-        partitions = partitioner.run(self.image_pairs)
+        result = partitioner.run(self.image_pairs)
+        partitions = result.subgraphs
         assert partitioner.max_depth is not None
         expected_num_leaves = 2**partitioner.max_depth
         self.assertEqual(len(partitions), expected_num_leaves)
@@ -55,10 +56,10 @@ class TestBinaryTreePartition(unittest.TestCase):
     def test_no_duplicate_undirected_edges(self):
         """Test that undirected edges are not duplicated (e.g., both (u,v) and (v,u))."""
         partitioner = BinaryTreePartition(max_depth=2)
-        partitions = partitioner.run(self.image_pairs)
+        result = partitioner.run(self.image_pairs)
         undirected_edges = set()
-        for partition in partitions:
-            for u, v in partition:
+        for subgraph in result.subgraphs:
+            for u, v in subgraph.edges:
                 edge = (min(u, v), max(u, v))
                 undirected_edges.add(edge)
         self.assertEqual(len(undirected_edges), len(set(undirected_edges)))
@@ -66,9 +67,9 @@ class TestBinaryTreePartition(unittest.TestCase):
     def test_edge_validity(self):
         """Test that all edges are valid integer indices within the image grid."""
         partitioner = BinaryTreePartition(max_depth=2)
-        partitions = partitioner.run(self.image_pairs)
-        for partition in partitions:
-            for u, v in partition:
+        result = partitioner.run(self.image_pairs)
+        for subgraph in result.subgraphs:
+            for u, v in subgraph.edges:
                 self.assertIsInstance(u, int)
                 self.assertIsInstance(v, int)
                 self.assertGreaterEqual(u, 0)
@@ -77,32 +78,32 @@ class TestBinaryTreePartition(unittest.TestCase):
                 self.assertLess(v, self.total_nodes)
 
     def test_non_empty_partitions(self):
-        """Test that at least one partition contains edges."""
+        """Test that at least one subgraph contains edges."""
         partitioner = BinaryTreePartition(max_depth=2)
-        partitions = partitioner.run(self.image_pairs)
-        non_empty_count = sum(1 for p in partitions if len(p) > 0)
+        result = partitioner.run(self.image_pairs)
+        non_empty_count = sum(1 for p in result.subgraphs if len(p.edges) > 0)
         self.assertGreater(non_empty_count, 0)
 
     def test_empty_input(self):
-        """Test that empty image pair input returns an empty partition list."""
+        """Test that empty image pair input returns an empty subgraph list."""
         partitioner = BinaryTreePartition(max_depth=2)
-        partitions = partitioner.run([])
+        result = partitioner.run([])
+        partitions = result.subgraphs
         self.assertEqual(partitions, [])
 
     def test_known_input_partition(self):
         """Test partitioning of a simple known image pair set."""
         image_pairs = [(0, 1), (1, 2), (2, 3)]
         partitioner = BinaryTreePartition(max_depth=1)
-        partitions = partitioner.run(image_pairs)
-        inter = partitioner.get_inter_partition_edges()
+        result = partitioner.run(image_pairs)
 
         # Check number of partitions
-        self.assertEqual(len(partitions), 2)
+        self.assertEqual(len(result.subgraphs), 2)
 
-        # Gather all intra-partition and inter-partition edges
-        flattened = set((min(u, v), max(u, v)) for p in partitions for u, v in p)
+        # Gather all intra-subgraph and inter-subgraph edges
+        flattened = set((min(u, v), max(u, v)) for p in result.subgraphs for u, v in p.edges)
 
-        for inter_edges in inter.values():
+        for inter_edges in result.edge_cuts.values():
             for u, v in inter_edges:
                 flattened.add((min(u, v), max(u, v)))
 
@@ -121,7 +122,7 @@ class TestBinaryTreePartition(unittest.TestCase):
             {"size": lambda self: 8, "at": lambda self, idx: ord("a") + idx},  # returns int ASCII code
         )()
 
-        root = partitioner._build_binary_partition(ordering)  # type: ignore
+        root = partitioner._build_binary_partition(ordering, 3)  # type: ignore
 
         leaf_nodes = []
 
@@ -154,7 +155,7 @@ class TestBinaryTreePartition(unittest.TestCase):
         # Fake ordering: integers 0 through 7
         ordering = type("FakeOrdering", (), {"size": lambda self: 8, "at": lambda self, idx: idx})()
 
-        root = partitioner._build_binary_partition(ordering)  # type: ignore
+        root = partitioner._build_binary_partition(ordering, 2)  # type: ignore
 
         # Collect leaf nodes and check depth
         leaf_nodes = []
@@ -174,7 +175,7 @@ class TestBinaryTreePartition(unittest.TestCase):
         self.assertEqual(sum(len(n.keys) for n in leaf_nodes), 8)
 
     def test_compute_leaf_partition_details(self):
-        """Test that leaf partitions correctly report intra- and inter-partition edges."""
+        """Test that leaf partitions correctly report intra- and inter-subgraph edges."""
         partitioner = BinaryTreePartition(max_depth=1)
         image_pairs = [(0, 1), (1, 2), (2, 3)]  # Line graph
 
@@ -185,15 +186,15 @@ class TestBinaryTreePartition(unittest.TestCase):
         root.left = left
         root.right = right
 
-        leaf_details, inter_edges_map = partitioner._compute_leaf_partition_details(root, image_pairs)
+        result = partitioner._compute_partition(root, image_pairs)
 
-        self.assertEqual(len(leaf_details), 2)
+        self.assertEqual(len(result.subgraphs), 2)
 
         flattened_edges = set()
-        for d in leaf_details:
-            for u, v in d.intra_partition_edges:
+        for d in result.subgraphs:
+            for u, v in d.edges:
                 flattened_edges.add((min(u, v), max(u, v)))
-        for inter_edges in inter_edges_map.values():
+        for inter_edges in result.edge_cuts.values():
             for u, v in inter_edges:
                 flattened_edges.add((min(u, v), max(u, v)))
 

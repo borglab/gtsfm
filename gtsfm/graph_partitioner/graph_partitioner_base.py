@@ -6,6 +6,7 @@ Authors: Zongyue Liu
 from abc import abstractmethod
 
 import gtsfm.utils.logger as logger_utils
+from gtsfm.products.partition import Partition
 from gtsfm.products.visibility_graph import VisibilityGraph
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
@@ -38,17 +39,29 @@ class GraphPartitionerBase(GTSFMProcess):
         return UiMetadata(
             display_name="Graph Partitioner",
             input_products=("Visibility Graph",),
-            output_products=("Subgraphs",),
+            output_products=("Partition",),
             parent_plate="Preprocessing",
         )
 
     @abstractmethod
-    def run(self, graph: VisibilityGraph) -> list[VisibilityGraph]:
+    def run(self, graph: VisibilityGraph) -> Partition:
         """Partition a set of visibility graph into subgraphs.
 
         Args:
             graph: a visibility graph.
         Returns:
-            List of subgraphs, where each subgraph is a visibility graph.
+            Partition: leaves and inter-partition edges map.
         """
-        pass
+
+    @staticmethod
+    def log_partition_details(partition: Partition) -> None:
+        """Log details of each partition for debugging.
+
+        Args:
+            partition: Partition object containing partition details.
+        """
+        logger.info("%d subgraphs found.", len(partition.subgraphs))
+        for i, leaf in enumerate(partition.subgraphs):
+            logger.info("Subgraph %d: keys (%d): %s", i, len(leaf.keys), leaf.keys)
+            logger.info("Subgraph %d: num intra-partition edges: %d", i, len(leaf.edges))
+            logger.debug("Subgraph %d: intra-partition edges: %s", i, leaf.edges)

@@ -51,7 +51,6 @@ from gtsfm.two_view_estimator import (
     run_two_view_estimator_as_futures,
 )
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
-from gtsfm.utils.subgraph_utils import group_results_by_subgraph
 
 # Set matplotlib backend to "Agg" (Anti-Grain Geometry) for headless rendering
 # This must be called before importing pyplot or any other matplotlib modules
@@ -486,18 +485,19 @@ class SceneOptimizer:
 
     def _partition_view_graph(self, visibility_graph, two_view_results):
         assert self.graph_partitioner is not None, "Graph partitioner is not set up!"
-        subgraphs = self.graph_partitioner.run(visibility_graph)
+        partition = self.graph_partitioner.run(visibility_graph)
+        subgraphs = partition.subgraphs
         if len(subgraphs) == 1:
-            # single partition
+            # single subgraph, no need to log partition details
             return [two_view_results]
         else:
-            logger.info("Partitioned into %d subgraphs", len(subgraphs))
+            self.graph_partitioner.log_partition_details(partition)
             # Group results by subgraph
-            return group_results_by_subgraph(two_view_results, subgraphs)
+            return partition.group_by_subgraph(two_view_results)
 
     def _process_subgraph(self, idx, subgraph_two_view_results, keypoints_list, maybe_intrinsics, num_subgraphs):
         logger.info(
-            "Creating computation graph for subgraph %d / %d with %d image pairs",
+            "Creating computation graph for subgraph %d/%d with %d image pairs",
             idx + 1,
             num_subgraphs,
             len(subgraph_two_view_results),
@@ -505,7 +505,7 @@ class SceneOptimizer:
         if num_subgraphs > 1:
             self.create_output_directories(idx + 1)
         else:
-            # Single-partition run: write directly under {output_root}/results
+            # Single-subgrap run: write directly under {output_root}/results
             self.create_output_directories(None)
 
         if len(subgraph_two_view_results) > 0:

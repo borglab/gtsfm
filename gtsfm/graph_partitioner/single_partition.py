@@ -5,6 +5,7 @@ Authors: Zongyue Liu
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
+from gtsfm.products.partition import Partition, Subgraph
 from gtsfm.products.visibility_graph import VisibilityGraph
 
 logger = logger_utils.get_logger()
@@ -21,14 +22,18 @@ class SinglePartition(GraphPartitionerBase):
         """Initialize the partitioner."""
         super().__init__(process_name="SinglePartition")
 
-    def run(self, graph: VisibilityGraph) -> list[VisibilityGraph]:
+    def run(self, graph: VisibilityGraph) -> Partition:
         """Return all visibility graph as a single partition.
 
         Args:
             graph: input visibility graph.
 
         Returns:
-            A list containing a single element: the input visibility graph.
+            Partition with a single leaf and empty inter-partition edges map.
         """
         logger.info(f"SinglePartition: returning all {len(graph)} pairs as a single partition")
-        return [graph]
+        keys = set()
+        for i, j in graph:
+            keys.add(i)
+            keys.add(j)
+        return Partition(subgraphs=[Subgraph(keys=keys, edges=graph)], edge_cuts={})
