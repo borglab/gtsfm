@@ -11,8 +11,6 @@ Author: Shicong Ma
 
 import unittest
 
-from gtsam.symbol_shorthand import X  # type: ignore
-
 from gtsfm.graph_partitioner.binary_tree_partition import BinaryTreeNode, BinaryTreePartition
 from gtsfm.products.visibility_graph import ImageIndexPairs
 
@@ -144,15 +142,10 @@ class TestBinaryTreePartition(unittest.TestCase):
         """Test that _build_graphs constructs the correct symbolic and networkx graphs."""
         partitioner = BinaryTreePartition(max_depth=1)
         test_pairs = [(0, 1), (1, 2)]
-        sfg, keys, nxg = partitioner._build_graphs(test_pairs)
+        sfg = partitioner._build_symbolic_factor_graph(test_pairs)
 
         # Check symbolic graph has correct number of factors
         self.assertEqual(sfg.size(), len(test_pairs))
-
-        # Check nx graph has correct nodes and edges
-        self.assertEqual(set(nxg.edges()), {(X(0), X(1)), (X(1), X(2))})
-        self.assertEqual(len(nxg.nodes), 3)
-        self.assertEqual(len(keys), 3)
 
     def test_build_binary_partition(self):
         """Test that binary tree is built correctly with specified depth and balanced splitting."""
@@ -185,23 +178,20 @@ class TestBinaryTreePartition(unittest.TestCase):
         partitioner = BinaryTreePartition(max_depth=1)
         image_pairs = [(0, 1), (1, 2), (2, 3)]  # Line graph
 
-        # Build graph and partition tree
-        _, _, nxg = partitioner._build_graphs(image_pairs)
-
         # Manually create a binary tree with leaves split as [0,1] and [2,3]
-        left = BinaryTreeNode([X(0), X(1)], depth=1)
-        right = BinaryTreeNode([X(2), X(3)], depth=1)
+        left = BinaryTreeNode([0, 1], depth=1)
+        right = BinaryTreeNode([2, 3], depth=1)
         root = BinaryTreeNode([], depth=0)
         root.left = left
         root.right = right
 
-        leaf_details, inter_edges_map = partitioner._compute_leaf_partition_details(root, nxg)
+        leaf_details, inter_edges_map = partitioner._compute_leaf_partition_details(root, image_pairs)
 
         self.assertEqual(len(leaf_details), 2)
 
         flattened_edges = set()
         for d in leaf_details:
-            for u, v in d["intra_partition_edges"]:
+            for u, v in d.intra_partition_edges:
                 flattened_edges.add((min(u, v), max(u, v)))
         for inter_edges in inter_edges_map.values():
             for u, v in inter_edges:
