@@ -44,6 +44,9 @@ class GaussianSplattingData(Dataset):
         self._num_valid_cameras = len(valid_camera_idxs)
 
         self._images = [images[i] for gs_i, i in self._gaussiansplatting_idx_to_camera_idx.items()]
+
+        # all images need to be passed to the generate_dataparser function as the get_average_point_color subsequently
+        # expects all images not just valid
         self._all_images = images
 
         # Get actual image dimensions from the Image objects
