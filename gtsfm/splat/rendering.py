@@ -4,7 +4,7 @@ Functions for rendering an interpolated path between the training poses using th
 Authors: Harneet Singh Khanuja
 """
 
-from typing import Dict
+from typing import List
 
 import cv2
 import numpy as np
@@ -126,12 +126,12 @@ def generate_interpolated_path(
 
 @torch.no_grad()
 def generate_interpolated_video(
-    images_graph: Dict[int, Image], sfm_result_graph: GtsfmData, cfg_result_graph, splats_graph, video_fpath
+    images: List[Image], sfm_result_graph: GtsfmData, cfg_result_graph, splats_graph, video_fpath
 ):
     """
     Renders a video with interpolated poses from the training poses
     Args:
-            images_graph: computation graph for images.
+            images: computation graph for images.
             sfm_result_graph: computation graph for SfM output
             cfg_result_graph: computation graph for the training Config parameters
             splats_graph: computation graph for the gaussian splats
@@ -143,7 +143,7 @@ def generate_interpolated_video(
     num_frames = cfg.num_frames
     fps = cfg.fps
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    full_dataset = GaussianSplattingData(images_graph, sfm_result_graph)
+    full_dataset = GaussianSplattingData(images, sfm_result_graph)
     wTi_np = generate_interpolated_path(full_dataset.wTi_tensor, num_frames, spline_degree=2)
 
     wTi_np = np.concatenate(

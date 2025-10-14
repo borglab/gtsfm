@@ -22,7 +22,7 @@ logger = logger_utils.get_logger()
 class GaussianSplattingData(Dataset):
     """Converts the data format from GtsfmData to Gaussian Splatting input"""
 
-    def __init__(self, images: Dict[int, Image], sfm_result: GtsfmData) -> None:
+    def __init__(self, images: List[Image], sfm_result: GtsfmData) -> None:
         """Cache images and GtsfmData for Gaussian Splatting training, including camera poses and tracks.
 
         Args:
@@ -44,7 +44,7 @@ class GaussianSplattingData(Dataset):
         self._num_valid_cameras = len(valid_camera_idxs)
 
         self._images = [images[i] for gs_i, i in self._gaussiansplatting_idx_to_camera_idx.items()]
-        self._all_images = [images[i] for i in range(len(images))]
+        self._all_images = images
 
         # Get actual image dimensions from the Image objects
         self.actual_img_dims = [
