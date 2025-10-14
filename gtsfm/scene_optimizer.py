@@ -486,13 +486,12 @@ class SceneOptimizer:
     def _partition_view_graph(self, visibility_graph, two_view_results):
         assert self.graph_partitioner is not None, "Graph partitioner is not set up!"
         partition = self.graph_partitioner.run(visibility_graph)
-        subgraphs = partition.subgraphs
-        if len(subgraphs) == 1:
+        if len(partition.subgraphs) == 1:
             # single subgraph, no need to log partition details
             return [two_view_results]
         else:
+            # Log and group results by subgraph
             self.graph_partitioner.log_partition_details(partition)
-            # Group results by subgraph
             return partition.group_by_subgraph(two_view_results)
 
     def _process_subgraph(self, idx, subgraph_two_view_results, keypoints_list, maybe_intrinsics, num_subgraphs):
@@ -505,7 +504,7 @@ class SceneOptimizer:
         if num_subgraphs > 1:
             self.create_output_directories(idx + 1)
         else:
-            # Single-subgrap run: write directly under {output_root}/results
+            # Single-subgraph run: write directly under {output_root}/results
             self.create_output_directories(None)
 
         if len(subgraph_two_view_results) > 0:
