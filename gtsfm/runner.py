@@ -90,7 +90,7 @@ class GtsfmRunner:
             type=str,
             default="single",
             choices=["single", "other_partitioner_types"],
-            help="Type of graph partitioner to use. Default is 'single' (SinglePartition).",
+            help="Type of graph partitioner to use. Default is 'single' (SinglePartitioner).",
         )
         parser.add_argument(
             "--share_intrinsics", action="store_true", help="Shares the intrinsics between all the cameras."
