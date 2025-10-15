@@ -1,4 +1,10 @@
-# gtsfm/frontend/global_descriptor/megaloc_global_descriptor.py
+""" Wrapper around the MegaLoc Global Descriptor"""
+import numpy as np
+import torch
+
+import gtsfm.utils.logger as logger_utils
+from gtsfm.common.image import Image
+from gtsfm.frontend.global_descriptor.global_descriptor_base import GlobalDescriptorBase
 from thirdparty.megaloc.megaloc import MegaLocModel
 
 class MegaLocGlobalDescriptor(GlobalDescriptorBase):
