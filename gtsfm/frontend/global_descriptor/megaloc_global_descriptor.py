@@ -9,6 +9,7 @@ from thirdparty.megaloc.megaloc import MegaLocModel
 
 class MegaLocGlobalDescriptor(GlobalDescriptorBase):
     def __init__(self) -> None:
+        logger = logger_utils.get_logger()
         logger.info("⏳ Loading MegaLoc model weights...")
         self._model = MegaLocModel().eval()
         
