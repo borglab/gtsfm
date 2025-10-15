@@ -64,6 +64,6 @@ class GraphPartitionerBase(GTSFMProcess):
         logger.info("%d leaf clusters found.", len(leaves))
         for i, leaf in enumerate(leaves, 1):
             leaf_keys = leaf.all_keys()
-            logger.info("Leaf Cluster %d: keys (%d): %s", i, len(leaf_keys), leaf_keys)
+            logger.info("Leaf Cluster %d: keys (%d): %s", i, len(leaf_keys), list(map(int, leaf_keys)))
             logger.info("Leaf Cluster %d: num intra-cluster edges: %d", i, len(leaf.edges))
             logger.debug("Leaf Cluster %d: intra-cluster edges: %s", i, leaf.edges)

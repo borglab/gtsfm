@@ -9,9 +9,7 @@ Authors: Shicong Ma and Frank Dellaert
 """
 
 from math import ceil, log2
-from typing import List, Optional, Sequence, Set, Tuple
-
-from gtsam import Ordering, SymbolicFactorGraph  # type: ignore
+from typing import Optional, Sequence, Set, Tuple
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
@@ -60,10 +58,7 @@ class BinaryTreePartitioner(GraphPartitionerBase):
             max_depth = ceil(log2(max(1, num_cameras) / self._num_cameras_per_cluster))
             max_depth = max(0, max_depth)
 
-        sfg = self._build_symbolic_factor_graph(graph)
-        ordering = Ordering.MetisSymbolicFactorGraph(sfg)
-
-        ordered_keys = self._extract_ordered_keys(ordering, all_nodes)
+        ordered_keys = list(all_nodes)
         root_cluster, _, _ = self._build_binary_clustering(
             keys=ordered_keys,
             depth=0,
@@ -71,29 +66,6 @@ class BinaryTreePartitioner(GraphPartitionerBase):
             graph_edges=graph,
         )
         return Clustering(root=root_cluster)
-
-    def _build_symbolic_factor_graph(self, graph: VisibilityGraph) -> SymbolicFactorGraph:
-        """Construct GTSAM graph from visibility graph."""
-        sfg = SymbolicFactorGraph()
-        for i, j in graph:
-            sfg.push_factor(i, j)
-        return sfg
-
-    def _extract_ordered_keys(self, ordering: Ordering, all_nodes: Set[int]) -> List[int]:
-        """Extract node ordering returned by METIS."""
-        ordered_keys: List[int] = []
-        seen = set()
-        for idx in range(ordering.size()):
-            key_value = int(ordering.at(idx))
-            if key_value in all_nodes and key_value not in seen:
-                ordered_keys.append(key_value)
-                seen.add(key_value)
-
-        missing = all_nodes.difference(seen)
-        if missing:
-            logger.warning("Ordering did not cover all nodes; appending %d missing keys.", len(missing))
-            ordered_keys.extend(sorted(missing))
-        return ordered_keys
 
     def _build_binary_clustering(
         self,

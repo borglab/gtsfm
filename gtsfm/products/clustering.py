@@ -18,6 +18,15 @@ class Cluster:
     edges: VisibilityGraph
     children: Tuple["Cluster", ...] = ()
 
+    def __repr__(self) -> str:
+        keys_str = f"keys={sorted(self.keys)}"
+        edges_str = f"edges={len(self.edges)}"
+        if self.children:
+            children_str = f", children={len(self.children)}"
+        else:
+            children_str = ""
+        return f"Cluster({keys_str}, {edges_str}{children_str})"
+
     def is_leaf(self) -> bool:
         """Return True if the cluster is a leaf (has no children)."""
         return len(self.children) == 0
@@ -69,6 +78,20 @@ class Clustering:
 
         _collect(self.root)
         return tuple(leaves)
+
+    def __repr__(self) -> str:
+        if self.root is None:
+            return "Clustering(root=None)"
+
+        def _repr(cluster: Cluster, depth: int = 0) -> str:
+            indent = "  " * depth
+            s = f"{indent}Cluster(keys={sorted(cluster.keys)}, edges={list(cluster.edges)})"
+            if cluster.children:
+                for child in cluster.children:
+                    s += "\n" + _repr(child, depth + 1)
+            return s
+
+        return f"Clustering(\n{_repr(self.root)}\n)"
 
     def group_by_leaf(self, annotated_graph: AnnotatedGraph[T]) -> List[AnnotatedGraph[T]]:
         """Group annotated results by leaf clusters."""

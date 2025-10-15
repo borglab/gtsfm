@@ -115,31 +115,6 @@ class TestBinaryTreePartitioner(unittest.TestCase):
         # Cross-cluster edge should be stored at the root.
         self.assertIn((1, 2), clustering.root.edges)
 
-    def test_build_symbolic_factor_graph_size(self):
-        """Test that _build_symbolic_factor_graph constructs the correct symbolic graph."""
-        partitioner = BinaryTreePartitioner(max_depth=1)
-        test_pairs = [(0, 1), (1, 2)]
-        sfg = partitioner._build_symbolic_factor_graph(test_pairs)
-        self.assertEqual(sfg.size(), len(test_pairs))
-
-    def test_extract_ordered_keys_appends_missing(self):
-        """Test that _extract_ordered_keys removes duplicates and appends missing nodes."""
-        partitioner = BinaryTreePartitioner(max_depth=1)
-
-        class FakeOrdering:
-            def __init__(self, values):
-                self.values = values
-
-            def size(self):
-                return len(self.values)
-
-            def at(self, idx):
-                return self.values[idx]
-
-        fake = FakeOrdering([2, 1, 2, 0])
-        ordered_keys = partitioner._extract_ordered_keys(fake, {0, 1, 2, 3})
-        self.assertEqual(ordered_keys, [2, 1, 0, 3])
-
 
 if __name__ == "__main__":
     unittest.main()
