@@ -37,7 +37,7 @@ from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
 from gtsfm.frontend.correspondence_generator.image_correspondence_generator import ImageCorrespondenceGenerator
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
-from gtsfm.graph_partitioner.single_partition import SinglePartitioner
+from gtsfm.graph_partitioner.single_partitioner import SinglePartitioner
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.products.two_view_result import TwoViewResult
@@ -485,20 +485,20 @@ class SceneOptimizer:
 
     def _partition_view_graph(self, visibility_graph, two_view_results):
         assert self.graph_partitioner is not None, "Graph partitioner is not set up!"
-        clustering = self.graph_partitioner.run(visibility_graph)
-        if clustering.is_empty():
-            logger.warning("Graph partitioner returned an empty clustering; running single-cluster pipeline.")
+        cluster_tree = self.graph_partitioner.run(visibility_graph)
+        if cluster_tree.is_empty():
+            logger.warning("Graph partitioner returned an empty cluster_tree; running single-cluster pipeline.")
             self.create_output_directories(None)
             return [two_view_results]
 
-        grouped_results = clustering.group_by_leaf(two_view_results)
+        grouped_results = cluster_tree.group_by_leaf(two_view_results)
         if len(grouped_results) <= 1:
             # Single-cluster run: write directly under {output_root}/results, no need to log extra details
             self.create_output_directories(None)
             return grouped_results or [two_view_results]
 
         # Log and group results by cluster
-        self.graph_partitioner.log_partition_details(clustering)
+        self.graph_partitioner.log_partition_details(cluster_tree)
         return grouped_results
 
     def _process_cluster(self, idx, cluster_two_view_results, keypoints_list, maybe_intrinsics, num_clusters):

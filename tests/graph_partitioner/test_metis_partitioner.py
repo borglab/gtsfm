@@ -5,7 +5,7 @@ import unittest
 from gtsam import SymbolicBayesTreeClique  # type: ignore
 
 from gtsfm.graph_partitioner.metis_partitioner import MetisPartitioner
-from gtsfm.products.clustering import Cluster
+from gtsfm.products.cluster_tree import Cluster
 
 
 class TestMetisPartitioner(unittest.TestCase):
@@ -22,15 +22,15 @@ class TestMetisPartitioner(unittest.TestCase):
 
     def test_empty_input_returns_empty_clustering(self) -> None:
         partitioner = MetisPartitioner()
-        clustering = partitioner.run([])
-        self.assertTrue(clustering.is_empty())
-        self.assertEqual(clustering.leaves(), ())
+        cluster_tree = partitioner.run([])
+        self.assertTrue(cluster_tree.is_empty())
+        self.assertEqual(cluster_tree.leaves(), ())
 
     def test_chain_graph_creates_non_empty_clustering(self) -> None:
         partitioner = MetisPartitioner()
-        clustering = partitioner.run(self.chain_edges)
-        self.assertFalse(clustering.is_empty())
-        leaves = clustering.leaves()
+        cluster_tree = partitioner.run(self.chain_edges)
+        self.assertFalse(cluster_tree.is_empty())
+        leaves = cluster_tree.leaves()
         self.assertGreater(len(leaves), 0)
         for leaf in leaves:
             self.assertIsInstance(leaf, Cluster)
@@ -38,9 +38,9 @@ class TestMetisPartitioner(unittest.TestCase):
 
     def test_group_by_leaf_matches_edges(self) -> None:
         partitioner = MetisPartitioner()
-        clustering = partitioner.run(self.chain_edges)
-        grouped = clustering.group_by_leaf({edge: edge for edge in self.chain_edges})
-        self.assertEqual(len(grouped), len(clustering.leaves()))
+        cluster_tree = partitioner.run(self.chain_edges)
+        grouped = cluster_tree.group_by_leaf({edge: edge for edge in self.chain_edges})
+        self.assertEqual(len(grouped), len(cluster_tree.leaves()))
 
     def test_clique_key_sets(self) -> None:
         partitioner = MetisPartitioner()
@@ -57,16 +57,17 @@ class TestMetisPartitioner(unittest.TestCase):
 
     def test_skydio_leaf_edges_are_intra_cluster(self) -> None:
         partitioner = MetisPartitioner()
-        clustering = partitioner.run(self.skydio_pairs)
-        assert clustering.root is not None
-        self.assertEqual(len(clustering.root.all_edges()), len(self.skydio_pairs))
-        self.assertFalse(clustering.is_empty())
-        for cluster in clustering.leaves():
+        cluster_tree = partitioner.run(self.skydio_pairs)
+        assert cluster_tree.root is not None
+        self.assertEqual(len(cluster_tree.root.all_edges()), len(self.skydio_pairs))
+        self.assertFalse(cluster_tree.is_empty())
+        for cluster in cluster_tree.leaves():
             # All edge endpoints must lie inside the cluster key set.
+            leaf_keys = cluster.all_keys()
             for i, j in cluster.edges:
-                self.assertIn(i, cluster.keys)
-                self.assertIn(j, cluster.keys)
-            if len(cluster.keys) <= 1:
+                self.assertIn(i, leaf_keys)
+                self.assertIn(j, leaf_keys)
+            if len(leaf_keys) <= 1:
                 self.assertEqual(len(cluster.edges), 0)
 
 

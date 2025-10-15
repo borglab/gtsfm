@@ -10,8 +10,8 @@ This module tests the functionality of the BinaryTreePartitioner class, ensuring
 import unittest
 from typing import Set, Tuple
 
-from gtsfm.graph_partitioner.binary_tree_partition import BinaryTreePartitioner
-from gtsfm.products.clustering import Cluster
+from gtsfm.graph_partitioner.binary_tree_partitioner import BinaryTreePartitioner
+from gtsfm.products.cluster_tree import Cluster
 from gtsfm.products.visibility_graph import ImageIndexPairs
 
 
@@ -53,9 +53,9 @@ class TestBinaryTreePartitioner(unittest.TestCase):
     def test_leaf_count(self):
         """Test that partitioner creates the expected number of leaf clusters."""
         partitioner = BinaryTreePartitioner(max_depth=2)
-        clustering = partitioner.run(self.image_pairs)
-        self.assertFalse(clustering.is_empty())
-        leaves = clustering.leaves()
+        cluster_tree = partitioner.run(self.image_pairs)
+        self.assertFalse(cluster_tree.is_empty())
+        leaves = cluster_tree.leaves()
         assert partitioner.max_depth is not None
         expected_num_leaves = 2**partitioner.max_depth
         self.assertEqual(len(leaves), expected_num_leaves)
@@ -63,9 +63,9 @@ class TestBinaryTreePartitioner(unittest.TestCase):
     def test_no_duplicate_edges_in_leaves(self):
         """Test that undirected edges are not duplicated across leaves."""
         partitioner = BinaryTreePartitioner(max_depth=2)
-        clustering = partitioner.run(self.image_pairs)
+        cluster_tree = partitioner.run(self.image_pairs)
         seen_edges = set()
-        for cluster in clustering.leaves():
+        for cluster in cluster_tree.leaves():
             for u, v in cluster.edges:
                 edge = (min(u, v), max(u, v))
                 self.assertNotIn(edge, seen_edges)
@@ -74,9 +74,9 @@ class TestBinaryTreePartitioner(unittest.TestCase):
     def test_edge_validity(self):
         """Test that all edges are valid integer indices within the image grid."""
         partitioner = BinaryTreePartitioner(max_depth=2)
-        clustering = partitioner.run(self.image_pairs)
-        self.assertIsNotNone(clustering.root)
-        all_edges = self._collect_all_edges(clustering.root)  # type: ignore[arg-type]
+        cluster_tree = partitioner.run(self.image_pairs)
+        self.assertIsNotNone(cluster_tree.root)
+        all_edges = self._collect_all_edges(cluster_tree.root)  # type: ignore[arg-type]
         for u, v in all_edges:
             self.assertIsInstance(u, int)
             self.assertIsInstance(v, int)
@@ -88,32 +88,32 @@ class TestBinaryTreePartitioner(unittest.TestCase):
     def test_non_empty_leaf(self):
         """Test that at least one leaf cluster contains edges."""
         partitioner = BinaryTreePartitioner(max_depth=2)
-        clustering = partitioner.run(self.image_pairs)
-        non_empty_count = sum(1 for c in clustering.leaves() if len(c.edges) > 0)
+        cluster_tree = partitioner.run(self.image_pairs)
+        non_empty_count = sum(1 for c in cluster_tree.leaves() if len(c.edges) > 0)
         self.assertGreater(non_empty_count, 0)
 
     def test_empty_input_returns_empty_clustering(self):
-        """Test that empty image pair input returns an empty clustering."""
+        """Test that empty image pair input returns an empty cluster tree."""
         partitioner = BinaryTreePartitioner(max_depth=2)
-        clustering = partitioner.run([])
-        self.assertTrue(clustering.is_empty())
-        self.assertEqual(clustering.leaves(), ())
+        cluster_tree = partitioner.run([])
+        self.assertTrue(cluster_tree.is_empty())
+        self.assertEqual(cluster_tree.leaves(), ())
 
     def test_known_input_edges_distributed(self):
-        """Test clustering of a simple known image pair set."""
+        """Test cluster tree of a simple known image pair set."""
         image_pairs = [(0, 1), (1, 2), (2, 3)]
         partitioner = BinaryTreePartitioner(max_depth=1)
-        clustering = partitioner.run(image_pairs)
+        cluster_tree = partitioner.run(image_pairs)
 
-        self.assertFalse(clustering.is_empty())
-        assert clustering.root is not None
+        self.assertFalse(cluster_tree.is_empty())
+        assert cluster_tree.root is not None
 
         # All edges should appear somewhere in the hierarchy.
-        all_edges = self._collect_all_edges(clustering.root)
+        all_edges = self._collect_all_edges(cluster_tree.root)
         self.assertSetEqual(all_edges, set(image_pairs))
 
         # Cross-cluster edge should be stored at the root.
-        self.assertIn((1, 2), clustering.root.edges)
+        self.assertIn((1, 2), cluster_tree.root.edges)
 
 
 if __name__ == "__main__":

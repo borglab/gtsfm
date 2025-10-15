@@ -6,7 +6,7 @@ Authors: Zongyue Liu
 from abc import abstractmethod
 
 import gtsfm.utils.logger as logger_utils
-from gtsfm.products.clustering import Clustering
+from gtsfm.products.cluster_tree import ClusterTree
 from gtsfm.products.visibility_graph import VisibilityGraph
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
@@ -39,28 +39,28 @@ class GraphPartitionerBase(GTSFMProcess):
         return UiMetadata(
             display_name="Graph Partitioner",
             input_products=("Visibility Graph",),
-            output_products=("Clustering",),
+            output_products=("ClusterTree",),
             parent_plate="Preprocessing",
         )
 
     @abstractmethod
-    def run(self, graph: VisibilityGraph) -> Clustering:
+    def run(self, graph: VisibilityGraph) -> ClusterTree:
         """Cluster a visibility graph.
 
         Args:
             graph: a visibility graph.
         Returns:
-            Clustering describing the hierarchical structure.
+            ClusterTree describing the hierarchical structure.
         """
 
     @staticmethod
-    def log_partition_details(clustering: Clustering) -> None:
+    def log_partition_details(cluster_tree: ClusterTree) -> None:
         """Log details of each cluster for debugging.
 
         Args:
-            clustering: Clustering object containing cluster details.
+            cluster_tree: ClusterTree object containing cluster details.
         """
-        leaves = clustering.leaves()
+        leaves = cluster_tree.leaves()
         logger.info("%d leaf clusters found.", len(leaves))
         for i, leaf in enumerate(leaves, 1):
             leaf_keys = leaf.all_keys()

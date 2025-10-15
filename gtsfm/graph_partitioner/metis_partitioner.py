@@ -1,4 +1,4 @@
-"""Graph partitioner that constructs a clustering directly from the METIS Bayes tree."""
+"""Graph partitioner that constructs a cluster_tree directly from the METIS Bayes tree."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from gtsam import Ordering, SymbolicBayesTree, SymbolicBayesTreeClique, SymbolicFactorGraph  # type: ignore
 
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
-from gtsfm.products.clustering import Cluster, Clustering
+from gtsfm.products.cluster_tree import Cluster, ClusterTree
 from gtsfm.products.visibility_graph import VisibilityGraph
 
 
@@ -24,10 +24,10 @@ class MetisPartitioner(GraphPartitionerBase):
     def __init__(self) -> None:
         super().__init__(process_name="MetisPartitioner")
 
-    def run(self, graph: VisibilityGraph) -> Clustering:
+    def run(self, graph: VisibilityGraph) -> ClusterTree:
         """Cluster a visibility graph using the clique structure of the symbolic Bayes tree."""
         if len(graph) == 0:
-            return Clustering(root=None)
+            return ClusterTree(root=None)
 
         for i, j in graph:
             if i == j:
@@ -38,11 +38,11 @@ class MetisPartitioner(GraphPartitionerBase):
         bayes_tree = self.symbolic_bayes_tree(graph)
         roots: list = bayes_tree.roots()
         if len(roots) == 0:
-            return Clustering(root=None)
+            return ClusterTree(root=None)
         if len(roots) > 1:
             raise ValueError("MetisPartitioner: VisibilityGraph is disconnected.")
         root_result = self._cluster_from_clique(roots[0], graph)
-        return Clustering(root=root_result.cluster)
+        return ClusterTree(root=root_result.cluster)
 
     def symbolic_bayes_tree(self, graph: VisibilityGraph) -> SymbolicBayesTree:
         """Helper to build the Bayes tree from the visibility graph."""
@@ -63,8 +63,8 @@ class MetisPartitioner(GraphPartitionerBase):
         if not children:
             # Create a leaf cluster.
             edges = [(i, j) for i, j in graph if i in frontals and j in frontals]
-            cluster = Cluster(keys=frozenset(frontals), edges=edges, children=())
-            return _CliqueClusterResult(cluster=cluster, keys=set(cluster.keys), edges=set(edges))
+            cluster = Cluster(edges=edges, children=())
+            return _CliqueClusterResult(cluster=cluster, keys=set(frontals), edges=set(edges))
 
         child_results = [self._cluster_from_clique(child, graph) for child in children]
 
@@ -75,7 +75,6 @@ class MetisPartitioner(GraphPartitionerBase):
         subtree_edges = {(i, j) for i, j in graph if i in subtree_keys and j in subtree_keys}
 
         cluster = Cluster(
-            keys=frozenset(frontals - descendant_keys),
             edges=list(subtree_edges - descendant_edges),
             children=tuple(result.cluster for result in child_results),
         )

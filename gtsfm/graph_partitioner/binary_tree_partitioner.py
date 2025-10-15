@@ -13,7 +13,7 @@ from typing import Optional, Sequence, Set, Tuple
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
-from gtsfm.products.clustering import Cluster, Clustering
+from gtsfm.products.cluster_tree import Cluster, ClusterTree
 from gtsfm.products.visibility_graph import VisibilityGraph
 
 logger = logger_utils.get_logger()
@@ -38,11 +38,11 @@ class BinaryTreePartitioner(GraphPartitionerBase):
                 raise ValueError("Either max_depth or num_cameras_per_cluster must be provided")
             self._num_cameras_per_cluster = num_cameras_per_cluster
 
-    def run(self, graph: VisibilityGraph) -> Clustering:
+    def run(self, graph: VisibilityGraph) -> ClusterTree:
         """Cluster a visibility graph into a binary tree of clusters."""
         if len(graph) == 0:
-            logger.warning("BinaryTreePartitioner: no visibility graph provided for clustering.")
-            return Clustering(root=None)
+            logger.warning("BinaryTreePartitioner: no visibility graph provided for cluster_tree.")
+            return ClusterTree(root=None)
 
         for i, j in graph:
             if i == j:
@@ -65,7 +65,7 @@ class BinaryTreePartitioner(GraphPartitionerBase):
             max_depth=max_depth,
             graph_edges=graph,
         )
-        return Clustering(root=root_cluster)
+        return ClusterTree(root=root_cluster)
 
     def _build_binary_clustering(
         self,
@@ -74,7 +74,7 @@ class BinaryTreePartitioner(GraphPartitionerBase):
         max_depth: int,
         graph_edges: VisibilityGraph,
     ) -> Tuple[Cluster, Set[int], Set[Tuple[int, int]]]:
-        """Recursively build a binary clustering hierarchy.
+        """Recursively build a binary cluster_tree hierarchy.
 
         Returns:
             A tuple of:
@@ -86,8 +86,8 @@ class BinaryTreePartitioner(GraphPartitionerBase):
 
         if depth == max_depth or len(keys) <= 1:
             intra_edges = [(i, j) for i, j in graph_edges if i in key_set and j in key_set]
-            cluster = Cluster(keys=frozenset(key_set), edges=intra_edges, children=())
-            return cluster, set(cluster.keys), set(intra_edges)
+            cluster = Cluster(edges=intra_edges, children=())
+            return cluster, set(key_set), set(intra_edges)
 
         mid = max(1, len(keys) // 2)
         left_cluster, left_keys, left_edges = self._build_binary_clustering(
@@ -113,11 +113,7 @@ class BinaryTreePartitioner(GraphPartitionerBase):
         ]
 
         unique_keys = key_set - descendant_keys
-        cluster = Cluster(
-            keys=frozenset(unique_keys),
-            edges=cross_edges,
-            children=(left_cluster, right_cluster),
-        )
+        cluster = Cluster(edges=cross_edges, children=(left_cluster, right_cluster))
 
         descendant_keys |= unique_keys
         descendant_edges = child_edges | set(cross_edges)

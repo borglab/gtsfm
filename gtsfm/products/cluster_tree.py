@@ -1,4 +1,4 @@
-"""Data structures for hierarchical clustering of visibility graphs."""
+"""Data structures for hierarchical cluster_tree of visibility graphs."""
 
 from __future__ import annotations
 
@@ -12,30 +12,35 @@ T = TypeVar("T")
 
 @dataclass(frozen=True)
 class Cluster:
-    """Node in a hierarchical clustering tree."""
+    """Node in a hierarchical cluster_tree tree."""
 
-    keys: FrozenSet[int]
     edges: VisibilityGraph
     children: Tuple["Cluster", ...] = ()
 
     def __repr__(self) -> str:
-        keys_str = f"keys={sorted(self.keys)}"
         edges_str = f"edges={len(self.edges)}"
         if self.children:
             children_str = f", children={len(self.children)}"
         else:
             children_str = ""
-        return f"Cluster({keys_str}, {edges_str}{children_str})"
+        keys_str = f", keys={sorted(self.local_keys())}" if self.edges else ""
+        return f"Cluster({edges_str}{children_str}{keys_str})"
 
     def is_leaf(self) -> bool:
         """Return True if the cluster is a leaf (has no children)."""
         return len(self.children) == 0
 
+    def local_keys(self) -> FrozenSet[int]:
+        """Keys referenced directly by this cluster's edges."""
+        keys: set[int] = set()
+        for i, j in self.edges:
+            keys.add(i)
+            keys.add(j)
+        return frozenset(keys)
+
     def all_keys(self) -> FrozenSet[int]:
         """Return the set of keys contained in this cluster and all descendants."""
-        if self.is_leaf():
-            return self.keys
-        descendant_keys = set(self.keys)
+        descendant_keys = set(self.local_keys())
         for child in self.children:
             descendant_keys.update(child.all_keys())
         return frozenset(descendant_keys)
@@ -53,13 +58,13 @@ class Cluster:
 
 
 @dataclass(frozen=True)
-class Clustering:
-    """Hierarchical clustering produced by a graph partitioner."""
+class ClusterTree:
+    """Hierarchical cluster tree produced by a graph partitioner."""
 
     root: Cluster | None
 
     def is_empty(self) -> bool:
-        """Return True if the clustering has no clusters."""
+        """Return True if the cluster tree has no clusters."""
         return self.root is None
 
     def leaves(self) -> Tuple[Cluster, ...]:
@@ -81,17 +86,17 @@ class Clustering:
 
     def __repr__(self) -> str:
         if self.root is None:
-            return "Clustering(root=None)"
+            return "ClusterTree(root=None)"
 
         def _repr(cluster: Cluster, depth: int = 0) -> str:
             indent = "  " * depth
-            s = f"{indent}Cluster(keys={sorted(cluster.keys)}, edges={list(cluster.edges)})"
+            s = f"{indent}Cluster(keys={sorted(cluster.local_keys())}, edges={list(cluster.edges)})"
             if cluster.children:
                 for child in cluster.children:
                     s += "\n" + _repr(child, depth + 1)
             return s
 
-        return f"Clustering(\n{_repr(self.root)}\n)"
+        return f"ClusterTree(\n{_repr(self.root)}\n)"
 
     def group_by_leaf(self, annotated_graph: AnnotatedGraph[T]) -> List[AnnotatedGraph[T]]:
         """Group annotated results by leaf clusters."""

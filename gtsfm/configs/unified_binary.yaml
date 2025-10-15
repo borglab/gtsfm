@@ -62,7 +62,7 @@ two_view_estimator:
       min_inlier_ratio_est_model: 0.1
 
 graph_partitioner:
-  _target_: gtsfm.graph_partitioner.binary_tree_partition.BinaryTreePartitioner
+  _target_: gtsfm.graph_partitioner.binary_tree_partitioner.BinaryTreePartitioner
   max_depth: 1
 
 multiview_optimizer:
