@@ -1,5 +1,5 @@
 # gtsfm/frontend/global_descriptor/megaloc_global_descriptor.py
-from thirdparty.megaloc.megaloc_model import MegaLocModel
+from thirdparty.megaloc.megaloc import MegaLocModel
 
 class MegaLocGlobalDescriptor(GlobalDescriptorBase):
     def __init__(self) -> None:

@@ -37,20 +37,25 @@ class MegaLocModel(nn.Module):
         self.l2norm = L2Norm()
 
         # Load pretrained weights
-
+        self.WEIGHT_URL = "https://github.com/gmberton/MegaLoc/releases/download/v1.0/megaloc.torch"
         self._load_pretrained_weights()
 
     def _load_pretrained_weights(self):
 
         """Load pretrained MegaLoc weights from GitHub release."""
-
-        state_dict = torch.hub.load_state_dict_from_url(
-            "https://github.com/gmberton/MegaLoc/releases/download/v1.0/megaloc.torch",
-            map_location=torch.device("cpu"),
-            progress=True
-        )
-
-        self.load_state_dict(state_dict)
+        # Download and load pretrained weights
+        logger.info("Downloading MegaLoc weights from GitHub...")
+        try:
+            state_dict = torch.hub.load_state_dict_from_url(
+                self.WEIGHT_URL,
+                map_location=torch.device("cpu"),
+                progress=True  # Show download progress
+            )
+            self.load_state_dict(state_dict)
+            logger.info("✓ MegaLoc weights loaded successfully")
+        except Exception as e:
+            logger.warning(f"Failed to download MegaLoc weights: {e}")
+            logger.warning("Model will use random initialization")
 
     def forward(self, images):
         b, c, h, w = images.shape
