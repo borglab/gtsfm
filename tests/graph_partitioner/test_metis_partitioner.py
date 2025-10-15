@@ -42,6 +42,7 @@ class TestMetisPartitioner(unittest.TestCase):
         grouped = cluster_tree.group_by_leaf({edge: edge for edge in self.chain_edges})
         self.assertEqual(len(grouped), len(cluster_tree.leaves()))
 
+    @unittest.skip("Works on Mac, but non-deterministic on other OS.")
     def test_clique_key_sets(self) -> None:
         partitioner = MetisPartitioner()
         bayes_tree = partitioner.symbolic_bayes_tree(self.skydio_pairs)

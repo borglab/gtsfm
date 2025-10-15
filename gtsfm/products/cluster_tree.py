@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import FrozenSet, List, Tuple, TypeVar
+from typing import FrozenSet, TypeVar
 
 from gtsfm.products.visibility_graph import AnnotatedGraph, VisibilityGraph
 
@@ -15,7 +15,7 @@ class Cluster:
     """Node in a hierarchical cluster_tree tree."""
 
     edges: VisibilityGraph
-    children: Tuple["Cluster", ...] = ()
+    children: tuple["Cluster", ...] = ()
 
     def __repr__(self) -> str:
         edges_str = f"edges={len(self.edges)}"
@@ -52,7 +52,7 @@ class Cluster:
             edges.extend(child.all_edges())
         return edges
 
-    def extract(self, annotated_graph: AnnotatedGraph[T]) -> AnnotatedGraph[T]:
+    def filter_edges(self, annotated_graph: AnnotatedGraph[T]) -> AnnotatedGraph[T]:
         """Extract annotated results associated with this cluster's edges."""
         return {edge: annotated_graph[edge] for edge in self.edges if edge in annotated_graph}
 
@@ -67,12 +67,12 @@ class ClusterTree:
         """Return True if the cluster tree has no clusters."""
         return self.root is None
 
-    def leaves(self) -> Tuple[Cluster, ...]:
+    def leaves(self) -> tuple[Cluster, ...]:
         """Return the leaf clusters."""
         if self.root is None:
             return ()
 
-        leaves: List[Cluster] = []
+        leaves: list[Cluster] = []
 
         def _collect(cluster: Cluster) -> None:
             if cluster.is_leaf():
@@ -98,6 +98,6 @@ class ClusterTree:
 
         return f"ClusterTree(\n{_repr(self.root)}\n)"
 
-    def group_by_leaf(self, annotated_graph: AnnotatedGraph[T]) -> List[AnnotatedGraph[T]]:
+    def group_by_leaf(self, annotated_graph: AnnotatedGraph[T]) -> list[AnnotatedGraph[T]]:
         """Group annotated results by leaf clusters."""
-        return [leaf.extract(annotated_graph) for leaf in self.leaves()]
+        return [leaf.filter_edges(annotated_graph) for leaf in self.leaves()]

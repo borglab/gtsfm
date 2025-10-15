@@ -9,12 +9,12 @@ Authors: Shicong Ma and Frank Dellaert
 """
 
 from math import ceil, log2
-from typing import Optional, Sequence, Set, Tuple
+from typing import Optional, Sequence
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.products.cluster_tree import Cluster, ClusterTree
-from gtsfm.products.visibility_graph import VisibilityGraph
+from gtsfm.products.visibility_graph import VisibilityGraph, valid_visibility_graph_or_raise
 
 logger = logger_utils.get_logger()
 
@@ -44,11 +44,7 @@ class BinaryTreePartitioner(GraphPartitionerBase):
             logger.warning("BinaryTreePartitioner: no visibility graph provided for cluster_tree.")
             return ClusterTree(root=None)
 
-        for i, j in graph:
-            if i == j:
-                raise ValueError(f"VisibilityGraph contains self-loop ({i}, {j}).")
-            if i > j:
-                raise ValueError(f"VisibilityGraph contains invalid pair ({i}, {j}): i must be less than j.")
+        valid_visibility_graph_or_raise(graph)
 
         all_nodes = {node for edge in graph for node in edge}
         num_cameras = len(all_nodes)
@@ -73,14 +69,14 @@ class BinaryTreePartitioner(GraphPartitionerBase):
         depth: int,
         max_depth: int,
         graph_edges: VisibilityGraph,
-    ) -> Tuple[Cluster, Set[int], Set[Tuple[int, int]]]:
+    ) -> tuple[Cluster, set[int], set[tuple[int, int]]]:
         """Recursively build a binary cluster_tree hierarchy.
 
         Returns:
             A tuple of:
                 - Cluster at the current recursion level.
-                - Set of keys contained in this cluster and descendants.
-                - Set of edges contained in this cluster and descendants.
+                - set of keys contained in this cluster and descendants.
+                - set of edges contained in this cluster and descendants.
         """
         key_set = set(keys)
 

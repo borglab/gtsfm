@@ -7,7 +7,7 @@ import os
 import shutil
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -159,21 +159,21 @@ class SceneOptimizer:
 
     def create_computation_graph(
         self,
-        keypoints_list: List[Keypoints],
+        keypoints_list: list[Keypoints],
         two_view_results: AnnotatedGraph[TwoViewResult],
         num_images: int,
-        images: List[Delayed],
-        camera_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
-        absolute_pose_priors: List[Optional[PosePrior]],
+        images: list[Delayed],
+        camera_intrinsics: list[Optional[gtsfm_types.CALIBRATION_TYPE]],
+        absolute_pose_priors: list[Optional[PosePrior]],
         relative_pose_priors: AnnotatedGraph[PosePrior],
-        cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
-        gt_wTi_list: List[Optional[Pose3]],
+        cameras_gt: list[Optional[gtsfm_types.CAMERA_TYPE]],
+        gt_wTi_list: list[Optional[Pose3]],
         gt_scene_mesh: Optional[Trimesh] = None,
-    ) -> Tuple[Delayed, List[Delayed], List[Delayed]]:
+    ) -> tuple[Delayed, list[Delayed], list[Delayed]]:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
         logger.info(f"Results, plots, and metrics will be saved at {self.output_root}")
 
-        delayed_results: List[Delayed] = []
+        delayed_results: list[Delayed] = []
 
         # Note: the MultiviewOptimizer returns BA input and BA output that are aligned to GT via Sim(3).
         (
@@ -198,7 +198,7 @@ class SceneOptimizer:
 
         # Persist all front-end metrics and their summaries.
         # TODO(akshay-krishnan): this delays saving the frontend reports until MVO has completed, not ideal.
-        metrics_graph_list: List[Delayed] = []
+        metrics_graph_list: list[Delayed] = []
         annotation = annotate(workers=self._output_worker) if self._output_worker else annotate()
         with annotation:
             delayed_results.append(
@@ -532,22 +532,22 @@ class SceneOptimizer:
             return None, [], []
 
 
-def get_image_dictionary(image_list: List[Image]) -> Dict[int, Image]:
+def get_image_dictionary(image_list: list[Image]) -> dict[int, Image]:
     """Convert a list of images to the MVS input format."""
     img_dict = {i: img for i, img in enumerate(image_list)}
     return img_dict
 
 
 def align_estimated_gtsfm_data(
-    ba_input: GtsfmData, ba_output: GtsfmData, gt_wTi_list: List[Optional[Pose3]]
-) -> Tuple[GtsfmData, GtsfmData, List[Optional[Pose3]]]:
+    ba_input: GtsfmData, ba_output: GtsfmData, gt_wTi_list: list[Optional[Pose3]]
+) -> tuple[GtsfmData, GtsfmData, list[Optional[Pose3]]]:
     """First aligns ba_input and ba_output to gt_wTi_list using a Sim3 transformation, then aligns them all to the
     X, Y, Z axes via another Sim3 global transformation.
 
     Args:
         ba_input: GtsfmData input to bundle adjustment.
         ba_output: GtsfmData output from bundle adjustment.
-        gt_pose_graph: List of GT camera poses.
+        gt_pose_graph: list of GT camera poses.
 
     Returns:
         Updated ba_input GtsfmData object aligned to axes.
@@ -568,10 +568,10 @@ def align_estimated_gtsfm_data(
 def save_matplotlib_visualizations(
     aligned_ba_input_graph: Delayed,
     aligned_ba_output_graph: Delayed,
-    gt_pose_graph: List[Optional[Delayed]],
+    gt_pose_graph: list[Optional[Delayed]],
     plot_ba_input_path: Path,
     plot_results_path: Path,
-) -> List[Delayed]:
+) -> list[Delayed]:
     """Visualizes GtsfmData & camera poses before and after bundle adjustment using Matplotlib.
 
     Accepts delayed GtsfmData before and after bundle adjustment, along with GT poses,
@@ -599,14 +599,14 @@ def save_matplotlib_visualizations(
 
 
 def get_gtsfm_data_with_gt_cameras_and_est_tracks(
-    cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
+    cameras_gt: list[Optional[gtsfm_types.CAMERA_TYPE]],
     ba_output: GtsfmData,
 ) -> GtsfmData:
     """Creates GtsfmData object with GT camera poses and estimated tracks.
 
     Args:
         gtsfm_data: GtsfmData object with estimated camera poses and tracks.
-        cameras_gt: List of GT cameras.
+        cameras_gt: list of GT cameras.
 
     Returns:
         GtsfmData object with GT camera poses and estimated tracks.
@@ -621,11 +621,11 @@ def get_gtsfm_data_with_gt_cameras_and_est_tracks(
 
 
 def save_gtsfm_data(
-    images: List[Image],
+    images: list[Image],
     ba_input_data: GtsfmData,
     ba_output_data: GtsfmData,
     results_path: Path,
-    cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
+    cameras_gt: list[Optional[gtsfm_types.CAMERA_TYPE]],
 ) -> None:
     """Saves the Gtsfm data before and after bundle adjustment.
 
@@ -675,16 +675,16 @@ def save_gtsfm_data(
 
 def save_full_frontend_metrics(
     two_view_report_dict: AnnotatedGraph[TwoViewEstimationReport],
-    images: List[Image],
+    images: list[Image],
     filename: str,
     metrics_path: Path,
     plot_base_path: Path,
 ) -> None:
-    """Converts the TwoViewEstimationReports for all image pairs to a Dict and saves it as JSON.
+    """Converts the TwoViewEstimationReports for all image pairs to a dict and saves it as JSON.
 
     Args:
         two_view_report_dict: Front-end metrics for pairs of images.
-        images: List of all images for this scene, in order of image/frame index.
+        images: list of all images for this scene, in order of image/frame index.
         filename: File name to use when saving report to JSON.
         metrics_path: Path to directory where metrics will be saved.
         plot_base_path: Path to directory where plots will be saved.

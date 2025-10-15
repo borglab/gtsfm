@@ -1,4 +1,6 @@
-"""Graph partitioner that constructs a cluster_tree directly from the METIS Bayes tree."""
+"""Graph partitioner that constructs a cluster_tree directly from the METIS Bayes tree.
+
+Authors: Frank Dellaert"""
 
 from __future__ import annotations
 
@@ -8,7 +10,7 @@ from gtsam import Ordering, SymbolicBayesTree, SymbolicBayesTreeClique, Symbolic
 
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.products.cluster_tree import Cluster, ClusterTree
-from gtsfm.products.visibility_graph import VisibilityGraph
+from gtsfm.products.visibility_graph import VisibilityGraph, valid_visibility_graph_or_raise
 
 
 @dataclass(frozen=True)
@@ -29,11 +31,7 @@ class MetisPartitioner(GraphPartitionerBase):
         if len(graph) == 0:
             return ClusterTree(root=None)
 
-        for i, j in graph:
-            if i == j:
-                raise ValueError(f"VisibilityGraph contains self-loop ({i}, {j}).")
-            if i > j:
-                raise ValueError(f"VisibilityGraph contains invalid pair ({i}, {j}): i must be less than j.")
+        valid_visibility_graph_or_raise(graph)
 
         bayes_tree = self.symbolic_bayes_tree(graph)
         roots: list = bayes_tree.roots()
