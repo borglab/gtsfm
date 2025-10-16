@@ -9,7 +9,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.transforms as tfm
 
-logger = logging.getLogger(__name__)
+# logger = logging.getLogger(__name__)
 
 class MegaLocModel(nn.Module):
     def __init__(
