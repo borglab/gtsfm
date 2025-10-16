@@ -9,10 +9,13 @@ from typing import List, Optional
 import numpy as np
 from dask.distributed import Client, Future
 
+import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
 from gtsfm.frontend.global_descriptor.global_descriptor_base import GlobalDescriptorBase
 from gtsfm.products.visibility_graph import VisibilityGraph
 from gtsfm.retriever.retriever_base import RetrieverBase
+
+logger = logger_utils.get_logger()
 
 
 class ImagePairsGenerator:
@@ -51,9 +54,11 @@ class ImagePairsGenerator:
             ]
 
             # Gather all computed descriptors from workers
+            logger.info("⏳ Computing global descriptors for all images...")
             descriptors = client.gather(descriptor_futures)
 
         # Use retriever to construct visibility graph based on descriptors and filenames
+        logger.info("⏳ Computing visibility graph...")
         return self._retriever.get_image_pairs(
             global_descriptors=descriptors, image_fnames=image_fnames, plots_output_dir=plots_output_dir
         )
