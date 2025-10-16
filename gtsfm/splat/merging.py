@@ -1,3 +1,9 @@
+"""
+Merging Gaussian Splats from different partitions into one coordinate frame
+
+Authors: Harneet Singh Khanuja
+"""
+
 import os
 from pathlib import Path
 
