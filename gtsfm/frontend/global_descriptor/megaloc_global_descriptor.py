@@ -7,6 +7,7 @@
 """
 import numpy as np
 import torch
+from typing import Optional
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
@@ -30,7 +31,7 @@ class MegaLocGlobalDescriptor(GlobalDescriptorBase):
     def describe(self, image: Image) -> np.ndarray:
         self._ensure_model_loaded()
         assert self._model is not None, "Model should be loaded by now"
-        
+
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self._model.to(device)
         
