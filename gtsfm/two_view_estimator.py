@@ -13,7 +13,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
-from dask.distributed import Client
+from dask.distributed import Client, Future
 from gtsam import PinholeCameraCal3Bundler, Pose3, Rot3, SfmTrack, Unit3  # type: ignore
 
 import gtsfm.common.types as gtsfm_types
@@ -846,12 +846,13 @@ def run_two_view_estimator_as_futures(
     relative_pose_priors: Dict[Tuple[int, int], PosePrior],
     gt_cameras: List[Optional[gtsfm_types.CAMERA_TYPE]],
     gt_scene_mesh: Optional[Any],
-) -> Dict[Tuple[int, int], TwoViewResult]:
+) -> AnnotatedGraph[Future]:
     """Run two-view estimator for all image pairs."""
 
     def apply_two_view_estimator(two_view_estimator: TwoViewEstimator, **kwargs) -> TwoViewResult:
         return two_view_estimator.run_2view(**kwargs)
 
+    # TODO(Frank): we might have to scatter two_view_estimator first.
     logger.info("Submitting tasks directly to workers ...")
 
     # Submit tasks with image indices passed as separate parameters
@@ -875,16 +876,7 @@ def run_two_view_estimator_as_futures(
     }
 
     logger.info(f"Submitted {len(two_view_result_futures)} tasks to workers")
-    logger.info("Waiting for all tasks to complete...")
-
-    try:
-        # TODO(Frank): This pulls all results back to scheduler! We don't want this.
-        two_view_result_dict = client.gather(two_view_result_futures, errors="raise")
-        logger.info("Gathered %d results", len(two_view_result_dict))
-        return two_view_result_dict
-    except Exception as e:
-        logger.error(f"Error during gather: {e}")
-        return {}
+    return two_view_result_futures
 
 
 def get_two_view_reports_summary(

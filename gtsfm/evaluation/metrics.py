@@ -261,8 +261,8 @@ class GtsfmMetricsGroup:
     A GtsfmMetricsGroup can be represented as a dictionary that can be serialized:
     {
         "metrics_group_name": {
-            dictionary repesentation of metric1,
-            dictionary repesentation of metric2,
+            dictionary representation of metric1,
+            dictionary representation of metric2,
             ...
         }
     }
