@@ -5,7 +5,8 @@ import unittest
 from gtsam import SymbolicBayesTreeClique  # type: ignore
 
 from gtsfm.graph_partitioner.metis_partitioner import MetisPartitioner
-from gtsfm.products.cluster_tree import Cluster
+from gtsfm.products.cluster_tree import cluster_all_edges, cluster_all_keys
+from gtsfm.utils.tree import Tree
 
 
 class TestMetisPartitioner(unittest.TestCase):
@@ -33,8 +34,8 @@ class TestMetisPartitioner(unittest.TestCase):
         leaves = cluster_tree.leaves()
         self.assertGreater(len(leaves), 0)
         for leaf in leaves:
-            self.assertIsInstance(leaf, Cluster)
-            self.assertTrue(all(i < j for i, j in leaf.edges))
+            self.assertIsInstance(leaf, Tree)
+            self.assertTrue(all(i < j for i, j in leaf.value))
 
     def test_group_by_leaf_matches_edges(self) -> None:
         partitioner = MetisPartitioner()
@@ -60,16 +61,16 @@ class TestMetisPartitioner(unittest.TestCase):
         partitioner = MetisPartitioner()
         cluster_tree = partitioner.run(self.skydio_pairs)
         assert cluster_tree.root is not None
-        self.assertEqual(len(cluster_tree.root.all_edges()), len(self.skydio_pairs))
+        self.assertEqual(len(cluster_all_edges(cluster_tree.root)), len(self.skydio_pairs))
         self.assertFalse(cluster_tree.is_empty())
         for cluster in cluster_tree.leaves():
             # All edge endpoints must lie inside the cluster key set.
-            leaf_keys = cluster.all_keys()
-            for i, j in cluster.edges:
+            leaf_keys = cluster_all_keys(cluster)
+            for i, j in cluster.value:
                 self.assertIn(i, leaf_keys)
                 self.assertIn(j, leaf_keys)
             if len(leaf_keys) <= 1:
-                self.assertEqual(len(cluster.edges), 0)
+                self.assertEqual(len(cluster.value), 0)
 
 
 if __name__ == "__main__":

@@ -13,8 +13,9 @@ from typing import Optional, Sequence
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
-from gtsfm.products.cluster_tree import Cluster, ClusterTree
+from gtsfm.products.cluster_tree import ClusterTree
 from gtsfm.products.visibility_graph import VisibilityGraph, valid_visibility_graph_or_raise
+from gtsfm.utils.tree import Tree
 
 logger = logger_utils.get_logger()
 
@@ -69,12 +70,12 @@ class BinaryTreePartitioner(GraphPartitionerBase):
         depth: int,
         max_depth: int,
         graph_edges: VisibilityGraph,
-    ) -> tuple[Cluster, set[int], set[tuple[int, int]]]:
+    ) -> tuple[Tree[VisibilityGraph], set[int], set[tuple[int, int]]]:
         """Recursively build a binary cluster_tree hierarchy.
 
         Returns:
             A tuple of:
-                - Cluster at the current recursion level.
+                - Tree node at the current recursion level.
                 - set of keys contained in this cluster and descendants.
                 - set of edges contained in this cluster and descendants.
         """
@@ -82,7 +83,7 @@ class BinaryTreePartitioner(GraphPartitionerBase):
 
         if depth == max_depth or len(keys) <= 1:
             intra_edges = [(i, j) for i, j in graph_edges if i in key_set and j in key_set]
-            cluster = Cluster(edges=intra_edges, children=())
+            cluster = Tree(value=intra_edges, children=())
             return cluster, set(key_set), set(intra_edges)
 
         mid = max(1, len(keys) // 2)
@@ -109,7 +110,7 @@ class BinaryTreePartitioner(GraphPartitionerBase):
         ]
 
         unique_keys = key_set - descendant_keys
-        cluster = Cluster(edges=cross_edges, children=(left_cluster, right_cluster))
+        cluster = Tree(value=cross_edges, children=(left_cluster, right_cluster))
 
         descendant_keys |= unique_keys
         descendant_edges = child_edges | set(cross_edges)

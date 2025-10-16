@@ -40,6 +40,7 @@ from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.graph_partitioner.single_partitioner import SinglePartitioner
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
+from gtsfm.products.cluster_tree import cluster_filter_edges
 from gtsfm.products.two_view_result import TwoViewResult
 from gtsfm.products.visibility_graph import AnnotatedGraph
 from gtsfm.retriever.image_pairs_generator import ImagePairsGenerator
@@ -373,13 +374,13 @@ class SceneOptimizer:
         logger.info("🔥 GTSFM: Starting to solve subgraphs...")
         futures = []
         for index, leaf in enumerate(cluster_tree.leaves(), 1):
-            cluster_two_view_results = leaf.filter_edges(two_view_results)
+            cluster_two_view_results = cluster_filter_edges(leaf, two_view_results)
             if num_leaves > 1:
                 logger.info(
                     "Creating computation graph for leaf cluster %d/%d with %d image pairs",
                     index,
                     num_leaves,
-                    len(leaf.edges),
+                    len(leaf.value),
                 )
                 self.create_output_directories(index)
 

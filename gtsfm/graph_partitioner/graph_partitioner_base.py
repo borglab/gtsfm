@@ -6,7 +6,7 @@ Authors: Zongyue Liu
 from abc import abstractmethod
 
 import gtsfm.utils.logger as logger_utils
-from gtsfm.products.cluster_tree import ClusterTree
+from gtsfm.products.cluster_tree import ClusterTree, cluster_all_keys
 from gtsfm.products.visibility_graph import VisibilityGraph
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
@@ -63,7 +63,7 @@ class GraphPartitionerBase(GTSFMProcess):
         leaves = cluster_tree.leaves()
         logger.info("%d leaf clusters found.", len(leaves))
         for i, leaf in enumerate(leaves, 1):
-            leaf_keys = leaf.all_keys()
+            leaf_keys = cluster_all_keys(leaf)
             logger.info("Leaf Cluster %d: keys (%d): %s", i, len(leaf_keys), list(map(int, leaf_keys)))
-            logger.info("Leaf Cluster %d: num intra-cluster edges: %d", i, len(leaf.edges))
-            logger.debug("Leaf Cluster %d: intra-cluster edges: %s", i, leaf.edges)
+            logger.info("Leaf Cluster %d: num intra-cluster edges: %d", i, len(leaf.value))
+            logger.debug("Leaf Cluster %d: intra-cluster edges: %s", i, leaf.value)

@@ -9,13 +9,14 @@ from dataclasses import dataclass
 from gtsam import Ordering, SymbolicBayesTree, SymbolicBayesTreeClique, SymbolicFactorGraph  # type: ignore
 
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
-from gtsfm.products.cluster_tree import Cluster, ClusterTree
+from gtsfm.products.cluster_tree import ClusterTree
 from gtsfm.products.visibility_graph import VisibilityGraph, valid_visibility_graph_or_raise
+from gtsfm.utils.tree import Tree
 
 
 @dataclass(frozen=True)
 class _CliqueClusterResult:
-    cluster: Cluster
+    cluster: Tree[VisibilityGraph]
     keys: set[int]
     edges: set[tuple[int, int]]
 
@@ -61,7 +62,7 @@ class MetisPartitioner(GraphPartitionerBase):
         if not children:
             # Create a leaf cluster.
             edges = [(i, j) for i, j in graph if i in frontals and j in frontals]
-            cluster = Cluster(edges=edges, children=())
+            cluster = Tree(value=edges, children=())
             return _CliqueClusterResult(cluster=cluster, keys=set(frontals), edges=set(edges))
 
         child_results = [self._cluster_from_clique(child, graph) for child in children]
@@ -72,8 +73,8 @@ class MetisPartitioner(GraphPartitionerBase):
         subtree_keys = descendant_keys | frontals
         subtree_edges = {(i, j) for i, j in graph if i in subtree_keys and j in subtree_keys}
 
-        cluster = Cluster(
-            edges=list(subtree_edges - descendant_edges),
+        cluster = Tree(
+            value=list(subtree_edges - descendant_edges),
             children=tuple(result.cluster for result in child_results),
         )
         return _CliqueClusterResult(cluster=cluster, keys=subtree_keys, edges=subtree_edges)

@@ -8,7 +8,8 @@ from typing import TypeVar
 
 from gtsfm.graph_partitioner.binary_tree_partitioner import BinaryTreePartitioner
 from gtsfm.graph_partitioner.single_partitioner import SinglePartitioner
-from gtsfm.products.cluster_tree import AnnotatedClusterTree, Cluster, ClusterTree
+from gtsfm.products.cluster_tree import AnnotatedClusterTree, ClusterTree
+from gtsfm.utils.tree import Tree
 
 T = TypeVar("T")
 
@@ -39,7 +40,7 @@ class TestGraphPartitioning(unittest.TestCase):
         self.assertEqual(len(leaves), 1)
 
         # Check that the partition contains all the original pairs
-        self.assertEqual(set(leaves[0].edges), set(image_pairs))
+        self.assertEqual(set(leaves[0].value), set(image_pairs))
 
     def test_partition_preserves_key_order(self):
         """Test that all edges in partitions have i < j (valid key order)."""
@@ -47,9 +48,8 @@ class TestGraphPartitioning(unittest.TestCase):
         cluster_tree = partitioner.run(self.pairs)
         total_edges = 0
         for cluster in cluster_tree.leaves():
-            assert isinstance(cluster, Cluster)
-            total_edges += len(cluster.edges)
-            for i, j in cluster.edges:
+            total_edges += len(cluster.value)
+            for i, j in cluster.value:
                 self.assertLess(i, j, f"Edge ({i},{j}) does not satisfy i < j")
         # regression:
         # Accept both 110 and 112 as valid results.
@@ -61,20 +61,20 @@ class TestGraphPartitioning(unittest.TestCase):
         # fmt: off
         subgraph_edges = [[(7, 17), (4, 9), (7, 21), (0, 9), (0, 2), (29, 31), (3, 12), (2, 6), (3, 7), (6, 17), (3, 9), (17, 20), (9, 18), (17, 31), (3, 4), (6, 21), (9, 29), (2, 7), (6, 7), (5, 17), (2, 9), (6, 9), (6, 18), (9, 17), (12, 18), (5, 12), (2, 4), (9, 12), (5, 7), (4, 18), (12, 31), (1, 3), (1, 12), (5, 9), (5, 18), (1, 5), (12, 17), (1, 7), (4, 6), (1, 9), (1, 2), (0, 4), (7, 18), (1, 4), (0, 6), (7, 20), (18, 20), (18, 29), (4, 12), (1, 6), (18, 31), (0, 1), (4, 7), (0, 3)], [(15, 30), (11, 23), (15, 23), (22, 28), (8, 11), (14, 24), (11, 16), (15, 25), (14, 19), (14, 28), (10, 24), (22, 25), (14, 23), (14, 16), (14, 25), (10, 30), (25, 28), (10, 14), (10, 23), (13, 25), (10, 25), (13, 27), (16, 25), (13, 22), (16, 27), (13, 15), (13, 24), (23, 25), (16, 22), (23, 27), (13, 28), (24, 30), (16, 19), (23, 24), (13, 16), (16, 30), (8, 13), (19, 22), (16, 23), (15, 27), (23, 28), (8, 15), (27, 28), (19, 24), (11, 22), (15, 22), (11, 15), (19, 28), (11, 24), (19, 30), (8, 14), (14, 27), (11, 19), (15, 19), (15, 28), (26, 28), (25, 30), (22, 24)]]  # noqa: E501        
         # fmt: on
-        leaf_clusters = tuple(Cluster(edges=edges, children=()) for edges in subgraph_edges)
-        root = Cluster(edges=[], children=leaf_clusters)
+        leaf_clusters = tuple(Tree(value=edges, children=()) for edges in subgraph_edges)
+        root = Tree(value=[], children=leaf_clusters)
         cluster_tree = ClusterTree(root=root)
         grouped = cluster_tree.group_by_leaf(self.dummy_results)
         self.assertEqual(len(grouped), len(leaf_clusters))
         for i, cluster in enumerate(leaf_clusters):
             # Check that the grouped results match the leaf cluster pairs
-            self.assertEqual(set(grouped[i].keys()), set(cluster.edges))
+            self.assertEqual(set(grouped[i].keys()), set(cluster.value))
 
     def test_create_annotated_cluster_tree(self):
         """Test that annotations are correctly attached to each cluster."""
         leaf_edges = [[(0, 1), (0, 2)], [(1, 3)]]
-        leaf_clusters = tuple(Cluster(edges=edges, children=()) for edges in leaf_edges)
-        root = Cluster(edges=[(0, 3)], children=leaf_clusters)
+        leaf_clusters = tuple(Tree(value=edges, children=()) for edges in leaf_edges)
+        root = Tree(value=[(0, 3)], children=leaf_clusters)
         cluster_tree = ClusterTree(root=root)
         annotated_graph = {(0, 1): "a", (0, 2): "b", (1, 3): "c", (0, 3): "root"}
 
@@ -82,13 +82,13 @@ class TestGraphPartitioning(unittest.TestCase):
 
         self.assertFalse(annotated_tree.is_empty())
         assert annotated_tree.root is not None
-        self.assertEqual(annotated_tree.root.annotations, {(0, 3): "root"})
+        self.assertEqual(annotated_tree.root.value, {(0, 3): "root"})
 
         leaves = annotated_tree.leaves()
         self.assertEqual(len(leaves), len(leaf_clusters))
         for leaf, expected_edges in zip(leaves, leaf_edges):
             self.assertTrue(leaf.is_leaf())
-            self.assertEqual(set(leaf.annotations.keys()), set(expected_edges))
+            self.assertEqual(set(leaf.value.keys()), set(expected_edges))
         grouped_by_leaf = annotated_tree.group_by_leaf()
         for grouped_annotations, expected_edges in zip(grouped_by_leaf, leaf_edges):
             self.assertEqual(set(grouped_annotations.keys()), set(expected_edges))

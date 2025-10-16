@@ -5,8 +5,9 @@ Authors: Zongyue Liu
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
-from gtsfm.products.cluster_tree import Cluster, ClusterTree
+from gtsfm.products.cluster_tree import ClusterTree
 from gtsfm.products.visibility_graph import VisibilityGraph
+from gtsfm.utils.tree import Tree
 
 logger = logger_utils.get_logger()
 
@@ -36,5 +37,5 @@ class SinglePartitioner(GraphPartitionerBase):
             return ClusterTree(root=None)
 
         logger.info("SinglePartitioner: returning all %d pairs as a single cluster", len(graph))
-        cluster = Cluster(edges=list(graph), children=())
+        cluster = Tree(value=list(graph), children=())
         return ClusterTree(root=cluster)
