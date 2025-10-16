@@ -1,6 +1,7 @@
 """ Wrapper around the MegaLoc Global Descriptor"""
 import numpy as np
 import torch
+import logging
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
@@ -9,8 +10,8 @@ from thirdparty.megaloc.megaloc import MegaLocModel
 
 class MegaLocGlobalDescriptor(GlobalDescriptorBase):
     def __init__(self) -> None:
-        # logger = logger_utils.get_logger()
-        # logger.info("⏳ Loading MegaLoc model weights...")
+        logger = logger_utils.get_logger()
+        logger.info("⏳ Loading MegaLoc model weights...")
         print("Loading Model Weights...Skipping Logger Intialization for testing")
         self._model = MegaLocModel().eval()
         
