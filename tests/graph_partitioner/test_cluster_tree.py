@@ -8,7 +8,7 @@ from typing import TypeVar
 
 from gtsfm.graph_partitioner.binary_tree_partitioner import BinaryTreePartitioner
 from gtsfm.graph_partitioner.single_partitioner import SinglePartitioner
-from gtsfm.products.cluster_tree import Cluster, ClusterTree
+from gtsfm.products.cluster_tree import AnnotatedClusterTree, Cluster, ClusterTree
 
 T = TypeVar("T")
 
@@ -69,6 +69,29 @@ class TestGraphPartitioning(unittest.TestCase):
         for i, cluster in enumerate(leaf_clusters):
             # Check that the grouped results match the leaf cluster pairs
             self.assertEqual(set(grouped[i].keys()), set(cluster.edges))
+
+    def test_create_annotated_cluster_tree(self):
+        """Test that annotations are correctly attached to each cluster."""
+        leaf_edges = [[(0, 1), (0, 2)], [(1, 3)]]
+        leaf_clusters = tuple(Cluster(edges=edges, children=()) for edges in leaf_edges)
+        root = Cluster(edges=[(0, 3)], children=leaf_clusters)
+        cluster_tree = ClusterTree(root=root)
+        annotated_graph = {(0, 1): "a", (0, 2): "b", (1, 3): "c", (0, 3): "root"}
+
+        annotated_tree = AnnotatedClusterTree.create(cluster_tree, annotated_graph)
+
+        self.assertFalse(annotated_tree.is_empty())
+        assert annotated_tree.root is not None
+        self.assertEqual(annotated_tree.root.annotations, {(0, 3): "root"})
+
+        leaves = annotated_tree.leaves()
+        self.assertEqual(len(leaves), len(leaf_clusters))
+        for leaf, expected_edges in zip(leaves, leaf_edges):
+            self.assertTrue(leaf.is_leaf())
+            self.assertEqual(set(leaf.annotations.keys()), set(expected_edges))
+        grouped_by_leaf = annotated_tree.group_by_leaf()
+        for grouped_annotations, expected_edges in zip(grouped_by_leaf, leaf_edges):
+            self.assertEqual(set(grouped_annotations.keys()), set(expected_edges))
 
 
 if __name__ == "__main__":
