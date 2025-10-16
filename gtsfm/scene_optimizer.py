@@ -7,7 +7,7 @@ import os
 import shutil
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -37,7 +37,7 @@ from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
 from gtsfm.frontend.correspondence_generator.image_correspondence_generator import ImageCorrespondenceGenerator
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
-from gtsfm.graph_partitioner.single_partition import SinglePartition
+from gtsfm.graph_partitioner.single_partitioner import SinglePartitioner
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.products.two_view_result import TwoViewResult
@@ -51,7 +51,6 @@ from gtsfm.two_view_estimator import (
     run_two_view_estimator_as_futures,
 )
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
-from gtsfm.utils.subgraph_utils import group_results_by_subgraph
 
 # Set matplotlib backend to "Agg" (Anti-Grain Geometry) for headless rendering
 # This must be called before importing pyplot or any other matplotlib modules
@@ -86,7 +85,7 @@ class SceneOptimizer:
         pose_angular_error_thresh: float = 3,  # in degrees
         output_root: str = DEFAULT_OUTPUT_ROOT,
         output_worker: Optional[str] = None,
-        graph_partitioner: GraphPartitionerBase = SinglePartition(),
+        graph_partitioner: GraphPartitionerBase = SinglePartitioner(),
     ) -> None:
         self.loader = loader
         self.image_pairs_generator = image_pairs_generator
@@ -124,15 +123,15 @@ class SceneOptimizer:
         os.makedirs(plot_base_path, exist_ok=True)
         return plot_base_path
 
-    def create_output_directories(self, partition_index: Optional[int]) -> None:
+    def create_output_directories(self, leaf_index: Optional[int]) -> None:
         """Create various output directories for GTSFM results, metrics, and plots."""
         # Construct subfolder if partitioned
-        partition_folder = f"partition_{partition_index}" if partition_index is not None else ""
+        leaf_folder = f"leaf_{leaf_index}" if leaf_index is not None else ""
 
         # Base paths
-        self._plot_base_path = self.output_root / "plots" / partition_folder
-        self._metrics_path = self.output_root / "result_metrics" / partition_folder
-        self._results_path = self.output_root / "results" / partition_folder
+        self._plot_base_path = self.output_root / "plots" / leaf_folder
+        self._metrics_path = self.output_root / "result_metrics" / leaf_folder
+        self._results_path = self.output_root / "results" / leaf_folder
 
         # plot paths
         self._plot_correspondence_path = self._plot_base_path / "correspondences"
@@ -160,21 +159,21 @@ class SceneOptimizer:
 
     def create_computation_graph(
         self,
-        keypoints_list: List[Keypoints],
+        keypoints_list: list[Keypoints],
         two_view_results: AnnotatedGraph[TwoViewResult],
         num_images: int,
-        images: List[Delayed],
-        camera_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
-        absolute_pose_priors: List[Optional[PosePrior]],
+        images: list[Delayed],
+        camera_intrinsics: list[Optional[gtsfm_types.CALIBRATION_TYPE]],
+        absolute_pose_priors: list[Optional[PosePrior]],
         relative_pose_priors: AnnotatedGraph[PosePrior],
-        cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
-        gt_wTi_list: List[Optional[Pose3]],
+        cameras_gt: list[Optional[gtsfm_types.CAMERA_TYPE]],
+        gt_wTi_list: list[Optional[Pose3]],
         gt_scene_mesh: Optional[Trimesh] = None,
-    ) -> Tuple[Delayed, List[Delayed], List[Delayed]]:
+    ) -> tuple[Delayed, list[Delayed], list[Delayed]]:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
         logger.info(f"Results, plots, and metrics will be saved at {self.output_root}")
 
-        delayed_results: List[Delayed] = []
+        delayed_results: list[Delayed] = []
 
         # Note: the MultiviewOptimizer returns BA input and BA output that are aligned to GT via Sim(3).
         (
@@ -199,7 +198,7 @@ class SceneOptimizer:
 
         # Persist all front-end metrics and their summaries.
         # TODO(akshay-krishnan): this delays saving the frontend reports until MVO has completed, not ideal.
-        metrics_graph_list: List[Delayed] = []
+        metrics_graph_list: list[Delayed] = []
         annotation = annotate(workers=self._output_worker) if self._output_worker else annotate()
         with annotation:
             delayed_results.append(
@@ -344,14 +343,14 @@ class SceneOptimizer:
         )
 
         logger.info("🔥 GTSFM: Partitioning the view graph...")
-        subgraph_list = self._partition_view_graph(visibility_graph, two_view_results)
+        clustered_results = self._partition_view_graph(visibility_graph, two_view_results)
         all_delayed_sfm_results = []
         all_delayed_io = []
         all_delayed_mvo_metrics_groups = []
-        num_subgraphs = len(subgraph_list)
-        for idx, subgraph_two_view_results in enumerate(subgraph_list):
-            delayed_sfm_result, delayed_io, delayed_mvo_metrics_groups = self._process_subgraph(
-                idx, subgraph_two_view_results, keypoints, maybe_intrinsics, num_subgraphs
+        num_clusters = len(clustered_results)
+        for idx, cluster_two_view_results in enumerate(clustered_results):
+            delayed_sfm_result, delayed_io, delayed_mvo_metrics_groups = self._process_cluster(
+                idx, cluster_two_view_results, keypoints, maybe_intrinsics, num_clusters
             )
             if delayed_sfm_result is not None:
                 all_delayed_sfm_results.append(delayed_sfm_result)
@@ -485,65 +484,69 @@ class SceneOptimizer:
 
     def _partition_view_graph(self, visibility_graph, two_view_results):
         assert self.graph_partitioner is not None, "Graph partitioner is not set up!"
-        subgraphs = self.graph_partitioner.run(visibility_graph)
-        if len(subgraphs) == 1:
-            # single partition
-            return [two_view_results]
-        else:
-            logger.info("Partitioned into %d subgraphs", len(subgraphs))
-            # Group results by subgraph
-            return group_results_by_subgraph(two_view_results, subgraphs)
-
-    def _process_subgraph(self, idx, subgraph_two_view_results, keypoints_list, maybe_intrinsics, num_subgraphs):
-        logger.info(
-            "Creating computation graph for subgraph %d / %d with %d image pairs",
-            idx + 1,
-            num_subgraphs,
-            len(subgraph_two_view_results),
-        )
-        if num_subgraphs > 1:
-            self.create_output_directories(idx + 1)
-        else:
-            # Single-partition run: write directly under {output_root}/results
+        cluster_tree = self.graph_partitioner.run(visibility_graph)
+        if cluster_tree.is_empty():
+            logger.warning("Graph partitioner returned an empty cluster_tree; running single-cluster pipeline.")
             self.create_output_directories(None)
+            return [two_view_results]
 
-        if len(subgraph_two_view_results) > 0:
+        grouped_results = cluster_tree.group_by_leaf(two_view_results)
+        if len(grouped_results) <= 1:
+            # Single-cluster run: write directly under {output_root}/results, no need to log extra details
+            self.create_output_directories(None)
+            return grouped_results or [two_view_results]
+
+        # Log and group results by cluster
+        self.graph_partitioner.log_partition_details(cluster_tree)
+        return grouped_results
+
+    def _process_cluster(self, idx, cluster_two_view_results, keypoints_list, maybe_intrinsics, num_clusters):
+        logger.info(
+            "Creating computation graph for cluster %d/%d with %d image pairs",
+            idx + 1,
+            num_clusters,
+            len(cluster_two_view_results),
+        )
+        if num_clusters > 1:
+            self.create_output_directories(idx + 1)
+
+        if len(cluster_two_view_results) > 0:
             # TODO(Frank): would be nice if relative pose prior was part of TwoViewResult
             # TODO(Frank): I think the loader should compute a Delayed dataclass, or a future
 
             return self.create_computation_graph(
                 keypoints_list=keypoints_list,
-                two_view_results=subgraph_two_view_results,
+                two_view_results=cluster_two_view_results,
                 num_images=len(self.loader),
                 images=self.loader.create_computation_graph_for_images(),
                 camera_intrinsics=maybe_intrinsics,  # TODO(Frank): really? None is allowed?
-                relative_pose_priors=self.loader.get_relative_pose_priors(list(subgraph_two_view_results.keys())),
+                relative_pose_priors=self.loader.get_relative_pose_priors(list(cluster_two_view_results.keys())),
                 absolute_pose_priors=self.loader.get_absolute_pose_priors(),
                 cameras_gt=self.loader.get_gt_cameras(),
                 gt_wTi_list=self.loader.get_gt_poses(),
                 gt_scene_mesh=self.loader.get_gt_scene_trimesh(),
             )
         else:
-            logger.warning(f"Skipping subgraph {idx+1} as it has no valid two-view results.")
+            logger.warning(f"Skipping cluster {idx+1} as it has no valid two-view results.")
             return None, [], []
 
 
-def get_image_dictionary(image_list: List[Image]) -> Dict[int, Image]:
+def get_image_dictionary(image_list: list[Image]) -> dict[int, Image]:
     """Convert a list of images to the MVS input format."""
     img_dict = {i: img for i, img in enumerate(image_list)}
     return img_dict
 
 
 def align_estimated_gtsfm_data(
-    ba_input: GtsfmData, ba_output: GtsfmData, gt_wTi_list: List[Optional[Pose3]]
-) -> Tuple[GtsfmData, GtsfmData, List[Optional[Pose3]]]:
+    ba_input: GtsfmData, ba_output: GtsfmData, gt_wTi_list: list[Optional[Pose3]]
+) -> tuple[GtsfmData, GtsfmData, list[Optional[Pose3]]]:
     """First aligns ba_input and ba_output to gt_wTi_list using a Sim3 transformation, then aligns them all to the
     X, Y, Z axes via another Sim3 global transformation.
 
     Args:
         ba_input: GtsfmData input to bundle adjustment.
         ba_output: GtsfmData output from bundle adjustment.
-        gt_pose_graph: List of GT camera poses.
+        gt_pose_graph: list of GT camera poses.
 
     Returns:
         Updated ba_input GtsfmData object aligned to axes.
@@ -564,10 +567,10 @@ def align_estimated_gtsfm_data(
 def save_matplotlib_visualizations(
     aligned_ba_input_graph: Delayed,
     aligned_ba_output_graph: Delayed,
-    gt_pose_graph: List[Optional[Delayed]],
+    gt_pose_graph: list[Optional[Delayed]],
     plot_ba_input_path: Path,
     plot_results_path: Path,
-) -> List[Delayed]:
+) -> list[Delayed]:
     """Visualizes GtsfmData & camera poses before and after bundle adjustment using Matplotlib.
 
     Accepts delayed GtsfmData before and after bundle adjustment, along with GT poses,
@@ -595,14 +598,14 @@ def save_matplotlib_visualizations(
 
 
 def get_gtsfm_data_with_gt_cameras_and_est_tracks(
-    cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
+    cameras_gt: list[Optional[gtsfm_types.CAMERA_TYPE]],
     ba_output: GtsfmData,
 ) -> GtsfmData:
     """Creates GtsfmData object with GT camera poses and estimated tracks.
 
     Args:
         gtsfm_data: GtsfmData object with estimated camera poses and tracks.
-        cameras_gt: List of GT cameras.
+        cameras_gt: list of GT cameras.
 
     Returns:
         GtsfmData object with GT camera poses and estimated tracks.
@@ -617,11 +620,11 @@ def get_gtsfm_data_with_gt_cameras_and_est_tracks(
 
 
 def save_gtsfm_data(
-    images: List[Image],
+    images: list[Image],
     ba_input_data: GtsfmData,
     ba_output_data: GtsfmData,
     results_path: Path,
-    cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
+    cameras_gt: list[Optional[gtsfm_types.CAMERA_TYPE]],
 ) -> None:
     """Saves the Gtsfm data before and after bundle adjustment.
 
@@ -671,16 +674,16 @@ def save_gtsfm_data(
 
 def save_full_frontend_metrics(
     two_view_report_dict: AnnotatedGraph[TwoViewEstimationReport],
-    images: List[Image],
+    images: list[Image],
     filename: str,
     metrics_path: Path,
     plot_base_path: Path,
 ) -> None:
-    """Converts the TwoViewEstimationReports for all image pairs to a Dict and saves it as JSON.
+    """Converts the TwoViewEstimationReports for all image pairs to a dict and saves it as JSON.
 
     Args:
         two_view_report_dict: Front-end metrics for pairs of images.
-        images: List of all images for this scene, in order of image/frame index.
+        images: list of all images for this scene, in order of image/frame index.
         filename: File name to use when saving report to JSON.
         metrics_path: Path to directory where metrics will be saved.
         plot_base_path: Path to directory where plots will be saved.
