@@ -11,7 +11,10 @@ import torchvision.transforms as tfm
 import sys
 from pathlib import Path
 
-# logger = logging.getLogger(__name__)
+ 
+logger = logging.getLogger(__name__)
+
+# Add DinoV2 Weights directory to Path so Dask Workers can Deserialize
 dinov2_path = Path.home() / ".cache/torch/hub/facebookresearch_dinov2_main"
 if dinov2_path.exists() and str(dinov2_path) not in sys.path:
     sys.path.insert(0, str(dinov2_path))
@@ -48,10 +51,9 @@ class MegaLocModel(nn.Module):
         self._load_pretrained_weights()
 
     def _load_pretrained_weights(self):
-
         """Load pretrained MegaLoc weights from GitHub release."""
         # Download and load pretrained weights
-        #logger.info("Downloading MegaLoc weights from GitHub...")
+        logger.info("Downloading MegaLoc weights from GitHub...")
         try:
             state_dict = torch.hub.load_state_dict_from_url(
                 self.WEIGHT_URL,
@@ -59,11 +61,11 @@ class MegaLocModel(nn.Module):
                 progress=True  # Show download progress
             )
             self.load_state_dict(state_dict)
-            #logger.info("✓ MegaLoc weights loaded successfully")
+            logger.info("✓ MegaLoc weights loaded successfully")
         except Exception as e:
-            #logger.warning(f"Failed to download MegaLoc weights: {e}")
-            #logger.warning("Model will use random initialization")
-            print("Error {e}")
+            logger.warning(f"Failed to download MegaLoc weights: {e}")
+            logger.warning("Model will use random initialization")
+            #print("Error {e}")
 
     def forward(self, images):
         b, c, h, w = images.shape
