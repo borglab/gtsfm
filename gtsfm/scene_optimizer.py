@@ -7,7 +7,7 @@ import os
 import shutil
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -30,6 +30,7 @@ import gtsfm.utils.viz as viz_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.common.outputs import OutputPaths, prepare_output_paths
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.types import CALIBRATION_TYPE
 from gtsfm.densify.mvs_base import MVSBase
@@ -124,41 +125,10 @@ class SceneOptimizer:
         os.makedirs(plot_base_path, exist_ok=True)
         return plot_base_path
 
-    def create_output_directories(self, leaf_index: Optional[int]) -> None:
-        """Create various output directories for GTSFM results, metrics, and plots."""
-        # Construct subfolder if partitioned
-        leaf_folder = f"leaf_{leaf_index}" if leaf_index is not None else ""
-
-        # Base paths
-        # TODO(Frank): Using mutable instance fields is not a great idea
-        self._plot_base_path = self.output_root / "plots" / leaf_folder
-        self._metrics_path = self.output_root / "result_metrics" / leaf_folder
-        self._results_path = self.output_root / "results" / leaf_folder
-
-        # plot paths
-        self._plot_correspondence_path = self._plot_base_path / "correspondences"
-        self._plot_ba_input_path = self._plot_base_path / "ba_input"
-        self._plot_results_path = self._plot_base_path / "results"
-
-        # results paths
-        self._mvs_ply_save_fpath = self._results_path / "mvs_output" / "dense_point_cloud.ply"
-        self._gs_save_path = self._results_path / "gs_output"
-        self._interpolated_video_fpath = self._results_path / "gs_output" / "interpolated_path.mp4"
-
-        # make directories for persisting data
-        os.makedirs(self._plot_base_path, exist_ok=True)
-        os.makedirs(self._metrics_path, exist_ok=True)
-        os.makedirs(self._results_path, exist_ok=True)
-
-        os.makedirs(self._plot_correspondence_path, exist_ok=True)
-        os.makedirs(self._plot_ba_input_path, exist_ok=True)
-        os.makedirs(self._plot_results_path, exist_ok=True)
-
-        os.makedirs(self._gs_save_path, exist_ok=True)
-
-        # Save duplicate directories within React folders.
-        os.makedirs(REACT_RESULTS_PATH, exist_ok=True)
-        os.makedirs(REACT_METRICS_PATH, exist_ok=True)
+    def _ensure_react_directories(self) -> None:
+        """Ensure the React dashboards have dedicated output folders."""
+        REACT_RESULTS_PATH.mkdir(parents=True, exist_ok=True)
+        REACT_METRICS_PATH.mkdir(parents=True, exist_ok=True)
 
     def create_computation_graph(
         self,
@@ -166,6 +136,7 @@ class SceneOptimizer:
         two_view_results: AnnotatedGraph[TwoViewResult],
         num_images: int,
         images: list[Delayed],
+        output_paths: OutputPaths,
         camera_intrinsics: list[Optional[gtsfm_types.CALIBRATION_TYPE]],
         absolute_pose_priors: list[Optional[PosePrior]],
         relative_pose_priors: AnnotatedGraph[PosePrior],
@@ -208,8 +179,8 @@ class SceneOptimizer:
                     {ij: r.post_isp_report for ij, r in two_view_results.items()},
                     images,
                     filename="two_view_report_{}.json".format(POST_ISP_REPORT_TAG),
-                    metrics_path=self._metrics_path,
-                    plot_base_path=self._plot_base_path,
+                    metrics_path=output_paths.metrics,
+                    plot_base_path=output_paths.plot_base,
                 )
             )
 
@@ -219,8 +190,8 @@ class SceneOptimizer:
                     two_view_reports_post_viewgraph_estimator,  # type: ignore
                     images,
                     filename="two_view_report_{}.json".format(VIEWGRAPH_REPORT_TAG),
-                    metrics_path=self._metrics_path,
-                    plot_base_path=self._plot_base_path,
+                    metrics_path=output_paths.metrics,
+                    plot_base_path=output_paths.plot_base,
                 )
             )
             metrics_graph_list.append(
@@ -248,7 +219,7 @@ class SceneOptimizer:
                         images,
                         ba_input_graph,
                         ba_output_graph,
-                        results_path=self._results_path,
+                        results_path=output_paths.results,
                         cameras_gt=cameras_gt,
                     )
                 )
@@ -258,8 +229,8 @@ class SceneOptimizer:
                             aligned_ba_input_graph=ba_input_graph,
                             aligned_ba_output_graph=ba_output_graph,
                             gt_pose_graph=gt_wTi_list,  # type: ignore
-                            plot_ba_input_path=self._plot_ba_input_path,
-                            plot_results_path=self._plot_results_path,
+                            plot_ba_input_path=output_paths.plot_ba_input,
+                            plot_results_path=output_paths.plot_results,
                         )
                     )
 
@@ -277,7 +248,7 @@ class SceneOptimizer:
             with annotation:
                 delayed_results.append(
                     delayed(io_utils.save_point_cloud_as_ply)(
-                        save_fpath=str(self._mvs_ply_save_fpath),
+                        save_fpath=str(output_paths.mvs_ply),
                         points=dense_points_graph,
                         rgb=dense_point_colors_graph,
                     )
@@ -300,7 +271,7 @@ class SceneOptimizer:
             annotation = annotate(workers=self._output_worker) if self._output_worker else annotate()
             with annotation:
                 delayed_results.append(
-                    delayed(gtsfm_rendering.save_splats)(save_path=str(self._gs_save_path), splats=splats_graph)
+                    delayed(gtsfm_rendering.save_splats)(save_path=str(output_paths.gs_path), splats=splats_graph)
                 )
                 delayed_results.append(
                     delayed(gtsfm_rendering.generate_interpolated_video)(
@@ -308,7 +279,7 @@ class SceneOptimizer:
                         sfm_result_graph=ba_output_graph,
                         cfg_result_graph=cfg_graph,
                         splats_graph=splats_graph,
-                        video_fpath=self._interpolated_video_fpath,
+                        video_fpath=output_paths.interpolated_video,
                     )
                 )
 
@@ -321,12 +292,14 @@ class SceneOptimizer:
     def run(self, client) -> None:
         """Run the SceneOptimizer."""
         start_time = time.time()
-        all_metrics_groups = []
+        base_metrics_groups = []
         self._create_process_graph()
+        self._ensure_react_directories()
+        base_output_paths = prepare_output_paths(self.output_root, None)
 
         logger.info("🔥 GTSFM: Running image pair retrieval...")
         retriever_metrics, visibility_graph = self._run_retriever(client)
-        all_metrics_groups.append(retriever_metrics)
+        base_metrics_groups.append(retriever_metrics)
 
         logger.info("🔥 GTSFM: Running correspondence generation...")
         maybe_intrinsics, intrinsics = self._get_intrinsics_or_raise()
@@ -342,8 +315,14 @@ class SceneOptimizer:
         # Aggregate two-view metrics
         # TODO(Frank): this brings everything back ! We might not want this.
         two_view_results = client.gather(two_view_result_futures)
-        all_metrics_groups.append(
-            self._aggregate_two_view_metrics(keypoints, two_view_results, correspondence_duration_sec, tve_duration_sec)
+        base_metrics_groups.append(
+            self._aggregate_two_view_metrics(
+                keypoints,
+                two_view_results,
+                correspondence_duration_sec,
+                tve_duration_sec,
+                base_output_paths,
+            )
         )
 
         logger.info("🔥 GTSFM: Partitioning the view graph...")
@@ -352,25 +331,25 @@ class SceneOptimizer:
         self.graph_partitioner.log_partition_details(cluster_tree)
         leaves = cluster_tree.leaves() if cluster_tree is not None else ()
         num_leaves = len(leaves)
-        if num_leaves == 1:
-            self.create_output_directories(None)  # Single-cluster_tree run: write directly under {output_root}/results
+        use_leaf_subdirs = num_leaves > 1
 
         logger.info("🔥 GTSFM: Starting to solve subgraphs...")
         futures = []
+        leaf_jobs: list[tuple[int, OutputPaths]] = []
         for index, leaf in enumerate(leaves, 1):
             cluster_two_view_results = leaf.filter_annotations(two_view_results)
-            if num_leaves > 1:
+            if use_leaf_subdirs:
                 logger.info(
                     "Creating computation graph for leaf cluster %d/%d with %d image pairs",
                     index,
                     num_leaves,
                     len(leaf.value),
                 )
-                self.create_output_directories(index)
 
             if len(cluster_two_view_results) == 0:
                 logger.warning(f"Skipping subgraph {index} as it has no valid two-view results.")
                 continue
+            output_paths = prepare_output_paths(self.output_root, index) if use_leaf_subdirs else base_output_paths
             # TODO(Frank): would be nice if relative pose prior was part of TwoViewResult
             # TODO(Frank): I think the loader should compute a Delayed dataclass, or a future
 
@@ -385,24 +364,20 @@ class SceneOptimizer:
                 cameras_gt=self.loader.get_gt_cameras(),
                 gt_wTi_list=self.loader.get_gt_poses(),
                 gt_scene_mesh=self.loader.get_gt_scene_trimesh(),
+                output_paths=output_paths,
             )
             futures.append(client.compute(delayed_result_io_reports))
+            leaf_jobs.append((index, output_paths))
 
         logger.info("🔥 GTSFM: Running the computation graph...")
         with performance_report(filename="dask_reports/scene-optimizer.html"):
-            results = client.gather(futures)
-            # add to all_metrics_groups
-            for leaf_index, leaf_results in enumerate(results, 1):
-                # leaf_results is a tuple (ba_output, io_results, mvo_metrics_groups)
-                mvo_metrics_groups = leaf_results[2]
-                if num_leaves == 1:
-                    all_metrics_groups.extend(mvo_metrics_groups)
-                else:
-                    # TODO(Frank): this was a bug: cluster-specific metrics overwrote each other. Below an ugly fix.
-                    for group in mvo_metrics_groups:
-                        # Create a new GtsfmMetricsGroup with updated name
-                        updated_group = GtsfmMetricsGroup(f"{group.name}_leaf_{leaf_index}", group.metrics)
-                        all_metrics_groups.append(updated_group)
+            if futures:
+                results = client.gather(futures)
+                for (leaf_index, output_paths), leaf_results in zip(leaf_jobs, results):
+                    # leaf_results is a tuple (ba_output, io_results, mvo_metrics_groups)
+                    mvo_metrics_groups = leaf_results[2]
+                    if mvo_metrics_groups:
+                        save_metrics_reports(mvo_metrics_groups, str(output_paths.metrics))
 
         # Log total time taken and save metrics report
         end_time = time.time()
@@ -415,8 +390,8 @@ class SceneOptimizer:
         total_summary_metrics = GtsfmMetricsGroup(
             "total_summary_metrics", [GtsfmMetric("total_runtime_sec", duration_sec)]
         )
-        all_metrics_groups.append(total_summary_metrics)
-        save_metrics_reports(all_metrics_groups, os.path.join(self.output_root, "result_metrics"))
+        base_metrics_groups.append(total_summary_metrics)
+        save_metrics_reports(base_metrics_groups, str(base_output_paths.metrics))
 
     def _create_process_graph(self):
         process_graph_generator = ProcessGraphGenerator()
@@ -480,7 +455,7 @@ class SceneOptimizer:
             two_view_estimation_duration_sec = time.time() - two_view_estimation_start_time
         return two_view_result_futures, two_view_estimation_duration_sec
 
-    def _maybe_save_two_view_viz(self, keypoints_list, two_view_results):
+    def _maybe_save_two_view_viz(self, keypoints_list, two_view_results, plot_correspondence_path: Path):
         if self._save_two_view_correspondences_viz:
             for (i1, i2), output in two_view_results.items():
                 image_i1 = self.loader.get_image(i1)
@@ -492,16 +467,20 @@ class SceneOptimizer:
                     keypoints_list[i2],
                     output.v_corr_idxs,
                     two_view_report=output.post_isp_report,
-                    file_path=os.path.join(
-                        self._plot_correspondence_path,
-                        f"{i1}_{i2}__{image_i1.file_name}_{image_i2.file_name}.jpg",
+                    file_path=str(
+                        plot_correspondence_path / f"{i1}_{i2}__{image_i1.file_name}_{image_i2.file_name}.jpg"
                     ),
                 )
 
     def _aggregate_two_view_metrics(
-        self, keypoints_list, two_view_results, correspondence_generation_duration_sec, two_view_estimation_duration_sec
+        self,
+        keypoints_list,
+        two_view_results,
+        correspondence_generation_duration_sec,
+        two_view_estimation_duration_sec,
+        output_paths: OutputPaths,
     ):
-        self._maybe_save_two_view_viz(keypoints_list, two_view_results)
+        self._maybe_save_two_view_viz(keypoints_list, two_view_results, output_paths.plot_correspondence)
 
         post_isp_two_view_reports_dict = {edge: output.post_isp_report for edge, output in two_view_results.items()}
         two_view_agg_metrics = two_view_estimator.aggregate_frontend_metrics(
