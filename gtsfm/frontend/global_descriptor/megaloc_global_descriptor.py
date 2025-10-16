@@ -1,7 +1,6 @@
 """ Wrapper around the MegaLoc Global Descriptor"""
 import numpy as np
 import torch
-import logging
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
