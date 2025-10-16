@@ -1,4 +1,10 @@
-""" Wrapper around the MegaLoc Global Descriptor"""
+""" Wrapper around the MegaLoc Global Descriptor
+    Based on Gabrielle Berton's 
+    "MegaLoc: One Retrieval to Place Them All"
+    https://arxiv.org/pdf/2502.17237
+
+    Authors: Kathir Gounder
+"""
 import numpy as np
 import torch
 
@@ -11,7 +17,6 @@ class MegaLocGlobalDescriptor(GlobalDescriptorBase):
     def __init__(self) -> None:
         logger = logger_utils.get_logger()
         logger.info("⏳ Loading MegaLoc model weights...")
-        print("Loading Model Weights...Skipping Logger Intialization for testing")
         self._model = MegaLocModel().eval()
         
     def describe(self, image: Image) -> np.ndarray:
