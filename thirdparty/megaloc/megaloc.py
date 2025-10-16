@@ -10,6 +10,10 @@ import torch.nn.functional as F
 import torchvision.transforms as tfm
 
 # logger = logging.getLogger(__name__)
+dinov2_path = Path.home() / ".cache/torch/hub/facebookresearch_dinov2_main"
+if dinov2_path.exists() and str(dinov2_path) not in sys.path:
+    sys.path.insert(0, str(dinov2_path))
+    print(f"Added DINOv2 to sys.path (top level operation): {dinov2_path}")
 
 class MegaLocModel(nn.Module):
     def __init__(
@@ -95,6 +99,11 @@ class Aggregator(nn.Module):
 class DINOv2(nn.Module):
     def __init__(self):
         super().__init__()
+        
+        dinov2_path = Path.home() / ".cache/torch/hub/facebookresearch_dinov2_main"
+        if dinov2_path.exists() and str(dinov2_path) not in sys.path:
+            sys.path.insert(0, str(dinov2_path))
+            # logger.info(f"Added DINOv2 to sys.path: {dinov2_path}")
         self.model = torch.hub.load("facebookresearch/dinov2", "dinov2_vitb14", pretrained=False)
         self.num_channels = 768
 
