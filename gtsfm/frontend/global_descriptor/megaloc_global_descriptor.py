@@ -13,13 +13,24 @@ from gtsfm.common.image import Image
 from gtsfm.frontend.global_descriptor.global_descriptor_base import GlobalDescriptorBase
 from thirdparty.megaloc.megaloc import MegaLocModel
 
+
 class MegaLocGlobalDescriptor(GlobalDescriptorBase):
     def __init__(self) -> None:
-        logger = logger_utils.get_logger()
-        logger.info("⏳ Loading MegaLoc model weights...")
-        self._model = MegaLocModel().eval()
+        super().__init__()
+        self._model: Optional[torch.nn.Module] = None
         
+    
+    def _ensure_model_loaded(self) -> None:
+        """Lazy-load the MegaLoc Model to avoid unnecessary initialization"""
+        if self._model is None:
+            logger = logger_utils.get_logger()
+            logger.info("⏳ Loading NetVLAD model weights...")
+            self._model = MegaLocModel().eval()
+
     def describe(self, image: Image) -> np.ndarray:
+        self._ensure_model_loaded()
+        assert self._model is not None, "Model should be loaded by now"
+        
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self._model.to(device)
         
@@ -36,3 +47,4 @@ class MegaLocGlobalDescriptor(GlobalDescriptorBase):
             descriptor = self._model(img_tensor)
             
         return descriptor.detach().squeeze().cpu().numpy()
+
