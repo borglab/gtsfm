@@ -36,7 +36,8 @@ class GtsfmRunner:
         if log_level is not None:
             logger.setLevel(log_level)
 
-        self.scene_optimizer: SceneOptimizer = self.construct_scene_optimizer()
+        logger.info("🌟 GTSFM: Constructing SceneOptimizer...")
+        self.scene_optimizer: SceneOptimizer = self._construct_scene_optimizer()
 
     def construct_argparser(self) -> argparse.ArgumentParser:
         parser = argparse.ArgumentParser(description="GTSFM Runner")
@@ -153,7 +154,7 @@ class GtsfmRunner:
 
         return parser
 
-    def construct_scene_optimizer(self) -> SceneOptimizer:
+    def _construct_scene_optimizer(self) -> SceneOptimizer:
         """Construct scene optimizer.
 
         All configs are relative to the gtsfm module.
@@ -300,10 +301,14 @@ class GtsfmRunner:
 
     def run(self) -> None:
         """Just create the client and call scene optimizer."""
+        logger.info("🌟 GTSFM: Creating Dask client...")
         client = self._create_dask_client()
+
+        logger.info("🌟 GTSFM: Starting SceneOptimizer...")
         self.scene_optimizer.run(client)
 
         # Shutdown the Dask client
+        logger.info("🌟 GTSFM: Shutting down Dask client...")
         if client is not None:
             client.shutdown()
 
