@@ -146,6 +146,7 @@ class SceneOptimizer:
         leaf_folder = f"leaf_{leaf_index}" if leaf_index is not None else ""
 
         # Base paths
+        # TODO(Frank): Using mutable instance fields is not a great idea
         self._plot_base_path = self.output_root / "plots" / leaf_folder
         self._metrics_path = self.output_root / "result_metrics" / leaf_folder
         self._results_path = self.output_root / "results" / leaf_folder
@@ -154,8 +155,9 @@ class SceneOptimizer:
         self._plot_correspondence_path = self._plot_base_path / "correspondences"
         self._plot_ba_input_path = self._plot_base_path / "ba_input"
         self._plot_results_path = self._plot_base_path / "results"
-        self._mvs_ply_save_fpath = self._results_path / "mvs_output" / "dense_point_cloud.ply"
 
+        # results paths
+        self._mvs_ply_save_fpath = self._results_path / "mvs_output" / "dense_point_cloud.ply"
         self._gs_save_path = self._results_path / "gs_output"
         self._interpolated_video_fpath = self._results_path / "gs_output" / "interpolated_path.mp4"
 
@@ -399,19 +401,32 @@ class SceneOptimizer:
                 gt_wTi_list=self.loader.get_gt_poses(),
                 gt_scene_mesh=self.loader.get_gt_scene_trimesh(),
             )
-            print_types(delayed_result_io_reports)
             futures.append(client.compute(delayed_result_io_reports))
 
         logger.info("🔥 GTSFM: Running the computation graph...")
         with performance_report(filename="dask_reports/scene-optimizer.html"):
             results = client.gather(futures)
             # add to all_metrics_groups
-            print_types(results)
+            for leaf_index, leaf_results in enumerate(results, 1):
+                # leaf_results is a tuple (ba_output, io_results, mvo_metrics_groups)
+                mvo_metrics_groups = leaf_results[2]
+                if num_leaves == 1:
+                    all_metrics_groups.extend(mvo_metrics_groups)
+                else:
+                    # TODO(Frank): this was a bug: cluster-specific metrics overwrote each other. Below an ugly fix.
+                    for group in mvo_metrics_groups:
+                        # Create a new GtsfmMetricsGroup with updated name
+                        updated_group = GtsfmMetricsGroup(f"{group.name}_leaf_{leaf_index}", group.metrics)
+                        all_metrics_groups.append(updated_group)
 
         # Log total time taken and save metrics report
         end_time = time.time()
         duration_sec = end_time - start_time
-        logger.info("🔥 GTSFM took %.2f minutes to compute sparse multi-view result.", duration_sec / 60)
+        logger.info(
+            "🔥 GTSFM took %.1f %s to compute sparse multi-view result.",
+            duration_sec / 60 if duration_sec >= 120 else duration_sec,
+            "minutes" if duration_sec >= 120 else "seconds",
+        )
         total_summary_metrics = GtsfmMetricsGroup(
             "total_summary_metrics", [GtsfmMetric("total_runtime_sec", duration_sec)]
         )
