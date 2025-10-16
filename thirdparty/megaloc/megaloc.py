@@ -8,12 +8,14 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.transforms as tfm
+import sys
+from pathlib import Path
 
 # logger = logging.getLogger(__name__)
 dinov2_path = Path.home() / ".cache/torch/hub/facebookresearch_dinov2_main"
 if dinov2_path.exists() and str(dinov2_path) not in sys.path:
     sys.path.insert(0, str(dinov2_path))
-    print(f"Added DINOv2 to sys.path (top level operation): {dinov2_path}")
+    print(f"Added DINOv2 to sys.path: {dinov2_path}")
 
 class MegaLocModel(nn.Module):
     def __init__(
