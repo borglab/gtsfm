@@ -4,14 +4,10 @@ Authors: Zongyue Liu
 """
 
 import unittest
-from typing import TypeVar
 
 from gtsfm.graph_partitioner.binary_tree_partitioner import BinaryTreePartitioner
 from gtsfm.graph_partitioner.single_partitioner import SinglePartitioner
 from gtsfm.products.cluster_tree import AnnotatedClusterTree, ClusterTree
-from gtsfm.utils.tree import Tree
-
-T = TypeVar("T")
 
 
 class TestGraphPartitioning(unittest.TestCase):
@@ -34,6 +30,8 @@ class TestGraphPartitioning(unittest.TestCase):
 
         # Get partitioned result
         cluster_tree = partitioner.run(image_pairs)
+        self.assertIsNotNone(cluster_tree)
+        assert cluster_tree is not None
 
         # Check that we get exactly one partition
         leaves = cluster_tree.leaves()
@@ -46,6 +44,8 @@ class TestGraphPartitioning(unittest.TestCase):
         """Test that all edges in partitions have i < j (valid key order)."""
         partitioner = BinaryTreePartitioner(max_depth=1)
         cluster_tree = partitioner.run(self.pairs)
+        self.assertIsNotNone(cluster_tree)
+        assert cluster_tree is not None
         total_edges = 0
         for cluster in cluster_tree.leaves():
             total_edges += len(cluster.value)
@@ -59,11 +59,10 @@ class TestGraphPartitioning(unittest.TestCase):
     def test_group_results_by_subgraph(self):
         """Test grouping results by subgraph."""
         # fmt: off
-        subgraph_edges = [[(7, 17), (4, 9), (7, 21), (0, 9), (0, 2), (29, 31), (3, 12), (2, 6), (3, 7), (6, 17), (3, 9), (17, 20), (9, 18), (17, 31), (3, 4), (6, 21), (9, 29), (2, 7), (6, 7), (5, 17), (2, 9), (6, 9), (6, 18), (9, 17), (12, 18), (5, 12), (2, 4), (9, 12), (5, 7), (4, 18), (12, 31), (1, 3), (1, 12), (5, 9), (5, 18), (1, 5), (12, 17), (1, 7), (4, 6), (1, 9), (1, 2), (0, 4), (7, 18), (1, 4), (0, 6), (7, 20), (18, 20), (18, 29), (4, 12), (1, 6), (18, 31), (0, 1), (4, 7), (0, 3)], [(15, 30), (11, 23), (15, 23), (22, 28), (8, 11), (14, 24), (11, 16), (15, 25), (14, 19), (14, 28), (10, 24), (22, 25), (14, 23), (14, 16), (14, 25), (10, 30), (25, 28), (10, 14), (10, 23), (13, 25), (10, 25), (13, 27), (16, 25), (13, 22), (16, 27), (13, 15), (13, 24), (23, 25), (16, 22), (23, 27), (13, 28), (24, 30), (16, 19), (23, 24), (13, 16), (16, 30), (8, 13), (19, 22), (16, 23), (15, 27), (23, 28), (8, 15), (27, 28), (19, 24), (11, 22), (15, 22), (11, 15), (19, 28), (11, 24), (19, 30), (8, 14), (14, 27), (11, 19), (15, 19), (15, 28), (26, 28), (25, 30), (22, 24)]]  # noqa: E501        
+        subgraph_edges = [[(7, 17), (4, 9), (7, 21), (0, 9), (0, 2), (29, 31), (3, 12), (2, 6), (3, 7), (6, 17), (3, 9), (17, 20), (9, 18), (17, 31), (3, 4), (6, 21), (9, 29), (2, 7), (6, 7), (5, 17), (2, 9), (6, 9), (6, 18), (9, 17), (12, 18), (5, 12), (2, 4), (9, 12), (5, 7), (4, 18), (12, 31), (1, 3), (1, 12), (5, 9), (5, 18), (1, 5), (12, 17), (1, 7), (4, 6), (1, 9), (1, 2), (0, 4), (7, 18), (1, 4), (0, 6), (7, 20), (18, 20), (18, 29), (4, 12), (1, 6), (18, 31), (0, 1), (4, 7), (0, 3)], [(15, 30), (11, 23), (15, 23), (22, 28), (8, 11), (14, 24), (11, 16), (15, 25), (14, 19), (14, 28), (10, 24), (22, 25), (14, 23), (14, 16), (14, 25), (10, 30), (25, 28), (10, 14), (10, 23), (13, 25), (10, 25), (13, 27), (16, 25), (13, 22), (16, 27), (13, 15), (13, 24), (23, 25), (16, 22), (23, 27), (13, 28), (24, 30), (16, 19), (23, 24), (13, 16), (16, 30), (8, 13), (19, 22), (16, 23), (15, 27), (23, 28), (8, 15), (27, 28), (19, 24), (11, 22), (15, 22), (11, 15), (19, 28), (11, 24), (19, 30), (8, 14), (14, 27), (11, 19), (15, 19), (15, 28), (26, 28), (25, 30), (22, 24)]]  # noqa: E501
         # fmt: on
-        leaf_clusters = tuple(Tree(value=edges, children=()) for edges in subgraph_edges)
-        root = Tree(value=[], children=leaf_clusters)
-        cluster_tree = ClusterTree(root=root)
+        leaf_clusters = tuple(ClusterTree(value=list(edges), children=()) for edges in subgraph_edges)
+        cluster_tree = ClusterTree(value=[], children=leaf_clusters)
         grouped = cluster_tree.group_by_leaf(self.dummy_results)
         self.assertEqual(len(grouped), len(leaf_clusters))
         for i, cluster in enumerate(leaf_clusters):
@@ -73,16 +72,15 @@ class TestGraphPartitioning(unittest.TestCase):
     def test_create_annotated_cluster_tree(self):
         """Test that annotations are correctly attached to each cluster."""
         leaf_edges = [[(0, 1), (0, 2)], [(1, 3)]]
-        leaf_clusters = tuple(Tree(value=edges, children=()) for edges in leaf_edges)
-        root = Tree(value=[(0, 3)], children=leaf_clusters)
-        cluster_tree = ClusterTree(root=root)
+        leaf_clusters = tuple(ClusterTree(value=list(edges), children=()) for edges in leaf_edges)
+        cluster_tree = ClusterTree(value=[(0, 3)], children=leaf_clusters)
         annotated_graph = {(0, 1): "a", (0, 2): "b", (1, 3): "c", (0, 3): "root"}
 
-        annotated_tree = AnnotatedClusterTree.create(cluster_tree, annotated_graph)
+        annotated_tree = AnnotatedClusterTree.from_cluster_tree(cluster_tree, annotated_graph)
+        self.assertIsNotNone(annotated_tree)
+        assert annotated_tree is not None
 
-        self.assertFalse(annotated_tree.is_empty())
-        assert annotated_tree.root is not None
-        self.assertEqual(annotated_tree.root.value, {(0, 3): "root"})
+        self.assertEqual(annotated_tree.value, {(0, 3): "root"})
 
         leaves = annotated_tree.leaves()
         self.assertEqual(len(leaves), len(leaf_clusters))

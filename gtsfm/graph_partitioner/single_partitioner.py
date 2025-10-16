@@ -3,11 +3,12 @@
 Authors: Zongyue Liu
 """
 
+from __future__ import annotations
+
 import gtsfm.utils.logger as logger_utils
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.products.cluster_tree import ClusterTree
 from gtsfm.products.visibility_graph import VisibilityGraph
-from gtsfm.utils.tree import Tree
 
 logger = logger_utils.get_logger()
 
@@ -23,7 +24,7 @@ class SinglePartitioner(GraphPartitionerBase):
         """Initialize the partitioner."""
         super().__init__(process_name="SinglePartitioner")
 
-    def run(self, graph: VisibilityGraph) -> ClusterTree:
+    def run(self, graph: VisibilityGraph) -> ClusterTree | None:
         """Return all edges as a single-leaf cluster_tree.
 
         Args:
@@ -34,8 +35,7 @@ class SinglePartitioner(GraphPartitionerBase):
         """
         if len(graph) == 0:
             logger.warning("SinglePartitioner: received empty visibility graph.")
-            return ClusterTree(root=None)
+            return None
 
         logger.info("SinglePartitioner: returning all %d pairs as a single cluster", len(graph))
-        cluster = Tree(value=list(graph), children=())
-        return ClusterTree(root=cluster)
+        return ClusterTree(value=list(graph), children=())

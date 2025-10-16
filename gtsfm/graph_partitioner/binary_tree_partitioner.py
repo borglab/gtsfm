@@ -8,6 +8,8 @@ capture the inter-cluster edges between their children.
 Authors: Shicong Ma and Frank Dellaert
 """
 
+from __future__ import annotations
+
 from math import ceil, log2
 from typing import Optional, Sequence
 
@@ -15,7 +17,6 @@ import gtsfm.utils.logger as logger_utils
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.products.cluster_tree import ClusterTree
 from gtsfm.products.visibility_graph import VisibilityGraph, valid_visibility_graph_or_raise
-from gtsfm.utils.tree import Tree
 
 logger = logger_utils.get_logger()
 
@@ -39,11 +40,11 @@ class BinaryTreePartitioner(GraphPartitionerBase):
                 raise ValueError("Either max_depth or num_cameras_per_cluster must be provided")
             self._num_cameras_per_cluster = num_cameras_per_cluster
 
-    def run(self, graph: VisibilityGraph) -> ClusterTree:
+    def run(self, graph: VisibilityGraph) -> ClusterTree | None:
         """Cluster a visibility graph into a binary tree of clusters."""
         if len(graph) == 0:
             logger.warning("BinaryTreePartitioner: no visibility graph provided for cluster_tree.")
-            return ClusterTree(root=None)
+            return None
 
         valid_visibility_graph_or_raise(graph)
 
@@ -62,7 +63,7 @@ class BinaryTreePartitioner(GraphPartitionerBase):
             max_depth=max_depth,
             graph_edges=graph,
         )
-        return ClusterTree(root=root_cluster)
+        return root_cluster
 
     def _build_binary_clustering(
         self,
@@ -70,7 +71,7 @@ class BinaryTreePartitioner(GraphPartitionerBase):
         depth: int,
         max_depth: int,
         graph_edges: VisibilityGraph,
-    ) -> tuple[Tree[VisibilityGraph], set[int], set[tuple[int, int]]]:
+    ) -> tuple[ClusterTree, set[int], set[tuple[int, int]]]:
         """Recursively build a binary cluster_tree hierarchy.
 
         Returns:
@@ -83,7 +84,7 @@ class BinaryTreePartitioner(GraphPartitionerBase):
 
         if depth == max_depth or len(keys) <= 1:
             intra_edges = [(i, j) for i, j in graph_edges if i in key_set and j in key_set]
-            cluster = Tree(value=intra_edges, children=())
+            cluster = ClusterTree(value=intra_edges, children=())
             return cluster, set(key_set), set(intra_edges)
 
         mid = max(1, len(keys) // 2)
@@ -110,7 +111,7 @@ class BinaryTreePartitioner(GraphPartitionerBase):
         ]
 
         unique_keys = key_set - descendant_keys
-        cluster = Tree(value=cross_edges, children=(left_cluster, right_cluster))
+        cluster = ClusterTree(value=cross_edges, children=(left_cluster, right_cluster))
 
         descendant_keys |= unique_keys
         descendant_edges = child_edges | set(cross_edges)

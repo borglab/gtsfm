@@ -5,8 +5,7 @@ import unittest
 from gtsam import SymbolicBayesTreeClique  # type: ignore
 
 from gtsfm.graph_partitioner.metis_partitioner import MetisPartitioner
-from gtsfm.products.cluster_tree import cluster_all_edges, cluster_all_keys
-from gtsfm.utils.tree import Tree
+from gtsfm.products.cluster_tree import ClusterTree
 
 
 class TestMetisPartitioner(unittest.TestCase):
@@ -24,22 +23,24 @@ class TestMetisPartitioner(unittest.TestCase):
     def test_empty_input_returns_empty_clustering(self) -> None:
         partitioner = MetisPartitioner()
         cluster_tree = partitioner.run([])
-        self.assertTrue(cluster_tree.is_empty())
-        self.assertEqual(cluster_tree.leaves(), ())
+        self.assertIsNone(cluster_tree)
 
     def test_chain_graph_creates_non_empty_clustering(self) -> None:
         partitioner = MetisPartitioner()
         cluster_tree = partitioner.run(self.chain_edges)
-        self.assertFalse(cluster_tree.is_empty())
+        self.assertIsNotNone(cluster_tree)
+        assert cluster_tree is not None
         leaves = cluster_tree.leaves()
         self.assertGreater(len(leaves), 0)
         for leaf in leaves:
-            self.assertIsInstance(leaf, Tree)
+            self.assertIsInstance(leaf, ClusterTree)
             self.assertTrue(all(i < j for i, j in leaf.value))
 
     def test_group_by_leaf_matches_edges(self) -> None:
         partitioner = MetisPartitioner()
         cluster_tree = partitioner.run(self.chain_edges)
+        self.assertIsNotNone(cluster_tree)
+        assert cluster_tree is not None
         grouped = cluster_tree.group_by_leaf({edge: edge for edge in self.chain_edges})
         self.assertEqual(len(grouped), len(cluster_tree.leaves()))
 
@@ -60,12 +61,12 @@ class TestMetisPartitioner(unittest.TestCase):
     def test_skydio_leaf_edges_are_intra_cluster(self) -> None:
         partitioner = MetisPartitioner()
         cluster_tree = partitioner.run(self.skydio_pairs)
-        assert cluster_tree.root is not None
-        self.assertEqual(len(cluster_all_edges(cluster_tree.root)), len(self.skydio_pairs))
-        self.assertFalse(cluster_tree.is_empty())
+        self.assertIsNotNone(cluster_tree)
+        assert cluster_tree is not None
+        self.assertEqual(len(cluster_tree.all_edges()), len(self.skydio_pairs))
         for cluster in cluster_tree.leaves():
             # All edge endpoints must lie inside the cluster key set.
-            leaf_keys = cluster_all_keys(cluster)
+            leaf_keys = cluster.all_keys()
             for i, j in cluster.value:
                 self.assertIn(i, leaf_keys)
                 self.assertIn(j, leaf_keys)

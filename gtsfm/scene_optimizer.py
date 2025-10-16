@@ -40,7 +40,6 @@ from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.graph_partitioner.single_partitioner import SinglePartitioner
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
-from gtsfm.products.cluster_tree import cluster_filter_edges
 from gtsfm.products.two_view_result import TwoViewResult
 from gtsfm.products.visibility_graph import AnnotatedGraph
 from gtsfm.retriever.image_pairs_generator import ImagePairsGenerator
@@ -65,22 +64,6 @@ REACT_METRICS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "
 REACT_RESULTS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "public" / "results"
 
 logger = logger_utils.get_logger()
-
-
-def print_types(obj, indent=0):
-    prefix = "  " * indent
-    if isinstance(obj, dict):
-        print(f"{prefix}dict:")
-        for k, v in obj.items():
-            print(f"{prefix}  key: {type(k)}")
-            print_types(v, indent + 2)
-    elif isinstance(obj, (list, tuple)):
-        print(f"{prefix}{type(obj).__name__}:")
-        for i, item in enumerate(obj):
-            print(f"{prefix}  [{i}]:")
-            print_types(item, indent + 2)
-    else:
-        print(f"{prefix}{type(obj)}")
 
 
 class SceneOptimizer:
@@ -367,14 +350,15 @@ class SceneOptimizer:
         assert self.graph_partitioner is not None, "Graph partitioner is not set up!"
         cluster_tree = self.graph_partitioner.run(visibility_graph)
         self.graph_partitioner.log_partition_details(cluster_tree)
-        num_leaves = len(cluster_tree.leaves())
+        leaves = cluster_tree.leaves() if cluster_tree is not None else ()
+        num_leaves = len(leaves)
         if num_leaves == 1:
             self.create_output_directories(None)  # Single-cluster_tree run: write directly under {output_root}/results
 
         logger.info("🔥 GTSFM: Starting to solve subgraphs...")
         futures = []
-        for index, leaf in enumerate(cluster_tree.leaves(), 1):
-            cluster_two_view_results = cluster_filter_edges(leaf, two_view_results)
+        for index, leaf in enumerate(leaves, 1):
+            cluster_two_view_results = leaf.filter_annotations(two_view_results)
             if num_leaves > 1:
                 logger.info(
                     "Creating computation graph for leaf cluster %d/%d with %d image pairs",
