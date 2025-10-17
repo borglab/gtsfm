@@ -198,3 +198,4 @@ notebooks/
 **/secrets.*
 /coiled-token.txt
 benchmarks/**
+plot.jpg

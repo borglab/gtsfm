@@ -1,103 +1,112 @@
-"""Data structures for hierarchical cluster_tree of visibility graphs."""
+"""Cluster tree data structures built on top of generic trees."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import FrozenSet, TypeVar
+from typing import FrozenSet, Generic, Optional, TypeVar, cast
 
-from gtsfm.products.visibility_graph import AnnotatedGraph, VisibilityGraph
+from gtsfm.products.visibility_graph import (
+    AnnotatedGraph,
+    VisibilityGraph,
+    filter_annotations_by_edges,
+    visibility_graph_keys,
+)
+from gtsfm.utils.tree import Tree
 
 T = TypeVar("T")
 
 
-@dataclass(frozen=True)
-class Cluster:
-    """Node in a hierarchical cluster_tree tree."""
+class ClusterTree(Tree[VisibilityGraph]):
+    """Tree node representing a hierarchical cluster of visibility edges."""
 
-    edges: VisibilityGraph
-    children: tuple["Cluster", ...] = ()
-
-    def __repr__(self) -> str:
-        edges_str = f"edges={len(self.edges)}"
-        if self.children:
-            children_str = f", children={len(self.children)}"
-        else:
-            children_str = ""
-        keys_str = f", keys={sorted(self.local_keys())}" if self.edges else ""
-        return f"Cluster({edges_str}{children_str}{keys_str})"
-
-    def is_leaf(self) -> bool:
-        """Return True if the cluster is a leaf (has no children)."""
-        return len(self.children) == 0
+    def _child_clusters(self) -> tuple["ClusterTree", ...]:
+        return cast(tuple["ClusterTree", ...], self.children)
 
     def local_keys(self) -> FrozenSet[int]:
         """Keys referenced directly by this cluster's edges."""
-        keys: set[int] = set()
-        for i, j in self.edges:
-            keys.add(i)
-            keys.add(j)
-        return frozenset(keys)
+        return visibility_graph_keys(self.value)
 
     def all_keys(self) -> FrozenSet[int]:
         """Return the set of keys contained in this cluster and all descendants."""
-        descendant_keys = set(self.local_keys())
-        for child in self.children:
-            descendant_keys.update(child.all_keys())
-        return frozenset(descendant_keys)
+
+        def reducer(edges: VisibilityGraph, child_keys: tuple[FrozenSet[int], ...]) -> FrozenSet[int]:
+            merged: set[int] = set()
+            for key_set in child_keys:
+                merged.update(key_set)
+            merged.update(visibility_graph_keys(edges))
+            return frozenset(merged)
+
+        return self.fold(reducer)
 
     def all_edges(self) -> VisibilityGraph:
         """Return all edges contained in this cluster and its descendants."""
-        edges = list(self.edges)
-        for child in self.children:
-            edges.extend(child.all_edges())
-        return edges
 
-    def filter_edges(self, annotated_graph: AnnotatedGraph[T]) -> AnnotatedGraph[T]:
+        def reducer(edges: VisibilityGraph, child_edges: tuple[VisibilityGraph, ...]) -> VisibilityGraph:
+            merged: list[tuple[int, int]] = list(edges)
+            for child in child_edges:
+                merged.extend(child)
+            return merged
+
+        return self.fold(reducer)
+
+    def filter_annotations(self, annotated_graph: AnnotatedGraph[T]) -> AnnotatedGraph[T]:
         """Extract annotated results associated with this cluster's edges."""
-        return {edge: annotated_graph[edge] for edge in self.edges if edge in annotated_graph}
-
-
-@dataclass(frozen=True)
-class ClusterTree:
-    """Hierarchical cluster tree produced by a graph partitioner."""
-
-    root: Cluster | None
-
-    def is_empty(self) -> bool:
-        """Return True if the cluster tree has no clusters."""
-        return self.root is None
-
-    def leaves(self) -> tuple[Cluster, ...]:
-        """Return the leaf clusters."""
-        if self.root is None:
-            return ()
-
-        leaves: list[Cluster] = []
-
-        def _collect(cluster: Cluster) -> None:
-            if cluster.is_leaf():
-                leaves.append(cluster)
-                return
-            for child in cluster.children:
-                _collect(child)
-
-        _collect(self.root)
-        return tuple(leaves)
-
-    def __repr__(self) -> str:
-        if self.root is None:
-            return "ClusterTree(root=None)"
-
-        def _repr(cluster: Cluster, depth: int = 0) -> str:
-            indent = "  " * depth
-            s = f"{indent}Cluster(keys={sorted(cluster.local_keys())}, edges={list(cluster.edges)})"
-            if cluster.children:
-                for child in cluster.children:
-                    s += "\n" + _repr(child, depth + 1)
-            return s
-
-        return f"ClusterTree(\n{_repr(self.root)}\n)"
+        return filter_annotations_by_edges(self.value, annotated_graph)
 
     def group_by_leaf(self, annotated_graph: AnnotatedGraph[T]) -> list[AnnotatedGraph[T]]:
         """Group annotated results by leaf clusters."""
-        return [leaf.filter_edges(annotated_graph) for leaf in self.leaves()]
+        return [leaf.filter_annotations(annotated_graph) for leaf in self.leaves()]
+
+    def to_annotated(self, annotated_graph: AnnotatedGraph[T]) -> "AnnotatedClusterTree[T]":
+        """Convert this cluster tree into an annotated cluster tree."""
+        children = tuple(child.to_annotated(annotated_graph) for child in self._child_clusters())
+        annotations = filter_annotations_by_edges(self.value, annotated_graph)
+        return AnnotatedClusterTree(value=annotations, children=children)
+
+
+class AnnotatedClusterTree(Tree[AnnotatedGraph[T]], Generic[T]):
+    """Cluster tree where edges carry annotations."""
+
+    def _child_clusters(self) -> tuple["AnnotatedClusterTree[T]", ...]:
+        return cast(tuple["AnnotatedClusterTree[T]", ...], self.children)
+
+    def local_keys(self) -> FrozenSet[int]:
+        """Keys referenced directly by this cluster's annotations."""
+        return visibility_graph_keys(self.value.keys())
+
+    def all_keys(self) -> FrozenSet[int]:
+        """Return the set of keys contained in this cluster and all descendants."""
+
+        def reducer(annotations: AnnotatedGraph[T], child_keys: tuple[FrozenSet[int], ...]) -> FrozenSet[int]:
+            merged: set[int] = set()
+            for key_set in child_keys:
+                merged.update(key_set)
+            merged.update(visibility_graph_keys(annotations.keys()))
+            return frozenset(merged)
+
+        return self.fold(reducer)
+
+    def all_annotations(self) -> AnnotatedGraph[T]:
+        """Return all annotations contained in this cluster and its descendants."""
+
+        def reducer(
+            annotations: AnnotatedGraph[T], child_annotations: tuple[AnnotatedGraph[T], ...]
+        ) -> AnnotatedGraph[T]:
+            merged: AnnotatedGraph[T] = dict(annotations)
+            for child in child_annotations:
+                merged.update(child)
+            return merged
+
+        return self.fold(reducer)
+
+    def group_by_leaf(self) -> list[AnnotatedGraph[T]]:
+        """Return annotated results grouped by leaf clusters."""
+        return [leaf.value for leaf in self.leaves()]
+
+    @classmethod
+    def from_cluster_tree(
+        cls, cluster_tree: Optional[ClusterTree], annotated_graph: AnnotatedGraph[T]
+    ) -> Optional["AnnotatedClusterTree[T]"]:
+        """Return an annotated tree given a cluster structure and edge annotations."""
+        if cluster_tree is None:
+            return None
+        return cluster_tree.to_annotated(annotated_graph)

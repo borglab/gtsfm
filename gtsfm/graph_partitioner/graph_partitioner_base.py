@@ -3,6 +3,8 @@
 Authors: Zongyue Liu
 """
 
+from __future__ import annotations
+
 from abc import abstractmethod
 
 import gtsfm.utils.logger as logger_utils
@@ -44,7 +46,7 @@ class GraphPartitionerBase(GTSFMProcess):
         )
 
     @abstractmethod
-    def run(self, graph: VisibilityGraph) -> ClusterTree:
+    def run(self, graph: VisibilityGraph) -> ClusterTree | None:
         """Cluster a visibility graph.
 
         Args:
@@ -54,16 +56,20 @@ class GraphPartitionerBase(GTSFMProcess):
         """
 
     @staticmethod
-    def log_partition_details(cluster_tree: ClusterTree) -> None:
+    def log_partition_details(cluster_tree: ClusterTree | None) -> None:
         """Log details of each cluster for debugging.
 
         Args:
             cluster_tree: ClusterTree object containing cluster details.
         """
+        if cluster_tree is None:
+            logger.info("0 leaf clusters found.")
+            return
+
         leaves = cluster_tree.leaves()
         logger.info("%d leaf clusters found.", len(leaves))
         for i, leaf in enumerate(leaves, 1):
             leaf_keys = leaf.all_keys()
             logger.info("Leaf Cluster %d: keys (%d): %s", i, len(leaf_keys), list(map(int, leaf_keys)))
-            logger.info("Leaf Cluster %d: num intra-cluster edges: %d", i, len(leaf.edges))
-            logger.debug("Leaf Cluster %d: intra-cluster edges: %s", i, leaf.edges)
+            logger.info("Leaf Cluster %d: num intra-cluster edges: %d", i, len(leaf.value))
+            logger.debug("Leaf Cluster %d: intra-cluster edges: %s", i, leaf.value)
