@@ -391,13 +391,12 @@ class LoaderBase(GTSFMProcess):
         Returns:
             Dictionary mapping image index to OneViewData with eagerly validated intrinsics.
         """
-        _ = client  # client kept for API compatibility; currently unused in delayed construction.
         maybe_intrinsics = self.get_all_intrinsics()
         if any(intrinsic is None for intrinsic in maybe_intrinsics):
             raise ValueError("Some intrinsics are None. Please ensure all intrinsics are provided.")
 
         intrinsics: List[gtsfm_types.CALIBRATION_TYPE] = maybe_intrinsics  # type: ignore
-        image_delayed_list = self.create_computation_graph_for_images()
+        image_futures = self.get_all_images_as_futures(client)
         image_fnames = self.image_filenames()
         absolute_pose_priors = self.get_absolute_pose_priors()
         cameras_gt = self.get_gt_cameras()
@@ -405,7 +404,7 @@ class LoaderBase(GTSFMProcess):
 
         num_images = len(self)
         if not (
-            len(image_delayed_list)
+            len(image_futures)
             == len(maybe_intrinsics)
             == len(image_fnames)
             == len(absolute_pose_priors)
@@ -417,7 +416,7 @@ class LoaderBase(GTSFMProcess):
 
         one_view_data_map = {
             idx: OneViewData(
-                image_delayed=image_delayed_list[idx],
+                image_future=image_futures[idx],
                 image_fname=image_fnames[idx],
                 intrinsics=intrinsics[idx],
                 absolute_pose_prior=absolute_pose_priors[idx],

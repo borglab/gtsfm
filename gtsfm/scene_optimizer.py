@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from dask.base import annotate
 from dask.delayed import Delayed, delayed
-from dask.distributed import performance_report
+from dask.distributed import Future, performance_report
 from gtsam import Pose3, Similarity3  # type: ignore
 from trimesh import Trimesh
 
@@ -157,7 +157,7 @@ class SceneOptimizer:
 
         delayed_results: list[Delayed] = []
 
-        images = [one_view_data_map[idx].image_delayed for idx in range(num_images)]
+        images = [delayed(resolve_image_future)(one_view_data_map[idx].image_future) for idx in range(num_images)]
         cameras_gt = [one_view_data_map[idx].camera_gt for idx in range(num_images)]
         gt_wTi_list = [one_view_data_map[idx].pose_gt for idx in range(num_images)]
 
@@ -306,10 +306,8 @@ class SceneOptimizer:
         base_output_paths = prepare_output_paths(self.output_root, None)
 
         one_view_data_map = self.loader.get_one_view_data_map(client)
-
         num_images = len(self.loader)
-        image_tasks = [one_view_data_map[idx].image_delayed for idx in range(num_images)]
-        image_futures = [client.compute(task) for task in image_tasks]
+        image_futures = [one_view_data_map[idx].image_future for idx in range(num_images)]
         image_fnames = [one_view_data_map[idx].image_fname for idx in range(num_images)]
 
         logger.info("🔥 GTSFM: Running image pair retrieval...")
@@ -414,7 +412,7 @@ class SceneOptimizer:
             process_graph_generator.is_image_correspondence = True
         process_graph_generator.save_graph()
 
-    def _run_retriever(self, client, image_futures, image_fnames):
+    def _run_retriever(self, client, image_futures: list[Future], image_fnames: list[str]):
         retriever_start_time = time.time()
         with performance_report(filename="dask_reports/retriever.html"):
             visibility_graph = self.image_pairs_generator.run(
@@ -429,7 +427,7 @@ class SceneOptimizer:
         logger.info("🚀 Image pair retrieval took %.2f min.", retriever_duration_sec / 60.0)
         return retriever_metrics, visibility_graph
 
-    def _run_correspondence_generation(self, client, visibility_graph, image_futures):
+    def _run_correspondence_generation(self, client, visibility_graph, image_futures: list[Future]):
         with performance_report(filename="dask_reports/correspondence-generator.html"):
             correspondence_generation_start_time = time.time()
             (
@@ -510,6 +508,13 @@ class SceneOptimizer:
             GtsfmMetric("total_two_view_estimation_duration_sec", two_view_estimation_duration_sec)
         )
         return two_view_agg_metrics
+
+
+def resolve_image_future(image_future: Future | Image) -> Image:
+    """Materialize an image Future to an Image instance."""
+    if isinstance(image_future, Future):
+        return image_future.result()
+    return image_future
 
 
 def get_image_dictionary(image_list: list[Image]) -> dict[int, Image]:
