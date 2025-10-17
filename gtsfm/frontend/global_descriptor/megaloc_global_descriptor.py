@@ -12,7 +12,6 @@ from typing import Optional
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
 from gtsfm.frontend.global_descriptor.global_descriptor_base import GlobalDescriptorBase
-from thirdparty.megaloc.megaloc import MegaLocModel
 
 
 class MegaLocGlobalDescriptor(GlobalDescriptorBase):
@@ -23,6 +22,8 @@ class MegaLocGlobalDescriptor(GlobalDescriptorBase):
     
     def _ensure_model_loaded(self) -> None:
         """Lazy-load the MegaLoc Model to avoid unnecessary initialization"""
+        from thirdparty.megaloc.megaloc import MegaLocModel
+
         if self._model is None:
             logger = logger_utils.get_logger()
             logger.info("⏳ Loading MegaLoc model weights...")
