@@ -329,6 +329,8 @@ class SceneOptimizer:
         logger.info("🔥 GTSFM: Partitioning the view graph...")
         assert self.graph_partitioner is not None, "Graph partitioner is not set up!"
         cluster_tree = self.graph_partitioner.run(visibility_graph)
+        logger.info("🔥🔥🔥🔥 TREE COMING:")
+        print(cluster_tree)
         self.graph_partitioner.log_partition_details(cluster_tree)
         leaves = cluster_tree.leaves() if cluster_tree is not None else ()
         num_leaves = len(leaves)
