@@ -23,6 +23,7 @@ from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.data_association.cpp_dsf_tracks_estimator import CppDsfTracksEstimator
 from gtsfm.data_association.data_assoc import DataAssociation
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
+from gtsfm.products.one_view_data import OneViewData
 from gtsfm.products.two_view_result import TwoViewResult
 from gtsfm.products.visibility_graph import AnnotatedGraph
 from gtsfm.view_graph_estimator.cycle_consistent_rotation_estimator import (
@@ -62,29 +63,19 @@ class MultiViewOptimizer:
 
     def create_computation_graph(
         self,
-        images: List[Delayed],
-        num_images: int,
         keypoints_list: List[Keypoints],
         two_view_results: AnnotatedGraph[TwoViewResult],
-        all_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
-        absolute_pose_priors: List[Optional[PosePrior]],
+        one_view_data_map: Dict[int, OneViewData],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
-        cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
-        gt_wTi_list: List[Optional[Pose3]],
         output_root: Optional[Path] = None,
     ) -> Tuple[Delayed, Delayed, Delayed, list]:
         """Creates a computation graph for multi-view optimization.
 
         Args:
-            images: List of all images in the scene, as delayed.
-            num_images: Number of images in the scene.
             keypoints_list: Keypoints for images.
             two_view_results: valid two-view results for image pairs.
-            all_intrinsics: intrinsics for images.
-            absolute_pose_priors: Priors on the camera poses.
+            one_view_data_map: Per-view data entries keyed by image index.
             relative_pose_priors: Priors on the pose between camera pairs.
-            cameras_gt: List of GT cameras (if they exist), ordered by camera index.
-            gt_wTi_list: List of GT poses of the camera.
             output_root: Path where output should be saved.
 
         Returns:
@@ -93,6 +84,13 @@ class MultiViewOptimizer:
             Dict of TwoViewEstimationReports after view graph estimation.
             List of GtsfmMetricGroups from different modules, wrapped up as Delayed.
         """
+
+        num_images = len(one_view_data_map)
+        images: List[Delayed] = [one_view_data_map[idx].image_delayed for idx in range(num_images)]
+        all_intrinsics = [one_view_data_map[idx].intrinsics for idx in range(num_images)]
+        absolute_pose_priors = [one_view_data_map[idx].absolute_pose_prior for idx in range(num_images)]
+        cameras_gt = [one_view_data_map[idx].camera_gt for idx in range(num_images)]
+        gt_wTi_list = [one_view_data_map[idx].pose_gt for idx in range(num_images)]
 
         # We assume all two-view results here are *valid* (T and U not None)
         i2Ri1_dict = {}

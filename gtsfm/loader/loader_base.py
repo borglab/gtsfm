@@ -382,23 +382,22 @@ class LoaderBase(GTSFMProcess):
         N = len(self)
         return [self.get_camera_intrinsics(i) for i in range(N)]
 
-    def get_one_view_data_map(
-        self, client: Client
-    ) -> Tuple[Dict[int, OneViewData], List[gtsfm_types.CALIBRATION_TYPE]]:
+    def get_one_view_data_map(self, client: Client) -> Dict[int, OneViewData]:
         """Construct a per-view data map keyed by image index along with validated intrinsics.
 
         Args:
             client: Dask client used to create image futures.
 
         Returns:
-            Tuple of (image index -> OneViewData) and list of intrinsics without None entries.
+            Dictionary mapping image index to OneViewData with eagerly validated intrinsics.
         """
+        _ = client  # client kept for API compatibility; currently unused in delayed construction.
         maybe_intrinsics = self.get_all_intrinsics()
         if any(intrinsic is None for intrinsic in maybe_intrinsics):
             raise ValueError("Some intrinsics are None. Please ensure all intrinsics are provided.")
 
         intrinsics: List[gtsfm_types.CALIBRATION_TYPE] = maybe_intrinsics  # type: ignore
-        image_futures = self.get_all_images_as_futures(client)
+        image_delayed_list = self.create_computation_graph_for_images()
         image_fnames = self.image_filenames()
         absolute_pose_priors = self.get_absolute_pose_priors()
         cameras_gt = self.get_gt_cameras()
@@ -406,7 +405,7 @@ class LoaderBase(GTSFMProcess):
 
         num_images = len(self)
         if not (
-            len(image_futures)
+            len(image_delayed_list)
             == len(maybe_intrinsics)
             == len(image_fnames)
             == len(absolute_pose_priors)
@@ -418,7 +417,7 @@ class LoaderBase(GTSFMProcess):
 
         one_view_data_map = {
             idx: OneViewData(
-                image_future=image_futures[idx],
+                image_delayed=image_delayed_list[idx],
                 image_fname=image_fnames[idx],
                 intrinsics=intrinsics[idx],
                 absolute_pose_prior=absolute_pose_priors[idx],
@@ -427,7 +426,7 @@ class LoaderBase(GTSFMProcess):
             )
             for idx in range(num_images)
         }
-        return one_view_data_map, intrinsics
+        return one_view_data_map
 
     def get_gt_poses(self) -> List[Optional[Pose3]]:
         """Return all the camera poses.
