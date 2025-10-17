@@ -1,0 +1,3 @@
+# Binary Graph Partitioner Configuration
+_target_: gtsfm.graph_partitioner.BinaryTreePartitioner
+max_depth: 2
