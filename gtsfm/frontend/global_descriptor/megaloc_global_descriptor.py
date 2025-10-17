@@ -25,7 +25,7 @@ class MegaLocGlobalDescriptor(GlobalDescriptorBase):
         """Lazy-load the MegaLoc Model to avoid unnecessary initialization"""
         if self._model is None:
             logger = logger_utils.get_logger()
-            logger.info("⏳ Loading NetVLAD model weights...")
+            logger.info("⏳ Loading MegaLoc model weights...")
             self._model = MegaLocModel().eval()
 
     def describe(self, image: Image) -> np.ndarray:
