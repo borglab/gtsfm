@@ -62,6 +62,18 @@ class ClusterTree(Tree[VisibilityGraph]):
         annotations = filter_annotations_by_edges(self.value, annotated_graph)
         return AnnotatedClusterTree(value=annotations, children=children)
 
+    def __repr__(self) -> str:
+        """Return an indented string representation of the cluster tree, showing all edges at each node."""
+
+        def repr_helper(node: "ClusterTree", indent: int = 0) -> str:
+            prefix = " " * indent
+            lines = [f"{prefix}Cluster with edges: {[(int(a), int(b)) for a, b in node.value]}"]
+            for child in node._child_clusters():
+                lines.append(repr_helper(child, indent + 2))
+            return "\n".join(lines)
+
+        return repr_helper(self)
+
 
 class AnnotatedClusterTree(Tree[AnnotatedGraph[T]], Generic[T]):
     """Cluster tree where edges carry annotations."""
