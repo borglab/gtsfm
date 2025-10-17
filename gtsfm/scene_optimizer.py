@@ -41,6 +41,7 @@ from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.graph_partitioner.single_partitioner import SinglePartitioner
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
+from gtsfm.products.one_view_data import OneViewData
 from gtsfm.products.two_view_result import TwoViewResult
 from gtsfm.products.visibility_graph import AnnotatedGraph
 from gtsfm.retriever.image_pairs_generator import ImagePairsGenerator
@@ -303,6 +304,22 @@ class SceneOptimizer:
 
         logger.info("🔥 GTSFM: Running correspondence generation...")
         maybe_intrinsics, intrinsics = self._get_intrinsics_or_raise()
+        images = self.loader.create_computation_graph_for_images()
+        absolute_pose_priors = self.loader.get_absolute_pose_priors()
+        cameras_gt = self.loader.get_gt_cameras()
+        gt_wTi_list = self.loader.get_gt_poses()
+        one_view_data_map = self._build_one_view_data_map(
+            images=images,
+            intrinsics=maybe_intrinsics,
+            absolute_pose_priors=absolute_pose_priors,
+            cameras_gt=cameras_gt,
+            gt_wTi_list=gt_wTi_list,
+        )
+        images = [data.image for data in one_view_data_map.values()]
+        absolute_pose_priors = [data.absolute_pose_prior for data in one_view_data_map.values()]
+        cameras_gt = [data.camera_gt for data in one_view_data_map.values()]
+        gt_wTi_list = [data.pose_gt for data in one_view_data_map.values()]
+
         keypoints, putative_corr_idxs_dict, correspondence_duration_sec = self._run_correspondence_generation(
             client, visibility_graph
         )
@@ -357,12 +374,12 @@ class SceneOptimizer:
                 keypoints_list=keypoints,
                 two_view_results=cluster_two_view_results,
                 num_images=len(self.loader),
-                images=self.loader.create_computation_graph_for_images(),
+                images=images,
                 camera_intrinsics=maybe_intrinsics,  # TODO(Frank): really? None is allowed?
                 relative_pose_priors=self.loader.get_relative_pose_priors(list(cluster_two_view_results.keys())),
-                absolute_pose_priors=self.loader.get_absolute_pose_priors(),
-                cameras_gt=self.loader.get_gt_cameras(),
-                gt_wTi_list=self.loader.get_gt_poses(),
+                absolute_pose_priors=absolute_pose_priors,
+                cameras_gt=cameras_gt,
+                gt_wTi_list=gt_wTi_list,
                 gt_scene_mesh=self.loader.get_gt_scene_trimesh(),
                 output_paths=output_paths,
             )
@@ -423,6 +440,37 @@ class SceneOptimizer:
         # If all intrinsics are valid, cast them to the correct type
         intrinsics: list[CALIBRATION_TYPE] = maybe_intrinsics  # type: ignore
         return maybe_intrinsics, intrinsics
+
+    def _build_one_view_data_map(
+        self,
+        images: list[Delayed],
+        intrinsics: list[Optional[gtsfm_types.CALIBRATION_TYPE]],
+        absolute_pose_priors: list[Optional[PosePrior]],
+        cameras_gt: list[Optional[gtsfm_types.CAMERA_TYPE]],
+        gt_wTi_list: list[Optional[Pose3]],
+    ) -> dict[int, OneViewData]:
+        """Construct a per-view data map keyed by image index."""
+        num_images = len(self.loader)
+        if not (
+            len(images)
+            == len(intrinsics)
+            == len(absolute_pose_priors)
+            == len(cameras_gt)
+            == len(gt_wTi_list)
+            == num_images
+        ):
+            raise ValueError("Per-view inputs must match the number of images in the loader.")
+
+        return {
+            idx: OneViewData(
+                image=images[idx],
+                intrinsics=intrinsics[idx],
+                absolute_pose_prior=absolute_pose_priors[idx],
+                camera_gt=cameras_gt[idx],
+                pose_gt=gt_wTi_list[idx],
+            )
+            for idx in range(num_images)
+        }
 
     def _run_correspondence_generation(self, client, visibility_graph):
         with performance_report(filename="dask_reports/correspondence-generator.html"):
