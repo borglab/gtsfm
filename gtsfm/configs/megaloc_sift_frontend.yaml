@@ -1,0 +1,140 @@
+# GTSFM Configuration with MegaLoc Global Descriptor
+# This config replaces NetVLAD with MegaLoc for better viewpoint invariance
+
+# @package _global_
+_target_: gtsfm.scene_optimizer.SceneOptimizer
+loader:
+  _target_: gtsfm.loader.Colmap
+save_gtsfm_data: True
+save_two_view_correspondences_viz: False
+save_3d_viz: False
+pose_angular_error_thresh: 5 # degrees
+
+# =============================================================================
+# IMAGE PAIRS GENERATION (Global Descriptor + Retriever)
+# =============================================================================
+# This is where MegaLoc gets integrated!
+# 
+# Key architectural insight: The global descriptor and retriever are separate.
+# - Global descriptor: Converts each image to a feature vector
+# - Retriever: Uses those vectors to find similar image pairs
+#
+# Since MegaLoc outputs vectors just like NetVLAD, we can reuse the same
+# NetVLADRetriever for similarity matrix computation and pair selection.
+# =============================================================================
+image_pairs_generator:
+  _target_: gtsfm.retriever.image_pairs_generator.ImagePairsGenerator
+  
+  # Global Descriptor: CHANGED FROM NetVLAD to MegaLoc
+  global_descriptor:
+    _target_: gtsfm.frontend.cacher.global_descriptor_cacher.GlobalDescriptorCacher
+    global_descriptor_obj:
+      _target_: gtsfm.frontend.global_descriptor.megaloc_global_descriptor.MegaLocGlobalDescriptor
+  
+  # Retriever: KEPT THE SAME - NetVLADRetriever works for any global descriptor!
+  # It computes cosine similarity between vectors and selects top-k pairs
+  retriever:
+    _target_: gtsfm.retriever.netvlad_retriever.NetVLADRetriever
+    num_matched: 20        # Find top-20 most similar images per query
+    min_score: 0.3         # Minimum cosine similarity threshold
+    
+# =============================================================================
+# Why keep NetVLADRetriever for MegaLoc?
+# =============================================================================
+# The retriever doesn't care *how* the vectors were generated. It only cares
+# that each image has a vector. The similarity computation (cosine similarity
+# via dot product) and top-k selection logic are descriptor-agnostic.
+#
+# Both NetVLAD and MegaLoc output L2-normalized vectors, so cosine similarity
+# is computed identically: sim(i,j) = v_i · v_j
+#
+# Future: You could rename this to "SimilarityRetriever" or 
+# "GlobalDescriptorRetriever" to make it more generic.
+# =============================================================================
+
+# =============================================================================
+# REST OF PIPELINE (unchanged - not relevant to global descriptor integration)
+# =============================================================================
+correspondence_generator:
+  _target_: gtsfm.frontend.correspondence_generator.det_desc_correspondence_generator.DetDescCorrespondenceGenerator
+
+  detector_descriptor:
+    _target_: gtsfm.frontend.cacher.detector_descriptor_cacher.DetectorDescriptorCacher
+    detector_descriptor_obj:
+      _target_: gtsfm.frontend.detector_descriptor.sift.SIFTDetectorDescriptor
+      max_keypoints: 5000
+
+  matcher:
+    _target_: gtsfm.frontend.cacher.matcher_cacher.MatcherCacher
+    matcher_obj:
+      _target_: gtsfm.frontend.matcher.twoway_matcher.TwoWayMatcher
+      ratio_test_threshold: 0.8
+
+two_view_estimator:
+  _target_: gtsfm.two_view_estimator_cacher.TwoViewEstimatorCacher
+  two_view_estimator_obj:
+    _target_: gtsfm.two_view_estimator.TwoViewEstimator
+    bundle_adjust_2view: True
+    eval_threshold_px: 4
+    ba_reproj_error_thresholds: [0.5]
+    bundle_adjust_2view_maxiters: 100
+
+    verifier:
+      _target_: gtsfm.frontend.verifier.ransac.Ransac
+      use_intrinsics_in_verification: True
+      estimation_threshold_px: 4
+
+    triangulation_options:
+      _target_: gtsfm.data_association.point3d_initializer.TriangulationOptions
+      reproj_error_threshold: 100.0
+      mode:
+        _target_: gtsfm.data_association.point3d_initializer.TriangulationSamplingMode
+        value: NO_RANSAC
+
+    inlier_support_processor:
+      _target_: gtsfm.two_view_estimator.InlierSupportProcessor
+      min_num_inliers_est_model: 15
+      min_inlier_ratio_est_model: 0.1
+
+multiview_optimizer:
+  _target_: gtsfm.multi_view_optimizer.MultiViewOptimizer
+
+  view_graph_estimator:
+    _target_: gtsfm.view_graph_estimator.cycle_consistent_rotation_estimator.CycleConsistentRotationViewGraphEstimator
+    edge_error_aggregation_criterion: MEDIAN_EDGE_ERROR
+
+  rot_avg_module:
+    _target_: gtsfm.averaging.rotation.shonan.ShonanRotationAveraging
+
+  trans_avg_module:
+    _target_: gtsfm.averaging.translation.averaging_1dsfm.TranslationAveraging1DSFM
+    robust_measurement_noise: True
+    projection_sampling_method: SAMPLE_INPUT_MEASUREMENTS
+    reject_outliers: False
+    use_all_tracks_for_averaging: True
+    use_relative_camera_poses: True
+
+  data_association_module:
+    _target_: gtsfm.data_association.data_assoc.DataAssociation
+    min_track_len: 2
+    triangulation_options:
+      _target_: gtsfm.data_association.point3d_initializer.TriangulationOptions
+      mode:
+        _target_: gtsfm.data_association.point3d_initializer.TriangulationSamplingMode
+        value: RANSAC_SAMPLE_UNIFORM
+      max_num_hypotheses: 100
+    save_track_patches_viz: False
+
+  bundle_adjustment_module:
+    _target_: gtsfm.bundle.bundle_adjustment.BundleAdjustmentOptimizer
+    reproj_error_thresholds: [10, 5, 3]
+    robust_measurement_noise: True
+    shared_calib: False
+
+dense_multiview_optimizer:
+  _target_: gtsfm.densify.mvs_patchmatchnet.MVSPatchmatchNet
+
+gaussian_splatting_optimizer:
+  _target_: gtsfm.splat.gaussian_splatting.GaussianSplatting
+  cfg:
+    _target_: gtsfm.splat.gaussian_splatting.Config

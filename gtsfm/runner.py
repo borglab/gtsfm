@@ -53,6 +53,14 @@ class GtsfmRunner:
         # Loader configuration
         add_loader_args(parser)
 
+        # Global Descriptor
+        parser.add_argument(
+            "--global_descriptor_config_name",
+            type=str,
+            default=None,
+            help="Override flag for global descriptor (choose from among gtsfm/configs/global_descriptor).",
+        )
+
         # Retriever
         parser.add_argument(
             "--retriever_config_name",
@@ -208,6 +216,17 @@ class GtsfmRunner:
                 )
                 logger.info(f"🔄 Applying Retriever Override: {self.parsed_args.retriever_config_name}")
                 scene_optimizer.image_pairs_generator._retriever = instantiate(retriever_cfg.retriever)
+
+        # Override global descriptor.
+        if self.parsed_args.global_descriptor_config_name is not None:
+            with hydra.initialize_config_module(config_module="gtsfm.configs.global_descriptor", version_base=None):
+                global_descriptor_cfg = hydra.compose(
+                    config_name=self.parsed_args.global_descriptor_config_name,
+                )
+                logger.info(f"🔄 Applying Global Descriptor Override: {self.parsed_args.global_descriptor_config_name}")
+                scene_optimizer.image_pairs_generator._global_descriptor = instantiate(
+                    global_descriptor_cfg.global_descriptor
+                )
 
         # Override gaussian splatting
         if self.parsed_args.gaussian_splatting_config_name is not None:
