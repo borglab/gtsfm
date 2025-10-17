@@ -32,7 +32,6 @@ from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.outputs import OutputPaths, prepare_output_paths
 from gtsfm.common.pose_prior import PosePrior
-from gtsfm.common.types import CALIBRATION_TYPE
 from gtsfm.densify.mvs_base import MVSBase
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
@@ -136,18 +135,33 @@ class SceneOptimizer:
         keypoints_list: list[Keypoints],
         two_view_results: AnnotatedGraph[TwoViewResult],
         num_images: int,
-        images: list[Delayed],
+        one_view_data_map: dict[int, OneViewData],
         output_paths: OutputPaths,
-        camera_intrinsics: list[Optional[gtsfm_types.CALIBRATION_TYPE]],
-        absolute_pose_priors: list[Optional[PosePrior]],
         relative_pose_priors: AnnotatedGraph[PosePrior],
-        cameras_gt: list[Optional[gtsfm_types.CAMERA_TYPE]],
-        gt_wTi_list: list[Optional[Pose3]],
         gt_scene_mesh: Optional[Trimesh] = None,
     ) -> tuple[Delayed, list[Delayed], list[Delayed]]:
-        """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
+        """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times.
+
+        Args:
+            keypoints_list: Keypoints for all images.
+            two_view_results: Valid two-view results for image pairs in the cluster.
+            num_images: Total number of images in the scene.
+            one_view_data_map: Per-view data keyed by image index.
+            output_paths: Output directories for artifacts.
+            relative_pose_priors: Priors on relative poses for the cluster.
+            gt_scene_mesh: Optional GT scene mesh.
+
+        Returns:
+            Tuple containing BA output, IO delayed tasks, and metrics delayed tasks.
+        """
 
         delayed_results: list[Delayed] = []
+
+        images = [one_view_data_map[idx].image for idx in range(num_images)]
+        camera_intrinsics = [one_view_data_map[idx].intrinsics for idx in range(num_images)]
+        absolute_pose_priors = [one_view_data_map[idx].absolute_pose_prior for idx in range(num_images)]
+        cameras_gt = [one_view_data_map[idx].camera_gt for idx in range(num_images)]
+        gt_wTi_list = [one_view_data_map[idx].pose_gt for idx in range(num_images)]
 
         # Note: the MultiviewOptimizer returns BA input and BA output that are aligned to GT via Sim(3).
         (
@@ -303,22 +317,7 @@ class SceneOptimizer:
         base_metrics_groups.append(retriever_metrics)
 
         logger.info("🔥 GTSFM: Running correspondence generation...")
-        maybe_intrinsics, intrinsics = self._get_intrinsics_or_raise()
-        images = self.loader.create_computation_graph_for_images()
-        absolute_pose_priors = self.loader.get_absolute_pose_priors()
-        cameras_gt = self.loader.get_gt_cameras()
-        gt_wTi_list = self.loader.get_gt_poses()
-        one_view_data_map = self._build_one_view_data_map(
-            images=images,
-            intrinsics=maybe_intrinsics,
-            absolute_pose_priors=absolute_pose_priors,
-            cameras_gt=cameras_gt,
-            gt_wTi_list=gt_wTi_list,
-        )
-        images = [data.image for data in one_view_data_map.values()]
-        absolute_pose_priors = [data.absolute_pose_prior for data in one_view_data_map.values()]
-        cameras_gt = [data.camera_gt for data in one_view_data_map.values()]
-        gt_wTi_list = [data.pose_gt for data in one_view_data_map.values()]
+        one_view_data_map, intrinsics = self.loader.get_one_view_data_map()
 
         keypoints, putative_corr_idxs_dict, correspondence_duration_sec = self._run_correspondence_generation(
             client, visibility_graph
@@ -374,12 +373,8 @@ class SceneOptimizer:
                 keypoints_list=keypoints,
                 two_view_results=cluster_two_view_results,
                 num_images=len(self.loader),
-                images=images,
-                camera_intrinsics=maybe_intrinsics,  # TODO(Frank): really? None is allowed?
+                one_view_data_map=one_view_data_map,
                 relative_pose_priors=self.loader.get_relative_pose_priors(list(cluster_two_view_results.keys())),
-                absolute_pose_priors=absolute_pose_priors,
-                cameras_gt=cameras_gt,
-                gt_wTi_list=gt_wTi_list,
                 gt_scene_mesh=self.loader.get_gt_scene_trimesh(),
                 output_paths=output_paths,
             )
@@ -430,47 +425,6 @@ class SceneOptimizer:
         retriever_metrics.add_metric(GtsfmMetric("retriever_duration_sec", retriever_duration_sec))
         logger.info("🚀 Image pair retrieval took %.2f min.", retriever_duration_sec / 60.0)
         return retriever_metrics, visibility_graph
-
-    def _get_intrinsics_or_raise(self):
-        maybe_intrinsics = self.loader.get_all_intrinsics()
-        # Check if maybe_intrinsics has any None values
-        if any(intrinsic is None for intrinsic in maybe_intrinsics):
-            raise ValueError("Some intrinsics are None. Please ensure all intrinsics are provided.")
-
-        # If all intrinsics are valid, cast them to the correct type
-        intrinsics: list[CALIBRATION_TYPE] = maybe_intrinsics  # type: ignore
-        return maybe_intrinsics, intrinsics
-
-    def _build_one_view_data_map(
-        self,
-        images: list[Delayed],
-        intrinsics: list[Optional[gtsfm_types.CALIBRATION_TYPE]],
-        absolute_pose_priors: list[Optional[PosePrior]],
-        cameras_gt: list[Optional[gtsfm_types.CAMERA_TYPE]],
-        gt_wTi_list: list[Optional[Pose3]],
-    ) -> dict[int, OneViewData]:
-        """Construct a per-view data map keyed by image index."""
-        num_images = len(self.loader)
-        if not (
-            len(images)
-            == len(intrinsics)
-            == len(absolute_pose_priors)
-            == len(cameras_gt)
-            == len(gt_wTi_list)
-            == num_images
-        ):
-            raise ValueError("Per-view inputs must match the number of images in the loader.")
-
-        return {
-            idx: OneViewData(
-                image=images[idx],
-                intrinsics=intrinsics[idx],
-                absolute_pose_prior=absolute_pose_priors[idx],
-                camera_gt=cameras_gt[idx],
-                pose_gt=gt_wTi_list[idx],
-            )
-            for idx in range(num_images)
-        }
 
     def _run_correspondence_generation(self, client, visibility_graph):
         with performance_report(filename="dask_reports/correspondence-generator.html"):
