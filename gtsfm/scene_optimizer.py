@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from dask.base import annotate
 from dask.delayed import Delayed, delayed
-from dask.distributed import performance_report
+from dask.distributed import Future, performance_report
 from gtsam import Pose3, Similarity3  # type: ignore
 from trimesh import Trimesh
 
@@ -157,7 +157,7 @@ class SceneOptimizer:
 
         delayed_results: list[Delayed] = []
 
-        images = [one_view_data_map[idx].image for idx in range(num_images)]
+        images = [delayed(materialize_image_future)(one_view_data_map[idx].image_future) for idx in range(num_images)]
         camera_intrinsics = [one_view_data_map[idx].intrinsics for idx in range(num_images)]
         absolute_pose_priors = [one_view_data_map[idx].absolute_pose_prior for idx in range(num_images)]
         cameras_gt = [one_view_data_map[idx].camera_gt for idx in range(num_images)]
@@ -312,20 +312,30 @@ class SceneOptimizer:
         self._ensure_react_directories()
         base_output_paths = prepare_output_paths(self.output_root, None)
 
+        one_view_data_map, intrinsics = self.loader.get_one_view_data_map(client)
+        num_images = len(self.loader)
+        image_futures = [one_view_data_map[idx].image_future for idx in range(num_images)]
+        image_fnames = [one_view_data_map[idx].image_fname for idx in range(num_images)]
+        cameras_gt = [one_view_data_map[idx].camera_gt for idx in range(num_images)]
+
         logger.info("🔥 GTSFM: Running image pair retrieval...")
-        retriever_metrics, visibility_graph = self._run_retriever(client)
+        retriever_metrics, visibility_graph = self._run_retriever(client, image_futures, image_fnames)
         base_metrics_groups.append(retriever_metrics)
 
         logger.info("🔥 GTSFM: Running correspondence generation...")
-        one_view_data_map, intrinsics = self.loader.get_one_view_data_map()
 
         keypoints, putative_corr_idxs_dict, correspondence_duration_sec = self._run_correspondence_generation(
-            client, visibility_graph
+            client, visibility_graph, image_futures
         )
 
         logger.info("🔥 GTSFM: Running two-view estimation...")
         two_view_result_futures, tve_duration_sec = self._run_two_view_estimation(
-            client, visibility_graph, keypoints, putative_corr_idxs_dict, intrinsics
+            client,
+            visibility_graph,
+            keypoints,
+            putative_corr_idxs_dict,
+            intrinsics,
+            cameras_gt,
         )
 
         # Aggregate two-view metrics
@@ -411,13 +421,13 @@ class SceneOptimizer:
             process_graph_generator.is_image_correspondence = True
         process_graph_generator.save_graph()
 
-    def _run_retriever(self, client):
+    def _run_retriever(self, client, image_futures: list[Future], image_fnames: list[str]):
         retriever_start_time = time.time()
         with performance_report(filename="dask_reports/retriever.html"):
             visibility_graph = self.image_pairs_generator.run(
                 client=client,
-                images=self.loader.get_all_images_as_futures(client),
-                image_fnames=self.loader.image_filenames(),
+                images=image_futures,
+                image_fnames=image_fnames,
                 plots_output_dir=self.create_plot_base_path(),
             )
         retriever_metrics = self.image_pairs_generator._retriever.evaluate(len(self.loader), visibility_graph)
@@ -426,7 +436,7 @@ class SceneOptimizer:
         logger.info("🚀 Image pair retrieval took %.2f min.", retriever_duration_sec / 60.0)
         return retriever_metrics, visibility_graph
 
-    def _run_correspondence_generation(self, client, visibility_graph):
+    def _run_correspondence_generation(self, client, visibility_graph, image_futures: list[Future]):
         with performance_report(filename="dask_reports/correspondence-generator.html"):
             correspondence_generation_start_time = time.time()
             (
@@ -434,13 +444,21 @@ class SceneOptimizer:
                 putative_corr_idxs_dict,
             ) = self.correspondence_generator.generate_correspondences(
                 client,
-                self.loader.get_all_images_as_futures(client),
+                image_futures,
                 visibility_graph,
             )
             correspondence_generation_duration_sec = time.time() - correspondence_generation_start_time
         return keypoints_list, putative_corr_idxs_dict, correspondence_generation_duration_sec
 
-    def _run_two_view_estimation(self, client, visibility_graph, keypoints_list, putative_corr_idxs_dict, intrinsics):
+    def _run_two_view_estimation(
+        self,
+        client,
+        visibility_graph,
+        keypoints_list,
+        putative_corr_idxs_dict,
+        intrinsics,
+        cameras_gt,
+    ):
         with performance_report(filename="dask_reports/two-view-estimation.html"):
             two_view_estimation_start_time = time.time()
             # TODO(Frank):this pulls *all* results to one machine! We might not want this.
@@ -451,7 +469,7 @@ class SceneOptimizer:
                 putative_corr_idxs_dict,
                 intrinsics,
                 self.loader.get_relative_pose_priors(visibility_graph),
-                self.loader.get_gt_cameras(),
+                cameras_gt,
                 gt_scene_mesh=self.loader.get_gt_scene_trimesh(),
             )
             two_view_estimation_duration_sec = time.time() - two_view_estimation_start_time
@@ -497,6 +515,11 @@ class SceneOptimizer:
             GtsfmMetric("total_two_view_estimation_duration_sec", two_view_estimation_duration_sec)
         )
         return two_view_agg_metrics
+
+
+def materialize_image_future(image_future: Future) -> Image:
+    """Retrieve the image stored in a Dask future."""
+    return image_future.result()
 
 
 def get_image_dictionary(image_list: list[Image]) -> dict[int, Image]:
