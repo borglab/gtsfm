@@ -224,7 +224,8 @@ class GtsfmRunner:
                     config_name=self.parsed_args.global_descriptor_config_name,
                 )
                 logger.info(f"🔄 Applying Global Descriptor Override: {self.parsed_args.global_descriptor_config_name}")
-                scene_optimizer.image_pairs_generator._global_descriptor = instantiate(global_descriptor_cfg.global_descriptor)
+                scene_optimizer.image_pairs_generator._global_descriptor = \
+                                                                    instantiate(global_descriptor_cfg.global_descriptor)
 
         # Override gaussian splatting
         if self.parsed_args.gaussian_splatting_config_name is not None:
