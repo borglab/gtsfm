@@ -2,6 +2,7 @@
 
 Note: currently running on the whole dataset.
 """
+
 import unittest
 from pathlib import Path
 
@@ -19,7 +20,7 @@ class TestHiltiLoader(unittest.TestCase):
         super().setUp()
 
         self.loader = HiltiLoader(
-            base_folder=str(TEST_DATASET_DIR_PATH),
+            dataset_dir=str(TEST_DATASET_DIR_PATH),
             max_length=None,
         )
 

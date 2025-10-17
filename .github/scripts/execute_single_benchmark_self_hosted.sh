@@ -15,7 +15,7 @@ SHARE_INTRINSICS=$6
 # Extract the data, configure arguments for runner.
 if [ "$DATASET_NAME" == "skydio-501" ]; then
   IMAGES_DIR="skydio-crane-mast-501-images"
-  COLMAP_FILES_DIRPATH="skydio-501-colmap-pseudo-gt"
+  DATASET_DIR="skydio-501-colmap-pseudo-gt"
 fi
 
 echo "Config: ${CONFIG_NAME}, Loader: ${LOADER_NAME}"
@@ -31,8 +31,9 @@ fi
 
 # Run GTSFM on the dataset.
 if [ "$LOADER_NAME" == "olsson-loader" ]; then
-  python gtsfm/runner/run_scene_optimizer_olssonloader.py \
-    --dataset_root $DATASET_PREFIX/$DATASET_ROOT \
+  ./run \
+    --loader olsson \
+    --dataset_dir $DATASET_PREFIX/$DATASET_ROOT \
     --config_name ${CONFIG_NAME}.yaml \
     --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
     --max_resolution ${MAX_RESOLUTION} \
@@ -41,9 +42,10 @@ if [ "$LOADER_NAME" == "olsson-loader" ]; then
 #     --correspondence_generator_config_name loftr.yaml \
 
 elif [ "$LOADER_NAME" == "colmap-loader" ]; then
-  python gtsfm/runner/run_scene_optimizer_colmaploader.py \
-    --images_dir $DATASET_PREFIX/${IMAGES_DIR} \
-    --colmap_files_dirpath $DATASET_PREFIX/$COLMAP_FILES_DIRPATH \
+  ./run \
+    --loader colmap \
+    --dataset_dir $DATASET_PREFIX/$DATASET_DIR \
+    --images_dir ${IMAGES_DIR} \
     --config_name ${CONFIG_NAME}.yaml \
     --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
     --max_resolution ${MAX_RESOLUTION} \
@@ -51,8 +53,9 @@ elif [ "$LOADER_NAME" == "colmap-loader" ]; then
     --num_workers 1
 
 elif [ "$LOADER_NAME" == "astrovision" ]; then
-  python gtsfm/runner/run_scene_optimizer_astrovision.py \
-    --data_dir $DATASET_PREFIX/$DATASET_ROOT \
+  ./run \
+    --loader astrovision \
+    --dataset_dir $DATASET_PREFIX/$DATASET_ROOT \
     --config_name ${CONFIG_NAME}.yaml \
     --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
     --max_resolution ${MAX_RESOLUTION} \

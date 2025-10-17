@@ -52,7 +52,8 @@ jobs:
           pytest tests -m "not slow" --durations=0 --cov gtsfm \
             --ignore tests/repro_tests \
             --ignore tests/loader/test_argoverse_dataset_loader.py \
-            --ignore tests/runner/test_frontend_runner.py
+            --ignore tests/runner/test_frontend_runner.py \
+            --ignore tests/frontend/correspondence_generator/test_mast3r_correspondence_generator.py
           coverage report
       - name: React-Three-Fiber app tests
         run: |
@@ -61,6 +62,7 @@ jobs:
 
   benchmark:
     name: Benchmark
+    if: ${{ !contains(github.event.pull_request.title, '[skip benchmarks]') }}
     needs: mamba-setup
     runs-on: ubuntu-latest
     strategy:
@@ -94,7 +96,7 @@ jobs:
         uses: actions/cache@v4
         env:
           # Increase this value to reset cache
-          CACHE_NUMBER_FRONTEND: 0
+          CACHE_NUMBER_FRONTEND: 1
         with:
           path: cache
           key: ${{ matrix.config_dataset_info[0] }}-${{ matrix.config_dataset_info[1] }}-${{ matrix.config_dataset_info[2] }}-${{ matrix.config_dataset_info[6] }}-${{ env.CACHE_NUMBER_FRONTEND }}
@@ -137,3 +139,4 @@ jobs:
             result_metrics
             plots
             results
+            dask_reports

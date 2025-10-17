@@ -5,9 +5,9 @@ https://github.com/naver/mast3r
 Authors: Akshay Krishnan
 """
 
-from typing import Any, Dict, List, Tuple
-from pathlib import Path
 import sys
+from pathlib import Path
+from typing import Any, Dict, List, Tuple
 
 HERE_PATH = Path(__file__).parent
 MAST3R_REPO_PATH = HERE_PATH.parent.parent.parent / "thirdparty" / "mast3r"
@@ -20,22 +20,19 @@ else:
         "Did you forget to run 'git submodule update --init --recursive' ?"
     )
 
-from mast3r.model import AsymmetricMASt3R
 import mast3r.cloud_opt.sparse_ga as mast3r_ga
-
 import numpy as np
 import torch
 import torchvision.transforms as tvf
 from dask.distributed import Client, Future
+from mast3r.model import AsymmetricMASt3R
 
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
+from gtsfm.products.visibility_graph import VisibilityGraph
 from gtsfm.utils import images as image_utils
 from gtsfm.utils import logger as logger_utils
-from gtsfm.frontend.correspondence_generator.correspondence_generator_base import (
-    CorrespondenceGeneratorBase,
-)
-
 
 logger = logger_utils.get_logger()
 _MODEL_PATH = str(
@@ -70,31 +67,27 @@ class Mast3rCorrespondenceGenerator(CorrespondenceGeneratorBase):
         self,
         client: Client,
         images: List[Future],
-        image_pairs: List[Tuple[int, int]],
+        visibility_graph: VisibilityGraph,
     ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
         """Apply the correspondence generator to generate putative correspondences.
 
         Args:
             client: Dask client, used to execute the front-end as futures.
             images: List of all images, as futures.
-            image_pairs: Indices of the pairs of images to estimate two-view pose and correspondences.
+            visibility_graph: The visibility graph defining which image pairs to process.
 
         Returns:
             List of keypoints, one entry for each input images.
             Putative correspondence as indices of keypoints, for pairs of images.
         """
+        logger.info("⏳ Loading MASt3R model weights...")
         model = AsymmetricMASt3R.from_pretrained(_MODEL_PATH).eval()
 
         m = client.scatter(model, broadcast=False)
 
         pairwise_correspondence_futures = {
-            (i1, i2): client.submit(
-                Mast3rCorrespondenceGenerator.apply_mast3r,
-                m,
-                images[i1],
-                images[i2],
-            )
-            for i1, i2 in image_pairs
+            (i1, i2): client.submit(Mast3rCorrespondenceGenerator.apply_mast3r, m, images[i1], images[i2])
+            for i1, i2 in visibility_graph
         }
         pairwise_correspondences: Dict[Tuple[int, int], Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]] = (
             client.gather(pairwise_correspondence_futures)

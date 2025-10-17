@@ -6,7 +6,8 @@ Authors: Zongyue Liu
 from abc import abstractmethod
 
 import gtsfm.utils.logger as logger_utils
-from gtsfm.products.visibility_graph import ImageIndexPairs
+from gtsfm.products.cluster_tree import ClusterTree
+from gtsfm.products.visibility_graph import VisibilityGraph
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 logger = logger_utils.get_logger()
@@ -15,8 +16,8 @@ logger = logger_utils.get_logger()
 class GraphPartitionerBase(GTSFMProcess):
     """Base class for all graph partitioners in GTSFM.
 
-    Graph partitioners take a set of image pairs and
-    divide them into subgraphs to be processed independently.
+    Graph partitioners take a visibility graph and cluster it so that
+    subsets of the problem can be processed independently.
     """
 
     def __init__(self, process_name: str = "GraphPartitioner"):
@@ -37,18 +38,32 @@ class GraphPartitionerBase(GTSFMProcess):
         """
         return UiMetadata(
             display_name="Graph Partitioner",
-            input_products=("Image Pair Indices",),
-            output_products=("Subgraphs",),
+            input_products=("Visibility Graph",),
+            output_products=("ClusterTree",),
             parent_plate="Preprocessing",
         )
 
     @abstractmethod
-    def partition_image_pairs(self, image_pairs: ImageIndexPairs) -> list[ImageIndexPairs]:
-        """Partition a set of image pairs into subgraphs.
+    def run(self, graph: VisibilityGraph) -> ClusterTree:
+        """Cluster a visibility graph.
 
         Args:
-            image_pairs: List of image pairs (i,j) where i < j.
+            graph: a visibility graph.
         Returns:
-            List of subgraphs, where each subgraph is a list of image pairs.
+            ClusterTree describing the hierarchical structure.
         """
-        pass
+
+    @staticmethod
+    def log_partition_details(cluster_tree: ClusterTree) -> None:
+        """Log details of each cluster for debugging.
+
+        Args:
+            cluster_tree: ClusterTree object containing cluster details.
+        """
+        leaves = cluster_tree.leaves()
+        logger.info("%d leaf clusters found.", len(leaves))
+        for i, leaf in enumerate(leaves, 1):
+            leaf_keys = leaf.all_keys()
+            logger.info("Leaf Cluster %d: keys (%d): %s", i, len(leaf_keys), list(map(int, leaf_keys)))
+            logger.info("Leaf Cluster %d: num intra-cluster edges: %d", i, len(leaf.edges))
+            logger.debug("Leaf Cluster %d: intra-cluster edges: %s", i, leaf.edges)

@@ -10,7 +10,7 @@ import numpy as np
 from dask.distributed import Client, Future
 
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.products.visibility_graph import ImageIndexPairs
+from gtsfm.products.visibility_graph import VisibilityGraph
 
 
 class CorrespondenceGeneratorBase:
@@ -21,14 +21,14 @@ class CorrespondenceGeneratorBase:
         self,
         client: Client,
         images: List[Future],
-        image_pairs: ImageIndexPairs,
+        visibility_graph: VisibilityGraph,
     ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
         """Apply the correspondence generator to generate putative correspondences.
 
         Args:
             client: Dask client, used to execute the front-end as futures.
             images: List of all images, as futures.
-            image_pairs: Indices of the pairs of images to estimate two-view pose and correspondences.
+            visibility_graph: The visibility graph defining which image pairs to process.
 
         Returns:
             List of keypoints, one entry for each input images.

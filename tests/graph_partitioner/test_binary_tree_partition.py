@@ -1,24 +1,22 @@
-"""Unit tests for the BinaryTreePartition graph partitioner.
+"""Unit tests for the BinaryTreePartitioner graph partitioner.
 
-This module tests the functionality of the BinaryTreePartition class, ensuring that:
-- It correctly splits image pairs into leaf partitions.
-- The resulting partitions contain valid and non-duplicated edges.
-- The binary tree structure is valid.
+This module tests the functionality of the BinaryTreePartitioner class, ensuring that:
+- It correctly splits image pairs into leaf clusters.
+- The resulting clusters contain valid and non-duplicated edges.
+- The binary tree structure captures inter-cluster edges.
 - Edge cases like empty input are handled gracefully.
-
-Author: Shicong Ma
 """
 
 import unittest
+from typing import Set, Tuple
 
-from gtsam.symbol_shorthand import X  # type: ignore
-
-from gtsfm.graph_partitioner.binary_tree_partition import BinaryTreeNode, BinaryTreePartition
+from gtsfm.graph_partitioner.binary_tree_partitioner import BinaryTreePartitioner
+from gtsfm.products.cluster_tree import Cluster
 from gtsfm.products.visibility_graph import ImageIndexPairs
 
 
-class TestBinaryTreePartition(unittest.TestCase):
-    """Unit tests for BinaryTreePartition."""
+class TestBinaryTreePartitioner(unittest.TestCase):
+    """Unit tests for BinaryTreePartitioner."""
 
     def setUp(self):
         """Set up a simple 4x4 grid graph for testing."""
@@ -46,169 +44,76 @@ class TestBinaryTreePartition(unittest.TestCase):
                     edges.append((current_idx, current_idx + cols))
         return edges
 
-    def test_partition_leaf_count(self):
-        """Test that partitioner creates the correct number of leaf partitions."""
-        partitioner = BinaryTreePartition(max_depth=2)
-        partitions = partitioner.partition_image_pairs(self.image_pairs)
+    def _collect_all_edges(self, cluster: Cluster) -> Set[Tuple[int, int]]:
+        edges = set(cluster.edges)
+        for child in cluster.children:
+            edges.update(self._collect_all_edges(child))
+        return edges
+
+    def test_leaf_count(self):
+        """Test that partitioner creates the expected number of leaf clusters."""
+        partitioner = BinaryTreePartitioner(max_depth=2)
+        cluster_tree = partitioner.run(self.image_pairs)
+        self.assertFalse(cluster_tree.is_empty())
+        leaves = cluster_tree.leaves()
         assert partitioner.max_depth is not None
         expected_num_leaves = 2**partitioner.max_depth
-        self.assertEqual(len(partitions), expected_num_leaves)
+        self.assertEqual(len(leaves), expected_num_leaves)
 
-    def test_no_duplicate_undirected_edges(self):
-        """Test that undirected edges are not duplicated (e.g., both (u,v) and (v,u))."""
-        partitioner = BinaryTreePartition(max_depth=2)
-        partitions = partitioner.partition_image_pairs(self.image_pairs)
-        undirected_edges = set()
-        for partition in partitions:
-            for u, v in partition:
+    def test_no_duplicate_edges_in_leaves(self):
+        """Test that undirected edges are not duplicated across leaves."""
+        partitioner = BinaryTreePartitioner(max_depth=2)
+        cluster_tree = partitioner.run(self.image_pairs)
+        seen_edges = set()
+        for cluster in cluster_tree.leaves():
+            for u, v in cluster.edges:
                 edge = (min(u, v), max(u, v))
-                undirected_edges.add(edge)
-        self.assertEqual(len(undirected_edges), len(set(undirected_edges)))
+                self.assertNotIn(edge, seen_edges)
+                seen_edges.add(edge)
 
     def test_edge_validity(self):
         """Test that all edges are valid integer indices within the image grid."""
-        partitioner = BinaryTreePartition(max_depth=2)
-        partitions = partitioner.partition_image_pairs(self.image_pairs)
-        for partition in partitions:
-            for u, v in partition:
-                self.assertIsInstance(u, int)
-                self.assertIsInstance(v, int)
-                self.assertGreaterEqual(u, 0)
-                self.assertLess(u, self.total_nodes)
-                self.assertGreaterEqual(v, 0)
-                self.assertLess(v, self.total_nodes)
+        partitioner = BinaryTreePartitioner(max_depth=2)
+        cluster_tree = partitioner.run(self.image_pairs)
+        self.assertIsNotNone(cluster_tree.root)
+        all_edges = self._collect_all_edges(cluster_tree.root)  # type: ignore[arg-type]
+        for u, v in all_edges:
+            self.assertIsInstance(u, int)
+            self.assertIsInstance(v, int)
+            self.assertGreaterEqual(u, 0)
+            self.assertLess(u, self.total_nodes)
+            self.assertGreaterEqual(v, 0)
+            self.assertLess(v, self.total_nodes)
 
-    def test_non_empty_partitions(self):
-        """Test that at least one partition contains edges."""
-        partitioner = BinaryTreePartition(max_depth=2)
-        partitions = partitioner.partition_image_pairs(self.image_pairs)
-        non_empty_count = sum(1 for p in partitions if len(p) > 0)
+    def test_non_empty_leaf(self):
+        """Test that at least one leaf cluster contains edges."""
+        partitioner = BinaryTreePartitioner(max_depth=2)
+        cluster_tree = partitioner.run(self.image_pairs)
+        non_empty_count = sum(1 for c in cluster_tree.leaves() if len(c.edges) > 0)
         self.assertGreater(non_empty_count, 0)
 
-    def test_empty_input(self):
-        """Test that empty image pair input returns an empty partition list."""
-        partitioner = BinaryTreePartition(max_depth=2)
-        partitions = partitioner.partition_image_pairs([])
-        self.assertEqual(partitions, [])
+    def test_empty_input_returns_empty_clustering(self):
+        """Test that empty image pair input returns an empty cluster tree."""
+        partitioner = BinaryTreePartitioner(max_depth=2)
+        cluster_tree = partitioner.run([])
+        self.assertTrue(cluster_tree.is_empty())
+        self.assertEqual(cluster_tree.leaves(), ())
 
-    def test_known_input_partition(self):
-        """Test partitioning of a simple known image pair set."""
+    def test_known_input_edges_distributed(self):
+        """Test cluster tree of a simple known image pair set."""
         image_pairs = [(0, 1), (1, 2), (2, 3)]
-        partitioner = BinaryTreePartition(max_depth=1)
-        partitions = partitioner.partition_image_pairs(image_pairs)
-        inter = partitioner.get_inter_partition_edges()
+        partitioner = BinaryTreePartitioner(max_depth=1)
+        cluster_tree = partitioner.run(image_pairs)
 
-        # Check number of partitions
-        self.assertEqual(len(partitions), 2)
+        self.assertFalse(cluster_tree.is_empty())
+        assert cluster_tree.root is not None
 
-        # Gather all intra-partition and inter-partition edges
-        flattened = set((min(u, v), max(u, v)) for p in partitions for u, v in p)
+        # All edges should appear somewhere in the hierarchy.
+        all_edges = self._collect_all_edges(cluster_tree.root)
+        self.assertSetEqual(all_edges, set(image_pairs))
 
-        for inter_edges in inter.values():
-            for u, v in inter_edges:
-                flattened.add((min(u, v), max(u, v)))
-
-        # All input edges should appear
-        for u, v in image_pairs:
-            self.assertIn((min(u, v), max(u, v)), flattened)
-
-    def test_binary_tree_structure(self):
-        """Test binary tree structure has correct number of leaves and leaf depths."""
-        partitioner = BinaryTreePartition(max_depth=3)
-
-        # Use synthetic ordering for test
-        ordering = type(
-            "FakeOrdering",
-            (),
-            {"size": lambda self: 8, "at": lambda self, idx: ord("a") + idx},  # returns int ASCII code
-        )()
-
-        root = partitioner._build_binary_partition(ordering)  # type: ignore
-
-        leaf_nodes = []
-
-        def dfs(node):
-            if node.is_leaf():
-                leaf_nodes.append(node)
-            if node.left:
-                dfs(node.left)
-            if node.right:
-                dfs(node.right)
-
-        dfs(root)
-        assert partitioner.max_depth is not None
-        self.assertEqual(len(leaf_nodes), 2**partitioner.max_depth)
-        self.assertTrue(all(n.depth == partitioner.max_depth for n in leaf_nodes))
-
-    def test_build_graphs(self):
-        """Test that _build_graphs constructs the correct symbolic and networkx graphs."""
-        partitioner = BinaryTreePartition(max_depth=1)
-        test_pairs = [(0, 1), (1, 2)]
-        sfg, keys, nxg = partitioner._build_graphs(test_pairs)
-
-        # Check symbolic graph has correct number of factors
-        self.assertEqual(sfg.size(), len(test_pairs))
-
-        # Check nx graph has correct nodes and edges
-        self.assertEqual(set(nxg.edges()), {(X(0), X(1)), (X(1), X(2))})
-        self.assertEqual(len(nxg.nodes), 3)
-        self.assertEqual(len(keys), 3)
-
-    def test_build_binary_partition(self):
-        """Test that binary tree is built correctly with specified depth and balanced splitting."""
-        partitioner = BinaryTreePartition(max_depth=2)
-
-        # Fake ordering: integers 0 through 7
-        ordering = type("FakeOrdering", (), {"size": lambda self: 8, "at": lambda self, idx: idx})()
-
-        root = partitioner._build_binary_partition(ordering)  # type: ignore
-
-        # Collect leaf nodes and check depth
-        leaf_nodes = []
-
-        def dfs(node):
-            if node.is_leaf():
-                leaf_nodes.append(node)
-            if node.left:
-                dfs(node.left)
-            if node.right:
-                dfs(node.right)
-
-        dfs(root)
-        assert partitioner.max_depth is not None
-        self.assertEqual(len(leaf_nodes), 2**partitioner.max_depth)
-        self.assertTrue(all(n.depth == partitioner.max_depth for n in leaf_nodes))
-        self.assertEqual(sum(len(n.keys) for n in leaf_nodes), 8)
-
-    def test_compute_leaf_partition_details(self):
-        """Test that leaf partitions correctly report intra- and inter-partition edges."""
-        partitioner = BinaryTreePartition(max_depth=1)
-        image_pairs = [(0, 1), (1, 2), (2, 3)]  # Line graph
-
-        # Build graph and partition tree
-        _, _, nxg = partitioner._build_graphs(image_pairs)
-
-        # Manually create a binary tree with leaves split as [0,1] and [2,3]
-        left = BinaryTreeNode([X(0), X(1)], depth=1)
-        right = BinaryTreeNode([X(2), X(3)], depth=1)
-        root = BinaryTreeNode([], depth=0)
-        root.left = left
-        root.right = right
-
-        leaf_details, inter_edges_map = partitioner._compute_leaf_partition_details(root, nxg)
-
-        self.assertEqual(len(leaf_details), 2)
-
-        flattened_edges = set()
-        for d in leaf_details:
-            for u, v in d["intra_partition_edges"]:
-                flattened_edges.add((min(u, v), max(u, v)))
-        for inter_edges in inter_edges_map.values():
-            for u, v in inter_edges:
-                flattened_edges.add((min(u, v), max(u, v)))
-
-        for u, v in image_pairs:
-            self.assertIn((min(u, v), max(u, v)), flattened_edges)
+        # Cross-cluster edge should be stored at the root.
+        self.assertIn((1, 2), cluster_tree.root.edges)
 
 
 if __name__ == "__main__":

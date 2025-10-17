@@ -10,7 +10,7 @@ from typing import List, Optional, Tuple
 import cv2 as cv
 import numpy as np
 import trimesh
-from gtsam import Cal3Bundler, Pose3, SfmTrack
+from gtsam import Pose3, SfmTrack  # type:ignore
 from trimesh import Trimesh
 
 import gtsfm.utils.images as image_utils
@@ -18,6 +18,7 @@ import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 import thirdparty.colmap.scripts.python.read_write_model as colmap_io
 from gtsfm.common.image import Image
+from gtsfm.common.types import CALIBRATION_TYPE
 from gtsfm.loader.loader_base import LoaderBase
 
 logger = logger_utils.get_logger()
@@ -32,29 +33,33 @@ class AstrovisionLoader(LoaderBase):
 
     def __init__(
         self,
-        data_dir: str,
-        gt_scene_mesh_path: str = None,
+        dataset_dir: str,
+        images_dir: Optional[str] = None,
+        gt_scene_mesh_path: str | None = None,
         use_gt_extrinsics: bool = True,
-        use_gt_sfmtracks: bool = False,
+        use_gt_sfm_tracks: bool = False,
         use_gt_masks: bool = False,
         max_frame_lookahead: int = 2,
         max_resolution: int = 1024,
+        input_worker: Optional[str] = None,
     ) -> None:
-        """Initialize loader from a specified segment directory (data_dir) on disk.
+        """Initialize loader from a specified dataset directory on disk.
 
-        <data_dir>/
+        <dataset_dir>/
              ├── images/: undistorted grayscale images
              ├── cameras.bin: camera calibrations (see https://colmap.github.io/format.html#cameras-txt)
              ├── images.bin: 3D poses and 2D tracks (see https://colmap.github.io/format.html#images-txt)
              └── points3D.bin: 3D tracks (see https://colmap.github.io/format.html#points3d-txt)
 
         Args:
-            data_dir: Path to directory containing the COLMAP-formatted data: cameras.bin, images.bin, and points3D.bin
+            dataset_dir: Path to directory containing the COLMAP-formatted data: cameras.bin,
+                images.bin, and points3D.bin
+            images_dir: Path to images directory. If None, defaults to {dataset_dir}/images.
             gt_scene_mesh_path (optional): Path to file of target small body surface mesh.
-                Note: vertex size mismath observed when reading in from OBJ format. Prefer PLY.
+                Note: vertex size mismatch observed when reading in from OBJ format. Prefer PLY.
             use_gt_extrinsics (optional): Whether to use ground truth extrinsics. Used only for comparison with
                 reconstructed values.
-            use_gt_sfmtracks (optional): Whether to use ground truth tracks. Used only for comparison with reconstructed
+            use_gt_sfm_tracks (optional): Whether to use ground truth tracks. Used only for comparison w reconstructed
                 values.
             use_masks (optional): Whether to use ground truth masks.
             max_frame_lookahead (optional): Maximum number of consecutive frames to consider for
@@ -66,37 +71,38 @@ class AstrovisionLoader(LoaderBase):
                greater than the max_resolution, it will be downsampled to match the max_resolution.
 
         Raises:
-            FileNotFoundError: If `data_dir` doesn't exist or image path does not exist.
+            FileNotFoundError: If `dataset_dir` doesn't exist or image path does not exist.
             RuntimeError: If ground truth camera calibrations not provided.
         """
-        super().__init__(max_resolution)
+        super().__init__(max_resolution, input_worker)
+        self._dataset_dir = dataset_dir
+        self._images_dir = images_dir or os.path.join(dataset_dir, "images")
         self._use_gt_extrinsics = use_gt_extrinsics
-        self._use_gt_sfmtracks = use_gt_sfmtracks
+        self._use_gt_sfm_tracks = use_gt_sfm_tracks
         self._max_frame_lookahead = max_frame_lookahead
 
         # Use COLMAP model reader to load data and convert to GTSfM format.
-        if not Path(data_dir).exists():
-            raise FileNotFoundError("No data found at %s." % data_dir)
-        cameras, images, points3d = colmap_io.read_model(path=data_dir, ext=".bin")
+        if not Path(dataset_dir).exists():
+            raise FileNotFoundError("No data found at %s." % dataset_dir)
+        cameras, images, points3d = colmap_io.read_model(path=dataset_dir, ext=".bin")
 
-        img_fnames, self._wTi_list, self._calibrations, self._sfmtracks, _, _, _ = io_utils.colmap2gtsfm(
-            cameras, images, points3d, load_sfmtracks=use_gt_sfmtracks
+        img_fnames, self._wTi_list, self._calibrations, self._sfm_tracks, _, _, _ = io_utils.colmap2gtsfm(
+            cameras, images, points3d, load_sfm_tracks=use_gt_sfm_tracks
         )
 
         # Read in scene mesh as Trimesh object.
+        self._gt_scene_trimesh: Optional[Trimesh] = None
         if gt_scene_mesh_path is not None:
             if not Path(gt_scene_mesh_path).exists():
                 raise FileNotFoundError(f"No mesh found at {gt_scene_mesh_path}")
             self._gt_scene_trimesh = trimesh.load(gt_scene_mesh_path, process=False, maintain_order=True)
             logger.info(
                 "AstroVision loader read in mesh with %d vertices and %d faces.",
-                self._gt_scene_trimesh.vertices.shape[0],
-                self._gt_scene_trimesh.faces.shape[0],
+                self._gt_scene_trimesh.vertices.shape[0],  # type: ignore
+                self._gt_scene_trimesh.faces.shape[0],  # type: ignore
             )
-        else:
-            self._gt_scene_trimesh = None
 
-        # Camera intrinsics are currently required due to absence of EXIF data and diffculty in approximating focal
+        # Camera intrinsics are currently required due to absence of EXIF data and difficulty in approximating focal
         # length (usually 10000 to 100000 pixels).
         if self._calibrations is None:
             raise RuntimeError("Camera intrinsics cannot be None.")
@@ -104,27 +110,27 @@ class AstrovisionLoader(LoaderBase):
         if self._wTi_list is None and self._use_gt_extrinsics:
             raise RuntimeError("Ground truth extrinsic data requested but missing.")
 
-        if self._sfmtracks is None and self._use_gt_sfmtracks:
+        if self._sfm_tracks is None and self._use_gt_sfm_tracks:
             raise RuntimeError("Ground truth SfMTrack data requested but missing.")
-        self.num_sfmtracks = len(self._sfmtracks) if self._sfmtracks is not None else 0
+        self.num_sfm_tracks = len(self._sfm_tracks) if self._sfm_tracks is not None else 0
 
         # Prepare image paths.
         self._image_paths: List[str] = []
         self._mask_paths: Optional[List[str]] = [] if use_gt_masks else None
         for img_fname in img_fnames:
-            img_fpath = os.path.join(data_dir, "images", img_fname)
+            img_fpath = os.path.join(self._images_dir, img_fname)
             if not Path(img_fpath).exists():
                 raise FileNotFoundError(f"Could not locate image at {img_fpath}.")
             self._image_paths.append(img_fpath)
             if use_gt_masks and self._mask_paths is not None:  # None check to appease mypy
-                self._mask_paths.append(os.path.join(data_dir, "masks", img_fname))
+                self._mask_paths.append(os.path.join(self._dataset_dir, "masks", img_fname))
 
         self._num_imgs = len(self._image_paths)
-        logger.info("AstroVision loader found and loaded %d images and %d tracks.", self._num_imgs, self.num_sfmtracks)
+        logger.info("AstroVision loader found and loaded %d images and %d tracks.", self._num_imgs, self.num_sfm_tracks)
 
-    def image_filenames(self) -> List[Path]:
+    def image_filenames(self) -> List[str]:
         """Return the file names corresponding to each image index."""
-        return [Path(fpath) for fpath in self._image_paths]
+        return [str(Path(fpath)) for fpath in self._image_paths]
 
     def __len__(self) -> int:
         """The number of images in the dataset.
@@ -162,7 +168,7 @@ class AstrovisionLoader(LoaderBase):
 
         return Image(value_array=img.value_array, exif_data=img.exif_data, file_name=img.file_name, mask=mask)
 
-    def get_camera_intrinsics_full_res(self, index: int) -> Cal3Bundler:
+    def get_camera_intrinsics_full_res(self, index: int) -> CALIBRATION_TYPE:
         """Get the camera intrinsics at the given index, valid for a full-resolution image.
 
         Args:
@@ -174,7 +180,7 @@ class AstrovisionLoader(LoaderBase):
         if index < 0 or index >= len(self):
             raise IndexError(f"Image index {index} is invalid")
         intrinsics = self._calibrations[index]
-        logger.info("Loading ground truth calibration.")
+        logger.debug("Loading ground truth calibration.")
 
         return intrinsics
 
@@ -196,7 +202,7 @@ class AstrovisionLoader(LoaderBase):
         wTi = self._wTi_list[index]
         return wTi
 
-    def get_sfmtrack(self, index: int) -> Optional[SfmTrack]:
+    def get_sfm_track(self, index: int) -> Optional[SfmTrack]:
         """Get the SfmTracks(s) (in world coordinates) at the given index.
 
         Args:
@@ -205,14 +211,13 @@ class AstrovisionLoader(LoaderBase):
         Returns:
             SfmTrack at index.
         """
-        if not self._use_gt_sfmtracks or self._sfmtracks is None:
+        if not self._use_gt_sfm_tracks or self._sfm_tracks is None:
             return None
 
-        if index < 0 or index >= len(self._sfmtracks):
+        if index < 0 or index >= len(self._sfm_tracks):
             raise IndexError(f"Track3D index {index} is invalid")
 
-        sfmtrack = self._sfmtracks[index]
-        return sfmtrack
+        return self._sfm_tracks[index]
 
     def is_valid_pair(self, idx1: int, idx2: int) -> bool:
         """Checks if (idx1, idx2) is a valid pair. idx1 < idx2 is required.

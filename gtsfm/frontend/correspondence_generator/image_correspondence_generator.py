@@ -21,8 +21,9 @@ from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggreg
     KeypointAggregatorUnique,
 )
 from gtsfm.frontend.matcher.image_matcher_base import ImageMatcherBase
-from gtsfm.products.visibility_graph import ImageIndexPairs
-from gtsfm.two_view_estimator import TWO_VIEW_OUTPUT, TwoViewEstimator
+from gtsfm.products.two_view_result import TwoViewResult
+from gtsfm.products.visibility_graph import VisibilityGraph
+from gtsfm.two_view_estimator import TwoViewEstimator
 
 
 class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
@@ -51,29 +52,32 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
         self,
         client: Client,
         images: List[Future],
-        image_pairs: ImageIndexPairs,
+        visibility_graph: VisibilityGraph,
     ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
         """Apply the correspondence generator to generate putative correspondences.
 
         Args:
             client: Dask client, used to execute the front-end as futures.
             images: List of all images, as futures.
-            image_pairs: Indices of the pairs of images to estimate two-view pose and correspondences.
+            visibility_graph: The visibility graph defining which image pairs to process.
 
         Returns:
             List of keypoints, one entry for each input images.
             Putative correspondence as indices of keypoints, for pairs of images.
         """
 
-        def apply_image_matcher(
-            image_matcher: ImageMatcherBase, image_i1: Image, image_i2: Image
-        ) -> Tuple[Keypoints, Keypoints]:
-            return image_matcher.match(image_i1=image_i1, image_i2=image_i2)
+        def apply_image_matcher(image_matcher: ImageMatcherBase, **kwargs) -> Tuple[Keypoints, Keypoints]:
+            return image_matcher.match(**kwargs)
 
         image_matcher_future = client.scatter(self._matcher, broadcast=False)
         pairwise_correspondence_futures = {
-            (i1, i2): client.submit(apply_image_matcher, image_matcher_future, images[i1], images[i2])
-            for i1, i2 in image_pairs
+            (i1, i2): client.submit(
+                apply_image_matcher,
+                image_matcher_future,
+                image_i1=images[i1],
+                image_i2=images[i2],
+            )
+            for i1, i2 in visibility_graph
         }
 
         pairwise_correspondences: Dict[Tuple[int, int], Tuple[Keypoints, Keypoints]] = client.gather(
@@ -87,20 +91,20 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
         self,
         client: Client,
         images: List[Image],
-        image_pairs: ImageIndexPairs,
+        visibility_graph: VisibilityGraph,
         camera_intrinsics: List[CALIBRATION_TYPE],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         gt_cameras: List[Optional[CAMERA_TYPE]],
         gt_scene_mesh: Optional[Any],
         two_view_estimator: TwoViewEstimator,
-    ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], TWO_VIEW_OUTPUT]]:
+    ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], TwoViewResult]]:
         """Apply the correspondence generator to generate putative correspondences and subsequently process them with
         two view estimator to complete the front-end.
 
         Args:
             client: Dask client, used to execute the front-end as futures.
             images: List of all images.
-            image_pairs: Indices of the pairs of images to estimate two-view pose and correspondences.
+            visibility_graph: The visibility graph defining which image pairs to process.
             camera_intrinsics: List of all camera intrinsics.
             relative_pose_priors: Priors on relative pose between two cameras.
             gt_cameras: GT cameras, used to evaluate metrics.
@@ -109,43 +113,25 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
 
         Returns:
             List of keypoints, one entry for each input images.
-            Two view output for image_pairs.
+            Two view output for visibility graph pairs.
         """
 
-        def apply_image_matcher(
-            image_matcher: ImageMatcherBase, image_i1: Image, image_i2: Image
-        ) -> Tuple[Keypoints, Keypoints]:
-            return image_matcher.match(image_i1=image_i1, image_i2=image_i2)
+        def apply_image_matcher(image_matcher: ImageMatcherBase, **kwargs) -> Tuple[Keypoints, Keypoints]:
+            return image_matcher.match(**kwargs)
 
-        def apply_two_view_estimator(
-            two_view_estimator: TwoViewEstimator,
-            keypoints_i1: Keypoints,
-            keypoints_i2: Keypoints,
-            putative_corr_idxs: np.ndarray,
-            camera_intrinsics_i1: CALIBRATION_TYPE,
-            camera_intrinsics_i2: CALIBRATION_TYPE,
-            i2Ti1_prior: Optional[PosePrior],
-            gt_camera_i1: Optional[CAMERA_TYPE],
-            gt_camera_i2: Optional[CAMERA_TYPE],
-            gt_scene_mesh: Optional[Any] = None,
-        ) -> TWO_VIEW_OUTPUT:
-            return two_view_estimator.run_2view(
-                keypoints_i1=keypoints_i1,
-                keypoints_i2=keypoints_i2,
-                putative_corr_idxs=putative_corr_idxs,
-                camera_intrinsics_i1=camera_intrinsics_i1,
-                camera_intrinsics_i2=camera_intrinsics_i2,
-                i2Ti1_prior=i2Ti1_prior,
-                gt_camera_i1=gt_camera_i1,
-                gt_camera_i2=gt_camera_i2,
-                gt_scene_mesh=gt_scene_mesh,
-            )
+        def apply_two_view_estimator(two_view_estimator: TwoViewEstimator, **kwargs) -> TwoViewResult:
+            return two_view_estimator.run_2view(**kwargs)
 
         image_matcher_future = client.scatter(self._matcher, broadcast=False)
         two_view_estimator_future = client.scatter(two_view_estimator, broadcast=False)
         pairwise_correspondence_futures = {
-            (i1, i2): client.submit(apply_image_matcher, image_matcher_future, images[i1], images[i2])
-            for i1, i2 in image_pairs
+            (i1, i2): client.submit(
+                apply_image_matcher,
+                image_matcher_future,
+                image_i1=images[i1],
+                image_i2=images[i2],
+            )
+            for i1, i2 in visibility_graph
         }
 
         pairwise_correspondences: Dict[Tuple[int, int], Tuple[Keypoints, Keypoints]] = client.gather(
@@ -154,22 +140,24 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
 
         keypoints_list, putative_corr_idxs_dict = self._aggregator.aggregate(keypoints_dict=pairwise_correspondences)
 
-        two_view_output_futures = {
+        two_view_result_futures = {
             (i1, i2): client.submit(
                 apply_two_view_estimator,
                 two_view_estimator_future,
-                keypoints_list[i1],
-                keypoints_list[i2],
-                putative_corr_idxs_dict[(i1, i2)],
-                camera_intrinsics[i1],
-                camera_intrinsics[i2],
-                relative_pose_priors.get((i1, i2)),
-                gt_cameras[i1],
-                gt_cameras[i2],
-                gt_scene_mesh,
+                keypoints1=keypoints_list[i1],
+                keypoints2=keypoints_list[i2],
+                putative_corr_idxs=putative_corr_idxs_dict[(i1, i2)],
+                camera_intrinsics_i1=camera_intrinsics[i1],
+                camera_intrinsics_i2=camera_intrinsics[i2],
+                i2Ti1_prior=relative_pose_priors.get((i1, i2)),
+                gt_camera_i1=gt_cameras[i1],
+                gt_camera_i2=gt_cameras[i2],
+                gt_scene_mesh=gt_scene_mesh,
+                i1=i1,
+                i2=i2,
             )
-            for (i1, i2) in image_pairs
+            for (i1, i2) in visibility_graph
         }
 
-        two_view_output_dict = client.gather(two_view_output_futures)
-        return keypoints_list, two_view_output_dict
+        two_view_result_dict = client.gather(two_view_result_futures)
+        return keypoints_list, two_view_result_dict

@@ -56,8 +56,8 @@ def get_rotation_matrix_from_two_vectors(vec1: torch.Tensor, vec2: torch.Tensor)
 # See https://github.com/nerfstudio-project/nerfstudio/blob/main/nerfstudio/cameras/camera_utils.py
 def auto_orient_and_center_poses(
     poses: torch.Tensor,
-    method: Literal["up", "none"] = "none",
-    center_method: Literal["poses", "none"] = "poses",
+    method: str | Literal["up", "none"] = "none",
+    center_method: str | Literal["poses", "none"] = "poses",
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Orients and centers the poses.
@@ -243,19 +243,19 @@ def set_random_seed(seed: int):
 
 # See https://github.com/nerfstudio-project/nerfstudio/blob/main/nerfstudio/models/splatfacto.py
 @torch.compile()
-def get_viewmat(camera_to_world: torch.Tensor) -> torch.Tensor:
+def get_viewmat(wTi_tensor: torch.Tensor) -> torch.Tensor:
     """
     Converts a batch of camera-to-world matrices to gsplat's world-to-camera format.
     This function is compiled with torch.compile for a speed boost.
     It converts to the gsplat standard ([Right, Down, Forward]).
 
     Args:
-        camera_to_world: A tensor of camera-to-world matrices with shape [N, 4, 4].
+        wTi_tensor: A tensor of camera-to-world matrices with shape [N, 4, 4].
     Returns:
         A tensor of world-to-camera matrices with shape [N, 4, 4].
     """
-    R = camera_to_world[:, :3, :3]  # [N, 3, 3]
-    T = camera_to_world[:, :3, 3:4]  # [N, 3, 1]
+    R = wTi_tensor[:, :3, :3]  # [N, 3, 3]
+    T = wTi_tensor[:, :3, 3:4]  # [N, 3, 1]
     # analytic matrix inverse to get world2camera matrix
     R_inv = R.transpose(1, 2)
     T_inv = -torch.bmm(R_inv, T)
@@ -278,21 +278,90 @@ def transform_gaussian(gaussianA: dict, bSa: gtsam.Similarity3) -> dict:
     meanA = gaussianA["mean"]
     meanB = torch.Tensor(bSa.transformFrom(meanA))
 
-    w = gaussianA["quaternion"][0]
-    x = gaussianA["quaternion"][1]
-    y = gaussianA["quaternion"][2]
-    z = gaussianA["quaternion"][3]
+    w = gaussianA["quat"][0]
+    x = gaussianA["quat"][1]
+    y = gaussianA["quat"][2]
+    z = gaussianA["quat"][3]
 
     q = gtsam.Rot3.Quaternion(w, x, y, z)
     bRa = bSa.rotation()
     rotationB = torch.Tensor((bRa * q).toQuaternion().coeffs())[[3, 0, 1, 2]]
+
+    if rotationB[0] < 0:
+        rotationB *= -1.0
 
     scaleB = torch.log(torch.tensor(bSa.scale())) + gaussianA["scale"]
 
     # we only update the means, quaternions and scales (covariance) as opacity and color do not change.
     gaussianB = gaussianA.copy()
     gaussianB["mean"] = meanB
-    gaussianB["quaternion"] = rotationB
+    gaussianB["quat"] = rotationB
     gaussianB["scale"] = scaleB
 
     return gaussianB
+
+
+def transform_gaussian_splats(gaussian_splats: dict, bSa: gtsam.Similarity3) -> dict:
+    """
+    Transforms Gaussian Splats from one coordinate system to another using gtsam.Similarity3
+    Args:
+        gaussian_splats (dict): A dictionary representing the Gaussian splats in coordinate system A.
+        bSa (gtsam.Similarity3): The transformation from coordinate system A to B.
+    Returns:
+        converted_gaussian_splats: A dictionary representing the Gaussian splats in coordinate system B.
+    """
+
+    means = gaussian_splats["means"]
+    R = torch.tensor(bSa.rotation().matrix(), dtype=torch.float32).to(means.device)
+    t = torch.tensor(bSa.translation(), dtype=torch.float32).to(means.device)
+    s = torch.tensor(bSa.scale()).to(means.device)
+
+    converted_means = s * ((R @ means.T).T + t)
+
+    w0, x0, y0, z0 = bSa.rotation().toQuaternion().coeffs()[[3, 0, 1, 2]]
+    w1, x1, y1, z1 = gaussian_splats["quats"].unbind(-1)
+
+    converted_quaternions_w = w0 * w1 - x0 * x1 - y0 * y1 - z0 * z1
+    converted_quaternions_x = w0 * x1 + x0 * w1 + y0 * z1 - z0 * y1
+    converted_quaternions_y = w0 * y1 - x0 * z1 + y0 * w1 + z0 * x1
+    converted_quaternions_z = w0 * z1 + x0 * y1 - y0 * x1 + z0 * w1
+
+    converted_quaternions = torch.stack(
+        [converted_quaternions_w, converted_quaternions_x, converted_quaternions_y, converted_quaternions_z], dim=1
+    )
+
+    converted_quaternions = converted_quaternions / converted_quaternions.norm(dim=-1, keepdim=True)
+
+    converted_quaternions[converted_quaternions[:, 0] < 0] *= -1.0
+
+    converted_scales = torch.log(torch.tensor(bSa.scale())) + gaussian_splats["scales"]
+
+    # we only update the means, quaternions and scales (covariance) as opacity and color do not change.
+    converted_gaussian_splats = gaussian_splats.copy()
+    converted_gaussian_splats["means"] = converted_means
+    converted_gaussian_splats["quats"] = converted_quaternions
+    converted_gaussian_splats["scales"] = converted_scales
+
+    return converted_gaussian_splats
+
+
+def transform_camera_pose(aTc: torch.Tensor, bSa: gtsam.Similarity3) -> torch.Tensor:
+    """
+    Transforms camera pose from coordinate frame A to B
+    Args:
+        aTc: 4x4 camera-to-world pose in frame A
+        bSa (gtsam.Similarity3): The transformation from coordinate system A to B.
+
+    Returns:
+        bTc: 4x4 camera-to-world pose in frame B
+    """
+    assert aTc.shape == (4, 4)
+
+    aRc = aTc[:3, :3].cpu().numpy()
+    atc = aTc[:3, 3:4].cpu().numpy().squeeze()
+
+    pose_a = gtsam.Pose3(gtsam.Rot3(aRc), gtsam.Point3(atc))
+
+    pose_b = bSa.transformFrom(pose_a).matrix()
+    bTc = torch.from_numpy(pose_b).to(aTc.device, dtype=aTc.dtype)
+    return bTc

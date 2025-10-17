@@ -16,8 +16,8 @@ import numpy as np
 import torch
 
 import gtsfm.utils.logger as logger_utils
-from gtsfm.products.visibility_graph import ImageIndexPairs
-from gtsfm.retriever.retriever_base import ImageMatchingRegime, RetrieverBase
+from gtsfm.products.visibility_graph import VisibilityGraph
+from gtsfm.retriever.retriever_base import RetrieverBase
 
 logger = logger_utils.get_logger()
 MAX_NUM_IMAGES = 10000
@@ -29,7 +29,7 @@ class SubBlockSimilarityResult:
     i_end: int
     j_start: int
     j_end: int
-    subblock: torch.Tensor
+    sub_block: torch.Tensor
 
 
 class NetVLADRetriever(RetrieverBase):
@@ -40,7 +40,6 @@ class NetVLADRetriever(RetrieverBase):
             min_score: Minimum allowed similarity score to accept a match.
             blocksize: Size of matching sub-blocks when creating similarity matrix.
         """
-        super().__init__(matching_regime=ImageMatchingRegime.RETRIEVAL)
         self._num_matched = num_matched
         self._blocksize = blocksize
         self._min_score = min_score
@@ -53,12 +52,16 @@ class NetVLADRetriever(RetrieverBase):
             Minimum score: {self._min_score}
         """
 
+    def set_num_matched(self, n) -> None:
+        """Set the number of matched frames for similarity matching."""
+        self._num_matched = n
+
     def get_image_pairs(
         self,
         global_descriptors: Optional[List[np.ndarray]],
         image_fnames: List[str],
         plots_output_dir: Optional[Path] = None,
-    ) -> ImageIndexPairs:
+    ) -> VisibilityGraph:
         """Compute potential image pairs.
 
         Args:
@@ -93,22 +96,22 @@ class NetVLADRetriever(RetrieverBase):
         if num_images > MAX_NUM_IMAGES:
             raise RuntimeError("Cannot construct similarity matrix of this size.")
 
-        subblock_results: List[SubBlockSimilarityResult] = []
+        sub_block_results: List[SubBlockSimilarityResult] = []
         num_blocks = math.ceil(num_images / self._blocksize)
 
-        # TODO(Ayush, John): do we still need to do subblock computations?
+        # TODO(Ayush, John): do we still need to do sub_block computations?
         for block_i in range(num_blocks):
             for block_j in range(block_i, num_blocks):
-                subblock_results.append(
-                    self._compute_similarity_subblock(
+                sub_block_results.append(
+                    self._compute_similarity_sub_block(
                         global_descriptors=global_descriptors, block_i=block_i, block_j=block_j
                     )
                 )
 
-        sim = self._aggregate_subblocks(subblock_results=subblock_results, num_images=num_images)
+        sim = self._aggregate_sub_blocks(sub_block_results=sub_block_results, num_images=num_images)
         return sim
 
-    def _compute_similarity_subblock(self, global_descriptors: List[np.ndarray], block_i: int, block_j: int):
+    def _compute_similarity_sub_block(self, global_descriptors: List[np.ndarray], block_i: int, block_j: int):
         """Compute a sub-block of an global descriptor based similarity matrix.
         Args:
             global_descriptors: global descriptors, one per image.
@@ -129,30 +132,32 @@ class NetVLADRetriever(RetrieverBase):
         j_end = (block_j + 1) * self._blocksize
         j_end = min(j_end, num_images)
         # Form (K,D) for K images.
-        block_i_query_descs = torch.from_numpy(np.array(global_descriptors[i_start:i_end]))
-        block_j_query_descs = torch.from_numpy(np.array(global_descriptors[j_start:j_end]))
+        block_i_query_descriptors = torch.from_numpy(np.array(global_descriptors[i_start:i_end]))
+        block_j_query_descriptors = torch.from_numpy(np.array(global_descriptors[j_start:j_end]))
         # Einsum equivalent to (img_descs @ img_descs.T)
-        sim_block = torch.einsum("id,jd->ij", block_i_query_descs.to(device), block_j_query_descs.to(device))
-        return SubBlockSimilarityResult(i_start=i_start, i_end=i_end, j_start=j_start, j_end=j_end, subblock=sim_block)
+        sim_block = torch.einsum(
+            "id,jd->ij", block_i_query_descriptors.to(device), block_j_query_descriptors.to(device)
+        )
+        return SubBlockSimilarityResult(i_start=i_start, i_end=i_end, j_start=j_start, j_end=j_end, sub_block=sim_block)
 
-    def _aggregate_subblocks(self, subblock_results: List[SubBlockSimilarityResult], num_images: int) -> torch.Tensor:
+    def _aggregate_sub_blocks(self, sub_block_results: List[SubBlockSimilarityResult], num_images: int) -> torch.Tensor:
         """Aggregate results from many independently computed sub-blocks of the similarity matrix into a single matrix.
 
         Args:
-            subblock_results: Metadata and results of similarity matrix sub-block computation.
+            sub_block_results: Metadata and results of similarity matrix sub-block computation.
             num_images: Number of images to compare for matching.
 
         Returns:
             sim: Tensor of shape (num_images, num_images) representing similarity matrix.
         """
         sim = torch.zeros((num_images, num_images))
-        for sr in subblock_results:
-            sim[sr.i_start : sr.i_end, sr.j_start : sr.j_end] = sr.subblock
+        for sr in sub_block_results:
+            sim[sr.i_start : sr.i_end, sr.j_start : sr.j_end] = sr.sub_block
         return sim
 
     def compute_pairs_from_similarity_matrix(
         self, sim: torch.Tensor, image_fnames: List[str], plots_output_dir: Optional[Path] = None
-    ) -> ImageIndexPairs:
+    ) -> VisibilityGraph:
         """
 
         Args:
@@ -196,8 +201,8 @@ class NetVLADRetriever(RetrieverBase):
 
 
 def pairs_from_score_matrix(
-    scores: torch.Tensor, invalid: np.array, num_select: int, min_score: Optional[float] = None
-) -> ImageIndexPairs:
+    scores: torch.Tensor, invalid: np.ndarray, num_select: int, min_score: Optional[float] = None
+) -> VisibilityGraph:
     """Identify image pairs from a score matrix.
 
     Note: Similarity computation here is based off of Paul-Edouard Sarlin's HLOC:

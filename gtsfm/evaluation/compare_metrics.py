@@ -5,6 +5,7 @@ metrics from GTSfM.
 
 Authors: Jon Womack
 """
+
 import os
 from typing import Dict, List
 
@@ -32,12 +33,13 @@ def compute_metrics_from_txt(
     Returns:
         other_pipeline_metrics: A dictionary of metrics from another pipeline that are comparable with GTSfM
     """
-    _, _, intrinsics_gtsfm, sfmtracks, _, _, _ = io_utils.colmap2gtsfm(cameras, images, points3d, load_sfmtracks=True)
+    _, _, intrinsics_gtsfm, sfm_tracks, _, _, _ = io_utils.colmap2gtsfm(cameras, images, points3d, load_sfm_tracks=True)
 
     num_cameras = len(intrinsics_gtsfm)
     unfiltered_track_lengths = []
     image_id_num_measurements = {}
-    for track in sfmtracks:
+    assert sfm_tracks is not None, "sfm_tracks should be provided"
+    for track in sfm_tracks:
         unfiltered_track_lengths.append(track.numberMeasurements())
         for k in range(track.numberMeasurements()):
             image_id, uv_measured = track.measurement(k)
@@ -66,7 +68,7 @@ def compute_metrics_from_txt(
             ),
             plot_type=GtsfmMetric.PlotType.HISTOGRAM,
         ),
-        "number_tracks_unfiltered": GtsfmMetric("number_tracks_unfiltered", len(sfmtracks)),
+        "number_tracks_unfiltered": GtsfmMetric("number_tracks_unfiltered", len(sfm_tracks)),
         "reprojection_errors_unfiltered_px": GtsfmMetric(
             "reprojection_errors_unfiltered_px",
             unfiltered_reproj_errors,

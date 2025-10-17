@@ -5,13 +5,14 @@ See https://www.tanksandtemples.org/download/ for more information.
 Author: John Lambert
 """
 
-from enum import auto, Enum
+import os
+from enum import Enum, auto
 from pathlib import Path
 from typing import Dict, List, Optional
 
 import numpy as np
-import open3d
-from gtsam import Cal3Bundler, Rot3, Pose3
+import open3d  # type: ignore
+from gtsam import Cal3Bundler, Pose3, Rot3  # type:ignore
 
 import gtsfm.utils.geometry_comparisons as geom_comp_utils
 import gtsfm.utils.io as io_utils
@@ -19,7 +20,6 @@ import gtsfm.utils.logger as logger_utils
 import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
 from gtsfm.common.image import Image
 from gtsfm.loader.loader_base import LoaderBase
-
 
 logger = logger_utils.get_logger()
 
@@ -51,14 +51,16 @@ class MeshReconstructionType(Enum):
 class TanksAndTemplesLoader(LoaderBase):
     def __init__(
         self,
-        img_dir: str,
+        dataset_dir: str,
         poses_fpath: str,
         bounding_polyhedron_json_fpath: str,
         ply_alignment_fpath: str,
+        images_dir: Optional[str] = None,
         lidar_ply_fpath: Optional[str] = None,
         colmap_ply_fpath: Optional[str] = None,
         max_resolution: int = 1080,
         max_num_images: Optional[int] = None,
+        input_worker: Optional[str] = None,
     ) -> None:
         """Initializes image file paths and GT camera poses.
 
@@ -66,7 +68,8 @@ class TanksAndTemplesLoader(LoaderBase):
         We move everything to the COLMAP coordinate frame.
 
         Args:
-            img_dir: Path to where images of a single scene are stored.
+            dataset_dir: Path to dataset directory containing scene data.
+            images_dir: Path to images directory. If None, defaults to {dataset_dir}/images.
             poses_fpath: Path to .log file containing COLMAP-reconstructed camera poses.
             bounding_polyhedron_json_fpath: Path to JSON file containing specification of bounding polyhedron
                 to crop the COLMAP reconstructed point cloud.
@@ -76,11 +79,13 @@ class TanksAndTemplesLoader(LoaderBase):
             colmap_ply_fpath: Path to COLMAP reconstructed point cloud, in PLY format. Omitted for unit tests.
             max_num_images: Maximum number of images to use for reconstruction.
         """
-        super().__init__(max_resolution)
+        super().__init__(max_resolution, input_worker)
+        self._dataset_dir = dataset_dir
+        self._images_dir = images_dir or os.path.join(dataset_dir, "images")
         self.lidar_ply_fpath = lidar_ply_fpath
         self.colmap_ply_fpath = colmap_ply_fpath
         self.bounding_polyhedron_json_fpath = bounding_polyhedron_json_fpath
-        self._image_paths = sorted(list(Path(img_dir).glob("*.jpg")))
+        self._image_paths = sorted(list(Path(self._images_dir).glob("*.jpg")))
 
         # Load the Sim(3), not SE(3), transform between LiDAR global coordinate frame and COLMAP global coordinate
         # frame.
@@ -129,7 +134,7 @@ class TanksAndTemplesLoader(LoaderBase):
         if index < 0 or index >= len(self):
             raise IndexError(f"Image index {index} is invalid")
 
-        img = io_utils.load_image(self._image_paths[index])
+        img = io_utils.load_image(str(self._image_paths[index]))
 
         # All images should have the same shape: (1080, 1920, 3).
         if img.height != _DEFAULT_IMAGE_HEIGHT_PX:
@@ -153,7 +158,7 @@ class TanksAndTemplesLoader(LoaderBase):
             raise IndexError("Image index is invalid")
 
         # Retrieve focal length from EXIF, and principal point will be `cx = IMG_W / 2`, `cy = IMG_H / 2`.
-        intrinsics = io_utils.load_image(self._image_paths[index]).get_intrinsics_from_exif()
+        intrinsics = io_utils.load_image(str(self._image_paths[index])).get_intrinsics_from_exif()
         return intrinsics
 
     def get_camera_pose(self, index: int) -> Optional[Pose3]:
@@ -187,7 +192,7 @@ class TanksAndTemplesLoader(LoaderBase):
         Return:
             Point cloud captured by laser scanner, in the COLMAP world frame.
         """
-        if not Path(self.lidar_ply_fpath).exists():
+        if self.lidar_ply_fpath is None or not Path(self.lidar_ply_fpath).exists():
             raise ValueError("Cannot retrieve LiDAR scanned point cloud if `lidar_ply_fpath` not provided.")
         pcd = open3d.io.read_point_cloud(self.lidar_ply_fpath)
         points, rgb = open3d_vis_utils.convert_colored_open3d_point_cloud_to_numpy(pointcloud=pcd)
@@ -211,7 +216,7 @@ class TanksAndTemplesLoader(LoaderBase):
         Return:
             Point cloud reconstructed by COLMAP, in the COLMAP world frame.
         """
-        if not Path(self.colmap_ply_fpath).exists():
+        if self.colmap_ply_fpath is None or not Path(self.colmap_ply_fpath).exists():
             raise ValueError("Cannot retrieve COLMAP-reconstructed point cloud if `colmap_ply_fpath` not provided.")
         pcd = open3d.io.read_point_cloud(self.colmap_ply_fpath)
         points, rgb = open3d_vis_utils.convert_colored_open3d_point_cloud_to_numpy(pointcloud=pcd)
@@ -279,7 +284,7 @@ def crop_points_to_bounding_polyhedron(pcd: open3d.geometry.PointCloud, json_fpa
     Returns:
         Cropped point cloud, according to `SelectionPolygonVolume`.
     """
-    vol = open3d.visualization.read_selection_polygon_volume(json_fpath)
+    vol = open3d.io.read_selection_polygon_volume(json_fpath)
     cropped_pcd = vol.crop_point_cloud(pcd)
     return cropped_pcd
 
@@ -307,17 +312,20 @@ def _parse_redwood_data_log_file(log_fpath: str) -> Dict[int, Pose3]:
     # The first line contains three numbers which store metadata.
     # In a typical camera pose trajectory file, the third number of the metadata is the frame number of the
     # corresponding depth image (starting from 1).
-    parse_metadata = lambda x: int(x.split(" ")[0])
-    parse_matrix_row = lambda x: [float(val) for val in x.split(" ")]
+    def parse_metadata(x: str) -> int:
+        return int(x.split(" ")[0])
+
+    def parse_matrix_row(x: str) -> List[float]:
+        return [float(val) for val in x.split(" ")]
 
     for i in range(num_images):
         metadata = data[i * 5]
         cam_idx = parse_metadata(metadata)
         # The other four lines make up the homogeneous transformation matrix.
-        lines = data[(i * 5) + 1 : (i + 1) * 5]
+        lines = data[(i * 5) + 1 : (i + 1) * 5]  # noqa: E203
         # The transformation matrix maps a point from its local coordinates (in homogeneous form)
         # to the world coordinates: p_w = wTi * p_i
-        wTi_gt = np.array([parse_matrix_row(line) for line in lines])
+        wTi_gt: np.ndarray = np.array([parse_matrix_row(line) for line in lines])
         wTi_gt_dict[cam_idx] = Pose3(wTi_gt)
     return wTi_gt_dict
 
@@ -333,7 +341,8 @@ def _create_Sim3_from_tt_dataset_alignment_transform(lidar_Sim3_colmap: np.ndarr
     """
     T = lidar_Sim3_colmap
     # Disentangle scale factor from 3d rotation.
-    R = Rot3.ClosestTo(lidar_Sim3_colmap[:3, :3]).matrix()
+    R_hat: np.ndarray = lidar_Sim3_colmap[:3, :3]
+    R = Rot3.ClosestTo(R_hat).matrix()
     s = lidar_Sim3_colmap[0, 0] / R[0, 0]
     t = lidar_Sim3_colmap[:3, 3] / s
 
@@ -359,6 +368,6 @@ def transform_point_cloud_vectorized(points_b: np.ndarray, aTb: np.ndarray) -> n
     points_b = np.concatenate([points_b, np.ones((N, 1))], axis=1)
     points_a = aTb @ points_b.T
     points_a = points_a.T
-    # Remove homogeonous coordinate.
+    # Remove homogenous coordinate.
     points_a = points_a[:, :3] / points_a[:, 3][:, np.newaxis]
     return points_a

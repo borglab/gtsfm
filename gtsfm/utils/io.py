@@ -28,6 +28,7 @@ import thirdparty.colmap.scripts.python.read_write_model as colmap_io
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.common.sfm_track import SfmTrack2d
+from gtsfm.common.types import CALIBRATION_TYPE
 from gtsfm.utils.pycolmap_utils import colmap_camera_to_gtsam_calibration, gtsfm_calibration_to_colmap_camera
 from thirdparty.colmap.scripts.python.read_write_model import Camera as ColmapCamera
 from thirdparty.colmap.scripts.python.read_write_model import Image as ColmapImage
@@ -180,9 +181,15 @@ def colmap2gtsfm(
     cameras: Dict[int, ColmapCamera],
     images: Dict[int, ColmapImage],
     points3D: Dict[int, ColmapPoint3D],
-    load_sfmtracks: bool = False,
+    load_sfm_tracks: bool = False,
 ) -> Tuple[
-    List[str], List[Pose3], List[str], Optional[List[np.ndarray]], np.ndarray, np.ndarray, List[Tuple[int, int]]
+    List[str],
+    List[Pose3],
+    List[CALIBRATION_TYPE],
+    Optional[List[SfmTrack]],
+    np.ndarray,
+    np.ndarray,
+    List[Tuple[int, int]],
 ]:
     """Converts COLMAP-formatted variables to GTSfM format.
 
@@ -196,7 +203,7 @@ def colmap2gtsfm(
         img_fnames: File names of images in images_gtsfm.
         wTi_gtsfm: List of N camera poses when each image was taken.
         intrinsics_gtsfm: List of N camera calibrations corresponding to the N images in images_gtsfm.
-        sfmtracks_gtsfm: Tracks of points in points3D.
+        sfm_tracks_gtsfm: Tracks of points in points3D.
         point_cloud: (N,3) array representing xyz coordinates of 3d points.
         rgb: Uint8 array of shape (N,3) representing per-point colors.
         img_dims: List of dimensions of each img (H, W).
@@ -205,8 +212,8 @@ def colmap2gtsfm(
     if len(images) == 0 and len(cameras) == 0:
         raise RuntimeError("No Image or Camera data provided to loader.")
     intrinsics_gtsfm, wTi_gtsfm, img_fnames, img_dims = [], [], [], []
-    image_id_to_idx = {}  # Keeps track of discrepencies between `image_id` and List index.
-    # We ignore missing IDs (unestimated cameras) and re-order without them.
+    image_id_to_idx = {}  # Keeps track of discrepancies between `image_id` and List index.
+    # We ignore missing IDs (un-estimated cameras) and re-order without them.
     for idx, img in enumerate(images.values()):
         wTi_gtsfm.append(Pose3(Rot3(img.qvec2rotmat()), img.tvec).inverse())
         img_fnames.append(img.name)
@@ -216,25 +223,25 @@ def colmap2gtsfm(
         img_dims.append((img_h, img_w))
 
     # Reorder images according to image name.
-    wTi_gtsfm, img_fnames, sorted_idxs = sort_image_filenames_lexigraphically(wTi_gtsfm, img_fnames)
+    wTi_gtsfm, img_fnames, sorted_idxs = sort_image_filenames_lexicographically(wTi_gtsfm, img_fnames)
     old_idx_to_new_idx = {old_idx: new_idx for new_idx, old_idx in enumerate(sorted_idxs)}
     image_id_to_idx = {image_id: old_idx_to_new_idx[old_idx] for image_id, old_idx in image_id_to_idx.items()}
 
     # Convert COLMAP's Point3D to SfmTrack.
-    if len(points3D) == 0 and load_sfmtracks:
+    if len(points3D) == 0 and load_sfm_tracks:
         raise RuntimeError("No SfMTrack data provided to loader.")
-    sfmtracks_gtsfm = None
-    if len(points3D) > 0 and load_sfmtracks:
-        sfmtracks_gtsfm = []
+    sfm_tracks_gtsfm: list[SfmTrack] | None = None
+    if len(points3D) > 0 and load_sfm_tracks:
+        sfm_tracks_gtsfm = []
         for point3D in points3D.values():
-            sfmtrack = SfmTrack(point3D.xyz)
+            sfm_track = SfmTrack(point3D.xyz)
             for image_id, point2d_idx in zip(point3D.image_ids, point3D.point2D_idxs):
-                sfmtrack.addMeasurement(image_id_to_idx[image_id], images[image_id].xys[point2d_idx])
-            sfmtracks_gtsfm.append(sfmtrack)
+                sfm_track.addMeasurement(image_id_to_idx[image_id], images[image_id].xys[point2d_idx])
+            sfm_tracks_gtsfm.append(sfm_track)
 
     point_cloud = np.array([point3d.xyz for point3d in points3D.values()])
     rgb = np.array([point3d.rgb for point3d in points3D.values()])
-    return img_fnames, wTi_gtsfm, intrinsics_gtsfm, sfmtracks_gtsfm, point_cloud, rgb, img_dims
+    return img_fnames, wTi_gtsfm, intrinsics_gtsfm, sfm_tracks_gtsfm, point_cloud, rgb, img_dims
 
 
 def read_cameras_txt(
@@ -361,12 +368,12 @@ def read_images_txt(fpath: str) -> Tuple[List[Pose3], List[str]]:
         img_fnames.append(img_fname)
 
     # TODO(johnwlambert): Re-order tracks for COLMAP-formatted .bin files.
-    wTi_list_sorted, img_fnames_sorted, _ = sort_image_filenames_lexigraphically(wTi_list, img_fnames)
+    wTi_list_sorted, img_fnames_sorted, _ = sort_image_filenames_lexicographically(wTi_list, img_fnames)
 
     return wTi_list_sorted, img_fnames_sorted
 
 
-def sort_image_filenames_lexigraphically(
+def sort_image_filenames_lexicographically(
     wTi_list: List[Pose3], img_fnames: List[str]
 ) -> Tuple[List[Pose3], List[str], List[int]]:
     """Sort a list of camera poses according to provided image file names."""
@@ -514,7 +521,7 @@ def read_scene_data_from_colmap_format(
         )
     cameras, images, points3d = colmap_io.read_model(path=data_dir, ext=file_format)
     img_fnames, wTi_list, calibrations, _, point_cloud, rgb, img_dims = colmap2gtsfm(
-        cameras, images, points3d, load_sfmtracks=False
+        cameras, images, points3d, load_sfm_tracks=False
     )
 
     if any(x is None for x in [wTi_list, img_fnames, calibrations, point_cloud, rgb]):

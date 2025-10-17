@@ -9,13 +9,15 @@ References:
 
 Authors: Ayush Baid
 """
+
 from pathlib import Path
-from typing import Tuple, Union
+from typing import Optional, Tuple, Union
 
 import numpy as np
 import torch
 
 import gtsfm.utils.images as image_utils
+import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.detector_descriptor.detector_descriptor_base import DetectorDescriptorBase
@@ -43,6 +45,7 @@ class SuperPointDetectorDescriptor(DetectorDescriptorBase):
         super().__init__(max_keypoints=max_keypoints)
         self._use_cuda = use_cuda
         self._config = {"weights_path": weights_path}
+        self._model: Optional[torch.nn.Module] = None  # Lazy loading - only load when detector is used
 
         if not Path(weights_path).exists():
             raise FileNotFoundError(
@@ -50,10 +53,19 @@ class SuperPointDetectorDescriptor(DetectorDescriptorBase):
                 f"Please run 'bash download_model_weights.sh' from the repo root."
             )
 
-        self._model = SuperPoint(self._config).eval()
+    def _ensure_model_loaded(self) -> None:
+        """Lazy-load the SuperPoint model to avoid unnecessary initialization."""
+        if self._model is None:
+            logger = logger_utils.get_logger()
+            logger.info("⏳ Loading SuperPoint model weights...")
+            self._model = SuperPoint(self._config).eval()
 
     def detect_and_describe(self, image: Image) -> Tuple[Keypoints, np.ndarray]:
         """Jointly generate keypoint detections and their associated descriptors from a single image."""
+        # Ensure model is loaded only when actually needed
+        self._ensure_model_loaded()
+        assert self._model is not None, "Model should be loaded by now"
+
         device = torch.device("cuda" if self._use_cuda and torch.cuda.is_available() else "cpu")
         self._model.to(device)
 

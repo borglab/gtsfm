@@ -9,9 +9,12 @@ Whereas bag-of-visual-words aggregation keeps counts of visual words, VLAD store
 Authors: John Lambert, Travis Driver
 """
 
+from typing import Optional
+
 import numpy as np
 import torch
 
+import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
 from gtsfm.frontend.global_descriptor.global_descriptor_base import GlobalDescriptorBase
 from thirdparty.hloc.netvlad import NetVLAD
@@ -21,8 +24,15 @@ class NetVLADGlobalDescriptor(GlobalDescriptorBase):
     """NetVLAD global descriptor"""
 
     def __init__(self) -> None:
-        """ """
-        self._model = NetVLAD().eval()
+        super().__init__()
+        self._model: Optional[torch.nn.Module] = None  # Lazy loading - only load when describe() is called
+
+    def _ensure_model_loaded(self) -> None:
+        """Lazy-load the NetVLAD model to avoid unnecessary initialization."""
+        if self._model is None:
+            logger = logger_utils.get_logger()
+            logger.info("⏳ Loading NetVLAD model weights...")
+            self._model = NetVLAD().eval()
 
     def describe(self, image: Image) -> np.ndarray:
         """Compute the NetVLAD global descriptor for a single image query.
@@ -33,6 +43,10 @@ class NetVLADGlobalDescriptor(GlobalDescriptorBase):
         Returns:
             img_desc: Array of shape (D,) representing global image descriptor.
         """
+        # Ensure model is loaded only when actually needed
+        self._ensure_model_loaded()
+        assert self._model is not None, "Model should be loaded by now"
+
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self._model.to(device)
 

@@ -5,6 +5,7 @@ Results must be stored in Carl Olsson's `data.mat` file format.
 
 Authors: John Lambert
 """
+
 import argparse
 import os
 from pathlib import Path
@@ -28,7 +29,7 @@ def view_scene(args: argparse.Namespace) -> None:
         args: Rendering options.
     """
     loader = OlssonLoader(
-        args.dataset_root,
+        args.dataset_dir,
         max_frame_lookahead=DUMMY_MAX_FRAME_LOOKAHEAD,
         max_resolution=args.max_resolution,
     )
@@ -63,7 +64,7 @@ def view_scene(args: argparse.Namespace) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Visualize Olsson dataset w/ Open3d.")
-    parser.add_argument("--dataset_root", type=str, default=os.path.join(TEST_DATA_ROOT, "set1_lund_door"), help="")
+    parser.add_argument("--dataset_dir", type=str, default=os.path.join(TEST_DATA_ROOT, "set1_lund_door"), help="")
     parser.add_argument(
         "--rendering_style",
         type=str,

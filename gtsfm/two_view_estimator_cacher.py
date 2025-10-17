@@ -3,7 +3,6 @@
 Authors: Ayush Baid
 """
 
-import logging
 from pathlib import Path
 from typing import Any, List, Optional
 
@@ -11,11 +10,12 @@ import numpy as np
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.cache as cache_utils
-import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.io as io_utils
+import gtsfm.utils.logger as logger_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
-from gtsfm.two_view_estimator import TwoViewEstimator, TWO_VIEW_OUTPUT
+from gtsfm.products.two_view_result import TwoViewResult
+from gtsfm.two_view_estimator import TwoViewEstimator
 
 # Number of first K keypoints from each image to use to create cache key.
 NUM_KEYPOINTS_TO_SAMPLE_FOR_HASH = 10
@@ -26,12 +26,6 @@ NUM_CORRESPONDENCES_TO_SAMPLE_FOR_HASH = 10
 CACHE_ROOT_PATH = Path(__file__).resolve().parent.parent / "cache"
 
 logger = logger_utils.get_logger()
-
-mpl_logger = logging.getLogger("matplotlib")
-mpl_logger.setLevel(logging.ERROR)
-
-pil_logger = logging.getLogger("PIL")
-pil_logger.setLevel(logging.ERROR)
 
 
 class TwoViewEstimatorCacher(TwoViewEstimator):
@@ -69,18 +63,24 @@ class TwoViewEstimatorCacher(TwoViewEstimator):
 
     def __load_result_from_cache(
         self, keypoints_i1: Keypoints, keypoints_i2: Keypoints, putative_corr_idxs: np.ndarray
-    ) -> Optional[TWO_VIEW_OUTPUT]:
+    ) -> Optional[TwoViewResult]:
         """Loads cached result, if it exists."""
         cache_key = self.__generate_cache_key(keypoints_i1, keypoints_i2, putative_corr_idxs)
         cache_path = self.__get_cache_path(cache_key=cache_key)
         # If bz2 file does not exist, `None` will be returned.
         cached_data = io_utils.read_from_bz2_file(cache_path)
+        if not isinstance(cached_data, TwoViewResult):
+            if isinstance(cached_data, tuple) and len(cached_data) == 6:
+                # Convert six-tuple to TwoViewResult
+                cached_data = TwoViewResult(*cached_data)
+            else:
+                return None
         return cached_data
 
     def __save_result_to_cache(
-        self, keypoints_i1: Keypoints, keypoints_i2: Keypoints, putative_corr_idxs: np.ndarray, result: TWO_VIEW_OUTPUT
+        self, keypoints_i1: Keypoints, keypoints_i2: Keypoints, putative_corr_idxs: np.ndarray, result: TwoViewResult
     ) -> None:
-        """Saves the result (`TWO_VIEW_OUTPUT` 6-tuple) to the cache."""
+        """Saves the result (`TwoViewResult` dataclass) to the cache."""
         cache_key = self.__generate_cache_key(keypoints_i1, keypoints_i2, putative_corr_idxs)
         cache_path = self.__get_cache_path(cache_key=cache_key)
         io_utils.write_to_bz2_file(result, cache_path)
@@ -98,13 +98,15 @@ class TwoViewEstimatorCacher(TwoViewEstimator):
         gt_scene_mesh: Optional[Any] = None,
         i1: Optional[int] = None,
         i2: Optional[int] = None,
-    ) -> TWO_VIEW_OUTPUT:
+    ) -> TwoViewResult:
         """Loads 2-view estimation result if it exists in cache, otherwise re-runs two view estimator from scratch."""
         result = self.__load_result_from_cache(keypoints_i1, keypoints_i2, putative_corr_idxs)
 
         if result is not None:
+            logger.debug("Loaded two-view estimation result for image pair (%s, %s) from cache. 🎉", i1, i2)
             return result
 
+        logger.info("No cached result found for image pair (%s, %s) 😞. Running two-view estimator...", i1, i2)
         result = self._two_view_estimator.run_2view(
             keypoints_i1=keypoints_i1,
             keypoints_i2=keypoints_i2,

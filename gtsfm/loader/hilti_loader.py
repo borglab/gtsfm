@@ -29,7 +29,7 @@ from gtsfm.common.constraint import Constraint
 from gtsfm.common.image import Image
 from gtsfm.common.pose_prior import PosePrior, PosePriorType
 from gtsfm.loader.loader_base import LoaderBase
-from gtsfm.products.visibility_graph import ImageIndexPairs
+from gtsfm.products.visibility_graph import VisibilityGraph
 
 logger = logger_utils.get_logger()
 
@@ -55,20 +55,24 @@ SOFT_ABSOLUTE_POSE_PRIOR_SIGMA = np.ones((6,)) * 3e-2
 class HiltiLoader(LoaderBase):
     def __init__(
         self,
-        base_folder: str,
+        dataset_dir: str,
+        images_dir: Optional[str] = None,
         max_length: Optional[int] = None,
         max_resolution: int = 1080,
+        input_worker: Optional[str] = None,
     ) -> None:
         """Initializes, loads calibration, constraints, and pose priors.
 
         Args:
-            base_folder (str): top-level folder, expects calibration, images and lidar subfolders.
+            dataset_dir (str): top-level dataset directory, expects calibration, images and lidar sub-folders.
+            images_dir (Optional[str]): path to images directory. If None, defaults to {dataset_dir}/images.
             max_length (Optional[int]): limit poses to read. Defaults to None.
             max_resolution: integer representing maximum length of image's short side
                e.g. for 1080p (1920 x 1080), max_resolution would be 1080
         """
-        super().__init__(max_resolution)
-        self._base_folder: Path = Path(base_folder)
+        super().__init__(max_resolution, input_worker)
+        self._dataset_dir: Path = Path(dataset_dir)
+        self._images_dir: Path = Path(images_dir) if images_dir else self._dataset_dir / IMAGES_FOLDER
         self._max_length = max_length
 
         # Load calibration.
@@ -95,7 +99,7 @@ class HiltiLoader(LoaderBase):
         logger.info("Lidar camera available for %d timestamps", len(self._w_T_imu))
 
     def __load_constraints(self) -> List[Constraint]:
-        constraints_path = self._base_folder / LIDAR_CONSTRAINTS_RELATIVE_PATH
+        constraints_path = self._dataset_dir / LIDAR_CONSTRAINTS_RELATIVE_PATH
         constraints = Constraint.read(str(constraints_path))
 
         # filter them according to max length
@@ -103,12 +107,12 @@ class HiltiLoader(LoaderBase):
 
         return constraints
 
-    def get_camTimu(self) -> Dict[int, Pose3]:
+    def get_cam_T_imu(self) -> Dict[int, Pose3]:
         return self._cam_T_imu_poses
 
     def __read_lidar_pose_priors(self) -> Dict[int, Pose3]:
         """Read the poses for the IMU for rig indices."""
-        filepath = str(self._base_folder / LIDAR_POSE_RELATIVE_PATH)
+        filepath = str(self._dataset_dir / LIDAR_POSE_RELATIVE_PATH)
         _, values = gtsam.readG2o(filepath, is3D=True)
 
         lidar_keys = values.keys()
@@ -124,14 +128,14 @@ class HiltiLoader(LoaderBase):
 
     def __get_num_rig_poses(self) -> int:
         """Check how many images we have on disk and deduce number of rig poses."""
-        search_path: str = str(self._base_folder / IMAGES_FOLDER / "*.jpg")
+        search_path: str = str(self._images_dir / "*.jpg")
         image_files = glob.glob(search_path)
         total_num_images = len(image_files)
         return total_num_images // NUM_CAMS
 
     def __load_calibration(self, cam_idx: int) -> Tuple[Cal3Fisheye, Pose3]:
         """Load calibration from kalibr files in calibration sub-folder."""
-        kalibr_file_path = self._base_folder / "calibration" / CAM_IDX_TO_KALIBR_FILE_MAP[cam_idx]
+        kalibr_file_path = self._dataset_dir / "calibration" / CAM_IDX_TO_KALIBR_FILE_MAP[cam_idx]
 
         with open(kalibr_file_path, "r") as file:
             calibration_data = yaml.safe_load(file)
@@ -203,13 +207,13 @@ class HiltiLoader(LoaderBase):
         Returns:
             Image: the image at the query index.
         """
-        image_path: Path = self._base_folder / IMAGES_FOLDER / f"{index}.jpg"
+        image_path: Path = self._images_dir / f"{index}.jpg"
 
         return io_utils.load_image(str(image_path))
 
     def image_filenames(self) -> List[str]:
         """Return the file names corresponding to each image index."""
-        return [f"{i}.jpg" for i in len(self)]
+        return [f"{i}.jpg" for i in range(len(self))]
 
     def get_camera_intrinsics(self, index: int) -> Optional[Cal3Fisheye]:
         return self.get_camera_intrinsics_full_res(index)
@@ -304,15 +308,15 @@ class HiltiLoader(LoaderBase):
         """Map image index to rig index."""
         return rig_index * NUM_CAMS + camera_idx
 
-    def get_relative_pose_priors(self, pairs: ImageIndexPairs) -> Dict[Tuple[int, int], PosePrior]:
-        pairs = set(pairs)
+    def get_relative_pose_priors(self, visibility_graph: VisibilityGraph) -> Dict[Tuple[int, int], PosePrior]:
+        pairs = set(visibility_graph)
         # For every rig index, add a "star" from camera 2 to 0,1,3,4:
         for rig_index in range(self.num_rig_poses):
             camera_2 = self.image_from_rig_and_camera(rig_index, 2)
             for cam_idx in [0, 1, 3, 4]:
                 pairs.add((camera_2, self.image_from_rig_and_camera(rig_index, cam_idx)))
 
-        priors = {pair: self.get_relative_pose_prior(*pair) for pair in pairs}
-        priors = {pair: prior for pair, prior in priors.items() if prior is not None}
+        maybe_priors = {pair: self.get_relative_pose_prior(*pair) for pair in pairs}
+        priors = {pair: prior for pair, prior in maybe_priors.items() if prior is not None}
 
         return priors

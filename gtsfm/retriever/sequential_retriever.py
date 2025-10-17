@@ -11,8 +11,8 @@ from typing import List, Optional
 import numpy as np
 
 import gtsfm.utils.logger as logger_utils
-from gtsfm.products.visibility_graph import ImageIndexPairs
-from gtsfm.retriever.retriever_base import ImageMatchingRegime, RetrieverBase
+from gtsfm.products.visibility_graph import VisibilityGraph
+from gtsfm.retriever.retriever_base import RetrieverBase
 
 logger = logger_utils.get_logger()
 
@@ -23,7 +23,6 @@ class SequentialRetriever(RetrieverBase):
         Args:
             max_frame_lookahead: Maximum number of consecutive frames to consider for matching/co-visibility.
         """
-        super().__init__(matching_regime=ImageMatchingRegime.SEQUENTIAL)
         self._max_frame_lookahead = max_frame_lookahead
 
     def __repr__(self) -> str:
@@ -32,12 +31,16 @@ class SequentialRetriever(RetrieverBase):
            Max. frame lookahead {self._max_frame_lookahead}
         """
 
+    def set_max_frame_lookahead(self, n) -> None:
+        """Set the maximum frame lookahead for sequential matching."""
+        self._max_frame_lookahead = n
+
     def get_image_pairs(
         self,
         global_descriptors: Optional[List[np.ndarray]],  # pylint: disable=unused-argument
         image_fnames: List[str],
         plots_output_dir: Optional[Path] = None,  # pylint: disable=unused-argument
-    ) -> ImageIndexPairs:
+    ) -> VisibilityGraph:
         """Compute potential image pairs.
 
         Args:

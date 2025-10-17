@@ -27,4 +27,10 @@ def get_logger() -> Logger:
         fmt = "%(asctime)s %(process)d [%(filename)s] %(levelname)s: %(message)s"
         handler.setFormatter(UTCFormatter(fmt, datefmt="%Y-%m-%d %H:%M:%S"))
         logger.addHandler(handler)
+
+        # Silence matplotlib and PIL loggers only once
+        mpl_logger = logging.getLogger("matplotlib")
+        mpl_logger.setLevel(logging.ERROR)
+        pil_logger = logging.getLogger("PIL")
+        pil_logger.setLevel(logging.ERROR)
     return logger

@@ -5,25 +5,23 @@ Authors: Ayush Baid, John Lambert, Zongyue Liu
 
 import dataclasses
 import json
-import logging
-import numpy as np
 import socket
 import sys
 import time
 import timeit
-
 from datetime import datetime
-from dask.distributed import Client
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+import numpy as np
+from dask.distributed import Client, Future
 from gtsam import PinholeCameraCal3Bundler, Pose3, Rot3, SfmTrack, Unit3  # type: ignore
 
 import gtsfm.common.types as gtsfm_types
-from gtsfm.common.dask_db_module_base import DaskDBModuleBase
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metric_utils
 from gtsfm.bundle.two_view_ba import TwoViewBundleAdjustment
+from gtsfm.common.dask_db_module_base import DaskDBModuleBase
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
@@ -34,28 +32,15 @@ from gtsfm.data_association.point3d_initializer import Point3dInitializer, Trian
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.frontend.inlier_support_processor import InlierSupportProcessor
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
+from gtsfm.products.two_view_result import TwoViewResult
+from gtsfm.products.visibility_graph import AnnotatedGraph
 
 logger = logger_utils.get_logger()
-
-mpl_logger = logging.getLogger("matplotlib")
-mpl_logger.setLevel(logging.ERROR)
-
-pil_logger = logging.getLogger("PIL")
-pil_logger.setLevel(logging.ERROR)
 
 PRE_BA_REPORT_TAG = "PRE_BA_2VIEW_REPORT"
 POST_BA_REPORT_TAG = "POST_BA_2VIEW_REPORT"
 POST_ISP_REPORT_TAG = "POST_INLIER_SUPPORT_PROCESSOR_2VIEW_REPORT"
 VIEWGRAPH_REPORT_TAG = "VIEWGRAPH_2VIEW_REPORT"
-
-TWO_VIEW_OUTPUT = Tuple[
-    Optional[Rot3],
-    Optional[Unit3],
-    np.ndarray,
-    TwoViewEstimationReport,
-    TwoViewEstimationReport,
-    TwoViewEstimationReport,
-]
 
 
 class TwoViewEstimator(DaskDBModuleBase):
@@ -118,6 +103,7 @@ class TwoViewEstimator(DaskDBModuleBase):
 
     def _initialize_two_view_schema(self) -> bool:
         """Initialize two-view estimation database tables"""
+        assert self.db is not None, "Database connection not initialized"
         try:
             # Create two-view results table
             if not self.db.execute(self._get_two_view_results_table_ddl()):
@@ -252,8 +238,8 @@ class TwoViewEstimator(DaskDBModuleBase):
         # Set the i1 camera pose as the global coordinate system.
         camera_class = gtsfm_types.get_camera_class_for_calibration(camera_intrinsics_i1)
         cameras = {
-            0: camera_class(Pose3(), camera_intrinsics_i1),
-            1: camera_class(i2Ti1_initial.inverse(), camera_intrinsics_i2),
+            0: camera_class(Pose3(), camera_intrinsics_i1),  # type: ignore
+            1: camera_class(i2Ti1_initial.inverse(), camera_intrinsics_i2),  # type: ignore
         }
 
         # Triangulate!
@@ -261,9 +247,8 @@ class TwoViewEstimator(DaskDBModuleBase):
         triangulated_indices, triangulated_tracks = self.triangulate_two_view_correspondences(
             cameras, keypoints_i1, keypoints_i2, verified_corr_idxs
         )
-        logger.debug("Performed DA in %.6f seconds.", timeit.default_timer() - start_time)
+        logger.debug("🚀 Performed DA in %.6f seconds.", timeit.default_timer() - start_time)
         logger.info("Triangulated %d correspondences out of %d.", len(triangulated_tracks), len(verified_corr_idxs))
-        print("============================", len(triangulated_tracks), len(verified_corr_idxs))
 
         if len(triangulated_tracks) == 0:
             return i2Ti1_initial.rotation(), Unit3(i2Ti1_initial.translation()), np.zeros(shape=(0, 2), dtype=np.int32)
@@ -288,7 +273,7 @@ class TwoViewEstimator(DaskDBModuleBase):
             logger.warning("2-view BA failed...")
             return i2Ri1_initial, i2Ui1_initial, valid_corr_idxs
         i2Ti1_optimized = wTi2.between(wTi1)
-        logger.debug("Performed 2-view BA in %.6f seconds.", timeit.default_timer() - start_time)
+        logger.debug("🚀 Performed 2-view BA in %.6f seconds.", timeit.default_timer() - start_time)
 
         return i2Ti1_optimized.rotation(), Unit3(i2Ti1_optimized.translation()), valid_corr_idxs
 
@@ -371,7 +356,7 @@ class TwoViewEstimator(DaskDBModuleBase):
         gt_scene_mesh: Optional[Any] = None,
         i1: Optional[int] = None,
         i2: Optional[int] = None,
-    ) -> TWO_VIEW_OUTPUT:
+    ) -> TwoViewResult:
         """Estimate the relative pose between two images, along with inlier correspondences.
 
         Args:
@@ -390,6 +375,10 @@ class TwoViewEstimator(DaskDBModuleBase):
         Returns:
             Estimated relative rotation, unit translation, verified correspondences, and two-view report.
         """
+
+        worker_name = socket.gethostname()
+        logger.debug(f"[WORKER {worker_name}] Processing pair ({i1}, {i2})")
+        sys.stdout.flush()
 
         # Record start time for computation measurement
         start_time = time.time()
@@ -471,7 +460,19 @@ class TwoViewEstimator(DaskDBModuleBase):
             i2,
         )
 
-        return post_isp_i2Ri1, post_isp_i2Ui1, post_isp_v_corr_idxs, pre_ba_report, post_ba_report, post_isp_report
+        duration = time.time() - start_time
+        logger.info("🚀 TVE took %.2f sec. on pair (%d, %d)", duration, i1, i2)
+        logger.debug(f"[WORKER {worker_name}] Completed pair ({i1}, {i2})")
+        sys.stdout.flush()
+
+        return TwoViewResult(
+            i2Ri1=post_isp_i2Ri1,
+            i2Ui1=post_isp_i2Ui1,
+            v_corr_idxs=post_isp_v_corr_idxs,
+            pre_ba_report=pre_ba_report,
+            post_ba_report=post_ba_report,
+            post_isp_report=post_isp_report,
+        )
 
     def store_computation_results(
         self,
@@ -503,7 +504,7 @@ class TwoViewEstimator(DaskDBModuleBase):
             i2: Index of second image
         """
         if not self.db:
-            logger.warning(f"No database connection available for pair ({i1}, {i2})")
+            logger.debug(f"No database connection available for pair ({i1}, {i2})")
             return
 
         logger.debug(f"Storing results for image pair ({i1}, {i2})")
@@ -624,6 +625,7 @@ class TwoViewEstimator(DaskDBModuleBase):
             VALUES (%s, %s, %s, %s, %s, %s, %s)
             """
 
+        assert self.db is not None, "Database connection should be available here"
         success = self.db.execute(
             report_query,
             (
@@ -679,27 +681,17 @@ def generate_two_view_report(
 
     # Generate report.
     two_view_report = TwoViewEstimationReport(
-        inlier_ratio_est_model=float(inlier_ratio_est_model),
+        inlier_ratio_est_model=inlier_ratio_est_model,
         num_inliers_est_model=v_corr_idxs.shape[0],
         num_inliers_gt_model=num_inliers_gt_model,
-        inlier_ratio_gt_model=(
-            float(inlier_ratio_gt_model) if not isinstance(inlier_ratio_gt_model, float) else inlier_ratio_gt_model
-        ),
+        inlier_ratio_gt_model=inlier_ratio_gt_model,
         v_corr_idxs_inlier_mask_gt=v_corr_idxs_inlier_mask_gt,
         v_corr_idxs=v_corr_idxs,
-        R_error_deg=float(R_error_deg) if R_error_deg is not None else None,
-        U_error_deg=float(U_error_deg) if U_error_deg is not None else None,
+        R_error_deg=R_error_deg,
+        U_error_deg=U_error_deg,
         reproj_error_gt_model=reproj_error_gt_model,
-        inlier_avg_reproj_error_gt_model=(
-            float(inlier_avg_reproj_error_gt_model)
-            if not isinstance(inlier_avg_reproj_error_gt_model, float)
-            else inlier_avg_reproj_error_gt_model
-        ),
-        outlier_avg_reproj_error_gt_model=(
-            float(outlier_avg_reproj_error_gt_model)
-            if not isinstance(outlier_avg_reproj_error_gt_model, float)
-            else outlier_avg_reproj_error_gt_model
-        ),
+        inlier_avg_reproj_error_gt_model=inlier_avg_reproj_error_gt_model,
+        outlier_avg_reproj_error_gt_model=outlier_avg_reproj_error_gt_model,
     )
     return two_view_report
 
@@ -734,7 +726,7 @@ def compute_relative_pose_metrics(
 
 
 def aggregate_frontend_metrics(
-    two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
+    two_view_reports_dict: AnnotatedGraph[TwoViewEstimationReport],
     angular_err_threshold_deg: float,
     metric_group_name: str,
 ) -> GtsfmMetricsGroup:
@@ -770,8 +762,14 @@ def aggregate_frontend_metrics(
 
         inlier_ratio_gt_model_all_pairs.append(report.inlier_ratio_gt_model)
         inlier_ratio_est_model_all_pairs.append(report.inlier_ratio_est_model)
-        num_inliers_gt_model_all_pairs.append(report.num_inliers_gt_model)
-        num_inliers_est_model_all_pairs.append(report.num_inliers_est_model)
+
+        # Only append non-None values for GT model inliers
+        if report.num_inliers_gt_model is not None:
+            num_inliers_gt_model_all_pairs.append(report.num_inliers_gt_model)
+
+        # Only append non-None values for estimated model inliers
+        if report.num_inliers_est_model is not None:
+            num_inliers_est_model_all_pairs.append(report.num_inliers_est_model)
 
     rot3_angular_errors = np.array(rot3_angular_errors_list, dtype=float)
     trans_angular_errors = np.array(trans_angular_errors_list, dtype=float)
@@ -832,8 +830,8 @@ def aggregate_frontend_metrics(
             GtsfmMetric("pose_errors_deg", pose_errors),
             GtsfmMetric("inlier_ratio_wrt_gt_model", inlier_ratio_gt_model_all_pairs),
             GtsfmMetric("inlier_ratio_wrt_est_model", inlier_ratio_est_model_all_pairs),
-            GtsfmMetric("num_inliers_est_model", num_inliers_est_model_all_pairs),
-            GtsfmMetric("num_inliers_gt_model", num_inliers_gt_model_all_pairs),
+            GtsfmMetric("num_inliers_est_model", np.array(num_inliers_est_model_all_pairs)),
+            GtsfmMetric("num_inliers_gt_model", np.array(num_inliers_gt_model_all_pairs)),
         ],
     )
     return frontend_metrics
@@ -843,89 +841,46 @@ def run_two_view_estimator_as_futures(
     client: Client,
     two_view_estimator: TwoViewEstimator,
     keypoints_list: List[Keypoints],
-    putative_corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
+    putative_corr_idxs_dict: AnnotatedGraph[np.ndarray],
     camera_intrinsics: Sequence[gtsfm_types.CALIBRATION_TYPE],
     relative_pose_priors: Dict[Tuple[int, int], PosePrior],
     gt_cameras: List[Optional[gtsfm_types.CAMERA_TYPE]],
     gt_scene_mesh: Optional[Any],
-) -> Dict[Tuple[int, int], TWO_VIEW_OUTPUT]:
+) -> AnnotatedGraph[Future]:
     """Run two-view estimator for all image pairs."""
 
-    def apply_two_view_estimator(
-        two_view_estimator: TwoViewEstimator,
-        keypoints_i1: Keypoints,
-        keypoints_i2: Keypoints,
-        putative_corr_idxs: np.ndarray,
-        camera_intrinsics_i1: gtsfm_types.CALIBRATION_TYPE,
-        camera_intrinsics_i2: gtsfm_types.CALIBRATION_TYPE,
-        i2Ti1_prior: Optional[PosePrior],
-        gt_camera_i1: Optional[gtsfm_types.CAMERA_TYPE],
-        gt_camera_i2: Optional[gtsfm_types.CAMERA_TYPE],
-        gt_scene_mesh: Optional[Any] = None,
-        i1: Optional[int] = None,
-        i2: Optional[int] = None,
-    ) -> TWO_VIEW_OUTPUT:
+    def apply_two_view_estimator(two_view_estimator: TwoViewEstimator, **kwargs) -> TwoViewResult:
+        return two_view_estimator.run_2view(**kwargs)
 
-        worker_name = socket.gethostname()
-        logger = logging.getLogger(__name__)
+    # TODO(Frank): we might have to scatter two_view_estimator first.
+    logger.info("Submitting tasks directly to workers ...")
 
-        logger.info(f"[WORKER {worker_name}] Processing pair ({i1}, {i2})")
-        sys.stdout.flush()
-
-        result = two_view_estimator.run_2view(
-            keypoints_i1=keypoints_i1,
-            keypoints_i2=keypoints_i2,
+    # Submit tasks with image indices passed as separate parameters
+    two_view_result_futures = {
+        (i1, i2): client.submit(
+            apply_two_view_estimator,
+            two_view_estimator,
+            keypoints_i1=keypoints_list[i1],
+            keypoints_i2=keypoints_list[i2],
             putative_corr_idxs=putative_corr_idxs,
-            camera_intrinsics_i1=camera_intrinsics_i1,
-            camera_intrinsics_i2=camera_intrinsics_i2,
-            i2Ti1_prior=i2Ti1_prior,
-            gt_camera_i1=gt_camera_i1,
-            gt_camera_i2=gt_camera_i2,
+            camera_intrinsics_i1=camera_intrinsics[i1],
+            camera_intrinsics_i2=camera_intrinsics[i2],
+            i2Ti1_prior=relative_pose_priors.get((i1, i2)),
+            gt_camera_i1=gt_cameras[i1],
+            gt_camera_i2=gt_cameras[i2],
             gt_scene_mesh=gt_scene_mesh,
             i1=i1,
             i2=i2,
         )
-
-        logger.info(f"[WORKER {worker_name}] Completed pair ({i1}, {i2})")
-        return result
-
-    logger = logging.getLogger(__name__)
-    logger.info("Submitting tasks directly to workers ...")
-
-    # Submit tasks with image indices passed as separate parameters
-    two_view_output_futures = {
-        (i1, i2): client.submit(
-            apply_two_view_estimator,
-            two_view_estimator,
-            keypoints_list[i1],
-            keypoints_list[i2],
-            putative_corr_idxs,
-            camera_intrinsics[i1],
-            camera_intrinsics[i2],
-            relative_pose_priors.get((i1, i2)),
-            gt_cameras[i1] if gt_cameras else None,
-            gt_cameras[i2] if gt_cameras else None,
-            gt_scene_mesh,
-            i1,
-            i2,
-        )
         for (i1, i2), putative_corr_idxs in putative_corr_idxs_dict.items()
     }
 
-    logger.info(f"Submitted {len(two_view_output_futures)} tasks to workers")
-    logger.info("Waiting for all tasks to complete...")
-
-    try:
-        two_view_output_dict = client.gather(two_view_output_futures, errors="raise")
-        logger.info(f"Gathered {len(two_view_output_dict)} results")
-        return two_view_output_dict
-    except Exception as e:
-        logger.error(f"Error during gather: {e}")
-        return {}
+    logger.info(f"Submitted {len(two_view_result_futures)} tasks to workers")
+    return two_view_result_futures
 
 
 def get_two_view_reports_summary(
-    two_view_report_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
+    two_view_report_dict: AnnotatedGraph[TwoViewEstimationReport],
     images: List[Image],
 ) -> List[Dict[str, Any]]:
     """Converts the TwoViewEstimationReports to a summary dict for each image pair.

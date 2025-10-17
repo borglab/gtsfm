@@ -17,7 +17,6 @@ import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.logger as logger_utils
 import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.common.types import CAMERA_TYPE
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
 from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_base import KeypointAggregatorBase
 from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_dedup import (
@@ -28,7 +27,7 @@ from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggreg
 )
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.loader.tanks_and_temples_loader import TanksAndTemplesLoader
-from gtsfm.products.visibility_graph import ImageIndexPairs
+from gtsfm.products.visibility_graph import VisibilityGraph
 
 logger = logger_utils.get_logger()
 
@@ -36,14 +35,14 @@ logger = logger_utils.get_logger()
 class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
     """Pair-wise synthetic keypoint correspondence generator."""
 
-    def __init__(self, dataset_root: str, scene_name: str, deduplicate: bool = True) -> None:
+    def __init__(self, dataset_dir: str, scene_name: str, deduplicate: bool = True) -> None:
         """
         Args:
-            dataset_root: Path to where Tanks & Temples dataset is stored.
+            dataset_dir: Path to where Tanks & Temples dataset is stored.
             scene_name: Name of scene from Tanks & Temples dataset.
             deduplicate: Whether to de-duplicate with a single image the detections received from each image pair.
         """
-        self._dataset_root = dataset_root
+        self._dataset_root = dataset_dir
         self._scene_name = scene_name
         self._aggregator: KeypointAggregatorBase = (
             KeypointAggregatorDedup() if deduplicate else KeypointAggregatorUnique()
@@ -53,7 +52,7 @@ class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
         self,
         client: Client,
         images: List[Future],
-        image_pairs: ImageIndexPairs,
+        visibility_graph: VisibilityGraph,
         num_sampled_3d_points: int = 5000,
     ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
         """Apply the correspondence generator to generate putative correspondences (in parallel).
@@ -61,22 +60,22 @@ class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
         Args:
             client: Dask client, used to execute the front-end as futures.
             images: List of all images, as futures.
-            image_pairs: Indices of the pairs of images to estimate two-view pose and correspondences.
+            visibility_graph: The visibility graph defining which image pairs to process.
             num_sampled_3d_points: Number of 3d points to sample from the mesh surface and to project.
 
         Returns:
             List of keypoints, with one entry for each input image.
             Putative correspondences as indices of keypoints (N,2), for pairs of images (i1,i2).
         """
-        dataset_root = self._dataset_root
+        dataset_dir = self._dataset_root
         scene_name = self._scene_name
 
-        img_dir = f"{dataset_root}/{scene_name}"
-        poses_fpath = f"{dataset_root}/{scene_name}_COLMAP_SfM.log"
-        lidar_ply_fpath = f"{dataset_root}/{scene_name}.ply"
-        colmap_ply_fpath = f"{dataset_root}/{scene_name}_COLMAP.ply"
-        ply_alignment_fpath = f"{dataset_root}/{scene_name}_trans.txt"
-        bounding_polyhedron_json_fpath = f"{dataset_root}/{scene_name}.json"
+        img_dir = f"{dataset_dir}/{scene_name}"
+        poses_fpath = f"{dataset_dir}/{scene_name}_COLMAP_SfM.log"
+        lidar_ply_fpath = f"{dataset_dir}/{scene_name}.ply"
+        colmap_ply_fpath = f"{dataset_dir}/{scene_name}_COLMAP.ply"
+        ply_alignment_fpath = f"{dataset_dir}/{scene_name}_trans.txt"
+        bounding_polyhedron_json_fpath = f"{dataset_dir}/{scene_name}.json"
         loader = TanksAndTemplesLoader(
             img_dir=img_dir,
             poses_fpath=poses_fpath,
@@ -102,32 +101,21 @@ class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
         # TODO(johnwlambert): Remove assumption that image pair shares the same image shape.
         image_height_px, image_width_px, _ = loader.get_image(0).shape
 
-        def apply_synthetic_corr_generator(
-            loader_: LoaderBase,
-            camera_i1: CAMERA_TYPE,
-            camera_i2: CAMERA_TYPE,
-            open3d_mesh_fpath: str,
-            points: np.ndarray,
-        ) -> Tuple[Keypoints, Keypoints]:
+        def apply_synthetic_corr_generator(loader_: LoaderBase, **kwargs) -> Tuple[Keypoints, Keypoints]:
             return generate_synthetic_correspondences_for_image_pair(
-                camera_i1,
-                camera_i2,
-                open3d_mesh_fpath,
-                points,
-                image_height_px=image_height_px,
-                image_width_px=image_width_px,
+                image_height_px=image_height_px, image_width_px=image_width_px, **kwargs
             )
 
         pairwise_correspondence_futures = {
             (i1, i2): client.submit(
                 apply_synthetic_corr_generator,
                 loader_future,
-                loader.get_camera(index=i1),
-                loader.get_camera(index=i2),
-                open3d_mesh_path,
-                sampled_points,
+                camera_i1=loader.get_camera(index=i1),
+                camera_i2=loader.get_camera(index=i2),
+                open3d_mesh_fpath=open3d_mesh_path,
+                points=sampled_points,
             )
-            for i1, i2 in image_pairs
+            for i1, i2 in visibility_graph
         }
 
         pairwise_correspondences: Dict[Tuple[int, int], Tuple[Keypoints, Keypoints]] = client.gather(
@@ -171,7 +159,7 @@ def generate_synthetic_correspondences_for_image_pair(
     # TODO(johnwlambert): Vectorize this code. On CPU, rays cannot be simultaneously cast against mesh
     # due to RAM limitations.
     for point in points:
-        # Try projecting point into each camera. If inside FOV of both and unoccluded by mesh, keep.
+        # Try projecting point into each camera. If inside FOV of both and un-occluded by mesh, keep.
         uv_i1 = verify_camera_fov_and_occlusion(camera_i1, point, trimesh_mesh, image_height_px, image_width_px)
         uv_i2 = verify_camera_fov_and_occlusion(camera_i2, point, trimesh_mesh, image_height_px, image_width_px)
         if uv_i1 is not None and uv_i2 is not None:
@@ -296,14 +284,14 @@ def load_from_trimesh(mesh_path: str) -> trimesh.Trimesh:
 
 def _make_line_plot(point1: np.ndarray, point2: np.ndarray) -> open3d.geometry.LineSet:
     """Plot a line segment from `point1` to `point2` using Open3D."""
-    verts_worldfr = np.array([point1, point2])
+    verticals_world_frame = np.array([point1, point2])
     lines = [[0, 1]]
     # Color is in range [0,1]
     color = (0, 0, 1)
     colors = [color for i in range(len(lines))]
 
     line_set = open3d.geometry.LineSet(
-        points=open3d.utility.Vector3dVector(verts_worldfr),
+        points=open3d.utility.Vector3dVector(verticals_world_frame),
         lines=open3d.utility.Vector2iVector(lines),
     )
     line_set.colors = open3d.utility.Vector3dVector(colors)

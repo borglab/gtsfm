@@ -22,11 +22,11 @@ class TestColmapLoader(unittest.TestCase):
         """Set up the loader for the test."""
         super().setUp()
 
-        colmap_files_dirpath = TEST_DATA_ROOT / "set1_lund_door/colmap_ground_truth"
+        dataset_dir = TEST_DATA_ROOT / "set1_lund_door/colmap_ground_truth"
         images_dir = TEST_DATA_ROOT / "set1_lund_door/images"
 
         self.loader = ColmapLoader(
-            colmap_files_dirpath,
+            dataset_dir,
             images_dir,
             use_gt_intrinsics=True,
             use_gt_extrinsics=True,

@@ -2,6 +2,7 @@
 
 Authors: Ayush Baid, John Lambert
 """
+
 import pickle
 import unittest
 from typing import Dict, List, Tuple
@@ -184,10 +185,10 @@ def _create_dummy_correspondences(i2Ri1_dict: Dict[Tuple[int, int], Rot3]) -> Di
     """Create dummy verified correspondences for each edge in view graph."""
     # Assume image has shape (img_h, img_w) = (1000,1000)
     img_h = 1000
-    v_corr_idxs_dict = {
+    verified_correspondences = {
         (i1, i2): np.random.randint(low=0, high=img_h, size=(i1 + i2, 2)) for i1, i2 in i2Ri1_dict.keys()
     }
-    return v_corr_idxs_dict
+    return verified_correspondences
 
 
 if __name__ == "__main__":

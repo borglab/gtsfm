@@ -5,7 +5,7 @@
 
 References:
 1. Richard I. Hartley and Peter Sturm. Triangulation. Computer Vision and Image Understanding, Vol. 68, No. 2,
-   November, pp. 146–157, 1997
+   November, pp. 146-157, 1997
 
 Authors: Sushmita Warrier, Xiaolong Wu, John Lambert, Travis Driver
 """
@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Tuple
 
 import dask
-import gtsam
+import gtsam  # type: ignore
 import numpy as np
 from dask.delayed import Delayed
 from gtsam import SfmTrack
@@ -56,6 +56,7 @@ class DataAssociation(GTSFMProcess):
     triangulation_options: TriangulationOptions
     save_track_patches_viz: Optional[bool] = False
 
+    @staticmethod
     def get_ui_metadata() -> UiMetadata:
         """Returns data needed to display node and edge info for this process in the process graph."""
 
@@ -110,8 +111,8 @@ class DataAssociation(GTSFMProcess):
         # Track lengths w/o triangulation check.
         track_lengths_2d = np.array(list(map(lambda x: int(x.number_measurements()), tracks_2d)), dtype=np.uint32)
 
-        logger.debug("[Data association] input number of tracks: %s", len(tracks_2d))
-        logger.debug("[Data association] input avg. track length: %s", np.mean(track_lengths_2d))
+        logger.debug("Input number of tracks: %s", len(tracks_2d))
+        logger.debug("Input avg. track length: %s", np.mean(track_lengths_2d))
 
         # Form GtsfmData object after triangulation.
         triangulated_data = GtsfmData(num_images)
@@ -169,8 +170,8 @@ class DataAssociation(GTSFMProcess):
         mean_3d_track_length, median_3d_track_length = connected_data.get_track_length_statistics()
         track_lengths_3d = connected_data.get_track_lengths()
 
-        logger.debug("[Data association] output number of tracks: %s", num_accepted_tracks)
-        logger.debug("[Data association] output avg. track length: %.2f", mean_3d_track_length)
+        logger.debug("output number of tracks: %s", num_accepted_tracks)
+        logger.debug("output avg. track length: %.2f", mean_3d_track_length)
 
         data_assoc_metrics = GtsfmMetricsGroup(
             "data_association_metrics",
@@ -231,7 +232,7 @@ class DataAssociation(GTSFMProcess):
 
         Returns:
             sfm_tracks: List of triangulated tracks.
-            avg_track_repoj_errors: List of average reprojection errors per track.
+            avg_track_reproj_errors: List of average reprojection errors per track.
             triangulation_exit_codes: Exit codes for each triangulation call.
         """
 
@@ -316,7 +317,7 @@ class DataAssociation(GTSFMProcess):
         data_assoc_metrics.add_metric(GtsfmMetric("triangulation_runtime_sec", triangulation_runtime_sec))
         data_assoc_metrics.add_metric(GtsfmMetric("gtsfm_data_creation_runtime", gtsfm_data_creation_runtime))
         data_assoc_metrics.add_metric(GtsfmMetric("total_duration_sec", total_duration_sec))
-        logger.info("[Data association] runtime duration: %.2f sec.", total_duration_sec)
+        logger.info("🚀 runtime duration: %.2f sec.", total_duration_sec)
         return ba_input, data_assoc_metrics
 
     def create_computation_graph(

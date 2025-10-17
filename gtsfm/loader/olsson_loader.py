@@ -8,8 +8,8 @@ from pathlib import Path
 from typing import List, Optional
 
 import numpy as np
-import scipy.io
-from gtsam import Cal3Bundler, Pose3, SfmTrack
+import scipy.io  # type: ignore
+from gtsam import Cal3Bundler, Pose3, SfmTrack  # type: ignore
 
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.verification as verification_utils
@@ -25,7 +25,7 @@ class OlssonLoader(LoaderBase):
     The mat-file contains Olsson's reconstruction. The variable P{i} contains camera i
     and the imnames(i).name contains the name of the corresponding image.
     "U"" are the reconstructed 3D points and "u_uncalib" contains the feature points for each image.
-    "u_uncalib" contains two cells; u_uncalib.points{i} contains imagepoints and u_uncalib.index{i}
+    "u_uncalib" contains two cells; u_uncalib.points{i} contains image points and u_uncalib.index{i}
     contains the indices of the 3D points corresponding to u_uncalib.points{i}.
 
     Folder layout structure:
@@ -37,16 +37,19 @@ class OlssonLoader(LoaderBase):
 
     def __init__(
         self,
-        folder: str,
+        dataset_dir: str,
+        images_dir: Optional[str] = None,
         use_gt_intrinsics: bool = True,
         use_gt_extrinsics: bool = True,
         max_frame_lookahead: int = 20,
         max_resolution: int = 760,
+        input_worker: Optional[str] = None,
     ) -> None:
-        """Initializes to load from a specified folder on disk.
+        """Initializes to load from a specified dataset directory on disk.
 
         Args:
-            folder: The base folder for a given scene.
+            dataset_dir: The base dataset directory for a given scene.
+            images_dir: Path to images directory. If None, defaults to {dataset_dir}/images.
             use_gt_intrinsics: Whether to use ground truth intrinsics.
             use_gt_extrinsics: Whether to use ground truth extrinsics.
             max_resolution: Integer representing maximum length of image's short side, i.e.
@@ -54,19 +57,22 @@ class OlssonLoader(LoaderBase):
                max_resolution would be 1080. If the image resolution max(height, width) is
                greater than the max_resolution, it will be downsampled to match the max_resolution.
         """
-        super().__init__(max_resolution)
-        self._folder = folder
+        super().__init__(max_resolution, input_worker)
+        self._dataset_dir = dataset_dir
+        self._images_dir = images_dir or os.path.join(dataset_dir, "images")
         self._use_gt_intrinsics = use_gt_intrinsics
         self._use_gt_extrinsics = use_gt_extrinsics
         self._max_frame_lookahead = max_frame_lookahead
 
-        self._image_paths = io_utils.get_sorted_image_names_in_dir(os.path.join(folder, "images"))
+        self._image_paths = io_utils.get_sorted_image_names_in_dir(self._images_dir)
         self._num_imgs = len(self._image_paths)
 
         if self._num_imgs == 0:
-            raise RuntimeError(f"Loader could not find any images with the specified file extension in {folder}")
+            raise RuntimeError(
+                f"Loader could not find any images with the specified file extension in {self._images_dir}"
+            )
 
-        cam_matrices_fpath = os.path.join(folder, "data.mat")
+        cam_matrices_fpath = os.path.join(self._dataset_dir, "data.mat")
         if not Path(cam_matrices_fpath).exists():
             # Not available, so no choice
             self._use_gt_intrinsics = False
@@ -103,13 +109,13 @@ class OlssonLoader(LoaderBase):
             measurements_2d = []
             for k in range(track_3d.numberMeasurements()):
                 i, uv = track_3d.measurement(k)
-                measurements_2d.append(SfmMeasurement(i, uv)) 
+                measurements_2d.append(SfmMeasurement(i, uv))
             tracks_2d.append(SfmTrack2d(measurements_2d))
         return tracks_2d
 
     def get_gt_tracks_3d(self) -> List[SfmTrack]:
         """Retrieves 3d ground-truth point tracks."""
-        cam_matrices_fpath = os.path.join(self._folder, "data.mat")
+        cam_matrices_fpath = os.path.join(self._dataset_dir, "data.mat")
         if not Path(cam_matrices_fpath).exists():
             raise ValueError("Ground truth data file missing.")
 
@@ -124,15 +130,15 @@ class OlssonLoader(LoaderBase):
 
                 # u_uncalib.points{i} contains homogeneous image keypoints w/ shape (3, num_visible_points).
                 # Transpose to (num_visible_points, 3)
-                keypoint_coords = data['u_uncalib'][0,0][1][i][0].T
+                keypoint_coords = data["u_uncalib"][0, 0][1][i][0].T
 
                 # u_uncalib.index{i} contains the indices of the 3D points corresponding to u_uncalib.points{i}.
                 # shape: (1, num_visible_points)
-                if j not in data['u_uncalib'][0,0][2][i][0]:
+                if j not in data["u_uncalib"][0, 0][2][i][0]:
                     continue
 
-                k = np.argwhere(data['u_uncalib'][0,0][2][i][0][0] == j)[0]
-                uv = np.squeeze(keypoint_coords[k,:2])
+                k = np.argwhere(data["u_uncalib"][0, 0][2][i][0][0] == j)[0]
+                uv = np.squeeze(keypoint_coords[k, :2])
                 track_3d.addMeasurement(i, uv)
 
             if track_3d.numberMeasurements() == 0:
@@ -141,7 +147,6 @@ class OlssonLoader(LoaderBase):
             tracks.append(track_3d)
 
         return tracks
-
 
     def image_filenames(self) -> List[str]:
         """Return the file names corresponding to each image index."""

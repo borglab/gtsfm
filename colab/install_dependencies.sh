@@ -38,7 +38,7 @@ pip install -e .
 
 # Verify installation
 echo "Verifying installation..."
-python gtsfm/runner/run_scene_optimizer_olssonloader.py -h
+./run --help
 
 echo "Installation complete!"
 

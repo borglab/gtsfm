@@ -6,6 +6,7 @@ https://github.com/nerfstudio-project/nerfstudio/blob/a121d76fd085f0fb356abf150c
 
 Author: Jon Womack
 """
+
 import argparse
 import json
 import os

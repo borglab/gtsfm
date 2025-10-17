@@ -206,6 +206,8 @@ class Image(NamedTuple):
         # extract the values in the patch
         # Note: the padding amount and pad_size//2 cancel each other out, so
         # center index becomes the far left edge of patch in padded image
-        patch_values = padded_value_array[center_y : center_y + patch_size, center_x : center_x + patch_size]
+        patch_values = padded_value_array[
+            center_y : center_y + patch_size, center_x : center_x + patch_size  # noqa: E203
+        ]
 
         return Image(value_array=patch_values, exif_data=None)

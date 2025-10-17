@@ -118,7 +118,7 @@ for num_matched in ${num_matched_sizes[@]}; do
                 elif [[ $dataset == *"palace-fine-arts-281"* ]]
                 then
                     # loader=olsson
-                    # dataset_root=/usr/local/gtsfm-data/palace-fine-arts-281
+                    # dataset_dir=/usr/local/gtsfm-data/palace-fine-arts-281
                     loader=colmap
                     colmap_files_dirpath=/usr/local/gtsfm-data/palace_colmap_gt_2023_11_22
                     images_dir=/usr/local/gtsfm-data/palace-fine-arts-281/images
@@ -126,7 +126,7 @@ for num_matched in ${num_matched_sizes[@]}; do
                 elif [[ $dataset == *"ecole-superieure-de-guerre-35"* ]]
                 then
                     # loader=olsson
-                    # dataset_root=/usr/local/gtsfm-data/ecole-superieure-de-guerre-35
+                    # dataset_dir=/usr/local/gtsfm-data/ecole-superieure-de-guerre-35
                     loader=colmap
                     colmap_files_dirpath=/usr/local/gtsfm-data/ecole_superieure_colmap_gt_2023_11_22/txt_gt
                     images_dir=/usr/local/gtsfm-data/ecole-superieure-de-guerre-35/images
@@ -134,12 +134,12 @@ for num_matched in ${num_matched_sizes[@]}; do
                 elif [[ $dataset == *"fort-channing-gate-singapore-27"* ]]
                 then
                 loader=olsson
-                dataset_root=/usr/local/gtsfm-data/fort-channing-gate-singapore-27
+                dataset_dir=/usr/local/gtsfm-data/fort-channing-gate-singapore-27
 
                 elif [[ $dataset == *"skansen-kronan-gothenburg-131"* ]]
                 then
                     # loader=olsson
-                    # dataset_root=/usr/local/gtsfm-data/skansen-kronan-gothenburg-131
+                    # dataset_dir=/usr/local/gtsfm-data/skansen-kronan-gothenburg-131
                     loader=colmap
                     colmap_files_dirpath=/usr/local/gtsfm-data/skansen_colmap_gt_2023_11_22
                     images_dir=/usr/local/gtsfm-data/skansen-kronan-gothenburg-131/images
@@ -147,12 +147,12 @@ for num_matched in ${num_matched_sizes[@]}; do
                 elif [[ $dataset == *"nijo-castle-gate-19"* ]]
                 then
                     loader=olsson
-                    dataset_root=/usr/local/gtsfm-data/nijo-castle-gate-19
+                    dataset_dir=/usr/local/gtsfm-data/nijo-castle-gate-19
 
                 elif [[ $dataset == *"kings-college-cambridge-328"* ]]
                 then
                     # loader=olsson
-                    # dataset_root=/usr/local/gtsfm-data/kings-college-cambridge-328
+                    # dataset_dir=/usr/local/gtsfm-data/kings-college-cambridge-328
                     loader=colmap
                     colmap_files_dirpath=/usr/local/gtsfm-data/kings_college_colmap_gt_2023_11_22
                     images_dir=/usr/local/gtsfm-data/kings-college-cambridge-328/images
@@ -160,7 +160,7 @@ for num_matched in ${num_matched_sizes[@]}; do
                 elif [[ $dataset == *"spilled-blood-cathedral-st-petersburg-781"* ]]
                 then
                     # loader=olsson
-                    # dataset_root=/usr/local/gtsfm-data/spilled-blood-cathedral-st-petersburg-781
+                    # dataset_dir=/usr/local/gtsfm-data/spilled-blood-cathedral-st-petersburg-781
                     loader=colmap
                     colmap_files_dirpath=/usr/local/gtsfm-data/colmap-spilled-blood-gt
                     images_dir=/usr/local/gtsfm-data/spilled-blood-cathedral-st-petersburg-781/images
@@ -196,11 +196,12 @@ for num_matched in ${num_matched_sizes[@]}; do
 
                 if [[ $loader == *"olsson"* ]]
                 then
-                    python gtsfm/runner/run_scene_optimizer_olssonloader.py \
-                    --mvs_off \
-                    --config unified \
+                    ./run \
+                    --loader olsson \
+                    --run_mvs false \
+                    --config_name unified \
                     --correspondence_generator_config_name $correspondence_generator_config_name \
-                    --dataset_root $dataset_root \
+                    --dataset_dir $dataset_dir \
                     --num_workers $num_workers \
                     --num_matched $num_matched \
                     --max_frame_lookahead $max_frame_lookahead \
@@ -211,12 +212,13 @@ for num_matched in ${num_matched_sizes[@]}; do
                     2>&1 | tee $OUTPUT_ROOT/out.log
                 elif [[ $loader == *"colmap"* ]]
                 then
-                    python gtsfm/runner/run_scene_optimizer_colmaploader.py \
-                    --mvs_off \
-                    --config unified \
+                    ./run \
+                    --loader colmap \
+                    --run_mvs false \
+                    --config_name unified \
                     --correspondence_generator_config_name $correspondence_generator_config_name \
+                    --dataset_dir $colmap_files_dirpath \
                     --images_dir $images_dir \
-                    --colmap_files_dirpath $colmap_files_dirpath \
                     --num_workers $num_workers \
                     --num_matched $num_matched \
                     --max_frame_lookahead $max_frame_lookahead \
@@ -227,11 +229,12 @@ for num_matched in ${num_matched_sizes[@]}; do
                     2>&1 | tee $OUTPUT_ROOT/out.log
                 elif [[ $loader == *"astrovision"* ]]
                 then
-                    python gtsfm/runner/run_scene_optimizer_astrovision.py \
-                    --mvs_off \
-                    --config unified \
+                    ./run \
+                    --loader astrovision \
+                    --run_mvs false \
+                    --config_name unified \
                     --correspondence_generator_config_name $correspondence_generator_config_name \
-                    --data_dir $data_dir \
+                    --dataset_dir $data_dir \
                     --num_workers $num_workers \
                     --num_matched $num_matched \
                     --max_frame_lookahead $max_frame_lookahead \
