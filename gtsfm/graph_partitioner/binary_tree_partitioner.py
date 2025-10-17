@@ -65,6 +65,9 @@ class BinaryTreePartitioner(GraphPartitionerBase):
             max_depth = max(0, max_depth)
 
         ordered_keys = list(all_nodes)
+        logger.info(
+            "BinaryTreePartitioner: partitioning %d cameras with these ordered keys: %s", num_cameras, ordered_keys
+        )
         root_cluster, _, _ = self._build_binary_clustering(
             keys=ordered_keys,
             depth=0,
