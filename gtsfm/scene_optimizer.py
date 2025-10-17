@@ -314,7 +314,8 @@ class SceneOptimizer:
 
         # Aggregate two-view metrics
         # TODO(Frank): this brings everything back ! We might not want this.
-        two_view_results = client.gather(two_view_result_futures)
+        all_two_view_results = client.gather(two_view_result_futures)
+        two_view_results = {edge: tvr for edge, tvr in all_two_view_results.items() if tvr.valid()}
         base_metrics_groups.append(
             self._aggregate_two_view_metrics(
                 keypoints,
