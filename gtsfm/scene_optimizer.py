@@ -7,7 +7,7 @@ import os
 import shutil
 import time
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any, Optional
 
 import matplotlib
 import matplotlib.pyplot as plt
