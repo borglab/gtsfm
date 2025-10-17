@@ -197,7 +197,7 @@ class GtsfmRunner:
                     f"🔄 Applying Correspondence Override: " f"{self.parsed_args.correspondence_generator_config_name}"
                 )
                 scene_optimizer.correspondence_generator = instantiate(correspondence_cfg.CorrespondenceGenerator)
-        
+
         # Override verifier.
         if self.parsed_args.verifier_config_name is not None:
             with hydra.initialize_config_module(config_module="gtsfm.configs.verifier", version_base=None):
@@ -216,7 +216,6 @@ class GtsfmRunner:
                 logger.info(f"🔄 Applying Retriever Override: {self.parsed_args.retriever_config_name}")
                 scene_optimizer.image_pairs_generator._retriever = instantiate(retriever_cfg.retriever)
 
-        
         # Override global descriptor.
         if self.parsed_args.global_descriptor_config_name is not None:
             with hydra.initialize_config_module(config_module="gtsfm.configs.global_descriptor", version_base=None):
@@ -224,8 +223,9 @@ class GtsfmRunner:
                     config_name=self.parsed_args.global_descriptor_config_name,
                 )
                 logger.info(f"🔄 Applying Global Descriptor Override: {self.parsed_args.global_descriptor_config_name}")
-                scene_optimizer.image_pairs_generator._global_descriptor = \
-                                                                    instantiate(global_descriptor_cfg.global_descriptor)
+                scene_optimizer.image_pairs_generator._global_descriptor = instantiate(
+                    global_descriptor_cfg.global_descriptor
+                )
 
         # Override gaussian splatting
         if self.parsed_args.gaussian_splatting_config_name is not None:
