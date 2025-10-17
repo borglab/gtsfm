@@ -383,6 +383,7 @@ class SceneOptimizer:
             leaf_jobs.append((index, output_paths))
 
         logger.info("🔥 GTSFM: Running the computation graph...")
+        mvo_metrics_groups_by_leaf = {}
         with performance_report(filename="dask_reports/scene-optimizer.html"):
             if futures:
                 results = client.gather(futures)
@@ -390,7 +391,10 @@ class SceneOptimizer:
                     # leaf_results is a tuple (ba_output, io_results, mvo_metrics_groups)
                     mvo_metrics_groups = leaf_results[2]
                     if mvo_metrics_groups:
-                        save_metrics_reports(mvo_metrics_groups, str(output_paths.metrics))
+                        if use_leaf_subdirs:
+                            save_metrics_reports(mvo_metrics_groups, str(output_paths.metrics))
+                        else:
+                            mvo_metrics_groups_by_leaf[leaf_index] = mvo_metrics_groups
 
         # Log total time taken and save metrics report
         end_time = time.time()
@@ -404,6 +408,12 @@ class SceneOptimizer:
             "total_summary_metrics", [GtsfmMetric("total_runtime_sec", duration_sec)]
         )
         base_metrics_groups.append(total_summary_metrics)
+
+        # For single cluster runs, we may have MVO metrics to add to the base report.
+        if not use_leaf_subdirs:
+            for leaf_index in mvo_metrics_groups_by_leaf:
+                base_metrics_groups.extend(mvo_metrics_groups_by_leaf[leaf_index])
+
         save_metrics_reports(base_metrics_groups, str(base_output_paths.metrics))
 
     def _create_process_graph(self):
