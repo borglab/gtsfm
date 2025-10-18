@@ -4,15 +4,15 @@ Authors: Ayush Baid, John Lambert
 """
 
 import copy
-from typing import List, Optional, Tuple
+from typing import List, Optional, Sequence, Tuple
 
-import gtsam
+import gtsam  # type: ignore
 import numpy as np
 from gtsam import Pose3, Pose3Pairs, Rot3, Similarity3
-from scipy.spatial.transform import Rotation
+from scipy.spatial.transform import Rotation  # type: ignore
 
-import gtsfm.utils.metrics as metric_utils
 import gtsfm.utils.logger as logger_utils
+import gtsfm.utils.metrics as metric_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 
 EPSILON = np.finfo(float).eps
@@ -22,8 +22,10 @@ logger = logger_utils.get_logger()
 MAX_ALIGNMENT_ERROR = np.finfo(np.float32).max
 MAX_NUM_HYPOTHESES_FOR_ROBUST_ALIGNMENT: int = 200
 
+Z_3x1: np.ndarray = np.zeros((3,))
 
-def align_rotations(aRi_list: List[Optional[Rot3]], bRi_list: List[Optional[Rot3]]) -> List[Rot3]:
+
+def align_rotations(aRi_list: List[Optional[Rot3]], bRi_list: List[Optional[Rot3]]) -> List[Optional[Rot3]]:
     """Aligns the list of rotations to the reference list by using Karcher mean.
 
     Args:
@@ -47,7 +49,7 @@ def align_rotations(aRi_list: List[Optional[Rot3]], bRi_list: List[Optional[Rot3
 
 
 def align_poses_sim3_ignore_missing(
-    aTi_list: List[Optional[Pose3]], bTi_list: List[Optional[Pose3]]
+    aTi_list: Sequence[Optional[Pose3]], bTi_list: Sequence[Optional[Pose3]]
 ) -> Tuple[List[Optional[Pose3]], Similarity3]:
     """Align by similarity transformation, but allow missing estimated poses in the input.
 
@@ -84,7 +86,7 @@ def align_poses_sim3_ignore_missing(
 
     num_cameras = len(aTi_list)
     # now at valid indices
-    aTi_list_ = [None] * num_cameras
+    aTi_list_: List[Optional[Pose3]] = [None] * num_cameras
     for i in range(num_cameras):
         if i in valid_camera_idxs:
             aTi_list_[i] = valid_aTi_list_.pop(0)
@@ -113,13 +115,13 @@ def align_poses_sim3_exhaustive(aTi_list: List[Pose3], bTi_list: List[Pose3]) ->
     n_to_align = len(aTi_list)
     if n_to_align < 2:
         logger.error("SIM(3) alignment uses at least 2 frames; Skipping")
-        return bTi_list, Similarity3(Rot3(), np.zeros((3,)), 1.0)
+        return bTi_list, Similarity3(Rot3(), Z_3x1, 1.0)
 
     # Run once with all poses for initial guess.
     best_aSb = Similarity3()
-    aTi_candidate_, best_aSb = align_poses_sim3(aTi_list, bTi_list)
+    aTi_candidate_all, best_aSb = align_poses_sim3(aTi_list, bTi_list)
     best_pose_auc_5deg: float = metric_utils.pose_auc_from_poses(
-        computed_wTis=aTi_candidate_, ref_wTis=aTi_list, thresholds_deg=[5]
+        computed_wTis=aTi_candidate_all, ref_wTis=aTi_list, thresholds_deg=[5]
     )[0]
 
     for i1 in range(n_to_align):
@@ -181,7 +183,7 @@ def align_poses_sim3_robust(
     n_to_align = len(aTi_list)
     if n_to_align < 2:
         logger.error("SIM(3) alignment uses at least 2 frames; Skipping")
-        return bTi_list, Similarity3(Rot3(), np.zeros((3,)), 1.0)
+        return bTi_list, Similarity3(Rot3(), Z_3x1, 1.0)
 
     # Compute the total possible number of hypothesis { N choose 2 }
     max_possible_hypotheses: int = (n_to_align * (n_to_align - 1)) // 2
@@ -190,9 +192,9 @@ def align_poses_sim3_robust(
 
     # Run once with all poses for initial guess
     best_aSb = Similarity3()
-    aTi_candidate_, best_aSb = align_poses_sim3(aTi_list, bTi_list)
+    aTi_candidate_all, best_aSb = align_poses_sim3(aTi_list, bTi_list)
     best_pose_auc_5deg: float = metric_utils.pose_auc_from_poses(
-        computed_wTis=aTi_candidate_, ref_wTis=aTi_list, thresholds_deg=[5]
+        computed_wTis=aTi_candidate_all, ref_wTis=aTi_list, thresholds_deg=[5]
     )[0]
 
     sample_pose_pairs = np.random.choice(
@@ -261,7 +263,7 @@ def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> Tuple[List
     n_to_align = len(valid_pose_tuples)
     if n_to_align < 2:
         logger.error("SIM(3) alignment uses at least 2 frames; Skipping")
-        return bTi_list, Similarity3(Rot3(), np.zeros((3,)), 1.0)
+        return bTi_list, Similarity3(Rot3(), Z_3x1, 1.0)
 
     ab_pairs = Pose3Pairs(valid_pose_tuples)
 
@@ -273,7 +275,7 @@ def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> Tuple[List
         # TODO: handle it in GTSAM
 
         # Align the rotations first, so that we can find the translation between the two panoramas.
-        aSb = Similarity3(aSb.rotation(), np.zeros((3,)), 1.0)
+        aSb = Similarity3(aSb.rotation(), Z_3x1, 1.0)
         aTi_list_rot_aligned = [aSb.transformFrom(bTi) for _, bTi in valid_pose_tuples]
 
         # Fit a single translation motion to the centroid.
