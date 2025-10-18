@@ -67,7 +67,7 @@ class GtsfmMetric:
         name: str,
         data: Optional[Union[float, Distribution1D]] = None,
         summary: Optional[Dict[str, Any]] = None,
-        store_full_data: bool = True,
+        store_full_data: bool = False,
         plot_type: PlotType | None = None,
     ):
         """Creates a GtsfmMetric.
@@ -247,7 +247,12 @@ class GtsfmMetric:
                 data = metric_value[FULL_DATA_KEY]
             if SUMMARY_KEY in metric_value:
                 summary = metric_value[SUMMARY_KEY]
-            return cls(metric_name, data=data, summary=summary)
+            return cls(
+                metric_name,
+                data=data,
+                summary=summary,
+                store_full_data=data is not None,
+            )
         # Scalar metrics
         return cls(metric_name, metric_value)
 

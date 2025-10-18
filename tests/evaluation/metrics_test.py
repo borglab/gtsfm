@@ -71,7 +71,7 @@ class TestGtsfmMetric(unittest.TestCase):
     def test_create_1d_distribution_metric(self) -> None:
         """Check that a 1D distribution metric created has the right attributes."""
         data = np.array([1, 2, 3, 4, 5, 6], dtype=np.float32)
-        metric = GtsfmMetric("dist_metric", data)
+        metric = GtsfmMetric("dist_metric", data, store_full_data=True)
         self.assertEqual(metric.name, "dist_metric")
         np.testing.assert_equal(metric.data, data)
         self.assertEqual(metric.plot_type, GtsfmMetric.PlotType.BOX)
@@ -88,7 +88,7 @@ class TestGtsfmMetric(unittest.TestCase):
     def test_create_all_nan_metric(self) -> None:
         """Check that a 1D distribution metric created has the right attributes."""
         data = np.array([np.nan for _ in range(5)], dtype=np.float32)
-        metric = GtsfmMetric("nan_metric", data)
+        metric = GtsfmMetric("nan_metric", data, store_full_data=True)
         self.assertEqual(metric.name, "nan_metric")
         np.testing.assert_equal(metric.data, data)
         np.testing.assert_equal(list(metric.summary.values()), [np.nan for _ in range(5)])
@@ -138,8 +138,8 @@ class TestGtsfmMetricsGroup(unittest.TestCase):
     def setUp(self) -> None:
         super().setUp()
         self._metrics_list = []
-        self._metrics_list.append(GtsfmMetric(name="metric1", data=2))
-        self._metrics_list.append(GtsfmMetric(name="metric2", data=np.array([1, 2, 3])))
+        self._metrics_list.append(GtsfmMetric(name="metric1", data=2, store_full_data=True))
+        self._metrics_list.append(GtsfmMetric(name="metric2", data=np.array([1, 2, 3]), store_full_data=True))
         self._metrics_group = GtsfmMetricsGroup(name="test_metrics", metrics=self._metrics_list)
 
     def test_get_metric_as_dict(self) -> None:
@@ -155,8 +155,8 @@ class TestGtsfmMetricsGroup(unittest.TestCase):
     def test_json_roundtrip(self) -> None:
         """Check that saving to and reading from JSON preserves all data in a GtsfmMetric."""
         metrics_list = []
-        metrics_list.append(GtsfmMetric(name="metric1", data=2))
-        metrics_list.append(GtsfmMetric(name="metric2", data=np.array([np.nan, -2.0, 999, 0.0])))
+        metrics_list.append(GtsfmMetric(name="metric1", data=2, store_full_data=True))
+        metrics_list.append(GtsfmMetric(name="metric2", data=np.array([np.nan, -2.0, 999, 0.0]), store_full_data=True))
         pre_json_metrics_group = GtsfmMetricsGroup(name="test_metrics", metrics=metrics_list)
         # The np.nan here is not a special case (unlike in test_io_utils.py)
         # because GtsfmMetricsGroup casts all lists to np.array types on init.

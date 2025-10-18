@@ -216,7 +216,7 @@ def compute_keypoint_intersections(
 
 
 def compute_rotation_angle_metric(
-    wRi_list: Sequence[Optional[Rot3]], gt_wRi_list: Sequence[Optional[Rot3]]
+    wRi_list: Sequence[Optional[Rot3]], gt_wRi_list: Sequence[Optional[Rot3]], store_full_data: bool = False
 ) -> GtsfmMetric:
     """Computes statistics for the angle between estimated and GT rotations.
 
@@ -231,11 +231,11 @@ def compute_rotation_angle_metric(
         A GtsfmMetric for the N rotation angle errors, in degrees.
     """
     errors = [comp_utils.compute_relative_rotation_angle(wRi, gt_wRi) for wRi, gt_wRi in zip(wRi_list, gt_wRi_list)]
-    return GtsfmMetric("rotation_angle_error_deg", errors)
+    return GtsfmMetric("rotation_angle_error_deg", errors, store_full_data=store_full_data)
 
 
 def compute_translation_distance_metric(
-    wti_list: Sequence[Optional[np.ndarray]], gt_wti_list: Sequence[Optional[np.ndarray]]
+    wti_list: Sequence[Optional[np.ndarray]], gt_wti_list: Sequence[Optional[np.ndarray]], store_full_data: bool = False
 ) -> GtsfmMetric:
     """Computes statistics for the distance between estimated and GT translations.
 
@@ -250,11 +250,30 @@ def compute_translation_distance_metric(
         A statistics dict of the metrics errors in degrees.
     """
     errors = [comp_utils.compute_points_distance_l2(wti, gt_wti) for wti, gt_wti in zip(wti_list, gt_wti_list)]
-    return GtsfmMetric("translation_error_distance", errors)
+    return GtsfmMetric("translation_error_distance", errors, store_full_data=store_full_data)
+
+
+def get_relative_translation_angles(
+    i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]],
+    wTi_list: List[Optional[Pose3]],
+) -> List[float]:
+    """Returns a list of relative translation angles, skipping None values."""
+    angles: List[float] = []
+    for i1, i2 in i2Ui1_dict:
+        i2Ui1 = i2Ui1_dict[(i1, i2)]
+        if i2Ui1 is None or wTi_list[i1] is None or wTi_list[i2] is None:
+            continue
+        angle = comp_utils.compute_translation_to_direction_angle(i2Ui1, wTi_list[i2], wTi_list[i1])
+        if angle is not None:
+            angles.append(angle)
+    return angles
 
 
 def compute_relative_translation_angle_metric(
-    i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]], wTi_list: List[Optional[Pose3]], prefix: str = ""
+    i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]],
+    wTi_list: List[Optional[Pose3]],
+    prefix: str = "",
+    store_full_data: bool = False,
 ) -> GtsfmMetric:
     """Computes statistics for angle between translations and direction measurements.
 
@@ -265,31 +284,44 @@ def compute_relative_translation_angle_metric(
     Returns:
         A GtsfmMetric for the relative translation angle errors, in degrees.
     """
-    angles: List[Optional[float]] = []
-    for i1, i2 in i2Ui1_dict:
-        i2Ui1 = i2Ui1_dict[(i1, i2)]
-        angles.append(comp_utils.compute_translation_to_direction_angle(i2Ui1, wTi_list[i2], wTi_list[i1]))
-    return GtsfmMetric(prefix + "relative_translation_angle_error_deg", np.array(angles, dtype=np.float32))
+    angles = get_relative_translation_angles(i2Ui1_dict, wTi_list)
+    return GtsfmMetric(
+        prefix + "relative_translation_angle_error_deg",
+        np.array(angles, dtype=np.float32),
+        store_full_data=store_full_data,
+    )
 
 
-def compute_relative_rotation_angle_metric(
+def get_relative_rotation_angles(
     i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]], wTi_list: List[Optional[Pose3]]
-):
-    angles: List[Optional[float]] = []
+) -> List[float]:
+    """Returns a list of relative rotation angles, skipping None values."""
+    angles: List[float] = []
     for i1, i2 in i2Ri1_dict:
         i2Ri1 = i2Ri1_dict[(i1, i2)]
         if i2Ri1 is None or wTi_list[i1] is None or wTi_list[i2] is None:
-            angles.append(None)
             continue
         wRi1_gt = wTi_list[i1].rotation()  # type: ignore
         wRi2_gt = wTi_list[i2].rotation()  # type: ignore
         i2Ri1_gt = wRi2_gt.between(wRi1_gt)
-        angles.append(comp_utils.compute_relative_rotation_angle(i2Ri1, i2Ri1_gt))
-    return GtsfmMetric("relative_rotation_angle_error_deg", np.array(angles, dtype=np.float32))
+        angle = comp_utils.compute_relative_rotation_angle(i2Ri1, i2Ri1_gt)
+        if angle is not None:
+            angles.append(angle)
+    return angles
+
+
+def compute_relative_rotation_angle_metric(
+    i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]], wTi_list: List[Optional[Pose3]], store_full_data: bool = False
+) -> GtsfmMetric:
+    """Computes statistics for angle between relative rotations and ground truth."""
+    angles = get_relative_rotation_angles(i2Ri1_dict, wTi_list)
+    return GtsfmMetric(
+        "relative_rotation_angle_error_deg", np.array(angles, dtype=np.float32), store_full_data=store_full_data
+    )
 
 
 def compute_translation_angle_metric(
-    gt_wTi_list: Sequence[Optional[Pose3]], wTi_list: Sequence[Optional[Pose3]]
+    gt_wTi_list: Sequence[Optional[Pose3]], wTi_list: Sequence[Optional[Pose3]], store_full_data: bool = False
 ) -> GtsfmMetric:
     """Compute global translation angular errors from aligned pose graphs.
 
@@ -316,7 +348,9 @@ def compute_translation_angle_metric(
         else:
             angle = np.nan
         angles.append(angle)
-    return GtsfmMetric("translation_angle_error_deg", np.array(angles, dtype=np.float32))
+    return GtsfmMetric(
+        "translation_angle_error_deg", np.array(angles, dtype=np.float32), store_full_data=store_full_data
+    )
 
 
 def compute_pose_auc_metric(
@@ -375,12 +409,16 @@ def compute_ba_pose_metrics(
     metrics = []
     metrics.append(compute_rotation_angle_metric(wRi_aligned_list, gt_wRi_list))
     metrics.append(compute_translation_distance_metric(wti_aligned_list, gt_wti_list))
-    metrics.append(compute_relative_translation_angle_metric(i2Ui1_dict_gt, computed_wTi_list))
+    translation_angular_errors = get_relative_translation_angles(i2Ui1_dict_gt, computed_wTi_list)
+    metrics.append(
+        GtsfmMetric("relative_translation_angle_error_deg", np.array(translation_angular_errors, dtype=np.float32))
+    )
     metrics.append(compute_translation_angle_metric(gt_wTi_list, computed_wTi_list))
-    metrics.append(compute_relative_rotation_angle_metric(i2Ri1_dict_gt, computed_wTi_list))
+    rotation_angular_errors = get_relative_rotation_angles(i2Ri1_dict_gt, computed_wTi_list)
+    metrics.append(
+        GtsfmMetric("relative_rotation_angle_error_deg", np.array(rotation_angular_errors, dtype=np.float32))
+    )
 
-    rotation_angular_errors = metrics[2]._data
-    translation_angular_errors = metrics[4]._data
     metrics.extend(compute_pose_auc_metric(rotation_angular_errors, translation_angular_errors, save_dir=save_dir))
 
     return GtsfmMetricsGroup(name="ba_pose_error_metrics", metrics=metrics)
@@ -548,9 +586,13 @@ def pose_auc_from_poses(
         List of AUC values, one per threshold.
     """
     rotation_angular_errors = compute_rotation_angle_metric(
-        wRi_list=[wTi.rotation() for wTi in computed_wTis], gt_wRi_list=[wTi.rotation() for wTi in ref_wTis]
+        wRi_list=[wTi.rotation() for wTi in computed_wTis],
+        gt_wRi_list=[wTi.rotation() for wTi in ref_wTis],
+        store_full_data=True,
     ).data
-    translation_angular_errors = compute_translation_angle_metric(gt_wTi_list=ref_wTis, wTi_list=computed_wTis).data
+    translation_angular_errors = compute_translation_angle_metric(
+        gt_wTi_list=ref_wTis, wTi_list=computed_wTis, store_full_data=True
+    ).data
     pose_angular_errors = np.maximum(rotation_angular_errors, translation_angular_errors)
 
     return pose_auc(pose_angular_errors, thresholds_deg)

@@ -16,10 +16,11 @@ from collections import Counter
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Tuple
 
-import dask
 import gtsam  # type: ignore
 import numpy as np
+from dask.base import compute as dask_compute
 from dask.delayed import Delayed
+from dask.delayed import delayed as dask_delayed
 from gtsam import SfmTrack
 
 import gtsfm.common.types as gtsfm_types
@@ -81,7 +82,7 @@ class DataAssociation(GTSFMProcess):
         num_images: int,
         cameras: Dict[int, gtsfm_types.CAMERA_TYPE],
         tracks_2d: List[SfmTrack2d],
-        sfm_tracks: List[Optional[SfmTrack]],
+        sfm_tracks: Sequence[Optional[SfmTrack]],
         avg_track_reproj_errors: List[Optional[float]],
         triangulation_exit_codes: List[TriangulationExitCode],
         cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
@@ -176,27 +177,13 @@ class DataAssociation(GTSFMProcess):
         data_assoc_metrics = GtsfmMetricsGroup(
             "data_association_metrics",
             [
-                GtsfmMetric(
-                    "2D_track_lengths",
-                    track_lengths_2d,
-                    store_full_data=False,
-                    plot_type=GtsfmMetric.PlotType.HISTOGRAM,
-                ),
+                GtsfmMetric("2D_track_lengths", track_lengths_2d, plot_type=GtsfmMetric.PlotType.HISTOGRAM),
                 GtsfmMetric("accepted_tracks_ratio", accepted_tracks_ratio),
                 GtsfmMetric("track_cheirality_failure_ratio", track_cheirality_failure_ratio),
                 GtsfmMetric("num_accepted_tracks", num_accepted_tracks),
-                GtsfmMetric(
-                    "3d_tracks_length",
-                    track_lengths_3d,
-                    store_full_data=False,
-                    plot_type=GtsfmMetric.PlotType.HISTOGRAM,
-                ),
-                GtsfmMetric("accepted_track_avg_errors_px", per_accepted_track_avg_errors, store_full_data=False),
-                GtsfmMetric(
-                    "rejected_track_avg_errors_px",
-                    np.array(per_rejected_track_avg_errors).astype(np.float32),
-                    store_full_data=False,
-                ),
+                GtsfmMetric("3d_tracks_length", track_lengths_3d, plot_type=GtsfmMetric.PlotType.HISTOGRAM),
+                GtsfmMetric("accepted_track_avg_errors_px", per_accepted_track_avg_errors),
+                GtsfmMetric("rejected_track_avg_errors_px", np.array(per_rejected_track_avg_errors).astype(np.float32)),
                 GtsfmMetric(name="number_cameras", data=len(connected_data.get_valid_camera_indices())),
             ],
         )
@@ -253,15 +240,15 @@ class DataAssociation(GTSFMProcess):
         triangulation_results = []
         if batch_size == 1:
             for track_2d in tracks_2d:
-                triangulation_results.append(dask.delayed(point3d_initializer.triangulate)(track_2d))
+                triangulation_results.append(dask_delayed(point3d_initializer.triangulate)(track_2d))
         else:
             for j in range(0, len(tracks_2d), batch_size):
                 triangulation_results.append(
-                    dask.delayed(triangulate_batch)(point3d_initializer, tracks_2d[j : j + batch_size])
+                    dask_delayed(triangulate_batch)(point3d_initializer, tracks_2d[j : j + batch_size])  # noqa: E203
                 )
 
         # Perform triangulation in parallel.
-        triangulation_results = dask.compute(*triangulation_results)
+        triangulation_results = dask_compute(*triangulation_results)
 
         # Unpack results.
         sfm_tracks, avg_track_reproj_errors, triangulation_exit_codes = [], [], []
@@ -340,11 +327,11 @@ class DataAssociation(GTSFMProcess):
             images: A list of all images in scene (optional and only for track patch visualization).
 
         Returns:
-            ba_input_graph: GtsfmData object wrapped up using dask.delayed.
+            ba_input_graph: GtsfmData object wrapped up using delayed.
             data_assoc_metrics_graph: Dictionary with different statistics about the data
                 association result.
         """
-        ba_input_graph, data_assoc_metrics_graph = dask.delayed(self.run_triangulation_and_evaluate, nout=2)(
+        ba_input_graph, data_assoc_metrics_graph = dask_delayed(self.run_triangulation_and_evaluate, nout=2)(
             num_images=num_images,
             cameras=cameras,
             tracks_2d=tracks_2d,
