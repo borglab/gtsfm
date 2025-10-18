@@ -98,7 +98,7 @@ class SceneOptimizer:
         base_metrics_groups.append(retriever_metrics)
 
         logger.info("🔥 GTSFM: Running correspondence generation...")
-        keypoints, putative_corr_idxs_dict, correspondence_duration_sec = self._run_correspondence_generation(
+        keypoints_list, putative_corr_idxs_dict, correspondence_duration_sec = self._run_correspondence_generation(
             client, visibility_graph, image_futures
         )
 
@@ -109,7 +109,7 @@ class SceneOptimizer:
             two_view_result_futures = run_two_view_estimator_as_futures(
                 client,
                 self.two_view_estimator,
-                keypoints,
+                keypoints_list,
                 putative_corr_idxs_dict,
                 self.loader.get_relative_pose_priors(visibility_graph),
                 gt_scene_mesh=self.loader.get_gt_scene_trimesh(),
@@ -123,7 +123,7 @@ class SceneOptimizer:
         two_view_results = {edge: tvr for edge, tvr in all_two_view_results.items() if tvr.valid()}
         base_metrics_groups.append(
             self._aggregate_two_view_metrics(
-                keypoints,
+                keypoints_list,
                 two_view_results,
                 correspondence_duration_sec,
                 tve_duration_sec,
@@ -159,7 +159,7 @@ class SceneOptimizer:
             output_paths = prepare_output_paths(self.output_root, index) if use_leaf_subdirs else base_output_paths
 
             delayed_result_io_reports = self.cluster_optimizer.create_computation_graph(
-                keypoints_list=keypoints,
+                keypoints_list=keypoints_list,
                 two_view_results=cluster_two_view_results,
                 num_images=len(self.loader),
                 one_view_data_dict=one_view_data_dict,

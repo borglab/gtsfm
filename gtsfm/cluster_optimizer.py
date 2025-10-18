@@ -8,8 +8,6 @@ import time
 from pathlib import Path
 from typing import Any, Optional
 
-import matplotlib.pyplot as plt
-import numpy as np
 from dask.base import annotate
 from dask.delayed import Delayed, delayed
 from gtsam import Pose3, Similarity3  # type: ignore
@@ -30,6 +28,7 @@ from gtsfm.common.outputs import OutputPaths
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.densify.mvs_base import MVSBase
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
+from gtsfm.evaluation.retrieval_metrics import save_retrieval_two_view_metrics
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.products.one_view_data import OneViewData
@@ -338,54 +337,7 @@ def save_full_frontend_metrics(
     gt_available = any(report.R_error_deg is not None for report in two_view_report_dict.values())
 
     if "VIEWGRAPH_2VIEW_REPORT" in filename and gt_available:
-        _save_retrieval_two_view_metrics(metrics_path, plot_base_path)
-
-
-def _save_retrieval_two_view_metrics(metrics_path: Path, plot_base_path: Path) -> None:
-    """Compare 2-view similarity scores with their 2-view pose errors after viewgraph estimation."""
-    sim_fpath = plot_base_path / "netvlad_similarity_matrix.txt"
-    if not sim_fpath.exists():
-        logger.warning("NetVLAD similarity matrix not found at %s. Skipping retrieval metrics.", sim_fpath)
-        return
-
-    sim = np.loadtxt(str(sim_fpath), delimiter=",")
-    json_data = io_utils.read_json_file(metrics_path / "two_view_report_VIEWGRAPH_2VIEW_REPORT.json")
-
-    sim_scores = []
-    R_errors = []
-    U_errors = []
-
-    for entry in json_data:
-        i1 = entry["i1"]
-        i2 = entry["i2"]
-        R_error = entry["rotation_angular_error"]
-        U_error = entry["translation_angular_error"]
-        if R_error is None or U_error is None:
-            continue
-        sim_score = sim[i1, i2]
-
-        sim_scores.append(sim_score)
-        R_errors.append(R_error)
-        U_errors.append(U_error)
-
-    plt.scatter(sim_scores, R_errors, 10, color="r", marker=".")
-    plt.xlabel("Similarity score")
-    plt.ylabel("Rotation error w.r.t. GT (deg.)")
-    plt.savefig(os.path.join(plot_base_path, "gt_rot_error_vs_similarity_score.jpg"), dpi=500)
-    plt.close("all")
-
-    plt.scatter(sim_scores, U_errors, 10, color="r", marker=".")
-    plt.xlabel("Similarity score")
-    plt.ylabel("Translation direction error w.r.t. GT (deg.)")
-    plt.savefig(os.path.join(plot_base_path, "gt_trans_error_vs_similarity_score.jpg"), dpi=500)
-    plt.close("all")
-
-    pose_errors = np.maximum(np.array(R_errors), np.array(U_errors))
-    plt.scatter(sim_scores, pose_errors, 10, color="r", marker=".")
-    plt.xlabel("Similarity score")
-    plt.ylabel("Pose error w.r.t. GT (deg.)")
-    plt.savefig(os.path.join(plot_base_path, "gt_pose_error_vs_similarity_score.jpg"), dpi=500)
-    plt.close("all")
+        save_retrieval_two_view_metrics(metrics_path, plot_base_path)
 
 
 def save_metrics_reports(metrics_group_list: list[GtsfmMetricsGroup], metrics_path: str) -> None:
