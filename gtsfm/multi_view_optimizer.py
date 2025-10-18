@@ -9,7 +9,7 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from dask.delayed import Delayed, delayed
-from gtsam import Pose3  # type: ignore
+from gtsam import Pose3, Rot3, Unit3  # type: ignore
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.alignment as alignment_utils
@@ -20,6 +20,7 @@ from gtsfm.bundle.global_ba import GlobalBundleAdjustment
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.sfm_track import SfmTrack2d
+from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 from gtsfm.data_association.cpp_dsf_tracks_estimator import CppDsfTracksEstimator
 from gtsfm.data_association.data_assoc import DataAssociation
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
@@ -31,6 +32,30 @@ from gtsfm.view_graph_estimator.cycle_consistent_rotation_estimator import (
     EdgeErrorAggregationCriterion,
 )
 from gtsfm.view_graph_estimator.view_graph_estimator_base import ViewGraphEstimatorBase
+
+
+def _extract_two_view_components(
+    two_view_results: AnnotatedGraph[TwoViewResult],
+) -> tuple[
+    Dict[Tuple[int, int], Rot3],
+    Dict[Tuple[int, int], Unit3],
+    AnnotatedGraph[np.ndarray],
+    AnnotatedGraph[TwoViewEstimationReport],
+]:
+    """Split TwoViewResult objects into dicts needed downstream."""
+
+    i2Ri1_dict: Dict[Tuple[int, int], Rot3] = {}
+    i2Ui1_dict: Dict[Tuple[int, int], Unit3] = {}
+    v_corr_idxs_dict: AnnotatedGraph[np.ndarray] = {}
+    two_view_reports: AnnotatedGraph[TwoViewEstimationReport] = {}
+
+    for ij, result in two_view_results.items():
+        i2Ri1_dict[ij] = result.i2Ri1
+        i2Ui1_dict[ij] = result.i2Ui1
+        v_corr_idxs_dict[ij] = result.v_corr_idxs
+        two_view_reports[ij] = result.post_isp_report
+
+    return i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, two_view_reports
 
 
 class MultiViewOptimizer:
@@ -87,17 +112,14 @@ class MultiViewOptimizer:
             List of GtsfmMetricGroups from different modules, wrapped up as Delayed.
         """
 
-        # We assume all two-view results here are *valid* (T and U not None)
-        i2Ri1_dict = {}
-        i2Ui1_dict = {}
-        v_corr_idxs_dict = {}
-        two_view_reports = {}
-
-        for ij, r in two_view_results.items():
-            i2Ri1_dict[ij] = r.i2Ri1
-            i2Ui1_dict[ij] = r.i2Ui1
-            v_corr_idxs_dict[ij] = r.v_corr_idxs
-            two_view_reports[ij] = r.post_isp_report
+        (
+            i2Ri1_dict,
+            i2Ui1_dict,
+            v_corr_idxs_dict,
+            two_view_reports,
+        ) = delayed(
+            _extract_two_view_components, nout=4
+        )(two_view_results)
 
         # Create debug directory.
         debug_output_dir = None
@@ -142,10 +164,10 @@ class MultiViewOptimizer:
                 debug_output_dir / "2",
             )
         else:
-            viewgraph_i2Ri1_graph = delayed(i2Ri1_dict)
-            viewgraph_i2Ui1_graph = delayed(i2Ui1_dict)
-            viewgraph_v_corr_idxs_graph = delayed(v_corr_idxs_dict)
-            viewgraph_two_view_reports_graph = delayed(two_view_reports)
+            viewgraph_i2Ri1_graph = i2Ri1_dict
+            viewgraph_i2Ui1_graph = i2Ui1_dict
+            viewgraph_v_corr_idxs_graph = v_corr_idxs_dict
+            viewgraph_two_view_reports_graph = two_view_reports
             viewgraph_estimation_metrics = delayed(GtsfmMetricsGroup("view_graph_estimation_metrics", []))
 
         # Prune the graph to a single connected component.

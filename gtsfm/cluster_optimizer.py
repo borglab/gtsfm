@@ -11,7 +11,7 @@ from typing import Any, Optional
 import numpy as np
 from dask.base import annotate
 from dask.delayed import Delayed, delayed
-from dask.distributed import Client, Future
+from dask.distributed import Client, Future, worker_client
 from gtsam import Pose3, Similarity3  # type: ignore
 
 import gtsfm.common.types as gtsfm_types
@@ -28,6 +28,7 @@ from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.outputs import OutputPaths
 from gtsfm.common.pose_prior import PosePrior
+from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 from gtsfm.densify.mvs_base import MVSBase
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.evaluation.retrieval_metrics import save_retrieval_two_view_metrics
@@ -35,8 +36,120 @@ from gtsfm.frontend.correspondence_generator.correspondence_generator_base impor
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.products.one_view_data import OneViewData
+from gtsfm.products.two_view_result import TwoViewResult
 from gtsfm.products.visibility_graph import AnnotatedGraph, VisibilityGraph
 from gtsfm.two_view_estimator import TwoViewEstimator, run_two_view_estimator_as_futures
+
+
+def _run_correspondence_generator(
+    correspondence_generator: CorrespondenceGeneratorBase,
+    visibility_graph: VisibilityGraph,
+    image_future_keys: list[str],
+) -> tuple[list[Keypoints], AnnotatedGraph[np.ndarray], float]:
+    """Run correspondence generation inside a worker task and return execution time."""
+    logger.info("🔵 Cluster: running correspondence generation on %d pairs.", len(visibility_graph))
+
+    if len(visibility_graph) == 0:
+        return [], {}, 0.0
+
+    with worker_client() as nested_client:
+        image_futures = [Future(key=key, client=nested_client) for key in image_future_keys]
+        start_time = time.time()
+        keypoints_list, putative_corr_idxs_dict = correspondence_generator.generate_correspondences(
+            nested_client, image_futures, visibility_graph
+        )
+        duration_sec = time.time() - start_time
+
+    return keypoints_list, putative_corr_idxs_dict, duration_sec
+
+
+def _run_two_view_estimation(
+    two_view_estimator: TwoViewEstimator,
+    keypoints_list: list[Keypoints],
+    putative_corr_idxs_dict: AnnotatedGraph[np.ndarray],
+    relative_pose_priors: AnnotatedGraph[PosePrior],
+    gt_scene_mesh: Optional[Any],
+    one_view_data_dict: dict[int, OneViewData],
+) -> tuple[AnnotatedGraph[TwoViewResult], float]:
+    """Run two-view estimation inside a worker task and return execution time."""
+    logger.info("🔵 Cluster: running two-view estimation on %d pairs.", len(putative_corr_idxs_dict))
+
+    with worker_client() as nested_client:
+        start_time = time.time()
+        two_view_result_futures = run_two_view_estimator_as_futures(
+            client=nested_client,
+            two_view_estimator=two_view_estimator,
+            keypoints_list=keypoints_list,
+            putative_corr_idxs_dict=putative_corr_idxs_dict,
+            relative_pose_priors=relative_pose_priors,
+            gt_scene_mesh=gt_scene_mesh,
+            one_view_data_dict=one_view_data_dict,
+        )
+        all_two_view_results = nested_client.gather(two_view_result_futures)
+        duration_sec = time.time() - start_time
+
+    valid_two_view_results = {edge: result for edge, result in all_two_view_results.items() if result.valid()}
+
+    if len(valid_two_view_results) == 0:
+        logger.warning("🔵 Cluster: Skipping cluster as it has no valid two-view results.")
+
+    return valid_two_view_results, duration_sec
+
+
+def _filter_relative_pose_priors(
+    relative_pose_priors: AnnotatedGraph[PosePrior],
+    two_view_results: AnnotatedGraph[TwoViewResult],
+) -> AnnotatedGraph[PosePrior]:
+    """Filter pose priors down to the set of valid two-view edges."""
+
+    return {edge: prior for edge, prior in relative_pose_priors.items() if edge in two_view_results}
+
+
+def _extract_post_isp_reports(
+    two_view_results: AnnotatedGraph[TwoViewResult],
+) -> AnnotatedGraph[TwoViewEstimationReport]:
+    """Extract post-ISP reports from two-view results for metric persistence."""
+    return {
+        edge: result.post_isp_report for edge, result in two_view_results.items() if result.post_isp_report is not None
+    }
+
+
+def _build_frontend_runtime_metrics(
+    correspondence_generation_duration_sec: float,
+    two_view_estimation_duration_sec: float,
+) -> GtsfmMetricsGroup:
+    """Create a metrics group capturing front-end runtime information."""
+
+    return GtsfmMetricsGroup(
+        "frontend_runtime_metrics",
+        [
+            GtsfmMetric("total_correspondence_generation_duration_sec", correspondence_generation_duration_sec),
+            GtsfmMetric("total_two_view_estimation_duration_sec", two_view_estimation_duration_sec),
+        ],
+    )
+
+
+def _save_two_view_visualizations(
+    loader: LoaderBase,
+    two_view_results: AnnotatedGraph[TwoViewResult],
+    keypoints_list: list[Keypoints],
+    output_dir: Path,
+) -> None:
+    """Persist two-view correspondence visualizations for all valid edges."""
+    logger.info("🔵 ClusterOptimizer: Saving two-view correspondences visualizations to %s.", output_dir)
+    for (i1, i2), output in two_view_results.items():
+        image_i1 = loader.get_image(i1)
+        image_i2 = loader.get_image(i2)
+        viz_utils.save_twoview_correspondences_viz(
+            image_i1,
+            image_i2,
+            keypoints_list[i1],
+            keypoints_list[i2],
+            output.v_corr_idxs,
+            two_view_report=output.post_isp_report,
+            file_path=str(output_dir / f"{i1}_{i2}__{image_i1.file_name}_{image_i2.file_name}.jpg"),
+        )
+
 
 # Paths to Save Output in React Folders.
 REACT_METRICS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "src" / "result_metrics"
@@ -108,60 +221,37 @@ class ClusterOptimizer:
         The cluster optimizer now owns the full front-end execution for the provided `visibility_graph`
         (correspondence generation and two-view estimation) before invoking the multi-view optimizer.
         """
-        logger.info("🔵 ClusterOptimizer: running correspondence generation on %d pairs.", len(visibility_graph))
-        correspondence_generation_start_time = time.time()
-        (
-            keypoints_list,
-            putative_corr_idxs_dict,
-        ) = self.correspondence_generator.generate_correspondences(client, image_futures, visibility_graph)
-        correspondence_generation_duration_sec = time.time() - correspondence_generation_start_time
+        visibility_edges = list(visibility_graph)
+        image_future_keys = [future.key for future in image_futures]
 
-        logger.info("🔵 ClusterOptimizer: running two-view estimation on %d pairs.", len(putative_corr_idxs_dict))
-        padded_keypoints_list = _pad_keypoints_list(keypoints_list, num_images)
+        (
+            keypoints_list_graph,
+            putative_corr_idxs_graph,
+            correspondence_generation_duration_graph,
+        ) = delayed(_run_correspondence_generator, nout=3)(
+            self.correspondence_generator,
+            visibility_edges,
+            image_future_keys,
+        )
+
+        padded_keypoints_list_graph = delayed(_pad_keypoints_list)(keypoints_list_graph, num_images)
+
         relative_pose_priors = loader.get_relative_pose_priors(visibility_graph) or {}
         gt_scene_mesh = loader.get_gt_scene_trimesh()
-        two_view_estimation_start_time = time.time()
-        two_view_result_futures = run_two_view_estimator_as_futures(
-            client=client,
-            two_view_estimator=self.two_view_estimator,
-            keypoints_list=padded_keypoints_list,
-            putative_corr_idxs_dict=putative_corr_idxs_dict,
-            relative_pose_priors=relative_pose_priors,
-            gt_scene_mesh=gt_scene_mesh,
-            one_view_data_dict=one_view_data_dict,
+        (
+            two_view_results_graph,
+            two_view_estimation_duration_graph,
+        ) = delayed(_run_two_view_estimation, nout=2)(
+            self.two_view_estimator,
+            padded_keypoints_list_graph,
+            putative_corr_idxs_graph,
+            relative_pose_priors,
+            gt_scene_mesh,
+            one_view_data_dict,
         )
-        all_two_view_results = client.gather(two_view_result_futures)
-        two_view_estimation_duration_sec = time.time() - two_view_estimation_start_time
-        two_view_results = {edge: tvr for edge, tvr in all_two_view_results.items() if tvr.valid()}
 
-        if len(two_view_results) == 0:
-            logger.warning("🔵 ClusterOptimizer: Skipping cluster as it has no valid two-view results.")
-            return None
-
-        if self._save_two_view_viz:
-            # Persist correspondences visualization for the provided two-view results.
-            logger.info(
-                "🔵 ClusterOptimizer: Saving two-view correspondences visualizations to %s.",
-                output_paths.plot_correspondence,
-            )
-            for (i1, i2), output in two_view_results.items():
-                image_i1 = loader.get_image(i1)
-                image_i2 = loader.get_image(i2)
-                viz_utils.save_twoview_correspondences_viz(
-                    image_i1,
-                    image_i2,
-                    keypoints_list[i1],
-                    keypoints_list[i2],
-                    output.v_corr_idxs,
-                    two_view_report=output.post_isp_report,
-                    file_path=str(
-                        output_paths.plot_correspondence / f"{i1}_{i2}__{image_i1.file_name}_{image_i2.file_name}.jpg"
-                    ),
-                )
-
-        valid_relative_pose_priors: AnnotatedGraph[PosePrior] = {
-            edge: prior for edge in two_view_results.keys() if (prior := relative_pose_priors.get(edge)) is not None
-        }
+        filtered_pose_priors_graph = delayed(_filter_relative_pose_priors)(relative_pose_priors, two_view_results_graph)
+        post_isp_reports_graph = delayed(_extract_post_isp_reports)(two_view_results_graph)
 
         # Note: the MultiviewOptimizer returns BA input and BA output aligned to GT via Sim(3).
         image_delayed_map = loader.get_images_as_delayed_map()
@@ -171,24 +261,31 @@ class ClusterOptimizer:
             view_graph_two_view_reports,
             optimizer_metrics_graph,
         ) = self.multiview_optimizer.create_computation_graph(
-            keypoints_list=keypoints_list,
-            two_view_results=two_view_results,
+            keypoints_list=padded_keypoints_list_graph,
+            two_view_results=two_view_results_graph,
             one_view_data_dict=one_view_data_dict,
             image_delayed_map=image_delayed_map,
-            relative_pose_priors=valid_relative_pose_priors,
+            relative_pose_priors=filtered_pose_priors_graph,
             output_root=output_root,
         )
-        if view_graph_two_view_reports is not None:
-            two_view_reports_post_viewgraph_estimator = view_graph_two_view_reports
 
-        # Persist all front-end metrics and their summaries.
-        delayed_results: list[Delayed] = []
         metrics_graph_list: list[Delayed] = []
+        delayed_results: list[Delayed] = []
+
+        frontend_metrics_graph = delayed(_build_frontend_runtime_metrics)(
+            correspondence_generation_duration_graph,
+            two_view_estimation_duration_graph,
+        )
+        metrics_graph_list.append(frontend_metrics_graph)
+
+        if optimizer_metrics_graph is not None:
+            metrics_graph_list.extend(optimizer_metrics_graph)
+
         annotation = annotate(workers=self._output_worker) if self._output_worker else annotate()
         with annotation:
             delayed_results.append(
                 delayed(save_full_frontend_metrics)(
-                    {ij: r.post_isp_report for ij, r in two_view_results.items()},
+                    post_isp_reports_graph,
                     one_view_data_dict,
                     filename=f"two_view_report_{two_view_estimator.POST_ISP_REPORT_TAG}.json",
                     metrics_path=output_paths.metrics,
@@ -196,41 +293,42 @@ class ClusterOptimizer:
                 )
             )
 
-            delayed_results.append(
-                delayed(save_full_frontend_metrics)(
-                    two_view_reports_post_viewgraph_estimator,  # type: ignore[arg-type]
-                    one_view_data_dict,
-                    filename=f"two_view_report_{two_view_estimator.VIEWGRAPH_REPORT_TAG}.json",
-                    metrics_path=output_paths.metrics,
-                    plot_base_path=output_paths.plot_base,
+        if view_graph_two_view_reports is not None:
+            annotation = annotate(workers=self._output_worker) if self._output_worker else annotate()
+            with annotation:
+                delayed_results.append(
+                    delayed(save_full_frontend_metrics)(
+                        view_graph_two_view_reports,
+                        one_view_data_dict,
+                        filename=f"two_view_report_{two_view_estimator.VIEWGRAPH_REPORT_TAG}.json",
+                        metrics_path=output_paths.metrics,
+                        plot_base_path=output_paths.plot_base,
+                    )
                 )
-            )
-            metrics_graph_list.append(
-                delayed(two_view_estimator.aggregate_frontend_metrics)(
-                    two_view_reports_post_viewgraph_estimator,  # type: ignore[arg-type]
-                    self._pose_angular_error_thresh,
-                    metric_group_name=f"verifier_summary_{two_view_estimator.VIEWGRAPH_REPORT_TAG}",
+            two_view_reports_for_summary = view_graph_two_view_reports
+        else:
+            two_view_reports_for_summary = post_isp_reports_graph
+
+        if self._save_two_view_viz:
+            annotation = annotate(workers=self._output_worker) if self._output_worker else annotate()
+            with annotation:
+                delayed_results.append(
+                    delayed(_save_two_view_visualizations)(
+                        loader,
+                        two_view_results_graph,
+                        padded_keypoints_list_graph,
+                        output_paths.plot_correspondence,
+                    )
                 )
-            )
 
-        if correspondence_generation_duration_sec is not None or two_view_estimation_duration_sec is not None:
-            frontend_metrics = GtsfmMetricsGroup(
-                "frontend_runtime_metrics",
-                [
-                    GtsfmMetric(
-                        "total_correspondence_generation_duration_sec",
-                        correspondence_generation_duration_sec or 0.0,
-                    ),
-                    GtsfmMetric(
-                        "total_two_view_estimation_duration_sec",
-                        two_view_estimation_duration_sec or 0.0,
-                    ),
-                ],
+        # Persist all front-end metrics and their summaries.
+        metrics_graph_list.append(
+            delayed(two_view_estimator.aggregate_frontend_metrics)(
+                two_view_reports_for_summary,
+                self._pose_angular_error_thresh,
+                metric_group_name=f"verifier_summary_{two_view_estimator.VIEWGRAPH_REPORT_TAG}",
             )
-            metrics_graph_list.append(delayed(_identity_metrics_group)(frontend_metrics))
-
-        if optimizer_metrics_graph is not None:
-            metrics_graph_list.extend(optimizer_metrics_graph)
+        )
 
         # Modify BA input, BA output, and GT poses to have point clouds and frustums aligned with x,y,z axes.
         gt_wTi_list = [one_view_data_dict[idx].pose_gt for idx in range(num_images)]
@@ -328,11 +426,6 @@ def _pad_keypoints_list(keypoints_list: list[Keypoints], target_length: int) -> 
     for _ in range(target_length - len(keypoints_list)):
         padded.append(Keypoints(coordinates=np.zeros((0, 2))))
     return padded
-
-
-def _identity_metrics_group(metrics: GtsfmMetricsGroup) -> GtsfmMetricsGroup:
-    """Identity helper so constant metrics can be handled by Dask."""
-    return metrics
 
 
 def align_estimated_gtsfm_data(
