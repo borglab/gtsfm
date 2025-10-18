@@ -80,6 +80,18 @@ class ClusterOptimizer:
     def pose_angular_error_thresh(self) -> float:
         return self._pose_angular_error_thresh
 
+    def __repr__(self) -> str:
+        components = [
+            f"correspondence_generator={self.correspondence_generator}",
+            f"two_view_estimator={self.two_view_estimator}",
+            f"multiview_optimizer={self.multiview_optimizer}",
+        ]
+        if self.dense_multiview_optimizer is not None:
+            components.append(f"dense_multiview_optimizer={self.dense_multiview_optimizer}")
+        if self.gaussian_splatting_optimizer is not None:
+            components.append(f"gaussian_splatting_optimizer={self.gaussian_splatting_optimizer}")
+        return "ClusterOptimizer(\n  " + ",\n  ".join(components) + "\n)"
+
     def create_computation_graph(
         self,
         num_images: int,

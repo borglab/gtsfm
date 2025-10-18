@@ -59,8 +59,7 @@ class SceneOptimizer:
         """Returns string representation of class."""
         return f"""
         {self.image_pairs_generator}
-        {self.cluster_optimizer.correspondence_generator}
-        {self.cluster_optimizer.two_view_estimator}
+        {self.graph_partitioner}
         {self.cluster_optimizer}
         """
 

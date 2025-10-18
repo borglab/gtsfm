@@ -31,6 +31,9 @@ class GraphPartitionerBase(GTSFMProcess):
         super().__init__()
         self.process_name = process_name
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(process_name={self.process_name})"
+
     @staticmethod
     def get_ui_metadata() -> UiMetadata:
         """Return metadata for UI display.
