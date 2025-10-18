@@ -37,7 +37,7 @@ class TestTranslationAveraging1DSFM(unittest.TestCase):
     def setUp(self):
         super().setUp()
 
-        self.obj: TranslationAveraging1DSFM = TranslationAveraging1DSFM()
+        self.obj = TranslationAveraging1DSFM()
 
     def test_binary_measurements_from_dict(self):
         """Tests that the binary measurements are correctly extracted from measurement and track dictionaries."""
@@ -126,9 +126,9 @@ class TestTranslationAveraging1DSFM(unittest.TestCase):
         self.assertTrue(np.array_equal(expected_w_i2Ui1_dict[(0, 0)].point3(), actual_w_i2Ui1_dict[(0, 0)].point3()))
 
     def __execute_test(
-        self, i2Ui1_input: Dict[Tuple[int, int], Unit3], wRi_input: List[Rot3], wti_expected: List[Point3]
+        self, i2Ui1_input: Dict[Tuple[int, int], Unit3], wRi_input: List[Rot3], wti_expected: List[np.ndarray]
     ) -> None:
-        """Helper function to run the averagaing and assert w/ expected."""
+        """Helper function to run the averaging and assert w/ expected."""
 
         intrinsics = [Cal3_S2(fx=20, fy=20, s=0.0, u0=0, v0=0)] * len(wRi_input)
         wTi_computed, _, _ = self.obj.run_translation_averaging(

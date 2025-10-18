@@ -216,7 +216,7 @@ def compute_keypoint_intersections(
 
 
 def compute_rotation_angle_metric(
-    wRi_list: Sequence[Optional[Rot3]], gt_wRi_list: Sequence[Optional[Rot3]]
+    wRi_list: Sequence[Optional[Rot3]], gt_wRi_list: Sequence[Optional[Rot3]], store_full_data: bool = False
 ) -> GtsfmMetric:
     """Computes statistics for the angle between estimated and GT rotations.
 
@@ -231,11 +231,11 @@ def compute_rotation_angle_metric(
         A GtsfmMetric for the N rotation angle errors, in degrees.
     """
     errors = [comp_utils.compute_relative_rotation_angle(wRi, gt_wRi) for wRi, gt_wRi in zip(wRi_list, gt_wRi_list)]
-    return GtsfmMetric("rotation_angle_error_deg", errors)
+    return GtsfmMetric("rotation_angle_error_deg", errors, store_full_data=store_full_data)
 
 
 def compute_translation_distance_metric(
-    wti_list: Sequence[Optional[np.ndarray]], gt_wti_list: Sequence[Optional[np.ndarray]]
+    wti_list: Sequence[Optional[np.ndarray]], gt_wti_list: Sequence[Optional[np.ndarray]], store_full_data: bool = False
 ) -> GtsfmMetric:
     """Computes statistics for the distance between estimated and GT translations.
 
@@ -250,11 +250,14 @@ def compute_translation_distance_metric(
         A statistics dict of the metrics errors in degrees.
     """
     errors = [comp_utils.compute_points_distance_l2(wti, gt_wti) for wti, gt_wti in zip(wti_list, gt_wti_list)]
-    return GtsfmMetric("translation_error_distance", errors)
+    return GtsfmMetric("translation_error_distance", errors, store_full_data=store_full_data)
 
 
 def compute_relative_translation_angle_metric(
-    i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]], wTi_list: List[Optional[Pose3]], prefix: str = ""
+    i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]],
+    wTi_list: List[Optional[Pose3]],
+    prefix: str = "",
+    store_full_data: bool = False,
 ) -> GtsfmMetric:
     """Computes statistics for angle between translations and direction measurements.
 
@@ -269,11 +272,15 @@ def compute_relative_translation_angle_metric(
     for i1, i2 in i2Ui1_dict:
         i2Ui1 = i2Ui1_dict[(i1, i2)]
         angles.append(comp_utils.compute_translation_to_direction_angle(i2Ui1, wTi_list[i2], wTi_list[i1]))
-    return GtsfmMetric(prefix + "relative_translation_angle_error_deg", np.array(angles, dtype=np.float32))
+    return GtsfmMetric(
+        prefix + "relative_translation_angle_error_deg",
+        np.array(angles, dtype=np.float32),
+        store_full_data=store_full_data,
+    )
 
 
 def compute_relative_rotation_angle_metric(
-    i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]], wTi_list: List[Optional[Pose3]]
+    i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]], wTi_list: List[Optional[Pose3]], store_full_data: bool = False
 ):
     angles: List[Optional[float]] = []
     for i1, i2 in i2Ri1_dict:
@@ -285,11 +292,13 @@ def compute_relative_rotation_angle_metric(
         wRi2_gt = wTi_list[i2].rotation()  # type: ignore
         i2Ri1_gt = wRi2_gt.between(wRi1_gt)
         angles.append(comp_utils.compute_relative_rotation_angle(i2Ri1, i2Ri1_gt))
-    return GtsfmMetric("relative_rotation_angle_error_deg", np.array(angles, dtype=np.float32))
+    return GtsfmMetric(
+        "relative_rotation_angle_error_deg", np.array(angles, dtype=np.float32), store_full_data=store_full_data
+    )
 
 
 def compute_translation_angle_metric(
-    gt_wTi_list: Sequence[Optional[Pose3]], wTi_list: Sequence[Optional[Pose3]]
+    gt_wTi_list: Sequence[Optional[Pose3]], wTi_list: Sequence[Optional[Pose3]], store_full_data: bool = False
 ) -> GtsfmMetric:
     """Compute global translation angular errors from aligned pose graphs.
 
@@ -316,7 +325,9 @@ def compute_translation_angle_metric(
         else:
             angle = np.nan
         angles.append(angle)
-    return GtsfmMetric("translation_angle_error_deg", np.array(angles, dtype=np.float32))
+    return GtsfmMetric(
+        "translation_angle_error_deg", np.array(angles, dtype=np.float32), store_full_data=store_full_data
+    )
 
 
 def compute_pose_auc_metric(
@@ -548,9 +559,13 @@ def pose_auc_from_poses(
         List of AUC values, one per threshold.
     """
     rotation_angular_errors = compute_rotation_angle_metric(
-        wRi_list=[wTi.rotation() for wTi in computed_wTis], gt_wRi_list=[wTi.rotation() for wTi in ref_wTis]
+        wRi_list=[wTi.rotation() for wTi in computed_wTis],
+        gt_wRi_list=[wTi.rotation() for wTi in ref_wTis],
+        store_full_data=True,
     ).data
-    translation_angular_errors = compute_translation_angle_metric(gt_wTi_list=ref_wTis, wTi_list=computed_wTis).data
+    translation_angular_errors = compute_translation_angle_metric(
+        gt_wTi_list=ref_wTis, wTi_list=computed_wTis, store_full_data=True
+    ).data
     pose_angular_errors = np.maximum(rotation_angular_errors, translation_angular_errors)
 
     return pose_auc(pose_angular_errors, thresholds_deg)

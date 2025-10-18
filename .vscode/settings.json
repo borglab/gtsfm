@@ -175,6 +175,7 @@
         "olssonloader",
         "OneDSFM",
         "Opencv",
+        "openmvg",
         "opnav",
         "partitioner",
         "partitioners",

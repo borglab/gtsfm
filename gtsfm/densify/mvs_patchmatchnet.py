@@ -372,9 +372,7 @@ class MVSPatchmatchNet(MVSBase):
         filtering_metrics.append(GtsfmMetric(name="confidence_mask_valid_ratios", data=conf_mask_ratios))
         # compute the proportion of valid pixels in the joint masks among all reference views
         filtering_metrics.append(GtsfmMetric(name="joint_mask_valid_ratios", data=joint_mask_ratios))
-        filtering_metrics.append(
-            GtsfmMetric(name="reprojection_errors", data=np.array(reprojection_errors), store_full_data=False)
-        )
+        filtering_metrics.append(GtsfmMetric(name="reprojection_errors", data=np.array(reprojection_errors)))
 
         return dense_points, dense_point_colors, GtsfmMetricsGroup(name="filtering metrics", metrics=filtering_metrics)
 
