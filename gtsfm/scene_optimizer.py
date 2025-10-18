@@ -158,9 +158,6 @@ class SceneOptimizer:
         delayed_results: list[Delayed] = []
 
         image_delayed_map = self.loader.get_images_as_delayed_map()
-        images = [image_delayed_map[idx] for idx in range(num_images)]
-        cameras_gt = [one_view_data_map[idx].camera_gt for idx in range(num_images)]
-        gt_wTi_list = [one_view_data_map[idx].pose_gt for idx in range(num_images)]
 
         # Note: the MultiviewOptimizer returns BA input and BA output that are aligned to GT via Sim(3).
         (
@@ -217,10 +214,14 @@ class SceneOptimizer:
             metrics_graph_list.extend(optimizer_metrics_graph)
 
         # Modify BA input, BA output, and GT poses to have point clouds and frustums aligned with x,y,z axes.
-        ba_input_graph, ba_output_graph, gt_wTi_list = delayed(align_estimated_gtsfm_data, nout=3)(
+        gt_wTi_list = [one_view_data_map[idx].pose_gt for idx in range(num_images)]
+        ba_input_graph, ba_output_graph, aligned_gt_wTi_list = delayed(align_estimated_gtsfm_data, nout=3)(
             ba_input_graph, ba_output_graph, gt_wTi_list
         )
 
+        # Create I/O tasks
+        images = [image_delayed_map[idx] for idx in range(num_images)]
+        cameras_gt = [one_view_data_map[idx].camera_gt for idx in range(num_images)]
         annotation = annotate(workers=self._output_worker) if self._output_worker else annotate()
         with annotation:
             if self._save_gtsfm_data:
@@ -238,12 +239,13 @@ class SceneOptimizer:
                         save_matplotlib_visualizations(
                             aligned_ba_input_graph=ba_input_graph,
                             aligned_ba_output_graph=ba_output_graph,
-                            gt_pose_graph=gt_wTi_list,  # type: ignore
+                            gt_pose_graph=aligned_gt_wTi_list,  # type: ignore
                             plot_ba_input_path=output_paths.plot_ba_input,
                             plot_results_path=output_paths.plot_results,
                         )
                     )
 
+        # Create dense reconstruction tasks
         if self.run_dense_optimizer and self.dense_multiview_optimizer is not None:
             img_dict_graph = delayed(get_image_dictionary)(images)
             (
@@ -312,20 +314,24 @@ class SceneOptimizer:
         base_metrics_groups.append(retriever_metrics)
 
         logger.info("🔥 GTSFM: Running correspondence generation...")
-
         keypoints, putative_corr_idxs_dict, correspondence_duration_sec = self._run_correspondence_generation(
             client, visibility_graph, image_futures
         )
 
         logger.info("🔥 GTSFM: Running two-view estimation...")
         one_view_data_map = self.loader.get_one_view_data_map(client)
-        two_view_result_futures, tve_duration_sec = self._run_two_view_estimation(
-            client,
-            visibility_graph,
-            keypoints,
-            putative_corr_idxs_dict,
-            one_view_data_map,
-        )
+        with performance_report(filename="dask_reports/two-view-estimation.html"):
+            two_view_estimation_start_time = time.time()
+            two_view_result_futures = run_two_view_estimator_as_futures(
+                client,
+                self.two_view_estimator,
+                keypoints,
+                putative_corr_idxs_dict,
+                self.loader.get_relative_pose_priors(visibility_graph),
+                gt_scene_mesh=self.loader.get_gt_scene_trimesh(),
+                one_view_data_map=one_view_data_map,
+            )
+            tve_duration_sec = time.time() - two_view_estimation_start_time
 
         # Aggregate two-view metrics
         # TODO(Frank): this brings everything back ! We might not want this.
@@ -452,33 +458,6 @@ class SceneOptimizer:
             )
             correspondence_generation_duration_sec = time.time() - correspondence_generation_start_time
         return keypoints_list, putative_corr_idxs_dict, correspondence_generation_duration_sec
-
-    def _run_two_view_estimation(
-        self,
-        client,
-        visibility_graph,
-        keypoints_list,
-        putative_corr_idxs_dict,
-        one_view_data_map: dict[int, OneViewData],
-    ):
-        with performance_report(filename="dask_reports/two-view-estimation.html"):
-            two_view_estimation_start_time = time.time()
-            num_images = len(one_view_data_map)
-            intrinsics = [one_view_data_map[idx].intrinsics for idx in range(num_images)]
-            cameras_gt = [one_view_data_map[idx].camera_gt for idx in range(num_images)]
-            # TODO(Frank):this pulls *all* results to one machine! We might not want this.
-            two_view_result_futures = run_two_view_estimator_as_futures(
-                client,
-                self.two_view_estimator,
-                keypoints_list,
-                putative_corr_idxs_dict,
-                intrinsics,
-                self.loader.get_relative_pose_priors(visibility_graph),
-                cameras_gt,
-                gt_scene_mesh=self.loader.get_gt_scene_trimesh(),
-            )
-            two_view_estimation_duration_sec = time.time() - two_view_estimation_start_time
-        return two_view_result_futures, two_view_estimation_duration_sec
 
     def _maybe_save_two_view_viz(self, keypoints_list, two_view_results, plot_correspondence_path: Path):
         if self._save_two_view_correspondences_viz:

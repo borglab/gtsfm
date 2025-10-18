@@ -10,7 +10,7 @@ import sys
 import time
 import timeit
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 from dask.distributed import Client, Future
@@ -842,10 +842,9 @@ def run_two_view_estimator_as_futures(
     two_view_estimator: TwoViewEstimator,
     keypoints_list: List[Keypoints],
     putative_corr_idxs_dict: AnnotatedGraph[np.ndarray],
-    camera_intrinsics: Sequence[gtsfm_types.CALIBRATION_TYPE],
     relative_pose_priors: Dict[Tuple[int, int], PosePrior],
-    gt_cameras: List[Optional[gtsfm_types.CAMERA_TYPE]],
     gt_scene_mesh: Optional[Any],
+    one_view_data_map: Dict[int, OneViewData],
 ) -> AnnotatedGraph[Future]:
     """Run two-view estimator for all image pairs."""
 
@@ -863,16 +862,17 @@ def run_two_view_estimator_as_futures(
             keypoints_i1=keypoints_list[i1],
             keypoints_i2=keypoints_list[i2],
             putative_corr_idxs=putative_corr_idxs,
-            camera_intrinsics_i1=camera_intrinsics[i1],
-            camera_intrinsics_i2=camera_intrinsics[i2],
+            camera_intrinsics_i1=view1.intrinsics,
+            camera_intrinsics_i2=view2.intrinsics,
             i2Ti1_prior=relative_pose_priors.get((i1, i2)),
-            gt_camera_i1=gt_cameras[i1],
-            gt_camera_i2=gt_cameras[i2],
+            gt_camera_i1=view1.camera_gt,
+            gt_camera_i2=view2.camera_gt,
             gt_scene_mesh=gt_scene_mesh,
             i1=i1,
             i2=i2,
         )
         for (i1, i2), putative_corr_idxs in putative_corr_idxs_dict.items()
+        for view1, view2 in [(one_view_data_map[i1], one_view_data_map[i2])]
     }
 
     logger.info(f"Submitted {len(two_view_result_futures)} tasks to workers")
