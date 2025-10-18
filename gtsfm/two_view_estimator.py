@@ -23,7 +23,6 @@ import gtsfm.utils.metrics as metric_utils
 from gtsfm.bundle.two_view_ba import TwoViewBundleAdjustment
 from gtsfm.common.dask_db_module_base import DaskDBModuleBase
 from gtsfm.common.gtsfm_data import GtsfmData
-from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.sfm_track import SfmMeasurement, SfmTrack2d
@@ -32,6 +31,7 @@ from gtsfm.data_association.point3d_initializer import Point3dInitializer, Trian
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.frontend.inlier_support_processor import InlierSupportProcessor
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
+from gtsfm.products.one_view_data import OneViewData
 from gtsfm.products.two_view_result import TwoViewResult
 from gtsfm.products.visibility_graph import AnnotatedGraph
 
@@ -881,13 +881,13 @@ def run_two_view_estimator_as_futures(
 
 def get_two_view_reports_summary(
     two_view_report_dict: AnnotatedGraph[TwoViewEstimationReport],
-    images: List[Image],
+    one_view_data_map: Dict[int, OneViewData],
 ) -> List[Dict[str, Any]]:
     """Converts the TwoViewEstimationReports to a summary dict for each image pair.
 
     Args:
         two_view_report_dict: Front-end metrics for pairs of images.
-        images: List of all images for this scene, in order of image/frame index.
+        one_view_data_map: Per-view metadata keyed by image index.
 
     Returns:
         List of dictionaries, where each dictionary contains the metrics for an image pair.
@@ -904,8 +904,8 @@ def get_two_view_reports_summary(
             {
                 "i1": int(i1),
                 "i2": int(i2),
-                "i1_filename": images[i1].file_name,
-                "i2_filename": images[i2].file_name,
+                "i1_filename": one_view_data_map[i1].image_fname,
+                "i2_filename": one_view_data_map[i2].image_fname,
                 "rotation_angular_error": round_fn(report.R_error_deg),
                 "translation_angular_error": round_fn(report.U_error_deg),
                 "num_inliers_gt_model": (

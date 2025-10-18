@@ -42,7 +42,7 @@ from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.products.one_view_data import OneViewData
 from gtsfm.products.two_view_result import TwoViewResult
-from gtsfm.products.visibility_graph import AnnotatedGraph
+from gtsfm.products.visibility_graph import AnnotatedGraph, VisibilityGraph
 from gtsfm.retriever.image_pairs_generator import ImagePairsGenerator
 from gtsfm.two_view_estimator import (
     POST_ISP_REPORT_TAG,
@@ -187,7 +187,7 @@ class SceneOptimizer:
             delayed_results.append(
                 delayed(save_full_frontend_metrics)(
                     {ij: r.post_isp_report for ij, r in two_view_results.items()},
-                    images,
+                    one_view_data_map,
                     filename="two_view_report_{}.json".format(POST_ISP_REPORT_TAG),
                     metrics_path=output_paths.metrics,
                     plot_base_path=output_paths.plot_base,
@@ -198,7 +198,7 @@ class SceneOptimizer:
             delayed_results.append(
                 delayed(save_full_frontend_metrics)(
                     two_view_reports_post_viewgraph_estimator,  # type: ignore
-                    images,
+                    one_view_data_map,
                     filename="two_view_report_{}.json".format(VIEWGRAPH_REPORT_TAG),
                     metrics_path=output_paths.metrics,
                     plot_base_path=output_paths.plot_base,
@@ -665,7 +665,7 @@ def save_gtsfm_data(
 
 def save_full_frontend_metrics(
     two_view_report_dict: AnnotatedGraph[TwoViewEstimationReport],
-    images: list[Image],
+    one_view_data_map: dict[int, OneViewData],
     filename: str,
     metrics_path: Path,
     plot_base_path: Path,
@@ -674,12 +674,12 @@ def save_full_frontend_metrics(
 
     Args:
         two_view_report_dict: Front-end metrics for pairs of images.
-        images: list of all images for this scene, in order of image/frame index.
+        one_view_data_map: Per-view metadata for the entire scene.
         filename: File name to use when saving report to JSON.
         metrics_path: Path to directory where metrics will be saved.
         plot_base_path: Path to directory where plots will be saved.
     """
-    metrics_list = two_view_estimator.get_two_view_reports_summary(two_view_report_dict, images)
+    metrics_list = two_view_estimator.get_two_view_reports_summary(two_view_report_dict, one_view_data_map)
 
     io_utils.save_json_file(os.path.join(metrics_path, filename), metrics_list)
 
