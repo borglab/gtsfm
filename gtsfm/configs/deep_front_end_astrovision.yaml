@@ -3,7 +3,6 @@
 
 # @package _global_
 _target_: gtsfm.scene_optimizer.SceneOptimizer
-save_two_view_correspondences_viz: False
 
 loader:
   _target_: gtsfm.loader.Astrovision
@@ -62,6 +61,7 @@ cluster_optimizer:
         min_inlier_ratio_est_model: 0.1
   save_gtsfm_data: True
   save_3d_viz: False
+  save_two_view_viz: False
   pose_angular_error_thresh: 5 # degrees
   multiview_optimizer:
     _target_: gtsfm.multi_view_optimizer.MultiViewOptimizer

@@ -44,7 +44,6 @@ class SceneOptimizer:
         image_pairs_generator: ImagePairsGenerator,
         cluster_optimizer: ClusterOptimizer,
         graph_partitioner: GraphPartitionerBase = SinglePartitioner(),
-        save_two_view_correspondences_viz: bool = False,
         output_root: str = DEFAULT_OUTPUT_ROOT,
         output_worker: Optional[str] = None,
     ) -> None:
@@ -53,7 +52,6 @@ class SceneOptimizer:
         self.graph_partitioner = graph_partitioner
         self.cluster_optimizer = cluster_optimizer
 
-        self._save_two_view_correspondences_viz = save_two_view_correspondences_viz
         self.output_root = Path(output_root)
         if output_worker is not None:
             self.cluster_optimizer._output_worker = output_worker
@@ -141,11 +139,9 @@ class SceneOptimizer:
                 output_paths=output_paths,
                 loader=self.loader,
                 output_root=self.output_root,
-                relative_pose_priors=self.loader.get_relative_pose_priors(cluster_visibility_graph),
                 client=client,
                 visibility_graph=cluster_visibility_graph,
                 image_futures=image_futures,
-                save_two_view_viz=self._save_two_view_correspondences_viz,
             )
             if delayed_result_io_reports is None:
                 logger.warning("Skipping subgraph %d as it has no valid two-view results.", index)
