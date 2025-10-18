@@ -136,23 +136,54 @@ class SceneOptimizer:
         cluster_tree = self.graph_partitioner.run(visibility_graph)
         self.graph_partitioner.log_partition_details(cluster_tree)
         leaves = tuple(cluster_tree.leaves()) if cluster_tree is not None else ()
+        num_leaves = len(leaves)
+        use_leaf_subdirs = num_leaves > 1
 
         logger.info("🔥 GTSFM: Starting to solve subgraphs...")
-        logger.info("🔥 GTSFM: Running the computation graph...")
-        with performance_report(filename="dask_reports/scene-optimizer.html"):
-            cluster_result = self.cluster_optimizer.optimize_clusters(
-                client=client,
-                leaves=leaves,
+        futures = []
+        leaf_jobs: list[tuple[int, OutputPaths]] = []
+        for index, leaf in enumerate(leaves, 1):
+            cluster_two_view_results = leaf.filter_annotations(two_view_results)
+            if use_leaf_subdirs:
+                logger.info(
+                    "Creating computation graph for leaf cluster %d/%d with %d image pairs",
+                    index,
+                    num_leaves,
+                    len(leaf.value),
+                )
+
+            if len(cluster_two_view_results) == 0:
+                logger.warning("Skipping subgraph %d as it has no valid two-view results.", index)
+                continue
+
+            output_paths = prepare_output_paths(self.output_root, index) if use_leaf_subdirs else base_output_paths
+
+            delayed_result_io_reports = self.cluster_optimizer.create_computation_graph(
                 keypoints_list=keypoints,
-                two_view_results=two_view_results,
-                loader=self.loader,
+                two_view_results=cluster_two_view_results,
+                num_images=len(self.loader),
                 one_view_data_dict=one_view_data_dict,
-                base_output_paths=base_output_paths,
+                output_paths=output_paths,
+                relative_pose_priors=self.loader.get_relative_pose_priors(list(cluster_two_view_results.keys())),
+                loader=self.loader,
                 output_root=self.output_root,
             )
+            futures.append(client.compute(delayed_result_io_reports))
+            leaf_jobs.append((index, output_paths))
 
-        use_leaf_subdirs = cluster_result.use_leaf_subdirs
-        mvo_metrics_groups_by_leaf = cluster_result.mvo_metrics_groups_by_leaf
+        logger.info("🔥 GTSFM: Running the computation graph...")
+        mvo_metrics_groups_by_leaf: dict[int, list[GtsfmMetricsGroup]] = {}
+        with performance_report(filename="dask_reports/scene-optimizer.html"):
+            if futures:
+                results = client.gather(futures)
+                for (leaf_index, output_paths), leaf_results in zip(leaf_jobs, results):
+                    mvo_metrics_groups = leaf_results[2]
+                    if not mvo_metrics_groups:
+                        continue
+                    if use_leaf_subdirs:
+                        save_metrics_reports(mvo_metrics_groups, str(output_paths.metrics))
+                    else:
+                        mvo_metrics_groups_by_leaf[leaf_index] = mvo_metrics_groups
 
         # Log total time taken and save metrics report
         end_time = time.time()

@@ -5,10 +5,11 @@ from __future__ import annotations
 import os
 import shutil
 import time
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional, Sequence
+from typing import Any, Optional
 
+import matplotlib.pyplot as plt
+import numpy as np
 from dask.base import annotate
 from dask.delayed import Delayed, delayed
 from gtsam import Pose3, Similarity3  # type: ignore
@@ -25,7 +26,7 @@ import gtsfm.utils.viz as viz_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.common.outputs import OutputPaths, prepare_output_paths
+from gtsfm.common.outputs import OutputPaths
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.densify.mvs_base import MVSBase
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
@@ -42,16 +43,8 @@ REACT_RESULTS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "
 logger = logger_utils.get_logger()
 
 
-@dataclass
-class ClusterOptimizationResult:
-    """Summary of per-cluster optimization, returned to SceneOptimizer."""
-
-    use_leaf_subdirs: bool
-    mvo_metrics_groups_by_leaf: dict[int, list[GtsfmMetricsGroup]]
-
-
 class ClusterOptimizer:
-    """Handles optimization and I/O for individual clusters produced by the graph partitioner."""
+    """Handles optimization and I/O for a single leaf cluster produced by the graph partitioner."""
 
     def __init__(
         self,
@@ -78,75 +71,7 @@ class ClusterOptimizer:
     def pose_angular_error_thresh(self) -> float:
         return self._pose_angular_error_thresh
 
-    def optimize_clusters(
-        self,
-        client,
-        leaves: Sequence[Any],
-        keypoints_list: list[Keypoints],
-        two_view_results: AnnotatedGraph[TwoViewResult],
-        loader: LoaderBase,
-        one_view_data_dict: dict[int, OneViewData],
-        base_output_paths: OutputPaths,
-        output_root: Path,
-    ) -> ClusterOptimizationResult:
-        """Create and execute Dask graphs for each cluster leaf in the partition tree."""
-
-        num_leaves = len(leaves)
-        use_leaf_subdirs = num_leaves > 1
-
-        futures = []
-        leaf_jobs: list[tuple[int, OutputPaths]] = []
-
-        for index, leaf in enumerate(leaves, 1):
-            cluster_two_view_results = leaf.filter_annotations(two_view_results)
-            if use_leaf_subdirs:
-                logger.info(
-                    "Creating computation graph for leaf cluster %d/%d with %d image pairs",
-                    index,
-                    num_leaves,
-                    len(leaf.value),
-                )
-
-            if len(cluster_two_view_results) == 0:
-                logger.warning("Skipping subgraph %d as it has no valid two-view results.", index)
-                continue
-
-            output_paths = (
-                prepare_output_paths(output_root, index) if use_leaf_subdirs else base_output_paths
-            )
-
-            delayed_result_io_reports = self._create_computation_graph(
-                keypoints_list=keypoints_list,
-                two_view_results=cluster_two_view_results,
-                num_images=len(loader),
-                one_view_data_dict=one_view_data_dict,
-                output_paths=output_paths,
-                relative_pose_priors=loader.get_relative_pose_priors(list(cluster_two_view_results.keys())),
-                loader=loader,
-                output_root=output_root,
-            )
-            futures.append(client.compute(delayed_result_io_reports))
-            leaf_jobs.append((index, output_paths))
-
-        mvo_metrics_groups_by_leaf: dict[int, list[GtsfmMetricsGroup]] = {}
-        if not futures:
-            return ClusterOptimizationResult(use_leaf_subdirs=use_leaf_subdirs, mvo_metrics_groups_by_leaf={})
-
-        results = client.gather(futures)
-        for (leaf_index, output_paths), leaf_results in zip(leaf_jobs, results):
-            mvo_metrics_groups = leaf_results[2]
-            if not mvo_metrics_groups:
-                continue
-            if use_leaf_subdirs:
-                save_metrics_reports(mvo_metrics_groups, str(output_paths.metrics))
-            else:
-                mvo_metrics_groups_by_leaf[leaf_index] = mvo_metrics_groups
-
-        return ClusterOptimizationResult(
-            use_leaf_subdirs=use_leaf_subdirs, mvo_metrics_groups_by_leaf=mvo_metrics_groups_by_leaf
-        )
-
-    def _create_computation_graph(
+    def create_computation_graph(
         self,
         keypoints_list: list[Keypoints],
         two_view_results: AnnotatedGraph[TwoViewResult],
@@ -157,7 +82,7 @@ class ClusterOptimizer:
         loader: LoaderBase,
         output_root: Path,
     ) -> tuple[Delayed, list[Delayed], list[Delayed]]:
-        """Create Dask graphs for multi-view optimization and downstream products."""
+        """Create Dask graphs for multi-view optimization and downstream products for a single cluster."""
 
         delayed_results: list[Delayed] = []
 
@@ -418,9 +343,6 @@ def save_full_frontend_metrics(
 
 def _save_retrieval_two_view_metrics(metrics_path: Path, plot_base_path: Path) -> None:
     """Compare 2-view similarity scores with their 2-view pose errors after viewgraph estimation."""
-    import numpy as np
-    import matplotlib.pyplot as plt
-
     sim_fpath = plot_base_path / "netvlad_similarity_matrix.txt"
     if not sim_fpath.exists():
         logger.warning("NetVLAD similarity matrix not found at %s. Skipping retrieval metrics.", sim_fpath)
