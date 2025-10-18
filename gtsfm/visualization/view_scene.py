@@ -195,6 +195,12 @@ if __name__ == "__main__":
         default=None,
         help="Path to MVS output (.ply file).",
     )
+    parser.add_argument(
+        "-w",
+        "--web",
+        action="store_true",
+        help="Render the scene using Open3D's WebRTC server in a browser window.",
+    )
 
     args = parser.parse_args()
     view_scene(args)
