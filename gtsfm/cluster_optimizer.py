@@ -8,8 +8,10 @@ import time
 from pathlib import Path
 from typing import Any, Optional
 
+import numpy as np
 from dask.base import annotate
 from dask.delayed import Delayed, delayed
+from dask.distributed import Client, Future
 from gtsam import Pose3, Similarity3  # type: ignore
 
 import gtsfm.common.types as gtsfm_types
@@ -27,13 +29,15 @@ from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.outputs import OutputPaths
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.densify.mvs_base import MVSBase
-from gtsfm.evaluation.metrics import GtsfmMetricsGroup
+from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.evaluation.retrieval_metrics import save_retrieval_two_view_metrics
+from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.products.one_view_data import OneViewData
 from gtsfm.products.two_view_result import TwoViewResult
-from gtsfm.products.visibility_graph import AnnotatedGraph
+from gtsfm.products.visibility_graph import AnnotatedGraph, VisibilityGraph
+from gtsfm.two_view_estimator import TwoViewEstimator, run_two_view_estimator_as_futures
 
 # Paths to Save Output in React Folders.
 REACT_METRICS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "src" / "result_metrics"
@@ -48,6 +52,8 @@ class ClusterOptimizer:
     def __init__(
         self,
         multiview_optimizer: MultiViewOptimizer,
+        correspondence_generator: Optional[CorrespondenceGeneratorBase] = None,
+        two_view_estimator: Optional[TwoViewEstimator] = None,
         dense_multiview_optimizer: Optional[MVSBase] = None,
         gaussian_splatting_optimizer: Optional[Any] = None,
         save_gtsfm_data: bool = True,
@@ -55,9 +61,12 @@ class ClusterOptimizer:
         pose_angular_error_thresh: float = 3,
         output_worker: Optional[str] = None,
     ) -> None:
+        self._correspondence_generator = correspondence_generator
+        self._two_view_estimator = two_view_estimator
         self.multiview_optimizer = multiview_optimizer
         self.dense_multiview_optimizer = dense_multiview_optimizer
         self.gaussian_splatting_optimizer = gaussian_splatting_optimizer
+
         self._save_gtsfm_data = save_gtsfm_data
         self._save_3d_viz = save_3d_viz
         self._pose_angular_error_thresh = pose_angular_error_thresh
@@ -70,22 +79,91 @@ class ClusterOptimizer:
     def pose_angular_error_thresh(self) -> float:
         return self._pose_angular_error_thresh
 
+    def set_frontend_modules(
+        self,
+        correspondence_generator: CorrespondenceGeneratorBase,
+        two_view_estimator: TwoViewEstimator,
+    ) -> None:
+        """Attach the front-end modules used to bootstrap each cluster."""
+        self._correspondence_generator = correspondence_generator
+        self._two_view_estimator = two_view_estimator
+
     def create_computation_graph(
         self,
-        keypoints_list: list[Keypoints],
-        two_view_results: AnnotatedGraph[TwoViewResult],
         num_images: int,
         one_view_data_dict: dict[int, OneViewData],
         output_paths: OutputPaths,
-        relative_pose_priors: AnnotatedGraph[PosePrior],
         loader: LoaderBase,
         output_root: Path,
-    ) -> tuple[Delayed, list[Delayed], list[Delayed]]:
+        relative_pose_priors: Optional[AnnotatedGraph[PosePrior]] = None,
+        keypoints_list: Optional[list[Keypoints]] = None,
+        two_view_results: Optional[AnnotatedGraph[TwoViewResult]] = None,
+        client: Optional[Client] = None,
+        visibility_graph: Optional[VisibilityGraph] = None,
+        image_futures: Optional[list[Future]] = None,
+        save_two_view_viz: bool = False,
+    ) -> Optional[tuple[Delayed, list[Delayed], list[Delayed]]]:
         """Create Dask graphs for multi-view optimization and downstream products for a single cluster."""
 
         delayed_results: list[Delayed] = []
 
         image_delayed_map = loader.get_images_as_delayed_map()
+
+        correspondence_generation_duration_sec: Optional[float] = None
+        two_view_estimation_duration_sec: Optional[float] = None
+
+        if two_view_results is None:
+            if self._correspondence_generator is None or self._two_view_estimator is None:
+                raise ValueError("Front-end modules must be attached before running ClusterOptimizer.")
+            if client is None or visibility_graph is None or image_futures is None:
+                raise ValueError(
+                    "Client, visibility graph, and image futures are required to run the front-end inside ClusterOptimizer."
+                )
+
+            logger.info("🔥 ClusterOptimizer: running correspondence generation on %d pairs.", len(visibility_graph))
+            correspondence_generation_start_time = time.time()
+            (
+                keypoints_list,
+                putative_corr_idxs_dict,
+            ) = self._correspondence_generator.generate_correspondences(client, image_futures, visibility_graph)
+            correspondence_generation_duration_sec = time.time() - correspondence_generation_start_time
+
+            if relative_pose_priors is None:
+                relative_pose_priors = loader.get_relative_pose_priors(visibility_graph)
+
+            # Ensure keypoints array length matches number of images.
+            keypoints_list = _pad_keypoints_list(keypoints_list, num_images)
+
+            gt_scene_mesh = loader.get_gt_scene_trimesh()
+            logger.info("🔥 ClusterOptimizer: running two-view estimation on %d pairs.", len(putative_corr_idxs_dict))
+            two_view_estimation_start_time = time.time()
+            two_view_result_futures = run_two_view_estimator_as_futures(
+                client=client,
+                two_view_estimator=self._two_view_estimator,
+                keypoints_list=keypoints_list,
+                putative_corr_idxs_dict=putative_corr_idxs_dict,
+                relative_pose_priors=relative_pose_priors or {},
+                gt_scene_mesh=gt_scene_mesh,
+                one_view_data_dict=one_view_data_dict,
+            )
+            all_two_view_results = client.gather(two_view_result_futures)
+            two_view_estimation_duration_sec = time.time() - two_view_estimation_start_time
+            two_view_results = {edge: tvr for edge, tvr in all_two_view_results.items() if tvr.valid()}
+
+        assert keypoints_list is not None
+        assert two_view_results is not None
+
+        keypoints_list = _pad_keypoints_list(keypoints_list, num_images)
+
+        if relative_pose_priors is None:
+            raise ValueError("Relative pose priors must be provided when pre-computed front-end is supplied.")
+
+        if len(two_view_results) == 0:
+            logger.warning("Skipping cluster as it has no valid two-view results.")
+            return None
+
+        if save_two_view_viz:
+            _save_two_view_viz(loader, keypoints_list, two_view_results, output_paths.plot_correspondence)
 
         # Note: the MultiviewOptimizer returns BA input and BA output aligned to GT via Sim(3).
         (
@@ -134,6 +212,22 @@ class ClusterOptimizer:
                     metric_group_name=f"verifier_summary_{two_view_estimator.VIEWGRAPH_REPORT_TAG}",
                 )
             )
+
+        if correspondence_generation_duration_sec is not None or two_view_estimation_duration_sec is not None:
+            frontend_metrics = GtsfmMetricsGroup(
+                "frontend_runtime_metrics",
+                [
+                    GtsfmMetric(
+                        "total_correspondence_generation_duration_sec",
+                        correspondence_generation_duration_sec or 0.0,
+                    ),
+                    GtsfmMetric(
+                        "total_two_view_estimation_duration_sec",
+                        two_view_estimation_duration_sec or 0.0,
+                    ),
+                ],
+            )
+            metrics_graph_list.append(delayed(_identity_metrics_group)(frontend_metrics))
 
         if optimizer_metrics_graph is not None:
             metrics_graph_list.extend(optimizer_metrics_graph)
@@ -224,6 +318,43 @@ class ClusterOptimizer:
 def get_image_dictionary(image_list: list[Image]) -> dict[int, Image]:
     """Convert a list of images to the MVS input format."""
     return {i: img for i, img in enumerate(image_list)}
+
+
+def _pad_keypoints_list(keypoints_list: list[Keypoints], target_length: int) -> list[Keypoints]:
+    """Pad keypoints list with empty detections so it matches the number of images."""
+    if len(keypoints_list) >= target_length:
+        return keypoints_list
+    padded = list(keypoints_list)
+    for _ in range(target_length - len(keypoints_list)):
+        padded.append(Keypoints(coordinates=np.zeros((0, 2))))
+    return padded
+
+
+def _identity_metrics_group(metrics: GtsfmMetricsGroup) -> GtsfmMetricsGroup:
+    """Identity helper so constant metrics can be handled by Dask."""
+    return metrics
+
+
+def _save_two_view_viz(
+    loader: LoaderBase,
+    keypoints_list: list[Keypoints],
+    two_view_results: AnnotatedGraph[TwoViewResult],
+    plot_correspondence_path: Path,
+) -> None:
+    """Persist correspondences visualization for the provided two-view results."""
+    plot_correspondence_path.mkdir(parents=True, exist_ok=True)
+    for (i1, i2), output in two_view_results.items():
+        image_i1 = loader.get_image(i1)
+        image_i2 = loader.get_image(i2)
+        viz_utils.save_twoview_correspondences_viz(
+            image_i1,
+            image_i2,
+            keypoints_list[i1],
+            keypoints_list[i2],
+            output.v_corr_idxs,
+            two_view_report=output.post_isp_report,
+            file_path=str(plot_correspondence_path / f"{i1}_{i2}__{image_i1.file_name}_{image_i2.file_name}.jpg"),
+        )
 
 
 def align_estimated_gtsfm_data(
