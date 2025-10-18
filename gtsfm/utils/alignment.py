@@ -9,7 +9,6 @@ from typing import List, Optional, Sequence, Tuple
 import gtsam  # type: ignore
 import numpy as np
 from gtsam import Pose3, Pose3Pairs, Rot3, Similarity3
-from scipy.spatial.transform import Rotation  # type: ignore
 
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metric_utils
@@ -23,6 +22,16 @@ MAX_ALIGNMENT_ERROR = np.finfo(np.float32).max
 MAX_NUM_HYPOTHESES_FOR_ROBUST_ALIGNMENT: int = 200
 
 Z_3x1: np.ndarray = np.zeros((3,))
+
+
+def log_sim3_transform(sim3: Similarity3, label: str = "Sim(3)") -> None:
+    """Log rotation, translation, and scale components of a Similarity3."""
+    aRb = sim3.rotation()
+    atb = sim3.translation()
+    rx, ry, rz = aRb.xyz()
+    logger.debug("%s Rotation `aRb`: rz=%.2f deg., ry=%.2f deg., rx=%.2f deg.", label, rz, ry, rx)
+    logger.debug("%s Translation `atb`: [%.2f, %.2f, %.2f]", label, atb[0], atb[1], atb[2])
+    logger.debug("%s Scale `asb`: %.2f", label, float(sim3.scale()))
 
 
 def align_rotations(aRi_list: List[Optional[Rot3]], bRi_list: List[Optional[Rot3]]) -> List[Optional[Rot3]]:
@@ -142,19 +151,9 @@ def align_poses_sim3_exhaustive(aTi_list: List[Pose3], bTi_list: List[Pose3]) ->
                 best_pose_auc_5deg = pose_auc_5deg
                 best_aSb = aSb_candidate
 
-                aRb = best_aSb.rotation().matrix()
-                atb = best_aSb.translation()
-                rz, ry, rx = Rotation.from_matrix(aRb).as_euler("zyx", degrees=True)
-                logger.debug("Sim(3) Rotation `aRb`: rz=%.2f deg., ry=%.2f deg., rx=%.2f deg.", rz, ry, rx)
-                logger.debug("Sim(3) Translation `atb`: [%.2f, %.2f, %.2f]", atb[0], atb[1], atb[2])
-                logger.debug("Sim(3) Scale `asb`: %.2f", float(best_aSb.scale()))
+                log_sim3_transform(best_aSb)
 
-    aRb = best_aSb.rotation().matrix()
-    atb = best_aSb.translation()
-    rz, ry, rx = Rotation.from_matrix(aRb).as_euler("zyx", degrees=True)
-    logger.info("Sim(3) Rotation `aRb`: rz=%.2f deg., ry=%.2f deg., rx=%.2f deg.", rz, ry, rx)
-    logger.info("Sim(3) Translation `atb`: [%.2f, %.2f, %.2f]", atb[0], atb[1], atb[2])
-    logger.info("Sim(3) Scale `asb`: %.2f", float(best_aSb.scale()))
+    log_sim3_transform(best_aSb)
 
     best_aTi_: List[Pose3] = [best_aSb.transformFrom(bTi) for bTi in bTi_list]
     return best_aTi_, best_aSb
@@ -220,19 +219,9 @@ def align_poses_sim3_robust(
             best_pose_auc_5deg = pose_auc_5deg
             best_aSb = aSb_candidate
 
-            aRb = best_aSb.rotation().matrix()
-            atb = best_aSb.translation()
-            rz, ry, rx = Rotation.from_matrix(aRb).as_euler("zyx", degrees=True)
-            logger.debug("Sim(3) Rotation `aRb`: rz=%.2f deg., ry=%.2f deg., rx=%.2f deg.", rz, ry, rx)
-            logger.debug("Sim(3) Translation `atb`: [%.2f, %.2f, %.2f]", atb[0], atb[1], atb[2])
-            logger.debug("Sim(3) Scale `asb`: %.2f", float(best_aSb.scale()))
+            log_sim3_transform(best_aSb)
 
-    aRb = best_aSb.rotation().matrix()
-    atb = best_aSb.translation()
-    rz, ry, rx = Rotation.from_matrix(aRb).as_euler("zyx", degrees=True)
-    logger.info("Sim(3) Rotation `aRb`: rz=%.2f deg., ry=%.2f deg., rx=%.2f deg.", rz, ry, rx)
-    logger.info("Sim(3) Translation `atb`: [%.2f, %.2f, %.2f]", atb[0], atb[1], atb[2])
-    logger.info("Sim(3) Scale `asb`: %.2f", float(best_aSb.scale()))
+    log_sim3_transform(best_aSb)
 
     best_aTi_: List[Pose3] = [best_aSb.transformFrom(bTi) for bTi in bTi_list]
     return best_aTi_, best_aSb
@@ -288,12 +277,7 @@ def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> Tuple[List
     aSb = Similarity3(R=aSb.rotation(), t=aSb.translation(), s=aSb.scale())
 
     # Provide a summary of the estimated alignment transform.
-    aRb = aSb.rotation().matrix()
-    atb = aSb.translation()
-    rz, ry, rx = Rotation.from_matrix(aRb).as_euler("zyx", degrees=True)
-    logger.debug("Sim(3) Rotation `aRb`: rz=%.2f deg., ry=%.2f deg., rx=%.2f deg.", rz, ry, rx)
-    logger.debug("Sim(3) Translation `atb`: [%.2f, %.2f, %.2f]", atb[0], atb[1], atb[2])
-    logger.debug("Sim(3) Scale `asb`: %.2f", float(aSb.scale()))
+    log_sim3_transform(aSb)
 
     aTi_list_: List[Pose3] = []
     for bTi in bTi_list:
