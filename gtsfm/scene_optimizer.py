@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from dask.base import annotate
 from dask.delayed import Delayed, delayed
-from dask.distributed import performance_report
+from dask.distributed import Future, performance_report
 from gtsam import Pose3, Similarity3  # type: ignore
 from trimesh import Trimesh
 
@@ -32,7 +32,6 @@ from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.outputs import OutputPaths, prepare_output_paths
 from gtsfm.common.pose_prior import PosePrior
-from gtsfm.common.types import CALIBRATION_TYPE
 from gtsfm.densify.mvs_base import MVSBase
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
@@ -41,8 +40,9 @@ from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.graph_partitioner.single_partitioner import SinglePartitioner
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
+from gtsfm.products.one_view_data import OneViewData
 from gtsfm.products.two_view_result import TwoViewResult
-from gtsfm.products.visibility_graph import AnnotatedGraph
+from gtsfm.products.visibility_graph import AnnotatedGraph, VisibilityGraph
 from gtsfm.retriever.image_pairs_generator import ImagePairsGenerator
 from gtsfm.two_view_estimator import (
     POST_ISP_REPORT_TAG,
@@ -135,18 +135,29 @@ class SceneOptimizer:
         keypoints_list: list[Keypoints],
         two_view_results: AnnotatedGraph[TwoViewResult],
         num_images: int,
-        images: list[Delayed],
+        one_view_data_dict: dict[int, OneViewData],
         output_paths: OutputPaths,
-        camera_intrinsics: list[Optional[gtsfm_types.CALIBRATION_TYPE]],
-        absolute_pose_priors: list[Optional[PosePrior]],
         relative_pose_priors: AnnotatedGraph[PosePrior],
-        cameras_gt: list[Optional[gtsfm_types.CAMERA_TYPE]],
-        gt_wTi_list: list[Optional[Pose3]],
         gt_scene_mesh: Optional[Trimesh] = None,
     ) -> tuple[Delayed, list[Delayed], list[Delayed]]:
-        """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
+        """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times.
+
+        Args:
+            keypoints_list: Keypoints for all images.
+            two_view_results: Valid two-view results for image pairs in the cluster.
+            num_images: Total number of images in the scene.
+            one_view_data_dict: Per-view data keyed by image index.
+            output_paths: Output directories for artifacts.
+            relative_pose_priors: Priors on relative poses for the cluster.
+            gt_scene_mesh: Optional GT scene mesh.
+
+        Returns:
+            Tuple containing BA output, IO delayed tasks, and metrics delayed tasks.
+        """
 
         delayed_results: list[Delayed] = []
+
+        image_delayed_map = self.loader.get_images_as_delayed_map()
 
         # Note: the MultiviewOptimizer returns BA input and BA output that are aligned to GT via Sim(3).
         (
@@ -155,15 +166,11 @@ class SceneOptimizer:
             view_graph_two_view_reports,
             optimizer_metrics_graph,
         ) = self.multiview_optimizer.create_computation_graph(
-            images=images,
-            num_images=num_images,
             keypoints_list=keypoints_list,
             two_view_results=two_view_results,
-            all_intrinsics=camera_intrinsics,
-            absolute_pose_priors=absolute_pose_priors,
+            one_view_data_dict=one_view_data_dict,
+            image_delayed_map=image_delayed_map,
             relative_pose_priors=relative_pose_priors,
-            cameras_gt=cameras_gt,
-            gt_wTi_list=gt_wTi_list,
             output_root=self.output_root,
         )
         if view_graph_two_view_reports is not None:
@@ -177,7 +184,7 @@ class SceneOptimizer:
             delayed_results.append(
                 delayed(save_full_frontend_metrics)(
                     {ij: r.post_isp_report for ij, r in two_view_results.items()},
-                    images,
+                    one_view_data_dict,
                     filename="two_view_report_{}.json".format(POST_ISP_REPORT_TAG),
                     metrics_path=output_paths.metrics,
                     plot_base_path=output_paths.plot_base,
@@ -188,7 +195,7 @@ class SceneOptimizer:
             delayed_results.append(
                 delayed(save_full_frontend_metrics)(
                     two_view_reports_post_viewgraph_estimator,  # type: ignore
-                    images,
+                    one_view_data_dict,
                     filename="two_view_report_{}.json".format(VIEWGRAPH_REPORT_TAG),
                     metrics_path=output_paths.metrics,
                     plot_base_path=output_paths.plot_base,
@@ -207,10 +214,14 @@ class SceneOptimizer:
             metrics_graph_list.extend(optimizer_metrics_graph)
 
         # Modify BA input, BA output, and GT poses to have point clouds and frustums aligned with x,y,z axes.
-        ba_input_graph, ba_output_graph, gt_wTi_list = delayed(align_estimated_gtsfm_data, nout=3)(
+        gt_wTi_list = [one_view_data_dict[idx].pose_gt for idx in range(num_images)]
+        ba_input_graph, ba_output_graph, aligned_gt_wTi_list = delayed(align_estimated_gtsfm_data, nout=3)(
             ba_input_graph, ba_output_graph, gt_wTi_list
         )
 
+        # Create I/O tasks
+        images = [image_delayed_map[idx] for idx in range(num_images)]
+        cameras_gt = [one_view_data_dict[idx].camera_gt for idx in range(num_images)]
         annotation = annotate(workers=self._output_worker) if self._output_worker else annotate()
         with annotation:
             if self._save_gtsfm_data:
@@ -228,12 +239,13 @@ class SceneOptimizer:
                         save_matplotlib_visualizations(
                             aligned_ba_input_graph=ba_input_graph,
                             aligned_ba_output_graph=ba_output_graph,
-                            gt_pose_graph=gt_wTi_list,  # type: ignore
+                            gt_pose_graph=aligned_gt_wTi_list,  # type: ignore
                             plot_ba_input_path=output_paths.plot_ba_input,
                             plot_results_path=output_paths.plot_results,
                         )
                     )
 
+        # Create dense reconstruction tasks
         if self.run_dense_optimizer and self.dense_multiview_optimizer is not None:
             img_dict_graph = delayed(get_image_dictionary)(images)
             (
@@ -298,19 +310,28 @@ class SceneOptimizer:
         base_output_paths = prepare_output_paths(self.output_root, None)
 
         logger.info("🔥 GTSFM: Running image pair retrieval...")
-        retriever_metrics, visibility_graph = self._run_retriever(client)
+        retriever_metrics, visibility_graph, image_futures = self._run_retriever(client)
         base_metrics_groups.append(retriever_metrics)
 
         logger.info("🔥 GTSFM: Running correspondence generation...")
-        maybe_intrinsics, intrinsics = self._get_intrinsics_or_raise()
         keypoints, putative_corr_idxs_dict, correspondence_duration_sec = self._run_correspondence_generation(
-            client, visibility_graph
+            client, visibility_graph, image_futures
         )
 
         logger.info("🔥 GTSFM: Running two-view estimation...")
-        two_view_result_futures, tve_duration_sec = self._run_two_view_estimation(
-            client, visibility_graph, keypoints, putative_corr_idxs_dict, intrinsics
-        )
+        one_view_data_dict = self.loader.get_one_view_data_dict(client)
+        with performance_report(filename="dask_reports/two-view-estimation.html"):
+            two_view_estimation_start_time = time.time()
+            two_view_result_futures = run_two_view_estimator_as_futures(
+                client,
+                self.two_view_estimator,
+                keypoints,
+                putative_corr_idxs_dict,
+                self.loader.get_relative_pose_priors(visibility_graph),
+                gt_scene_mesh=self.loader.get_gt_scene_trimesh(),
+                one_view_data_dict=one_view_data_dict,
+            )
+            tve_duration_sec = time.time() - two_view_estimation_start_time
 
         # Aggregate two-view metrics
         # TODO(Frank): this brings everything back ! We might not want this.
@@ -358,12 +379,8 @@ class SceneOptimizer:
                 keypoints_list=keypoints,
                 two_view_results=cluster_two_view_results,
                 num_images=len(self.loader),
-                images=self.loader.create_computation_graph_for_images(),
-                camera_intrinsics=maybe_intrinsics,  # TODO(Frank): really? None is allowed?
+                one_view_data_dict=one_view_data_dict,
                 relative_pose_priors=self.loader.get_relative_pose_priors(list(cluster_two_view_results.keys())),
-                absolute_pose_priors=self.loader.get_absolute_pose_priors(),
-                cameras_gt=self.loader.get_gt_cameras(),
-                gt_wTi_list=self.loader.get_gt_poses(),
                 gt_scene_mesh=self.loader.get_gt_scene_trimesh(),
                 output_paths=output_paths,
             )
@@ -410,32 +427,25 @@ class SceneOptimizer:
             process_graph_generator.is_image_correspondence = True
         process_graph_generator.save_graph()
 
-    def _run_retriever(self, client):
+    def _run_retriever(self, client) -> tuple[GtsfmMetricsGroup, VisibilityGraph, list[Future]]:
         retriever_start_time = time.time()
+        image_futures = self.loader.get_all_images_as_futures(client)
+        image_fnames = self.loader.image_filenames()
+
         with performance_report(filename="dask_reports/retriever.html"):
             visibility_graph = self.image_pairs_generator.run(
                 client=client,
-                images=self.loader.get_all_images_as_futures(client),
-                image_fnames=self.loader.image_filenames(),
+                images=image_futures,
+                image_fnames=image_fnames,
                 plots_output_dir=self.create_plot_base_path(),
             )
         retriever_metrics = self.image_pairs_generator._retriever.evaluate(len(self.loader), visibility_graph)
         retriever_duration_sec = time.time() - retriever_start_time
         retriever_metrics.add_metric(GtsfmMetric("retriever_duration_sec", retriever_duration_sec))
         logger.info("🚀 Image pair retrieval took %.2f min.", retriever_duration_sec / 60.0)
-        return retriever_metrics, visibility_graph
+        return retriever_metrics, visibility_graph, image_futures
 
-    def _get_intrinsics_or_raise(self):
-        maybe_intrinsics = self.loader.get_all_intrinsics()
-        # Check if maybe_intrinsics has any None values
-        if any(intrinsic is None for intrinsic in maybe_intrinsics):
-            raise ValueError("Some intrinsics are None. Please ensure all intrinsics are provided.")
-
-        # If all intrinsics are valid, cast them to the correct type
-        intrinsics: list[CALIBRATION_TYPE] = maybe_intrinsics  # type: ignore
-        return maybe_intrinsics, intrinsics
-
-    def _run_correspondence_generation(self, client, visibility_graph):
+    def _run_correspondence_generation(self, client, visibility_graph, image_futures: list[Future]):
         with performance_report(filename="dask_reports/correspondence-generator.html"):
             correspondence_generation_start_time = time.time()
             (
@@ -443,28 +453,11 @@ class SceneOptimizer:
                 putative_corr_idxs_dict,
             ) = self.correspondence_generator.generate_correspondences(
                 client,
-                self.loader.get_all_images_as_futures(client),
+                image_futures,
                 visibility_graph,
             )
             correspondence_generation_duration_sec = time.time() - correspondence_generation_start_time
         return keypoints_list, putative_corr_idxs_dict, correspondence_generation_duration_sec
-
-    def _run_two_view_estimation(self, client, visibility_graph, keypoints_list, putative_corr_idxs_dict, intrinsics):
-        with performance_report(filename="dask_reports/two-view-estimation.html"):
-            two_view_estimation_start_time = time.time()
-            # TODO(Frank):this pulls *all* results to one machine! We might not want this.
-            two_view_result_futures = run_two_view_estimator_as_futures(
-                client,
-                self.two_view_estimator,
-                keypoints_list,
-                putative_corr_idxs_dict,
-                intrinsics,
-                self.loader.get_relative_pose_priors(visibility_graph),
-                self.loader.get_gt_cameras(),
-                gt_scene_mesh=self.loader.get_gt_scene_trimesh(),
-            )
-            two_view_estimation_duration_sec = time.time() - two_view_estimation_start_time
-        return two_view_result_futures, two_view_estimation_duration_sec
 
     def _maybe_save_two_view_viz(self, keypoints_list, two_view_results, plot_correspondence_path: Path):
         if self._save_two_view_correspondences_viz:
@@ -651,7 +644,7 @@ def save_gtsfm_data(
 
 def save_full_frontend_metrics(
     two_view_report_dict: AnnotatedGraph[TwoViewEstimationReport],
-    images: list[Image],
+    one_view_data_dict: dict[int, OneViewData],
     filename: str,
     metrics_path: Path,
     plot_base_path: Path,
@@ -660,12 +653,12 @@ def save_full_frontend_metrics(
 
     Args:
         two_view_report_dict: Front-end metrics for pairs of images.
-        images: list of all images for this scene, in order of image/frame index.
+        one_view_data_dict: Per-view metadata for the entire scene.
         filename: File name to use when saving report to JSON.
         metrics_path: Path to directory where metrics will be saved.
         plot_base_path: Path to directory where plots will be saved.
     """
-    metrics_list = two_view_estimator.get_two_view_reports_summary(two_view_report_dict, images)
+    metrics_list = two_view_estimator.get_two_view_reports_summary(two_view_report_dict, one_view_data_dict)
 
     io_utils.save_json_file(os.path.join(metrics_path, filename), metrics_list)
 

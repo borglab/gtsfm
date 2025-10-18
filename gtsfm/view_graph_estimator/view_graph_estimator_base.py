@@ -10,7 +10,7 @@ Authors: Akshay Krishnan, Ayush Baid, John Lambert
 import abc
 import os
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Sequence, Set, Tuple
 
 import numpy as np
 from dask.delayed import Delayed, delayed
@@ -254,7 +254,7 @@ class ViewGraphEstimatorBase(GTSFMProcess):
         self,
         i2Ri1_dict: Dict[Tuple[int, int], Rot3],
         i2Ui1_dict: Dict[Tuple[int, int], Unit3],
-        calibrations: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
+        calibrations: Sequence[Optional[gtsfm_types.CALIBRATION_TYPE]],
         corr_idxs_i1i2: Dict[Tuple[int, int], np.ndarray],
         keypoints: List[Keypoints],
         two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],

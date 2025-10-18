@@ -4,7 +4,7 @@ Authors: Ayush Baid, Akshay Krishnan
 """
 
 import abc
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import dask
 from dask.delayed import Delayed
@@ -89,7 +89,7 @@ class TranslationAveragingBase(GTSFMProcess):
         i2Ui1_graph: Delayed,
         wRi_graph: Delayed,
         tracks_2d: Optional[Delayed] = None,
-        intrinsics: Optional[List[Optional[gtsfm_types.CALIBRATION_TYPE]]] = None,
+        intrinsics: Sequence[List[Optional[gtsfm_types.CALIBRATION_TYPE]]] = None,
         absolute_pose_priors: List[Optional[PosePrior]] = [],
         i2Ti1_priors: Dict[Tuple[int, int], PosePrior] = {},
         scale_factor: float = 1.0,

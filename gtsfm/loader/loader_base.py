@@ -18,6 +18,7 @@ import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
 from gtsfm.common.pose_prior import PosePrior
+from gtsfm.products.one_view_data import OneViewData
 from gtsfm.products.visibility_graph import VisibilityGraph
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
@@ -352,16 +353,13 @@ class LoaderBase(GTSFMProcess):
         N = len(self)
         return [self.get_absolute_pose_prior(i) for i in range(N)]
 
-    def create_computation_graph_for_images(self) -> List[Delayed]:
-        """Creates the computation graph for image fetches.
+    def get_images_as_delayed_map(self) -> Dict[int, Delayed]:
+        """Creates a computation graph for image fetches keyed by image index."""
 
-        Returns:
-            List of delayed tasks for images.
-        """
         N = len(self)
         annotation = dask_annotate(workers=self._input_worker) if self._input_worker else dask_annotate()
         with annotation:
-            delayed_images = [delayed(self.get_image)(i) for i in range(N)]
+            delayed_images = {i: delayed(self.get_image)(i) for i in range(N)}
         return delayed_images
 
     def get_all_images_as_futures(self, client: Client) -> List[Future]:
@@ -380,6 +378,48 @@ class LoaderBase(GTSFMProcess):
         """
         N = len(self)
         return [self.get_camera_intrinsics(i) for i in range(N)]
+
+    def get_one_view_data_dict(self, client: Client) -> Dict[int, OneViewData]:
+        """Construct a per-view data map keyed by image index along with validated intrinsics.
+
+        Args:
+            client: Dask client used to create image futures.
+
+        Returns:
+            Dictionary mapping image index to OneViewData with eagerly validated intrinsics.
+        """
+        maybe_intrinsics = self.get_all_intrinsics()
+        if any(intrinsic is None for intrinsic in maybe_intrinsics):
+            raise ValueError("Some intrinsics are None. Please ensure all intrinsics are provided.")
+
+        intrinsics: List[gtsfm_types.CALIBRATION_TYPE] = maybe_intrinsics  # type: ignore
+        image_fnames = self.image_filenames()
+        absolute_pose_priors = self.get_absolute_pose_priors()
+        cameras_gt = self.get_gt_cameras()
+        gt_wTi_list = self.get_gt_poses()
+
+        num_images = len(self)
+        if not (
+            len(maybe_intrinsics)
+            == len(image_fnames)
+            == len(absolute_pose_priors)
+            == len(cameras_gt)
+            == len(gt_wTi_list)
+            == num_images
+        ):
+            raise ValueError("Per-view inputs must match the number of images in the loader.")
+
+        one_view_data_dict = {
+            idx: OneViewData(
+                image_fname=image_fnames[idx],
+                intrinsics=intrinsics[idx],
+                absolute_pose_prior=absolute_pose_priors[idx],
+                camera_gt=cameras_gt[idx],
+                pose_gt=gt_wTi_list[idx],
+            )
+            for idx in range(num_images)
+        }
+        return one_view_data_dict
 
     def get_gt_poses(self) -> List[Optional[Pose3]]:
         """Return all the camera poses.

@@ -10,7 +10,7 @@ import sys
 import time
 import timeit
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 from dask.distributed import Client, Future
@@ -23,7 +23,6 @@ import gtsfm.utils.metrics as metric_utils
 from gtsfm.bundle.two_view_ba import TwoViewBundleAdjustment
 from gtsfm.common.dask_db_module_base import DaskDBModuleBase
 from gtsfm.common.gtsfm_data import GtsfmData
-from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.sfm_track import SfmMeasurement, SfmTrack2d
@@ -32,6 +31,7 @@ from gtsfm.data_association.point3d_initializer import Point3dInitializer, Trian
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.frontend.inlier_support_processor import InlierSupportProcessor
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
+from gtsfm.products.one_view_data import OneViewData
 from gtsfm.products.two_view_result import TwoViewResult
 from gtsfm.products.visibility_graph import AnnotatedGraph
 
@@ -842,10 +842,9 @@ def run_two_view_estimator_as_futures(
     two_view_estimator: TwoViewEstimator,
     keypoints_list: List[Keypoints],
     putative_corr_idxs_dict: AnnotatedGraph[np.ndarray],
-    camera_intrinsics: Sequence[gtsfm_types.CALIBRATION_TYPE],
     relative_pose_priors: Dict[Tuple[int, int], PosePrior],
-    gt_cameras: List[Optional[gtsfm_types.CAMERA_TYPE]],
     gt_scene_mesh: Optional[Any],
+    one_view_data_dict: Dict[int, OneViewData],
 ) -> AnnotatedGraph[Future]:
     """Run two-view estimator for all image pairs."""
 
@@ -863,16 +862,17 @@ def run_two_view_estimator_as_futures(
             keypoints_i1=keypoints_list[i1],
             keypoints_i2=keypoints_list[i2],
             putative_corr_idxs=putative_corr_idxs,
-            camera_intrinsics_i1=camera_intrinsics[i1],
-            camera_intrinsics_i2=camera_intrinsics[i2],
+            camera_intrinsics_i1=view1.intrinsics,
+            camera_intrinsics_i2=view2.intrinsics,
             i2Ti1_prior=relative_pose_priors.get((i1, i2)),
-            gt_camera_i1=gt_cameras[i1],
-            gt_camera_i2=gt_cameras[i2],
+            gt_camera_i1=view1.camera_gt,
+            gt_camera_i2=view2.camera_gt,
             gt_scene_mesh=gt_scene_mesh,
             i1=i1,
             i2=i2,
         )
         for (i1, i2), putative_corr_idxs in putative_corr_idxs_dict.items()
+        for view1, view2 in [(one_view_data_dict[i1], one_view_data_dict[i2])]
     }
 
     logger.info(f"Submitted {len(two_view_result_futures)} tasks to workers")
@@ -881,13 +881,13 @@ def run_two_view_estimator_as_futures(
 
 def get_two_view_reports_summary(
     two_view_report_dict: AnnotatedGraph[TwoViewEstimationReport],
-    images: List[Image],
+    one_view_data_dict: Dict[int, OneViewData],
 ) -> List[Dict[str, Any]]:
     """Converts the TwoViewEstimationReports to a summary dict for each image pair.
 
     Args:
         two_view_report_dict: Front-end metrics for pairs of images.
-        images: List of all images for this scene, in order of image/frame index.
+        one_view_data_dict: Per-view metadata keyed by image index.
 
     Returns:
         List of dictionaries, where each dictionary contains the metrics for an image pair.
@@ -904,8 +904,8 @@ def get_two_view_reports_summary(
             {
                 "i1": int(i1),
                 "i2": int(i2),
-                "i1_filename": images[i1].file_name,
-                "i2_filename": images[i2].file_name,
+                "i1_filename": one_view_data_dict[i1].image_fname,
+                "i2_filename": one_view_data_dict[i2].image_fname,
                 "rotation_angular_error": round_fn(report.R_error_deg),
                 "translation_angular_error": round_fn(report.U_error_deg),
                 "num_inliers_gt_model": (
