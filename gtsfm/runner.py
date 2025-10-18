@@ -197,7 +197,9 @@ class GtsfmRunner:
                 logger.info(
                     f"🔄 Applying Correspondence Override: " f"{self.parsed_args.correspondence_generator_config_name}"
                 )
-                scene_optimizer.correspondence_generator = instantiate(correspondence_cfg.CorrespondenceGenerator)
+                scene_optimizer.cluster_optimizer.correspondence_generator = instantiate(
+                    correspondence_cfg.CorrespondenceGenerator
+                )
 
         # Override verifier.
         if self.parsed_args.verifier_config_name is not None:
@@ -206,7 +208,7 @@ class GtsfmRunner:
                     config_name=self.parsed_args.verifier_config_name,
                 )
                 logger.info(f"🔄 Applying Verifier Override: {self.parsed_args.verifier_config_name}")
-                scene_optimizer.two_view_estimator._verifier = instantiate(verifier_cfg.verifier)
+                scene_optimizer.cluster_optimizer.two_view_estimator._verifier = instantiate(verifier_cfg.verifier)
 
         # Override retriever.
         if self.parsed_args.retriever_config_name is not None:

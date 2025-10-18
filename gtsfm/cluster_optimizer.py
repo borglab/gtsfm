@@ -61,8 +61,8 @@ class ClusterOptimizer:
         pose_angular_error_thresh: float = 3,
         output_worker: Optional[str] = None,
     ) -> None:
-        self._correspondence_generator = correspondence_generator
-        self._two_view_estimator = two_view_estimator
+        self.correspondence_generator = correspondence_generator
+        self.two_view_estimator = two_view_estimator
         self.multiview_optimizer = multiview_optimizer
         self.dense_multiview_optimizer = dense_multiview_optimizer
         self.gaussian_splatting_optimizer = gaussian_splatting_optimizer
@@ -79,27 +79,6 @@ class ClusterOptimizer:
     @property
     def pose_angular_error_thresh(self) -> float:
         return self._pose_angular_error_thresh
-
-    @property
-    def correspondence_generator(self) -> CorrespondenceGeneratorBase:
-        return self._correspondence_generator
-
-    @property
-    def two_view_estimator(self) -> TwoViewEstimator:
-        return self._two_view_estimator
-
-    def update_frontend_modules(
-        self,
-        correspondence_generator: Optional[CorrespondenceGeneratorBase] = None,
-        two_view_estimator: Optional[TwoViewEstimator] = None,
-    ) -> None:
-        """Update correspondence generator or two-view estimator used by the optimizer."""
-        if correspondence_generator is not None:
-            self._correspondence_generator = correspondence_generator
-        if two_view_estimator is not None:
-            self._two_view_estimator = two_view_estimator
-        if self._correspondence_generator is None or self._two_view_estimator is None:
-            raise ValueError("ClusterOptimizer requires both correspondence_generator and two_view_estimator.")
 
     def create_computation_graph(
         self,
@@ -122,7 +101,7 @@ class ClusterOptimizer:
         (
             keypoints_list,
             putative_corr_idxs_dict,
-        ) = self._correspondence_generator.generate_correspondences(client, image_futures, visibility_graph)
+        ) = self.correspondence_generator.generate_correspondences(client, image_futures, visibility_graph)
         correspondence_generation_duration_sec = time.time() - correspondence_generation_start_time
 
         logger.info("🔵 ClusterOptimizer: running two-view estimation on %d pairs.", len(putative_corr_idxs_dict))
@@ -132,7 +111,7 @@ class ClusterOptimizer:
         two_view_estimation_start_time = time.time()
         two_view_result_futures = run_two_view_estimator_as_futures(
             client=client,
-            two_view_estimator=self._two_view_estimator,
+            two_view_estimator=self.two_view_estimator,
             keypoints_list=padded_keypoints_list,
             putative_corr_idxs_dict=putative_corr_idxs_dict,
             relative_pose_priors=relative_pose_priors,

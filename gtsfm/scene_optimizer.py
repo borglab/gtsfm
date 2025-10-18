@@ -14,14 +14,12 @@ import gtsfm.utils.logger as logger_utils
 from gtsfm.cluster_optimizer import REACT_METRICS_PATH, REACT_RESULTS_PATH, ClusterOptimizer, save_metrics_reports
 from gtsfm.common.outputs import OutputPaths, prepare_output_paths
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
-from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
 from gtsfm.frontend.correspondence_generator.image_correspondence_generator import ImageCorrespondenceGenerator
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.graph_partitioner.single_partitioner import SinglePartitioner
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.products.visibility_graph import VisibilityGraph
 from gtsfm.retriever.image_pairs_generator import ImagePairsGenerator
-from gtsfm.two_view_estimator import TwoViewEstimator
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
 
 # Set matplotlib backend to "Agg" (Anti-Grain Geometry) for headless rendering
@@ -61,26 +59,10 @@ class SceneOptimizer:
         """Returns string representation of class."""
         return f"""
         {self.image_pairs_generator}
-        {self.correspondence_generator}
-        {self.two_view_estimator}
+        {self.cluster_optimizer.correspondence_generator}
+        {self.cluster_optimizer.two_view_estimator}
         {self.cluster_optimizer}
         """
-
-    @property
-    def correspondence_generator(self) -> CorrespondenceGeneratorBase:
-        return self.cluster_optimizer.correspondence_generator
-
-    @correspondence_generator.setter
-    def correspondence_generator(self, module: CorrespondenceGeneratorBase) -> None:
-        self.cluster_optimizer.update_frontend_modules(correspondence_generator=module)
-
-    @property
-    def two_view_estimator(self) -> TwoViewEstimator:
-        return self.cluster_optimizer.two_view_estimator
-
-    @two_view_estimator.setter
-    def two_view_estimator(self, module: TwoViewEstimator) -> None:
-        self.cluster_optimizer.update_frontend_modules(two_view_estimator=module)
 
     def create_plot_base_path(self):
         """Create plot base path."""
@@ -185,7 +167,7 @@ class SceneOptimizer:
 
     def _create_process_graph(self):
         process_graph_generator = ProcessGraphGenerator()
-        if isinstance(self.correspondence_generator, ImageCorrespondenceGenerator):
+        if isinstance(self.cluster_optimizer.correspondence_generator, ImageCorrespondenceGenerator):
             process_graph_generator.is_image_correspondence = True
         process_graph_generator.save_graph()
 
