@@ -135,7 +135,7 @@ class SceneOptimizer:
         keypoints_list: list[Keypoints],
         two_view_results: AnnotatedGraph[TwoViewResult],
         num_images: int,
-        one_view_data_map: dict[int, OneViewData],
+        one_view_data_dict: dict[int, OneViewData],
         output_paths: OutputPaths,
         relative_pose_priors: AnnotatedGraph[PosePrior],
         gt_scene_mesh: Optional[Trimesh] = None,
@@ -146,7 +146,7 @@ class SceneOptimizer:
             keypoints_list: Keypoints for all images.
             two_view_results: Valid two-view results for image pairs in the cluster.
             num_images: Total number of images in the scene.
-            one_view_data_map: Per-view data keyed by image index.
+            one_view_data_dict: Per-view data keyed by image index.
             output_paths: Output directories for artifacts.
             relative_pose_priors: Priors on relative poses for the cluster.
             gt_scene_mesh: Optional GT scene mesh.
@@ -168,7 +168,7 @@ class SceneOptimizer:
         ) = self.multiview_optimizer.create_computation_graph(
             keypoints_list=keypoints_list,
             two_view_results=two_view_results,
-            one_view_data_map=one_view_data_map,
+            one_view_data_dict=one_view_data_dict,
             image_delayed_map=image_delayed_map,
             relative_pose_priors=relative_pose_priors,
             output_root=self.output_root,
@@ -184,7 +184,7 @@ class SceneOptimizer:
             delayed_results.append(
                 delayed(save_full_frontend_metrics)(
                     {ij: r.post_isp_report for ij, r in two_view_results.items()},
-                    one_view_data_map,
+                    one_view_data_dict,
                     filename="two_view_report_{}.json".format(POST_ISP_REPORT_TAG),
                     metrics_path=output_paths.metrics,
                     plot_base_path=output_paths.plot_base,
@@ -195,7 +195,7 @@ class SceneOptimizer:
             delayed_results.append(
                 delayed(save_full_frontend_metrics)(
                     two_view_reports_post_viewgraph_estimator,  # type: ignore
-                    one_view_data_map,
+                    one_view_data_dict,
                     filename="two_view_report_{}.json".format(VIEWGRAPH_REPORT_TAG),
                     metrics_path=output_paths.metrics,
                     plot_base_path=output_paths.plot_base,
@@ -214,14 +214,14 @@ class SceneOptimizer:
             metrics_graph_list.extend(optimizer_metrics_graph)
 
         # Modify BA input, BA output, and GT poses to have point clouds and frustums aligned with x,y,z axes.
-        gt_wTi_list = [one_view_data_map[idx].pose_gt for idx in range(num_images)]
+        gt_wTi_list = [one_view_data_dict[idx].pose_gt for idx in range(num_images)]
         ba_input_graph, ba_output_graph, aligned_gt_wTi_list = delayed(align_estimated_gtsfm_data, nout=3)(
             ba_input_graph, ba_output_graph, gt_wTi_list
         )
 
         # Create I/O tasks
         images = [image_delayed_map[idx] for idx in range(num_images)]
-        cameras_gt = [one_view_data_map[idx].camera_gt for idx in range(num_images)]
+        cameras_gt = [one_view_data_dict[idx].camera_gt for idx in range(num_images)]
         annotation = annotate(workers=self._output_worker) if self._output_worker else annotate()
         with annotation:
             if self._save_gtsfm_data:
@@ -319,7 +319,7 @@ class SceneOptimizer:
         )
 
         logger.info("🔥 GTSFM: Running two-view estimation...")
-        one_view_data_map = self.loader.get_one_view_data_map(client)
+        one_view_data_dict = self.loader.get_one_view_data_dict(client)
         with performance_report(filename="dask_reports/two-view-estimation.html"):
             two_view_estimation_start_time = time.time()
             two_view_result_futures = run_two_view_estimator_as_futures(
@@ -329,7 +329,7 @@ class SceneOptimizer:
                 putative_corr_idxs_dict,
                 self.loader.get_relative_pose_priors(visibility_graph),
                 gt_scene_mesh=self.loader.get_gt_scene_trimesh(),
-                one_view_data_map=one_view_data_map,
+                one_view_data_dict=one_view_data_dict,
             )
             tve_duration_sec = time.time() - two_view_estimation_start_time
 
@@ -379,7 +379,7 @@ class SceneOptimizer:
                 keypoints_list=keypoints,
                 two_view_results=cluster_two_view_results,
                 num_images=len(self.loader),
-                one_view_data_map=one_view_data_map,
+                one_view_data_dict=one_view_data_dict,
                 relative_pose_priors=self.loader.get_relative_pose_priors(list(cluster_two_view_results.keys())),
                 gt_scene_mesh=self.loader.get_gt_scene_trimesh(),
                 output_paths=output_paths,
@@ -644,7 +644,7 @@ def save_gtsfm_data(
 
 def save_full_frontend_metrics(
     two_view_report_dict: AnnotatedGraph[TwoViewEstimationReport],
-    one_view_data_map: dict[int, OneViewData],
+    one_view_data_dict: dict[int, OneViewData],
     filename: str,
     metrics_path: Path,
     plot_base_path: Path,
@@ -653,12 +653,12 @@ def save_full_frontend_metrics(
 
     Args:
         two_view_report_dict: Front-end metrics for pairs of images.
-        one_view_data_map: Per-view metadata for the entire scene.
+        one_view_data_dict: Per-view metadata for the entire scene.
         filename: File name to use when saving report to JSON.
         metrics_path: Path to directory where metrics will be saved.
         plot_base_path: Path to directory where plots will be saved.
     """
-    metrics_list = two_view_estimator.get_two_view_reports_summary(two_view_report_dict, one_view_data_map)
+    metrics_list = two_view_estimator.get_two_view_reports_summary(two_view_report_dict, one_view_data_dict)
 
     io_utils.save_json_file(os.path.join(metrics_path, filename), metrics_list)
 

@@ -379,7 +379,7 @@ class LoaderBase(GTSFMProcess):
         N = len(self)
         return [self.get_camera_intrinsics(i) for i in range(N)]
 
-    def get_one_view_data_map(self, client: Client) -> Dict[int, OneViewData]:
+    def get_one_view_data_dict(self, client: Client) -> Dict[int, OneViewData]:
         """Construct a per-view data map keyed by image index along with validated intrinsics.
 
         Args:
@@ -409,7 +409,7 @@ class LoaderBase(GTSFMProcess):
         ):
             raise ValueError("Per-view inputs must match the number of images in the loader.")
 
-        one_view_data_map = {
+        one_view_data_dict = {
             idx: OneViewData(
                 image_fname=image_fnames[idx],
                 intrinsics=intrinsics[idx],
@@ -419,7 +419,7 @@ class LoaderBase(GTSFMProcess):
             )
             for idx in range(num_images)
         }
-        return one_view_data_map
+        return one_view_data_dict
 
     def get_gt_poses(self) -> List[Optional[Pose3]]:
         """Return all the camera poses.

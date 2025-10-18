@@ -844,7 +844,7 @@ def run_two_view_estimator_as_futures(
     putative_corr_idxs_dict: AnnotatedGraph[np.ndarray],
     relative_pose_priors: Dict[Tuple[int, int], PosePrior],
     gt_scene_mesh: Optional[Any],
-    one_view_data_map: Dict[int, OneViewData],
+    one_view_data_dict: Dict[int, OneViewData],
 ) -> AnnotatedGraph[Future]:
     """Run two-view estimator for all image pairs."""
 
@@ -872,7 +872,7 @@ def run_two_view_estimator_as_futures(
             i2=i2,
         )
         for (i1, i2), putative_corr_idxs in putative_corr_idxs_dict.items()
-        for view1, view2 in [(one_view_data_map[i1], one_view_data_map[i2])]
+        for view1, view2 in [(one_view_data_dict[i1], one_view_data_dict[i2])]
     }
 
     logger.info(f"Submitted {len(two_view_result_futures)} tasks to workers")
@@ -881,13 +881,13 @@ def run_two_view_estimator_as_futures(
 
 def get_two_view_reports_summary(
     two_view_report_dict: AnnotatedGraph[TwoViewEstimationReport],
-    one_view_data_map: Dict[int, OneViewData],
+    one_view_data_dict: Dict[int, OneViewData],
 ) -> List[Dict[str, Any]]:
     """Converts the TwoViewEstimationReports to a summary dict for each image pair.
 
     Args:
         two_view_report_dict: Front-end metrics for pairs of images.
-        one_view_data_map: Per-view metadata keyed by image index.
+        one_view_data_dict: Per-view metadata keyed by image index.
 
     Returns:
         List of dictionaries, where each dictionary contains the metrics for an image pair.
@@ -904,8 +904,8 @@ def get_two_view_reports_summary(
             {
                 "i1": int(i1),
                 "i2": int(i2),
-                "i1_filename": one_view_data_map[i1].image_fname,
-                "i2_filename": one_view_data_map[i2].image_fname,
+                "i1_filename": one_view_data_dict[i1].image_fname,
+                "i2_filename": one_view_data_dict[i2].image_fname,
                 "rotation_angular_error": round_fn(report.R_error_deg),
                 "translation_angular_error": round_fn(report.U_error_deg),
                 "num_inliers_gt_model": (

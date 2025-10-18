@@ -55,7 +55,7 @@ class MultiViewOptimizer:
 
     def __repr__(self) -> str:
         return f"""
-        MultiviewOptimizer: 
+        MultiviewOptimizer:
             ViewGraphEstimator: {self.view_graph_estimator}
             RotationAveraging: {self.rot_avg_module}
             TranslationAveraging: {self.trans_avg_module}
@@ -65,7 +65,7 @@ class MultiViewOptimizer:
         self,
         keypoints_list: List[Keypoints],
         two_view_results: AnnotatedGraph[TwoViewResult],
-        one_view_data_map: Dict[int, OneViewData],
+        one_view_data_dict: Dict[int, OneViewData],
         image_delayed_map: Dict[int, Delayed],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         output_root: Optional[Path] = None,
@@ -75,7 +75,7 @@ class MultiViewOptimizer:
         Args:
             keypoints_list: Keypoints for images.
             two_view_results: valid two-view results for image pairs.
-            one_view_data_map: Per-view data entries keyed by image index.
+            one_view_data_dict: Per-view data entries keyed by image index.
             image_delayed_map: Delayed image fetch tasks keyed by image index.
             relative_pose_priors: Priors on the pose between camera pairs.
             output_root: Path where output should be saved.
@@ -87,12 +87,12 @@ class MultiViewOptimizer:
             List of GtsfmMetricGroups from different modules, wrapped up as Delayed.
         """
 
-        num_images = len(one_view_data_map)
+        num_images = len(one_view_data_dict)
         images: List[Delayed] = [image_delayed_map[idx] for idx in range(num_images)]
-        all_intrinsics = [one_view_data_map[idx].intrinsics for idx in range(num_images)]
-        absolute_pose_priors = [one_view_data_map[idx].absolute_pose_prior for idx in range(num_images)]
-        cameras_gt = [one_view_data_map[idx].camera_gt for idx in range(num_images)]
-        gt_wTi_list = [one_view_data_map[idx].pose_gt for idx in range(num_images)]
+        all_intrinsics = [one_view_data_dict[idx].intrinsics for idx in range(num_images)]
+        absolute_pose_priors = [one_view_data_dict[idx].absolute_pose_prior for idx in range(num_images)]
+        cameras_gt = [one_view_data_dict[idx].camera_gt for idx in range(num_images)]
+        gt_wTi_list = [one_view_data_dict[idx].pose_gt for idx in range(num_images)]
 
         # We assume all two-view results here are *valid* (T and U not None)
         i2Ri1_dict = {}
