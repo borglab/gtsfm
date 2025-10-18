@@ -2,10 +2,7 @@
 
 # @package _global_
 _target_: gtsfm.scene_optimizer.SceneOptimizer
-save_gtsfm_data: True
 save_two_view_correspondences_viz: False
-save_3d_viz: True
-pose_angular_error_thresh: 5 # degrees
 
 image_pairs_generator:
   _target_: gtsfm.retriever.image_pairs_generator.ImagePairsGenerator
@@ -49,49 +46,46 @@ two_view_estimator:
     min_num_inliers_est_model: 15
     min_inlier_ratio_est_model: 0.1
 
-multiview_optimizer:
-  _target_: gtsfm.multi_view_optimizer.MultiViewOptimizer
+cluster_optimizer:
+  _target_: gtsfm.cluster_optimizer.ClusterOptimizer
+  save_gtsfm_data: True
+  save_3d_viz: True
+  pose_angular_error_thresh: 5 # degrees
+  multiview_optimizer:
+    _target_: gtsfm.multi_view_optimizer.MultiViewOptimizer
 
-  # comment out to not run
-  view_graph_estimator:
-    _target_: gtsfm.view_graph_estimator.cycle_consistent_rotation_estimator.CycleConsistentRotationViewGraphEstimator
-    edge_error_aggregation_criterion: MEDIAN_EDGE_ERROR
+    # comment out to not run
+    view_graph_estimator:
+      _target_: gtsfm.view_graph_estimator.cycle_consistent_rotation_estimator.CycleConsistentRotationViewGraphEstimator
+      edge_error_aggregation_criterion: MEDIAN_EDGE_ERROR
 
-  rot_avg_module:
-    _target_: gtsfm.averaging.rotation.shonan.ShonanRotationAveraging
-    # Use a very low value.
-    two_view_rotation_sigma: 0.1
+    rot_avg_module:
+      _target_: gtsfm.averaging.rotation.shonan.ShonanRotationAveraging
+      # Use a very low value.
+      two_view_rotation_sigma: 0.1
 
-  trans_avg_module:
-    _target_: gtsfm.averaging.translation.averaging_1dsfm.TranslationAveraging1DSFM
-    robust_measurement_noise: True
-    projection_sampling_method: SAMPLE_INPUT_MEASUREMENTS
+    trans_avg_module:
+      _target_: gtsfm.averaging.translation.averaging_1dsfm.TranslationAveraging1DSFM
+      robust_measurement_noise: True
+      projection_sampling_method: SAMPLE_INPUT_MEASUREMENTS
 
-  data_association_module:
-    _target_: gtsfm.data_association.data_assoc.DataAssociation
-    min_track_len: 2
-    triangulation_options:
-      _target_: gtsfm.data_association.point3d_initializer.TriangulationOptions
-      reproj_error_threshold: 10
-      mode:
-        _target_: gtsfm.data_association.point3d_initializer.TriangulationSamplingMode
-        value: RANSAC_SAMPLE_UNIFORM
-      max_num_hypotheses: 100
-    save_track_patches_viz: False
+    data_association_module:
+      _target_: gtsfm.data_association.data_assoc.DataAssociation
+      min_track_len: 2
+      triangulation_options:
+        _target_: gtsfm.data_association.point3d_initializer.TriangulationOptions
+        reproj_error_threshold: 10
+        mode:
+          _target_: gtsfm.data_association.point3d_initializer.TriangulationSamplingMode
+          value: RANSAC_SAMPLE_UNIFORM
+        max_num_hypotheses: 100
+      save_track_patches_viz: False
 
-  bundle_adjustment_module:
-    _target_: gtsfm.bundle.bundle_adjustment.BundleAdjustmentOptimizer
-    reproj_error_thresholds: [10, 5, 3] # for (multistage) post-optimization filtering
-    robust_measurement_noise: True
-    shared_calib: False
-    cam_pose3_prior_noise_sigma: 0.01
-    calibration_prior_noise_sigma: 1e-5
-    measurement_noise_sigma: 1.0
-# # comment out to not run
-# dense_multiview_optimizer:
-#   _target_: gtsfm.densify.mvs_patchmatchnet.MVSPatchmatchNet
-
-# gaussian_splatting_optimizer:
-#   _target_: gtsfm.splat.gaussian_splatting.GaussianSplatting
-#   cfg:
-#     _target_: gtsfm.splat.gaussian_splatting.Config
+    bundle_adjustment_module:
+      _target_: gtsfm.bundle.bundle_adjustment.BundleAdjustmentOptimizer
+      reproj_error_thresholds: [10, 5, 3] # for (multistage) post-optimization filtering
+      robust_measurement_noise: True
+      shared_calib: False
+      cam_pose3_prior_noise_sigma: 0.01
+      calibration_prior_noise_sigma: 1e-5
+      measurement_noise_sigma: 1.0
