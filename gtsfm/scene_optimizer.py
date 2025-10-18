@@ -157,7 +157,8 @@ class SceneOptimizer:
 
         delayed_results: list[Delayed] = []
 
-        images = [delayed(resolve_image_future)(one_view_data_map[idx].image_future) for idx in range(num_images)]
+        image_delayed_map = self.loader.get_images_as_delayed_map()
+        images = [image_delayed_map[idx] for idx in range(num_images)]
         cameras_gt = [one_view_data_map[idx].camera_gt for idx in range(num_images)]
         gt_wTi_list = [one_view_data_map[idx].pose_gt for idx in range(num_images)]
 
@@ -171,6 +172,7 @@ class SceneOptimizer:
             keypoints_list=keypoints_list,
             two_view_results=two_view_results,
             one_view_data_map=one_view_data_map,
+            image_delayed_map=image_delayed_map,
             relative_pose_priors=relative_pose_priors,
             output_root=self.output_root,
         )
@@ -305,13 +307,8 @@ class SceneOptimizer:
         self._ensure_react_directories()
         base_output_paths = prepare_output_paths(self.output_root, None)
 
-        one_view_data_map = self.loader.get_one_view_data_map(client)
-        num_images = len(self.loader)
-        image_futures = [one_view_data_map[idx].image_future for idx in range(num_images)]
-        image_fnames = [one_view_data_map[idx].image_fname for idx in range(num_images)]
-
         logger.info("🔥 GTSFM: Running image pair retrieval...")
-        retriever_metrics, visibility_graph = self._run_retriever(client, image_futures, image_fnames)
+        retriever_metrics, visibility_graph, image_futures = self._run_retriever(client)
         base_metrics_groups.append(retriever_metrics)
 
         logger.info("🔥 GTSFM: Running correspondence generation...")
@@ -321,6 +318,7 @@ class SceneOptimizer:
         )
 
         logger.info("🔥 GTSFM: Running two-view estimation...")
+        one_view_data_map = self.loader.get_one_view_data_map(client)
         two_view_result_futures, tve_duration_sec = self._run_two_view_estimation(
             client,
             visibility_graph,
@@ -423,8 +421,11 @@ class SceneOptimizer:
             process_graph_generator.is_image_correspondence = True
         process_graph_generator.save_graph()
 
-    def _run_retriever(self, client, image_futures: list[Future], image_fnames: list[str]):
+    def _run_retriever(self, client) -> tuple[GtsfmMetricsGroup, VisibilityGraph, list[Future]]:
         retriever_start_time = time.time()
+        image_futures = self.loader.get_all_images_as_futures(client)
+        image_fnames = self.loader.image_filenames()
+
         with performance_report(filename="dask_reports/retriever.html"):
             visibility_graph = self.image_pairs_generator.run(
                 client=client,
@@ -436,7 +437,7 @@ class SceneOptimizer:
         retriever_duration_sec = time.time() - retriever_start_time
         retriever_metrics.add_metric(GtsfmMetric("retriever_duration_sec", retriever_duration_sec))
         logger.info("🚀 Image pair retrieval took %.2f min.", retriever_duration_sec / 60.0)
-        return retriever_metrics, visibility_graph
+        return retriever_metrics, visibility_graph, image_futures
 
     def _run_correspondence_generation(self, client, visibility_graph, image_futures: list[Future]):
         with performance_report(filename="dask_reports/correspondence-generator.html"):
@@ -519,13 +520,6 @@ class SceneOptimizer:
             GtsfmMetric("total_two_view_estimation_duration_sec", two_view_estimation_duration_sec)
         )
         return two_view_agg_metrics
-
-
-def resolve_image_future(image_future: Future | Image) -> Image:
-    """Materialize an image Future to an Image instance."""
-    if isinstance(image_future, Future):
-        return image_future.result()
-    return image_future
 
 
 def get_image_dictionary(image_list: list[Image]) -> dict[int, Image]:

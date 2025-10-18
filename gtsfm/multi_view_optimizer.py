@@ -9,7 +9,6 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from dask.delayed import Delayed, delayed
-from dask.distributed import Future
 from gtsam import Pose3  # type: ignore
 
 import gtsfm.common.types as gtsfm_types
@@ -18,7 +17,6 @@ import gtsfm.utils.graph as graph_utils
 from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
 from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
 from gtsfm.bundle.global_ba import GlobalBundleAdjustment
-from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.sfm_track import SfmTrack2d
@@ -33,13 +31,6 @@ from gtsfm.view_graph_estimator.cycle_consistent_rotation_estimator import (
     EdgeErrorAggregationCriterion,
 )
 from gtsfm.view_graph_estimator.view_graph_estimator_base import ViewGraphEstimatorBase
-
-
-def _resolve_image_future(image_future: Future | Image) -> Image:
-    """Fetch an Image instance from a Future."""
-    if isinstance(image_future, Future):
-        return image_future.result()
-    return image_future
 
 
 class MultiViewOptimizer:
@@ -75,6 +66,7 @@ class MultiViewOptimizer:
         keypoints_list: List[Keypoints],
         two_view_results: AnnotatedGraph[TwoViewResult],
         one_view_data_map: Dict[int, OneViewData],
+        image_delayed_map: Dict[int, Delayed],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         output_root: Optional[Path] = None,
     ) -> Tuple[Delayed, Delayed, Delayed, list]:
@@ -84,6 +76,7 @@ class MultiViewOptimizer:
             keypoints_list: Keypoints for images.
             two_view_results: valid two-view results for image pairs.
             one_view_data_map: Per-view data entries keyed by image index.
+            image_delayed_map: Delayed image fetch tasks keyed by image index.
             relative_pose_priors: Priors on the pose between camera pairs.
             output_root: Path where output should be saved.
 
@@ -95,9 +88,7 @@ class MultiViewOptimizer:
         """
 
         num_images = len(one_view_data_map)
-        images: List[Delayed] = [
-            delayed(_resolve_image_future)(one_view_data_map[idx].image_future) for idx in range(num_images)
-        ]
+        images: List[Delayed] = [image_delayed_map[idx] for idx in range(num_images)]
         all_intrinsics = [one_view_data_map[idx].intrinsics for idx in range(num_images)]
         absolute_pose_priors = [one_view_data_map[idx].absolute_pose_prior for idx in range(num_images)]
         cameras_gt = [one_view_data_map[idx].camera_gt for idx in range(num_images)]

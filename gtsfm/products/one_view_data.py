@@ -6,7 +6,6 @@ Authors: Frank Dellaert, Ayush Baid
 from dataclasses import dataclass
 from typing import Optional
 
-from dask.distributed import Future
 from gtsam import Pose3  # type: ignore
 
 import gtsfm.common.types as gtsfm_types
@@ -18,7 +17,6 @@ from gtsfm.common.types import CALIBRATION_TYPE
 class OneViewData:
     """Aggregates per-view data items keyed by image index."""
 
-    image_future: Future
     image_fname: str
     intrinsics: CALIBRATION_TYPE
     absolute_pose_prior: Optional[PosePrior]
