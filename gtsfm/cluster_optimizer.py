@@ -61,11 +61,11 @@ class ClusterOptimizer:
         pose_angular_error_thresh: float = 3,
         output_worker: Optional[str] = None,
     ) -> None:
-        self._correspondence_generator = correspondence_generator
-        self._two_view_estimator = two_view_estimator
         self.multiview_optimizer = multiview_optimizer
         self.dense_multiview_optimizer = dense_multiview_optimizer
         self.gaussian_splatting_optimizer = gaussian_splatting_optimizer
+        self._correspondence_generator = correspondence_generator
+        self._two_view_estimator = two_view_estimator
 
         self._save_gtsfm_data = save_gtsfm_data
         self._save_3d_viz = save_3d_viz
@@ -74,19 +74,33 @@ class ClusterOptimizer:
 
         self.run_dense_optimizer = self.dense_multiview_optimizer is not None
         self.run_gaussian_splatting_optimizer = self.gaussian_splatting_optimizer is not None
+        if self._correspondence_generator is None or self._two_view_estimator is None:
+            raise ValueError("ClusterOptimizer requires correspondence_generator and two_view_estimator.")
 
     @property
     def pose_angular_error_thresh(self) -> float:
         return self._pose_angular_error_thresh
 
-    def set_frontend_modules(
+    @property
+    def correspondence_generator(self) -> CorrespondenceGeneratorBase:
+        return self._correspondence_generator
+
+    @property
+    def two_view_estimator(self) -> TwoViewEstimator:
+        return self._two_view_estimator
+
+    def update_frontend_modules(
         self,
-        correspondence_generator: CorrespondenceGeneratorBase,
-        two_view_estimator: TwoViewEstimator,
+        correspondence_generator: Optional[CorrespondenceGeneratorBase] = None,
+        two_view_estimator: Optional[TwoViewEstimator] = None,
     ) -> None:
-        """Attach the front-end modules used to bootstrap each cluster."""
-        self._correspondence_generator = correspondence_generator
-        self._two_view_estimator = two_view_estimator
+        """Update correspondence generator or two-view estimator used by the optimizer."""
+        if correspondence_generator is not None:
+            self._correspondence_generator = correspondence_generator
+        if two_view_estimator is not None:
+            self._two_view_estimator = two_view_estimator
+        if self._correspondence_generator is None or self._two_view_estimator is None:
+            raise ValueError("ClusterOptimizer requires both correspondence_generator and two_view_estimator.")
 
     def create_computation_graph(
         self,

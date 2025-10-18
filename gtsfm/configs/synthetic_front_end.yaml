@@ -18,36 +18,35 @@ image_pairs_generator:
     min_score: 0.2
     max_frame_lookahead: 3
 
-correspondence_generator:
-  _target_: gtsfm.frontend.correspondence_generator.synthetic_correspondence_generator.SyntheticCorrespondenceGenerator
-  dataset_dir: /usr/local/gtsfm-data/Tanks_and_Temples_Barn_410
-  scene_name: Barn
-
-two_view_estimator:
-  _target_: gtsfm.two_view_estimator.TwoViewEstimator
-  bundle_adjust_2view: False
-  eval_threshold_px: 4 # in px
-  ba_reproj_error_thresholds: [0.5]
-  bundle_adjust_2view_maxiters: 100
-
-  verifier:
-    _target_: gtsfm.frontend.verifier.loransac.LoRansac
-    use_intrinsics_in_verification: True
-    estimation_threshold_px: 0.5 # for H/E/F estimators
-
-  triangulation_options:
-    _target_: gtsfm.data_association.point3d_initializer.TriangulationOptions
-    mode:
-      _target_: gtsfm.data_association.point3d_initializer.TriangulationSamplingMode
-      value: NO_RANSAC
-
-  inlier_support_processor:
-    _target_: gtsfm.two_view_estimator.InlierSupportProcessor
-    min_num_inliers_est_model: 15
-    min_inlier_ratio_est_model: 0.1
-
 cluster_optimizer:
   _target_: gtsfm.cluster_optimizer.ClusterOptimizer
+  correspondence_generator:
+    _target_: gtsfm.frontend.correspondence_generator.synthetic_correspondence_generator.SyntheticCorrespondenceGenerator
+    dataset_dir: /usr/local/gtsfm-data/Tanks_and_Temples_Barn_410
+    scene_name: Barn
+
+  two_view_estimator:
+    _target_: gtsfm.two_view_estimator.TwoViewEstimator
+    bundle_adjust_2view: False
+    eval_threshold_px: 4 # in px
+    ba_reproj_error_thresholds: [0.5]
+    bundle_adjust_2view_maxiters: 100
+
+    verifier:
+      _target_: gtsfm.frontend.verifier.loransac.LoRansac
+      use_intrinsics_in_verification: True
+      estimation_threshold_px: 0.5 # for H/E/F estimators
+
+    triangulation_options:
+      _target_: gtsfm.data_association.point3d_initializer.TriangulationOptions
+      mode:
+        _target_: gtsfm.data_association.point3d_initializer.TriangulationSamplingMode
+        value: NO_RANSAC
+
+    inlier_support_processor:
+      _target_: gtsfm.two_view_estimator.InlierSupportProcessor
+      min_num_inliers_est_model: 15
+      min_inlier_ratio_est_model: 0.1
   save_gtsfm_data: True
   save_3d_viz: True
   pose_angular_error_thresh: 5 # degrees

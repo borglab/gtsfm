@@ -42,8 +42,6 @@ class SceneOptimizer:
         self,
         loader: LoaderBase,
         image_pairs_generator: ImagePairsGenerator,
-        correspondence_generator: CorrespondenceGeneratorBase,
-        two_view_estimator: TwoViewEstimator,
         cluster_optimizer: ClusterOptimizer,
         graph_partitioner: GraphPartitionerBase = SinglePartitioner(),
         save_two_view_correspondences_viz: bool = False,
@@ -52,11 +50,8 @@ class SceneOptimizer:
     ) -> None:
         self.loader = loader
         self.image_pairs_generator = image_pairs_generator
-        self.correspondence_generator = correspondence_generator
-        self.two_view_estimator = two_view_estimator
         self.graph_partitioner = graph_partitioner
         self.cluster_optimizer = cluster_optimizer
-        self.cluster_optimizer.set_frontend_modules(self.correspondence_generator, self.two_view_estimator)
 
         self._save_two_view_correspondences_viz = save_two_view_correspondences_viz
         self.output_root = Path(output_root)
@@ -72,6 +67,22 @@ class SceneOptimizer:
         {self.two_view_estimator}
         {self.cluster_optimizer}
         """
+
+    @property
+    def correspondence_generator(self) -> CorrespondenceGeneratorBase:
+        return self.cluster_optimizer.correspondence_generator
+
+    @correspondence_generator.setter
+    def correspondence_generator(self, module: CorrespondenceGeneratorBase) -> None:
+        self.cluster_optimizer.update_frontend_modules(correspondence_generator=module)
+
+    @property
+    def two_view_estimator(self) -> TwoViewEstimator:
+        return self.cluster_optimizer.two_view_estimator
+
+    @two_view_estimator.setter
+    def two_view_estimator(self, module: TwoViewEstimator) -> None:
+        self.cluster_optimizer.update_frontend_modules(two_view_estimator=module)
 
     def create_plot_base_path(self):
         """Create plot base path."""

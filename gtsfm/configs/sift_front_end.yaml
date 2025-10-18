@@ -17,49 +17,48 @@ image_pairs_generator:
     num_matched: 20
     min_score: 0.3
 
-correspondence_generator:
-  _target_: gtsfm.frontend.correspondence_generator.det_desc_correspondence_generator.DetDescCorrespondenceGenerator
-
-  detector_descriptor:
-    _target_: gtsfm.frontend.cacher.detector_descriptor_cacher.DetectorDescriptorCacher
-    detector_descriptor_obj:
-      _target_: gtsfm.frontend.detector_descriptor.sift.SIFTDetectorDescriptor
-      max_keypoints: 5000
-
-  matcher:
-    _target_: gtsfm.frontend.cacher.matcher_cacher.MatcherCacher
-    matcher_obj:
-      _target_: gtsfm.frontend.matcher.twoway_matcher.TwoWayMatcher
-      ratio_test_threshold: 0.8
-
-two_view_estimator:
-  _target_: gtsfm.two_view_estimator_cacher.TwoViewEstimatorCacher
-  two_view_estimator_obj:
-    _target_: gtsfm.two_view_estimator.TwoViewEstimator
-    bundle_adjust_2view: True
-    eval_threshold_px: 4 # in px
-    ba_reproj_error_thresholds: [0.5]
-    bundle_adjust_2view_maxiters: 100
-
-    verifier:
-      _target_: gtsfm.frontend.verifier.ransac.Ransac
-      use_intrinsics_in_verification: True
-      estimation_threshold_px: 4 # for H/E/F estimators
-
-    triangulation_options:
-      _target_: gtsfm.data_association.point3d_initializer.TriangulationOptions
-      reproj_error_threshold: 100.0
-      mode:
-        _target_: gtsfm.data_association.point3d_initializer.TriangulationSamplingMode
-        value: NO_RANSAC
-
-    inlier_support_processor:
-      _target_: gtsfm.two_view_estimator.InlierSupportProcessor
-      min_num_inliers_est_model: 15
-      min_inlier_ratio_est_model: 0.1
-
 cluster_optimizer:
   _target_: gtsfm.cluster_optimizer.ClusterOptimizer
+  correspondence_generator:
+    _target_: gtsfm.frontend.correspondence_generator.det_desc_correspondence_generator.DetDescCorrespondenceGenerator
+
+    detector_descriptor:
+      _target_: gtsfm.frontend.cacher.detector_descriptor_cacher.DetectorDescriptorCacher
+      detector_descriptor_obj:
+        _target_: gtsfm.frontend.detector_descriptor.sift.SIFTDetectorDescriptor
+        max_keypoints: 5000
+
+    matcher:
+      _target_: gtsfm.frontend.cacher.matcher_cacher.MatcherCacher
+      matcher_obj:
+        _target_: gtsfm.frontend.matcher.twoway_matcher.TwoWayMatcher
+        ratio_test_threshold: 0.8
+
+  two_view_estimator:
+    _target_: gtsfm.two_view_estimator_cacher.TwoViewEstimatorCacher
+    two_view_estimator_obj:
+      _target_: gtsfm.two_view_estimator.TwoViewEstimator
+      bundle_adjust_2view: True
+      eval_threshold_px: 4 # in px
+      ba_reproj_error_thresholds: [0.5]
+      bundle_adjust_2view_maxiters: 100
+
+      verifier:
+        _target_: gtsfm.frontend.verifier.ransac.Ransac
+        use_intrinsics_in_verification: True
+        estimation_threshold_px: 4 # for H/E/F estimators
+
+      triangulation_options:
+        _target_: gtsfm.data_association.point3d_initializer.TriangulationOptions
+        reproj_error_threshold: 100.0
+        mode:
+          _target_: gtsfm.data_association.point3d_initializer.TriangulationSamplingMode
+          value: NO_RANSAC
+
+      inlier_support_processor:
+        _target_: gtsfm.two_view_estimator.InlierSupportProcessor
+        min_num_inliers_est_model: 15
+        min_inlier_ratio_est_model: 0.1
   save_gtsfm_data: True
   save_3d_viz: False
   pose_angular_error_thresh: 5 # degrees
