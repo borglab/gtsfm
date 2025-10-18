@@ -7,9 +7,10 @@ import argparse
 from typing import List, Tuple
 
 import numpy as np
-import open3d
-from colour import Color
-from gtsam import Cal3Bundler, Pose3
+import open3d  # type: ignore
+import open3d.visualization as vis  # type: ignore
+from colour import Color  # type: ignore
+from gtsam import Cal3Bundler, Pose3  # type: ignore
 
 from gtsfm.common.view_frustum import ViewFrustum
 
@@ -120,20 +121,30 @@ def create_all_frustums_open3d(
         img_h = py * 2
         frustum_obj = ViewFrustum(fx, img_w, img_h, frustum_ray_len=frustum_ray_len)
 
-        edges_worldfr = frustum_obj.get_mesh_edges_worldframe(wTi)
-        for verts_worldfr in edges_worldfr:
+        edges_world = frustum_obj.get_mesh_edges_worldframe(wTi)
+        for verticals_world in edges_world:
             lines = [[0, 1]]
             # color is in range [0,1]
             color = tuple(colormap[i].tolist())
             colors = [color for i in range(len(lines))]
             line_set = open3d.geometry.LineSet(
-                points=open3d.utility.Vector3dVector(verts_worldfr),
+                points=open3d.utility.Vector3dVector(verticals_world),
                 lines=open3d.utility.Vector2iVector(lines),
             )
             line_set.colors = open3d.utility.Vector3dVector(colors)
             line_sets.append(line_set)
 
     return line_sets
+
+
+def _draw_geometries(geometries: List, args: argparse.Namespace) -> None:
+    """Render Open3D geometries either natively or via the WebRTC server."""
+    if getattr(args, "web", False):
+        # Enable WebRTC to allow rendering the scene in the browser.
+        vis.webrtc_server.enable_webrtc()  # type: ignore
+        vis.draw(geometries)
+    else:
+        vis.draw_geometries(geometries)  # type: ignore
 
 
 def draw_coordinate_frame(wTc: Pose3, axis_length: float = 1.0) -> List[open3d.geometry.LineSet]:
@@ -159,16 +170,16 @@ def draw_coordinate_frame(wTc: Pose3, axis_length: float = 1.0) -> List[open3d.g
     line_sets = []
     for axis, color in zip([0, 1, 2], colors):
         # one point at optical center, other point along specified axis.
-        verts_camfr = np.zeros((2, 3))
-        verts_camfr[0, axis] = axis_length
+        verticals_camera = np.zeros((2, 3))
+        verticals_camera[0, axis] = axis_length
 
-        verts_worldfr = []
+        verticals_world = []
         for i in range(2):
-            verts_worldfr.append(wTc.transformFrom(verts_camfr[i]))
-        verts_worldfr = np.array(verts_worldfr)
+            verticals_world.append(wTc.transformFrom(verticals_camera[i]))
+        verticals_world_np = np.array(verticals_world)
 
         line_set = open3d.geometry.LineSet(
-            points=open3d.utility.Vector3dVector(verts_worldfr),
+            points=open3d.utility.Vector3dVector(verticals_world_np),
             lines=open3d.utility.Vector2iVector(lines),
         )
         line_set.colors = open3d.utility.Vector3dVector(color.reshape(1, 3))
@@ -194,6 +205,7 @@ def draw_scene_open3d(
         args: Rendering options.
     """
     frustums = create_all_frustums_open3d(wTi_list, calibrations, args.frustum_ray_len)
+    geometries = []
     if args.rendering_style == "point":
         pcd = create_colored_point_cloud_open3d(point_cloud, rgb)
         geometries = frustums + [pcd]
@@ -201,7 +213,7 @@ def draw_scene_open3d(
         spheres = create_colored_spheres_open3d(point_cloud, rgb, args.sphere_radius)
         geometries = frustums + spheres
 
-    open3d.visualization.draw_geometries(geometries)
+    _draw_geometries(geometries, args)
 
 
 def draw_scene_with_gt_open3d(
@@ -234,4 +246,4 @@ def draw_scene_with_gt_open3d(
     pcd = create_colored_point_cloud_open3d(point_cloud, rgb)
     geometries = frustums + gt_frustums + [pcd]  # + spheres
 
-    open3d.visualization.draw_geometries(geometries)
+    _draw_geometries(geometries, args)
