@@ -92,22 +92,19 @@ class MultiViewOptimizer:
 
     def create_computation_graph(
         self,
-        keypoints_list: List[Keypoints],
-        two_view_results: AnnotatedGraph[TwoViewResult],
+        keypoints_graph: Delayed,
+        two_view_results_graph: Delayed,
         one_view_data_dict: Dict[int, OneViewData],
         image_delayed_map: Dict[int, Delayed],
-        relative_pose_priors: Optional[Dict[Tuple[int, int], PosePrior]] = None,
         output_root: Optional[Path] = None,
     ) -> Tuple[Delayed, Delayed, Delayed, list]:
         """Creates a computation graph for multi-view optimization.
 
         Args:
-            keypoints_list: Keypoints for images.
-            two_view_results: valid two-view results for image pairs.
+            keypoints_graph: Delayed task producing padded keypoints for images.
+            two_view_results_graph: Delayed task producing valid two-view results for image pairs.
             one_view_data_dict: Per-view data entries keyed by image index.
             image_delayed_map: Delayed image fetch tasks keyed by image index.
-            relative_pose_priors: Optional priors on the pose between camera pairs. If omitted, priors embedded in
-                `two_view_results` will be used.
             output_root: Path where output should be saved.
 
         Returns:
@@ -117,19 +114,9 @@ class MultiViewOptimizer:
             List of GtsfmMetricGroups from different modules, wrapped up as Delayed.
         """
 
-        (
-            i2Ri1_dict,
-            i2Ui1_dict,
-            v_corr_idxs_dict,
-            two_view_reports,
-            relative_pose_priors_from_results,
-        ) = delayed(
+        i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, two_view_reports, pose_priors_graph = delayed(
             MultiViewOptimizer._extract_two_view_components, nout=5
-        )(two_view_results)
-
-        pose_priors_graph = (
-            relative_pose_priors if relative_pose_priors is not None else relative_pose_priors_from_results
-        )
+        )(two_view_results_graph)
 
         # Create debug directory.
         debug_output_dir = None
@@ -151,13 +138,14 @@ class MultiViewOptimizer:
                 i2Ui1_dict,
                 all_intrinsics,
                 v_corr_idxs_dict,
-                keypoints_list,
+                keypoints_graph,
                 two_view_reports,
                 debug_output_dir,
             )
 
             # Second view graph estimator expects the same TwoViewResult format
             # Since ViewGraphEstimatorBase now uses the new signature, we pass two_view_results directly
+            second_debug_output_dir = debug_output_dir / "2" if debug_output_dir else None
             (
                 viewgraph_i2Ri1_graph,
                 viewgraph_i2Ui1_graph,
@@ -169,9 +157,9 @@ class MultiViewOptimizer:
                 viewgraph_i2Ui1_graph,
                 all_intrinsics,
                 viewgraph_v_corr_idxs_graph,
-                keypoints_list,
+                keypoints_graph,
                 viewgraph_two_view_reports_graph,
-                debug_output_dir / "2",
+                second_debug_output_dir,
             )
         else:
             viewgraph_i2Ri1_graph = i2Ri1_dict
@@ -192,7 +180,7 @@ class MultiViewOptimizer:
             gt_wTi_list=gt_wTi_list,
             v_corr_idxs=viewgraph_v_corr_idxs_graph,
         )
-        tracks2d_graph = delayed(get_2d_tracks)(viewgraph_v_corr_idxs_graph, keypoints_list)
+        tracks2d_graph = delayed(get_2d_tracks)(viewgraph_v_corr_idxs_graph, keypoints_graph)
 
         absolute_pose_priors = [one_view_data_dict[idx].absolute_pose_prior for idx in range(num_images)]
         wTi_graph, ta_metrics, ta_inlier_idx_i1_i2 = self.trans_avg_module.create_computation_graph(
@@ -206,7 +194,7 @@ class MultiViewOptimizer:
             gt_wTi_list=gt_wTi_list,
         )
         ta_v_corr_idxs_graph = delayed(filter_corr_by_idx)(viewgraph_v_corr_idxs_graph, ta_inlier_idx_i1_i2)
-        ta_inlier_tracks_2d_graph = delayed(get_2d_tracks)(ta_v_corr_idxs_graph, keypoints_list)
+        ta_inlier_tracks_2d_graph = delayed(get_2d_tracks)(ta_v_corr_idxs_graph, keypoints_graph)
         # TODO(akshay-krishnan): update pose priors also with the same inlier indices, right now these are unused.
 
         init_cameras_graph = delayed(init_cameras)(wTi_graph, all_intrinsics)
@@ -268,9 +256,9 @@ def init_cameras(
     return cameras
 
 
-def get_2d_tracks(correspondences: AnnotatedGraph[np.ndarray], keypoints_list: List[Keypoints]) -> List[SfmTrack2d]:
+def get_2d_tracks(correspondences: AnnotatedGraph[np.ndarray], keypoints_graph: List[Keypoints]) -> List[SfmTrack2d]:
     tracks_estimator = CppDsfTracksEstimator()
-    return tracks_estimator.run(correspondences, keypoints_list)
+    return tracks_estimator.run(correspondences, keypoints_graph)
 
 
 def filter_corr_by_idx(correspondences: AnnotatedGraph[np.ndarray], idxs: List[Tuple[int, int]]):

@@ -154,22 +154,14 @@ class ClusterOptimizer:
             all_two_view_results = nested_client.gather(two_view_result_futures)
             duration_sec = time.time() - start_time
 
-        valid_two_view_results = {edge: result for edge, result in all_two_view_results.items() if result.valid()}
+        valid_two_view_results = {
+            edge: result for edge, result in all_two_view_results.items() if result.valid()  # type : ignore
+        }
 
         if len(valid_two_view_results) == 0:
             logger.warning("🔵 ClusterOptimizer: Skipping cluster as it has no valid two-view results.")
 
         return valid_two_view_results, duration_sec
-
-    @staticmethod
-    def _collect_relative_pose_priors(
-        two_view_results: AnnotatedGraph[TwoViewResult],
-    ) -> AnnotatedGraph[PosePrior]:
-        """Extract relative pose priors recorded on each valid edge."""
-
-        return {
-            edge: result.relative_pose_prior for edge, result in two_view_results.items() if result.relative_pose_prior
-        }
 
     @staticmethod
     def _save_two_view_visualizations(
@@ -285,16 +277,12 @@ class ClusterOptimizer:
         The cluster optimizer now owns the full front-end execution for the provided `visibility_graph`
         (correspondence generation and two-view estimation) before invoking the multi-view optimizer.
         """
-        frontend_graphs = self._build_frontend_graphs(
+        frontend_graphs: FrontendGraphs = self._build_frontend_graphs(
             num_images=num_images,
             one_view_data_dict=one_view_data_dict,
             loader=loader,
             visibility_graph=visibility_graph,
             image_futures=image_futures,
-        )
-
-        relative_pose_priors_graph = delayed(ClusterOptimizer._collect_relative_pose_priors)(
-            frontend_graphs.two_view_results
         )
 
         # Note: the MultiviewOptimizer returns BA input and BA output aligned to GT via Sim(3).
@@ -305,15 +293,14 @@ class ClusterOptimizer:
             view_graph_two_view_reports,
             optimizer_metrics_graph,
         ) = self.multiview_optimizer.create_computation_graph(
-            keypoints_list=frontend_graphs.padded_keypoints,
-            two_view_results=frontend_graphs.two_view_results,
+            keypoints_graph=frontend_graphs.padded_keypoints,  # type: ignore[arg-type]
+            two_view_results_graph=frontend_graphs.two_view_results,  # type: ignore[arg-type]
             one_view_data_dict=one_view_data_dict,
             image_delayed_map=image_delayed_map,
-            relative_pose_priors=relative_pose_priors_graph,
             output_root=output_root,
         )
 
-        metrics_graph_list: list[Delayed] = [frontend_graphs.runtime_metrics]
+        metrics_graph_list: list[Delayed] = [frontend_graphs.runtime_metrics]  # type: ignore
         delayed_results: list[Delayed] = []
 
         if optimizer_metrics_graph is not None:
