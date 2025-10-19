@@ -12,7 +12,7 @@ from typing import Any, Optional
 import numpy as np
 from dask.base import annotate
 from dask.delayed import Delayed, delayed
-from dask.distributed import Client, Future, worker_client
+from dask.distributed import Future, worker_client
 from gtsam import Pose3, Similarity3  # type: ignore
 
 import gtsfm.common.types as gtsfm_types
@@ -48,10 +48,7 @@ class FrontendGraphs:
 
     keypoints: Delayed
     padded_keypoints: Delayed
-    putative_corr_idxs: Delayed
     two_view_results: Delayed
-    post_isp_reports: Delayed
-    filtered_pose_priors: Delayed
     runtime_metrics: Delayed
 
 
@@ -121,21 +118,22 @@ class ClusterOptimizer:
         return valid_two_view_results, duration_sec
 
     @staticmethod
-    def _filter_relative_pose_priors(
-        relative_pose_priors: AnnotatedGraph[PosePrior],
-        two_view_results: AnnotatedGraph[TwoViewResult],
-    ) -> AnnotatedGraph[PosePrior]:
-        """Restrict pose priors to edges with valid two-view results."""
-
-        return {edge: prior for edge, prior in relative_pose_priors.items() if edge in two_view_results}
-
-    @staticmethod
-    def _extract_post_isp_reports(
+    def _collect_post_isp_reports(
         two_view_results: AnnotatedGraph[TwoViewResult],
     ) -> AnnotatedGraph[TwoViewEstimationReport]:
         """Collect post-ISP reports for metrics aggregation."""
 
-        return {edge: result.post_isp_report for edge, result in two_view_results.items()}
+        return {edge: result.post_isp_report for edge, result in two_view_results.items() if result.post_isp_report}
+
+    @staticmethod
+    def _collect_relative_pose_priors(
+        two_view_results: AnnotatedGraph[TwoViewResult],
+    ) -> AnnotatedGraph[PosePrior]:
+        """Extract relative pose priors recorded on each valid edge."""
+
+        return {
+            edge: result.relative_pose_prior for edge, result in two_view_results.items() if result.relative_pose_prior
+        }
 
     @staticmethod
     def _build_frontend_runtime_metrics(
@@ -160,6 +158,7 @@ class ClusterOptimizer:
         output_dir: Path,
     ) -> None:
         """Persist two-view correspondence visualizations for all valid edges."""
+        logger.info("🔵 ClusterOptimizer: Saving two-view correspondences visualizations to %s.", output_dir)
 
         output_dir.mkdir(parents=True, exist_ok=True)
         for (i1, i2), output in two_view_results.items():
@@ -215,10 +214,6 @@ class ClusterOptimizer:
             one_view_data_dict,
         )
 
-        filtered_pose_priors_graph = delayed(ClusterOptimizer._filter_relative_pose_priors)(
-            relative_pose_priors, two_view_results_graph
-        )
-        post_isp_reports_graph = delayed(ClusterOptimizer._extract_post_isp_reports)(two_view_results_graph)
         runtime_metrics_graph = delayed(ClusterOptimizer._build_frontend_runtime_metrics)(
             correspondence_duration_graph,
             two_view_duration_graph,
@@ -227,10 +222,7 @@ class ClusterOptimizer:
         return FrontendGraphs(
             keypoints=keypoints_graph,
             padded_keypoints=padded_keypoints_graph,
-            putative_corr_idxs=putative_corr_idxs_graph,
             two_view_results=two_view_results_graph,
-            post_isp_reports=post_isp_reports_graph,
-            filtered_pose_priors=filtered_pose_priors_graph,
             runtime_metrics=runtime_metrics_graph,
         )
 
@@ -286,7 +278,6 @@ class ClusterOptimizer:
         loader: LoaderBase,
         output_root: Path,
         visibility_graph: VisibilityGraph,
-        client: Client,
         image_futures: list[Future],
     ) -> Optional[tuple[Delayed, list[Delayed], list[Delayed]]]:
         """Create Dask graphs for multi-view optimization and downstream products for a single cluster.
@@ -302,6 +293,11 @@ class ClusterOptimizer:
             image_futures=image_futures,
         )
 
+        post_isp_reports_graph = delayed(ClusterOptimizer._collect_post_isp_reports)(frontend_graphs.two_view_results)
+        relative_pose_priors_graph = delayed(ClusterOptimizer._collect_relative_pose_priors)(
+            frontend_graphs.two_view_results
+        )
+
         # Note: the MultiviewOptimizer returns BA input and BA output aligned to GT via Sim(3).
         image_delayed_map = loader.get_images_as_delayed_map()
         (
@@ -314,7 +310,7 @@ class ClusterOptimizer:
             two_view_results=frontend_graphs.two_view_results,
             one_view_data_dict=one_view_data_dict,
             image_delayed_map=image_delayed_map,
-            relative_pose_priors=frontend_graphs.filtered_pose_priors,
+            relative_pose_priors=relative_pose_priors_graph,
             output_root=output_root,
         )
 
@@ -336,25 +332,21 @@ class ClusterOptimizer:
                     )
                 )
 
-        enqueue_frontend_report(frontend_graphs.post_isp_reports, two_view_estimator.POST_ISP_REPORT_TAG)
+        enqueue_frontend_report(post_isp_reports_graph, two_view_estimator.POST_ISP_REPORT_TAG)
 
         if view_graph_two_view_reports is not None:
             enqueue_frontend_report(view_graph_two_view_reports, two_view_estimator.VIEWGRAPH_REPORT_TAG)
             two_view_reports_for_summary = view_graph_two_view_reports
         else:
-            two_view_reports_for_summary = frontend_graphs.post_isp_reports
+            two_view_reports_for_summary = post_isp_reports_graph
 
         if self._save_two_view_viz:
-            logger.info(
-                "🔵 ClusterOptimizer: Saving two-view correspondences visualizations to %s.",
-                output_paths.plot_correspondence,
-            )
             with self._output_annotation():
                 delayed_results.append(
                     delayed(ClusterOptimizer._save_two_view_visualizations)(
                         loader,
                         frontend_graphs.two_view_results,
-                        frontend_graphs.keypoints,
+                        frontend_graphs.padded_keypoints,
                         output_paths.plot_correspondence,
                     )
                 )

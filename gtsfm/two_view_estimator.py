@@ -472,6 +472,8 @@ class TwoViewEstimator(DaskDBModuleBase):
             pre_ba_report=pre_ba_report,
             post_ba_report=post_ba_report,
             post_isp_report=post_isp_report,
+            putative_corr_idxs=putative_corr_idxs,
+            relative_pose_prior=i2Ti1_prior,
         )
 
     def store_computation_results(

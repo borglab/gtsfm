@@ -43,6 +43,7 @@ class MultiViewOptimizer:
         Dict[Tuple[int, int], Unit3],
         AnnotatedGraph[np.ndarray],
         AnnotatedGraph[TwoViewEstimationReport],
+        AnnotatedGraph[PosePrior],
     ]:
         """Split TwoViewResult objects into the pieces needed by downstream modules."""
 
@@ -50,14 +51,17 @@ class MultiViewOptimizer:
         i2Ui1_dict: Dict[Tuple[int, int], Unit3] = {}
         v_corr_idxs_dict: AnnotatedGraph[np.ndarray] = {}
         two_view_reports: AnnotatedGraph[TwoViewEstimationReport] = {}
+        relative_pose_priors: AnnotatedGraph[PosePrior] = {}
 
         for ij, result in two_view_results.items():
             i2Ri1_dict[ij] = result.i2Ri1
             i2Ui1_dict[ij] = result.i2Ui1
             v_corr_idxs_dict[ij] = result.v_corr_idxs
             two_view_reports[ij] = result.post_isp_report
+            if result.relative_pose_prior is not None:
+                relative_pose_priors[ij] = result.relative_pose_prior
 
-        return i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, two_view_reports
+        return i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, two_view_reports, relative_pose_priors
 
     def __init__(
         self,
@@ -92,7 +96,7 @@ class MultiViewOptimizer:
         two_view_results: AnnotatedGraph[TwoViewResult],
         one_view_data_dict: Dict[int, OneViewData],
         image_delayed_map: Dict[int, Delayed],
-        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
+        relative_pose_priors: Optional[Dict[Tuple[int, int], PosePrior]] = None,
         output_root: Optional[Path] = None,
     ) -> Tuple[Delayed, Delayed, Delayed, list]:
         """Creates a computation graph for multi-view optimization.
@@ -102,7 +106,8 @@ class MultiViewOptimizer:
             two_view_results: valid two-view results for image pairs.
             one_view_data_dict: Per-view data entries keyed by image index.
             image_delayed_map: Delayed image fetch tasks keyed by image index.
-            relative_pose_priors: Priors on the pose between camera pairs.
+            relative_pose_priors: Optional priors on the pose between camera pairs. If omitted, priors embedded in
+                `two_view_results` will be used.
             output_root: Path where output should be saved.
 
         Returns:
@@ -117,9 +122,14 @@ class MultiViewOptimizer:
             i2Ui1_dict,
             v_corr_idxs_dict,
             two_view_reports,
+            relative_pose_priors_from_results,
         ) = delayed(
-            MultiViewOptimizer._extract_two_view_components, nout=4
+            MultiViewOptimizer._extract_two_view_components, nout=5
         )(two_view_results)
+
+        pose_priors_graph = (
+            relative_pose_priors if relative_pose_priors is not None else relative_pose_priors_from_results
+        )
 
         # Create debug directory.
         debug_output_dir = None
@@ -173,12 +183,12 @@ class MultiViewOptimizer:
         # Prune the graph to a single connected component.
         gt_wTi_list = [one_view_data_dict[idx].pose_gt for idx in range(num_images)]
         pruned_i2Ri1_graph, pruned_i2Ui1_graph = delayed(graph_utils.prune_to_largest_connected_component, nout=2)(
-            viewgraph_i2Ri1_graph, viewgraph_i2Ui1_graph, relative_pose_priors
+            viewgraph_i2Ri1_graph, viewgraph_i2Ui1_graph, pose_priors_graph
         )
         delayed_wRi, rot_avg_metrics = self.rot_avg_module.create_computation_graph(
             num_images,
             pruned_i2Ri1_graph,
-            i1Ti2_priors=relative_pose_priors,
+            i1Ti2_priors=pose_priors_graph,
             gt_wTi_list=gt_wTi_list,
             v_corr_idxs=viewgraph_v_corr_idxs_graph,
         )
@@ -192,7 +202,7 @@ class MultiViewOptimizer:
             tracks2d_graph,
             all_intrinsics,
             absolute_pose_priors,
-            relative_pose_priors,
+            pose_priors_graph,
             gt_wTi_list=gt_wTi_list,
         )
         ta_v_corr_idxs_graph = delayed(filter_corr_by_idx)(viewgraph_v_corr_idxs_graph, ta_inlier_idx_i1_i2)
@@ -208,14 +218,14 @@ class MultiViewOptimizer:
             init_cameras_graph,
             ta_inlier_tracks_2d_graph,
             cameras_gt,
-            relative_pose_priors,
+            pose_priors_graph,
             images,
         )
 
         ba_result_graph, ba_metrics_graph = self.ba_optimizer.create_computation_graph(
             ba_input_graph,
             absolute_pose_priors,
-            relative_pose_priors,
+            pose_priors_graph,
             cameras_gt,
             save_dir=str(output_root) if output_root else None,
         )

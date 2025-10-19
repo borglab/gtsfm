@@ -6,9 +6,11 @@ This document provides a concise overview of how [`TwoViewResult`](../products/t
 
 A `TwoViewResult` is created for each image pair during two-view estimation and contains:
 - Relative pose estimates (rotation, translation)
-- Verified correspondences 
+- Verified correspondences
+- Putative correspondences (pre-verification)
 - Bundle adjustment results
 - Processing reports and metrics
+- Relative pose prior (if available)
 
 ## Data Flow
 

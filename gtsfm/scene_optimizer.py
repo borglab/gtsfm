@@ -120,7 +120,6 @@ class SceneOptimizer:
                 output_paths=output_paths,
                 loader=self.loader,
                 output_root=self.output_root,
-                client=client,
                 visibility_graph=cluster_visibility_graph,
                 image_futures=image_futures,
             )
