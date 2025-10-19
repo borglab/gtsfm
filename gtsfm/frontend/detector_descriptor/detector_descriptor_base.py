@@ -22,12 +22,13 @@ class DetectorDescriptorBase(GTSFMProcess):
     This class serves as a combination of individual detector and descriptor.
     """
 
+    @staticmethod
     def get_ui_metadata() -> UiMetadata:
         """Returns data needed to display node and edge info for this process in the process graph."""
 
         return UiMetadata(
             display_name="DetectorDescriptor",
-            input_products="Images",
+            input_products=("Images",),
             output_products=("Keypoints", "Descriptors"),
             parent_plate="DetDescCorrespondenceGenerator",
         )

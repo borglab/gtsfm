@@ -10,20 +10,16 @@ from typing import Optional
 import matplotlib
 from dask.distributed import Future, performance_report
 
-import gtsfm.two_view_estimator as two_view_estimator
 import gtsfm.utils.logger as logger_utils
-import gtsfm.utils.viz as viz_utils
 from gtsfm.cluster_optimizer import REACT_METRICS_PATH, REACT_RESULTS_PATH, ClusterOptimizer, save_metrics_reports
 from gtsfm.common.outputs import OutputPaths, prepare_output_paths
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
-from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
 from gtsfm.frontend.correspondence_generator.image_correspondence_generator import ImageCorrespondenceGenerator
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.graph_partitioner.single_partitioner import SinglePartitioner
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.products.visibility_graph import VisibilityGraph
 from gtsfm.retriever.image_pairs_generator import ImagePairsGenerator
-from gtsfm.two_view_estimator import TwoViewEstimator, run_two_view_estimator_as_futures
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
 
 # Set matplotlib backend to "Agg" (Anti-Grain Geometry) for headless rendering
@@ -44,22 +40,16 @@ class SceneOptimizer:
         self,
         loader: LoaderBase,
         image_pairs_generator: ImagePairsGenerator,
-        correspondence_generator: CorrespondenceGeneratorBase,
-        two_view_estimator: TwoViewEstimator,
         cluster_optimizer: ClusterOptimizer,
         graph_partitioner: GraphPartitionerBase = SinglePartitioner(),
-        save_two_view_correspondences_viz: bool = False,
         output_root: str = DEFAULT_OUTPUT_ROOT,
         output_worker: Optional[str] = None,
     ) -> None:
         self.loader = loader
         self.image_pairs_generator = image_pairs_generator
-        self.correspondence_generator = correspondence_generator
-        self.two_view_estimator = two_view_estimator
         self.graph_partitioner = graph_partitioner
         self.cluster_optimizer = cluster_optimizer
 
-        self._save_two_view_correspondences_viz = save_two_view_correspondences_viz
         self.output_root = Path(output_root)
         if output_worker is not None:
             self.cluster_optimizer._output_worker = output_worker
@@ -69,8 +59,7 @@ class SceneOptimizer:
         """Returns string representation of class."""
         return f"""
         {self.image_pairs_generator}
-        {self.correspondence_generator}
-        {self.two_view_estimator}
+        {self.graph_partitioner}
         {self.cluster_optimizer}
         """
 
@@ -97,40 +86,6 @@ class SceneOptimizer:
         retriever_metrics, visibility_graph, image_futures = self._run_retriever(client)
         base_metrics_groups.append(retriever_metrics)
 
-        logger.info("🔥 GTSFM: Running correspondence generation...")
-        keypoints_list, putative_corr_idxs_dict, correspondence_duration_sec = self._run_correspondence_generation(
-            client, visibility_graph, image_futures
-        )
-
-        logger.info("🔥 GTSFM: Running two-view estimation...")
-        one_view_data_dict = self.loader.get_one_view_data_dict(client)
-        with performance_report(filename="dask_reports/two-view-estimation.html"):
-            two_view_estimation_start_time = time.time()
-            two_view_result_futures = run_two_view_estimator_as_futures(
-                client,
-                self.two_view_estimator,
-                keypoints_list,
-                putative_corr_idxs_dict,
-                self.loader.get_relative_pose_priors(visibility_graph),
-                gt_scene_mesh=self.loader.get_gt_scene_trimesh(),
-                one_view_data_dict=one_view_data_dict,
-            )
-            tve_duration_sec = time.time() - two_view_estimation_start_time
-
-        # Aggregate two-view metrics
-        # TODO(Frank): this brings everything back ! We might not want this.
-        all_two_view_results = client.gather(two_view_result_futures)
-        two_view_results = {edge: tvr for edge, tvr in all_two_view_results.items() if tvr.valid()}
-        base_metrics_groups.append(
-            self._aggregate_two_view_metrics(
-                keypoints_list,
-                two_view_results,
-                correspondence_duration_sec,
-                tve_duration_sec,
-                base_output_paths,
-            )
-        )
-
         logger.info("🔥 GTSFM: Partitioning the view graph...")
         assert self.graph_partitioner is not None, "Graph partitioner is not set up!"
         cluster_tree = self.graph_partitioner.run(visibility_graph)
@@ -141,33 +96,36 @@ class SceneOptimizer:
 
         logger.info("🔥 GTSFM: Starting to solve subgraphs...")
         futures = []
+        one_view_data_dict = self.loader.get_one_view_data_dict()
         leaf_jobs: list[tuple[int, OutputPaths]] = []
         for index, leaf in enumerate(leaves, 1):
-            cluster_two_view_results = leaf.filter_annotations(two_view_results)
+            cluster_visibility_graph = leaf.value
             if use_leaf_subdirs:
                 logger.info(
                     "Creating computation graph for leaf cluster %d/%d with %d image pairs",
                     index,
                     num_leaves,
-                    len(leaf.value),
+                    len(cluster_visibility_graph),
                 )
 
-            if len(cluster_two_view_results) == 0:
-                logger.warning("Skipping subgraph %d as it has no valid two-view results.", index)
+            if len(cluster_visibility_graph) == 0:
+                logger.warning("Skipping subgraph %d as it has no edges.", index)
                 continue
 
             output_paths = prepare_output_paths(self.output_root, index) if use_leaf_subdirs else base_output_paths
 
             delayed_result_io_reports = self.cluster_optimizer.create_computation_graph(
-                keypoints_list=keypoints_list,
-                two_view_results=cluster_two_view_results,
                 num_images=len(self.loader),
                 one_view_data_dict=one_view_data_dict,
                 output_paths=output_paths,
-                relative_pose_priors=self.loader.get_relative_pose_priors(list(cluster_two_view_results.keys())),
                 loader=self.loader,
                 output_root=self.output_root,
+                visibility_graph=cluster_visibility_graph,
+                image_futures=image_futures,
             )
+            if delayed_result_io_reports is None:
+                logger.warning("Skipping subgraph %d as it has no valid two-view results.", index)
+                continue
             futures.append(client.compute(delayed_result_io_reports))
             leaf_jobs.append((index, output_paths))
 
@@ -207,7 +165,7 @@ class SceneOptimizer:
 
     def _create_process_graph(self):
         process_graph_generator = ProcessGraphGenerator()
-        if isinstance(self.correspondence_generator, ImageCorrespondenceGenerator):
+        if isinstance(self.cluster_optimizer.correspondence_generator, ImageCorrespondenceGenerator):
             process_graph_generator.is_image_correspondence = True
         process_graph_generator.save_graph()
 
@@ -228,58 +186,3 @@ class SceneOptimizer:
         retriever_metrics.add_metric(GtsfmMetric("retriever_duration_sec", retriever_duration_sec))
         logger.info("🚀 Image pair retrieval took %.2f min.", retriever_duration_sec / 60.0)
         return retriever_metrics, visibility_graph, image_futures
-
-    def _run_correspondence_generation(self, client, visibility_graph, image_futures: list[Future]):
-        with performance_report(filename="dask_reports/correspondence-generator.html"):
-            correspondence_generation_start_time = time.time()
-            (
-                keypoints_list,
-                putative_corr_idxs_dict,
-            ) = self.correspondence_generator.generate_correspondences(
-                client,
-                image_futures,
-                visibility_graph,
-            )
-            correspondence_generation_duration_sec = time.time() - correspondence_generation_start_time
-        return keypoints_list, putative_corr_idxs_dict, correspondence_generation_duration_sec
-
-    def _maybe_save_two_view_viz(self, keypoints_list, two_view_results, plot_correspondence_path: Path):
-        if self._save_two_view_correspondences_viz:
-            for (i1, i2), output in two_view_results.items():
-                image_i1 = self.loader.get_image(i1)
-                image_i2 = self.loader.get_image(i2)
-                viz_utils.save_twoview_correspondences_viz(
-                    image_i1,
-                    image_i2,
-                    keypoints_list[i1],
-                    keypoints_list[i2],
-                    output.v_corr_idxs,
-                    two_view_report=output.post_isp_report,
-                    file_path=str(
-                        plot_correspondence_path / f"{i1}_{i2}__{image_i1.file_name}_{image_i2.file_name}.jpg"
-                    ),
-                )
-
-    def _aggregate_two_view_metrics(
-        self,
-        keypoints_list,
-        two_view_results,
-        correspondence_generation_duration_sec,
-        two_view_estimation_duration_sec,
-        output_paths: OutputPaths,
-    ):
-        self._maybe_save_two_view_viz(keypoints_list, two_view_results, output_paths.plot_correspondence)
-
-        post_isp_two_view_reports_dict = {edge: output.post_isp_report for edge, output in two_view_results.items()}
-        two_view_agg_metrics = two_view_estimator.aggregate_frontend_metrics(
-            two_view_reports_dict=post_isp_two_view_reports_dict,
-            angular_err_threshold_deg=self.cluster_optimizer.pose_angular_error_thresh,
-            metric_group_name="verifier_summary_{}".format(two_view_estimator.POST_ISP_REPORT_TAG),
-        )
-        two_view_agg_metrics.add_metric(
-            GtsfmMetric("total_correspondence_generation_duration_sec", correspondence_generation_duration_sec)
-        )
-        two_view_agg_metrics.add_metric(
-            GtsfmMetric("total_two_view_estimation_duration_sec", two_view_estimation_duration_sec)
-        )
-        return two_view_agg_metrics

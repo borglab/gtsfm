@@ -379,11 +379,8 @@ class LoaderBase(GTSFMProcess):
         N = len(self)
         return [self.get_camera_intrinsics(i) for i in range(N)]
 
-    def get_one_view_data_dict(self, client: Client) -> Dict[int, OneViewData]:
+    def get_one_view_data_dict(self) -> Dict[int, OneViewData]:
         """Construct a per-view data map keyed by image index along with validated intrinsics.
-
-        Args:
-            client: Dask client used to create image futures.
 
         Returns:
             Dictionary mapping image index to OneViewData with eagerly validated intrinsics.

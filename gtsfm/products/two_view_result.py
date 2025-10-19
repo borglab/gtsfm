@@ -9,6 +9,7 @@ from typing import Optional
 import numpy as np
 from gtsam import Rot3, Unit3
 
+from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 
 
@@ -26,6 +27,8 @@ class TwoViewResult:
         pre_ba_report: Two-view estimation report before bundle adjustment (optional).
         post_ba_report: Two-view estimation report after bundle adjustment (optional).
         post_isp_report: Two-view estimation report after inlier support processing (optional).
+        relative_pose_prior: Relative pose prior used in optimization (optional).
+        putative_corr_idxs: Putative correspondence indices used for estimation (optional).
     """
 
     i2Ri1: Optional[Rot3]
@@ -34,6 +37,8 @@ class TwoViewResult:
     pre_ba_report: Optional[TwoViewEstimationReport]
     post_ba_report: Optional[TwoViewEstimationReport]
     post_isp_report: Optional[TwoViewEstimationReport]
+    relative_pose_prior: Optional[PosePrior] = None
+    putative_corr_idxs: Optional[np.ndarray] = None
 
     def valid(self) -> bool:
         """Check if both i2Ri1 and i2Ui1 are not None."""
