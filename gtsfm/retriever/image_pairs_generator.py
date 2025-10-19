@@ -45,8 +45,6 @@ class ImagePairsGenerator:
 
         descriptors: Optional[List[np.ndarray]] = None  # Will hold global descriptors if computed
         if self._global_descriptor is not None:
-            logger.info(f"🎯 Using global descriptor: {self._global_descriptor.__class__.__module__}.{self._global_descriptor.__class__.__name__}")
-
             # Scatter descriptor to all workers for efficient parallel processing
             global_descriptor_future = client.scatter(self._global_descriptor, broadcast=False)
 

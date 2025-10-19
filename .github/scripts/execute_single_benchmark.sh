@@ -132,7 +132,7 @@ execute_gtsfm() {
     fi
     
     if [[ "$config_name" == "megaloc_sift_frontend" ]]; then
-        log INFO "Running GTSFM Using MegaLoc full pipeline configuration"
+        log INFO "Running GTSFM Using MegaLoc + SIFT full pipeline configuration"
         
         case "$loader_name" in
             olsson-loader)
