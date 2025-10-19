@@ -34,31 +34,31 @@ from gtsfm.view_graph_estimator.cycle_consistent_rotation_estimator import (
 from gtsfm.view_graph_estimator.view_graph_estimator_base import ViewGraphEstimatorBase
 
 
-def _extract_two_view_components(
-    two_view_results: AnnotatedGraph[TwoViewResult],
-) -> tuple[
-    Dict[Tuple[int, int], Rot3],
-    Dict[Tuple[int, int], Unit3],
-    AnnotatedGraph[np.ndarray],
-    AnnotatedGraph[TwoViewEstimationReport],
-]:
-    """Split TwoViewResult objects into dicts needed downstream."""
-
-    i2Ri1_dict: Dict[Tuple[int, int], Rot3] = {}
-    i2Ui1_dict: Dict[Tuple[int, int], Unit3] = {}
-    v_corr_idxs_dict: AnnotatedGraph[np.ndarray] = {}
-    two_view_reports: AnnotatedGraph[TwoViewEstimationReport] = {}
-
-    for ij, result in two_view_results.items():
-        i2Ri1_dict[ij] = result.i2Ri1
-        i2Ui1_dict[ij] = result.i2Ui1
-        v_corr_idxs_dict[ij] = result.v_corr_idxs
-        two_view_reports[ij] = result.post_isp_report
-
-    return i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, two_view_reports
-
-
 class MultiViewOptimizer:
+    @staticmethod
+    def _extract_two_view_components(
+        two_view_results: AnnotatedGraph[TwoViewResult],
+    ) -> tuple[
+        Dict[Tuple[int, int], Rot3],
+        Dict[Tuple[int, int], Unit3],
+        AnnotatedGraph[np.ndarray],
+        AnnotatedGraph[TwoViewEstimationReport],
+    ]:
+        """Split TwoViewResult objects into the pieces needed by downstream modules."""
+
+        i2Ri1_dict: Dict[Tuple[int, int], Rot3] = {}
+        i2Ui1_dict: Dict[Tuple[int, int], Unit3] = {}
+        v_corr_idxs_dict: AnnotatedGraph[np.ndarray] = {}
+        two_view_reports: AnnotatedGraph[TwoViewEstimationReport] = {}
+
+        for ij, result in two_view_results.items():
+            i2Ri1_dict[ij] = result.i2Ri1
+            i2Ui1_dict[ij] = result.i2Ui1
+            v_corr_idxs_dict[ij] = result.v_corr_idxs
+            two_view_reports[ij] = result.post_isp_report
+
+        return i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, two_view_reports
+
     def __init__(
         self,
         rot_avg_module: RotationAveragingBase,
@@ -118,7 +118,7 @@ class MultiViewOptimizer:
             v_corr_idxs_dict,
             two_view_reports,
         ) = delayed(
-            _extract_two_view_components, nout=4
+            MultiViewOptimizer._extract_two_view_components, nout=4
         )(two_view_results)
 
         # Create debug directory.
