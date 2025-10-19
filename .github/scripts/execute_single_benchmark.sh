@@ -131,6 +131,34 @@ execute_gtsfm() {
         share_intrinsics_arg="--share_intrinsics"
     fi
     
+    if [[ "$config_name" == "megaloc_sift_frontend" ]]; then
+        log INFO "Running GTSFM Using MegaLoc + SIFT full pipeline configuration"
+        
+        case "$loader_name" in
+            olsson-loader)
+                ./run \
+                    --loader olsson \
+                    --dataset_dir "$DATASET_ROOT" \
+                    --config_name megaloc_sift_frontend \
+                    --max_frame_lookahead "$max_frame_lookahead" \
+                    --max_resolution "$max_resolution" \
+                    $share_intrinsics_arg
+                return $?
+                ;;
+            colmap-loader)
+                ./run \
+                    --loader colmap \
+                    --dataset_dir "$DATASET_DIR" \
+                    --images_dir "$IMAGES_DIR" \
+                    --config_name megaloc_sift_frontend \
+                    --max_frame_lookahead "$max_frame_lookahead" \
+                    --max_resolution "$max_resolution" \
+                    $share_intrinsics_arg
+                return $?
+                ;;
+        esac
+    fi
+
     log INFO "Executing GTSFM with $loader_name..."
     
     case "$loader_name" in
