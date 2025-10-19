@@ -853,14 +853,15 @@ def run_two_view_estimator_as_futures(
     def apply_two_view_estimator(two_view_estimator: TwoViewEstimator, **kwargs) -> TwoViewResult:
         return two_view_estimator.run_2view(**kwargs)
 
-    # TODO(Frank): we might have to scatter two_view_estimator first.
+    # Distribute estimator to workers once to avoid repeated large transfers.
+    two_view_estimator_future = client.scatter(two_view_estimator, broadcast=True)
     logger.info("Submitting tasks directly to workers ...")
 
     # Submit tasks with image indices passed as separate parameters
     two_view_result_futures = {
         (i1, i2): client.submit(
             apply_two_view_estimator,
-            two_view_estimator,
+            two_view_estimator_future,
             keypoints_i1=keypoints_list[i1],
             keypoints_i2=keypoints_list[i2],
             putative_corr_idxs=putative_corr_idxs,
