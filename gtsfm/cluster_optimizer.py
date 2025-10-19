@@ -62,6 +62,50 @@ logger = logger_utils.get_logger()
 class ClusterOptimizer:
     """Handles optimization and I/O for a single leaf cluster produced by the graph partitioner."""
 
+    def __init__(
+        self,
+        correspondence_generator: CorrespondenceGeneratorBase,
+        two_view_estimator: TwoViewEstimator,
+        multiview_optimizer: MultiViewOptimizer,
+        dense_multiview_optimizer: Optional[MVSBase] = None,
+        gaussian_splatting_optimizer: Optional[Any] = None,
+        save_gtsfm_data: bool = True,
+        save_3d_viz: bool = False,
+        save_two_view_viz: bool = False,
+        pose_angular_error_thresh: float = 3,
+        output_worker: Optional[str] = None,
+    ) -> None:
+        self.correspondence_generator = correspondence_generator
+        self.two_view_estimator = two_view_estimator
+        self.multiview_optimizer = multiview_optimizer
+        self.dense_multiview_optimizer = dense_multiview_optimizer
+        self.gaussian_splatting_optimizer = gaussian_splatting_optimizer
+        self._save_two_view_viz = save_two_view_viz
+
+        self._save_gtsfm_data = save_gtsfm_data
+        self._save_3d_viz = save_3d_viz
+        self._pose_angular_error_thresh = pose_angular_error_thresh
+        self._output_worker = output_worker
+
+        self.run_dense_optimizer = self.dense_multiview_optimizer is not None
+        self.run_gaussian_splatting_optimizer = self.gaussian_splatting_optimizer is not None
+
+    @property
+    def pose_angular_error_thresh(self) -> float:
+        return self._pose_angular_error_thresh
+
+    def __repr__(self) -> str:
+        components = [
+            f"correspondence_generator={self.correspondence_generator}",
+            f"two_view_estimator={self.two_view_estimator}",
+            f"multiview_optimizer={self.multiview_optimizer}",
+        ]
+        if self.dense_multiview_optimizer is not None:
+            components.append(f"dense_multiview_optimizer={self.dense_multiview_optimizer}")
+        if self.gaussian_splatting_optimizer is not None:
+            components.append(f"gaussian_splatting_optimizer={self.gaussian_splatting_optimizer}")
+        return "ClusterOptimizer(\n  " + ",\n  ".join(components) + "\n)"
+
     @staticmethod
     def _run_correspondence_generator(
         correspondence_generator: CorrespondenceGeneratorBase,
@@ -118,14 +162,6 @@ class ClusterOptimizer:
         return valid_two_view_results, duration_sec
 
     @staticmethod
-    def _collect_post_isp_reports(
-        two_view_results: AnnotatedGraph[TwoViewResult],
-    ) -> AnnotatedGraph[TwoViewEstimationReport]:
-        """Collect post-ISP reports for metrics aggregation."""
-
-        return {edge: result.post_isp_report for edge, result in two_view_results.items() if result.post_isp_report}
-
-    @staticmethod
     def _collect_relative_pose_priors(
         two_view_results: AnnotatedGraph[TwoViewResult],
     ) -> AnnotatedGraph[PosePrior]:
@@ -134,21 +170,6 @@ class ClusterOptimizer:
         return {
             edge: result.relative_pose_prior for edge, result in two_view_results.items() if result.relative_pose_prior
         }
-
-    @staticmethod
-    def _build_frontend_runtime_metrics(
-        correspondence_duration_sec: float,
-        two_view_duration_sec: float,
-    ) -> GtsfmMetricsGroup:
-        """Capture simple runtime metrics for the front-end."""
-
-        return GtsfmMetricsGroup(
-            "frontend_runtime_metrics",
-            [
-                GtsfmMetric("total_correspondence_generation_duration_sec", correspondence_duration_sec),
-                GtsfmMetric("total_two_view_estimation_duration_sec", two_view_duration_sec),
-            ],
-        )
 
     @staticmethod
     def _save_two_view_visualizations(
@@ -226,49 +247,28 @@ class ClusterOptimizer:
             runtime_metrics=runtime_metrics_graph,
         )
 
-    def __init__(
-        self,
-        correspondence_generator: CorrespondenceGeneratorBase,
-        two_view_estimator: TwoViewEstimator,
-        multiview_optimizer: MultiViewOptimizer,
-        dense_multiview_optimizer: Optional[MVSBase] = None,
-        gaussian_splatting_optimizer: Optional[Any] = None,
-        save_gtsfm_data: bool = True,
-        save_3d_viz: bool = False,
-        save_two_view_viz: bool = False,
-        pose_angular_error_thresh: float = 3,
-        output_worker: Optional[str] = None,
-    ) -> None:
-        self.correspondence_generator = correspondence_generator
-        self.two_view_estimator = two_view_estimator
-        self.multiview_optimizer = multiview_optimizer
-        self.dense_multiview_optimizer = dense_multiview_optimizer
-        self.gaussian_splatting_optimizer = gaussian_splatting_optimizer
-        self._save_two_view_viz = save_two_view_viz
+    @staticmethod
+    def _collect_post_isp_reports(
+        two_view_results: AnnotatedGraph[TwoViewResult],
+    ) -> AnnotatedGraph[TwoViewEstimationReport]:
+        """Collect post-ISP reports for metrics aggregation."""
 
-        self._save_gtsfm_data = save_gtsfm_data
-        self._save_3d_viz = save_3d_viz
-        self._pose_angular_error_thresh = pose_angular_error_thresh
-        self._output_worker = output_worker
+        return {edge: result.post_isp_report for edge, result in two_view_results.items() if result.post_isp_report}
 
-        self.run_dense_optimizer = self.dense_multiview_optimizer is not None
-        self.run_gaussian_splatting_optimizer = self.gaussian_splatting_optimizer is not None
+    @staticmethod
+    def _build_frontend_runtime_metrics(
+        correspondence_duration_sec: float,
+        two_view_duration_sec: float,
+    ) -> GtsfmMetricsGroup:
+        """Capture simple runtime metrics for the front-end."""
 
-    @property
-    def pose_angular_error_thresh(self) -> float:
-        return self._pose_angular_error_thresh
-
-    def __repr__(self) -> str:
-        components = [
-            f"correspondence_generator={self.correspondence_generator}",
-            f"two_view_estimator={self.two_view_estimator}",
-            f"multiview_optimizer={self.multiview_optimizer}",
-        ]
-        if self.dense_multiview_optimizer is not None:
-            components.append(f"dense_multiview_optimizer={self.dense_multiview_optimizer}")
-        if self.gaussian_splatting_optimizer is not None:
-            components.append(f"gaussian_splatting_optimizer={self.gaussian_splatting_optimizer}")
-        return "ClusterOptimizer(\n  " + ",\n  ".join(components) + "\n)"
+        return GtsfmMetricsGroup(
+            "frontend_runtime_metrics",
+            [
+                GtsfmMetric("total_correspondence_generation_duration_sec", correspondence_duration_sec),
+                GtsfmMetric("total_two_view_estimation_duration_sec", two_view_duration_sec),
+            ],
+        )
 
     def create_computation_graph(
         self,
@@ -293,7 +293,6 @@ class ClusterOptimizer:
             image_futures=image_futures,
         )
 
-        post_isp_reports_graph = delayed(ClusterOptimizer._collect_post_isp_reports)(frontend_graphs.two_view_results)
         relative_pose_priors_graph = delayed(ClusterOptimizer._collect_relative_pose_priors)(
             frontend_graphs.two_view_results
         )
@@ -332,13 +331,10 @@ class ClusterOptimizer:
                     )
                 )
 
+        post_isp_reports_graph = delayed(ClusterOptimizer._collect_post_isp_reports)(frontend_graphs.two_view_results)
         enqueue_frontend_report(post_isp_reports_graph, two_view_estimator.POST_ISP_REPORT_TAG)
 
-        if view_graph_two_view_reports is not None:
-            enqueue_frontend_report(view_graph_two_view_reports, two_view_estimator.VIEWGRAPH_REPORT_TAG)
-            two_view_reports_for_summary = view_graph_two_view_reports
-        else:
-            two_view_reports_for_summary = post_isp_reports_graph
+        enqueue_frontend_report(view_graph_two_view_reports, two_view_estimator.VIEWGRAPH_REPORT_TAG)
 
         if self._save_two_view_viz:
             with self._output_annotation():
@@ -354,7 +350,7 @@ class ClusterOptimizer:
         # Persist all front-end metrics and their summaries.
         metrics_graph_list.append(
             delayed(two_view_estimator.aggregate_frontend_metrics)(
-                two_view_reports_for_summary,
+                view_graph_two_view_reports,
                 self._pose_angular_error_thresh,
                 metric_group_name=f"verifier_summary_{two_view_estimator.VIEWGRAPH_REPORT_TAG}",
             )
