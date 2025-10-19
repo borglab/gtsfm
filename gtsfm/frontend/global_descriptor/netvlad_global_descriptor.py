@@ -9,7 +9,7 @@ Whereas bag-of-visual-words aggregation keeps counts of visual words, VLAD store
 Authors: John Lambert, Travis Driver
 """
 
-from typing import Optional
+from typing import List, Optional
 
 import numpy as np
 import torch
@@ -34,25 +34,29 @@ class NetVLADGlobalDescriptor(GlobalDescriptorBase):
             logger.info("⏳ Loading NetVLAD model weights...")
             self._model = NetVLAD().eval()
 
-    def describe(self, image: Image) -> np.ndarray:
-        """Compute the NetVLAD global descriptor for a single image query.
-
-        Args:
-            image: Input image.
-
-        Returns:
-            img_desc: Array of shape (D,) representing global image descriptor.
-        """
-        # Ensure model is loaded only when actually needed
+    def describe_batch(self, images: List[Image]) -> List[np.ndarray]:
+        """Compute descriptors for a batch of images efficiently."""
         self._ensure_model_loaded()
         assert self._model is not None, "Model should be loaded by now"
 
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self._model.to(device)
 
-        img_array = image.value_array.copy()
-        img_tensor = torch.from_numpy(img_array).to(device).permute(2, 0, 1).unsqueeze(0).type(torch.float32) / 255
+        # 1. Convert all images in the list to a single batch tensor.
+        tensors = [
+            torch.from_numpy(img.value_array.copy()).permute(2, 0, 1).to(device)
+            for img in images
+        ]
+        batch_tensor = torch.stack(tensors).type(torch.float32) / 255.0
+        
         with torch.no_grad():
-            img_desc = self._model({"image": img_tensor})
+            # 2. Get all descriptors from the model in a single forward pass.
+            batch_descriptors = self._model({"image": batch_tensor})
 
-        return img_desc["global_descriptor"].detach().squeeze().cpu().numpy()
+        # 3. Convert the output tensor back to a list of numpy arrays.
+        descs_np = batch_descriptors["global_descriptor"].detach().cpu().numpy()
+        return [desc for desc in descs_np]
+    
+    def describe(self, image: Image) -> np.ndarray:
+        """Compute descriptor for a single image (delegates to batch method)."""
+        return self.describe_batch([image])[0]

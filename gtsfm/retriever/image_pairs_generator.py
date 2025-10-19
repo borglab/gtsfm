@@ -43,10 +43,25 @@ class ImagePairsGenerator:
             """Apply global descriptor to extract feature vector from a single image."""
             return global_descriptor.describe(image=image)
 
+        def apply_global_descriptor_batch(global_descriptor: GlobalDescriptorBase,
+                                          image_batch: List[Image]) -> List[np.ndarray]:
+            """Apply global descriptor to extract feature vectors from a batch of images."""
+            # This will call the new method you need to create in your descriptor class.
+            return global_descriptor.describe_batch(images=image_batch)
+
         descriptors: Optional[List[np.ndarray]] = None  # Will hold global descriptors if computed
+        
         if self._global_descriptor is not None:
+            BATCH_SIZE = 16
             # Scatter descriptor to all workers for efficient parallel processing
             global_descriptor_future = client.scatter(self._global_descriptor, broadcast=False)
+
+            image_batches = [images[i : i + BATCH_SIZE] for i in range(0, len(images), BATCH_SIZE)]
+
+            # Submit N/BATCH_SIZE jobs, one for each batch.
+            descriptor_futures = [
+                client.submit(apply_global_descriptor_batch, global_descriptor_future, batch) for batch in image_batches
+            ]
 
             # Submit descriptor extraction jobs for all images in parallel
             descriptor_futures = [
@@ -54,8 +69,12 @@ class ImagePairsGenerator:
             ]
 
             # Gather all computed descriptors from workers
-            logger.info("⏳ Computing global descriptors for all images...")
-            descriptors = client.gather(descriptor_futures)
+            # logger.info("⏳ Computing global descriptors for all images...")
+            logger.info(f"⏳ Computing global descriptors for all images in batches of {BATCH_SIZE}...")
+            batched_descriptors = client.gather(descriptor_futures)
+
+            # Flatten the batched results
+            descriptors = [desc for batch in batched_descriptors for desc in batch]
 
         # Use retriever to construct visibility graph based on descriptors and filenames
         logger.info("⏳ Computing visibility graph...")
