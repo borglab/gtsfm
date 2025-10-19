@@ -15,6 +15,7 @@ logger = logger_utils.get_logger()
 _DEFAULT_METRIC_ORDER: Dict[str, int] = {
     "retriever_metrics": 10,
     "frontend_runtime_metrics": 20,
+    "verifier_summary_POST_INLIER_SUPPORT_PROCESSOR_2VIEW_REPORT": 25,
     "verifier_summary_VIEWGRAPH_2VIEW_REPORT": 30,
     "view_graph_estimation_metrics": 40,
     "rotation_cycle_consistency_metrics": 45,
