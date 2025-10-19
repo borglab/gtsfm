@@ -28,7 +28,7 @@ class MegaLocGlobalDescriptor(GlobalDescriptorBase):
             logger.info("⏳ Loading MegaLoc model weights...")
             self._model = MegaLocModel().eval()
 
-    def desecribe_batch(self, images: List[Image]) -> List[np.ndarray]:
+    def describe_batch(self, images: List[Image]) -> List[np.ndarray]:
         """Process multiple images in a single forward pass.
         
         Args:
