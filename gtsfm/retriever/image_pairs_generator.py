@@ -43,10 +43,6 @@ class ImagePairsGenerator:
     ) -> VisibilityGraph:
         """Generate visibility graph using global descriptors and retriever logic."""
 
-        def apply_global_descriptor(global_descriptor: GlobalDescriptorBase, image: Image) -> np.ndarray:
-            """Apply global descriptor to extract feature vector from a single image."""
-            return global_descriptor.describe(image=image)
-
         def apply_global_descriptor_batch(global_descriptor: GlobalDescriptorBase,
                                           image_batch: List[Image]) -> List[np.ndarray]:
             """Apply global descriptor to extract feature vectors from a batch of images."""
@@ -64,11 +60,6 @@ class ImagePairsGenerator:
             # Submit N/BATCH_SIZE jobs, one for each batch.
             descriptor_futures = [
                 client.submit(apply_global_descriptor_batch, global_descriptor_future, batch) for batch in image_batches
-            ]
-
-            # Submit descriptor extraction jobs for all images in parallel
-            descriptor_futures = [
-                client.submit(apply_global_descriptor, global_descriptor_future, image) for image in images
             ]
 
             # Gather all computed descriptors from workers
