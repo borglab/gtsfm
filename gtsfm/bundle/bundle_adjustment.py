@@ -22,6 +22,7 @@ import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.tracks as track_utils
 from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm.common.outputs import Outputs
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
@@ -445,7 +446,8 @@ class BundleAdjustmentOptimizer:
         cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
         save_dir: Optional[str] = None,
         verbose: bool = True,
-    ) -> Tuple[GtsfmData, GtsfmData, List[bool], GtsfmMetricsGroup]:
+        outputs: Optional[Outputs] = None,
+    ) -> Tuple[GtsfmData, GtsfmData, List[bool]]:
         """Runs the equivalent of `run_ba()` and `evaluate()` in a single function, to enable time profiling."""
         logger.info(
             "Input: %d tracks on %d cameras", initial_data.number_tracks(), len(initial_data.get_valid_camera_indices())
@@ -455,12 +457,11 @@ class BundleAdjustmentOptimizer:
             logger.error(
                 "Bundle adjustment aborting, optimization cannot be performed without any tracks or any cameras."
             )
-            return (
-                initial_data,
-                initial_data,
-                [False] * initial_data.number_tracks(),
-                GtsfmMetricsGroup(METRICS_GROUP, []),
-            )
+            metrics = GtsfmMetricsGroup(METRICS_GROUP, [])
+            sink = outputs.metrics_sink if outputs is not None else None
+            if sink is not None:
+                sink.record(metrics)
+            return initial_data, initial_data, [False] * initial_data.number_tracks()
         step_times = []
         start_time = time.time()
 
@@ -490,12 +491,15 @@ class BundleAdjustmentOptimizer:
                 )
         total_time = time.time() - start_time
 
-        metrics = self.evaluate(optimized_data, filtered_result, cameras_gt, save_dir)
-        for i, step_time in enumerate(step_times):
-            metrics.add_metric(GtsfmMetric(f"step_{i}_run_duration_sec", step_time))
-        metrics.add_metric(GtsfmMetric("total_run_duration_sec", total_time))
+        sink = outputs.metrics_sink if outputs is not None else None
+        if sink is not None:
+            metrics = self.evaluate(optimized_data, filtered_result, cameras_gt, save_dir)
+            for i, step_time in enumerate(step_times):
+                metrics.add_metric(GtsfmMetric(f"step_{i}_run_duration_sec", step_time))
+            metrics.add_metric(GtsfmMetric("total_run_duration_sec", total_time))
+            sink.record(metrics)
 
-        return optimized_data, filtered_result, valid_mask, metrics
+        return optimized_data, filtered_result, valid_mask
 
     def evaluate(
         self,
@@ -555,7 +559,8 @@ class BundleAdjustmentOptimizer:
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
         save_dir: Optional[str] = None,
-    ) -> Tuple[Delayed, Delayed]:
+        outputs: Optional[Outputs] = None,
+    ) -> Delayed:
         """Create the computation graph for performing bundle adjustment.
 
         Args:
@@ -564,20 +569,21 @@ class BundleAdjustmentOptimizer:
             relative_pose_priors: Priors on poses between cameras (not delayed).
             cameras_gt: Ground truth camera calibration & pose for each image/camera.
             save_dir: Directory where artifacts and plots should be saved to disk.
+            outputs: Optional collection of paths and sinks for persistence.
 
         Returns:
-            GtsfmData aligned to GT (if provided), wrapped up using dask.delayed
-            Metrics group for BA results, wrapped up using dask.delayed
+            GtsfmData aligned to GT (if provided), wrapped up using dask.delayed.
         """
 
-        _, filtered_sfm_data, _, metrics_graph = dask.delayed(self._run_ba_and_evaluate, nout=4)(
+        _, filtered_sfm_data, _ = dask.delayed(self._run_ba_and_evaluate, nout=3)(
             sfm_data_graph,
             absolute_pose_priors,
             relative_pose_priors,
             cameras_gt,
             save_dir=save_dir,
+            outputs=outputs,
         )
-        return filtered_sfm_data, metrics_graph
+        return filtered_sfm_data
 
 
 def values_to_gtsfm_data(values: Values, initial_data: GtsfmData, shared_calib: bool) -> GtsfmData:

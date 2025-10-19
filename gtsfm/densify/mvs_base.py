@@ -3,7 +3,7 @@
 Authors: John Lambert, Ren Liu
 """
 import abc
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 
 import dask
 import numpy as np
@@ -12,7 +12,7 @@ from dask.delayed import Delayed
 import gtsfm.densify.mvs_utils as mvs_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
-from gtsfm.evaluation.metrics import GtsfmMetricsGroup
+from gtsfm.common.outputs import Outputs
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 
@@ -35,8 +35,8 @@ class MVSBase(GTSFMProcess):
 
     @abc.abstractmethod
     def densify(
-        self, images: Dict[int, Image], sfm_result: GtsfmData
-    ) -> Tuple[np.ndarray, np.ndarray, GtsfmMetricsGroup]:
+        self, images: Dict[int, Image], sfm_result: GtsfmData, outputs: Optional[Outputs] = None
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """Densify a point cloud using multi-view stereo.
 
         Note: we do not return depth maps here per image, as they would need to be aligned to ground truth
@@ -57,8 +57,8 @@ class MVSBase(GTSFMProcess):
         """
 
     def create_computation_graph(
-        self, images_graph: Delayed, sfm_result_graph: Delayed
-    ) -> Tuple[Delayed, Delayed, Delayed, Delayed]:
+        self, images_graph: Delayed, sfm_result_graph: Delayed, outputs: Optional[Outputs] = None
+    ) -> Tuple[Delayed, Delayed, Optional[Delayed]]:
         """Generates the computation graph for performing multi-view stereo.
 
         Args:
@@ -66,15 +66,14 @@ class MVSBase(GTSFMProcess):
             sfm_result_graph: computation graph for SFM output
 
         Returns:
-            Delayed tasks for MVS computation on the input images, including:
+            Tuple containing delayed tasks for MVS computation on the input images:
                 1. downsampled dense point cloud
                 2. rgb colors for each point in the point cloud
-                3. mvs densify metrics group
-                4. voxel downsampling metrics group
+                3. optional delayed task that persists metrics (None when metrics are disabled)
         """
         # get initial dense reconstruction result
-        points_graph, rgb_graph, densify_metrics_graph = dask.delayed(self.densify, nout=3)(
-            images_graph, sfm_result_graph
+        points_graph, rgb_graph = dask.delayed(self.densify, nout=2)(
+            images_graph, sfm_result_graph, outputs
         )
 
         # calculate the scale of target occupied volume, then compute the minimum voxel size for downsampling
@@ -85,8 +84,10 @@ class MVSBase(GTSFMProcess):
             points_graph, rgb_graph, voxel_size_graph
         )
 
-        # calculate downsampling metrics
-        downsampling_metrics_graph = dask.delayed(mvs_utils.get_voxel_downsampling_metrics, nout=1)(
-            voxel_size_graph, points_graph, sampled_points_graph
-        )
-        return sampled_points_graph, sampled_rgb_graph, densify_metrics_graph, downsampling_metrics_graph
+        # calculate downsampling metrics if a sink is available
+        metrics_task: Optional[Delayed] = None
+        if outputs is not None and outputs.metrics_sink is not None:
+            metrics_task = dask.delayed(mvs_utils.get_voxel_downsampling_metrics)(
+                voxel_size_graph, points_graph, sampled_points_graph, outputs.metrics_sink
+            )
+        return sampled_points_graph, sampled_rgb_graph, metrics_task

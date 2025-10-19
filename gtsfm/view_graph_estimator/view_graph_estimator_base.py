@@ -21,6 +21,7 @@ import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.common.outputs import Outputs
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.products.visibility_graph import AnnotatedGraph, ImageIndexPairs
 from gtsfm.two_view_estimator import TwoViewEstimationReport
@@ -166,7 +167,8 @@ class ViewGraphEstimatorBase(GTSFMProcess):
         two_view_reports: AnnotatedGraph[TwoViewEstimationReport],
         view_graph_edges: ImageIndexPairs,
         plots_output_dir: Path = PLOT_BASE_PATH,
-    ) -> GtsfmMetricsGroup:
+        outputs: Optional[Outputs] = None,
+    ) -> None:
         """Metric computation for the view optimizer by selecting a subset of two-view reports for the pairs which
         are the edges of the view-graph. This can be overrode by implementations to define custom metrics.
 
@@ -183,8 +185,13 @@ class ViewGraphEstimatorBase(GTSFMProcess):
         # pylint: disable=unused-argument
 
         # Case of missing ground truth.
+        sink = outputs.metrics_sink if outputs is not None else None
+        if sink is None:
+            return
+
         if len(two_view_reports) == 0:
-            return GtsfmMetricsGroup(name="rotation_cycle_consistency_metrics", metrics=[])
+            sink.record(GtsfmMetricsGroup(name="rotation_cycle_consistency_metrics", metrics=[]))
+            return
 
         input_i1_i2 = i2Ri1_dict.keys()
         inlier_i1_i2 = view_graph_edges
@@ -248,7 +255,7 @@ class ViewGraphEstimatorBase(GTSFMProcess):
             GtsfmMetric("inlier_U_angular_errors_deg", np.array(inlier_U_angular_errors)),
             GtsfmMetric("outlier_U_angular_errors_deg", np.array(outlier_U_angular_errors)),
         ]
-        return GtsfmMetricsGroup("view_graph_estimation_metrics", view_graph_metrics)
+        sink.record(GtsfmMetricsGroup("view_graph_estimation_metrics", view_graph_metrics))
 
     def create_computation_graph(
         self,
@@ -259,7 +266,8 @@ class ViewGraphEstimatorBase(GTSFMProcess):
         keypoints: List[Keypoints],
         two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
         debug_output_dir: Optional[Path] = None,
-    ) -> Tuple[Delayed, Delayed, Delayed, Delayed, Delayed]:
+        outputs: Optional[Outputs] = None,
+    ) -> Tuple[Delayed, Delayed, Delayed, Delayed, Optional[Delayed]]:
         """Create the computation graph for ViewGraph estimation and metric evaluation.
 
         Args:
@@ -324,13 +332,14 @@ class ViewGraphEstimatorBase(GTSFMProcess):
             edges_to_select=view_graph_edges,
         )
 
-        view_graph_estimation_metrics = delayed(self.compute_metrics)(
+        metrics_task = delayed(self.compute_metrics)(
             i2Ri1_dict=i2Ri1_valid_dict,
             i2Ui1_dict=i2Ui1_valid_dict,
             calibrations=calibrations,
             two_view_reports=two_view_reports_valid,
             view_graph_edges=view_graph_edges,
             plots_output_dir=plot_cycle_consist_path,
+            outputs=outputs,
         )
 
         return (
@@ -338,5 +347,5 @@ class ViewGraphEstimatorBase(GTSFMProcess):
             i2Ui1_filtered,
             corr_idxs_i1i2_filtered,
             two_view_reports_filtered,
-            view_graph_estimation_metrics,
+            metrics_task,
         )

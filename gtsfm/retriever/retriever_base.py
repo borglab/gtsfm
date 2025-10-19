@@ -10,6 +10,7 @@ from typing import List, Optional
 import numpy as np
 
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
+from gtsfm.common.outputs import Outputs
 from gtsfm.products.visibility_graph import VisibilityGraph
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
@@ -54,7 +55,13 @@ class RetrieverBase(GTSFMProcess):
             Visibility graph representing image pair connections.
         """
 
-    def evaluate(self, num_images, visibility_graph: VisibilityGraph) -> GtsfmMetricsGroup:
+    def evaluate(
+        self,
+        num_images,
+        visibility_graph: VisibilityGraph,
+        outputs: Optional[Outputs] = None,
+        additional_metrics: Optional[List[GtsfmMetric]] = None,
+    ) -> None:
         """Evaluates the retriever result.
 
         Args:
@@ -64,12 +71,16 @@ class RetrieverBase(GTSFMProcess):
         Returns:
             Retriever metrics group.
         """
-        metric_group_name = "retriever_metrics"
-        retriever_metrics = GtsfmMetricsGroup(
-            metric_group_name,
-            [
-                GtsfmMetric("num_input_images", num_images),
-                GtsfmMetric("num_retrieved_image_pairs", len(visibility_graph)),
-            ],
-        )
-        return retriever_metrics
+        sink = outputs.metrics_sink if outputs is not None else None
+        if sink is None:
+            return
+
+        metrics = [
+            GtsfmMetric("num_input_images", num_images),
+            GtsfmMetric("num_retrieved_image_pairs", len(visibility_graph)),
+        ]
+        if additional_metrics:
+            metrics.extend(additional_metrics)
+
+        retriever_metrics = GtsfmMetricsGroup("retriever_metrics", metrics)
+        sink.record(retriever_metrics)

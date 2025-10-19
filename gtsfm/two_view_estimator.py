@@ -24,6 +24,7 @@ from gtsfm.bundle.two_view_ba import TwoViewBundleAdjustment
 from gtsfm.common.dask_db_module_base import DaskDBModuleBase
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.common.metrics_sink import MetricsSink
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.sfm_track import SfmMeasurement, SfmTrack2d
 from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
@@ -725,7 +726,8 @@ def aggregate_frontend_metrics(
     two_view_reports_dict: AnnotatedGraph[TwoViewEstimationReport],
     angular_err_threshold_deg: float,
     metric_group_name: str,
-) -> GtsfmMetricsGroup:
+    metrics_sink: Optional[MetricsSink] = None,
+) -> None:
     """Aggregate the front-end metrics to log summary statistics.
 
     We define "pose error" as the maximum of the angular errors in rotation and translation, per:
@@ -739,6 +741,8 @@ def aggregate_frontend_metrics(
         angular_err_threshold_deg: Threshold for classifying angular error metrics as success.
         metric_group_name: Name we will assign to the GtsfmMetricGroup returned by this fn.
     """
+    if metrics_sink is None:
+        return
     num_image_pairs = len(two_view_reports_dict.keys())
 
     # All rotational errors in degrees.
@@ -830,7 +834,7 @@ def aggregate_frontend_metrics(
             GtsfmMetric("num_inliers_gt_model", np.array(num_inliers_gt_model_all_pairs)),
         ],
     )
-    return frontend_metrics
+    metrics_sink.record(frontend_metrics)
 
 
 def run_two_view_estimator_as_futures(

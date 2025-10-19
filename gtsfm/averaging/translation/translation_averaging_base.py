@@ -11,6 +11,7 @@ from dask.delayed import Delayed
 from gtsam import Pose3, Rot3, Unit3  # type: ignore
 
 import gtsfm.common.types as gtsfm_types
+from gtsfm.common.outputs import Outputs
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
@@ -83,6 +84,37 @@ class TranslationAveragingBase(GTSFMProcess):
             Indices of inlier measurements (list of camera pair indices).
         """
 
+    def _run_translation_averaging_with_sink(
+        self,
+        num_images: int,
+        i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]],
+        wRi_list: List[Optional[Rot3]],
+        tracks_2d: Optional[List[SfmTrack2d]],
+        intrinsics: Sequence[List[Optional[gtsfm_types.CALIBRATION_TYPE]]],
+        absolute_pose_priors: List[Optional[PosePrior]],
+        i2Ti1_priors: Dict[Tuple[int, int], PosePrior],
+        scale_factor: float,
+        gt_wTi_list: List[Optional[Pose3]],
+        outputs: Optional[Outputs],
+    ) -> Tuple[List[Optional[Pose3]], Optional[ImageIndexPairs]]:
+        wTi_list, metrics, inlier_indices = self.run_translation_averaging(
+            num_images=num_images,
+            i2Ui1_dict=i2Ui1_dict,
+            wRi_list=wRi_list,
+            tracks_2d=tracks_2d,
+            intrinsics=intrinsics,
+            absolute_pose_priors=absolute_pose_priors,
+            i2Ti1_priors=i2Ti1_priors,
+            scale_factor=scale_factor,
+            gt_wTi_list=gt_wTi_list,
+        )
+
+        sink = outputs.metrics_sink if outputs is not None else None
+        if sink is not None and metrics is not None:
+            sink.record(metrics)
+
+        return wTi_list, inlier_indices
+
     def create_computation_graph(
         self,
         num_images: int,
@@ -94,7 +126,8 @@ class TranslationAveragingBase(GTSFMProcess):
         i2Ti1_priors: Dict[Tuple[int, int], PosePrior] = {},
         scale_factor: float = 1.0,
         gt_wTi_list: List[Optional[Pose3]] = [],
-    ) -> Tuple[Delayed, Delayed, Delayed]:
+        outputs: Optional[Outputs] = None,
+    ) -> Tuple[Delayed, Delayed]:
         """Create the computation graph for performing translation averaging.
 
         Args:
@@ -107,13 +140,13 @@ class TranslationAveragingBase(GTSFMProcess):
             i2Ti1_priors: Priors on the pose between camera pairs (not delayed) as (i1, i2): i2Ti1.
             scale_factor: Non-negative global scaling factor.
             gt_wTi_list: List of ground truth poses (wTi) for computing metrics.
+            outputs: Optional collection of paths and sinks for persistence.
 
         Returns:
             Global poses wrapped as Delayed.
-            A GtsfmMetricsGroup with translation averaging metrics wrapped as Delayed.
             Indices of inlier measurements (List[tuple[int, int]]) after running 1dsfm wrapped as Delayed.
         """
-        return dask.delayed(self.run_translation_averaging, nout=3)(
+        return dask.delayed(self._run_translation_averaging_with_sink, nout=2)(
             num_images=num_images,
             i2Ui1_dict=i2Ui1_graph,
             wRi_list=wRi_graph,
@@ -123,4 +156,5 @@ class TranslationAveragingBase(GTSFMProcess):
             i2Ti1_priors=i2Ti1_priors,
             scale_factor=scale_factor,
             gt_wTi_list=gt_wTi_list,
+            outputs=outputs,
         )

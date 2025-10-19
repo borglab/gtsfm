@@ -5,7 +5,7 @@ Authors: Ren Liu
 
 import time
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -17,6 +17,7 @@ import thirdparty.patchmatchnet.eval as patchmatchnet_eval
 import thirdparty.patchmatchnet.utils as patchmatchnet_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
+from gtsfm.common.outputs import Outputs
 from gtsfm.densify.mvs_base import MVSBase
 from gtsfm.densify.patchmatchnet_data import PatchmatchNetData
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
@@ -68,7 +69,8 @@ class MVSPatchmatchNet(MVSBase):
         min_conf_thresh: float = MIN_CONFIDENCE_THRESH,
         min_num_consistent_views: float = MIN_NUM_CONSISTENT_VIEWS,
         num_workers: int = 0,
-    ) -> Tuple[np.ndarray, np.ndarray, GtsfmMetricsGroup]:
+        outputs: Optional[Outputs] = None,
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """Get dense point cloud using PatchmatchNet from GtsfmData. The method implements the densify method in MVSBase
         Ref: Wang et al. https://github.com/FangjinhuaWang/PatchmatchNet/blob/main/eval.py
 
@@ -91,7 +93,6 @@ class MVSPatchmatchNet(MVSBase):
                 with shape (N, 3) where N is the number of points
             dense_point_colors: RGB color of each point in the dense point cloud
                 with shape (N, 3) where N is the number of points
-            densify_metrics: Metrics group containing metrics for dense reconstruction
         """
         dataset = PatchmatchNetData(images=images, sfm_result=sfm_result, max_num_views=max_num_views)
 
@@ -204,7 +205,11 @@ class MVSPatchmatchNet(MVSBase):
         # merge filtering metrics to densify metrics
         densify_metrics.extend(filtering_metrics)
 
-        return dense_point_cloud, dense_point_colors, densify_metrics
+        sink = outputs.metrics_sink if outputs is not None else None
+        if sink is not None:
+            sink.record(densify_metrics)
+
+        return dense_point_cloud, dense_point_colors
 
     def filter_depth(
         self,

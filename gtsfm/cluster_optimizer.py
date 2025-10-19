@@ -27,7 +27,7 @@ import gtsfm.utils.viz as viz_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.common.outputs import OutputPaths
+from gtsfm.common.outputs import Outputs
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 from gtsfm.densify.mvs_base import MVSBase
@@ -49,7 +49,7 @@ class FrontendGraphs:
     keypoints: Delayed
     padded_keypoints: Delayed
     two_view_results: Delayed
-    runtime_metrics: Delayed
+    runtime_task: Optional[Delayed]
 
 
 # Paths to Save Output in React Folders.
@@ -199,6 +199,7 @@ class ClusterOptimizer:
         loader: LoaderBase,
         visibility_graph: VisibilityGraph,
         image_futures: list[Future],
+        outputs: Outputs,
     ) -> FrontendGraphs:
         """Create delayed nodes for the full front-end pipeline."""
 
@@ -227,16 +228,19 @@ class ClusterOptimizer:
             one_view_data_dict,
         )
 
-        runtime_metrics_graph = delayed(ClusterOptimizer._build_frontend_runtime_metrics)(
-            correspondence_duration_graph,
-            two_view_duration_graph,
-        )
+        runtime_task: Optional[Delayed] = None
+        if outputs.metrics_sink is not None:
+            runtime_task = delayed(ClusterOptimizer._build_frontend_runtime_metrics)(
+                correspondence_duration_graph,
+                two_view_duration_graph,
+                outputs,
+            )
 
         return FrontendGraphs(
             keypoints=keypoints_graph,
             padded_keypoints=padded_keypoints_graph,
             two_view_results=two_view_results_graph,
-            runtime_metrics=runtime_metrics_graph,
+            runtime_task=runtime_task,
         )
 
     @staticmethod
@@ -251,22 +255,29 @@ class ClusterOptimizer:
     def _build_frontend_runtime_metrics(
         correspondence_duration_sec: float,
         two_view_duration_sec: float,
-    ) -> GtsfmMetricsGroup:
+        outputs: Outputs,
+    ) -> None:
         """Capture simple runtime metrics for the front-end."""
 
-        return GtsfmMetricsGroup(
-            "frontend_runtime_metrics",
-            [
-                GtsfmMetric("total_correspondence_generation_duration_sec", correspondence_duration_sec),
-                GtsfmMetric("total_two_view_estimation_duration_sec", two_view_duration_sec),
-            ],
+        sink = outputs.metrics_sink
+        if sink is None:
+            return
+
+        sink.record(
+            GtsfmMetricsGroup(
+                "frontend_runtime_metrics",
+                [
+                    GtsfmMetric("total_correspondence_generation_duration_sec", correspondence_duration_sec),
+                    GtsfmMetric("total_two_view_estimation_duration_sec", two_view_duration_sec),
+                ],
+            )
         )
 
     def create_computation_graph(
         self,
         num_images: int,
         one_view_data_dict: dict[int, OneViewData],
-        output_paths: OutputPaths,
+        output_paths: Outputs,
         loader: LoaderBase,
         output_root: Path,
         visibility_graph: VisibilityGraph,
@@ -283,7 +294,12 @@ class ClusterOptimizer:
             loader=loader,
             visibility_graph=visibility_graph,
             image_futures=image_futures,
+            outputs=output_paths,
         )
+
+        side_effect_tasks: list[Delayed] = []
+        if frontend_graphs.runtime_task is not None:
+            side_effect_tasks.append(frontend_graphs.runtime_task)  # type: ignore
 
         # Note: the MultiviewOptimizer returns BA input and BA output aligned to GT via Sim(3).
         image_delayed_map = loader.get_images_as_delayed_map()
@@ -291,29 +307,30 @@ class ClusterOptimizer:
             ba_input_graph,
             ba_output_graph,
             view_graph_two_view_reports,
-            optimizer_metrics_graph,
+            optimizer_side_effects,
         ) = self.multiview_optimizer.create_computation_graph(
             keypoints_graph=frontend_graphs.padded_keypoints,  # type: ignore[arg-type]
             two_view_results_graph=frontend_graphs.two_view_results,  # type: ignore[arg-type]
             one_view_data_dict=one_view_data_dict,
             image_delayed_map=image_delayed_map,
-            output_root=output_root,
+            outputs=output_paths,
         )
 
-        metrics_graph_list: list[Delayed] = [frontend_graphs.runtime_metrics]  # type: ignore
+        if optimizer_side_effects:
+            side_effect_tasks.extend(optimizer_side_effects)
+
         delayed_results: list[Delayed] = []
 
-        if optimizer_metrics_graph is not None:
-            metrics_graph_list.extend(optimizer_metrics_graph)
-
         def enqueue_frontend_report(report_graph: Delayed, tag: str) -> None:
+            if output_paths.metrics_sink is None:
+                return
             with self._output_annotation():
                 delayed_results.append(
                     delayed(save_full_frontend_metrics)(
                         report_graph,
                         one_view_data_dict,
                         filename=f"two_view_report_{tag}.json",
-                        metrics_path=output_paths.metrics,
+                        metrics_path=output_paths.metrics_dir,
                         plot_base_path=output_paths.plot_base,
                     )
                 )
@@ -335,20 +352,15 @@ class ClusterOptimizer:
                 )
 
         # Persist all front-end metrics and their summaries.
-        metrics_graph_list.append(
-            delayed(two_view_estimator.aggregate_frontend_metrics)(
-                post_isp_reports_graph,
-                self._pose_angular_error_thresh,
-                metric_group_name=f"verifier_summary_{two_view_estimator.POST_ISP_REPORT_TAG}",
+        if output_paths.metrics_sink is not None:
+            side_effect_tasks.append(
+                delayed(two_view_estimator.aggregate_frontend_metrics)(
+                    view_graph_two_view_reports,
+                    self._pose_angular_error_thresh,
+                    metric_group_name=f"verifier_summary_{two_view_estimator.VIEWGRAPH_REPORT_TAG}",
+                    metrics_sink=output_paths.metrics_sink,
+                )
             )
-        )
-        metrics_graph_list.append(
-            delayed(two_view_estimator.aggregate_frontend_metrics)(
-                view_graph_two_view_reports,
-                self._pose_angular_error_thresh,
-                metric_group_name=f"verifier_summary_{two_view_estimator.VIEWGRAPH_REPORT_TAG}",
-            )
-        )
 
         # Modify BA input, BA output, and GT poses to have point clouds and frustums aligned with x,y,z axes.
         gt_wTi_list = [one_view_data_dict[idx].pose_gt for idx in range(num_images)]
@@ -384,12 +396,11 @@ class ClusterOptimizer:
         # Create dense reconstruction tasks.
         if self.run_dense_optimizer and self.dense_multiview_optimizer is not None:
             img_dict_graph = delayed(get_image_dictionary)(images)
-            (
-                dense_points_graph,
-                dense_point_colors_graph,
-                densify_metrics_graph,
-                downsampling_metrics_graph,
-            ) = self.dense_multiview_optimizer.create_computation_graph(img_dict_graph, ba_output_graph)
+            dense_points_graph, dense_point_colors_graph, densify_task = (
+                self.dense_multiview_optimizer.create_computation_graph(
+                    img_dict_graph, ba_output_graph, outputs=output_paths
+                )
+            )
 
             with self._output_annotation():
                 delayed_results.append(
@@ -400,10 +411,8 @@ class ClusterOptimizer:
                     )
                 )
 
-            if densify_metrics_graph is not None:
-                metrics_graph_list.append(densify_metrics_graph)
-            if downsampling_metrics_graph is not None:
-                metrics_graph_list.append(downsampling_metrics_graph)
+            if densify_task is not None:
+                side_effect_tasks.append(densify_task)
 
         if self.run_gaussian_splatting_optimizer and self.gaussian_splatting_optimizer is not None:
             # Intentional import here to support mac implementation.
@@ -427,7 +436,7 @@ class ClusterOptimizer:
                     )
                 )
 
-        return ba_output_graph, delayed_results, metrics_graph_list
+        return ba_output_graph, delayed_results, side_effect_tasks
 
 
 def get_image_dictionary(image_list: list[Image]) -> dict[int, Image]:
