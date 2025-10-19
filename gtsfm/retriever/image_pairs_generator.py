@@ -21,10 +21,14 @@ logger = logger_utils.get_logger()
 class ImagePairsGenerator:
     """Generates visibility graphs for structure-from-motion frontend processing."""
 
-    def __init__(self, retriever: RetrieverBase, global_descriptor: Optional[GlobalDescriptorBase] = None):
+    def __init__(self, 
+                 retriever: RetrieverBase,
+                 global_descriptor: Optional[GlobalDescriptorBase] = None, 
+                 batch_size: int = 16):
         """Initialize with a retriever and optional global descriptor for similarity matching."""
         self._global_descriptor: Optional[GlobalDescriptorBase] = global_descriptor  # Optional similarity descriptor
         self._retriever: RetrieverBase = retriever  # Core retriever that builds visibility graph
+        self._batch_size = batch_size
 
     def __repr__(self) -> str:
         """Return string representation of the visibility graph generator configuration."""
@@ -52,11 +56,10 @@ class ImagePairsGenerator:
         descriptors: Optional[List[np.ndarray]] = None  # Will hold global descriptors if computed
         
         if self._global_descriptor is not None:
-            BATCH_SIZE = 16
             # Scatter descriptor to all workers for efficient parallel processing
             global_descriptor_future = client.scatter(self._global_descriptor, broadcast=False)
 
-            image_batches = [images[i : i + BATCH_SIZE] for i in range(0, len(images), BATCH_SIZE)]
+            image_batches = [images[i : i + self.batch_size] for i in range(0, len(images), self.batch_size)]
 
             # Submit N/BATCH_SIZE jobs, one for each batch.
             descriptor_futures = [
@@ -70,7 +73,7 @@ class ImagePairsGenerator:
 
             # Gather all computed descriptors from workers
             # logger.info("⏳ Computing global descriptors for all images...")
-            logger.info(f"⏳ Computing global descriptors for all images in batches of {BATCH_SIZE}...")
+            logger.info(f"⏳ Computing global descriptors for all images in batches of {self.batch_size}...")
             batched_descriptors = client.gather(descriptor_futures)
 
             # Flatten the batched results
