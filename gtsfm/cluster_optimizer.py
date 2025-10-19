@@ -27,6 +27,7 @@ import gtsfm.utils.viz as viz_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.common.metrics_sink import MetricsSink
 from gtsfm.common.outputs import Outputs
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
@@ -321,8 +322,9 @@ class ClusterOptimizer:
 
         delayed_results: list[Delayed] = []
 
-        def enqueue_frontend_report(report_graph: Delayed, tag: str) -> None:
-            if output_paths.metrics_sink is None:
+        def enqueue_frontend_report(report_graph: Delayed, tag: str, aggregate_metric_name: Optional[str]) -> None:
+            sink = output_paths.metrics_sink
+            if sink is None:
                 return
             with self._output_annotation():
                 delayed_results.append(
@@ -332,13 +334,24 @@ class ClusterOptimizer:
                         filename=f"two_view_report_{tag}.json",
                         metrics_path=output_paths.metrics_dir,
                         plot_base_path=output_paths.plot_base,
+                        metrics_sink=sink,
+                        aggregate_metric_name=aggregate_metric_name,
+                        angular_err_threshold_deg=self._pose_angular_error_thresh,
                     )
                 )
 
         post_isp_reports_graph = delayed(ClusterOptimizer._collect_post_isp_reports)(frontend_graphs.two_view_results)
-        enqueue_frontend_report(post_isp_reports_graph, two_view_estimator.POST_ISP_REPORT_TAG)
+        enqueue_frontend_report(
+            post_isp_reports_graph,
+            two_view_estimator.POST_ISP_REPORT_TAG,
+            aggregate_metric_name=f"verifier_summary_{two_view_estimator.POST_ISP_REPORT_TAG}",
+        )
 
-        enqueue_frontend_report(view_graph_two_view_reports, two_view_estimator.VIEWGRAPH_REPORT_TAG)
+        enqueue_frontend_report(
+            view_graph_two_view_reports,
+            two_view_estimator.VIEWGRAPH_REPORT_TAG,
+            aggregate_metric_name=f"verifier_summary_{two_view_estimator.VIEWGRAPH_REPORT_TAG}",
+        )
 
         if self._save_two_view_viz:
             with self._output_annotation():
@@ -351,24 +364,7 @@ class ClusterOptimizer:
                     )
                 )
 
-        # Persist all front-end metrics and their summaries.
-        if output_paths.metrics_sink is not None:
-            side_effect_tasks.append(
-                delayed(two_view_estimator.aggregate_frontend_metrics)(
-                    post_isp_reports_graph,
-                    self._pose_angular_error_thresh,
-                    metric_group_name=f"verifier_summary_{two_view_estimator.POST_ISP_REPORT_TAG}",
-                    metrics_sink=output_paths.metrics_sink,
-                )
-            )
-            side_effect_tasks.append(
-                delayed(two_view_estimator.aggregate_frontend_metrics)(
-                    view_graph_two_view_reports,
-                    self._pose_angular_error_thresh,
-                    metric_group_name=f"verifier_summary_{two_view_estimator.VIEWGRAPH_REPORT_TAG}",
-                    metrics_sink=output_paths.metrics_sink,
-                )
-            )
+        # Persist all front-end metrics and their summaries via helper above.
 
         # Modify BA input, BA output, and GT poses to have point clouds and frustums aligned with x,y,z axes.
         gt_wTi_list = [one_view_data_dict[idx].pose_gt for idx in range(num_images)]
@@ -561,6 +557,9 @@ def save_full_frontend_metrics(
     filename: str,
     metrics_path: Path,
     plot_base_path: Path,
+    metrics_sink: Optional[MetricsSink] = None,
+    aggregate_metric_name: Optional[str] = None,
+    angular_err_threshold_deg: Optional[float] = None,
 ) -> None:
     """Converts the TwoViewEstimationReports for all image pairs to a dict and saves it as JSON."""
     metrics_list = two_view_estimator.get_two_view_reports_summary(two_view_report_dict, one_view_data_dict)
@@ -574,6 +573,14 @@ def save_full_frontend_metrics(
 
     if "VIEWGRAPH_2VIEW_REPORT" in filename and gt_available:
         save_retrieval_two_view_metrics(metrics_path, plot_base_path)
+
+    if metrics_sink is not None and aggregate_metric_name is not None and angular_err_threshold_deg is not None:
+        two_view_estimator.aggregate_frontend_metrics(
+            two_view_report_dict,
+            angular_err_threshold_deg,
+            metric_group_name=aggregate_metric_name,
+            metrics_sink=metrics_sink,
+        )
 
 
 def save_metrics_reports(metrics_group_list: list[GtsfmMetricsGroup], metrics_path: str) -> None:
