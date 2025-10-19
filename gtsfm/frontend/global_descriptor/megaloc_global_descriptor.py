@@ -38,7 +38,7 @@ class MegaLocGlobalDescriptor(GlobalDescriptorBase):
             descriptors: Array of shape (N, D) where N is number of images
         """
         self._ensure_model_loaded()
-        assert self._model is not None
+        assert self._model is not None, "Model should Be Loaded by now"
         
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self._model.to(device)
