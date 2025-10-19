@@ -73,7 +73,7 @@ class ImagePairsGenerator:
 
             # Gather all computed descriptors from workers
             # logger.info("⏳ Computing global descriptors for all images...")
-            logger.info(f"⏳ Computing global descriptors for all images in batches of {self.batch_size}...")
+            logger.info(f"⏳ Computing global descriptors for all images in batches of {self._batch_size}...")
             batched_descriptors = client.gather(descriptor_futures)
 
             # Flatten the batched results
