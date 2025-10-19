@@ -337,6 +337,13 @@ class ClusterOptimizer:
         # Persist all front-end metrics and their summaries.
         metrics_graph_list.append(
             delayed(two_view_estimator.aggregate_frontend_metrics)(
+                post_isp_reports_graph,
+                self._pose_angular_error_thresh,
+                metric_group_name=f"verifier_summary_{two_view_estimator.POST_ISP_REPORT_TAG}",
+            )
+        )
+        metrics_graph_list.append(
+            delayed(two_view_estimator.aggregate_frontend_metrics)(
                 view_graph_two_view_reports,
                 self._pose_angular_error_thresh,
                 metric_group_name=f"verifier_summary_{two_view_estimator.VIEWGRAPH_REPORT_TAG}",
