@@ -59,7 +59,7 @@ class ImagePairsGenerator:
             # Scatter descriptor to all workers for efficient parallel processing
             global_descriptor_future = client.scatter(self._global_descriptor, broadcast=False)
 
-            image_batches = [images[i : i + self.batch_size] for i in range(0, len(images), self.batch_size)]
+            image_batches = [images[i : i + self._batch_size] for i in range(0, len(images), self._batch_size)]
 
             # Submit N/BATCH_SIZE jobs, one for each batch.
             descriptor_futures = [
