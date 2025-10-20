@@ -17,7 +17,7 @@ import thirdparty.patchmatchnet.eval as patchmatchnet_eval
 import thirdparty.patchmatchnet.utils as patchmatchnet_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
-from gtsfm.common.outputs import Outputs
+from gtsfm.common.metrics_sink import MetricsSink
 from gtsfm.densify.mvs_base import MVSBase
 from gtsfm.densify.patchmatchnet_data import PatchmatchNetData
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
@@ -63,13 +63,22 @@ class MVSPatchmatchNet(MVSBase):
         self,
         images: Dict[int, Image],
         sfm_result: GtsfmData,
+        metrics_sink: Optional[MetricsSink] = None,
+        **kwargs,
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        return self._densify(images, sfm_result, metrics_sink=metrics_sink, **kwargs)
+
+    def _densify(
+        self,
+        images: Dict[int, Image],
+        sfm_result: GtsfmData,
         max_num_views: int = NUM_VIEWS,
         max_geo_pixel_thresh: float = MAX_GEOMETRIC_PIXEL_THRESH,
         max_geo_depth_thresh: float = MAX_GEOMETRIC_DEPTH_THRESH,
         min_conf_thresh: float = MIN_CONFIDENCE_THRESH,
         min_num_consistent_views: float = MIN_NUM_CONSISTENT_VIEWS,
         num_workers: int = 0,
-        outputs: Optional[Outputs] = None,
+        metrics_sink: Optional[MetricsSink] = None,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Get dense point cloud using PatchmatchNet from GtsfmData. The method implements the densify method in MVSBase
         Ref: Wang et al. https://github.com/FangjinhuaWang/PatchmatchNet/blob/main/eval.py
@@ -205,9 +214,8 @@ class MVSPatchmatchNet(MVSBase):
         # merge filtering metrics to densify metrics
         densify_metrics.extend(filtering_metrics)
 
-        sink = outputs.metrics_sink if outputs is not None else None
-        if sink is not None:
-            sink.record(densify_metrics)
+        if metrics_sink is not None:
+            metrics_sink.record(densify_metrics)
 
         return dense_point_cloud, dense_point_colors
 

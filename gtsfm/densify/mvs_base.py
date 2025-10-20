@@ -2,30 +2,32 @@
 
 Authors: John Lambert, Ren Liu
 """
+
 import abc
 from typing import Dict, Optional, Tuple
 
-import dask
 import numpy as np
 from dask.delayed import Delayed
+from dask.delayed import delayed as dask_delayed  # type: ignore
 
 import gtsfm.densify.mvs_utils as mvs_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
-from gtsfm.common.outputs import Outputs
+from gtsfm.common.metrics_sink import MetricsSink
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 
 class MVSBase(GTSFMProcess):
     """Base class for all multi-view stereo implementations."""
 
+    @staticmethod
     def get_ui_metadata() -> UiMetadata:
         """Returns data needed to display node and edge info for this process in the process graph."""
 
         return UiMetadata(
             display_name="Multi-view Stereo",
             input_products=("Images", "Optimized Camera Poses", "Optimized 3D Tracks"),
-            output_products="Dense Colored 3D Point Cloud",
+            output_products=("Dense Colored 3D Point Cloud",),
             parent_plate="Dense Reconstruction",
         )
 
@@ -35,7 +37,10 @@ class MVSBase(GTSFMProcess):
 
     @abc.abstractmethod
     def densify(
-        self, images: Dict[int, Image], sfm_result: GtsfmData, outputs: Optional[Outputs] = None
+        self,
+        images: Dict[int, Image],
+        sfm_result: GtsfmData,
+        metrics_sink: Optional[MetricsSink] = None,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Densify a point cloud using multi-view stereo.
 
@@ -57,7 +62,10 @@ class MVSBase(GTSFMProcess):
         """
 
     def create_computation_graph(
-        self, images_graph: Delayed, sfm_result_graph: Delayed, outputs: Optional[Outputs] = None
+        self,
+        images_graph: Delayed,
+        sfm_result_graph: Delayed,
+        metrics_sink: Optional[MetricsSink] = None,
     ) -> Tuple[Delayed, Delayed, Optional[Delayed]]:
         """Generates the computation graph for performing multi-view stereo.
 
@@ -72,22 +80,20 @@ class MVSBase(GTSFMProcess):
                 3. optional delayed task that persists metrics (None when metrics are disabled)
         """
         # get initial dense reconstruction result
-        points_graph, rgb_graph = dask.delayed(self.densify, nout=2)(
-            images_graph, sfm_result_graph, outputs
-        )
+        points_graph, rgb_graph = dask_delayed(self.densify, nout=2)(images_graph, sfm_result_graph, metrics_sink)
 
         # calculate the scale of target occupied volume, then compute the minimum voxel size for downsampling
-        voxel_size_graph = dask.delayed(mvs_utils.estimate_minimum_voxel_size, nout=1)(points_graph)
+        voxel_size_graph = dask_delayed(mvs_utils.estimate_minimum_voxel_size, nout=1)(points_graph)
 
         # downsampling the volume to avoid duplicates in the point cloud
-        sampled_points_graph, sampled_rgb_graph = dask.delayed(mvs_utils.downsample_point_cloud, nout=2)(
+        sampled_points_graph, sampled_rgb_graph = dask_delayed(mvs_utils.downsample_point_cloud, nout=2)(
             points_graph, rgb_graph, voxel_size_graph
         )
 
         # calculate downsampling metrics if a sink is available
         metrics_task: Optional[Delayed] = None
-        if outputs is not None and outputs.metrics_sink is not None:
-            metrics_task = dask.delayed(mvs_utils.get_voxel_downsampling_metrics)(
-                voxel_size_graph, points_graph, sampled_points_graph, outputs.metrics_sink
+        if metrics_sink is not None:
+            metrics_task = dask_delayed(mvs_utils.get_voxel_downsampling_metrics)(
+                voxel_size_graph, points_graph, sampled_points_graph, metrics_sink
             )
         return sampled_points_graph, sampled_rgb_graph, metrics_task
