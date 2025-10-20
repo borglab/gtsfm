@@ -22,19 +22,29 @@ GTSfM uses the [SSHCluster](https://docs.dask.org/en/stable/deploying-ssh.html#d
         git clone --recursive https://github.com/borglab/gtsfm.git
         conda env create -f environment_linux.yml
         conda activate gtsfm-v1
-      ```
-5. Log into scheduler again and download the data to scheduler machine.
-6. Run gtsfm with `--cluster_config` flag enabled, for example
+         ```
+5. Log into cluster machine to initialize conda (this adds conda to your PATH) then reload shell
+    - ```bash
+        ~/miniconda3/bin/conda init bash
+        source ~/.bashrc
+         ```
+6. Update the weight
+    - ```bash
+        download_model_weights.sh
+         ```
+
+7. Log into scheduler again and download the data to scheduler machine.
+8. Run gtsfm with `--cluster_config` flag enabled, for example
     - ```
       ./run --loader colmap --dataset_dir /home/username/gtsfm/skydio-32 --config_name sift_front_end.yaml --cluster_config cluster.yaml
       ```
     - Always provide absolute paths for all directories
-7. If you would like to check out the dask dashboard, you will need to do port forwarding from machine to your local computer:
+9. If you would like to check out the dask dashboard, you will need to do port forwarding from machine to your local computer:
     - ```
       ssh -N -f -L localhost:local_port:localhost:machine_port username@machine_adress
       ```
 
-8. The results will be generated on the scheduler machine. If you would like to download results from the scheduler machine to your local computer:
+10. The results will be generated on the scheduler machine. If you would like to download results from the scheduler machine to your local computer:
     - ```
       scp -r username@host:machine/results/path /local/computer/directory
       ```

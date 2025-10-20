@@ -22,7 +22,8 @@ dependencies:
   # core functionality and APIs
   - matplotlib>=3.5
   - networkx
-  - numpy==1.26.4 # gtsam requirement
+  #- numpy==1.26.4 # gtsam requirement
+  - numpy>=2.0,<3.0  # Required for np.trapezoid
   - nodejs
   - pandas
   - pillow>=9.0.0
