@@ -113,7 +113,7 @@ class TranslationAveragingBase(GTSFMProcess):
         if sink is not None and metrics is not None:
             sink.record(metrics)
 
-        return wTi_list, inlier_indices
+        return wTi_list, metrics, inlier_indices
 
     def create_computation_graph(
         self,
@@ -143,10 +143,9 @@ class TranslationAveragingBase(GTSFMProcess):
             outputs: Optional collection of paths and sinks for persistence.
 
         Returns:
-            Global poses wrapped as Delayed.
-            Indices of inlier measurements (List[tuple[int, int]]) after running 1dsfm wrapped as Delayed.
+            Delayed global poses, delayed metrics group, and delayed inlier indices.
         """
-        return dask.delayed(self._run_translation_averaging_with_sink, nout=2)(
+        return dask.delayed(self._run_translation_averaging_with_sink, nout=3)(
             num_images=num_images,
             i2Ui1_dict=i2Ui1_graph,
             wRi_list=wRi_graph,

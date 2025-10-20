@@ -62,9 +62,9 @@ class TestTranslationAveraging1DSFM(unittest.TestCase):
         """Tests that the binary measurements are correctly extracted from priors dict."""
 
         test_prior = PosePrior(
-            value=Pose3(Rot3(), np.array([1, 1, 0])), covariance=np.eye(6), type=PosePriorType.SOFT_CONSTRAINT
+            value=Pose3(Rot3(), Point3(1, 1, 0)), covariance=np.eye(6), type=PosePriorType.SOFT_CONSTRAINT
         )
-        test_wRi_mat = np.eye(3)
+        test_wRi_mat: np.ndarray = np.eye(3)
         test_wRi_mat[1, 1] = -1
         wRi_list = [Rot3(test_wRi_mat)] * 4
         i2Ti1_dict = {(0, 1): test_prior, (0, 3): test_prior, (1, 2): test_prior}
@@ -114,7 +114,7 @@ class TestTranslationAveraging1DSFM(unittest.TestCase):
         tracks = [SfmTrack2d(measurements=[SfmMeasurement(0, test_measurement)])]
 
         intrinsics = [Cal3_S2(20, 20, 0.0, 0, 0)]
-        test_wRi_mat = np.eye(3)
+        test_wRi_mat: np.ndarray = np.eye(3)
         test_wRi_mat[1, 1] = -1  # flip y axis just to check if rotation is being applied.
         wRi_list = [Rot3(test_wRi_mat)]
 

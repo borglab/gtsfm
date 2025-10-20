@@ -27,6 +27,7 @@ class RotationAveragingBase(GTSFMProcess):
     rotations.
     """
 
+    @staticmethod
     def get_ui_metadata() -> UiMetadata:
         """Returns data needed to display node and edge info for this process in the process graph."""
 
@@ -129,7 +130,7 @@ class RotationAveragingBase(GTSFMProcess):
         v_corr_idxs: Dict[Tuple[int, int], np.ndarray],
         gt_wTi_list: List[Optional[Pose3]],
         outputs: Optional[Outputs] = None,
-    ) -> Delayed:
+    ) -> Tuple[Delayed, List[Delayed]]:
         """Create the computation graph for performing rotation averaging.
 
         Args:
@@ -144,7 +145,7 @@ class RotationAveragingBase(GTSFMProcess):
             Global rotations wrapped using dask.delayed.
         """
 
-        return dask.delayed(self._run_rotation_averaging_base)(
+        rotation_graph = dask.delayed(self._run_rotation_averaging_base)(  # type: ignore
             num_images,
             i2Ri1_dict=i2Ri1_graph,
             i1Ti2_priors=i1Ti2_priors,
@@ -152,3 +153,5 @@ class RotationAveragingBase(GTSFMProcess):
             wTi_gt=gt_wTi_list,
             outputs=outputs,
         )
+
+        return rotation_graph, []
