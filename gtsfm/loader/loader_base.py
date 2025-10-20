@@ -368,6 +368,29 @@ class LoaderBase(GTSFMProcess):
             for i in range(len(self))
         ]
 
+    def _load_image_batch(self, indices: List[int]) -> List[Image]:
+        """Helper function that will run on a Dask worker to load and resize a batch of images."""
+        return [self.get_image(idx) for idx in indices]
+        
+    def get_all_image_batches_as_futures(self, client: Client, batch_size: int) -> List[Future]:
+        if batch_size <= 0:
+            raise ValueError("batch_size must be positive.")
+        
+        workers = [self._input_worker] if self._input_worker else None
+        num_images = len(self)
+        
+        index_batches = [
+            list(range(start, min(start + batch_size, num_images)))
+            for start in range(0, num_images, batch_size)
+        ]
+
+        batch_futures = [
+            client.submit(self._load_image_batch, indices, workers=workers)
+            for indices in index_batches
+        ]
+        
+        return batch_futures
+
     def get_all_intrinsics(self) -> List[Optional[gtsfm_types.CALIBRATION_TYPE]]:
         """Return all the camera intrinsics.
 

@@ -39,7 +39,7 @@ class ImagePairsGenerator:
         """
 
     def run(
-        self, client: Client, images: List[Future], image_fnames: List[str], plots_output_dir: Optional[Path] = None
+        self, client: Client, image_batch_futures: List[Future], image_fnames: List[str], plots_output_dir: Optional[Path] = None
     ) -> VisibilityGraph:
         """Generate visibility graph using global descriptors and retriever logic."""
 
@@ -55,11 +55,9 @@ class ImagePairsGenerator:
             # Scatter descriptor to all workers for efficient parallel processing
             global_descriptor_future = client.scatter(self._global_descriptor, broadcast=False)
 
-            image_batches = [images[i : i + self._batch_size] for i in range(0, len(images), self._batch_size)]
-
-            # Submit N/BATCH_SIZE jobs, one for each batch.
             descriptor_futures = [
-                client.submit(apply_global_descriptor_batch, global_descriptor_future, batch) for batch in image_batches
+                client.submit(apply_global_descriptor_batch, global_descriptor_future, batch_future) 
+                for batch_future in image_batch_futures
             ]
 
             # Gather all computed descriptors from workers

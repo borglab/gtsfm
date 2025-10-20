@@ -429,13 +429,17 @@ class SceneOptimizer:
 
     def _run_retriever(self, client) -> tuple[GtsfmMetricsGroup, VisibilityGraph, list[Future]]:
         retriever_start_time = time.time()
-        image_futures = self.loader.get_all_images_as_futures(client)
+        # image_futures = self.loader.get_all_images_as_futures(client)
+        batch_size = self.image_pairs_generator._batch_size
+        logger.info(f"🔥 GTSFM: Loading images in batches of {batch_size}...")
+        image_batch_futures = self.loader.get_image_batches_as_futures(client, batch_size)
+        
         image_fnames = self.loader.image_filenames()
 
         with performance_report(filename="dask_reports/retriever.html"):
             visibility_graph = self.image_pairs_generator.run(
                 client=client,
-                images=image_futures,
+                images=image_batch_futures,
                 image_fnames=image_fnames,
                 plots_output_dir=self.create_plot_base_path(),
             )
@@ -443,6 +447,8 @@ class SceneOptimizer:
         retriever_duration_sec = time.time() - retriever_start_time
         retriever_metrics.add_metric(GtsfmMetric("retriever_duration_sec", retriever_duration_sec))
         logger.info("🚀 Image pair retrieval took %.2f min.", retriever_duration_sec / 60.0)
+
+        image_futures = self.loader.get_all_images_as_futures(client)
         return retriever_metrics, visibility_graph, image_futures
 
     def _run_correspondence_generation(self, client, visibility_graph, image_futures: list[Future]):
