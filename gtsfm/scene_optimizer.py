@@ -432,7 +432,7 @@ class SceneOptimizer:
         # image_futures = self.loader.get_all_images_as_futures(client)
         batch_size = self.image_pairs_generator._batch_size
         logger.info(f"🔥 GTSFM: Loading images in batches of {batch_size}...")
-        image_batch_futures = self.loader.get_image_batches_as_futures(client, batch_size)
+        image_batch_futures = self.loader.get_all_image_batches_as_futures(client, batch_size)
         
         image_fnames = self.loader.image_filenames()
 
