@@ -478,7 +478,7 @@ class SceneOptimizer:
         retriever_metrics.add_metric(GtsfmMetric("retriever_duration_sec", retriever_duration_sec))
         logger.info("🚀 Image pair retrieval took %.2f min.", retriever_duration_sec / 60.0)
 
-        image_futures = self._flatten_batch_futures(client, batch_futures, batch_size)
+        image_futures = self._flatten_batch_futures(client, image_batch_futures, batch_size)
         return retriever_metrics, visibility_graph, image_futures
 
     def _run_correspondence_generation(self, client, visibility_graph, image_futures: list[Future]):
