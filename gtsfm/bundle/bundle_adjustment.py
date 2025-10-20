@@ -6,7 +6,7 @@ Authors: Xiaolong Wu, John Lambert, Ayush Baid
 import time
 from collections import Counter
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Sequence, Set, Tuple
 
 import dask
 import gtsam  # type: ignore
@@ -555,12 +555,12 @@ class BundleAdjustmentOptimizer:
     def create_computation_graph(
         self,
         sfm_data_graph: Delayed,
-        absolute_pose_priors: List[Optional[PosePrior]],
+        absolute_pose_priors: Sequence[Optional[PosePrior]],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
-        cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
+        cameras_gt: Sequence[Optional[gtsfm_types.CAMERA_TYPE]],
         save_dir: Optional[str] = None,
         outputs: Optional[Outputs] = None,
-    ) -> Delayed:
+    ) -> Tuple[Delayed, Delayed, Delayed]:
         """Create the computation graph for performing bundle adjustment.
 
         Args:
@@ -575,7 +575,7 @@ class BundleAdjustmentOptimizer:
             GtsfmData aligned to GT (if provided), wrapped up using dask.delayed.
         """
 
-        _, filtered_sfm_data, _ = dask.delayed(self._run_ba_and_evaluate, nout=3)(
+        ba_metrics_graph, filtered_sfm_data_graph, ba_summary_graph = dask.delayed(self._run_ba_and_evaluate, nout=3)(
             sfm_data_graph,
             absolute_pose_priors,
             relative_pose_priors,
@@ -583,7 +583,7 @@ class BundleAdjustmentOptimizer:
             save_dir=save_dir,
             outputs=outputs,
         )
-        return filtered_sfm_data
+        return filtered_sfm_data_graph, ba_metrics_graph, ba_summary_graph
 
 
 def values_to_gtsfm_data(values: Values, initial_data: GtsfmData, shared_calib: bool) -> GtsfmData:
