@@ -1,6 +1,9 @@
 # Default deep front-end configuration.
 
 # @package _global_
+defaults:
+  - graph_partitioner: single
+  - _self_
 _target_: gtsfm.scene_optimizer.SceneOptimizer
 
 image_pairs_generator:

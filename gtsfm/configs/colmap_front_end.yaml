@@ -1,6 +1,9 @@
 # Front-end configuration that leverages PyColmap for feature extraction and verification.
 
 # @package _global_
+defaults:
+  - graph_partitioner: single
+  - _self_
 _target_: gtsfm.scene_optimizer.SceneOptimizer
 
 image_pairs_generator:

@@ -1,4 +1,7 @@
 # @package _global_
+defaults:
+  - graph_partitioner: binary
+  - _self_
 _target_: gtsfm.scene_optimizer.SceneOptimizer
 
 loader:
@@ -17,7 +20,6 @@ image_pairs_generator:
     max_frame_lookahead: 15
 
 graph_partitioner:
-  _target_: gtsfm.graph_partitioner.binary_tree_partitioner.BinaryTreePartitioner
   max_depth: 1
 
 cluster_optimizer:

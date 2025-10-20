@@ -2,6 +2,9 @@
 # Relaxes triangulation RANSAC threshold to 100 (10x threshold of deep_front_end.yaml)
 
 # @package _global_
+defaults:
+  - graph_partitioner: single
+  - _self_
 _target_: gtsfm.scene_optimizer.SceneOptimizer
 
 loader:

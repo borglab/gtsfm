@@ -1,6 +1,9 @@
 # Default SIFT front-end configuration.
 
 # @package _global_
+defaults:
+  - graph_partitioner: single
+  - _self_
 _target_: gtsfm.scene_optimizer.SceneOptimizer
 loader:
   _target_: gtsfm.loader.Colmap

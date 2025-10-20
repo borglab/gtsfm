@@ -1,6 +1,9 @@
 # SIFT front-end configuration tuned for AstroVision datasets: https://github.com/astrovision
 
 # @package _global_
+defaults:
+  - graph_partitioner: single
+  - _self_
 _target_: gtsfm.scene_optimizer.SceneOptimizer
 
 loader:
