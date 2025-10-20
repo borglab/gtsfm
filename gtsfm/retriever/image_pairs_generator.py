@@ -46,7 +46,7 @@ class ImagePairsGenerator:
         descriptors: Optional[List[np.ndarray]] = None  # Will hold global descriptors if computed
         if self._global_descriptor is not None:
             # Scatter descriptor to all workers for efficient parallel processing
-            global_descriptor_future = client.scatter(self._global_descriptor, broadcast=False)
+            global_descriptor_future = client.scatter(self._global_descriptor, broadcast=True)
 
             # Submit descriptor extraction jobs for all images in parallel
             descriptor_futures = [
