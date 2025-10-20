@@ -452,8 +452,7 @@ class SceneOptimizer:
                 single_image_future = client.submit(
                     extract_single_image, 
                     batch_future,           # This points to data ALREADY in worker RAM
-                    img_idx_in_batch,
-                    pure=True               # Deterministic function
+                    img_idx_in_batch
                 )
                 image_futures.append(single_image_future)
         
