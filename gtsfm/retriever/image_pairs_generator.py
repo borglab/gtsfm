@@ -42,13 +42,14 @@ class ImagePairsGenerator:
         self, client: Client, images: List[Future], image_fnames: List[str], plots_output_dir: Optional[Path] = None
     ) -> VisibilityGraph:
         """Generate visibility graph using global descriptors and retriever logic."""
-        image_batch_futures = images
+
         def apply_global_descriptor_batch(global_descriptor: GlobalDescriptorBase,
                                           image_batch: List[Image]) -> List[np.ndarray]:
             """Apply global descriptor to extract feature vectors from a batch of images."""
             # This will call the new method you need to create in your descriptor class.
             return global_descriptor.describe_batch(images=image_batch)
 
+        image_batch_futures = images
         descriptors: Optional[List[np.ndarray]] = None  # Will hold global descriptors if computed
         
         if self._global_descriptor is not None:

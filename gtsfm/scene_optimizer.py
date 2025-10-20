@@ -434,7 +434,7 @@ class SceneOptimizer:
             This creates lightweight references to images already in worker memory so we can pass into
             the correspondence generator
         """
-        def extract_single_image(batch: List[Image], idx: int) -> Image:
+        def extract_single_image(batch, idx):
             """Extract one image from a batch that's already in memory."""
             return batch[idx]
         
