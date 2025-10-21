@@ -1,16 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Find the directory where the viz script itself is located
+# Find the directory where this script is located.
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
-BASE="${1:-results}"
-HOST="${HOST:-127.0.0.1}"
-PORT="${PORT:-5173}"
+# Echo a starting message. The rest of the output will come from the python app.
+echo "[viz] Starting visualization server..."
 
-export RESULTS_DIR="$BASE"
-echo "[viz] Base dir: $RESULTS_DIR"
-echo "[viz] Open: http://$HOST:$PORT"
-
-# Run the python app, which is in the same directory as the script
-python "$SCRIPT_DIR/app.py" --base "$BASE" --host "$HOST" --port "$PORT"
+# Execute the python app, which is in the 'visualization' subdirectory,
+# and pass all command-line arguments ("$@") directly to it.
+python "$SCRIPT_DIR/visualization/app.py" "$@"

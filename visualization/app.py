@@ -77,14 +77,23 @@ def serve_data(subpath):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="GTSFM viz server")
-    parser.add_argument("--base", default="results", help="Base folder to scan (default: results)")
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=5173)
+    # We disable the default help action to free up the `-h` flag.
+    parser = argparse.ArgumentParser(description="GTSFM viz server", add_help=False)
+
+    # Define the command-line arguments.
+    parser.add_argument("--base", "-b", default="results", help="Base folder to scan (default: results)")
+    parser.add_argument("--host", "-h", default="127.0.0.1", help="Host to run the server on.")
+    parser.add_argument("--port", "-p", type=int, default=5173, help="Port to run the server on.")
+
+    # Add a custom help argument that uses --help.
+    parser.add_argument("--help", action="help", default=argparse.SUPPRESS, help="Show this help message and exit.")
+
     args = parser.parse_args()
 
     global BASE_DIR
     BASE_DIR = Path(args.base).resolve()
+
+    # This print statement is now removed from the viz script and handled here.
     print(f"[viz] Serving results from: {BASE_DIR}")
     if not BASE_DIR.exists():
         print(f"[viz] WARNING: base dir does not exist; create {BASE_DIR}")
