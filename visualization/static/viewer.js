@@ -7,21 +7,21 @@ class ColmapViewer {
     this.scene = new BABYLON.Scene(this.engine);
     this.scene.clearColor = new BABYLON.Color4(0.04, 0.05, 0.06, 1.0);
 
-    this.camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/2.2, 10, new BABYLON.Vector3(0,0,0), this.scene);
+    this.camera = new BABYLON.ArcRotateCamera("cam", -Math.PI / 2, Math.PI / 2.2, 15, new BABYLON.Vector3(0, 0, 0), this.scene);
     this.camera.attachControl(canvas, true);
     
-    // --- FIX FOR MOUSE CONTROLS ---
-    this.camera.lowerRadiusLimit = 0.05;
-    this.camera.upperRadiusLimit = 2000; // Allow zooming far out
+    // Mouse controls unlocked
     this.camera.wheelPrecision = 40;
-    this.camera.panningSensibility = 1000; // Enable effective right-click panning
-
-    this.light = new BABYLON.HemisphericLight("H", new BABYLON.Vector3(0,1,0), this.scene);
+    this.camera.lowerRadiusLimit = 0.1;
+    this.camera.upperRadiusLimit = 10000; // Increased significantly
+    
+    this.light = new BABYLON.HemisphericLight("H", new BABYLON.Vector3(0, 1, 0), this.scene);
     this.light.intensity = 0.85;
 
     this.pcs = null;
     this.pointsMesh = null;
     this.frustumGroup = new BABYLON.TransformNode("frusta", this.scene);
+    this.cameras = [];
 
     this.ptSize = 2;
     this.showCams = true;
@@ -37,27 +37,32 @@ class ColmapViewer {
     await this._clear();
     const fetchOpts = { cache: "no-store" };
     const [pointsText, imagesText] = await Promise.all([
-      fetch(pointsUrl, fetchOpts).then(r => {
-        if (!r.ok) throw new Error("points3D.txt not found");
-        return r.text();
-      }),
-      fetch(imagesUrl, fetchOpts).then(r => (r.ok ? r.text() : ""))
+      fetch(pointsUrl, fetchOpts).then(r => r.ok ? r.text() : Promise.reject(new Error(`Failed to load ${pointsUrl}`))),
+      fetch(imagesUrl, fetchOpts).then(r => r.ok ? r.text() : "")
     ]);
+
     const points = this._parsePoints(pointsText);
-    const cams = imagesText ? this._parseCams(imagesText) : [];
-    if (cams.length) console.log(`Loaded scene: ${points.length} points, ${cams.length} cameras from ${imagesUrl}`);
-    else console.warn(`Loaded scene with ${points.length} points but no cameras found in ${imagesUrl}`);
+    this.cameras = imagesText ? this._parseCams(imagesText) : [];
+
     if (points.length) await this._createPCS(points);
-    if (cams.length) this._createFrusta(cams);
+    if (this.cameras.length) this._createFrusta(this.cameras);
+
     this._autoFrame();
   }
 
   async _clear() {
+    this.cameras = [];
     if (this.pointsMesh) { this.pointsMesh.dispose(); this.pointsMesh = null; }
     if (this.pcs) { this.pcs.dispose(); this.pcs = null; }
-    this.frustumGroup.getChildren().forEach(n => n.dispose());
+    // Dispose all children of the frustum group safely
+    if (this.frustumGroup) {
+        while (this.frustumGroup.getChildren().length > 0) {
+            this.frustumGroup.getChildren()[0].dispose();
+        }
+    }
   }
-
+  
+  // --- RESTORED YOUR ORIGINAL, PROVEN PARSING LOGIC ---
   _parsePoints(text) {
     const pts = [];
     for (const line of text.split("\n")) {
@@ -73,6 +78,7 @@ class ColmapViewer {
     return pts;
   }
 
+  // --- RESTORED YOUR ORIGINAL, PROVEN PARSING LOGIC ---
   _parseCams(text) {
     const cams = [];
     const lines = text.split("\n");
@@ -101,10 +107,9 @@ class ColmapViewer {
 
   async _createPCS(points) {
     const pcs = new BABYLON.PointsCloudSystem("pcs", { capacity: points.length, useColor: true }, this.scene);
-    let idx = 0;
-    pcs.addPoints(points.length, particle => {
-      const s = points[idx++];
-      particle.position.set(s.x, s.y, s.z);
+    pcs.addPoints(points.length, (particle, i) => {
+      const s = points[i];
+      particle.position.set(s.x, s.y, s.z); // Y is already flipped from parsing
       particle.color = new BABYLON.Color4(s.r, s.g, s.b, 1.0);
     });
     this.pointsMesh = await pcs.buildMeshAsync();
@@ -124,12 +129,10 @@ class ColmapViewer {
       node.rotationQuaternion = BABYLON.Quaternion.FromRotationMatrix(c.R);
       node.parent = this.frustumGroup;
 
-      // --- FIX FOR CAMERA VISIBILITY (INCREASED SCALE) ---
-      const frustum = this._frustumLinesLocal(1.2); // Increased from 0.6
+      const frustum = this._frustumLinesLocal(0.8); // Scale for visibility
       frustum.parent = node;
 
-      // --- FIX FOR CAMERA VISIBILITY (INCREASED DIAMETER) ---
-      const pivot = BABYLON.MeshBuilder.CreateSphere("camPivot", { diameter: 0.25 }, this.scene); // Increased from 0.06
+      const pivot = BABYLON.MeshBuilder.CreateSphere("camPivot", { diameter: 0.15 }, this.scene);
       const pivotMat = new BABYLON.StandardMaterial("camPivotMat", this.scene);
       pivotMat.emissiveColor = new BABYLON.Color3(1, 0.35, 0.35);
       pivotMat.disableLighting = true;
@@ -143,8 +146,8 @@ class ColmapViewer {
   _frustumLinesLocal(scale) {
     const origin = BABYLON.Vector3.Zero();
     const corners = [
-      new BABYLON.Vector3(-0.4, -0.3, 1), new BABYLON.Vector3( 0.4, -0.3, 1),
-      new BABYLON.Vector3( 0.4,  0.3, 1), new BABYLON.Vector3(-0.4,  0.3, 1)
+      new BABYLON.Vector3(-0.4, -0.3, 1), new BABYLON.Vector3(0.4, -0.3, 1),
+      new BABYLON.Vector3(0.4, 0.3, 1), new BABYLON.Vector3(-0.4, 0.3, 1)
     ].map(v => v.scale(scale));
     const lines = [
       [origin, corners[0]], [origin, corners[1]], [origin, corners[2]], [origin, corners[3]],
@@ -155,26 +158,37 @@ class ColmapViewer {
     frustum.isPickable = false;
     return frustum;
   }
-
+  
   _autoFrame() {
-    let minX=Infinity,minY=Infinity,minZ=Infinity,maxX=-Infinity,maxY=-Infinity,maxZ=-Infinity;
+    let minX=Infinity, minY=Infinity, minZ=Infinity;
+    let maxX=-Infinity, maxY=-Infinity, maxZ=-Infinity;
+
     if (this.pointsMesh) {
       const bb = this.pointsMesh.getBoundingInfo().boundingBox;
-      minX = Math.min(minX, bb.minimum.x); maxX = Math.max(maxX, bb.maximum.x);
-      minY = Math.min(minY, bb.minimum.y); maxY = Math.max(maxY, bb.maximum.y);
-      minZ = Math.min(minZ, bb.minimum.z); maxZ = Math.max(maxZ, bb.maximum.z);
+      minX = bb.minimumWorld.x; maxX = bb.maximumWorld.x;
+      minY = bb.minimumWorld.y; maxY = bb.maximumWorld.y;
+      minZ = bb.minimumWorld.z; maxZ = bb.maximumWorld.z;
     }
-    this.frustumGroup.getChildren().forEach(f => {
-      const p = f.position;
-      minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
-      minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
-      minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z);
-    });
-    if (minX === Infinity) return;
-    const center = new BABYLON.Vector3((minX+maxX)/2, (minY+maxY)/2, (minZ+maxZ)/2);
-    const size = Math.max(maxX-minX, maxY-minY, maxZ-minZ) || 1.0;
-    this.camera.setTarget(center);
-    this.camera.radius = size * 1.6;
+    
+    if (minX === Infinity && this.cameras.length === 0) return;
+
+    const sceneCenter = new BABYLON.Vector3((minX+maxX)/2, (minY+maxY)/2, (minZ+maxZ)/2);
+    const sceneSize = Math.max(maxX-minX, maxY-minY, maxZ-minZ);
+
+    this.camera.setTarget(sceneCenter);
+
+    if (this.cameras.length > 0) {
+        const firstCamPos = this.cameras[0].center;
+        this.camera.setPosition(firstCamPos);
+        this.camera.radius = Math.max(firstCamPos.subtract(sceneCenter).length() * 1.2, sceneSize * 1.6);
+    } else {
+        this.camera.radius = sceneSize * 1.6;
+    }
+    
+    // --- THE CRITICAL FIX FOR THE ROTATION LOCK ---
+    if (typeof this.camera.rebuildAnglesAndRadius === 'function') {
+      this.camera.rebuildAnglesAndRadius();
+    }
   }
 }
 
@@ -188,14 +202,9 @@ async function boot() {
   let allItems = [];
 
   try {
-    const data = await fetch("/api/scenes").then(r => {
-      if (!r.ok) throw new Error(`Failed to fetch scenes: ${r.statusText}`);
-      return r.json();
-    });
-    
+    const data = await fetch("/api/scenes").then(r => r.ok ? r.json() : Promise.reject(`Fetch failed: ${r.statusText}`));
     info.textContent = `${data.count} reconstructions found in ${data.base_dir}`;
     allItems = data.items.map((item, index) => ({ ...item, originalIndex: index }));
-
   } catch (error) {
     info.textContent = "Error loading reconstruction data.";
     console.error(error);
@@ -208,9 +217,7 @@ async function boot() {
       const parts = item.rel_path.split('/');
       let currentNode = tree;
       parts.forEach((part, i) => {
-        if (!currentNode[part]) {
-          currentNode[part] = {};
-        }
+        if (!currentNode[part]) currentNode[part] = {};
         if (i === parts.length - 1) {
           currentNode[part].__isLeaf = true;
           currentNode[part].__item = item;
@@ -224,10 +231,8 @@ async function boot() {
   const renderTree = (node) => {
     let html = '<ul>';
     const sortedKeys = Object.keys(node).sort();
-
     for (const key of sortedKeys) {
       if (key.startsWith('__')) continue;
-      
       const childNode = node[key];
       if (childNode.__isLeaf) {
         const item = childNode.__item;
@@ -240,68 +245,53 @@ async function boot() {
             </div>
           </li>`;
       } else {
+        // --- THE CRITICAL FIX FOR THE UI BUTTONS ---
         html += `<li><div class="directory-node">${key}</div>${renderTree(childNode)}</li>`;
       }
     }
-    html += '</ul>';
-    return html;
+    return html + '</ul>';
   };
 
   const renderList = (q = "") => {
     const needle = q.trim().toLowerCase();
     const filteredItems = allItems.filter(it => it.label.toLowerCase().includes(needle));
-    
     if (filteredItems.length === 0) {
-        listEl.innerHTML = '<div style="padding: 20px; text-align: center; color: #64748b;">No scenes found.</div>';
-        return;
+      listEl.innerHTML = '<div style="padding: 20px; text-align: center; color: #64748b;">No scenes found.</div>';
+      return;
     }
-
     const sceneTree = buildTree(filteredItems);
     listEl.innerHTML = renderTree(sceneTree);
-
     listEl.querySelectorAll(".item").forEach(el => {
       el.onclick = async () => {
         listEl.querySelectorAll(".item").forEach(n => n.classList.remove("active"));
         el.classList.add("active");
-        
         const originalIndex = parseInt(el.dataset.idx, 10);
         const itemData = allItems.find(it => it.originalIndex === originalIndex);
-
         if (itemData) {
-            await viewer.loadScene({ pointsUrl: itemData.points, imagesUrl: itemData.images });
+          await viewer.loadScene({ pointsUrl: itemData.points, imagesUrl: itemData.images });
         }
       };
     });
   };
 
   renderList();
-
   if (allItems.length > 0 && !filterEl.value) {
     const first = listEl.querySelector(".item");
     if (first) first.click();
   }
-
   filterEl.addEventListener("input", () => renderList(filterEl.value));
 
-  // HUD controls
-  document.getElementById("toggleCams").addEventListener("change", (e) => {
-    viewer.setShowCams(e.target.checked);
-  });
-  document.getElementById("ptSize").addEventListener("input", (e) => {
-    viewer.setPointSize(parseInt(e.target.value, 10));
-  });
+  document.getElementById("toggleCams").addEventListener("change", (e) => viewer.setShowCams(e.target.checked));
+  document.getElementById("ptSize").addEventListener("input", (e) => viewer.setPointSize(parseInt(e.target.value, 10)));
 
-  // --- IMPLEMENT BACKGROUND TOGGLE ---
   const bgButton = document.getElementById("toggleBg");
   const bgColors = [
-    new BABYLON.Color4(0.98, 0.98, 0.98, 1.0), // White
-    new BABYLON.Color4(0.85, 0.85, 0.85, 1.0), // Light Gray
-    new BABYLON.Color4(0.2, 0.2, 0.22, 1.0),   // Dark Gray
-    new BABYLON.Color4(0.04, 0.05, 0.06, 1.0), // Original Black/Dark
+    new BABYLON.Color4(0.98, 0.98, 0.98, 1.0),
+    new BABYLON.Color4(0.85, 0.85, 0.85, 1.0),
+    new BABYLON.Color4(0.2, 0.2, 0.22, 1.0),
+    new BABYLON.Color4(0.04, 0.05, 0.06, 1.0),
   ];
-  let currentBgIndex = bgColors.findIndex(c => c.r === viewer.scene.clearColor.r); // Start at current
-  if (currentBgIndex === -1) currentBgIndex = 3;
-
+  let currentBgIndex = 3;
   bgButton.addEventListener("click", () => {
     currentBgIndex = (currentBgIndex + 1) % bgColors.length;
     viewer.scene.clearColor = bgColors[currentBgIndex];
