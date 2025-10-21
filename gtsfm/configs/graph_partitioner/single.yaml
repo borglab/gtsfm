@@ -1,2 +1,2 @@
 # Single Graph Partitioner Configuration
-_target_: gtsfm.graph_partitioner.single_partitioner.SinglePartitioner
+_target_: gtsfm.graph_partitioner.Single

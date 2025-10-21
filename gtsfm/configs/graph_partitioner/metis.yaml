@@ -1,2 +1,2 @@
 # METIS Graph Partitioner Configuration
-_target_: gtsfm.graph_partitioner.metis_partitioner.MetisPartitioner
+_target_: gtsfm.graph_partitioner.Metis
