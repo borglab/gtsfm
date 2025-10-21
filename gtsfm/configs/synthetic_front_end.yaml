@@ -17,6 +17,9 @@ image_pairs_generator:
     min_score: 0.2
     max_frame_lookahead: 3
 
+graph_partitioner:
+  _target_: gtsfm.graph_partitioner.Single
+
 cluster_optimizer:
   _target_: gtsfm.cluster_optimizer.ClusterOptimizer
   correspondence_generator:

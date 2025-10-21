@@ -11,12 +11,12 @@ Authors: Shicong Ma and Frank Dellaert
 from __future__ import annotations
 
 from math import ceil, log2
-from typing import Optional, Sequence
+from typing import Optional
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.products.cluster_tree import ClusterTree
-from gtsfm.products.visibility_graph import VisibilityGraph, valid_visibility_graph_or_raise
+from gtsfm.products.visibility_graph import VisibilityGraph, valid_visibility_graph_or_raise, visibility_graph_keys
 
 logger = logger_utils.get_logger()
 
@@ -56,7 +56,7 @@ class BinaryTreePartitioner(GraphPartitionerBase):
 
         valid_visibility_graph_or_raise(graph)
 
-        all_nodes = {node for edge in graph for node in edge}
+        all_nodes = visibility_graph_keys(graph)
         num_cameras = len(all_nodes)
 
         max_depth = self.max_depth
@@ -65,6 +65,9 @@ class BinaryTreePartitioner(GraphPartitionerBase):
             max_depth = max(0, max_depth)
 
         ordered_keys = list(all_nodes)
+        logger.info(
+            "BinaryTreePartitioner: partitioning %d cameras with these ordered keys: %s", num_cameras, ordered_keys
+        )
         root_cluster, _, _ = self._build_binary_clustering(
             keys=ordered_keys,
             depth=0,
@@ -74,11 +77,7 @@ class BinaryTreePartitioner(GraphPartitionerBase):
         return root_cluster
 
     def _build_binary_clustering(
-        self,
-        keys: Sequence[int],
-        depth: int,
-        max_depth: int,
-        graph_edges: VisibilityGraph,
+        self, keys: list[int], depth: int, max_depth: int, graph_edges: VisibilityGraph
     ) -> tuple[ClusterTree, set[int], set[tuple[int, int]]]:
         """Recursively build a binary cluster_tree hierarchy.
 
@@ -88,20 +87,23 @@ class BinaryTreePartitioner(GraphPartitionerBase):
                 - set of keys contained in this cluster and descendants.
                 - set of edges contained in this cluster and descendants.
         """
-        key_set = set(keys)
+        key_set = set(keys)  # Set of keys for this cluster
 
+        # Base case: reached max depth or only one key left
         if depth == max_depth or len(keys) <= 1:
-            intra_edges = [(i, j) for i, j in graph_edges if i in key_set and j in key_set]
-            cluster = ClusterTree(value=intra_edges, children=())
-            return cluster, set(key_set), set(intra_edges)
+            intra_edges = [(i, j) for i, j in graph_edges if i in key_set and j in key_set]  # Edges within this cluster
+            cluster = ClusterTree(value=intra_edges, children=())  # Leaf cluster
+            return cluster, key_set, set(intra_edges)
 
-        mid = max(1, len(keys) // 2)
+        mid = max(1, len(keys) // 2)  # Split keys for left/right children
+        # Recursively build left child cluster
         left_cluster, left_keys, left_edges = self._build_binary_clustering(
             keys=keys[:mid],
             depth=depth + 1,
             max_depth=max_depth,
             graph_edges=graph_edges,
         )
+        # Recursively build right child cluster
         right_cluster, right_keys, right_edges = self._build_binary_clustering(
             keys=keys[mid:],
             depth=depth + 1,
@@ -109,18 +111,19 @@ class BinaryTreePartitioner(GraphPartitionerBase):
             graph_edges=graph_edges,
         )
 
-        descendant_keys = left_keys | right_keys
-        child_edges = left_edges | right_edges
+        descendant_keys = left_keys | right_keys  # All keys in descendants
+        child_edges = left_edges | right_edges  # All edges in descendants
 
+        # Edges that connect left and right children (cross-cluster)
         cross_edges = [
             (i, j)
             for i, j in graph_edges
             if i in descendant_keys and j in descendant_keys and (i, j) not in child_edges
         ]
 
-        unique_keys = key_set - descendant_keys
-        cluster = ClusterTree(value=cross_edges, children=(left_cluster, right_cluster))
+        unique_keys = key_set - descendant_keys  # Keys unique to this cluster
+        cluster = ClusterTree(value=cross_edges, children=(left_cluster, right_cluster))  # Internal cluster
 
-        descendant_keys |= unique_keys
-        descendant_edges = child_edges | set(cross_edges)
+        descendant_keys |= unique_keys  # Add unique keys to descendants
+        descendant_edges = child_edges | set(cross_edges)  # All edges in descendants
         return cluster, descendant_keys, descendant_edges

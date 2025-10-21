@@ -13,6 +13,9 @@ image_pairs_generator:
     _target_: gtsfm.retriever.sequential_retriever.SequentialRetriever
     max_frame_lookahead: 20
 
+graph_partitioner:
+  _target_: gtsfm.graph_partitioner.Single
+
 detector_descriptor:
   _target_: gtsfm.frontend.cacher.detector_descriptor_cacher.DetectorDescriptorCacher
   detector_descriptor_obj:

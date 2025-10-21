@@ -16,6 +16,9 @@ image_pairs_generator:
     num_matched: 50
     min_score: 0.3
 
+graph_partitioner:
+  _target_: gtsfm.graph_partitioner.Single
+
 cluster_optimizer:
   _target_: gtsfm.cluster_optimizer.ClusterOptimizer
   correspondence_generator:

@@ -7,6 +7,9 @@ image_pairs_generator:
     _target_: gtsfm.retriever.sequential_retriever.SequentialRetriever
     max_frame_lookahead: 20
 
+graph_partitioner:
+  _target_: gtsfm.graph_partitioner.Single
+
 cluster_optimizer:
   _target_: gtsfm.cluster_optimizer.ClusterOptimizer
   correspondence_generator:

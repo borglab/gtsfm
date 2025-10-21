@@ -230,6 +230,7 @@ def pairs_from_score_matrix(
     indices = topk.indices.cpu().numpy()
     valid = topk.values.isfinite().cpu().numpy()
     pairs = []
-    for i, j in zip(*np.where(valid)):
-        pairs.append((i, indices[i, j]))
+    for i_raw, j_raw in zip(*np.where(valid)):
+        j = int(indices[i_raw, j_raw])
+        pairs.append((int(i_raw), j))
     return pairs

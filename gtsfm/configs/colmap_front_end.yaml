@@ -8,6 +8,9 @@ image_pairs_generator:
   retriever:
     _target_: gtsfm.retriever.exhaustive_retriever.ExhaustiveRetriever
 
+graph_partitioner:
+  _target_: gtsfm.graph_partitioner.Single
+
 cluster_optimizer:
   _target_: gtsfm.cluster_optimizer.ClusterOptimizer
   correspondence_generator:

@@ -56,7 +56,12 @@ class Tree(Generic[T]):
             The result of aggregating the entire tree using `fn`.
 
         Example:
-            # Sum all values in the tree
+            # Sum all values in the tree:
+            #      1
+            #     / \
+            #    2   3
+            #         \
+            #          4
             tree = Tree(1, (Tree(2), Tree(3, (Tree(4),))))
             def fn(v, children):
                 return v + sum(children)

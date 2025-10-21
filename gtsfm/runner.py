@@ -97,9 +97,9 @@ class GtsfmRunner:
         parser.add_argument(
             "--graph_partitioner",
             type=str,
-            default="single",
-            choices=["single", "other_partitioner_types"],
-            help="Type of graph partitioner to use. Default is 'single' (SinglePartitioner).",
+            choices=["single", "binary", "metis"],
+            help="Graph partitioner preset to use (see gtsfm/configs/graph_partitioner). "
+            "If omitted, each config's default applies.",
         )
         parser.add_argument(
             "--share_intrinsics", action="store_true", help="Shares the intrinsics between all the cameras."
@@ -177,6 +177,9 @@ class GtsfmRunner:
             overrides.extend(
                 build_loader_overrides(self.parsed_args, default_max_resolution=self.parsed_args.max_resolution)
             )
+
+            if getattr(self.parsed_args, "graph_partitioner", None):
+                overrides.append(f"+graph_partitioner={self.parsed_args.graph_partitioner}")
 
             if getattr(self, "_hydra_cli_overrides", None):
                 overrides.extend(self._hydra_cli_overrides)
