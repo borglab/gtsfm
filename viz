@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Find the directory where this script is located.
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
+# Echo a starting message. The rest of the output will come from the python app.
+echo "[viz] Starting visualization server..."
+
+# Execute the python app, which is in the 'visualization' subdirectory,
+# and pass all command-line arguments ("$@") directly to it.
+python "$SCRIPT_DIR/visualization/app.py" "$@"

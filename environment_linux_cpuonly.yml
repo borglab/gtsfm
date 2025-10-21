@@ -55,4 +55,4 @@ dependencies:
       - einops
       - huggingface-hub[torch]==0.34.4
       - roma # Rotation Manipiulation Library
-
+      - Flask>=3.0

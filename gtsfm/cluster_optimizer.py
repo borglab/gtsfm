@@ -527,7 +527,7 @@ def save_gtsfm_data(
     io_utils.export_model_as_colmap_text(
         gtsfm_data=gt_gtsfm_data,
         images=images,
-        save_dir=os.path.join(output_dir, "ba_output_gt"),
+        save_dir=os.path.join(output_dir, "ba_gt"),
     )
 
     # Delete old version of React results directory and save a duplicate copy.

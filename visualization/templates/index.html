@@ -1,0 +1,43 @@
+<!-- visualization/templates/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>GTSFM Visualization</title>
+  <script src="https://cdn.babylonjs.com/babylon.js"></script>
+  <!-- Link to the new stylesheet -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+  <!-- Sidebar for scene selection and info -->
+  <aside id="sidebar">
+    <h2>Reconstructions</h2>
+    <div id="info">Loading...</div>
+    <input type="text" id="filter" placeholder="Filter scenes...">
+    <div id="sceneList"></div>
+  </aside>
+
+  <!-- Main content area for the 3D viewer -->
+  <main id="main-content">
+    <canvas id="renderCanvas"></canvas>
+    
+    <!-- Heads-Up Display for viewer controls -->
+    <div id="hud">
+      <button id="toggleBg">Toggle BG</button>
+      <button id="prevCamBtn">◀︎</button>
+      <button id="nextCamBtn">▶︎</button>
+      <label>
+        <input type="checkbox" id="toggleCams" checked> Show Cameras
+      </label>
+      <label>
+        Point Size: <input type="range" id="ptSize" min="1" max="10" value="2">
+      </label>
+    </div>
+  </main>
+
+  <!-- Link to your existing viewer logic -->
+  <script src="{{ url_for('static', filename='viewer.js') }}"></script>
+
+</body>
+</html>
