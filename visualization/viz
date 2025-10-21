@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Find the directory where the viz script itself is located
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
 BASE="${1:-results}"
 HOST="${HOST:-127.0.0.1}"
 PORT="${PORT:-5173}"
 
-# Optional: lightweight venv (commented out)
-# python3 -m venv .venv && source .venv/bin/activate && pip install -q flask
-
 export RESULTS_DIR="$BASE"
 echo "[viz] Base dir: $RESULTS_DIR"
 echo "[viz] Open: http://$HOST:$PORT"
-python visualization/app.py --base "$BASE" --host "$HOST" --port "$PORT"
+
+# Run the python app, which is in the same directory as the script
+python "$SCRIPT_DIR/app.py" --base "$BASE" --host "$HOST" --port "$PORT"
