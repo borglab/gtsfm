@@ -14,9 +14,12 @@ dependencies:
   - pytest
   - flake8
   - isort
-  # dask and related
-  - dask
-  - distributed 
+  # dask and related 
+  - dask=2025.9.1
+  - distributed=2025.9.1
+  - tornado=6.5.2
+  - lz4=4.4.4
+  - msgpack-python=1.1.1
   - asyncssh
   - python-graphviz
   # core functionality and APIs
@@ -24,7 +27,7 @@ dependencies:
   - networkx
   - numpy==1.26.4 # gtsam requirement
   - nodejs
-  - pandas
+  - pandas=2.3.3
   - pillow>=9.0.0
   - scikit-learn
   - seaborn
