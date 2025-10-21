@@ -4,7 +4,7 @@ Authors: Frank Dellaert and Ayush Baid
 """
 
 import abc
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Callable
 
 from dask.base import annotate as dask_annotate
 from dask.delayed import Delayed, delayed
@@ -366,16 +366,20 @@ class LoaderBase(GTSFMProcess):
         """Gets the standard resized image and applies an additional optional transform."""
         # Gets the image, downscaled to `max_resolution` if necessary.
         image = self.get_image(index)
-        
+
         # Apply the additional, model-specific transform if it was provided.
         if transform:
             return transform(image)
-            
+
         return image
 
-    def get_all_images_as_futures(self, client: Client, transform: Optional[Callable[[Image], Image]] = None) -> List[Future]:
+    def get_all_images_as_futures(
+        self, client: Client, transform: Optional[Callable[[Image], Image]] = None
+    ) -> List[Future]:
         return [
-            client.submit(self.get_transformed_image, i, transform, workers=[self._input_worker] if self._input_worker else None)
+            client.submit(
+                self.get_transformed_image, i, transform, workers=[self._input_worker] if self._input_worker else None
+            )
             for i in range(len(self))
         ]
 

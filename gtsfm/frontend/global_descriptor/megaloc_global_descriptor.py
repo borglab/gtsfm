@@ -7,8 +7,7 @@
 """
 import numpy as np
 import torch
-import torch.nn.functional as F
-from typing import Optional
+from typing import Optional, Callable
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.utils.images import resize_image

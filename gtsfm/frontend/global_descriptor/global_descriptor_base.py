@@ -28,7 +28,7 @@ class GlobalDescriptorBase:
             img_desc: array of shape (D,) representing global image descriptor.
         """
     
-   def get_preprocessing_transform(self) -> Optional[Callable[[Image], Image]]:
+    def get_preprocessing_transform(self) -> Optional[Callable[[Image], Image]]:
         """Return a function to preprocess an image before descriptor inference.
         
         This transform will be applied by the loader.
