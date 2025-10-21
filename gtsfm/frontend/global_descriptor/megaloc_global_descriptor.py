@@ -55,8 +55,6 @@ class MegaLocGlobalDescriptor(GlobalDescriptorBase):
             .unsqueeze(0)
             .type(torch.float32) / 255.0
         )
-        
-        img_tensor = self._resize_image_tensor(img_tensor)
 
         with torch.no_grad():
             descriptor = self._model(img_tensor)
