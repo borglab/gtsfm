@@ -14,7 +14,7 @@ from gtsfm.products.visibility_graph import VisibilityGraph, valid_visibility_gr
 
 
 @dataclass(frozen=True)
-class _CliqueClusterResult:
+class _SubTreeInfo:
     cluster: ClusterTree
     keys: set[int]
     edges: set[tuple[int, int]]
@@ -40,7 +40,7 @@ class MetisPartitioner(GraphPartitionerBase):
         if len(roots) > 1:
             raise ValueError("MetisPartitioner: VisibilityGraph is disconnected.")
         root_result = self._cluster_from_clique(roots[0], graph)
-        return root_result.cluster
+        return root_result.cluster if root_result else None
 
     def symbolic_bayes_tree(self, graph: VisibilityGraph) -> SymbolicBayesTree:
         """Helper to build the Bayes tree from the visibility graph."""
@@ -54,37 +54,55 @@ class MetisPartitioner(GraphPartitionerBase):
             sfg.push_factor(i, j)
         return sfg
 
-    def _cluster_from_clique(self, clique: SymbolicBayesTreeClique, graph: VisibilityGraph) -> _CliqueClusterResult:
-        frontals, _ = self._clique_key_sets(clique)
+    def _cluster_from_clique(self, clique: SymbolicBayesTreeClique, graph: VisibilityGraph) -> _SubTreeInfo | None:
+        """REVISED: Recursively build the cluster tree, aggressively pruning single-child nodes."""
+        keys, frontals, _ = self._clique_key_sets(clique)
         children = [clique[j] for j in range(clique.nrChildren())]
 
-        if not children:
-            # Create a leaf cluster.
-            edges = [(i, j) for i, j in graph if i in frontals and j in frontals]
-            cluster = ClusterTree(value=edges, children=())
-            return _CliqueClusterResult(cluster=cluster, keys=set(frontals), edges=set(edges))
+        # Recursively call on children and filter out any pruned (None) results.
+        child_results = [res for res in (self._cluster_from_clique(child, graph) for child in children) if res]
 
-        child_results = [self._cluster_from_clique(child, graph) for child in children]
+        # Case 1: This node is a leaf in the pruned tree (no valid children remaining).
+        if not child_results:
+            edges = {(i, j) for i, j in graph if i in keys and j in keys}
+            if not edges:
+                return None  # Prune empty leaf clusters.
+            cluster = ClusterTree(value=list(edges), children=())
+            return _SubTreeInfo(cluster=cluster, keys=keys, edges=edges)
 
-        descendant_keys: set[int] = set.union(*(result.keys for result in child_results))
-        descendant_edges: set[tuple[int, int]] = set.union(*(result.edges for result in child_results))
-
-        subtree_keys = descendant_keys | frontals
+        # This node is an internal node in the pruned tree.
+        # Calculate its keys, edges, and the edges unique to it.
+        subtree_keys = frontals | set.union(*(result.keys for result in child_results))
         subtree_edges = {(i, j) for i, j in graph if i in subtree_keys and j in subtree_keys}
+        descendant_edges: set[tuple[int, int]] = set.union(*(result.edges for result in child_results))
+        current_edges = subtree_edges - descendant_edges
 
-        cluster = ClusterTree(
-            value=list(subtree_edges - descendant_edges),
-            children=tuple(result.cluster for result in child_results),
-        )
-        return _CliqueClusterResult(cluster=cluster, keys=subtree_keys, edges=subtree_edges)
+        # --- Aggressive Pruning Logic ---
+        if len(child_results) == 1:
+            # Case 2: Merge with the single child.
+            single_child_result = child_results[0]
+            # Combine this node's edges with its child's edges.
+            merged_cluster = ClusterTree(
+                value=list(current_edges) + single_child_result.cluster.value,
+                children=single_child_result.cluster.children,
+            )
+            # Pass up the merged cluster, but with the full key/edge sets for this scope.
+            return _SubTreeInfo(cluster=merged_cluster, keys=subtree_keys, edges=subtree_edges)
+        else:
+            # Case 3: Keep this node as a branching point (>1 child).
+            cluster = ClusterTree(
+                value=list(current_edges),
+                children=tuple(result.cluster for result in child_results),
+            )
+            return _SubTreeInfo(cluster=cluster, keys=subtree_keys, edges=subtree_edges)
 
-    def _clique_key_sets(self, clique: SymbolicBayesTreeClique) -> tuple[set[int], set[int]]:
+    def _clique_key_sets(self, clique: SymbolicBayesTreeClique) -> tuple[set[int], set[int], set[int]]:
         conditional = clique.conditional()
         if conditional is not None:
             keys = conditional.keys()
             n_frontals = conditional.nrFrontals()
             frontals = set(int(k) for k in keys[:n_frontals])
             separator = set(int(k) for k in keys[n_frontals:])
-            return frontals, separator
+            return set(keys), frontals, separator
         else:
-            return set(), set()
+            return set(), set(), set()
