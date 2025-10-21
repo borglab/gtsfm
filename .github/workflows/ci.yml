@@ -79,7 +79,7 @@ jobs:
             [megaloc_sift_frontend , skydio-8, 15, jpg, wget    , colmap-loader ,  760, true],
             [sift      , skydio-32          , 15, jpg, wget     , colmap-loader ,  760, true ],
             [lightglue , skydio-32          , 15, jpg, wget     , colmap-loader ,  760, true ],
-            [megaloc_sift_frontend , skydio-32          , 15, jpg, wget     , colmap-loader ,  760, true ],
+            [megaloc_sift_frontend , skydio-32 , 15, jpg, wget     , colmap-loader ,  760, true ],
             [sift      , palace-fine-arts-281,15, jpg, wget     , olsson-loader ,  320, true ],
             [lightglue , notre-dame-20      , 15, jpg, wget     , colmap-loader ,  760, false],
             [sift      , 2011205_rc3        , 15, png, wget     , astrovision   , 1024, true ],
