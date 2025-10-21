@@ -12,5 +12,5 @@ export RESULTS_DIR="$BASE"
 echo "[viz] Base dir: $RESULTS_DIR"
 echo "[viz] Open: http://$HOST:$PORT"
 
-# Run the python app, which is now in the visualization subdirectory
-python "$SCRIPT_DIR/visualization/app.py" --base "$BASE" --host "$HOST" --port "$PORT"
+# Run the python app, which is in the same directory as the script
+python "$SCRIPT_DIR/app.py" --base "$BASE" --host "$HOST" --port "$PORT"
