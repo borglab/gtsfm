@@ -7,10 +7,11 @@ from pathlib import Path
 from typing import List, Optional
 
 import numpy as np
+import torch
 from dask.distributed import Client, Future
 
 import gtsfm.utils.logger as logger_utils
-from gtsfm.common.image import Image
+# from gtsfm.common.image import Image
 from gtsfm.frontend.global_descriptor.global_descriptor_base import GlobalDescriptorBase
 from gtsfm.products.visibility_graph import VisibilityGraph
 from gtsfm.retriever.retriever_base import RetrieverBase
