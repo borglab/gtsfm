@@ -38,8 +38,6 @@ class MegaLocGlobalDescriptor(GlobalDescriptorBase):
         Returns:
             Resized tensor of shape [B, C, 322, 322]
         """
-        _, _, h, w = img_tensor.shape
-            
         img_tensor = F.interpolate(
             img_tensor, 
             size=(self._input_size, self._input_size),  # Square resize
