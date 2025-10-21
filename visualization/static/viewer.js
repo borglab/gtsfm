@@ -17,6 +17,8 @@ class ColmapViewer {
     );
     this.scene.activeCamera = this.camera;
     this.camera.attachControl(canvas, true);
+    this.camera.minZ = 0.01;    // Near clipping plane
+    this.camera.maxZ = 10000;   // Far clipping plane
 
     // Z-up for interaction
     this.camera.upVector = new BABYLON.Vector3(0, 0, -1);
@@ -30,7 +32,7 @@ class ColmapViewer {
     this.camera.lowerRadiusLimit = 0.1;
     this.camera.upperRadiusLimit = 10000;
     this.camera.lowerBetaLimit = 0.001;
-    this.camera.upperBetaLimit = Math.PI - 0.001;
+    this.camera.upperBetaLimit = Math.TWO_PI - 0.001;
 
     this.light = new BABYLON.HemisphericLight("H", new BABYLON.Vector3(0, 1, 0), this.scene);
     this.light.intensity = 0.85;
@@ -282,6 +284,9 @@ class ColmapViewer {
     this.camera.setTarget(center);
     this.camera.setPosition(pos);
     this.camera.rebuildAnglesAndRadius?.();
+    const R = this.cameras[this.camIndex].R;
+    const upWorld = BABYLON.Vector3.TransformCoordinates(new BABYLON.Vector3(0, 1, 0), R);
+    this.camera.upVector = upWorld;
   }
 
   nextCam() { this._gotoCam((this.camIndex ?? 0) + 1); }
