@@ -182,7 +182,7 @@ class SceneOptimizer:
                 logger.info(f"🔥 GTSFM: Applying preprocessing transform for global descriptors {transform}")
 
         # Image_Batch_Futures is a list of Stacked Tensors with dimension (batch_size, Channels, H, W)
-        image_batch_futures = self.loader.get_all_image_batches_as_futures(client, batch_size, transform)
+        image_batch_futures = self.loader.get_all_descriptor_image_batches_as_futures(client, batch_size, transform)
 
         image_fnames = self.loader.image_filenames()
 

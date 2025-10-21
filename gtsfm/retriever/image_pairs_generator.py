@@ -53,10 +53,6 @@ class ImagePairsGenerator:
         descriptors: Optional[List[np.ndarray]] = None  # Will hold global descriptors if computed
 
         if self._global_descriptor is not None:
-            # Ensure Model has loaded on client before scattering, otherwise we get a race condition
-            # Access the inner object first.
-            # self._global_descriptor._global_descriptor._ensure_model_loaded()
-
             # Scatter descriptor to all workers for efficient parallel processing
             global_descriptor_future = client.scatter(self._global_descriptor, broadcast=True)
 
@@ -65,8 +61,6 @@ class ImagePairsGenerator:
                 for batch_future in image_batch_futures
             ]
 
-            # Gather all computed descriptors from workers
-            # logger.info("⏳ Computing global descriptors for all images...")
             logger.info(f"⏳ Computing global descriptors for all images in batches of {self._batch_size}...")
             batched_descriptors = client.gather(descriptor_futures)
 
