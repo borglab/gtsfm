@@ -1,7 +1,4 @@
 # @package _global_
-defaults:
-  - graph_partitioner: single
-  - _self_
 _target_: gtsfm.scene_optimizer.SceneOptimizer
 
 image_pairs_generator:
@@ -9,6 +6,9 @@ image_pairs_generator:
   retriever:
     _target_: gtsfm.retriever.sequential_retriever.SequentialRetriever
     max_frame_lookahead: 20
+
+graph_partitioner:
+  _target_: gtsfm.graph_partitioner.Single
 
 cluster_optimizer:
   _target_: gtsfm.cluster_optimizer.ClusterOptimizer

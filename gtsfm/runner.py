@@ -179,7 +179,7 @@ class GtsfmRunner:
             )
 
             if getattr(self.parsed_args, "graph_partitioner", None):
-                overrides.append(f"graph_partitioner={self.parsed_args.graph_partitioner}")
+                overrides.append(f"+graph_partitioner={self.parsed_args.graph_partitioner}")
 
             if getattr(self, "_hydra_cli_overrides", None):
                 overrides.extend(self._hydra_cli_overrides)

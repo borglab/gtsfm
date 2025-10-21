@@ -1,9 +1,6 @@
 # Default SIFT front-end configuration.
 
 # @package _global_
-defaults:
-  - graph_partitioner: single
-  - _self_
 _target_: gtsfm.scene_optimizer.SceneOptimizer
 loader:
   _target_: gtsfm.loader.Colmap
@@ -18,6 +15,9 @@ image_pairs_generator:
     _target_: gtsfm.retriever.netvlad_retriever.NetVLADRetriever
     num_matched: 20
     min_score: 0.3
+
+graph_partitioner:
+  _target_: gtsfm.graph_partitioner.Single
 
 cluster_optimizer:
   _target_: gtsfm.cluster_optimizer.ClusterOptimizer

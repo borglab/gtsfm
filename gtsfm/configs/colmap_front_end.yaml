@@ -1,15 +1,15 @@
 # Front-end configuration that leverages PyColmap for feature extraction and verification.
 
 # @package _global_
-defaults:
-  - graph_partitioner: single
-  - _self_
 _target_: gtsfm.scene_optimizer.SceneOptimizer
 
 image_pairs_generator:
   _target_: gtsfm.retriever.image_pairs_generator.ImagePairsGenerator
   retriever:
     _target_: gtsfm.retriever.exhaustive_retriever.ExhaustiveRetriever
+
+graph_partitioner:
+  _target_: gtsfm.graph_partitioner.Single
 
 cluster_optimizer:
   _target_: gtsfm.cluster_optimizer.ClusterOptimizer
