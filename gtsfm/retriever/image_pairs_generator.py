@@ -54,7 +54,8 @@ class ImagePairsGenerator:
         
         if self._global_descriptor is not None:
             # Ensure Model has loaded on client before scattering, otherwise we get a race condition
-            self._global_descriptor._ensure_model_loaded()
+            # Access the inner object first.
+            self._global_descriptor._global_descriptor_obj._ensure_model_loaded()
 
             # Scatter descriptor to all workers for efficient parallel processing
             global_descriptor_future = client.scatter(self._global_descriptor, broadcast=False)
