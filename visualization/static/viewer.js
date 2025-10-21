@@ -9,8 +9,12 @@ class ColmapViewer {
 
     this.camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/2.2, 10, new BABYLON.Vector3(0,0,0), this.scene);
     this.camera.attachControl(canvas, true);
+    
+    // --- FIX FOR MOUSE CONTROLS ---
     this.camera.lowerRadiusLimit = 0.05;
+    this.camera.upperRadiusLimit = 2000; // Allow zooming far out
     this.camera.wheelPrecision = 40;
+    this.camera.panningSensibility = 1000; // Enable effective right-click panning
 
     this.light = new BABYLON.HemisphericLight("H", new BABYLON.Vector3(0,1,0), this.scene);
     this.light.intensity = 0.85;
@@ -31,7 +35,6 @@ class ColmapViewer {
 
   async loadScene({ pointsUrl, imagesUrl }) {
     await this._clear();
-
     const fetchOpts = { cache: "no-store" };
     const [pointsText, imagesText] = await Promise.all([
       fetch(pointsUrl, fetchOpts).then(r => {
@@ -40,18 +43,12 @@ class ColmapViewer {
       }),
       fetch(imagesUrl, fetchOpts).then(r => (r.ok ? r.text() : ""))
     ]);
-
     const points = this._parsePoints(pointsText);
     const cams = imagesText ? this._parseCams(imagesText) : [];
-    if (cams.length) {
-      console.log(`Loaded scene: ${points.length} points, ${cams.length} cameras from ${imagesUrl}`);
-    } else {
-      console.warn(`Loaded scene with ${points.length} points but no cameras found in ${imagesUrl}`);
-    }
-
+    if (cams.length) console.log(`Loaded scene: ${points.length} points, ${cams.length} cameras from ${imagesUrl}`);
+    else console.warn(`Loaded scene with ${points.length} points but no cameras found in ${imagesUrl}`);
     if (points.length) await this._createPCS(points);
     if (cams.length) this._createFrusta(cams);
-
     this._autoFrame();
   }
 
@@ -126,9 +123,13 @@ class ColmapViewer {
       node.position.copyFrom(c.center);
       node.rotationQuaternion = BABYLON.Quaternion.FromRotationMatrix(c.R);
       node.parent = this.frustumGroup;
-      const frustum = this._frustumLinesLocal(0.6);
+
+      // --- FIX FOR CAMERA VISIBILITY (INCREASED SCALE) ---
+      const frustum = this._frustumLinesLocal(1.2); // Increased from 0.6
       frustum.parent = node;
-      const pivot = BABYLON.MeshBuilder.CreateSphere("camPivot", { diameter: 0.06 }, this.scene);
+
+      // --- FIX FOR CAMERA VISIBILITY (INCREASED DIAMETER) ---
+      const pivot = BABYLON.MeshBuilder.CreateSphere("camPivot", { diameter: 0.25 }, this.scene); // Increased from 0.06
       const pivotMat = new BABYLON.StandardMaterial("camPivotMat", this.scene);
       pivotMat.emissiveColor = new BABYLON.Color3(1, 0.35, 0.35);
       pivotMat.disableLighting = true;
@@ -282,11 +283,28 @@ async function boot() {
 
   filterEl.addEventListener("input", () => renderList(filterEl.value));
 
+  // HUD controls
   document.getElementById("toggleCams").addEventListener("change", (e) => {
     viewer.setShowCams(e.target.checked);
   });
   document.getElementById("ptSize").addEventListener("input", (e) => {
     viewer.setPointSize(parseInt(e.target.value, 10));
+  });
+
+  // --- IMPLEMENT BACKGROUND TOGGLE ---
+  const bgButton = document.getElementById("toggleBg");
+  const bgColors = [
+    new BABYLON.Color4(0.98, 0.98, 0.98, 1.0), // White
+    new BABYLON.Color4(0.85, 0.85, 0.85, 1.0), // Light Gray
+    new BABYLON.Color4(0.2, 0.2, 0.22, 1.0),   // Dark Gray
+    new BABYLON.Color4(0.04, 0.05, 0.06, 1.0), // Original Black/Dark
+  ];
+  let currentBgIndex = bgColors.findIndex(c => c.r === viewer.scene.clearColor.r); // Start at current
+  if (currentBgIndex === -1) currentBgIndex = 3;
+
+  bgButton.addEventListener("click", () => {
+    currentBgIndex = (currentBgIndex + 1) % bgColors.length;
+    viewer.scene.clearColor = bgColors[currentBgIndex];
   });
 }
 

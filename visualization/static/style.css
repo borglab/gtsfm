@@ -169,3 +169,19 @@ body {
   gap: 8px;
   font-weight: 500;
 }
+
+#hud button {
+  background: #fff;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  padding: 0 16px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  height: 32px;
+  transition: background-color 0.15s ease;
+}
+#hud button:hover {
+  background-color: #f8fafc;
+}
