@@ -11,6 +11,7 @@ import torch.nn.functional as F
 from typing import Optional
 
 import gtsfm.utils.logger as logger_utils
+from gtsfm.utils.images import resize_image
 from gtsfm.common.image import Image
 from gtsfm.frontend.global_descriptor.global_descriptor_base import GlobalDescriptorBase
 
@@ -30,23 +31,14 @@ class MegaLocGlobalDescriptor(GlobalDescriptorBase):
             logger.info("⏳ Loading MegaLoc model weights...")
             self._model = MegaLocModel().eval()
 
-    def _resize_image_tensor(self, img_tensor: torch.Tensor) -> torch.Tensor:
-        """
-        Args:
-            img_tensor: Input tensor of shape [B, C, H, W]
+    def get_preprocessing_transform(self) -> Optional[Callable[[Image], Image]]:
+        """Return a function that resizes a gtsfm.Image to 322x322."""
         
-        Returns:
-            Resized tensor of shape [B, C, 322, 322]
-        """
-        img_tensor = F.interpolate(
-            img_tensor, 
-            size=(self._input_size, self._input_size),  # Square resize
-            mode='bilinear', 
-            align_corners=False,
-            antialias=True
-        )
-    
-        return img_tensor
+        def resize_fn(image: Image) -> Image:
+            # Use the existing image utility to perform the resize
+            return resize_image(image, new_height=self._input_size, new_width=self._input_size)
+            
+        return resize_fn
 
     def describe(self, image: Image) -> np.ndarray:
         self._ensure_model_loaded()

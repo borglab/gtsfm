@@ -171,7 +171,12 @@ class SceneOptimizer:
 
     def _run_retriever(self, client) -> tuple[GtsfmMetricsGroup, VisibilityGraph, list[Future]]:
         retriever_start_time = time.time()
-        image_futures = self.loader.get_all_images_as_futures(client)
+
+        transform = self.image_pairs_generator._global_descriptor.get_preprocessing_transform()
+        
+        # Call the loader with the specific transform needed for the descriptor.
+        image_futures = self.loader.get_all_images_as_futures(client, transform=transform)
+
         image_fnames = self.loader.image_filenames()
 
         with performance_report(filename="dask_reports/retriever.html"):

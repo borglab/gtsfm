@@ -362,9 +362,20 @@ class LoaderBase(GTSFMProcess):
             delayed_images = {i: delayed(self.get_image)(i) for i in range(N)}
         return delayed_images
 
-    def get_all_images_as_futures(self, client: Client) -> List[Future]:
+    def get_transformed_image(self, index: int, transform: Optional[Callable[[Image], Image]] = None) -> Image:
+        """Gets the standard resized image and applies an additional optional transform."""
+        # Gets the image, downscaled to `max_resolution` if necessary.
+        image = self.get_image(index)
+        
+        # Apply the additional, model-specific transform if it was provided.
+        if transform:
+            return transform(image)
+            
+        return image
+
+    def get_all_images_as_futures(self, client: Client, transform: Optional[Callable[[Image], Image]] = None) -> List[Future]:
         return [
-            client.submit(self.get_image, i, workers=[self._input_worker] if self._input_worker else None)
+            client.submit(self.get_transformed_image, i, transform, workers=[self._input_worker] if self._input_worker else None)
             for i in range(len(self))
         ]
 

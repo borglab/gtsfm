@@ -7,6 +7,7 @@ import abc
 
 import numpy as np
 
+from typing import Optional, Callable
 from gtsfm.common.image import Image
 
 
@@ -26,3 +27,13 @@ class GlobalDescriptorBase:
         Returns:
             img_desc: array of shape (D,) representing global image descriptor.
         """
+    
+   def get_preprocessing_transform(self) -> Optional[Callable[[Image], Image]]:
+        """Return a function to preprocess an image before descriptor inference.
+        
+        This transform will be applied by the loader.
+        
+        Returns:
+            Optional transform function, or None if no preprocessing is needed.
+        """
+        return None  # Default: no transform needed
