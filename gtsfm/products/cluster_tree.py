@@ -26,27 +26,18 @@ class ClusterTree(Tree[VisibilityGraph]):
         return visibility_graph_keys(self.value)
 
     def all_keys(self) -> FrozenSet[int]:
-        """Return the set of keys contained in this cluster and all descendants."""
+        """Return the set of unique keys contained in this cluster and all descendants."""
+        keys = set(self.local_keys())
+        for child in self._child_clusters():
+            keys.update(child.all_keys())
+        return frozenset(keys)
 
-        def reducer(edges: VisibilityGraph, child_keys: tuple[FrozenSet[int], ...]) -> FrozenSet[int]:
-            merged: set[int] = set()
-            for key_set in child_keys:
-                merged.update(key_set)
-            merged.update(visibility_graph_keys(edges))
-            return frozenset(merged)
-
-        return self.fold(reducer)
-
-    def all_edges(self) -> VisibilityGraph:
-        """Return all edges contained in this cluster and its descendants."""
-
-        def reducer(edges: VisibilityGraph, child_edges: tuple[VisibilityGraph, ...]) -> VisibilityGraph:
-            merged: list[tuple[int, int]] = list(edges)
-            for child in child_edges:
-                merged.extend(child)
-            return merged
-
-        return self.fold(reducer)
+    def all_edges(self) -> FrozenSet[tuple[int, int]]:
+        """Return all *unique* edges contained in this cluster and its descendants."""
+        edges = set(self.value)
+        for child in self._child_clusters():
+            edges.update(child.all_edges())
+        return frozenset(edges)
 
     def filter_annotations(self, annotated_graph: AnnotatedGraph[T]) -> AnnotatedGraph[T]:
         """Extract annotated results associated with this cluster's edges."""
@@ -61,6 +52,18 @@ class ClusterTree(Tree[VisibilityGraph]):
         children = tuple(child.to_annotated(annotated_graph) for child in self._child_clusters())
         annotations = filter_annotations_by_edges(self.value, annotated_graph)
         return AnnotatedClusterTree(value=annotations, children=children)
+
+    def __repr__(self) -> str:
+        """Return an indented string representation of the cluster tree, showing all edges at each node."""
+
+        def repr_helper(node: "ClusterTree", indent: int = 0) -> str:
+            prefix = " " * indent
+            lines = [f"{prefix}Cluster with {len(node.value)} edges"]
+            for child in node._child_clusters():
+                lines.append(repr_helper(child, indent + 2))
+            return "\n".join(lines)
+
+        return repr_helper(self)
 
 
 class AnnotatedClusterTree(Tree[AnnotatedGraph[T]], Generic[T]):

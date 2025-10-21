@@ -14,7 +14,7 @@ from gtsfm.products.visibility_graph import VisibilityGraph, valid_visibility_gr
 
 
 @dataclass(frozen=True)
-class _CliqueClusterResult:
+class _SubTreeInfo:
     cluster: ClusterTree
     keys: set[int]
     edges: set[tuple[int, int]]
@@ -32,6 +32,13 @@ class MetisPartitioner(GraphPartitionerBase):
             return None
 
         valid_visibility_graph_or_raise(graph)
+
+        # Optionally, write the visibility graph to a CSV for inspection.
+        # with open("visibility_graph.csv", "w", newline="") as csv_file:
+        #     writer = csv.writer(csv_file)
+        #     writer.writerow(["i", "j"])
+        #     for i, j in graph:
+        #         writer.writerow([i, j])
 
         bayes_tree = self.symbolic_bayes_tree(graph)
         roots: list = bayes_tree.roots()
@@ -54,37 +61,40 @@ class MetisPartitioner(GraphPartitionerBase):
             sfg.push_factor(i, j)
         return sfg
 
-    def _cluster_from_clique(self, clique: SymbolicBayesTreeClique, graph: VisibilityGraph) -> _CliqueClusterResult:
-        frontals, _ = self._clique_key_sets(clique)
+    def _cluster_from_clique(self, clique: SymbolicBayesTreeClique, graph: VisibilityGraph) -> _SubTreeInfo:
+        keys, frontals, _ = self._clique_key_sets(clique)
         children = [clique[j] for j in range(clique.nrChildren())]
 
         if not children:
             # Create a leaf cluster.
-            edges = [(i, j) for i, j in graph if i in frontals and j in frontals]
+            edges = [(i, j) for i, j in graph if i in keys and j in keys]
             cluster = ClusterTree(value=edges, children=())
-            return _CliqueClusterResult(cluster=cluster, keys=set(frontals), edges=set(edges))
+            return _SubTreeInfo(cluster=cluster, keys=keys, edges=set(edges))
 
-        child_results = [self._cluster_from_clique(child, graph) for child in children]
+        child_subtrees = [self._cluster_from_clique(child, graph) for child in children]
 
-        descendant_keys: set[int] = set.union(*(result.keys for result in child_results))
-        descendant_edges: set[tuple[int, int]] = set.union(*(result.edges for result in child_results))
+        # The keys for this subtree are the union of the frontal keys and all descendant keys.
+        subtree_keys = frontals | set.union(*(result.keys for result in child_subtrees))
 
-        subtree_keys = descendant_keys | frontals
+        # The edges for this subtree are all edges in the visibility graph that connect subtree keys.
         subtree_edges = {(i, j) for i, j in graph if i in subtree_keys and j in subtree_keys}
+
+        # The cluster at the top of this subtree are those not covered by the descendants.
+        descendant_edges: set[tuple[int, int]] = set.union(*(result.edges for result in child_subtrees))
 
         cluster = ClusterTree(
             value=list(subtree_edges - descendant_edges),
-            children=tuple(result.cluster for result in child_results),
+            children=tuple(result.cluster for result in child_subtrees),
         )
-        return _CliqueClusterResult(cluster=cluster, keys=subtree_keys, edges=subtree_edges)
+        return _SubTreeInfo(cluster=cluster, keys=subtree_keys, edges=subtree_edges)
 
-    def _clique_key_sets(self, clique: SymbolicBayesTreeClique) -> tuple[set[int], set[int]]:
+    def _clique_key_sets(self, clique: SymbolicBayesTreeClique) -> tuple[set[int], set[int], set[int]]:
         conditional = clique.conditional()
         if conditional is not None:
             keys = conditional.keys()
             n_frontals = conditional.nrFrontals()
             frontals = set(int(k) for k in keys[:n_frontals])
             separator = set(int(k) for k in keys[n_frontals:])
-            return frontals, separator
+            return set(keys), frontals, separator
         else:
-            return set(), set()
+            return set(), set(), set()
