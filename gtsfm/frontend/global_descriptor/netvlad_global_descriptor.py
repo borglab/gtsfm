@@ -52,4 +52,5 @@ class NetVLADGlobalDescriptor(GlobalDescriptorBase):
     
     def describe(self, image: torch.Tensor) -> np.ndarray:
         """Compute descriptor for a single image (delegates to batch method)."""
-        return self.describe_batch([image])[0]
+        batch_tensor = image.unsqueeze(0)
+        return self.describe_batch(batch_tensor)[0]

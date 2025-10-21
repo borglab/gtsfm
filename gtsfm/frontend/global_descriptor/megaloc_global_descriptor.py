@@ -59,4 +59,5 @@ class MegaLocGlobalDescriptor(GlobalDescriptorBase):
         return [desc.detach().squeeze().cpu().numpy() for desc in descriptors]
 
     def describe(self, image: torch.Tensor) -> np.ndarray:
-        return self.describe_batch([image])[0]
+        batch_tensor = image.unsqueeze(0)
+        return self.describe_batch(batch_tensor)[0]
