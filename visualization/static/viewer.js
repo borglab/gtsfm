@@ -5,9 +5,8 @@ class ColmapViewer {
     this.canvas = canvas;
     this.engine = new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true });
     this.scene = new BABYLON.Scene(this.engine);
-    this.scene.clearColor = new BABYLON.Color4(0.04, 0.05, 0.06, 1.0);
+    this.scene.clearColor = new BABYLON.Color4(0.85, 0.85, 0.85, 1.0);
 
-    // ArcRotateCamera with sane defaults; we’ll sync pos/target then rebuild angles
     this.camera = new BABYLON.ArcRotateCamera(
       "cam",
       -Math.PI / 2,
@@ -18,6 +17,10 @@ class ColmapViewer {
     );
     this.scene.activeCamera = this.camera;
     this.camera.attachControl(canvas, true);
+
+    // Z-up for interaction
+    this.camera.upVector = new BABYLON.Vector3(0, 0, -1);
+
 
     // Inputs & limits tuned to avoid “locked” feeling
     this.camera.angularSensibilityX = 1000;
@@ -45,7 +48,7 @@ class ColmapViewer {
   }
 
   setPointSize(px) {
-    this.ptSize = Math.max(1, Math.min(10, px));
+    this.ptSize = Math.max(0.5, Math.min(5, px));
     if (this.pointsMesh?.material) this.pointsMesh.material.pointSize = this.ptSize;
   }
 
@@ -67,11 +70,20 @@ class ColmapViewer {
     this.cameras = imagesText ? this._parseCams(imagesText) : [];
     console.log('first camera center:', this.cameras[0]?.center);
     console.log('scene extent:', this._sceneExtent());
-
     console.log(`Loaded: #points=${points.length}, #cams=${this.cameras.length}`);
 
     if (points.length) await this._createPCS(points);
     if (this.cameras.length) this._createFrusta(this.cameras);
+
+    // centroid from a 100-point sample (fallback to bbox center if needed)
+    this.sceneCenter = points.length
+      ? this._centroidSample(points, 100)
+      : (this.pointsMesh
+        ? this.pointsMesh.getBoundingInfo().boundingBox.centerWorld.clone()
+        : new BABYLON.Vector3(0, 0, 0));
+
+    // remember which camera we're on for next/prev UI
+    this.camIndex = 0;
 
     this._autoFrame();
   }
@@ -141,6 +153,19 @@ class ColmapViewer {
 
   // ------------------- geometry -------------------
 
+  _centroidSample(points, n = 100) {
+    if (!points.length) return new BABYLON.Vector3(0, 0, 0);
+    const step = Math.max(1, Math.floor(points.length / n));
+    let x = 0, y = 0, z = 0, k = 0;
+    for (let i = 0; i < points.length; i += step) {
+      const p = points[i];
+      x += p.x; y += p.y; z += p.z;
+      k++;
+      if (k >= n) break;
+    }
+    return new BABYLON.Vector3(x / k, y / k, z / k);
+  }
+
   async _createPCS(points) {
     const pcs = new BABYLON.PointsCloudSystem(
       "pcs",
@@ -175,8 +200,8 @@ class ColmapViewer {
 
   _createFrusta(cams) {
     const size = this._sceneExtent();
-    const frustumScale = 0.02 * size;   // 2% of scene extent
-    const pivotDiam = 0.006 * size;   // 0.6% sphere
+    const frustumScale = 0.01 * size;   // 1% of scene extent
+    const pivotDiam = 0.002 * size;   // 0.2% sphere
 
     for (const c of cams) {
       const node = new BABYLON.TransformNode("camNode", this.scene);
@@ -190,12 +215,12 @@ class ColmapViewer {
       // If still hard to see, try:
       frustum.alwaysSelectAsActiveMesh = true;
       const m = new BABYLON.StandardMaterial("fmat", this.scene);
-      m.emissiveColor = new BABYLON.Color3(1, 0.5, 0);
+      m.emissiveColor = new BABYLON.Color3(0, 0.5, 0);
       frustum.material = m;
 
       const pivot = BABYLON.MeshBuilder.CreateSphere("camPivot", { diameter: pivotDiam }, this.scene);
       const pivotMat = new BABYLON.StandardMaterial("camPivotMat", this.scene);
-      pivotMat.emissiveColor = new BABYLON.Color3(1, 0.35, 0.35);
+      pivotMat.emissiveColor = new BABYLON.Color3(0, 0, 0.5);
       pivotMat.disableLighting = true;
       pivot.material = pivotMat;
       pivot.isPickable = false;
@@ -228,41 +253,39 @@ class ColmapViewer {
   // ------------------- camera framing -------------------
 
   _autoFrame() {
-    let minX = Infinity, minY = Infinity, minZ = Infinity;
-    let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
-
-    if (this.pointsMesh) {
-      const bb = this.pointsMesh.getBoundingInfo().boundingBox;
-      minX = bb.minimumWorld.x; maxX = bb.maximumWorld.x;
-      minY = bb.minimumWorld.y; maxY = bb.maximumWorld.y;
-      minZ = bb.minimumWorld.z; maxZ = bb.maximumWorld.z;
-    }
-
-    if (minX === Infinity && this.cameras.length === 0) return;
-
-    const sceneCenter = new BABYLON.Vector3(
-      (minX + maxX) / 2,
-      (minY + maxY) / 2,
-      (minZ + maxZ) / 2
-    );
-
-    this.camera.setTarget(sceneCenter);
+    // look-at: sampled centroid if we have it
+    const center = this.sceneCenter || new BABYLON.Vector3(0, 0, 0);
+    this.camera.setTarget(center);
 
     if (this.cameras.length > 0) {
-      // Use first camera center as starting position
-      const firstCamPos = this.cameras[0].center;
-      this.camera.setPosition(firstCamPos);
-      // Recompute alpha, beta, radius from pos/target to avoid “locked” rotation
-      if (typeof this.camera.rebuildAnglesAndRadius === 'function') {
-        this.camera.rebuildAnglesAndRadius();
-      }
-      // Do NOT immediately inflate radius; keep the view anchored to that position.
-    } else {
-      // No cameras => simple fit by radius
-      const sceneSize = Math.max(maxX - minX, maxY - minY, maxZ - minZ);
-      this.camera.radius = sceneSize * 1.6;
+      const pos = this.cameras[this.camIndex].center;
+      this.camera.setPosition(pos);
+      // recompute alpha/beta/radius from pos/target so orbit feels natural
+      this.camera.rebuildAnglesAndRadius?.();
+    } else if (this.pointsMesh) {
+      // simple fit by radius if no cameras
+      const bb = this.pointsMesh.getBoundingInfo().boundingBox;
+      const size = Math.max(
+        bb.maximumWorld.x - bb.minimumWorld.x,
+        bb.maximumWorld.y - bb.minimumWorld.y,
+        bb.maximumWorld.z - bb.minimumWorld.z
+      );
+      this.camera.radius = size * 1.6;
     }
   }
+
+  _gotoCam(i) {
+    if (!this.cameras.length) return;
+    this.camIndex = (i + this.cameras.length) % this.cameras.length;
+    const center = this.sceneCenter || new BABYLON.Vector3(0, 0, 0);
+    const pos = this.cameras[this.camIndex].center;
+    this.camera.setTarget(center);
+    this.camera.setPosition(pos);
+    this.camera.rebuildAnglesAndRadius?.();
+  }
+
+  nextCam() { this._gotoCam((this.camIndex ?? 0) + 1); }
+  prevCam() { this._gotoCam((this.camIndex ?? 0) - 1); }
 }
 
 // ------------------- app bootstrap -------------------
@@ -350,7 +373,9 @@ async function boot() {
   };
 
 
-  renderList();
+  // Default search term
+  filterEl.value = "ba_output";
+  renderList(filterEl.value);
   if (allItems.length > 0 && !filterEl.value) {
     const first = listEl.querySelector(".item");
     if (first) first.click();
@@ -367,11 +392,17 @@ async function boot() {
     new BABYLON.Color4(0.2, 0.2, 0.22, 1.0),
     new BABYLON.Color4(0.04, 0.05, 0.06, 1.0),
   ];
-  let currentBgIndex = 3;
+  // Match the constructor’s light gray default (index 1)
+  let currentBgIndex = 1;
   bgButton.addEventListener("click", () => {
     currentBgIndex = (currentBgIndex + 1) % bgColors.length;
     viewer.scene.clearColor = bgColors[currentBgIndex];
   });
+
+  const prevBtn = document.getElementById("prevCamBtn");
+  const nextBtn = document.getElementById("nextCamBtn");
+  prevBtn?.addEventListener("click", () => viewer.prevCam());
+  nextBtn?.addEventListener("click", () => viewer.nextCam());
 }
 
 window.addEventListener("DOMContentLoaded", boot);
