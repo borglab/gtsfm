@@ -31,36 +31,23 @@ class MegaLocGlobalDescriptor(GlobalDescriptorBase):
             self._model = MegaLocModel().eval()
 
     def _resize_image_tensor(self, img_tensor: torch.Tensor) -> torch.Tensor:
-        """Resize image tensor to target size, maintaining aspect ratio.
-        
-        The shorter side is resized to self._input_size. The model will handle
-        rounding to multiples of 14 internally.
-        
+        """
         Args:
             img_tensor: Input tensor of shape [B, C, H, W]
-            
+        
         Returns:
-            Resized tensor with shorter side = input_size
+            Resized tensor of shape [B, C, 322, 322]
         """
         _, _, h, w = img_tensor.shape
-        
-        # Calculate new dimensions maintaining aspect ratio
-        if h < w:
-            new_h = self._input_size
-            new_w = int(w * (self._input_size / h))
-        else:
-            new_w = self._input_size
-            new_h = int(h * (self._input_size / w))
-        
-        # Resize using bilinear interpolation
+            
         img_tensor = F.interpolate(
             img_tensor, 
-            size=(new_h, new_w), 
+            size=(self._input_size, self._input_size),  # Square resize
             mode='bilinear', 
             align_corners=False,
             antialias=True
         )
-        
+    
         return img_tensor
 
     def describe(self, image: Image) -> np.ndarray:
