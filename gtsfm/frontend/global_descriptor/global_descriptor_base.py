@@ -23,7 +23,7 @@ class GlobalDescriptorBase:
         """Compute the global descriptor for a single image query.
 
         Args:
-            image: input image.
+            image: input image tensor.
 
         Returns:
             img_desc: array of shape (D,) representing global image descriptor.

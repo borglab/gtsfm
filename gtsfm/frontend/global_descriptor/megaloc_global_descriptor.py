@@ -37,7 +37,7 @@ class MegaLocGlobalDescriptor(GlobalDescriptorBase):
         return transforms.Resize(size=(322, 322), antialias=True)
         
 
-    def describe_batch(self, images: List[torch.Tensor]) -> List[np.ndarray]:
+    def describe_batch(self, images: torch.Tensor) -> List[np.ndarray]:
         """Process multiple images in a single forward pass.
         
         Args:
@@ -51,12 +51,6 @@ class MegaLocGlobalDescriptor(GlobalDescriptorBase):
         
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self._model.to(device)
-
-        # tensors = [
-        #     torch.from_numpy(img.value_array.copy()).permute(2, 0, 1).to(device)
-        #     for img in images
-        # ]
-        # batch_tensor = torch.stack(tensors).type(torch.float32) / 255.0
         
         with torch.no_grad():
             descriptors = self._model(images)

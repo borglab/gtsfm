@@ -43,7 +43,7 @@ class ImagePairsGenerator:
         """Generate visibility graph using global descriptors and retriever logic."""
 
         def apply_global_descriptor_batch(
-            global_descriptor: GlobalDescriptorBase, image_batch: List[Image]
+            global_descriptor: GlobalDescriptorBase, image_batch: torch.Tensor
         ) -> List[np.ndarray]:
             """Apply global descriptor to extract feature vectors from a batch of images."""
             # This will call the new method you need to create in your descriptor class.
