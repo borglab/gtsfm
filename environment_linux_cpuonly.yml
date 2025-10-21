@@ -22,10 +22,12 @@ dependencies:
   - msgpack-python=1.1.1
   - asyncssh
   - python-graphviz
+  - toolz =1.1.0
   # core functionality and APIs
   - matplotlib>=3.5
   - networkx
-  - numpy==1.26.4 # gtsam requirement
+  # - numpy==1.26.4 # gtsam requirement
+  - numpy=2.2.6 
   - nodejs
   - pandas=2.3.3
   - pillow>=9.0.0
