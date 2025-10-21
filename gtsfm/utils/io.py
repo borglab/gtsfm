@@ -661,3 +661,22 @@ def get_sorted_image_names_in_dir(dir_path: str) -> List[str]:
         image_paths.extend(glob.glob(search_path))
 
     return sorted(image_paths)
+
+
+def save_poses(_poses, path):
+    """Serialize and save poses to disk."""
+    serialized = [p.serialize() for p in _poses]
+    with open(path, "wb") as f:
+        pickle.dump(serialized, f)
+
+
+def load_poses(path):
+    """Load and deserialize poses from disk."""
+    with open(path, "rb") as f:
+        serialized = pickle.load(f)
+    _poses = []
+    for s in serialized:
+        pose = Pose3()
+        pose.deserialize(s)
+        _poses.append(pose)
+    return _poses
