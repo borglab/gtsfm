@@ -171,7 +171,7 @@ class GtsfmRunner:
         with hydra.initialize_config_module(config_module="gtsfm.configs", version_base=None):
             overrides = ["+output_root=" + str(self.parsed_args.output_root)]
             if self.parsed_args.share_intrinsics:
-                overrides.append("multiview_optimizer.bundle_adjustment_module.shared_calib=True")
+                overrides.append("cluster_optimizer.multiview_optimizer.bundle_adjustment_module.shared_calib=True")
 
             # Loader-related overrides centralized in gtsfm.loader.configuration
             overrides.extend(
@@ -197,7 +197,9 @@ class GtsfmRunner:
                 logger.info(
                     f"🔄 Applying Correspondence Override: " f"{self.parsed_args.correspondence_generator_config_name}"
                 )
-                scene_optimizer.correspondence_generator = instantiate(correspondence_cfg.CorrespondenceGenerator)
+                scene_optimizer.cluster_optimizer.correspondence_generator = instantiate(
+                    correspondence_cfg.CorrespondenceGenerator
+                )
 
         # Override verifier.
         if self.parsed_args.verifier_config_name is not None:
@@ -206,7 +208,7 @@ class GtsfmRunner:
                     config_name=self.parsed_args.verifier_config_name,
                 )
                 logger.info(f"🔄 Applying Verifier Override: {self.parsed_args.verifier_config_name}")
-                scene_optimizer.two_view_estimator._verifier = instantiate(verifier_cfg.verifier)
+                scene_optimizer.cluster_optimizer.two_view_estimator._verifier = instantiate(verifier_cfg.verifier)
 
         # Override retriever.
         if self.parsed_args.retriever_config_name is not None:
@@ -237,7 +239,9 @@ class GtsfmRunner:
                 logger.info(
                     f"🔄 Applying Gaussian Splatting Override: " f"{self.parsed_args.gaussian_splatting_config_name}"
                 )
-                scene_optimizer.gaussian_splatting_optimizer = instantiate(gs_cfg.gaussian_splatting_optimizer)
+                scene_optimizer.cluster_optimizer.gaussian_splatting_optimizer = instantiate(
+                    gs_cfg.gaussian_splatting_optimizer
+                )
 
         # Set retriever specific params if specified with CLI.
         retriever = scene_optimizer.image_pairs_generator._retriever
@@ -253,10 +257,10 @@ class GtsfmRunner:
                 logger.warning(f"Failed to set num_matched: {e}")
 
         if not self.parsed_args.run_mvs:
-            scene_optimizer.run_dense_optimizer = False
+            scene_optimizer.cluster_optimizer.run_dense_optimizer = False
 
         if not self.parsed_args.run_gs:
-            scene_optimizer.run_gaussian_splatting_optimizer = False
+            scene_optimizer.cluster_optimizer.run_gaussian_splatting_optimizer = False
 
         log_configuration_summary(main_cfg, logger)
         log_key_parameters(main_cfg, logger)
@@ -302,7 +306,7 @@ class GtsfmRunner:
             # getting first worker's IP address and port to do IO
             io_worker = list(client.scheduler_info()["workers"].keys())[0]
             self.scene_optimizer.loader._input_worker = io_worker
-            self.scene_optimizer._output_worker = io_worker
+            self.scene_optimizer.cluster_optimizer._output_worker = io_worker
         else:
             local_cluster_kwargs = {
                 "n_workers": self.parsed_args.num_workers,

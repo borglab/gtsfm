@@ -122,13 +122,13 @@ def create_all_frustums_open3d(
         frustum_obj = ViewFrustum(fx, img_w, img_h, frustum_ray_len=frustum_ray_len)
 
         edges_world = frustum_obj.get_mesh_edges_worldframe(wTi)
-        for verticals_world in edges_world:
+        for vertices_world in edges_world:
             lines = [[0, 1]]
             # color is in range [0,1]
             color = tuple(colormap[i].tolist())
             colors = [color for i in range(len(lines))]
             line_set = open3d.geometry.LineSet(
-                points=open3d.utility.Vector3dVector(verticals_world),
+                points=open3d.utility.Vector3dVector(vertices_world),
                 lines=open3d.utility.Vector2iVector(lines),
             )
             line_set.colors = open3d.utility.Vector3dVector(colors)
@@ -170,16 +170,16 @@ def draw_coordinate_frame(wTc: Pose3, axis_length: float = 1.0) -> List[open3d.g
     line_sets = []
     for axis, color in zip([0, 1, 2], colors):
         # one point at optical center, other point along specified axis.
-        verticals_camera = np.zeros((2, 3))
-        verticals_camera[0, axis] = axis_length
+        vertices_camera = np.zeros((2, 3))
+        vertices_camera[0, axis] = axis_length
 
-        verticals_world = []
+        vertices_world = []
         for i in range(2):
-            verticals_world.append(wTc.transformFrom(verticals_camera[i]))
-        verticals_world_np = np.array(verticals_world)
+            vertices_world.append(wTc.transformFrom(vertices_camera[i]))
+        vertices_world_np = np.array(vertices_world)
 
         line_set = open3d.geometry.LineSet(
-            points=open3d.utility.Vector3dVector(verticals_world_np),
+            points=open3d.utility.Vector3dVector(vertices_world_np),
             lines=open3d.utility.Vector2iVector(lines),
         )
         line_set.colors = open3d.utility.Vector3dVector(color.reshape(1, 3))

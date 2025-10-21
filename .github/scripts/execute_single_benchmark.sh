@@ -136,7 +136,7 @@ execute_gtsfm() {
         
         case "$loader_name" in
             olsson-loader)
-                ./run \
+                ./run --num_workers 2 \
                     --loader olsson \
                     --dataset_dir "$DATASET_ROOT" \
                     --config_name megaloc_sift_frontend \
@@ -146,7 +146,7 @@ execute_gtsfm() {
                 return $?
                 ;;
             colmap-loader)
-                ./run \
+                ./run --num_workers 2 \
                     --loader colmap \
                     --dataset_dir "$DATASET_DIR" \
                     --images_dir "$IMAGES_DIR" \
@@ -164,7 +164,7 @@ execute_gtsfm() {
     case "$loader_name" in
         olsson-loader)
             log INFO "Running with Olsson loader on $DATASET_ROOT"
-            ./run \
+            ./run --num_workers 2 \
                 --loader olsson \
                 --dataset_dir "$DATASET_ROOT" \
                 --config_name unified \
@@ -178,7 +178,7 @@ execute_gtsfm() {
             log INFO "Running with COLMAP loader"
             log INFO "Images: $IMAGES_DIR"
             log INFO "COLMAP files: $DATASET_DIR"
-            ./run \
+            ./run --num_workers 2 \
                 --loader colmap \
                 --dataset_dir "$DATASET_DIR" \
                 --images_dir "$IMAGES_DIR" \
@@ -191,7 +191,7 @@ execute_gtsfm() {
             
         astrovision)
             log INFO "Running with AstroVision loader on $DATASET_ROOT"
-            ./run \
+            ./run --num_workers 2 \
                 --loader astrovision \
                 --dataset_dir "$DATASET_ROOT" \
                 --config_name unified \

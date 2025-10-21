@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 from dask.distributed import Client, Future
-from gtsam import PinholeCameraCal3Bundler, Pose3, Rot3, SfmTrack, Unit3  # type: ignore
+from gtsam import Pose3, Rot3, SfmTrack, Unit3  # type: ignore
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.geometry_comparisons as comp_utils
@@ -312,21 +312,15 @@ class TwoViewEstimator(DaskDBModuleBase):
             R_error_deg, U_error_deg = compute_relative_pose_metrics(
                 i2Ri1_computed, i2Ui1_computed, gt_camera_i1.pose(), gt_camera_i2.pose()
             )
-            # TODO: add support for other camera models
-            if isinstance(gt_camera_i1, PinholeCameraCal3Bundler) and isinstance(
-                gt_camera_i2, PinholeCameraCal3Bundler
-            ):
-                inlier_mask_wrt_gt, reproj_error_wrt_gt = metric_utils.compute_correspondence_metrics(
-                    keypoints_i1=keypoints_i1,
-                    keypoints_i2=keypoints_i2,
-                    corr_idxs_i1i2=verified_corr_idxs,
-                    dist_threshold=self._corr_metric_dist_threshold,
-                    gt_camera_i1=gt_camera_i1,
-                    gt_camera_i2=gt_camera_i2,
-                    gt_scene_mesh=gt_scene_mesh,
-                )
-            else:
-                inlier_mask_wrt_gt, reproj_error_wrt_gt = None, None
+            inlier_mask_wrt_gt, reproj_error_wrt_gt = metric_utils.compute_correspondence_metrics(
+                keypoints_i1=keypoints_i1,
+                keypoints_i2=keypoints_i2,
+                corr_idxs_i1i2=verified_corr_idxs,
+                dist_threshold=self._corr_metric_dist_threshold,
+                gt_camera_i1=gt_camera_i1,
+                gt_camera_i2=gt_camera_i2,
+                gt_scene_mesh=gt_scene_mesh,
+            )
         else:
             R_error_deg, U_error_deg, inlier_mask_wrt_gt, reproj_error_wrt_gt = None, None, None, None
 
@@ -472,6 +466,8 @@ class TwoViewEstimator(DaskDBModuleBase):
             pre_ba_report=pre_ba_report,
             post_ba_report=post_ba_report,
             post_isp_report=post_isp_report,
+            putative_corr_idxs=putative_corr_idxs,
+            relative_pose_prior=i2Ti1_prior,
         )
 
     def store_computation_results(
@@ -851,14 +847,15 @@ def run_two_view_estimator_as_futures(
     def apply_two_view_estimator(two_view_estimator: TwoViewEstimator, **kwargs) -> TwoViewResult:
         return two_view_estimator.run_2view(**kwargs)
 
-    # TODO(Frank): we might have to scatter two_view_estimator first.
+    # Distribute estimator to workers once to avoid repeated large transfers.
+    two_view_estimator_future = client.scatter(two_view_estimator, broadcast=True)
     logger.info("Submitting tasks directly to workers ...")
 
     # Submit tasks with image indices passed as separate parameters
     two_view_result_futures = {
         (i1, i2): client.submit(
             apply_two_view_estimator,
-            two_view_estimator,
+            two_view_estimator_future,
             keypoints_i1=keypoints_list[i1],
             keypoints_i2=keypoints_list[i2],
             putative_corr_idxs=putative_corr_idxs,

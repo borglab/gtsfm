@@ -40,6 +40,14 @@ class BinaryTreePartitioner(GraphPartitionerBase):
                 raise ValueError("Either max_depth or num_cameras_per_cluster must be provided")
             self._num_cameras_per_cluster = num_cameras_per_cluster
 
+    def __repr__(self) -> str:
+        parts = [f"process_name={self.process_name}"]
+        if self.max_depth is not None:
+            parts.append(f"max_depth={self.max_depth}")
+        if hasattr(self, "_num_cameras_per_cluster"):
+            parts.append(f"num_cameras_per_cluster={self._num_cameras_per_cluster}")
+        return f"BinaryTreePartitioner({', '.join(parts)})"
+
     def run(self, graph: VisibilityGraph) -> ClusterTree | None:
         """Cluster a visibility graph into a binary tree of clusters."""
         if len(graph) == 0:
