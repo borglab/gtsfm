@@ -65,6 +65,8 @@ class ColmapViewer {
 
     const points = this._parsePoints(pointsText);
     this.cameras = imagesText ? this._parseCams(imagesText) : [];
+    console.log('first camera center:', this.cameras[0]?.center);
+    console.log('scene extent:', this._sceneExtent());
 
     console.log(`Loaded: #points=${points.length}, #cams=${this.cameras.length}`);
 
@@ -121,7 +123,7 @@ class ColmapViewer {
         const Rcw = Rwc.transpose();
 
         const t = new BABYLON.Vector3(tx, ty, tz);
-        const centerWorld = BABYLON.Vector3.TransformNormal(t.scale(-1), Rcw);
+        const centerWorld = BABYLON.Vector3.TransformCoordinates(t.scale(-1), Rcw);
 
         // Flip into viewer coords (Y flip)
         const flip = BABYLON.Matrix.Scaling(1, -1, 1);
@@ -154,13 +156,13 @@ class ColmapViewer {
 
     this.pointsMesh = await pcs.buildMeshAsync();
 
-    const mat = new BABYLON.PointsMaterial("pcmat", this.scene);
+    const mat = new BABYLON.StandardMaterial("pcmat", this.scene);
+    mat.pointsCloud = true;
     mat.pointSize = this.ptSize;
     mat.disableLighting = true;
-    mat.useVertexColor = true;
+    mat.useVertexColors = true;          // <-- plural in v8
+    mat.emissiveColor = new BABYLON.Color3(1, 1, 1); // ensure full vertex color visibility
     this.pointsMesh.material = mat;
-    this.pointsMesh.isPickable = false;
-
     this.pcs = pcs;
   }
 
@@ -184,6 +186,12 @@ class ColmapViewer {
 
       const frustum = this._frustumLinesLocal(frustumScale);
       frustum.parent = node;
+      frustum.renderingGroupId = 1; // draw after points
+      // If still hard to see, try:
+      frustum.alwaysSelectAsActiveMesh = true;
+      const m = new BABYLON.StandardMaterial("fmat", this.scene);
+      m.emissiveColor = new BABYLON.Color3(1, 0.5, 0);
+      frustum.material = m;
 
       const pivot = BABYLON.MeshBuilder.CreateSphere("camPivot", { diameter: pivotDiam }, this.scene);
       const pivotMat = new BABYLON.StandardMaterial("camPivotMat", this.scene);
@@ -341,8 +349,6 @@ async function boot() {
     });
   };
 
-  console.log('first camera center:', viewer.cameras[0]?.center);
-  console.log('scene extent:', viewer._sceneExtent());
 
   renderList();
   if (allItems.length > 0 && !filterEl.value) {
