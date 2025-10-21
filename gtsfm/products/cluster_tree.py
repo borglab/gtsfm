@@ -54,11 +54,14 @@ class ClusterTree(Tree[VisibilityGraph]):
         return AnnotatedClusterTree(value=annotations, children=children)
 
     def __repr__(self) -> str:
-        """Return an indented string representation of the cluster tree, showing all edges at each node."""
+        """Return an indented string representation of the cluster tree, showing local keys at each node."""
 
         def repr_helper(node: "ClusterTree", indent: int = 0) -> str:
             prefix = " " * indent
-            lines = [f"{prefix}Cluster with {len(node.value)} edges"]
+            node_type = "Leaf" if node.is_leaf() else "Cluster"
+            # Sorting keys makes the output deterministic and easier to read
+            keys_str = sorted(list(node.local_keys()))
+            lines = [f"{prefix}{node_type}: {keys_str}"]
             for child in node._child_clusters():
                 lines.append(repr_helper(child, indent + 2))
             return "\n".join(lines)
