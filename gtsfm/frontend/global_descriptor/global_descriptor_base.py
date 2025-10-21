@@ -6,9 +6,10 @@ Authors: John Lambert
 import abc
 
 import numpy as np
+import torch
 
-from typing import List
-from gtsfm.common.image import Image
+from typing import List, Optional, Callable
+# from gtsfm.common.image import Image
 
 
 class GlobalDescriptorBase:
@@ -18,7 +19,7 @@ class GlobalDescriptorBase:
     """
 
     @abc.abstractmethod
-    def describe(self, image: Image) -> np.ndarray:
+    def describe(self, image: torch.Tensor) -> np.ndarray:
         """Compute the global descriptor for a single image query.
 
         Args:
@@ -28,7 +29,7 @@ class GlobalDescriptorBase:
             img_desc: array of shape (D,) representing global image descriptor.
         """
 
-    def describe_batch(self, images: List[Image]) -> List[np.ndarray]:
+    def describe_batch(self, images: torch.Tensor) -> List[np.ndarray]:
         """Compute global descriptors for a batch of images.
 
         This is a default, inefficient implementation. Subclasses should override this for true batch processing.
@@ -40,3 +41,14 @@ class GlobalDescriptorBase:
             A list of descriptors, where each is a (D,) numpy array.
         """
         return [self.describe(image) for image in images]
+
+    def get_preprocessing_transform(self) -> Optional[Callable]:
+        """Return preprocessing transform to apply to image tensors before inference.
+        
+        This transform will be applied by the loader when creating batches.
+        The transform should take a tensor of shape [C, H, W] and return [C, H', W'].
+        
+        Returns:
+            Optional transform function, or None if no preprocessing needed.
+        """
+        return None  # Default: no transform needed

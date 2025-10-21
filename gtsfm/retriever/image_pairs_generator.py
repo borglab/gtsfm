@@ -21,10 +21,9 @@ logger = logger_utils.get_logger()
 class ImagePairsGenerator:
     """Generates visibility graphs for structure-from-motion frontend processing."""
 
-    def __init__(self, 
-                 retriever: RetrieverBase,
-                 global_descriptor: Optional[GlobalDescriptorBase] = None, 
-                 batch_size: int = 16):
+    def __init__(
+        self, retriever: RetrieverBase, global_descriptor: Optional[GlobalDescriptorBase] = None, batch_size: int = 16
+    ):
         """Initialize with a retriever and optional global descriptor for similarity matching."""
         self._global_descriptor: Optional[GlobalDescriptorBase] = global_descriptor  # Optional similarity descriptor
         self._retriever: RetrieverBase = retriever  # Core retriever that builds visibility graph
@@ -43,25 +42,26 @@ class ImagePairsGenerator:
     ) -> VisibilityGraph:
         """Generate visibility graph using global descriptors and retriever logic."""
 
-        def apply_global_descriptor_batch(global_descriptor: GlobalDescriptorBase,
-                                          image_batch: List[Image]) -> List[np.ndarray]:
+        def apply_global_descriptor_batch(
+            global_descriptor: GlobalDescriptorBase, image_batch: List[Image]
+        ) -> List[np.ndarray]:
             """Apply global descriptor to extract feature vectors from a batch of images."""
             # This will call the new method you need to create in your descriptor class.
             return global_descriptor.describe_batch(images=image_batch)
 
-        image_batch_futures = images
+        image_batch_futures = images  # Image Pairs Generator assumes that we are getting batches now
         descriptors: Optional[List[np.ndarray]] = None  # Will hold global descriptors if computed
-        
+
         if self._global_descriptor is not None:
             # Ensure Model has loaded on client before scattering, otherwise we get a race condition
             # Access the inner object first.
-            self._global_descriptor._global_descriptor._ensure_model_loaded()
+            # self._global_descriptor._global_descriptor._ensure_model_loaded()
 
             # Scatter descriptor to all workers for efficient parallel processing
             global_descriptor_future = client.scatter(self._global_descriptor, broadcast=True)
 
             descriptor_futures = [
-                client.submit(apply_global_descriptor_batch, global_descriptor_future, batch_future) 
+                client.submit(apply_global_descriptor_batch, global_descriptor_future, batch_future)
                 for batch_future in image_batch_futures
             ]
 

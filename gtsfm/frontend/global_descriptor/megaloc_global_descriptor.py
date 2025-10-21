@@ -7,10 +7,11 @@
 """
 import numpy as np
 import torch
-from typing import List, Optional
+from torchvision import transforms
+from typing import List, Optional, Callable
 
 import gtsfm.utils.logger as logger_utils
-from gtsfm.common.image import Image
+# from gtsfm.common.image import Image
 from gtsfm.frontend.global_descriptor.global_descriptor_base import GlobalDescriptorBase
 
 
@@ -27,8 +28,16 @@ class MegaLocGlobalDescriptor(GlobalDescriptorBase):
             logger = logger_utils.get_logger()
             logger.info("⏳ Loading MegaLoc model weights...")
             self._model = MegaLocModel().eval()
+    
+    def get_preprocessing_transform(self) -> Optional[Callable]:
+        """Return transform to resize images to 322x322 square.
+        
+        This follows the MegaLoc paper's inference protocol (Section 3.1).
+        """
+        return transforms.Resize(size=(322, 322), antialias=True)
+        
 
-    def describe_batch(self, images: List[Image]) -> List[np.ndarray]:
+    def describe_batch(self, images: List[torch.Tensor]) -> List[np.ndarray]:
         """Process multiple images in a single forward pass.
         
         Args:
@@ -38,30 +47,22 @@ class MegaLocGlobalDescriptor(GlobalDescriptorBase):
             descriptors: Array of shape (N, D) where N is number of images
         """
         self._ensure_model_loaded()
-        assert self._model is not None, "Model should Be Loaded by now"
+        assert self._model is not None, "Model should be loaded by now"
         
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self._model.to(device)
-        
-        # Batch preprocessing
-        batch_tensors = []
-        for image in images:
-            img_array = image.value_array.copy()
-            img_tensor = (
-                torch.from_numpy(img_array)
-                .permute(2, 0, 1)
-                .type(torch.float32) / 255.0
-            )
-            batch_tensors.append(img_tensor)
-        
-        # Stack into batch [B, C, H, W]
-        batch = torch.stack(batch_tensors).to(device)
+
+        # tensors = [
+        #     torch.from_numpy(img.value_array.copy()).permute(2, 0, 1).to(device)
+        #     for img in images
+        # ]
+        # batch_tensor = torch.stack(tensors).type(torch.float32) / 255.0
         
         with torch.no_grad():
-            descriptors = self._model(batch)
+            descriptors = self._model(images)
         
         # Need to unpack into a List of numpy arrays
         return [desc.detach().squeeze().cpu().numpy() for desc in descriptors]
 
-    def describe(self, image: Image) -> np.ndarray:
+    def describe(self, image: torch.Tensor) -> np.ndarray:
         return self.describe_batch([image])[0]

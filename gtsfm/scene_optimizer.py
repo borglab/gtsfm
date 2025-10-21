@@ -169,44 +169,21 @@ class SceneOptimizer:
             process_graph_generator.is_image_correspondence = True
         process_graph_generator.save_graph()
 
-    def _flatten_batch_futures(self, client, batch_futures, batch_size):
-        """Convert batch futures to individual image futures without recomputation.
-            Input Types -> client: Client, batch_futures: list[Future], batch_size: int
-            Output Types -> List[Future]
-            This creates lightweight references to images already in worker memory so we can pass into
-            the correspondence generator
-        """
-        def extract_single_image(batch, idx):
-            """Extract one image from a batch that's already in memory."""
-            return batch[idx]
-        
-        image_futures = []
-        num_images = len(self.loader)
-        
-        for batch_idx, batch_future in enumerate(batch_futures):
-            # Calculate images in this batch
-            start_img_idx = batch_idx * batch_size
-            remaining = num_images - start_img_idx
-            current_batch_size = min(batch_size, remaining)
-            
-            # Create individual futures by extracting from the batch
-            for img_idx_in_batch in range(current_batch_size):
-                single_image_future = client.submit(
-                    extract_single_image, 
-                    batch_future,           # This points to data ALREADY in worker RAM
-                    img_idx_in_batch
-                )
-                image_futures.append(single_image_future)
-        
-        return image_futures
-
     def _run_retriever(self, client) -> tuple[GtsfmMetricsGroup, VisibilityGraph, list[Future]]:
         retriever_start_time = time.time()
         batch_size = self.image_pairs_generator._batch_size
+
         logger.info(f"🔥 GTSFM: Loading images in batches of {batch_size}...")
+        transform = None
+
+        if self.image_pairs_generator._global_descriptor is not None:
+            transform = self.image_pairs_generator._global_descriptor.get_preprocessing_transform()
+            if transform is not None:
+                logger.info(f"🔥 GTSFM: Applying preprocessing transform for global descriptors {transform}")
+
         image_batch_futures = self.loader.get_all_image_batches_as_futures(client, batch_size)
 
-        image_fnames = self.loader.image_filenames()    
+        image_fnames = self.loader.image_filenames()
 
         with performance_report(filename="dask_reports/retriever.html"):
             visibility_graph = self.image_pairs_generator.run(
@@ -220,5 +197,5 @@ class SceneOptimizer:
         retriever_metrics.add_metric(GtsfmMetric("retriever_duration_sec", retriever_duration_sec))
         logger.info("🚀 Image pair retrieval took %.2f min.", retriever_duration_sec / 60.0)
 
-        image_futures = self._flatten_batch_futures(client, image_batch_futures, batch_size)
+        image_futures = self.get_all_images_as_futures(client)
         return retriever_metrics, visibility_graph, image_futures

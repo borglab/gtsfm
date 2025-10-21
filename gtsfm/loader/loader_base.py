@@ -4,7 +4,8 @@ Authors: Frank Dellaert and Ayush Baid
 """
 
 import abc
-from typing import Dict, List, Optional, Tuple
+import torch
+from typing import Dict, List, Optional, Tuple, Callable
 
 from dask.base import annotate as dask_annotate
 from dask.delayed import Delayed, delayed
@@ -368,27 +369,48 @@ class LoaderBase(GTSFMProcess):
             for i in range(len(self))
         ]
 
-    def _load_image_batch(self, indices: List[int]) -> List[Image]:
-        """Helper function that will run on a Dask worker to load and resize a batch of images."""
-        return [self.get_image(idx) for idx in indices]
-        
-    def get_all_image_batches_as_futures(self, client: Client, batch_size: int) -> List[Future]:
+    def _load_image_batch(self, indices: List[int], transform: Optional[Callable] = None) -> torch.Tensor:
+        """Helper function that runs on a Dask worker to load a batch of images.
+
+        Args:
+            indices: List of image indices to load
+            transform: Optional preprocessing transform to apply to each image
+
+        Returns:
+            List of loaded (and optionally transformed) images
+        """
+        ready_to_describe_img_tensors = []
+        for idx in indices:
+            img = self.get_image(idx)
+
+            img_array = img.value_array.copy()
+            img_tensor = torch.from_numpy(img_array).permute(2, 0, 1).type(torch.float32) / 255.0
+
+            # Apply transform if provided
+            if transform is not None:
+                img_tensor = transform(img_tensor)
+
+            ready_to_describe_img_tensors.append(img_tensor)
+
+        return torch.stack(ready_to_describe_img_tensors).type(torch.float32)
+
+    def get_all_descriptor_image_batches_as_futures(
+        self, client: Client, batch_size: int, transform: Optional[Callable] = None
+    ) -> List[Future]:
         if batch_size <= 0:
             raise ValueError("batch_size must be positive.")
-        
+
         workers = [self._input_worker] if self._input_worker else None
         num_images = len(self)
-        
+
         index_batches = [
-            list(range(start, min(start + batch_size, num_images)))
-            for start in range(0, num_images, batch_size)
+            list(range(start, min(start + batch_size, num_images))) for start in range(0, num_images, batch_size)
         ]
 
         batch_futures = [
-            client.submit(self._load_image_batch, indices, workers=workers)
-            for indices in index_batches
+            client.submit(self._load_image_batch, indices, transform, workers=workers) for indices in index_batches
         ]
-        
+
         return batch_futures
 
     def get_all_intrinsics(self) -> List[Optional[gtsfm_types.CALIBRATION_TYPE]]:

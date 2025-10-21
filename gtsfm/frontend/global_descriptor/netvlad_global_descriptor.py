@@ -15,7 +15,7 @@ import numpy as np
 import torch
 
 import gtsfm.utils.logger as logger_utils
-from gtsfm.common.image import Image
+# from gtsfm.common.image import Image
 from gtsfm.frontend.global_descriptor.global_descriptor_base import GlobalDescriptorBase
 from thirdparty.hloc.netvlad import NetVLAD
 
@@ -34,29 +34,22 @@ class NetVLADGlobalDescriptor(GlobalDescriptorBase):
             logger.info("⏳ Loading NetVLAD model weights...")
             self._model = NetVLAD().eval()
 
-    def describe_batch(self, images: List[Image]) -> List[np.ndarray]:
+    def describe_batch(self, images: torch.Tensor) -> List[np.ndarray]:
         """Compute descriptors for a batch of images efficiently."""
         self._ensure_model_loaded()
         assert self._model is not None, "Model should be loaded by now"
 
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self._model.to(device)
-
-        # 1. Convert all images in the list to a single batch tensor.
-        tensors = [
-            torch.from_numpy(img.value_array.copy()).permute(2, 0, 1).to(device)
-            for img in images
-        ]
-        batch_tensor = torch.stack(tensors).type(torch.float32) / 255.0
         
         with torch.no_grad():
             # 2. Get all descriptors from the model in a single forward pass.
-            batch_descriptors = self._model({"image": batch_tensor})
+            batch_descriptors = self._model({"image": images})
 
         # 3. Convert the output tensor back to a list of numpy arrays.
         descs_np = batch_descriptors["global_descriptor"].detach().cpu().numpy()
         return [desc for desc in descs_np]
     
-    def describe(self, image: Image) -> np.ndarray:
+    def describe(self, image: torch.Tensor) -> np.ndarray:
         """Compute descriptor for a single image (delegates to batch method)."""
         return self.describe_batch([image])[0]
