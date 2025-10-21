@@ -1,3 +1,5 @@
+// visualization/static/viewer.js
+
 class ColmapViewer {
   constructor(canvas) {
     this.canvas = canvas;
@@ -43,7 +45,6 @@ class ColmapViewer {
     const cams = imagesText ? this._parseCams(imagesText) : [];
     if (cams.length) {
       console.log(`Loaded scene: ${points.length} points, ${cams.length} cameras from ${imagesUrl}`);
-      console.debug("First camera center:", cams[0]?.center?.toString?.() ?? cams[0]?.center);
     } else {
       console.warn(`Loaded scene with ${points.length} points but no cameras found in ${imagesUrl}`);
     }
@@ -67,7 +68,7 @@ class ColmapViewer {
       const s = line.trim().split(/\s+/);
       if (s.length >= 7) {
         pts.push({
-          x: parseFloat(s[1]), y: -parseFloat(s[2]), z: parseFloat(s[3]), // flip Y to match Babylon’s Y-up
+          x: parseFloat(s[1]), y: -parseFloat(s[2]), z: parseFloat(s[3]),
           r: parseInt(s[4]) / 255, g: parseInt(s[5]) / 255, b: parseInt(s[6]) / 255
         });
       }
@@ -83,35 +84,23 @@ class ColmapViewer {
       if (!line || line.startsWith("#")) continue;
       const s = line.split(/\s+/);
       if (s.length >= 10) {
-        // COLMAP: IMAGE_ID QW QX QY QZ TX TY TZ CAMERA_ID NAME
         const qw = parseFloat(s[1]), qx = parseFloat(s[2]), qy = parseFloat(s[3]), qz = parseFloat(s[4]);
         const tx = parseFloat(s[5]), ty = parseFloat(s[6]), tz = parseFloat(s[7]);
-
-        // Rotation world->camera
         const qwc = new BABYLON.Quaternion(qx, qy, qz, qw);
         const Rwc = new BABYLON.Matrix();
         qwc.toRotationMatrix(Rwc);
-
         const Rcw = Rwc.transpose();
         const t = new BABYLON.Vector3(tx, ty, tz);
-
-        // Camera center in world coordinates: C = -Rcw * t
         const centerWorld = BABYLON.Vector3.TransformNormal(t.scale(-1), Rcw);
-
-        // Flip Y axis (COLMAP RH -> Babylon LH)
         const flip = BABYLON.Matrix.Scaling(1, -1, 1);
         const center = new BABYLON.Vector3(centerWorld.x, -centerWorld.y, centerWorld.z);
         const Rcam = flip.multiply(Rcw).multiply(flip);
-
         cams.push({ center, R: Rcam });
-
-        // Skip 2D keypoints line if present
         if (i + 1 < lines.length && /^\d/.test(lines[i + 1])) i++;
       }
     }
     return cams;
   }
-
 
   async _createPCS(points) {
     const pcs = new BABYLON.PointsCloudSystem("pcs", { capacity: points.length, useColor: true }, this.scene);
@@ -127,7 +116,6 @@ class ColmapViewer {
     mat.disableLighting = true;
     mat.useVertexColor = true;
     this.pointsMesh.material = mat;
-    this.pointsMesh.alwaysSelectAsActiveMesh = true;
     this.pointsMesh.isPickable = false;
     this.pcs = pcs;
   }
@@ -138,10 +126,8 @@ class ColmapViewer {
       node.position.copyFrom(c.center);
       node.rotationQuaternion = BABYLON.Quaternion.FromRotationMatrix(c.R);
       node.parent = this.frustumGroup;
-
       const frustum = this._frustumLinesLocal(0.6);
       frustum.parent = node;
-
       const pivot = BABYLON.MeshBuilder.CreateSphere("camPivot", { diameter: 0.06 }, this.scene);
       const pivotMat = new BABYLON.StandardMaterial("camPivotMat", this.scene);
       pivotMat.emissiveColor = new BABYLON.Color3(1, 0.35, 0.35);
@@ -149,81 +135,33 @@ class ColmapViewer {
       pivot.material = pivotMat;
       pivot.isPickable = false;
       pivot.parent = node;
-
-      const axes = this._cameraAxesLocal(0.45);
-      axes.forEach(axis => axis.parent = node);
     }
-
     this.setShowCams(this.showCams);
   }
 
   _frustumLinesLocal(scale) {
     const origin = BABYLON.Vector3.Zero();
     const corners = [
-      new BABYLON.Vector3(-0.4, -0.3, 1),
-      new BABYLON.Vector3( 0.4, -0.3, 1),
-      new BABYLON.Vector3( 0.4,  0.3, 1),
-      new BABYLON.Vector3(-0.4,  0.3, 1)
+      new BABYLON.Vector3(-0.4, -0.3, 1), new BABYLON.Vector3( 0.4, -0.3, 1),
+      new BABYLON.Vector3( 0.4,  0.3, 1), new BABYLON.Vector3(-0.4,  0.3, 1)
     ].map(v => v.scale(scale));
-
     const lines = [
-      [origin, corners[0]],
-      [origin, corners[1]],
-      [origin, corners[2]],
-      [origin, corners[3]],
-      [corners[0], corners[1]],
-      [corners[1], corners[2]],
-      [corners[2], corners[3]],
-      [corners[3], corners[0]]
+      [origin, corners[0]], [origin, corners[1]], [origin, corners[2]], [origin, corners[3]],
+      [corners[0], corners[1]], [corners[1], corners[2]], [corners[2], corners[3]], [corners[3], corners[0]]
     ];
-    const frustum = BABYLON.MeshBuilder.CreateLineSystem(
-      "frustumLines",
-      { lines, useVertexAlpha: false, updatable: false },
-      this.scene
-    );
+    const frustum = BABYLON.MeshBuilder.CreateLineSystem("frustumLines", { lines }, this.scene);
     frustum.color = new BABYLON.Color3(1, 0.45, 0.25);
-    frustum.disableLighting = true;
     frustum.isPickable = false;
-    frustum.alwaysSelectAsActiveMesh = true;
     return frustum;
-  }
-
-  _cameraAxesLocal(scale) {
-    const axes = [];
-    const colors = [
-      new BABYLON.Color3(1, 0.15, 0.15),
-      new BABYLON.Color3(0.2, 1.0, 0.2),
-      new BABYLON.Color3(0.25, 0.45, 1.0)
-    ];
-    const directions = [
-      new BABYLON.Vector3(scale, 0, 0),
-      new BABYLON.Vector3(0, scale, 0),
-      new BABYLON.Vector3(0, 0, scale)
-    ];
-
-    directions.forEach((dir, idx) => {
-      const line = BABYLON.MeshBuilder.CreateLines(
-        `camAxis${idx}`,
-        { points: [BABYLON.Vector3.Zero(), dir] },
-        this.scene
-      );
-      line.color = colors[idx];
-      line.disableLighting = true;
-      line.alwaysSelectAsActiveMesh = true;
-      line.isPickable = false;
-      axes.push(line);
-    });
-    return axes;
   }
 
   _autoFrame() {
     let minX=Infinity,minY=Infinity,minZ=Infinity,maxX=-Infinity,maxY=-Infinity,maxZ=-Infinity;
     if (this.pointsMesh) {
       const bb = this.pointsMesh.getBoundingInfo().boundingBox;
-      const mn = bb.minimum, mx = bb.maximum;
-      minX = Math.min(minX, mn.x); maxX = Math.max(maxX, mx.x);
-      minY = Math.min(minY, mn.y); maxY = Math.max(maxY, mx.y);
-      minZ = Math.min(minZ, mn.z); maxZ = Math.max(maxZ, mx.z);
+      minX = Math.min(minX, bb.minimum.x); maxX = Math.max(maxX, bb.maximum.x);
+      minY = Math.min(minY, bb.minimum.y); maxY = Math.max(maxY, bb.maximum.y);
+      minZ = Math.min(minZ, bb.minimum.z); maxZ = Math.max(maxZ, bb.maximum.z);
     }
     this.frustumGroup.getChildren().forEach(f => {
       const p = f.position;
@@ -246,37 +184,104 @@ async function boot() {
   const canvas = document.getElementById("renderCanvas");
   const viewer = new ColmapViewer(canvas);
 
-  const data = await fetch("/api/scenes").then(r=>r.json());
-  info.textContent = `${data.count} reconstructions found under ${data.base_dir}`;
+  let allItems = [];
 
-  let items = data.items;
-  const renderList = (q="") => {
-    listEl.innerHTML = "";
+  try {
+    const data = await fetch("/api/scenes").then(r => {
+      if (!r.ok) throw new Error(`Failed to fetch scenes: ${r.statusText}`);
+      return r.json();
+    });
+    
+    info.textContent = `${data.count} reconstructions found in ${data.base_dir}`;
+    allItems = data.items.map((item, index) => ({ ...item, originalIndex: index }));
+
+  } catch (error) {
+    info.textContent = "Error loading reconstruction data.";
+    console.error(error);
+    return;
+  }
+
+  const buildTree = (items) => {
+    const tree = {};
+    items.forEach(item => {
+      const parts = item.rel_path.split('/');
+      let currentNode = tree;
+      parts.forEach((part, i) => {
+        if (!currentNode[part]) {
+          currentNode[part] = {};
+        }
+        if (i === parts.length - 1) {
+          currentNode[part].__isLeaf = true;
+          currentNode[part].__item = item;
+        }
+        currentNode = currentNode[part];
+      });
+    });
+    return tree;
+  };
+
+  const renderTree = (node) => {
+    let html = '<ul>';
+    const sortedKeys = Object.keys(node).sort();
+
+    for (const key of sortedKeys) {
+      if (key.startsWith('__')) continue;
+      
+      const childNode = node[key];
+      if (childNode.__isLeaf) {
+        const item = childNode.__item;
+        const finalFolderName = item.rel_path.split('/').pop() || item.label;
+        html += `
+          <li>
+            <div class="item" data-idx="${item.originalIndex}">
+              <div>${finalFolderName}</div>
+              <small>${item.rel_path}</small>
+            </div>
+          </li>`;
+      } else {
+        html += `<li><div class="directory-node">${key}</div>${renderTree(childNode)}</li>`;
+      }
+    }
+    html += '</ul>';
+    return html;
+  };
+
+  const renderList = (q = "") => {
     const needle = q.trim().toLowerCase();
-    items.filter(it => it.label.toLowerCase().includes(needle)).forEach((it, idx) => {
-      const el = document.createElement("div");
-      el.className = "item";
-      el.dataset.idx = String(idx);
-      el.innerHTML = `<div>${it.label}</div><small>${it.rel_path}</small>`;
+    const filteredItems = allItems.filter(it => it.label.toLowerCase().includes(needle));
+    
+    if (filteredItems.length === 0) {
+        listEl.innerHTML = '<div style="padding: 20px; text-align: center; color: #64748b;">No scenes found.</div>';
+        return;
+    }
+
+    const sceneTree = buildTree(filteredItems);
+    listEl.innerHTML = renderTree(sceneTree);
+
+    listEl.querySelectorAll(".item").forEach(el => {
       el.onclick = async () => {
         listEl.querySelectorAll(".item").forEach(n => n.classList.remove("active"));
         el.classList.add("active");
-        await viewer.loadScene({ pointsUrl: it.points, imagesUrl: it.images });
+        
+        const originalIndex = parseInt(el.dataset.idx, 10);
+        const itemData = allItems.find(it => it.originalIndex === originalIndex);
+
+        if (itemData) {
+            await viewer.loadScene({ pointsUrl: itemData.points, imagesUrl: itemData.images });
+        }
       };
-      listEl.appendChild(el);
     });
   };
+
   renderList();
 
-  // auto-load first if present
-  if (items.length > 0) {
+  if (allItems.length > 0 && !filterEl.value) {
     const first = listEl.querySelector(".item");
     if (first) first.click();
   }
 
-  filterEl.addEventListener("input", (e) => renderList(filterEl.value));
+  filterEl.addEventListener("input", () => renderList(filterEl.value));
 
-  // HUD controls
   document.getElementById("toggleCams").addEventListener("change", (e) => {
     viewer.setShowCams(e.target.checked);
   });
