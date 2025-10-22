@@ -72,7 +72,7 @@ class TestNetVLADRetriever(unittest.TestCase):
             (6, 7),
             (6, 8),
             (7, 8),
-            (7, 10),
+            (7, 9),
             (8, 9),
             (8, 10),
             (9, 10),
