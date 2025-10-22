@@ -197,5 +197,10 @@ notebooks/
 .envrc
 **/secrets.*
 /coiled-token.txt
+
+# temp stuff
 benchmarks/**
 plot.jpg
+palace_metis/**
+vggt/**
+
