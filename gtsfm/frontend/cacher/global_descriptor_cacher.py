@@ -45,7 +45,7 @@ class GlobalDescriptorCacher(GlobalDescriptorBase):
     def __generate_batch_cache_key(self, batch_tensor: torch.Tensor) -> str:
         """Generates a single cache key for an entire batch tensor."""
         # CRITICAL: Move tensor to CPU and convert to NumPy before hashing.
-        tensor_hash = cache_utils.generate_hash_for_numpy_array(batch_tensor.cpu().numpy())
+        tensor_hash = cache_utils.generate_hash_for_numpy_array(batch_tensor[0].cpu().numpy())
         return f"{self._global_descriptor_obj_cache_key}_batch_{tensor_hash}"
 
     def __load_batch_from_cache(self, batch_tensor: torch.Tensor) -> Optional[List[np.ndarray]]:
