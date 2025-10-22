@@ -475,7 +475,7 @@ def get_precision_recall_from_errors(
     eps = 1e-12  # prevent division by zero
     precision = tp * 1.0 / (tp + fp + eps)
     recall = tp * 1.0 / (tp + fn + eps)
-    return precision, recall
+    return float(precision), float(recall)
 
 
 def get_rotations_translations_from_poses(

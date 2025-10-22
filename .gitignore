@@ -201,6 +201,5 @@ notebooks/
 # temp stuff
 benchmarks/**
 plot.jpg
-palace_metis/**
 vggt/**
-
+palace_metis/**

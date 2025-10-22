@@ -222,6 +222,7 @@
         "TIMESTAMPTZ",
         "tocuda",
         "trainloader",
+        "trapz",
         "travisdriver",
         "twoview",
         "uncalib",
