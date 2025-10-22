@@ -23,7 +23,7 @@ class ImagePairsGenerator:
     """Generates visibility graphs for structure-from-motion frontend processing."""
 
     def __init__(
-        self, retriever: RetrieverBase, global_descriptor: Optional[GlobalDescriptorBase] = None, batch_size: int = 16
+        self, retriever: RetrieverBase, global_descriptor: Optional[GlobalDescriptorBase] = None, batch_size: int = 4
     ):
         """Initialize with a retriever and optional global descriptor for similarity matching."""
         self._global_descriptor: Optional[GlobalDescriptorBase] = global_descriptor  # Optional similarity descriptor
