@@ -50,7 +50,7 @@ class MegaLocGlobalDescriptor(GlobalDescriptorBase):
         
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self._model.to(device)
-        images.to(device)
+        images = images.to(device)
         
         with torch.no_grad():
             descriptors = self._model(images)

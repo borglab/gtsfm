@@ -52,7 +52,7 @@ class NetVLADGlobalDescriptor(GlobalDescriptorBase):
 
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self._model.to(device)
-        images.to(device)
+        images = images.to(device)
 
         with torch.no_grad():
             # 2. Get all descriptors from the model in a single forward pass.
