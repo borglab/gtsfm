@@ -34,6 +34,16 @@ class NetVLADGlobalDescriptor(GlobalDescriptorBase):
             logger.info("⏳ Loading NetVLAD model weights...")
             self._model = NetVLAD().eval()
 
+    def get_preprocessing_transform(self) -> Optional[Callable]:
+        """"Return transform to resize images to 480x640 (height x width).
+    
+            NetVLAD operates on convolutional feature maps and doesn't require 
+            the original VGG16 input size (224x224). Research implementations 
+            commonly use ~480x640 for a good balance of descriptor quality and 
+            memory efficiency during batching.
+        """
+        return transforms.Resize(size=(480, 640), antialias=True)
+
     def describe_batch(self, images: torch.Tensor) -> List[np.ndarray]:
         """Compute descriptors for a batch of images efficiently."""
         self._ensure_model_loaded()
