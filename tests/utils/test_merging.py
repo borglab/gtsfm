@@ -1,4 +1,4 @@
-"""Unit tests for merging partitions functionality.
+"""Unit tests for merging clusters functionality.
 
 Authors: Richi Dubey
 """
@@ -8,7 +8,7 @@ import unittest
 import numpy as np
 from gtsam import Point3, Pose3, Rot3  # type: ignore
 
-from gtsfm.utils.merging import merge_two_partition_results
+from gtsfm.utils.merging import merge_two_pose_maps
 
 
 def assert_pose_dicts_equal(test_case, dict1, dict2, tolerance=1e-6):
@@ -22,8 +22,8 @@ def assert_pose_dicts_equal(test_case, dict1, dict2, tolerance=1e-6):
         )
 
 
-class TestMergeTwoPartitionResults(unittest.TestCase):
-    """Tests the merge_two_partition_results function."""
+class TestMergeTwoClusters(unittest.TestCase):
+    """Tests the merge_two_pose_maps function."""
 
     def setUp(self):
         """Set up common poses for tests."""
@@ -33,7 +33,7 @@ class TestMergeTwoPartitionResults(unittest.TestCase):
         self.pose3 = Pose3(Rot3.Pitch(np.pi / 3), Point3(0, 0, 3))
 
         # Define a transformation between hypothetical frames 'a' and 'b'
-        # aTb: Transformation from frame 'b' to frame 'a'
+        # aTb: Transformation to frame 'a' from frame 'b'
         self.aTb_translation = Pose3(Rot3(), Point3(5, -5, 10))
         self.aTb_rotation = Pose3(Rot3.Rodrigues(0.1, 0.2, 0.3), Point3())
         self.aTb_combined = Pose3(Rot3.Ypr(0.1, 0.2, 0.3), Point3(1, 2, 3))
@@ -43,10 +43,10 @@ class TestMergeTwoPartitionResults(unittest.TestCase):
         poses1 = {0: self.pose0, 1: self.pose1}
         poses2 = {2: self.pose2, 3: self.pose3}
         with self.assertRaisesRegex(ValueError, "No overlapping cameras found"):
-            merge_two_partition_results(poses1, poses2)
+            merge_two_pose_maps(poses1, poses2)
 
     def test_perfect_overlap_identity_transform(self):
-        """Test merging when partitions are identical and aTb should be identity."""
+        """Test merging when clusters are identical and aTb should be identity."""
         poses1 = {0: self.pose0, 1: self.pose1, 2: self.pose2}
         poses2 = {0: self.pose0, 1: self.pose1, 2: self.pose2, 3: self.pose3}  # poses2 has an extra pose
 
@@ -57,7 +57,7 @@ class TestMergeTwoPartitionResults(unittest.TestCase):
             3: self.pose3,  # Pose 3 from poses2 should be added directly (since aTb is Identity)
         }
 
-        merged_poses = merge_two_partition_results(poses1, poses2)
+        merged_poses = merge_two_pose_maps(poses1, poses2)
         assert_pose_dicts_equal(self, merged_poses, expected_merged_poses, tolerance=1e-7)
 
     def test_overlap_with_translation(self):
@@ -81,7 +81,7 @@ class TestMergeTwoPartitionResults(unittest.TestCase):
             2: self.pose2,  # aTb * (bTa * pose2) should recover pose2
         }
 
-        merged_poses = merge_two_partition_results(poses1, poses2)
+        merged_poses = merge_two_pose_maps(poses1, poses2)
         # Optimization might have small errors
         assert_pose_dicts_equal(self, merged_poses, expected_merged_poses, tolerance=1e-6)
 
@@ -94,7 +94,7 @@ class TestMergeTwoPartitionResults(unittest.TestCase):
         poses2 = {1: bTa.compose(self.pose1), 2: bTa.compose(self.pose2), 3: bTa.compose(self.pose3)}  # Extra pose
         expected_merged_poses = {1: self.pose1, 2: self.pose2, 3: self.pose3}
 
-        merged_poses = merge_two_partition_results(poses1, poses2)
+        merged_poses = merge_two_pose_maps(poses1, poses2)
         assert_pose_dicts_equal(self, merged_poses, expected_merged_poses, tolerance=1e-6)
 
     def test_minimal_overlap(self):
@@ -106,7 +106,7 @@ class TestMergeTwoPartitionResults(unittest.TestCase):
         poses2 = {0: bTa.compose(self.pose0), 2: bTa.compose(self.pose2)}  # The only overlap  # Extra pose
         expected_merged_poses = {0: self.pose0, 99: self.pose1, 2: self.pose2}  # aTb * (bTa * pose2)
 
-        merged_poses = merge_two_partition_results(poses1, poses2)
+        merged_poses = merge_two_pose_maps(poses1, poses2)
         # With only one overlap, optimization is exact for that constraint
         assert_pose_dicts_equal(self, merged_poses, expected_merged_poses, tolerance=1e-7)
 
@@ -116,21 +116,21 @@ class TestMergeTwoPartitionResults(unittest.TestCase):
         poses2 = {0: self.pose0, 1: self.pose1}
         # Should raise ValueError because there's no overlap
         with self.assertRaisesRegex(ValueError, "No overlapping cameras found"):
-            merge_two_partition_results(poses1, poses2)
+            merge_two_pose_maps(poses1, poses2)
 
     def test_empty_poses2(self):
         """Test merging when the second partition is empty."""
         # Case 1: No overlap (poses1 has keys, poses2 is empty) -> Should raise error
         with self.assertRaisesRegex(ValueError, "No overlapping cameras found"):
-            merge_two_partition_results({0: self.pose0}, {})  # No overlap
+            merge_two_pose_maps({0: self.pose0}, {})  # No overlap
 
     def test_both_empty(self):
-        """Test merging when both partitions are empty."""
+        """Test merging when both clusters are empty."""
         poses1 = {}
         poses2 = {}
         # Should raise ValueError because there's no overlap
         with self.assertRaisesRegex(ValueError, "No overlapping cameras found"):
-            merge_two_partition_results(poses1, poses2)
+            merge_two_pose_maps(poses1, poses2)
 
 
 if __name__ == "__main__":
