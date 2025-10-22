@@ -69,16 +69,13 @@ class MegaLocGlobalDescriptor(GlobalDescriptorBase):
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self._model.to(device)
 
-        # Convert to tensor and normalize [0, 255] -> [0, 1]
         img_array = image.value_array.copy()
         img_tensor = torch.from_numpy(img_array).permute(2, 0, 1)
 
-        # Apply resize transform
         transform = self.get_preprocessing_transform()
         if transform is not None:
             img_tensor = transform(img_tensor)
         
-        # Move to device and add batch dimension
         img_tensor = img_tensor.type(torch.float32) / 255.0
         img_tensor = img_tensor.to(device).unsqueeze(0)
         with torch.no_grad():
