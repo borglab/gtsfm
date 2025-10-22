@@ -60,8 +60,8 @@ class ClusterTree(Tree[VisibilityGraph]):
             prefix = " " * indent
             node_type = "Leaf" if node.is_leaf() else "Cluster"
             # Sorting keys makes the output deterministic and easier to read
-            keys_str = sorted(list(node.local_keys()))
-            lines = [f"{prefix}{node_type}: {keys_str}"]
+            keys = sorted(list(node.local_keys()))
+            lines = [f"{prefix}{node_type} ({len(keys)}): {keys}"]
             for child in node._child_clusters():
                 lines.append(repr_helper(child, indent + 2))
             return "\n".join(lines)
