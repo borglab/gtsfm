@@ -384,13 +384,13 @@ class LoaderBase(GTSFMProcess):
             img = self.get_image(idx)
 
             img_array = img.value_array.copy()
-            img_tensor = torch.from_numpy(img_array).permute(2, 0, 1).type(torch.float32) / 255.0
+            img_tensor = torch.from_numpy(img_array).permute(2, 0, 1)
 
             # Apply transform if provided
             if transform is not None:
                 img_tensor = transform(img_tensor)
 
-            ready_to_describe_img_tensors.append(img_tensor)
+            ready_to_describe_img_tensors.append(img_tensor.type(torch.float32) / 255.0)
 
         return torch.stack(ready_to_describe_img_tensors).type(torch.float32)
 

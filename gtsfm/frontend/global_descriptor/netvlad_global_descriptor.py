@@ -36,12 +36,12 @@ class NetVLADGlobalDescriptor(GlobalDescriptorBase):
             self._model = NetVLAD().eval()
 
     def get_preprocessing_transform(self) -> Optional[Callable]:
-        """"Return transform to resize images to 480x640 (height x width).
-    
-            NetVLAD operates on convolutional feature maps and doesn't require 
-            the original VGG16 input size (224x224). Research implementations 
-            commonly use ~480x640 for a good balance of descriptor quality and 
-            memory efficiency during batching.
+        """ "Return transform to resize images to 480x640 (height x width).
+
+        NetVLAD operates on convolutional feature maps and doesn't require
+        the original VGG16 input size (224x224). Research implementations
+        commonly use ~480x640 for a good balance of descriptor quality and
+        memory efficiency during batching.
         """
         return transforms.Resize(size=(480, 640), antialias=True)
 
@@ -52,7 +52,8 @@ class NetVLADGlobalDescriptor(GlobalDescriptorBase):
 
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self._model.to(device)
-        
+        images.to(device)
+
         with torch.no_grad():
             # 2. Get all descriptors from the model in a single forward pass.
             batch_descriptors = self._model({"image": images})
@@ -60,21 +61,29 @@ class NetVLADGlobalDescriptor(GlobalDescriptorBase):
         # 3. Convert the output tensor back to a list of numpy arrays.
         descs_np = batch_descriptors["global_descriptor"].detach().cpu().numpy()
         return [desc for desc in descs_np]
-    
+
     def describe(self, image: Image) -> np.ndarray:
-        """"""
-        # Convert Image to tensor
-        image_array = image.value_array
-        if isinstance(image_array, np.ndarray):
-            image_tensor = torch.from_numpy(image_array).float()
-        else:
-            image_tensor = image_array
-        
-        # Apply preprocessing transform (resize to 480x640)
+        """Compute the NetVLAD global descriptor for a single image query."""
+        self._ensure_model_loaded()
+        assert self._model is not None, "Model should be loaded by now"
+
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self._model.to(device)
+
+        # Convert to tensor and normalize [0, 255] -> [0, 1]
+        img_array = image.value_array.copy()
+        img_tensor = torch.from_numpy(img_array).permute(2, 0, 1)
+
+        # Apply resize transform
         transform = self.get_preprocessing_transform()
         if transform is not None:
-            image_tensor = transform(image_tensor)
-        
-        # Add batch dimension
-        batch_tensor = image_tensor.unsqueeze(0)
-        return self.describe_batch(batch_tensor)[0]
+            img_tensor = transform(img_tensor)
+
+        # Move to device and add batch dimension
+        img_tensor = img_tensor.type(torch.float32) / 255.0
+        img_tensor = img_tensor.to(device).unsqueeze(0)
+
+        with torch.no_grad():
+            img_desc = self._model({"image": img_tensor})
+
+        return img_desc["global_descriptor"].detach().squeeze().cpu().numpy()
