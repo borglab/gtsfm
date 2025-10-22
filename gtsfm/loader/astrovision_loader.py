@@ -86,8 +86,7 @@ class AstrovisionLoader(LoaderBase):
             raise FileNotFoundError("No data found at %s." % dataset_dir)
         cameras, images, points3d = colmap_io.read_model(path=dataset_dir, ext=".bin")
 
-        if use_gt_sfm_tracks:
-            self._sfm_tracks = io_utils.tracks_from_colmap(images, points3d)
+        self._sfm_tracks = io_utils.tracks_from_colmap(images, points3d) if use_gt_sfm_tracks else None
         img_fnames, self._wTi_list, self._calibrations, _, _, _ = io_utils.colmap2gtsfm(cameras, images, points3d)
 
         # Read in scene mesh as Trimesh object.
@@ -110,8 +109,6 @@ class AstrovisionLoader(LoaderBase):
         if self._wTi_list is None and self._use_gt_extrinsics:
             raise RuntimeError("Ground truth extrinsic data requested but missing.")
 
-        if self._sfm_tracks is None and self._use_gt_sfm_tracks:
-            raise RuntimeError("Ground truth SfMTrack data requested but missing.")
         self.num_sfm_tracks = len(self._sfm_tracks) if self._sfm_tracks is not None else 0
 
         # Prepare image paths.
