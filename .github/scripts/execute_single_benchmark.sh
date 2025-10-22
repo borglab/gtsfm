@@ -136,7 +136,7 @@ execute_gtsfm() {
         
         case "$loader_name" in
             olsson-loader)
-                ./run --num_workers 2 \
+                ./run --num_workers 1 \
                     --loader olsson \
                     --dataset_dir "$DATASET_ROOT" \
                     --config_name megaloc_sift_frontend \
@@ -146,7 +146,7 @@ execute_gtsfm() {
                 return $?
                 ;;
             colmap-loader)
-                ./run --num_workers 2 \
+                ./run --num_workers 1 \
                     --loader colmap \
                     --dataset_dir "$DATASET_DIR" \
                     --images_dir "$IMAGES_DIR" \
