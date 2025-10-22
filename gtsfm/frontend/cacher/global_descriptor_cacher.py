@@ -62,7 +62,7 @@ class GlobalDescriptorCacher(GlobalDescriptorBase):
         data_to_cache = {"descriptors_list": descriptors}
         io_utils.write_to_bz2_file(data_to_cache, cache_path)
 
-    def describe_batch(self, image_batch_tensor: torch.Tensor) -> List[np.ndarray]:
+    def describe_batch(self, images: torch.Tensor) -> List[np.ndarray]:
         """Computes descriptors for a batch of images, with 'all-or-nothing' caching."""
         cached_descriptors = self.__load_batch_from_cache(image_batch_tensor)
         if cached_descriptors is not None:
