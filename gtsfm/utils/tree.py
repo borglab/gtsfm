@@ -30,12 +30,6 @@ class Tree(Generic[T]):
             leaves.extend(cast(Self, child).leaves())
         return tuple(leaves)
 
-    def __iter__(self) -> Iterator["Tree[T]"]:
-        """Iterate over nodes (not values!) in a pre-order traversal."""
-        yield self
-        for child in self.children:
-            yield from child
-
     def map(self, fn: Callable[[T], U]) -> "Tree[U]":
         """Create a new tree by applying `fn` to every payload."""
         mapped_children = tuple(child.map(fn) for child in self.children)
@@ -98,3 +92,27 @@ class Tree(Generic[T]):
     def all(self, predicate: Callable[[T], bool]) -> bool:
         """Return True if predicate is true for all values in the tree."""
         return self.fold(lambda v, child_results: predicate(v) and all(child_results))
+
+
+class PreOrderIter(Generic[T]):
+    """Iterator over nodes in a pre-order traversal (parent before children)."""
+
+    def __init__(self, root: Tree[T]) -> None:
+        self.root = root
+
+    def __iter__(self) -> Iterator[Tree[T]]:
+        yield self.root
+        for child in self.root.children:
+            yield from PreOrderIter(child)
+
+
+class PostOrderIter(Generic[T]):
+    """Iterator over nodes in a post-order traversal (children before parent)."""
+
+    def __init__(self, root: Tree[T]) -> None:
+        self.root = root
+
+    def __iter__(self) -> Iterator[Tree[T]]:
+        for child in self.root.children:
+            yield from PostOrderIter(child)
+        yield self.root

@@ -3,11 +3,13 @@ Unit tests for io utility functions.
 Authors: Frank Dellaert.
 """
 
+import tempfile
 import unittest
 from pathlib import Path
 
 import gtsfm.utils.cluster_tree_io as cluster_tree_io
 from gtsfm.utils.cluster_tree_io import ColmapScene
+from gtsfm.utils.tree import PreOrderIter
 
 TEST_DATA_ROOT = Path(__file__).resolve().parent.parent / "data"
 
@@ -27,7 +29,7 @@ class TestClusterTreeIO(unittest.TestCase):
         self.assertTrue(tree.all(lambda path: isinstance(path, Path)))
 
         # Check stems of directories
-        stems = [node.value.stem for node in tree]
+        stems = [node.value.stem for node in PreOrderIter(tree)]
         self.assertEqual(
             stems,
             [
@@ -51,7 +53,7 @@ class TestClusterTreeIO(unittest.TestCase):
         assert tree is not None
 
         # Sanity-check scene contents for all leaves
-        for node in tree:
+        for node in PreOrderIter(tree):
             path, scene = node.value
             self.assertIsInstance(path, Path)
             if scene:
@@ -59,13 +61,13 @@ class TestClusterTreeIO(unittest.TestCase):
                 self.assertTrue(scene.is_valid())
 
         # Check that only the four expected leaf nodes have scene data
-        for node in tree:
+        for node in PreOrderIter(tree):
             path, scene = node.value
             self.assertEqual(scene is not None, node.is_leaf())
 
         # Check the data in the leaves
         stems_sizes: list[tuple[str, int]] = []
-        for node in tree:
+        for node in PreOrderIter(tree):
             if node.is_leaf():
                 path, scene = node.value
                 assert scene is not None
@@ -77,6 +79,14 @@ class TestClusterTreeIO(unittest.TestCase):
         empty_dir = TEST_DATA_ROOT / "lund_door_binary" / "C_1" / "C_1_1" / "ba_output"
         tree = cluster_tree_io.read_colmap_hierarchy_as_tree(str(empty_dir))
         self.assertIsNone(tree)
+
+    # def test_write_colmap_hierarchy_as_tree(self) -> None:
+    #     """Test writing the COLMAP hierarchy as a tree."""
+    #     tree = cluster_tree_io.read_colmap_hierarchy_as_tree(str(self.base_dir))
+    #     assert tree is not None
+
+    #     with tempfile.TemporaryDirectory() as temp_dir:
+    #         cluster_tree_io.write_colmap_hierarchy_as_tree(tree, temp_dir)
 
 
 if __name__ == "__main__":
