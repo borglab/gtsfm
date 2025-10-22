@@ -41,47 +41,34 @@ class GlobalDescriptorCacher(GlobalDescriptorBase):
         """Gets the file path to the cache bz2 file from the cache key."""
         return CACHE_ROOT_PATH / "global_descriptor" / "{}.pbz2".format(cache_key)
 
-    def __generate_cache_key(self, image: Image) -> str:
-        """Generates the cache key from the input image and underlying global descriptor."""
-        input_key = cache_utils.generate_hash_for_image(image)
-        # Concatenate class name and image array hash.
-        return "{}_{}".format(self._global_descriptor_obj_cache_key, input_key)
+    def __generate_batch_cache_key(self, batch_tensor: torch.Tensor) -> str:
+        """Generates a single cache key for an entire batch tensor."""
+        # CRITICAL: Move tensor to CPU and convert to NumPy before hashing.
+        tensor_hash = cache_utils.generate_hash_for_numpy_array(batch_tensor.cpu().numpy())
+        return f"{self._global_descriptor_obj_cache_key}_batch_{tensor_hash}"
 
-    def __load_result_from_cache(self, image: Image) -> Optional[np.ndarray]:
-        """Load cached result, if they exist."""
-        cache_path = self.__get_cache_path(cache_key=self.__generate_cache_key(image=image))
+    def __load_batch_from_cache(self, batch_tensor: torch.Tensor) -> Optional[List[np.ndarray]]:
+        """Load a cached list of descriptors for a whole batch."""
+        batch_cache_key = self.__generate_batch_cache_key(batch_tensor)
+        cache_path = self.__get_cache_path(batch_cache_key)
         cached_data = io_utils.read_from_bz2_file(cache_path)
-        if cached_data is None:
-            return None
-        return cached_data["global_descriptor"]
+        return cached_data["descriptors_list"] if cached_data else None
 
-    def __save_result_to_cache(self, image: Image, global_descriptor: np.ndarray) -> None:
-        """Save the results to the cache."""
-        cache_path = self.__get_cache_path(cache_key=self.__generate_cache_key(image=image))
-        data = {"global_descriptor": global_descriptor}
-        io_utils.write_to_bz2_file(data, cache_path)
+    def __save_batch_to_cache(self, batch_tensor: torch.Tensor, descriptors: List[np.ndarray]) -> None:
+        """Save a list of descriptors for a whole batch."""
+        batch_cache_key = self.__generate_batch_cache_key(batch_tensor)
+        cache_path = self.__get_cache_path(batch_cache_key)
+        data_to_cache = {"descriptors_list": descriptors}
+        io_utils.write_to_bz2_file(data_to_cache, cache_path)
 
-    def describe(self, image: Image) -> np.ndarray:
-        """Perform feature detection as well as their description, with caching.
+    def describe_batch(self, image_batch_tensor: torch.Tensor) -> List[np.ndarray]:
+        """Computes descriptors for a batch of images, with 'all-or-nothing' caching."""
+        cached_descriptors = self.__load_batch_from_cache(image_batch_tensor)
+        if cached_descriptors is not None:
+            logger.info("Cache HIT for entire batch.")
+            return cached_descriptors
 
-        If the results are in the cache, they are fetched and returned. Otherwise, the `describe` of the
-        underlying object's API is called and the results are cached.
-
-        Refer to describe() in GlobalDescriptorBase for
-        details about the output format.
-
-        Args:
-            image: The input image.
-
-        Returns:
-            Global image descriptor, of shape (D,).
-        """
-        cached_data = self.__load_result_from_cache(image)
-
-        if cached_data is not None:
-            return cached_data
-
-        global_descriptor = self._global_descriptor.describe(image)
-        self.__save_result_to_cache(image, global_descriptor)
-
-        return global_descriptor
+        logger.info(f"Cache MISS for batch. Re-computing {len(image_batch_tensor)} descriptors.")
+        new_descriptors = self._global_descriptor.describe_batch(image_batch_tensor)
+        self.__save_batch_to_cache(image_batch_tensor, new_descriptors)
+        return new_descriptors
