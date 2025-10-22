@@ -32,7 +32,7 @@ image_pairs_generator:
     num_matched: 20 # Find top-20 most similar images per query
     min_score: 0.3 # Minimum cosine similarity threshold
 
-  image_pairs_generator.batch_size: 16
+  batch_size: 16
 
 # =============================================================================
 # Why keep NetVLADRetriever for MegaLoc?
