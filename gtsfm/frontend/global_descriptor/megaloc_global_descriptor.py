@@ -11,7 +11,7 @@ from torchvision import transforms
 from typing import List, Optional, Callable
 
 import gtsfm.utils.logger as logger_utils
-# from gtsfm.common.image import Image
+from gtsfm.common.image import Image
 from gtsfm.frontend.global_descriptor.global_descriptor_base import GlobalDescriptorBase
 
 
@@ -58,6 +58,20 @@ class MegaLocGlobalDescriptor(GlobalDescriptorBase):
         # Need to unpack into a List of numpy arrays
         return [desc.detach().squeeze().cpu().numpy() for desc in descriptors]
 
-    def describe(self, image: torch.Tensor) -> np.ndarray:
-        batch_tensor = image.unsqueeze(0)
+    def describe(self, image: Image) -> np.ndarray:
+        """Compute descriptor for a single image (delegates to batch method)."""
+        # Convert Image to tensor
+        image_array = image.value_array
+        if isinstance(image_array, np.ndarray):
+            image_tensor = torch.from_numpy(image_array).float()
+        else:
+            image_tensor = image_array
+        
+        # Apply preprocessing transform (resize to 322x322)
+        transform = self.get_preprocessing_transform()
+        if transform is not None:
+            image_tensor = transform(image_tensor)
+        
+        # Add batch dimension and process
+        batch_tensor = image_tensor.unsqueeze(0)
         return self.describe_batch(batch_tensor)[0]

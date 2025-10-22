@@ -16,7 +16,7 @@ import torch
 from torchvision import transforms
 
 import gtsfm.utils.logger as logger_utils
-# from gtsfm.common.image import Image
+from gtsfm.common.image import Image
 from gtsfm.frontend.global_descriptor.global_descriptor_base import GlobalDescriptorBase
 from thirdparty.hloc.netvlad import NetVLAD
 
@@ -61,7 +61,20 @@ class NetVLADGlobalDescriptor(GlobalDescriptorBase):
         descs_np = batch_descriptors["global_descriptor"].detach().cpu().numpy()
         return [desc for desc in descs_np]
     
-    def describe(self, image: torch.Tensor) -> np.ndarray:
-        """Compute descriptor for a single image (delegates to batch method)."""
-        batch_tensor = image.unsqueeze(0)
+    def describe(self, image: Image) -> np.ndarray:
+        """"""
+        # Convert Image to tensor
+        image_array = image.value_array
+        if isinstance(image_array, np.ndarray):
+            image_tensor = torch.from_numpy(image_array).float()
+        else:
+            image_tensor = image_array
+        
+        # Apply preprocessing transform (resize to 480x640)
+        transform = self.get_preprocessing_transform()
+        if transform is not None:
+            image_tensor = transform(image_tensor)
+        
+        # Add batch dimension
+        batch_tensor = image_tensor.unsqueeze(0)
         return self.describe_batch(batch_tensor)[0]
