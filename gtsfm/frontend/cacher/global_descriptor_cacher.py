@@ -64,12 +64,12 @@ class GlobalDescriptorCacher(GlobalDescriptorBase):
 
     def describe_batch(self, images: torch.Tensor) -> List[np.ndarray]:
         """Computes descriptors for a batch of images, with 'all-or-nothing' caching."""
-        cached_descriptors = self.__load_batch_from_cache(image_batch_tensor)
+        cached_descriptors = self.__load_batch_from_cache(images)
         if cached_descriptors is not None:
             logger.info("Cache HIT for entire batch.")
             return cached_descriptors
 
-        logger.info(f"Cache MISS for batch. Re-computing {len(image_batch_tensor)} descriptors.")
-        new_descriptors = self._global_descriptor.describe_batch(image_batch_tensor)
-        self.__save_batch_to_cache(image_batch_tensor, new_descriptors)
+        logger.info(f"Cache MISS for batch. Re-computing {len(images)} descriptors.")
+        new_descriptors = self._global_descriptor.describe_batch(images)
+        self.__save_batch_to_cache(images, new_descriptors)
         return new_descriptors
