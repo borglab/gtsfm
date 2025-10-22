@@ -62,7 +62,7 @@ class GtsfmData:
             sfm_data: camera parameters and point tracks.
 
         Returns:
-            A new GtsfmData instancee.
+            A new GtsfmData instance.
         """
         num_images = sfm_data.numberCameras()
         gtsfm_data = cls(num_images)
@@ -85,7 +85,8 @@ class GtsfmData:
 
         for i, cam in self._cameras.items():
             other_cam = other.get_camera(i)
-            if not cam.equals(other_cam, EQUALITY_TOLERANCE):
+            assert other_cam is not None
+            if not cam.equals(other_cam, EQUALITY_TOLERANCE):  # type: ignore
                 return False
 
         for j in range(self.number_tracks()):
@@ -222,7 +223,7 @@ class GtsfmData:
             return 0, 0
 
         track_lengths = self.get_track_lengths()
-        return np.mean(track_lengths), np.median(track_lengths)
+        return float(np.mean(track_lengths)), float(np.median(track_lengths))
 
     def get_track_lengths(self) -> np.ndarray:
         """Get an array containing the lengths of all tracks.
@@ -297,7 +298,9 @@ class GtsfmData:
 
         for i in gtsfm_data.get_valid_camera_indices():
             if i in camera_indices:
-                new_data.add_camera(i, gtsfm_data.get_camera(i))
+                camera_i = gtsfm_data.get_camera(i)
+                assert camera_i is not None
+                new_data.add_camera(i, camera_i)
 
         new_camera_indices = new_data.get_valid_camera_indices()
 
@@ -341,9 +344,10 @@ class GtsfmData:
         track_lengths_3d = self.get_track_lengths()
         scene_reproj_errors = self.get_scene_reprojection_errors()
 
-        convert_to_rounded_float = lambda x: float(np.round(x, 3))
+        def convert_to_rounded_float(x):
+            return int(np.round(x, 3))
 
-        stats_dict = {}
+        stats_dict: dict[str, int | dict[str, int]] = {}
         stats_dict["number_tracks"] = self.number_tracks()
         stats_dict["3d_track_lengths"] = {
             "min": convert_to_rounded_float(track_lengths_3d.min()),
@@ -367,7 +371,7 @@ class GtsfmData:
         """
         scene_reproj_errors = self.get_scene_reprojection_errors()
         scene_avg_reproj_error = np.nan if np.isnan(scene_reproj_errors).all() else np.nanmean(scene_reproj_errors)
-        return scene_avg_reproj_error
+        return float(scene_avg_reproj_error)
 
     def log_scene_reprojection_error_stats(self) -> None:
         """Logs reprojection error stats for all 3d points in the entire scene."""
@@ -398,7 +402,7 @@ class GtsfmData:
         errors, avg_reproj_error = reprojection.compute_track_reprojection_errors(self._cameras, track)
         # track is valid as all measurements have error below the threshold
         cheirality_success = np.all(~np.isnan(errors))
-        return np.all(errors < reproj_err_thresh) and cheirality_success
+        return bool(np.all(errors < reproj_err_thresh) and cheirality_success)
 
     def filter_landmarks(self, reproj_err_thresh: float = 5) -> Tuple["GtsfmData", List[bool]]:
         """Filters out landmarks with high reprojection error
@@ -420,7 +424,9 @@ class GtsfmData:
             # check if all cameras with measurement in this track have already been added
             for k in range(track.numberMeasurements()):
                 i, _ = track.measurement(k)
-                filtered_data.add_camera(i, self.get_camera(i))
+                camera_i = self.get_camera(i)
+                assert camera_i is not None
+                filtered_data.add_camera(i, camera_i)
             filtered_data.add_track(track)
 
         return filtered_data, valid_mask
@@ -439,9 +445,11 @@ class GtsfmData:
         for i, aTi in enumerate(aTi_list):
             if aTi is None:
                 continue
-            calibration = self.get_camera(i).calibration()
+            camera_i = self.get_camera(i)
+            assert camera_i is not None
+            calibration = camera_i.calibration()
             camera_type = gtsfm_types.get_camera_class_for_calibration(calibration)
-            aligned_data.add_camera(i, camera_type(aTi, calibration))
+            aligned_data.add_camera(i, camera_type(aTi, calibration))  # type: ignore
         # Align estimated tracks to ground truth.
         for j in range(self.number_tracks()):
             # Align each 3d point
