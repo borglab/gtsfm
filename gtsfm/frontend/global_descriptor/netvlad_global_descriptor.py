@@ -9,10 +9,11 @@ Whereas bag-of-visual-words aggregation keeps counts of visual words, VLAD store
 Authors: John Lambert, Travis Driver
 """
 
-from typing import List, Optional
+from typing import List, Optional, Callable
 
 import numpy as np
 import torch
+from torchvision import transforms
 
 import gtsfm.utils.logger as logger_utils
 # from gtsfm.common.image import Image
