@@ -354,8 +354,8 @@ async function boot() {
     return html + '</ul>';
   };
 
-  const renderList = (q = "") => {
-    const needle = q.trim().toLowerCase();
+  const renderList = (query = "") => {
+    const needle = query.trim().toLowerCase();
     const filtered = allItems.filter(it => it.label.toLowerCase().includes(needle));
     if (filtered.length === 0) {
       listEl.innerHTML = '<div style="padding: 20px; text-align: center; color: #64748b;">No scenes found.</div>';
