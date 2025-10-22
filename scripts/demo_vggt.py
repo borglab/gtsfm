@@ -1,8 +1,12 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
+"""
+A minimal demo for running vggt and export results in colmap format.
+
+python demo_vggt.py --scene_dir PATH/TO/DIR
+
+Original code from https://github.com/facebookresearch/vggt/blob/main/demo_colmap.py
+
+Author: Xinan Zhang
+"""
 
 import sys
 sys.path.insert(0, "../thirdparty/vggt")
@@ -35,6 +39,50 @@ from vggt.utils.helper import create_pixel_coordinate_grid, randomly_limit_trues
 from vggt.dependency.track_predict import predict_tracks
 from vggt.dependency.np_to_pycolmap import batch_np_matrix_to_pycolmap, batch_np_matrix_to_pycolmap_wo_track
 
+import time, gc, os
+
+# Optional (nice CPU memory readout)
+try:
+    import psutil
+    _HAS_PSUTIL = True
+except Exception:
+    _HAS_PSUTIL = False
+
+def _sync():
+    # Make sure kernels finish before timing/memory reads
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
+
+def reset_peak_memory():
+    if torch.cuda.is_available():
+        torch.cuda.reset_peak_memory_stats()
+        torch.cuda.empty_cache()
+    gc.collect()
+
+def get_peak_memory_str():
+    if torch.cuda.is_available():
+        alloc = torch.cuda.max_memory_allocated() / (1024**2)
+        reserv = torch.cuda.max_memory_reserved() / (1024**2)
+        return f"GPU peak allocated: {alloc:.1f} MB | reserved: {reserv:.1f} MB"
+    else:
+        if _HAS_PSUTIL:
+            rss = psutil.Process(os.getpid()).memory_info().rss / (1024**2)
+            return f"CPU RSS (approx peak during run): {rss:.1f} MB"
+        return "CPU memory: psutil not installed"
+
+class Timer:
+    def __init__(self, label):
+        self.label = label
+        self.t0 = None
+        self.elapsed = None
+    def __enter__(self):
+        _sync()
+        self.t0 = time.perf_counter()
+        return self
+    def __exit__(self, exc_type, exc, tb):
+        _sync()
+        self.elapsed = time.perf_counter() - self.t0
+        print(f"[TIMER] {self.label}: {self.elapsed:.2f} s")
 
 # TODO: add support for masks
 # TODO: add iterative BA
@@ -75,17 +123,25 @@ def run_VGGT(model, images, dtype, resolution=518):
     # hard-coded to use 518 for VGGT
     images = F.interpolate(images, size=(resolution, resolution), mode="bilinear", align_corners=False)
 
-    with torch.no_grad():
-        with torch.cuda.amp.autocast(dtype=dtype):
-            images = images[None]  # add batch dimension
-            aggregated_tokens_list, ps_idx = model.aggregator(images)
+    reset_peak_memory()
 
-        # Predict Cameras
-        pose_enc = model.camera_head(aggregated_tokens_list)[-1]
-        # Extrinsic and intrinsic matrices, following OpenCV convention (camera from world)
-        extrinsic, intrinsic = pose_encoding_to_extri_intri(pose_enc, images.shape[-2:])
-        # Predict Depth Maps
-        depth_map, depth_conf = model.depth_head(aggregated_tokens_list, images, ps_idx)
+    with Timer("model inference"):
+    
+        with torch.no_grad():
+            with torch.cuda.amp.autocast(dtype=dtype):
+                images = images[None]  # add batch dimension
+                aggregated_tokens_list, ps_idx = model.aggregator(images)
+
+            # Predict Cameras
+            pose_enc = model.camera_head(aggregated_tokens_list)[-1]
+            # Extrinsic and intrinsic matrices, following OpenCV convention (camera from world)
+            extrinsic, intrinsic = pose_encoding_to_extri_intri(pose_enc, images.shape[-2:])
+            # Predict Depth Maps
+            depth_map, depth_conf = model.depth_head(aggregated_tokens_list, images, ps_idx)
+            
+    print(get_peak_memory_str())
+    model.to('cpu')
+    torch.cuda.empty_cache()
 
     extrinsic = extrinsic.squeeze(0).cpu().numpy()
     intrinsic = intrinsic.squeeze(0).cpu().numpy()
@@ -243,9 +299,12 @@ def demo_fn(args):
         shift_point2d_to_original_res=True,
         shared_camera=shared_camera,
     )
-
-    print(f"Saving reconstruction to {args.scene_dir}/sparse")
-    sparse_reconstruction_dir = os.path.join(args.scene_dir, "sparse")
+    if args.use_ba:
+        print(f"Saving reconstruction to {args.scene_dir}/sparse_w_ba")
+        sparse_reconstruction_dir = os.path.join(args.scene_dir, "sparse_w_ba")
+    else:
+        print(f"Saving reconstruction to {args.scene_dir}/sparse_wo_ba")
+        sparse_reconstruction_dir = os.path.join(args.scene_dir, "sparse_wo_ba")
     os.makedirs(sparse_reconstruction_dir, exist_ok=True)
     reconstruction.write(sparse_reconstruction_dir)
 
@@ -300,9 +359,6 @@ if __name__ == "__main__":
     args = parse_args()
     with torch.no_grad():
         demo_fn(args)
-
-
-# Work in Progress (WIP)
 
 """
 VGGT Runner Script
