@@ -2,20 +2,21 @@
 
 Authors: Ayush Baid
 """
+
 import unittest
 
-import gtsam
+import gtsam  # type: ignore
 import numpy as np
 from gtsam import Cal3Bundler, EssentialMatrix, PinholeCameraCal3Bundler, Pose3, Unit3
 
 import gtsfm.utils.geometry_comparisons as comp_utils
-import gtsfm.utils.io as io_utils
+from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.two_view_estimator import TwoViewEstimator
 from gtsfm.data_association.point3d_initializer import TriangulationOptions, TriangulationSamplingMode
+from gtsfm.two_view_estimator import TwoViewEstimator
 
 GTSAM_EXAMPLE_FILE = "5pointExample1.txt"
-EXAMPLE_DATA = io_utils.read_bal(gtsam.findExampleDataFile(GTSAM_EXAMPLE_FILE))
+EXAMPLE_DATA = GtsfmData.read_bal(gtsam.findExampleDataFile(GTSAM_EXAMPLE_FILE))
 
 
 class TestTwoViewEstimator(unittest.TestCase):

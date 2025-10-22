@@ -2,6 +2,7 @@
 
 Authors: Ayush Baid
 """
+
 import unittest
 
 import gtsam
@@ -9,10 +10,10 @@ import numpy as np
 from distributed.protocol.serialize import deserialize, serialize
 from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Point3, Pose3, Rot3, Unit3
 
-import gtsfm.utils.io as io_utils
+from gtsfm.common.gtsfm_data import GtsfmData
 
 GTSAM_EXAMPLE_FILE = "dubrovnik-3-7-pre"
-EXAMPLE_DATA = io_utils.read_bal(gtsam.findExampleDataFile(GTSAM_EXAMPLE_FILE))
+EXAMPLE_DATA = GtsfmData.read_bal(gtsam.findExampleDataFile(GTSAM_EXAMPLE_FILE))
 
 
 class TestSerialization(unittest.TestCase):

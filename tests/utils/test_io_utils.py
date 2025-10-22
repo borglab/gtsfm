@@ -1,9 +1,13 @@
+"""
+Unit tests for io utility functions.
+Authors: Adi, Frank Dellaert.
+"""
+
 import os
 import tempfile
 import unittest
 from pathlib import Path
 
-import gtsam
 import numpy as np
 import numpy.testing as npt
 from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, Rot3
@@ -20,6 +24,7 @@ class TestIoUtils(unittest.TestCase):
         """Ensure focal length can be read from EXIF, for an image w/ known EXIF."""
         img_fpath = TEST_DATA_ROOT / "set2_lund_door_nointrinsics/images/DSC_0001.JPG"
         img = io_utils.load_image(img_fpath)
+        assert img.exif_data is not None
         self.assertEqual(img.exif_data.get("FocalLength"), 29)
 
     def test_read_points_txt(self) -> None:
@@ -30,9 +35,11 @@ class TestIoUtils(unittest.TestCase):
         self.assertIsInstance(point_cloud, np.ndarray)
         self.assertIsInstance(rgb, np.ndarray)
 
+        assert point_cloud is not None
         self.assertEqual(point_cloud.shape, (2122, 3))
         self.assertEqual(point_cloud.dtype, np.float64)
 
+        assert rgb is not None
         self.assertEqual(rgb.shape, (2122, 3))
         self.assertEqual(rgb.dtype, np.uint8)
 
@@ -75,6 +82,7 @@ class TestIoUtils(unittest.TestCase):
         fpath = TEST_DATA_ROOT / "crane_mast_8imgs_colmap_output" / "cameras.txt"
         calibrations, img_dims = io_utils.read_cameras_txt(fpath)
 
+        assert calibrations is not None
         self.assertIsInstance(calibrations, list)
         self.assertTrue(all([isinstance(calibration, Cal3Bundler) for calibration in calibrations]))
 
@@ -87,7 +95,9 @@ class TestIoUtils(unittest.TestCase):
         # COLMAP SIMPLE_RADIAL model has only 1 radial distortion coefficient.
         # A second radial distortion coefficient equal to zero is expected when it is converted to GTSAM's Cal3Bundler.
         self.assertEqual(K.k2(), 0)
+
         # Image dims is (H, W).
+        assert img_dims is not None
         self.assertEqual(img_dims[0][0], 3040)
         self.assertEqual(img_dims[0][1], 4056)
 
@@ -113,7 +123,7 @@ class TestIoUtils(unittest.TestCase):
                 [0, 0, 1]
             ]
         )
-        original_wtc = np.array([3,-2,1])
+        original_wtc = np.array([3, -2, 1])
         # fmt: on
 
         # Setup dummy GtsfmData Object with one image
@@ -123,7 +133,7 @@ class TestIoUtils(unittest.TestCase):
         gtsfm_data = GtsfmData(number_images=1)
         gtsfm_data.add_camera(0, camera)
 
-        image = Image(value_array=None, file_name="dummy_image.jpg")
+        image = Image(value_array=None, file_name="dummy_image.jpg")  # type: ignore
         images = [image]
 
         # Perform write and read operations inside a temporary directory
@@ -209,20 +219,6 @@ class TestIoUtils(unittest.TestCase):
         np.testing.assert_allclose(points, points_read)
         np.testing.assert_allclose(rgb_read, rgb_expected)
         self.assertEqual(rgb_read.dtype, np.uint8)
-
-    def test_read_bal(self) -> None:
-        """Check that read_bal creates correct GtsfmData object."""
-        filename: str = gtsam.findExampleDataFile("5pointExample1.txt")
-        data: GtsfmData = io_utils.read_bal(filename)
-        self.assertEqual(data.number_images(), 2)
-        self.assertEqual(data.number_tracks(), 5)
-
-    def test_read_bundler(self) -> None:
-        """Check that read_bal creates correct GtsfmData object."""
-        filename: str = gtsam.findExampleDataFile("Balbianello.out")
-        data: GtsfmData = io_utils.read_bundler(filename)
-        self.assertEqual(data.number_images(), 5)
-        self.assertEqual(data.number_tracks(), 544)
 
     def test_json_roundtrip(self) -> None:
         """Test that basic read/write to JSON works as intended."""

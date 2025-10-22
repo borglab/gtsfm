@@ -133,35 +133,6 @@ def read_json_file(fpath: Union[str, Path]) -> Any:
         return json.load(f)
 
 
-def read_bal(file_path: str) -> GtsfmData:
-    """Read a Bundle Adjustment in the Large" (BAL) file.
-
-    See https://grail.cs.washington.edu/projects/bal/ for more details on the format.
-
-
-    Args:
-        file_name: File path of the BAL file.
-
-    Returns:
-        The data as an GtsfmData object.
-    """
-    sfm_data = gtsam.readBal(file_path)
-    return GtsfmData.from_sfm_data(sfm_data)
-
-
-def read_bundler(file_path: str) -> GtsfmData:
-    """Read a Bundler file.
-
-    Args:
-        file_name: File path of the Bundler file.
-
-    Returns:
-        The data as an GtsfmData object.
-    """
-    sfm_data = gtsam.SfmData.FromBundlerFile(file_path)
-    return GtsfmData.from_sfm_data(sfm_data)
-
-
 def export_model_as_colmap_text(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> None:
     """Emulates the COLMAP option to `Export model as text`.
 

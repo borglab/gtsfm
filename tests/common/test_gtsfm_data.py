@@ -7,24 +7,27 @@ import copy
 import unittest
 import unittest.mock as mock
 
-import gtsam
+import gtsam  # type: ignore
 import numpy as np
 from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, SfmData, SfmTrack
 
 import gtsfm.utils.graph as graph_utils
-import gtsfm.utils.io as io_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 
 GTSAM_EXAMPLE_FILE = "dubrovnik-3-7-pre"  # Example data with 3 cameras and 7 tracks.
-EXAMPLE_DATA = io_utils.read_bal(gtsam.findExampleDataFile(GTSAM_EXAMPLE_FILE))
+EXAMPLE_DATA = GtsfmData.read_bal(gtsam.findExampleDataFile(GTSAM_EXAMPLE_FILE))
 
 NULL_DATA = SfmData()
 
 # create example with non-consecutive cams
 EXAMPLE_WITH_NON_CONSECUTIVE_CAMS = GtsfmData(number_images=5)
-EXAMPLE_WITH_NON_CONSECUTIVE_CAMS.add_camera(index=0, camera=EXAMPLE_DATA.get_camera(0))
-EXAMPLE_WITH_NON_CONSECUTIVE_CAMS.add_camera(index=2, camera=EXAMPLE_DATA.get_camera(1))
-EXAMPLE_WITH_NON_CONSECUTIVE_CAMS.add_camera(index=3, camera=EXAMPLE_DATA.get_camera(2))
+cam0 = EXAMPLE_DATA.get_camera(0)
+cam1 = EXAMPLE_DATA.get_camera(1)
+cam2 = EXAMPLE_DATA.get_camera(2)
+assert cam0 is not None and cam1 is not None and cam2 is not None, "Camera(s) not found in EXAMPLE_DATA"
+EXAMPLE_WITH_NON_CONSECUTIVE_CAMS.add_camera(index=0, camera=cam0)
+EXAMPLE_WITH_NON_CONSECUTIVE_CAMS.add_camera(index=2, camera=cam1)
+EXAMPLE_WITH_NON_CONSECUTIVE_CAMS.add_camera(index=3, camera=cam2)
 
 EQUALITY_TOLERANCE = 1e-5
 
@@ -43,7 +46,7 @@ class TestGtsfmData(unittest.TestCase):
     def testEqualsWithDifferentObject(self) -> None:
         """Test the equality function with different object, expecting false result."""
         other_example_file = "dubrovnik-1-1-pre.txt"
-        other_data = io_utils.read_bal(gtsam.findExampleDataFile(other_example_file))
+        other_data = GtsfmData.read_bal(gtsam.findExampleDataFile(other_example_file))
 
         self.assertNotEqual(EXAMPLE_DATA, other_data)
 
@@ -127,7 +130,7 @@ class TestGtsfmData(unittest.TestCase):
         expected_median_length = 3.0
 
         # 7 tracks have length [3,2,3,3,3,2,3]
-        gtsfm_data = io_utils.read_bal(gtsam.findExampleDataFile(GTSAM_EXAMPLE_FILE))
+        gtsfm_data = GtsfmData.read_bal(gtsam.findExampleDataFile(GTSAM_EXAMPLE_FILE))
         mean_length, median_length = gtsfm_data.get_track_length_statistics()
 
         self.assertEqual(mean_length, expected_mean_length)
@@ -225,6 +228,20 @@ class TestGtsfmData(unittest.TestCase):
 
         # compare the SfmData objects
         self.assertEqual(filtered_sfm_data, expected_data)
+
+    def test_read_bal(self) -> None:
+        """Check that read_bal creates correct GtsfmData object."""
+        filename: str = gtsam.findExampleDataFile("5pointExample1.txt")
+        data: GtsfmData = GtsfmData.read_bal(filename)
+        self.assertEqual(data.number_images(), 2)
+        self.assertEqual(data.number_tracks(), 5)
+
+    def test_read_bundler(self) -> None:
+        """Check that read_bundler creates correct GtsfmData object."""
+        filename: str = gtsam.findExampleDataFile("Balbianello.out")
+        data: GtsfmData = GtsfmData.read_bundler(filename)
+        self.assertEqual(data.number_images(), 5)
+        self.assertEqual(data.number_tracks(), 544)
 
 
 if __name__ == "__main__":

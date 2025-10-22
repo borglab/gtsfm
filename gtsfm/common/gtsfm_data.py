@@ -74,6 +74,34 @@ class GtsfmData:
 
         return gtsfm_data
 
+    @classmethod
+    def read_bal(cls, file_path: str) -> "GtsfmData":
+        """Read a Bundle Adjustment in the Large" (BAL) file.
+
+        See https://grail.cs.washington.edu/projects/bal/ for more details on the format.
+
+        Args:
+            file_path: File path of the BAL file.
+
+        Returns:
+            The data as a GtsfmData object.
+        """
+        sfm_data = gtsam.readBal(file_path)
+        return cls.from_sfm_data(sfm_data)
+
+    @classmethod
+    def read_bundler(cls, file_path: str) -> "GtsfmData":
+        """Read a Bundler file.
+
+        Args:
+            file_path: File path of the Bundler file.
+
+        Returns:
+            The data as a GtsfmData object.
+        """
+        sfm_data = gtsam.SfmData.FromBundlerFile(file_path)
+        return cls.from_sfm_data(sfm_data)
+
     def __eq__(self, other: object) -> bool:
         """Checks equality with the other object."""
 
