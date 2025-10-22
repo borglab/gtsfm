@@ -40,7 +40,7 @@ logger = logger_utils.get_logger()
 IMG_EXTENSIONS = ["png", "PNG", "jpg", "JPG"]
 
 
-def load_image(img_path: str) -> Image:
+def load_image(img_path: Union[str, Path]) -> Image:
     """Load the image from disk.
 
     Notes: EXIF is read as a map from (tag_id, value) where tag_id is an integer.
@@ -48,11 +48,12 @@ def load_image(img_path: str) -> Image:
     Images will be converted to RGB if in a different format.
 
     Args:
-        img_path: The path of image to load.
+        img_path: The path of image to load (str or Path).
 
     Returns:
         Loaded image in RGB format.
     """
+    img_path = str(img_path)
     original_image = PILImage.open(img_path)
 
     exif_data = original_image._getexif()
@@ -215,9 +216,7 @@ def colmap2gtsfm(
     return img_fnames, wTi_gtsfm, intrinsics_gtsfm, sfm_tracks_gtsfm, point_cloud, rgb, img_dims
 
 
-def read_cameras_txt(
-    fpath: str,
-) -> Tuple[Optional[List[Cal3Bundler]], Optional[List[Tuple[int, int]]]]:
+def read_cameras_txt(fpath: Union[str, Path]) -> Tuple[Optional[List[Cal3Bundler]], Optional[List[Tuple[int, int]]]]:
     """Read camera calibrations from a COLMAP-formatted cameras.txt file.
 
     Reference: https://colmap.github.io/format.html#cameras-txt
@@ -300,7 +299,7 @@ def write_cameras(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> 
             f.write(line + "\n")
 
 
-def read_images_txt(fpath: str) -> Tuple[List[Pose3], List[str]]:
+def read_images_txt(fpath: Union[str, Path]) -> Tuple[List[Pose3], List[str]]:
     """Read camera poses and image file names from a COLMAP-format images.txt file.
 
     Reference: https://colmap.github.io/format.html#images-txt
@@ -415,7 +414,7 @@ def write_images(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> N
             f.write("\n")
 
 
-def read_points_txt(fpath: str) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+def read_points_txt(fpath: Union[str, Path]) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
     """Read 3d points and their associated colors from a COLMAP points.txt file.
 
     Reference: https://colmap.github.io/format.html#points3d-txt
