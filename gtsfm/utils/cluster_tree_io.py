@@ -65,17 +65,15 @@ def read_dir_hierarchy_as_tree(base_dir: str) -> Tree[Path]:
         A Tree whose root value is Path(base_dir) and whose children represent subdirectories.
     """
     root_path = Path(base_dir)
+    # If base_dir does not exist, raise an error
+    if not root_path.exists():
+        raise FileNotFoundError(f"Base directory '{base_dir}' does not exist.")
 
     def build_dir_tree(p: Path) -> Tree[Path]:
-        # Only include directories. Sort for determinism in tests.
         children: list[Tree[Path]] = []
-        try:
-            for entry in sorted(p.iterdir(), key=lambda e: e.name):
-                if entry.is_dir():
-                    children.append(build_dir_tree(entry))
-        except FileNotFoundError:
-            # If base_dir does not exist, still return a node with no children.
-            pass
+        for entry in sorted(p.iterdir(), key=lambda e: e.name):
+            if entry.is_dir():
+                children.append(build_dir_tree(entry))
         return Tree(value=p, children=tuple(children))
 
     return build_dir_tree(root_path)
@@ -89,7 +87,7 @@ def print_tree_cameras_and_points(tree: Tree[NamedColmapScene] | None) -> None:
     if tree is None:
         print("No tree found.")
         return
-    for node in tree.traverse():
+    for node in tree:
         path, scene = node.value
         if scene is None:
             print(f"{path}: None")
@@ -100,15 +98,21 @@ def print_tree_cameras_and_points(tree: Tree[NamedColmapScene] | None) -> None:
 
 
 def read_colmap_hierarchy_as_tree(base_dir: str, name: str = "ba_output") -> Tree[NamedColmapScene] | None:
+    """Read a COLMAP hierarchy stored on disk as a tree.
+    Args:
+        base_dir: Root directory containing the COLMAP hierarchy.
+        name: Name of the subdirectory in each node where COLMAP data is stored.
+
+    Returns:
+        A Tree whose nodes contain (Path, ColmapScene|None) tuples.
+        Nodes without COLMAP data have None as the second element.
+        If no COLMAP data is found in the entire hierarchy, returns None.
+    """
     dir_tree = read_dir_hierarchy_as_tree(base_dir)
 
-    found_any = False
-
     def transform(p: Path) -> NamedColmapScene:
-        nonlocal found_any
         ba_dir = p / name
         if ba_dir.is_dir():
-            found_any = True
             scene = ColmapScene.read_from_disk(str(ba_dir))
             return (p, scene)
         return (p, None)
@@ -116,15 +120,5 @@ def read_colmap_hierarchy_as_tree(base_dir: str, name: str = "ba_output") -> Tre
     # Map the directory tree into a Tree[(str, ColmapScene|None)]
     mapped_tree = dir_tree.map(transform)
 
-    def prune_empty(node: Tree[NamedColmapScene]) -> Tree[NamedColmapScene] | None:
-        label, scene = node.value
-        # Prune children first.
-        pruned_children = [c for c in (prune_empty(ch) for ch in node.children) if c is not None]
-        # Keep this node if it is the root, or it has a scene, or it has any pruned children.
-        if label == "" or scene is not None or pruned_children:
-            return Tree(value=node.value, children=tuple(pruned_children))
-        # Otherwise, drop internal nodes with no scene descendants.
-        return None
-
-    result = prune_empty(mapped_tree)
-    return result if (result is not None and found_any) else None
+    # Prune nodes without scene data
+    return mapped_tree.prune(lambda x: x[1] is not None)
