@@ -508,27 +508,14 @@ def save_gtsfm_data(
     os.makedirs(output_dir, exist_ok=True)
 
     # Save input to Bundle Adjustment for debugging.
-    io_utils.export_model_as_colmap_text(
-        gtsfm_data=ba_input_data,
-        images=images,
-        save_dir=os.path.join(output_dir, "ba_input"),
-    )
+    ba_input_data.export_as_colmap_text(images=images, save_dir=os.path.join(output_dir, "ba_input"))
 
     # Save the output of Bundle Adjustment.
-    io_utils.export_model_as_colmap_text(
-        gtsfm_data=ba_output_data,
-        images=images,
-        save_dir=os.path.join(output_dir, "ba_output"),
-    )
+    ba_output_data.export_as_colmap_text(images=images, save_dir=os.path.join(output_dir, "ba_output"))
 
     # Save the ground truth in the same format, for visualization.
     gt_gtsfm_data = get_gtsfm_data_with_gt_cameras_and_est_tracks(cameras_gt, ba_output_data)
-
-    io_utils.export_model_as_colmap_text(
-        gtsfm_data=gt_gtsfm_data,
-        images=images,
-        save_dir=os.path.join(output_dir, "ba_gt"),
-    )
+    gt_gtsfm_data.export_as_colmap_text(images=images, save_dir=os.path.join(output_dir, "ba_gt"))
 
     # Delete old version of React results directory and save a duplicate copy.
     shutil.rmtree(REACT_RESULTS_PATH, ignore_errors=True)

@@ -10,7 +10,7 @@ from pathlib import Path
 
 import numpy as np
 import numpy.testing as npt
-from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, Rot3
+from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, Rot3  # type: ignore
 
 import gtsfm.utils.io as io_utils
 from gtsfm.common.gtsfm_data import GtsfmData
@@ -140,7 +140,7 @@ class TestIoUtils(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tempdir:
             images_fpath = os.path.join(tempdir, "images.txt")
 
-            io_utils.write_images(gtsfm_data, images, tempdir)
+            gtsfm_data.write_images(images, tempdir)
             wTi_list, _ = io_utils.read_images_txt(images_fpath)
             recovered_wTc = wTi_list[0]
 
@@ -171,7 +171,7 @@ class TestIoUtils(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tempdir:
             cameras_fpath = os.path.join(tempdir, "cameras.txt")
 
-            io_utils.write_cameras(gtsfm_data, images, tempdir)
+            gtsfm_data.write_cameras(images, tempdir)
             recovered_calibrations, _ = io_utils.read_cameras_txt(cameras_fpath)
 
         assert recovered_calibrations is not None

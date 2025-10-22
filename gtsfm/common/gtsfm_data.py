@@ -5,6 +5,8 @@ Authors: Ayush Baid, John Lambert, Xiaolong Wu
 """
 
 import itertools
+import os
+from collections import defaultdict
 from typing import Any, Dict, List, Optional, Tuple
 
 import gtsam  # type: ignore
@@ -13,9 +15,12 @@ from gtsam import Pose3, SfmTrack, Similarity3
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.graph as graph_utils
+import gtsfm.utils.images as image_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.reprojection as reprojection
+from gtsfm.common.image import Image
 from gtsfm.products.visibility_graph import ImageIndexPairs
+from gtsfm.utils.pycolmap_utils import gtsfm_calibration_to_colmap_camera
 
 logger = logger_utils.get_logger()
 
@@ -492,3 +497,142 @@ class GtsfmData:
             aligned_data.add_track(track_a)
 
         return aligned_data
+
+    # COLMAP export functions
+
+    def write_cameras(self, images: List[Image], save_dir: str) -> None:
+        """Writes the camera data file in the COLMAP format.
+
+        Reference: https://colmap.github.io/format.html#cameras-txt
+
+        Args:
+            images: List of all images for this scene, in order of image index.
+            save_dir: Folder to put the cameras.txt file in.
+        """
+        os.makedirs(save_dir, exist_ok=True)
+
+        # TODO: handle shared intrinsics
+        file_path = os.path.join(save_dir, "cameras.txt")
+        with open(file_path, "w") as f:
+            f.write("# Camera list with one line of data per camera:\n")
+            f.write("#   CAMERA_ID, MODEL, WIDTH, HEIGHT, PARAMS[]\n")
+            # note that we save the number of estimated cameras, not the number of input images,
+            # which would instead be self.number_images().
+            f.write(f"# Number of cameras: {len(self.get_valid_camera_indices())}\n")
+
+            for i in self.get_valid_camera_indices():
+                camera_i = self.get_camera(i)
+                assert camera_i is not None, "Camera %d is None" % i
+                gtsfm_cal = camera_i.calibration()
+                colmap_cam = gtsfm_calibration_to_colmap_camera(i, gtsfm_cal, images[i].height, images[i].width)
+                to_write = [colmap_cam.id, colmap_cam.model, colmap_cam.width, colmap_cam.height, *colmap_cam.params]
+                line = " ".join([str(elem) for elem in to_write])
+                f.write(line + "\n")
+
+    def write_images(self, images: List[Image], save_dir: str) -> None:
+        """Writes the image data file in the COLMAP format.
+
+        Reference: https://colmap.github.io/format.html#images-txt
+        Note: the "Number of images" saved to the .txt file is not the number of images
+        fed to the SfM algorithm, but rather the number of localized camera poses/images,
+        which COLMAP refers to as the "reconstructed cameras".
+
+        Args:
+            images: List of all images for this scene, in order of image index.
+            save_dir: Folder to put the images.txt file in.
+        """
+        os.makedirs(save_dir, exist_ok=True)
+
+        num_imgs = self.number_images()
+
+        image_id_num_measurements: defaultdict[int, int] = defaultdict(int)
+        for j in range(self.number_tracks()):
+            track = self.get_track(j)
+            for k in range(track.numberMeasurements()):
+                image_id, uv_measured = track.measurement(k)
+                image_id_num_measurements[image_id] += 1
+        mean_obs_per_img = (
+            sum(image_id_num_measurements.values()) / len(image_id_num_measurements)
+            if len(image_id_num_measurements)
+            else 0
+        )
+
+        file_path = os.path.join(save_dir, "images.txt")
+        with open(file_path, "w") as f:
+            f.write("# Image list with two lines of data per image:\n")
+            f.write("#   IMAGE_ID, QW, QX, QY, QZ, TX, TY, TZ, CAMERA_ID, NAME\n")
+            f.write("#   POINTS2D[] as (X, Y, POINT3D_ID)\n")
+            f.write(f"# Number of images: {num_imgs}, mean observations per image: {mean_obs_per_img:.3f}\n")
+
+            for i in self.get_valid_camera_indices():
+                img_fname = images[i].file_name
+                camera = self.get_camera(i)
+                assert camera is not None, "Camera %d is None" % i
+                # COLMAP exports camera extrinsics (cTw), not the poses (wTc), so must invert
+                iTw = camera.pose().inverse()
+                iRw_quaternion = iTw.rotation().toQuaternion()
+                itw = iTw.translation()
+                tx, ty, tz = itw
+                qw, qx, qy, qz = iRw_quaternion.w(), iRw_quaternion.x(), iRw_quaternion.y(), iRw_quaternion.z()
+
+                f.write(f"{i} {qw} {qx} {qy} {qz} {tx} {ty} {tz} {i} {img_fname}\n")
+
+                # write out points2d
+                for j in range(self.number_tracks()):
+                    track = self.get_track(j)
+                    for k in range(track.numberMeasurements()):
+                        # write each measurement
+                        image_id, uv_measured = track.measurement(k)
+                        if image_id == i:
+                            f.write(f" {uv_measured[0]:.3f} {uv_measured[1]:.3f} {j}")
+                f.write("\n")
+
+    def write_points(self, images: List[Image], save_dir: str) -> None:
+        """Writes the point cloud data file in the COLMAP format.
+
+        Reference: https://colmap.github.io/format.html#points3d-txt
+
+        Args:
+            self: Scene data to write.
+            images: List of all images for this scene, in order of image index.
+            save_dir: Folder to put the points3D.txt file in.
+        """
+        os.makedirs(save_dir, exist_ok=True)
+
+        num_pts = self.number_tracks()
+        avg_track_length, _ = self.get_track_length_statistics()
+
+        file_path = os.path.join(save_dir, "points3D.txt")
+        with open(file_path, "w") as f:
+            f.write("# 3D point list with one line of data per point:\n")
+            f.write("#   POINT3D_ID, X, Y, Z, R, G, B, ERROR, TRACK[] as (IMAGE_ID, POINT2D_IDX)\n")
+            f.write(f"# Number of points: {num_pts}, mean track length: {np.round(avg_track_length, 2)}\n")
+
+            # TODO: assign unique indices to all keypoints (2d points)
+            point2d_idx = 0
+
+            for j in range(num_pts):
+                track = self.get_track(j)
+
+                r, g, b = image_utils.get_average_point_color(track, images)
+                _, avg_track_error = reprojection.compute_track_reprojection_errors(self._cameras, track)
+                x, y, z = track.point3()
+                f.write(f"{j} {x} {y} {z} {r} {g} {b} {np.round(avg_track_error, 2)} ")
+
+                for k in range(track.numberMeasurements()):
+                    i, uv_measured = track.measurement(k)
+                    f.write(f"{i} {point2d_idx} ")
+                f.write("\n")
+
+    def export_as_colmap_text(self, images: List[Image], save_dir: str) -> None:
+        """Emulates the COLMAP option to `Export model as text`.
+
+        Three text files will be save to disk: "points3D.txt", "images.txt", and "cameras.txt".
+
+        Args:
+            images: List of all images for this scene, in order of image index.
+            save_dir: Folder where text files will be saved.
+        """
+        self.write_cameras(images, save_dir)
+        self.write_images(images, save_dir)
+        self.write_points(images, save_dir)
