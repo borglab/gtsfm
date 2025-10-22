@@ -275,17 +275,23 @@ class TestColmapIO(unittest.TestCase):
         self.assertEqual(rgb.shape, (num_points, 3))
         self.assertEqual(img_dims[0], (3040, 4056))
 
-    def test_colmap2gtsfm(self) -> None:
-        """Test conversion from COLMAP dicts to GTSfM format."""
+    def test_tracks_from_colmap(self) -> None:
+        """Test conversion from COLMAP dicts to SfmTrack list."""
         data_dir = TEST_DATA_ROOT / "crane_mast_8imgs_colmap_output"
-        cameras, images, points3d = colmap_io.read_model(path=str(data_dir), ext=".txt")
-        img_fnames, wTi_list, calibrations, sfm_tracks, point_cloud, rgb, img_dims = io_utils.colmap2gtsfm(
-            cameras, images, points3d, load_sfm_tracks=True
-        )
+        _, images, points3d = colmap_io.read_model(path=str(data_dir), ext=".txt")
+        sfm_tracks = io_utils.tracks_from_colmap(images, points3d)
         self.assertIsNotNone(sfm_tracks)
         assert sfm_tracks is not None
         self.assertTrue(all(isinstance(track, SfmTrack) for track in sfm_tracks))
         self.assertEqual(len(sfm_tracks), len(points3d))
+
+    def test_colmap2gtsfm(self) -> None:
+        """Test conversion from COLMAP dicts to GTSfM format."""
+        data_dir = TEST_DATA_ROOT / "crane_mast_8imgs_colmap_output"
+        cameras, images, points3d = colmap_io.read_model(path=str(data_dir), ext=".txt")
+        img_fnames, wTi_list, calibrations, point_cloud, rgb, img_dims = io_utils.colmap2gtsfm(
+            cameras, images, points3d
+        )
         self._check_scene_data(wTi_list, img_fnames, calibrations, point_cloud, rgb, img_dims, 8, 2122)
 
     def test_read_scene_data_from_colmap_format(self) -> None:
@@ -296,21 +302,28 @@ class TestColmapIO(unittest.TestCase):
         )
         self._check_scene_data(wTi_list, img_fnames, calibrations, point_cloud, rgb, img_dims, 8, 2122)
 
+    def test_tracks_from_colmap_unsorted(self) -> None:
+        """Test conversion from COLMAP dicts to SfmTrack list for unsorted COLMAP data."""
+        data_dir = TEST_DATA_ROOT / "unsorted_colmap"
+        _, images, points3d = colmap_io.read_model(path=str(data_dir), ext=".txt")
+
+        sfm_tracks = io_utils.tracks_from_colmap(images, points3d)
+        self.assertIsNotNone(sfm_tracks)
+        assert sfm_tracks is not None
+        self.assertTrue(all(isinstance(track, SfmTrack) for track in sfm_tracks))
+        self.assertEqual(len(sfm_tracks), len(points3d))
+
     def test_colmap2gtsfm_unsorted(self) -> None:
-        """Test conversion from COLMAP dicts to GTSfM format."""
+        """Test conversion from COLMAP dicts to GTSfM format for unsorted COLMAP data."""
         data_dir = TEST_DATA_ROOT / "unsorted_colmap"
         cameras, images, points3d = colmap_io.read_model(path=str(data_dir), ext=".txt")
 
         # image_id_to_idx = io_utils.colmap_image_id_to_idx(images)
         # self.assertDictEqual(image_id_to_idx, {300: 0, 100: 1, 200: 2})
 
-        img_fnames, wTi_list, calibrations, sfm_tracks, point_cloud, rgb, img_dims = io_utils.colmap2gtsfm(
-            cameras, images, points3d, load_sfm_tracks=True
+        img_fnames, wTi_list, calibrations, point_cloud, rgb, img_dims = io_utils.colmap2gtsfm(
+            cameras, images, points3d
         )
-        self.assertIsNotNone(sfm_tracks)
-        assert sfm_tracks is not None
-        self.assertTrue(all(isinstance(track, SfmTrack) for track in sfm_tracks))
-        self.assertEqual(len(sfm_tracks), len(points3d))
         self._check_scene_data(wTi_list, img_fnames, calibrations, point_cloud, rgb, img_dims, 3, 2)
 
     def test_read_scene_data_from_colmap_format_unsorted(self) -> None:
