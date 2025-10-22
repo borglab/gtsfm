@@ -51,6 +51,9 @@ class ColmapScene:
             and self.rgb.shape[0] == self.num_points()
         )
 
+    def __repr__(self) -> str:
+        return f"ColmapScene(num_images={len(self.img_fnames)}, num_points={self.num_points()})"
+
 
 def read_dir_hierarchy_as_tree(base_dir: str) -> Tree[Path]:
     """Read a hierarchy of directories into a Tree[Path].
@@ -80,21 +83,6 @@ def read_dir_hierarchy_as_tree(base_dir: str) -> Tree[Path]:
 
 
 NamedColmapScene = tuple[Path, ColmapScene | None]
-
-
-def print_tree_cameras_and_points(tree: Tree[NamedColmapScene] | None) -> None:
-    """Prints each node in the tree with #cameras and #points if Scene, else None."""
-    if tree is None:
-        print("No tree found.")
-        return
-    for node in tree:
-        path, scene = node.value
-        if scene is None:
-            print(f"{path}: None")
-        else:
-            num_cameras = len(scene.img_fnames)
-            num_points = scene.point_cloud.shape[0] if scene.point_cloud is not None else 0
-            print(f"{path}: {num_cameras} cameras, {num_points} points")
 
 
 def read_colmap_hierarchy_as_tree(base_dir: str, name: str = "ba_output") -> Tree[NamedColmapScene] | None:

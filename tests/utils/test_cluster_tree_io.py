@@ -46,11 +46,8 @@ class TestClusterTreeIO(unittest.TestCase):
         )
 
     def test_read_colmap_hierarchy_as_tree_lund_door_binary(self) -> None:
-        # Base directory containing the COLMAP hierarchy shown in the prompt.
-        base_dir = TEST_DATA_ROOT / "lund_door_binary"
-
-        # Execute
-        tree = cluster_tree_io.read_colmap_hierarchy_as_tree(str(base_dir))
+        """Test reading the COLMAP hierarchy as a tree of (Path, ColmapScene)."""
+        tree = cluster_tree_io.read_colmap_hierarchy_as_tree(str(self.base_dir))
         assert tree is not None
 
         # Sanity-check scene contents for all leaves
@@ -75,14 +72,11 @@ class TestClusterTreeIO(unittest.TestCase):
                 stems_sizes.append((path.stem, scene.num_points()))
         self.assertEqual(stems_sizes, [("C_1_1", 1721), ("C_1_2", 1740), ("C_2_1", 1784), ("C_2_2", 1654)])
 
-    @unittest.skip("slow")
-    def test_read_palace_metis(self) -> None:
-        # Base directory containing the COLMAP hierarchy shown in the prompt.
-        base_dir = Path("/Users/dellaert/git/gtsfm/palace_metis")
-
-        # Execute
-        tree = cluster_tree_io.read_colmap_hierarchy_as_tree(str(base_dir), "sparse")
-        cluster_tree_io.print_tree_cameras_and_points(tree)
+    def test_read_dir_hierarchy_as_tree_empty(self) -> None:
+        """Test reading an empty directory hierarchy as a tree of Paths."""
+        empty_dir = TEST_DATA_ROOT / "lund_door_binary" / "C_1" / "C_1_1" / "ba_output"
+        tree = cluster_tree_io.read_colmap_hierarchy_as_tree(str(empty_dir))
+        self.assertIsNone(tree)
 
 
 if __name__ == "__main__":
