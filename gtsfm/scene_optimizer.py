@@ -198,5 +198,5 @@ class SceneOptimizer:
         retriever_metrics.add_metric(GtsfmMetric("retriever_duration_sec", retriever_duration_sec))
         logger.info("🚀 Image pair retrieval took %.2f min.", retriever_duration_sec / 60.0)
 
-        image_futures = self.get_all_images_as_futures(client)
+        image_futures = self.loader.get_all_images_as_futures(client)
         return retriever_metrics, visibility_graph, image_futures
