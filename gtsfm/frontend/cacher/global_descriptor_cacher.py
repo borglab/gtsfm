@@ -9,14 +9,15 @@ Example: To cache output of `NetVLADGlobalDescriptor`, use
 Authors: John Lambert
 """
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 
 import numpy as np
+import torch
 
 import gtsfm.utils.cache as cache_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
-from gtsfm.common.image import Image
+# from gtsfm.common.image import Image
 from gtsfm.frontend.global_descriptor.global_descriptor_base import GlobalDescriptorBase
 
 logger = logger_utils.get_logger()
