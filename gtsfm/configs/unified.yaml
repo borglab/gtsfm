@@ -15,6 +15,8 @@ image_pairs_generator:
     num_matched: 5
     min_score: 0.3
     max_frame_lookahead: 15
+  image_pairs_generator.batch_size: 2
+
 
 cluster_optimizer:
   _target_: gtsfm.cluster_optimizer.ClusterOptimizer
