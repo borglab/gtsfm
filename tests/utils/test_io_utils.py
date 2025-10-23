@@ -139,8 +139,8 @@ class TestIoUtils(unittest.TestCase):
         # Perform write and read operations inside a temporary directory
         with tempfile.TemporaryDirectory() as tempdir:
             images_fpath = Path(tempdir) / "images.txt"
-            image_file_names = [img.file_name for img in images]
-            gtsfm_data.write_images(image_file_names, tempdir)
+            image_filenames = [img.file_name for img in images]
+            gtsfm_data.write_images(tempdir, image_filenames)
             wTi_list, _ = io_utils.read_images_txt(images_fpath)
             recovered_wTc = wTi_list[0]
 
@@ -172,7 +172,7 @@ class TestIoUtils(unittest.TestCase):
             cameras_fpath = Path(tempdir) / "cameras.txt"
 
             image_shapes = [img.shape for img in images]
-            gtsfm_data.write_cameras(image_shapes, tempdir)
+            gtsfm_data.write_cameras(tempdir, image_shapes)
             recovered_calibrations, _ = io_utils.read_cameras_txt(cameras_fpath)
 
         assert recovered_calibrations is not None
