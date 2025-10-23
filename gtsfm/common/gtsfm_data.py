@@ -535,13 +535,13 @@ class GtsfmData:
 
     # COLMAP export functions
 
-    def write_cameras(self, images: List[Image], save_dir: str) -> None:
+    def write_cameras(self, image_shapes: List[Tuple[int, int, int]], save_dir: str) -> None:
         """Writes the camera data file in the COLMAP format.
 
         Reference: https://colmap.github.io/format.html#cameras-txt
 
         Args:
-            images: List of all images for this scene, in order of image index.
+            image_shapes: List of all image shapes for this scene, in order of image index.
             save_dir: Folder to put the cameras.txt file in.
         """
         os.makedirs(save_dir, exist_ok=True)
@@ -559,12 +559,13 @@ class GtsfmData:
                 camera_i = self.get_camera(i)
                 assert camera_i is not None, "Camera %d is None" % i
                 gtsfm_cal = camera_i.calibration()
-                colmap_cam = gtsfm_calibration_to_colmap_camera(i, gtsfm_cal, images[i].height, images[i].width)
+                shape_i = image_shapes[i]
+                colmap_cam = gtsfm_calibration_to_colmap_camera(i, gtsfm_cal, shape_i[0], shape_i[1])
                 to_write = [colmap_cam.id, colmap_cam.model, colmap_cam.width, colmap_cam.height, *colmap_cam.params]
                 line = " ".join([str(elem) for elem in to_write])
                 f.write(line + "\n")
 
-    def write_images(self, images: List[Image], save_dir: str) -> None:
+    def write_images(self, image_file_names: List[str | None], save_dir: str) -> None:
         """Writes the image data file in the COLMAP format.
 
         Reference: https://colmap.github.io/format.html#images-txt
@@ -573,7 +574,7 @@ class GtsfmData:
         which COLMAP refers to as the "reconstructed cameras".
 
         Args:
-            images: List of all images for this scene, in order of image index.
+            image_file_names: List of all image file names for this scene, in order of image index.
             save_dir: Folder to put the images.txt file in.
         """
         os.makedirs(save_dir, exist_ok=True)
@@ -600,7 +601,6 @@ class GtsfmData:
             f.write(f"# Number of images: {num_imgs}, mean observations per image: {mean_obs_per_img:.3f}\n")
 
             for i in self.get_valid_camera_indices():
-                img_fname = images[i].file_name
                 camera = self.get_camera(i)
                 assert camera is not None, "Camera %d is None" % i
                 # COLMAP exports camera extrinsics (cTw), not the poses (wTc), so must invert
@@ -610,7 +610,7 @@ class GtsfmData:
                 tx, ty, tz = itw
                 qw, qx, qy, qz = iRw_quaternion.w(), iRw_quaternion.x(), iRw_quaternion.y(), iRw_quaternion.z()
 
-                f.write(f"{i} {qw} {qx} {qy} {qz} {tx} {ty} {tz} {i} {img_fname}\n")
+                f.write(f"{i} {qw} {qx} {qy} {qz} {tx} {ty} {tz} {i} {image_file_names[i]}\n")
 
                 # write out points2d
                 for j in range(self.number_tracks()):
@@ -668,6 +668,9 @@ class GtsfmData:
             images: List of all images for this scene, in order of image index.
             save_dir: Folder where text files will be saved.
         """
-        self.write_cameras(images, save_dir)
-        self.write_images(images, save_dir)
+        image_shapes = [img.shape for img in images]
+        self.write_cameras(image_shapes, save_dir)
+
+        image_file_names = [img.file_name for img in images]
+        self.write_images(image_file_names, save_dir)
         self.write_points(images, save_dir)
