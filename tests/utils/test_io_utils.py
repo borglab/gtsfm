@@ -318,8 +318,8 @@ class TestColmapIO(unittest.TestCase):
         data_dir = TEST_DATA_ROOT / "unsorted_colmap"
         cameras, images, points3d = colmap_io.read_model(path=str(data_dir), ext=".txt")
 
-        # image_id_to_idx = io_utils.colmap_image_id_to_idx(images)
-        # self.assertDictEqual(image_id_to_idx, {300: 0, 100: 1, 200: 2})
+        image_id_to_idx = io_utils.colmap_image_id_to_idx(images)
+        self.assertDictEqual(image_id_to_idx, {300: 0, 100: 1, 200: 2})
 
         img_fnames, wTi_list, calibrations, point_cloud, rgb, img_dims = io_utils.colmap2gtsfm(
             cameras, images, points3d
