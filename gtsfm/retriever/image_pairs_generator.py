@@ -64,8 +64,7 @@ class ImagePairsGenerator:
             scatter_start = time.time()
             
             global_descriptor_future = client.scatter(self._global_descriptor, broadcast=True)
-            
-            logger.info(f"✅ Scatter completed in {time.time()-scatter_start:.1f} seconds")
+        
             # Submit descriptor extraction jobs for all images in parallel
             descriptor_futures = [
                 client.submit(apply_global_descriptor_batch, global_descriptor_future, batch_future)
