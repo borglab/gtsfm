@@ -188,6 +188,7 @@
         "pydegensac",
         "pytest",
         "quats",
+        "randn",
         "ransac",
         "rasterizer",
         "RENDERABLE",
