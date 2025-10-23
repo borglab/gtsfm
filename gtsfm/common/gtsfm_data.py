@@ -175,107 +175,48 @@ class GtsfmData:
         return True
 
     def number_images(self) -> int:
-        """Getter for the number of images.
-
-        Returns:
-            Number of images.
-        """
+        """Returns the number of images."""
         return self._number_images
 
     def number_tracks(self) -> int:
-        """Getter for the number of tracks.
-
-        Returns:
-            Number of tracks.
-        """
+        """Returns the number of tracks."""
         return len(self._tracks)
 
     def get_valid_camera_indices(self) -> List[int]:
-        """Getter for image indices where there is a valid (not None) camera.
-
-        Returns:
-            List of indices with a valid camera.
-        """
+        """Returns indices of valid cameras."""
         return list(self._cameras.keys())
 
     def get_camera(self, index: int) -> Optional[gtsfm_types.CAMERA_TYPE]:
-        """Getter for camera.
-
-        Args:
-            index: the image index to fetch the camera for.
-
-        Returns:
-            The camera if it is a valid one, None otherwise.
-        """
+        """Returns camera for given index, or None."""
         return self._cameras.get(index)
 
     def get_camera_poses(self) -> List[Optional[Pose3]]:
-        """Getter for camera poses wTi.
-
-        This function returns the pose for all cameras (equal to number_images in GtsfmData), even if they were not
-        computed by the pipeline.
-
-        Returns:
-            camera poses as a list, each representing wTi
-        """
+        """Returns poses for all cameras (wTi), including missing ones as None."""
         cameras = [self.get_camera(i) for i in range(self.number_images())]
         poses = [camera.pose() if camera is not None else None for camera in cameras]
-
         return poses
 
     def get_track(self, index: int) -> SfmTrack:
-        """Getter for the track.
-
-        Args:
-            index: track index to fetch.
-
-        Returns:
-            Requested track.
-        """
+        """Returns track at given index."""
         return self._tracks[index]
 
     def add_track(self, track: SfmTrack) -> bool:
-        """Add a track, after checking if all the cameras in the track are already added.
-
-        Args:
-            track: track to add.
-
-        Returns:
-            Flag indicating the success of adding operation.
-        """
-        # check if all cameras are already added
+        """Adds a track if all cameras exist; returns success flag."""
         for j in range(track.numberMeasurements()):
             i, _ = track.measurement(j)
-
             if i not in self._cameras:
-                # TODO (travisdriver): Should we throw an error here?
                 return False
-
         self._tracks.append(track)
         return True
 
     def get_tracks(self) -> List[SfmTrack]:
-        """Getter for all the tracks.
-
-        Returns:
-            Tracks in the object
-        """
+        """Returns all tracks."""
         return self._tracks
 
     def add_camera(self, index: int, camera: gtsfm_types.CAMERA_TYPE) -> None:
-        """Adds a camera.
-
-        Args:
-            index: the index associated with this camera.
-            camera: camera object to it.
-
-        Raises:
-            ValueError: if the camera to be added is not a valid camera object.
-        """
+        """Adds camera at index if not already present."""
         if camera is None:
             raise ValueError("Camera cannot be None, should be a valid camera")
-
-        # if camera with the given index has not been added, add this new camera
         if index not in self._cameras:
             self._cameras[index] = camera
 
