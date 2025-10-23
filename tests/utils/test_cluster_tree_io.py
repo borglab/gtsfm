@@ -3,6 +3,7 @@ Unit tests for io utility functions.
 Authors: Frank Dellaert.
 """
 
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -78,13 +79,31 @@ class TestClusterTreeIO(unittest.TestCase):
         tree = cluster_tree_io.read_colmap_hierarchy_as_tree(str(empty_dir))
         self.assertIsNone(tree)
 
-    # def test_write_colmap_hierarchy_as_tree(self) -> None:
-    #     """Test writing the COLMAP hierarchy as a tree."""
-    #     tree = cluster_tree_io.read_colmap_hierarchy_as_tree(str(self.base_dir))
-    #     assert tree is not None
+    def test_write_colmap_hierarchy_as_tree(self) -> None:
+        """Test writing the COLMAP hierarchy as a tree."""
+        tree = cluster_tree_io.read_colmap_hierarchy_as_tree(str(self.base_dir))
+        assert tree is not None
 
-    #     with tempfile.TemporaryDirectory() as temp_dir:
-    #         cluster_tree_io.write_colmap_hierarchy_as_tree(tree, temp_dir)
+        image_shapes = [(800, 600)] * 10  # Dummy shapes
+        image_filenames = [f"image_{i}.jpg" for i in range(10)]  # Dummy filenames
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cluster_tree_io.write_colmap_hierarchy_as_tree(
+                tree, temp_dir, image_shapes=image_shapes, image_filenames=image_filenames
+            )
+            # Read back the written tree and verify it matches the original
+            read_back_tree = cluster_tree_io.read_colmap_hierarchy_as_tree(temp_dir)
+            assert read_back_tree is not None, "Read back tree is None"
+            # Compare the two trees
+            for orig_node, read_node in zip(PreOrderIter(tree), PreOrderIter(read_back_tree)):
+                orig_path, orig_scene = orig_node.value
+                read_path, read_scene = read_node.value
+                self.assertEqual(orig_path, read_path)
+                if orig_scene is None:
+                    self.assertIsNone(read_scene)
+                else:
+                    self.assertIsNotNone(read_scene)
+                    self.assertEqual(orig_scene.number_tracks(), read_scene.number_tracks())
 
 
 if __name__ == "__main__":

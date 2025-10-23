@@ -6,7 +6,7 @@ Authors: Frank Dellaert
 from pathlib import Path
 
 from gtsfm.common.gtsfm_data import GtsfmData
-from gtsfm.utils.tree import Tree
+from gtsfm.utils.tree import PreOrderIter, Tree
 
 
 def read_dir_hierarchy_as_tree(base_dir: str | Path) -> Tree[Path]:
@@ -54,13 +54,35 @@ def read_colmap_hierarchy_as_tree(base_dir: str | Path, name: str = "ba_output")
 
     def transform(p: Path) -> NamedGtsfmData:
         ba_dir = p / name
+        relative_path = p.relative_to(base_dir)
         if ba_dir.is_dir():
             scene = GtsfmData.read_colmap(str(ba_dir))
-            return (p, scene)
-        return (p, None)
+            return (relative_path, scene)
+        return (relative_path, None)
 
     # Map the directory tree into a Tree[(str, GtsfmData|None)]
     mapped_tree = dir_tree.map(transform)
 
     # Prune nodes without scene data
     return mapped_tree.prune(lambda x: x[1] is not None)
+
+
+def write_colmap_hierarchy_as_tree(tree: Tree[NamedGtsfmData] | None, output_base_dir: str | Path, **kwargs) -> None:
+    """Write a COLMAP hierarchy stored as a tree in the exact nested directory structure on disk.
+    Args:
+        tree: Tree whose nodes contain (Path, GtsfmData|None) tuples.
+        output_base_dir: Root directory where the COLMAP hierarchy will be written.
+        **kwargs: Additional keyword arguments to pass to GtsfmData.export_as_colmap_text().
+    """
+    if tree is None:
+        return
+
+    output_base_path = Path(output_base_dir)
+    output_base_path.mkdir(parents=True, exist_ok=True)
+
+    for node in PreOrderIter(tree):
+        relative_path, scene = node.value
+        if scene is not None:
+            path = output_base_path / relative_path
+            ba_output_dir = path / "ba_output"
+            scene.export_as_colmap_text(ba_output_dir, **kwargs)
