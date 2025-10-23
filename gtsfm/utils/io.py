@@ -12,9 +12,9 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import h5py  # type: ignore
 import numpy as np  # type: ignore
-import open3d
+import open3d  # type: ignore
 import simplejson as json  # type: ignore
-from gtsam import Cal3Bundler, Pose3, Rot3, SfmTrack
+from gtsam import Cal3Bundler, Pose3, Rot3, SfmTrack  # type: ignore
 from PIL import Image as PILImage
 from PIL.ExifTags import GPSTAGS, TAGS
 
@@ -130,71 +130,92 @@ def read_json_file(fpath: Union[str, Path]) -> Any:
         return json.load(f)
 
 
+def colmap_image_id_to_idx(images: Dict[int, ColmapImage]) -> Dict[int, int]:
+    """Map COLMAP image IDs to their corresponding indices in the GTSFM data structures."""
+    imgs = list(images.values())
+    sorted_idxs = _get_sorted_idx([im.name for im in imgs])
+    return {imgs[i].id: new_idx for new_idx, i in enumerate(sorted_idxs)}
+
+
+def tracks_from_colmap(images: Dict[int, ColmapImage], points3D: Dict[int, ColmapPoint3D]) -> List[SfmTrack]:
+    """Extract SfmTracks from COLMAP data structures."""
+    image_id_to_idx = colmap_image_id_to_idx(images)
+    sfm_tracks_gtsfm: list[SfmTrack] = []
+    for point3D in points3D.values():
+        sfm_track = SfmTrack(point3D.xyz)
+        sfm_track.r = point3D.rgb[0]
+        sfm_track.g = point3D.rgb[1]
+        sfm_track.b = point3D.rgb[2]
+        for image_id, point2d_idx in zip(point3D.image_ids, point3D.point2D_idxs):
+            sfm_track.addMeasurement(image_id_to_idx[image_id], images[image_id].xys[point2d_idx])
+        sfm_tracks_gtsfm.append(sfm_track)
+
+    return sfm_tracks_gtsfm
+
+
+def image_data_from_colmap(
+    cameras: Dict[int, ColmapCamera], images: Dict[int, ColmapImage]
+) -> List[Tuple[str, Pose3, CALIBRATION_TYPE, Tuple[int, int]]]:
+    """Extract image data from COLMAP data structures.
+
+    Args:
+        cameras: Dictionary of COLMAP-formatted Camera objects.
+        images: Dictionary of COLMAP-formatted Image objects.
+
+    Returns:
+        a list of tuples containing:
+            img_fname: File name of the image in images_gtsfm.
+            wTi_gtsfm: Camera pose when the image was taken.
+            intrinsics_gtsfm: Camera calibration corresponding to the image in images_gtsfm.
+            img_dim: Dimensions of the image (H, W).
+    """
+    # Note: Assumes input cameras use `PINHOLE` model
+    if len(images) == 0 and len(cameras) == 0:
+        raise RuntimeError("No Image or Camera data provided to loader.")
+
+    image_id_to_idx = colmap_image_id_to_idx(images)
+    n = len(image_id_to_idx)
+    out: List[Tuple[str, Pose3, CALIBRATION_TYPE, Tuple[int, int]]] = [None] * n  # type: ignore
+
+    # We ignore missing IDs (un-estimated cameras) and re-order without them.
+    for img in images.values():
+        if img.id not in image_id_to_idx:
+            continue
+        idx = image_id_to_idx[img.id]
+        camera = cameras[img.camera_id]
+        out[idx] = (
+            img.name,
+            Pose3(Rot3(img.qvec2rotmat()), img.tvec).inverse(),
+            colmap_camera_to_gtsam_calibration(camera),
+            (camera.height, camera.width),
+        )
+
+    return out
+
+
 def colmap2gtsfm(
-    cameras: Dict[int, ColmapCamera],
-    images: Dict[int, ColmapImage],
-    points3D: Dict[int, ColmapPoint3D],
-    load_sfm_tracks: bool = False,
-) -> Tuple[
-    List[str],
-    List[Pose3],
-    List[CALIBRATION_TYPE],
-    Optional[List[SfmTrack]],
-    np.ndarray,
-    np.ndarray,
-    List[Tuple[int, int]],
-]:
-    """Converts COLMAP-formatted variables to GTSfM format.
+    cameras: Dict[int, ColmapCamera], images: Dict[int, ColmapImage], points3D: Dict[int, ColmapPoint3D]
+) -> Tuple[List[str], List[Pose3], List[CALIBRATION_TYPE], np.ndarray, np.ndarray, List[Tuple[int, int]]]:
+    """Converts COLMAP-formatted variables to GTSfM format. NOTE(Frank): silly synced lists version
 
     Args:
         cameras: Dictionary of COLMAP-formatted Cameras.
         images: Dictionary of COLMAP-formatted Images.
         points3D: Dictionary of COLMAP-formatted Point3Ds.
-        return_tracks (optional): Whether or not to return tracks.
 
     Returns:
         img_fnames: File names of images in images_gtsfm.
         wTi_gtsfm: List of N camera poses when each image was taken.
         intrinsics_gtsfm: List of N camera calibrations corresponding to the N images in images_gtsfm.
-        sfm_tracks_gtsfm: Tracks of points in points3D.
         point_cloud: (N,3) array representing xyz coordinates of 3d points.
         rgb: Uint8 array of shape (N,3) representing per-point colors.
         img_dims: List of dimensions of each img (H, W).
     """
-    # Note: Assumes input cameras use `PINHOLE` model
-    if len(images) == 0 and len(cameras) == 0:
-        raise RuntimeError("No Image or Camera data provided to loader.")
-    intrinsics_gtsfm, wTi_gtsfm, img_fnames, img_dims = [], [], [], []
-    image_id_to_idx = {}  # Keeps track of discrepancies between `image_id` and List index.
-    # We ignore missing IDs (un-estimated cameras) and re-order without them.
-    for idx, img in enumerate(images.values()):
-        wTi_gtsfm.append(Pose3(Rot3(img.qvec2rotmat()), img.tvec).inverse())
-        img_fnames.append(img.name)
-        intrinsics_gtsfm.append(colmap_camera_to_gtsam_calibration(cameras[img.camera_id]))
-        image_id_to_idx[img.id] = idx
-        img_h, img_w = cameras[img.camera_id].height, cameras[img.camera_id].width
-        img_dims.append((img_h, img_w))
-
-    # Reorder images according to image name.
-    wTi_gtsfm, img_fnames, sorted_idxs = sort_poses_and_filenames(wTi_gtsfm, img_fnames)
-    old_idx_to_new_idx = {old_idx: new_idx for new_idx, old_idx in enumerate(sorted_idxs)}
-    image_id_to_idx = {image_id: old_idx_to_new_idx[old_idx] for image_id, old_idx in image_id_to_idx.items()}
-
-    # Convert COLMAP's Point3D to SfmTrack.
-    if len(points3D) == 0 and load_sfm_tracks:
-        raise RuntimeError("No SfMTrack data provided to loader.")
-    sfm_tracks_gtsfm: list[SfmTrack] | None = None
-    if len(points3D) > 0 and load_sfm_tracks:
-        sfm_tracks_gtsfm = []
-        for point3D in points3D.values():
-            sfm_track = SfmTrack(point3D.xyz)
-            for image_id, point2d_idx in zip(point3D.image_ids, point3D.point2D_idxs):
-                sfm_track.addMeasurement(image_id_to_idx[image_id], images[image_id].xys[point2d_idx])
-            sfm_tracks_gtsfm.append(sfm_track)
-
+    image_data = image_data_from_colmap(cameras, images)
+    img_fnames, wTi_gtsfm, intrinsics_gtsfm, img_dims = zip(*image_data)
     point_cloud = np.array([point3d.xyz for point3d in points3D.values()])
     rgb = np.array([point3d.rgb for point3d in points3D.values()])
-    return img_fnames, wTi_gtsfm, intrinsics_gtsfm, sfm_tracks_gtsfm, point_cloud, rgb, img_dims
+    return list(img_fnames), list(wTi_gtsfm), list(intrinsics_gtsfm), point_cloud, rgb, list(img_dims)
 
 
 def read_cameras_txt(fpath: Union[str, Path]) -> Tuple[Optional[List[Cal3Bundler]], Optional[List[Tuple[int, int]]]]:
@@ -293,9 +314,14 @@ def read_images_txt(fpath: Union[str, Path]) -> Tuple[List[Pose3], List[str]]:
     return wTi_list_sorted, img_fnames_sorted
 
 
+def _get_sorted_idx(img_fnames: List[str]) -> List[int]:
+    """Get sorted indices of a list of image file names."""
+    return sorted(range(len(img_fnames)), key=lambda i: img_fnames[i])
+
+
 def sort_poses_and_filenames(wTi_list: List[Pose3], img_fnames: List[str]) -> Tuple[List[Pose3], List[str], List[int]]:
     """Sort a list of camera poses according to provided image file names."""
-    sorted_idxs = sorted(range(len(img_fnames)), key=lambda i: img_fnames[i])
+    sorted_idxs = _get_sorted_idx(img_fnames)
 
     wTi_list_sorted = [wTi_list[i] for i in sorted_idxs]
     img_fnames_sorted = [img_fnames[i] for i in sorted_idxs]
@@ -379,13 +405,10 @@ def read_scene_data_from_colmap_format(
             f"Unknown file format, as neither `{data_dir}/images.txt` or `{data_dir}/images.bin` could be found."
         )
     cameras, images, points3d = colmap_io.read_model(path=data_dir, ext=file_format)
-    img_fnames, wTi_list, calibrations, _, point_cloud, rgb, img_dims = colmap2gtsfm(
-        cameras, images, points3d, load_sfm_tracks=False
-    )
+    img_fnames, wTi_list, calibrations, point_cloud, rgb, img_dims = colmap2gtsfm(cameras, images, points3d)
 
     if any(x is None for x in [wTi_list, img_fnames, calibrations, point_cloud, rgb]):
         raise RuntimeError("One or more of the requested model data products was not found.")
-    print(f"Loaded {len(wTi_list)} cameras with {point_cloud.shape[0]} points.")
     return wTi_list, img_fnames, calibrations, point_cloud, rgb, img_dims
 
 

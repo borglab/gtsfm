@@ -6,6 +6,7 @@ Authors: Ayush Baid
 import copy
 import unittest
 import unittest.mock as mock
+from pathlib import Path
 
 import gtsam  # type: ignore
 import numpy as np
@@ -30,6 +31,8 @@ EXAMPLE_WITH_NON_CONSECUTIVE_CAMS.add_camera(index=2, camera=cam1)
 EXAMPLE_WITH_NON_CONSECUTIVE_CAMS.add_camera(index=3, camera=cam2)
 
 EQUALITY_TOLERANCE = 1e-5
+
+TEST_DATA_ROOT = Path(__file__).resolve().parent.parent / "data"
 
 
 class TestGtsfmData(unittest.TestCase):
@@ -82,7 +85,8 @@ class TestGtsfmData(unittest.TestCase):
         test_data.add_camera(index=i, camera=expected)
 
         computed = test_data.get_camera(i)
-        self.assertTrue(computed.equals(expected, EQUALITY_TOLERANCE))
+        assert computed is not None
+        self.assertTrue(computed.equals(expected, EQUALITY_TOLERANCE))  # type: ignore
 
     def test_get_camera_invalid(self):
         """Test for get_camera for an index where the camera does not exist."""
@@ -113,7 +117,7 @@ class TestGtsfmData(unittest.TestCase):
 
         self.assertTrue(gtsfm_data.add_track(track_to_add))
 
-    def test_add_track_with_nonexistant_cameras(self) -> None:
+    def test_add_track_with_nonexistent_cameras(self) -> None:
         """Testing track addition where some cameras are not in tracks, resulting in failure."""
         gtsfm_data = copy.deepcopy(EXAMPLE_DATA)
 
@@ -165,8 +169,8 @@ class TestGtsfmData(unittest.TestCase):
     def test_select_largest_connected_component(self, graph_largest_cc_mock):
         """Test pruning to largest connected component according to tracks.
 
-        The function under test calles the graph utility, which has been mocked and we test the call against the mocked
-        object.
+        The function under test calls the graph utility,
+        which has been mocked and we test the call against the mocked object.
         """
         gtsfm_data = GtsfmData(5)
         cam = PinholeCameraCal3Bundler(Pose3(), Cal3Bundler())
@@ -217,7 +221,9 @@ class TestGtsfmData(unittest.TestCase):
         # threshold
         expected_data = GtsfmData(EXAMPLE_DATA.number_images())
         for i in EXAMPLE_DATA.get_valid_camera_indices():
-            expected_data.add_camera(i, EXAMPLE_DATA.get_camera(i))
+            camera_i = EXAMPLE_DATA.get_camera(i)
+            assert camera_i is not None
+            expected_data.add_camera(i, camera_i)
 
         for j in VALID_TRACK_INDICES:
             expected_data.add_track(EXAMPLE_DATA.get_track(j))
@@ -242,6 +248,29 @@ class TestGtsfmData(unittest.TestCase):
         data: GtsfmData = GtsfmData.read_bundler(filename)
         self.assertEqual(data.number_images(), 5)
         self.assertEqual(data.number_tracks(), 544)
+
+    def test_read_colmap(self) -> None:
+        """Test reading a COLMAP scene using GtsfmData.read_colmap."""
+        data_dir = TEST_DATA_ROOT / "crane_mast_8imgs_colmap_output"
+        gtsfm_data = GtsfmData.read_colmap(str(data_dir))
+        # Check number of images and tracks
+        self.assertEqual(gtsfm_data.number_images(), 8)
+        self.assertEqual(gtsfm_data.number_tracks(), 2122)
+        # Check camera types and poses
+        for i in range(gtsfm_data.number_images()):
+            camera_i = gtsfm_data.get_camera(i)
+            assert camera_i is not None
+            self.assertIsNotNone(camera_i)
+            self.assertIsInstance(camera_i.pose(), Pose3)
+
+        # Check track types
+        self.assertTrue(all(isinstance(track, SfmTrack) for track in gtsfm_data.get_tracks()))
+        # Check image dimensions for first camera
+        cam0 = gtsfm_data.get_camera(0)
+        self.assertIsNotNone(cam0)
+        assert cam0 is not None
+        self.assertEqual(cam0.calibration().px(), 2028)
+        self.assertEqual(cam0.calibration().py(), 1520)
 
 
 if __name__ == "__main__":

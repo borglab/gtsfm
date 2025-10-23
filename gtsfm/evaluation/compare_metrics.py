@@ -17,9 +17,9 @@ from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
 
 def compute_metrics_from_txt(
-    cameras: Dict[colmap_io.Camera, int],
-    images: Dict[colmap_io.Image, int],
-    points3d: Dict[colmap_io.Point3D, int],
+    cameras: Dict[int, colmap_io.Camera],
+    images: Dict[int, colmap_io.Image],
+    points3d: Dict[int, colmap_io.Point3D],
     reproj_error_threshold: int,
 ):
     """Calculate metrics from pipeline outputs parsed from COLMAP txt format.
@@ -33,7 +33,8 @@ def compute_metrics_from_txt(
     Returns:
         other_pipeline_metrics: A dictionary of metrics from another pipeline that are comparable with GTSfM
     """
-    _, _, intrinsics_gtsfm, sfm_tracks, _, _, _ = io_utils.colmap2gtsfm(cameras, images, points3d, load_sfm_tracks=True)
+    sfm_tracks = io_utils.tracks_from_colmap(images, points3d)
+    _, _, intrinsics_gtsfm, _, _, _ = io_utils.colmap2gtsfm(cameras, images, points3d)
 
     num_cameras = len(intrinsics_gtsfm)
     unfiltered_track_lengths = []
