@@ -4,7 +4,6 @@ Authors: Ayush Baid, John Lambert
 """
 
 import os
-from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
@@ -18,12 +17,12 @@ from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBa
 from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
 from gtsfm.bundle.global_ba import GlobalBundleAdjustment
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.common.outputs import Outputs
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 from gtsfm.data_association.cpp_dsf_tracks_estimator import CppDsfTracksEstimator
 from gtsfm.data_association.data_assoc import DataAssociation
-from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 from gtsfm.products.one_view_data import OneViewData
 from gtsfm.products.two_view_result import TwoViewResult
 from gtsfm.products.visibility_graph import AnnotatedGraph
@@ -96,8 +95,8 @@ class MultiViewOptimizer:
         two_view_results_graph: Delayed,
         one_view_data_dict: Dict[int, OneViewData],
         image_delayed_map: Dict[int, Delayed],
-        output_root: Optional[Path] = None,
-    ) -> Tuple[Delayed, Delayed, Delayed, list]:
+        outputs: Optional[Outputs] = None,
+    ) -> Tuple[Delayed, Delayed, Delayed, List[Delayed]]:
         """Creates a computation graph for multi-view optimization.
 
         Args:
@@ -105,13 +104,13 @@ class MultiViewOptimizer:
             two_view_results_graph: Delayed task producing valid two-view results for image pairs.
             one_view_data_dict: Per-view data entries keyed by image index.
             image_delayed_map: Delayed image fetch tasks keyed by image index.
-            output_root: Path where output should be saved.
+            outputs: Optional collection of paths and sinks for persistence.
 
         Returns:
             The GtsfmData input to bundle adjustment, aligned to GT (if provided), wrapped up as Delayed.
             The final output GtsfmData, wrapped up as Delayed.
             Dict of TwoViewEstimationReports after view graph estimation.
-            List of GtsfmMetricGroups from different modules, wrapped up as Delayed.
+            List of delayed tasks producing side effects (e.g. metrics persistence).
         """
 
         i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, two_view_reports, pose_priors_graph = delayed(
@@ -120,8 +119,8 @@ class MultiViewOptimizer:
 
         # Create debug directory.
         debug_output_dir = None
-        if output_root:
-            debug_output_dir = output_root / "debug"
+        if outputs is not None:
+            debug_output_dir = outputs.plot_base / "debug"
             os.makedirs(debug_output_dir, exist_ok=True)
 
         num_images = len(one_view_data_dict)
@@ -141,6 +140,7 @@ class MultiViewOptimizer:
                 keypoints_graph,
                 two_view_reports,
                 debug_output_dir,
+                outputs=outputs,
             )
 
             # Second view graph estimator expects the same TwoViewResult format
@@ -160,30 +160,32 @@ class MultiViewOptimizer:
                 keypoints_graph,
                 viewgraph_two_view_reports_graph,
                 second_debug_output_dir,
+                outputs=outputs,
             )
         else:
             viewgraph_i2Ri1_graph = i2Ri1_dict
             viewgraph_i2Ui1_graph = i2Ui1_dict
             viewgraph_v_corr_idxs_graph = v_corr_idxs_dict
             viewgraph_two_view_reports_graph = two_view_reports
-            viewgraph_estimation_metrics = delayed(GtsfmMetricsGroup("view_graph_estimation_metrics", []))
+            viewgraph_estimation_metrics = None
 
         # Prune the graph to a single connected component.
         gt_wTi_list = [one_view_data_dict[idx].pose_gt for idx in range(num_images)]
         pruned_i2Ri1_graph, pruned_i2Ui1_graph = delayed(graph_utils.prune_to_largest_connected_component, nout=2)(
             viewgraph_i2Ri1_graph, viewgraph_i2Ui1_graph, pose_priors_graph
         )
-        delayed_wRi, rot_avg_metrics = self.rot_avg_module.create_computation_graph(
+        delayed_wRi = self.rot_avg_module.create_computation_graph(
             num_images,
             pruned_i2Ri1_graph,
             i1Ti2_priors=pose_priors_graph,
             gt_wTi_list=gt_wTi_list,
             v_corr_idxs=viewgraph_v_corr_idxs_graph,
+            outputs=outputs,
         )
         tracks2d_graph = delayed(get_2d_tracks)(viewgraph_v_corr_idxs_graph, keypoints_graph)
 
         absolute_pose_priors = [one_view_data_dict[idx].absolute_pose_prior for idx in range(num_images)]
-        wTi_graph, ta_metrics, ta_inlier_idx_i1_i2 = self.trans_avg_module.create_computation_graph(
+        wTi_graph, ta_inlier_idx_i1_i2 = self.trans_avg_module.create_computation_graph(
             num_images,
             pruned_i2Ui1_graph,
             delayed_wRi,
@@ -192,6 +194,7 @@ class MultiViewOptimizer:
             absolute_pose_priors,
             pose_priors_graph,
             gt_wTi_list=gt_wTi_list,
+            outputs=outputs,
         )
         ta_v_corr_idxs_graph = delayed(filter_corr_by_idx)(viewgraph_v_corr_idxs_graph, ta_inlier_idx_i1_i2)
         ta_inlier_tracks_2d_graph = delayed(get_2d_tracks)(ta_v_corr_idxs_graph, keypoints_graph)
@@ -201,35 +204,34 @@ class MultiViewOptimizer:
 
         cameras_gt = [one_view_data_dict[idx].camera_gt for idx in range(num_images)]
         images: List[Delayed] = [image_delayed_map[idx] for idx in range(num_images)]
-        ba_input_graph, data_assoc_metrics_graph = self.data_association_module.create_computation_graph(
+        ba_input_graph = self.data_association_module.create_computation_graph(
             num_images,
             init_cameras_graph,
             ta_inlier_tracks_2d_graph,
             cameras_gt,
             pose_priors_graph,
             images,
+            outputs=outputs,
         )
 
-        ba_result_graph, ba_metrics_graph = self.ba_optimizer.create_computation_graph(
+        results_dir = str(outputs.results) if outputs is not None else None
+        ba_result_graph = self.ba_optimizer.create_computation_graph(
             ba_input_graph,
             absolute_pose_priors,
             pose_priors_graph,
             cameras_gt,
-            save_dir=str(output_root) if output_root else None,
+            save_dir=results_dir,
+            outputs=outputs,
         )
 
-        multiview_optimizer_metrics_graph = [
-            viewgraph_estimation_metrics,
-            rot_avg_metrics,
-            ta_metrics,
-            data_assoc_metrics_graph,
-            ba_metrics_graph,
-        ]
+        side_effect_tasks: List[Delayed] = []
+        if viewgraph_estimation_metrics is not None:
+            side_effect_tasks.append(viewgraph_estimation_metrics)
 
         # Align the sparse multi-view estimate before BA to the ground truth pose graph.
         ba_input_graph = delayed(alignment_utils.align_gtsfm_data_via_Sim3_to_poses)(ba_input_graph, gt_wTi_list)
 
-        return ba_input_graph, ba_result_graph, viewgraph_two_view_reports_graph, multiview_optimizer_metrics_graph
+        return ba_input_graph, ba_result_graph, viewgraph_two_view_reports_graph, side_effect_tasks
 
 
 def init_cameras(

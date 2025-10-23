@@ -7,6 +7,7 @@ and grids of box or histogram plots generated using plotly.
 
 Authors: Akshay Krishnan, Jon Womack
 """
+
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -19,6 +20,23 @@ import gtsfm.evaluation.metrics as metrics
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 
 SUBPLOTS_PER_ROW = 3
+
+
+def _is_numeric(value: Any) -> bool:
+    """Return True if value can be safely interpreted as a float."""
+    try:
+        float(value)
+    except (TypeError, ValueError):
+        return False
+    return True
+
+
+def _summary_is_all_nan(summary: Dict[str, Any]) -> bool:
+    """Check if all numeric entries in the summary are NaN."""
+    numeric_entries = [float(v) for v in summary.values() if _is_numeric(v)]
+    if not numeric_entries:
+        return False
+    return all(np.isnan(v) for v in numeric_entries)
 
 
 def get_readable_metric_name(metric_name: str) -> str:
@@ -131,8 +149,7 @@ def create_plots_for_distributions(metrics_dict: Dict[str, Any]) -> str:
     for metric, value in metrics_dict.items():
         if not isinstance(value, dict):
             continue
-        all_nan_summary = all(np.isnan(v) for v in value[metrics.SUMMARY_KEY].values())
-        if not all_nan_summary:
+        if not _summary_is_all_nan(value.get(metrics.SUMMARY_KEY, {})):
             distribution_metrics.append(metric)
 
     if len(distribution_metrics) == 0:
@@ -177,8 +194,7 @@ def create_plots_for_distributions_and_compare(
     # Separate all the 1D distribution metrics.
     for metric, value in metrics_dict.items():
         if isinstance(value, dict):
-            all_nan_summary = all(np.isnan(v) for v in value[metrics.SUMMARY_KEY].values())
-            if not all_nan_summary:
+            if not _summary_is_all_nan(value.get(metrics.SUMMARY_KEY, {})):
                 distribution_metrics.append(metric)
     if len(distribution_metrics) == 0:
         return ""

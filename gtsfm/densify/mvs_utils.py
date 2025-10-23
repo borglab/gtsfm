@@ -2,14 +2,16 @@
 
 Authors: Ren Liu, Ayush Baid
 """
+
 import math
-from typing import Tuple
+from typing import Optional, Tuple
 
 import numpy as np
 from gtsam import PinholeCameraCal3Bundler, Unit3
 from scipy.spatial import KDTree
 
 import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
+from gtsfm.common.metrics_sink import MetricsSink
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.utils import ellipsoid as ellipsoid_utils
 from gtsfm.utils import geometry_comparisons as geometry_utils
@@ -23,7 +25,7 @@ def calculate_triangulation_angle_in_degrees(
 ) -> float:
     """Calculates the angle formed at the 3D point by the rays backprojected from 2 cameras.
     In the setup with X (point_3d) and two cameras C1 and C2, the triangulation angle is the angle between rays C1-X
-    and C2-X, i.e. the angle subtendted at the 3d point.
+    and C2-X, i.e. the angle subtended at the 3d point.
         X
        / \
       /   \
@@ -53,9 +55,9 @@ def calculate_triangulation_angle_in_degrees(
 def calculate_triangulation_angles_in_degrees(
     camera_1: PinholeCameraCal3Bundler, camera_2: PinholeCameraCal3Bundler, points_3d: np.ndarray
 ) -> np.ndarray:
-    """Vectorized. calculuation of the angles formed at 3D points by the rays backprojected from 2 cameras.
+    """Vectorized. calculation of the angles formed at 3D points by the rays backprojected from 2 cameras.
     In the setup with X (point_3d) and two cameras C1 and C2, the triangulation angle is the angle between rays C1-X
-    and C2-X, i.e. the angle subtendted at the 3d point.
+    and C2-X, i.e. the angle subtended at the 3d point.
         X
        / \
       /   \
@@ -147,7 +149,7 @@ def cart_to_homogenous(
 
 def estimate_voxel_scales(points: np.ndarray) -> np.ndarray:
     """Estimate the voxel scales along 3 orthogonal axes through computing semi-axis lengths of a centered point cloud
-    by eigendecomposition, see Ellipsoid from point cloud: https://forge.epn-campus.eu/svn/vtas/vTIU/doc/ellipsoide.pdf
+    by eigen-decomposition, see Ellipsoid from point cloud: https://forge.epn-campus.eu/svn/vtas/vTIU/doc/ellipsoide.pdf
 
     Args:
         points: array of shape (N,3)
@@ -166,7 +168,7 @@ def estimate_voxel_scales(points: np.ndarray) -> np.ndarray:
 
 def estimate_minimum_voxel_size(points: np.ndarray, scale: float = 0.02) -> float:
     """Estimate the minimum voxel size for point cloud simplification by downsampling
-        1. compute the minimum semi-axis length of a centered point cloud by eigendecomposition
+        1. compute the minimum semi-axis length of a centered point cloud by eigen-decomposition
         2. scale it to obtain the minimum voxel size for point cloud simplification by downsampling
 
     Args:
@@ -183,7 +185,7 @@ def estimate_minimum_voxel_size(points: np.ndarray, scale: float = 0.02) -> floa
     if N < 2:
         return 0
 
-    # get semi-axis lengths along 3 orthogonal axes in desent order
+    # get semi-axis lengths along 3 orthogonal axes in descent order
     voxel_scales = estimate_voxel_scales(points=points)
 
     # set the minimum voxel size as the scaled minimum semi-axis length
@@ -247,7 +249,8 @@ def compute_downsampling_psnr(original_point_cloud: np.ndarray, downsampled_poin
     d_downsampled_to_original, _ = original_tree.query(downsampled_point_cloud)
     d_original_to_downsampled, _ = downsampled_tree.query(original_point_cloud)
 
-    RMS = lambda data: np.sqrt(np.square(data).mean())
+    def RMS(data):
+        return np.sqrt(np.square(data).mean())
 
     psnr = 20.0 * np.log10(est_voxel_scale / max(RMS(d_downsampled_to_original), RMS(d_original_to_downsampled)))
 
@@ -255,8 +258,11 @@ def compute_downsampling_psnr(original_point_cloud: np.ndarray, downsampled_poin
 
 
 def get_voxel_downsampling_metrics(
-    min_voxel_size: float, original_point_cloud: np.ndarray, downsampled_point_cloud: np.ndarray
-) -> GtsfmMetricsGroup:
+    min_voxel_size: float,
+    original_point_cloud: np.ndarray,
+    downsampled_point_cloud: np.ndarray,
+    metrics_sink: Optional[MetricsSink] = None,
+) -> None:
     """Collect and compute metrics for voxel downsampling
     Args:
         min_voxel_size: minimum voxel size for voxel downsampling
@@ -264,7 +270,7 @@ def get_voxel_downsampling_metrics(
         downsampled_point_cloud: dense point cloud after downsampling
 
     Returns:
-        GtsfmMetricsGroup: voxel downsamping metrics group
+        GtsfmMetricsGroup: voxel down-samping metrics group
     """
     psnr = compute_downsampling_psnr(
         original_point_cloud=original_point_cloud, downsampled_point_cloud=downsampled_point_cloud
@@ -285,4 +291,5 @@ def get_voxel_downsampling_metrics(
     )
     downsampling_metrics.append(GtsfmMetric(name="downsampling PSNR", data=psnr))
 
-    return GtsfmMetricsGroup(name="voxel downsampling metrics", metrics=downsampling_metrics)
+    if metrics_sink is not None:
+        metrics_sink.record(GtsfmMetricsGroup(name="voxel downsampling metrics", metrics=downsampling_metrics))

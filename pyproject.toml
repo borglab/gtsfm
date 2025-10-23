@@ -11,3 +11,8 @@ generated-members = ["numpy.*", "torch.*", "cv2.*", "cv.*", "scipy.*", "gtsam.*"
 [tool.flake8]
 max-line-length = 120
 ignore = ["E201", "E202", "E203", "E231", "W291", "W293", "E303", "W391", "E402", "W503"]
+
+[tool.pytest.ini_options]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')"
+]

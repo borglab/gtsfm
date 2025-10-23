@@ -3,10 +3,10 @@
 Authors: Ayush Baid, John Lambert
 """
 
-from typing import List, Optional
+from typing import List, Optional, Sequence
 
 import numpy as np
-from gtsam import Pose3, Rot3, Unit3
+from gtsam import Pose3, Rot3, Unit3  # type: ignore
 from scipy.spatial.transform import Rotation
 
 import gtsfm.utils.alignment as alignment_utils
@@ -59,8 +59,8 @@ def compare_rotations(
 
 
 def compare_global_poses(
-    aTi_list: List[Optional[Pose3]],
-    bTi_list: List[Optional[Pose3]],
+    aTi_list: Sequence[Optional[Pose3]],
+    bTi_list: Sequence[Optional[Pose3]],
     rot_angular_error_thresh_degrees: float = 2,
     trans_err_atol: float = 1e-2,
     trans_err_rtol: float = 1e-1,

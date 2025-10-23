@@ -14,6 +14,7 @@ from gtsam import Pose3, Rot3
 
 import gtsfm.utils.alignment as alignment_utils
 import gtsfm.utils.metrics as metric_utils
+from gtsfm.common.outputs import Outputs
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
@@ -26,6 +27,7 @@ class RotationAveragingBase(GTSFMProcess):
     rotations.
     """
 
+    @staticmethod
     def get_ui_metadata() -> UiMetadata:
         """Returns data needed to display node and edge info for this process in the process graph."""
 
@@ -66,7 +68,8 @@ class RotationAveragingBase(GTSFMProcess):
         i1Ti2_priors: Dict[Tuple[int, int], PosePrior],
         v_corr_idxs: Dict[Tuple[int, int], np.ndarray],
         wTi_gt: List[Optional[Pose3]],
-    ) -> Tuple[List[Optional[Rot3]], GtsfmMetricsGroup]:
+        outputs: Optional[Outputs] = None,
+    ) -> List[Optional[Rot3]]:
         """Runs rotation averaging and computes metrics.
 
         Args:
@@ -86,10 +89,13 @@ class RotationAveragingBase(GTSFMProcess):
         wRis = self.run_rotation_averaging(num_images, i2Ri1_dict, i1Ti2_priors, v_corr_idxs)
         run_time = time.time() - start_time
 
-        metrics = self.evaluate(wRis, wTi_gt)
-        metrics.add_metric(GtsfmMetric("total_duration_sec", run_time))
+        sink = outputs.metrics_sink if outputs is not None else None
+        if sink is not None:
+            metrics = self.evaluate(wRis, wTi_gt)
+            metrics.add_metric(GtsfmMetric("total_duration_sec", run_time))
+            sink.record(metrics)
 
-        return wRis, metrics
+        return wRis
 
     def evaluate(self, wRi_computed: List[Optional[Rot3]], wTi_gt: List[Optional[Pose3]]) -> GtsfmMetricsGroup:
         """Evaluates the global rotations computed by the rotation averaging implementation.
@@ -123,7 +129,8 @@ class RotationAveragingBase(GTSFMProcess):
         i1Ti2_priors: Dict[Tuple[int, int], PosePrior],
         v_corr_idxs: Dict[Tuple[int, int], np.ndarray],
         gt_wTi_list: List[Optional[Pose3]],
-    ) -> Tuple[Delayed, Delayed]:
+        outputs: Optional[Outputs] = None,
+    ) -> Tuple[Delayed, List[Delayed]]:
         """Create the computation graph for performing rotation averaging.
 
         Args:
@@ -132,17 +139,19 @@ class RotationAveragingBase(GTSFMProcess):
             i1Ti2_priors: Priors on relative poses as (i1, i2): PosePrior on i1Ti2.
             v_corr_idxs: Dict mapping image pair indices (i1, i2) to indices of verified correspondences.
             gt_wTi_list: Ground truth poses, to be used for evaluation.
+            outputs: Optional collection of paths and sinks for persistence.
 
         Returns:
             Global rotations wrapped using dask.delayed.
         """
 
-        wRis, metrics = dask.delayed(self._run_rotation_averaging_base, nout=2)(
+        rotation_graph = dask.delayed(self._run_rotation_averaging_base)(  # type: ignore
             num_images,
             i2Ri1_dict=i2Ri1_graph,
             i1Ti2_priors=i1Ti2_priors,
             v_corr_idxs=v_corr_idxs,
             wTi_gt=gt_wTi_list,
+            outputs=outputs,
         )
 
-        return wRis, metrics
+        return rotation_graph, []

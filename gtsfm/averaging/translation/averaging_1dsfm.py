@@ -15,7 +15,7 @@ import time
 import timeit
 from collections import defaultdict
 from enum import Enum
-from typing import Any, DefaultDict, Dict, List, Optional, Set, Tuple
+from typing import Any, DefaultDict, Dict, List, Optional, Sequence, Set, Tuple
 
 import dask
 import gtsam  # type: ignore
@@ -333,7 +333,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         self,
         tracks: List[SfmTrack2d],
         valid_cameras: Set[int],
-        intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
+        intrinsics: Sequence[Optional[gtsfm_types.CALIBRATION_TYPE]],
         measurements_per_camera=TRACKS_MEASUREMENTS_PER_CAMERA,
     ) -> List[SfmTrack2d]:
         """Removes bad tracks and selects the longest ones until all cameras see `measurements_per_camera` tracks.
@@ -403,8 +403,8 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
     def _get_landmark_directions(
         self,
         tracks_2d: List[SfmTrack2d],
-        intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
-        wRi_list: List[Optional[Rot3]],
+        intrinsics: Sequence[Optional[gtsfm_types.CALIBRATION_TYPE]],
+        wRi_list: Sequence[Optional[Rot3]],
     ) -> RelativeDirectionsDict:
         """Computes the camera to landmark directions for each track, in world frame.
 
@@ -502,10 +502,10 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         wRi_list: List[Optional[Rot3]],
         tracks_2d: Optional[List[SfmTrack2d]] = None,
         intrinsics: Optional[List[Optional[gtsfm_types.CALIBRATION_TYPE]]] = None,
-        absolute_pose_priors: List[Optional[PosePrior]] = [],
+        absolute_pose_priors: Sequence[Optional[PosePrior]] = [],
         i2Ti1_priors: Dict[ImageIndexPair, PosePrior] = {},
         scale_factor: float = 1.0,
-        gt_wTi_list: List[Optional[Pose3]] = [],
+        gt_wTi_list: Sequence[Optional[Pose3]] = [],
     ) -> Tuple[List[Optional[Pose3]], Optional[GtsfmMetricsGroup], Optional[ImageIndexPairs]]:
         """Run the translation averaging.
 

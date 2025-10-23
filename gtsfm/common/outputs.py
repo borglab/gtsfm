@@ -6,32 +6,42 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
+from gtsfm.common.metrics_sink import FileMetricsSink, MetricsSink
+
 
 @dataclass(frozen=True)
-class OutputPaths:
+class Outputs:
     """Container holding filesystem destinations for a (sub-)problem."""
 
     plot_base: Path
     plot_correspondence: Path
     plot_ba_input: Path
     plot_results: Path
-    metrics: Path
+    metrics_dir: Path
     results: Path
     mvs_ply: Path
     gs_path: Path
     interpolated_video: Path
+    metrics_sink: Optional[MetricsSink]
 
 
-def prepare_output_paths(root: Path, leaf_index: Optional[int]) -> OutputPaths:
+def prepare_outputs(
+    root: Path,
+    leaf_index: Optional[int],
+    enable_metrics: bool = True,
+    metrics_sink: Optional[MetricsSink] = None,
+) -> Outputs:
     """
     Create directories for the given root (and optional leaf) and return their locations.
 
     Args:
         root: Base output directory for the run.
         leaf_index: Optional index for the current leaf; if provided, sub-directories are created.
+        enable_metrics: Whether to construct a default file-based metrics sink.
+        metrics_sink: Explicit sink to use. If provided, it overrides enable_metrics.
 
     Returns:
-        OutputPaths describing the filesystem locations for plots, metrics, and results.
+        Outputs describing the filesystem locations for plots, metrics, and results.
     """
     leaf_folder = f"leaf_{leaf_index}" if leaf_index is not None else None
 
@@ -60,14 +70,19 @@ def prepare_output_paths(root: Path, leaf_index: Optional[int]) -> OutputPaths:
     ):
         directory.mkdir(parents=True, exist_ok=True)
 
-    return OutputPaths(
+    sink: Optional[MetricsSink] = metrics_sink
+    if sink is None and enable_metrics:
+        sink = FileMetricsSink(metrics_path)
+
+    return Outputs(
         plot_base=plot_base,
         plot_correspondence=plot_correspondence,
         plot_ba_input=plot_ba_input,
         plot_results=plot_results,
-        metrics=metrics_path,
+        metrics_dir=metrics_path,
         results=results_path,
         mvs_ply=mvs_output_dir / "dense_point_cloud.ply",
         gs_path=gs_output_dir,
         interpolated_video=gs_output_dir / "interpolated_path.mp4",
+        metrics_sink=sink,
     )

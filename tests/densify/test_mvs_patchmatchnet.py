@@ -78,7 +78,7 @@ class TestMVSPatchmatchNet(unittest.TestCase):
         self._sfm_result = self.get_dummy_gtsfm_data()
 
         # Use patchmatchnet to reconstruct dense point cloud. Discarding per-point colors.
-        self._dense_points, _, _ = MVSPatchmatchNet().densify(
+        self._dense_points, _ = MVSPatchmatchNet().densify(
             images=self._img_dict,
             sfm_result=self._sfm_result,
             max_num_views=NUM_IMAGES,

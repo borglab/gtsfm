@@ -29,6 +29,7 @@ import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.tracks as track_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
+from gtsfm.common.outputs import Outputs
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.data_association.point3d_initializer import Point3dInitializer, TriangulationExitCode, TriangulationOptions
@@ -307,6 +308,31 @@ class DataAssociation(GTSFMProcess):
         logger.info("🚀 runtime duration: %.2f sec.", total_duration_sec)
         return ba_input, data_assoc_metrics
 
+    def _run_triangulation_with_sink(
+        self,
+        num_images: int,
+        cameras: Dict[int, gtsfm_types.CAMERA_TYPE],
+        tracks_2d: List[SfmTrack2d],
+        cameras_gt: Sequence[Optional[gtsfm_types.CAMERA_TYPE]],
+        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
+        images: Optional[List[Delayed]],
+        outputs: Optional[Outputs],
+    ) -> GtsfmData:
+        ba_input, data_assoc_metrics = self.run_triangulation_and_evaluate(
+            num_images=num_images,
+            cameras=cameras,
+            tracks_2d=tracks_2d,
+            cameras_gt=cameras_gt,
+            relative_pose_priors=relative_pose_priors,
+            images=images,
+        )
+
+        sink = outputs.metrics_sink if outputs is not None else None
+        if sink is not None:
+            sink.record(data_assoc_metrics)
+
+        return ba_input
+
     def create_computation_graph(
         self,
         num_images: int,
@@ -315,7 +341,8 @@ class DataAssociation(GTSFMProcess):
         cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         images: Optional[List[Delayed]] = None,
-    ) -> Tuple[Delayed, Delayed]:
+        outputs: Optional[Outputs] = None,
+    ) -> Delayed:
         """Creates a computation graph for performing data association.
 
         Args:
@@ -325,19 +352,17 @@ class DataAssociation(GTSFMProcess):
             cameras_gt: A list of cameras with ground truth params, if they exist.
             relative_pose_priors: Pose priors on the relative pose between camera poses.
             images: A list of all images in scene (optional and only for track patch visualization).
+            outputs: Optional collection of paths and sinks for persistence.
 
         Returns:
             ba_input_graph: GtsfmData object wrapped up using delayed.
-            data_assoc_metrics_graph: Dictionary with different statistics about the data
-                association result.
         """
-        ba_input_graph, data_assoc_metrics_graph = dask_delayed(self.run_triangulation_and_evaluate, nout=2)(
+        return dask_delayed(self._run_triangulation_with_sink)(
             num_images=num_images,
             cameras=cameras,
             tracks_2d=tracks_2d,
             cameras_gt=cameras_gt,
             relative_pose_priors=relative_pose_priors,
             images=images,
+            outputs=outputs,
         )
-
-        return ba_input_graph, data_assoc_metrics_graph

@@ -192,7 +192,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
             Initial values as a gtsam.Values object.
         """
         graph = gtsam.NonlinearFactorGraph()
-        anchor_key = None
+        anchor_key: int | None = None
         noise_model = gtsam.noiseModel.Diagonal.Variances(np.array([1e-6, 1e-6, 1e-6, 1e-4, 1e-4, 1e-4], dtype=float))
         for measurement in measurements:
             if anchor_key is None:
