@@ -50,7 +50,7 @@ def downsample(tree: SceneTree, **kwargs) -> SceneTree:
     return tree.map(f)
 
 
-def read_colmap_hierarchy_as_tree(base_dir: str | Path, name: str = "ba_output") -> SceneTree | None:
+def read_colmap(base_dir: str | Path, name: str = "ba_output") -> SceneTree | None:
     """Read a COLMAP hierarchy stored on disk as a tree.
     Args:
         base_dir: Root directory containing the COLMAP hierarchy.
@@ -78,7 +78,7 @@ def read_colmap_hierarchy_as_tree(base_dir: str | Path, name: str = "ba_output")
     return mapped_tree.prune(lambda x: x[1] is not None)
 
 
-def write_colmap_hierarchy_as_tree(tree: SceneTree | None, output_base_dir: str | Path, **kwargs) -> None:
+def write_colmap(tree: SceneTree | None, output_base_dir: str | Path, **kwargs) -> None:
     """Write a COLMAP hierarchy stored as a tree in the exact nested directory structure on disk.
     Args:
         tree: Tree whose nodes contain (Path, GtsfmData|None) tuples.
