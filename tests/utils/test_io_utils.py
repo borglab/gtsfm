@@ -139,8 +139,8 @@ class TestIoUtils(unittest.TestCase):
         # Perform write and read operations inside a temporary directory
         with tempfile.TemporaryDirectory() as tempdir:
             images_fpath = Path(tempdir) / "images.txt"
-
-            gtsfm_data.write_images(images, tempdir)
+            image_filenames = [img.file_name for img in images]
+            gtsfm_data.write_images(tempdir, image_filenames)
             wTi_list, _ = io_utils.read_images_txt(images_fpath)
             recovered_wTc = wTi_list[0]
 
@@ -171,7 +171,8 @@ class TestIoUtils(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tempdir:
             cameras_fpath = Path(tempdir) / "cameras.txt"
 
-            gtsfm_data.write_cameras(images, tempdir)
+            image_shapes = [img.shape for img in images]
+            gtsfm_data.write_cameras(tempdir, image_shapes)
             recovered_calibrations, _ = io_utils.read_cameras_txt(cameras_fpath)
 
         assert recovered_calibrations is not None
@@ -317,8 +318,8 @@ class TestColmapIO(unittest.TestCase):
         data_dir = TEST_DATA_ROOT / "unsorted_colmap"
         cameras, images, points3d = colmap_io.read_model(path=str(data_dir), ext=".txt")
 
-        # image_id_to_idx = io_utils.colmap_image_id_to_idx(images)
-        # self.assertDictEqual(image_id_to_idx, {300: 0, 100: 1, 200: 2})
+        image_id_to_idx = io_utils.colmap_image_id_to_idx(images)
+        self.assertDictEqual(image_id_to_idx, {300: 0, 100: 1, 200: 2})
 
         img_fnames, wTi_list, calibrations, point_cloud, rgb, img_dims = io_utils.colmap2gtsfm(
             cameras, images, points3d

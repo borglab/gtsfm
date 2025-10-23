@@ -17,8 +17,19 @@ def add_no_cache_headers(response):
     return response
 
 
-def find_scenes(base_dir: Path):
-    """Recursively find all ba_output folders with COLMAP outputs."""
+def find_scenes(base_dir: Path) -> list[dict[str, str]]:
+    """Recursively find all ba_output folders with COLMAP outputs.
+
+    Args:
+        base_dir: base directory to scan.
+
+    Returns:
+        List of scenes found, each as a dictionary with keys:
+            - label: human-readable label for the scene
+            - rel_path: relative path from base_dir
+            - points: URL path to points3D.txt
+            - images: URL path to images.txt
+    """
     scenes = []
     for points_file in base_dir.rglob("points3D.txt"):
         if points_file.name != "points3D.txt":

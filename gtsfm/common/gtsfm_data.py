@@ -5,10 +5,9 @@ Authors: Ayush Baid, John Lambert, Xiaolong Wu
 """
 
 import itertools
-import os
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import gtsam  # type: ignore
 import numpy as np
@@ -535,19 +534,20 @@ class GtsfmData:
 
     # COLMAP export functions
 
-    def write_cameras(self, images: List[Image], save_dir: str) -> None:
+    def write_cameras(self, save_dir: str | Path, image_shapes: List[Tuple[int, ...]]) -> None:
         """Writes the camera data file in the COLMAP format.
 
         Reference: https://colmap.github.io/format.html#cameras-txt
 
         Args:
-            images: List of all images for this scene, in order of image index.
             save_dir: Folder to put the cameras.txt file in.
+            image_shapes: List of all image shapes for this scene, in order of image index.
         """
-        os.makedirs(save_dir, exist_ok=True)
+        dir_path = Path(save_dir)
+        dir_path.mkdir(parents=True, exist_ok=True)
 
         # TODO: handle shared intrinsics
-        file_path = os.path.join(save_dir, "cameras.txt")
+        file_path = dir_path / "cameras.txt"
         with open(file_path, "w") as f:
             f.write("# Camera list with one line of data per camera:\n")
             f.write("#   CAMERA_ID, MODEL, WIDTH, HEIGHT, PARAMS[]\n")
@@ -559,12 +559,13 @@ class GtsfmData:
                 camera_i = self.get_camera(i)
                 assert camera_i is not None, "Camera %d is None" % i
                 gtsfm_cal = camera_i.calibration()
-                colmap_cam = gtsfm_calibration_to_colmap_camera(i, gtsfm_cal, images[i].height, images[i].width)
+                shape_i = image_shapes[i]
+                colmap_cam = gtsfm_calibration_to_colmap_camera(i, gtsfm_cal, shape_i[0], shape_i[1])
                 to_write = [colmap_cam.id, colmap_cam.model, colmap_cam.width, colmap_cam.height, *colmap_cam.params]
                 line = " ".join([str(elem) for elem in to_write])
                 f.write(line + "\n")
 
-    def write_images(self, images: List[Image], save_dir: str) -> None:
+    def write_images(self, save_dir: str | Path, image_filenames: Sequence[str | None]) -> None:
         """Writes the image data file in the COLMAP format.
 
         Reference: https://colmap.github.io/format.html#images-txt
@@ -573,10 +574,11 @@ class GtsfmData:
         which COLMAP refers to as the "reconstructed cameras".
 
         Args:
-            images: List of all images for this scene, in order of image index.
+            image_filenames: List of all image file names for this scene, in order of image index.
             save_dir: Folder to put the images.txt file in.
         """
-        os.makedirs(save_dir, exist_ok=True)
+        dir_path = Path(save_dir)
+        dir_path.mkdir(parents=True, exist_ok=True)
 
         num_imgs = self.number_images()
 
@@ -592,7 +594,7 @@ class GtsfmData:
             else 0
         )
 
-        file_path = os.path.join(save_dir, "images.txt")
+        file_path = dir_path / "images.txt"
         with open(file_path, "w") as f:
             f.write("# Image list with two lines of data per image:\n")
             f.write("#   IMAGE_ID, QW, QX, QY, QZ, TX, TY, TZ, CAMERA_ID, NAME\n")
@@ -600,7 +602,6 @@ class GtsfmData:
             f.write(f"# Number of images: {num_imgs}, mean observations per image: {mean_obs_per_img:.3f}\n")
 
             for i in self.get_valid_camera_indices():
-                img_fname = images[i].file_name
                 camera = self.get_camera(i)
                 assert camera is not None, "Camera %d is None" % i
                 # COLMAP exports camera extrinsics (cTw), not the poses (wTc), so must invert
@@ -610,7 +611,7 @@ class GtsfmData:
                 tx, ty, tz = itw
                 qw, qx, qy, qz = iRw_quaternion.w(), iRw_quaternion.x(), iRw_quaternion.y(), iRw_quaternion.z()
 
-                f.write(f"{i} {qw} {qx} {qy} {qz} {tx} {ty} {tz} {i} {img_fname}\n")
+                f.write(f"{i} {qw} {qx} {qy} {qz} {tx} {ty} {tz} {i} {image_filenames[i]}\n")
 
                 # write out points2d
                 for j in range(self.number_tracks()):
@@ -622,22 +623,23 @@ class GtsfmData:
                             f.write(f" {uv_measured[0]:.3f} {uv_measured[1]:.3f} {j}")
                 f.write("\n")
 
-    def write_points(self, images: List[Image], save_dir: str) -> None:
+    def write_points(self, save_dir: str | Path, images: None | List[Image] = None) -> None:
         """Writes the point cloud data file in the COLMAP format.
 
         Reference: https://colmap.github.io/format.html#points3d-txt
 
         Args:
             self: Scene data to write.
-            images: List of all images for this scene, in order of image index.
             save_dir: Folder to put the points3D.txt file in.
+            images: Optional list of all images for this scene, in order of image index, for color extraction.
         """
-        os.makedirs(save_dir, exist_ok=True)
+        dir_path = Path(save_dir)
+        dir_path.mkdir(parents=True, exist_ok=True)
 
         num_pts = self.number_tracks()
         avg_track_length, _ = self.get_track_length_statistics()
 
-        file_path = os.path.join(save_dir, "points3D.txt")
+        file_path = dir_path / "points3D.txt"
         with open(file_path, "w") as f:
             f.write("# 3D point list with one line of data per point:\n")
             f.write("#   POINT3D_ID, X, Y, Z, R, G, B, ERROR, TRACK[] as (IMAGE_ID, POINT2D_IDX)\n")
@@ -649,7 +651,11 @@ class GtsfmData:
             for j in range(num_pts):
                 track = self.get_track(j)
 
-                r, g, b = image_utils.get_average_point_color(track, images)
+                r, g, b = (
+                    image_utils.get_average_point_color(track, images)
+                    if images
+                    else (int(track.r), int(track.g), int(track.b))
+                )
                 _, avg_track_error = reprojection.compute_track_reprojection_errors(self._cameras, track)
                 x, y, z = track.point3()
                 f.write(f"{j} {x} {y} {z} {r} {g} {b} {np.round(avg_track_error, 2)} ")
@@ -659,15 +665,32 @@ class GtsfmData:
                     f.write(f"{i} {point2d_idx} ")
                 f.write("\n")
 
-    def export_as_colmap_text(self, images: List[Image], save_dir: str) -> None:
+    def export_as_colmap_text(
+        self,
+        save_dir: str | Path,
+        images: Optional[List[Image]] = None,
+        image_shapes: Optional[List[Tuple[int, ...]]] = None,
+        image_filenames: Optional[List[str]] = None,
+    ) -> None:
         """Emulates the COLMAP option to `Export model as text`.
 
-        Three text files will be save to disk: "points3D.txt", "images.txt", and "cameras.txt".
+        Three text files will be saved to disk: "points3D.txt", "images.txt", and "cameras.txt".
 
         Args:
-            images: List of all images for this scene, in order of image index.
             save_dir: Folder where text files will be saved.
+            images: Optional list of all images for this scene, in order of image index.
+            image_shapes: Optional list of image shapes (H, W, C) for each image, required if images is None.
+            image_filenames: Optional list of image file names for each image, required if images is None.
         """
-        self.write_cameras(images, save_dir)
-        self.write_images(images, save_dir)
-        self.write_points(images, save_dir)
+        if images is not None:
+            image_shapes_to_use = [img.shape for img in images]
+            image_file_names_to_use: List[str | None] = [img.file_name for img in images]
+        else:
+            if image_shapes is None or image_filenames is None:
+                raise ValueError("If images is None, image_shapes and image_filenames must be provided.")
+            image_shapes_to_use = image_shapes
+            image_file_names_to_use = list(image_filenames)
+
+        self.write_cameras(save_dir, image_shapes_to_use)
+        self.write_images(save_dir, image_file_names_to_use)
+        self.write_points(save_dir, images)

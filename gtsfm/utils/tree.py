@@ -30,12 +30,6 @@ class Tree(Generic[T]):
             leaves.extend(cast(Self, child).leaves())
         return tuple(leaves)
 
-    def traverse(self) -> Iterator["Tree[T]"]:
-        """Yield nodes in a pre-order traversal."""
-        yield self
-        for child in self.children:
-            yield from child.traverse()
-
     def map(self, fn: Callable[[T], U]) -> "Tree[U]":
         """Create a new tree by applying `fn` to every payload."""
         mapped_children = tuple(child.map(fn) for child in self.children)
@@ -73,3 +67,52 @@ class Tree(Generic[T]):
         """
         child_results = tuple(child.fold(fn) for child in self.children)
         return fn(self.value, child_results)
+
+    def prune(self, predicate: Callable[[T], bool]) -> "Tree[T] | None":
+        """
+        Prune subtrees where the predicate is false for all values in the subtree.
+
+        Args:
+            predicate: A callable that takes a node value and returns True if the node should be kept.
+
+        Returns:
+            A new pruned tree or None if the entire tree is pruned.
+        """
+        pruned_children = []
+        for child in self.children:
+            pruned_child = child.prune(predicate)
+            if pruned_child is not None:
+                pruned_children.append(pruned_child)
+
+        if predicate(self.value) or pruned_children:
+            return Tree(value=self.value, children=tuple(pruned_children))
+        else:
+            return None
+
+    def all(self, predicate: Callable[[T], bool]) -> bool:
+        """Return True if predicate is true for all values in the tree."""
+        return self.fold(lambda v, child_results: predicate(v) and all(child_results))
+
+
+class PreOrderIter(Generic[T]):
+    """Iterator over nodes in a pre-order traversal (parent before children)."""
+
+    def __init__(self, root: Tree[T]) -> None:
+        self.root = root
+
+    def __iter__(self) -> Iterator[Tree[T]]:
+        yield self.root
+        for child in self.root.children:
+            yield from PreOrderIter(child)
+
+
+class PostOrderIter(Generic[T]):
+    """Iterator over nodes in a post-order traversal (children before parent)."""
+
+    def __init__(self, root: Tree[T]) -> None:
+        self.root = root
+
+    def __iter__(self) -> Iterator[Tree[T]]:
+        for child in self.root.children:
+            yield from PostOrderIter(child)
+        yield self.root

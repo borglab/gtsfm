@@ -130,7 +130,7 @@ def _merge_poses_final(
     return merged
 
 
-def merge_two_partition_results(poses1: dict[int, Pose3], poses2: dict[int, Pose3]) -> dict[int, Pose3]:
+def merge_two_pose_maps(poses1: dict[int, Pose3], poses2: dict[int, Pose3]) -> dict[int, Pose3]:
     """
     Merges poses from two partitions by finding and applying relative transform aTb.
 
