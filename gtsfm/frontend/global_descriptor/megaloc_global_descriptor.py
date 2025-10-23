@@ -8,7 +8,7 @@
 import numpy as np
 import torch
 from torchvision import transforms
-from typing import List, Optional, Callable
+from typing import List, Optional, Callable, Tuple
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.frontend.global_descriptor.global_descriptor_base import GlobalDescriptorBase
@@ -27,13 +27,24 @@ class MegaLocGlobalDescriptor(GlobalDescriptorBase):
             logger = logger_utils.get_logger()
             logger.info("⏳ Loading MegaLoc model weights...")
             self._model = MegaLocModel().eval()
-    
-    def get_preprocessing_transform(self) -> Optional[Callable]:
-        """Return transform to resize images to 322x322 square.
+
+    def get_preprocessing_transforms(self) -> Tuple[Optional[Callable], Optional[Callable]]:
+        """Return transforms for Megaloc preprocessing.
         
-        This follows the MegaLoc paper's inference protocol (Section 3.1).
+        Resize transform: permute + resize (applied individually)
+        Batch transform: dtype conversion + normalization (applied to batch)
         """
-        return transforms.Resize(size=(322, 322), antialias=True)
+        # Transform 1: Permute [H,W,C]→[C,H,W] and resize
+        resize_transform = transforms.Compose([
+            transforms.Lambda(lambda x: torch.from_numpy(x)),
+            transforms.Lambda(lambda x: x.permute(2, 0, 1)),  # [H,W,C] → [C,H,W]
+            transforms.Resize(size=(322, 322), antialias=True)
+        ])
+        
+        # Transform 2: Convert to float32 and normalize to [0, 1]
+        batch_transform = transforms.Lambda(lambda x: x.type(torch.float32) / 255.0)
+        
+        return resize_transform, batch_transform
         
     def describe_batch(self, images: torch.Tensor) -> List[np.ndarray]:
         """Process multiple images in a single forward pass.

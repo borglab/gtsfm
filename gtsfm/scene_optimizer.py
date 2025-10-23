@@ -177,12 +177,14 @@ class SceneOptimizer:
         transform = None
 
         if self.image_pairs_generator._global_descriptor is not None:
-            transform = self.image_pairs_generator._global_descriptor.get_preprocessing_transform()
+            transform = self.image_pairs_generator._global_descriptor.get_preprocessing_transforms()
             if transform is not None:
-                logger.info(f"🔥 GTSFM: Applying preprocessing transform for global descriptors {transform}")
+                resize_transform, batch_transform = transform
 
         # Image_Batch_Futures is a list of Stacked Tensors with dimension (batch_size, Channels, H, W)
-        image_batch_futures = self.loader.get_all_descriptor_image_batches_as_futures(client, batch_size, transform)
+        image_batch_futures = self.loader.get_all_descriptor_image_batches_as_futures(
+            client, batch_size, resize_transform, batch_transform
+        )
 
         image_fnames = self.loader.image_filenames()
 

@@ -5,7 +5,6 @@ Authors: Frank Dellaert and Ayush Baid
 
 import abc
 import torch
-import numpy as np
 from typing import Dict, List, Optional, Tuple, Callable
 
 from dask.base import annotate as dask_annotate
@@ -173,6 +172,7 @@ class LoaderBase(GTSFMProcess):
         # No downsampling may be required, in which case target_h and target_w will be identical
         # to the full res height & width.
         img_full_res = self.get_image_full_res(index)
+
         if min(img_full_res.height, img_full_res.width) <= self._max_resolution:
             return img_full_res
 
@@ -370,7 +370,12 @@ class LoaderBase(GTSFMProcess):
             for i in range(len(self))
         ]
 
-    def load_image_batch(self, indices: List[int], transform: Optional[Callable] = None) -> torch.Tensor:
+    def load_image_batch(
+        self,
+        indices: List[int],
+        resize_transform: Optional[Callable] = None,
+        batch_transform: Optional[Callable] = None,
+    ) -> torch.Tensor:
         """Helper function that runs on a Dask worker to load a batch of images.
 
         Args:
@@ -381,23 +386,25 @@ class LoaderBase(GTSFMProcess):
             List of loaded (and optionally transformed) images
         """
 
-        # 1. Get images as a List of [H, W, C] numpy arrays
-        image_arrays = [self.get_image(idx).value_array.copy() for idx in indices]
-        
-        # 2. Stack into a single [N, H, W, C] tensor
-        batch_tensor_nhwc = torch.from_numpy(np.stack(image_arrays))
+        # Get images as a List of [H, W, C] numpy arrays
+        image_arrays = [self.get_image(idx).value_array for idx in indices]
 
-        # 3. Permute to [N, C, H, W] and normalize
-        batch_tensor = batch_tensor_nhwc.permute(0, 3, 1, 2).type(torch.float32) / 255.0
+        if resize_transform is not None:
+            image_tensors = [resize_transform(img) for img in image_arrays]
 
-        # 4. Apply the transform to the *entire batch* at once (efficient)
-        if transform is not None:
-            batch_tensor = transform(batch_tensor)
+        batch_tensor = torch.stack(image_tensors, dim=0)
+
+        if batch_transform is not None:
+            batch_tensor = batch_transform(batch_tensor)
 
         return batch_tensor
 
     def get_all_descriptor_image_batches_as_futures(
-        self, client: Client, batch_size: int, transform: Optional[Callable] = None
+        self,
+        client: Client,
+        batch_size: int,
+        resize_transform: Optional[Callable] = None,
+        batch_transform: Optional[Callable] = None,
     ) -> List[Future]:
         if batch_size <= 0:
             raise ValueError("batch_size must be positive.")
@@ -410,7 +417,8 @@ class LoaderBase(GTSFMProcess):
         ]
 
         batch_futures = [
-            client.submit(self.load_image_batch, indices, transform, workers=workers) for indices in index_batches
+            client.submit(self.load_image_batch, indices, resize_transform, batch_transform, workers=workers)
+            for indices in index_batches
         ]
 
         return batch_futures

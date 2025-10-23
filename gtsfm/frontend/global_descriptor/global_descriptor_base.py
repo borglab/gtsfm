@@ -8,7 +8,7 @@ import abc
 import numpy as np
 import torch
 
-from typing import List, Optional, Callable
+from typing import List, Optional, Callable, Tuple
 
 
 class GlobalDescriptorBase:
@@ -33,13 +33,13 @@ class GlobalDescriptorBase:
         # Default implementation: process one at a time
         # Note: This is inefficient and subclasses should override for true batching
 
-    def get_preprocessing_transform(self) -> Optional[Callable]:
-        """Return preprocessing transform to apply to image tensors before inference.
+    def get_preprocessing_transforms(self) -> Tuple[Optional[Callable], Optional[Callable]]:
+        """Return a Resizing Transform and General Batch Transform
         
-        This transform will be applied by the loader when creating batches.
-        The transform should take a tensor of shape [C, H, W] and return [C, H', W'].
+        The resizing transform will take in a numpy array and return a resized torch tensor.
+        The general batch transform should take a tensor of shape [C, H, W] and return [C, H', W'].
         
         Returns:
-            Optional transform function, or None if no preprocessing needed.
+            Optional tupe of (Resize, Batch) Transform functions
         """
         return None  # Default: no transform needed
