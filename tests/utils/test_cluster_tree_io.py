@@ -3,12 +3,11 @@ Unit tests for io utility functions.
 Authors: Frank Dellaert.
 """
 
-import tempfile
 import unittest
 from pathlib import Path
 
 import gtsfm.utils.cluster_tree_io as cluster_tree_io
-from gtsfm.utils.cluster_tree_io import ColmapScene
+from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.utils.tree import PreOrderIter
 
 TEST_DATA_ROOT = Path(__file__).resolve().parent.parent / "data"
@@ -48,7 +47,7 @@ class TestClusterTreeIO(unittest.TestCase):
         )
 
     def test_read_colmap_hierarchy_as_tree_lund_door_binary(self) -> None:
-        """Test reading the COLMAP hierarchy as a tree of (Path, ColmapScene)."""
+        """Test reading the COLMAP hierarchy as a tree of (Path, GtsfmData)."""
         tree = cluster_tree_io.read_colmap_hierarchy_as_tree(str(self.base_dir))
         assert tree is not None
 
@@ -57,8 +56,7 @@ class TestClusterTreeIO(unittest.TestCase):
             path, scene = node.value
             self.assertIsInstance(path, Path)
             if scene:
-                self.assertIsInstance(scene, ColmapScene)
-                self.assertTrue(scene.is_valid())
+                self.assertIsInstance(scene, GtsfmData)
 
         # Check that only the four expected leaf nodes have scene data
         for node in PreOrderIter(tree):
@@ -71,7 +69,7 @@ class TestClusterTreeIO(unittest.TestCase):
             if node.is_leaf():
                 path, scene = node.value
                 assert scene is not None
-                stems_sizes.append((path.stem, scene.num_points()))
+                stems_sizes.append((path.stem, scene.number_tracks()))
         self.assertEqual(stems_sizes, [("C_1_1", 1721), ("C_1_2", 1740), ("C_2_1", 1784), ("C_2_2", 1654)])
 
     def test_read_dir_hierarchy_as_tree_empty(self) -> None:
