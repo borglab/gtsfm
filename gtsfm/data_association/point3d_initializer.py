@@ -18,7 +18,6 @@ import numpy as np
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.reprojection as reproj_utils
-import gtsfm.utils.tracks as track_utils
 from gtsfm.common.sfm_track import SfmTrack2d
 
 NUM_SAMPLES_PER_RANSAC_HYPOTHESIS = 2
@@ -285,6 +284,8 @@ class Point3dInitializer:
             track_3d.addMeasurement(i, uv)
 
         # Check that there is a sufficient triangulation angle.
+        import gtsfm.utils.tracks as track_utils  # to avoid circular import
+
         if (
             track_utils.get_max_triangulation_angle(track_3d, cameras=self.track_camera_dict)
             < self.options.min_triangulation_angle

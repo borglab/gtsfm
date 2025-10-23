@@ -475,7 +475,7 @@ def get_precision_recall_from_errors(
     eps = 1e-12  # prevent division by zero
     precision = tp * 1.0 / (tp + fp + eps)
     recall = tp * 1.0 / (tp + fn + eps)
-    return precision, recall
+    return float(precision), float(recall)
 
 
 def get_rotations_translations_from_poses(
@@ -640,7 +640,7 @@ def pose_auc(errors: np.ndarray, thresholds: Sequence[float], save_dir: Optional
 
         # Integrate along the given axis using the composite trapezoidal rule.
         # As AUC = \int y(x) dx.
-        auc_non_unit: float = np.trapezoid(y=r, x=e)
+        auc_non_unit: float = np.trapz(y=r, x=e)
         # Divide by length of x-axis, as recall & precision usually would be [0,1],
         # but here x-axis (error) extends up to threshold `t`.
         auc_unit = auc_non_unit / t

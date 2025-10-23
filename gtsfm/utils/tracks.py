@@ -2,20 +2,21 @@
 
 Authors: Ayush Baid, Travis Driver
 """
+
 import itertools
 from typing import Dict, List
 
-from gtsam import PinholeCameraCal3Bundler, SfmTrack
+from gtsam import PinholeCameraCal3Bundler, SfmTrack  # type: ignore
 
 import gtsfm.common.types as gtsfm_types
 from gtsfm.common.sfm_track import SfmMeasurement, SfmTrack2d
-from gtsfm.densify.mvs_utils import calculate_triangulation_angle_in_degrees
 from gtsfm.data_association.point3d_initializer import (
     Point3dInitializer,
     TriangulationExitCode,
     TriangulationOptions,
     TriangulationSamplingMode,
 )
+from gtsfm.densify.mvs_utils import calculate_triangulation_angle_in_degrees
 
 
 def classify_tracks2d_with_gt_cameras(

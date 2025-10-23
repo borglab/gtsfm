@@ -6,13 +6,13 @@ Authors: Ayush Baid
 import unittest
 
 import dask
-import gtsam
+import gtsam  # type: ignore
 
-import gtsfm.utils.io as io_utils
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
+from gtsfm.common.gtsfm_data import GtsfmData
 
 GTSAM_EXAMPLE_FILE = "dubrovnik-3-7-pre"
-EXAMPLE_DATA = io_utils.read_bal(gtsam.findExampleDataFile(GTSAM_EXAMPLE_FILE))
+EXAMPLE_DATA = GtsfmData.read_bal(gtsam.findExampleDataFile(GTSAM_EXAMPLE_FILE))
 
 
 class TestBundleAdjustmentOptimizer(unittest.TestCase):
