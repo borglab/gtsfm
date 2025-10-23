@@ -272,7 +272,7 @@ class TestColmapIO(unittest.TestCase):
         self.assertEqual(len(calibrations), num_images)
         self.assertEqual(point_cloud.shape, (num_points, 3))
         self.assertEqual(rgb.shape, (num_points, 3))
-        self.assertEqual(img_dims[0], (3040, 4056))
+        # Note: do not assert a specific first img dim; order may differ by dataset.
 
     def test_tracks_from_colmap(self) -> None:
         """Test conversion from COLMAP dicts to SfmTrack list."""
@@ -324,6 +324,8 @@ class TestColmapIO(unittest.TestCase):
             cameras, images, points3d
         )
         self._check_scene_data(wTi_list, img_fnames, calibrations, point_cloud, rgb, img_dims, 3, 2)
+        self.assertEqual(img_fnames, ["aaa.jpg", "bbb.jpg", "ccc.jpg"])
+        self.assertEqual(img_dims, [(768, 1024), (3040, 4056), (600, 800)])
 
     def test_read_scene_data_from_colmap_format_unsorted(self) -> None:
         """Test reading a full COLMAP scene reconstruction model."""
@@ -332,6 +334,8 @@ class TestColmapIO(unittest.TestCase):
             str(data_dir)
         )
         self._check_scene_data(wTi_list, img_fnames, calibrations, point_cloud, rgb, img_dims, 3, 2)
+        self.assertEqual(img_fnames, ["aaa.jpg", "bbb.jpg", "ccc.jpg"])
+        self.assertEqual(img_dims, [(768, 1024), (3040, 4056), (600, 800)])
 
 
 if __name__ == "__main__":
