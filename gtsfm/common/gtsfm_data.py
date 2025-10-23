@@ -61,6 +61,15 @@ class GtsfmData:
             for track in tracks:
                 self.add_track(track)
 
+    def __repr__(self) -> str:
+        """String representation of the object."""
+        return (
+            f"GtsfmData("
+            f"num_images={self._number_images}, "
+            f"num_cameras={len(self._cameras)}, "
+            f"num_tracks={len(self._tracks)})"
+        )
+
     @classmethod
     def from_sfm_data(cls, sfm_data: gtsam.SfmData) -> "GtsfmData":
         """Initialize from gtsam.SfmData instance.
@@ -479,7 +488,7 @@ class GtsfmData:
 
     def downsample(self, fraction_points_to_keep: float, seed: int = 42) -> "GtsfmData":
         """Downsample the number of 3D points in the scene by randomly selecting a fraction of them."""
-        # TODO(FRank): extend to downsample cameras as well
+        # TODO(Frank): extend to downsample cameras as well
         rng = np.random.default_rng(seed)
         num_tracks = self.number_tracks()
         indices_to_keep = rng.choice(num_tracks, size=int(num_tracks * fraction_points_to_keep), replace=False)
