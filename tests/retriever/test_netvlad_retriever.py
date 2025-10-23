@@ -33,8 +33,12 @@ class TestNetVLADRetriever(unittest.TestCase):
         )
 
         retriever = NetVLADRetriever(num_matched=2)
+        transform = self.global_descriptor.get_preprocessing_transform()
 
-        descriptors = [self.global_descriptor.describe(loader.get_image(i)) for i in range(len(loader))]
+        descriptors = [
+            self.global_descriptor.describe_batch(loader.get_image_with_transform(i, transform).unsqueeze(0))[0]
+            for i in range(len(loader))
+        ]
         pairs = retriever.get_image_pairs(descriptors, loader.image_filenames(), plots_output_dir=None)
 
         # Only 1 pair possible between frame 0 and frame 1.
@@ -45,8 +49,12 @@ class TestNetVLADRetriever(unittest.TestCase):
         """Test the NetVLAD retriever on 12 frames of the Lund Door Dataset."""
         loader = OlssonLoader(dataset_dir=str(DOOR_DATA_ROOT))
         retriever = NetVLADRetriever(num_matched=2)
+        transform = self.global_descriptor.get_preprocessing_transform()
 
-        descriptors = [self.global_descriptor.describe(loader.get_image(i)) for i in range(len(loader))]
+        descriptors = [
+            self.global_descriptor.describe_batch(loader.get_image_with_transform(i, transform).unsqueeze(0))[0]
+            for i in range(len(loader))
+        ]
         pairs = retriever.get_image_pairs(descriptors, loader.image_filenames(), plots_output_dir=None)
 
         self.assertEqual(len(pairs), 21)

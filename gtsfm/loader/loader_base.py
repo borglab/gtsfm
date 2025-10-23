@@ -369,7 +369,19 @@ class LoaderBase(GTSFMProcess):
             for i in range(len(self))
         ]
 
-    def _load_image_batch(self, indices: List[int], transform: Optional[Callable] = None) -> torch.Tensor:
+    def get_image_with_transform(self, idx: int, transform: Optional[Callable] = None) -> torch.Tensor:
+        img = self.get_image(idx)
+
+        img_array = img.value_array.copy()
+        img_tensor = torch.from_numpy(img_array).permute(2, 0, 1)
+
+        # Apply transform if provided
+        if transform is not None:
+            img_tensor = transform(img_tensor)
+
+        return img_tensor.type(torch.float32) / 255.0
+
+    def load_image_batch(self, indices: List[int], transform: Optional[Callable] = None) -> torch.Tensor:
         """Helper function that runs on a Dask worker to load a batch of images.
 
         Args:
@@ -381,16 +393,7 @@ class LoaderBase(GTSFMProcess):
         """
         ready_to_describe_img_tensors = []
         for idx in indices:
-            img = self.get_image(idx)
-
-            img_array = img.value_array.copy()
-            img_tensor = torch.from_numpy(img_array).permute(2, 0, 1)
-
-            # Apply transform if provided
-            if transform is not None:
-                img_tensor = transform(img_tensor)
-
-            ready_to_describe_img_tensors.append(img_tensor.type(torch.float32) / 255.0)
+            ready_to_describe_img_tensors.append(self.get_image_with_transform(idx, transform))
 
         return torch.stack(ready_to_describe_img_tensors).type(torch.float32)
 
@@ -408,7 +411,7 @@ class LoaderBase(GTSFMProcess):
         ]
 
         batch_futures = [
-            client.submit(self._load_image_batch, indices, transform, workers=workers) for indices in index_batches
+            client.submit(self.load_image_batch, indices, transform, workers=workers) for indices in index_batches
         ]
 
         return batch_futures

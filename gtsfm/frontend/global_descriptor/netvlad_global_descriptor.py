@@ -16,7 +16,6 @@ import torch
 from torchvision import transforms
 
 import gtsfm.utils.logger as logger_utils
-from gtsfm.common.image import Image
 from gtsfm.frontend.global_descriptor.global_descriptor_base import GlobalDescriptorBase
 from thirdparty.hloc.netvlad import NetVLAD
 
@@ -61,29 +60,3 @@ class NetVLADGlobalDescriptor(GlobalDescriptorBase):
         # 3. Convert the output tensor back to a list of numpy arrays.
         descs_np = batch_descriptors["global_descriptor"].detach().cpu().numpy()
         return [desc for desc in descs_np]
-
-    def describe(self, image: Image) -> np.ndarray:
-        """Compute the NetVLAD global descriptor for a single image query."""
-        self._ensure_model_loaded()
-        assert self._model is not None, "Model should be loaded by now"
-
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self._model.to(device)
-
-        # Convert to tensor and normalize [0, 255] -> [0, 1]
-        img_array = image.value_array.copy()
-        img_tensor = torch.from_numpy(img_array).permute(2, 0, 1)
-
-        # Apply resize transform
-        transform = self.get_preprocessing_transform()
-        if transform is not None:
-            img_tensor = transform(img_tensor)
-
-        # Move to device and add batch dimension
-        img_tensor = img_tensor.type(torch.float32) / 255.0
-        img_tensor = img_tensor.to(device).unsqueeze(0)
-
-        with torch.no_grad():
-            img_desc = self._model({"image": img_tensor})
-
-        return img_desc["global_descriptor"].detach().squeeze().cpu().numpy()

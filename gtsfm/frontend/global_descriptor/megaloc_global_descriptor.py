@@ -11,7 +11,6 @@ from torchvision import transforms
 from typing import List, Optional, Callable
 
 import gtsfm.utils.logger as logger_utils
-from gtsfm.common.image import Image
 from gtsfm.frontend.global_descriptor.global_descriptor_base import GlobalDescriptorBase
 
 
@@ -57,30 +56,4 @@ class MegaLocGlobalDescriptor(GlobalDescriptorBase):
         
         # Need to unpack into a List of numpy arrays
         return [desc.detach().squeeze().cpu().numpy() for desc in descriptors]
-
-    def describe(self, image: Image) -> np.ndarray:
-        """
-        Computes descriptor for a single image, applying its own transform.
-        This is decoupled from the batch pipeline and is used by unit tests.
-        """
-        self._ensure_model_loaded()
-        assert self._model is not None, "Model should be loaded by now"
-
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self._model.to(device)
-
-        img_array = image.value_array.copy()
-        img_tensor = torch.from_numpy(img_array).permute(2, 0, 1)
-
-        transform = self.get_preprocessing_transform()
-        if transform is not None:
-            img_tensor = transform(img_tensor)
-        
-        img_tensor = img_tensor.type(torch.float32) / 255.0
-        img_tensor = img_tensor.to(device).unsqueeze(0)
-        with torch.no_grad():
-            descriptor = self._model(img_tensor)
-            
-        return descriptor.detach().squeeze().cpu().numpy()
-
     
