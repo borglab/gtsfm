@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 import matplotlib
+from dask.delayed import Delayed
 from dask.distributed import Future, performance_report
 
 import gtsfm.utils.logger as logger_utils
@@ -95,9 +96,8 @@ class SceneOptimizer:
         use_leaf_subdirs = num_leaves > 1
 
         logger.info("🔥 GTSFM: Starting to solve subgraphs...")
-        futures = []
         one_view_data_dict = self.loader.get_one_view_data_dict()
-        leaf_jobs: list[tuple[int, OutputPaths]] = []
+        leaf_tasks: list[tuple[int, OutputPaths, Delayed]] = []
         for index, leaf in enumerate(leaves, 1):
             cluster_visibility_graph = leaf.value
             if use_leaf_subdirs:
@@ -126,22 +126,23 @@ class SceneOptimizer:
             if delayed_result_io_reports is None:
                 logger.warning("Skipping subgraph %d as it has no valid two-view results.", index)
                 continue
-            futures.append(client.compute(delayed_result_io_reports))
-            leaf_jobs.append((index, output_paths))
+            leaf_tasks.append((index, output_paths, delayed_result_io_reports))
 
         logger.info("🔥 GTSFM: Running the computation graph...")
         mvo_metrics_groups_by_leaf: dict[int, list[GtsfmMetricsGroup]] = {}
         with performance_report(filename="dask_reports/scene-optimizer.html"):
-            if futures:
-                results = client.gather(futures)
-                for (leaf_index, output_paths), leaf_results in zip(leaf_jobs, results):
-                    mvo_metrics_groups = leaf_results[2]
-                    if not mvo_metrics_groups:
-                        continue
-                    if use_leaf_subdirs:
-                        save_metrics_reports(mvo_metrics_groups, str(output_paths.metrics))
-                    else:
-                        mvo_metrics_groups_by_leaf[leaf_index] = mvo_metrics_groups
+            for leaf_index, output_paths, delayed_task in leaf_tasks:
+                leaf_future = client.compute(delayed_task)
+                leaf_results = client.gather(leaf_future)
+                if leaf_results is None:
+                    continue
+                mvo_metrics_groups = leaf_results[2]
+                if not mvo_metrics_groups:
+                    continue
+                if use_leaf_subdirs:
+                    save_metrics_reports(mvo_metrics_groups, str(output_paths.metrics))
+                else:
+                    mvo_metrics_groups_by_leaf[leaf_index] = mvo_metrics_groups
 
         # Log total time taken and save metrics report
         end_time = time.time()
