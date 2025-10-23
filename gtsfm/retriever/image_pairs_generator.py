@@ -59,11 +59,17 @@ class ImagePairsGenerator:
             
             if hasattr(self._global_descriptor, '_ensure_model_loaded'):
                 self._global_descriptor._ensure_model_loaded()
+            elif hasattr(self._global_descriptor, '_global_descriptor'):  # 处理Cacher包装
+                if hasattr(self._global_descriptor._global_descriptor, '_ensure_model_loaded'):
+                    self._global_descriptor._global_descriptor._ensure_model_loaded()
+        
             
             logger.info("📡 About to scatter descriptor")
             scatter_start = time.time()
             
             global_descriptor_future = client.scatter(self._global_descriptor, broadcast=True)
+            
+            logger.info(f"✅ Scatter completed in {time.time()-scatter_start:.1f} seconds")
         
             # Submit descriptor extraction jobs for all images in parallel
             descriptor_futures = [
