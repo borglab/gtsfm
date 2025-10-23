@@ -36,10 +36,21 @@ def read_dir_hierarchy_as_tree(base_dir: str | Path) -> Tree[Path]:
     return build_dir_tree(root_path)
 
 
-NamedGtsfmData = tuple[Path, GtsfmData | None]
+LocalScene = tuple[Path, GtsfmData | None]
+SceneTree = Tree[LocalScene]  # Tree whose nodes contain (Path, GtsfmData|None) tuples.
 
 
-def read_colmap_hierarchy_as_tree(base_dir: str | Path, name: str = "ba_output") -> Tree[NamedGtsfmData] | None:
+def downsample(tree: SceneTree, **kwargs) -> SceneTree:
+    """Test reading the COLMAP hierarchy as a tree of (Path, GtsfmData) with downsampling."""
+
+    def f(path_scene) -> LocalScene:
+        path, scene = path_scene
+        return (path, scene.downsample(**kwargs) if scene else None)
+
+    return tree.map(f)
+
+
+def read_colmap_hierarchy_as_tree(base_dir: str | Path, name: str = "ba_output") -> SceneTree | None:
     """Read a COLMAP hierarchy stored on disk as a tree.
     Args:
         base_dir: Root directory containing the COLMAP hierarchy.
@@ -52,7 +63,7 @@ def read_colmap_hierarchy_as_tree(base_dir: str | Path, name: str = "ba_output")
     """
     dir_tree = read_dir_hierarchy_as_tree(base_dir)
 
-    def transform(p: Path) -> NamedGtsfmData:
+    def transform(p: Path) -> LocalScene:
         ba_dir = p / name
         relative_path = p.relative_to(base_dir)
         if ba_dir.is_dir():
@@ -67,7 +78,7 @@ def read_colmap_hierarchy_as_tree(base_dir: str | Path, name: str = "ba_output")
     return mapped_tree.prune(lambda x: x[1] is not None)
 
 
-def write_colmap_hierarchy_as_tree(tree: Tree[NamedGtsfmData] | None, output_base_dir: str | Path, **kwargs) -> None:
+def write_colmap_hierarchy_as_tree(tree: SceneTree | None, output_base_dir: str | Path, **kwargs) -> None:
     """Write a COLMAP hierarchy stored as a tree in the exact nested directory structure on disk.
     Args:
         tree: Tree whose nodes contain (Path, GtsfmData|None) tuples.

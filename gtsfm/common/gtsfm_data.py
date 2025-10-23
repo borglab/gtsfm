@@ -186,6 +186,10 @@ class GtsfmData:
         """Returns indices of valid cameras."""
         return list(self._cameras.keys())
 
+    def cameras(self) -> Dict[int, gtsfm_types.CAMERA_TYPE]:
+        """Returns a dictionary of all cameras indexed by their image indices."""
+        return self._cameras
+
     def get_camera(self, index: int) -> Optional[gtsfm_types.CAMERA_TYPE]:
         """Returns camera for given index, or None."""
         return self._cameras.get(index)
@@ -472,6 +476,15 @@ class GtsfmData:
             aligned_data.add_track(track_a)
 
         return aligned_data
+
+    def downsample(self, fraction_points_to_keep: float, seed: int = 42) -> "GtsfmData":
+        """Downsample the number of 3D points in the scene by randomly selecting a fraction of them."""
+        # TODO(FRank): extend to downsample cameras as well
+        rng = np.random.default_rng(seed)
+        num_tracks = self.number_tracks()
+        indices_to_keep = rng.choice(num_tracks, size=int(num_tracks * fraction_points_to_keep), replace=False)
+        downsampled_tracks = [self._tracks[idx] for idx in indices_to_keep]
+        return GtsfmData(self.number_images(), self.cameras(), downsampled_tracks)
 
     # COLMAP export functions
 

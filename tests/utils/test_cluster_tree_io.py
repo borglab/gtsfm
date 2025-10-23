@@ -79,6 +79,25 @@ class TestClusterTreeIO(unittest.TestCase):
         tree = cluster_tree_io.read_colmap_hierarchy_as_tree(str(empty_dir))
         self.assertIsNone(tree)
 
+    def test_read_colmap_hierarchy_as_tree_with_downsampling(self) -> None:
+        """Test reading the COLMAP hierarchy as a tree of (Path, GtsfmData) with downsampling."""
+        tree = cluster_tree_io.read_colmap_hierarchy_as_tree(str(self.base_dir))
+        assert tree is not None
+
+        seed = 42
+        fraction_points_to_keep = 0.1
+        downsampled_tree = cluster_tree_io.downsample(tree, fraction_points_to_keep=fraction_points_to_keep, seed=seed)
+
+        # Check the number of sizes in the leaves
+        sizes = []
+        for node in PreOrderIter(downsampled_tree):
+            if node.is_leaf():
+                path, scene = node.value
+                assert scene is not None
+                sizes.append(scene.number_tracks())
+        # Check exact sizes with this rng seed and fraction
+        self.assertEqual(sizes, [172, 174, 178, 165])
+
     def test_write_colmap_hierarchy_as_tree(self) -> None:
         """Test writing the COLMAP hierarchy as a tree."""
         tree = cluster_tree_io.read_colmap_hierarchy_as_tree(str(self.base_dir))
