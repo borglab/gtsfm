@@ -176,7 +176,7 @@ def colmap2gtsfm(
         img_dims.append((img_h, img_w))
 
     # Reorder images according to image name.
-    wTi_gtsfm, img_fnames, sorted_idxs = sort_image_filenames_lexicographically(wTi_gtsfm, img_fnames)
+    wTi_gtsfm, img_fnames, sorted_idxs = sort_poses_and_filenames(wTi_gtsfm, img_fnames)
     old_idx_to_new_idx = {old_idx: new_idx for new_idx, old_idx in enumerate(sorted_idxs)}
     image_id_to_idx = {image_id: old_idx_to_new_idx[old_idx] for image_id, old_idx in image_id_to_idx.items()}
 
@@ -288,14 +288,12 @@ def read_images_txt(fpath: Union[str, Path]) -> Tuple[List[Pose3], List[str]]:
         img_fnames.append(img_fname)
 
     # TODO(johnwlambert): Re-order tracks for COLMAP-formatted .bin files.
-    wTi_list_sorted, img_fnames_sorted, _ = sort_image_filenames_lexicographically(wTi_list, img_fnames)
+    wTi_list_sorted, img_fnames_sorted, _ = sort_poses_and_filenames(wTi_list, img_fnames)
 
     return wTi_list_sorted, img_fnames_sorted
 
 
-def sort_image_filenames_lexicographically(
-    wTi_list: List[Pose3], img_fnames: List[str]
-) -> Tuple[List[Pose3], List[str], List[int]]:
+def sort_poses_and_filenames(wTi_list: List[Pose3], img_fnames: List[str]) -> Tuple[List[Pose3], List[str], List[int]]:
     """Sort a list of camera poses according to provided image file names."""
     sorted_idxs = sorted(range(len(img_fnames)), key=lambda i: img_fnames[i])
 
