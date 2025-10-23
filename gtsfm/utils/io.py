@@ -172,19 +172,25 @@ def image_data_from_colmap(
     # Note: Assumes input cameras use `PINHOLE` model
     if len(images) == 0 and len(cameras) == 0:
         raise RuntimeError("No Image or Camera data provided to loader.")
+
     image_id_to_idx = colmap_image_id_to_idx(images)
-    image_data = {}
+    n = len(image_id_to_idx)
+    out: List[Tuple[str, Pose3, CALIBRATION_TYPE, Tuple[int, int]]] = [None] * n  # type: ignore
+
     # We ignore missing IDs (un-estimated cameras) and re-order without them.
     for img in images.values():
+        if img.id not in image_id_to_idx:
+            continue
         idx = image_id_to_idx[img.id]
         camera = cameras[img.camera_id]
-        image_data[idx] = (
+        out[idx] = (
             img.name,
             Pose3(Rot3(img.qvec2rotmat()), img.tvec).inverse(),
             colmap_camera_to_gtsam_calibration(camera),
             (camera.height, camera.width),
         )
-    return list(image_data.values())
+
+    return out
 
 
 def colmap2gtsfm(
