@@ -6,6 +6,7 @@ Authors: John Lambert
 import unittest
 from pathlib import Path
 
+
 from gtsfm.frontend.global_descriptor.netvlad_global_descriptor import NetVLADGlobalDescriptor
 from gtsfm.loader.colmap_loader import ColmapLoader
 from gtsfm.loader.olsson_loader import OlssonLoader
@@ -35,10 +36,11 @@ class TestNetVLADRetriever(unittest.TestCase):
         retriever = NetVLADRetriever(num_matched=2)
         transform = self.global_descriptor.get_preprocessing_transform()
 
-        descriptors = [
-            self.global_descriptor.describe_batch(loader.get_image_with_transform(i, transform).unsqueeze(0))[0]
-            for i in range(len(loader))
-        ]
+        indices = list(range(len(loader)))
+        batch_tensor = loader.load_image_batch(indices, transform)
+
+        descriptors = self.global_descriptor.describe_batch(batch_tensor)
+
         pairs = retriever.get_image_pairs(descriptors, loader.image_filenames(), plots_output_dir=None)
 
         # Only 1 pair possible between frame 0 and frame 1.
@@ -51,10 +53,11 @@ class TestNetVLADRetriever(unittest.TestCase):
         retriever = NetVLADRetriever(num_matched=2)
         transform = self.global_descriptor.get_preprocessing_transform()
 
-        descriptors = [
-            self.global_descriptor.describe_batch(loader.get_image_with_transform(i, transform).unsqueeze(0))[0]
-            for i in range(len(loader))
-        ]
+        indices = list(range(len(loader)))
+        batch_tensor = loader.load_image_batch(indices, transform)
+        
+        descriptors = self.global_descriptor.describe_batch(batch_tensor)
+
         pairs = retriever.get_image_pairs(descriptors, loader.image_filenames(), plots_output_dir=None)
 
         self.assertEqual(len(pairs), 21)

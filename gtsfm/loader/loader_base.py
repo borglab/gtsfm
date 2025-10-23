@@ -5,6 +5,7 @@ Authors: Frank Dellaert and Ayush Baid
 
 import abc
 import torch
+import numpy as np
 from typing import Dict, List, Optional, Tuple, Callable
 
 from dask.base import annotate as dask_annotate
@@ -369,18 +370,6 @@ class LoaderBase(GTSFMProcess):
             for i in range(len(self))
         ]
 
-    def get_image_with_transform(self, idx: int, transform: Optional[Callable] = None) -> torch.Tensor:
-        img = self.get_image(idx)
-
-        img_array = img.value_array.copy()
-        img_tensor = torch.from_numpy(img_array).permute(2, 0, 1)
-
-        # Apply transform if provided
-        if transform is not None:
-            img_tensor = transform(img_tensor)
-
-        return img_tensor.type(torch.float32) / 255.0
-
     def load_image_batch(self, indices: List[int], transform: Optional[Callable] = None) -> torch.Tensor:
         """Helper function that runs on a Dask worker to load a batch of images.
 
@@ -391,11 +380,21 @@ class LoaderBase(GTSFMProcess):
         Returns:
             List of loaded (and optionally transformed) images
         """
-        ready_to_describe_img_tensors = []
-        for idx in indices:
-            ready_to_describe_img_tensors.append(self.get_image_with_transform(idx, transform))
 
-        return torch.stack(ready_to_describe_img_tensors).type(torch.float32)
+        # 1. Get images as a List of [H, W, C] numpy arrays
+        image_arrays = [self.get_image(idx).value_array.copy() for idx in indices]
+        
+        # 2. Stack into a single [N, H, W, C] tensor
+        batch_tensor_nhwc = torch.from_numpy(np.stack(image_arrays))
+
+        # 3. Permute to [N, C, H, W] and normalize
+        batch_tensor = batch_tensor_nhwc.permute(0, 3, 1, 2).type(torch.float32) / 255.0
+
+        # 4. Apply the transform to the *entire batch* at once (efficient)
+        if transform is not None:
+            batch_tensor = transform(batch_tensor)
+
+        return batch_tensor
 
     def get_all_descriptor_image_batches_as_futures(
         self, client: Client, batch_size: int, transform: Optional[Callable] = None
