@@ -3,6 +3,7 @@
 Authors: Ayush Baid
 """
 
+import time
 from pathlib import Path
 from typing import List, Optional
 
@@ -54,9 +55,18 @@ class ImagePairsGenerator:
         descriptors: Optional[List[np.ndarray]] = None  # Will hold global descriptors if computed
 
         if self._global_descriptor is not None:
-            # Scatter descriptor to all workers for efficient parallel processing
+            logger.info("🔍 Starting global descriptor workflow...")
+            
+            if hasattr(self._global_descriptor, '_ensure_model_loaded'):
+                self._global_descriptor._ensure_model_loaded()
+            
+            logger.info("📡 About to scatter descriptor")
+            scatter_start = time.time()
+            
             global_descriptor_future = client.scatter(self._global_descriptor, broadcast=True)
-
+            
+            logger.info(f"✅ Scatter completed in {time.time()-scatter_start:.1f} seconds")
+            # Submit descriptor extraction jobs for all images in parallel
             descriptor_futures = [
                 client.submit(apply_global_descriptor_batch, global_descriptor_future, batch_future)
                 for batch_future in image_batch_futures
