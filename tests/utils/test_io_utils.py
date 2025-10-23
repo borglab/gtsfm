@@ -3,7 +3,6 @@ Unit tests for io utility functions.
 Authors: Adi, Frank Dellaert.
 """
 
-import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -139,7 +138,7 @@ class TestIoUtils(unittest.TestCase):
 
         # Perform write and read operations inside a temporary directory
         with tempfile.TemporaryDirectory() as tempdir:
-            images_fpath = os.path.join(tempdir, "images.txt")
+            images_fpath = Path(tempdir) / "images.txt"
 
             gtsfm_data.write_images(images, tempdir)
             wTi_list, _ = io_utils.read_images_txt(images_fpath)
@@ -170,7 +169,7 @@ class TestIoUtils(unittest.TestCase):
 
         # Round trip
         with tempfile.TemporaryDirectory() as tempdir:
-            cameras_fpath = os.path.join(tempdir, "cameras.txt")
+            cameras_fpath = Path(tempdir) / "cameras.txt"
 
             gtsfm_data.write_cameras(images, tempdir)
             recovered_calibrations, _ = io_utils.read_cameras_txt(cameras_fpath)

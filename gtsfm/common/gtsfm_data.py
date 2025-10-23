@@ -7,6 +7,7 @@ Authors: Ayush Baid, John Lambert, Xiaolong Wu
 import itertools
 import os
 from collections import defaultdict
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import gtsam  # type: ignore
@@ -16,8 +17,10 @@ from gtsam import Pose3, SfmTrack, Similarity3
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.images as image_utils
+import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.reprojection as reprojection
+import thirdparty.colmap.scripts.python.read_write_model as colmap_io
 from gtsfm.common.image import Image
 from gtsfm.products.visibility_graph import ImageIndexPairs
 from gtsfm.utils.pycolmap_utils import gtsfm_calibration_to_colmap_camera
@@ -78,6 +81,38 @@ class GtsfmData:
             gtsfm_data.add_track(sfm_data.track(j))
 
         return gtsfm_data
+
+    @classmethod
+    def read_colmap(cls, data_dir: str) -> "GtsfmData":
+        """Reads in full scene reconstruction model from scene data stored in the COLMAP file format.
+
+        Reference: https://colmap.github.io/format.html
+
+        Args:
+            data_dir: This directory should contain 3 files: either `cameras.txt`, `images.txt`, and `points3D.txt`, or
+                `cameras.bin`, `images.bin`, and `points3D.bin`.
+
+        Returns:
+            A new GtsfmData instance.
+        """
+        # Determine whether scene data is stored in a text (txt) or binary (bin) file format.
+        if Path(data_dir, "images.txt").exists():
+            file_format = ".txt"
+        elif Path(data_dir, "images.bin").exists():
+            file_format = ".bin"
+        else:
+            raise ValueError(
+                f"Unknown file format, as neither `{data_dir}/images.txt` or `{data_dir}/images.bin` could be found."
+            )
+        cameras, images, points3d = colmap_io.read_model(path=data_dir, ext=file_format)
+        tracks = io_utils.tracks_from_colmap(images, points3d)
+        image_data = io_utils.image_data_from_colmap(cameras, images)
+        gtsam_cameras = {}
+        for i, (_, wTi, calibration, _) in enumerate(image_data):
+            camera_type = gtsfm_types.get_camera_class_for_calibration(calibration)
+            gtsam_cameras[i] = camera_type(wTi, calibration)  # type: ignore
+
+        return cls(len(images), gtsam_cameras, tracks)
 
     @classmethod
     def read_bal(cls, file_path: str) -> "GtsfmData":
