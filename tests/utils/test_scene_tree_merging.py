@@ -4,6 +4,7 @@ Authors: Frank Dellaert.
 """
 
 import pickle
+import random
 import unittest
 from pathlib import Path
 
@@ -29,22 +30,33 @@ def merge(a: GtsfmData, b: GtsfmData) -> GtsfmData:
     print(f"merge A:{a}, {sorted(a.poses().keys())[:3]}")
     print(f"merge B:{b}, {sorted(b.poses().keys())[:3]}")
     try:
-        merged_poses = merging_utils.merge_two_pose_maps(a.poses(), b.poses())
+        aTb = merging_utils.calculate_transform(a.poses(), b.poses())
+        print(f"Calculated aTb: {aTb}")
     except ValueError:
         print("Cannot merge GtsfmData objects.")
         return a
-    all_cameras = a.cameras().copy()
-    for key, cam in b.cameras().items():
-        if key not in all_cameras:
-            all_cameras[key] = cam
-    merged_cameras = {k: create_camera(pose, all_cameras[k].calibration()) for k, pose in merged_poses.items()}
 
+    # Create merged cameras with updated poses. Only b-poses need to be updated.
+    merged_cameras = a.cameras().copy()
+    for i, cam in b.cameras().items():
+        # TODO: what to do if we have conflicting calibrations?
+        if i not in merged_cameras:
+            bTi = cam.pose()
+            merged_cameras[i] = create_camera(aTb * bTi, cam.calibration())
+
+    # Create merged tracks
     merged_tracks = a.tracks().copy()
-    merged_tracks.extend(b.tracks())
-    merged_data = GtsfmData(len(merged_cameras), merged_cameras, [])
+    # For all b_tracks, update the point by multiplying with aTb:
+    for track in b.tracks():
+        track.p = aTb.transformFrom(track.p)  # from b to a
+        merged_tracks.append(track)
+
+    # Create merged GtsfmData
     # Hack: don't remap tracks for now, just copy them over.
+    merged_data = GtsfmData(len(merged_cameras), merged_cameras, [])
     merged_data._tracks = merged_tracks
-    print(f"Merged data:{merged_data}, {sorted(merged_data.poses().keys())[:3]}")
+
+    print(f"Merged data:{merged_data}, {sorted(merged_data.poses().keys())[:3]}\n")
     return merged_data
 
 
@@ -100,9 +112,18 @@ class TestClusterTreeIO(unittest.TestCase):
             new_data = GtsfmData(len(new_cameras), new_cameras, [])
             # HACK(Frank): don't remap tracks for now, just copy them over.
             new_data._tracks = scene.tracks().copy()
+            r = random.randint(0, 255)
+            g = random.randint(0, 255)
+            b = random.randint(0, 255)
+            print(f"Reordering scene at {path}, color=({r},{g},{b})")
+            for track in new_data.tracks():
+                track.r = r
+                track.g = g
+                track.b = b
             return path, new_data
 
         print(cluster_tree)
+        random.seed(0)  # For reproducibility
         reordered_tree: SceneTree = Tree.zip(cluster_tree, tree).map(reorder)
         self.assertEqual(scene_tree.number_tracks(reordered_tree), scene_tree.number_tracks(tree))
 
