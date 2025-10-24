@@ -35,6 +35,14 @@ class Tree(Generic[T]):
         mapped_children = tuple(child.map(fn) for child in self.children)
         return Tree[U](value=fn(self.value), children=mapped_children)
 
+    @classmethod
+    def zip(cls, a: Tree[T], b: Tree[U]) -> "Tree[Tuple[T, U]]":
+        """Create a new tree by combining payload of two trees."""
+        if len(a.children) != len(b.children):
+            raise ValueError("Trees must have the same structure to zip.")
+        zipped_children = tuple(cls.zip(a_child, b_child) for a_child, b_child in zip(a.children, b.children))
+        return Tree(value=(a.value, b.value), children=zipped_children)
+
     def fold(self, fn: Callable[[T, Tuple[U, ...]], U]) -> U:
         """
         Aggregate the tree by reducing nodes bottom-up using the provided function `fn`.

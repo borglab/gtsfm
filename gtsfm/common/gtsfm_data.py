@@ -187,6 +187,10 @@ class GtsfmData:
         """Returns the number of images."""
         return self._number_images
 
+    def tracks(self) -> List[SfmTrack]:
+        """Returns all tracks."""
+        return self._tracks
+
     def number_tracks(self) -> int:
         """Returns the number of tracks."""
         return len(self._tracks)
@@ -202,6 +206,10 @@ class GtsfmData:
     def get_camera(self, index: int) -> Optional[gtsfm_types.CAMERA_TYPE]:
         """Returns camera for given index, or None."""
         return self._cameras.get(index)
+
+    def poses(self) -> Dict[int, Pose3]:
+        """Returns poses as a dictionary, without missing poses."""
+        return {i: cam.pose() for i, cam in self._cameras.items() if cam is not None}
 
     def get_camera_poses(self) -> List[Optional[Pose3]]:
         """Returns poses for all cameras (wTi), including missing ones as None."""
@@ -631,9 +639,9 @@ class GtsfmData:
     def export_as_colmap_text(
         self,
         save_dir: str | Path,
-        images: Optional[List[Image]] = None,
-        image_shapes: Optional[List[Tuple[int, ...]]] = None,
-        image_filenames: Optional[List[str]] = None,
+        images: Optional[Sequence[Image]] = None,
+        image_shapes: Optional[Sequence[Tuple[int, ...]]] = None,
+        image_filenames: Optional[Sequence[str]] = None,
     ) -> None:
         """Emulates the COLMAP option to `Export model as text`.
 

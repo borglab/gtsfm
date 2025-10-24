@@ -50,6 +50,16 @@ def downsample(tree: SceneTree, **kwargs) -> SceneTree:
     return tree.map(f)
 
 
+def number_tracks(tree: SceneTree) -> int:
+    """Total number of tracks in entire tree."""
+
+    def f(path_scene: LocalScene, children):
+        sum_below = sum(children)
+        return sum_below + (path_scene[1].number_tracks() if path_scene[1] else 0)
+
+    return tree.fold(f)
+
+
 def read_colmap(base_dir: str | Path, name: str = "ba_output") -> SceneTree | None:
     """Read a COLMAP hierarchy stored on disk as a tree.
     Args:
@@ -78,11 +88,12 @@ def read_colmap(base_dir: str | Path, name: str = "ba_output") -> SceneTree | No
     return mapped_tree.prune(lambda x: x[1] is not None)
 
 
-def write_colmap(tree: SceneTree | None, output_base_dir: str | Path, **kwargs) -> None:
+def write_colmap(tree: SceneTree | None, output_base_dir: str | Path, name: str = "ba_output", **kwargs) -> None:
     """Write a COLMAP hierarchy stored as a tree in the exact nested directory structure on disk.
     Args:
         tree: Tree whose nodes contain (Path, GtsfmData|None) tuples.
         output_base_dir: Root directory where the COLMAP hierarchy will be written.
+        name: Name of the subdirectory in each node where COLMAP data will be stored.
         **kwargs: Additional keyword arguments to pass to GtsfmData.export_as_colmap_text().
     """
     if tree is None:
@@ -95,5 +106,5 @@ def write_colmap(tree: SceneTree | None, output_base_dir: str | Path, **kwargs) 
         relative_path, scene = node.value
         if scene is not None:
             path = output_base_path / relative_path
-            ba_output_dir = path / "ba_output"
+            ba_output_dir = path / name
             scene.export_as_colmap_text(ba_output_dir, **kwargs)
