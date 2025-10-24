@@ -34,7 +34,7 @@ class NetVLADGlobalDescriptor(GlobalDescriptorBase):
             logger.info("⏳ Loading NetVLAD model weights...")
             self._model = NetVLAD().eval()
 
-    def get_preprocessing_transform(self) -> Tuple[Optional[Callable], Optional[Callable]]:
+    def get_preprocessing_transforms(self) -> Tuple[Optional[Callable], Optional[Callable]]:
         """ "Return transform to resize images to 480x640 (height x width).
 
         NetVLAD operates on convolutional feature maps and doesn't require
