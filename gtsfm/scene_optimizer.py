@@ -83,8 +83,9 @@ class SceneOptimizer:
         base_output_paths = prepare_output_paths(self.output_root, None)
 
         logger.info("🔥 GTSFM: Running image pair retrieval...")
-        retriever_metrics, visibility_graph, image_futures = self._run_retriever(client)
+        retriever_metrics, visibility_graph = self._run_retriever(client)
         base_metrics_groups.append(retriever_metrics)
+        image_futures = self.loader.get_all_images_as_futures(client)
 
         logger.info("🔥 GTSFM: Partitioning the view graph...")
         assert self.graph_partitioner is not None, "Graph partitioner is not set up!"
@@ -169,12 +170,12 @@ class SceneOptimizer:
             process_graph_generator.is_image_correspondence = True
         process_graph_generator.save_graph()
 
-    def _run_retriever(self, client) -> tuple[GtsfmMetricsGroup, VisibilityGraph, list[Future]]:
+    def _run_retriever(self, client) -> tuple[GtsfmMetricsGroup, VisibilityGraph]:
         retriever_start_time = time.time()
         batch_size = self.image_pairs_generator._batch_size
 
-        logger.info(f"🔥 GTSFM: Loading images in batches of {batch_size}...")
-        transform = None
+        resize_transform = None
+        batch_transform = None
 
         if self.image_pairs_generator._global_descriptor is not None:
             transform = self.image_pairs_generator._global_descriptor.get_preprocessing_transforms()
@@ -200,5 +201,4 @@ class SceneOptimizer:
         retriever_metrics.add_metric(GtsfmMetric("retriever_duration_sec", retriever_duration_sec))
         logger.info("🚀 Image pair retrieval took %.2f min.", retriever_duration_sec / 60.0)
 
-        image_futures = self.loader.get_all_images_as_futures(client)
         return retriever_metrics, visibility_graph, image_futures
