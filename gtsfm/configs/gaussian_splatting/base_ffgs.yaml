@@ -1,0 +1,9 @@
+gaussian_splatting_optimizer:
+  _target_: gtsfm.ff_splat.anysplat_feed_forward_gaussian_generator.AnySplatGaussianGenerator
+  cfg:
+    _target_: gtsfm.ff_splat.anysplat_feed_forward_gaussian_generator.FF_Config
+    sh_degree: 4
+    save_video: True
+    fps: 30
+    num_frames: 20
+    save_ply_file: True

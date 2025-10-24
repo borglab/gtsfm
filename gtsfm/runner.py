@@ -109,7 +109,7 @@ class GtsfmRunner:
         parser.add_argument(
             "--gaussian_splatting_config_name",
             type=str,
-            default="base_gs",
+            default="base_ffgs",
             help="Override flag for your own gaussian splatting implementation.",
         )
 
