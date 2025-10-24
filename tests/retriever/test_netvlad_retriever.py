@@ -34,10 +34,10 @@ class TestNetVLADRetriever(unittest.TestCase):
         )
 
         retriever = NetVLADRetriever(num_matched=2)
-        transform = self.global_descriptor.get_preprocessing_transform()
+        resize_transform, batch_transform = self.global_descriptor.get_preprocessing_transforms()
 
         indices = list(range(len(loader)))
-        batch_tensor = loader.load_image_batch(indices, transform)
+        batch_tensor = loader.load_image_batch(indices, resize_transfor, batch_transform)
 
         descriptors = self.global_descriptor.describe_batch(batch_tensor)
 
@@ -51,10 +51,10 @@ class TestNetVLADRetriever(unittest.TestCase):
         """Test the NetVLAD retriever on 12 frames of the Lund Door Dataset."""
         loader = OlssonLoader(dataset_dir=str(DOOR_DATA_ROOT))
         retriever = NetVLADRetriever(num_matched=2)
-        transform = self.global_descriptor.get_preprocessing_transform()
+        resize_transform, batch_transform = self.global_descriptor.get_preprocessing_transforms()
 
         indices = list(range(len(loader)))
-        batch_tensor = loader.load_image_batch(indices, transform)
+        batch_tensor = loader.load_image_batch(indices, resize_transform, batch_transform)
         
         descriptors = self.global_descriptor.describe_batch(batch_tensor)
 
