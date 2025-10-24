@@ -33,6 +33,7 @@ from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 from gtsfm.densify.mvs_base import MVSBase
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.evaluation.retrieval_metrics import save_retrieval_two_view_metrics
+from gtsfm.ff_splat.gaussian_generator_base import FeedForwardGaussianGeneratorBase
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
@@ -406,26 +407,35 @@ class ClusterOptimizer:
                 metrics_graph_list.append(downsampling_metrics_graph)
 
         if self.run_gaussian_splatting_optimizer and self.gaussian_splatting_optimizer is not None:
-            # Intentional import here to support mac implementation.
-            import gtsfm.splat.rendering as gtsfm_rendering
-
-            splats_graph, cfg_graph = self.gaussian_splatting_optimizer.create_computation_graph(
-                images, ba_output_graph
-            )
-
-            with self._output_annotation():
+            if isinstance(self.gaussian_splatting_optimizer, FeedForwardGaussianGeneratorBase):
                 delayed_results.append(
-                    delayed(gtsfm_rendering.save_splats)(save_path=str(output_paths.gs_path), splats=splats_graph)
-                )
-                delayed_results.append(
-                    delayed(gtsfm_rendering.generate_interpolated_video)(
-                        images=images,
-                        sfm_result_graph=ba_output_graph,
-                        cfg_result_graph=cfg_graph,
-                        splats_graph=splats_graph,
-                        video_fpath=output_paths.interpolated_video,
+                    delayed(self.gaussian_splatting_optimizer.generate_splats, nout=0)(
+                        image_futures,
+                        output_paths.gs_path,
                     )
                 )
+
+            else:
+                # Intentional import here to support mac implementation.
+                import gtsfm.splat.rendering as gtsfm_rendering
+
+                splats_graph, cfg_graph = self.gaussian_splatting_optimizer.create_computation_graph(
+                    images, ba_output_graph
+                )
+
+                with self._output_annotation():
+                    delayed_results.append(
+                        delayed(gtsfm_rendering.save_splats)(save_path=str(output_paths.gs_path), splats=splats_graph)
+                    )
+                    delayed_results.append(
+                        delayed(gtsfm_rendering.generate_interpolated_video)(
+                            images=images,
+                            sfm_result_graph=ba_output_graph,
+                            cfg_result_graph=cfg_graph,
+                            splats_graph=splats_graph,
+                            video_fpath=output_paths.interpolated_video,
+                        )
+                    )
 
         return ba_output_graph, delayed_results, metrics_graph_list
 
