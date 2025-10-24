@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 import matplotlib
-from dask.distributed import Future, performance_report
+from dask.distributed import performance_report
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.cluster_optimizer import REACT_METRICS_PATH, REACT_RESULTS_PATH, ClusterOptimizer, save_metrics_reports
@@ -83,8 +83,9 @@ class SceneOptimizer:
         base_output_paths = prepare_output_paths(self.output_root, None)
 
         logger.info("🔥 GTSFM: Running image pair retrieval...")
-        retriever_metrics, visibility_graph, image_futures = self._run_retriever(client)
+        retriever_metrics, visibility_graph = self._run_retriever(client)
         base_metrics_groups.append(retriever_metrics)
+        image_futures = self.loader.get_all_images_as_futures(client)
 
         logger.info("🔥 GTSFM: Partitioning the view graph...")
         assert self.graph_partitioner is not None, "Graph partitioner is not set up!"
@@ -169,15 +170,29 @@ class SceneOptimizer:
             process_graph_generator.is_image_correspondence = True
         process_graph_generator.save_graph()
 
-    def _run_retriever(self, client) -> tuple[GtsfmMetricsGroup, VisibilityGraph, list[Future]]:
+    def _run_retriever(self, client) -> tuple[GtsfmMetricsGroup, VisibilityGraph]:
         retriever_start_time = time.time()
-        image_futures = self.loader.get_all_images_as_futures(client)
+        batch_size = self.image_pairs_generator._batch_size
+
+        resize_transform = None
+        batch_transform = None
+
+        if self.image_pairs_generator._global_descriptor is not None:
+            transform = self.image_pairs_generator._global_descriptor.get_preprocessing_transforms()
+            if transform is not None:
+                resize_transform, batch_transform = transform
+
+        # Image_Batch_Futures is a list of Stacked Tensors with dimension (batch_size, Channels, H, W)
+        image_batch_futures = self.loader.get_all_descriptor_image_batches_as_futures(
+            client, batch_size, resize_transform, batch_transform
+        )
+
         image_fnames = self.loader.image_filenames()
 
         with performance_report(filename="dask_reports/retriever.html"):
             visibility_graph = self.image_pairs_generator.run(
                 client=client,
-                images=image_futures,
+                images=image_batch_futures,
                 image_fnames=image_fnames,
                 plots_output_dir=self.create_plot_base_path(),
             )
@@ -185,4 +200,5 @@ class SceneOptimizer:
         retriever_duration_sec = time.time() - retriever_start_time
         retriever_metrics.add_metric(GtsfmMetric("retriever_duration_sec", retriever_duration_sec))
         logger.info("🚀 Image pair retrieval took %.2f min.", retriever_duration_sec / 60.0)
-        return retriever_metrics, visibility_graph, image_futures
+
+        return retriever_metrics, visibility_graph
