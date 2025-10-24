@@ -37,7 +37,7 @@ class TestNetVLADRetriever(unittest.TestCase):
         resize_transform, batch_transform = self.global_descriptor.get_preprocessing_transforms()
 
         indices = list(range(len(loader)))
-        batch_tensor = loader.load_image_batch(indices, resize_transfor, batch_transform)
+        batch_tensor = loader.load_image_batch(indices, resize_transform, batch_transform)
 
         descriptors = self.global_descriptor.describe_batch(batch_tensor)
 

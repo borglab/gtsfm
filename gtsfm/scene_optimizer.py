@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 import matplotlib
-from dask.distributed import Future, performance_report
+from dask.distributed import performance_report
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.cluster_optimizer import REACT_METRICS_PATH, REACT_RESULTS_PATH, ClusterOptimizer, save_metrics_reports
@@ -201,4 +201,4 @@ class SceneOptimizer:
         retriever_metrics.add_metric(GtsfmMetric("retriever_duration_sec", retriever_duration_sec))
         logger.info("🚀 Image pair retrieval took %.2f min.", retriever_duration_sec / 60.0)
 
-        return retriever_metrics, visibility_graph, image_futures
+        return retriever_metrics, visibility_graph
