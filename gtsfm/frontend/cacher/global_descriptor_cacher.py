@@ -8,6 +8,7 @@ Example: To cache output of `NetVLADGlobalDescriptor`, use
 
 Authors: John Lambert
 """
+
 from pathlib import Path
 from typing import Optional
 

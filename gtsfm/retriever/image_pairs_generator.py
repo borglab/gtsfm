@@ -11,6 +11,7 @@ import torch
 from dask.distributed import Client, Future
 
 import gtsfm.utils.logger as logger_utils
+
 # from gtsfm.common.image import Image
 from gtsfm.frontend.global_descriptor.global_descriptor_base import GlobalDescriptorBase
 from gtsfm.products.visibility_graph import VisibilityGraph
@@ -62,7 +63,9 @@ class ImagePairsGenerator:
                 descriptors.extend(batch_desc)
 
             if len(descriptors) == 0:
-                raise RuntimeError("Global descriptor computation returned no descriptors; cannot build visibility graph.")
+                raise RuntimeError(
+                    "Global descriptor computation returned no descriptors; cannot build visibility graph."
+                )
 
         # Use retriever to construct visibility graph based on descriptors and filenames
         logger.info("⏳ Computing visibility graph...")
