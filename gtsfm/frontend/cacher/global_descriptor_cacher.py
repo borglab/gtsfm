@@ -56,7 +56,7 @@ class GlobalDescriptorCacher(GlobalDescriptorBase):
         cached_data = io_utils.read_from_bz2_file(cache_path)
         if cached_data is None:
             return None
-        return cached_data["global_descriptor"]
+        return cached_data["global_descriptors"]
 
     def __save_result_to_cache(self, images: torch.Tensor, global_descriptors: list[np.ndarray]) -> None:
         """Save the results to the cache."""
