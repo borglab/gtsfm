@@ -7,7 +7,7 @@ from pathlib import Path
 
 import hydra
 from dask import config as dask_config
-from dask.distributed import Client, LocalCluster, SSHCluster
+from dask.distributed import Client, LocalCluster, SSHCluster, WorkerPlugin
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
 
@@ -306,6 +306,7 @@ class GtsfmRunner:
         if self.parsed_args.cluster_config:
             cluster = self.setup_ssh_cluster_with_retries()
             client = Client(cluster)
+            client.forward_logging() 
             # getting first worker's IP address and port to do IO
             io_worker = list(client.scheduler_info()["workers"].keys())[0]
             self.scene_optimizer.loader._input_worker = io_worker
