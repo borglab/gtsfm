@@ -1,4 +1,4 @@
 retriever:
-  _target_: gtsfm.retriever.netvlad_retriever.NetVLADRetriever
+  _target_: gtsfm.retriever.similarity_retriever.SimilarityRetriever
   num_matched: 10
   min_score: 0.5

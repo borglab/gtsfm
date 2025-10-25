@@ -16,7 +16,7 @@ loader:
 # - Retriever: Uses those vectors to find similar image pairs
 #
 # Since MegaLoc outputs vectors just like NetVLAD, we can reuse the same
-# NetVLADRetriever for similarity matrix computation and pair selection.
+# SimilarityRetriever for similarity matrix computation and pair selection.
 # =============================================================================
 image_pairs_generator:
   _target_: gtsfm.retriever.image_pairs_generator.ImagePairsGenerator
@@ -25,17 +25,17 @@ image_pairs_generator:
   global_descriptor:
     _target_: gtsfm.frontend.global_descriptor.megaloc_global_descriptor.MegaLocGlobalDescriptor
 
-  # Retriever: KEPT THE SAME - NetVLADRetriever works for any global descriptor!
+  # Retriever: KEPT THE SAME - SimilarityRetriever works for any global descriptor!
   # It computes cosine similarity between vectors and selects top-k pairs
   retriever:
-    _target_: gtsfm.retriever.netvlad_retriever.NetVLADRetriever
+    _target_: gtsfm.retriever.similarity_retriever.SimilarityRetriever
     num_matched: 20 # Find top-20 most similar images per query
     min_score: 0.3 # Minimum cosine similarity threshold
 
   batch_size: 16
 
 # =============================================================================
-# Why keep NetVLADRetriever for MegaLoc?
+# Why keep SimilarityRetriever for MegaLoc?
 # =============================================================================
 # The retriever doesn't care *how* the vectors were generated. It only cares
 # that each image has a vector. The similarity computation (cosine similarity
