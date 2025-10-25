@@ -9,7 +9,7 @@ import sys
 import time
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Any, Optional, Sequence, Tuple
 
 import numpy as np
 from dask.delayed import Delayed, delayed
@@ -25,6 +25,10 @@ from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.products.one_view_data import OneViewData
 from gtsfm.products.visibility_graph import VisibilityGraph, visibility_graph_keys
+
+if TYPE_CHECKING:  # pragma: no cover
+    import pycolmap
+    import torch
 
 
 def _extract_summary(result: Tuple[dict[str, Any], GtsfmMetricsGroup]) -> dict[str, Any]:
