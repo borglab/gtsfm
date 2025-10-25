@@ -7,7 +7,7 @@ from pathlib import Path
 
 import hydra
 from dask import config as dask_config
-from dask.distributed import Client, LocalCluster, SSHCluster, WorkerPlugin
+from dask.distributed import Client, LocalCluster, SSHCluster
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
 

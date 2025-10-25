@@ -52,7 +52,10 @@ class ImagePairsGenerator:
             try:
                 worker = get_worker()
                 worker_name = worker.address
-                logger.info(f"🔧 [Worker: {worker_name}] Computing global descriptors for batch of {len(image_batch)} images")
+                logger.info(
+                    f"🔧 [Worker: {worker_name}] Computing global descriptors for batch of {len(image_batch)} images"
+                    f"with global descriptor: {global_descriptor}"
+                )
             except Exception:
                 logger.info(f"🔧 [Main Process] Computing global descriptors for batch of {len(image_batch)} images")
             
