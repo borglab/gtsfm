@@ -45,6 +45,10 @@ class ClusterOptimizerBase:
         """Return the registered correspondence generator, if any."""
         return self._correspondence_generator
 
+    @correspondence_generator.setter
+    def correspondence_generator(self, value: Optional[Any]) -> None:
+        self._correspondence_generator = value
+
     def _output_annotation(self):
         """Context manager routing heavy I/O to the optional output worker."""
         return annotate(workers=self._output_worker) if self._output_worker else annotate()
