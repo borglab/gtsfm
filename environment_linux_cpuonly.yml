@@ -12,11 +12,12 @@ dependencies:
   - mypy
   - pylint
   - pytest
+  - pytest-cov
   - flake8
   - isort
   # dask and related
   - dask
-  - distributed 
+  - distributed
   - asyncssh
   - python-graphviz
   # core functionality and APIs
@@ -40,7 +41,7 @@ dependencies:
   - tabulate
   - simplejson
   - pyparsing>=3.0.9
-  - psycopg2          # Added for PostgreSQL support
+  - psycopg2 # Added for PostgreSQL support
   # testing
   - parameterized
   - wget
