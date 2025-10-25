@@ -8,7 +8,7 @@ from .cluster_optimizer_base import (
     logger,
     save_metrics_reports,
 )
-from .cluster_vggt_copy import ClusterVGGT
+from .cluster_vggt import ClusterVGGT
 
 __all__ = [
     "ClusterOptimizerBase",
