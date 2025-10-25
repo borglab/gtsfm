@@ -11,7 +11,7 @@ import matplotlib
 from dask.distributed import performance_report
 
 import gtsfm.utils.logger as logger_utils
-from gtsfm.cluster_optimizer import REACT_METRICS_PATH, REACT_RESULTS_PATH, ClusterOptimizer, save_metrics_reports
+from gtsfm.cluster_optimizer import REACT_METRICS_PATH, REACT_RESULTS_PATH, ClusterOptimizerBase, save_metrics_reports
 from gtsfm.common.outputs import OutputPaths, prepare_output_paths
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.frontend.correspondence_generator.image_correspondence_generator import ImageCorrespondenceGenerator
@@ -40,7 +40,7 @@ class SceneOptimizer:
         self,
         loader: LoaderBase,
         image_pairs_generator: ImagePairsGenerator,
-        cluster_optimizer: ClusterOptimizer,
+        cluster_optimizer: ClusterOptimizerBase,
         graph_partitioner: GraphPartitionerBase = SinglePartitioner(),
         output_root: str = DEFAULT_OUTPUT_ROOT,
         output_worker: Optional[str] = None,
