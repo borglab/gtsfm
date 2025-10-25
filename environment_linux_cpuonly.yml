@@ -40,10 +40,10 @@ dependencies:
   - simplejson
   - pyparsing>=3.0.9
   - psycopg2          # Added for PostgreSQL support
-  - open3d
   # testing
   - parameterized
   - pip:
+      - open3d
       - opencv-python>=4.5.4.60
       - pydegensac
       - colour
