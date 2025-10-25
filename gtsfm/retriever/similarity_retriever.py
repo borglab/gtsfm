@@ -1,4 +1,4 @@
-"""Retriever implementation which provides a NetVLAD global image descriptor to suggest potential image pairs.
+"""Retriever implementation which suggests potential image pairs by comparing global image descriptors.
 Note: Similarity computation based off of Paul-Edouard Sarlin's HLOC:
 Reference: https://github.com/cvg/Hierarchical-Localization/blob/master/hloc/pairs_from_retrieval.py
 https://openaccess.thecvf.com/content_cvpr_2016/papers/Arandjelovic_NetVLAD_CNN_Architecture_CVPR_2016_paper.pdf
@@ -181,22 +181,22 @@ class SimilarityRetriever(RetrieverBase):
             # Save image of similarity matrix.
             plt.imshow(np.triu(sim.detach().cpu().numpy()))
             plt.title("Image Similarity Matrix")
-            plt.savefig(str(plots_output_dir / "netvlad_similarity_matrix.jpg"), dpi=500)
+            plt.savefig(str(plots_output_dir / "similarity_matrix.jpg"), dpi=500)
             plt.close("all")
             # Save values in similarity matrix.
             np.savetxt(
-                fname=str(plots_output_dir / "netvlad_similarity_matrix.txt"),
+                fname=str(plots_output_dir / "similarity_matrix.txt"),
                 X=sim.detach().cpu().numpy(),
                 fmt="%.2f",
                 delimiter=",",
             )
 
             # Save named pairs and scores.
-            with open(plots_output_dir / "netvlad_named_pairs.txt", "w") as fid:
+            with open(plots_output_dir / "similarity_named_pairs.txt", "w") as fid:
                 for _named_pair, _pair_ind in zip(named_pairs, pairs):
                     fid.write("%.4f %s %s\n" % (sim[_pair_ind[0], _pair_ind[1]], _named_pair[0], _named_pair[1]))
 
-        logger.info("Found %d pairs from the NetVLAD Retriever.", len(pairs))
+        logger.info("Found %d pairs from the Similarity Retriever.", len(pairs))
         return pairs
 
 
