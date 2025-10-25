@@ -28,7 +28,7 @@ class ClusterOptimizerBase:
 
     def __init__(
         self,
-        correspondence_generator: CorrespondenceGeneratorBase,
+        correspondence_generator: Optional[CorrespondenceGeneratorBase] = None,
         pose_angular_error_thresh: float = 3.0,
         output_worker: Optional[str] = None,
     ) -> None:

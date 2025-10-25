@@ -12,6 +12,7 @@ from hydra.utils import instantiate
 from omegaconf import OmegaConf
 
 import gtsfm.utils.logger as logger_utils
+from gtsfm.cluster_optimizer import ClusterMVO, ClusterVGGT
 from gtsfm.loader.configuration import add_loader_args, build_loader_overrides
 from gtsfm.scene_optimizer import SceneOptimizer
 from gtsfm.utils.configuration import log_configuration_summary, log_full_configuration, log_key_parameters
@@ -100,6 +101,13 @@ class GtsfmRunner:
             choices=["single", "binary", "metis"],
             help="Graph partitioner preset to use (see gtsfm/configs/graph_partitioner). "
             "If omitted, each config's default applies.",
+        )
+        parser.add_argument(
+            "--cluster_optimizer",
+            type=str,
+            choices=["mvo", "vggt"],
+            default=None,
+            help="Override the cluster optimizer implementation (defaults to config-specified).",
         )
         parser.add_argument(
             "--share_intrinsics", action="store_true", help="Shares the intrinsics between all the cameras."
@@ -191,8 +199,21 @@ class GtsfmRunner:
         logger.info("⏳ Instantiating ..")
         scene_optimizer: SceneOptimizer = instantiate(main_cfg)
 
+        cluster_optimizer_choice = (self.parsed_args.cluster_optimizer or "").lower()
+        if cluster_optimizer_choice:
+            logger.info(f"🔄 Applying Cluster Optimizer Override: {cluster_optimizer_choice}")
+        if cluster_optimizer_choice == "vggt":
+            scene_optimizer.cluster_optimizer = ClusterVGGT()
+        elif cluster_optimizer_choice == "mvo" and not isinstance(scene_optimizer.cluster_optimizer, ClusterMVO):
+            logger.warning(
+                "Requested ClusterMVO via CLI, but active configuration does not instantiate one; "
+                "leaving existing optimizer unchanged."
+            )
+
+        cluster_optimizer_is_mvo = isinstance(scene_optimizer.cluster_optimizer, ClusterMVO)
+
         # Override correspondence generator.
-        if self.parsed_args.correspondence_generator_config_name is not None:
+        if cluster_optimizer_is_mvo and self.parsed_args.correspondence_generator_config_name is not None:
             with hydra.initialize_config_module(config_module="gtsfm.configs.correspondence", version_base=None):
                 correspondence_cfg = hydra.compose(
                     config_name=self.parsed_args.correspondence_generator_config_name,
@@ -205,7 +226,7 @@ class GtsfmRunner:
                 )
 
         # Override verifier.
-        if self.parsed_args.verifier_config_name is not None:
+        if cluster_optimizer_is_mvo and self.parsed_args.verifier_config_name is not None:
             with hydra.initialize_config_module(config_module="gtsfm.configs.verifier", version_base=None):
                 verifier_cfg = hydra.compose(
                     config_name=self.parsed_args.verifier_config_name,
@@ -259,10 +280,12 @@ class GtsfmRunner:
             except Exception as e:
                 logger.warning(f"Failed to set num_matched: {e}")
 
-        if not self.parsed_args.run_mvs:
+        if not self.parsed_args.run_mvs and hasattr(scene_optimizer.cluster_optimizer, "run_dense_optimizer"):
             scene_optimizer.cluster_optimizer.run_dense_optimizer = False
 
-        if not self.parsed_args.run_gs:
+        if not self.parsed_args.run_gs and hasattr(
+            scene_optimizer.cluster_optimizer, "run_gaussian_splatting_optimizer"
+        ):
             scene_optimizer.cluster_optimizer.run_gaussian_splatting_optimizer = False
 
         log_configuration_summary(main_cfg, logger)
