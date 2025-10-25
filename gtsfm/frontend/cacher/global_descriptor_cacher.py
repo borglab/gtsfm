@@ -10,7 +10,7 @@ Authors: John Lambert
 """
 
 from pathlib import Path
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 import numpy as np
 
@@ -23,6 +23,9 @@ from gtsfm.frontend.global_descriptor.global_descriptor_base import GlobalDescri
 logger = logger_utils.get_logger()
 
 CACHE_ROOT_PATH = Path(__file__).resolve().parent.parent.parent.parent / "cache"
+
+if TYPE_CHECKING:  # pragma: no cover
+    import torch
 
 
 class GlobalDescriptorCacher(GlobalDescriptorBase):
