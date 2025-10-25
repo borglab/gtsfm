@@ -174,25 +174,17 @@ class SceneOptimizer:
         retriever_start_time = time.time()
         batch_size = self.image_pairs_generator._batch_size
 
-        resize_transform = None
-        batch_transform = None
-
-        if self.image_pairs_generator._global_descriptor is not None:
-            transform = self.image_pairs_generator._global_descriptor.get_preprocessing_transforms()
-            if transform is not None:
-                resize_transform, batch_transform = transform
+        transforms = self.image_pairs_generator.get_preprocessing_transforms()
 
         # Image_Batch_Futures is a list of Stacked Tensors with dimension (batch_size, Channels, H, W)
-        image_batch_futures = self.loader.get_all_descriptor_image_batches_as_futures(
-            client, batch_size, resize_transform, batch_transform
-        )
+        image_batch_futures = self.loader.get_all_descriptor_image_batches_as_futures(client, batch_size, *transforms)
 
         image_fnames = self.loader.image_filenames()
 
         with performance_report(filename="dask_reports/retriever.html"):
             visibility_graph = self.image_pairs_generator.run(
                 client=client,
-                images=image_batch_futures,
+                image_batch_futures=image_batch_futures,
                 image_fnames=image_fnames,
                 plots_output_dir=self.create_plot_base_path(),
             )

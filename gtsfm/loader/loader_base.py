@@ -4,11 +4,10 @@ Authors: Frank Dellaert and Ayush Baid
 """
 
 import abc
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple, TypeAlias, Union
 
 import numpy as np
 import torch
-
 from dask.base import annotate as dask_annotate
 from dask.delayed import Delayed, delayed
 from dask.distributed import Client, Future
@@ -24,6 +23,10 @@ from gtsfm.common.pose_prior import PosePrior
 from gtsfm.products.one_view_data import OneViewData
 from gtsfm.products.visibility_graph import VisibilityGraph
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
+
+ArrayLike = Union[np.ndarray, torch.Tensor]
+ResizeTransform: TypeAlias = Callable[[ArrayLike], torch.Tensor]
+BatchTransform: TypeAlias = Callable[[torch.Tensor], torch.Tensor]
 
 logger = logger_utils.get_logger()
 
@@ -375,38 +378,29 @@ class LoaderBase(GTSFMProcess):
     def load_image_batch(
         self,
         indices: List[int],
-        resize_transform: Optional[Callable] = None,
-        batch_transform: Optional[Callable] = None,
+        resize_transform: ResizeTransform,
+        batch_transform: Optional[BatchTransform] = None,
     ) -> torch.Tensor:
         """Helper function that runs on a Dask worker to load a batch of images.
 
         Args:
             indices: List of image indices to load
-            transform: Optional preprocessing transform to apply to each image
+            resize_transform: Callable that resizes a numpy array (image) to a torch.Tensor of the appropriate size.
+            batch_transform: Optional callable that applies a preprocessing transform to the batch tensor.
 
         Returns:
-            List of loaded (and optionally transformed) images
+            torch.Tensor: Batch of loaded (and optionally transformed) images.
         """
-
         # Get images as a List of [H, W, C] numpy arrays
         image_arrays = [self.get_image(idx).value_array for idx in indices]
 
-        if resize_transform is not None:
-            image_tensors = [resize_transform(img) for img in image_arrays]
-        else:
-            image_tensors = []
-            for img in image_arrays:
-                if img.ndim == 2:
-                    img = np.expand_dims(img, axis=2)
-                tensor = torch.from_numpy(img).permute(2, 0, 1).float() / 255.0
-                image_tensors.append(tensor)
-
+        # Apply resize transform to each image
+        # the image could have different sizes so we cannot do the resize transform in batch
+        image_tensors = [resize_transform(img) for img in image_arrays]
         batch_tensor = torch.stack(image_tensors, dim=0)
 
-        if batch_transform is not None:
-            batch_tensor = batch_transform(batch_tensor)
-
-        return batch_tensor
+        # Apply optional batch transform before returning
+        return batch_transform(batch_tensor) if batch_transform else batch_tensor
 
     def get_all_descriptor_image_batches_as_futures(
         self,
