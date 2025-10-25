@@ -83,7 +83,14 @@ class GlobalDescriptorCacher(GlobalDescriptorBase):
             return self._global_descriptor.describe_batch(images)
 
         # Fallback: break the batch into individual descriptors and rely on the cache-aware path.
-        return [self.describe(Image(value_array=image.cpu().numpy().transpose(1, 2, 0))) for image in images]
+        descriptors = []
+        for image in images:
+            np_image = image.detach().cpu().numpy()
+            if np_image.dtype != np.uint8:
+                np_image = np.clip(np_image, 0.0, 1.0)
+                np_image = (np_image * 255.0).round().astype(np.uint8)
+            descriptors.append(self.describe(Image(value_array=np_image.transpose(1, 2, 0))))
+        return descriptors
 
     def describe(self, image: Image) -> np.ndarray:
         """Perform feature detection as well as their description, with caching.
