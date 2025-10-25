@@ -20,17 +20,18 @@ dependencies:
   - asyncssh
   - python-graphviz
   # core functionality and APIs
+  - hydra-core
   - matplotlib>=3.5
   - networkx
-  - numpy==1.26.4 # gtsam requirement
   - nodejs
+  - numpy==1.26.4 # gtsam requirement
+  - open3d
   - pandas
   - pillow>=9.0.0
   - scikit-learn
-  - seaborn
   - scipy
-  - hydra-core
-  # # 3rd party algorithms for different modules
+  - seaborn
+  # 3rd party algorithms for different modules
   - kornia>=0.7.3
   - pycolmap==3.11.1
   # io
@@ -42,17 +43,18 @@ dependencies:
   - psycopg2          # Added for PostgreSQL support
   # testing
   - parameterized
+  - wget
   - pip:
-      - open3d
+      - https://download.pytorch.org/whl/cpu/torch-2.5.1%2Bcpu-cp310-cp310-linux_x86_64.whl
+      - https://download.pytorch.org/whl/cpu/torchvision-0.20.1%2Bcpu-cp310-cp310-linux_x86_64.whl
       - opencv-python>=4.5.4.60
       - pydegensac
       - colour
       - trimesh[easy]
       - gtsam==4.3a0
       - pydot
-      - https://download.pytorch.org/whl/cpu/torch-2.5.0%2Bcpu-cp310-cp310-linux_x86_64.whl
-      - https://download.pytorch.org/whl/cpu/torchvision-0.20.0%2Bcpu-cp310-cp310-linux_x86_64.whl
+      - roma
+      - tqdm
       - einops
       - huggingface-hub[torch]==0.34.4
-      - roma # Rotation Manipiulation Library
       - Flask>=3.0

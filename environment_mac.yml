@@ -5,6 +5,7 @@ dependencies:
   # python essentials
   - python=3.10
   - pip
+  - python-dotenv
   # formatting and dev environment
   - black
   - coverage
@@ -15,20 +16,22 @@ dependencies:
   - isort
   # dask and related
   - dask
+  - distributed 
   - asyncssh
   - python-graphviz
   # core functionality and APIs
+  - hydra-core
   - matplotlib>=3.5
   - networkx
-  - numpy==1.26.4 # gtsam requirement
   - nodejs
+  - numpy==1.26.4 # gtsam requirement
+  - open3d
   - pandas
   - pillow>=9.0.0
   - scikit-learn
-  - seaborn
   - scipy
-  - hydra-core
-  # # 3rd party algorithms for different modules
+  - seaborn
+  # 3rd party algorithms for different modules
   - kornia>=0.7.3
   - pycolmap==3.11.1
   # io
@@ -37,21 +40,22 @@ dependencies:
   - tabulate
   - simplejson
   - pyparsing>=3.0.9
-  - psycopg2 # Added for PostgreSQL support
+  - psycopg2          # Added for PostgreSQL support
   # testing
   - parameterized
   - wget
   - pip:
-      - torch
-      - torchvision>=0.20.0
-      - open3d
+      - torch==2.5.1
+      - torchvision==0.20.1
       - opencv-python>=4.5.4.60
       - pydegensac
       - colour
       - trimesh[easy]
       - gtsam==4.3a0
       - pydot
+      # dust3r/mast3r
+      - roma
+      - tqdm
       - einops
       - huggingface-hub[torch]==0.34.4
-      - roma # Rotation Manipulation Library
       - Flask>=3.0
