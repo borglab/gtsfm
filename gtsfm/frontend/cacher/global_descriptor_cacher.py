@@ -61,6 +61,26 @@ class GlobalDescriptorCacher(GlobalDescriptorBase):
         data = {"global_descriptor": global_descriptor}
         io_utils.write_to_bz2_file(data, cache_path)
 
+    def describe_batch(self, images: "torch.Tensor") -> list[np.ndarray]:  # type: ignore[name-defined]
+        """Batch descriptor API delegates to the underlying descriptor without caching.
+
+        The cacher currently operates on individual `Image` objects because the cache key relies on
+        filename metadata. Batched pipelines only provide transformed tensors, so we reuse the
+        wrapped descriptor directly to keep the workflow functional.
+        """
+
+        # Import torch lazily to avoid an unconditional dependency when only describe() is used.
+        try:  # pragma: no cover
+            import torch  # noqa: F401
+        except ImportError as exc:  # pragma: no cover
+            raise ImportError("torch is required for batched global descriptors") from exc
+
+        if hasattr(self._global_descriptor, "describe_batch"):
+            return self._global_descriptor.describe_batch(images)
+
+        # Fallback: break the batch into individual descriptors and rely on the cache-aware path.
+        return [self.describe(Image(value_array=image.cpu().numpy().transpose(1, 2, 0))) for image in images]
+
     def describe(self, image: Image) -> np.ndarray:
         """Perform feature detection as well as their description, with caching.
 
