@@ -11,6 +11,7 @@ import torch
 from dask.distributed import Client, Future
 
 import gtsfm.utils.logger as logger_utils
+
 # from gtsfm.common.image import Image
 from gtsfm.frontend.global_descriptor.global_descriptor_base import GlobalDescriptorBase
 from gtsfm.products.visibility_graph import VisibilityGraph
@@ -54,19 +55,17 @@ class ImagePairsGenerator:
         descriptors: Optional[List[np.ndarray]] = None  # Will hold global descriptors if computed
 
         if self._global_descriptor is not None:
-            # Scatter descriptor to all workers for efficient parallel processing
-            global_descriptor_future = client.scatter(self._global_descriptor, broadcast=True)
-
-            descriptor_futures = [
-                client.submit(apply_global_descriptor_batch, global_descriptor_future, batch_future)
-                for batch_future in image_batch_futures
-            ]
-
             logger.info(f"⏳ Computing global descriptors for all images in batches of {self._batch_size}...")
-            batched_descriptors = client.gather(descriptor_futures)
+            descriptors = []
+            for batch_future in image_batch_futures:
+                batch_tensor = client.gather(batch_future)
+                batch_desc = self._global_descriptor.describe_batch(batch_tensor)
+                descriptors.extend(batch_desc)
 
-            # Flatten the batched results
-            descriptors = [desc for batch in batched_descriptors for desc in batch]
+            if len(descriptors) == 0:
+                raise RuntimeError(
+                    "Global descriptor computation returned no descriptors; cannot build visibility graph."
+                )
 
         # Use retriever to construct visibility graph based on descriptors and filenames
         logger.info("⏳ Computing visibility graph...")

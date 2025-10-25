@@ -8,8 +8,9 @@ Example: To cache output of `NetVLADGlobalDescriptor`, use
 
 Authors: John Lambert
 """
+
 from pathlib import Path
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 import numpy as np
 
@@ -22,6 +23,9 @@ from gtsfm.frontend.global_descriptor.global_descriptor_base import GlobalDescri
 logger = logger_utils.get_logger()
 
 CACHE_ROOT_PATH = Path(__file__).resolve().parent.parent.parent.parent / "cache"
+
+if TYPE_CHECKING:  # pragma: no cover
+    import torch
 
 
 class GlobalDescriptorCacher(GlobalDescriptorBase):
@@ -60,6 +64,33 @@ class GlobalDescriptorCacher(GlobalDescriptorBase):
         cache_path = self.__get_cache_path(cache_key=self.__generate_cache_key(image=image))
         data = {"global_descriptor": global_descriptor}
         io_utils.write_to_bz2_file(data, cache_path)
+
+    def describe_batch(self, images: "torch.Tensor") -> list[np.ndarray]:  # type: ignore[name-defined]
+        """Batch descriptor API delegates to the underlying descriptor without caching.
+
+        The cacher currently operates on individual `Image` objects because the cache key relies on
+        filename metadata. Batched pipelines only provide transformed tensors, so we reuse the
+        wrapped descriptor directly to keep the workflow functional.
+        """
+
+        # Import torch lazily to avoid an unconditional dependency when only describe() is used.
+        try:  # pragma: no cover
+            import torch  # noqa: F401
+        except ImportError as exc:  # pragma: no cover
+            raise ImportError("torch is required for batched global descriptors") from exc
+
+        if hasattr(self._global_descriptor, "describe_batch"):
+            return self._global_descriptor.describe_batch(images)
+
+        # Fallback: break the batch into individual descriptors and rely on the cache-aware path.
+        descriptors = []
+        for image in images:
+            np_image = image.detach().cpu().numpy()
+            if np_image.dtype != np.uint8:
+                np_image = np.clip(np_image, 0.0, 1.0)
+                np_image = (np_image * 255.0).round().astype(np.uint8)
+            descriptors.append(self.describe(Image(value_array=np_image.transpose(1, 2, 0))))
+        return descriptors
 
     def describe(self, image: Image) -> np.ndarray:
         """Perform feature detection as well as their description, with caching.

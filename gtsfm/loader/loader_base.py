@@ -4,8 +4,10 @@ Authors: Frank Dellaert and Ayush Baid
 """
 
 import abc
+from typing import Callable, Dict, List, Optional, Tuple
+
+import numpy as np
 import torch
-from typing import Dict, List, Optional, Tuple, Callable
 
 from dask.base import annotate as dask_annotate
 from dask.delayed import Delayed, delayed
@@ -391,6 +393,13 @@ class LoaderBase(GTSFMProcess):
 
         if resize_transform is not None:
             image_tensors = [resize_transform(img) for img in image_arrays]
+        else:
+            image_tensors = []
+            for img in image_arrays:
+                if img.ndim == 2:
+                    img = np.expand_dims(img, axis=2)
+                tensor = torch.from_numpy(img).permute(2, 0, 1).float() / 255.0
+                image_tensors.append(tensor)
 
         batch_tensor = torch.stack(image_tensors, dim=0)
 
