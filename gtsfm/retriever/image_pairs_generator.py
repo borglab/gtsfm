@@ -10,6 +10,7 @@ from typing import List, Optional
 import numpy as np
 import torch
 from dask.distributed import Client, Future
+from dask.distributed import get_worker
 
 import gtsfm.utils.logger as logger_utils
 # from gtsfm.common.image import Image
@@ -48,6 +49,13 @@ class ImagePairsGenerator:
             global_descriptor: GlobalDescriptorBase, image_batch: torch.Tensor
         ) -> List[np.ndarray]:
             """Apply global descriptor to extract feature vectors from a batch of images."""
+            try:
+                worker = get_worker()
+                worker_name = worker.address
+                logger.info(f"🔧 [Worker: {worker_name}] Computing global descriptors for batch of {len(image_batch)} images")
+            except Exception:
+                logger.info(f"🔧 [Main Process] Computing global descriptors for batch of {len(image_batch)} images")
+            
             # This will call the new method you need to create in your descriptor class.
             return global_descriptor.describe_batch(images=image_batch)
 
