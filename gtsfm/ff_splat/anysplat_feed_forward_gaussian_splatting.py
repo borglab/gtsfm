@@ -135,7 +135,7 @@ class AnySplatGaussianSplatting(FeedForwardGaussianSplattingBase):
         if cfg.save_ply_file:
             self._save_splats(splats, save_gs_files_path)
 
-        return splats, pred_context_pose
+        return
 
     def _generate_interpolated_video(
         self, extrinsics, intrinsics, b, height, width, splats, save_gs_files_path, decoder_model
