@@ -33,6 +33,7 @@ from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 from gtsfm.densify.mvs_base import MVSBase
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.evaluation.retrieval_metrics import save_retrieval_two_view_metrics
+from gtsfm.ff_splat.feed_forward_gaussian_splatting_base import FeedForwardGaussianSplattingBase
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
@@ -164,6 +165,23 @@ class ClusterOptimizer:
         return valid_two_view_results, duration_sec
 
     @staticmethod
+    def _run_feed_forward_gaussian_splatting(
+        splatting_optimizer_future: Future,
+        image_future_keys: list[str],
+        output_path: Path,
+    ) -> None:
+
+        with worker_client() as client:
+            image_futures = [Future(key=key, client=client) for key in image_future_keys]
+            start_time = time.time()
+            images = client.gather(image_futures)
+            splatting_optimizer_future.generate_splats(
+                images=images,
+                save_gs_files_path=output_path,
+            )
+            logger.info("Time taken for Feed forward Gaussian Splatting %s", time.time() - start_time)
+
+    @staticmethod
     def _save_two_view_visualizations(
         loader: LoaderBase,
         two_view_results: AnnotatedGraph[TwoViewResult],
@@ -271,6 +289,7 @@ class ClusterOptimizer:
         output_root: Path,
         visibility_graph: VisibilityGraph,
         image_futures: list[Future],
+        gs_optimizer_future: Optional[Future] = None,
     ) -> Optional[tuple[Delayed, list[Delayed], list[Delayed]]]:
         """Create Dask graphs for multi-view optimization and downstream products for a single cluster.
 
@@ -406,26 +425,36 @@ class ClusterOptimizer:
                 metrics_graph_list.append(downsampling_metrics_graph)
 
         if self.run_gaussian_splatting_optimizer and self.gaussian_splatting_optimizer is not None:
-            # Intentional import here to support mac implementation.
-            import gtsfm.splat.rendering as gtsfm_rendering
-
-            splats_graph, cfg_graph = self.gaussian_splatting_optimizer.create_computation_graph(
-                images, ba_output_graph
-            )
-
-            with self._output_annotation():
+            if gs_optimizer_future is not None:
+                image_future_keys = [future.key for future in image_futures]
                 delayed_results.append(
-                    delayed(gtsfm_rendering.save_splats)(save_path=str(output_paths.gs_path), splats=splats_graph)
-                )
-                delayed_results.append(
-                    delayed(gtsfm_rendering.generate_interpolated_video)(
-                        images=images,
-                        sfm_result_graph=ba_output_graph,
-                        cfg_result_graph=cfg_graph,
-                        splats_graph=splats_graph,
-                        video_fpath=output_paths.interpolated_video,
+                    delayed(self._run_feed_forward_gaussian_splatting)(
+                        gs_optimizer_future,
+                        image_future_keys,
+                        output_paths.gs_path,
                     )
                 )
+            else:
+                # Intentional import here to support mac implementation.
+                import gtsfm.splat.rendering as gtsfm_rendering
+
+                splats_graph, cfg_graph = self.gaussian_splatting_optimizer.create_computation_graph(
+                    images, ba_output_graph
+                )
+
+                with self._output_annotation():
+                    delayed_results.append(
+                        delayed(gtsfm_rendering.save_splats)(save_path=str(output_paths.gs_path), splats=splats_graph)
+                    )
+                    delayed_results.append(
+                        delayed(gtsfm_rendering.generate_interpolated_video)(
+                            images=images,
+                            sfm_result_graph=ba_output_graph,
+                            cfg_result_graph=cfg_graph,
+                            splats_graph=splats_graph,
+                            video_fpath=output_paths.interpolated_video,
+                        )
+                    )
 
         return ba_output_graph, delayed_results, metrics_graph_list
 
