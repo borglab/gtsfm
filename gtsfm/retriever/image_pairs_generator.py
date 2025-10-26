@@ -8,8 +8,8 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from dask.distributed import Client, Future
 from dask import distributed
+from dask.distributed import Client, Future
 from torchvision.transforms import v2 as transforms  # type: ignore
 
 import gtsfm.utils.logger as logger_utils
@@ -72,27 +72,27 @@ class ImagePairsGenerator:
                 worker = distributed.get_worker()
                 worker_name = worker.address
                 logger.info(
-                    f"🔧 [Worker: {worker_name}] Computing global descriptors for batch of {len(image_batch)} images"
-                    f"with global descriptor: {global_descriptor}"
+                    f"🟩 [Worker: {worker_name}] Computing global descriptors for batch of {len(image_batch)} images"
+                    f" with global descriptor: {type(global_descriptor).__name__}"
                 )
             except Exception:
-                logger.info(f"🔧 [Main Process] Computing global descriptors for batch of {len(image_batch)} images")
-            
+                logger.info(f"🟩 [Main Process] Computing global descriptors for batch of {len(image_batch)} images")
+
             # This will call the new method you need to create in your descriptor class.
             return global_descriptor.describe_batch(images=image_batch)
 
         descriptors: list[np.ndarray] | None = None  # Will hold global descriptors if computed
 
         if self._global_descriptor is not None:
-            logger.info("🔍 Starting global descriptor workflow...")
-            
-            logger.info("📡 About to scatter descriptor")
+            logger.info("🟩 Starting global descriptor workflow...")
+
+            logger.info("🟩 About to scatter descriptor")
             scatter_start = time.time()
-            
+
             global_descriptor_future = client.scatter(self._global_descriptor, broadcast=True)
-            
-            logger.info(f"✅ Scatter completed in {time.time()-scatter_start:.1f} seconds")
-        
+
+            logger.info(f"🟩 Scatter completed in {time.time()-scatter_start:.1f} seconds")
+
             # Submit descriptor extraction jobs for all images in parallel
             descriptor_futures: list[Future] = [
                 client.submit(apply_global_descriptor_batch, global_descriptor_future, batch_future)
