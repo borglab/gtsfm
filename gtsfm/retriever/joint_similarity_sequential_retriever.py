@@ -17,7 +17,7 @@ from gtsfm.retriever.similarity_retriever import SimilarityRetriever
 logger = logger_utils.get_logger()
 
 
-class JointNetVLADSequentialRetriever(RetrieverBase):
+class JointSimilaritySequentialRetriever(RetrieverBase):
     """Retriever that includes both sequential and retrieval links."""
 
     def __init__(self, num_matched: int, min_score: float, max_frame_lookahead: int) -> None:
@@ -43,7 +43,7 @@ class JointNetVLADSequentialRetriever(RetrieverBase):
 
     def __repr__(self) -> str:
         return f"""
-        JointNetVLADSequentialRetriever:
+        JointSimilaritySequentialRetriever:
             Similarity retriever: {self._similarity_retriever}
             Sequential retriever: {self._seq_retriever}
         """
@@ -84,5 +84,5 @@ class JointNetVLADSequentialRetriever(RetrieverBase):
             Unique pairs (i1,i2) representing union of the input sets.
         """
         pairs = list(set(sim_pairs).union(set(seq_pairs)))
-        logger.info("Found %d pairs from the NetVLAD + Sequential Retriever.", len(pairs))
+        logger.info("Found %d pairs from the Similarity + Sequential Retriever.", len(pairs))
         return pairs

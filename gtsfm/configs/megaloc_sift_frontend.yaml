@@ -25,12 +25,12 @@ image_pairs_generator:
   global_descriptor:
     _target_: gtsfm.frontend.cacher.global_descriptor_cacher.GlobalDescriptorCacher
     global_descriptor_obj:
-      _target_: gtsfm.frontend.global_descriptor.megaloc_global_descriptor.MegaLocGlobalDescriptor
+      _target_: gtsfm.frontend.global_descriptor.MegaLoc
 
   # Retriever: KEPT THE SAME - SimilarityRetriever works for any global descriptor!
   # It computes cosine similarity between vectors and selects top-k pairs
   retriever:
-    _target_: gtsfm.retriever.similarity_retriever.SimilarityRetriever
+    _target_: gtsfm.retriever.Similarity
     num_matched: 20 # Find top-20 most similar images per query
     min_score: 0.3 # Minimum cosine similarity threshold
 

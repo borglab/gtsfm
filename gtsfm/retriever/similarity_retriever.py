@@ -1,4 +1,4 @@
-"""Retriever implementation which provides a NetVLAD global image descriptor to suggest potential image pairs.
+"""Retriever implementation which uses a global image descriptor to suggest potential image pairs.
 Note: Similarity computation based off of Paul-Edouard Sarlin's HLOC:
 Reference: https://github.com/cvg/Hierarchical-Localization/blob/master/hloc/pairs_from_retrieval.py
 https://openaccess.thecvf.com/content_cvpr_2016/papers/Arandjelovic_NetVLAD_CNN_Architecture_CVPR_2016_paper.pdf
@@ -79,7 +79,7 @@ class SimilarityRetriever(RetrieverBase):
             sim=sim, image_fnames=image_fnames, plots_output_dir=plots_output_dir
         )
 
-    def compute_similarity_matrix(self, global_descriptors: List[np.ndarray]) -> torch.tensor:
+    def compute_similarity_matrix(self, global_descriptors: List[np.ndarray]) -> torch.Tensor:
         """Compute a similarity matrix between all pairs of images.
         We use block matching, to avoid excessive memory usage.
         We cannot fit more than 50x50 sized block into memory, on a 16 GB RAM machine.
@@ -134,7 +134,7 @@ class SimilarityRetriever(RetrieverBase):
         # Form (K,D) for K images.
         block_i_query_descriptors = torch.from_numpy(np.array(global_descriptors[i_start:i_end]))
         block_j_query_descriptors = torch.from_numpy(np.array(global_descriptors[j_start:j_end]))
-        # Einsum equivalent to (img_descs @ img_descs.T)
+        # Einsum equivalent to (img_descriptors @ img_descriptors.T)
         sim_block = torch.einsum(
             "id,jd->ij", block_i_query_descriptors.to(device), block_j_query_descriptors.to(device)
         )
@@ -152,7 +152,7 @@ class SimilarityRetriever(RetrieverBase):
         """
         sim = torch.zeros((num_images, num_images))
         for sr in sub_block_results:
-            sim[sr.i_start : sr.i_end, sr.j_start : sr.j_end] = sr.sub_block
+            sim[sr.i_start : sr.i_end, sr.j_start : sr.j_end] = sr.sub_block  # noqa E203
         return sim
 
     def compute_pairs_from_similarity_matrix(
@@ -181,18 +181,18 @@ class SimilarityRetriever(RetrieverBase):
             # Save image of similarity matrix.
             plt.imshow(np.triu(sim.detach().cpu().numpy()))
             plt.title("Image Similarity Matrix")
-            plt.savefig(str(plots_output_dir / "netvlad_similarity_matrix.jpg"), dpi=500)
+            plt.savefig(str(plots_output_dir / "similarity_matrix.jpg"), dpi=500)
             plt.close("all")
             # Save values in similarity matrix.
             np.savetxt(
-                fname=str(plots_output_dir / "netvlad_similarity_matrix.txt"),
+                fname=str(plots_output_dir / "similarity_matrix.txt"),
                 X=sim.detach().cpu().numpy(),
                 fmt="%.2f",
                 delimiter=",",
             )
 
             # Save named pairs and scores.
-            with open(plots_output_dir / "netvlad_named_pairs.txt", "w") as fid:
+            with open(plots_output_dir / "similarity_named_pairs.txt", "w") as fid:
                 for _named_pair, _pair_ind in zip(named_pairs, pairs):
                     fid.write("%.4f %s %s\n" % (sim[_pair_ind[0], _pair_ind[1]], _named_pair[0], _named_pair[1]))
 
@@ -221,11 +221,11 @@ def pairs_from_score_matrix(
     # if there are only N images to choose from, selecting more than N is not allowed
     num_select = min(num_select, N)
     assert scores.shape == invalid.shape
-    invalid = torch.from_numpy(invalid).to(scores.device)
+    invalid_tensor = torch.from_numpy(invalid).to(scores.device)
     if min_score is not None:
         # logical OR.
-        invalid |= scores < min_score
-    scores.masked_fill_(invalid, float("-inf"))
+        invalid_tensor |= scores < min_score
+    scores.masked_fill_(invalid_tensor, float("-inf"))
     topk = torch.topk(scores, k=num_select, dim=1)
     indices = topk.indices.cpu().numpy()
     valid = topk.values.isfinite().cpu().numpy()

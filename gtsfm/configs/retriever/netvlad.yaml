@@ -1,4 +1,4 @@
 retriever:
-  _target_: gtsfm.retriever.similarity_retriever.SimilarityRetriever
+  _target_: gtsfm.retriever.Similarity
   num_matched: 10
   min_score: 0.5
