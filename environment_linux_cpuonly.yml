@@ -56,3 +56,13 @@ dependencies:
       - huggingface-hub[torch]==0.34.4
       - roma # Rotation Manipiulation Library
       - Flask>=3.0
+      - dacite
+      - lightning
+      - sk-video
+      - xformers==0.0.29
+      - torch_scatter==2.1.2
+      - e3nn
+      - colorspacious
+      - plyfile
+      - imageio==2.37.0
+      - imageio-ffmpeg
