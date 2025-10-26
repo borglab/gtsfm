@@ -21,4 +21,4 @@ git submodule update --init --recursive
 ##########################################################
 
 cd $GITHUB_WORKSPACE
-./download_model_weights.sh
+./scripts/download_model_weights.sh
