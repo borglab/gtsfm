@@ -26,7 +26,6 @@ import gtsfm.utils.viz as viz_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 from gtsfm.evaluation.retrieval_metrics import save_retrieval_two_view_metrics
 from gtsfm.products.one_view_data import OneViewData
