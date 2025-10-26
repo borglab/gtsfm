@@ -13,7 +13,7 @@ image_pairs_generator:
     global_descriptor_obj:
       _target_: gtsfm.frontend.global_descriptor.NetVLAD
   retriever:
-    _target_: gtsfm.retriever.joint_similarity_sequential_retriever.JointSimilaritySequentialRetriever
+    _target_: gtsfm.retriever.JointSimilaritySequential
     num_matched: 5
     min_score: 0.3
     max_frame_lookahead: 15

@@ -1,5 +1,5 @@
 retriever:
-  _target_: gtsfm.retriever.joint_similarity_sequential_retriever.JointSimilaritySequentialRetriever
+  _target_: gtsfm.retriever.JointSimilaritySequential
   num_matched: 10
   min_score: 0.4
   max_frame_lookahead: 5
