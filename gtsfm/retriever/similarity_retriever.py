@@ -32,7 +32,7 @@ class SubBlockSimilarityResult:
     sub_block: torch.Tensor
 
 
-class NetVLADRetriever(RetrieverBase):
+class SimilarityRetriever(RetrieverBase):
     def __init__(self, num_matched: int, min_score: float = 0.1, blocksize: int = 50) -> None:
         """
         Args:
@@ -46,7 +46,7 @@ class NetVLADRetriever(RetrieverBase):
 
     def __repr__(self) -> str:
         return f"""
-        NetVLADRetriever:
+        SimilarityRetriever:
             Num. frames matched: {self._num_matched}
             Block size: {self._blocksize}
             Minimum score: {self._min_score}
