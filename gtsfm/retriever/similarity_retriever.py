@@ -134,7 +134,7 @@ class SimilarityRetriever(RetrieverBase):
         # Form (K,D) for K images.
         block_i_query_descriptors = torch.from_numpy(np.array(global_descriptors[i_start:i_end]))
         block_j_query_descriptors = torch.from_numpy(np.array(global_descriptors[j_start:j_end]))
-        # Einsum equivalent to (img_descs @ img_descs.T)
+        # Einsum equivalent to (img_descriptors @ img_descriptors.T)
         sim_block = torch.einsum(
             "id,jd->ij", block_i_query_descriptors.to(device), block_j_query_descriptors.to(device)
         )
@@ -152,7 +152,7 @@ class SimilarityRetriever(RetrieverBase):
         """
         sim = torch.zeros((num_images, num_images))
         for sr in sub_block_results:
-            sim[sr.i_start : sr.i_end, sr.j_start : sr.j_end] = sr.sub_block
+            sim[sr.i_start : sr.i_end, sr.j_start : sr.j_end] = sr.sub_block  # noqa E203
         return sim
 
     def compute_pairs_from_similarity_matrix(
@@ -192,7 +192,7 @@ class SimilarityRetriever(RetrieverBase):
             )
 
             # Save named pairs and scores.
-            with open(plots_output_dir / "netvlad_named_pairs.txt", "w") as fid:
+            with open(plots_output_dir / "similarity_named_pairs.txt", "w") as fid:
                 for _named_pair, _pair_ind in zip(named_pairs, pairs):
                     fid.write("%.4f %s %s\n" % (sim[_pair_ind[0], _pair_ind[1]], _named_pair[0], _named_pair[1]))
 
@@ -221,11 +221,11 @@ def pairs_from_score_matrix(
     # if there are only N images to choose from, selecting more than N is not allowed
     num_select = min(num_select, N)
     assert scores.shape == invalid.shape
-    invalid = torch.from_numpy(invalid).to(scores.device)
+    invalid_tensor = torch.from_numpy(invalid).to(scores.device)
     if min_score is not None:
         # logical OR.
-        invalid |= scores < min_score
-    scores.masked_fill_(invalid, float("-inf"))
+        invalid_tensor |= scores < min_score
+    scores.masked_fill_(invalid_tensor, float("-inf"))
     topk = torch.topk(scores, k=num_select, dim=1)
     indices = topk.indices.cpu().numpy()
     valid = topk.values.isfinite().cpu().numpy()
