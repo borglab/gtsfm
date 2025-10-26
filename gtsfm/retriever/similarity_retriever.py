@@ -1,4 +1,4 @@
-"""Retriever implementation which provides a NetVLAD global image descriptor to suggest potential image pairs.
+"""Retriever implementation which uses a global image descriptor to suggest potential image pairs.
 Note: Similarity computation based off of Paul-Edouard Sarlin's HLOC:
 Reference: https://github.com/cvg/Hierarchical-Localization/blob/master/hloc/pairs_from_retrieval.py
 https://openaccess.thecvf.com/content_cvpr_2016/papers/Arandjelovic_NetVLAD_CNN_Architecture_CVPR_2016_paper.pdf
@@ -79,7 +79,7 @@ class SimilarityRetriever(RetrieverBase):
             sim=sim, image_fnames=image_fnames, plots_output_dir=plots_output_dir
         )
 
-    def compute_similarity_matrix(self, global_descriptors: List[np.ndarray]) -> torch.tensor:
+    def compute_similarity_matrix(self, global_descriptors: List[np.ndarray]) -> torch.Tensor:
         """Compute a similarity matrix between all pairs of images.
         We use block matching, to avoid excessive memory usage.
         We cannot fit more than 50x50 sized block into memory, on a 16 GB RAM machine.
@@ -181,11 +181,11 @@ class SimilarityRetriever(RetrieverBase):
             # Save image of similarity matrix.
             plt.imshow(np.triu(sim.detach().cpu().numpy()))
             plt.title("Image Similarity Matrix")
-            plt.savefig(str(plots_output_dir / "netvlad_similarity_matrix.jpg"), dpi=500)
+            plt.savefig(str(plots_output_dir / "similarity_matrix.jpg"), dpi=500)
             plt.close("all")
             # Save values in similarity matrix.
             np.savetxt(
-                fname=str(plots_output_dir / "netvlad_similarity_matrix.txt"),
+                fname=str(plots_output_dir / "similarity_matrix.txt"),
                 X=sim.detach().cpu().numpy(),
                 fmt="%.2f",
                 delimiter=",",
