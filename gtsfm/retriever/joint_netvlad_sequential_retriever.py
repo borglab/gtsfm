@@ -10,9 +10,9 @@ import numpy as np
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.products.visibility_graph import VisibilityGraph
-from gtsfm.retriever.netvlad_retriever import NetVLADRetriever
 from gtsfm.retriever.retriever_base import RetrieverBase
 from gtsfm.retriever.sequential_retriever import SequentialRetriever
+from gtsfm.retriever.similarity_retriever import SimilarityRetriever
 
 logger = logger_utils.get_logger()
 
@@ -29,7 +29,7 @@ class JointNetVLADSequentialRetriever(RetrieverBase):
             max_frame_lookahead: Maximum number of consecutive frames to consider for matching/co-visibility.
         """
         self._num_matched = num_matched
-        self._similarity_retriever = NetVLADRetriever(num_matched=num_matched, min_score=min_score)
+        self._similarity_retriever = SimilarityRetriever(num_matched=num_matched, min_score=min_score)
         self._seq_retriever = SequentialRetriever(max_frame_lookahead=max_frame_lookahead)
 
     def set_max_frame_lookahead(self, n) -> None:

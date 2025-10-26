@@ -13,7 +13,7 @@ image_pairs_generator:
     global_descriptor_obj:
       _target_: gtsfm.frontend.global_descriptor.netvlad_global_descriptor.NetVLADGlobalDescriptor
   retriever:
-    _target_: gtsfm.retriever.netvlad_retriever.NetVLADRetriever
+    _target_: gtsfm.retriever.similarity_retriever.SimilarityRetriever
     num_matched: 20
     min_score: 0.5
 
