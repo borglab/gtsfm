@@ -110,7 +110,7 @@ def merge(tree: SceneTree) -> GtsfmData:
         Merged GtsfmData.
     """
 
-    def f(path_scene: LocalScene, merged_children) -> GtsfmData:
+    def f(path_scene: LocalScene, merged_children: tuple[GtsfmData, ...]) -> GtsfmData:
         path, scene = path_scene
         if scene is None:
             raise ValueError(f"merge_colmap_tree: scene at path {path} is None.")
@@ -121,7 +121,11 @@ def merge(tree: SceneTree) -> GtsfmData:
             try:
                 merged_scene = merging_utils.merge(merged_scene, child)
             except Exception as e:
-                print(f"  Failed to merge child scene: {e}")
+                child_keys = list(child.cameras().keys())
+                print(
+                    f"Failed to merge child scene with keys {sorted(child_keys)} into parent at {path} "
+                    f"with keys {sorted(scene.cameras().keys())}: {e}"
+                )
         return merged_scene
 
     return tree.fold(f)

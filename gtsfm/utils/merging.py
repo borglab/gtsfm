@@ -105,7 +105,13 @@ def estimate_sim3(a: dict[int, Pose3], b: dict[int, Pose3]) -> Similarity3:
     """Estimate the similarity transform using GTSAM."""
     common_keys = [i for i in a if i in b]
     pose_pairs = [(a[i], b[i]) for i in common_keys]
-    return Similarity3.Align(pose_pairs)
+    try:
+        return Similarity3.Align(pose_pairs)
+    except Exception as e:
+        raise RuntimeError(
+            f"merging.estimate_sim3: Similarity3.Align failed to estimate similarity transform "
+            f"with {len(pose_pairs)} pose pairs: {e}."
+        ) from e
 
 
 def merge(a: GtsfmData, b: GtsfmData) -> GtsfmData:
