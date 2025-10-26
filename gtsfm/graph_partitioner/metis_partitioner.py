@@ -55,27 +55,38 @@ class MetisPartitioner(GraphPartitionerBase):
         return sfg
 
     def _cluster_from_clique(self, clique: SymbolicBayesTreeClique, graph: VisibilityGraph) -> _SubTreeInfo | None:
-        """REVISED: Recursively build the cluster tree, aggressively pruning single-child nodes."""
+        """Recursively build the cluster tree, aggressively pruning single-child nodes."""
         keys, frontals, _ = self._clique_key_sets(clique)
         children = [clique[j] for j in range(clique.nrChildren())]
 
         # Recursively call on children and filter out any pruned (None) results.
         child_results = [res for res in (self._cluster_from_clique(child, graph) for child in children) if res]
+        descendant_edges = set.union(*(result.edges for result in child_results)) if child_results else set()
+
+        # Only keep edges that touch at least one frontal variable from this clique.
+        candidate_edges = {
+            (i, j)
+            for i, j in graph
+            if i in keys
+            and j in keys
+            and (i in frontals or j in frontals or not frontals)
+        }
+        current_edges = candidate_edges - descendant_edges
+
+        def sorted_edges(edges: set[tuple[int, int]]) -> list[tuple[int, int]]:
+            return sorted(edges)
 
         # Case 1: This node is a leaf in the pruned tree (no valid children remaining).
         if not child_results:
-            edges = {(i, j) for i, j in graph if i in keys and j in keys}
-            if not edges:
+            if not current_edges:
                 return None  # Prune empty leaf clusters.
-            cluster = ClusterTree(value=list(edges), children=())
-            return _SubTreeInfo(cluster=cluster, keys=keys, edges=edges)
+            cluster = ClusterTree(value=sorted_edges(current_edges), children=())
+            return _SubTreeInfo(cluster=cluster, keys=keys, edges=current_edges)
 
         # This node is an internal node in the pruned tree.
         # Calculate its keys, edges, and the edges unique to it.
-        subtree_keys = frontals | set.union(*(result.keys for result in child_results))
-        subtree_edges = {(i, j) for i, j in graph if i in subtree_keys and j in subtree_keys}
-        descendant_edges: set[tuple[int, int]] = set.union(*(result.edges for result in child_results))
-        current_edges = subtree_edges - descendant_edges
+        subtree_keys = keys | set.union(*(result.keys for result in child_results))
+        subtree_edges = current_edges | descendant_edges
 
         # --- Aggressive Pruning Logic ---
         if len(child_results) == 1:
@@ -83,7 +94,7 @@ class MetisPartitioner(GraphPartitionerBase):
             single_child_result = child_results[0]
             # Combine this node's edges with its child's edges.
             merged_cluster = ClusterTree(
-                value=list(current_edges) + single_child_result.cluster.value,
+                value=sorted_edges(current_edges) + single_child_result.cluster.value,
                 children=single_child_result.cluster.children,
             )
             # Pass up the merged cluster, but with the full key/edge sets for this scope.
@@ -91,7 +102,7 @@ class MetisPartitioner(GraphPartitionerBase):
         else:
             # Case 3: Keep this node as a branching point (>1 child).
             cluster = ClusterTree(
-                value=list(current_edges),
+                value=sorted_edges(current_edges),
                 children=tuple(result.cluster for result in child_results),
             )
             return _SubTreeInfo(cluster=cluster, keys=subtree_keys, edges=subtree_edges)
