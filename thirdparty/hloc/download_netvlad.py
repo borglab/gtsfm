@@ -3,12 +3,12 @@
 Note: Copied from NetVLAD.__init__.
 """
 
-import logging
 import subprocess
 from pathlib import Path
 
+import gtsfm.utils.logger as logger_utils
 
-logger = logging.getLogger(__name__)
+logger = logger_utils.get_logger()
 
 # path to /thirdparty/hloc/weights/{CHECKPOINT}.mat
 netvlad_path = Path(__file__).resolve().parent / "weights"
