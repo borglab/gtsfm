@@ -6,7 +6,7 @@ Authors: John Lambert
 import unittest
 from pathlib import Path
 
-from gtsfm.frontend.global_descriptor.netvlad_global_descriptor import NetVLADGlobalDescriptor
+from gtsfm.frontend.global_descriptor import NetVLAD
 from gtsfm.loader.colmap_loader import ColmapLoader
 from gtsfm.loader.olsson_loader import OlssonLoader
 from gtsfm.retriever.similarity_retriever import SimilarityRetriever
@@ -19,7 +19,7 @@ SKYDIO_DATA_ROOT = DATA_ROOT_PATH / "crane_mast_8imgs_colmap_output"
 class TestSimilarityRetriever(unittest.TestCase):
     def setUp(self):
         super().setUp()
-        self.global_descriptor = NetVLADGlobalDescriptor()
+        self.global_descriptor = NetVLAD()
 
     def test_netvlad_retriever_crane_mast(self) -> None:
         """Test the Similarity retriever on 2 frames of the Skydio Crane-Mast dataset."""
