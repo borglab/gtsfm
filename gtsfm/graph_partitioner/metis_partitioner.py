@@ -65,11 +65,7 @@ class MetisPartitioner(GraphPartitionerBase):
 
         # Only keep edges that touch at least one frontal variable from this clique.
         candidate_edges = {
-            (i, j)
-            for i, j in graph
-            if i in keys
-            and j in keys
-            and (i in frontals or j in frontals or not frontals)
+            (i, j) for i, j in graph if i in keys and j in keys and (i in frontals or j in frontals or not frontals)
         }
         current_edges = candidate_edges - descendant_edges
 
@@ -114,6 +110,7 @@ class MetisPartitioner(GraphPartitionerBase):
             n_frontals = conditional.nrFrontals()
             frontals = set(int(k) for k in keys[:n_frontals])
             separator = set(int(k) for k in keys[n_frontals:])
-            return set(keys), frontals, separator
+            all_keys = frontals | separator
+            return all_keys, frontals, separator
         else:
             return set(), set(), set()

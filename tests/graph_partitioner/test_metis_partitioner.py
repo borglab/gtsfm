@@ -122,19 +122,18 @@ class TestMetisPartitioner(unittest.TestCase):
 
         # Run the partitioner on the loaded edges.
         partitioner = MetisPartitioner()
-        # print(partitioner.symbolic_bayes_tree(graph))
-        cluster_tree = partitioner.run(graph)
+        cluster_tree: ClusterTree | None = partitioner.run(graph)
         self.assertIsNotNone(cluster_tree)
         assert cluster_tree is not None
         leaves = tuple(cluster_tree.leaves()) if cluster_tree is not None else ()
         self.assertEqual(len(leaves), 8)
 
         # Assert that all clusters (not just leaves) overlap with at least one child cluster.
-        print(cluster_tree)
         for cluster in PreOrderIter(cluster_tree):
             cluster_keys = visibility_graph_keys(cluster.value)
             for child in cluster.children:
-                overlap_found = len(cluster_keys & visibility_graph_keys(child.value)) > 0
+                child_keys = child.all_keys()  # type: ignore
+                overlap_found = len(cluster_keys & child_keys) > 0
                 if not overlap_found:
                     print(
                         f"******\nCluster with keys {sorted(cluster_keys)} has no overlap with child "
