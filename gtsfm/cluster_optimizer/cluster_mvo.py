@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import os
-import shutil
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -12,17 +10,11 @@ from typing import Any, Optional
 import numpy as np
 from dask.delayed import Delayed, delayed
 from dask.distributed import Future, worker_client
-from gtsam import Pose3, Similarity3  # type: ignore
 
-import gtsfm.common.types as gtsfm_types
 import gtsfm.two_view_estimator as two_view_estimator
-import gtsfm.utils.alignment as alignment_utils
-import gtsfm.utils.ellipsoid as ellipsoid_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.viz as viz_utils
 from gtsfm.cluster_optimizer.cluster_optimizer_base import (
-    REACT_METRICS_PATH,
-    REACT_RESULTS_PATH,
     ClusterOptimizerBase,
     _pad_keypoints_list,
     align_estimated_gtsfm_data,
@@ -32,15 +24,12 @@ from gtsfm.cluster_optimizer.cluster_optimizer_base import (
     save_gtsfm_data,
     save_matplotlib_visualizations,
 )
-from gtsfm.common.gtsfm_data import GtsfmData
-from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.outputs import OutputPaths
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 from gtsfm.densify.mvs_base import MVSBase
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
-from gtsfm.evaluation.retrieval_metrics import save_retrieval_two_view_metrics
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.multi_view_optimizer import MultiViewOptimizer

@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from copy import deepcopy
 from pathlib import Path
 from typing import Optional
 
-from gtsfm.cluster_optimizer.cluster_optimizer_base import REACT_RESULTS_PATH, ClusterOptimizerBase, logger
+from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterOptimizerBase
 
 
 class ClusterVGGT(ClusterOptimizerBase):
