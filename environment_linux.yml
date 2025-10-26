@@ -16,18 +16,22 @@ dependencies:
   - flake8
   - isort
   # dask and related
-  - dask
-  - distributed
   - asyncssh
+  - dask=2025.9.1
+  - distributed=2025.9.1
+  - lz4=4.4.4
+  - msgpack-python=1.1.1
   - python-graphviz
+  - toolz =1.1.0
+  - tornado=6.5.2
   # core functionality and APIs
   - hydra-core
   - matplotlib>=3.5
   - networkx
   - nodejs
-  - numpy==1.26.4 # gtsam requirement
+  - numpy=2.2.6
   - open3d
-  - pandas
+  - pandas=2.3.3
   - pillow>=9.0.0
   - scikit-learn
   - scipy

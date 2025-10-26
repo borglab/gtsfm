@@ -8,15 +8,15 @@ Authors: Zongyue Liu
 """
 
 import json
-import logging
 import pickle
-from typing import Any, Dict, Optional, Union, List
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 
+import gtsfm.utils.logger as logger_utils
 from gtsfm.common.postgres_client import PostgresClient
 
-logger = logging.getLogger(__name__)
+logger = logger_utils.get_logger()
 
 
 class DaskDBModuleBase:
