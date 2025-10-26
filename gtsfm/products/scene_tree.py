@@ -3,9 +3,13 @@ Module for COLMAP scene data I/O stored as a tree structure.
 Authors: Frank Dellaert
 """
 
+import random
 from pathlib import Path
 
+import gtsfm.utils.merging as merging_utils
 from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm.products.cluster_tree import ClusterTree
+from gtsfm.products.visibility_graph import visibility_graph_keys
 from gtsfm.utils.tree import PreOrderIter, Tree
 
 
@@ -56,6 +60,69 @@ def number_tracks(tree: SceneTree) -> int:
     def f(path_scene: LocalScene, children):
         sum_below = sum(children)
         return sum_below + (path_scene[1].number_tracks() if path_scene[1] else 0)
+
+    return tree.fold(f)
+
+
+def color_by_cluster(tree: SceneTree) -> SceneTree:
+    """Color each cluster in the scene tree with a different random color."""
+    assert tree is not None, "color_by_cluster: input tree is None"
+
+    def color_one(path_scene):
+        path, scene = path_scene
+        new_tracks = scene.tracks().copy()
+        r = random.randint(0, 255)
+        g = random.randint(0, 255)
+        b = random.randint(0, 255)
+        for track in new_tracks:
+            track.r = r
+            track.g = g
+            track.b = b
+        new_data = GtsfmData(scene.number_images(), scene.cameras(), new_tracks)
+        return path, new_data
+
+    return tree.map(color_one)
+
+
+def reorder(tree: SceneTree, cluster_tree: ClusterTree) -> SceneTree:
+    """Reorder cameras in each scene according to the visibility graph in the cluster tree."""
+    assert tree is not None, "reorder: input tree is None"
+
+    def reorder(vg_path_scene):
+        vg, (path, scene) = vg_path_scene
+        keys = sorted(visibility_graph_keys(vg))
+        new_cameras = {k: scene.get_camera(i) for i, k in enumerate(keys)}
+        new_data = GtsfmData(len(new_cameras), new_cameras, [])
+        # HACK(Frank): don't remap tracks for now, just copy them over.
+        new_data._tracks = scene.tracks().copy()
+        return path, new_data
+
+    return Tree.zip(cluster_tree, tree).map(reorder)
+
+
+def merge(tree: SceneTree) -> GtsfmData:
+    """Merge a cluster tree of ColmapScenes into a single GtsfmData.
+
+    Args:
+        tree: Tree whose values are (Path, GtsfmData) tuples.
+
+    Returns:
+        Merged GtsfmData.
+    """
+
+    def f(path_scene: LocalScene, merged_children) -> GtsfmData:
+        path, scene = path_scene
+        if scene is None:
+            raise ValueError(f"merge_colmap_tree: scene at path {path} is None.")
+        if len(merged_children) == 0:
+            return scene
+        merged_scene = scene
+        for child in merged_children:
+            try:
+                merged_scene = merging_utils.merge(merged_scene, child)
+            except Exception as e:
+                print(f"  Failed to merge child scene: {e}")
+        return merged_scene
 
     return tree.fold(f)
 

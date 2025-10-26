@@ -1,12 +1,16 @@
-"""Utility functions for merging partitions
+"""Utility functions for merging clusters
 
 Authors: Richi Dubey
 """
 
 import gtsam.noiseModel as noiseModel  # type: ignore
 import numpy as np
+from gtsam import Similarity3  # type: ignore
 from gtsam import LevenbergMarquardtOptimizer, NonlinearFactorGraph, Pose3, PriorFactorPose3, Values
 from gtsam.symbol_shorthand import X  # type: ignore
+
+from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm.common.types import create_camera
 
 KEY = X(0)
 
@@ -80,3 +84,59 @@ def merge_two_pose_maps(a: dict[int, Pose3], b: dict[int, Pose3]) -> dict[int, P
     """
     aTb = calculate_transform(a, b)
     return add_transformed_poses(a, aTb, b)
+
+
+def estimate_sim3_old(a: dict[int, Pose3], b: dict[int, Pose3]) -> Similarity3:
+    """Estimate the similarity transform, using very simple scale estimator."""
+
+    aTb = calculate_transform(a, b)
+
+    # poor man scale estimation
+    common_keys = [i for i in a if i in b]
+    i, j = common_keys[0], common_keys[-1]
+    b_norm = np.linalg.norm(b[i].translation() - b[j].translation())
+    a_norm = np.linalg.norm(a[i].translation() - a[j].translation())
+    scale = float(a_norm / b_norm)
+
+    return Similarity3(aTb.rotation().matrix(), aTb.translation(), scale)
+
+
+def estimate_sim3(a: dict[int, Pose3], b: dict[int, Pose3]) -> Similarity3:
+    """Estimate the similarity transform using GTSAM."""
+    common_keys = [i for i in a if i in b]
+    pose_pairs = [(a[i], b[i]) for i in common_keys]
+    return Similarity3.Align(pose_pairs)
+
+
+def merge(a: GtsfmData, b: GtsfmData) -> GtsfmData:
+    """Merge another GtsfmData into this one in-place.
+
+    Args:
+        b: GtsfmData to merge into this one.
+
+    Returns:
+        Merged GtsfmData, a new object. Coordinate frame A is used as prime.
+    """
+    aSb = estimate_sim3(a.poses(), b.poses())
+
+    # Create merged cameras with updated poses. Only b-poses need to be updated.
+    merged_cameras = a.cameras().copy()
+    for i, cam in b.cameras().items():
+        # TODO: what to do if we have conflicting calibrations?
+        if i not in merged_cameras:
+            bTi = cam.pose()
+            merged_cameras[i] = create_camera(aSb.transformFrom(bTi), cam.calibration())
+
+    # Create merged tracks
+    merged_tracks = a.tracks().copy()
+    # For all b_tracks, update the point by multiplying with aSb:
+    for track in b.tracks():
+        track.p = aSb.transformFrom(track.p)  # from b to a
+        merged_tracks.append(track)
+
+    # Create merged GtsfmData
+    # TODO: Check whether we need to remap tracks
+    merged_data = GtsfmData(len(merged_cameras), merged_cameras, [])
+    merged_data._tracks = merged_tracks
+
+    return merged_data
