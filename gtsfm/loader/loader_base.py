@@ -385,7 +385,7 @@ class LoaderBase(GTSFMProcess):
 
         Args:
             indices: List of image indices to load
-            resize_transform: Optional callable that converts a numpy array (image) to a torch.Tensor of the desired size.
+            resize_transform: callable that converts a numpy array (image) to a torch.Tensor of the desired size.
             batch_transform: Optional callable that applies a preprocessing transform to the batch tensor.
 
         Returns:
