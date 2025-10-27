@@ -21,14 +21,19 @@ import pycolmap
 import torch
 import torch.nn.functional as F
 import trimesh
-from vggt.dependency.np_to_pycolmap import batch_np_matrix_to_pycolmap
-from vggt.dependency.track_predict import predict_tracks
-from vggt.utils.geometry import unproject_depth_map_to_point_map
-from vggt.utils.helper import create_pixel_coordinate_grid, randomly_limit_trues
-from vggt.utils.load_fn import load_and_preprocess_images_square
-from vggt.utils.pose_enc import pose_encoding_to_extri_intri
 
-from gtsfm.utils.vggt import default_vggt_device, default_vggt_dtype, load_vggt_model
+from gtsfm.utils.vggt import (  # type: ignore[attr-defined]
+    batch_np_matrix_to_pycolmap,
+    create_pixel_coordinate_grid,
+    default_vggt_device,
+    default_vggt_dtype,
+    load_and_preprocess_images_square,
+    load_vggt_model,
+    pose_encoding_to_extri_intri,
+    predict_tracks,
+    randomly_limit_trues,
+    unproject_depth_map_to_point_map,
+)
 
 # Configure CUDA settings
 torch.backends.cudnn.enabled = True

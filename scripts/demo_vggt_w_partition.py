@@ -21,13 +21,18 @@ import torch
 import torch.nn.functional as F
 import trimesh
 from demo_vggt import Timer, run_VGGT
-from vggt.dependency.projection import project_3D_points_np
-from vggt.dependency.track_predict import predict_tracks
-from vggt.utils.geometry import unproject_depth_map_to_point_map
-from vggt.utils.helper import create_pixel_coordinate_grid, randomly_limit_trues
-from vggt.utils.load_fn import load_and_preprocess_images_square
 
-from gtsfm.utils.vggt import default_vggt_device, default_vggt_dtype, load_vggt_model
+from gtsfm.utils.vggt import (  # type: ignore[attr-defined]
+    create_pixel_coordinate_grid,
+    default_vggt_device,
+    default_vggt_dtype,
+    load_and_preprocess_images_square,
+    load_vggt_model,
+    predict_tracks,
+    project_3D_points_np,
+    randomly_limit_trues,
+    unproject_depth_map_to_point_map,
+)
 
 # Configure CUDA settings
 torch.backends.cudnn.enabled = True
@@ -348,18 +353,18 @@ def rename_colmap_recons_and_rescale_camera(
 
     assert image_id_list is not None
 
-    # for pyimageid in reconstruction.images:
+    # for py_image_id in reconstruction.images:
     for local_id in range(len(image_id_list)):
-        pyimageid = image_id_list[local_id]
+        py_image_id = image_id_list[local_id]
         # Reshaped the padded&resized image to the original size
         # Rename the images to the original names
-        pyimage = reconstruction.images[pyimageid]
-        pycamera = reconstruction.cameras[pyimage.camera_id]
-        pyimage.name = image_paths[local_id]
+        py_image = reconstruction.images[py_image_id]
+        py_camera = reconstruction.cameras[py_image.camera_id]
+        py_image.name = image_paths[local_id]
 
         if rescale_camera:
             # Rescale the camera parameters
-            pred_params = copy.deepcopy(pycamera.params)
+            pred_params = copy.deepcopy(py_camera.params)
 
             real_image_size = original_coords[local_id, -2:]
             resize_ratio = max(real_image_size) / img_size
@@ -367,15 +372,15 @@ def rename_colmap_recons_and_rescale_camera(
             real_pp = real_image_size / 2
             pred_params[-2:] = real_pp  # center of the image
 
-            pycamera.params = pred_params
-            pycamera.width = real_image_size[0]
-            pycamera.height = real_image_size[1]
+            py_camera.params = pred_params
+            py_camera.width = real_image_size[0]
+            py_camera.height = real_image_size[1]
 
         if shift_point2d_to_original_res:
             # Also shift the point2D to original resolution
             top_left = original_coords[local_id, :2]
 
-            for point2D in pyimage.points2D:
+            for point2D in py_image.points2D:
                 point2D.xy = (point2D.xy - top_left) * resize_ratio
 
         if shared_camera:
@@ -388,7 +393,7 @@ def rename_colmap_recons_and_rescale_camera(
     return reconstruction
 
 
-def demo_fn(partition, args):
+def demo_fn(cluster_key: str, image_indices: list[int], args):
 
     # Set seed for reproducibility
     np.random.seed(args.seed)
@@ -407,10 +412,10 @@ def demo_fn(partition, args):
 
     # Run VGGT for camera and depth estimation
     model = load_vggt_model(device=device, dtype=dtype)
-    print(f"Model loaded")
+    print("Model loaded")
 
     # Get image paths and preprocess them
-    image_dir = os.path.join(args.output_dir, partition, "images")
+    image_dir = os.path.join(args.output_dir, cluster_key, "images")
     image_path_list = sorted(glob.glob(os.path.join(image_dir, "*")))
     if len(image_path_list) == 0:
         raise ValueError(f"No images found in {image_dir}")
@@ -418,8 +423,8 @@ def demo_fn(partition, args):
 
     # Load images and original coordinates
     # Load Image in 1024, while running VGGT with 518
-    vggt_fixed_resolution = 518
     img_load_resolution = 1024
+    vggt_fixed_resolution = 518
 
     images, original_coords = load_and_preprocess_images_square(image_path_list, img_load_resolution)
     images = images.to(device)
@@ -474,7 +479,7 @@ def demo_fn(partition, args):
             shared_camera=shared_camera,
             camera_type=args.camera_type,
             points_rgb=points_rgb,
-            image_id_list=partitions[partition],
+            image_id_list=image_indices,
         )
 
         if reconstruction is None:
@@ -523,7 +528,7 @@ def demo_fn(partition, args):
             image_size,
             shared_camera=shared_camera,
             camera_type=camera_type,
-            image_id_list=partitions[partition],
+            image_id_list=image_indices,
         )
 
         reconstruction_resolution = vggt_fixed_resolution
@@ -535,17 +540,20 @@ def demo_fn(partition, args):
         img_size=reconstruction_resolution,
         shift_point2d_to_original_res=True,
         shared_camera=shared_camera,
-        image_id_list=partitions[partition],
+        image_id_list=image_indices,
     )
+
     if not args.use_ba:
-        print(f"Saving reconstruction to {args.output_dir}/{partition}/sparse_wo_ba")
-        sparse_reconstruction_dir = os.path.join(args.output_dir, partition, "sparse_wo_ba")
+        print(f"Saving reconstruction to {args.output_dir}/{cluster_key}/sparse_wo_ba")
+        sparse_reconstruction_dir = os.path.join(args.output_dir, cluster_key, "sparse_wo_ba")
     else:
         print(
-            f"Saving reconstruction to {args.output_dir}/{partition}/sparse_w_ba_{args.query_frame_num}_{args.max_query_pts}_{args.use_colmap_ba}"
+            f"Saving reconstruction to {args.output_dir}/{cluster_key}/sparse_w_ba_{args.query_frame_num}_{args.max_query_pts}_{args.use_colmap_ba}"
         )
         sparse_reconstruction_dir = os.path.join(
-            args.output_dir, partition, f"sparse_w_ba_{args.query_frame_num}_{args.max_query_pts}_{args.use_colmap_ba}"
+            args.output_dir,
+            cluster_key,
+            f"sparse_w_ba_{args.query_frame_num}_{args.max_query_pts}_{args.use_colmap_ba}",
         )
     os.makedirs(sparse_reconstruction_dir, exist_ok=True)
     reconstruction.write(sparse_reconstruction_dir)
@@ -557,7 +565,12 @@ def demo_fn(partition, args):
     return True
 
 
-def prepare_patition_data(source_directory, output_dir):
+def prepare_cluster_tree_data(clusters: dict, source_directory: str, output_dir: str):
+    """Prepare data folders for each cluster by copying images based on indices.
+
+    Detail: For each cluster in the clusters dictionary, create a corresponding directory
+    in the output directory and copy images from the source directory based on the specified indices.
+    """
 
     def copy_files_by_indices(src_dir, dst_dir, indices):
 
@@ -573,42 +586,42 @@ def prepare_patition_data(source_directory, output_dir):
             else:
                 print(f"Index {idx} is out of range. Skipped.")
 
-    for name, partition in partitions.items():
+    for name, cluster_key in clusters.items():
         destination_directory = f"{output_dir}/{name}/images"
-        file_indices = partition
+        file_indices = cluster_key
 
         copy_files_by_indices(source_directory, destination_directory, file_indices)
 
-
-# Hard coded partitions
-# fmt: off
-partitions = {
-        "c":[65, 66, 67, 68, 144, 145, 248, 249, 277, 279, 280],
-        "c_1":[204, 225, 226, 227, 228, 229, 230, 231, 232, 233, 234, 235, 236, 237, 238, 239, 240, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250, 251, 252, 253, 254, 255, 256, 257, 258, 259, 260, 261, 262, 263, 264, 265, 266, 267, 268, 269, 270, 271, 272, 273, 274, 275, 276, 277, 279],
-        "c_1_1":[202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215, 216, 217, 218, 219, 220, 221, 222, 223, 224, 225, 226, 227, 228, 229, 230, 231, 232, 233, 234, 235, 236, 237, 238, 239],
-        "c_1_2":[248, 261, 262, 263, 264, 265, 266, 267, 268, 269, 270, 271, 272, 273, 274, 275, 276, 277, 278, 279, 280],
-        "c_2":[147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 178, 179, 180, 181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 206],
-        "c_2_1":[183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198, 199, 200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215, 216],
-        "c_2_2":[127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159, 160, 161],
-        "c_3":[73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124],
-        "c_3_1":[4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53],
-        "c_3_1_1":[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18],
-        "c_3_1_2":[39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70],
-        "c_3_2":[56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87],
-        "c_3_3":[110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141]
-    }
-# fmt: on
 
 if __name__ == "__main__":
     args = parse_args()
     print("Arguments:", vars(args))
 
-    prepare_patition_data(args.scene_dir, args.output_dir)
+    # Hard coded clusters
+    # fmt: off
+    clusters = {
+        "c": [65, 66, 67, 68, 144, 145, 248, 249, 277, 279, 280],
+        "c_1": [204, 225, 226, 227, 228, 229, 230, 231, 232, 233, 234, 235, 236, 237, 238, 239, 240, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250, 251, 252, 253, 254, 255, 256, 257, 258, 259, 260, 261, 262, 263, 264, 265, 266, 267, 268, 269, 270, 271, 272, 273, 274, 275, 276, 277, 279],
+        "c_1_1": [202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215, 216, 217, 218, 219, 220, 221, 222, 223, 224, 225, 226, 227, 228, 229, 230, 231, 232, 233, 234, 235, 236, 237, 238, 239],
+        "c_1_2": [248, 261, 262, 263, 264, 265, 266, 267, 268, 269, 270, 271, 272, 273, 274, 275, 276, 277, 278, 279, 280],
+        "c_2": [147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 178, 179, 180, 181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 206],
+        "c_2_1": [183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198, 199, 200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215, 216],
+        "c_2_2": [127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159, 160, 161],
+        "c_3": [73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124],
+        "c_3_1": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53],
+        "c_3_1_1": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18],
+        "c_3_1_2": [39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70],
+        "c_3_2": [56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87],
+        "c_3_3": [110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141]
+    }
+    # fmt: on
+
+    prepare_cluster_tree_data(clusters, args.scene_dir, args.output_dir)
 
     with torch.no_grad():
-        for partition in partitions.keys():
-            print(f"Runing VGGT on {partition}")
-            demo_fn(partition, args)
+        for cluster_key, image_indices in clusters.items():
+            print(f"Running VGGT on {cluster_key}")
+            demo_fn(cluster_key, image_indices, args)
             # break
 
 

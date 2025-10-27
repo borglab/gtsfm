@@ -21,27 +21,37 @@ PathLike = Union[str, Path]
 _LOGGER = logger_utils.get_logger()
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-VGGT_SUBMODULE_PATH = REPO_ROOT / "thirdparty" / "vggt"
+THIRDPARTY_ROOT = REPO_ROOT / "thirdparty"
+VGGT_SUBMODULE_PATH = THIRDPARTY_ROOT / "vggt"
+LIGHTGLUE_SUBMODULE_PATH = THIRDPARTY_ROOT / "LightGlue"
 DEFAULT_WEIGHTS_PATH = VGGT_SUBMODULE_PATH / "weights" / "model.pt"
 
 
-def _ensure_vggt_repo_on_path() -> None:
-    """Add the VGGT submodule to ``sys.path`` so we can import it like a package."""
-    if not VGGT_SUBMODULE_PATH.exists():
+def _ensure_submodule_on_path(path: Path, name: str) -> None:
+    """Add a vendored thirdparty module to ``sys.path`` if needed."""
+    if not path.exists():
         raise ImportError(
-            f"VGGT submodule not found at {VGGT_SUBMODULE_PATH}. "
+            f"Required submodule '{name}' not found at {path}. "
             "Did you run 'git submodule update --init --recursive'?"
         )
 
-    repo_str = str(VGGT_SUBMODULE_PATH)
-    if repo_str not in sys.path:
-        sys.path.insert(0, repo_str)
+    path_str = str(path)
+    if path_str not in sys.path:
+        sys.path.insert(0, path_str)
 
 
-_ensure_vggt_repo_on_path()
+_ensure_submodule_on_path(VGGT_SUBMODULE_PATH, "vggt")
+_ensure_submodule_on_path(LIGHTGLUE_SUBMODULE_PATH, "LightGlue")
 
 try:
+    from vggt.dependency.np_to_pycolmap import batch_np_matrix_to_pycolmap  # type: ignore
+    from vggt.dependency.projection import project_3D_points_np  # type: ignore
+    from vggt.dependency.track_predict import predict_tracks  # type: ignore
     from vggt.models.vggt import VGGT  # type: ignore
+    from vggt.utils.geometry import unproject_depth_map_to_point_map  # type: ignore
+    from vggt.utils.helper import create_pixel_coordinate_grid, randomly_limit_trues  # type: ignore
+    from vggt.utils.load_fn import load_and_preprocess_images_square  # type: ignore
+    from vggt.utils.pose_enc import pose_encoding_to_extri_intri  # type: ignore
 except ModuleNotFoundError as exc:  # pragma: no cover - import guard
     raise ImportError(
         "The 'vggt' Python package could not be imported even after adding the submodule to sys.path."
@@ -53,8 +63,7 @@ def resolve_vggt_weights_path(checkpoint_path: PathLike | None = None) -> Path:
     path = Path(checkpoint_path) if checkpoint_path is not None else DEFAULT_WEIGHTS_PATH
     if not path.exists():
         raise FileNotFoundError(
-            f"VGGT checkpoint not found at {path}. "
-            "Please run 'bash download_model_weights.sh' from the repo root."
+            f"VGGT checkpoint not found at {path}. " "Please run 'bash download_model_weights.sh' from the repo root."
         )
     return path
 
@@ -113,4 +122,12 @@ __all__ = [
     "default_vggt_device",
     "default_vggt_dtype",
     "load_vggt_model",
+    "batch_np_matrix_to_pycolmap",
+    "predict_tracks",
+    "unproject_depth_map_to_point_map",
+    "create_pixel_coordinate_grid",
+    "randomly_limit_trues",
+    "load_and_preprocess_images_square",
+    "pose_encoding_to_extri_intri",
+    "project_3D_points_np",
 ]
