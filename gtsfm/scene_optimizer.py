@@ -167,7 +167,8 @@ class SceneOptimizer:
 
     def _create_process_graph(self):
         process_graph_generator = ProcessGraphGenerator()
-        # Only the Multiview optimizer defines correspondence_generator; guard with isinstance and cast for type checkers.
+        # Only the Multiview optimizer defines correspondence_generator; guard with isinstance and
+        # cast for type checkers.
         if isinstance(self.cluster_optimizer, Multiview):
             multiview_optimizer = cast(Multiview, self.cluster_optimizer)
             if isinstance(multiview_optimizer.correspondence_generator, ImageCorrespondenceGenerator):
