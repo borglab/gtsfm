@@ -131,7 +131,7 @@ execute_gtsfm() {
         share_intrinsics_arg="--share_intrinsics"
     fi
     
-    if [[ "$config_name" == "megaloc_sift_frontend" ]]; then
+    if [[ "$config_name" == "megaloc" ]]; then
         log INFO "Running GTSFM Using MegaLoc + SIFT full pipeline configuration"
         
         case "$loader_name" in
