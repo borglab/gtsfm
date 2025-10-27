@@ -84,8 +84,6 @@ class ImagePairsGenerator:
         descriptors: list[np.ndarray] | None = None  # Will hold global descriptors if computed
 
         if self._global_descriptor is not None:
-            logger.info("🟩 Starting global descriptor workflow...")
-
             logger.info("🟩 About to scatter descriptor")
             scatter_start = time.time()
 
