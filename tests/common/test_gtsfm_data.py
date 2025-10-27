@@ -10,7 +10,7 @@ from pathlib import Path
 
 import gtsam  # type: ignore
 import numpy as np
-from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, SfmData, SfmTrack
+from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Point3, Pose3, SfmData, SfmTrack, Point2
 
 import gtsfm.utils.graph as graph_utils
 from gtsfm.common.gtsfm_data import GtsfmData
@@ -96,9 +96,9 @@ class TestGtsfmData(unittest.TestCase):
 
     def test_get_track(self) -> None:
         """Testing getter for track."""
-        expected_track = SfmTrack(np.array([6.41689062, 0.38897032, -23.58628273]))
-        expected_track.addMeasurement(0, np.array([383.88000488, 15.2999897]))
-        expected_track.addMeasurement(1, np.array([559.75, 106.15000153]))
+        expected_track = SfmTrack(Point3(6.41689062, 0.38897032, -23.58628273))
+        expected_track.addMeasurement(0, Point2(383.88000488, 15.2999897))
+        expected_track.addMeasurement(1, Point2(559.75, 106.15000153))
 
         computed = EXAMPLE_DATA.get_track(1)
 
@@ -111,9 +111,9 @@ class TestGtsfmData(unittest.TestCase):
         gtsfm_data = copy.deepcopy(EXAMPLE_DATA)
 
         # add a track on camera #0 and #1, which exists in the data
-        track_to_add = SfmTrack(np.array([0, -2.0, 5.0]))
-        track_to_add.addMeasurement(idx=0, m=np.array([20.0, 5.0]))
-        track_to_add.addMeasurement(idx=1, m=np.array([60.0, 50.0]))
+        track_to_add = SfmTrack(Point3(0, -2.0, 5.0))
+        track_to_add.addMeasurement(idx=0, m=Point2(20.0, 5.0))
+        track_to_add.addMeasurement(idx=1, m=Point2(60.0, 50.0))
 
         self.assertTrue(gtsfm_data.add_track(track_to_add))
 
@@ -122,9 +122,9 @@ class TestGtsfmData(unittest.TestCase):
         gtsfm_data = copy.deepcopy(EXAMPLE_DATA)
 
         # add a track on camera #0 and #1, which exists in the data
-        track_to_add = SfmTrack(np.array([0, -2.0, 5.0]))
-        track_to_add.addMeasurement(idx=0, m=np.array([20.0, 5.0]))
-        track_to_add.addMeasurement(idx=3, m=np.array([60.0, 50.0]))  # this camera does not exist
+        track_to_add = SfmTrack(Point3(0, -2.0, 5.0))
+        track_to_add.addMeasurement(idx=0, m=Point2(20.0, 5.0))
+        track_to_add.addMeasurement(idx=3, m=Point2(60.0, 50.0]))  # this camera does not exst
 
         self.assertFalse(gtsfm_data.add_track(track_to_add))
 
@@ -145,9 +145,9 @@ class TestGtsfmData(unittest.TestCase):
 
         obj = copy.deepcopy(EXAMPLE_DATA)
         # add a new track with just camera 0 and 2
-        track_to_add = SfmTrack(np.array([0, -2.0, 5.0]))
-        track_to_add.addMeasurement(idx=0, m=np.array([20.0, 5.0]))
-        track_to_add.addMeasurement(idx=2, m=np.array([60.0, 50.0]))
+        track_to_add = SfmTrack(Point3(0, -2.0, 5.0))
+        track_to_add.addMeasurement(idx=0, m=Point2(20.0, 5.0))
+        track_to_add.addMeasurement(idx=2, m=Point2(60.0, 50.0))
         obj.add_track(track_to_add)
 
         # pick the cameras at index 0 and 2, and hence dropping camera at index 1.

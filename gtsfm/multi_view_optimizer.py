@@ -227,7 +227,7 @@ class MultiViewOptimizer:
         ]
 
         # Align the sparse multi-view estimate before BA to the ground truth pose graph.
-        ba_input_graph = delayed(GtsfmData.aligned_via_sim3_to_poses)(ba_input_graph, gt_wTi_list)
+        ba_input_graph = delayed(GtsfmData.aligned_to_poses_via_sim3)(ba_input_graph, gt_wTi_list)
 
         return ba_input_graph, ba_result_graph, viewgraph_two_view_reports_graph, multiview_optimizer_metrics_graph
 

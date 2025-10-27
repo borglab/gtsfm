@@ -12,7 +12,6 @@ from gtsam import Pose3, Pose3Pairs, Rot3, Similarity3
 
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metric_utils
-from gtsfm.common.gtsfm_data import GtsfmData
 
 EPSILON = np.finfo(float).eps
 
@@ -280,15 +279,3 @@ def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> Tuple[List
 
     logger.debug("Pose graph Sim(3) alignment complete.")
     return aTi_list_, aSb
-
-
-def align_gtsfm_data_via_Sim3_to_poses(input_data: GtsfmData, wTi_list_ref: List[Optional[Pose3]]) -> GtsfmData:
-    """Align GtsfmData (points and cameras) to a set of reference poses.
-
-    Args:
-        wTi_list_ref: List of reference/target camera poses, ordered by camera index.
-
-    Returns:
-        aligned_data: GtsfmData that is aligned to the poses above.
-    """
-    return input_data.aligned_via_sim3_to_poses(wTi_list_ref)

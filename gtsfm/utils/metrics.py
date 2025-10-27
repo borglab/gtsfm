@@ -19,7 +19,6 @@ from trimesh import Trimesh
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.verification as verification_utils
-from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.types import CALIBRATION_TYPE, CAMERA_TYPE
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
@@ -503,30 +502,6 @@ def save_metrics_as_json(metrics_groups: List[GtsfmMetricsGroup], output_dir: st
     """
     for metrics_group in metrics_groups:
         metrics_group.save_to_json(os.path.join(output_dir, metrics_group.name + ".json"))
-
-
-def get_metrics_for_sfmdata(gtsfm_data: GtsfmData, suffix: str, store_full_data: bool = False) -> List[GtsfmMetric]:
-    """Helper to get bundle adjustment metrics from a GtsfmData object with a suffix for metric names."""
-    metrics = []
-    metrics.append(GtsfmMetric(name="number_cameras", data=len(gtsfm_data.get_valid_camera_indices())))
-    metrics.append(GtsfmMetric("number_tracks" + suffix, gtsfm_data.number_tracks()))
-    metrics.append(
-        GtsfmMetric(
-            name="3d_track_lengths" + suffix,
-            data=gtsfm_data.get_track_lengths(),
-            plot_type=GtsfmMetric.PlotType.HISTOGRAM,
-            store_full_data=store_full_data,
-        )
-    )
-    metrics.append(
-        GtsfmMetric(
-            name=f"reprojection_errors{suffix}_px",
-            data=gtsfm_data.get_scene_reprojection_errors(),
-            store_full_data=store_full_data,
-            plot_type=GtsfmMetric.PlotType.BOX,
-        )
-    )
-    return metrics
 
 
 def compute_percentage_change(x: float, y: float) -> float:

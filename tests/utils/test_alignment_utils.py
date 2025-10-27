@@ -13,7 +13,6 @@ from gtsam import Cal3Bundler, Point2, Point3, Pose3, Rot3, SfmTrack, Similarity
 from gtsam.examples import SFMdata  # type: ignore
 
 import gtsfm.utils.alignment as alignment_utils
-import gtsfm.utils.metrics as metrics_utils
 import tests.data.sample_poses as sample_poses
 from gtsfm.common.gtsfm_data import GtsfmData
 
@@ -267,9 +266,7 @@ class TestAlignmentUtils(unittest.TestCase):
                 track = SfmTrack(pt)
                 track = add_dummy_measurements_to_track(track)
                 gtsfm_data.add_track(track)
-        aligned_sfm_result = alignment_utils.align_gtsfm_data_via_Sim3_to_poses(
-            sfm_result, wTi_list_ref=gt_gtsfm_data.get_camera_poses()
-        )
+        aligned_sfm_result = sfm_result.aligned_to_poses_via_sim3(gt_gtsfm_data.get_camera_poses())
         # tracks and poses should match GT now, after applying estimated scale and shift.
         assert aligned_sfm_result == gt_gtsfm_data
 
@@ -940,12 +937,10 @@ class TestAlignmentUtils(unittest.TestCase):
         unaligned_filtered_data = GtsfmData.from_cameras_and_tracks(
             cameras=unaligned_cameras, tracks=unaligned_tracks, number_images=32
         )
-        unaligned_metrics = metrics_utils.get_metrics_for_sfmdata(unaligned_filtered_data, suffix="_filtered")
-        aligned_filtered_data = alignment_utils.align_gtsfm_data_via_Sim3_to_poses(
-            unaligned_filtered_data, wTi_list_ref=poses_gt
-        )
+        unaligned_metrics = unaligned_filtered_data.get_metrics(suffix="_filtered")
+        aligned_filtered_data = unaligned_filtered_data.aligned_to_poses_via_sim3(poses_gt)
 
-        aligned_metrics = metrics_utils.get_metrics_for_sfmdata(aligned_filtered_data, suffix="_filtered")
+        aligned_metrics = aligned_filtered_data.get_metrics(suffix="_filtered")
 
         assert unaligned_metrics[3].name == "reprojection_errors_filtered_px"
         assert aligned_metrics[3].name == "reprojection_errors_filtered_px"

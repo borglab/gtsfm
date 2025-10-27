@@ -21,7 +21,9 @@ import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.reprojection as reprojection
 import thirdparty.colmap.scripts.python.read_write_model as colmap_io
 from gtsfm.common.image import Image
+from gtsfm.evaluation.metrics import GtsfmMetric
 from gtsfm.products.visibility_graph import ImageIndexPairs
+from gtsfm.utils.alignment import align_poses_sim3_ignore_missing
 from gtsfm.utils.pycolmap_utils import gtsfm_calibration_to_colmap_camera
 
 logger = logger_utils.get_logger()
@@ -460,7 +462,7 @@ class GtsfmData:
 
         return filtered_data, valid_mask
 
-    def aligned_via_sim3_to_poses(self, aTi_list: Sequence[Optional[Pose3]]) -> "GtsfmData":
+    def aligned_to_poses_via_sim3(self, aTi_list: Sequence[Optional[Pose3]]) -> "GtsfmData":
         """Return a copy of the scene aligned to the supplied reference poses via Sim(3).
 
         Args:
@@ -469,12 +471,32 @@ class GtsfmData:
         Returns:
             New GtsfmData aligned to the reference pose graph.
         """
-        # Import locally to avoid circular dependency during module import.
-        from gtsfm.utils.alignment import align_poses_sim3_ignore_missing
-
         bTi_list = self.get_camera_poses()
         _, aSb = align_poses_sim3_ignore_missing(aTi_list, bTi_list)
         return self.apply_Sim3(aSb)
+
+    def get_metrics(self, suffix: str, store_full_data: bool = False) -> List[GtsfmMetric]:
+        """Helper to get bundle adjustment metrics from a GtsfmData object with a suffix for metric names."""
+        metrics = []
+        metrics.append(GtsfmMetric(name="number_cameras", data=len(self.get_valid_camera_indices())))
+        metrics.append(GtsfmMetric("number_tracks" + suffix, self.number_tracks()))
+        metrics.append(
+            GtsfmMetric(
+                name="3d_track_lengths" + suffix,
+                data=self.get_track_lengths(),
+                plot_type=GtsfmMetric.PlotType.HISTOGRAM,
+                store_full_data=store_full_data,
+            )
+        )
+        metrics.append(
+            GtsfmMetric(
+                name=f"reprojection_errors{suffix}_px",
+                data=self.get_scene_reprojection_errors(),
+                store_full_data=store_full_data,
+                plot_type=GtsfmMetric.PlotType.BOX,
+            )
+        )
+        return metrics
 
     def apply_Sim3(self, aSb: Similarity3) -> "GtsfmData":
         """Assume current tracks and cameras are in frame "b", then transport them to frame "a".

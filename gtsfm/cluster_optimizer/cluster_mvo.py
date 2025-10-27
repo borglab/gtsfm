@@ -497,15 +497,15 @@ def align_estimated_gtsfm_data(
 
     NOTE: alignment is common postprocessing for outputs from any optimizer.
     """
-    ba_input = ba_input.aligned_via_sim3_to_poses(gt_wTi_list)
-    ba_output = ba_output.aligned_via_sim3_to_poses(gt_wTi_list)
+    aligned_ba_input = ba_input.aligned_to_poses_via_sim3(gt_wTi_list)
+    aligned_ba_output = ba_output.aligned_to_poses_via_sim3(gt_wTi_list)
 
-    aTw = ellipsoid_utils.get_ortho_axis_alignment_transform(ba_output)
+    aTw = ellipsoid_utils.get_ortho_axis_alignment_transform(aligned_ba_output)
     aSw = Similarity3(R=aTw.rotation(), t=aTw.translation(), s=1.0)
-    ba_input = ba_input.apply_Sim3(aSw)
-    ba_output = ba_output.apply_Sim3(aSw)
-    gt_wTi_list = [aSw.transformFrom(wTi) if wTi is not None else None for wTi in gt_wTi_list]
-    return ba_input, ba_output, gt_wTi_list
+    twice_aligned_ba_input = aligned_ba_input.apply_Sim3(aSw)
+    twice_aligned_ba_output = aligned_ba_output.apply_Sim3(aSw)
+    gt_aTi_list = [aSw.transformFrom(wTi) if wTi is not None else None for wTi in gt_wTi_list]
+    return twice_aligned_ba_input, twice_aligned_ba_output, gt_aTi_list
 
 
 def save_matplotlib_visualizations(
