@@ -62,8 +62,8 @@ GTSfM uses the [SSHCluster](https://docs.dask.org/en/stable/deploying-ssh.html#d
 
 7. Update the weight
     - ```bash
-        download_model_weights.sh
-         ```
+        bash scripts/download_model_weights.sh
+      ```
 
 8. Log into scheduler machine again and download the data to scheduler machine.
 
