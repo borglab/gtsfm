@@ -9,14 +9,13 @@ Whereas bag-of-visual-words aggregation keeps counts of visual words, VLAD store
 Authors: John Lambert, Travis Driver
 """
 
-from typing import List, Optional, Callable, Tuple
-
 import numpy as np
 import torch
-from torchvision import transforms
+from torchvision.transforms import v2 as transforms  # type: ignore
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.frontend.global_descriptor.global_descriptor_base import GlobalDescriptorBase
+from gtsfm.loader.loader_base import BatchTransform, ResizeTransform
 from thirdparty.hloc.netvlad import NetVLAD
 
 
@@ -25,7 +24,7 @@ class NetVLADGlobalDescriptor(GlobalDescriptorBase):
 
     def __init__(self) -> None:
         super().__init__()
-        self._model: Optional[torch.nn.Module] = None  # Lazy loading - only load when describe() is called
+        self._model: torch.nn.Module | None = None  # Lazy loading - only load when describe() is called
 
     def _ensure_model_loaded(self) -> None:
         """Lazy-load the NetVLAD model to avoid unnecessary initialization."""
@@ -34,7 +33,7 @@ class NetVLADGlobalDescriptor(GlobalDescriptorBase):
             logger.info("⏳ Loading NetVLAD model weights...")
             self._model = NetVLAD().eval()
 
-    def get_preprocessing_transforms(self) -> Tuple[Optional[Callable], Optional[Callable]]:
+    def get_preprocessing_transforms(self) -> tuple[ResizeTransform, BatchTransform | None]:
         """ "Return transform to resize images to 480x640 (height x width).
 
         NetVLAD operates on convolutional feature maps and doesn't require
@@ -42,18 +41,20 @@ class NetVLADGlobalDescriptor(GlobalDescriptorBase):
         commonly use ~480x640 for a good balance of descriptor quality and
         memory efficiency during batching.
         """
-        resize_transform = transforms.Compose([
-            transforms.Lambda(lambda x: torch.from_numpy(x)),
-            transforms.Lambda(lambda x: x.permute(2, 0, 1)),  # [H,W,C] → [C,H,W]
-            transforms.Resize(size=(480, 640), antialias=True)
-        ])
-        
+        resize_transform = transforms.Compose(
+            [
+                transforms.Lambda(lambda x: torch.from_numpy(x)),
+                transforms.Lambda(lambda x: x.permute(2, 0, 1)),  # [H,W,C] → [C,H,W]
+                transforms.Resize(size=(480, 640), antialias=True),  # Expects [C,H,W]
+            ]
+        )
+
         # Transform 2: Convert to float32 and normalize to [0, 1]
         batch_transform = transforms.Lambda(lambda x: x.type(torch.float32) / 255.0)
-        
+
         return resize_transform, batch_transform
 
-    def describe_batch(self, images: torch.Tensor) -> List[np.ndarray]:
+    def describe_batch(self, images: torch.Tensor) -> list[np.ndarray]:
         """Compute descriptors for a batch of images efficiently."""
         self._ensure_model_loaded()
         assert self._model is not None, "Model should be loaded by now"
@@ -67,5 +68,5 @@ class NetVLADGlobalDescriptor(GlobalDescriptorBase):
             batch_descriptors = self._model({"image": images})
 
         # 3. Convert the output tensor back to a list of numpy arrays.
-        descs_np = batch_descriptors["global_descriptor"].detach().cpu().numpy()
-        return [desc for desc in descs_np]
+        descriptors_np = batch_descriptors["global_descriptor"].detach().cpu().numpy()
+        return [desc for desc in descriptors_np]

@@ -10,14 +10,14 @@ import numpy as np
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.products.visibility_graph import VisibilityGraph
-from gtsfm.retriever.netvlad_retriever import NetVLADRetriever
 from gtsfm.retriever.retriever_base import RetrieverBase
 from gtsfm.retriever.sequential_retriever import SequentialRetriever
+from gtsfm.retriever.similarity_retriever import SimilarityRetriever
 
 logger = logger_utils.get_logger()
 
 
-class JointNetVLADSequentialRetriever(RetrieverBase):
+class JointSimilaritySequentialRetriever(RetrieverBase):
     """Retriever that includes both sequential and retrieval links."""
 
     def __init__(self, num_matched: int, min_score: float, max_frame_lookahead: int) -> None:
@@ -29,7 +29,7 @@ class JointNetVLADSequentialRetriever(RetrieverBase):
             max_frame_lookahead: Maximum number of consecutive frames to consider for matching/co-visibility.
         """
         self._num_matched = num_matched
-        self._similarity_retriever = NetVLADRetriever(num_matched=num_matched, min_score=min_score)
+        self._similarity_retriever = SimilarityRetriever(num_matched=num_matched, min_score=min_score)
         self._seq_retriever = SequentialRetriever(max_frame_lookahead=max_frame_lookahead)
 
     def set_max_frame_lookahead(self, n) -> None:
@@ -43,7 +43,7 @@ class JointNetVLADSequentialRetriever(RetrieverBase):
 
     def __repr__(self) -> str:
         return f"""
-        JointNetVLADSequentialRetriever:
+        JointSimilaritySequentialRetriever:
             Similarity retriever: {self._similarity_retriever}
             Sequential retriever: {self._seq_retriever}
         """
@@ -84,5 +84,5 @@ class JointNetVLADSequentialRetriever(RetrieverBase):
             Unique pairs (i1,i2) representing union of the input sets.
         """
         pairs = list(set(sim_pairs).union(set(seq_pairs)))
-        logger.info("Found %d pairs from the NetVLAD + Sequential Retriever.", len(pairs))
+        logger.info("Found %d pairs from the Similarity + Sequential Retriever.", len(pairs))
         return pairs
