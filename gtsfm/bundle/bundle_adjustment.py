@@ -17,7 +17,6 @@ from gtsam.noiseModel import Diagonal, Isotropic, Robust, mEstimator  # type: ig
 from gtsam.symbol_shorthand import K, P, X  # type: ignore
 
 import gtsfm.common.types as gtsfm_types
-import gtsfm.utils.alignment as alignment_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.tracks as track_utils
@@ -525,7 +524,7 @@ class BundleAdjustmentOptimizer:
             return ba_metrics
 
         # Align the sparse multi-view estimate after BA to the ground truth pose graph.
-        aligned_filtered_data = alignment_utils.align_gtsfm_data_via_Sim3_to_poses(filtered_data, wTi_list_ref=poses_gt)
+        aligned_filtered_data = filtered_data.aligned_via_sim3_to_poses(wTi_list_ref=poses_gt)
         ba_pose_error_metrics = metrics_utils.compute_ba_pose_metrics(
             gt_wTi_list=poses_gt, computed_wTi_list=aligned_filtered_data.get_camera_poses(), save_dir=save_dir
         )

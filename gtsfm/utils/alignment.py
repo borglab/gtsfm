@@ -34,7 +34,7 @@ def log_sim3_transform(sim3: Similarity3, label: str = "Sim(3)") -> None:
     logger.debug("%s Scale `asb`: %.2f", label, float(sim3.scale()))
 
 
-def align_rotations(aRi_list: List[Optional[Rot3]], bRi_list: List[Optional[Rot3]]) -> List[Optional[Rot3]]:
+def align_rotations(aRi_list: Sequence[Optional[Rot3]], bRi_list: Sequence[Optional[Rot3]]) -> List[Optional[Rot3]]:
     """Aligns the list of rotations to the reference list by using Karcher mean.
 
     Args:
@@ -296,10 +296,4 @@ def align_gtsfm_data_via_Sim3_to_poses(input_data: GtsfmData, wTi_list_ref: List
     Returns:
         aligned_data: GtsfmData that is aligned to the poses above.
     """
-    # these are the estimated poses (source, to be aligned)
-    wTi_list = input_data.get_camera_poses()
-    # align the poses which are valid (i.e. are not None)
-    # some camera indices may have been lost after pruning to largest connected component, leading to None values
-    # rSe aligns the estimate `e` frame to the reference `r` frame
-    _, rSe = align_poses_sim3_ignore_missing(wTi_list_ref, wTi_list)
-    return input_data.apply_Sim3(aSb=rSe)
+    return input_data.aligned_via_sim3_to_poses(wTi_list_ref)

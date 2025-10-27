@@ -7,7 +7,7 @@ Authors: Ayush Baid, John Lambert, Xiaolong Wu
 import itertools
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, List, Mapping, Optional, Sequence, Tuple
 
 import gtsam  # type: ignore
 import numpy as np
@@ -39,7 +39,7 @@ class GtsfmData:
     def __init__(
         self,
         number_images: int,
-        cameras: Optional[Dict[int, gtsfm_types.CAMERA_TYPE]] = None,
+        cameras: Optional[Mapping[int, gtsfm_types.CAMERA_TYPE]] = None,
         tracks: Optional[List[SfmTrack]] = None,
     ) -> None:
         """Initializes the class.
@@ -50,7 +50,7 @@ class GtsfmData:
             tracks: SfmTracks in scene.
         """
         self._number_images = number_images
-        self._cameras: Dict[int, gtsfm_types.CAMERA_TYPE] = {}
+        self._cameras: dict[int, gtsfm_types.CAMERA_TYPE] = {}
         self._tracks: List[SfmTrack] = []
 
         # Initialize from inputs if provided.
@@ -304,11 +304,11 @@ class GtsfmData:
 
     @classmethod
     def from_cameras_and_tracks(
-        cls, cameras: Dict[int, gtsfm_types.CAMERA_TYPE], tracks: List[SfmTrack], number_images: int
+        cls, cameras: Mapping[int, gtsfm_types.CAMERA_TYPE], tracks: List[SfmTrack], number_images: int
     ) -> "GtsfmData":
         """Creates a GtsfmData object from a pre-existing set of cameras and tracks."""
         new_data = cls(number_images=number_images)
-        new_data._cameras = cameras
+        new_data._cameras = dict(cameras)
         new_data._tracks = tracks
         return new_data
 
@@ -361,7 +361,7 @@ class GtsfmData:
 
         return np.array(scene_reproj_errors)
 
-    def aggregate_metrics(self) -> Dict[str, Any]:
+    def aggregate_metrics(self) -> Mapping[str, Any]:
         """Aggregate metrics about the reprojection errors and 3d track lengths (summary stats).
 
         Args:
@@ -459,6 +459,22 @@ class GtsfmData:
             filtered_data.add_track(track)
 
         return filtered_data, valid_mask
+
+    def aligned_via_sim3_to_poses(self, aTi_list: Sequence[Optional[Pose3]]) -> "GtsfmData":
+        """Return a copy of the scene aligned to the supplied reference poses via Sim(3).
+
+        Args:
+            wTi_list_ref: Reference/target camera poses, ordered by camera index.
+
+        Returns:
+            New GtsfmData aligned to the reference pose graph.
+        """
+        # Import locally to avoid circular dependency during module import.
+        from gtsfm.utils.alignment import align_poses_sim3_ignore_missing
+
+        bTi_list = self.get_camera_poses()
+        _, aSb = align_poses_sim3_ignore_missing(aTi_list, bTi_list)
+        return self.apply_Sim3(aSb)
 
     def apply_Sim3(self, aSb: Similarity3) -> "GtsfmData":
         """Assume current tracks and cameras are in frame "b", then transport them to frame "a".

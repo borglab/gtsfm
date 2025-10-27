@@ -12,11 +12,11 @@ from dask.delayed import Delayed, delayed
 from gtsam import Pose3, Rot3, Unit3  # type: ignore
 
 import gtsfm.common.types as gtsfm_types
-import gtsfm.utils.alignment as alignment_utils
 import gtsfm.utils.graph as graph_utils
 from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
 from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
 from gtsfm.bundle.global_ba import GlobalBundleAdjustment
+from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.sfm_track import SfmTrack2d
@@ -227,7 +227,7 @@ class MultiViewOptimizer:
         ]
 
         # Align the sparse multi-view estimate before BA to the ground truth pose graph.
-        ba_input_graph = delayed(alignment_utils.align_gtsfm_data_via_Sim3_to_poses)(ba_input_graph, gt_wTi_list)
+        ba_input_graph = delayed(GtsfmData.aligned_via_sim3_to_poses)(ba_input_graph, gt_wTi_list)
 
         return ba_input_graph, ba_result_graph, viewgraph_two_view_reports_graph, multiview_optimizer_metrics_graph
 

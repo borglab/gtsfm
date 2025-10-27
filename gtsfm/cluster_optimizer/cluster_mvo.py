@@ -16,7 +16,6 @@ from gtsam import Pose3, Similarity3  # type: ignore
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.two_view_estimator as two_view_estimator
-import gtsfm.utils.alignment as alignment_utils
 import gtsfm.utils.ellipsoid as ellipsoid_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.viz as viz_utils
@@ -498,8 +497,8 @@ def align_estimated_gtsfm_data(
 
     NOTE: alignment is common postprocessing for outputs from any optimizer.
     """
-    ba_input = alignment_utils.align_gtsfm_data_via_Sim3_to_poses(ba_input, gt_wTi_list)
-    ba_output = alignment_utils.align_gtsfm_data_via_Sim3_to_poses(ba_output, gt_wTi_list)
+    ba_input = ba_input.aligned_via_sim3_to_poses(gt_wTi_list)
+    ba_output = ba_output.aligned_via_sim3_to_poses(gt_wTi_list)
 
     aTw = ellipsoid_utils.get_ortho_axis_alignment_transform(ba_output)
     aSw = Similarity3(R=aTw.rotation(), t=aTw.translation(), s=1.0)
