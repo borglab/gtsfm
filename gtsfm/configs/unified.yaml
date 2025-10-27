@@ -17,7 +17,7 @@ image_pairs_generator:
     num_matched: 5
     min_score: 0.3
     max_frame_lookahead: 15
-  batch_size: 8
+  batch_size: 2
 
 graph_partitioner:
   _target_: gtsfm.graph_partitioner.Single
