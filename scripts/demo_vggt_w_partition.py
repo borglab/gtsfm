@@ -8,39 +8,32 @@ Original code from https://github.com/facebookresearch/vggt/blob/main/demo_colma
 Modified by Xinan Zhang
 """
 
-import sys
-sys.path.insert(0, "../thirdparty/vggt")
-sys.path.insert(0, "../thirdparty/LightGlue")
-
-import random
-import numpy as np
+import argparse
+import copy
 import glob
 import os
+import random
 import shutil
-import copy
+
+import numpy as np
+import pycolmap
 import torch
 import torch.nn.functional as F
+import trimesh
+from demo_vggt import Timer, run_VGGT
+from vggt.dependency.projection import project_3D_points_np
+from vggt.dependency.track_predict import predict_tracks
+from vggt.utils.geometry import unproject_depth_map_to_point_map
+from vggt.utils.helper import create_pixel_coordinate_grid, randomly_limit_trues
+from vggt.utils.load_fn import load_and_preprocess_images_square
+
+from gtsfm.utils.vggt import default_vggt_device, default_vggt_dtype, load_vggt_model
 
 # Configure CUDA settings
 torch.backends.cudnn.enabled = True
 torch.backends.cudnn.benchmark = True
 torch.backends.cudnn.deterministic = False
 
-import argparse
-from pathlib import Path
-import trimesh
-import pycolmap
-
-
-from vggt.models.vggt import VGGT
-from vggt.utils.load_fn import load_and_preprocess_images_square
-from vggt.utils.pose_enc import pose_encoding_to_extri_intri
-from vggt.utils.geometry import unproject_depth_map_to_point_map
-from vggt.utils.helper import create_pixel_coordinate_grid, randomly_limit_trues
-from vggt.dependency.track_predict import predict_tracks
-from vggt.dependency.projection import project_3D_points_np
-
-from demo_vggt import get_peak_memory_str, reset_peak_memory, Timer, run_VGGT
 
 # TODO: add support for masks
 # TODO: add iterative BA
@@ -52,7 +45,7 @@ from demo_vggt import get_peak_memory_str, reset_peak_memory, Timer, run_VGGT
 def parse_args():
     parser = argparse.ArgumentParser(description="VGGT Demo")
     parser.add_argument("--scene_dir", type=str, required=True, help="Directory containing the scene images")
-    parser.add_argument("--output_dir", type=str, default="./vggt_output" ,help="Directory containing output results")
+    parser.add_argument("--output_dir", type=str, default="./vggt_output", help="Directory containing output results")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
     parser.add_argument("--use_ba", action="store_true", default=False, help="Use BA for reconstruction")
     ######### BA parameters #########
@@ -72,6 +65,7 @@ def parse_args():
         "--conf_thres_value", type=float, default=5.0, help="Confidence threshold value for depth filtering (wo BA)"
     )
     return parser.parse_args()
+
 
 def _build_pycolmap_intri(fidx, intrinsics, camera_type, extra_params=None):
     """
@@ -101,6 +95,7 @@ def _build_pycolmap_intri(fidx, intrinsics, camera_type, extra_params=None):
         raise ValueError(f"Camera type {camera_type} is not supported yet")
 
     return pycolmap_intri
+
 
 def batch_np_matrix_to_pycolmap(
     points3d,
@@ -182,9 +177,9 @@ def batch_np_matrix_to_pycolmap(
     camera = None
     # frame idx
     for fidx in range(N):
-        
+
         image_idx = image_id_list[fidx]
-        
+
         # set camera
         if camera is None or (not shared_camera):
             pycolmap_intri = _build_pycolmap_intri(fidx, intrinsics, camera_type, extra_params)
@@ -240,6 +235,7 @@ def batch_np_matrix_to_pycolmap(
 
     return reconstruction, valid_mask
 
+
 def batch_np_matrix_to_pycolmap_wo_track(
     points3d,
     points_xyf,
@@ -271,7 +267,7 @@ def batch_np_matrix_to_pycolmap_wo_track(
 
     N = len(extrinsics)
     P = len(points3d)
-    
+
     assert image_id_list is not None
 
     # Reconstruction object, following the format of PyCOLMAP/COLMAP
@@ -283,9 +279,9 @@ def batch_np_matrix_to_pycolmap_wo_track(
     camera = None
     # frame idx
     for fidx in range(N):
-        
+
         image_idx = image_id_list[fidx]
-        
+
         # set camera
         if camera is None or (not shared_camera):
             pycolmap_intri = _build_pycolmap_intri(fidx, intrinsics, camera_type)
@@ -338,13 +334,20 @@ def batch_np_matrix_to_pycolmap_wo_track(
 
     return reconstruction
 
+
 def rename_colmap_recons_and_rescale_camera(
-    reconstruction, image_paths, original_coords, img_size, shift_point2d_to_original_res=False, shared_camera=False, image_id_list=None
+    reconstruction,
+    image_paths,
+    original_coords,
+    img_size,
+    shift_point2d_to_original_res=False,
+    shared_camera=False,
+    image_id_list=None,
 ):
     rescale_camera = True
 
     assert image_id_list is not None
-    
+
     # for pyimageid in reconstruction.images:
     for local_id in range(len(image_id_list)):
         pyimageid = image_id_list[local_id]
@@ -380,9 +383,10 @@ def rename_colmap_recons_and_rescale_camera(
             # no need to rescale any more
             rescale_camera = False
 
-    print('reconstruction.images: ', reconstruction.images)
-    
+    print("reconstruction.images: ", reconstruction.images)
+
     return reconstruction
+
 
 def demo_fn(partition, args):
 
@@ -396,17 +400,13 @@ def demo_fn(partition, args):
     print(f"Setting seed as: {args.seed}")
 
     # Set device and dtype
-    dtype = torch.bfloat16 if torch.cuda.get_device_capability()[0] >= 8 else torch.float16
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"Using device: {device}")
+    device = default_vggt_device()
+    dtype = default_vggt_dtype(device)
+    print(f"Using device: {device.type}")
     print(f"Using dtype: {dtype}")
 
     # Run VGGT for camera and depth estimation
-    model = VGGT()
-    checkpoint_path = "../thirdparty/vggt/weights/model.pt"
-    model.load_state_dict(torch.load(checkpoint_path, map_location="cpu"))
-    model.eval()
-    model = model.to(device)
+    model = load_vggt_model(device=device, dtype=dtype)
     print(f"Model loaded")
 
     # Get image paths and preprocess them
@@ -435,7 +435,6 @@ def demo_fn(partition, args):
         image_size = np.array(images.shape[-2:])
         scale = img_load_resolution / vggt_fixed_resolution
         shared_camera = args.shared_camera
-
 
         with Timer("Tracking inference"):
             with torch.cuda.amp.autocast(dtype=dtype):
@@ -480,7 +479,7 @@ def demo_fn(partition, args):
 
         if reconstruction is None:
             raise ValueError("No reconstruction can be built with BA")
-        
+
         if args.use_colmap_ba:
 
             # Bundle Adjustment w/ Colmap
@@ -524,7 +523,7 @@ def demo_fn(partition, args):
             image_size,
             shared_camera=shared_camera,
             camera_type=camera_type,
-            image_id_list=partitions[partition]
+            image_id_list=partitions[partition],
         )
 
         reconstruction_resolution = vggt_fixed_resolution
@@ -536,14 +535,18 @@ def demo_fn(partition, args):
         img_size=reconstruction_resolution,
         shift_point2d_to_original_res=True,
         shared_camera=shared_camera,
-        image_id_list=partitions[partition]
+        image_id_list=partitions[partition],
     )
     if not args.use_ba:
         print(f"Saving reconstruction to {args.output_dir}/{partition}/sparse_wo_ba")
         sparse_reconstruction_dir = os.path.join(args.output_dir, partition, "sparse_wo_ba")
     else:
-        print(f"Saving reconstruction to {args.output_dir}/{partition}/sparse_w_ba_{args.query_frame_num}_{args.max_query_pts}_{args.use_colmap_ba}")
-        sparse_reconstruction_dir = os.path.join(args.output_dir, partition, f"sparse_w_ba_{args.query_frame_num}_{args.max_query_pts}_{args.use_colmap_ba}")
+        print(
+            f"Saving reconstruction to {args.output_dir}/{partition}/sparse_w_ba_{args.query_frame_num}_{args.max_query_pts}_{args.use_colmap_ba}"
+        )
+        sparse_reconstruction_dir = os.path.join(
+            args.output_dir, partition, f"sparse_w_ba_{args.query_frame_num}_{args.max_query_pts}_{args.use_colmap_ba}"
+        )
     os.makedirs(sparse_reconstruction_dir, exist_ok=True)
     reconstruction.write(sparse_reconstruction_dir)
     reconstruction.write_text(sparse_reconstruction_dir)
@@ -553,8 +556,9 @@ def demo_fn(partition, args):
 
     return True
 
+
 def prepare_patition_data(source_directory, output_dir):
-    
+
     def copy_files_by_indices(src_dir, dst_dir, indices):
 
         files = sorted(os.listdir(src_dir))
@@ -568,14 +572,16 @@ def prepare_patition_data(source_directory, output_dir):
                 print(f"Copied: {files[idx]}")
             else:
                 print(f"Index {idx} is out of range. Skipped.")
-    
+
     for name, partition in partitions.items():
         destination_directory = f"{output_dir}/{name}/images"
         file_indices = partition
 
         copy_files_by_indices(source_directory, destination_directory, file_indices)
 
+
 # Hard coded partitions
+# fmt: off
 partitions = {
         "c":[65, 66, 67, 68, 144, 145, 248, 249, 277, 279, 280],
         "c_1":[204, 225, 226, 227, 228, 229, 230, 231, 232, 233, 234, 235, 236, 237, 238, 239, 240, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250, 251, 252, 253, 254, 255, 256, 257, 258, 259, 260, 261, 262, 263, 264, 265, 266, 267, 268, 269, 270, 271, 272, 273, 274, 275, 276, 277, 279],
@@ -591,19 +597,20 @@ partitions = {
         "c_3_2":[56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87],
         "c_3_3":[110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141]
     }
+# fmt: on
 
 if __name__ == "__main__":
     args = parse_args()
     print("Arguments:", vars(args))
-    
+
     prepare_patition_data(args.scene_dir, args.output_dir)
-    
+
     with torch.no_grad():
         for partition in partitions.keys():
-            print(f'Runing VGGT on {partition}')
+            print(f"Runing VGGT on {partition}")
             demo_fn(partition, args)
             # break
-            
+
 
 """
 VGGT Runner Script
