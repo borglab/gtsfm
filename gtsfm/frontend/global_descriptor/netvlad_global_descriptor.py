@@ -34,18 +34,11 @@ class NetVLADGlobalDescriptor(GlobalDescriptorBase):
             self._model = NetVLAD().eval()
 
     def get_preprocessing_transforms(self) -> tuple[ResizeTransform, BatchTransform | None]:
-        """ "Return transform to resize images to 480x640 (height x width).
-
-        NetVLAD operates on convolutional feature maps and doesn't require
-        the original VGG16 input size (224x224). Research implementations
-        commonly use ~480x640 for a good balance of descriptor quality and
-        memory efficiency during batching.
-        """
+        """Return per-image preprocessing and optional batch transforms."""
         resize_transform = transforms.Compose(
             [
-                transforms.Lambda(lambda x: torch.from_numpy(x)),
+                transforms.Lambda(lambda x: torch.from_numpy(np.array(x, copy=True))),
                 transforms.Lambda(lambda x: x.permute(2, 0, 1)),  # [H,W,C] → [C,H,W]
-                transforms.Resize(size=(480, 640), antialias=True),  # Expects [C,H,W]
             ]
         )
 
