@@ -11,10 +11,12 @@ References:
 Authors: Travis Driver
 """
 
+import socket
 from typing import Optional, Tuple
 
 import numpy as np
 import torch
+from dask import distributed
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.keypoints import Keypoints
@@ -37,7 +39,14 @@ class LightGlueMatcher(MatcherBase):
             from thirdparty.LightGlue.lightglue.lightglue import LightGlue
 
             logger = logger_utils.get_logger()
-            logger.info("⏳ Loading LightGlue model weights...")
+            try:
+                worker = distributed.get_worker()
+                hostname = socket.gethostname()
+                logger.info(f"⏳ Loading LightGlue model weights on worker: {hostname} ({worker.address})...")
+            except (ImportError, ValueError):
+                hostname = socket.gethostname()
+                logger.info(f"⏳ Loading LightGlue model weights on main process: {hostname}...")
+
             self._model = LightGlue(features=self._features).eval()
 
     def match(

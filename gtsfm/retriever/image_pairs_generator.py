@@ -3,6 +3,7 @@
 Authors: Ayush Baid
 """
 
+import socket
 import time
 from pathlib import Path
 
@@ -70,13 +71,20 @@ class ImagePairsGenerator:
             """Apply global descriptor to extract feature vectors from a batch of images."""
             try:
                 worker = distributed.get_worker()
-                worker_name = worker.address
+                hostname = socket.gethostname()
+                worker_address = worker.address
                 logger.info(
-                    f"🟩 [Worker: {worker_name}] Computing global descriptors for batch of {len(image_batch)} images"
-                    f" with global descriptor: {type(global_descriptor).__name__}"
+                    "🟩 [Worker: %s @ %s] Computing global descriptors for batch of {len(image_batch)} images",
+                    hostname,
+                    worker_address,
+                    f" with global descriptor: {type(global_descriptor).__name__}",
                 )
             except Exception:
-                logger.info(f"🟩 [Main Process] Computing global descriptors for batch of {len(image_batch)} images")
+                hostname = socket.gethostname()
+                logger.info(
+                    f"🟩 [Main Process on %s]: Computing global descriptors for batch of {len(image_batch)} images",
+                    hostname,
+                )
 
             # This will call the new method you need to create in your descriptor class.
             return global_descriptor.describe_batch(images=image_batch)

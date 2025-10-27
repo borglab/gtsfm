@@ -204,3 +204,6 @@ benchmarks/**
 plot.jpg
 vggt/**
 palace_metis/**
+.vscode/settings.json
+CLUSTER.md
+gtsfm/configs/cluster.yaml

@@ -10,11 +10,13 @@ References:
 Authors: Ayush Baid
 """
 
+import socket
 from pathlib import Path
 from typing import Optional, Tuple, Union
 
 import numpy as np
 import torch
+from dask import distributed
 
 import gtsfm.utils.images as image_utils
 import gtsfm.utils.logger as logger_utils
@@ -57,7 +59,14 @@ class SuperPointDetectorDescriptor(DetectorDescriptorBase):
         """Lazy-load the SuperPoint model to avoid unnecessary initialization."""
         if self._model is None:
             logger = logger_utils.get_logger()
-            logger.info("⏳ Loading SuperPoint model weights...")
+            try:
+                worker = distributed.get_worker()
+                hostname = socket.gethostname()
+                logger.info(f"⏳ Loading SuperPoint model weights on worker: {hostname} ({worker.address})...")
+            except (ImportError, ValueError):
+                hostname = socket.gethostname()
+                logger.info(f"⏳ Loading SuperPoint model weights on main process: {hostname}...")
+
             self._model = SuperPoint(self._config).eval()
 
     def detect_and_describe(self, image: Image) -> Tuple[Keypoints, np.ndarray]:

@@ -23,25 +23,18 @@ GTSfM uses the [SSHCluster](https://docs.dask.org/en/stable/deploying-ssh.html#d
         conda env create -f environment_linux.yml
         conda activate gtsfm-v1
          ```
-5. Log into cluster machines to set up conda environment initialize
-    -   ```
-        nano ~/.bashrc 
-         ```
+5. Log into cluster machines to set up conda environment initialize 
+    - edit `bashrc` using `nano ~/.bashrc ` or `code ~/.bashrc` by VS code
+    - find the section `# >>> conda initialize >>> ` and `conda activate gtsfm-v1`
+    - the section of `# <<< conda initialize <<<` to be placed in front of 
+    ```
+    # If not running interactively, don't do anything
+    case $- in
+        *i*) ;;
+        *) return;;
+    esac
+    ```
 
-    - Use the Down Arrow key to scroll all the way to the bottom of the file. You will find the section 
-        ```
-        # >>> conda initialize >>> 
-        ```
-    - add the following command line
-        ```
-        conda activate gtsfm-v1
-        ```
-    - double check the file ends as 
-    ```
-        # <<< conda initialize <<<
-        conda activate gtsfm-v1
-    ```
-    remove `export PATH="$HOME/miniconda3/bin:$PATH"` as needed
  
     - After the above set up, when ssh into another machine, the environment would be automatically `gtsfm-v1`
     - `which python` and `echo $CONDA_PREFIX` should point to the same envs

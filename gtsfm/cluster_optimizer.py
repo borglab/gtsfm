@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import os
 import shutil
+import socket
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
 import numpy as np
+from dask import distributed
 from dask.base import annotate
 from dask.delayed import Delayed, delayed
 from dask.distributed import Future, worker_client
@@ -113,7 +115,24 @@ class ClusterOptimizer:
         image_future_keys: list[str],
     ) -> tuple[list[Keypoints], AnnotatedGraph[np.ndarray], float]:
         """Execute correspondence generation inside a worker task."""
-        logger.info("🔵 Cluster: running correspondence generation on %d pairs.", len(visibility_graph))
+        try:
+            worker = distributed.get_worker()
+            hostname = socket.gethostname()
+            worker_address = worker.address
+            logger.info(
+                "🔵 [Worker: %s @ %s]: running correspondence generation on %d pairs.",
+                hostname,
+                worker_address,
+                len(visibility_graph),
+            )
+        except (ImportError, ValueError) as e:
+
+            hostname = socket.gethostname()
+            logger.info(
+                "🔵 [Main process on %s]: running correspondence generation on %d pairs.",
+                hostname,
+                len(visibility_graph),
+            )
 
         if len(visibility_graph) == 0:
             return [], {}, 0.0
@@ -138,7 +157,24 @@ class ClusterOptimizer:
         one_view_data_dict: dict[int, OneViewData],
     ) -> tuple[AnnotatedGraph[TwoViewResult], float]:
         """Execute two-view estimation inside a worker task."""
-        logger.info("🔵 Cluster: running two-view estimation on %d pairs.", len(putative_corr_idxs_dict))
+        try:
+            worker = distributed.get_worker()
+
+            hostname = socket.gethostname()
+            worker_address = worker.address
+            logger.info(
+                "🔵 [Worker: %s @ %s]: running two-view estimation on %d pairs.",
+                hostname,
+                worker_address,
+                len(putative_corr_idxs_dict),
+            )
+        except (ImportError, ValueError) as e:
+            hostname = socket.gethostname()
+            logger.info(
+                "🔵 [Main process on %s]: running two-view estimation on %d pairs.",
+                hostname,
+                len(putative_corr_idxs_dict),
+            )
 
         with worker_client() as nested_client:
             start_time = time.time()
