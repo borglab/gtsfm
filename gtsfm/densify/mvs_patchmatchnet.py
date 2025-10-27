@@ -119,11 +119,11 @@ class MVSPatchmatchNet(MVSBase):
         model = nn.DataParallel(patchmatch_model)
 
         # Check if cuda devices are available, and load the pretrained model
-        #   the pretrained checkpoint should be pre-downloaded using gtsfm/download_model_weights.sh
+        #   the pretrained checkpoint should be pre-downloaded using scripts/download_model_weights.sh
         if not PATCHMATCHNET_WEIGHTS_PATH.exists():
             raise FileNotFoundError(
                 f"PatchmatchNet weights not found at {PATCHMATCHNET_WEIGHTS_PATH}. "
-                "Please run 'bash download_model_weights.sh' from the repo root."
+                "Please run 'bash scripts/download_model_weights.sh' from the repo root."
             )
 
         logger.info("⏳ Loading PatchMatchNet model weights...")

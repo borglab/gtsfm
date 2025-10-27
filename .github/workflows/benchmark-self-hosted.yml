@@ -63,7 +63,7 @@ jobs:
       #     post-cleanup: "all"
       - name: Download third-party weights
         run: |
-          ./download_model_weights.sh
+          ./scripts/download_model_weights.sh
       - name: Prepare dataset
         run: |
           echo "Datasets are stored in /usr/local/gtsfm-data in order to" 

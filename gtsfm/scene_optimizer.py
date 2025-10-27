@@ -14,6 +14,7 @@ import gtsfm.utils.logger as logger_utils
 from gtsfm.cluster_optimizer import REACT_METRICS_PATH, REACT_RESULTS_PATH, Base, Multiview, save_metrics_reports
 from gtsfm.common.outputs import OutputPaths, prepare_output_paths
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
+from gtsfm.ff_splat.feed_forward_gaussian_splatting_base import FeedForwardGaussianSplattingBase
 from gtsfm.frontend.correspondence_generator.image_correspondence_generator import ImageCorrespondenceGenerator
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.graph_partitioner.single_partitioner import SinglePartitioner
@@ -96,6 +97,13 @@ class SceneOptimizer:
         num_leaves = len(leaves)
         use_leaf_subdirs = num_leaves > 1
 
+        gs_optimizer_future = None
+        if self.cluster_optimizer.gaussian_splatting_optimizer is not None and isinstance(
+            self.cluster_optimizer.gaussian_splatting_optimizer, FeedForwardGaussianSplattingBase
+        ):
+            logger.info("Scattering Gaussian Splatting optimizer to all workers...")
+            gs_optimizer_future = client.scatter(self.cluster_optimizer.gaussian_splatting_optimizer, broadcast=True)
+
         logger.info("🔥 GTSFM: Starting to solve subgraphs...")
         futures = []
         one_view_data_dict = self.loader.get_one_view_data_dict()
@@ -124,6 +132,7 @@ class SceneOptimizer:
                 output_root=self.output_root,
                 visibility_graph=cluster_visibility_graph,
                 image_futures=image_futures,
+                gs_optimizer_future=gs_optimizer_future,
             )
             if delayed_result_io_reports is None:
                 logger.warning("Skipping subgraph %d as it has no valid two-view results.", index)

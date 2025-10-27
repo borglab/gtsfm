@@ -70,3 +70,15 @@ dependencies:
       - torchmetrics==1.7.3
       - tyro==0.9.24
       - Flask>=3.0
+      # AnySplat
+      - dacite
+      - lightning
+      - sk-video
+      - xformers==0.0.29
+      - torch_scatter==2.1.2
+      - e3nn
+      - colorspacious
+      - plyfile
+      - imageio==2.37.0
+      - imageio-ffmpeg
+      - jaxtyping
