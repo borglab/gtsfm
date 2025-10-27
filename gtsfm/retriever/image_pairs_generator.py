@@ -74,10 +74,11 @@ class ImagePairsGenerator:
                 hostname = socket.gethostname()
                 worker_address = worker.address
                 logger.info(
-                    "🟩 [Worker: %s @ %s] Computing global descriptors for batch of {len(image_batch)} images",
+                    "🟩 [Worker: %s @ %s] Computing global descriptors for batch of %d images with global descriptor: %s",
                     hostname,
                     worker_address,
-                    f" with global descriptor: {type(global_descriptor).__name__}",
+                    len(image_batch),
+                    type(global_descriptor).__name__,
                 )
             except Exception:
                 hostname = socket.gethostname()
