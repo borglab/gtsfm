@@ -197,6 +197,7 @@ notebooks/
 .envrc
 **/secrets.*
 /coiled-token.txt
+gtsfm/configs/gt-cluster.yaml
 
 # temp stuff
 benchmarks/**

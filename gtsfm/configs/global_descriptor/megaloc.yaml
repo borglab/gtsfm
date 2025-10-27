@@ -1,4 +1,4 @@
 global_descriptor:
   _target_: gtsfm.frontend.cacher.global_descriptor_cacher.GlobalDescriptorCacher
   global_descriptor_obj:
-    _target_: gtsfm.frontend.global_descriptor.megaloc_global_descriptor.MegaLocGlobalDescriptor
+    _target_: gtsfm.frontend.global_descriptor.MegaLoc
