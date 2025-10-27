@@ -37,7 +37,7 @@ class NetVLADGlobalDescriptor(GlobalDescriptorBase):
         """Return per-image preprocessing and optional batch transforms."""
         resize_transform = transforms.Compose(
             [
-                transforms.Lambda(lambda x: torch.from_numpy(x)),
+                transforms.Lambda(lambda x: torch.from_numpy(np.array(x, copy=True))),
                 transforms.Lambda(lambda x: x.permute(2, 0, 1)),  # [H,W,C] → [C,H,W]
             ]
         )
