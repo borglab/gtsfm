@@ -8,13 +8,12 @@ from pathlib import Path
 from typing import Optional
 
 import matplotlib
-from dask.distributed import Future, performance_report
+from dask.distributed import performance_report
 
 import gtsfm.utils.logger as logger_utils
-from gtsfm.cluster_optimizer import REACT_METRICS_PATH, REACT_RESULTS_PATH, ClusterOptimizer, save_metrics_reports
+from gtsfm.cluster_optimizer import REACT_METRICS_PATH, REACT_RESULTS_PATH, Base, save_metrics_reports
 from gtsfm.common.outputs import OutputPaths, prepare_output_paths
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
-from gtsfm.frontend.correspondence_generator.image_correspondence_generator import ImageCorrespondenceGenerator
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.graph_partitioner.single_partitioner import SinglePartitioner
 from gtsfm.loader.loader_base import LoaderBase
@@ -40,7 +39,7 @@ class SceneOptimizer:
         self,
         loader: LoaderBase,
         image_pairs_generator: ImagePairsGenerator,
-        cluster_optimizer: ClusterOptimizer,
+        cluster_optimizer: Base,
         graph_partitioner: GraphPartitionerBase = SinglePartitioner(),
         output_root: str = DEFAULT_OUTPUT_ROOT,
         output_worker: Optional[str] = None,
@@ -78,13 +77,15 @@ class SceneOptimizer:
         """Run the SceneOptimizer."""
         start_time = time.time()
         base_metrics_groups = []
-        self._create_process_graph()
+        process_graph_generator = ProcessGraphGenerator()
+        process_graph_generator.save_graph()
         self._ensure_react_directories()
         base_output_paths = prepare_output_paths(self.output_root, None)
 
         logger.info("🔥 GTSFM: Running image pair retrieval...")
-        retriever_metrics, visibility_graph, image_futures = self._run_retriever(client)
+        retriever_metrics, visibility_graph = self._run_retriever(client)
         base_metrics_groups.append(retriever_metrics)
+        image_futures = self.loader.get_all_images_as_futures(client)
 
         logger.info("🔥 GTSFM: Partitioning the view graph...")
         assert self.graph_partitioner is not None, "Graph partitioner is not set up!"
@@ -114,7 +115,7 @@ class SceneOptimizer:
 
             output_paths = prepare_output_paths(self.output_root, index) if use_leaf_subdirs else base_output_paths
 
-            delayed_result_io_reports = self.cluster_optimizer.create_computation_graph(
+            delayed_io_tasks_and_reports = self.cluster_optimizer.create_computation_graph(
                 num_images=len(self.loader),
                 one_view_data_dict=one_view_data_dict,
                 output_paths=output_paths,
@@ -123,25 +124,24 @@ class SceneOptimizer:
                 visibility_graph=cluster_visibility_graph,
                 image_futures=image_futures,
             )
-            if delayed_result_io_reports is None:
+            if delayed_io_tasks_and_reports is None:
                 logger.warning("Skipping subgraph %d as it has no valid two-view results.", index)
                 continue
-            futures.append(client.compute(delayed_result_io_reports))
+            futures.append(client.compute(delayed_io_tasks_and_reports))  # client.compute returns a future
             leaf_jobs.append((index, output_paths))
 
         logger.info("🔥 GTSFM: Running the computation graph...")
-        mvo_metrics_groups_by_leaf: dict[int, list[GtsfmMetricsGroup]] = {}
+        multiview_metrics_groups_by_leaf: dict[int, list[GtsfmMetricsGroup]] = {}
         with performance_report(filename="dask_reports/scene-optimizer.html"):
             if futures:
-                results = client.gather(futures)
-                for (leaf_index, output_paths), leaf_results in zip(leaf_jobs, results):
-                    mvo_metrics_groups = leaf_results[2]
-                    if not mvo_metrics_groups:
+                results = client.gather(futures)  # blocking call
+                for (leaf_index, output_paths), (io_tasks, metrics) in zip(leaf_jobs, results):
+                    if not metrics:
                         continue
                     if use_leaf_subdirs:
-                        save_metrics_reports(mvo_metrics_groups, str(output_paths.metrics))
+                        save_metrics_reports(metrics, str(output_paths.metrics))
                     else:
-                        mvo_metrics_groups_by_leaf[leaf_index] = mvo_metrics_groups
+                        multiview_metrics_groups_by_leaf[leaf_index] = metrics
 
         # Log total time taken and save metrics report
         end_time = time.time()
@@ -156,28 +156,29 @@ class SceneOptimizer:
         )
         base_metrics_groups.append(total_summary_metrics)
 
-        # For single cluster runs, we may have MVO metrics to add to the base report.
+        # For single cluster runs, we may have Multiview metrics to add to the base report.
         if not use_leaf_subdirs:
-            for leaf_index in mvo_metrics_groups_by_leaf:
-                base_metrics_groups.extend(mvo_metrics_groups_by_leaf[leaf_index])
+            for leaf_index in multiview_metrics_groups_by_leaf:
+                base_metrics_groups.extend(multiview_metrics_groups_by_leaf[leaf_index])
 
         save_metrics_reports(base_metrics_groups, str(base_output_paths.metrics))
 
-    def _create_process_graph(self):
-        process_graph_generator = ProcessGraphGenerator()
-        if isinstance(self.cluster_optimizer.correspondence_generator, ImageCorrespondenceGenerator):
-            process_graph_generator.is_image_correspondence = True
-        process_graph_generator.save_graph()
-
-    def _run_retriever(self, client) -> tuple[GtsfmMetricsGroup, VisibilityGraph, list[Future]]:
+    def _run_retriever(self, client) -> tuple[GtsfmMetricsGroup, VisibilityGraph]:
+        # TODO(Frank): refactor to move more of this logic into ImagePairsGenerator
         retriever_start_time = time.time()
-        image_futures = self.loader.get_all_images_as_futures(client)
+        batch_size = self.image_pairs_generator._batch_size
+
+        transforms = self.image_pairs_generator.get_preprocessing_transforms()
+
+        # Image_Batch_Futures is a list of Stacked Tensors with dimension (batch_size, Channels, H, W)
+        image_batch_futures = self.loader.get_all_descriptor_image_batches_as_futures(client, batch_size, *transforms)
+
         image_fnames = self.loader.image_filenames()
 
         with performance_report(filename="dask_reports/retriever.html"):
             visibility_graph = self.image_pairs_generator.run(
                 client=client,
-                images=image_futures,
+                image_batch_futures=image_batch_futures,
                 image_fnames=image_fnames,
                 plots_output_dir=self.create_plot_base_path(),
             )
@@ -185,4 +186,5 @@ class SceneOptimizer:
         retriever_duration_sec = time.time() - retriever_start_time
         retriever_metrics.add_metric(GtsfmMetric("retriever_duration_sec", retriever_duration_sec))
         logger.info("🚀 Image pair retrieval took %.2f min.", retriever_duration_sec / 60.0)
-        return retriever_metrics, visibility_graph, image_futures
+
+        return retriever_metrics, visibility_graph

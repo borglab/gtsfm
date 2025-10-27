@@ -4,3 +4,9 @@
 [submodule "thirdparty/mast3r"]
 	path = thirdparty/mast3r
 	url = https://github.com/naver/mast3r.git
+[submodule "thirdparty/vggt"]
+	path = thirdparty/vggt
+	url = https://github.com/facebookresearch/vggt
+[submodule "thirdparty/AnySplat"]
+	path = thirdparty/AnySplat
+	url = https://github.com/InternRobotics/AnySplat.git

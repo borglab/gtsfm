@@ -9,9 +9,9 @@ image_pairs_generator:
   global_descriptor:
     _target_: gtsfm.frontend.cacher.global_descriptor_cacher.GlobalDescriptorCacher
     global_descriptor_obj:
-      _target_: gtsfm.frontend.global_descriptor.netvlad_global_descriptor.NetVLADGlobalDescriptor
+      _target_: gtsfm.frontend.global_descriptor.NetVLAD
   retriever:
-    _target_: gtsfm.retriever.joint_netvlad_sequential_retriever.JointNetVLADSequentialRetriever
+    _target_: gtsfm.retriever.JointSimilaritySequential
     num_matched: 5
     min_score: 0.3
     max_frame_lookahead: 15
@@ -21,7 +21,7 @@ graph_partitioner:
   max_depth: 1
 
 cluster_optimizer:
-  _target_: gtsfm.cluster_optimizer.ClusterOptimizer
+  _target_: gtsfm.cluster_optimizer.Multiview
   correspondence_generator:
     _target_: gtsfm.frontend.correspondence_generator.det_desc_correspondence_generator.DetDescCorrespondenceGenerator
 

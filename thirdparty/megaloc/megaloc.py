@@ -3,22 +3,24 @@ Much of the code in this file is from SALAD https://github.com/serizba/salad
 """
 
 import math
+import sys
+from pathlib import Path
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.transforms as tfm
-import sys
-from pathlib import Path
-import logging
- 
-logger = logging.getLogger(__name__)
+
+import gtsfm.utils.logger as logger_utils
+
+logger = logger_utils.get_logger()
 
 # Add DinoV2 Weights directory to Path so Dask Workers can Deserialize
-dinov2_path = Path.home() / ".cache/torch/hub/facebookresearch_dinov2_main"
-if dinov2_path.exists() and str(dinov2_path) not in sys.path:
-    sys.path.insert(0, str(dinov2_path))
-    print(f"Added DINOv2 to sys.path: {dinov2_path}")
+dino_v2_path = Path.home() / ".cache/torch/hub/facebookresearch_dinov2_main"
+if dino_v2_path.exists() and str(dino_v2_path) not in sys.path:
+    sys.path.insert(0, str(dino_v2_path))
+    print(f"Added DINOv2 to sys.path: {dino_v2_path}")
+
 
 class MegaLocModel(nn.Module):
     def __init__(
@@ -56,16 +58,14 @@ class MegaLocModel(nn.Module):
         logger.info("Downloading MegaLoc weights from GitHub...")
         try:
             state_dict = torch.hub.load_state_dict_from_url(
-                self.WEIGHT_URL,
-                map_location=torch.device("cpu"),
-                progress=True  # Show download progress
+                self.WEIGHT_URL, map_location=torch.device("cpu"), progress=True  # Show download progress
             )
             self.load_state_dict(state_dict)
             logger.info("✓ MegaLoc weights loaded successfully")
         except Exception as e:
             logger.warning(f"Failed to download MegaLoc weights: {e}")
             logger.warning("Model will use random initialization")
-            #print("Error {e}")
+            # print("Error {e}")
 
     def forward(self, images):
         b, c, h, w = images.shape
@@ -103,11 +103,11 @@ class Aggregator(nn.Module):
 class DINOv2(nn.Module):
     def __init__(self):
         super().__init__()
-        
-        dinov2_path = Path.home() / ".cache/torch/hub/facebookresearch_dinov2_main"
-        if dinov2_path.exists() and str(dinov2_path) not in sys.path:
-            sys.path.insert(0, str(dinov2_path))
-            # logger.info(f"Added DINOv2 to sys.path: {dinov2_path}")
+
+        dino_v2_path = Path.home() / ".cache/torch/hub/facebookresearch_dinov2_main"
+        if dino_v2_path.exists() and str(dino_v2_path) not in sys.path:
+            sys.path.insert(0, str(dino_v2_path))
+            # logger.info(f"Added DINOv2 to sys.path: {dino_v2_path}")
         self.model = torch.hub.load("facebookresearch/dinov2", "dinov2_vitb14", pretrained=False)
         self.num_channels = 768
 

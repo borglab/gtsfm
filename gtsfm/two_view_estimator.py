@@ -833,7 +833,7 @@ def aggregate_frontend_metrics(
     return frontend_metrics
 
 
-def run_two_view_estimator_as_futures(
+def create_two_view_estimator_futures(
     client: Client,
     two_view_estimator: TwoViewEstimator,
     keypoints_list: List[Keypoints],
@@ -842,7 +842,7 @@ def run_two_view_estimator_as_futures(
     gt_scene_mesh: Optional[Any],
     one_view_data_dict: Dict[int, OneViewData],
 ) -> AnnotatedGraph[Future]:
-    """Run two-view estimator for all image pairs."""
+    """Create two-view estimator for all image pairs as an annotated graph of TwoViewResult futures."""
 
     def apply_two_view_estimator(two_view_estimator: TwoViewEstimator, **kwargs) -> TwoViewResult:
         return two_view_estimator.run_2view(**kwargs)

@@ -7,7 +7,7 @@ Authors: Ayush Baid, John Lambert, Xiaolong Wu
 import itertools
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 import gtsam  # type: ignore
 import numpy as np
@@ -21,7 +21,9 @@ import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.reprojection as reprojection
 import thirdparty.colmap.scripts.python.read_write_model as colmap_io
 from gtsfm.common.image import Image
+from gtsfm.evaluation.metrics import GtsfmMetric
 from gtsfm.products.visibility_graph import ImageIndexPairs
+from gtsfm.utils import align, transform
 from gtsfm.utils.pycolmap_utils import gtsfm_calibration_to_colmap_camera
 
 logger = logger_utils.get_logger()
@@ -39,7 +41,7 @@ class GtsfmData:
     def __init__(
         self,
         number_images: int,
-        cameras: Optional[Dict[int, gtsfm_types.CAMERA_TYPE]] = None,
+        cameras: Optional[Mapping[int, gtsfm_types.CAMERA_TYPE]] = None,
         tracks: Optional[List[SfmTrack]] = None,
     ) -> None:
         """Initializes the class.
@@ -50,7 +52,7 @@ class GtsfmData:
             tracks: SfmTracks in scene.
         """
         self._number_images = number_images
-        self._cameras: Dict[int, gtsfm_types.CAMERA_TYPE] = {}
+        self._cameras: dict[int, gtsfm_types.CAMERA_TYPE] = {}
         self._tracks: List[SfmTrack] = []
 
         # Initialize from inputs if provided.
@@ -304,11 +306,11 @@ class GtsfmData:
 
     @classmethod
     def from_cameras_and_tracks(
-        cls, cameras: Dict[int, gtsfm_types.CAMERA_TYPE], tracks: List[SfmTrack], number_images: int
+        cls, cameras: Mapping[int, gtsfm_types.CAMERA_TYPE], tracks: List[SfmTrack], number_images: int
     ) -> "GtsfmData":
         """Creates a GtsfmData object from a pre-existing set of cameras and tracks."""
         new_data = cls(number_images=number_images)
-        new_data._cameras = cameras
+        new_data._cameras = dict(cameras)
         new_data._tracks = tracks
         return new_data
 
@@ -361,7 +363,7 @@ class GtsfmData:
 
         return np.array(scene_reproj_errors)
 
-    def aggregate_metrics(self) -> Dict[str, Any]:
+    def aggregate_metrics(self) -> Mapping[str, Any]:
         """Aggregate metrics about the reprojection errors and 3d track lengths (summary stats).
 
         Args:
@@ -460,11 +462,58 @@ class GtsfmData:
 
         return filtered_data, valid_mask
 
-    def apply_Sim3(self, aSb: Similarity3) -> "GtsfmData":
+    def align_via_sim3_and_transform(self, aTi_list: Sequence[Optional[Pose3]]) -> "GtsfmData":
+        """Return a copy of the scene aligned to the supplied reference poses via Sim(3).
+
+        Args:
+            wTi_list_ref: Reference/target camera poses, ordered by camera index.
+
+        Returns:
+            New GtsfmData aligned to the reference pose graph.
+        """
+        aSb = self.align_to_poses_via_sim3(aTi_list)
+        return self.transform_with_sim3(aSb)
+
+    def get_metrics(self, suffix: str, store_full_data: bool = False) -> List[GtsfmMetric]:
+        """Helper to get bundle adjustment metrics from a GtsfmData object with a suffix for metric names."""
+        metrics = []
+        metrics.append(GtsfmMetric(name="number_cameras", data=len(self.get_valid_camera_indices())))
+        metrics.append(GtsfmMetric("number_tracks" + suffix, self.number_tracks()))
+        metrics.append(
+            GtsfmMetric(
+                name="3d_track_lengths" + suffix,
+                data=self.get_track_lengths(),
+                plot_type=GtsfmMetric.PlotType.HISTOGRAM,
+                store_full_data=store_full_data,
+            )
+        )
+        metrics.append(
+            GtsfmMetric(
+                name=f"reprojection_errors{suffix}_px",
+                data=self.get_scene_reprojection_errors(),
+                store_full_data=store_full_data,
+                plot_type=GtsfmMetric.PlotType.BOX,
+            )
+        )
+        return metrics
+
+    def align_to_poses_via_sim3(self, aTi_list: Sequence[Optional[Pose3]]) -> Similarity3:
+        """Estimate a Sim(3) transformation that aligns the scene to the supplied reference poses.
+
+        Args:
+            wTi_list_ref: Reference/target camera poses, ordered by camera index.
+
+        Returns:
+            The estimated Sim(3) transformation aSb.
+        """
+        bTi_list = self.get_camera_poses()
+        return align.sim3_from_optional_Pose3s(aTi_list, bTi_list)
+
+    def transform_with_sim3(self, aSb: Similarity3) -> "GtsfmData":
         """Assume current tracks and cameras are in frame "b", then transport them to frame "a".
 
         Returns:
-            New GtsfmData object which has been transformed from frame a to frame b.
+            New GtsfmData object which has been transformed from frame b to frame a.
         """
         bTi_list = self.get_camera_poses()
         aTi_list = [aSb.transformFrom(bTi) if bTi is not None else None for bTi in bTi_list]
@@ -493,6 +542,37 @@ class GtsfmData:
             aligned_data.add_track(track_a)
 
         return aligned_data
+
+    def merged_with(self, other: "GtsfmData", aSb: Similarity3) -> "GtsfmData":
+        """Return a new scene containing self and ``other`` expressed in this scene's frame.
+
+        Args:
+            other: Scene to merge, currently expressed in frame ``b``.
+            aSb: Transform taking geometry from frame ``b`` to frame ``a`` (this scene).
+
+        Returns:
+            New ``GtsfmData`` containing cameras and tracks from both inputs.
+        """
+        merged_cameras = dict(self.cameras())
+        transformed_other_cameras = transform.camera_map_with_sim3(aSb, other.cameras())
+        for key, camera in transformed_other_cameras.items():
+            if key not in merged_cameras:
+                merged_cameras[key] = camera
+
+        merged_tracks = list(self.tracks())
+        merged_tracks.extend(transform.tracks_with_sim3(aSb, other.tracks()))
+
+        max_camera_index = max(merged_cameras.keys()) if merged_cameras else -1
+        number_images = max(self.number_images(), other.number_images(), max_camera_index + 1)
+        merged_data = GtsfmData(number_images=number_images)
+
+        for key, camera in merged_cameras.items():
+            merged_data.add_camera(key, camera)
+
+        for track in merged_tracks:
+            merged_data._tracks.append(track)
+
+        return merged_data
 
     def downsample(self, fraction_points_to_keep: float, seed: int = 42) -> "GtsfmData":
         """Downsample the number of 3D points in the scene by randomly selecting a fraction of them."""

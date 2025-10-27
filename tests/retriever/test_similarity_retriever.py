@@ -1,0 +1,72 @@
+"""Unit tests for the Similarity retriever.
+
+Authors: John Lambert
+"""
+
+import unittest
+from pathlib import Path
+
+from gtsfm.frontend.global_descriptor import NetVLAD
+from gtsfm.loader.colmap_loader import ColmapLoader
+from gtsfm.loader.olsson_loader import OlssonLoader
+from gtsfm.retriever.similarity_retriever import SimilarityRetriever
+
+DATA_ROOT_PATH = Path(__file__).resolve().parent.parent / "data"
+DOOR_DATA_ROOT = DATA_ROOT_PATH / "set1_lund_door"
+SKYDIO_DATA_ROOT = DATA_ROOT_PATH / "crane_mast_8imgs_colmap_output"
+
+
+class TestSimilarityRetriever(unittest.TestCase):
+    def setUp(self):
+        super().setUp()
+        self.global_descriptor = NetVLAD()
+
+    def test_netvlad_retriever_crane_mast(self) -> None:
+        """Test the Similarity retriever on 2 frames of the Skydio Crane-Mast dataset."""
+        dataset_dir = SKYDIO_DATA_ROOT
+        images_dir = SKYDIO_DATA_ROOT / "images"
+
+        loader = ColmapLoader(dataset_dir=str(dataset_dir), images_dir=str(images_dir), max_resolution=400)
+
+        retriever = SimilarityRetriever(num_matched=2)
+        resize_transform, batch_transform = self.global_descriptor.get_preprocessing_transforms()
+
+        indices = list(range(len(loader)))
+        descriptors = []
+        for idx in indices:
+            batch_tensor = loader.load_image_batch([idx], resize_transform, batch_transform)
+            descriptors.extend(self.global_descriptor.describe_batch(batch_tensor))
+
+        pairs = retriever.get_image_pairs(descriptors, loader.image_filenames(), plots_output_dir=None)
+
+        # Only 1 pair possible between frame 0 and frame 1.
+        self.assertEqual(len(pairs), 1)
+        self.assertEqual(pairs, [(0, 1)])
+
+    def test_netvlad_retriever_door(self) -> None:
+        """Test the Similarity retriever on 12 frames of the Lund Door Dataset."""
+        loader = OlssonLoader(dataset_dir=str(DOOR_DATA_ROOT), max_resolution=400)
+        retriever = SimilarityRetriever(num_matched=2)
+        resize_transform, batch_transform = self.global_descriptor.get_preprocessing_transforms()
+
+        indices = list(range(len(loader)))
+        descriptors = []
+        for idx in indices[:6]:
+            batch_tensor = loader.load_image_batch([idx], resize_transform, batch_transform)
+            descriptors.extend(self.global_descriptor.describe_batch(batch_tensor))
+
+        pairs = retriever.get_image_pairs(descriptors, loader.image_filenames()[:6], plots_output_dir=None)
+
+        self.assertEqual(len(pairs), 9)
+
+        for i1, i2 in pairs:
+            self.assertTrue(i1 != i2)
+            self.assertTrue(i1 < i2)
+
+        # closest image is most similar for the Door dataset.
+        expected_pairs = [(0, 1), (0, 2), (1, 2), (1, 4), (2, 3), (2, 4), (3, 4), (3, 5), (4, 5)]
+        self.assertEqual(pairs, expected_pairs)
+
+
+if __name__ == "__main__":
+    unittest.main()
