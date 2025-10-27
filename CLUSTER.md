@@ -22,20 +22,66 @@ GTSfM uses the [SSHCluster](https://docs.dask.org/en/stable/deploying-ssh.html#d
         git clone --recursive https://github.com/borglab/gtsfm.git
         conda env create -f environment_linux.yml
         conda activate gtsfm-v1
+         ```
+5. Log into cluster machines to set up conda environment initialize
+    -   ```
+        nano ~/.bashrc 
+         ```
+
+    - Use the Down Arrow key to scroll all the way to the bottom of the file. You will find the section 
+        ```
+        # >>> conda initialize >>> 
+        ```
+    - add the following command line
+        ```
+        conda activate gtsfm-v1
+        ```
+    - double check the file ends as 
+    ```
+        # <<< conda initialize <<<
+        conda activate gtsfm-v1
+    ```
+    remove `export PATH="$HOME/miniconda3/bin:$PATH"` as needed
+ 
+    - After the above set up, when ssh into another machine, the environment would be automatically `gtsfm-v1`
+    - `which python` and `echo $CONDA_PREFIX` should point to the same envs
+
+6. Add the host keys to your `known_hosts` file.
+    - On  cluster machine, run the following commands in  terminal. 
+    This will SSH to each machine, and you will be prompted to trust its key
+    ```
+    ssh username@localhost
+    ```
+    You will likely see a message like: `The authenticity of host 'localhost (::1)' can't be established. ... Are you sure you want to continue connecting (yes/no/[fingerprint])?`
+    Type `yes` and press Enter. Then you can exit
+
+    - After doing so, the keys will be saved in ~/.ssh/known_hosts
+    - Otherwise, you would need set up SSHCluster with extra options `connect_options={"known_hosts": None}`
+    
+
+
+7. Update the weight
+    - ```bash
+        bash scripts/download_model_weights.sh
       ```
-5. Log into scheduler again and download the data to scheduler machine.
-6. Run gtsfm with `--cluster_config` flag enabled, for example
+
+8. Log into scheduler machine again and download the data to scheduler machine.
+
+9. edit the config file `cluster.yaml`
+
+9. Run gtsfm with `--cluster_config` flag enabled, for example
     - ```
       ./run --loader colmap --dataset_dir /home/username/gtsfm/skydio-32 --config_name sift_front_end.yaml --cluster_config cluster.yaml
       ```
     - Always provide absolute paths for all directories
-7. If you would like to check out the dask dashboard, you will need to do port forwarding from machine to your local computer:
+
+10. If you would like to check out the dask dashboard, you will need to do port forwarding from machine to your local computer:
     - ```
       ssh -N -f -L localhost:local_port:localhost:machine_port username@machine_adress
       ```
 
-8. The results will be generated on the scheduler machine. If you would like to download results from the scheduler machine to your local computer:
+11. The results will be generated on the scheduler machine. If you would like to download results from the scheduler machine to your local computer:
     - ```
       scp -r username@host:machine/results/path /local/computer/directory
       ```
-ps. Please utilize `gtsfm/utils/ssh_passwordless_setup.py` to facilitate the set up
+PS. Please utilize `gtsfm/utils/ssh_passwordless_setup.py` to facilitate the set up

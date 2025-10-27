@@ -5,7 +5,6 @@ Author: Paul-Edouard Sarlin
 """
 
 import subprocess
-import logging
 from pathlib import Path
 from typing import Any, Dict
 
@@ -17,7 +16,9 @@ import torch.nn.functional as F
 import torchvision.models as models
 from torch import Tensor
 
-logger = logging.getLogger(__name__)
+import gtsfm.utils.logger as logger_utils
+
+logger = logger_utils.get_logger()
 
 # path to /thirdparty/hloc/weights/{CHECKPOINT}.mat
 netvlad_path = Path(__file__).resolve().parent / "weights"
@@ -31,10 +32,11 @@ class NetVLADLayer(nn.Module):
     Whereas bag-of-visual-words aggregation keeps counts of visual words, VLAD stores the sum of residuals
     (difference vector between the descriptor and its corresponding cluster centre) for each visual word.
     """
+
     def __init__(self, input_dim: int = 512, K: int = 64, score_bias: bool = False, intranorm: bool = True) -> None:
         """
         Args:
-            input_dim: output feature map from fully-convolutional backbone has shape (input_dim,H2,W2) 
+            input_dim: output feature map from fully-convolutional backbone has shape (input_dim,H2,W2)
             K: number of cluster centers.
             score_bias: whether to use bias term in 1x1 conv (projection operation).
             intranorm: whether to normalize descriptors immediately after computing sum of residuals.

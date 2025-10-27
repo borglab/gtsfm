@@ -2,7 +2,7 @@
 # Download model weights for different modules available for use in GTSFM
 # Note: SuperPoint and SuperGlue code and checkpoints may *not* be used for commercial purposes
 
-##################### SuperPoint & SuperGlue ##########################
+#################### SuperPoint & SuperGlue ##########################
 
 SUPERPOINT_CKPT_URL="https://github.com/magicleap/SuperGluePretrainedNetwork/raw/master/models/weights/superpoint_v1.pth"
 
@@ -47,3 +47,9 @@ NETVLAD_WEIGHTS_DIR="./thirdparty/hloc/weights"
 NETVLAD_CKPT_URL="https://github.com/johnwlambert/gtsfm-datasets-mirror/releases/download/gerrard-hall-100/VGG16-NetVLAD-Pitts30K.mat"
 mkdir $NETVLAD_WEIGHTS_DIR
 wget $NETVLAD_CKPT_URL -O $NETVLAD_WEIGHTS_DIR/VGG16-NetVLAD-Pitts30K.mat
+
+##################### vggt #############################
+VGGT_WEIGHTS_DIR="./thirdparty/vggt/weights"
+VGGT_CKPT_URL="https://huggingface.co/facebook/VGGT-1B/resolve/main/model.pt"
+mkdir $VGGT_WEIGHTS_DIR
+wget $VGGT_CKPT_URL -O $VGGT_WEIGHTS_DIR/model.pt

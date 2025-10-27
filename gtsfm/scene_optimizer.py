@@ -8,12 +8,13 @@ from pathlib import Path
 from typing import Optional
 
 import matplotlib
-from dask.distributed import Future, performance_report
+from dask.distributed import performance_report
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.cluster_optimizer import REACT_METRICS_PATH, REACT_RESULTS_PATH, ClusterOptimizer, save_metrics_reports
 from gtsfm.common.outputs import OutputPaths, prepare_output_paths
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
+from gtsfm.ff_splat.feed_forward_gaussian_splatting_base import FeedForwardGaussianSplattingBase
 from gtsfm.frontend.correspondence_generator.image_correspondence_generator import ImageCorrespondenceGenerator
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.graph_partitioner.single_partitioner import SinglePartitioner
@@ -83,8 +84,9 @@ class SceneOptimizer:
         base_output_paths = prepare_output_paths(self.output_root, None)
 
         logger.info("🔥 GTSFM: Running image pair retrieval...")
-        retriever_metrics, visibility_graph, image_futures = self._run_retriever(client)
+        retriever_metrics, visibility_graph = self._run_retriever(client)
         base_metrics_groups.append(retriever_metrics)
+        image_futures = self.loader.get_all_images_as_futures(client)
 
         logger.info("🔥 GTSFM: Partitioning the view graph...")
         assert self.graph_partitioner is not None, "Graph partitioner is not set up!"
@@ -93,6 +95,13 @@ class SceneOptimizer:
         leaves = tuple(cluster_tree.leaves()) if cluster_tree is not None else ()
         num_leaves = len(leaves)
         use_leaf_subdirs = num_leaves > 1
+
+        gs_optimizer_future = None
+        if self.cluster_optimizer.gaussian_splatting_optimizer is not None and isinstance(
+            self.cluster_optimizer.gaussian_splatting_optimizer, FeedForwardGaussianSplattingBase
+        ):
+            logger.info("Scattering Gaussian Splatting optimizer to all workers...")
+            gs_optimizer_future = client.scatter(self.cluster_optimizer.gaussian_splatting_optimizer, broadcast=True)
 
         logger.info("🔥 GTSFM: Starting to solve subgraphs...")
         futures = []
@@ -122,6 +131,7 @@ class SceneOptimizer:
                 output_root=self.output_root,
                 visibility_graph=cluster_visibility_graph,
                 image_futures=image_futures,
+                gs_optimizer_future=gs_optimizer_future,
             )
             if delayed_result_io_reports is None:
                 logger.warning("Skipping subgraph %d as it has no valid two-view results.", index)
@@ -169,15 +179,21 @@ class SceneOptimizer:
             process_graph_generator.is_image_correspondence = True
         process_graph_generator.save_graph()
 
-    def _run_retriever(self, client) -> tuple[GtsfmMetricsGroup, VisibilityGraph, list[Future]]:
+    def _run_retriever(self, client) -> tuple[GtsfmMetricsGroup, VisibilityGraph]:
         retriever_start_time = time.time()
-        image_futures = self.loader.get_all_images_as_futures(client)
+        batch_size = self.image_pairs_generator._batch_size
+
+        transforms = self.image_pairs_generator.get_preprocessing_transforms()
+
+        # Image_Batch_Futures is a list of Stacked Tensors with dimension (batch_size, Channels, H, W)
+        image_batch_futures = self.loader.get_all_descriptor_image_batches_as_futures(client, batch_size, *transforms)
+
         image_fnames = self.loader.image_filenames()
 
         with performance_report(filename="dask_reports/retriever.html"):
             visibility_graph = self.image_pairs_generator.run(
                 client=client,
-                images=image_futures,
+                image_batch_futures=image_batch_futures,
                 image_fnames=image_fnames,
                 plots_output_dir=self.create_plot_base_path(),
             )
@@ -185,4 +201,5 @@ class SceneOptimizer:
         retriever_duration_sec = time.time() - retriever_start_time
         retriever_metrics.add_metric(GtsfmMetric("retriever_duration_sec", retriever_duration_sec))
         logger.info("🚀 Image pair retrieval took %.2f min.", retriever_duration_sec / 60.0)
-        return retriever_metrics, visibility_graph, image_futures
+
+        return retriever_metrics, visibility_graph

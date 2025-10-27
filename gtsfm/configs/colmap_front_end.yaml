@@ -6,7 +6,7 @@ _target_: gtsfm.scene_optimizer.SceneOptimizer
 image_pairs_generator:
   _target_: gtsfm.retriever.image_pairs_generator.ImagePairsGenerator
   retriever:
-    _target_: gtsfm.retriever.exhaustive_retriever.ExhaustiveRetriever
+    _target_: gtsfm.retriever.Exhaustive
 
 graph_partitioner:
   _target_: gtsfm.graph_partitioner.Single

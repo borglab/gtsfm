@@ -72,7 +72,7 @@ For a quick hands-on example, check out this Colab notebook [![Colab notebook](h
 Before running reconstruction, if you intend to use modules with pre-trained weights (e.g., **SuperPoint, SuperGlue, or PatchmatchNet**), first download the model weights by running:  
 
 ```bash
-./download_model_weights.sh
+bash scripts/download_model_weights.sh
 ```  
 
 ### Running SfM  

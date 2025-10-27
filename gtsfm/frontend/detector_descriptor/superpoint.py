@@ -50,7 +50,7 @@ class SuperPointDetectorDescriptor(DetectorDescriptorBase):
         if not Path(weights_path).exists():
             raise FileNotFoundError(
                 f"SuperPoint weights not found at {weights_path}. "
-                f"Please run 'bash download_model_weights.sh' from the repo root."
+                f"Please run 'bash scripts/download_model_weights.sh' from the repo root."
             )
 
     def _ensure_model_loaded(self) -> None:
