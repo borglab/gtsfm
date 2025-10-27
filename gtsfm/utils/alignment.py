@@ -43,18 +43,13 @@ def align_rotations(aRi_list: Sequence[Optional[Rot3]], bRi_list: Sequence[Optio
 
     Returns:
         aRi_list_: Transformed input rotations previously "bRi_list" but now which
-            have the same origin as reference (now living in "a" frame)
+                   have the same origin as reference (now living in "a" frame)
     """
-    aRb_list = [
-        aRi.compose(bRi.inverse()) for aRi, bRi in zip(aRi_list, bRi_list) if aRi is not None and bRi is not None
-    ]
-    if len(aRb_list) > 0:
-        aRb = gtsam.FindKarcherMeanRot3(aRb_list)
-    else:
-        aRb = Rot3()
+    aRb_list = [aRi * bRi.inverse() for aRi, bRi in zip(aRi_list, bRi_list) if aRi is not None and bRi is not None]
+    aRb = gtsam.FindKarcherMeanRot3(aRb_list) if len(aRb_list) > 0 else Rot3()
 
     # Apply the coordinate shift to all entries in input.
-    return [aRb.compose(bRi) if bRi is not None else None for bRi in bRi_list]
+    return [aRb * bRi if bRi is not None else None for bRi in bRi_list]
 
 
 def align_poses_sim3_ignore_missing(

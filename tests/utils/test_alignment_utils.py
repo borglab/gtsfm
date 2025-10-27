@@ -5,11 +5,12 @@ Authors: Ayush Baid
 
 import copy
 import unittest
-from typing import List
+from typing import Sequence
 
 import numpy as np
-from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Point3, Pose3, Rot3, SfmTrack, Similarity3
-from gtsam.examples import SFMdata
+from gtsam import PinholeCameraCal3Bundler  # type: ignore
+from gtsam import Cal3Bundler, Point2, Point3, Pose3, Rot3, SfmTrack, Similarity3
+from gtsam.examples import SFMdata  # type: ignore
 
 import gtsfm.utils.alignment as alignment_utils
 import gtsfm.utils.metrics as metrics_utils
@@ -23,36 +24,54 @@ POINT3_RELATIVE_ERROR_THRESH = 1e-1
 POINT3_ABS_ERROR_THRESH = 1e-2
 
 
-def rot3_compare(R: Rot3, R_: Rot3, msg=None) -> bool:
-    return np.allclose(R.xyz(), R_.xyz(), atol=1e-2)
+def rot3(matrix: np.ndarray | list) -> Rot3:
+    """Helper to create Rot3 from a numpy array or list, avoiding type-check errors."""
+    R: np.ndarray = np.array(matrix)
+    return Rot3(R)
 
 
-def point3_compare(t: Point3, t_: Point3, msg=None) -> bool:
-    return np.allclose(t, t_, rtol=POINT3_RELATIVE_ERROR_THRESH, atol=POINT3_ABS_ERROR_THRESH)
+def rot3_compare(R: Rot3, R_: Rot3, msg=None) -> None:
+    if not np.allclose(R.xyz(), R_.xyz(), atol=1e-2):
+        standardMsg = f"{R} != {R_}"
+        raise AssertionError(msg or standardMsg)
+
+
+def point3_compare(t: np.ndarray, t_: np.ndarray, msg=None) -> None:
+    if not np.allclose(t, t_, rtol=POINT3_RELATIVE_ERROR_THRESH, atol=POINT3_ABS_ERROR_THRESH):
+        standardMsg = f"{t} != {t_}"
+        raise AssertionError(msg or standardMsg)
 
 
 class TestAlignmentUtils(unittest.TestCase):
     """Unit tests for comparison functions for geometry types."""
 
-    def __assert_equality_on_rot3s(self, computed: List[Rot3], expected: List[Rot3]) -> None:
+    def __assert_equality_on_rot3s(self, computed: Sequence[Rot3 | None], expected: Sequence[Rot3 | None]) -> None:
         self.assertEqual(len(computed), len(expected))
 
-        for R, R_ in zip(computed, expected):
-            self.assertEqual(R, R_)
+        for i, (R, R_) in enumerate(zip(computed, expected)):
+            try:
+                self.assertEqual(R, R_)
+            except AssertionError as e:
+                raise AssertionError(f"Rot3 mismatch at index {i}: {e}") from e
 
-    def __assert_equality_on_point3s(self, computed: List[Point3], expected: List[Point3]) -> None:
+    def __assert_equality_on_point3s(
+        self, computed: Sequence[np.ndarray | None], expected: Sequence[np.ndarray | None]
+    ) -> None:
         self.assertEqual(len(computed), len(expected))
 
         for t, t_ in zip(computed, expected):
-            np.testing.assert_allclose(t, t_, rtol=POINT3_RELATIVE_ERROR_THRESH, atol=POINT3_ABS_ERROR_THRESH)
+            if t is not None and t_ is not None:
+                np.testing.assert_allclose(t, t_, rtol=POINT3_RELATIVE_ERROR_THRESH, atol=POINT3_ABS_ERROR_THRESH)
+            else:
+                assert t is None and t_ is None
 
-    def __assert_equality_on_pose3s(self, computed: List[Pose3], expected: List[Pose3]) -> None:
+    def __assert_equality_on_pose3s(self, computed: Sequence[Pose3 | None], expected: Sequence[Pose3 | None]) -> None:
         self.assertEqual(len(computed), len(expected))
 
-        computed_rot3s = [x.rotation() for x in computed]
-        computed_point3s = [x.translation() for x in computed]
-        expected_rot3s = [x.rotation() for x in expected]
-        expected_point3s = [x.translation() for x in expected]
+        computed_rot3s = [x.rotation() if x is not None else None for x in computed]
+        computed_point3s = [x.translation() if x is not None else None for x in computed]
+        expected_rot3s = [x.rotation() if x is not None else None for x in expected]
+        expected_point3s = [x.translation() if x is not None else None for x in expected]
 
         self.__assert_equality_on_rot3s(computed_rot3s, expected_rot3s)
         self.__assert_equality_on_point3s(computed_point3s, expected_point3s)
@@ -61,25 +80,25 @@ class TestAlignmentUtils(unittest.TestCase):
         super().setUp()
 
         self.addTypeEqualityFunc(Rot3, rot3_compare)
-        self.addTypeEqualityFunc(Point3, point3_compare)
+        self.addTypeEqualityFunc(np.ndarray, point3_compare)
 
     def test_align_rotations(self):
         """Tests the alignment of rotations."""
 
         # using rotation along just the Y-axis so that angles can be linearly added.
-        input_list = [
+        aRi_list = [
             Rot3.RzRyRx(np.deg2rad(0), np.deg2rad(-10), 0),
             Rot3.RzRyRx(np.deg2rad(0), np.deg2rad(30), 0),
         ]
-        ref_list = [
-            Rot3.RzRyRx(np.deg2rad(0), np.deg2rad(80), 0),
-            Rot3.RzRyRx(np.deg2rad(0), np.deg2rad(-40), 0),
+        bRi_list = [
+            Rot3.RzRyRx(np.deg2rad(0), np.deg2rad(-10 + 90), 0),
+            Rot3.RzRyRx(np.deg2rad(0), np.deg2rad(30 + 90), 0),
         ]
 
-        computed = alignment_utils.align_rotations(input_list, ref_list)
+        computed = alignment_utils.align_rotations(aRi_list, bRi_list)
         expected = [
-            Rot3.RzRyRx(0, np.deg2rad(80), 0),
-            Rot3.RzRyRx(0, np.deg2rad(120), 0),
+            Rot3.RzRyRx(0, np.deg2rad(-10), 0),
+            Rot3.RzRyRx(0, np.deg2rad(30), 0),
         ]
 
         self.__assert_equality_on_rot3s(computed, expected)
@@ -88,20 +107,20 @@ class TestAlignmentUtils(unittest.TestCase):
         """Tests the alignment of rotations."""
 
         # using rotation along just the Y-axis so that angles can be linearly added.
-        input_list = [
+        aRi_list = [
             Rot3.RzRyRx(np.deg2rad(0), np.deg2rad(-10), 0),
             Rot3.RzRyRx(np.deg2rad(0), np.deg2rad(30), 0),
         ]
-        ref_list = copy.deepcopy(input_list)
+        bRi_list = copy.deepcopy(aRi_list)
 
-        computed = alignment_utils.align_rotations(input_list, ref_list)
-        expected = copy.deepcopy(input_list)
+        computed = alignment_utils.align_rotations(aRi_list, bRi_list)
+        expected = copy.deepcopy(aRi_list)
         self.__assert_equality_on_rot3s(computed, expected)
 
-    def test_align_poses_after_sim3_transform(self):
+    def test_align_poses_after_sim3_transform(self) -> None:
         """Test for alignment of poses after applying a SIM3 transformation."""
 
-        translation_shift = np.array([5, 10, -5])
+        translation_shift: np.ndarray = Point3(5, 10, -5)
         rotation_shift = Rot3.RzRyRx(0, 0, np.deg2rad(30))
         scaling_factor = 0.7
 
@@ -112,18 +131,17 @@ class TestAlignmentUtils(unittest.TestCase):
         assert isinstance(aSb, Similarity3)
         self.__assert_equality_on_pose3s(computed_poses, sample_poses.CIRCLE_TWO_EDGES_GLOBAL_POSES)
 
-    def test_align_poses_with_outlier(self):
+    def test_align_poses_with_outlier(self) -> None:
         """Test for alignment of poses after applying a SIM3 transform and adding an outlier."""
-        translation_shift = np.array([5, 10, -5])
+        translation_shift: np.ndarray = Point3(5, 10, -5)
         rotation_shift = Rot3.RzRyRx(0, 0, np.deg2rad(30))
         scaling_factor = 0.7
 
         transform = Similarity3(rotation_shift, translation_shift, scaling_factor)
         ref_list = copy.deepcopy(sample_poses.CIRCLE_TWO_EDGES_GLOBAL_POSES)
         input_list = [transform.transformFrom(x) for x in sample_poses.CIRCLE_TWO_EDGES_GLOBAL_POSES]
-        input_list[1] = Pose3(
-            Rot3.RzRyRx(np.deg2rad(60), -np.deg2rad(-30), np.deg2rad(np.deg2rad(-20))), np.random.rand(3)
-        )
+        random_t: np.ndarray = np.random.rand(3)
+        input_list[1] = Pose3(Rot3.RzRyRx(np.deg2rad(60), -np.deg2rad(-30), np.deg2rad(np.deg2rad(-20))), random_t)
 
         # Note: this test requires exhaustive alignment and will fail with regular alignment.
         computed_poses, aSb = alignment_utils.align_poses_sim3_robust(ref_list, input_list)
@@ -132,10 +150,10 @@ class TestAlignmentUtils(unittest.TestCase):
         ref_list_with_outlier_removed = [ref_list[0]] + ref_list[2:]
         self.__assert_equality_on_pose3s(computed_poses_with_outlier_removed, ref_list_with_outlier_removed)
 
-    def test_align_poses_on_panorama_after_sim3_transform(self):
+    def test_align_poses_on_panorama_after_sim3_transform(self) -> None:
         """Test for alignment of poses after applying a forward motion transformation."""
 
-        translation_shift = np.array([0, 5, 0])
+        translation_shift: np.ndarray = Point3(0, 5, 0)
         rotation_shift = Rot3.RzRyRx(0, 0, np.deg2rad(30))
         scaling_factor = 1.0
 
@@ -147,12 +165,14 @@ class TestAlignmentUtils(unittest.TestCase):
         assert isinstance(aSb, Similarity3)
         self.__assert_equality_on_pose3s(aTi_list_, aTi_list)
 
-    def test_align_poses_sim3_ignore_missing(self):
+    def test_align_poses_sim3_ignore_missing(self) -> None:
         """Consider a simple cases with 4 poses in a line. Suppose SfM only recovers 2 of the 4 poses."""
-        wT0 = Pose3(Rot3(np.eye(3)), np.zeros(3))
-        wT1 = Pose3(Rot3(np.eye(3)), np.ones(3))
-        wT2 = Pose3(Rot3(np.eye(3)), np.ones(3) * 2)
-        wT3 = Pose3(Rot3(np.eye(3)), np.ones(3) * 3)
+        Z_3x1: np.ndarray = np.zeros((3,))
+        ones: np.ndarray = np.ones((3,))
+        wT0 = Pose3(Rot3(), Z_3x1)
+        wT1 = Pose3(Rot3(), ones)
+        wT2 = Pose3(Rot3(), ones * 2)
+        wT3 = Pose3(Rot3(), ones * 3)
 
         # `a` frame is the target/reference frame
         aTi_list = [wT0, wT1, wT2, wT3]
@@ -204,34 +224,34 @@ class TestAlignmentUtils(unittest.TestCase):
 
         # fmt: off
         wTi_list_gt = [
-            Pose3(Rot3(), np.array([3, 0, 0])),   # wTi0
-            Pose3(Rot3(), np.array([0, 0, 0])),   # wTi1
-            Pose3(Rot3(), np.array([0, -3, 0])),  # wTi2
-            Pose3(Rot3(), np.array([0, 3, 0])),   # wTi3
+            Pose3(Rot3(), Point3(3, 0, 0)),   # wTi0
+            Pose3(Rot3(), Point3(0, 0, 0)),   # wTi1
+            Pose3(Rot3(), Point3(0, -3, 0)),  # wTi2
+            Pose3(Rot3(), Point3(0, 3, 0)),   # wTi3
         ]
         # points_gt = [
-        #     np.array([1, 1, 0]),
-        #     np.array([3, 3, 0])
+        #     Point3(1, 1, 0),
+        #     Point3(3, 3, 0)
         # ]
 
         # pose graph is scaled by a factor of 2, and shifted also.
         wTi_list_est = [
-            Pose3(Rot3(), np.array([8, 2, 0])),  # wTi0
-            Pose3(Rot3(), np.array([2, 2, 0])),  # wTi1
+            Pose3(Rot3(), Point3(8, 2, 0)),  # wTi0
+            Pose3(Rot3(), Point3(2, 2, 0)),  # wTi1
             None,                                # wTi2
-            Pose3(Rot3(), np.array([2, 8, 0])),  # wTi3
+            Pose3(Rot3(), Point3(2, 8, 0)),  # wTi3
         ]
         points_est = [
-            np.array([4, 4, 0]),
-            np.array([8, 8, 0])
+            Point3(4, 4, 0),
+            Point3(8, 8, 0)
         ]
         # fmt: on
 
         def add_dummy_measurements_to_track(track: SfmTrack) -> SfmTrack:
             """Add some dummy 2d measurements in three views in cameras 0,1,3."""
-            track.addMeasurement(0, np.array([100, 200]))
-            track.addMeasurement(1, np.array([300, 400]))
-            track.addMeasurement(3, np.array([500, 600]))
+            track.addMeasurement(0, Point2(100, 200))
+            track.addMeasurement(1, Point2(300, 400))
+            track.addMeasurement(3, Point2(500, 600))
             return track
 
         sfm_result = GtsfmData(number_images=4)
@@ -254,36 +274,29 @@ class TestAlignmentUtils(unittest.TestCase):
         assert aligned_sfm_result == gt_gtsfm_data
 
         # 3d points from tracks should now match the GT.
-        assert np.allclose(aligned_sfm_result.get_track(0).point3(), np.array([1.0, 1.0, 0.0]))
-        assert np.allclose(aligned_sfm_result.get_track(1).point3(), np.array([3.0, 3.0, 0.0]))
+        assert np.allclose(aligned_sfm_result.get_track(0).point3(), Point3(1.0, 1.0, 0))
+        assert np.allclose(aligned_sfm_result.get_track(1).point3(), Point3(3.0, 3.0, 0))
 
-    def test_ransac_align_poses_sim3_ignore_missing_pureidentity(self) -> None:
+    def test_ransac_align_poses_sim3_ignore_missing_pure_identity(self) -> None:
         """Ensure that for identity poses, and thus identity Similarity(3), we get back exactly what we started with."""
 
         aTi_list = [
+            Pose3(rot3([[0.771176, -0.36622, 0], [0.636622, 0.771176, 0], [0, 0, 1]]), Point3(6.94918, 2.4749, 0)),
             Pose3(
-                Rot3(np.array([[0.771176, -0.636622, 0], [0.636622, 0.771176, 0], [0, 0, 1]])),
-                t=np.array([6.94918, 2.4749, 0]),
+                rot3([[0.124104, -0.92269, 0], [0.992269, 0.124104, 0], [0, 0, 1]]),
+                Point3(6.06848, 4.57841, 0),
             ),
             Pose3(
-                Rot3(
-                    np.array([[0.124104, -0.992269, 0], [0.992269, 0.124104, 0], [0, 0, 1]]),
-                ),
-                t=np.array([6.06848, 4.57841, 0]),
+                rot3([[0.914145, 0.05387, 0], [-0.405387, 0.914145, 0], [0, 0, 1]]),
+                Point3(6.47869, 5.29594, 0),
             ),
             Pose3(
-                Rot3(
-                    np.array([[0.914145, 0.405387, 0], [-0.405387, 0.914145, 0], [0, 0, 1]]),
-                ),
-                t=np.array([6.47869, 5.29594, 0]),
+                rot3([[0.105365, -0.94434, 0], [0.994434, 0.105365, 0], [0, 0, 1]]),
+                Point3(5.59441, 5.22469, 0),
             ),
             Pose3(
-                Rot3(np.array([[0.105365, -0.994434, 0], [0.994434, 0.105365, 0], [0, 0, 1]])),
-                t=np.array([5.59441, 5.22469, 0]),
-            ),
-            Pose3(
-                Rot3(np.array([[-0.991652, -0.12894, 0], [0.12894, -0.991652, 0], [0, 0, 1]])),
-                t=np.array([7.21399, 5.41445, 0]),
+                rot3([[-0.991652, -0.2894, 0], [0.12894, -0.991652, 0], [0, 0, 1]]),
+                Point3(7.21399, 5.41445, 0),
             ),
         ]
         # Make twice as long.
@@ -293,34 +306,34 @@ class TestAlignmentUtils(unittest.TestCase):
 
         aligned_bTi_list_est, aSb = alignment_utils.align_poses_sim3_ignore_missing(aTi_list, bTi_list)
 
-        for aTi, aTi_ in zip(aTi_list, aligned_bTi_list_est):
-            assert np.allclose(aTi.rotation().matrix(), aTi_.rotation().matrix(), atol=1e-3)
-            assert np.allclose(aTi.translation(), aTi_.translation(), atol=1e-3)
+        self.__assert_equality_on_pose3s(aTi_list, aligned_bTi_list_est)
 
     def test_ransac_align_poses_sim3_ignore_two_missing_estimated_poses(self) -> None:
         """Unit test for simple case of 3 poses (one is an outlier with massive translation error.)"""
 
         aTi_list = [
             None,
-            Pose3(Rot3(), np.array([50, 0, 0])),
-            Pose3(Rot3(), np.array([0, 10, 0])),
-            Pose3(Rot3(), np.array([0, 0, 20])),
+            Pose3(Rot3(), Point3(50, 0, 0)),
+            Pose3(Rot3(), Point3(0, 10, 0)),
+            Pose3(Rot3(), Point3(0, 0, 20)),
             None,
         ]
 
         # Below was previously in b's frame. Has a bit of noise compared to pose graph above.
         bTi_list = [
             None,
-            Pose3(Rot3(), np.array([50.1, 0, 0])),
-            Pose3(Rot3(), np.array([0, 9.9, 0])),
-            Pose3(Rot3(), np.array([0, 0, 2000])),
+            Pose3(Rot3(), Point3(50.1, 0, 0)),
+            Pose3(Rot3(), Point3(0, 9.9, 0)),
+            Pose3(Rot3(), Point3(0, 0, 2000)),
             None,
         ]
 
         aligned_bTi_list_est, aSb = alignment_utils.align_poses_sim3_ignore_missing(aTi_list, bTi_list)
         assert np.isclose(aSb.scale(), 1.0, atol=1e-2)
-        assert np.allclose(aligned_bTi_list_est[1].translation(), np.array([50.0114, 0.0576299, 0]), atol=1e-3)
-        assert np.allclose(aligned_bTi_list_est[2].translation(), np.array([-0.0113879, 9.94237, 0]), atol=1e-3)
+        assert aligned_bTi_list_est[1] is not None
+        assert aligned_bTi_list_est[2] is not None
+        assert np.allclose(aligned_bTi_list_est[1].translation(), [Point3(50.0114, 0.0576299, 0)], atol=1e-3)
+        assert np.allclose(aligned_bTi_list_est[2].translation(), [Point3(-0.0113879, 9.94237, 0)], atol=1e-3)
 
     def test_ransac_align_poses_sim3_if_no_ground_truth_provided(self) -> None:
         aTi_list = [
@@ -331,9 +344,9 @@ class TestAlignmentUtils(unittest.TestCase):
 
         # Below was previously in b's frame. Has a bit of noise compared to pose graph above.
         bTi_list = [
-            Pose3(Rot3(), np.array([50.1, 0, 0])),
-            Pose3(Rot3(), np.array([0, 9.9, 0])),
-            Pose3(Rot3(), np.array([0, 0, 2000])),
+            Pose3(Rot3(), Point3(50.1, 0, 0)),
+            Pose3(Rot3(), Point3(0, 9.9, 0)),
+            Pose3(Rot3(), Point3(0, 0, 2000)),
         ]
 
         aligned_bTi_list_est, aSb = alignment_utils.align_poses_sim3_ignore_missing(aTi_list, bTi_list)
@@ -346,7 +359,7 @@ class TestAlignmentUtils(unittest.TestCase):
         """
         poses_gt = [
             Pose3(
-                Rot3(
+                rot3(
                     [
                         [0.696305769, -0.0106830792, -0.717665705],
                         [0.00546412488, 0.999939148, -0.00958346857],
@@ -356,7 +369,7 @@ class TestAlignmentUtils(unittest.TestCase):
                 Point3(5.83077801, -0.94815149, 0.397751679),
             ),
             Pose3(
-                Rot3(
+                rot3(
                     [
                         [0.692272397, -0.00529704529, -0.721616549],
                         [0.00634689669, 0.999979075, -0.00125157022],
@@ -366,7 +379,7 @@ class TestAlignmentUtils(unittest.TestCase):
                 Point3(5.03853323, -0.97547405, -0.348177392),
             ),
             Pose3(
-                Rot3(
+                rot3(
                     [
                         [0.945991981, -0.00633548292, -0.324128225],
                         [0.00450436485, 0.999969379, -0.00639931046],
@@ -376,7 +389,7 @@ class TestAlignmentUtils(unittest.TestCase):
                 Point3(4.13186176, -0.956364218, -0.796029527),
             ),
             Pose3(
-                Rot3(
+                rot3(
                     [
                         [0.999553623, -0.00346470207, -0.0296740626],
                         [0.00346104216, 0.999993995, -0.00017469881],
@@ -386,7 +399,7 @@ class TestAlignmentUtils(unittest.TestCase):
                 Point3(3.1113898, -0.928583423, -0.90539337),
             ),
             Pose3(
-                Rot3(
+                rot3(
                     [
                         [0.967850252, -0.00144846042, 0.251522892],
                         [0.000254511591, 0.999988546, 0.00477934325],
@@ -396,7 +409,7 @@ class TestAlignmentUtils(unittest.TestCase):
                 Point3(2.10584013, -0.921303194, -0.809322971),
             ),
             Pose3(
-                Rot3(
+                rot3(
                     [
                         [0.969854065, 0.000629052774, 0.243685716],
                         [0.000387180179, 0.999991428, -0.00412234326],
@@ -406,7 +419,7 @@ class TestAlignmentUtils(unittest.TestCase):
                 Point3(1.0753788, -0.913035975, -0.616584091),
             ),
             Pose3(
-                Rot3(
+                rot3(
                     [
                         [0.998189342, 0.00110235337, 0.0601400045],
                         [-0.00110890447, 0.999999382, 7.55559042e-05],
@@ -416,7 +429,7 @@ class TestAlignmentUtils(unittest.TestCase):
                 Point3(0.029993558, -0.951495122, -0.425525143),
             ),
             Pose3(
-                Rot3(
+                rot3(
                     [
                         [0.999999996, -2.62868666e-05, -8.67178281e-05],
                         [2.62791334e-05, 0.999999996, -8.91767396e-05],
@@ -426,7 +439,7 @@ class TestAlignmentUtils(unittest.TestCase):
                 Point3(-0.973569417, -0.936340994, -0.253464928),
             ),
             Pose3(
-                Rot3(
+                rot3(
                     [
                         [0.99481227, -0.00153645011, 0.101716252],
                         [0.000916919443, 0.999980747, 0.00613725239],
@@ -436,7 +449,7 @@ class TestAlignmentUtils(unittest.TestCase):
                 Point3(-2.02071256, -0.955446292, -0.240707879),
             ),
             Pose3(
-                Rot3(
+                rot3(
                     [
                         [0.89795602, -0.00978591184, 0.43997636],
                         [0.00645921401, 0.999938116, 0.00905779513],
@@ -446,7 +459,7 @@ class TestAlignmentUtils(unittest.TestCase):
                 Point3(-2.94096695, -0.939974858, 0.0934225593),
             ),
             Pose3(
-                Rot3(
+                rot3(
                     [
                         [0.726299119, -0.00916784876, 0.687318077],
                         [0.00892018672, 0.999952563, 0.0039118575],
@@ -456,7 +469,7 @@ class TestAlignmentUtils(unittest.TestCase):
                 Point3(-3.72843416, -0.897889251, 0.685129502),
             ),
             Pose3(
-                Rot3(
+                rot3(
                     [
                         [0.506756029, -0.000331706105, 0.862089858],
                         [0.00613841257, 0.999975964, -0.00322354286],
@@ -466,7 +479,7 @@ class TestAlignmentUtils(unittest.TestCase):
                 Point3(-4.3909926, -0.890883291, 1.43029524),
             ),
             Pose3(
-                Rot3(
+                rot3(
                     [
                         [0.129316352, -0.00206958814, 0.991601896],
                         [0.00515932597, 0.999985691, 0.00141424797],
@@ -476,7 +489,7 @@ class TestAlignmentUtils(unittest.TestCase):
                 Point3(-4.58510846, -0.922534227, 2.36884523),
             ),
             Pose3(
-                Rot3(
+                rot3(
                     [
                         [0.599853194, -0.00890004681, -0.800060263],
                         [0.00313716318, 0.999956608, -0.00877161373],
@@ -486,7 +499,7 @@ class TestAlignmentUtils(unittest.TestCase):
                 Point3(5.71559638, 0.486863076, 0.279141372),
             ),
             Pose3(
-                Rot3(
+                rot3(
                     [
                         [0.762552447, 0.000836438681, -0.646926069],
                         [0.00211337894, 0.999990607, 0.00378404105],
@@ -496,7 +509,7 @@ class TestAlignmentUtils(unittest.TestCase):
                 Point3(5.00243443, 0.513321893, -0.466921769),
             ),
             Pose3(
-                Rot3(
+                rot3(
                     [
                         [0.930381645, -0.00340164355, -0.36657678],
                         [0.00425636616, 0.999989781, 0.00152338305],
@@ -506,7 +519,7 @@ class TestAlignmentUtils(unittest.TestCase):
                 Point3(4.05404984, 0.493385291, -0.827904571),
             ),
             Pose3(
-                Rot3(
+                rot3(
                     [
                         [0.999996073, -0.00278379707, -0.000323508543],
                         [0.00278790921, 0.999905063, 0.0134941517],
@@ -516,7 +529,7 @@ class TestAlignmentUtils(unittest.TestCase):
                 Point3(3.04724478, 0.491451306, -0.989571061),
             ),
             Pose3(
-                Rot3(
+                rot3(
                     [
                         [0.968578343, -0.002544616, 0.248695527],
                         [0.000806130148, 0.999974526, 0.00709200332],
@@ -526,7 +539,7 @@ class TestAlignmentUtils(unittest.TestCase):
                 Point3(2.05737869, 0.46840177, -0.546344594),
             ),
             Pose3(
-                Rot3(
+                rot3(
                     [
                         [0.968827882, 0.000182770584, 0.247734722],
                         [-0.000558107079, 0.9999988, 0.00144484904],
@@ -536,7 +549,7 @@ class TestAlignmentUtils(unittest.TestCase):
                 Point3(1.14019947, 0.469674641, -0.0491053805),
             ),
             Pose3(
-                Rot3(
+                rot3(
                     [
                         [0.991647805, 0.00197867892, 0.128960146],
                         [-0.00247518407, 0.999990129, 0.00368991165],
@@ -546,7 +559,7 @@ class TestAlignmentUtils(unittest.TestCase):
                 Point3(0.150270471, 0.457867448, 0.103628642),
             ),
             Pose3(
-                Rot3(
+                rot3(
                     [
                         [0.992244594, 0.00477781876, -0.124208847],
                         [-0.0037682125, 0.999957938, 0.00836195891],
@@ -556,7 +569,7 @@ class TestAlignmentUtils(unittest.TestCase):
                 Point3(-0.937954641, 0.440532658, 0.154265069),
             ),
             Pose3(
-                Rot3(
+                rot3(
                     [
                         [0.999591078, 0.00215462857, -0.0285137564],
                         [-0.00183807224, 0.999936443, 0.0111234301],
@@ -566,7 +579,7 @@ class TestAlignmentUtils(unittest.TestCase):
                 Point3(-1.95622231, 0.448914367, -0.0859439782),
             ),
             Pose3(
-                Rot3(
+                rot3(
                     [
                         [0.931835342, 0.000956922238, 0.362880212],
                         [0.000941640753, 0.99998678, -0.00505501434],
@@ -576,7 +589,7 @@ class TestAlignmentUtils(unittest.TestCase):
                 Point3(-2.85557418, 0.434739285, 0.0793777177),
             ),
             Pose3(
-                Rot3(
+                rot3(
                     [
                         [0.781615218, -0.0109886966, 0.623664238],
                         [0.00516954657, 0.999924591, 0.011139446],
@@ -586,7 +599,7 @@ class TestAlignmentUtils(unittest.TestCase):
                 Point3(-3.67524552, 0.444074681, 0.583718622),
             ),
             Pose3(
-                Rot3(
+                rot3(
                     [
                         [0.521291761, 0.00264805046, 0.853374051],
                         [0.00659087718, 0.999952868, -0.00712898365],
@@ -596,7 +609,7 @@ class TestAlignmentUtils(unittest.TestCase):
                 Point3(-4.35541796, 0.413479707, 1.31179007),
             ),
             Pose3(
-                Rot3(
+                rot3(
                     [
                         [0.320164205, -0.00890839482, 0.947319884],
                         [0.00458409304, 0.999958649, 0.007854118],
@@ -606,7 +619,7 @@ class TestAlignmentUtils(unittest.TestCase):
                 Point3(-4.71617526, 0.476674479, 2.16502998),
             ),
             Pose3(
-                Rot3(
+                rot3(
                     [
                         [0.464861609, 0.0268597443, -0.884976415],
                         [-0.00947397841, 0.999633409, 0.0253631906],
@@ -616,7 +629,7 @@ class TestAlignmentUtils(unittest.TestCase):
                 Point3(6.11772094, 1.63029238, 0.491786626),
             ),
             Pose3(
-                Rot3(
+                rot3(
                     [
                         [0.691647251, 0.0216006293, -0.721912024],
                         [-0.0093228132, 0.999736395, 0.020981541],
@@ -626,7 +639,7 @@ class TestAlignmentUtils(unittest.TestCase):
                 Point3(5.46912979, 1.68759322, -0.288499782),
             ),
             Pose3(
-                Rot3(
+                rot3(
                     [
                         [0.921208931, 0.00622640471, -0.389018433],
                         [-0.00686296262, 0.999976419, -0.000246683913],
@@ -636,7 +649,7 @@ class TestAlignmentUtils(unittest.TestCase):
                 Point3(4.70156942, 1.72186229, -0.806181015),
             ),
             Pose3(
-                Rot3(
+                rot3(
                     [
                         [0.822397705, 0.00276497594, 0.568906142],
                         [0.00804891535, 0.999831556, -0.016494662],
@@ -646,7 +659,7 @@ class TestAlignmentUtils(unittest.TestCase):
                 Point3(-3.51368714, 1.59619714, 0.437437437),
             ),
             Pose3(
-                Rot3(
+                rot3(
                     [
                         [0.726822937, -0.00545541524, 0.686803193],
                         [0.00913794245, 0.999956756, -0.00172754968],
@@ -656,7 +669,7 @@ class TestAlignmentUtils(unittest.TestCase):
                 Point3(-4.29737821, 1.61462527, 1.11537749),
             ),
             Pose3(
-                Rot3(
+                rot3(
                     [
                         [0.402595481, 0.00697612855, 0.915351441],
                         [0.0114113638, 0.999855006, -0.0126391687],
@@ -673,7 +686,7 @@ class TestAlignmentUtils(unittest.TestCase):
         unaligned_cameras = {
             2: PinholeCameraCal3Bundler(
                 Pose3(
-                    Rot3(
+                    rot3(
                         [
                             [-0.681949, -0.568276, 0.460444],
                             [0.572389, -0.0227514, 0.819667],
@@ -686,7 +699,7 @@ class TestAlignmentUtils(unittest.TestCase):
             ),
             4: PinholeCameraCal3Bundler(
                 Pose3(
-                    Rot3(
+                    rot3(
                         [
                             [-0.817805393, -0.575044816, 0.022755196],
                             [0.0478829397, -0.0285875849, 0.998443776],
@@ -699,7 +712,7 @@ class TestAlignmentUtils(unittest.TestCase):
             ),
             3: PinholeCameraCal3Bundler(
                 Pose3(
-                    Rot3(
+                    rot3(
                         [
                             [-0.783051568, -0.571905041, 0.244448085],
                             [0.314861464, -0.0255673164, 0.948793218],
@@ -712,7 +725,7 @@ class TestAlignmentUtils(unittest.TestCase):
             ),
             5: PinholeCameraCal3Bundler(
                 Pose3(
-                    Rot3(
+                    rot3(
                         [
                             [-0.818916586, -0.572896131, 0.0341415873],
                             [0.0550548476, -0.0192038786, 0.99829864],
@@ -725,7 +738,7 @@ class TestAlignmentUtils(unittest.TestCase):
             ),
             6: PinholeCameraCal3Bundler(
                 Pose3(
-                    Rot3(
+                    rot3(
                         [
                             [-0.798825521, -0.571995242, 0.186277293],
                             [0.243311017, -0.0240196245, 0.969650869],
@@ -738,7 +751,7 @@ class TestAlignmentUtils(unittest.TestCase):
             ),
             7: PinholeCameraCal3Bundler(
                 Pose3(
-                    Rot3(
+                    rot3(
                         [
                             [-0.786416666, -0.570215296, 0.237493882],
                             [0.305475635, -0.0248440676, 0.951875732],
@@ -751,7 +764,7 @@ class TestAlignmentUtils(unittest.TestCase):
             ),
             8: PinholeCameraCal3Bundler(
                 Pose3(
-                    Rot3(
+                    rot3(
                         [
                             [-0.806252832, -0.57019757, 0.157578877],
                             [0.211046715, -0.0283979846, 0.977063375],
@@ -764,7 +777,7 @@ class TestAlignmentUtils(unittest.TestCase):
             ),
             9: PinholeCameraCal3Bundler(
                 Pose3(
-                    Rot3(
+                    rot3(
                         [
                             [-0.821191354, -0.557772774, -0.120558255],
                             [-0.125347331, -0.0297958331, 0.991665395],
@@ -777,7 +790,7 @@ class TestAlignmentUtils(unittest.TestCase):
             ),
             21: PinholeCameraCal3Bundler(
                 Pose3(
-                    Rot3(
+                    rot3(
                         [
                             [-0.778607603, -0.575075476, 0.251114312],
                             [0.334920968, -0.0424301164, 0.941290407],
@@ -790,7 +803,7 @@ class TestAlignmentUtils(unittest.TestCase):
             ),
             17: PinholeCameraCal3Bundler(
                 Pose3(
-                    Rot3(
+                    rot3(
                         [
                             [-0.818569806, -0.573904529, 0.0240221722],
                             [0.0512889176, -0.0313725422, 0.998190969],
@@ -803,7 +816,7 @@ class TestAlignmentUtils(unittest.TestCase):
             ),
             18: PinholeCameraCal3Bundler(
                 Pose3(
-                    Rot3(
+                    rot3(
                         [
                             [-0.812668105, -0.582027424, 0.0285417146],
                             [0.0570298244, -0.0306936169, 0.997900547],
@@ -816,7 +829,7 @@ class TestAlignmentUtils(unittest.TestCase):
             ),
             20: PinholeCameraCal3Bundler(
                 Pose3(
-                    Rot3(
+                    rot3(
                         [
                             [-0.748446406, -0.580905382, 0.319963926],
                             [0.416860654, -0.0368374152, 0.908223651],
@@ -829,7 +842,7 @@ class TestAlignmentUtils(unittest.TestCase):
             ),
             22: PinholeCameraCal3Bundler(
                 Pose3(
-                    Rot3(
+                    rot3(
                         [
                             [-0.826878177, -0.559495019, -0.0569017041],
                             [-0.0452256802, -0.0346974602, 0.99837404],
@@ -842,7 +855,7 @@ class TestAlignmentUtils(unittest.TestCase):
             ),
             29: PinholeCameraCal3Bundler(
                 Pose3(
-                    Rot3(
+                    rot3(
                         [
                             [-0.785759779, -0.574532433, -0.229115805],
                             [-0.246020939, -0.049553424, 0.967996981],
@@ -855,7 +868,7 @@ class TestAlignmentUtils(unittest.TestCase):
             ),
             23: PinholeCameraCal3Bundler(
                 Pose3(
-                    Rot3(
+                    rot3(
                         [
                             [-0.783524382, -0.548569702, -0.291823276],
                             [-0.316457553, -0.051878563, 0.94718701],
@@ -868,7 +881,7 @@ class TestAlignmentUtils(unittest.TestCase):
             ),
             10: PinholeCameraCal3Bundler(
                 Pose3(
-                    Rot3(
+                    rot3(
                         [
                             [-0.766833992, -0.537641809, -0.350580824],
                             [-0.389506676, -0.0443270797, 0.919956336],
@@ -881,7 +894,7 @@ class TestAlignmentUtils(unittest.TestCase):
             ),
             30: PinholeCameraCal3Bundler(
                 Pose3(
-                    Rot3(
+                    rot3(
                         [
                             [-0.754844165, -0.559278755, -0.342662459],
                             [-0.375790683, -0.0594160018, 0.92479787],
@@ -894,33 +907,33 @@ class TestAlignmentUtils(unittest.TestCase):
             ),
         }
 
-        t0 = SfmTrack(pt=[-0.89190672, 1.21298076, -1.05838554])
-        t0.addMeasurement(2, [184.08586121, 441.31314087])
-        t0.addMeasurement(4, [18.98637581, 453.21853638])
+        t0 = SfmTrack(pt=Point3(-0.89190672, 1.21298076, -1.05838554))
+        t0.addMeasurement(2, Point2(184.08586121, 441.31314087))
+        t0.addMeasurement(4, Point2(18.98637581, 453.21853638))
 
-        t1 = SfmTrack(pt=[-0.76287111, 1.26476165, -1.22710579])
-        t1.addMeasurement(2, [213.51266479, 288.06637573])
-        t1.addMeasurement(4, [50.23059464, 229.30541992])
+        t1 = SfmTrack(pt=Point3(-0.76287111, 1.26476165, -1.22710579))
+        t1.addMeasurement(2, Point2(213.51266479, 288.06637573))
+        t1.addMeasurement(4, Point2(50.23059464, 229.30541992))
 
-        t2 = SfmTrack(pt=[-1.45773622, 0.86221933, -1.47515461])
-        t2.addMeasurement(2, [227.52420044, 695.15087891])
-        t2.addMeasurement(3, [996.67608643, 705.03125])
+        t2 = SfmTrack(pt=Point3(-1.45773622, 0.86221933, -1.47515461))
+        t2.addMeasurement(2, Point2(227.52420044, 695.15087891))
+        t2.addMeasurement(3, Point2(996.67608643, 705.03125))
 
-        t3 = SfmTrack(pt=[-1.40486691, 0.93824916, -1.35192298])
-        t3.addMeasurement(2, [251.37863159, 702.97064209])
-        t3.addMeasurement(3, [537.9753418, 732.26025391])
+        t3 = SfmTrack(pt=Point3(-1.40486691, 0.93824916, -1.35192298))
+        t3.addMeasurement(2, Point2(251.37863159, 702.97064209))
+        t3.addMeasurement(3, Point2(537.9753418, 732.26025391))
 
-        t4 = SfmTrack(pt=[55.48969812, 52.24862241, 58.84578119])
-        t4.addMeasurement(2, [253.17749023, 490.47991943])
-        t4.addMeasurement(3, [13.17782784, 507.57717896])
+        t4 = SfmTrack(pt=Point3(55.48969812, 52.24862241, 58.84578119))
+        t4.addMeasurement(2, Point2(253.17749023, 490.47991943))
+        t4.addMeasurement(3, Point2(13.17782784, 507.57717896))
 
-        t5 = SfmTrack(pt=[230.43166291, 206.44760657, 234.25904211])
-        t5.addMeasurement(2, [253.52301025, 478.41384888])
-        t5.addMeasurement(3, [10.92995739, 493.31018066])
+        t5 = SfmTrack(pt=Point3(230.43166291, 206.44760657, 234.25904211))
+        t5.addMeasurement(2, Point2(253.52301025, 478.41384888))
+        t5.addMeasurement(3, Point2(10.92995739, 493.31018066))
 
-        t6 = SfmTrack(pt=[11.62742671, 13.43484624, 14.50306349])
-        t6.addMeasurement(2, [254.64611816, 533.04730225])
-        t6.addMeasurement(3, [18.78449249, 557.05041504])
+        t6 = SfmTrack(pt=Point3(11.62742671, 13.43484624, 14.50306349))
+        t6.addMeasurement(2, Point2(254.64611816, 533.04730225))
+        t6.addMeasurement(3, Point2(18.78449249, 557.05041504))
 
         unaligned_tracks = [t0, t1, t2, t3, t4, t5, t6]
 
