@@ -7,3 +7,6 @@
 [submodule "thirdparty/vggt"]
 	path = thirdparty/vggt
 	url = https://github.com/facebookresearch/vggt
+[submodule "thirdparty/AnySplat"]
+	path = thirdparty/AnySplat
+	url = https://github.com/InternRobotics/AnySplat.git
