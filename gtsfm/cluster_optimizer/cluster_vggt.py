@@ -28,7 +28,6 @@ class ClusterVGGT(ClusterOptimizerBase):
         output_worker: Optional[str] = None,
     ) -> None:
         super().__init__(
-            correspondence_generator=None,
             pose_angular_error_thresh=pose_angular_error_thresh,
             output_worker=output_worker,
         )
