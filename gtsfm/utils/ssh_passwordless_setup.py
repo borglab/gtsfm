@@ -9,18 +9,13 @@ Authors: Zong
 """
 import subprocess
 import sys
-import yaml
-import logging
 from pathlib import Path
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler(), logging.FileHandler("setup_passwordless_ssh.log")],
-)
+import yaml  # type: ignore
 
-logger = logging.getLogger(__name__)
+import gtsfm.utils.logger as logger_utils
+
+logger = logger_utils.get_logger()
 
 # Default cluster config path relative to this script
 SCRIPT_DIR = Path(__file__).resolve().parent

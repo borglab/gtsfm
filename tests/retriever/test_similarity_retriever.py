@@ -1,4 +1,4 @@
-"""Unit tests for the NetVLAD retriever.
+"""Unit tests for the Similarity retriever.
 
 Authors: John Lambert
 """
@@ -6,24 +6,23 @@ Authors: John Lambert
 import unittest
 from pathlib import Path
 
-
-from gtsfm.frontend.global_descriptor.netvlad_global_descriptor import NetVLADGlobalDescriptor
+from gtsfm.frontend.global_descriptor import NetVLAD
 from gtsfm.loader.colmap_loader import ColmapLoader
 from gtsfm.loader.olsson_loader import OlssonLoader
-from gtsfm.retriever.netvlad_retriever import NetVLADRetriever
+from gtsfm.retriever.similarity_retriever import SimilarityRetriever
 
 DATA_ROOT_PATH = Path(__file__).resolve().parent.parent / "data"
 DOOR_DATA_ROOT = DATA_ROOT_PATH / "set1_lund_door"
 SKYDIO_DATA_ROOT = DATA_ROOT_PATH / "crane_mast_8imgs_colmap_output"
 
 
-class TestNetVLADRetriever(unittest.TestCase):
+class TestSimilarityRetriever(unittest.TestCase):
     def setUp(self):
         super().setUp()
-        self.global_descriptor = NetVLADGlobalDescriptor()
+        self.global_descriptor = NetVLAD()
 
     def test_netvlad_retriever_crane_mast(self) -> None:
-        """Test the NetVLAD retriever on 2 frames of the Skydio Crane-Mast dataset."""
+        """Test the Similarity retriever on 2 frames of the Skydio Crane-Mast dataset."""
         dataset_dir = SKYDIO_DATA_ROOT
         images_dir = SKYDIO_DATA_ROOT / "images"
 
@@ -33,7 +32,7 @@ class TestNetVLADRetriever(unittest.TestCase):
             max_resolution=760,
         )
 
-        retriever = NetVLADRetriever(num_matched=2)
+        retriever = SimilarityRetriever(num_matched=2)
         resize_transform, batch_transform = self.global_descriptor.get_preprocessing_transforms()
 
         indices = list(range(len(loader)))
@@ -48,14 +47,14 @@ class TestNetVLADRetriever(unittest.TestCase):
         self.assertEqual(pairs, [(0, 1)])
 
     def test_netvlad_retriever_door(self) -> None:
-        """Test the NetVLAD retriever on 12 frames of the Lund Door Dataset."""
+        """Test the Similarity retriever on 12 frames of the Lund Door Dataset."""
         loader = OlssonLoader(dataset_dir=str(DOOR_DATA_ROOT))
-        retriever = NetVLADRetriever(num_matched=2)
+        retriever = SimilarityRetriever(num_matched=2)
         resize_transform, batch_transform = self.global_descriptor.get_preprocessing_transforms()
 
         indices = list(range(len(loader)))
         batch_tensor = loader.load_image_batch(indices, resize_transform, batch_transform)
-        
+
         descriptors = self.global_descriptor.describe_batch(batch_tensor)
 
         pairs = retriever.get_image_pairs(descriptors, loader.image_filenames(), plots_output_dir=None)

@@ -23,18 +23,18 @@ import signal
 import socket
 import subprocess
 import time
-
-import yaml
-from dotenv import load_dotenv
-import logging
-
 from typing import Any, Dict, List, Optional, Tuple
+
+import yaml  # type: ignore
+from dotenv import load_dotenv
+
+import gtsfm.utils.logger as logger_utils
 
 # Look for .env in the same directory as the config files
 load_dotenv(os.path.join(os.path.dirname(__file__), "../configs/.env"), override=True)
 
-# Set up logger for this module
-logger = logging.getLogger(__name__)
+
+logger = logger_utils.get_logger()
 
 
 class SSHTunnelManager:
@@ -339,7 +339,7 @@ class SSHTunnelManager:
         username = self.config["username"]
         scheduler_port = self.config["scheduler"]["port"]
         workers = self.config["workers"]  # Now a dict {hostname: port}
-        worker_procs = []
+        worker_processes = []
         conda_env = self.config["conda_env"]  # Get configured environment name
 
         for hostname, worker_port in workers.items():
@@ -362,13 +362,13 @@ class SSHTunnelManager:
 
             dask_worker_proc = subprocess.Popen(remote_cmd, shell=True)
             self.processes.append(dask_worker_proc)
-            worker_procs.append(dask_worker_proc)
+            worker_processes.append(dask_worker_proc)
             logger.info(f"Remote Dask worker started on {hostname}. Process ID: {dask_worker_proc.pid}")
             logger.info(f"  - Worker will listen on port {worker_port}")
             logger.info(f"  - Connecting to scheduler at tcp://localhost:{scheduler_port}")
             time.sleep(5)  # Increased wait time for worker to stabilize
 
-        return worker_procs
+        return worker_processes
 
     def setup_complete_infrastructure(self) -> int:
         """
