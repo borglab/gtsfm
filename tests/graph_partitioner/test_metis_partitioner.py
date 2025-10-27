@@ -26,91 +26,91 @@ class TestMetisPartitioner(unittest.TestCase):
         })
         # fmt: on
 
-    # def test_empty_input_returns_empty_clustering(self) -> None:
-    #     partitioner = MetisPartitioner()
-    #     cluster_tree = partitioner.run([])
-    #     self.assertIsNone(cluster_tree)
+    def test_empty_input_returns_empty_clustering(self) -> None:
+        partitioner = MetisPartitioner()
+        cluster_tree = partitioner.run([])
+        self.assertIsNone(cluster_tree)
 
-    # def test_chain_graph_creates_non_empty_clustering(self) -> None:
-    #     partitioner = MetisPartitioner()
-    #     cluster_tree = partitioner.run(self.chain_edges)
-    #     self.assertIsNotNone(cluster_tree)
-    #     assert cluster_tree is not None
-    #     leaves = cluster_tree.leaves()
-    #     self.assertGreater(len(leaves), 0)
-    #     for leaf in leaves:
-    #         self.assertIsInstance(leaf, ClusterTree)
-    #         self.assertTrue(all(i < j for i, j in leaf.value))
+    def test_chain_graph_creates_non_empty_clustering(self) -> None:
+        partitioner = MetisPartitioner()
+        cluster_tree = partitioner.run(self.chain_edges)
+        self.assertIsNotNone(cluster_tree)
+        assert cluster_tree is not None
+        leaves = cluster_tree.leaves()
+        self.assertGreater(len(leaves), 0)
+        for leaf in leaves:
+            self.assertIsInstance(leaf, ClusterTree)
+            self.assertTrue(all(i < j for i, j in leaf.value))
 
-    # def test_group_by_leaf_matches_edges(self) -> None:
-    #     partitioner = MetisPartitioner()
-    #     cluster_tree = partitioner.run(self.chain_edges)
-    #     self.assertIsNotNone(cluster_tree)
-    #     assert cluster_tree is not None
-    #     self.assertEqual(len(cluster_tree.all_edges()), len(self.chain_edges))
-    #     grouped = cluster_tree.group_by_leaf({edge: edge for edge in self.chain_edges})
-    #     self.assertEqual(len(grouped), len(cluster_tree.leaves()))
+    def test_group_by_leaf_matches_edges(self) -> None:
+        partitioner = MetisPartitioner()
+        cluster_tree = partitioner.run(self.chain_edges)
+        self.assertIsNotNone(cluster_tree)
+        assert cluster_tree is not None
+        self.assertEqual(len(cluster_tree.all_edges()), len(self.chain_edges))
+        grouped = cluster_tree.group_by_leaf({edge: edge for edge in self.chain_edges})
+        self.assertEqual(len(grouped), len(cluster_tree.leaves()))
 
-    # @unittest.skip("Works on Mac, but non-deterministic on other OS.")
-    # def test_clique_key_sets(self) -> None:
-    #     partitioner = MetisPartitioner()
-    #     bayes_tree = partitioner.symbolic_bayes_tree(self.skydio_pairs)
-    #     root: SymbolicBayesTreeClique = bayes_tree.roots()[0]
-    #     _, frontals, separator = partitioner._clique_key_sets(root)
-    #     self.assertEqual(frontals, {1, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 22, 24, 25, 27, 28})
-    #     self.assertEqual(separator, set())
-    #     self.assertTrue(root.nrChildren() > 0)
-    #     clique = root[0]
-    #     _, frontals2, separator2 = partitioner._clique_key_sets(clique)
-    #     self.assertEqual(frontals2, {0})
-    #     self.assertEqual(separator2, {1, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})
+    @unittest.skip("Works on Mac, but non-deterministic on other OS.")
+    def test_clique_key_sets(self) -> None:
+        partitioner = MetisPartitioner()
+        bayes_tree = partitioner.symbolic_bayes_tree(self.skydio_pairs)
+        root: SymbolicBayesTreeClique = bayes_tree.roots()[0]
+        _, frontals, separator = partitioner._clique_key_sets(root)
+        self.assertEqual(frontals, {1, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 22, 24, 25, 27, 28})
+        self.assertEqual(separator, set())
+        self.assertTrue(root.nrChildren() > 0)
+        clique = root[0]
+        _, frontals2, separator2 = partitioner._clique_key_sets(clique)
+        self.assertEqual(frontals2, {0})
+        self.assertEqual(separator2, {1, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})
 
-    # def test_skydio_leaf_edges_are_intra_cluster(self) -> None:
-    #     partitioner = MetisPartitioner()
-    #     cluster_tree = partitioner.run(self.skydio_pairs)
-    #     self.assertIsNotNone(cluster_tree)
-    #     assert cluster_tree is not None
-    #     self.assertEqual(len(cluster_tree.all_edges()), len(self.skydio_pairs))
-    #     for cluster in cluster_tree.leaves():
-    #         # All edge endpoints must lie inside the cluster key set.
-    #         leaf_keys = cluster.all_keys()
-    #         for i, j in cluster.value:
-    #             self.assertIn(i, leaf_keys)
-    #             self.assertIn(j, leaf_keys)
-    #         if len(leaf_keys) <= 1:
-    #             self.assertEqual(len(cluster.value), 0)
+    def test_skydio_leaf_edges_are_intra_cluster(self) -> None:
+        partitioner = MetisPartitioner()
+        cluster_tree = partitioner.run(self.skydio_pairs)
+        self.assertIsNotNone(cluster_tree)
+        assert cluster_tree is not None
+        self.assertEqual(len(cluster_tree.all_edges()), len(self.skydio_pairs))
+        for cluster in cluster_tree.leaves():
+            # All edge endpoints must lie inside the cluster key set.
+            leaf_keys = cluster.all_keys()
+            for i, j in cluster.value:
+                self.assertIn(i, leaf_keys)
+                self.assertIn(j, leaf_keys)
+            if len(leaf_keys) <= 1:
+                self.assertEqual(len(cluster.value), 0)
 
-    # def test_single_edge_graph(self) -> None:
-    #     partitioner = MetisPartitioner()
-    #     single_edge = [(42, 43)]
-    #     cluster_tree = partitioner.run(single_edge)
-    #     self.assertIsNotNone(cluster_tree)
-    #     assert cluster_tree is not None
-    #     self.assertEqual(cluster_tree.all_edges(), set(single_edge))
-    #     leaves = cluster_tree.leaves()
-    #     self.assertEqual(len(leaves), 1)
-    #     self.assertEqual(leaves[0].value, single_edge)
+    def test_single_edge_graph(self) -> None:
+        partitioner = MetisPartitioner()
+        single_edge = [(42, 43)]
+        cluster_tree = partitioner.run(single_edge)
+        self.assertIsNotNone(cluster_tree)
+        assert cluster_tree is not None
+        self.assertEqual(cluster_tree.all_edges(), set(single_edge))
+        leaves = cluster_tree.leaves()
+        self.assertEqual(len(leaves), 1)
+        self.assertEqual(leaves[0].value, single_edge)
 
-    # def test_disconnected_graph_raises(self) -> None:
-    #     partitioner = MetisPartitioner()
-    #     # Two disconnected edges.
-    #     disconnected_edges = [(0, 1), (2, 3)]
-    #     with self.assertRaises(ValueError):
-    #         partitioner.run(disconnected_edges)
+    def test_disconnected_graph_raises(self) -> None:
+        partitioner = MetisPartitioner()
+        # Two disconnected edges.
+        disconnected_edges = [(0, 1), (2, 3)]
+        with self.assertRaises(ValueError):
+            partitioner.run(disconnected_edges)
 
-    # def test_duplicate_edges_are_handled(self) -> None:
-    #     partitioner = MetisPartitioner()
-    #     edges = [(0, 1), (1, 2), (0, 1), (1, 2)]
-    #     cluster_tree = partitioner.run(edges)
-    #     self.assertIsNotNone(cluster_tree)
-    #     assert cluster_tree is not None
-    #     # Should not duplicate edges in the output.
-    #     self.assertEqual(set(cluster_tree.all_edges()), {(0, 1), (1, 2)})
+    def test_duplicate_edges_are_handled(self) -> None:
+        partitioner = MetisPartitioner()
+        edges = [(0, 1), (1, 2), (0, 1), (1, 2)]
+        cluster_tree = partitioner.run(edges)
+        self.assertIsNotNone(cluster_tree)
+        assert cluster_tree is not None
+        # Should not duplicate edges in the output.
+        self.assertEqual(set(cluster_tree.all_edges()), {(0, 1), (1, 2)})
 
-    # def test_run_with_no_edges_returns_none(self) -> None:
-    #     partitioner = MetisPartitioner()
-    #     cluster_tree = partitioner.run([])
-    #     self.assertIsNone(cluster_tree)
+    def test_run_with_no_edges_returns_none(self) -> None:
+        partitioner = MetisPartitioner()
+        cluster_tree = partitioner.run([])
+        self.assertIsNone(cluster_tree)
 
     def test_run_with_visibility_graph_from_csv(self) -> None:
         graph = []
