@@ -10,7 +10,7 @@ from pathlib import Path
 
 import gtsam  # type: ignore
 import numpy as np
-from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Point3, Pose3, SfmData, SfmTrack, Point2
+from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Point2, Point3, Pose3, SfmData, SfmTrack
 
 import gtsfm.utils.graph as graph_utils
 from gtsfm.common.gtsfm_data import GtsfmData
@@ -124,7 +124,7 @@ class TestGtsfmData(unittest.TestCase):
         # add a track on camera #0 and #1, which exists in the data
         track_to_add = SfmTrack(Point3(0, -2.0, 5.0))
         track_to_add.addMeasurement(idx=0, m=Point2(20.0, 5.0))
-        track_to_add.addMeasurement(idx=3, m=Point2(60.0, 50.0]))  # this camera does not exst
+        track_to_add.addMeasurement(idx=3, m=Point2(60.0, 50.0))  # this camera does not exist
 
         self.assertFalse(gtsfm_data.add_track(track_to_add))
 

@@ -7,7 +7,7 @@ Authors: Ayush Baid, John Lambert, Xiaolong Wu
 import itertools
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 import gtsam  # type: ignore
 import numpy as np
@@ -23,7 +23,7 @@ import thirdparty.colmap.scripts.python.read_write_model as colmap_io
 from gtsfm.common.image import Image
 from gtsfm.evaluation.metrics import GtsfmMetric
 from gtsfm.products.visibility_graph import ImageIndexPairs
-from gtsfm.utils.alignment import align_poses_sim3_ignore_missing
+from gtsfm.utils.alignment import estimate_sim3_ignore_missing
 from gtsfm.utils.pycolmap_utils import gtsfm_calibration_to_colmap_camera
 
 logger = logger_utils.get_logger()
@@ -472,7 +472,7 @@ class GtsfmData:
             New GtsfmData aligned to the reference pose graph.
         """
         bTi_list = self.get_camera_poses()
-        _, aSb = align_poses_sim3_ignore_missing(aTi_list, bTi_list)
+        aSb = estimate_sim3_ignore_missing(aTi_list, bTi_list)
         return self.apply_Sim3(aSb)
 
     def get_metrics(self, suffix: str, store_full_data: bool = False) -> List[GtsfmMetric]:

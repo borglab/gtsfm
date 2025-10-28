@@ -4,11 +4,21 @@ Authors: Ayush Baid, John Lambert
 """
 
 import copy
-from typing import List, Optional, Sequence, Tuple
+from typing import List, Mapping, Optional, Sequence
 
 import gtsam  # type: ignore
 import numpy as np
-from gtsam import Pose3, Pose3Pairs, Rot3, Similarity3
+from gtsam import (
+    LevenbergMarquardtOptimizer,
+    NonlinearFactorGraph,
+    Pose3,
+    Pose3Pairs,
+    PriorFactorPose3,
+    Rot3,
+    Similarity3,
+    Values,
+)
+from gtsam.symbol_shorthand import X  # type: ignore
 
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metric_utils
@@ -22,6 +32,8 @@ MAX_NUM_HYPOTHESES_FOR_ROBUST_ALIGNMENT: int = 200
 
 Z_3x1: np.ndarray = np.zeros((3,))
 
+KEY = X(0)
+
 
 def log_sim3_transform(sim3: Similarity3, label: str = "Sim(3)") -> None:
     """Log rotation, translation, and scale components of a Similarity3."""
@@ -31,6 +43,58 @@ def log_sim3_transform(sim3: Similarity3, label: str = "Sim(3)") -> None:
     logger.debug("%s Rotation `aRb`: rz=%.2f deg., ry=%.2f deg., rx=%.2f deg.", label, rz, ry, rx)
     logger.debug("%s Translation `atb`: [%.2f, %.2f, %.2f]", label, atb[0], atb[1], atb[2])
     logger.debug("%s Scale `asb`: %.2f", label, float(sim3.scale()))
+
+
+def _create_aTb_factors(
+    a: Mapping[int, Pose3], b: Mapping[int, Pose3], common_keys: Sequence[int]
+) -> NonlinearFactorGraph:
+    """Create a factor graph encoding pose priors for the unknown transform ``aTb``."""
+    sigmas: np.ndarray = np.array([0.1] * 3 + [0.1] * 3)
+    noise_model = gtsam.noiseModel.Diagonal.Sigmas(sigmas)
+    graph = NonlinearFactorGraph()
+    for key in common_keys:
+        aTi = a[key]
+        bTi = b[key]
+        graph.add(PriorFactorPose3(KEY, aTi.compose(bTi.inverse()), noise_model))
+    return graph
+
+
+def _create_aTb_initial_estimate(a: Mapping[int, Pose3], b: Mapping[int, Pose3], common_keys: Sequence[int]) -> Values:
+    """Seed the optimizer with an initial guess for ``aTb``."""
+    initial = Values()
+    first_key = common_keys[0]
+    initial.insert(KEY, a[first_key].compose(b[first_key].inverse()))
+    return initial
+
+
+def estimate_se3_from_pose_maps(a: Mapping[int, Pose3], b: Mapping[int, Pose3]) -> Pose3:
+    """Estimate the SE(3) transform ``aTb`` that best aligns the overlapping poses."""
+    common_keys = [key for key in a if key in b]
+    if not common_keys:
+        raise ValueError("No overlapping cameras found between the pose dictionaries.")
+
+    graph = _create_aTb_factors(a, b, common_keys)
+    initial = _create_aTb_initial_estimate(a, b, common_keys)
+    try:
+        optimizer = LevenbergMarquardtOptimizer(graph, initial)
+        result = optimizer.optimize()
+    except Exception as exc:  # pragma: no cover - GTSAM errors contain rich debugging info.
+        raise RuntimeError(f"GTSAM optimization failed during pose alignment: {exc}") from exc
+    return result.atPose3(KEY)
+
+
+def estimate_sim3_from_pose_maps(a: Mapping[int, Pose3], b: Mapping[int, Pose3]) -> Similarity3:
+    """Estimate the Sim(3) transform ``aSb`` that best aligns the overlapping poses."""
+    common_keys = [key for key in a if key in b]
+    pose_pairs = [(a[key], b[key]) for key in common_keys]
+    if not pose_pairs:
+        raise ValueError("No overlapping cameras found between the pose dictionaries.")
+    try:
+        return Similarity3.Align(pose_pairs)
+    except Exception as exc:  # pragma: no cover
+        raise RuntimeError(
+            f"alignment.estimate_sim3_from_pose_maps: Similarity3.Align failed with {len(pose_pairs)} pose pairs: {exc}."
+        ) from exc
 
 
 def align_rotations(aRi_list: Sequence[Optional[Rot3]], bRi_list: Sequence[Optional[Rot3]]) -> List[Optional[Rot3]]:
@@ -51,24 +115,20 @@ def align_rotations(aRi_list: Sequence[Optional[Rot3]], bRi_list: Sequence[Optio
     return [aRb * bRi if bRi is not None else None for bRi in bRi_list]
 
 
-def align_poses_sim3_ignore_missing(
+def estimate_sim3_ignore_missing(
     aTi_list: Sequence[Optional[Pose3]], bTi_list: Sequence[Optional[Pose3]]
-) -> Tuple[List[Optional[Pose3]], Similarity3]:
-    """Align by similarity transformation, but allow missing estimated poses in the input.
+) -> Similarity3:
+    """Estimate Sim(3) alignment while allowing missing poses in the inputs.
 
-    Note: this is a wrapper for align_poses_sim3() that allows for missing poses/dropped cameras.
-    This is necessary, as align_poses_sim3() requires a valid pose for every input pair.
-
-    We force SIM(3) alignment rather than SE(3) alignment.
-    We assume the two trajectories are of the exact same length.
+    This is a convenience wrapper for ``estimate_sim3_robust`` that tolerates dropped cameras.
+    We force Sim(3) alignment rather than SE(3) alignment and assume the two trajectories are of
+    the exact same length.
 
     Args:
         aTi_list: Reference poses in frame "a" which are the targets for alignment.
         bTi_list: Input poses which need to be aligned to frame "a".
 
     Returns:
-        aTi_list_: Transformed input poses previously "bTi_list" but now which
-            have the same origin and scale as reference (now living in "a" frame)
         aSb: Similarity(3) object that aligns the two pose graphs.
     """
     assert len(aTi_list) == len(bTi_list)
@@ -85,44 +145,32 @@ def align_poses_sim3_ignore_missing(
         valid_bTi_list.append(bTi)
         corresponding_aTi_list.append(aTi)
 
-    valid_aTi_list_, aSb = align_poses_sim3_robust(aTi_list=corresponding_aTi_list, bTi_list=valid_bTi_list)
-
-    num_cameras = len(aTi_list)
-    # now at valid indices
-    aTi_list_: List[Optional[Pose3]] = [None] * num_cameras
-    for i in range(num_cameras):
-        if i in valid_camera_idxs:
-            aTi_list_[i] = valid_aTi_list_.pop(0)
-
-    return aTi_list_, aSb
+    return estimate_sim3_robust(aTi_list=list(corresponding_aTi_list), bTi_list=list(valid_bTi_list))
 
 
-def align_poses_sim3_exhaustive(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> Tuple[List[Pose3], Similarity3]:
-    """Align two pose graphs via similarity transformation by trying out all pairs for alignment and picking the best
-    fit.
-    Note: poses cannot be missing/invalid.
+def estimate_sim3_exhaustive(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> Similarity3:
+    """Estimate Sim(3) alignment by exhaustively sampling pose pairs.
 
-    We force Sim(3) alignment rather than SE(3) alignment.
-    We assume the two trajectories are of the exact same length.
+    Poses cannot be missing or invalid. We force Sim(3) alignment rather than SE(3) alignment and
+    assume the two trajectories are of the exact same length.
 
     Args:
         aTi_list: Reference poses in frame "a" which are the targets for alignment.
         bTi_list: Input poses which need to be aligned to frame "a".
 
     Returns:
-        aTi_list_: Transformed input poses previously "bTi_list" but now which
-            have the same origin and scale as reference (now living in "a" frame)
         aSb: Similarity(3) object that aligns the two pose graphs.
     """
     assert len(aTi_list) == len(bTi_list)
     n_to_align = len(aTi_list)
     if n_to_align < 2:
         logger.error("SIM(3) alignment uses at least 2 frames; Skipping")
-        return bTi_list, Similarity3(Rot3(), Z_3x1, 1.0)
+        return Similarity3(Rot3(), Z_3x1, 1.0)
 
     # Run once with all poses for initial guess.
     best_aSb = Similarity3()
-    aTi_candidate_all, best_aSb = align_poses_sim3(aTi_list, bTi_list)
+    best_aSb = estimate_sim3(aTi_list, bTi_list)
+    aTi_candidate_all: List[Pose3] = [best_aSb.transformFrom(bTi) for bTi in bTi_list]
     best_pose_auc_5deg: float = metric_utils.pose_auc_from_poses(
         computed_wTis=aTi_candidate_all, ref_wTis=aTi_list, thresholds_deg=[5]
     )[0]
@@ -132,7 +180,7 @@ def align_poses_sim3_exhaustive(aTi_list: List[Pose3], bTi_list: List[Pose3]) ->
             aTi_sample = copy.deepcopy([aTi_list[i1], aTi_list[i2]])
             bTi_sample = copy.deepcopy([bTi_list[i1], bTi_list[i2]])
 
-            _, aSb_candidate = align_poses_sim3(aTi_sample, bTi_sample)
+            aSb_candidate = estimate_sim3(aTi_sample, bTi_sample)
 
             aTi_candidate_: List[Pose3] = [aSb_candidate.transformFrom(bTi) for bTi in bTi_list]
 
@@ -149,18 +197,16 @@ def align_poses_sim3_exhaustive(aTi_list: List[Pose3], bTi_list: List[Pose3]) ->
 
     log_sim3_transform(best_aSb)
 
-    best_aTi_: List[Pose3] = [best_aSb.transformFrom(bTi) for bTi in bTi_list]
-    return best_aTi_, best_aSb
+    return best_aSb
 
 
-def align_poses_sim3_robust(
+def estimate_sim3_robust(
     aTi_list: List[Pose3], bTi_list: List[Pose3], max_num_hypotheses: int = MAX_NUM_HYPOTHESES_FOR_ROBUST_ALIGNMENT
-) -> Tuple[List[Pose3], Similarity3]:
-    """Align two pose graphs using similarity transform chosen from pose pair samples.
+) -> Similarity3:
+    """Estimate Sim(3) alignment using random pose pair sampling for robustness.
 
-    Note: poses cannot be missing/invalid.
-    We force Sim(3) alignment rather than SE(3) alignment.
-    We assume the two trajectories are of the exact same length.
+    Poses cannot be missing or invalid. We force Sim(3) alignment rather than SE(3) alignment and
+    assume the two trajectories are of the exact same length.
 
     Args:
         aTi_list: Reference poses in frame "a" which are the targets for alignment.
@@ -168,24 +214,23 @@ def align_poses_sim3_robust(
         max_num_hypothesis: max number of RANSAC iterations.
 
     Returns:
-        aTi_list_: Transformed input poses previously "bTi_list" but now which
-            have the same origin and scale as reference (now living in "a" frame).
         aSb: Similarity(3) object that aligns the two pose graphs.
     """
     assert len(aTi_list) == len(bTi_list)
     n_to_align = len(aTi_list)
     if n_to_align < 2:
         logger.error("SIM(3) alignment uses at least 2 frames; Skipping")
-        return bTi_list, Similarity3(Rot3(), Z_3x1, 1.0)
+        return Similarity3(Rot3(), Z_3x1, 1.0)
 
     # Compute the total possible number of hypothesis { N choose 2 }
     max_possible_hypotheses: int = (n_to_align * (n_to_align - 1)) // 2
     if max_possible_hypotheses <= max_num_hypotheses:
-        return align_poses_sim3_exhaustive(aTi_list=aTi_list, bTi_list=bTi_list)
+        return estimate_sim3_exhaustive(aTi_list=aTi_list, bTi_list=bTi_list)
 
     # Run once with all poses for initial guess
     best_aSb = Similarity3()
-    aTi_candidate_all, best_aSb = align_poses_sim3(aTi_list, bTi_list)
+    best_aSb = estimate_sim3(aTi_list, bTi_list)
+    aTi_candidate_all: List[Pose3] = [best_aSb.transformFrom(bTi) for bTi in bTi_list]
     best_pose_auc_5deg: float = metric_utils.pose_auc_from_poses(
         computed_wTis=aTi_candidate_all, ref_wTis=aTi_list, thresholds_deg=[5]
     )[0]
@@ -200,7 +245,7 @@ def align_poses_sim3_robust(
         aTi_sample = copy.deepcopy([aTi_list[i1], aTi_list[i2]])
         bTi_sample = copy.deepcopy([bTi_list[i1], bTi_list[i2]])
 
-        _, aSb_candidate = align_poses_sim3(aTi_sample, bTi_sample)
+        aSb_candidate = estimate_sim3(aTi_sample, bTi_sample)
 
         aTi_candidate_: List[Pose3] = [aSb_candidate.transformFrom(bTi) for bTi in bTi_list]
 
@@ -217,23 +262,21 @@ def align_poses_sim3_robust(
 
     log_sim3_transform(best_aSb)
 
-    best_aTi_: List[Pose3] = [best_aSb.transformFrom(bTi) for bTi in bTi_list]
-    return best_aTi_, best_aSb
+    return best_aSb
 
 
-def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> Tuple[List[Pose3], Similarity3]:
-    """Align two pose graphs via similarity transformation. Note: poses cannot be missing/invalid.
+def estimate_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> Similarity3:
+    """Estimate Sim(3) alignment between two pose graphs.
 
-    We force Sim(3) alignment rather than SE(3) alignment.
-    We assume the two trajectories are of the exact same length.
+    Poses cannot be missing or invalid.
+    We force Sim(3) alignment rather than SE(3) alignment and assume the two trajectories are of the exact
+    same length.
 
     Args:
         aTi_list: Reference poses in frame "a" which are the targets for alignment
         bTi_list: Input poses which need to be aligned to frame "a"
 
     Returns:
-        aTi_list_: Transformed input poses previously "bTi_list" but now which
-            have the same origin and scale as reference (now living in "a" frame)
         aSb: Similarity(3) object that aligns the two pose graphs.
     """
     assert len(aTi_list) == len(bTi_list)
@@ -246,7 +289,7 @@ def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> Tuple[List
     n_to_align = len(valid_pose_tuples)
     if n_to_align < 2:
         logger.error("SIM(3) alignment uses at least 2 frames; Skipping")
-        return bTi_list, Similarity3(Rot3(), Z_3x1, 1.0)
+        return Similarity3(Rot3(), Z_3x1, 1.0)
 
     ab_pairs = Pose3Pairs(valid_pose_tuples)
 
@@ -273,9 +316,5 @@ def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> Tuple[List
     # Provide a summary of the estimated alignment transform.
     log_sim3_transform(aSb)
 
-    aTi_list_: List[Pose3] = []
-    for bTi in bTi_list:
-        aTi_list_.append(aSb.transformFrom(bTi))
-
     logger.debug("Pose graph Sim(3) alignment complete.")
-    return aTi_list_, aSb
+    return aSb

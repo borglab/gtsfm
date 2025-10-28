@@ -11,6 +11,7 @@ from scipy.spatial.transform import Rotation
 
 import gtsfm.utils.alignment as alignment_utils
 import gtsfm.utils.logger as logger_utils
+import gtsfm.utils.transform as transform_utils
 
 EPSILON = np.finfo(float).eps
 
@@ -102,7 +103,8 @@ def compare_global_poses(
     bTi_list = [bTi_list[i] for i in bTi_valid]
 
     #  We set frame "a" the target/reference
-    aTi_list_, _ = alignment_utils.align_poses_sim3_robust(aTi_list, bTi_list)
+    aSb = alignment_utils.estimate_sim3_robust(aTi_list, bTi_list)
+    aTi_list_ = transform_utils.transform_pose_list(bTi_list, aSb)
 
     rotations_equal = all(
         [

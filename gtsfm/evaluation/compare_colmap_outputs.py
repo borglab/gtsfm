@@ -5,7 +5,7 @@ Authors: Ayush Baid
 
 import argparse
 import os
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import numpy as np
 import pycolmap
@@ -16,6 +16,7 @@ import gtsfm.utils.alignment as alignment_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metric_utils
+import gtsfm.utils.transform as transform_utils
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 from gtsfm.runner import save_metrics_reports
 
@@ -68,13 +69,14 @@ def compare_poses(baseline_dirpath: str, eval_dirpath: str, output_dirpath: str)
     )
 
     baseline_wTi_list: List[Pose3] = []
-    current_wTi_list: List[Pose3] = []
+    current_wTi_list: List[Optional[Pose3]] = []
     for fname, wTi in baseline_wTi_dict.items():
         baseline_wTi_list.append(wTi)
         current_wTi_list.append(current_wTi_dict.get(fname))
 
     if not args.use_pycolmap_alignment:
-        current_wTi_list, _ = alignment_utils.align_poses_sim3_ignore_missing(baseline_wTi_list, current_wTi_list)
+        aSb = alignment_utils.estimate_sim3_ignore_missing(baseline_wTi_list, current_wTi_list)
+        current_wTi_list = transform_utils.transform_optional_pose_list(current_wTi_list, aSb)
 
     i2Ri1_dict_gt, i2Ui1_dict_gt = metric_utils.get_all_relative_rotations_translations(baseline_wTi_list)
 

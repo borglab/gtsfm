@@ -1,148 +1,63 @@
-"""Utility functions for merging clusters
+"""Utility functions for merging geometry defined in different coordinate frames.
 
-Authors: Richi Dubey
+Authors: Richi Dubey, Frank Dellaert
 """
 
-import gtsam.noiseModel as noiseModel  # type: ignore
-import numpy as np
-from gtsam import Similarity3  # type: ignore
-from gtsam import LevenbergMarquardtOptimizer, NonlinearFactorGraph, Pose3, PriorFactorPose3, Values
-from gtsam.symbol_shorthand import X  # type: ignore
+from __future__ import annotations
+
+from typing import Dict, Mapping
+
+from gtsam import Pose3, Similarity3  # type: ignore
 
 from gtsfm.common.gtsfm_data import GtsfmData
-from gtsfm.common.types import create_camera
-
-KEY = X(0)
+from gtsfm.utils import transform as transform_utils
 
 
-def _create_aTb_factors(a: dict[int, Pose3], b: dict[int, Pose3], common_keys: list[int]) -> NonlinearFactorGraph:
-    """Creates a factor graph with prior factors on aTb from overlapping poses."""
-    sigmas: np.ndarray = np.array([0.1] * 3 + [0.1] * 3)  # [rot_x, rot_y, rot_z, tx, ty, tz]
-    noise_model = noiseModel.Diagonal.Sigmas(sigmas)
-    graph = NonlinearFactorGraph()
-    for i in common_keys:
-        aTi = a[i]
-        bTi = b[i]
-        graph.add(PriorFactorPose3(KEY, aTi * bTi.inverse(), noise_model))
-    return graph
-
-
-def _create_aTb_initial_estimate(a: dict[int, Pose3], b: dict[int, Pose3], common_keys: list[int]) -> Values:
-    """Creates the initial Values object with an identity estimate for aTb."""
-    initial = Values()
-    i = common_keys[0]
-    aTi = a[i]
-    bTi = b[i]
-    initial.insert(KEY, aTi * bTi.inverse())
-    return initial
-
-
-def calculate_transform(a: dict[int, Pose3], b: dict[int, Pose3]) -> Pose3:
-    """Calculates the relative transform aTb between partitions."""
-    common_keys = [i for i in a if i in b]
-    if not common_keys:
-        raise ValueError("No overlapping cameras found between the partitions.")
-    graph = _create_aTb_factors(a, b, common_keys)
-    initial = _create_aTb_initial_estimate(a, b, common_keys)
-    try:
-        optimizer = LevenbergMarquardtOptimizer(graph, initial)
-        result = optimizer.optimize()
-    except Exception as e:
-        raise RuntimeError(f"GTSAM optimization failed during merging: {e}") from e
-    aTb = result.atPose3(KEY)
-    return aTb
-
-
-def add_transformed_poses(a: dict[int, Pose3], aTb: Pose3, b: dict[int, Pose3]) -> dict[int, Pose3]:
-    """Performs the final merge operation using the calculated transform."""
-    merged_poses = a.copy()
-    # Adds transformed non-overlapping poses from b to merged_poses.
-    for i, bTi in b.items():
-        if i not in merged_poses:
-            merged_poses[i] = aTb * bTi
-    return merged_poses
-
-
-def merge_two_pose_maps(a: dict[int, Pose3], b: dict[int, Pose3]) -> dict[int, Pose3]:
-    """
-    Merges poses from two partitions by finding and applying relative transform aTb.
-
-    Assumes a are relative to frame 'a' and b are relative to frame 'b'.
-    Finds 'aTb' (from frame 'b' to frame 'a') via overlapping poses.
-    Transforms non-overlapping poses from partition 2 into frame 'a' and merges.
+def merge_pose_maps(a: Mapping[int, Pose3], b: Mapping[int, Pose3], aTb: Pose3) -> Dict[int, Pose3]:
+    """Merge two pose dictionaries without mutating the inputs.
 
     Args:
-        a: dictionary {camera_index: pose_in_frame_a}.
-        b: dictionary {camera_index: pose_in_frame_b}.
+        a: Pose dictionary expressed in frame ``a``.
+        b: Pose dictionary expressed in frame ``b``.
+        aTb: Transform taking a pose from frame ``b`` into frame ``a``.
 
     Returns:
-        A merged dictionary {camera_index: pose_in_frame_a}.
-
-    Raises:
-        ValueError: If no overlapping cameras are found between the two partitions.
-        RuntimeError: If GTSAM optimization fails.
+        Dictionary containing poses from ``a`` and poses from ``b`` expressed in frame ``a``.
     """
-    aTb = calculate_transform(a, b)
-    return add_transformed_poses(a, aTb, b)
+    merged: Dict[int, Pose3] = dict(a)
+    transformed_b = transform_utils.transform_pose_map(b, aTb)
+    for key, pose in transformed_b.items():
+        if key not in merged:
+            merged[key] = pose
+    return merged
 
 
-def estimate_sim3_old(a: dict[int, Pose3], b: dict[int, Pose3]) -> Similarity3:
-    """Estimate the similarity transform, using very simple scale estimator."""
-
-    aTb = calculate_transform(a, b)
-
-    # poor man scale estimation
-    common_keys = [i for i in a if i in b]
-    i, j = common_keys[0], common_keys[-1]
-    b_norm = np.linalg.norm(b[i].translation() - b[j].translation())
-    a_norm = np.linalg.norm(a[i].translation() - a[j].translation())
-    scale = float(a_norm / b_norm)
-
-    return Similarity3(aTb.rotation().matrix(), aTb.translation(), scale)
-
-
-def estimate_sim3(a: dict[int, Pose3], b: dict[int, Pose3]) -> Similarity3:
-    """Estimate the similarity transform using GTSAM."""
-    common_keys = [i for i in a if i in b]
-    pose_pairs = [(a[i], b[i]) for i in common_keys]
-    try:
-        return Similarity3.Align(pose_pairs)
-    except Exception as e:
-        raise RuntimeError(
-            f"merging.estimate_sim3: Similarity3.Align failed to estimate similarity transform "
-            f"with {len(pose_pairs)} pose pairs: {e}."
-        ) from e
-
-
-def merge(a: GtsfmData, b: GtsfmData) -> GtsfmData:
-    """Merge another GtsfmData into this one in-place.
+def merge(a: GtsfmData, b: GtsfmData, aSb: Similarity3) -> GtsfmData:
+    """Merge two ``GtsfmData`` objects into a new ``GtsfmData`` expressed in frame ``a``.
 
     Args:
-        b: GtsfmData to merge into this one.
+        a: Scene expressed in frame ``a``.
+        b: Scene expressed in frame ``b``.
+        aSb: Transform taking geometry from frame ``b`` into frame ``a``.
 
     Returns:
-        Merged GtsfmData, a new object. Coordinate frame A is used as prime.
+        New ``GtsfmData`` instance containing geometry from both inputs.
     """
-    aSb = estimate_sim3(a.poses(), b.poses())
+    merged_cameras = dict(a.cameras())
+    transformed_b_cameras = transform_utils.transform_camera_map(b.cameras(), aSb)
+    for key, camera in transformed_b_cameras.items():
+        if key not in merged_cameras:
+            merged_cameras[key] = camera
 
-    # Create merged cameras with updated poses. Only b-poses need to be updated.
-    merged_cameras = a.cameras().copy()
-    for i, cam in b.cameras().items():
-        # TODO: what to do if we have conflicting calibrations?
-        if i not in merged_cameras:
-            bTi = cam.pose()
-            merged_cameras[i] = create_camera(aSb.transformFrom(bTi), cam.calibration())
+    merged_tracks = list(a.tracks())
+    merged_tracks.extend(transform_utils.transform_tracks(b.tracks(), aSb))
 
-    # Create merged tracks
-    merged_tracks = a.tracks().copy()
-    # For all b_tracks, update the point by multiplying with aSb:
-    for track in b.tracks():
-        track.p = aSb.transformFrom(track.p)  # from b to a
-        merged_tracks.append(track)
-
-    # Create merged GtsfmData
-    # TODO: Check whether we need to remap tracks
-    merged_data = GtsfmData(len(merged_cameras), merged_cameras, [])
-    merged_data._tracks = merged_tracks
+    merged_data = GtsfmData(number_images=max(a.number_images(), b.number_images()))
+    for key, camera in merged_cameras.items():
+        merged_data.add_camera(key, camera)
+    for track in merged_tracks:
+        if not merged_data.add_track(track):
+            # Preserve tracks even if some measurements reference cameras missing from the dataset.
+            merged_data._tracks.append(track)
 
     return merged_data

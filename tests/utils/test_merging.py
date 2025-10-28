@@ -8,7 +8,8 @@ import unittest
 import numpy as np
 from gtsam import Point3, Pose3, Rot3  # type: ignore
 
-from gtsfm.utils.merging import merge_two_pose_maps
+from gtsfm.utils.alignment import estimate_se3_from_pose_maps
+from gtsfm.utils.merging import merge_pose_maps
 
 
 def assert_pose_dicts_equal(test_case, dict1, dict2, tolerance=1e-6):
@@ -23,7 +24,7 @@ def assert_pose_dicts_equal(test_case, dict1, dict2, tolerance=1e-6):
 
 
 class TestMergeTwoClusters(unittest.TestCase):
-    """Tests the merge_two_pose_maps function."""
+    """Tests the merge_pose_maps function."""
 
     def setUp(self):
         """Set up common poses for tests."""
@@ -42,8 +43,9 @@ class TestMergeTwoClusters(unittest.TestCase):
         """Test merging when there are no common camera indices."""
         poses1 = {0: self.pose0, 1: self.pose1}
         poses2 = {2: self.pose2, 3: self.pose3}
-        with self.assertRaisesRegex(ValueError, "No overlapping cameras found"):
-            merge_two_pose_maps(poses1, poses2)
+        merged_poses = merge_pose_maps(poses1, poses2, Pose3())
+        expected = {**poses1, 2: self.pose2, 3: self.pose3}
+        assert_pose_dicts_equal(self, merged_poses, expected, tolerance=1e-7)
 
     def test_perfect_overlap_identity_transform(self):
         """Test merging when clusters are identical and aTb should be identity."""
@@ -57,7 +59,8 @@ class TestMergeTwoClusters(unittest.TestCase):
             3: self.pose3,  # Pose 3 from poses2 should be added directly (since aTb is Identity)
         }
 
-        merged_poses = merge_two_pose_maps(poses1, poses2)
+        aTb = estimate_se3_from_pose_maps(poses1, poses2)
+        merged_poses = merge_pose_maps(poses1, poses2, aTb)
         assert_pose_dicts_equal(self, merged_poses, expected_merged_poses, tolerance=1e-7)
 
     def test_overlap_with_translation(self):
@@ -81,7 +84,7 @@ class TestMergeTwoClusters(unittest.TestCase):
             2: self.pose2,  # aTb * (bTa * pose2) should recover pose2
         }
 
-        merged_poses = merge_two_pose_maps(poses1, poses2)
+        merged_poses = merge_pose_maps(poses1, poses2, aTb)
         # Optimization might have small errors
         assert_pose_dicts_equal(self, merged_poses, expected_merged_poses, tolerance=1e-6)
 
@@ -94,7 +97,7 @@ class TestMergeTwoClusters(unittest.TestCase):
         poses2 = {1: bTa.compose(self.pose1), 2: bTa.compose(self.pose2), 3: bTa.compose(self.pose3)}  # Extra pose
         expected_merged_poses = {1: self.pose1, 2: self.pose2, 3: self.pose3}
 
-        merged_poses = merge_two_pose_maps(poses1, poses2)
+        merged_poses = merge_pose_maps(poses1, poses2, aTb)
         assert_pose_dicts_equal(self, merged_poses, expected_merged_poses, tolerance=1e-6)
 
     def test_minimal_overlap(self):
@@ -106,7 +109,7 @@ class TestMergeTwoClusters(unittest.TestCase):
         poses2 = {0: bTa.compose(self.pose0), 2: bTa.compose(self.pose2)}  # The only overlap  # Extra pose
         expected_merged_poses = {0: self.pose0, 99: self.pose1, 2: self.pose2}  # aTb * (bTa * pose2)
 
-        merged_poses = merge_two_pose_maps(poses1, poses2)
+        merged_poses = merge_pose_maps(poses1, poses2, aTb)
         # With only one overlap, optimization is exact for that constraint
         assert_pose_dicts_equal(self, merged_poses, expected_merged_poses, tolerance=1e-7)
 
@@ -114,23 +117,21 @@ class TestMergeTwoClusters(unittest.TestCase):
         """Test merging when the first partition is empty."""
         poses1 = {}
         poses2 = {0: self.pose0, 1: self.pose1}
-        # Should raise ValueError because there's no overlap
-        with self.assertRaisesRegex(ValueError, "No overlapping cameras found"):
-            merge_two_pose_maps(poses1, poses2)
+        merged_poses = merge_pose_maps(poses1, poses2, Pose3())
+        assert_pose_dicts_equal(self, merged_poses, poses2, tolerance=1e-7)
 
     def test_empty_poses2(self):
         """Test merging when the second partition is empty."""
-        # Case 1: No overlap (poses1 has keys, poses2 is empty) -> Should raise error
-        with self.assertRaisesRegex(ValueError, "No overlapping cameras found"):
-            merge_two_pose_maps({0: self.pose0}, {})  # No overlap
+        poses1 = {0: self.pose0}
+        merged_poses = merge_pose_maps(poses1, {}, Pose3())
+        assert_pose_dicts_equal(self, merged_poses, poses1, tolerance=1e-7)
 
     def test_both_empty(self):
         """Test merging when both clusters are empty."""
         poses1 = {}
         poses2 = {}
-        # Should raise ValueError because there's no overlap
-        with self.assertRaisesRegex(ValueError, "No overlapping cameras found"):
-            merge_two_pose_maps(poses1, poses2)
+        merged_poses = merge_pose_maps(poses1, poses2, Pose3())
+        self.assertEqual(merged_poses, {})
 
 
 if __name__ == "__main__":

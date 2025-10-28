@@ -13,6 +13,7 @@ from gtsam import Cal3Bundler, Point2, Point3, Pose3, Rot3, SfmTrack, Similarity
 from gtsam.examples import SFMdata  # type: ignore
 
 import gtsfm.utils.alignment as alignment_utils
+import gtsfm.utils.transform as transform_utils
 import tests.data.sample_poses as sample_poses
 from gtsfm.common.gtsfm_data import GtsfmData
 
@@ -126,8 +127,9 @@ class TestAlignmentUtils(unittest.TestCase):
         transform = Similarity3(rotation_shift, translation_shift, scaling_factor)
         ref_list = [transform.transformFrom(x) for x in sample_poses.CIRCLE_TWO_EDGES_GLOBAL_POSES]
 
-        computed_poses, aSb = alignment_utils.align_poses_sim3(sample_poses.CIRCLE_TWO_EDGES_GLOBAL_POSES, ref_list)
+        aSb = alignment_utils.estimate_sim3(sample_poses.CIRCLE_TWO_EDGES_GLOBAL_POSES, ref_list)
         assert isinstance(aSb, Similarity3)
+        computed_poses = transform_utils.transform_pose_list(ref_list, aSb)
         self.__assert_equality_on_pose3s(computed_poses, sample_poses.CIRCLE_TWO_EDGES_GLOBAL_POSES)
 
     def test_align_poses_with_outlier(self) -> None:
@@ -143,8 +145,9 @@ class TestAlignmentUtils(unittest.TestCase):
         input_list[1] = Pose3(Rot3.RzRyRx(np.deg2rad(60), -np.deg2rad(-30), np.deg2rad(np.deg2rad(-20))), random_t)
 
         # Note: this test requires exhaustive alignment and will fail with regular alignment.
-        computed_poses, aSb = alignment_utils.align_poses_sim3_robust(ref_list, input_list)
+        aSb = alignment_utils.estimate_sim3_robust(ref_list, input_list)
         assert isinstance(aSb, Similarity3)
+        computed_poses = transform_utils.transform_pose_list(input_list, aSb)
         computed_poses_with_outlier_removed = [computed_poses[0]] + computed_poses[2:]
         ref_list_with_outlier_removed = [ref_list[0]] + ref_list[2:]
         self.__assert_equality_on_pose3s(computed_poses_with_outlier_removed, ref_list_with_outlier_removed)
@@ -160,8 +163,9 @@ class TestAlignmentUtils(unittest.TestCase):
         bSa = Similarity3(rotation_shift, translation_shift, scaling_factor)
         bTi_list = [bSa.transformFrom(x) for x in aTi_list]
 
-        aTi_list_, aSb = alignment_utils.align_poses_sim3(aTi_list, bTi_list)
+        aSb = alignment_utils.estimate_sim3(aTi_list, bTi_list)
         assert isinstance(aSb, Similarity3)
+        aTi_list_ = transform_utils.transform_pose_list(bTi_list, aSb)
         self.__assert_equality_on_pose3s(aTi_list_, aTi_list)
 
     def test_align_poses_sim3_ignore_missing(self) -> None:
@@ -177,7 +181,8 @@ class TestAlignmentUtils(unittest.TestCase):
         aTi_list = [wT0, wT1, wT2, wT3]
         # `b` frame contains the estimates
         bTi_list = [None, wT1, None, wT3]
-        aTi_list_, _ = alignment_utils.align_poses_sim3_ignore_missing(aTi_list, bTi_list)
+        aSb = alignment_utils.estimate_sim3_ignore_missing(aTi_list, bTi_list)
+        aTi_list_ = transform_utils.transform_optional_pose_list(bTi_list, aSb)
 
         # indices 0 and 2 should still have no estimated pose, even after alignment
         assert aTi_list_[0] is None
@@ -301,7 +306,8 @@ class TestAlignmentUtils(unittest.TestCase):
 
         bTi_list = copy.deepcopy(aTi_list)
 
-        aligned_bTi_list_est, aSb = alignment_utils.align_poses_sim3_ignore_missing(aTi_list, bTi_list)
+        aSb = alignment_utils.estimate_sim3_ignore_missing(aTi_list, bTi_list)
+        aligned_bTi_list_est = transform_utils.transform_optional_pose_list(bTi_list, aSb)
 
         self.__assert_equality_on_pose3s(aTi_list, aligned_bTi_list_est)
 
@@ -325,7 +331,8 @@ class TestAlignmentUtils(unittest.TestCase):
             None,
         ]
 
-        aligned_bTi_list_est, aSb = alignment_utils.align_poses_sim3_ignore_missing(aTi_list, bTi_list)
+        aSb = alignment_utils.estimate_sim3_ignore_missing(aTi_list, bTi_list)
+        aligned_bTi_list_est = transform_utils.transform_optional_pose_list(bTi_list, aSb)
         assert np.isclose(aSb.scale(), 1.0, atol=1e-2)
         assert aligned_bTi_list_est[1] is not None
         assert aligned_bTi_list_est[2] is not None
@@ -346,7 +353,7 @@ class TestAlignmentUtils(unittest.TestCase):
             Pose3(Rot3(), Point3(0, 0, 2000)),
         ]
 
-        aligned_bTi_list_est, aSb = alignment_utils.align_poses_sim3_ignore_missing(aTi_list, bTi_list)
+        aSb = alignment_utils.estimate_sim3_ignore_missing(aTi_list, bTi_list)
         assert isinstance(aSb, Similarity3)
 
     def test_align_gtsfm_data_via_Sim3_to_poses_skydio32(self) -> None:
