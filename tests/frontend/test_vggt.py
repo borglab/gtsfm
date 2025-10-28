@@ -22,7 +22,7 @@ LocalScene = tuple[Path, GtsfmData]
 SceneTree = Tree[LocalScene]
 
 
-def run_vggt(image_batch: torch.Tensor, image_indices: list[int], original_coords, seed=42, use_ba=False, conf_thres_value=5.0, vggt_fixed_resolution=518) -> GtsfmData:
+def run_vggt(image_batch: torch.Tensor, image_indices: list[int], original_coords, seed=42, use_ba=False, conf_thres_value=5.0, vggt_fixed_resolution=518, img_load_resolution=1024, max_query_pts=1000, query_frame_num=4, fine_tracking=True, vis_thresh=0.2, max_reproj_error=8.0, camera_type="SIMPLE_PINHOLE", use_colmap_ba=False) -> GtsfmData:
     """Run VGGT on the given image keys and return GtsfmData."""
     # call run_vggt
     
@@ -50,35 +50,34 @@ def run_vggt(image_batch: torch.Tensor, image_indices: list[int], original_coord
     points_3d = unproject_depth_map_to_point_map(depth_map, extrinsic, intrinsic)
     
     if use_ba:
-        image_size = np.array(images.shape[-2:])
+        image_size = np.array(image_batch.shape[-2:])
         scale = img_load_resolution / vggt_fixed_resolution
-        shared_camera = args.shared_camera
+        shared_camera = False
 
-        with Timer("Tracking inference"):
-            with torch.cuda.amp.autocast(dtype=dtype):
-                # Predicting Tracks
-                # Using VGGSfM tracker instead of VGGT tracker for efficiency
-                # VGGT tracker requires multiple backbone runs to query different frames (this is a problem caused by the training process)
-                # Will be fixed in VGGT v2
+        with torch.cuda.amp.autocast(dtype=dtype):
+            # Predicting Tracks
+            # Using VGGSfM tracker instead of VGGT tracker for efficiency
+            # VGGT tracker requires multiple backbone runs to query different frames (this is a problem caused by the training process)
+            # Will be fixed in VGGT v2
 
-                # You can also change the pred_tracks to tracks from any other methods
-                # e.g., from COLMAP, from CoTracker, or by chaining 2D matches from Lightglue/LoFTR.
-                pred_tracks, pred_vis_scores, pred_confs, points_3d, points_rgb = predict_tracks(
-                    images,
-                    conf=depth_conf,
-                    points_3d=points_3d,
-                    masks=None,
-                    max_query_pts=args.max_query_pts,
-                    query_frame_num=args.query_frame_num,
-                    keypoint_extractor="aliked+sp",
-                    fine_tracking=args.fine_tracking,
-                )
+            # You can also change the pred_tracks to tracks from any other methods
+            # e.g., from COLMAP, from CoTracker, or by chaining 2D matches from Lightglue/LoFTR.
+            pred_tracks, pred_vis_scores, pred_confs, points_3d, points_rgb = predict_tracks(
+                image_batch,
+                conf=depth_conf,
+                points_3d=points_3d,
+                masks=None,
+                max_query_pts=max_query_pts,
+                query_frame_num=query_frame_num,
+                keypoint_extractor="aliked+sp",
+                fine_tracking=fine_tracking,
+            )
 
-                torch.cuda.empty_cache()
+            torch.cuda.empty_cache()
 
         # rescale the intrinsic matrix from 518 to 1024
         intrinsic[:, :2, :] *= scale
-        track_mask = pred_vis_scores > args.vis_thresh
+        track_mask = pred_vis_scores > vis_thresh
 
         # TODO: radial distortion, iterative BA, masks
         reconstruction, valid_track_mask = batch_np_matrix_to_pycolmap(
@@ -88,9 +87,9 @@ def run_vggt(image_batch: torch.Tensor, image_indices: list[int], original_coord
             pred_tracks,
             image_size,
             masks=track_mask,
-            max_reproj_error=args.max_reproj_error,
+            max_reproj_error=max_reproj_error,
             shared_camera=shared_camera,
-            camera_type=args.camera_type,
+            camera_type=camera_type,
             points_rgb=points_rgb,
             image_id_list=image_indices,
         )
@@ -98,7 +97,7 @@ def run_vggt(image_batch: torch.Tensor, image_indices: list[int], original_coord
         if reconstruction is None:
             raise ValueError("No reconstruction can be built with BA")
 
-        if args.use_colmap_ba:
+        if use_colmap_ba:
 
             # Bundle Adjustment w/ Colmap
             ba_options = pycolmap.BundleAdjustmentOptions()
@@ -157,17 +156,13 @@ def run_vggt(image_batch: torch.Tensor, image_indices: list[int], original_coord
     )
 
     if not use_ba:
-        print(f"Saving reconstruction to ./sparse_wo_ba")
-        sparse_reconstruction_dir = Path("./") / "sparse_wo_ba"
+        print(f"Saving reconstruction to vggt_test_output/sparse_wo_ba")
+        sparse_reconstruction_dir = Path("vggt_test_output") / "sparse_wo_ba"
     else:
         print(
-            f"Saving reconstruction to {args.output_dir}/{cluster_key}/sparse_w_ba_{args.query_frame_num}_{args.max_query_pts}_{args.use_colmap_ba}"
+            f"Saving reconstruction to vggt_test_output/sparse_w_ba_{query_frame_num}_{max_query_pts}_{use_colmap_ba}"
         )
-        sparse_reconstruction_dir = os.path.join(
-            args.output_dir,
-            cluster_key,
-            f"sparse_w_ba_{args.query_frame_num}_{args.max_query_pts}_{args.use_colmap_ba}",
-        )
+        sparse_reconstruction_dir = Path("vggt_test_output") / f"sparse_w_ba_{query_frame_num}_{max_query_pts}_{use_colmap_ba}"
     sparse_reconstruction_dir.mkdir(parents=True, exist_ok=True)
     reconstruction.write(sparse_reconstruction_dir)
     reconstruction.write_text(sparse_reconstruction_dir)
@@ -216,8 +211,10 @@ class TestVGGT(unittest.TestCase):
         # image_batch = loader.load_image_batch(indices, resize_transform, batch_transform)
         
         image_batch, original_coords = loader.load_and_preprocess_images_square_vggt(indices, img_load_resolution)
+        
+        with torch.no_grad():
 
-        gtsfm_data = run_vggt(image_batch, indices, original_coords)
+            gtsfm_data = run_vggt(image_batch, indices, original_coords, use_ba=True)
 
         self.assertIsNotNone(gtsfm_data)
         # self.assertEqual(gtsfm_data.number_images(), 4)
