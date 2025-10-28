@@ -54,38 +54,23 @@ def _detect_worker_id_once() -> str:
         return f"{hostname}-main"
 
 
-def get_worker_id() -> str:
-    """
-    Get the cached worker ID for the current process.
-    
-    This is thread-safe and only performs the detection once per process.
-    
-    Returns:
-        str: Worker ID like "hornet-w35163" or "eagle-main"
-    """
-    global _WORKER_ID_CACHE
-    
-    if _WORKER_ID_CACHE is None:
-        _WORKER_ID_CACHE = _detect_worker_id_once()
-    
-    return _WORKER_ID_CACHE
-
-
 class DaskAwareFormatter(logging.Formatter):
     """
     Custom formatter that injects worker ID into the formatted message.
     
-    This approach works even when logs are collected from workers by Dask,
-    because we modify the formatted string, not the LogRecord attributes.
+    CRITICAL: Does NOT cache worker_id at creation time, because the formatter
+    object may be serialized and sent to workers. Each process must detect its
+    own worker identity lazily on first log call.
     """
-    
-    def __init__(self, fmt=None, datefmt=None):
-        super().__init__(fmt, datefmt)
-        # Cache worker_id at formatter creation time
-        self._worker_id = get_worker_id()
     
     def format(self, record):
         """Format the log record with worker ID prepended."""
+        global _WORKER_ID_CACHE
+        
+        # Lazy detection: each process detects its own worker_id on first log
+        if _WORKER_ID_CACHE is None:
+            _WORKER_ID_CACHE = _detect_worker_id_once()
+        
         # Get the standard formatted message
         original_formatted = super().format(record)
         
@@ -100,13 +85,13 @@ class DaskAwareFormatter(logging.Formatter):
             # Insert worker_id after timestamp
             formatted_with_worker = (
                 original_formatted[:timestamp_end] + 
-                f" [{self._worker_id}]" +
+                f" [{_WORKER_ID_CACHE}]" +
                 original_formatted[timestamp_end:]
             )
             return formatted_with_worker
         
         # Fallback if format is unexpected
-        return f"[{self._worker_id}] {original_formatted}"
+        return f"[{_WORKER_ID_CACHE}] {original_formatted}"
     
     def formatTime(self, record, datefmt=None):
         """Use UTC timestamps."""
