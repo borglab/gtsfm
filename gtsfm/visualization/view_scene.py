@@ -79,7 +79,7 @@ def view_scene(args: argparse.Namespace) -> None:
 
         # Align the poses.
         rSe = align.sim3_from_optional_Pose3s(wTi_list_gt, wTi_list)
-        wTi_aligned_list = transform.pose_list_with_sim3(wTi_list, rSe)
+        wTi_aligned_list = transform.Pose3s_with_sim3(wTi_list, rSe)
         point_cloud = transform.point_cloud_with_sim3(point_cloud, rSe)
 
         open3d_vis_utils.draw_scene_with_gt_open3d(

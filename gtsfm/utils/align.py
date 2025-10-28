@@ -73,7 +73,7 @@ def so3_from_optional_Rot3s(aRi_list: Sequence[Optional[Rot3]], bRi_list: Sequen
     return gtsam.FindKarcherMeanRot3(aRb_list) if len(aRb_list) > 0 else Rot3()
 
 
-def se3_from_pose_maps(a: Mapping[int, Pose3], b: Mapping[int, Pose3]) -> Pose3:
+def se3_from_Pose3_maps(a: Mapping[int, Pose3], b: Mapping[int, Pose3]) -> Pose3:
     """Estimate the SE(3) transform ``aTb`` that best aligns the overlapping poses."""
     common_keys = [key for key in a if key in b]
     if not common_keys:
@@ -89,7 +89,7 @@ def se3_from_pose_maps(a: Mapping[int, Pose3], b: Mapping[int, Pose3]) -> Pose3:
     return result.atPose3(KEY)
 
 
-def sim3_from_pose_maps(a: Mapping[int, Pose3], b: Mapping[int, Pose3]) -> Similarity3:
+def sim3_from_Pose3_maps(a: Mapping[int, Pose3], b: Mapping[int, Pose3]) -> Similarity3:
     """Estimate the Sim(3) transform ``aSb`` that best aligns the overlapping poses."""
     common_keys = [key for key in a if key in b]
     pose_pairs = [(a[key], b[key]) for key in common_keys]
@@ -99,25 +99,8 @@ def sim3_from_pose_maps(a: Mapping[int, Pose3], b: Mapping[int, Pose3]) -> Simil
         return Similarity3.Align(pose_pairs)
     except Exception as exc:  # pragma: no cover
         raise RuntimeError(
-            f"align.sim3_from_pose_maps: Similarity3.Align failed with {len(pose_pairs)} pose pairs: {exc}."
+            f"align.sim3_from_Pose3_maps: Similarity3.Align failed with {len(pose_pairs)} pose pairs: {exc}."
         ) from exc
-
-
-def align_rotations(aRi_list: Sequence[Optional[Rot3]], bRi_list: Sequence[Optional[Rot3]]) -> List[Optional[Rot3]]:
-    """Aligns the list of rotations to the reference list by using Karcher mean.
-
-    Args:
-        aRi_list: Reference rotations in frame "a" which are the targets for alignment
-        bRi_list: Input rotations which need to be aligned to frame "a"
-
-    Returns:
-        aRi_list_: Transformed input rotations previously "bRi_list" but now which
-                   have the same origin as reference (now living in "a" frame)
-    """
-    aRb = so3_from_optional_Rot3s(aRi_list, bRi_list)
-
-    # Apply the coordinate shift to all entries in input.
-    return [aRb * bRi if bRi is not None else None for bRi in bRi_list]
 
 
 def sim3_from_optional_Pose3s(aTi_list: Sequence[Optional[Pose3]], bTi_list: Sequence[Optional[Pose3]]) -> Similarity3:

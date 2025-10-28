@@ -51,7 +51,8 @@ def compare_rotations(
     bRi_list = [bRi_list[i] for i in bRi_valid]
 
     # frame 'a' is the target/reference, and bRi_list will be transformed
-    aRi_list_ = align.align_rotations(aRi_list, bRi_list)
+    aRb = align.so3_from_optional_Rot3s(aRi_list, bRi_list)
+    aRi_list_ = transform.Rot3s_with_so3(bRi_list, aRb)
     relative_rotations_angles = np.array(
         [compute_relative_rotation_angle(aRi, aRi_) for (aRi, aRi_) in zip(aRi_list, aRi_list_)], dtype=np.float32
     )
@@ -103,7 +104,7 @@ def compare_global_poses(
 
     #  We set frame "a" the target/reference
     aSb = align.sim3_from_Pose3s_robust(aTi_list, bTi_list)
-    aTi_list_ = transform.pose_list_with_sim3(bTi_list, aSb)
+    aTi_list_ = transform.Pose3s_with_sim3(bTi_list, aSb)
 
     rotations_equal = all(
         [

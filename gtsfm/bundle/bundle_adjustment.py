@@ -522,7 +522,7 @@ class BundleAdjustmentOptimizer:
             return ba_metrics
 
         # Align the sparse multi-view estimate after BA to the ground truth pose graph.
-        aligned_filtered_data = filtered_data.aligned_to_poses_via_sim3(poses_gt)
+        aligned_filtered_data = filtered_data.align_via_sim3_and_transform(poses_gt)
         ba_pose_error_metrics = metrics_utils.compute_ba_pose_metrics(
             gt_wTi_list=poses_gt, computed_wTi_list=aligned_filtered_data.get_camera_poses(), save_dir=save_dir
         )

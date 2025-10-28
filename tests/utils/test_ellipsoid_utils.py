@@ -78,7 +78,7 @@ class TestEllipsoidUtils(unittest.TestCase):
         # Apply alignment transformation to sample_data
         walignedTw = ellipsoid_utils.get_ortho_axis_alignment_transform(sample_data)
         walignedSw = Similarity3(R=walignedTw.rotation(), t=walignedTw.translation(), s=1.0)
-        sample_data = sample_data.apply_Sim3(walignedSw)
+        sample_data = sample_data.transform_with_sim3(walignedSw)
 
         # Verify correct 3d points.
         computed_3d_points = np.array([sample_data.get_track(i).point3() for i in range(sample_data.number_tracks())])
@@ -152,7 +152,7 @@ class TestEllipsoidUtils(unittest.TestCase):
         # Apply alignment transformation to sample_data
         walignedTw = ellipsoid_utils.get_ortho_axis_alignment_transform(sample_data)
         walignedSw = Similarity3(R=walignedTw.rotation(), t=walignedTw.translation(), s=1.0)
-        sample_data = sample_data.apply_Sim3(walignedSw)
+        sample_data = sample_data.transform_with_sim3(walignedSw)
 
         # Aggregate the final, transformed points
         num_tracks = sample_data.number_tracks()

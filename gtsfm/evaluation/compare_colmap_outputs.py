@@ -75,7 +75,7 @@ def compare_poses(baseline_dirpath: str, eval_dirpath: str, output_dirpath: str)
 
     if not args.use_pycolmap_alignment:
         aSb = align.sim3_from_optional_Pose3s(baseline_wTi_list, current_wTi_list)
-        current_wTi_list = transform.optional_pose_list_with_sim3(current_wTi_list, aSb)
+        current_wTi_list = transform.optional_Pose3s_with_sim3(current_wTi_list, aSb)
 
     i2Ri1_dict_gt, i2Ui1_dict_gt = metric_utils.get_all_relative_rotations_translations(baseline_wTi_list)
 

@@ -41,6 +41,7 @@ from gtsfm.products.one_view_data import OneViewData
 from gtsfm.products.two_view_result import TwoViewResult
 from gtsfm.products.visibility_graph import AnnotatedGraph, VisibilityGraph
 from gtsfm.two_view_estimator import TwoViewEstimator, run_two_view_estimator_as_futures
+from gtsfm.utils import transform
 
 
 @dataclass(frozen=True)
@@ -497,15 +498,20 @@ def align_estimated_gtsfm_data(
 
     NOTE: alignment is common postprocessing for outputs from any optimizer.
     """
-    aligned_ba_input = ba_input.aligned_to_poses_via_sim3(gt_wTi_list)
-    aligned_ba_output = ba_output.aligned_to_poses_via_sim3(gt_wTi_list)
+    w_S_output = ba_output.align_to_poses_via_sim3(gt_wTi_list)
+    w_ba_output = ba_output.transform_with_sim3(w_S_output)
 
-    aTw = ellipsoid_utils.get_ortho_axis_alignment_transform(aligned_ba_output)
-    aSw = Similarity3(R=aTw.rotation(), t=aTw.translation(), s=1.0)
-    twice_aligned_ba_input = aligned_ba_input.apply_Sim3(aSw)
-    twice_aligned_ba_output = aligned_ba_output.apply_Sim3(aSw)
-    gt_aTi_list = [aSw.transformFrom(wTi) if wTi is not None else None for wTi in gt_wTi_list]
-    return twice_aligned_ba_input, twice_aligned_ba_output, gt_aTi_list
+    ellipse_T_w = ellipsoid_utils.get_ortho_axis_alignment_transform(w_ba_output)
+    ellipse_S_w = Similarity3(R=ellipse_T_w.rotation(), t=ellipse_T_w.translation(), s=1.0)
+    ellipse_ba_output = w_ba_output.transform_with_sim3(ellipse_S_w)
+    ellipse_gt_poses = transform.optional_Pose3s_with_sim3(gt_wTi_list, ellipse_S_w)
+
+    # Also align the BA input for consistency.
+    w_S_input = ba_input.align_to_poses_via_sim3(gt_wTi_list)
+    w_ba_input = ba_input.transform_with_sim3(w_S_input)
+    ellipse_ba_input = w_ba_input.transform_with_sim3(ellipse_S_w)
+
+    return ellipse_ba_input, ellipse_ba_output, ellipse_gt_poses
 
 
 def save_matplotlib_visualizations(

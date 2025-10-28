@@ -37,14 +37,15 @@ class TestGeometryComparisons(unittest.TestCase):
         self.addTypeEqualityFunc(Point3, point3_compare)
 
     @patch(
-        "gtsfm.utils.align.align_rotations",
+        "gtsfm.utils.transform.Rot3s_with_so3",
         return_value=[
             Rot3.RzRyRx(0, np.deg2rad(32), 0),
             Rot3.RzRyRx(0, 0, np.deg2rad(-22)),
             Rot3.RzRyRx(0, 0, np.deg2rad(83)),
-        ],  # compared with aRi_list
+        ],
     )
-    def test_compare_rotations_with_all_valid_rot3s_success(self, align_rotations_mocked):
+    @patch("gtsfm.utils.align.so3_from_optional_Rot3s", return_value=Rot3())
+    def test_compare_rotations_with_all_valid_rot3s_success(self, so3_mock, rotation_list_mock):
         """Tests the comparison results on list of rotations."""
 
         aRi_list = [
@@ -60,17 +61,19 @@ class TestGeometryComparisons(unittest.TestCase):
 
         # test with threshold of 10 degrees, which satisfies all the rotations.
         self.assertTrue(geometry_comparisons.compare_rotations(aRi_list, bRi_list, 10))
-        align_rotations_mocked.assert_called_once()
+        so3_mock.assert_called_once()
+        rotation_list_mock.assert_called_once()
 
     @patch(
-        "gtsfm.utils.align.align_rotations",
+        "gtsfm.utils.transform.Rot3s_with_so3",
         return_value=[
             Rot3.RzRyRx(0, np.deg2rad(32), 0),
             Rot3.RzRyRx(0, 0, np.deg2rad(-22)),
             Rot3.RzRyRx(0, 0, np.deg2rad(83)),
-        ],  # compared with aRi_list
+        ],
     )
-    def test_compare_rotations_with_all_valid_rot3s_failure(self, align_rotations_mocked):
+    @patch("gtsfm.utils.align.so3_from_optional_Rot3s", return_value=Rot3())
+    def test_compare_rotations_with_all_valid_rot3s_failure(self, so3_mock, rotation_list_mock):
         """Tests the comparison results on list of rotations."""
 
         aRi_list = [
@@ -86,13 +89,15 @@ class TestGeometryComparisons(unittest.TestCase):
 
         # test with threshold of 5 degrees, which fails one rotation and hence the overall comparison
         self.assertFalse(geometry_comparisons.compare_rotations(aRi_list, bRi_list, 5))
-        align_rotations_mocked.assert_called_once()
+        so3_mock.assert_called_once()
+        rotation_list_mock.assert_called_once()
 
     @patch(
-        "gtsfm.utils.align.align_rotations",
-        return_value=[Rot3.RzRyRx(0, np.deg2rad(25), 0), Rot3.RzRyRx(0, 0, np.deg2rad(-20))],  # compared with aRi_list
+        "gtsfm.utils.transform.Rot3s_with_so3",
+        return_value=[Rot3.RzRyRx(0, np.deg2rad(25), 0), Rot3.RzRyRx(0, 0, np.deg2rad(-20))],
     )
-    def test_compare_rotations_with_nones_at_same_indices(self, align_rotations_mocked):
+    @patch("gtsfm.utils.align.so3_from_optional_Rot3s", return_value=Rot3())
+    def test_compare_rotations_with_nones_at_same_indices(self, so3_mock, rotation_list_mock):
         """Tests the comparison results on list of rotations."""
 
         list1 = [
@@ -109,10 +114,11 @@ class TestGeometryComparisons(unittest.TestCase):
 
         # test with threshold of 10 degrees, which satisfies all the rotations.
         self.assertTrue(geometry_comparisons.compare_rotations(list1, list2, threshold_degrees))
-        align_rotations_mocked.assert_called_once()
+        so3_mock.assert_called_once()
+        rotation_list_mock.assert_called_once()
 
-    @patch("gtsfm.utils.align.align_rotations", return_value=None)
-    def test_compare_rotations_with_nones_at_different_indices(self, aligned_rotations_mocked):
+    @patch("gtsfm.utils.align.so3_from_optional_Rot3s", return_value=Rot3())
+    def test_compare_rotations_with_nones_at_different_indices(self, so3_mock):
         """Tests the comparison results on list of rotations."""
 
         list1 = [
@@ -128,7 +134,7 @@ class TestGeometryComparisons(unittest.TestCase):
 
         # test with threshold of 10 degrees, which satisfies all the rotations.
         self.assertFalse(geometry_comparisons.compare_rotations(list1, list2, 10))
-        aligned_rotations_mocked.assert_not_called()
+        so3_mock.assert_not_called()
 
     def test_compute_relative_rotation_angle(self):
         """Tests the relative angle between two rotations."""
