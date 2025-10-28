@@ -3,7 +3,7 @@
 Authors: Ayush Baid, Travis Driver
 """
 
-from typing import Union
+from typing import Type, Union
 
 import gtsam  # type: ignore
 
@@ -31,7 +31,7 @@ SFM_FACTOR_TYPE = Union[
 ]
 
 
-def get_camera_class_for_calibration(calibration: CALIBRATION_TYPE) -> CAMERA_TYPE:
+def get_camera_class_for_calibration(calibration: CALIBRATION_TYPE) -> Type[CAMERA_TYPE]:
     """Get the camera class corresponding to the calibration.
 
     Args:
@@ -52,7 +52,21 @@ def get_camera_class_for_calibration(calibration: CALIBRATION_TYPE) -> CAMERA_TY
         raise ValueError(f"Unsupported calibration type: {type(calibration)}. Supported types are {CALIBRATION_TYPE}.")
 
 
-def get_camera_set_class_for_calibration(calibration: CALIBRATION_TYPE) -> CAMERA_SET_TYPE:
+def create_camera(pose: gtsam.Pose3, calibration: CALIBRATION_TYPE) -> CAMERA_TYPE:
+    """Create a camera object given pose and calibration.
+
+    Args:
+        pose: the pose of the camera.
+        calibration: the calibration object for which track is required.
+
+    Returns:
+        A camera object corresponding to the given pose and calibration.
+    """
+    camera_class = get_camera_class_for_calibration(calibration)
+    return camera_class(pose, calibration)  # type: ignore
+
+
+def get_camera_set_class_for_calibration(calibration: CALIBRATION_TYPE) -> Type[CAMERA_SET_TYPE]:
     """Get the camera set class corresponding to the calibration.
 
     Args:
@@ -73,7 +87,7 @@ def get_camera_set_class_for_calibration(calibration: CALIBRATION_TYPE) -> CAMER
         raise ValueError(f"Unsupported calibration type: {type(calibration)}. Supported types are {CALIBRATION_TYPE}.")
 
 
-def get_prior_factor_for_calibration(calibration: CALIBRATION_TYPE) -> PRIOR_FACTOR_TYPE:
+def get_prior_factor_for_calibration(calibration: CALIBRATION_TYPE) -> Type[PRIOR_FACTOR_TYPE]:
     """Get the prior factor corresponding to the calibration.
 
     Args:
@@ -94,7 +108,7 @@ def get_prior_factor_for_calibration(calibration: CALIBRATION_TYPE) -> PRIOR_FAC
         raise ValueError(f"Unsupported calibration type: {type(calibration)}. Supported types are {CALIBRATION_TYPE}.")
 
 
-def get_sfm_factor_for_calibration(calibration: CALIBRATION_TYPE) -> SFM_FACTOR_TYPE:
+def get_sfm_factor_for_calibration(calibration: CALIBRATION_TYPE) -> Type[SFM_FACTOR_TYPE]:
     """Get the SFM factor corresponding to the calibration.
 
     Args:
