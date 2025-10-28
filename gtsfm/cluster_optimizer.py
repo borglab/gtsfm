@@ -116,17 +116,10 @@ class ClusterOptimizer:
         image_future_keys: list[str],
     ) -> tuple[list[Keypoints], AnnotatedGraph[np.ndarray], float]:
         """Execute correspondence generation inside a worker task."""
-        
-        worker = distributed.get_worker()
-        hostname = socket.gethostname()
-        worker_address = worker.address
 
         logger.info(
-            "🔵 [Worker: %s @ %s] Running correspondence generation on %d pairs.",
-            hostname,
-            worker_address,
-            len(visibility_graph),
-        )
+            "🔵 Running correspondence generation for %d pairs.",
+            len(visibility_graph))
 
         if len(visibility_graph) == 0:
             return [], {}, 0.0
@@ -151,7 +144,7 @@ class ClusterOptimizer:
         one_view_data_dict: dict[int, OneViewData],
     ) -> tuple[AnnotatedGraph[TwoViewResult], float]:
         """Execute two-view estimation inside a worker task."""
-        logger.info("🔵 Cluster: running two-view estimation on %d pairs.", len(putative_corr_idxs_dict))
+        logger.info("🔵 Running two-view estimation for %d pairs.", len(putative_corr_idxs_dict))
 
         with worker_client() as nested_client:
             start_time = time.time()
@@ -172,7 +165,7 @@ class ClusterOptimizer:
         }
 
         if len(valid_two_view_results) == 0:
-            logger.warning("🔵 ClusterOptimizer: Skipping cluster as it has no valid two-view results.")
+            logger.warning("🔵 Skipping two-view estimation as it has no valid results.")
 
         return valid_two_view_results, duration_sec
 
@@ -191,7 +184,7 @@ class ClusterOptimizer:
                 images=images,
                 save_gs_files_path=output_path,
             )
-            logger.info("Time taken for Feed forward Gaussian Splatting %s", time.time() - start_time)
+            logger.info("🔵 Time taken for Feed forward Gaussian Splatting %s", time.time() - start_time)
 
     @staticmethod
     def _save_two_view_visualizations(
@@ -201,7 +194,7 @@ class ClusterOptimizer:
         output_dir: Path,
     ) -> None:
         """Persist two-view correspondence visualizations for all valid edges."""
-        logger.info("🔵 ClusterOptimizer: Saving two-view correspondences visualizations to %s.", output_dir)
+        logger.info("🔵 Saving two-view correspondences visualizations to %s.", output_dir)
 
         output_dir.mkdir(parents=True, exist_ok=True)
         for (i1, i2), output in two_view_results.items():

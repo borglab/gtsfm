@@ -69,23 +69,10 @@ class ImagePairsGenerator:
             global_descriptor: GlobalDescriptorBase, image_batch: torch.Tensor
         ) -> list[np.ndarray]:
             """Apply global descriptor to extract feature vectors from a batch of images."""
-            try:
-                worker = distributed.get_worker()
-                hostname = socket.gethostname()
-                worker_address = worker.address
-                logger.info(
-                    "🟩 [Worker: %s @ %s] Computing global descriptors for batch of %d images with global descriptor: %s",
-                    hostname,
-                    worker_address,
-                    len(image_batch),
-                    type(global_descriptor).__name__,
-                )
-            except Exception:
-                hostname = socket.gethostname()
-                logger.info(
-                    f"🟩 [Main Process on %s]: Computing global descriptors for batch of {len(image_batch)} images",
-                    hostname,
-                )
+
+            logger.info(
+                    "🟩 Computing global descriptors for batch of %d images", len(image_batch)
+             )
 
             # This will call the new method you need to create in your descriptor class.
             return global_descriptor.describe_batch(images=image_batch)

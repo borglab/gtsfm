@@ -7,63 +7,84 @@ import logging
 import socket
 import sys
 from datetime import datetime, timezone
-from logging import Logger, LoggerAdapter
+from logging import Logger, LogRecord
 
 # ============================================================================
 # Machine-local lookup map (cached worker identity)
 # ============================================================================
 # This variable is set once per process and never changes.
-# It avoids repeated Dask API calls for every log statement.
 _WORKER_ID_CACHE: str | None = None
 
 
 def _detect_worker_id_once() -> str:
     """
-    Detect the current process's worker identity exactly once.
+    Detect the current process's worker identity with sequential numbering.
     
-    This function queries the Dask distributed system to determine if we're
-    running inside a Dask worker or in the main scheduler process.
+    This function queries the Dask distributed system to determine worker identity
+    and assigns a sequential worker number (1, 2, 3...) for each machine.
     
     Returns:
-        str: Worker ID in format "hostname-w<port>" for workers,
-             or "hostname-main" for the main process.
+        str: Worker ID in format "hostname N" where N is sequential worker number,
+             or "hostname main" for the main process.
              
     Examples:
-        - Dask worker: "hornet-w35163"
-        - Main process: "eagle-main"
+        - Dask worker: "eagle 2", "hornet 1", "wildcat 3"
+        - Main process: "eagle main"
     """
     try:
         from dask import distributed
 
-        # Attempt to get the current worker object.
-        # This only succeeds if we're inside a Dask worker process.
+        # Attempt to get the current worker object
         worker = distributed.get_worker()
         
         # Success: we're in a Dask worker
-        hostname = socket.gethostname()
+        hostname = socket.gethostname().split('.')[0]  # Just the hostname, no domain
         worker_address = worker.address  # Format: "tcp://130.207.121.32:35163"
+        my_port = int(worker_address.split(":")[-1])
         
-        # Extract port number as a unique identifier for this worker
-        port = worker_address.split(":")[-1]
-        
-        return f"{hostname}-w{port}"
+        try:
+            # Query the scheduler to get all workers on this machine
+            # This allows us to assign sequential numbers
+            client = distributed.get_client()
+            all_workers = client.scheduler_info()['workers']
+            
+            # Filter workers on the same hostname and sort by port for consistency
+            same_host_workers = []
+            for worker_addr, worker_info in all_workers.items():
+                worker_host = worker_info.get('host', '').split('.')[0]
+                if worker_host == hostname:
+                    port = int(worker_addr.split(":")[-1])
+                    same_host_workers.append(port)
+            
+            # Sort ports to get consistent numbering
+            same_host_workers.sort()
+            
+            # Find our index (1-based numbering)
+            if my_port in same_host_workers:
+                worker_num = same_host_workers.index(my_port) + 1
+                return f"{hostname} {worker_num}"
+            else:
+                # Fallback if we can't find ourselves (shouldn't happen)
+                return f"{hostname} w{my_port}"
+                
+        except Exception:
+            # Fallback: if we can't query scheduler, use a simpler approach
+            # Use last 2 digits of port as worker number
+            worker_num = my_port % 100
+            return f"{hostname} {worker_num}"
         
     except (ImportError, ValueError, AttributeError):
         # Failure: we're in the main process (or Dask is not available)
-        hostname = socket.gethostname()
-        return f"{hostname}-main"
+        hostname = socket.gethostname().split('.')[0]
+        return f"{hostname} main"
 
 
 def get_worker_id() -> str:
     """
     Get the cached worker ID for the current process.
     
-    This function should be called by worker code that wants to include
-    worker information in log messages, especially when those logs will
-    be collected and displayed in the main process.
-    
     Returns:
-        str: Worker ID like "hornet-w35163" or "eagle-main"
+        str: Worker ID like "hornet 2" or "eagle main"
     """
     global _WORKER_ID_CACHE
     
@@ -73,53 +94,35 @@ def get_worker_id() -> str:
     return _WORKER_ID_CACHE
 
 
-class WorkerAwareAdapter(LoggerAdapter):
+class DaskAwareFormatter(logging.Formatter):
     """
-    LoggerAdapter that automatically prepends worker ID to all log messages.
+    Custom formatter that injects worker ID into the filename field.
     
-    This is the ELEGANT solution for Dask-aware logging!
-    LoggerAdapter modifies the message BEFORE creating the LogRecord,
-    so the worker_id becomes part of the message text itself and survives
-    Dask's log forwarding from workers to the main scheduler.
-    
-    CRITICAL: Worker detection happens LAZILY at first log call, not at
-    adapter creation, because Dask worker context isn't available at import time!
+    This creates clean, readable logs with worker identification in the
+    filename position: [eagle 2: image_pairs_generator.py]
     """
     
-    def __init__(self, logger):
-        """Initialize with empty extra dict."""
-        super().__init__(logger, {})
-        # Do NOT detect worker_id here! It's too early.
-        # Detection happens in process() method on first log call.
-    
-    def process(self, msg, kwargs):
-        """
-        Process the log message by prepending worker ID.
-        
-        This runs BEFORE the LogRecord is created, so the worker_id
-        becomes part of the message itself and will survive serialization.
-        
-        CRITICAL: Worker detection happens HERE (lazily) because at module
-        import time the Dask worker context isn't ready yet!
-        """
+    def format(self, record: LogRecord) -> str:
+        """Format the log record with worker ID in filename field."""
         global _WORKER_ID_CACHE
         
-        # Lazy detection on first log call in this process
+        # Lazy detection on first log in this process
         if _WORKER_ID_CACHE is None:
             _WORKER_ID_CACHE = _detect_worker_id_once()
         
-        # Prepend worker_id to the message
-        modified_msg = f"[{_WORKER_ID_CACHE}] {msg}"
-        return modified_msg, kwargs
-
-
-class DaskAwareFormatter(logging.Formatter):
-    """
-    Custom formatter with UTC timestamps.
-    
-    Note: With the LoggerAdapter approach, we don't need to do anything
-    special here - the worker ID is already in the message!
-    """
+        # Inject worker_id into the filename field
+        # Original: [image_pairs_generator.py]
+        # Modified: [eagle 2: image_pairs_generator.py]
+        original_filename = record.filename
+        record.filename = f"{_WORKER_ID_CACHE}: {original_filename}"
+        
+        # Format the message with standard formatter
+        formatted = super().format(record)
+        
+        # Restore original filename to avoid side effects
+        record.filename = original_filename
+        
+        return formatted
     
     def formatTime(self, record, datefmt=None):
         """Use UTC timestamps."""
@@ -139,23 +142,21 @@ class UTCFormatter(logging.Formatter):
         return dt.strftime("%Y-%m-%d %H:%M:%S")
 
 
-def get_logger() -> LoggerAdapter:
+def get_logger() -> Logger:
     """
     Get the main logger with automatic Dask worker awareness.
     
     All modules using this logger will automatically get worker information
     in their log output without any code changes!
     
-    The magic happens through a LoggerAdapter that prepends the worker ID
-    to every message BEFORE the LogRecord is created. Worker detection is
-    LAZY - it happens on the first log call, not at logger creation time,
-    because Dask worker context isn't available at module import time.
+    Worker detection happens lazily at first log call. The worker ID
+    appears in the filename field for clean, readable output.
     
     Log format:
-        "2025-10-28 00:00:45 [filename.py] INFO: [hornet-w35163] message"
+        "2025-10-28 00:00:45 [hornet 2: cluster_optimizer.py] INFO: message"
     
     Returns:
-        LoggerAdapter: Configured logger adapter instance
+        Logger: Configured logger instance
     """
     logger_name = "main-logger"
     logger = logging.getLogger(logger_name)
@@ -164,7 +165,7 @@ def get_logger() -> LoggerAdapter:
     if not logger.handlers:
         handler = logging.StreamHandler(sys.stdout)
         
-        # Simple format - worker_id will be in the message itself
+        # Worker ID will be injected into %(filename)s by the formatter
         fmt = "%(asctime)s [%(filename)s] %(levelname)s: %(message)s"
         handler.setFormatter(DaskAwareFormatter(fmt, datefmt="%Y-%m-%d %H:%M:%S"))
         
@@ -176,6 +177,4 @@ def get_logger() -> LoggerAdapter:
         pil_logger = logging.getLogger("PIL")
         pil_logger.setLevel(logging.ERROR)
     
-    # Return a LoggerAdapter that wraps the logger
-    # This adapter will automatically prepend worker_id to all messages
-    return WorkerAwareAdapter(logger)
+    return logger
