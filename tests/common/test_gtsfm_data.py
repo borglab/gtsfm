@@ -10,7 +10,7 @@ from pathlib import Path
 
 import gtsam  # type: ignore
 import numpy as np
-from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Point2, Point3, Pose3, SfmData, SfmTrack
+from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Point2, Point3, Pose3, SfmData, SfmTrack, Similarity3
 
 import gtsfm.utils.graph as graph_utils
 from gtsfm.common.gtsfm_data import GtsfmData
@@ -234,6 +234,45 @@ class TestGtsfmData(unittest.TestCase):
 
         # compare the SfmData objects
         self.assertEqual(filtered_sfm_data, expected_data)
+
+    def test_merged_with_returns_combined_scene(self) -> None:
+        """Ensure merged_with combines cameras and tracks from both scenes."""
+        calibration = Cal3Bundler(1.0, 0.0, 0.0, 0.0, 0.0)
+        identity_pose = Pose3()
+
+        scene_a = GtsfmData(number_images=2)
+        scene_a.add_camera(0, PinholeCameraCal3Bundler(identity_pose, calibration))
+        track_a = SfmTrack(Point3(0.0, 0.0, 0.0))
+        track_a.addMeasurement(0, Point2(0.0, 0.0))
+        self.assertTrue(scene_a.add_track(track_a))
+
+        scene_b = GtsfmData(number_images=2)
+        scene_b.add_camera(1, PinholeCameraCal3Bundler(identity_pose, calibration))
+        track_b = SfmTrack(Point3(1.0, 0.0, 0.0))
+        track_b.addMeasurement(1, Point2(1.0, 0.0))
+        self.assertTrue(scene_b.add_track(track_b))
+
+        merged = scene_a.merged_with(scene_b, Similarity3())
+        self.assertEqual(merged.number_tracks(), 2)
+        self.assertIn(0, merged.cameras())
+        self.assertIn(1, merged.cameras())
+
+    def test_merged_with_preserves_tracks_missing_cameras(self) -> None:
+        """Ensure tracks referencing absent cameras are retained during merge."""
+        calibration = Cal3Bundler(1.0, 0.0, 0.0, 0.0, 0.0)
+        scene_a = GtsfmData(number_images=1)
+        scene_a.add_camera(0, PinholeCameraCal3Bundler(Pose3(), calibration))
+
+        scene_b = GtsfmData(number_images=5)
+        orphan_track = SfmTrack(Point3(0.0, 0.0, 0.0))
+        orphan_track.addMeasurement(4, Point2(0.0, 0.0))
+        scene_b._tracks.append(orphan_track)
+
+        merged = scene_a.merged_with(scene_b, Similarity3())
+
+        self.assertEqual(merged.number_tracks(), scene_a.number_tracks() + len(scene_b.tracks()))
+        self.assertIsNone(merged.get_camera(4))
+        self.assertEqual(merged.get_track(merged.number_tracks() - 1).numberMeasurements(), 1)
 
     def test_read_bal(self) -> None:
         """Check that read_bal creates correct GtsfmData object."""

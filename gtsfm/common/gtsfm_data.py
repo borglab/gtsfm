@@ -19,6 +19,7 @@ import gtsfm.utils.images as image_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.reprojection as reprojection
+from gtsfm.utils import transform as transform_utils
 import thirdparty.colmap.scripts.python.read_write_model as colmap_io
 from gtsfm.common.image import Image
 from gtsfm.evaluation.metrics import GtsfmMetric
@@ -531,6 +532,38 @@ class GtsfmData:
             aligned_data.add_track(track_a)
 
         return aligned_data
+
+    def merged_with(self, other: "GtsfmData", aSb: Similarity3) -> "GtsfmData":
+        """Return a new scene containing self and ``other`` expressed in this scene's frame.
+
+        Args:
+            other: Scene to merge, currently expressed in frame ``b``.
+            aSb: Transform taking geometry from frame ``b`` to frame ``a`` (this scene).
+
+        Returns:
+            New ``GtsfmData`` containing cameras and tracks from both inputs.
+        """
+        merged_cameras = dict(self.cameras())
+        transformed_other_cameras = transform_utils.transform_camera_map(other.cameras(), aSb)
+        for key, camera in transformed_other_cameras.items():
+            if key not in merged_cameras:
+                merged_cameras[key] = camera
+
+        merged_tracks = list(self.tracks())
+        merged_tracks.extend(transform_utils.transform_tracks(other.tracks(), aSb))
+
+        max_camera_index = max(merged_cameras.keys()) if merged_cameras else -1
+        number_images = max(self.number_images(), other.number_images(), max_camera_index + 1)
+        merged_data = GtsfmData(number_images=number_images)
+
+        for key, camera in merged_cameras.items():
+            merged_data.add_camera(key, camera)
+
+        for track in merged_tracks:
+            if not merged_data.add_track(track):
+                merged_data._tracks.append(track)
+
+        return merged_data
 
     def downsample(self, fraction_points_to_keep: float, seed: int = 42) -> "GtsfmData":
         """Downsample the number of 3D points in the scene by randomly selecting a fraction of them."""
