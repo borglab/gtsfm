@@ -75,12 +75,12 @@ def get_worker_id() -> str:
 
 class WorkerAwareAdapter(LoggerAdapter):
     """
-    LoggerAdapter that automatically prepends worker ID to all log messages.
+    LoggerAdapter that automatically injects worker ID into LogRecords.
     
     This is the ELEGANT solution for Dask-aware logging!
-    LoggerAdapter modifies the message BEFORE creating the LogRecord,
-    so the worker_id becomes part of the message text itself and survives
-    Dask's log forwarding from workers to the main scheduler.
+    The worker_id is added as an attribute to the LogRecord, which
+    the formatter uses. Since formatting happens on the worker side
+    before log forwarding, the worker_id appears in the right place.
     
     CRITICAL: Worker detection happens LAZILY at first log call, not at
     adapter creation, because Dask worker context isn't available at import time!
@@ -94,10 +94,10 @@ class WorkerAwareAdapter(LoggerAdapter):
     
     def process(self, msg, kwargs):
         """
-        Process the log message by prepending worker ID.
+        Process the log call by injecting worker_id into the LogRecord.
         
-        This runs BEFORE the LogRecord is created, so the worker_id
-        becomes part of the message itself and will survive serialization.
+        This runs BEFORE the LogRecord is created. We inject worker_id
+        as an 'extra' field so the formatter can access it via %(worker_id)s.
         
         CRITICAL: Worker detection happens HERE (lazily) because at module
         import time the Dask worker context isn't ready yet!
@@ -108,17 +108,21 @@ class WorkerAwareAdapter(LoggerAdapter):
         if _WORKER_ID_CACHE is None:
             _WORKER_ID_CACHE = _detect_worker_id_once()
         
-        # Prepend worker_id to the message
-        modified_msg = f"[{_WORKER_ID_CACHE}] {msg}"
-        return modified_msg, kwargs
+        # Inject worker_id into the LogRecord's extra fields
+        # This allows the formatter to use %(worker_id)s in the format string
+        if 'extra' not in kwargs:
+            kwargs['extra'] = {}
+        kwargs['extra']['worker_id'] = _WORKER_ID_CACHE
+        
+        return msg, kwargs
 
 
 class DaskAwareFormatter(logging.Formatter):
     """
-    Custom formatter with UTC timestamps.
+    Custom formatter with UTC timestamps and worker awareness.
     
-    Note: With the LoggerAdapter approach, we don't need to do anything
-    special here - the worker ID is already in the message!
+    The worker_id is injected by WorkerAwareAdapter and accessed
+    via %(worker_id)s in the format string.
     """
     
     def formatTime(self, record, datefmt=None):
@@ -146,13 +150,14 @@ def get_logger() -> LoggerAdapter:
     All modules using this logger will automatically get worker information
     in their log output without any code changes!
     
-    The magic happens through a LoggerAdapter that prepends the worker ID
-    to every message BEFORE the LogRecord is created. Worker detection is
-    LAZY - it happens on the first log call, not at logger creation time,
-    because Dask worker context isn't available at module import time.
+    The magic happens through a LoggerAdapter that injects the worker ID
+    into the LogRecord, and the formatter displays it before the filename.
+    Worker detection is LAZY - it happens on the first log call, not at
+    logger creation time, because Dask worker context isn't available at
+    module import time.
     
     Log format:
-        "2025-10-28 00:00:45 [filename.py] INFO: [hornet-w35163] message"
+        "2025-10-28 00:00:45 [hornet-w35163] [filename.py] INFO: message"
     
     Returns:
         LoggerAdapter: Configured logger adapter instance
@@ -164,8 +169,9 @@ def get_logger() -> LoggerAdapter:
     if not logger.handlers:
         handler = logging.StreamHandler(sys.stdout)
         
-        # Simple format - worker_id will be in the message itself
-        fmt = "%(asctime)s [%(filename)s] %(levelname)s: %(message)s"
+        # Format: timestamp [worker-id] [filename] LEVEL: message
+        # The %(worker_id)s is injected by WorkerAwareAdapter
+        fmt = "%(asctime)s [%(worker_id)s] [%(filename)s] %(levelname)s: %(message)s"
         handler.setFormatter(DaskAwareFormatter(fmt, datefmt="%Y-%m-%d %H:%M:%S"))
         
         logger.addHandler(handler)
@@ -177,5 +183,5 @@ def get_logger() -> LoggerAdapter:
         pil_logger.setLevel(logging.ERROR)
     
     # Return a LoggerAdapter that wraps the logger
-    # This adapter will automatically prepend worker_id to all messages
+    # This adapter will automatically inject worker_id into all log records
     return WorkerAwareAdapter(logger)
