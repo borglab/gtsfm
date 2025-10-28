@@ -7,7 +7,7 @@ import shutil
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 import numpy as np
 from dask.delayed import Delayed, delayed
@@ -40,7 +40,7 @@ from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.products.one_view_data import OneViewData
 from gtsfm.products.two_view_result import TwoViewResult
 from gtsfm.products.visibility_graph import AnnotatedGraph, VisibilityGraph
-from gtsfm.two_view_estimator import TwoViewEstimator, run_two_view_estimator_as_futures
+from gtsfm.two_view_estimator import TwoViewEstimator, create_two_view_estimator_futures
 from gtsfm.utils import transform
 
 
@@ -140,7 +140,7 @@ class ClusterMVO(ClusterOptimizerBase):
 
         with worker_client() as nested_client:
             start_time = time.time()
-            two_view_result_futures = run_two_view_estimator_as_futures(
+            two_view_result_futures = create_two_view_estimator_futures(
                 client=nested_client,
                 two_view_estimator=two_view_estimator,
                 keypoints_list=keypoints_list,
@@ -149,34 +149,16 @@ class ClusterMVO(ClusterOptimizerBase):
                 gt_scene_mesh=gt_scene_mesh,
                 one_view_data_dict=one_view_data_dict,
             )
-            all_two_view_results = nested_client.gather(two_view_result_futures)
+            gathered_tve_futures = nested_client.gather(two_view_result_futures)
             duration_sec = time.time() - start_time
 
-        valid_two_view_results = {
-            edge: result for edge, result in all_two_view_results.items() if result.valid()  # type : ignore
-        }
+        all_two_view_results = cast(AnnotatedGraph[TwoViewResult], gathered_tve_futures)
+        valid_two_view_results = {edge: result for edge, result in all_two_view_results.items() if result.valid()}
 
         if len(valid_two_view_results) == 0:
             logger.warning("🔵 ClusterMVO: Skipping cluster as it has no valid two-view results.")
 
         return valid_two_view_results, duration_sec
-
-    @staticmethod
-    def _run_feed_forward_gaussian_splatting(
-        splatting_optimizer_future: Future,
-        image_future_keys: list[str],
-        output_path: Path,
-    ) -> None:
-
-        with worker_client() as client:
-            image_futures = [Future(key=key, client=client) for key in image_future_keys]
-            start_time = time.time()
-            images = client.gather(image_futures)
-            splatting_optimizer_future.generate_splats(
-                images=images,
-                save_gs_files_path=output_path,
-            )
-            logger.info("Time taken for Feed forward Gaussian Splatting %s", time.time() - start_time)
 
     @staticmethod
     def _save_two_view_visualizations(
