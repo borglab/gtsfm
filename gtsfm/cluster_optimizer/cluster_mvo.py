@@ -494,24 +494,19 @@ def _pad_keypoints_list(keypoints_list: list[Keypoints], target_length: int) -> 
 def align_estimated_gtsfm_data(
     ba_input: GtsfmData, ba_output: GtsfmData, gt_wTi_list: list[Optional[Pose3]]
 ) -> tuple[GtsfmData, GtsfmData, list[Optional[Pose3]]]:
-    """Align estimated data with ground-truth poses and world axes.
-
-    NOTE: alignment is common postprocessing for outputs from any optimizer.
-    """
+    """Align estimated data with ground-truth poses and world axes."""
     w_S_output = ba_output.align_to_poses_via_sim3(gt_wTi_list)
     w_ba_output = ba_output.transform_with_sim3(w_S_output)
-
-    ellipse_T_w = ellipsoid_utils.get_ortho_axis_alignment_transform(w_ba_output)
-    ellipse_S_w = Similarity3(R=ellipse_T_w.rotation(), t=ellipse_T_w.translation(), s=1.0)
-    ellipse_ba_output = w_ba_output.transform_with_sim3(ellipse_S_w)
-    ellipse_gt_poses = transform.optional_Pose3s_with_sim3(ellipse_S_w, gt_wTi_list)
-
-    # Also align the BA input for consistency.
     w_S_input = ba_input.align_to_poses_via_sim3(gt_wTi_list)
     w_ba_input = ba_input.transform_with_sim3(w_S_input)
-    ellipse_ba_input = w_ba_input.transform_with_sim3(ellipse_S_w)
 
-    return ellipse_ba_input, ellipse_ba_output, ellipse_gt_poses
+    aTw = ellipsoid_utils.get_ortho_axis_alignment_transform(w_ba_output)
+    aSw = Similarity3(R=aTw.rotation(), t=aTw.translation(), s=1.0)
+    a_ba_output = w_ba_output.transform_with_sim3(aSw)
+    a_ba_input = w_ba_input.transform_with_sim3(aSw)
+    a_gt_poses = transform.optional_Pose3s_with_sim3(aSw, gt_wTi_list)
+
+    return a_ba_input, a_ba_output, a_gt_poses
 
 
 def save_matplotlib_visualizations(

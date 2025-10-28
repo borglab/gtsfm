@@ -4,7 +4,7 @@ Authors: Ayush Baid, John Lambert
 """
 
 import copy
-from typing import List, Mapping, Optional, Sequence
+from typing import Mapping, Optional, Sequence
 
 import gtsam  # type: ignore
 import numpy as np
@@ -135,7 +135,7 @@ def sim3_from_optional_Pose3s(aTi_list: Sequence[Optional[Pose3]], bTi_list: Seq
     return sim3_from_Pose3s_robust(aTi_list=list(corresponding_aTi_list), bTi_list=list(valid_bTi_list))
 
 
-def sim3_from_Pose3s_exhaustive(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> Similarity3:
+def sim3_from_Pose3s_exhaustive(aTi_list: list[Pose3], bTi_list: list[Pose3]) -> Similarity3:
     """Estimate Sim(3) alignment by exhaustively sampling pose pairs.
 
     Poses cannot be missing or invalid. We force Sim(3) alignment rather than SE(3) alignment and
@@ -157,7 +157,7 @@ def sim3_from_Pose3s_exhaustive(aTi_list: List[Pose3], bTi_list: List[Pose3]) ->
     # Run once with all poses for initial guess.
     best_aSb = Similarity3()
     best_aSb = sim3_from_Pose3s(aTi_list, bTi_list)
-    aTi_candidate_all: List[Pose3] = [best_aSb.transformFrom(bTi) for bTi in bTi_list]
+    aTi_candidate_all: list[Pose3] = [best_aSb.transformFrom(bTi) for bTi in bTi_list]
     best_pose_auc_5deg: float = metric_utils.pose_auc_from_poses(
         computed_wTis=aTi_candidate_all, ref_wTis=aTi_list, thresholds_deg=[5]
     )[0]
@@ -169,7 +169,7 @@ def sim3_from_Pose3s_exhaustive(aTi_list: List[Pose3], bTi_list: List[Pose3]) ->
 
             aSb_candidate = sim3_from_Pose3s(aTi_sample, bTi_sample)
 
-            aTi_candidate_: List[Pose3] = [aSb_candidate.transformFrom(bTi) for bTi in bTi_list]
+            aTi_candidate_: list[Pose3] = [aSb_candidate.transformFrom(bTi) for bTi in bTi_list]
 
             pose_auc_5deg = metric_utils.pose_auc_from_poses(
                 computed_wTis=aTi_candidate_, ref_wTis=aTi_list, thresholds_deg=[5]
@@ -188,7 +188,7 @@ def sim3_from_Pose3s_exhaustive(aTi_list: List[Pose3], bTi_list: List[Pose3]) ->
 
 
 def sim3_from_Pose3s_robust(
-    aTi_list: List[Pose3], bTi_list: List[Pose3], max_num_hypotheses: int = MAX_NUM_HYPOTHESES_FOR_ROBUST_ALIGNMENT
+    aTi_list: list[Pose3], bTi_list: list[Pose3], max_num_hypotheses: int = MAX_NUM_HYPOTHESES_FOR_ROBUST_ALIGNMENT
 ) -> Similarity3:
     """Estimate Sim(3) alignment using random pose pair sampling for robustness.
 
@@ -217,7 +217,7 @@ def sim3_from_Pose3s_robust(
     # Run once with all poses for initial guess
     best_aSb = Similarity3()
     best_aSb = sim3_from_Pose3s(aTi_list, bTi_list)
-    aTi_candidate_all: List[Pose3] = [best_aSb.transformFrom(bTi) for bTi in bTi_list]
+    aTi_candidate_all: list[Pose3] = [best_aSb.transformFrom(bTi) for bTi in bTi_list]
     best_pose_auc_5deg: float = metric_utils.pose_auc_from_poses(
         computed_wTis=aTi_candidate_all, ref_wTis=aTi_list, thresholds_deg=[5]
     )[0]
@@ -234,7 +234,7 @@ def sim3_from_Pose3s_robust(
 
         aSb_candidate = sim3_from_Pose3s(aTi_sample, bTi_sample)
 
-        aTi_candidate_: List[Pose3] = [aSb_candidate.transformFrom(bTi) for bTi in bTi_list]
+        aTi_candidate_: list[Pose3] = [aSb_candidate.transformFrom(bTi) for bTi in bTi_list]
 
         pose_auc_5deg = metric_utils.pose_auc_from_poses(
             computed_wTis=aTi_candidate_, ref_wTis=aTi_list, thresholds_deg=[5]
@@ -252,7 +252,7 @@ def sim3_from_Pose3s_robust(
     return best_aSb
 
 
-def sim3_from_Pose3s(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> Similarity3:
+def sim3_from_Pose3s(aTi_list: list[Pose3], bTi_list: list[Pose3]) -> Similarity3:
     """Estimate Sim(3) alignment between two pose graphs.
 
     Poses cannot be missing or invalid.
