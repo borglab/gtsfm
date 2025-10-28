@@ -10,7 +10,7 @@ from typing import Dict, List, Optional, Tuple
 import dask
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import Pose3, Rot3
+from gtsam import Pose3, Rot3  # type: ignore
 
 import gtsfm.utils.metrics as metric_utils
 from gtsfm.common.pose_prior import PosePrior
@@ -26,6 +26,7 @@ class RotationAveragingBase(GTSFMProcess):
     rotations.
     """
 
+    @staticmethod
     def get_ui_metadata() -> UiMetadata:
         """Returns data needed to display node and edge info for this process in the process graph."""
 
@@ -109,8 +110,8 @@ class RotationAveragingBase(GTSFMProcess):
         if len(wRi_computed) != len(wRi_gt):
             raise ValueError("Lengths of wRi_list and gt_wRi_list should be the same.")
 
-        aRb = align.so3_from_optional_Rot3s(wRi_gt, wRi_computed)
-        wRi_aligned = transform.optional_Rot3s_with_so3(wRi_computed, aRb)
+        aRw = align.so3_from_optional_Rot3s(wRi_gt, wRi_computed)
+        wRi_aligned = transform.optional_Rot3s_with_so3(aRw, wRi_computed)
 
         metrics = []
         metrics.append(GtsfmMetric(name="num_rotations_computed", data=len([x for x in wRi_computed if x is not None])))

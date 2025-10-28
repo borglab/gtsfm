@@ -504,7 +504,7 @@ def align_estimated_gtsfm_data(
     ellipse_T_w = ellipsoid_utils.get_ortho_axis_alignment_transform(w_ba_output)
     ellipse_S_w = Similarity3(R=ellipse_T_w.rotation(), t=ellipse_T_w.translation(), s=1.0)
     ellipse_ba_output = w_ba_output.transform_with_sim3(ellipse_S_w)
-    ellipse_gt_poses = transform.optional_Pose3s_with_sim3(gt_wTi_list, ellipse_S_w)
+    ellipse_gt_poses = transform.optional_Pose3s_with_sim3(ellipse_S_w, gt_wTi_list)
 
     # Also align the BA input for consistency.
     w_S_input = ba_input.align_to_poses_via_sim3(gt_wTi_list)

@@ -11,8 +11,8 @@ import numpy as np
 from gtsam import (
     LevenbergMarquardtOptimizer,
     NonlinearFactorGraph,
+    Point3,
     Pose3,
-    Pose3Pairs,
     PriorFactorPose3,
     Rot3,
     Similarity3,
@@ -70,6 +70,16 @@ def _create_aTb_initial_estimate(a: Mapping[int, Pose3], b: Mapping[int, Pose3],
 def so3_from_optional_Rot3s(aRi_list: Sequence[Optional[Rot3]], bRi_list: Sequence[Optional[Rot3]]) -> Rot3:
     """Align the list of rotations to the reference list using the Karcher mean."""
     aRb_list = [aRi * bRi.inverse() for aRi, bRi in zip(aRi_list, bRi_list) if aRi is not None and bRi is not None]
+    return gtsam.FindKarcherMeanRot3(aRb_list) if len(aRb_list) > 0 else Rot3()
+
+
+def so3_from_Pose3s(aTi_list: Sequence[Pose3], bTi_list: Sequence[Pose3]) -> Rot3:
+    """Align the list of rotations to the reference list using the Karcher mean."""
+    aRb_list = [
+        aTi.rotation() * bTi.rotation().inverse()
+        for aTi, bTi in zip(aTi_list, bTi_list)
+        if aTi is not None and bTi is not None
+    ]
     return gtsam.FindKarcherMeanRot3(aRb_list) if len(aRb_list) > 0 else Rot3()
 
 
@@ -268,23 +278,20 @@ def sim3_from_Pose3s(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> Similarity
     assert len(aTi_list) == len(bTi_list)
 
     valid_pose_tuples = [
-        pose_tuple
-        for pose_tuple in list(zip(aTi_list, bTi_list))
-        if pose_tuple[0] is not None and pose_tuple[1] is not None
+        (aTi, bTi) for (aTi, bTi) in list(zip(aTi_list, bTi_list)) if aTi is not None and bTi is not None
     ]
     n_to_align = len(valid_pose_tuples)
     if n_to_align < 2:
         logger.error("SIM(3) alignment uses at least 2 frames; Skipping")
         return Similarity3(Rot3(), Z_3x1, 1.0)
 
-    ab_pairs = Pose3Pairs(valid_pose_tuples)
-
-    aSb = Similarity3.Align(ab_pairs)
+    aSb = Similarity3.Align(valid_pose_tuples)
     if np.isnan(aSb.scale()) or aSb.scale() == 0:
         logger.warning("GTSAM Sim3.Align failed. Aligning ourselves")
         # we have run into a case where points have no translation between them (i.e. panorama).
         # We will first align the rotations and then align the translation by using centroids.
         # TODO: handle it in GTSAM
+        # TODO(Frank): It does not only fail for panoramas! (otherwise translation calculation would be zero)
 
         # Align the rotations first, so that we can find the translation between the two panoramas.
         aSb = Similarity3(aSb.rotation(), Z_3x1, 1.0)
@@ -296,8 +303,6 @@ def sim3_from_Pose3s(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> Similarity
 
         # Construct the final Sim(3) transform.
         aSb = Similarity3(aSb.rotation(), aTi_centroid - aTi_rot_aligned_centroid, 1.0)
-
-    aSb = Similarity3(R=aSb.rotation(), t=aSb.translation(), s=aSb.scale())
 
     # Provide a summary of the estimated alignment transform.
     _log_sim3_transform(aSb)

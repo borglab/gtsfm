@@ -95,7 +95,7 @@ class TestAlignmentUtils(unittest.TestCase):
         ]
 
         aRb = align.so3_from_optional_Rot3s(aRi_list, bRi_list)
-        computed = transform.Rot3s_with_so3(bRi_list, aRb)
+        computed = transform.Rot3s_with_so3(aRb, bRi_list)
         expected = [
             Rot3.RzRyRx(0, np.deg2rad(-10), 0),
             Rot3.RzRyRx(0, np.deg2rad(30), 0),
@@ -114,7 +114,7 @@ class TestAlignmentUtils(unittest.TestCase):
         bRi_list = copy.deepcopy(aRi_list)
 
         aRb = align.so3_from_optional_Rot3s(aRi_list, bRi_list)
-        computed = transform.Rot3s_with_so3(bRi_list, aRb)
+        computed = transform.Rot3s_with_so3(aRb, bRi_list)
         expected = copy.deepcopy(aRi_list)
         self.__assert_equality_on_rot3s(computed, expected)
 
@@ -130,7 +130,7 @@ class TestAlignmentUtils(unittest.TestCase):
 
         aSb = align.sim3_from_Pose3s(sample_poses.CIRCLE_TWO_EDGES_GLOBAL_POSES, ref_list)
         assert isinstance(aSb, Similarity3)
-        computed_poses = transform.Pose3s_with_sim3(ref_list, aSb)
+        computed_poses = transform.Pose3s_with_sim3(aSb, ref_list)
         self.__assert_equality_on_pose3s(computed_poses, sample_poses.CIRCLE_TWO_EDGES_GLOBAL_POSES)
 
     def test_align_poses_with_outlier(self) -> None:
@@ -148,7 +148,7 @@ class TestAlignmentUtils(unittest.TestCase):
         # Note: this test requires exhaustive alignment and will fail with regular alignment.
         aSb = align.sim3_from_Pose3s_robust(ref_list, input_list)
         assert isinstance(aSb, Similarity3)
-        computed_poses = transform.Pose3s_with_sim3(input_list, aSb)
+        computed_poses = transform.Pose3s_with_sim3(aSb, input_list)
         computed_poses_with_outlier_removed = [computed_poses[0]] + computed_poses[2:]
         ref_list_with_outlier_removed = [ref_list[0]] + ref_list[2:]
         self.__assert_equality_on_pose3s(computed_poses_with_outlier_removed, ref_list_with_outlier_removed)
@@ -166,7 +166,7 @@ class TestAlignmentUtils(unittest.TestCase):
 
         aSb = align.sim3_from_Pose3s(aTi_list, bTi_list)
         assert isinstance(aSb, Similarity3)
-        aTi_list_ = transform.Pose3s_with_sim3(bTi_list, aSb)
+        aTi_list_ = transform.Pose3s_with_sim3(aSb, bTi_list)
         self.__assert_equality_on_pose3s(aTi_list_, aTi_list)
 
     def test_align_poses_sim3_ignore_missing(self) -> None:
@@ -183,7 +183,7 @@ class TestAlignmentUtils(unittest.TestCase):
         # `b` frame contains the estimates
         bTi_list = [None, wT1, None, wT3]
         aSb = align.sim3_from_optional_Pose3s(aTi_list, bTi_list)
-        aTi_list_ = transform.optional_Pose3s_with_sim3(bTi_list, aSb)
+        aTi_list_ = transform.optional_Pose3s_with_sim3(aSb, bTi_list)
 
         # indices 0 and 2 should still have no estimated pose, even after alignment
         assert aTi_list_[0] is None
@@ -308,7 +308,7 @@ class TestAlignmentUtils(unittest.TestCase):
         bTi_list = copy.deepcopy(aTi_list)
 
         aSb = align.sim3_from_optional_Pose3s(aTi_list, bTi_list)
-        aligned_bTi_list_est = transform.optional_Pose3s_with_sim3(bTi_list, aSb)
+        aligned_bTi_list_est = transform.optional_Pose3s_with_sim3(aSb, bTi_list)
 
         self.__assert_equality_on_pose3s(aTi_list, aligned_bTi_list_est)
 
@@ -333,7 +333,7 @@ class TestAlignmentUtils(unittest.TestCase):
         ]
 
         aSb = align.sim3_from_optional_Pose3s(aTi_list, bTi_list)
-        aligned_bTi_list_est = transform.optional_Pose3s_with_sim3(bTi_list, aSb)
+        aligned_bTi_list_est = transform.optional_Pose3s_with_sim3(aSb, bTi_list)
         assert np.isclose(aSb.scale(), 1.0, atol=1e-2)
         assert aligned_bTi_list_est[1] is not None
         assert aligned_bTi_list_est[2] is not None

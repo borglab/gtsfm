@@ -554,13 +554,13 @@ class GtsfmData:
             New ``GtsfmData`` containing cameras and tracks from both inputs.
         """
         merged_cameras = dict(self.cameras())
-        transformed_other_cameras = transform.camera_map_with_sim3(other.cameras(), aSb)
+        transformed_other_cameras = transform.camera_map_with_sim3(aSb, other.cameras())
         for key, camera in transformed_other_cameras.items():
             if key not in merged_cameras:
                 merged_cameras[key] = camera
 
         merged_tracks = list(self.tracks())
-        merged_tracks.extend(transform.tracks_with_sim3(other.tracks(), aSb))
+        merged_tracks.extend(transform.tracks_with_sim3(aSb, other.tracks()))
 
         max_camera_index = max(merged_cameras.keys()) if merged_cameras else -1
         number_images = max(self.number_images(), other.number_images(), max_camera_index + 1)
