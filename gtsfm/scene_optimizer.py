@@ -5,17 +5,16 @@ Authors: Ayush Baid, John Lambert
 
 import time
 from pathlib import Path
-from typing import Optional, cast
+from typing import Optional
 
 import matplotlib
 from dask.distributed import performance_report
 
 import gtsfm.utils.logger as logger_utils
-from gtsfm.cluster_optimizer import REACT_METRICS_PATH, REACT_RESULTS_PATH, Base, Multiview, save_metrics_reports
+from gtsfm.cluster_optimizer import REACT_METRICS_PATH, REACT_RESULTS_PATH, Base, save_metrics_reports
 from gtsfm.common.outputs import OutputPaths, prepare_output_paths
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.ff_splat.feed_forward_gaussian_splatting_base import FeedForwardGaussianSplattingBase
-from gtsfm.frontend.correspondence_generator.image_correspondence_generator import ImageCorrespondenceGenerator
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.graph_partitioner.single_partitioner import SinglePartitioner
 from gtsfm.loader.loader_base import LoaderBase
@@ -79,8 +78,8 @@ class SceneOptimizer:
         """Run the SceneOptimizer."""
         start_time = time.time()
         base_metrics_groups = []
-        if isinstance(self.cluster_optimizer, Multiview):
-            self._create_process_graph()
+        process_graph_generator = ProcessGraphGenerator()
+        process_graph_generator.save_graph()
         self._ensure_react_directories()
         base_output_paths = prepare_output_paths(self.output_root, None)
 
@@ -173,16 +172,6 @@ class SceneOptimizer:
                 base_metrics_groups.extend(multiview_metrics_groups_by_leaf[leaf_index])
 
         save_metrics_reports(base_metrics_groups, str(base_output_paths.metrics))
-
-    def _create_process_graph(self):
-        process_graph_generator = ProcessGraphGenerator()
-        # Only the Multiview optimizer defines correspondence_generator; guard with isinstance and
-        # cast for type checkers.
-        if isinstance(self.cluster_optimizer, Multiview):
-            multiview_optimizer = cast(Multiview, self.cluster_optimizer)
-            if isinstance(multiview_optimizer.correspondence_generator, ImageCorrespondenceGenerator):
-                process_graph_generator.is_image_correspondence = True
-        process_graph_generator.save_graph()
 
     def _run_retriever(self, client) -> tuple[GtsfmMetricsGroup, VisibilityGraph]:
         retriever_start_time = time.time()
