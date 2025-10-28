@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 from abc import abstractmethod
 from pathlib import Path
-from typing import Optional, Sequence, Tuple
 
 from dask.base import annotate
 from dask.delayed import Delayed
@@ -29,7 +28,7 @@ class ClusterOptimizerBase:
     def __init__(
         self,
         pose_angular_error_thresh: float = 3.0,
-        output_worker: Optional[str] = None,
+        output_worker: None | str = None,
     ) -> None:
         self._pose_angular_error_thresh = pose_angular_error_thresh
         self._output_worker = output_worker
