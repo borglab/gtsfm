@@ -83,9 +83,6 @@ class ClusterMVO(ClusterOptimizerBase):
         self._save_gtsfm_data = save_gtsfm_data
         self._save_3d_viz = save_3d_viz
 
-        self.run_dense_optimizer = self.dense_multiview_optimizer is not None
-        self.run_gaussian_splatting_optimizer = self.gaussian_splatting_optimizer is not None
-
     @property
     def correspondence_generator(self) -> Optional[Any]:
         """Return the registered correspondence generator, if any."""
@@ -308,12 +305,17 @@ class ClusterMVO(ClusterOptimizerBase):
         output_root: Path,
         visibility_graph: VisibilityGraph,
         image_futures: list[Future],
-        gs_optimizer_future: Optional[Future] = None,
-    ) -> Optional[tuple[Delayed, list[Delayed], list[Delayed]]]:
+    ) -> tuple[Delayed, list[Delayed], list[Delayed]]:
         """Create Dask graphs for multi-view optimization and downstream products for a single cluster.
 
         The cluster optimizer now owns the full front-end execution for the provided `visibility_graph`
         (correspondence generation and two-view estimation) before invoking the multi-view optimizer.
+
+        Returns:
+            Optional tuple of:
+                - Delayed bundle adjustment output GtsfmData
+                - List of Delayed I/O tasks to be computed
+                - List of Delayed metrics to be computed
         """
         frontend_graphs: FrontendGraphs = self._build_frontend_graphs(
             num_images=num_images,
@@ -420,7 +422,7 @@ class ClusterMVO(ClusterOptimizerBase):
                     )
 
         # Create dense reconstruction tasks.
-        if self.run_dense_optimizer and self.dense_multiview_optimizer is not None:
+        if self.dense_multiview_optimizer is not None:
             img_dict_graph = delayed(self.get_image_dictionary)(images)
             (
                 dense_points_graph,
@@ -443,37 +445,28 @@ class ClusterMVO(ClusterOptimizerBase):
             if downsampling_metrics_graph is not None:
                 metrics_graph_list.append(downsampling_metrics_graph)
 
-        if self.run_gaussian_splatting_optimizer and self.gaussian_splatting_optimizer is not None:
-            if gs_optimizer_future is not None:
-                image_future_keys = [future.key for future in image_futures]
+        # Gaussian Splatting optimization and rendering, if asked.
+        if self.gaussian_splatting_optimizer is not None:
+            # Intentional import here to support mac implementation.
+            import gtsfm.splat.rendering as gtsfm_rendering
+
+            splats_graph, cfg_graph = self.gaussian_splatting_optimizer.create_computation_graph(
+                images, ba_output_graph
+            )
+
+            with self._output_annotation():
                 delayed_results.append(
-                    delayed(self._run_feed_forward_gaussian_splatting)(
-                        gs_optimizer_future,
-                        image_future_keys,
-                        output_paths.gs_path,
+                    delayed(gtsfm_rendering.save_splats)(save_path=str(output_paths.gs_path), splats=splats_graph)
+                )
+                delayed_results.append(
+                    delayed(gtsfm_rendering.generate_interpolated_video)(
+                        images=images,
+                        sfm_result_graph=ba_output_graph,
+                        cfg_result_graph=cfg_graph,
+                        splats_graph=splats_graph,
+                        video_fpath=output_paths.interpolated_video,
                     )
                 )
-            else:
-                # Intentional import here to support mac implementation.
-                import gtsfm.splat.rendering as gtsfm_rendering
-
-                splats_graph, cfg_graph = self.gaussian_splatting_optimizer.create_computation_graph(
-                    images, ba_output_graph
-                )
-
-                with self._output_annotation():
-                    delayed_results.append(
-                        delayed(gtsfm_rendering.save_splats)(save_path=str(output_paths.gs_path), splats=splats_graph)
-                    )
-                    delayed_results.append(
-                        delayed(gtsfm_rendering.generate_interpolated_video)(
-                            images=images,
-                            sfm_result_graph=ba_output_graph,
-                            cfg_result_graph=cfg_graph,
-                            splats_graph=splats_graph,
-                            video_fpath=output_paths.interpolated_video,
-                        )
-                    )
 
         return ba_output_graph, delayed_results, metrics_graph_list
 

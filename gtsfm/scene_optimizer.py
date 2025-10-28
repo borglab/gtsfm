@@ -14,7 +14,6 @@ import gtsfm.utils.logger as logger_utils
 from gtsfm.cluster_optimizer import REACT_METRICS_PATH, REACT_RESULTS_PATH, Base, save_metrics_reports
 from gtsfm.common.outputs import OutputPaths, prepare_output_paths
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
-from gtsfm.ff_splat.feed_forward_gaussian_splatting_base import FeedForwardGaussianSplattingBase
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.graph_partitioner.single_partitioner import SinglePartitioner
 from gtsfm.loader.loader_base import LoaderBase
@@ -96,13 +95,6 @@ class SceneOptimizer:
         num_leaves = len(leaves)
         use_leaf_subdirs = num_leaves > 1
 
-        gs_optimizer_future = None
-        if self.cluster_optimizer.gaussian_splatting_optimizer is not None and isinstance(
-            self.cluster_optimizer.gaussian_splatting_optimizer, FeedForwardGaussianSplattingBase
-        ):
-            logger.info("Scattering Gaussian Splatting optimizer to all workers...")
-            gs_optimizer_future = client.scatter(self.cluster_optimizer.gaussian_splatting_optimizer, broadcast=True)
-
         logger.info("🔥 GTSFM: Starting to solve subgraphs...")
         futures = []
         one_view_data_dict = self.loader.get_one_view_data_dict()
@@ -131,19 +123,18 @@ class SceneOptimizer:
                 output_root=self.output_root,
                 visibility_graph=cluster_visibility_graph,
                 image_futures=image_futures,
-                gs_optimizer_future=gs_optimizer_future,
             )
             if delayed_result_io_reports is None:
                 logger.warning("Skipping subgraph %d as it has no valid two-view results.", index)
                 continue
-            futures.append(client.compute(delayed_result_io_reports))
+            futures.append(client.compute(delayed_result_io_reports))  # client.compute returns a future
             leaf_jobs.append((index, output_paths))
 
         logger.info("🔥 GTSFM: Running the computation graph...")
         multiview_metrics_groups_by_leaf: dict[int, list[GtsfmMetricsGroup]] = {}
         with performance_report(filename="dask_reports/scene-optimizer.html"):
             if futures:
-                results = client.gather(futures)
+                results = client.gather(futures)  # blocking call
                 for (leaf_index, output_paths), leaf_results in zip(leaf_jobs, results):
                     multiview_metrics_groups = leaf_results[2]
                     if not multiview_metrics_groups:
