@@ -11,9 +11,14 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 from typing import Union
+import copy
 
 import torch
+import torch.nn.functional as F
 
+import numpy as np
+import pycolmap
+import trimesh
 from gtsfm.utils import logger as logger_utils
 
 PathLike = Union[str, Path]
@@ -106,28 +111,239 @@ def load_vggt_model(
     state_dict = torch.load(weights_path, map_location="cpu")
     model.load_state_dict(state_dict, strict=strict)
     model.eval()
-
     model = model.to(resolved_device)
-    if resolved_dtype is not None:
-        # dtype casting is only attempted when explicitly requested or inferred for CUDA devices.
-        model = model.to(dtype=resolved_dtype)
+    
+    # if resolved_dtype is not None:
+    #     # dtype casting is only attempted when explicitly requested or inferred for CUDA devices.
+    #     model = model.to(dtype=resolved_dtype)
 
     return model
 
+def run_VGGT(model, images, dtype, resolution=518):
+    # images: [B, 3, H, W]
 
-__all__ = [
-    "VGGT_SUBMODULE_PATH",
-    "DEFAULT_WEIGHTS_PATH",
-    "resolve_vggt_weights_path",
-    "default_vggt_device",
-    "default_vggt_dtype",
-    "load_vggt_model",
-    "batch_np_matrix_to_pycolmap",
-    "predict_tracks",
-    "unproject_depth_map_to_point_map",
-    "create_pixel_coordinate_grid",
-    "randomly_limit_trues",
-    "load_and_preprocess_images_square",
-    "pose_encoding_to_extri_intri",
-    "project_3D_points_np",
-]
+    assert len(images.shape) == 4
+    assert images.shape[1] == 3
+
+    # hard-coded to use 518 for VGGT
+    images = F.interpolate(images, size=(resolution, resolution), mode="bilinear", align_corners=False)
+
+
+    with torch.no_grad():
+        with torch.cuda.amp.autocast(dtype=dtype):
+            images = images[None]  # add batch dimension
+            aggregated_tokens_list, ps_idx = model.aggregator(images)
+
+        # Predict Cameras
+        pose_enc = model.camera_head(aggregated_tokens_list)[-1]
+        # Extrinsic and intrinsic matrices, following OpenCV convention (camera from world)
+        extrinsic, intrinsic = pose_encoding_to_extri_intri(pose_enc, images.shape[-2:])
+        # Predict Depth Maps
+        depth_map, depth_conf = model.depth_head(aggregated_tokens_list, images, ps_idx)
+
+    model.to("cpu")
+    torch.cuda.empty_cache()
+
+    extrinsic = extrinsic.squeeze(0).cpu().numpy()
+    intrinsic = intrinsic.squeeze(0).cpu().numpy()
+    depth_map = depth_map.squeeze(0).cpu().numpy()
+    depth_conf = depth_conf.squeeze(0).cpu().numpy()
+    return extrinsic, intrinsic, depth_map, depth_conf
+
+def _build_pycolmap_intri(fidx, intrinsics, camera_type, extra_params=None):
+    """
+    Helper function to get camera parameters based on camera type.
+
+    Args:
+        fidx: Frame index
+        intrinsics: Camera intrinsic parameters
+        camera_type: Type of camera model
+        extra_params: Additional parameters for certain camera types
+
+    Returns:
+        pycolmap_intri: NumPy array of camera parameters
+    """
+    if camera_type == "PINHOLE":
+        pycolmap_intri = np.array(
+            [intrinsics[fidx][0, 0], intrinsics[fidx][1, 1], intrinsics[fidx][0, 2], intrinsics[fidx][1, 2]]
+        )
+    elif camera_type == "SIMPLE_PINHOLE":
+        focal = (intrinsics[fidx][0, 0] + intrinsics[fidx][1, 1]) / 2
+        pycolmap_intri = np.array([focal, intrinsics[fidx][0, 2], intrinsics[fidx][1, 2]])
+    elif camera_type == "SIMPLE_RADIAL":
+        raise NotImplementedError("SIMPLE_RADIAL is not supported yet")
+        focal = (intrinsics[fidx][0, 0] + intrinsics[fidx][1, 1]) / 2
+        pycolmap_intri = np.array([focal, intrinsics[fidx][0, 2], intrinsics[fidx][1, 2], extra_params[fidx][0]])
+    else:
+        raise ValueError(f"Camera type {camera_type} is not supported yet")
+
+    return pycolmap_intri
+
+def batch_np_matrix_to_pycolmap_wo_track(
+    points3d,
+    points_xyf,
+    points_rgb,
+    extrinsics,
+    intrinsics,
+    image_size,
+    shared_camera=False,
+    camera_type="SIMPLE_PINHOLE",
+    image_id_list=None,
+):
+    """
+    Convert Batched NumPy Arrays to PyCOLMAP
+
+    Different from batch_np_matrix_to_pycolmap, this function does not use tracks.
+
+    It saves points3d to colmap reconstruction format only to serve as init for Gaussians or other nvs methods.
+
+    Do NOT use this for BA.
+    """
+    # points3d: Px3
+    # points_xyf: Px3, with x, y coordinates and frame indices
+    # points_rgb: Px3, rgb colors
+    # extrinsics: Nx3x4
+    # intrinsics: Nx3x3
+    # image_size: 2, assume all the frames have been padded to the same size
+    # where N is the number of frames and P is the number of tracks
+    # image_id_list: global image id list if any
+
+    N = len(extrinsics)
+    P = len(points3d)
+
+    assert image_id_list is not None
+
+    # Reconstruction object, following the format of PyCOLMAP/COLMAP
+    reconstruction = pycolmap.Reconstruction()
+
+    for vidx in range(P):
+        reconstruction.add_point3D(points3d[vidx], pycolmap.Track(), points_rgb[vidx])
+
+    camera = None
+    # frame idx
+    for fidx in range(N):
+
+        image_idx = image_id_list[fidx]
+
+        # set camera
+        if camera is None or (not shared_camera):
+            pycolmap_intri = _build_pycolmap_intri(fidx, intrinsics, camera_type)
+
+            camera = pycolmap.Camera(
+                model=camera_type, width=image_size[0], height=image_size[1], params=pycolmap_intri, camera_id=image_idx
+            )
+
+            # add camera
+            reconstruction.add_camera(camera)
+
+        # set image
+        cam_from_world = pycolmap.Rigid3d(
+            pycolmap.Rotation3d(extrinsics[fidx][:3, :3]), extrinsics[fidx][:3, 3]
+        )  # Rot and Trans
+
+        image = pycolmap.Image(
+            id=image_idx, name=f"image_{image_idx}", camera_id=camera.camera_id, cam_from_world=cam_from_world
+        )
+
+        points2D_list = []
+
+        point2D_idx = 0
+
+        points_belong_to_fidx = points_xyf[:, 2].astype(np.int32) == fidx
+        points_belong_to_fidx = np.nonzero(points_belong_to_fidx)[0]
+
+        for point3D_batch_idx in points_belong_to_fidx:
+            point3D_id = point3D_batch_idx + 1
+            point2D_xyf = points_xyf[point3D_batch_idx]
+            point2D_xy = point2D_xyf[:2]
+            points2D_list.append(pycolmap.Point2D(point2D_xy, point3D_id))
+
+            # add element
+            track = reconstruction.points3D[point3D_id].track
+            track.add_element(image_idx, point2D_idx)
+            point2D_idx += 1
+
+        assert point2D_idx == len(points2D_list)
+
+        try:
+            image.points2D = pycolmap.ListPoint2D(points2D_list)
+            # image.registered = True
+        except:
+            print(f"frame {image_idx} does not have any points")
+            # image.registered = False
+
+        # add image
+        reconstruction.add_image(image)
+
+    return reconstruction
+
+def rename_colmap_recons_and_rescale_camera(
+    reconstruction,
+    image_paths,
+    original_coords,
+    img_size,
+    shift_point2d_to_original_res=False,
+    shared_camera=False,
+    image_id_list=None,
+):
+    rescale_camera = True
+
+    assert image_id_list is not None
+
+    # for py_image_id in reconstruction.images:
+    for local_id in range(len(image_id_list)):
+        py_image_id = image_id_list[local_id]
+        # Reshaped the padded&resized image to the original size
+        # Rename the images to the original names
+        py_image = reconstruction.images[py_image_id]
+        py_camera = reconstruction.cameras[py_image.camera_id]
+        # py_image.name = image_paths[local_id]
+
+        if rescale_camera:
+            # Rescale the camera parameters
+            pred_params = copy.deepcopy(py_camera.params)
+
+            real_image_size = original_coords[local_id, -2:]
+            resize_ratio = max(real_image_size) / img_size
+            pred_params = pred_params * resize_ratio
+            real_pp = real_image_size / 2
+            pred_params[-2:] = real_pp  # center of the image
+
+            py_camera.params = pred_params
+            py_camera.width = real_image_size[0]
+            py_camera.height = real_image_size[1]
+
+        if shift_point2d_to_original_res:
+            # Also shift the point2D to original resolution
+            top_left = original_coords[local_id, :2]
+
+            for point2D in py_image.points2D:
+                point2D.xy = (point2D.xy - top_left) * resize_ratio
+
+        if shared_camera:
+            # If shared_camera, all images share the same camera
+            # no need to rescale any more
+            rescale_camera = False
+
+    print("reconstruction.images: ", reconstruction.images)
+
+    return reconstruction
+
+# __all__ = [
+#     "VGGT_SUBMODULE_PATH",
+#     "DEFAULT_WEIGHTS_PATH",
+#     "resolve_vggt_weights_path",
+#     "default_vggt_device",
+#     "default_vggt_dtype",
+#     "load_vggt_model",
+#     "batch_np_matrix_to_pycolmap",
+#     "predict_tracks",
+#     "unproject_depth_map_to_point_map",
+#     "create_pixel_coordinate_grid",
+#     "randomly_limit_trues",
+#     "load_and_preprocess_images_square",
+#     "pose_encoding_to_extri_intri",
+#     "project_3D_points_np",
+#     "run_VGGT",
+#     "batch_np_matrix_to_pycolmap_wo_track"
+# ]
