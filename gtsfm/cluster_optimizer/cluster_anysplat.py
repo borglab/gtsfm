@@ -10,10 +10,13 @@ from typing import List
 
 import cv2
 import torch
-import torchvision
+import torchvision  # type: ignore
+from dask import delayed
+from dask.delayed import Delayed
 
+from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterOptimizerBase
 from gtsfm.common.image import Image
-from gtsfm.ff_splat.feed_forward_gaussian_splatting_base import FeedForwardGaussianSplattingBase
+from gtsfm.products.visibility_graph import visibility_graph_keys
 from gtsfm.utils import logger as logger_utils
 
 HERE_PATH = Path(__file__).parent
@@ -47,7 +50,7 @@ class FF_Config:
     save_ply_file: bool = True
 
 
-class AnySplatGaussianSplatting(FeedForwardGaussianSplattingBase):
+class AnySplatGaussianSplatting(ClusterOptimizerBase):
     """Class for AnySplat (feed forward GS implementation)"""
 
     def __init__(self, cfg: FF_Config):
@@ -160,3 +163,42 @@ class AnySplatGaussianSplatting(FeedForwardGaussianSplattingBase):
             splats.opacities[0],
             save_gs_files_path / "gaussian_splats.ply",
         )
+
+    def create_computation_graph(
+        self,
+        num_images: int,
+        one_view_data_dict,
+        output_paths,
+        loader,
+        output_root: Path,
+        visibility_graph,
+        image_futures,
+    ) -> tuple[list[Delayed], list[Delayed]]:
+        """Create a Dask computation graph to process a cluster.
+
+        Returns:
+            - List of Delayed I/O tasks to be computed
+            - List of Delayed metrics to be computed
+        """
+        io_tasks: List[Delayed] = []
+        metrics_tasks: List[Delayed] = []
+
+        keys = sorted(visibility_graph_keys(visibility_graph))
+
+        def _pack_images_for_anysplat(*images: Image) -> list[Image]:
+            """Collect variadic image inputs into an ordered list."""
+
+            return list(images)
+
+        # TODO(Frank): see if you could ask the loader for a batch (in a delayed way)
+        # Something like: loader.get_images_as_delayed_batch(keys)
+        delayed_images_map = loader.get_images_as_delayed_map()
+        selected_images = [delayed_images_map[key] for key in keys if key in delayed_images_map]
+
+        images_graph = delayed(_pack_images_for_anysplat)(*selected_images)
+
+        # TODO(Harneet): separate compute and writing
+        with self._output_annotation():
+            io_tasks.append(delayed(self.generate_splats)(images_graph, output_paths.gs_path))
+
+        return io_tasks, metrics_tasks
