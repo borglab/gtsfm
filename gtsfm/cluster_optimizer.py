@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import os
 import shutil
+import socket
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
 import numpy as np
+from dask import distributed
 from dask.base import annotate
 from dask.delayed import Delayed, delayed
 from dask.distributed import Future, worker_client
@@ -43,6 +45,7 @@ from gtsfm.products.visibility_graph import AnnotatedGraph, VisibilityGraph
 from gtsfm.two_view_estimator import (TwoViewEstimator,
                                       run_two_view_estimator_as_futures)
 
+logger = logger_utils.get_logger()
 
 @dataclass(frozen=True)
 class FrontendGraphs:
@@ -57,8 +60,6 @@ class FrontendGraphs:
 # Paths to Save Output in React Folders.
 REACT_METRICS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "src" / "result_metrics"
 REACT_RESULTS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "public" / "results"
-
-logger = logger_utils.get_logger()
 
 
 class ClusterOptimizer:
@@ -115,13 +116,17 @@ class ClusterOptimizer:
         image_future_keys: list[str],
     ) -> tuple[list[Keypoints], AnnotatedGraph[np.ndarray], float]:
         """Execute correspondence generation inside a worker task."""
-        import gtsfm.utils.logger as logger_utils
-    
-        worker_id = logger_utils.get_worker_id()
+        
+        worker = distributed.get_worker()
+        hostname = socket.gethostname()
+        worker_address = worker.address
+
         logger.info(
-            f"[Test {worker_id}] Running correspondence generation on {len(visibility_graph)} pairs."
+            "🔵 [Worker: %s @ %s] Running correspondence generation on %d pairs.",
+            hostname,
+            worker_address,
+            len(visibility_graph),
         )
-        logger.info("🔵 Cluster: running correspondence generation on %d pairs.", len(visibility_graph))
 
         if len(visibility_graph) == 0:
             return [], {}, 0.0
