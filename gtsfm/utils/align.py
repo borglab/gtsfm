@@ -8,16 +8,7 @@ from typing import List, Mapping, Optional, Sequence
 
 import gtsam  # type: ignore
 import numpy as np
-from gtsam import (
-    LevenbergMarquardtOptimizer,
-    NonlinearFactorGraph,
-    Point3,
-    Pose3,
-    PriorFactorPose3,
-    Rot3,
-    Similarity3,
-    Values,
-)
+from gtsam import LevenbergMarquardtOptimizer, NonlinearFactorGraph, Pose3, PriorFactorPose3, Rot3, Similarity3, Values
 from gtsam.symbol_shorthand import X  # type: ignore
 
 import gtsfm.utils.logger as logger_utils
