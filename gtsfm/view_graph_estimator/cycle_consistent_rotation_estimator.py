@@ -175,6 +175,7 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
             two_view_reports_dict: Dict from edge index pair to the TwoViewEstimationReport of the edge.
             output_dir: Path to directory where outputs for debugging will be saved.
         """
+        os.makedirs(output_dir, exist_ok=True)
         # Aggregate info over per edge_errors.
         inlier_errors_aggregate = []
         inlier_errors_wrt_gt = []

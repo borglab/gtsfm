@@ -46,7 +46,7 @@ class D2NetDetDesc(DetectorDescriptorBase):
         if not Path(model_path).exists():
             raise FileNotFoundError(
                 f"D2-Net weights not found at {model_path}. "
-                f"Please run 'bash download_model_weights.sh' from the repo root."
+                f"Please run 'bash scripts/download_model_weights.sh' from the repo root."
             )
 
         self._model = D2Net(model_file=self.model_path, use_relu=USE_RELU, use_cuda=False).eval()

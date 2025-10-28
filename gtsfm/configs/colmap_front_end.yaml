@@ -12,7 +12,7 @@ graph_partitioner:
   _target_: gtsfm.graph_partitioner.Single
 
 cluster_optimizer:
-  _target_: gtsfm.cluster_optimizer.ClusterOptimizer
+  _target_: gtsfm.cluster_optimizer.Multiview
   correspondence_generator:
     _target_: gtsfm.frontend.correspondence_generator.det_desc_correspondence_generator.DetDescCorrespondenceGenerator
 

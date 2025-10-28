@@ -4,6 +4,7 @@ import argparse
 import logging
 import os
 from pathlib import Path
+from typing import cast
 
 import hydra
 from dask import config as dask_config
@@ -12,6 +13,7 @@ from hydra.utils import instantiate
 from omegaconf import OmegaConf
 
 import gtsfm.utils.logger as logger_utils
+from gtsfm.cluster_optimizer import Multiview
 from gtsfm.loader.configuration import add_loader_args, build_loader_overrides
 from gtsfm.scene_optimizer import SceneOptimizer
 from gtsfm.utils.configuration import log_configuration_summary, log_full_configuration, log_key_parameters
@@ -191,8 +193,14 @@ class GtsfmRunner:
         logger.info("⏳ Instantiating ..")
         scene_optimizer: SceneOptimizer = instantiate(main_cfg)
 
+        cluster_optimizer_is_multiview = isinstance(scene_optimizer.cluster_optimizer, Multiview)
+        multiview_optimizer = (
+            cast(Multiview, scene_optimizer.cluster_optimizer) if cluster_optimizer_is_multiview else None
+        )
+
         # Override correspondence generator.
-        if self.parsed_args.correspondence_generator_config_name is not None:
+        if cluster_optimizer_is_multiview and self.parsed_args.correspondence_generator_config_name is not None:
+            assert multiview_optimizer is not None
             with hydra.initialize_config_module(config_module="gtsfm.configs.correspondence", version_base=None):
                 correspondence_cfg = hydra.compose(
                     config_name=self.parsed_args.correspondence_generator_config_name,
@@ -200,18 +208,17 @@ class GtsfmRunner:
                 logger.info(
                     f"🔄 Applying Correspondence Override: " f"{self.parsed_args.correspondence_generator_config_name}"
                 )
-                scene_optimizer.cluster_optimizer.correspondence_generator = instantiate(
-                    correspondence_cfg.CorrespondenceGenerator
-                )
+                multiview_optimizer.correspondence_generator = instantiate(correspondence_cfg.CorrespondenceGenerator)
 
         # Override verifier.
-        if self.parsed_args.verifier_config_name is not None:
+        if cluster_optimizer_is_multiview and self.parsed_args.verifier_config_name is not None:
+            assert multiview_optimizer is not None
             with hydra.initialize_config_module(config_module="gtsfm.configs.verifier", version_base=None):
                 verifier_cfg = hydra.compose(
                     config_name=self.parsed_args.verifier_config_name,
                 )
                 logger.info(f"🔄 Applying Verifier Override: {self.parsed_args.verifier_config_name}")
-                scene_optimizer.cluster_optimizer.two_view_estimator._verifier = instantiate(verifier_cfg.verifier)
+                multiview_optimizer.two_view_estimator._verifier = instantiate(verifier_cfg.verifier)
 
         # Override retriever.
         if self.parsed_args.retriever_config_name is not None:
@@ -234,7 +241,8 @@ class GtsfmRunner:
                 )
 
         # Override gaussian splatting
-        if self.parsed_args.gaussian_splatting_config_name is not None:
+        if self.parsed_args.gaussian_splatting_config_name is not None and cluster_optimizer_is_multiview:
+            assert multiview_optimizer is not None
             with hydra.initialize_config_module(config_module="gtsfm.configs.gaussian_splatting", version_base=None):
                 gs_cfg = hydra.compose(
                     config_name=self.parsed_args.gaussian_splatting_config_name,
@@ -242,9 +250,7 @@ class GtsfmRunner:
                 logger.info(
                     f"🔄 Applying Gaussian Splatting Override: " f"{self.parsed_args.gaussian_splatting_config_name}"
                 )
-                scene_optimizer.cluster_optimizer.gaussian_splatting_optimizer = instantiate(
-                    gs_cfg.gaussian_splatting_optimizer
-                )
+                multiview_optimizer.gaussian_splatting_optimizer = instantiate(gs_cfg.gaussian_splatting_optimizer)
 
         # Set retriever specific params if specified with CLI.
         retriever = scene_optimizer.image_pairs_generator._retriever
@@ -259,11 +265,19 @@ class GtsfmRunner:
             except Exception as e:
                 logger.warning(f"Failed to set num_matched: {e}")
 
-        if not self.parsed_args.run_mvs:
-            scene_optimizer.cluster_optimizer.run_dense_optimizer = False
+        # Configure Multiview-specific toggles based on CLI flags. Use the typed multiview_optimizer
+        # (asserted when cluster_optimizer_is_multiview) and log any changes for easier debugging.
+        if cluster_optimizer_is_multiview and not self.parsed_args.run_mvs:
+            assert multiview_optimizer is not None
+            if getattr(multiview_optimizer, "run_dense_optimizer", None) is not None:
+                multiview_optimizer.run_dense_optimizer = False
+                logger.info("🔧 Disabled Multiview dense MVS optimizer via CLI flag --run_mvs=False")
 
-        if not self.parsed_args.run_gs:
-            scene_optimizer.cluster_optimizer.run_gaussian_splatting_optimizer = False
+        if cluster_optimizer_is_multiview and not self.parsed_args.run_gs:
+            assert multiview_optimizer is not None
+            if getattr(multiview_optimizer, "run_gaussian_splatting_optimizer", None) is not None:
+                multiview_optimizer.run_gaussian_splatting_optimizer = False
+                logger.info("🔧 Disabled Multiview Gaussian Splatting optimizer via CLI flag --run_gs=False")
 
         log_configuration_summary(main_cfg, logger)
         log_key_parameters(main_cfg, logger)
@@ -306,6 +320,7 @@ class GtsfmRunner:
         if self.parsed_args.cluster_config:
             cluster = self.setup_ssh_cluster_with_retries()
             client = Client(cluster)
+            client.forward_logging()
             # getting first worker's IP address and port to do IO
             io_worker = list(client.scheduler_info()["workers"].keys())[0]
             self.scene_optimizer.loader._input_worker = io_worker
