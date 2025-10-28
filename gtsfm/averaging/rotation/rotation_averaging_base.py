@@ -12,11 +12,11 @@ import numpy as np
 from dask.delayed import Delayed
 from gtsam import Pose3, Rot3
 
-import gtsfm.utils.alignment as alignment_utils
 import gtsfm.utils.metrics as metric_utils
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
+from gtsfm.utils import align
 
 
 class RotationAveragingBase(GTSFMProcess):
@@ -109,7 +109,7 @@ class RotationAveragingBase(GTSFMProcess):
         if len(wRi_computed) != len(wRi_gt):
             raise ValueError("Lengths of wRi_list and gt_wRi_list should be the same.")
 
-        wRi_aligned = alignment_utils.align_rotations(wRi_gt, wRi_computed)
+        wRi_aligned = align.align_rotations(wRi_gt, wRi_computed)
 
         metrics = []
         metrics.append(GtsfmMetric(name="num_rotations_computed", data=len([x for x in wRi_computed if x is not None])))

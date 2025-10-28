@@ -36,8 +36,6 @@ from gtsam import (
 )
 
 import gtsfm.common.types as gtsfm_types
-import gtsfm.utils.alignment as alignment_utils
-import gtsfm.utils.transform as transform_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.sampling as sampling_utils
@@ -46,6 +44,7 @@ from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.products.visibility_graph import AnnotatedGraph, ImageIndexPair, ImageIndexPairs
+from gtsfm.utils import align, transform
 
 # Hyperparameters for 1D-SFM
 # maximum number of times 1dsfm will project the Unit3's to a 1d subspace for outlier rejection
@@ -667,8 +666,8 @@ def compute_metrics(
             wTi_list.append(None)
         else:
             wTi_list.append(Pose3(wRi, wti))
-    aSb = alignment_utils.estimate_sim3_ignore_missing(gt_wTi_list, wTi_list)
-    wTi_aligned_list = transform_utils.transform_optional_pose_list(wTi_list, aSb)
+    aSb = align.sim3_from_optional_Pose3s(gt_wTi_list, wTi_list)
+    wTi_aligned_list = transform.optional_pose_list_with_sim3(wTi_list, aSb)
     wti_aligned_list = [wTi.translation() if wTi is not None else None for wTi in wTi_aligned_list]
     gt_wti_list = [gt_wTi.translation() if gt_wTi is not None else None for gt_wTi in gt_wTi_list]
     _, gt_i2Ui1_dict = metrics_utils.get_all_relative_rotations_translations(gt_wTi_list)

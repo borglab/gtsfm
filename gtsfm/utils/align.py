@@ -35,7 +35,7 @@ Z_3x1: np.ndarray = np.zeros((3,))
 KEY = X(0)
 
 
-def log_sim3_transform(sim3: Similarity3, label: str = "Sim(3)") -> None:
+def _log_sim3_transform(sim3: Similarity3, label: str = "Sim(3)") -> None:
     """Log rotation, translation, and scale components of a Similarity3."""
     aRb = sim3.rotation()
     atb = sim3.translation()
@@ -67,7 +67,13 @@ def _create_aTb_initial_estimate(a: Mapping[int, Pose3], b: Mapping[int, Pose3],
     return initial
 
 
-def estimate_se3_from_pose_maps(a: Mapping[int, Pose3], b: Mapping[int, Pose3]) -> Pose3:
+def so3_from_optional_Rot3s(aRi_list: Sequence[Optional[Rot3]], bRi_list: Sequence[Optional[Rot3]]) -> Rot3:
+    """Align the list of rotations to the reference list using the Karcher mean."""
+    aRb_list = [aRi * bRi.inverse() for aRi, bRi in zip(aRi_list, bRi_list) if aRi is not None and bRi is not None]
+    return gtsam.FindKarcherMeanRot3(aRb_list) if len(aRb_list) > 0 else Rot3()
+
+
+def se3_from_pose_maps(a: Mapping[int, Pose3], b: Mapping[int, Pose3]) -> Pose3:
     """Estimate the SE(3) transform ``aTb`` that best aligns the overlapping poses."""
     common_keys = [key for key in a if key in b]
     if not common_keys:
@@ -83,7 +89,7 @@ def estimate_se3_from_pose_maps(a: Mapping[int, Pose3], b: Mapping[int, Pose3]) 
     return result.atPose3(KEY)
 
 
-def estimate_sim3_from_pose_maps(a: Mapping[int, Pose3], b: Mapping[int, Pose3]) -> Similarity3:
+def sim3_from_pose_maps(a: Mapping[int, Pose3], b: Mapping[int, Pose3]) -> Similarity3:
     """Estimate the Sim(3) transform ``aSb`` that best aligns the overlapping poses."""
     common_keys = [key for key in a if key in b]
     pose_pairs = [(a[key], b[key]) for key in common_keys]
@@ -93,7 +99,7 @@ def estimate_sim3_from_pose_maps(a: Mapping[int, Pose3], b: Mapping[int, Pose3])
         return Similarity3.Align(pose_pairs)
     except Exception as exc:  # pragma: no cover
         raise RuntimeError(
-            f"alignment.estimate_sim3_from_pose_maps: Similarity3.Align failed with {len(pose_pairs)} pose pairs: {exc}."
+            f"align.sim3_from_pose_maps: Similarity3.Align failed with {len(pose_pairs)} pose pairs: {exc}."
         ) from exc
 
 
@@ -108,16 +114,13 @@ def align_rotations(aRi_list: Sequence[Optional[Rot3]], bRi_list: Sequence[Optio
         aRi_list_: Transformed input rotations previously "bRi_list" but now which
                    have the same origin as reference (now living in "a" frame)
     """
-    aRb_list = [aRi * bRi.inverse() for aRi, bRi in zip(aRi_list, bRi_list) if aRi is not None and bRi is not None]
-    aRb = gtsam.FindKarcherMeanRot3(aRb_list) if len(aRb_list) > 0 else Rot3()
+    aRb = so3_from_optional_Rot3s(aRi_list, bRi_list)
 
     # Apply the coordinate shift to all entries in input.
     return [aRb * bRi if bRi is not None else None for bRi in bRi_list]
 
 
-def estimate_sim3_ignore_missing(
-    aTi_list: Sequence[Optional[Pose3]], bTi_list: Sequence[Optional[Pose3]]
-) -> Similarity3:
+def sim3_from_optional_Pose3s(aTi_list: Sequence[Optional[Pose3]], bTi_list: Sequence[Optional[Pose3]]) -> Similarity3:
     """Estimate Sim(3) alignment while allowing missing poses in the inputs.
 
     This is a convenience wrapper for ``estimate_sim3_robust`` that tolerates dropped cameras.
@@ -145,10 +148,10 @@ def estimate_sim3_ignore_missing(
         valid_bTi_list.append(bTi)
         corresponding_aTi_list.append(aTi)
 
-    return estimate_sim3_robust(aTi_list=list(corresponding_aTi_list), bTi_list=list(valid_bTi_list))
+    return sim3_from_Pose3s_robust(aTi_list=list(corresponding_aTi_list), bTi_list=list(valid_bTi_list))
 
 
-def estimate_sim3_exhaustive(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> Similarity3:
+def sim3_from_Pose3s_exhaustive(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> Similarity3:
     """Estimate Sim(3) alignment by exhaustively sampling pose pairs.
 
     Poses cannot be missing or invalid. We force Sim(3) alignment rather than SE(3) alignment and
@@ -169,7 +172,7 @@ def estimate_sim3_exhaustive(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> Si
 
     # Run once with all poses for initial guess.
     best_aSb = Similarity3()
-    best_aSb = estimate_sim3(aTi_list, bTi_list)
+    best_aSb = sim3_from_Pose3s(aTi_list, bTi_list)
     aTi_candidate_all: List[Pose3] = [best_aSb.transformFrom(bTi) for bTi in bTi_list]
     best_pose_auc_5deg: float = metric_utils.pose_auc_from_poses(
         computed_wTis=aTi_candidate_all, ref_wTis=aTi_list, thresholds_deg=[5]
@@ -180,7 +183,7 @@ def estimate_sim3_exhaustive(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> Si
             aTi_sample = copy.deepcopy([aTi_list[i1], aTi_list[i2]])
             bTi_sample = copy.deepcopy([bTi_list[i1], bTi_list[i2]])
 
-            aSb_candidate = estimate_sim3(aTi_sample, bTi_sample)
+            aSb_candidate = sim3_from_Pose3s(aTi_sample, bTi_sample)
 
             aTi_candidate_: List[Pose3] = [aSb_candidate.transformFrom(bTi) for bTi in bTi_list]
 
@@ -193,14 +196,14 @@ def estimate_sim3_exhaustive(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> Si
                 best_pose_auc_5deg = pose_auc_5deg
                 best_aSb = aSb_candidate
 
-                log_sim3_transform(best_aSb)
+                _log_sim3_transform(best_aSb)
 
-    log_sim3_transform(best_aSb)
+    _log_sim3_transform(best_aSb)
 
     return best_aSb
 
 
-def estimate_sim3_robust(
+def sim3_from_Pose3s_robust(
     aTi_list: List[Pose3], bTi_list: List[Pose3], max_num_hypotheses: int = MAX_NUM_HYPOTHESES_FOR_ROBUST_ALIGNMENT
 ) -> Similarity3:
     """Estimate Sim(3) alignment using random pose pair sampling for robustness.
@@ -225,11 +228,11 @@ def estimate_sim3_robust(
     # Compute the total possible number of hypothesis { N choose 2 }
     max_possible_hypotheses: int = (n_to_align * (n_to_align - 1)) // 2
     if max_possible_hypotheses <= max_num_hypotheses:
-        return estimate_sim3_exhaustive(aTi_list=aTi_list, bTi_list=bTi_list)
+        return sim3_from_Pose3s_exhaustive(aTi_list=aTi_list, bTi_list=bTi_list)
 
     # Run once with all poses for initial guess
     best_aSb = Similarity3()
-    best_aSb = estimate_sim3(aTi_list, bTi_list)
+    best_aSb = sim3_from_Pose3s(aTi_list, bTi_list)
     aTi_candidate_all: List[Pose3] = [best_aSb.transformFrom(bTi) for bTi in bTi_list]
     best_pose_auc_5deg: float = metric_utils.pose_auc_from_poses(
         computed_wTis=aTi_candidate_all, ref_wTis=aTi_list, thresholds_deg=[5]
@@ -245,7 +248,7 @@ def estimate_sim3_robust(
         aTi_sample = copy.deepcopy([aTi_list[i1], aTi_list[i2]])
         bTi_sample = copy.deepcopy([bTi_list[i1], bTi_list[i2]])
 
-        aSb_candidate = estimate_sim3(aTi_sample, bTi_sample)
+        aSb_candidate = sim3_from_Pose3s(aTi_sample, bTi_sample)
 
         aTi_candidate_: List[Pose3] = [aSb_candidate.transformFrom(bTi) for bTi in bTi_list]
 
@@ -258,14 +261,14 @@ def estimate_sim3_robust(
             best_pose_auc_5deg = pose_auc_5deg
             best_aSb = aSb_candidate
 
-            log_sim3_transform(best_aSb)
+            _log_sim3_transform(best_aSb)
 
-    log_sim3_transform(best_aSb)
+    _log_sim3_transform(best_aSb)
 
     return best_aSb
 
 
-def estimate_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> Similarity3:
+def sim3_from_Pose3s(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> Similarity3:
     """Estimate Sim(3) alignment between two pose graphs.
 
     Poses cannot be missing or invalid.
@@ -314,7 +317,7 @@ def estimate_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> Similarity3:
     aSb = Similarity3(R=aSb.rotation(), t=aSb.translation(), s=aSb.scale())
 
     # Provide a summary of the estimated alignment transform.
-    log_sim3_transform(aSb)
+    _log_sim3_transform(aSb)
 
     logger.debug("Pose graph Sim(3) alignment complete.")
     return aSb

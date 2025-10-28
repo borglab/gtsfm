@@ -19,12 +19,11 @@ import gtsfm.utils.images as image_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.reprojection as reprojection
-from gtsfm.utils import transform as transform_utils
 import thirdparty.colmap.scripts.python.read_write_model as colmap_io
 from gtsfm.common.image import Image
 from gtsfm.evaluation.metrics import GtsfmMetric
 from gtsfm.products.visibility_graph import ImageIndexPairs
-from gtsfm.utils.alignment import estimate_sim3_ignore_missing
+from gtsfm.utils import align, transform
 from gtsfm.utils.pycolmap_utils import gtsfm_calibration_to_colmap_camera
 
 logger = logger_utils.get_logger()
@@ -473,7 +472,7 @@ class GtsfmData:
             New GtsfmData aligned to the reference pose graph.
         """
         bTi_list = self.get_camera_poses()
-        aSb = estimate_sim3_ignore_missing(aTi_list, bTi_list)
+        aSb = align.sim3_from_optional_Pose3s(aTi_list, bTi_list)
         return self.apply_Sim3(aSb)
 
     def get_metrics(self, suffix: str, store_full_data: bool = False) -> List[GtsfmMetric]:
@@ -544,13 +543,13 @@ class GtsfmData:
             New ``GtsfmData`` containing cameras and tracks from both inputs.
         """
         merged_cameras = dict(self.cameras())
-        transformed_other_cameras = transform_utils.transform_camera_map(other.cameras(), aSb)
+        transformed_other_cameras = transform.camera_map_with_sim3(other.cameras(), aSb)
         for key, camera in transformed_other_cameras.items():
             if key not in merged_cameras:
                 merged_cameras[key] = camera
 
         merged_tracks = list(self.tracks())
-        merged_tracks.extend(transform_utils.transform_tracks(other.tracks(), aSb))
+        merged_tracks.extend(transform.tracks_with_sim3(other.tracks(), aSb))
 
         max_camera_index = max(merged_cameras.keys()) if merged_cameras else -1
         number_images = max(self.number_images(), other.number_images(), max_camera_index + 1)

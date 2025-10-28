@@ -6,10 +6,10 @@ Authors: Frank Dellaert
 import random
 from pathlib import Path
 
-import gtsfm.utils.alignment as alignment_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.products.cluster_tree import ClusterTree
 from gtsfm.products.visibility_graph import visibility_graph_keys
+from gtsfm.utils import align
 from gtsfm.utils.tree import PreOrderIter, Tree
 
 
@@ -119,7 +119,7 @@ def merge(tree: SceneTree) -> GtsfmData:
         merged_scene = scene
         for child in merged_children:
             try:
-                aSb = alignment_utils.estimate_sim3_from_pose_maps(merged_scene.poses(), child.poses())
+                aSb = align.sim3_from_pose_maps(merged_scene.poses(), child.poses())
                 merged_scene = merged_scene.merged_with(child, aSb)
             except Exception as e:
                 child_keys = list(child.cameras().keys())

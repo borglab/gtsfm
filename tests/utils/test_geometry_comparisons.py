@@ -37,7 +37,7 @@ class TestGeometryComparisons(unittest.TestCase):
         self.addTypeEqualityFunc(Point3, point3_compare)
 
     @patch(
-        "gtsfm.utils.alignment.align_rotations",
+        "gtsfm.utils.align.align_rotations",
         return_value=[
             Rot3.RzRyRx(0, np.deg2rad(32), 0),
             Rot3.RzRyRx(0, 0, np.deg2rad(-22)),
@@ -63,7 +63,7 @@ class TestGeometryComparisons(unittest.TestCase):
         align_rotations_mocked.assert_called_once()
 
     @patch(
-        "gtsfm.utils.alignment.align_rotations",
+        "gtsfm.utils.align.align_rotations",
         return_value=[
             Rot3.RzRyRx(0, np.deg2rad(32), 0),
             Rot3.RzRyRx(0, 0, np.deg2rad(-22)),
@@ -89,7 +89,7 @@ class TestGeometryComparisons(unittest.TestCase):
         align_rotations_mocked.assert_called_once()
 
     @patch(
-        "gtsfm.utils.alignment.align_rotations",
+        "gtsfm.utils.align.align_rotations",
         return_value=[Rot3.RzRyRx(0, np.deg2rad(25), 0), Rot3.RzRyRx(0, 0, np.deg2rad(-20))],  # compared with aRi_list
     )
     def test_compare_rotations_with_nones_at_same_indices(self, align_rotations_mocked):
@@ -111,7 +111,7 @@ class TestGeometryComparisons(unittest.TestCase):
         self.assertTrue(geometry_comparisons.compare_rotations(list1, list2, threshold_degrees))
         align_rotations_mocked.assert_called_once()
 
-    @patch("gtsfm.utils.alignment.align_rotations", return_value=None)
+    @patch("gtsfm.utils.align.align_rotations", return_value=None)
     def test_compare_rotations_with_nones_at_different_indices(self, aligned_rotations_mocked):
         """Tests the comparison results on list of rotations."""
 
@@ -294,7 +294,7 @@ def test_compute_cyclic_rotation_error() -> None:
 
 def test_is_valid_SO3() -> None:
     """Ensures that rotation matrices are accurately checked for SO(3) membership."""
-    R = Rot3(np.eye(3))
+    R = Rot3()
     assert geometry_comparisons.is_valid_SO3(R)
 
     # fmt: off
