@@ -65,8 +65,13 @@ class ClusterOptimizerBase:
         output_root: Path,
         visibility_graph,
         image_futures,
-    ) -> Optional[Tuple[Delayed, Sequence[Delayed], Sequence[Delayed]]]:
-        """Create a Dask computation graph to process a cluster."""
+    ) -> tuple[list[Delayed], list[Delayed]]:
+        """Create a Dask computation graph to process a cluster.
+
+        Returns:
+            - List of Delayed I/O tasks to be computed
+            - List of Delayed metrics to be computed
+        """
 
 
 def save_metrics_reports(metrics_group_list: list[GtsfmMetricsGroup], metrics_path: str) -> None:

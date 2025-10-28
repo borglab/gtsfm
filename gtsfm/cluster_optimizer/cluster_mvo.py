@@ -287,17 +287,15 @@ class ClusterMVO(ClusterOptimizerBase):
         output_root: Path,
         visibility_graph: VisibilityGraph,
         image_futures: list[Future],
-    ) -> tuple[Delayed, list[Delayed], list[Delayed]]:
+    ) -> tuple[list[Delayed], list[Delayed]]:
         """Create Dask graphs for multi-view optimization and downstream products for a single cluster.
 
         The cluster optimizer now owns the full front-end execution for the provided `visibility_graph`
         (correspondence generation and two-view estimation) before invoking the multi-view optimizer.
 
         Returns:
-            Optional tuple of:
-                - Delayed bundle adjustment output GtsfmData
-                - List of Delayed I/O tasks to be computed
-                - List of Delayed metrics to be computed
+            - List of Delayed I/O tasks to be computed
+            - List of Delayed metrics to be computed
         """
         frontend_graphs: FrontendGraphs = self._build_frontend_graphs(
             num_images=num_images,
