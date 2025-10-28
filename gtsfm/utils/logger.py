@@ -54,13 +54,32 @@ def _detect_worker_id_once() -> str:
         return f"{hostname}-main"
 
 
+def get_worker_id() -> str:
+    """
+    Get the cached worker ID for the current process.
+    
+    This function should be called by worker code that wants to include
+    worker information in log messages, especially when those logs will
+    be collected and displayed in the main process.
+    
+    Returns:
+        str: Worker ID like "hornet-w35163" or "eagle-main"
+    """
+    global _WORKER_ID_CACHE
+    
+    if _WORKER_ID_CACHE is None:
+        _WORKER_ID_CACHE = _detect_worker_id_once()
+    
+    return _WORKER_ID_CACHE
+
+
 class DaskAwareFormatter(logging.Formatter):
     """
     Custom formatter that injects worker ID into the formatted message.
     
-    CRITICAL: Does NOT cache worker_id at creation time, because the formatter
-    object may be serialized and sent to workers. Each process must detect its
-    own worker identity lazily on first log call.
+    This formatter detects the worker ID lazily on first use in each process.
+    For logs that originate from workers but are displayed in the main process,
+    the worker code should embed the worker ID in the message itself.
     """
     
     def format(self, record):
@@ -95,6 +114,16 @@ class DaskAwareFormatter(logging.Formatter):
     
     def formatTime(self, record, datefmt=None):
         """Use UTC timestamps."""
+        dt = datetime.fromtimestamp(record.created, tz=timezone.utc)
+        if datefmt:
+            return dt.strftime(datefmt)
+        return dt.strftime("%Y-%m-%d %H:%M:%S")
+
+
+class UTCFormatter(logging.Formatter):
+    """Legacy UTC formatter without worker awareness (for compatibility)."""
+    
+    def formatTime(self, record, datefmt=None):
         dt = datetime.fromtimestamp(record.created, tz=timezone.utc)
         if datefmt:
             return dt.strftime(datefmt)

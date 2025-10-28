@@ -33,13 +33,15 @@ from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 from gtsfm.densify.mvs_base import MVSBase
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.evaluation.retrieval_metrics import save_retrieval_two_view_metrics
-from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
+from gtsfm.frontend.correspondence_generator.correspondence_generator_base import \
+    CorrespondenceGeneratorBase
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.products.one_view_data import OneViewData
 from gtsfm.products.two_view_result import TwoViewResult
 from gtsfm.products.visibility_graph import AnnotatedGraph, VisibilityGraph
-from gtsfm.two_view_estimator import TwoViewEstimator, run_two_view_estimator_as_futures
+from gtsfm.two_view_estimator import (TwoViewEstimator,
+                                      run_two_view_estimator_as_futures)
 
 
 @dataclass(frozen=True)
@@ -113,6 +115,12 @@ class ClusterOptimizer:
         image_future_keys: list[str],
     ) -> tuple[list[Keypoints], AnnotatedGraph[np.ndarray], float]:
         """Execute correspondence generation inside a worker task."""
+        import gtsfm.utils.logger as logger_utils
+    
+        worker_id = logger_utils.get_worker_id()
+        logger.info(
+            f"[Test {worker_id}] Running correspondence generation on {len(visibility_graph)} pairs."
+        )
         logger.info("🔵 Cluster: running correspondence generation on %d pairs.", len(visibility_graph))
 
         if len(visibility_graph) == 0:
