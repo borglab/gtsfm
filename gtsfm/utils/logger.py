@@ -82,19 +82,15 @@ class WorkerAwareAdapter(LoggerAdapter):
     so the worker_id becomes part of the message text itself and survives
     Dask's log forwarding from workers to the main scheduler.
     
-    Unlike Filter (which adds attributes to LogRecord), this approach
-    works perfectly with Dask because the modified message is part of
-    the standard 'msg' field which is always preserved.
+    CRITICAL: Worker detection happens LAZILY at first log call, not at
+    adapter creation, because Dask worker context isn't available at import time!
     """
     
     def __init__(self, logger):
-        """Initialize with empty extra dict - we'll add worker_id dynamically."""
+        """Initialize with empty extra dict."""
         super().__init__(logger, {})
-        # Detect worker ID once when adapter is created
-        global _WORKER_ID_CACHE
-        if _WORKER_ID_CACHE is None:
-            _WORKER_ID_CACHE = _detect_worker_id_once()
-        self.worker_id = _WORKER_ID_CACHE
+        # Do NOT detect worker_id here! It's too early.
+        # Detection happens in process() method on first log call.
     
     def process(self, msg, kwargs):
         """
@@ -102,10 +98,18 @@ class WorkerAwareAdapter(LoggerAdapter):
         
         This runs BEFORE the LogRecord is created, so the worker_id
         becomes part of the message itself and will survive serialization.
+        
+        CRITICAL: Worker detection happens HERE (lazily) because at module
+        import time the Dask worker context isn't ready yet!
         """
+        global _WORKER_ID_CACHE
+        
+        # Lazy detection on first log call in this process
+        if _WORKER_ID_CACHE is None:
+            _WORKER_ID_CACHE = _detect_worker_id_once()
+        
         # Prepend worker_id to the message
-        # Note: we're NOT modifying the format, just the message content
-        modified_msg = f"[{self.worker_id}] {msg}"
+        modified_msg = f"[{_WORKER_ID_CACHE}] {msg}"
         return modified_msg, kwargs
 
 
@@ -143,8 +147,9 @@ def get_logger() -> LoggerAdapter:
     in their log output without any code changes!
     
     The magic happens through a LoggerAdapter that prepends the worker ID
-    to every message BEFORE the LogRecord is created. This means the worker_id
-    becomes part of the message text and survives Dask's log forwarding.
+    to every message BEFORE the LogRecord is created. Worker detection is
+    LAZY - it happens on the first log call, not at logger creation time,
+    because Dask worker context isn't available at module import time.
     
     Log format:
         "2025-10-28 00:00:45 [filename.py] INFO: [hornet-w35163] message"
