@@ -320,21 +320,21 @@ class ClusterMVO(ClusterOptimizerBase):
             output_root=output_root,
         )
 
+        delayed_io_tasks: list[Delayed] = []
         metrics_graph_list: list[Delayed] = [frontend_graphs.runtime_metrics]  # type: ignore
-        delayed_results: list[Delayed] = []
 
         if optimizer_metrics_graph is not None:
             metrics_graph_list.extend(optimizer_metrics_graph)
 
         def enqueue_frontend_report(report_graph: Delayed, tag: str) -> None:
             with self._output_annotation():
-                delayed_results.append(
+                delayed_io_tasks.append(
                     delayed(self.save_full_frontend_metrics)(
                         report_graph,
                         one_view_data_dict,
                         filename=f"two_view_report_{tag}.json",
                         metrics_path=output_paths.metrics,
-                        plot_base_path=output_paths.plot_base,
+                        plot_base_path=output_paths.plots,
                     )
                 )
 
@@ -345,12 +345,12 @@ class ClusterMVO(ClusterOptimizerBase):
 
         if self._save_two_view_viz:
             with self._output_annotation():
-                delayed_results.append(
+                delayed_io_tasks.append(
                     delayed(ClusterMVO._save_two_view_visualizations)(
                         loader,
                         frontend_graphs.two_view_results,
                         frontend_graphs.padded_keypoints,
-                        output_paths.plot_correspondence,
+                        output_paths.plots,
                     )
                 )
 
@@ -381,7 +381,7 @@ class ClusterMVO(ClusterOptimizerBase):
         cameras_gt = [one_view_data_dict[idx].camera_gt for idx in range(num_images)]
         with self._output_annotation():
             if self._save_gtsfm_data:
-                delayed_results.append(
+                delayed_io_tasks.append(
                     delayed(save_gtsfm_data)(
                         images,
                         ba_input_graph,
@@ -391,13 +391,13 @@ class ClusterMVO(ClusterOptimizerBase):
                     )
                 )
                 if self._save_3d_viz:
-                    delayed_results.extend(
+                    delayed_io_tasks.extend(
                         save_matplotlib_visualizations(
                             aligned_ba_input_graph=ba_input_graph,
                             aligned_ba_output_graph=ba_output_graph,
                             gt_pose_graph=aligned_gt_wTi_list,  # type: ignore[arg-type]
-                            plot_ba_input_path=output_paths.plot_ba_input,
-                            plot_results_path=output_paths.plot_results,
+                            plot_ba_input_path=output_paths.plots,
+                            plot_results_path=output_paths.plots,
                         )
                     )
 
@@ -412,9 +412,9 @@ class ClusterMVO(ClusterOptimizerBase):
             ) = self.dense_multiview_optimizer.create_computation_graph(img_dict_graph, ba_output_graph)
 
             with self._output_annotation():
-                delayed_results.append(
+                delayed_io_tasks.append(
                     delayed(io_utils.save_point_cloud_as_ply)(
-                        save_fpath=str(output_paths.mvs_ply),
+                        save_fpath=str(output_paths.results / "dense_point_cloud.ply"),
                         points=dense_points_graph,
                         rgb=dense_point_colors_graph,
                     )
@@ -435,20 +435,20 @@ class ClusterMVO(ClusterOptimizerBase):
             )
 
             with self._output_annotation():
-                delayed_results.append(
-                    delayed(gtsfm_rendering.save_splats)(save_path=str(output_paths.gs_path), splats=splats_graph)
+                delayed_io_tasks.append(
+                    delayed(gtsfm_rendering.save_splats)(save_path=output_paths.results, splats=splats_graph)
                 )
-                delayed_results.append(
+                delayed_io_tasks.append(
                     delayed(gtsfm_rendering.generate_interpolated_video)(
                         images=images,
                         sfm_result_graph=ba_output_graph,
                         cfg_result_graph=cfg_graph,
                         splats_graph=splats_graph,
-                        video_fpath=output_paths.interpolated_video,
+                        video_fpath=str(output_paths.results / "interpolated_video.mp4"),
                     )
                 )
 
-        return ba_output_graph, delayed_results, metrics_graph_list
+        return delayed_io_tasks, metrics_graph_list
 
 
 def _pad_keypoints_list(keypoints_list: list[Keypoints], target_length: int) -> list[Keypoints]:
