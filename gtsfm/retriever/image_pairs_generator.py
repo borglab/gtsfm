@@ -3,20 +3,18 @@
 Authors: Ayush Baid
 """
 
-import socket
 import time
 from pathlib import Path
 
 import numpy as np
 import torch
-from dask import distributed
 from dask.distributed import Client, Future
 from torchvision.transforms import v2 as transforms  # type: ignore
 
 import gtsfm.utils.logger as logger_utils
+
 # from gtsfm.common.image import Image
-from gtsfm.frontend.global_descriptor.global_descriptor_base import \
-    GlobalDescriptorBase
+from gtsfm.frontend.global_descriptor.global_descriptor_base import GlobalDescriptorBase
 from gtsfm.loader.loader_base import BatchTransform, ResizeTransform
 from gtsfm.products.visibility_graph import VisibilityGraph
 from gtsfm.retriever.retriever_base import RetrieverBase
@@ -70,9 +68,7 @@ class ImagePairsGenerator:
         ) -> list[np.ndarray]:
             """Apply global descriptor to extract feature vectors from a batch of images."""
 
-            logger.info(
-                    "🟩 Computing global descriptors for batch of %d images", len(image_batch)
-             )
+            logger.info("🟩 Computing global descriptors for batch of %d images", len(image_batch))
 
             # This will call the new method you need to create in your descriptor class.
             return global_descriptor.describe_batch(images=image_batch)
