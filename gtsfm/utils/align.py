@@ -14,11 +14,8 @@ from gtsam.symbol_shorthand import X  # type: ignore
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metric_utils
 
-EPSILON = np.finfo(float).eps
-
 logger = logger_utils.get_logger()
 
-MAX_ALIGNMENT_ERROR = np.finfo(np.float32).max
 MAX_NUM_HYPOTHESES_FOR_ROBUST_ALIGNMENT: int = 200
 
 Z_3x1: np.ndarray = np.zeros((3,))
@@ -31,7 +28,13 @@ def _log_sim3_transform(sim3: Similarity3, label: str = "Sim(3)") -> None:
     aRb = sim3.rotation()
     atb = sim3.translation()
     rx, ry, rz = aRb.xyz()
-    logger.debug("%s Rotation `aRb`: rz=%.2f deg., ry=%.2f deg., rx=%.2f deg.", label, rz, ry, rx)
+    logger.debug(
+        "%s Rotation `aRb`: rz=%.2f deg., ry=%.2f deg., rx=%.2f deg.",
+        label,
+        np.degrees(rz),
+        np.degrees(ry),
+        np.degrees(rx),
+    )
     logger.debug("%s Translation `atb`: [%.2f, %.2f, %.2f]", label, atb[0], atb[1], atb[2])
     logger.debug("%s Scale `asb`: %.2f", label, float(sim3.scale()))
 
@@ -155,7 +158,6 @@ def sim3_from_Pose3s_exhaustive(aTi_list: list[Pose3], bTi_list: list[Pose3]) ->
         return Similarity3(Rot3(), Z_3x1, 1.0)
 
     # Run once with all poses for initial guess.
-    best_aSb = Similarity3()
     best_aSb = sim3_from_Pose3s(aTi_list, bTi_list)
     aTi_candidate_all: list[Pose3] = [best_aSb.transformFrom(bTi) for bTi in bTi_list]
     best_pose_auc_5deg: float = metric_utils.pose_auc_from_poses(

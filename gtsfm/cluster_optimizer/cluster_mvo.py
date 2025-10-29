@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import socket
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -20,11 +21,7 @@ import gtsfm.utils.ellipsoid as ellipsoid_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.viz as viz_utils
 from gtsfm.cluster_optimizer.cluster_optimizer_base import (
-    REACT_METRICS_PATH,
-    REACT_RESULTS_PATH,
-    ClusterOptimizerBase,
-    logger,
-)
+    REACT_METRICS_PATH, REACT_RESULTS_PATH, ClusterOptimizerBase, logger)
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
@@ -34,7 +31,8 @@ from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 from gtsfm.densify.mvs_base import MVSBase
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.evaluation.retrieval_metrics import save_retrieval_two_view_metrics
-from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
+from gtsfm.frontend.correspondence_generator.correspondence_generator_base import \
+    CorrespondenceGeneratorBase
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.products.one_view_data import OneViewData
@@ -111,7 +109,10 @@ class ClusterMVO(ClusterOptimizerBase):
         image_future_keys: list[str],
     ) -> tuple[list[Keypoints], AnnotatedGraph[np.ndarray], float]:
         """Execute correspondence generation inside a worker task."""
-        logger.info("🔵 Cluster: running correspondence generation on %d pairs.", len(visibility_graph))
+
+        logger.info(
+            "🔵 Running correspondence generation for %d pairs.",
+            len(visibility_graph))
 
         if len(visibility_graph) == 0:
             return [], {}, 0.0
@@ -136,7 +137,7 @@ class ClusterMVO(ClusterOptimizerBase):
         one_view_data_dict: dict[int, OneViewData],
     ) -> tuple[AnnotatedGraph[TwoViewResult], float]:
         """Execute two-view estimation inside a worker task."""
-        logger.info("🔵 Cluster: running two-view estimation on %d pairs.", len(putative_corr_idxs_dict))
+        logger.info("🔵 Running two-view estimation for %d pairs.", len(putative_corr_idxs_dict))
 
         with worker_client() as nested_client:
             start_time = time.time()

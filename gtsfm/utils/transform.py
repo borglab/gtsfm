@@ -49,6 +49,9 @@ def point_cloud_with_sim3(aSb: Similarity3, points_b: np.ndarray) -> np.ndarray:
 def track_with_sim3(aSb: Similarity3, track_b: SfmTrack) -> SfmTrack:
     """Transport a single SfmTrack from frame ``b`` to frame ``a`` using a Sim(3) transform."""
     track_a = SfmTrack(aSb.transformFrom(track_b.point3()))
+    track_a.r = track_b.r
+    track_a.g = track_b.g
+    track_a.b = track_b.b
     for k in range(track_b.numberMeasurements()):
         i, uv = track_b.measurement(k)
         track_a.addMeasurement(i, uv)
