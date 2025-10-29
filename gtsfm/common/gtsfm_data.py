@@ -513,7 +513,7 @@ class GtsfmData:
         """Assume current tracks and cameras are in frame "b", then transport them to frame "a".
 
         Returns:
-            New GtsfmData object which has been transformed from frame a to frame b.
+            New GtsfmData object which has been transformed from frame b to frame a.
         """
         bTi_list = self.get_camera_poses()
         aTi_list = [aSb.transformFrom(bTi) if bTi is not None else None for bTi in bTi_list]
@@ -570,8 +570,7 @@ class GtsfmData:
             merged_data.add_camera(key, camera)
 
         for track in merged_tracks:
-            if not merged_data.add_track(track):
-                merged_data._tracks.append(track)
+            merged_data._tracks.append(track)
 
         return merged_data
 
