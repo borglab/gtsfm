@@ -450,44 +450,37 @@ class LoaderBase(GTSFMProcess):
 
         # Determine whether all images share the same spatial size.
         # base_shape = image_arrays[0].shape[:2]
-        shapes_match = all(img.shape[0] == img.shape[1] for img in image_arrays)
+        # shapes_match = all(img.shape[0] == img.shape[1] for img in image_arrays)
         
-        print('shapes_match: ', shapes_match)
+        working_arrays = []
+        original_coords = []
+        for img in image_arrays:
+            max_side = max(img.shape[0], img.shape[1])
+            pad_height = max_side - img.shape[0]
+            pad_width = max_side - img.shape[1]
 
-        if shapes_match:
-            working_arrays = image_arrays
-        else:
-            # Pad each image to square dimensions using the maximum side length observed in the batch.
-            # max_side = max(max(img.shape[0], img.shape[1]) for img in image_arrays)
-            working_arrays = []
-            original_coords = []
-            for img in image_arrays:
-                max_side = max(img.shape[0], img.shape[1])
-                pad_height = max_side - img.shape[0]
-                pad_width = max_side - img.shape[1]
+            pad_top = pad_height // 2
+            pad_bottom = pad_height - pad_top
+            pad_left = pad_width // 2
+            pad_right = pad_width - pad_left
 
-                pad_top = pad_height // 2
-                pad_bottom = pad_height - pad_top
-                pad_left = pad_width // 2
-                pad_right = pad_width - pad_left
-
-                padded = np.pad(
-                    img,
-                    pad_width=((pad_top, pad_bottom), (pad_left, pad_right), (0, 0)),
-                    mode="constant",
-                    constant_values=0,
-                )
-                working_arrays.append(padded)
-                
-                scale = img_load_resolution / max_side
-                x1 = pad_left * scale
-                y1 = pad_top * scale
-                x2 = (pad_left + img.shape[1]) * scale
-                y2 = (pad_top + img.shape[0]) * scale
-                
-                original_coords.append(np.array([x1, y1, x2, y2, img.shape[1], img.shape[0]]))
-                
-            original_coords = torch.from_numpy(np.array(original_coords)).float()
+            padded = np.pad(
+                img,
+                pad_width=((pad_top, pad_bottom), (pad_left, pad_right), (0, 0)),
+                mode="constant",
+                constant_values=0,
+            )
+            working_arrays.append(padded)
+            
+            scale = img_load_resolution / max_side
+            x1 = pad_left * scale
+            y1 = pad_top * scale
+            x2 = (pad_left + img.shape[1]) * scale
+            y2 = (pad_top + img.shape[0]) * scale
+            
+            original_coords.append(np.array([x1, y1, x2, y2, img.shape[1], img.shape[0]]))
+            
+        original_coords = torch.from_numpy(np.array(original_coords)).float()
 
         image_tensors = [resize_transform(arr) for arr in working_arrays]
 
