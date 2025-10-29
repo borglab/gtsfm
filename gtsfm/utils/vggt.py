@@ -111,12 +111,13 @@ def load_vggt_model(
     model.load_state_dict(state_dict, strict=strict)
     model.eval()
     model = model.to(resolved_device)
-    
+
     # if resolved_dtype is not None:
     #     # dtype casting is only attempted when explicitly requested or inferred for CUDA devices.
     #     model = model.to(dtype=resolved_dtype)
 
     return model
+
 
 def run_VGGT(model, images, dtype, resolution=518):
     # images: [B, 3, H, W]
@@ -126,7 +127,6 @@ def run_VGGT(model, images, dtype, resolution=518):
 
     # hard-coded to use 518 for VGGT
     images = F.interpolate(images, size=(resolution, resolution), mode="bilinear", align_corners=False)
-
 
     with torch.no_grad():
         with torch.cuda.amp.autocast(dtype=dtype):
@@ -148,6 +148,7 @@ def run_VGGT(model, images, dtype, resolution=518):
     depth_map = depth_map.squeeze(0).cpu().numpy()
     depth_conf = depth_conf.squeeze(0).cpu().numpy()
     return extrinsic, intrinsic, depth_map, depth_conf
+
 
 def _build_pycolmap_intri(fidx, intrinsics, camera_type, extra_params=None):
     """
@@ -177,6 +178,7 @@ def _build_pycolmap_intri(fidx, intrinsics, camera_type, extra_params=None):
         raise ValueError(f"Camera type {camera_type} is not supported yet")
 
     return pycolmap_intri
+
 
 def batch_np_matrix_to_pycolmap(
     points3d,
@@ -316,6 +318,7 @@ def batch_np_matrix_to_pycolmap(
 
     return reconstruction, valid_mask
 
+
 def batch_np_matrix_to_pycolmap_wo_track(
     points3d,
     points_xyf,
@@ -414,6 +417,7 @@ def batch_np_matrix_to_pycolmap_wo_track(
 
     return reconstruction
 
+
 def rename_colmap_recons_and_rescale_camera(
     reconstruction,
     image_paths,
@@ -465,6 +469,7 @@ def rename_colmap_recons_and_rescale_camera(
     print("reconstruction.images: ", reconstruction.images)
 
     return reconstruction
+
 
 # __all__ = [
 #     "VGGT_SUBMODULE_PATH",

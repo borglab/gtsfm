@@ -22,33 +22,49 @@ LocalScene = tuple[Path, GtsfmData]
 SceneTree = Tree[LocalScene]
 
 
-def run_vggt(image_batch: torch.Tensor, image_indices: list[int], original_coords, seed=42, use_ba=False, conf_thres_value=5.0, vggt_fixed_resolution=518, img_load_resolution=1024, max_query_pts=1000, query_frame_num=4, fine_tracking=True, vis_thresh=0.2, max_reproj_error=8.0, camera_type="SIMPLE_PINHOLE", use_colmap_ba=False) -> GtsfmData:
+def run_vggt(
+    image_batch: torch.Tensor,
+    image_indices: list[int],
+    original_coords,
+    seed=42,
+    use_ba=False,
+    conf_thres_value=5.0,
+    vggt_fixed_resolution=518,
+    img_load_resolution=1024,
+    max_query_pts=1000,
+    query_frame_num=4,
+    fine_tracking=True,
+    vis_thresh=0.2,
+    max_reproj_error=8.0,
+    camera_type="SIMPLE_PINHOLE",
+    use_colmap_ba=False,
+) -> GtsfmData:
     """Run VGGT on the given image keys and return GtsfmData."""
     # call run_vggt
-    
+
     if torch.cuda.is_available():
         torch.cuda.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)  # for multi-GPU
     print(f"Setting seed as: {seed}")
-    
+
     # Set device and dtype
     device = default_vggt_device()
     dtype = default_vggt_dtype(device)
     print(f"Using device: {device.type}")
     print(f"Using dtype: {dtype}")
-    
+
     # Run VGGT for camera and depth estimation
     model = load_vggt_model(device=device)
-    
+
     print("Model loaded")
-    
+
     image_batch = image_batch.to(device)
-    print('image_batch: ', image_batch.shape)
+    print("image_batch: ", image_batch.shape)
     original_coords = original_coords.to(device)
-    
+
     extrinsic, intrinsic, depth_map, depth_conf = run_VGGT(model, image_batch, dtype, 518)
     points_3d = unproject_depth_map_to_point_map(depth_map, extrinsic, intrinsic)
-    
+
     if use_ba:
         image_size = np.array(image_batch.shape[-2:])
         scale = img_load_resolution / vggt_fixed_resolution
@@ -162,14 +178,16 @@ def run_vggt(image_batch: torch.Tensor, image_indices: list[int], original_coord
         print(
             f"Saving reconstruction to vggt_test_output/sparse_w_ba_{query_frame_num}_{max_query_pts}_{use_colmap_ba}"
         )
-        sparse_reconstruction_dir = Path("vggt_test_output") / f"sparse_w_ba_{query_frame_num}_{max_query_pts}_{use_colmap_ba}"
+        sparse_reconstruction_dir = (
+            Path("vggt_test_output") / f"sparse_w_ba_{query_frame_num}_{max_query_pts}_{use_colmap_ba}"
+        )
     sparse_reconstruction_dir.mkdir(parents=True, exist_ok=True)
     reconstruction.write(sparse_reconstruction_dir)
     reconstruction.write_text(sparse_reconstruction_dir)
 
     # Save point cloud for fast visualization
     # trimesh.PointCloud(points_3d, colors=points_rgb).export(sparse_reconstruction_dir / "points.ply")
-    
+
     return GtsfmData(0, None, None)
 
 
@@ -208,12 +226,14 @@ class TestVGGT(unittest.TestCase):
         # Transform 2: Convert to float32 and normalize to [0, 1]
         batch_transform = transforms.Lambda(lambda x: x.type(torch.float32) / 255.0)
 
-        image_batch, original_coords = loader.load_image_batch_vggt(indices, resize_transform, batch_transform, img_load_resolution)
-        
+        image_batch, original_coords = loader.load_image_batch_vggt(
+            indices, resize_transform, batch_transform, img_load_resolution
+        )
+
         # image_batch, original_coords = loader.load_and_preprocess_images_square_vggt(indices, img_load_resolution)
-        
-        print('image_batch: ', image_batch.shape)
-        
+
+        print("image_batch: ", image_batch.shape)
+
         with torch.no_grad():
 
             gtsfm_data = run_vggt(image_batch, indices, original_coords, use_ba=True)

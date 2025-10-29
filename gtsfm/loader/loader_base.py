@@ -433,7 +433,7 @@ class LoaderBase(GTSFMProcess):
         indices: List[int],
         resize_transform: ResizeTransform,
         batch_transform: Optional[BatchTransform] = None,
-        img_load_resolution: int = None
+        img_load_resolution: int = None,
     ) -> torch.Tensor:
         """Helper function that runs on a Dask worker to load a batch of images.
 
@@ -451,7 +451,7 @@ class LoaderBase(GTSFMProcess):
         # Determine whether all images share the same spatial size.
         # base_shape = image_arrays[0].shape[:2]
         # shapes_match = all(img.shape[0] == img.shape[1] for img in image_arrays)
-        
+
         working_arrays = []
         original_coords = []
         for img in image_arrays:
@@ -471,15 +471,15 @@ class LoaderBase(GTSFMProcess):
                 constant_values=0,
             )
             working_arrays.append(padded)
-            
+
             scale = img_load_resolution / max_side
             x1 = pad_left * scale
             y1 = pad_top * scale
             x2 = (pad_left + img.shape[1]) * scale
             y2 = (pad_top + img.shape[0]) * scale
-            
+
             original_coords.append(np.array([x1, y1, x2, y2, img.shape[1], img.shape[0]]))
-            
+
         original_coords = torch.from_numpy(np.array(original_coords)).float()
 
         image_tensors = [resize_transform(arr) for arr in working_arrays]
@@ -491,7 +491,7 @@ class LoaderBase(GTSFMProcess):
             return batch_transform(batch_tensor) if batch_transform else batch_tensor
         else:
             return batch_transform(batch_tensor) if batch_transform else batch_tensor, original_coords
-    
+
     def load_and_preprocess_images_square_vggt(self, indices: List[int], target_size=1024):
         """
         TODO: can be removed after verification
@@ -514,7 +514,7 @@ class LoaderBase(GTSFMProcess):
         # Check for empty list
         if len(indices) == 0:
             raise ValueError("At least 1 image is required")
-        
+
         from torchvision import transforms as TF
         import PIL
 
