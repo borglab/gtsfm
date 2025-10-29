@@ -4,14 +4,18 @@ Authors: Ayush Baid, John Lambert
 """
 
 import time
+from dataclasses import dataclass
+from itertools import count
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Sequence, TypeVar, cast
 
 import matplotlib
-from dask.distributed import performance_report
+from dask.delayed import delayed
+from dask.distributed import Client, Future, performance_report
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.cluster_optimizer import REACT_METRICS_PATH, REACT_RESULTS_PATH, Base, save_metrics_reports
+from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.outputs import OutputPaths, prepare_output_paths
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.evaluation.retrieval_metrics import save_retrieval_two_view_metrics
@@ -21,6 +25,9 @@ from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.products.visibility_graph import VisibilityGraph
 from gtsfm.retriever.image_pairs_generator import ImagePairsGenerator
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
+from gtsfm.utils import align
+from gtsfm.utils.tree import PreOrderIter, Tree
+from gtsfm.utils.tree_dask import submit_tree_fold
 
 # Set matplotlib backend to "Agg" (Anti-Grain Geometry) for headless rendering
 # This must be called before importing pyplot or any other matplotlib modules
@@ -30,6 +37,63 @@ matplotlib.use("Agg")
 DEFAULT_OUTPUT_ROOT = str(Path(__file__).resolve().parent.parent)
 
 logger = logger_utils.get_logger()
+T = TypeVar("T")
+
+
+@dataclass(frozen=True)
+class ClusterExecutionHandles:
+    """Futures tracking the execution of a single cluster optimization."""
+
+    reconstruction: Future  # [Optional[GtsfmData]]
+    metrics: Future  # [list[GtsfmMetricsGroup]]
+    io_barrier: Future  # [None]
+    output_paths: OutputPaths
+    cluster_index: int
+    edge_count: int
+
+
+def _identity(value: T) -> T:
+    """Return value unchanged. Used to seed futures without extra scheduling."""
+    return value
+
+
+def _collect_metric_results(*results: object) -> list[GtsfmMetricsGroup]:
+    """Normalize metric outputs into a flat list."""
+    collected: list[GtsfmMetricsGroup] = []
+    for result in results:
+        if result is None:
+            continue
+        if isinstance(result, (list, tuple)):
+            for item in result:
+                if item is not None:
+                    collected.append(cast(GtsfmMetricsGroup, item))
+        else:
+            collected.append(cast(GtsfmMetricsGroup, result))
+    return collected
+
+
+def _finalize_io_tasks(*_args: object) -> None:
+    """Barrier task used to depend on all I/O side effects."""
+    return None
+
+
+def _merge_cluster_results(
+    current: Optional[GtsfmData], child_results: tuple[Optional[GtsfmData], ...]
+) -> Optional[GtsfmData]:
+    """Merge bundle adjustment outputs from child clusters into the parent result."""
+    merged = current
+    for child in child_results:
+        if child is None:
+            continue
+        if merged is None:
+            merged = child
+            continue
+        try:
+            aSb = align.sim3_from_Pose3_maps(merged.poses(), child.poses())
+            merged = merged.merged_with(child, aSb)
+        except Exception as exc:
+            logger.warning("Failed to merge cluster outputs: %s", exc)
+    return merged
 
 
 class SceneOptimizer:
@@ -74,7 +138,7 @@ class SceneOptimizer:
         except Exception as exc:  # pragma: no cover - diagnostics are best-effort
             logger.debug("Skipping retrieval diagnostics for %s: %s", output_paths.plots, exc)
 
-    def run(self, client) -> None:
+    def run(self, client: Client) -> None:
         """Run the SceneOptimizer."""
         start_time = time.time()
         base_metrics_groups = []
@@ -92,58 +156,43 @@ class SceneOptimizer:
         assert self.graph_partitioner is not None, "Graph partitioner is not set up!"
         cluster_tree = self.graph_partitioner.run(visibility_graph)
         self.graph_partitioner.log_partition_details(cluster_tree, base_output_paths)
-        leaves = tuple(cluster_tree.leaves()) if cluster_tree is not None else ()
-        num_leaves = len(leaves)
-        use_leaf_subdirs = num_leaves > 1
 
-        logger.info("🔥 GTSFM: Starting to solve subgraphs...")
-        futures = []
+        logger.info("🔥 GTSFM: Scheduling cluster optimizations...")
         one_view_data_dict = self.loader.get_one_view_data_dict()
-        leaf_jobs: list[tuple[int, OutputPaths]] = []
-        for index, leaf in enumerate(leaves, 1):
-            cluster_visibility_graph = leaf.value
-            if use_leaf_subdirs:
-                logger.info(
-                    "Creating computation graph for leaf cluster %d/%d with %d image pairs",
-                    index,
-                    num_leaves,
-                    len(cluster_visibility_graph),
-                )
+        merged_scene: Optional[GtsfmData] = None
 
-            if len(cluster_visibility_graph) == 0:
-                logger.warning("Skipping subgraph %d as it has no edges.", index)
-                continue
-
-            output_paths = prepare_output_paths(self.output_root, index) if use_leaf_subdirs else base_output_paths
-
-            delayed_io_tasks_and_reports = self.cluster_optimizer.create_computation_graph(
-                num_images=len(self.loader),
-                one_view_data_dict=one_view_data_dict,
-                output_paths=output_paths,
-                loader=self.loader,
-                output_root=self.output_root,
-                visibility_graph=cluster_visibility_graph,
-                image_futures=image_futures,
-            )
-            if delayed_io_tasks_and_reports is None:
-                logger.warning("Skipping subgraph %d as it has no valid two-view results.", index)
-                continue
-            futures.append(client.compute(delayed_io_tasks_and_reports))  # client.compute returns a future
-            leaf_jobs.append((index, output_paths))
-
-        logger.info("🔥 GTSFM: Running the computation graph...")
-        multiview_metrics_groups_by_leaf: dict[int, list[GtsfmMetricsGroup]] = {}
         with performance_report(filename="dask_reports/scene-optimizer.html"):
-            if futures:
-                results = client.gather(futures)  # blocking call
-                for (leaf_index, output_paths), (io_tasks, metrics) in zip(leaf_jobs, results):
-                    self._save_retrieval_diagnostics(output_paths)
-                    if not metrics:
-                        continue
-                    if use_leaf_subdirs:
-                        save_metrics_reports(metrics, str(output_paths.metrics))
-                    else:
-                        multiview_metrics_groups_by_leaf[leaf_index] = metrics
+            if cluster_tree is None:
+                logger.warning("No clusters generated by partitioner; skipping reconstruction and merge.")
+            else:
+                handles_tree = self._schedule_cluster_tree(
+                    client=client,
+                    cluster_tree=cluster_tree,
+                    base_output_paths=base_output_paths,
+                    one_view_data_dict=one_view_data_dict,
+                    image_futures=image_futures,
+                )
+                reconstruction_tree = handles_tree.map(lambda handle: handle.reconstruction)
+                merged_future = submit_tree_fold(client, reconstruction_tree, _merge_cluster_results)
+                logger.info("🔥 GTSFM: Running cluster optimization and merging...")
+                merged_scene = merged_future.result()
+
+                logger.info("🔥 GTSFM: Running cluster optimization and merging...")
+                for node in PreOrderIter(handles_tree):
+                    handle = node.value
+                    metrics_groups = list(handle.metrics.result())
+                    handle.io_barrier.result()
+                    if handle.cluster_index == 0:
+                        base_metrics_groups.extend(metrics_groups)
+                    elif metrics_groups:
+                        save_metrics_reports(metrics_groups, str(handle.output_paths.metrics))
+
+        if merged_scene is not None:
+            logger.info(
+                "Merged scene contains %d images and %d tracks.",
+                merged_scene.number_images(),
+                merged_scene.number_tracks(),
+            )
 
         if not futures:
             self._save_retrieval_diagnostics(base_output_paths)
@@ -161,14 +210,9 @@ class SceneOptimizer:
         )
         base_metrics_groups.append(total_summary_metrics)
 
-        # For single cluster runs, we may have Multiview metrics to add to the base report.
-        if not use_leaf_subdirs:
-            for leaf_index in multiview_metrics_groups_by_leaf:
-                base_metrics_groups.extend(multiview_metrics_groups_by_leaf[leaf_index])
-
         save_metrics_reports(base_metrics_groups, str(base_output_paths.metrics))
 
-    def _run_retriever(self, client, output_paths: OutputPaths) -> tuple[GtsfmMetricsGroup, VisibilityGraph]:
+    def _run_retriever(self, client: Client, output_paths: OutputPaths) -> tuple[GtsfmMetricsGroup, VisibilityGraph]:
         # TODO(Frank): refactor to move more of this logic into ImagePairsGenerator
         retriever_start_time = time.time()
         batch_size = self.image_pairs_generator._batch_size
@@ -205,3 +249,94 @@ class SceneOptimizer:
         logger.info("🚀 Image pair retrieval took %.2f min.", retriever_duration_sec / 60.0)
 
         return retriever_metrics, visibility_graph
+
+    def _schedule_cluster_tree(
+        self,
+        *,
+        client: Client,
+        cluster_tree: Tree[VisibilityGraph],
+        base_output_paths: OutputPaths,
+        one_view_data_dict,
+        image_futures: Sequence[Future],
+    ) -> Tree[ClusterExecutionHandles]:
+        """Recursively schedule reconstruction for every cluster in the tree."""
+        index_counter = count(1)
+        num_images = len(self.loader)
+
+        def visit(node: Tree[VisibilityGraph], is_root: bool) -> Tree[ClusterExecutionHandles]:
+            cluster_index = 0 if is_root else next(index_counter)
+            output_paths = base_output_paths if is_root else prepare_output_paths(self.output_root, cluster_index)
+            handle = self._schedule_single_cluster(
+                client=client,
+                visibility_graph=node.value,
+                num_images=num_images,
+                one_view_data_dict=one_view_data_dict,
+                output_paths=output_paths,
+                cluster_index=cluster_index,
+                image_futures=image_futures,
+            )
+            children = tuple(visit(child, False) for child in node.children)
+            return Tree(value=handle, children=children)
+
+        return visit(cluster_tree, True)
+
+    def _schedule_single_cluster(
+        self,
+        *,
+        client: Client,
+        visibility_graph: VisibilityGraph,
+        num_images: int,
+        one_view_data_dict,
+        output_paths: OutputPaths,
+        cluster_index: int,
+        image_futures: Sequence[Future],
+    ) -> ClusterExecutionHandles:
+        """Schedule the optimizer for a single cluster and return futures tracking its execution."""
+        edge_count = len(visibility_graph)
+        if edge_count == 0:
+            logger.warning("Skipping cluster %d as it has no edges.", cluster_index)
+            return self._empty_cluster_handles(client, output_paths, cluster_index, edge_count)
+
+        logger.info("Creating computation graph for cluster %d with %d visibility edges.", cluster_index, edge_count)
+
+        computation = self.cluster_optimizer.create_computation_graph(
+            num_images=num_images,
+            one_view_data_dict=one_view_data_dict,
+            output_paths=output_paths,
+            loader=self.loader,
+            output_root=self.output_root,
+            visibility_graph=visibility_graph,
+            image_futures=image_futures,
+        )
+        if computation is None or computation.sfm_result is None:
+            logger.warning("Cluster optimizer produced no result for cluster %d.", cluster_index)
+            return self._empty_cluster_handles(client, output_paths, cluster_index, edge_count)
+
+        io_graph = delayed(_finalize_io_tasks, pure=False)(*computation.io_tasks)
+        metrics_graph = delayed(_collect_metric_results, pure=False)(*computation.metric_tasks)
+
+        io_future: Future = client.compute(io_graph)  # type: ignore
+        metrics_future: Future = client.compute(metrics_graph)  # type: ignore
+        reconstruction_future: Future = client.compute(computation.sfm_result)  # type: ignore
+
+        return ClusterExecutionHandles(
+            reconstruction=reconstruction_future,
+            metrics=metrics_future,
+            io_barrier=io_future,
+            output_paths=output_paths,
+            cluster_index=cluster_index,
+            edge_count=edge_count,
+        )
+
+    def _empty_cluster_handles(
+        self, client: Client, output_paths: OutputPaths, cluster_index: int, edge_count: int
+    ) -> ClusterExecutionHandles:
+        """Create placeholder futures for clusters that were skipped."""
+        return ClusterExecutionHandles(
+            reconstruction=client.submit(_identity, None, pure=False),
+            metrics=client.submit(_identity, [], pure=False),
+            io_barrier=client.submit(_identity, None, pure=False),
+            output_paths=output_paths,
+            cluster_index=cluster_index,
+            edge_count=edge_count,
+        )
