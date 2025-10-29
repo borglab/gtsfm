@@ -5,17 +5,15 @@ Authors: Ayush Baid, John Lambert
 
 import time
 from pathlib import Path
-from typing import Optional, cast
+from typing import Optional
 
 import matplotlib
 from dask.distributed import performance_report
 
 import gtsfm.utils.logger as logger_utils
-from gtsfm.cluster_optimizer import REACT_METRICS_PATH, REACT_RESULTS_PATH, Base, Multiview, save_metrics_reports
+from gtsfm.cluster_optimizer import REACT_METRICS_PATH, REACT_RESULTS_PATH, Base, save_metrics_reports
 from gtsfm.common.outputs import OutputPaths, prepare_output_paths
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
-from gtsfm.ff_splat.feed_forward_gaussian_splatting_base import FeedForwardGaussianSplattingBase
-from gtsfm.frontend.correspondence_generator.image_correspondence_generator import ImageCorrespondenceGenerator
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.graph_partitioner.single_partitioner import SinglePartitioner
 from gtsfm.loader.loader_base import LoaderBase
@@ -79,8 +77,8 @@ class SceneOptimizer:
         """Run the SceneOptimizer."""
         start_time = time.time()
         base_metrics_groups = []
-        if isinstance(self.cluster_optimizer, Multiview):
-            self._create_process_graph()
+        process_graph_generator = ProcessGraphGenerator()
+        process_graph_generator.save_graph()
         self._ensure_react_directories()
         base_output_paths = prepare_output_paths(self.output_root, None)
 
@@ -96,13 +94,6 @@ class SceneOptimizer:
         leaves = tuple(cluster_tree.leaves()) if cluster_tree is not None else ()
         num_leaves = len(leaves)
         use_leaf_subdirs = num_leaves > 1
-
-        gs_optimizer_future = None
-        if self.cluster_optimizer.gaussian_splatting_optimizer is not None and isinstance(
-            self.cluster_optimizer.gaussian_splatting_optimizer, FeedForwardGaussianSplattingBase
-        ):
-            logger.info("Scattering Gaussian Splatting optimizer to all workers...")
-            gs_optimizer_future = client.scatter(self.cluster_optimizer.gaussian_splatting_optimizer, broadcast=True)
 
         logger.info("🔥 GTSFM: Starting to solve subgraphs...")
         futures = []
@@ -124,7 +115,7 @@ class SceneOptimizer:
 
             output_paths = prepare_output_paths(self.output_root, index) if use_leaf_subdirs else base_output_paths
 
-            delayed_result_io_reports = self.cluster_optimizer.create_computation_graph(
+            delayed_io_tasks_and_reports = self.cluster_optimizer.create_computation_graph(
                 num_images=len(self.loader),
                 one_view_data_dict=one_view_data_dict,
                 output_paths=output_paths,
@@ -132,27 +123,25 @@ class SceneOptimizer:
                 output_root=self.output_root,
                 visibility_graph=cluster_visibility_graph,
                 image_futures=image_futures,
-                gs_optimizer_future=gs_optimizer_future,
             )
-            if delayed_result_io_reports is None:
+            if delayed_io_tasks_and_reports is None:
                 logger.warning("Skipping subgraph %d as it has no valid two-view results.", index)
                 continue
-            futures.append(client.compute(delayed_result_io_reports))
+            futures.append(client.compute(delayed_io_tasks_and_reports))  # client.compute returns a future
             leaf_jobs.append((index, output_paths))
 
         logger.info("🔥 GTSFM: Running the computation graph...")
         multiview_metrics_groups_by_leaf: dict[int, list[GtsfmMetricsGroup]] = {}
         with performance_report(filename="dask_reports/scene-optimizer.html"):
             if futures:
-                results = client.gather(futures)
-                for (leaf_index, output_paths), leaf_results in zip(leaf_jobs, results):
-                    multiview_metrics_groups = leaf_results[2]
-                    if not multiview_metrics_groups:
+                results = client.gather(futures)  # blocking call
+                for (leaf_index, output_paths), (io_tasks, metrics) in zip(leaf_jobs, results):
+                    if not metrics:
                         continue
                     if use_leaf_subdirs:
-                        save_metrics_reports(multiview_metrics_groups, str(output_paths.metrics))
+                        save_metrics_reports(metrics, str(output_paths.metrics))
                     else:
-                        multiview_metrics_groups_by_leaf[leaf_index] = multiview_metrics_groups
+                        multiview_metrics_groups_by_leaf[leaf_index] = metrics
 
         # Log total time taken and save metrics report
         end_time = time.time()
@@ -174,17 +163,8 @@ class SceneOptimizer:
 
         save_metrics_reports(base_metrics_groups, str(base_output_paths.metrics))
 
-    def _create_process_graph(self):
-        process_graph_generator = ProcessGraphGenerator()
-        # Only the Multiview optimizer defines correspondence_generator; guard with isinstance and
-        # cast for type checkers.
-        if isinstance(self.cluster_optimizer, Multiview):
-            multiview_optimizer = cast(Multiview, self.cluster_optimizer)
-            if isinstance(multiview_optimizer.correspondence_generator, ImageCorrespondenceGenerator):
-                process_graph_generator.is_image_correspondence = True
-        process_graph_generator.save_graph()
-
     def _run_retriever(self, client) -> tuple[GtsfmMetricsGroup, VisibilityGraph]:
+        # TODO(Frank): refactor to move more of this logic into ImagePairsGenerator
         retriever_start_time = time.time()
         batch_size = self.image_pairs_generator._batch_size
 
