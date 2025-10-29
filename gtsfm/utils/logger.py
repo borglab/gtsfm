@@ -1,6 +1,6 @@
 """Utilities for logging.
 
-Authors: Ayush Baid, John Lambert.
+Authors: Ayush Baid, John Lamber, Zong.
 """
 
 import logging
@@ -18,10 +18,13 @@ from dask import distributed
 # It avoids repeated Dask API calls for every log statement.
 _WORKER_ID_CACHE: str | None = None
 
-# Registry to assign sequential worker numbers per hostname
+# Registry to assign sequential worker numbers
 # Maps (hostname, port) -> worker_number
 _WORKER_REGISTRY: dict[tuple[str, str], int] = {}
-_WORKER_COUNTER: dict[str, int] = {}  # Tracks next number for each hostname
+_NEXT_WORKER_NUM: int = 1
+
+# Track if we've printed the mapping for this worker
+_MAPPING_PRINTED: bool = False
 
 
 def _detect_worker_id_once() -> str:
@@ -31,12 +34,16 @@ def _detect_worker_id_once() -> str:
     This function queries the Dask distributed system to determine if we're
     running inside a Dask worker or in the main scheduler process.
     
+    Assigns sequential numbers (1, 2, 3...) to workers in the order they
+    are first encountered. Prints mapping information for debugging.
+    
     Returns:
         str: Worker ID in format "hostname(N)" for workers,
              or "hostname-main" for the main process.
              
     Examples:
-        - Dask worker: "hornet(1)", "hornet(2)"
+        - First worker: "hornet(1)" with port 40665
+        - Second worker: "hornet(2)" with port 42037
         - Main process: "eagle-main"
     """
     try:
@@ -49,19 +56,20 @@ def _detect_worker_id_once() -> str:
         # Extract port number as a unique identifier for this worker
         port = worker_address.split(":")[-1]
         
-        # Assign sequential worker number for this hostname
-        global _WORKER_REGISTRY, _WORKER_COUNTER
+        # Assign sequential worker number
+        global _WORKER_REGISTRY, _NEXT_WORKER_NUM
         
         key = (hostname, port)
         if key not in _WORKER_REGISTRY:
-            # First time seeing this worker, assign next number
-            if hostname not in _WORKER_COUNTER:
-                _WORKER_COUNTER[hostname] = 1
-            _WORKER_REGISTRY[key] = _WORKER_COUNTER[hostname]
-            _WORKER_COUNTER[hostname] += 1
+            # First time seeing this worker, assign next sequential number
+            _WORKER_REGISTRY[key] = _NEXT_WORKER_NUM
+            _NEXT_WORKER_NUM += 1
         
         worker_num = _WORKER_REGISTRY[key]
-        return f"{hostname}({worker_num})"
+        worker_id = f"{hostname}({worker_num})"
+        
+        # Print mapping info (will be done in the adapter to avoid duplicate prints)
+        return worker_id
         
     except (ImportError, ValueError, AttributeError):
         # Failure: we're in the main process (or Dask is not available)
@@ -86,6 +94,26 @@ def get_worker_id() -> str:
         _WORKER_ID_CACHE = _detect_worker_id_once()
     
     return _WORKER_ID_CACHE
+
+
+def _print_worker_mapping():
+    """Print the worker ID mapping for debugging purposes."""
+    try:
+        worker = distributed.get_worker()
+        hostname = socket.gethostname()
+        worker_address = worker.address
+        port = worker_address.split(":")[-1]
+        
+        # Get the assigned worker number
+        key = (hostname, port)
+        worker_num = _WORKER_REGISTRY.get(key, "?")
+        
+        # Print mapping information
+        print(f"🔧 Worker Mapping: {hostname}({worker_num}) = {hostname} @ port {port} | Full address: {worker_address}", 
+              file=sys.stderr, flush=True)
+        
+    except (ImportError, ValueError, AttributeError):
+        pass  # Not a worker, skip
 
 
 class WorkerAwareAdapter(LoggerAdapter):
@@ -117,11 +145,16 @@ class WorkerAwareAdapter(LoggerAdapter):
         CRITICAL: Worker detection happens HERE (lazily) because at module
         import time the Dask worker context isn't ready yet!
         """
-        global _WORKER_ID_CACHE
+        global _WORKER_ID_CACHE, _MAPPING_PRINTED
         
         # Lazy detection on first log call in this process
         if _WORKER_ID_CACHE is None:
             _WORKER_ID_CACHE = _detect_worker_id_once()
+            
+            # Print mapping info on first log from this worker
+            if not _MAPPING_PRINTED and "main" not in _WORKER_ID_CACHE:
+                _print_worker_mapping()
+                _MAPPING_PRINTED = True
         
         # Inject worker_id into the LogRecord's extra fields
         # This allows the formatter to use %(worker_id)s in the format string
@@ -170,6 +203,9 @@ def get_logger() -> LoggerAdapter:
     Worker detection is LAZY - it happens on the first log call, not at
     logger creation time, because Dask worker context isn't available at
     module import time.
+    
+    Workers are assigned sequential numbers (1, 2, 3...) as they are
+    encountered. The mapping is printed to stderr for debugging.
     
     Log format:
         "2025-10-28 00:00:45 [hornet(1)] [filename.py] INFO: message"
