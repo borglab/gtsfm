@@ -196,7 +196,7 @@ class SimilarityRetriever(RetrieverBase):
                 for _named_pair, _pair_ind in zip(named_pairs, pairs):
                     fid.write("%.4f %s %s\n" % (sim[_pair_ind[0], _pair_ind[1]], _named_pair[0], _named_pair[1]))
 
-        logger.info("Found %d pairs from the NetVLAD Retriever.", len(pairs))
+        logger.info("Found %d pairs from the Similarity Retriever.", len(pairs))
         return pairs
 
 
