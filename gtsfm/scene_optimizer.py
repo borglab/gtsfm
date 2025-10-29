@@ -5,7 +5,6 @@ Authors: Ayush Baid, John Lambert
 
 import time
 from dataclasses import dataclass
-from itertools import count
 from pathlib import Path
 from typing import Optional, Sequence, TypeVar, cast
 
@@ -16,7 +15,7 @@ from dask.distributed import Client, Future, performance_report
 import gtsfm.utils.logger as logger_utils
 from gtsfm.cluster_optimizer import REACT_METRICS_PATH, REACT_RESULTS_PATH, Base, save_metrics_reports
 from gtsfm.common.gtsfm_data import GtsfmData
-from gtsfm.common.outputs import OutputPaths, prepare_output_paths
+from gtsfm.common.outputs import OutputPaths, cluster_label, prepare_output_paths
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.evaluation.retrieval_metrics import save_retrieval_two_view_metrics
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
@@ -25,9 +24,8 @@ from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.products.visibility_graph import VisibilityGraph
 from gtsfm.retriever.image_pairs_generator import ImagePairsGenerator
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
-from gtsfm.utils import align
+from gtsfm.utils import align as align_utils
 from gtsfm.utils.tree import PreOrderIter, Tree
-from gtsfm.utils.tree_dask import submit_tree_fold
 
 # Set matplotlib backend to "Agg" (Anti-Grain Geometry) for headless rendering
 # This must be called before importing pyplot or any other matplotlib modules
@@ -44,11 +42,12 @@ T = TypeVar("T")
 class ClusterExecutionHandles:
     """Futures tracking the execution of a single cluster optimization."""
 
-    reconstruction: Future  # [Optional[GtsfmData]]
-    metrics: Future  # [list[GtsfmMetricsGroup]]
-    io_barrier: Future  # [None]
+    reconstruction: Future  # Optional[GtsfmData]
+    metrics: Future  # list[GtsfmMetricsGroup]
+    io_barrier: Future  # None
     output_paths: OutputPaths
-    cluster_index: int
+    cluster_path: tuple[int, ...]
+    label: str
     edge_count: int
 
 
@@ -77,6 +76,25 @@ def _finalize_io_tasks(*_args: object) -> None:
     return None
 
 
+def _export_merged_scene(
+    merged_scene: Optional[GtsfmData],
+    target_dir: Path,
+    image_shapes: Sequence[tuple[int, ...]],
+    image_filenames: Sequence[str],
+) -> None:
+    """Persist a merged reconstruction to COLMAP text format."""
+    if merged_scene is None:
+        return
+
+    merged_path = Path(target_dir)
+    merged_path.mkdir(parents=True, exist_ok=True)
+    merged_scene.export_as_colmap_text(
+        merged_path,
+        image_shapes=list(image_shapes),
+        image_filenames=list(image_filenames),
+    )
+
+
 def _merge_cluster_results(
     current: Optional[GtsfmData], child_results: tuple[Optional[GtsfmData], ...]
 ) -> Optional[GtsfmData]:
@@ -89,7 +107,7 @@ def _merge_cluster_results(
             merged = child
             continue
         try:
-            aSb = align.sim3_from_Pose3_maps(merged.poses(), child.poses())
+            aSb = align_utils.sim3_from_Pose3_maps(merged.poses(), child.poses())
             merged = merged.merged_with(child, aSb)
         except Exception as exc:
             logger.warning("Failed to merge cluster outputs: %s", exc)
@@ -160,6 +178,7 @@ class SceneOptimizer:
         logger.info("🔥 GTSFM: Scheduling cluster optimizations...")
         one_view_data_dict = self.loader.get_one_view_data_dict()
         merged_scene: Optional[GtsfmData] = None
+        merge_jobs: list[tuple[ClusterExecutionHandles, Future, Future]] = []
 
         with performance_report(filename="dask_reports/scene-optimizer.html"):
             if cluster_tree is None:
@@ -172,20 +191,29 @@ class SceneOptimizer:
                     one_view_data_dict=one_view_data_dict,
                     image_futures=image_futures,
                 )
-                reconstruction_tree = handles_tree.map(lambda handle: handle.reconstruction)
-                merged_future = submit_tree_fold(client, reconstruction_tree, _merge_cluster_results)
-                logger.info("🔥 GTSFM: Running cluster optimization and merging...")
-                merged_scene = merged_future.result()
-
-                logger.info("🔥 GTSFM: Running cluster optimization and merging...")
-                for node in PreOrderIter(handles_tree):
-                    handle = node.value
+                image_shapes = self.loader.get_image_shapes()
+                image_filenames = self.loader.image_filenames()
+                merged_tree = self._schedule_merge_tree(client, handles_tree)
+                merge_jobs = self._schedule_merge_exports(
+                    client=client,
+                    handles_tree=handles_tree,
+                    merged_tree=merged_tree,
+                    image_shapes=image_shapes,
+                    image_filenames=image_filenames,
+                )
+                root_merge_future: Optional[Future] = None
+                for handle, merge_future, export_future in merge_jobs:
                     metrics_groups = list(handle.metrics.result())
                     handle.io_barrier.result()
-                    if handle.cluster_index == 0:
+                    export_future.result()
+                    if len(handle.cluster_path) == 0:
                         base_metrics_groups.extend(metrics_groups)
+                        root_merge_future = merge_future
                     elif metrics_groups:
                         save_metrics_reports(metrics_groups, str(handle.output_paths.metrics))
+                if root_merge_future is not None:
+                    logger.info("🔥 GTSFM: Running cluster optimization and merging...")
+                    merged_scene = root_merge_future.result()
 
         if merged_scene is not None:
             logger.info(
@@ -260,25 +288,26 @@ class SceneOptimizer:
         image_futures: Sequence[Future],
     ) -> Tree[ClusterExecutionHandles]:
         """Recursively schedule reconstruction for every cluster in the tree."""
-        index_counter = count(1)
         num_images = len(self.loader)
 
-        def visit(node: Tree[VisibilityGraph], is_root: bool) -> Tree[ClusterExecutionHandles]:
-            cluster_index = 0 if is_root else next(index_counter)
-            output_paths = base_output_paths if is_root else prepare_output_paths(self.output_root, cluster_index)
+        def visit(node: Tree[VisibilityGraph], path: tuple[int, ...]) -> Tree[ClusterExecutionHandles]:
+            is_root = len(path) == 0
+            output_paths = base_output_paths if is_root else prepare_output_paths(self.output_root, path)
+            label = cluster_label(path)
             handle = self._schedule_single_cluster(
                 client=client,
                 visibility_graph=node.value,
                 num_images=num_images,
                 one_view_data_dict=one_view_data_dict,
                 output_paths=output_paths,
-                cluster_index=cluster_index,
+                cluster_path=path,
+                label=label,
                 image_futures=image_futures,
             )
-            children = tuple(visit(child, False) for child in node.children)
+            children = tuple(visit(child, path + (index,)) for index, child in enumerate(node.children, start=1))
             return Tree(value=handle, children=children)
 
-        return visit(cluster_tree, True)
+        return visit(cluster_tree, ())
 
     def _schedule_single_cluster(
         self,
@@ -288,16 +317,17 @@ class SceneOptimizer:
         num_images: int,
         one_view_data_dict,
         output_paths: OutputPaths,
-        cluster_index: int,
+        cluster_path: tuple[int, ...],
+        label: str,
         image_futures: Sequence[Future],
     ) -> ClusterExecutionHandles:
         """Schedule the optimizer for a single cluster and return futures tracking its execution."""
         edge_count = len(visibility_graph)
         if edge_count == 0:
-            logger.warning("Skipping cluster %d as it has no edges.", cluster_index)
-            return self._empty_cluster_handles(client, output_paths, cluster_index, edge_count)
+            logger.warning("Skipping cluster %s as it has no edges.", label)
+            return self._empty_cluster_handles(client, output_paths, cluster_path, label, edge_count)
 
-        logger.info("Creating computation graph for cluster %d with %d visibility edges.", cluster_index, edge_count)
+        logger.info("Creating computation graph for cluster %s with %d visibility edges.", label, edge_count)
 
         computation = self.cluster_optimizer.create_computation_graph(
             num_images=num_images,
@@ -309,8 +339,8 @@ class SceneOptimizer:
             image_futures=image_futures,
         )
         if computation is None or computation.sfm_result is None:
-            logger.warning("Cluster optimizer produced no result for cluster %d.", cluster_index)
-            return self._empty_cluster_handles(client, output_paths, cluster_index, edge_count)
+            logger.warning("Cluster optimizer produced no result for cluster %s.", label)
+            return self._empty_cluster_handles(client, output_paths, cluster_path, label, edge_count)
 
         io_graph = delayed(_finalize_io_tasks, pure=False)(*computation.io_tasks)
         metrics_graph = delayed(_collect_metric_results, pure=False)(*computation.metric_tasks)
@@ -324,19 +354,70 @@ class SceneOptimizer:
             metrics=metrics_future,
             io_barrier=io_future,
             output_paths=output_paths,
-            cluster_index=cluster_index,
+            cluster_path=cluster_path,
+            label=label,
             edge_count=edge_count,
         )
 
     def _empty_cluster_handles(
-        self, client: Client, output_paths: OutputPaths, cluster_index: int, edge_count: int
+        self,
+        client: Client,
+        output_paths: OutputPaths,
+        cluster_path: tuple[int, ...],
+        label: str,
+        edge_count: int,
     ) -> ClusterExecutionHandles:
         """Create placeholder futures for clusters that were skipped."""
+        reconstruction: Future = client.submit(_identity, None, pure=False)
+        metrics: Future = client.submit(_identity, [], pure=False)
+        io_barrier: Future = client.submit(_identity, None, pure=False)
         return ClusterExecutionHandles(
-            reconstruction=client.submit(_identity, None, pure=False),
-            metrics=client.submit(_identity, [], pure=False),
-            io_barrier=client.submit(_identity, None, pure=False),
+            reconstruction=reconstruction,
+            metrics=metrics,
+            io_barrier=io_barrier,
             output_paths=output_paths,
-            cluster_index=cluster_index,
+            cluster_path=cluster_path,
+            label=label,
             edge_count=edge_count,
         )
+
+    def _schedule_merge_tree(self, client: Client, handles_tree: Tree[ClusterExecutionHandles]) -> Tree[Future]:
+        """Create merge futures for every cluster mirroring the execution handles tree."""
+
+        def visit(node: Tree[ClusterExecutionHandles]) -> Tree[Future]:
+            child_merge_nodes = tuple(visit(child) for child in node.children)
+            child_merge_futures = tuple(child.value for child in child_merge_nodes)
+            merged_future: Future = client.submit(
+                _merge_cluster_results,
+                node.value.reconstruction,
+                child_merge_futures,
+            )
+            return Tree(value=merged_future, children=child_merge_nodes)
+
+        return visit(handles_tree)
+
+    def _schedule_merge_exports(
+        self,
+        *,
+        client: Client,
+        handles_tree: Tree[ClusterExecutionHandles],
+        merged_tree: Tree[Future],
+        image_shapes: Sequence[tuple[int, ...]],
+        image_filenames: Sequence[str],
+    ) -> list[tuple[ClusterExecutionHandles, Future, Future]]:
+        """Schedule persistence of merged reconstructions for each cluster."""
+        jobs: list[tuple[ClusterExecutionHandles, Future, Future]] = []
+        for handle_node, merged_node in zip(PreOrderIter(handles_tree), PreOrderIter(merged_tree)):
+            handle = handle_node.value
+            merged_future = merged_node.value
+            merged_dir = handle.output_paths.results / "merged"
+            export_future: Future = client.submit(
+                _export_merged_scene,
+                merged_future,
+                merged_dir,
+                image_shapes,
+                image_filenames,
+                pure=False,
+            )
+            jobs.append((handle, merged_future, export_future))
+        return jobs
