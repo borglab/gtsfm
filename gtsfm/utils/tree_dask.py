@@ -14,7 +14,7 @@ AggregatedT = TypeVar("AggregatedT")
 
 def _invoke_fold_node(
     fn: Callable[[AggregatedT, Tuple[AggregatedT, ...]], AggregatedT],
-    value: TreePayloadT,
+    value: object,
     child_results: Tuple[AggregatedT, ...],
 ) -> AggregatedT:
     """Helper executed on workers to combine child outputs."""
