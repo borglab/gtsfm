@@ -140,6 +140,7 @@ def generate_interpolated_video(images: List[Image], gtsfm_data: GtsfmData, cfg:
     num_frames = cfg.num_frames
     fps = cfg.fps
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    splats = {key: v.to(device) for key, v in splats.items()}
     full_dataset = GaussianSplattingData(images, gtsfm_data)
     wTi_np = generate_interpolated_path(full_dataset.wTi_tensor, num_frames, spline_degree=2)
 

@@ -18,6 +18,7 @@ from gtsfm.common.image import Image
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.products.visibility_graph import visibility_graph_keys
 from gtsfm.utils import logger as logger_utils
+from gtsfm.ui.gtsfm_process import UiMetadata
 
 HERE_PATH = Path(__file__).parent
 ANYSPLAT_REPO_PATH = HERE_PATH.parent.parent / "thirdparty" / "AnySplat"
@@ -25,7 +26,7 @@ ANYSPLAT_REPO_PATH = HERE_PATH.parent.parent / "thirdparty" / "AnySplat"
 if ANYSPLAT_REPO_PATH.exists():
     # workaround for sibling import
     sys.path.insert(0, str(ANYSPLAT_REPO_PATH))
-else:
+elif not ANYSPLAT_REPO_PATH.exists():
     raise ImportError(
         f"AnySplat is not initialized, could not find: {ANYSPLAT_REPO_PATH}.\n "
         "Did you forget to run 'git submodule update --init --recursive' ?"
@@ -47,11 +48,22 @@ class ClusterAnySplat(ClusterOptimizerBase):
         super().__init__()
         self._model = None
 
+    @staticmethod
+    def get_ui_metadata() -> UiMetadata:
+        """Returns data needed to display node and edge info for this process in the process graph."""
+        return UiMetadata(
+            display_name="AnySplat",
+            input_products=("Key Images",),
+            output_products=("Gaussian Splats", "Interpolated Video"),
+            parent_plate="Cluster Optimizer",
+        )
+
     def _ensure_model_loaded(self) -> None:
         """Lazy-load the AnySplat model to avoid unnecessary initialization."""
         if self._model is None:
             logger.info("⏳ Loading AnySplat model weights...")
             self._model = AnySplat.from_pretrained("lhjiang/anysplat")
+
 
     def __repr__(self) -> str:
         """Provide a readable summary of the optimizer configuration."""

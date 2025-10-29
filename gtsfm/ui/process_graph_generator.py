@@ -89,6 +89,9 @@ class ProcessGraphGenerator:
             # Get UI metadata of class.
             metadata = cls_type.get_ui_metadata()
 
+            if metadata is None:
+                continue
+
             # Skip duplicates.
             # happens when concrete classes implement an abstract class without overwriting get_ui_metadata()
             if metadata in unique_metadata:

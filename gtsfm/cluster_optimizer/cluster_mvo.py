@@ -441,11 +441,11 @@ class ClusterMVO(ClusterOptimizerBase):
                 )
                 delayed_io_tasks.append(
                     delayed(gtsfm_rendering.generate_interpolated_video)(
-                        images=images,
-                        sfm_result_graph=ba_output_graph,
-                        cfg_result_graph=cfg_graph,
-                        splats_graph=splats_graph,
-                        video_fpath=str(output_paths.results / "interpolated_video.mp4"),
+                        images,
+                        ba_output_graph,
+                        cfg_graph,
+                        splats_graph,
+                        str(output_paths.results / "interpolated_video.mp4"),
                     )
                 )
 
