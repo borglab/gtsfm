@@ -168,7 +168,7 @@ def run_vggt(image_batch: torch.Tensor, image_indices: list[int], original_coord
     reconstruction.write_text(sparse_reconstruction_dir)
 
     # Save point cloud for fast visualization
-    trimesh.PointCloud(points_3d, colors=points_rgb).export(sparse_reconstruction_dir / "points.ply")
+    # trimesh.PointCloud(points_3d, colors=points_rgb).export(sparse_reconstruction_dir / "points.ply")
     
     return GtsfmData(0, None, None)
 
@@ -198,19 +198,21 @@ class TestVGGT(unittest.TestCase):
         indices = [4, 11, 8, 2]
 
         # resize_transform = None
-        # resize_transform = transforms.Compose(
-        #     [
-        #         transforms.Lambda(lambda x: torch.from_numpy(x)),
-        #         transforms.Lambda(lambda x: x.permute(2, 0, 1)),  # [H,W,C] → [C,H,W]
-        #         transforms.Resize(size=(518, 518), antialias=True),  # Expects [C,H,W]
-        #     ]
-        # )
-        # # Transform 2: Convert to float32 and normalize to [0, 1]
-        # batch_transform = transforms.Lambda(lambda x: x.type(torch.float32) / 255.0)
+        resize_transform = transforms.Compose(
+            [
+                transforms.Lambda(lambda x: torch.from_numpy(x)),
+                transforms.Lambda(lambda x: x.permute(2, 0, 1)),  # [H,W,C] → [C,H,W]
+                transforms.Resize(size=(img_load_resolution, img_load_resolution), antialias=True),  # Expects [C,H,W]
+            ]
+        )
+        # Transform 2: Convert to float32 and normalize to [0, 1]
+        batch_transform = transforms.Lambda(lambda x: x.type(torch.float32) / 255.0)
 
-        # image_batch = loader.load_image_batch(indices, resize_transform, batch_transform)
+        image_batch, original_coords = loader.load_image_batch_vggt(indices, resize_transform, batch_transform, img_load_resolution)
         
-        image_batch, original_coords = loader.load_and_preprocess_images_square_vggt(indices, img_load_resolution)
+        # image_batch, original_coords = loader.load_and_preprocess_images_square_vggt(indices, img_load_resolution)
+        
+        print('image_batch: ', image_batch.shape)
         
         with torch.no_grad():
 
