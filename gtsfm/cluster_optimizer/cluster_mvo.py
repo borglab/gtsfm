@@ -17,7 +17,6 @@ from gtsam import Pose3, Similarity3  # type: ignore
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.two_view_estimator as two_view_estimator
-import gtsfm.utils.alignment as alignment_utils
 import gtsfm.utils.ellipsoid as ellipsoid_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.viz as viz_utils
@@ -39,8 +38,8 @@ from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.products.one_view_data import OneViewData
 from gtsfm.products.two_view_result import TwoViewResult
 from gtsfm.products.visibility_graph import AnnotatedGraph, VisibilityGraph
-from gtsfm.two_view_estimator import (TwoViewEstimator,
-                                      run_two_view_estimator_as_futures)
+from gtsfm.two_view_estimator import TwoViewEstimator, run_two_view_estimator_as_futures
+from gtsfm.utils import transform
 
 
 @dataclass(frozen=True)
@@ -496,19 +495,19 @@ def _pad_keypoints_list(keypoints_list: list[Keypoints], target_length: int) -> 
 def align_estimated_gtsfm_data(
     ba_input: GtsfmData, ba_output: GtsfmData, gt_wTi_list: list[Optional[Pose3]]
 ) -> tuple[GtsfmData, GtsfmData, list[Optional[Pose3]]]:
-    """Align estimated data with ground-truth poses and world axes.
+    """Align estimated data with ground-truth poses and world axes."""
+    w_S_output = ba_output.align_to_poses_via_sim3(gt_wTi_list)
+    w_ba_output = ba_output.transform_with_sim3(w_S_output)
+    w_S_input = ba_input.align_to_poses_via_sim3(gt_wTi_list)
+    w_ba_input = ba_input.transform_with_sim3(w_S_input)
 
-    NOTE: alignment is common postprocessing for outputs from any optimizer.
-    """
-    ba_input = alignment_utils.align_gtsfm_data_via_Sim3_to_poses(ba_input, gt_wTi_list)
-    ba_output = alignment_utils.align_gtsfm_data_via_Sim3_to_poses(ba_output, gt_wTi_list)
-
-    aTw = ellipsoid_utils.get_ortho_axis_alignment_transform(ba_output)
+    aTw = ellipsoid_utils.get_ortho_axis_alignment_transform(w_ba_output)
     aSw = Similarity3(R=aTw.rotation(), t=aTw.translation(), s=1.0)
-    ba_input = ba_input.apply_Sim3(aSw)
-    ba_output = ba_output.apply_Sim3(aSw)
-    gt_wTi_list = [aSw.transformFrom(wTi) if wTi is not None else None for wTi in gt_wTi_list]
-    return ba_input, ba_output, gt_wTi_list
+    a_ba_output = w_ba_output.transform_with_sim3(aSw)
+    a_ba_input = w_ba_input.transform_with_sim3(aSw)
+    a_gt_poses = transform.optional_Pose3s_with_sim3(aSw, gt_wTi_list)
+
+    return a_ba_input, a_ba_output, a_gt_poses
 
 
 def save_matplotlib_visualizations(

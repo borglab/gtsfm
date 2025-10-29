@@ -7,11 +7,17 @@ import unittest
 
 import numpy as np
 import trimesh
-from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Point3, Pose3, Rot3, SfmTrack
+from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Point2, Point3, Pose3, Rot3, SfmTrack  # type: ignore
 
 import gtsfm.utils.metrics as metric_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.keypoints import Keypoints
+
+
+def rot3(matrix: np.ndarray | list) -> Rot3:
+    """Helper to create Rot3 from a numpy array or list, avoiding type-check errors."""
+    R: np.ndarray = np.array(matrix)
+    return Rot3(R)
 
 
 class TestMetricUtils(unittest.TestCase):
@@ -80,7 +86,7 @@ class TestMetricUtils(unittest.TestCase):
         calib = Cal3Bundler(fx, k1, k2, px, py)
 
         wTi2 = Pose3(
-            Rot3(
+            rot3(
                 [
                     [0.95813172, 0.00187844098, -0.286321635],
                     [-0.00477926501, 0.999944088, -0.00943285149],
@@ -90,7 +96,7 @@ class TestMetricUtils(unittest.TestCase):
             Point3(-0.763405555, -0.266165811, -0.118153783),
         )
         wTi3 = Pose3(
-            Rot3(
+            rot3(
                 [
                     [0.999985712, 0.00523414604, -0.00108604007],
                     [-0.00524091331, 0.999966264, -0.00632478431],
@@ -100,7 +106,7 @@ class TestMetricUtils(unittest.TestCase):
             Point3(-0.76321922 - 0.266172481 - 0.118146617),
         )
         wTi4 = Pose3(
-            Rot3(
+            rot3(
                 [
                     [0.963327067, 0.00797924699, 0.268211287],
                     [-0.0070859796, 0.999965656, -0.00429831651],
@@ -110,7 +116,7 @@ class TestMetricUtils(unittest.TestCase):
             Point3(-0.76303985 - 0.266175812 - 0.11817041),
         )
         wTi5 = Pose3(
-            Rot3(
+            rot3(
                 [
                     [0.965261642, 0.00828550155, 0.261153812],
                     [-0.00485679326, 0.99989337, -0.0137717378],
@@ -120,7 +126,7 @@ class TestMetricUtils(unittest.TestCase):
             Point3(-0.762848965 - 0.266179234 - 0.118209764),
         )
         wTi30 = Pose3(
-            Rot3(
+            rot3(
                 [
                     [0.761797609, -0.0189987841, 0.647536446],
                     [0.000647893104, 0.999591701, 0.0285659033],
@@ -137,39 +143,39 @@ class TestMetricUtils(unittest.TestCase):
             30: PinholeCameraCal3Bundler(wTi30, calib),
         }
 
-        t0 = SfmTrack(pt=[-0.7627727, -0.26624048, -0.11879795])
-        t0.addMeasurement(2, [184.08586121, 441.31314087])
-        t0.addMeasurement(4, [18.98637581, 453.21853638])
+        t0 = SfmTrack(pt=Point3(-0.7627727, -0.26624048, -0.11879795))
+        t0.addMeasurement(2, Point2(184.08586121, 441.31314087))
+        t0.addMeasurement(4, Point2(18.98637581, 453.21853638))
 
-        t1 = SfmTrack(pt=[-0.76277714, -0.26603358, -0.11884205])
-        t1.addMeasurement(2, [213.51266479, 288.06637573])
-        t1.addMeasurement(4, [50.23059464, 229.30541992])
+        t1 = SfmTrack(pt=Point3(-0.76277714, -0.26603358, -0.11884205))
+        t1.addMeasurement(2, Point2(213.51266479, 288.06637573))
+        t1.addMeasurement(4, Point2(50.23059464, 229.30541992))
 
-        t2 = SfmTrack(pt=[-0.7633115, -0.2662322, -0.11826181])
-        t2.addMeasurement(2, [227.52420044, 695.15087891])
-        t2.addMeasurement(3, [996.67608643, 705.03125])
+        t2 = SfmTrack(pt=Point3(-0.7633115, -0.2662322, -0.11826181))
+        t2.addMeasurement(2, Point2(227.52420044, 695.15087891))
+        t2.addMeasurement(3, Point2(996.67608643, 705.03125))
 
-        t3 = SfmTrack(pt=[-0.76323087, -0.26629859, -0.11836833])
-        t3.addMeasurement(2, [251.37863159, 702.97064209])
-        t3.addMeasurement(3, [537.9753418, 732.26025391])
+        t3 = SfmTrack(pt=Point3(-0.76323087, -0.26629859, -0.11836833))
+        t3.addMeasurement(2, Point2(251.37863159, 702.97064209))
+        t3.addMeasurement(3, Point2(537.9753418, 732.26025391))
 
-        t4 = SfmTrack(pt=[-0.70450081, -0.28115719, -0.19063382])
-        t4.addMeasurement(2, [253.17749023, 490.47991943])
-        t4.addMeasurement(3, [13.17782784, 507.57717896])
+        t4 = SfmTrack(pt=Point3(-0.70450081, -0.28115719, -0.19063382))
+        t4.addMeasurement(2, Point2(253.17749023, 490.47991943))
+        t4.addMeasurement(3, Point2(13.17782784, 507.57717896))
 
-        t5 = SfmTrack(pt=[-0.52781989, -0.31926005, -0.40763909])
-        t5.addMeasurement(2, [253.52301025, 478.41384888])
-        t5.addMeasurement(3, [10.92995739, 493.31018066])
+        t5 = SfmTrack(pt=Point3(-0.52781989, -0.31926005, -0.40763909))
+        t5.addMeasurement(2, Point2(253.52301025, 478.41384888))
+        t5.addMeasurement(3, Point2(10.92995739, 493.31018066))
 
-        t6 = SfmTrack(pt=[-0.74893948, -0.27132075, -0.1360136])
-        t6.addMeasurement(2, [254.64611816, 533.04730225])
-        t6.addMeasurement(3, [18.78449249, 557.05041504])
+        t6 = SfmTrack(pt=Point3(-0.74893948, -0.27132075, -0.1360136))
+        t6.addMeasurement(2, Point2(254.64611816, 533.04730225))
+        t6.addMeasurement(3, Point2(18.78449249, 557.05041504))
 
         aligned_tracks = [t0, t1, t2, t3, t4, t5, t6]
         aligned_filtered_data = GtsfmData.from_cameras_and_tracks(
             cameras=aligned_cameras, tracks=aligned_tracks, number_images=32
         )
-        metrics = metric_utils.get_metrics_for_sfmdata(aligned_filtered_data, suffix="_filtered")
+        metrics = aligned_filtered_data.get_metrics(suffix="_filtered")
 
         assert metrics[0].name == "number_cameras"
         assert np.isclose(metrics[0]._data, np.array(5.0, dtype=np.float32))
@@ -222,32 +228,33 @@ def test_pose_auc1() -> None:
     errors = np.ones(5) * 5.0
     thresholds = [5, 10, 20]
 
-    aucs = metric_utils.pose_auc(errors, thresholds)
+    # Calculate AUC
+    AUCs = metric_utils.pose_auc(errors, thresholds)
 
     # Sum triangles and rectangles.
     # AUC @ 5 deg thresh: 0. (no cameras under this threshold).
     # AUC @ 10 deg thresh: (5 * 0.2 * (1/2) + 1 * 5.0) / 10
     # AUC @ 20 deg thresh: (5 * 0.2 * (1/2) + 1 * 15.0) / 20
-    expected_aucs = [0.0, 0.55, 0.775]
+    expected_AUCs = [0.0, 0.55, 0.775]
 
-    assert np.allclose(aucs, expected_aucs)
+    assert np.allclose(AUCs, expected_AUCs)
 
 
 def test_pose_auc_all_zero_errors_perfect_auc() -> None:
     errors = np.zeros(5)
 
     thresholds = [5, 10, 20]
-    aucs = metric_utils.pose_auc(errors, thresholds)
-    expected_aucs = [1.0, 1.0, 1.0]
-    assert np.allclose(aucs, expected_aucs)
+    AUCs = metric_utils.pose_auc(errors, thresholds)
+    expected_AUCs = [1.0, 1.0, 1.0]
+    assert np.allclose(AUCs, expected_AUCs)
 
 
 def test_pose_auc_all_errors_exceed_threshold_zero_auc() -> None:
     errors = np.ones(5) * 25.0
     thresholds = [5, 10, 20]
-    aucs = metric_utils.pose_auc(errors, thresholds)
-    expected_aucs = [0.0, 0.0, 0.0]
-    assert np.allclose(aucs, expected_aucs)
+    AUCs = metric_utils.pose_auc(errors, thresholds)
+    expected_AUCs = [0.0, 0.0, 0.0]
+    assert np.allclose(AUCs, expected_AUCs)
 
 
 def test_pose_auc_works_for_nan_error() -> None:
@@ -290,13 +297,13 @@ def test_pose_auc_works_for_nan_error() -> None:
         ]
     )
 
-    aucs = metric_utils.pose_auc(pose_errors, thresholds)
+    AUCs = metric_utils.pose_auc(pose_errors, thresholds)
 
     # Note recall is roughly (27 / 32) since exclude 5 errors above 1 deg -> (1.422, 1.676, 2.935, 6.655,   nan)
     # If we drew triangle up to recall point, we would get 0.84 * 0.5 -> 0.42, but more
     # mass lies above diagonal, so get to roughly 0.5 AUC.
     expected_auc_at_1_deg = 0.4996
-    assert np.isclose(aucs[0], expected_auc_at_1_deg, atol=1e-3)
+    assert np.isclose(AUCs[0], expected_auc_at_1_deg, atol=1e-3)
 
 
 if __name__ == "__main__":
