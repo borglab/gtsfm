@@ -369,6 +369,14 @@ class LoaderBase(GTSFMProcess):
             delayed_images = {i: delayed(self.get_image)(i) for i in range(N)}
         return delayed_images
 
+    def get_key_images_as_delayed_map(self, keys: List[int]) -> Dict[int, Delayed]:
+        """Creates a computation graph to fetch images, using the provided keys as identifiers."""
+
+        annotation = dask_annotate(workers=self._input_worker) if self._input_worker else dask_annotate()
+        with annotation:
+            delayed_images = {key: delayed(self.get_image)(key) for key in keys}
+        return delayed_images
+
     def get_all_images_as_futures(self, client: Client) -> List[Future]:
         return [
             client.submit(self.get_image, i, workers=[self._input_worker] if self._input_worker else None)
