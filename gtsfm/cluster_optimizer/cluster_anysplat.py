@@ -90,7 +90,14 @@ class ClusterAnySplat(ClusterOptimizerBase):
         _, _, _, height, width = processed_images.shape
         splats, pred_context_pose = model.inference((processed_images + 1) * 0.5)
 
-        return splats, pred_context_pose, height, width, model.decoder
+        # Move results to CPU to avoid Dask serialization errors.
+        for attr in ["means", "scales", "rotations", "harmonics", "opacities"]:
+            setattr(splats, attr, getattr(splats, attr).cpu())
+        pred_context_pose["extrinsic"] = pred_context_pose["extrinsic"].cpu()
+        pred_context_pose["intrinsic"] = pred_context_pose["intrinsic"].cpu()
+        decoder = model.decoder.cpu()
+
+        return splats, pred_context_pose, height, width, decoder
 
     def _preprocess_images(self, images: List[Image], device):
         """
@@ -129,6 +136,18 @@ class ClusterAnySplat(ClusterOptimizerBase):
         splats: Any,
         save_gs_files_path: str,
     ) -> None:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        if device == "cpu":
+            logger.warning("CUDA not available, cannot generate interpolated video on CPU.")
+            return
+
+        # Move data to GPU
+        decoder_model = decoder_model.to(device)
+        extrinsics = extrinsics.to(device)
+        intrinsics = intrinsics.to(device)
+        for attr in ["means", "scales", "rotations", "harmonics", "opacities"]:
+            setattr(splats, attr, getattr(splats, attr).to(device))
+
         b = 1  # AnySplat convention
         save_interpolated_video(
             extrinsics,
