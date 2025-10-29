@@ -5,10 +5,20 @@ from typing import TYPE_CHECKING
 
 from .cluster_optimizer_base import REACT_METRICS_PATH, REACT_RESULTS_PATH, logger, save_metrics_reports
 
-__all__ = ["Base", "Multiview", "Vggt", "REACT_METRICS_PATH", "REACT_RESULTS_PATH", "logger", "save_metrics_reports"]
+__all__ = [
+    "Base",
+    "Multiview",
+    "Vggt",
+    "Anysplat",
+    "REACT_METRICS_PATH",
+    "REACT_RESULTS_PATH",
+    "logger",
+    "save_metrics_reports",
+]
 
 # Provide symbols to type checkers/IDEs without incurring runtime imports.
 if TYPE_CHECKING:
+    from .cluster_anysplat import ClusterAnySplat as Anysplat
     from .cluster_mvo import ClusterMVO as Multiview
     from .cluster_optimizer_base import ClusterOptimizerBase as Base
     from .cluster_vggt import ClusterVGGT as Vggt
