@@ -1,6 +1,0 @@
-gaussian_splatting_optimizer:
-  _target_: gtsfm.ff_splat.anysplat_feed_forward_gaussian_splatting.AnySplatGaussianSplatting
-  cfg:
-    _target_: gtsfm.ff_splat.anysplat_feed_forward_gaussian_splatting.FF_Config
-    save_video: True
-    save_ply_file: True

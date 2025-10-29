@@ -18,6 +18,7 @@ _MOD_MAP = {
     "Base": ("gtsfm.cluster_optimizer.cluster_optimizer_base", "ClusterOptimizerBase"),
     "Multiview": ("gtsfm.cluster_optimizer.cluster_mvo", "ClusterMVO"),
     "Vggt": ("gtsfm.cluster_optimizer.cluster_vggt", "ClusterVGGT"),
+    "Anysplat": ("gtsfm.cluster_optimizer.cluster_anysplat", "ClusterAnySplat"),
 }
 
 

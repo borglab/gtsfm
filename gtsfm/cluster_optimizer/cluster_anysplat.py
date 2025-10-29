@@ -1,21 +1,21 @@
-"""Feed forward Gaussians generator using the AnySplat model.
+"""Feed forward Gaussian Splatting using the AnySplat model.
 https://github.com/InternRobotics/AnySplat
 Authors: Harneet Singh Khanuja
 """
 
 import sys
-from dataclasses import dataclass
 from pathlib import Path
-from typing import List
+from typing import Any, List
 
 import cv2
 import torch
 import torchvision  # type: ignore
-from dask import delayed
+from dask import delayed  # type: ignore
 from dask.delayed import Delayed
 
 from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterOptimizerBase
 from gtsfm.common.image import Image
+from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.products.visibility_graph import visibility_graph_keys
 from gtsfm.utils import logger as logger_utils
 
@@ -27,7 +27,7 @@ if ANYSPLAT_REPO_PATH.exists():
     sys.path.insert(0, str(ANYSPLAT_REPO_PATH))
 else:
     raise ImportError(
-        f"mast3r is not initialized, could not find: {ANYSPLAT_REPO_PATH}.\n "
+        f"AnySplat is not initialized, could not find: {ANYSPLAT_REPO_PATH}.\n "
         "Did you forget to run 'git submodule update --init --recursive' ?"
     )
 
@@ -39,24 +39,12 @@ from src.model.ply_export import export_ply
 logger = logger_utils.get_logger()
 
 
-@dataclass
-class FF_Config:
-    """
-    Parameters for Gaussian Splatting rendering
-    """
-
-    # --- Rendering ---
-    save_video: bool = True
-    save_ply_file: bool = True
-
-
-class AnySplatGaussianSplatting(ClusterOptimizerBase):
+class ClusterAnySplat(ClusterOptimizerBase):
     """Class for AnySplat (feed forward GS implementation)"""
 
-    def __init__(self, cfg: FF_Config):
+    def __init__(self):
         """."""
         super().__init__()
-        self.cfg = cfg
         self._model = None
 
     def _ensure_model_loaded(self) -> None:
@@ -65,31 +53,49 @@ class AnySplatGaussianSplatting(ClusterOptimizerBase):
             logger.info("⏳ Loading AnySplat model weights...")
             self._model = AnySplat.from_pretrained("lhjiang/anysplat")
 
-    def generate_splats(
+    def __repr__(self) -> str:
+        """Provide a readable summary of the optimizer configuration."""
+        components = ["Model Name = AnySplat", "Input image preprocessed to (448,448)"]
+        return "Feed Forward Gaussian Splatting(\n  " + ",\n  ".join(str(c) for c in components) + "\n)"
+
+    def _aggregate_anysplat_metrics(
         self,
-        images: List[Image],
-        save_gs_files_path: Path,
-    ) -> None:
+        gaussian_count: int,
+        voxel_count: int,
+    ) -> GtsfmMetricsGroup:
+        """Capture simple runtime metrics for the front-end."""
+
+        return GtsfmMetricsGroup(
+            "anysplat_runtime_metrics",
+            [
+                GtsfmMetric("total_pixel wise_gaussians", gaussian_count),
+                GtsfmMetric("total_voxels", voxel_count),
+                GtsfmMetric("Percent remaining after voxelize", voxel_count / gaussian_count),
+            ],
+        )
+
+    def _generate_splats(self, images: List[Image]):
         """
         Apply AnySplat feed forward network to generate Gaussian splats.
         Args:
             images: List of all images.
-            save_gs_files_path: Path to save ply file with all Gaussians
-        Returns:
         """
 
         self._ensure_model_loaded()
         assert self._model is not None, "Model should be loaded by now"
 
-        self._apply_anysplat(self._model, images, self.cfg, save_gs_files_path)
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        model = self._model.to(device)
+        processed_images = self._preprocess_images(images, device)
+        _, _, _, height, width = processed_images.shape
+        splats, pred_context_pose = model.inference((processed_images + 1) * 0.5)
 
-        return
+        return splats, pred_context_pose, height, width, model.decoder
 
     def _preprocess_images(self, images: List[Image], device):
         """
         Converts the data format from GtsfmData to AnySplat input
         """
-
         images_list = []
         for i, img in enumerate(images):
             height, width = img.shape[:2]
@@ -113,36 +119,17 @@ class AnySplatGaussianSplatting(ClusterOptimizerBase):
         images_tensor = torch.stack(images_list, dim=0).unsqueeze(0)
         return images_tensor.to(device)
 
-    def _apply_anysplat(self, model, images: List[Image], cfg, save_gs_files_path):
-        """
-        Function that runs the inference on feed forward GS models and writes results to disk
-        """
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        model = model.to(device)
-        processed_images = self._preprocess_images(images, device)
-        splats, pred_context_pose = model.inference((processed_images + 1) * 0.5)
-
-        if cfg.save_video:
-            b, v, _, height, width = processed_images.shape
-            self._generate_interpolated_video(
-                pred_context_pose["extrinsic"],
-                pred_context_pose["intrinsic"],
-                b,
-                height,
-                width,
-                splats,
-                str(save_gs_files_path),
-                model.decoder,
-            )
-
-        if cfg.save_ply_file:
-            self._save_splats(splats, save_gs_files_path)
-
-        return
-
     def _generate_interpolated_video(
-        self, extrinsics, intrinsics, b, height, width, splats, save_gs_files_path, decoder_model
-    ):
+        self,
+        decoder_model: Any,
+        extrinsics: torch.Tensor,
+        intrinsics: torch.Tensor,
+        height: int,
+        width: int,
+        splats: Any,
+        save_gs_files_path: str,
+    ) -> None:
+        b = 1  # AnySplat convention
         save_interpolated_video(
             extrinsics,
             intrinsics,
@@ -154,7 +141,7 @@ class AnySplatGaussianSplatting(ClusterOptimizerBase):
             decoder_model,
         )
 
-    def _save_splats(self, splats, save_gs_files_path):
+    def _save_splats(self, splats, save_gs_files_path: Path) -> None:
         export_ply(
             splats.means[0],
             splats.scales[0],
@@ -190,15 +177,28 @@ class AnySplatGaussianSplatting(ClusterOptimizerBase):
 
             return list(images)
 
-        # TODO(Frank): see if you could ask the loader for a batch (in a delayed way)
-        # Something like: loader.get_images_as_delayed_batch(keys)
-        delayed_images_map = loader.get_images_as_delayed_map()
-        selected_images = [delayed_images_map[key] for key in keys if key in delayed_images_map]
+        logger.info("Keys for AnySplat GS computation: %s", keys)
+        selected_images = loader.get_key_images_as_delayed_map(keys)
 
-        images_graph = delayed(_pack_images_for_anysplat)(*selected_images)
+        images = delayed(_pack_images_for_anysplat)(*selected_images.values())
 
-        # TODO(Harneet): separate compute and writing
+        splats, pred_context_pose, height, width, decoder_model = delayed(self._generate_splats, nout=5)(images)
+        total_gaussians = len(keys) * height * width
+        total_voxels = splats.means.shape[1]
+
+        metrics_tasks.append(delayed(self._aggregate_anysplat_metrics)(total_gaussians, total_voxels))
         with self._output_annotation():
-            io_tasks.append(delayed(self.generate_splats)(images_graph, output_paths.gs_path))
+            io_tasks.append(
+                delayed(self._generate_interpolated_video)(
+                    decoder_model,
+                    pred_context_pose["extrinsic"],
+                    pred_context_pose["intrinsic"],
+                    height,
+                    width,
+                    splats,
+                    str(output_paths.results),
+                )
+            )
+            io_tasks.append(delayed(self._save_splats)(splats, output_paths.results))
 
         return io_tasks, metrics_tasks
