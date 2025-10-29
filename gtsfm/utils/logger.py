@@ -9,12 +9,19 @@ import sys
 from datetime import datetime, timezone
 from logging import Logger, LoggerAdapter
 
+from dask import distributed
+
 # ============================================================================
 # Machine-local lookup map (cached worker identity)
 # ============================================================================
 # This variable is set once per process and never changes.
 # It avoids repeated Dask API calls for every log statement.
 _WORKER_ID_CACHE: str | None = None
+
+# Registry to assign sequential worker numbers per hostname
+# Maps (hostname, port) -> worker_number
+_WORKER_REGISTRY: dict[tuple[str, str], int] = {}
+_WORKER_COUNTER: dict[str, int] = {}  # Tracks next number for each hostname
 
 
 def _detect_worker_id_once() -> str:
@@ -25,28 +32,36 @@ def _detect_worker_id_once() -> str:
     running inside a Dask worker or in the main scheduler process.
     
     Returns:
-        str: Worker ID in format "hostname-w<port>" for workers,
+        str: Worker ID in format "hostname(N)" for workers,
              or "hostname-main" for the main process.
              
     Examples:
-        - Dask worker: "hornet-w35163"
+        - Dask worker: "hornet(1)", "hornet(2)"
         - Main process: "eagle-main"
     """
     try:
-        from dask import distributed
-
-        # Attempt to get the current worker object.
-        # This only succeeds if we're inside a Dask worker process.
         worker = distributed.get_worker()
         
         # Success: we're in a Dask worker
         hostname = socket.gethostname()
-        worker_address = worker.address  # Format: "tcp://130.207.121.32:35163"
+        worker_address = worker.address  # Format: "tcp://130.207.121.32:40665"
         
         # Extract port number as a unique identifier for this worker
         port = worker_address.split(":")[-1]
         
-        return f"{hostname}-w{port}"
+        # Assign sequential worker number for this hostname
+        global _WORKER_REGISTRY, _WORKER_COUNTER
+        
+        key = (hostname, port)
+        if key not in _WORKER_REGISTRY:
+            # First time seeing this worker, assign next number
+            if hostname not in _WORKER_COUNTER:
+                _WORKER_COUNTER[hostname] = 1
+            _WORKER_REGISTRY[key] = _WORKER_COUNTER[hostname]
+            _WORKER_COUNTER[hostname] += 1
+        
+        worker_num = _WORKER_REGISTRY[key]
+        return f"{hostname}({worker_num})"
         
     except (ImportError, ValueError, AttributeError):
         # Failure: we're in the main process (or Dask is not available)
@@ -63,7 +78,7 @@ def get_worker_id() -> str:
     be collected and displayed in the main process.
     
     Returns:
-        str: Worker ID like "hornet-w35163" or "eagle-main"
+        str: Worker ID like "hornet(1)", "hornet(2)" or "eagle-main"
     """
     global _WORKER_ID_CACHE
     
@@ -157,7 +172,7 @@ def get_logger() -> LoggerAdapter:
     module import time.
     
     Log format:
-        "2025-10-28 00:00:45 [hornet-w35163] [filename.py] INFO: message"
+        "2025-10-28 00:00:45 [hornet(1)] [filename.py] INFO: message"
     
     Returns:
         LoggerAdapter: Configured logger adapter instance
