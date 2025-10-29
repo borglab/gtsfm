@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import os
 from abc import abstractmethod
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Tuple
 
 from dask.base import annotate
 from dask.delayed import Delayed
@@ -20,6 +22,15 @@ REACT_METRICS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "
 REACT_RESULTS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "public" / "results"
 
 logger = logger_utils.get_logger()
+
+
+@dataclass(frozen=True)
+class ClusterComputationGraph:
+    """Container describing the delayed tasks required for a cluster run."""
+
+    io_tasks: Tuple[Delayed, ...]
+    metric_tasks: Tuple[Delayed, ...]
+    sfm_result: Delayed | None
 
 
 class ClusterOptimizerBase:
@@ -64,12 +75,11 @@ class ClusterOptimizerBase:
         output_root: Path,
         visibility_graph,
         image_futures,
-    ) -> tuple[list[Delayed], list[Delayed]]:
+    ) -> ClusterComputationGraph | None:
         """Create a Dask computation graph to process a cluster.
 
         Returns:
-            - List of Delayed I/O tasks to be computed
-            - List of Delayed metrics to be computed
+            ClusterComputationGraph describing delayed I/O, metrics, and the bundle-adjusted result.
         """
 
 

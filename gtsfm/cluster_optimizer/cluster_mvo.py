@@ -22,6 +22,7 @@ import gtsfm.utils.viz as viz_utils
 from gtsfm.cluster_optimizer.cluster_optimizer_base import (
     REACT_METRICS_PATH,
     REACT_RESULTS_PATH,
+    ClusterComputationGraph,
     ClusterOptimizerBase,
     logger,
 )
@@ -288,7 +289,7 @@ class ClusterMVO(ClusterOptimizerBase):
         output_root: Path,
         visibility_graph: VisibilityGraph,
         image_futures: list[Future],
-    ) -> tuple[list[Delayed], list[Delayed]]:
+    ) -> ClusterComputationGraph:
         """Create Dask graphs for multi-view optimization and downstream products for a single cluster.
 
         The cluster optimizer now owns the full front-end execution for the provided `visibility_graph`
@@ -449,7 +450,11 @@ class ClusterMVO(ClusterOptimizerBase):
                     )
                 )
 
-        return delayed_io_tasks, metrics_graph_list
+        return ClusterComputationGraph(
+            io_tasks=tuple(delayed_io_tasks),
+            metric_tasks=tuple(metrics_graph_list),
+            sfm_result=ba_output_graph,
+        )
 
 
 def _pad_keypoints_list(keypoints_list: list[Keypoints], target_length: int) -> list[Keypoints]:
