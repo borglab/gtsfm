@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-import gtsfm.utils.cluster_tree_io as cluster_tree_io
+import gtsfm.products.scene_tree as scene_tree
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.utils.tree import PreOrderIter
 
@@ -22,7 +22,7 @@ class TestClusterTreeIO(unittest.TestCase):
 
     def test_read_dir_hierarchy_as_tree(self) -> None:
         """Test reading a directory hierarchy as a tree of Paths."""
-        tree = cluster_tree_io.read_dir_hierarchy_as_tree(str(self.base_dir))
+        tree = scene_tree.read_dir_hierarchy_as_tree(str(self.base_dir))
         assert tree is not None
 
         # assert all values are Paths
@@ -49,7 +49,7 @@ class TestClusterTreeIO(unittest.TestCase):
 
     def test_read_colmap_hierarchy_as_tree_lund_door_binary(self) -> None:
         """Test reading the COLMAP hierarchy as a tree of (Path, GtsfmData)."""
-        tree = cluster_tree_io.read_colmap_hierarchy_as_tree(str(self.base_dir))
+        tree = scene_tree.read_colmap(str(self.base_dir))
         assert tree is not None
 
         # Sanity-check scene contents for all leaves
@@ -76,23 +76,40 @@ class TestClusterTreeIO(unittest.TestCase):
     def test_read_dir_hierarchy_as_tree_empty(self) -> None:
         """Test reading an empty directory hierarchy as a tree of Paths."""
         empty_dir = TEST_DATA_ROOT / "lund_door_binary" / "C_1" / "C_1_1" / "ba_output"
-        tree = cluster_tree_io.read_colmap_hierarchy_as_tree(str(empty_dir))
+        tree = scene_tree.read_colmap(str(empty_dir))
         self.assertIsNone(tree)
+
+    def test_read_colmap_hierarchy_as_tree_with_downsampling(self) -> None:
+        """Test reading the COLMAP hierarchy as a tree of (Path, GtsfmData) with downsampling."""
+        tree = scene_tree.read_colmap(str(self.base_dir))
+        assert tree is not None
+
+        seed = 42
+        fraction_points_to_keep = 0.1
+        downsampled_tree = scene_tree.downsample(tree, fraction_points_to_keep=fraction_points_to_keep, seed=seed)
+
+        # Check the number of sizes in the leaves
+        sizes = []
+        for node in PreOrderIter(downsampled_tree):
+            if node.is_leaf():
+                path, scene = node.value
+                assert scene is not None
+                sizes.append(scene.number_tracks())
+        # Check exact sizes with this rng seed and fraction
+        self.assertEqual(sizes, [172, 174, 178, 165])
 
     def test_write_colmap_hierarchy_as_tree(self) -> None:
         """Test writing the COLMAP hierarchy as a tree."""
-        tree = cluster_tree_io.read_colmap_hierarchy_as_tree(str(self.base_dir))
+        tree = scene_tree.read_colmap(str(self.base_dir))
         assert tree is not None
 
         image_shapes = [(800, 600)] * 10  # Dummy shapes
         image_filenames = [f"image_{i}.jpg" for i in range(10)]  # Dummy filenames
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            cluster_tree_io.write_colmap_hierarchy_as_tree(
-                tree, temp_dir, image_shapes=image_shapes, image_filenames=image_filenames
-            )
+            scene_tree.write_colmap(tree, temp_dir, image_shapes=image_shapes, image_filenames=image_filenames)
             # Read back the written tree and verify it matches the original
-            read_back_tree = cluster_tree_io.read_colmap_hierarchy_as_tree(temp_dir)
+            read_back_tree = scene_tree.read_colmap(temp_dir)
             assert read_back_tree is not None, "Read back tree is None"
             # Compare the two trees
             for orig_node, read_node in zip(PreOrderIter(tree), PreOrderIter(read_back_tree)):
@@ -102,7 +119,7 @@ class TestClusterTreeIO(unittest.TestCase):
                 if orig_scene is None:
                     self.assertIsNone(read_scene)
                 else:
-                    self.assertIsNotNone(read_scene)
+                    assert read_scene is not None
                     self.assertEqual(orig_scene.number_tracks(), read_scene.number_tracks())
 
 

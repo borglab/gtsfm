@@ -21,7 +21,7 @@ graph_partitioner:
   _target_: gtsfm.graph_partitioner.Single
 
 cluster_optimizer:
-  _target_: gtsfm.cluster_optimizer.ClusterOptimizer
+  _target_: gtsfm.cluster_optimizer.Multiview
   correspondence_generator:
     _target_: gtsfm.frontend.correspondence_generator.synthetic_correspondence_generator.SyntheticCorrespondenceGenerator
     dataset_dir: /usr/local/gtsfm-data/Tanks_and_Temples_Barn_410

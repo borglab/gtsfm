@@ -385,7 +385,7 @@ class LoaderBase(GTSFMProcess):
 
         Args:
             indices: List of image indices to load
-            resize_transform: Callable that resizes a numpy array (image) to a torch.Tensor of the appropriate size.
+            resize_transform: callable that converts a numpy array (image) to a torch.Tensor of the desired size.
             batch_transform: Optional callable that applies a preprocessing transform to the batch tensor.
 
         Returns:
@@ -394,9 +394,35 @@ class LoaderBase(GTSFMProcess):
         # Get images as a List of [H, W, C] numpy arrays
         image_arrays = [self.get_image(idx).value_array for idx in indices]
 
-        # Apply resize transform to each image
-        # the image could have different sizes so we cannot do the resize transform in batch
-        image_tensors = [resize_transform(img) for img in image_arrays]
+        # Determine whether all images share the same spatial size.
+        base_shape = image_arrays[0].shape[:2]
+        shapes_match = all(img.shape[:2] == base_shape for img in image_arrays)
+
+        if shapes_match:
+            working_arrays = image_arrays
+        else:
+            # Pad each image to square dimensions using the maximum side length observed in the batch.
+            max_side = max(max(img.shape[0], img.shape[1]) for img in image_arrays)
+            working_arrays = []
+            for img in image_arrays:
+                pad_height = max_side - img.shape[0]
+                pad_width = max_side - img.shape[1]
+
+                pad_top = pad_height // 2
+                pad_bottom = pad_height - pad_top
+                pad_left = pad_width // 2
+                pad_right = pad_width - pad_left
+
+                padded = np.pad(
+                    img,
+                    pad_width=((pad_top, pad_bottom), (pad_left, pad_right), (0, 0)),
+                    mode="constant",
+                    constant_values=0,
+                )
+                working_arrays.append(padded)
+
+        image_tensors = [resize_transform(arr) for arr in working_arrays]
+
         batch_tensor = torch.stack(image_tensors, dim=0)
 
         # Apply optional batch transform before returning
@@ -406,8 +432,8 @@ class LoaderBase(GTSFMProcess):
         self,
         client: Client,
         batch_size: int,
-        resize_transform: Optional[Callable] = None,
-        batch_transform: Optional[Callable] = None,
+        resize_transform: ResizeTransform,
+        batch_transform: Optional[BatchTransform] = None,
     ) -> List[Future]:
         if batch_size <= 0:
             raise ValueError("batch_size must be positive.")
