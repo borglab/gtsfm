@@ -49,6 +49,7 @@ def _detect_worker_id_once() -> str:
         # Extract port number as a unique identifier for this worker
         port = worker_address.split(":")[-1]
         
+        # Use last 2 digits of port for cleaner display
         return f"{hostname}({port[-2:]})"
         
     except (ImportError, ValueError, AttributeError):
@@ -66,7 +67,7 @@ def get_worker_id() -> str:
     be collected and displayed in the main process.
     
     Returns:
-        str: Worker ID like "hornet(35163)" or "eagle-main"
+        str: Worker ID like "hornet(63)" or "eagle-main"
     """
     global _WORKER_ID_CACHE
     
@@ -76,8 +77,14 @@ def get_worker_id() -> str:
     return _WORKER_ID_CACHE
 
 
-def _log_worker_mapping(logger):
-    """Log the worker ID mapping for debugging purposes."""
+def _log_worker_mapping(adapter):
+    """
+    Log the worker ID mapping for debugging purposes.
+    
+    Args:
+        adapter: The LoggerAdapter instance (NOT the underlying logger)
+                 so the log goes through the adapter's process() method
+    """
     try:
         worker = distributed.get_worker()
         worker_address = worker.address  # Format: "tcp://130.207.121.32:35163"
@@ -91,8 +98,9 @@ def _log_worker_mapping(logger):
         # Extract worker ID from cache
         worker_id = _WORKER_ID_CACHE
         
-        # Log the mapping
-        logger.info(
+        # Log the mapping using the ADAPTER (not underlying logger)
+        # This ensures worker_id is injected via process() method
+        adapter.info(
             f"Worker Mapping: {worker_id} ← TCP {ip_address}:{port}"
         )
         
@@ -137,7 +145,8 @@ class WorkerAwareAdapter(LoggerAdapter):
             
             # Log mapping info on first log from this worker (not main process)
             if not _MAPPING_LOGGED and "main" not in _WORKER_ID_CACHE:
-                _log_worker_mapping(self.logger)
+                # Pass the adapter (self), not the underlying logger!
+                _log_worker_mapping(self)
                 _MAPPING_LOGGED = True
         
         # Inject worker_id into the LogRecord's extra fields
@@ -191,7 +200,7 @@ def get_logger() -> LoggerAdapter:
     Each worker logs its mapping information on first use for debugging.
     
     Log format:
-        "2025-10-28 00:00:45 [hornet(35163)] [filename.py] INFO: message"
+        "2025-10-28 00:00:45 [hornet(63)] [filename.py] INFO: message"
     
     Returns:
         LoggerAdapter: Configured logger adapter instance
