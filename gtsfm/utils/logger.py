@@ -1,13 +1,13 @@
 """Utilities for logging.
 
-Authors: Ayush Baid, John Lambert.
+Authors: Ayush Baid, John Lambert, Zong
 """
 
 import logging
 import socket
 import sys
 from datetime import datetime, timezone
-from logging import Logger, LoggerAdapter
+from logging import LoggerAdapter
 
 from dask import distributed
 
@@ -25,35 +25,30 @@ _MAPPING_LOGGED: bool = False
 def _detect_worker_id_once() -> str:
     """
     Detect the current process's worker identity exactly once.
-    
     This function queries the Dask distributed system to determine if we're
     running inside a Dask worker or in the main scheduler process.
-    
     Returns:
         str: Worker ID in format "hostname(port)" for workers,
              or "hostname-main" for the main process.
-             
     Examples:
         - Dask worker: "hornet(35163)"
         - Main process: "eagle-main"
     """
     try:
         # Attempt to get the current worker object.
-        # This only succeeds if we're inside a Dask worker process.
+        # This only succeeds inside a Dask worker process.
         worker = distributed.get_worker()
-        
-        # Success: we're in a Dask worker
+
         hostname = socket.gethostname()
-        worker_address = worker.address  # Format: "tcp://130.207.121.32:35163"
-        
+        worker_address = worker.address
+
         # Extract port number as a unique identifier for this worker
         port = worker_address.split(":")[-1]
-        
-        # Use last 2 digits of port for cleaner display
+
         return f"{hostname}({port[-2:]})"
-        
+
     except (ImportError, ValueError, AttributeError):
-        # Failure: we're in the main process (or Dask is not available)
+        # Failure: in the main process (or Dask is not available)
         hostname = socket.gethostname()
         return f"{hostname}-main"
 
@@ -61,49 +56,47 @@ def _detect_worker_id_once() -> str:
 def get_worker_id() -> str:
     """
     Get the cached worker ID for the current process.
-    
     This function should be called by worker code that wants to include
     worker information in log messages, especially when those logs will
     be collected and displayed in the main process.
-    
+
     Returns:
         str: Worker ID like "hornet(63)" or "eagle-main"
     """
     global _WORKER_ID_CACHE
-    
+
     if _WORKER_ID_CACHE is None:
         _WORKER_ID_CACHE = _detect_worker_id_once()
-    
+
     return _WORKER_ID_CACHE
 
 
 def _log_worker_mapping(adapter):
     """
     Log the worker ID mapping for debugging purposes.
-    
+
     Args:
         adapter: The LoggerAdapter instance (NOT the underlying logger)
                  so the log goes through the adapter's process() method
     """
     try:
         worker = distributed.get_worker()
-        worker_address = worker.address  # Format: "tcp://130.207.121.32:35163"
-        
+        worker_address = worker.address
         # Extract IP and port
         address_parts = worker_address.split("//")[1]  # Remove "tcp://"
-        ip_port = address_parts.split(":") 
+        ip_port = address_parts.split(":")
         ip_address = ip_port[0]
         port = ip_port[1]
-        
+
         # Extract worker ID from cache
         worker_id = _WORKER_ID_CACHE
-        
+
         # Log the mapping using the ADAPTER (not underlying logger)
         # This ensures worker_id is injected via process() method
         adapter.info(
             f"Worker Mapping: {worker_id} ← TCP {ip_address}:{port}"
         )
-        
+
     except (ImportError, ValueError, AttributeError):
         pass  # Not a worker, skip
 
@@ -111,61 +104,61 @@ def _log_worker_mapping(adapter):
 class WorkerAwareAdapter(LoggerAdapter):
     """
     LoggerAdapter that automatically injects worker ID into LogRecords.
-    
+
     This is the ELEGANT solution for Dask-aware logging!
     The worker_id is added as an attribute to the LogRecord, which
     the formatter uses. Since formatting happens on the worker side
     before log forwarding, the worker_id appears in the right place.
-    
+
     CRITICAL: Worker detection happens LAZILY at first log call, not at
     adapter creation, because Dask worker context isn't available at import time!
     """
-    
+
     def __init__(self, logger):
         """Initialize with empty extra dict."""
         super().__init__(logger, {})
         # Do NOT detect worker_id here! It's too early.
         # Detection happens in process() method on first log call.
-    
+
     def process(self, msg, kwargs):
         """
         Process the log call by injecting worker_id into the LogRecord.
-        
+
         This runs BEFORE the LogRecord is created. We inject worker_id
         as an 'extra' field so the formatter can access it via %(worker_id)s.
-        
+
         CRITICAL: Worker detection happens HERE (lazily) because at module
         import time the Dask worker context isn't ready yet!
         """
         global _WORKER_ID_CACHE, _MAPPING_LOGGED
-        
+
         # Lazy detection on first log call in this process
         if _WORKER_ID_CACHE is None:
             _WORKER_ID_CACHE = _detect_worker_id_once()
-            
+
             # Log mapping info on first log from this worker (not main process)
             if not _MAPPING_LOGGED and "main" not in _WORKER_ID_CACHE:
                 # Pass the adapter (self), not the underlying logger!
                 _log_worker_mapping(self)
                 _MAPPING_LOGGED = True
-        
+
         # Inject worker_id into the LogRecord's extra fields
         # This allows the formatter to use %(worker_id)s in the format string
         if 'extra' not in kwargs:
             kwargs['extra'] = {}
         kwargs['extra']['worker_id'] = _WORKER_ID_CACHE
-        
+
         return msg, kwargs
 
 
 class DaskAwareFormatter(logging.Formatter):
     """
     Custom formatter with UTC timestamps and worker awareness.
-    
+
     The worker_id is injected by WorkerAwareAdapter and accessed
     via %(worker_id)s in the format string.
     """
-    
+
     def formatTime(self, record, datefmt=None):
         """Use UTC timestamps."""
         dt = datetime.fromtimestamp(record.created, tz=timezone.utc)
@@ -176,7 +169,7 @@ class DaskAwareFormatter(logging.Formatter):
 
 class UTCFormatter(logging.Formatter):
     """Legacy UTC formatter without worker awareness (for compatibility)."""
-    
+
     def formatTime(self, record, datefmt=None):
         dt = datetime.fromtimestamp(record.created, tz=timezone.utc)
         if datefmt:
@@ -187,44 +180,44 @@ class UTCFormatter(logging.Formatter):
 def get_logger() -> LoggerAdapter:
     """
     Get the main logger with automatic Dask worker awareness.
-    
+
     All modules using this logger will automatically get worker information
     in their log output without any code changes!
-    
+
     The magic happens through a LoggerAdapter that injects the worker ID
     into the LogRecord, and the formatter displays it before the filename.
     Worker detection is LAZY - it happens on the first log call, not at
     logger creation time, because Dask worker context isn't available at
     module import time.
-    
+
     Each worker logs its mapping information on first use for debugging.
-    
+
     Log format:
         "2025-10-28 00:00:45 [hornet(63)] [filename.py] INFO: message"
-    
+
     Returns:
         LoggerAdapter: Configured logger adapter instance
     """
     logger_name = "main-logger"
     logger = logging.getLogger(logger_name)
     logger.setLevel(logging.INFO)
-    
+
     if not logger.handlers:
         handler = logging.StreamHandler(sys.stdout)
-        
+
         # Format: timestamp [worker-id] [filename] LEVEL: message
         # The %(worker_id)s is injected by WorkerAwareAdapter
         fmt = "%(asctime)s [%(worker_id)s] [%(filename)s] %(levelname)s: %(message)s"
         handler.setFormatter(DaskAwareFormatter(fmt, datefmt="%Y-%m-%d %H:%M:%S"))
-        
+
         logger.addHandler(handler)
-        
+
         # Silence noisy loggers
         mpl_logger = logging.getLogger("matplotlib")
         mpl_logger.setLevel(logging.ERROR)
         pil_logger = logging.getLogger("PIL")
         pil_logger.setLevel(logging.ERROR)
-    
+
     # Return a LoggerAdapter that wraps the logger
     # This adapter will automatically inject worker_id into all log records
     return WorkerAwareAdapter(logger)
