@@ -479,7 +479,11 @@ def align_estimated_gtsfm_data(
     w_S_input = ba_input.align_to_poses_via_sim3(gt_wTi_list)
     w_ba_input = ba_input.transform_with_sim3(w_S_input)
 
-    aTw = ellipsoid_utils.get_ortho_axis_alignment_transform(w_ba_output)
+    try:
+        aTw = ellipsoid_utils.get_ortho_axis_alignment_transform(w_ba_output)
+    except Exception as e:
+        aTw = Pose3()
+        logger.warning("Could not compute axis alignment transform; skipping. Error: %s", e)
     aSw = Similarity3(R=aTw.rotation(), t=aTw.translation(), s=1.0)
     a_ba_output = w_ba_output.transform_with_sim3(aSw)
     a_ba_input = w_ba_input.transform_with_sim3(aSw)
