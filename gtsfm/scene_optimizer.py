@@ -15,6 +15,7 @@ from dask.distributed import Client, Future, performance_report
 import gtsfm.utils.logger as logger_utils
 from gtsfm.cluster_optimizer import REACT_METRICS_PATH, REACT_RESULTS_PATH, Base, save_metrics_reports
 from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm.common.image import Image
 from gtsfm.common.outputs import OutputPaths, cluster_label, prepare_output_paths
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.evaluation.retrieval_metrics import save_retrieval_two_view_metrics
@@ -81,6 +82,7 @@ def _export_merged_scene(
     target_dir: Path,
     image_shapes: Sequence[tuple[int, ...]],
     image_filenames: Sequence[str],
+    images: Optional[Sequence[Image]] = None,
 ) -> None:
     """Persist a merged reconstruction to COLMAP text format."""
     if merged_scene is None:
@@ -90,6 +92,7 @@ def _export_merged_scene(
     merged_path.mkdir(parents=True, exist_ok=True)
     merged_scene.export_as_colmap_text(
         merged_path,
+        images=list(images) if images is not None else None,
         image_shapes=list(image_shapes),
         image_filenames=list(image_filenames),
     )
@@ -200,6 +203,7 @@ class SceneOptimizer:
                     merged_tree=merged_tree,
                     image_shapes=image_shapes,
                     image_filenames=image_filenames,
+                    image_futures=image_futures,
                 )
                 root_merge_future: Optional[Future] = None
                 for handle, merge_future, export_future in merge_jobs:
@@ -404,6 +408,7 @@ class SceneOptimizer:
         merged_tree: Tree[Future],
         image_shapes: Sequence[tuple[int, ...]],
         image_filenames: Sequence[str],
+        image_futures: Sequence[Future],
     ) -> list[tuple[ClusterExecutionHandles, Future, Future]]:
         """Schedule persistence of merged reconstructions for each cluster."""
         jobs: list[tuple[ClusterExecutionHandles, Future, Future]] = []
@@ -417,6 +422,7 @@ class SceneOptimizer:
                 merged_dir,
                 image_shapes,
                 image_filenames,
+                tuple(image_futures),
                 pure=False,
             )
             jobs.append((handle, merged_future, export_future))
