@@ -13,10 +13,10 @@ from typing import List, Tuple
 import numpy as np
 from gtsam import Cal3Bundler, Pose3, Rot3  # type: ignore
 
-import gtsfm.utils.alignment as alignment_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 from gtsfm.loader.olsson_loader import OlssonLoader
+from gtsfm.utils import align, transform
 from gtsfm.visualization import open3d_vis_utils
 
 logger = logger_utils.get_logger()
@@ -78,8 +78,9 @@ def view_scene(args: argparse.Namespace) -> None:
             wTi_list_gt[i] = zcwTw.compose(wTi_list_gt[i])
 
         # Align the poses.
-        wTi_aligned_list, rSe = alignment_utils.align_poses_sim3_ignore_missing(wTi_list_gt, wTi_list)
-        point_cloud = np.stack([rSe.transformFrom(pt) for pt in point_cloud])
+        aSw = align.sim3_from_optional_Pose3s(wTi_list_gt, wTi_list)
+        wTi_aligned_list = transform.Pose3s_with_sim3(aSw, wTi_list)
+        point_cloud = transform.point_cloud_with_sim3(aSw, point_cloud)
 
         open3d_vis_utils.draw_scene_with_gt_open3d(
             point_cloud=point_cloud,

@@ -42,7 +42,7 @@ from gtsfm.frontend.inlier_support_processor import InlierSupportProcessor
 from gtsfm.frontend.matcher.twoway_matcher import TwoWayMatcher
 from gtsfm.frontend.verifier.ransac import Ransac
 from gtsfm.loader.yfcc_imb_loader import YfccImbLoader
-from gtsfm.two_view_estimator import TwoViewEstimator, run_two_view_estimator_as_futures
+from gtsfm.two_view_estimator import TwoViewEstimator, create_two_view_estimator_futures
 from gtsfm.utils.ssh_tunneling import SSHTunnelManager
 
 processes = []
@@ -278,9 +278,9 @@ def main():
         with performance_report(filename=str(results_dir / "dask_performance_report.html")):
             start_time = time.time()
 
-            print("[MAIN] Calling run_two_view_estimator_as_futures...")
+            print("[MAIN] Calling create_two_view_estimator_futures...")
 
-            two_view_result_dict = run_two_view_estimator_as_futures(
+            two_view_result_dict = create_two_view_estimator_futures(
                 client=client,
                 two_view_estimator=two_view_estimator,
                 keypoints_list=keypoints_list,
@@ -291,7 +291,7 @@ def main():
                 gt_scene_mesh=gt_scene_mesh,
             )
 
-            print(f"[MAIN] run_two_view_estimator_as_futures returned {len(two_view_result_dict)} results")
+            print(f"[MAIN] create_two_view_estimator_futures returned {len(two_view_result_dict)} results")
 
             total_time = time.time() - start_time
             print(f"[MAIN] Distributed computation completed in {total_time:.2f} seconds")

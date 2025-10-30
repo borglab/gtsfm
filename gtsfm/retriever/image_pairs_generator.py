@@ -8,7 +8,6 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from dask import distributed
 from dask.distributed import Client, Future
 from torchvision.transforms import v2 as transforms  # type: ignore
 
@@ -68,15 +67,11 @@ class ImagePairsGenerator:
             global_descriptor: GlobalDescriptorBase, image_batch: torch.Tensor
         ) -> list[np.ndarray]:
             """Apply global descriptor to extract feature vectors from a batch of images."""
-            try:
-                worker = distributed.get_worker()
-                worker_name = worker.address
-                logger.info(
-                    f"🟩 [Worker: {worker_name}] Computing global descriptors for batch of {len(image_batch)} images"
-                    f" with global descriptor: {type(global_descriptor).__name__}"
-                )
-            except Exception:
-                logger.info(f"🟩 [Main Process] Computing global descriptors for batch of {len(image_batch)} images")
+
+            logger.info(
+                "🟩 Computing global descriptors for batch of %d images",
+                len(image_batch),
+            )
 
             # This will call the new method you need to create in your descriptor class.
             return global_descriptor.describe_batch(images=image_batch)

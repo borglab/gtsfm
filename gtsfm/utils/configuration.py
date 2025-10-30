@@ -38,57 +38,6 @@ def _extract_algorithm_name(target_path: str) -> str:
     return readable.strip()
 
 
-def log_configuration_summary(cfg, logger) -> None:
-    """Log a concise, user-friendly configuration summary."""
-    _log_divider(logger)
-    logger.info("🔧 GTSFM CONFIGURATION SUMMARY")
-    _log_divider(logger)
-
-    # Key algorithm components with error handling
-    components = [
-        (
-            "🔍 Feature Detector/Descriptor",
-            "correspondence_generator.detector_descriptor.detector_descriptor_obj",
-        ),
-        ("🔗 Feature Matcher", "correspondence_generator.matcher.matcher_obj"),
-        ("🔎 Image Retriever", "image_pairs_generator.retriever"),
-        ("✅ Verifier", "two_view_estimator.two_view_estimator_obj.verifier"),
-    ]
-
-    for emoji_name, path in components:
-        try:
-            target_path = _get_nested_attr(cfg, path + "._target_")
-            algorithm_name = _extract_algorithm_name(target_path)
-            logger.info(f"{emoji_name}: {algorithm_name}")
-        except Exception:
-            logger.info(f"{emoji_name}: Unknown")
-
-
-def log_key_parameters(cfg, logger) -> None:
-    """Log key parameters from the configuration."""
-    logger.info("📊 Key Parameters:")
-
-    try:
-        max_keypoints_path = "correspondence_generator" ".detector_descriptor.detector_descriptor_obj.max_keypoints"
-        max_keypoints = _get_nested_attr(cfg, max_keypoints_path)
-        logger.info(f"   • Max Keypoints: {max_keypoints}")
-    except Exception:
-        pass
-
-    try:
-        num_matched = _get_nested_attr(cfg, "image_pairs_generator.retriever.num_matched")
-        logger.info(f"   • Images Matched per Query: {num_matched}")
-    except Exception:
-        pass
-
-    try:
-        ratio_path = "correspondence_generator" ".matcher.matcher_obj.ratio_test_threshold"
-        ratio_thresh = _get_nested_attr(cfg, ratio_path)
-        logger.info(f"   • Ratio Test Threshold: {ratio_thresh}")
-    except Exception:
-        pass
-
-
 def format_config_section(cfg_section, section_name: str, indent: int = 0) -> str:
     """Format a configuration section for human-readable display."""
     indent_str = "  " * indent

@@ -23,28 +23,24 @@ GTSfM uses the [SSHCluster](https://docs.dask.org/en/stable/deploying-ssh.html#d
         conda env create -f environment_linux.yml
         conda activate gtsfm-v1
          ```
-5. Log into cluster machines to set up conda environment initialize
-    -   ```
-        nano ~/.bashrc 
-         ```
-
-    - Use the Down Arrow key to scroll all the way to the bottom of the file. You will find the section 
-        ```
-        # >>> conda initialize >>> 
-        ```
-    - add the following command line
-        ```
-        conda activate gtsfm-v1
-        ```
-    - double check the file ends as 
+5. Log into scheduler and cluster machines to set up conda environment initialize in `bashrc 
+    - ` nano ~/.bashrc ` or `code ~/.bashrc `
+    - add `conda activate gtsfm-v1` at the end of `# <<< conda initialize <<<`section
+    - add `export PYTHONPATH="/home/username/gtsfm:$PYTHONPATH"` after `conda activate gtsfm-v1`
+    - Place the whole `# <<< conda initialize <<<` before 
     ```
-        # <<< conda initialize <<<
-        conda activate gtsfm-v1
+    # If not running interactively, don't do anything    
+    case $- in
+        *i*) ;;
+        *) return;;
+    esac
     ```
-    remove `export PATH="$HOME/miniconda3/bin:$PATH"` as needed
  
     - After the above set up, when ssh into another machine, the environment would be automatically `gtsfm-v1`
     - `which python` and `echo $CONDA_PREFIX` should point to the same envs
+    - *Note: When Dask uses SSH to start workers, it runs a non-interactive shell. So it hits the `return` and never reaches the conda initialization or `PYTHONPATH`.*
+    - *`export PYTHONPATH="/home/username/gtsfm:$PYTHONPATH"` This is not a must, unless you encountered an error importing the `gtsfm` module. When you ran `pip install -e .`, it should have created a link file, but that file (`gtsfm.egg-link`) might be missing.*
+    - *`export PATH="$HOME/miniconda3/bin:$PATH"` This line ensures conda's Python is found first.*
 
 6. Add the host keys to your `known_hosts` file.
     - On  cluster machine, run the following commands in  terminal. 
@@ -62,8 +58,8 @@ GTSfM uses the [SSHCluster](https://docs.dask.org/en/stable/deploying-ssh.html#d
 
 7. Update the weight
     - ```bash
-        bash scripts/download_model_weights.sh
-      ```
+        scripts/download_model_weights.sh
+         ```
 
 8. Log into scheduler machine again and download the data to scheduler machine.
 
@@ -84,4 +80,4 @@ GTSfM uses the [SSHCluster](https://docs.dask.org/en/stable/deploying-ssh.html#d
     - ```
       scp -r username@host:machine/results/path /local/computer/directory
       ```
-PS. Please utilize `gtsfm/utils/ssh_passwordless_setup.py` to facilitate the set up
+> **Note:** Please utilize `gtsfm/utils/ssh_passwordless_setup.py` to facilitate the set up
