@@ -7,7 +7,7 @@ Authors: Ayush Baid, John Lambert, Xiaolong Wu
 import itertools
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 import gtsam  # type: ignore
 import numpy as np
@@ -21,7 +21,9 @@ import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.reprojection as reprojection
 import thirdparty.colmap.scripts.python.read_write_model as colmap_io
 from gtsfm.common.image import Image
+from gtsfm.evaluation.metrics import GtsfmMetric
 from gtsfm.products.visibility_graph import ImageIndexPairs
+from gtsfm.utils import align, transform
 from gtsfm.utils.pycolmap_utils import gtsfm_calibration_to_colmap_camera
 
 logger = logger_utils.get_logger()
@@ -39,7 +41,7 @@ class GtsfmData:
     def __init__(
         self,
         number_images: int,
-        cameras: Optional[Dict[int, gtsfm_types.CAMERA_TYPE]] = None,
+        cameras: Optional[Mapping[int, gtsfm_types.CAMERA_TYPE]] = None,
         tracks: Optional[List[SfmTrack]] = None,
     ) -> None:
         """Initializes the class.
@@ -50,7 +52,7 @@ class GtsfmData:
             tracks: SfmTracks in scene.
         """
         self._number_images = number_images
-        self._cameras: Dict[int, gtsfm_types.CAMERA_TYPE] = {}
+        self._cameras: dict[int, gtsfm_types.CAMERA_TYPE] = {}
         self._tracks: List[SfmTrack] = []
 
         # Initialize from inputs if provided.
@@ -60,6 +62,15 @@ class GtsfmData:
         if tracks is not None:
             for track in tracks:
                 self.add_track(track)
+
+    def __repr__(self) -> str:
+        """String representation of the object."""
+        return (
+            f"GtsfmData("
+            f"num_images={self._number_images}, "
+            f"num_cameras={len(self._cameras)}, "
+            f"num_tracks={len(self._tracks)})"
+        )
 
     @classmethod
     def from_sfm_data(cls, sfm_data: gtsam.SfmData) -> "GtsfmData":
@@ -175,107 +186,60 @@ class GtsfmData:
         return True
 
     def number_images(self) -> int:
-        """Getter for the number of images.
-
-        Returns:
-            Number of images.
-        """
+        """Returns the number of images."""
         return self._number_images
 
-    def number_tracks(self) -> int:
-        """Getter for the number of tracks.
+    def tracks(self) -> List[SfmTrack]:
+        """Returns all tracks."""
+        return self._tracks
 
-        Returns:
-            Number of tracks.
-        """
+    def number_tracks(self) -> int:
+        """Returns the number of tracks."""
         return len(self._tracks)
 
     def get_valid_camera_indices(self) -> List[int]:
-        """Getter for image indices where there is a valid (not None) camera.
-
-        Returns:
-            List of indices with a valid camera.
-        """
+        """Returns indices of valid cameras."""
         return list(self._cameras.keys())
 
+    def cameras(self) -> Dict[int, gtsfm_types.CAMERA_TYPE]:
+        """Returns a dictionary of all cameras indexed by their image indices."""
+        return self._cameras
+
     def get_camera(self, index: int) -> Optional[gtsfm_types.CAMERA_TYPE]:
-        """Getter for camera.
-
-        Args:
-            index: the image index to fetch the camera for.
-
-        Returns:
-            The camera if it is a valid one, None otherwise.
-        """
+        """Returns camera for given index, or None."""
         return self._cameras.get(index)
 
+    def poses(self) -> Dict[int, Pose3]:
+        """Returns poses as a dictionary, without missing poses."""
+        return {i: cam.pose() for i, cam in self._cameras.items() if cam is not None}
+
     def get_camera_poses(self) -> List[Optional[Pose3]]:
-        """Getter for camera poses wTi.
-
-        This function returns the pose for all cameras (equal to number_images in GtsfmData), even if they were not
-        computed by the pipeline.
-
-        Returns:
-            camera poses as a list, each representing wTi
-        """
+        """Returns poses for all cameras (wTi), including missing ones as None."""
         cameras = [self.get_camera(i) for i in range(self.number_images())]
         poses = [camera.pose() if camera is not None else None for camera in cameras]
-
         return poses
 
     def get_track(self, index: int) -> SfmTrack:
-        """Getter for the track.
-
-        Args:
-            index: track index to fetch.
-
-        Returns:
-            Requested track.
-        """
+        """Returns track at given index."""
         return self._tracks[index]
 
     def add_track(self, track: SfmTrack) -> bool:
-        """Add a track, after checking if all the cameras in the track are already added.
-
-        Args:
-            track: track to add.
-
-        Returns:
-            Flag indicating the success of adding operation.
-        """
-        # check if all cameras are already added
+        """Adds a track if all cameras exist; returns success flag."""
         for j in range(track.numberMeasurements()):
             i, _ = track.measurement(j)
-
             if i not in self._cameras:
-                # TODO (travisdriver): Should we throw an error here?
                 return False
-
         self._tracks.append(track)
         return True
 
     def get_tracks(self) -> List[SfmTrack]:
-        """Getter for all the tracks.
-
-        Returns:
-            Tracks in the object
-        """
+        """Returns all tracks."""
         return self._tracks
 
     def add_camera(self, index: int, camera: gtsfm_types.CAMERA_TYPE) -> None:
-        """Adds a camera.
-
-        Args:
-            index: the index associated with this camera.
-            camera: camera object to it.
-
-        Raises:
-            ValueError: if the camera to be added is not a valid camera object.
-        """
+        """Adds camera at index if not already present."""
         if camera is None:
             raise ValueError("Camera cannot be None, should be a valid camera")
-
-        # if camera with the given index has not been added, add this new camera
         if index not in self._cameras:
             self._cameras[index] = camera
 
@@ -342,11 +306,11 @@ class GtsfmData:
 
     @classmethod
     def from_cameras_and_tracks(
-        cls, cameras: Dict[int, gtsfm_types.CAMERA_TYPE], tracks: List[SfmTrack], number_images: int
+        cls, cameras: Mapping[int, gtsfm_types.CAMERA_TYPE], tracks: List[SfmTrack], number_images: int
     ) -> "GtsfmData":
         """Creates a GtsfmData object from a pre-existing set of cameras and tracks."""
         new_data = cls(number_images=number_images)
-        new_data._cameras = cameras
+        new_data._cameras = dict(cameras)
         new_data._tracks = tracks
         return new_data
 
@@ -399,7 +363,7 @@ class GtsfmData:
 
         return np.array(scene_reproj_errors)
 
-    def aggregate_metrics(self) -> Dict[str, Any]:
+    def aggregate_metrics(self) -> Mapping[str, Any]:
         """Aggregate metrics about the reprojection errors and 3d track lengths (summary stats).
 
         Args:
@@ -498,11 +462,58 @@ class GtsfmData:
 
         return filtered_data, valid_mask
 
-    def apply_Sim3(self, aSb: Similarity3) -> "GtsfmData":
+    def align_via_sim3_and_transform(self, aTi_list: Sequence[Optional[Pose3]]) -> "GtsfmData":
+        """Return a copy of the scene aligned to the supplied reference poses via Sim(3).
+
+        Args:
+            wTi_list_ref: Reference/target camera poses, ordered by camera index.
+
+        Returns:
+            New GtsfmData aligned to the reference pose graph.
+        """
+        aSb = self.align_to_poses_via_sim3(aTi_list)
+        return self.transform_with_sim3(aSb)
+
+    def get_metrics(self, suffix: str, store_full_data: bool = False) -> List[GtsfmMetric]:
+        """Helper to get bundle adjustment metrics from a GtsfmData object with a suffix for metric names."""
+        metrics = []
+        metrics.append(GtsfmMetric(name="number_cameras", data=len(self.get_valid_camera_indices())))
+        metrics.append(GtsfmMetric("number_tracks" + suffix, self.number_tracks()))
+        metrics.append(
+            GtsfmMetric(
+                name="3d_track_lengths" + suffix,
+                data=self.get_track_lengths(),
+                plot_type=GtsfmMetric.PlotType.HISTOGRAM,
+                store_full_data=store_full_data,
+            )
+        )
+        metrics.append(
+            GtsfmMetric(
+                name=f"reprojection_errors{suffix}_px",
+                data=self.get_scene_reprojection_errors(),
+                store_full_data=store_full_data,
+                plot_type=GtsfmMetric.PlotType.BOX,
+            )
+        )
+        return metrics
+
+    def align_to_poses_via_sim3(self, aTi_list: Sequence[Optional[Pose3]]) -> Similarity3:
+        """Estimate a Sim(3) transformation that aligns the scene to the supplied reference poses.
+
+        Args:
+            wTi_list_ref: Reference/target camera poses, ordered by camera index.
+
+        Returns:
+            The estimated Sim(3) transformation aSb.
+        """
+        bTi_list = self.get_camera_poses()
+        return align.sim3_from_optional_Pose3s(aTi_list, bTi_list)
+
+    def transform_with_sim3(self, aSb: Similarity3) -> "GtsfmData":
         """Assume current tracks and cameras are in frame "b", then transport them to frame "a".
 
         Returns:
-            New GtsfmData object which has been transformed from frame a to frame b.
+            New GtsfmData object which has been transformed from frame b to frame a.
         """
         bTi_list = self.get_camera_poses()
         aTi_list = [aSb.transformFrom(bTi) if bTi is not None else None for bTi in bTi_list]
@@ -531,6 +542,46 @@ class GtsfmData:
             aligned_data.add_track(track_a)
 
         return aligned_data
+
+    def merged_with(self, other: "GtsfmData", aSb: Similarity3) -> "GtsfmData":
+        """Return a new scene containing self and ``other`` expressed in this scene's frame.
+
+        Args:
+            other: Scene to merge, currently expressed in frame ``b``.
+            aSb: Transform taking geometry from frame ``b`` to frame ``a`` (this scene).
+
+        Returns:
+            New ``GtsfmData`` containing cameras and tracks from both inputs.
+        """
+        merged_cameras = dict(self.cameras())
+        transformed_other_cameras = transform.camera_map_with_sim3(aSb, other.cameras())
+        for key, camera in transformed_other_cameras.items():
+            if key not in merged_cameras:
+                merged_cameras[key] = camera
+
+        merged_tracks = list(self.tracks())
+        merged_tracks.extend(transform.tracks_with_sim3(aSb, other.tracks()))
+
+        max_camera_index = max(merged_cameras.keys()) if merged_cameras else -1
+        number_images = max(self.number_images(), other.number_images(), max_camera_index + 1)
+        merged_data = GtsfmData(number_images=number_images)
+
+        for key, camera in merged_cameras.items():
+            merged_data.add_camera(key, camera)
+
+        for track in merged_tracks:
+            merged_data._tracks.append(track)
+
+        return merged_data
+
+    def downsample(self, fraction_points_to_keep: float, seed: int = 42) -> "GtsfmData":
+        """Downsample the number of 3D points in the scene by randomly selecting a fraction of them."""
+        # TODO(Frank): extend to downsample cameras as well
+        rng = np.random.default_rng(seed)
+        num_tracks = self.number_tracks()
+        indices_to_keep = rng.choice(num_tracks, size=int(num_tracks * fraction_points_to_keep), replace=False)
+        downsampled_tracks = [self._tracks[idx] for idx in indices_to_keep]
+        return GtsfmData(self.number_images(), self.cameras(), downsampled_tracks)
 
     # COLMAP export functions
 
@@ -668,9 +719,9 @@ class GtsfmData:
     def export_as_colmap_text(
         self,
         save_dir: str | Path,
-        images: Optional[List[Image]] = None,
-        image_shapes: Optional[List[Tuple[int, ...]]] = None,
-        image_filenames: Optional[List[str]] = None,
+        images: Optional[Sequence[Image]] = None,
+        image_shapes: Optional[Sequence[Tuple[int, ...]]] = None,
+        image_filenames: Optional[Sequence[str]] = None,
     ) -> None:
         """Emulates the COLMAP option to `Export model as text`.
 

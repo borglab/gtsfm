@@ -318,14 +318,19 @@ class TestColmapIO(unittest.TestCase):
         data_dir = TEST_DATA_ROOT / "unsorted_colmap"
         cameras, images, points3d = colmap_io.read_model(path=str(data_dir), ext=".txt")
 
+        img_fnames = [img.name for img in images.values()]
+        self.assertListEqual(img_fnames, ["bbb.jpg", "ccc.jpg", "aaa.jpg"])
+        sorted_idx = io_utils._get_sorted_idx(img_fnames)
+        self.assertListEqual(sorted_idx, [2, 0, 1])
+
         image_id_to_idx = io_utils.colmap_image_id_to_idx(images)
         self.assertDictEqual(image_id_to_idx, {300: 0, 100: 1, 200: 2})
 
-        img_fnames, wTi_list, calibrations, point_cloud, rgb, img_dims = io_utils.colmap2gtsfm(
+        sorted_img_fnames, wTi_list, calibrations, point_cloud, rgb, img_dims = io_utils.colmap2gtsfm(
             cameras, images, points3d
         )
-        self._check_scene_data(wTi_list, img_fnames, calibrations, point_cloud, rgb, img_dims, 3, 2)
-        self.assertEqual(img_fnames, ["aaa.jpg", "bbb.jpg", "ccc.jpg"])
+        self._check_scene_data(wTi_list, sorted_img_fnames, calibrations, point_cloud, rgb, img_dims, 3, 2)
+        self.assertEqual(sorted_img_fnames, ["aaa.jpg", "bbb.jpg", "ccc.jpg"])
         self.assertEqual(img_dims, [(768, 1024), (3040, 4056), (600, 800)])
 
     def test_read_scene_data_from_colmap_format_unsorted(self) -> None:

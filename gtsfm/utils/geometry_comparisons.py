@@ -9,8 +9,8 @@ import numpy as np
 from gtsam import Pose3, Rot3, Unit3
 from scipy.spatial.transform import Rotation
 
-import gtsfm.utils.alignment as alignment_utils
 import gtsfm.utils.logger as logger_utils
+from gtsfm.utils import align, transform
 
 EPSILON = np.finfo(float).eps
 
@@ -51,7 +51,8 @@ def compare_rotations(
     bRi_list = [bRi_list[i] for i in bRi_valid]
 
     # frame 'a' is the target/reference, and bRi_list will be transformed
-    aRi_list_ = alignment_utils.align_rotations(aRi_list, bRi_list)
+    aRb = align.so3_from_optional_Rot3s(aRi_list, bRi_list)
+    aRi_list_ = transform.Rot3s_with_so3(aRb, bRi_list)
     relative_rotations_angles = np.array(
         [compute_relative_rotation_angle(aRi, aRi_) for (aRi, aRi_) in zip(aRi_list, aRi_list_)], dtype=np.float32
     )
@@ -102,7 +103,8 @@ def compare_global_poses(
     bTi_list = [bTi_list[i] for i in bTi_valid]
 
     #  We set frame "a" the target/reference
-    aTi_list_, _ = alignment_utils.align_poses_sim3_robust(aTi_list, bTi_list)
+    aSb = align.sim3_from_Pose3s_robust(aTi_list, bTi_list)
+    aTi_list_ = transform.Pose3s_with_sim3(aSb, bTi_list)
 
     rotations_equal = all(
         [

@@ -207,6 +207,44 @@ def extract_zip_if_needed(artifact_path: Path, extract_dir: Path) -> Path:
     raise FileNotFoundError(f"{artifact_path} is neither a directory nor a valid zip file in any expected form")
 
 
+def locate_metrics_report(extracted_path: Path) -> Path:
+    """Find the metrics HTML report within an extracted artifact directory.
+
+    Supports legacy (`result_metrics` or `results_metrics`) and new (`results/metrics`) layouts.
+    """
+    candidate_paths = [
+        extracted_path / "result_metrics" / "gtsfm_metrics_report.html",
+        extracted_path / "results_metrics" / "gtsfm_metrics_report.html",
+        extracted_path / "results" / "metrics" / "gtsfm_metrics_report.html",
+    ]
+
+    for candidate in candidate_paths:
+        if candidate.exists():
+            return candidate
+
+    raise FileNotFoundError(f"Metrics report not found under {extracted_path}")
+
+
+def resolve_artifact_path(base_dir: Path, artifact_basename: str) -> Path:
+    """Locate an artifact by trying legacy and updated directory layouts."""
+    candidate_roots = [
+        base_dir,
+        base_dir / "results_metrics",
+        base_dir / "results" / "metrics",
+    ]
+
+    for root in candidate_roots:
+        candidate = root / artifact_basename
+        if candidate.exists():
+            return candidate
+        if candidate.with_suffix(".zip").exists():
+            return candidate
+        if candidate.with_suffix(".zip.zip").exists():
+            return candidate
+
+    raise FileNotFoundError(f"Artifact {artifact_basename} not found under {base_dir}")
+
+
 def generate_dashboard(master_path: Path, branch_path: Path, output_path: Path) -> None:
     """Generate a dashboard showing a visual representation of the diff against master on all benchmarks.
 
@@ -245,15 +283,17 @@ def generate_dashboard(master_path: Path, branch_path: Path, output_path: Path) 
 
                 try:
                     # Handle master directory
-                    master_artifact_path = master_path / f"results-{artifact_name}"
+                    master_artifact_basename = f"results-{artifact_name}"
+                    master_artifact_path = resolve_artifact_path(master_path, master_artifact_basename)
                     master_extracted_path = extract_zip_if_needed(master_artifact_path, Path(temp_master_dir))
 
                     # Handle branch directory
-                    branch_artifact_path = branch_path / f"results-{artifact_name}"
+                    branch_artifact_basename = f"results-{artifact_name}"
+                    branch_artifact_path = resolve_artifact_path(branch_path, branch_artifact_basename)
                     branch_extracted_path = extract_zip_if_needed(branch_artifact_path, Path(temp_branch_dir))
 
-                    report1_fpath = master_extracted_path / "result_metrics" / "gtsfm_metrics_report.html"
-                    report2_fpath = branch_extracted_path / "result_metrics" / "gtsfm_metrics_report.html"
+                    report1_fpath = locate_metrics_report(master_extracted_path)
+                    report2_fpath = locate_metrics_report(branch_extracted_path)
 
                     tables_dict1 = report_utils.extract_tables_from_report(report1_fpath)
                     tables_dict2 = report_utils.extract_tables_from_report(report2_fpath)

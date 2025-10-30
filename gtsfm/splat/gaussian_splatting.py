@@ -7,7 +7,7 @@ import itertools
 import math
 import sys
 from dataclasses import dataclass
-from typing import Dict, Tuple
+from typing import Dict, List, Tuple
 
 import torch
 import torch.nn.functional as F
@@ -417,12 +417,12 @@ else:
 
             return splats
 
-        def splatify(self, images_graph: Dict[int, Image], sfm_result_graph: GtsfmData):
+        def splatify(self, images_graph: List[Image], sfm_result_graph: GtsfmData):
             """
             Main entry point to run Gaussian Splatting training and evaluation.
 
             Args:
-                images_graph: A dictionary mapping indices to Image objects.
+                images_graph: List of images with Image object.
                 sfm_result_graph: A GtsfmData object containing poses, points, etc.
 
             Returns:
@@ -448,5 +448,6 @@ else:
             )
 
             splats = self._train(full_dataset, splats, optimizers)
+            splats = {key: v.cpu() for key, v in splats.items()}
 
             return splats, self.cfg

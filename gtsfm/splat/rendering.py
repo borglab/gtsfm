@@ -4,11 +4,12 @@ Functions for rendering an interpolated path between the training poses using th
 Authors: Harneet Singh Khanuja
 """
 
-from typing import List
+from pathlib import Path
+from typing import Any, List
 
 import cv2
 import numpy as np
-import scipy
+import scipy  # type: ignore
 import torch
 from gsplat import export_splats
 
@@ -125,25 +126,22 @@ def generate_interpolated_path(
 
 
 @torch.no_grad()
-def generate_interpolated_video(
-    images: List[Image], sfm_result_graph: GtsfmData, cfg_result_graph, splats_graph, video_fpath
-):
+def generate_interpolated_video(images: List[Image], gtsfm_data: GtsfmData, cfg: Any, splats: dict, video_fpath: str):
     """
     Renders a video with interpolated poses from the training poses
     Args:
             images: computation graph for images.
-            sfm_result_graph: computation graph for SfM output
-            cfg_result_graph: computation graph for the training Config parameters
-            splats_graph: computation graph for the gaussian splats
+            gtsfm_data: computation graph for SfM output
+            cfg: computation graph for the training Config parameters
+            splats: computation graph for the gaussian splats
             video_fpath: location where the video will be saved
     """
-    cfg = cfg_result_graph
     gs = GaussianSplatting(cfg, training=False)
-    splats = splats_graph
     num_frames = cfg.num_frames
     fps = cfg.fps
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    full_dataset = GaussianSplattingData(images, sfm_result_graph)
+    splats = {key: v.to(device) for key, v in splats.items()}
+    full_dataset = GaussianSplattingData(images, gtsfm_data)
     wTi_np = generate_interpolated_path(full_dataset.wTi_tensor, num_frames, spline_degree=2)
 
     wTi_np = np.concatenate(
@@ -161,7 +159,7 @@ def generate_interpolated_video(
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # type: ignore
     writer = cv2.VideoWriter(video_fpath, fourcc, fps, frame_size)
     for i in range(len(wTi_tensor)):
-        wTc_tensor = wTi_tensor[i : i + 1]
+        wTc_tensor = wTi_tensor[i : i + 1]  # noqa: E203
         Ks = K[None]
 
         renders, _, _ = gs.rasterize_splats(
@@ -190,7 +188,7 @@ def generate_interpolated_video(
 
 
 # See https://github.com/nerfstudio-project/gsplat/blob/main/gsplat/exporter.py
-def save_splats(save_path, splats):
+def save_splats(save_path: str | Path, splats):
     """
     Export a Gaussian Splats model to bytes.
 

@@ -21,6 +21,7 @@ def save_retrieval_two_view_metrics(metrics_path: Path, plot_base_path: Path) ->
         metrics_path: Directory containing the two-view metrics JSON files.
         plot_base_path: Directory where scatter plots should be saved.
     """
+    # TODO(Frank): this does not belong here, move to retriever phase
     sim_fpath = plot_base_path / "similarity_matrix.txt"
     if not sim_fpath.exists():
         logger.warning("NetVLAD similarity matrix not found at %s. Skipping retrieval metrics.", sim_fpath)

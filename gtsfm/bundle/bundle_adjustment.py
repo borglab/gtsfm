@@ -17,7 +17,6 @@ from gtsam.noiseModel import Diagonal, Isotropic, Robust, mEstimator  # type: ig
 from gtsam.symbol_shorthand import K, P, X  # type: ignore
 
 import gtsfm.common.types as gtsfm_types
-import gtsfm.utils.alignment as alignment_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.tracks as track_utils
@@ -514,9 +513,7 @@ class BundleAdjustmentOptimizer:
         Returns:
             Metrics group containing metrics for both filtered and unfiltered BA results.
         """
-        ba_metrics = GtsfmMetricsGroup(
-            name=METRICS_GROUP, metrics=metrics_utils.get_metrics_for_sfmdata(unfiltered_data, suffix="_unfiltered")
-        )
+        ba_metrics = GtsfmMetricsGroup(name=METRICS_GROUP, metrics=unfiltered_data.get_metrics(suffix="_unfiltered"))
 
         poses_gt = [cam.pose() if cam is not None else None for cam in cameras_gt]
 
@@ -525,7 +522,7 @@ class BundleAdjustmentOptimizer:
             return ba_metrics
 
         # Align the sparse multi-view estimate after BA to the ground truth pose graph.
-        aligned_filtered_data = alignment_utils.align_gtsfm_data_via_Sim3_to_poses(filtered_data, wTi_list_ref=poses_gt)
+        aligned_filtered_data = filtered_data.align_via_sim3_and_transform(poses_gt)
         ba_pose_error_metrics = metrics_utils.compute_ba_pose_metrics(
             gt_wTi_list=poses_gt, computed_wTi_list=aligned_filtered_data.get_camera_poses(), save_dir=save_dir
         )
@@ -540,7 +537,7 @@ class BundleAdjustmentOptimizer:
             metric_name = "Filtered tracks triangulated with GT cams: {}".format(exit_code.name)
             ba_metrics.add_metric(GtsfmMetric(name=metric_name, data=count))
 
-        ba_metrics.add_metrics(metrics_utils.get_metrics_for_sfmdata(aligned_filtered_data, suffix="_filtered"))
+        ba_metrics.add_metrics(aligned_filtered_data.get_metrics(suffix="_filtered"))
 
         logger.info("[Result] Mean track length %.3f", np.mean(aligned_filtered_data.get_track_lengths()))
         logger.info("[Result] Median track length %.3f", np.median(aligned_filtered_data.get_track_lengths()))
