@@ -15,23 +15,21 @@ from gtsfm.loader.olsson_loader import OlssonLoader
 from gtsfm.products.cluster_tree import ClusterTree
 from gtsfm.products.visibility_graph import VisibilityGraph
 from gtsfm.utils.tree import Tree  # PreOrderIter
-
 from gtsfm.utils.vggt import (
+    F,
+    batch_np_matrix_to_pycolmap,
+    batch_np_matrix_to_pycolmap_wo_track,
+    create_pixel_coordinate_grid,
     default_vggt_device,
     default_vggt_dtype,
     load_vggt_model,
-    run_VGGT,
-    unproject_depth_map_to_point_map,
     np,
     predict_tracks,
-    batch_np_matrix_to_pycolmap,
     pycolmap,
-    F,
-    create_pixel_coordinate_grid,
     randomly_limit_trues,
-    batch_np_matrix_to_pycolmap_wo_track,
     rename_colmap_recons_and_rescale_camera,
-    
+    run_VGGT,
+    unproject_depth_map_to_point_map,
 )
 
 LocalScene = tuple[Path, GtsfmData]
@@ -89,7 +87,8 @@ def run_vggt(
         with torch.cuda.amp.autocast(dtype=dtype):
             # Predicting Tracks
             # Using VGGSfM tracker instead of VGGT tracker for efficiency
-            # VGGT tracker requires multiple backbone runs to query different frames (this is a problem caused by the training process)
+            # VGGT tracker requires multiple backbone runs to query different frames
+            # (this is a problem caused by the training process)
             # Will be fixed in VGGT v2
 
             # You can also change the pred_tracks to tracks from any other methods
@@ -188,7 +187,7 @@ def run_vggt(
     )
 
     if not use_ba:
-        print(f"Saving reconstruction to vggt_test_output/sparse_wo_ba")
+        print("Saving reconstruction to vggt_test_output/sparse_wo_ba")
         sparse_reconstruction_dir = Path("vggt_test_output") / "sparse_wo_ba"
     else:
         print(

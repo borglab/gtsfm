@@ -40,14 +40,18 @@
         "**/CVS": true,
         "**/dask-worker-space": true
     },
-    "cSpell.words": [
+    "cSpell.ignoreWords": [
         "1dsfm",
         "absgrad",
+        "amax",
+        "extri_intri",
+        "autocast"
+    ],
+    "cSpell.words": [
         "Aditya",
         "Aishwarya",
         "Akshay",
         "allclose",
-        "amax",
         "anysplat",
         "Arandjelovic",
         "argoverse",

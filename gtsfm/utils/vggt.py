@@ -8,17 +8,17 @@ the model so that other parts of GTSFM do not have to duplicate this boilerplate
 
 from __future__ import annotations
 
+import copy
 import sys
 from pathlib import Path
 from typing import Union
-import copy
-
-import torch
-import torch.nn.functional as F
 
 import numpy as np
 import pycolmap
-import trimesh
+import torch
+import torch.nn.functional as F
+from torch import amp
+
 from gtsfm.utils import logger as logger_utils
 
 PathLike = Union[str, Path]
@@ -129,7 +129,7 @@ def run_VGGT(model, images, dtype, resolution=518):
     images = F.interpolate(images, size=(resolution, resolution), mode="bilinear", align_corners=False)
 
     with torch.no_grad():
-        with torch.cuda.amp.autocast(dtype=dtype):
+        with amp.autocast("cuda", dtype=dtype):  # type: ignore
             images = images[None]  # add batch dimension
             aggregated_tokens_list, ps_idx = model.aggregator(images)
 
@@ -150,34 +150,41 @@ def run_VGGT(model, images, dtype, resolution=518):
     return extrinsic, intrinsic, depth_map, depth_conf
 
 
-def _build_pycolmap_intri(fidx, intrinsics, camera_type, extra_params=None):
+def _build_pycolmap_intrinsics(frame_index, intrinsics, camera_type, extra_params=None):
     """
     Helper function to get camera parameters based on camera type.
 
     Args:
-        fidx: Frame index
+        frame_index: Frame index
         intrinsics: Camera intrinsic parameters
         camera_type: Type of camera model
         extra_params: Additional parameters for certain camera types
 
     Returns:
-        pycolmap_intri: NumPy array of camera parameters
+        pycolmap_intrinsics: NumPy array of camera parameters
     """
     if camera_type == "PINHOLE":
-        pycolmap_intri = np.array(
-            [intrinsics[fidx][0, 0], intrinsics[fidx][1, 1], intrinsics[fidx][0, 2], intrinsics[fidx][1, 2]]
+        pycolmap_intrinsics = np.array(
+            [
+                intrinsics[frame_index][0, 0],
+                intrinsics[frame_index][1, 1],
+                intrinsics[frame_index][0, 2],
+                intrinsics[frame_index][1, 2],
+            ]
         )
     elif camera_type == "SIMPLE_PINHOLE":
-        focal = (intrinsics[fidx][0, 0] + intrinsics[fidx][1, 1]) / 2
-        pycolmap_intri = np.array([focal, intrinsics[fidx][0, 2], intrinsics[fidx][1, 2]])
+        focal = (intrinsics[frame_index][0, 0] + intrinsics[frame_index][1, 1]) / 2
+        pycolmap_intrinsics = np.array([focal, intrinsics[frame_index][0, 2], intrinsics[frame_index][1, 2]])
     elif camera_type == "SIMPLE_RADIAL":
         raise NotImplementedError("SIMPLE_RADIAL is not supported yet")
-        focal = (intrinsics[fidx][0, 0] + intrinsics[fidx][1, 1]) / 2
-        pycolmap_intri = np.array([focal, intrinsics[fidx][0, 2], intrinsics[fidx][1, 2], extra_params[fidx][0]])
+        focal = (intrinsics[frame_index][0, 0] + intrinsics[frame_index][1, 1]) / 2
+        pycolmap_intrinsics = np.array(
+            [focal, intrinsics[frame_index][0, 2], intrinsics[frame_index][1, 2], extra_params[frame_index][0]]
+        )
     else:
         raise ValueError(f"Camera type {camera_type} is not supported yet")
 
-    return pycolmap_intri
+    return pycolmap_intrinsics
 
 
 def batch_np_matrix_to_pycolmap(
@@ -186,6 +193,7 @@ def batch_np_matrix_to_pycolmap(
     intrinsics,
     tracks,
     image_size,
+    image_id_list,
     masks=None,
     max_reproj_error=None,
     max_points3D_val=3000,
@@ -194,7 +202,6 @@ def batch_np_matrix_to_pycolmap(
     extra_params=None,
     min_inlier_per_frame=64,
     points_rgb=None,
-    image_id_list=None,
 ):
     """
     Convert Batched NumPy Arrays to PyCOLMAP
@@ -224,6 +231,7 @@ def batch_np_matrix_to_pycolmap(
     assert len(points3d) == P
     assert image_size.shape[0] == 2
 
+    reproj_mask = None
     if max_reproj_error is not None:
         projected_points_2d, projected_points_cam = project_3D_points_np(points3d, extrinsics, intrinsics)
         projected_diff = np.linalg.norm(projected_points_2d - tracks, axis=-1)
@@ -240,11 +248,11 @@ def batch_np_matrix_to_pycolmap(
     assert masks is not None
 
     if masks.sum(1).min() < min_inlier_per_frame:
-        print(f"Not enough inliers per frame, skip BA.")
+        print("Not enough inliers per frame, skip BA.")
         return None, None
 
     # Reconstruction object, following the format of PyCOLMAP/COLMAP
-    reconstruction = pycolmap.Reconstruction()
+    reconstruction = pycolmap.Reconstruction()  # type: ignore
 
     inlier_num = masks.sum(0)
     valid_mask = inlier_num >= 2  # a track is invalid if without two inliers
@@ -259,27 +267,31 @@ def batch_np_matrix_to_pycolmap(
     num_points3D = len(valid_idx)
     camera = None
     # frame idx
-    for fidx in range(N):
+    for frame_index in range(N):
 
-        image_idx = image_id_list[fidx]
+        image_idx = image_id_list[frame_index]
 
         # set camera
         if camera is None or (not shared_camera):
-            pycolmap_intri = _build_pycolmap_intri(fidx, intrinsics, camera_type, extra_params)
+            pycolmap_intrinsics = _build_pycolmap_intrinsics(frame_index, intrinsics, camera_type, extra_params)
 
-            camera = pycolmap.Camera(
-                model=camera_type, width=image_size[0], height=image_size[1], params=pycolmap_intri, camera_id=image_idx
+            camera = pycolmap.Camera(  # type: ignore
+                model=camera_type,
+                width=image_size[0],
+                height=image_size[1],
+                params=pycolmap_intrinsics,
+                camera_id=image_idx,
             )
 
             # add camera
             reconstruction.add_camera(camera)
 
         # set image
-        cam_from_world = pycolmap.Rigid3d(
-            pycolmap.Rotation3d(extrinsics[fidx][:3, :3]), extrinsics[fidx][:3, 3]
+        cam_from_world = pycolmap.Rigid3d(  # type: ignore
+            pycolmap.Rotation3d(extrinsics[frame_index][:3, :3]), extrinsics[frame_index][:3, 3]  # type: ignore
         )  # Rot and Trans
 
-        image = pycolmap.Image(
+        image = pycolmap.Image(  # type: ignore
             id=image_idx, name=f"image_{image_idx}", camera_id=camera.camera_id, cam_from_world=cam_from_world
         )
 
@@ -292,12 +304,12 @@ def batch_np_matrix_to_pycolmap(
             original_track_idx = valid_idx[point3D_id - 1]
 
             if (reconstruction.points3D[point3D_id].xyz < max_points3D_val).all():
-                if masks[fidx][original_track_idx]:
+                if masks[frame_index][original_track_idx]:
                     # It seems we don't need +0.5 for BA
-                    point2D_xy = tracks[fidx][original_track_idx]
+                    point2D_xy = tracks[frame_index][original_track_idx]
                     # Please note when adding the Point2D object
                     # It not only requires the 2D xy location, but also the id to 3D point
-                    points2D_list.append(pycolmap.Point2D(point2D_xy, point3D_id))
+                    points2D_list.append(pycolmap.Point2D(point2D_xy, point3D_id))  # type: ignore
 
                     # add element
                     track = reconstruction.points3D[point3D_id].track
@@ -307,10 +319,10 @@ def batch_np_matrix_to_pycolmap(
         assert point2D_idx == len(points2D_list)
 
         try:
-            image.points2D = pycolmap.ListPoint2D(points2D_list)
+            image.points2D = pycolmap.ListPoint2D(points2D_list)  # type: ignore
             # image.registered = True
-        except:
-            print(f"frame {image_idx} is out of BA")
+        except Exception as e:
+            print(f"frame {image_idx} is out of BA: {e}")
             # image.registered = False
 
         # add image
@@ -361,16 +373,20 @@ def batch_np_matrix_to_pycolmap_wo_track(
 
     camera = None
     # frame idx
-    for fidx in range(N):
+    for frame_index in range(N):
 
-        image_idx = image_id_list[fidx]
+        image_idx = image_id_list[frame_index]
 
         # set camera
         if camera is None or (not shared_camera):
-            pycolmap_intri = _build_pycolmap_intri(fidx, intrinsics, camera_type)
+            pycolmap_intrinsics = _build_pycolmap_intrinsics(frame_index, intrinsics, camera_type)
 
             camera = pycolmap.Camera(
-                model=camera_type, width=image_size[0], height=image_size[1], params=pycolmap_intri, camera_id=image_idx
+                model=camera_type,
+                width=image_size[0],
+                height=image_size[1],
+                params=pycolmap_intrinsics,
+                camera_id=image_idx,
             )
 
             # add camera
@@ -378,7 +394,7 @@ def batch_np_matrix_to_pycolmap_wo_track(
 
         # set image
         cam_from_world = pycolmap.Rigid3d(
-            pycolmap.Rotation3d(extrinsics[fidx][:3, :3]), extrinsics[fidx][:3, 3]
+            pycolmap.Rotation3d(extrinsics[frame_index][:3, :3]), extrinsics[frame_index][:3, 3]
         )  # Rot and Trans
 
         image = pycolmap.Image(
@@ -389,7 +405,7 @@ def batch_np_matrix_to_pycolmap_wo_track(
 
         point2D_idx = 0
 
-        points_belong_to_fidx = points_xyf[:, 2].astype(np.int32) == fidx
+        points_belong_to_fidx = points_xyf[:, 2].astype(np.int32) == frame_index
         points_belong_to_fidx = np.nonzero(points_belong_to_fidx)[0]
 
         for point3D_batch_idx in points_belong_to_fidx:
@@ -406,10 +422,10 @@ def batch_np_matrix_to_pycolmap_wo_track(
         assert point2D_idx == len(points2D_list)
 
         try:
-            image.points2D = pycolmap.ListPoint2D(points2D_list)
+            image.points2D = pycolmap.ListPoint2D(points2D_list)  # type: ignore
             # image.registered = True
-        except:
-            print(f"frame {image_idx} does not have any points")
+        except Exception as e:
+            print(f"frame {image_idx} does not have any points: {e}")
             # image.registered = False
 
         # add image
@@ -440,6 +456,7 @@ def rename_colmap_recons_and_rescale_camera(
         py_camera = reconstruction.cameras[py_image.camera_id]
         # py_image.name = image_paths[local_id]
 
+        resize_ratio = 1.0
         if rescale_camera:
             # Rescale the camera parameters
             pred_params = copy.deepcopy(py_camera.params)
@@ -471,21 +488,21 @@ def rename_colmap_recons_and_rescale_camera(
     return reconstruction
 
 
-# __all__ = [
-#     "VGGT_SUBMODULE_PATH",
-#     "DEFAULT_WEIGHTS_PATH",
-#     "resolve_vggt_weights_path",
-#     "default_vggt_device",
-#     "default_vggt_dtype",
-#     "load_vggt_model",
-#     "batch_np_matrix_to_pycolmap",
-#     "predict_tracks",
-#     "unproject_depth_map_to_point_map",
-#     "create_pixel_coordinate_grid",
-#     "randomly_limit_trues",
-#     "load_and_preprocess_images_square",
-#     "pose_encoding_to_extri_intri",
-#     "project_3D_points_np",
-#     "run_VGGT",
-#     "batch_np_matrix_to_pycolmap_wo_track"
-# ]
+__all__ = [
+    "VGGT_SUBMODULE_PATH",
+    "DEFAULT_WEIGHTS_PATH",
+    "resolve_vggt_weights_path",
+    "default_vggt_device",
+    "default_vggt_dtype",
+    "load_vggt_model",
+    "batch_np_matrix_to_pycolmap",
+    "predict_tracks",
+    "unproject_depth_map_to_point_map",
+    "create_pixel_coordinate_grid",
+    "randomly_limit_trues",
+    "load_and_preprocess_images_square",
+    "pose_encoding_to_extri_intri",
+    "project_3D_points_np",
+    "run_VGGT",
+    "batch_np_matrix_to_pycolmap_wo_track",
+]
