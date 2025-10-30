@@ -383,6 +383,26 @@ class LoaderBase(GTSFMProcess):
             for i in range(len(self))
         ]
 
+    @staticmethod
+    # do padding to square and resize to target size
+    def pad_image(img: np.ndarray, max_side: int) -> tuple[np.ndarray, tuple[int, int, int, int]]:
+        """Pad image to square dimensions using the maximum side length observed in the batch."""
+        pad_height = max_side - img.shape[0]
+        pad_width = max_side - img.shape[1]
+
+        pad_top = pad_height // 2
+        pad_bottom = pad_height - pad_top
+        pad_left = pad_width // 2
+        pad_right = pad_width - pad_left
+
+        padded = np.pad(
+            img,
+            pad_width=((pad_top, pad_bottom), (pad_left, pad_right), (0, 0)),
+            mode="constant",
+            constant_values=0,
+        )
+        return padded, (pad_top, pad_bottom, pad_left, pad_right)
+
     def load_image_batch(
         self,
         indices: List[int],
@@ -413,24 +433,10 @@ class LoaderBase(GTSFMProcess):
             max_side = max(max(img.shape[0], img.shape[1]) for img in image_arrays)
             working_arrays = []
             for img in image_arrays:
-                pad_height = max_side - img.shape[0]
-                pad_width = max_side - img.shape[1]
-
-                pad_top = pad_height // 2
-                pad_bottom = pad_height - pad_top
-                pad_left = pad_width // 2
-                pad_right = pad_width - pad_left
-
-                padded = np.pad(
-                    img,
-                    pad_width=((pad_top, pad_bottom), (pad_left, pad_right), (0, 0)),
-                    mode="constant",
-                    constant_values=0,
-                )
+                padded, _ = self.pad_image(img, max_side)
                 working_arrays.append(padded)
 
         image_tensors = [resize_transform(arr) for arr in working_arrays]
-
         batch_tensor = torch.stack(image_tensors, dim=0)
 
         # Apply optional batch transform before returning
@@ -439,14 +445,15 @@ class LoaderBase(GTSFMProcess):
     def load_image_batch_vggt(
         self,
         indices: List[int],
+        img_load_resolution: int,
         resize_transform: ResizeTransform,
         batch_transform: Optional[BatchTransform] = None,
-        img_load_resolution: int = None,
-    ) -> torch.Tensor:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Helper function that runs on a Dask worker to load a batch of images.
 
         Args:
             indices: List of image indices to load
+            img_load_resolution: target image resolution for loading images.
             resize_transform: callable that converts a numpy array (image) to a torch.Tensor of the desired size.
             batch_transform: Optional callable that applies a preprocessing transform to the batch tensor.
 
@@ -456,28 +463,11 @@ class LoaderBase(GTSFMProcess):
         # Get images as a List of [H, W, C] numpy arrays
         image_arrays = [self.get_image(idx).value_array for idx in indices]
 
-        # Determine whether all images share the same spatial size.
-        # base_shape = image_arrays[0].shape[:2]
-        # shapes_match = all(img.shape[0] == img.shape[1] for img in image_arrays)
-
         working_arrays = []
         original_coords = []
         for img in image_arrays:
             max_side = max(img.shape[0], img.shape[1])
-            pad_height = max_side - img.shape[0]
-            pad_width = max_side - img.shape[1]
-
-            pad_top = pad_height // 2
-            pad_bottom = pad_height - pad_top
-            pad_left = pad_width // 2
-            pad_right = pad_width - pad_left
-
-            padded = np.pad(
-                img,
-                pad_width=((pad_top, pad_bottom), (pad_left, pad_right), (0, 0)),
-                mode="constant",
-                constant_values=0,
-            )
+            padded, (pad_top, _, pad_left, _) = self.pad_image(img, max_side)
             working_arrays.append(padded)
 
             scale = img_load_resolution / max_side
@@ -488,104 +478,14 @@ class LoaderBase(GTSFMProcess):
 
             original_coords.append(np.array([x1, y1, x2, y2, img.shape[1], img.shape[0]]))
 
-        original_coords = torch.from_numpy(np.array(original_coords)).float()
-
         image_tensors = [resize_transform(arr) for arr in working_arrays]
-
         batch_tensor = torch.stack(image_tensors, dim=0)
 
+        original_coords_tensor = torch.from_numpy(np.array(original_coords)).float()
+
         # Apply optional batch transform before returning
-        if not img_load_resolution:
-            return batch_transform(batch_tensor) if batch_transform else batch_tensor
-        else:
-            return batch_transform(batch_tensor) if batch_transform else batch_tensor, original_coords
-
-    def load_and_preprocess_images_square_vggt(self, indices: List[int], target_size=1024):
-        """
-        TODO: can be removed after verification
-        Load and preprocess images by center padding to square and resizing to target size.
-        Also returns the position information of original pixels after transformation.
-
-        Args:
-            image_path_list (list): List of paths to image files
-            target_size (int, optional): Target size for both width and height. Defaults to 518.
-
-        Returns:
-            tuple: (
-                torch.Tensor: Batched tensor of preprocessed images with shape (N, 3, target_size, target_size),
-                torch.Tensor: Array of shape (N, 5) containing [x1, y1, x2, y2, width, height] for each image
-            )
-
-        Raises:
-            ValueError: If the input list is empty
-        """
-        # Check for empty list
-        if len(indices) == 0:
-            raise ValueError("At least 1 image is required")
-
-        from torchvision import transforms as TF
-        import PIL
-
-        images = []
-        original_coords = []  # Renamed from position_info to be more descriptive
-        to_tensor = TF.ToTensor()
-
-        for idx in indices:
-            # Open image
-            img = PIL.Image.fromarray(self.get_image(idx).value_array)
-
-            # If there's an alpha channel, blend onto white background
-            if img.mode == "RGBA":
-                background = PIL.Image.new("RGBA", img.size, (255, 255, 255, 255))
-                img = PIL.Image.alpha_composite(background, img)
-
-            # Convert to RGB
-            img = img.convert("RGB")
-
-            # Get original dimensions
-            width, height = img.size
-
-            # Make the image square by padding the shorter dimension
-            max_dim = max(width, height)
-
-            # Calculate padding
-            left = (max_dim - width) // 2
-            top = (max_dim - height) // 2
-
-            # Calculate scale factor for resizing
-            scale = target_size / max_dim
-
-            # Calculate final coordinates of original image in target space
-            x1 = left * scale
-            y1 = top * scale
-            x2 = (left + width) * scale
-            y2 = (top + height) * scale
-
-            # Store original image coordinates and scale
-            original_coords.append(np.array([x1, y1, x2, y2, width, height]))
-
-            # Create a new black square image and paste original
-            square_img = PIL.Image.new("RGB", (max_dim, max_dim), (0, 0, 0))
-            square_img.paste(img, (left, top))
-
-            # Resize to target size
-            square_img = square_img.resize((target_size, target_size), PIL.Image.Resampling.BICUBIC)
-
-            # Convert to tensor
-            img_tensor = to_tensor(square_img)
-            images.append(img_tensor)
-
-        # Stack all images
-        images = torch.stack(images)
-        original_coords = torch.from_numpy(np.array(original_coords)).float()
-
-        # Add additional dimension if single image to ensure correct shape
-        if len(indices) == 1:
-            if images.dim() == 3:
-                images = images.unsqueeze(0)
-                original_coords = original_coords.unsqueeze(0)
-
-        return images, original_coords
+        transformed = batch_transform(batch_tensor) if batch_transform else batch_tensor
+        return transformed, original_coords_tensor
 
     def get_all_descriptor_image_batches_as_futures(
         self,
