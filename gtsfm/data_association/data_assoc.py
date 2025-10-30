@@ -39,7 +39,7 @@ logger = logger_utils.get_logger()
 
 # Heuristically set to limit the number of delayed tasks, as recommended by Dask:
 # https://docs.dask.org/en/stable/delayed-best-practices.html#avoid-too-many-tasks
-MAX_DELAYED_TRIANGULATION_CALLS = 1e3
+MAX_DELAYED_TRIANGULATION_CALLS = 10
 
 
 @dataclass(frozen=True)
