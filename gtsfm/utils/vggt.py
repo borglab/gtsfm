@@ -13,6 +13,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from gtsam import Point2, Point3, Pose3, Rot3, SfmTrack  # type: ignore
+from torch.amp import autocast as amp_autocast  # type: ignore
 
 import gtsfm.common.types as gtsfm_types
 from gtsfm.common.gtsfm_data import GtsfmData
@@ -252,7 +253,7 @@ def run_reconstruction(
     )
 
     if resolved_device.type == "cuda":
-        autocast_ctx: Any = torch.cuda.amp.autocast(dtype=resolved_dtype)
+        autocast_ctx: Any = amp_autocast("cuda", dtype=resolved_dtype)
     else:
         autocast_ctx = nullcontext()
 
@@ -360,7 +361,7 @@ def run_VGGT(model: VGGT, images: torch.Tensor, dtype: torch.dtype, resolution: 
     resized = F.interpolate(images, size=(resolution, resolution), mode="bilinear", align_corners=False)
 
     if torch.cuda.is_available():
-        autocast_ctx: Any = torch.cuda.amp.autocast(dtype=dtype)
+        autocast_ctx: Any = amp_autocast("cuda", dtype=dtype)
     else:
         autocast_ctx = nullcontext()
 

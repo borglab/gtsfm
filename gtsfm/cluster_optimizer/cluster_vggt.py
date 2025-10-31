@@ -19,7 +19,10 @@ from gtsfm.cluster_optimizer.cluster_optimizer_base import (
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.products.visibility_graph import visibility_graph_keys
 from gtsfm.ui.gtsfm_process import UiMetadata
+from gtsfm.utils.logger import get_logger
 from gtsfm.utils.vggt import VGGTReconstructionConfig, VGGTReconstructionResult
+
+logger = get_logger()
 
 
 def _resize_to_square_tensor(image: np.ndarray, target_size: int) -> torch.Tensor:
@@ -45,6 +48,7 @@ def _run_vggt_pipeline(image_batch: torch.Tensor, seed: int, **kwargs) -> VGGTRe
         torch.cuda.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
 
+    logger.info("🔵 Running VGGT on %d images.", image_batch.shape[0])
     return vggt.run_reconstruction(image_batch, **kwargs)
 
 
