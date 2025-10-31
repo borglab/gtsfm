@@ -328,6 +328,7 @@ def run_vggt_reconstruction(
         fallback_reason=fallback_reason,
     )
 
+
 def resolve_vggt_weights_path(checkpoint_path: PathLike | None = None) -> Path:
     """Return a concrete path to the VGGT checkpoint, validating that it exists."""
     path = Path(checkpoint_path) if checkpoint_path is not None else DEFAULT_WEIGHTS_PATH

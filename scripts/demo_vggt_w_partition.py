@@ -130,8 +130,10 @@ def demo_fn(cluster_key: str, image_indices: List[int], args: argparse.Namespace
     sparse_reconstruction_dir = os.path.join(args.output_dir, cluster_key, sparse_subdir)
     print(f"[{cluster_key}] Saving reconstruction to {sparse_reconstruction_dir}")
     os.makedirs(sparse_reconstruction_dir, exist_ok=True)
-    result.reconstruction.write(sparse_reconstruction_dir)
-    result.reconstruction.write_text(sparse_reconstruction_dir)
+    if args.colmap_format in {"bin", "both"}:
+        result.reconstruction.write(sparse_reconstruction_dir)
+    if args.colmap_format in {"txt", "both"}:
+        result.reconstruction.write_text(sparse_reconstruction_dir)
 
     if result.points_rgb is not None:
         try:

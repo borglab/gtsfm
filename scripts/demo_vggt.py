@@ -148,6 +148,13 @@ def add_common_vggt_args(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
         default=5.0,
         help="Depth confidence threshold for the feed-forward path (used when BA is disabled).",
     )
+    parser.add_argument(
+        "--colmap_format",
+        type=str,
+        choices=("bin", "txt", "both"),
+        default="bin",
+        help="Which COLMAP serialization(s) to export: binary `.bin`, text `.txt`, or both.",
+    )
     return parser
 
 
@@ -234,7 +241,10 @@ def demo_fn(args: argparse.Namespace) -> bool:
     sparse_reconstruction_dir = os.path.join(args.scene_dir, output_dir_name)
     print(f"Saving reconstruction to {sparse_reconstruction_dir}")
     os.makedirs(sparse_reconstruction_dir, exist_ok=True)
-    result.reconstruction.write(sparse_reconstruction_dir)
+    if args.colmap_format in {"bin", "both"}:
+        result.reconstruction.write(sparse_reconstruction_dir)
+    if args.colmap_format in {"txt", "both"}:
+        result.reconstruction.write_text(sparse_reconstruction_dir)
 
     if result.points_rgb is not None:
         try:
