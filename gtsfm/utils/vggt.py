@@ -314,6 +314,10 @@ def run_vggt_reconstruction(
                 inference_resolution,
             )
             track = SfmTrack(Point3(*xyz))
+            color = points_rgb_flat[idx]
+            track.r = float(color[0])
+            track.g = float(color[1])
+            track.b = float(color[2])
             global_idx = image_indices[frame_idx]
             track.addMeasurement(global_idx, Point2(u, v))
             gtsfm_data.add_track(track)
