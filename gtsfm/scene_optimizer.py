@@ -14,6 +14,7 @@ import gtsfm.utils.logger as logger_utils
 from gtsfm.cluster_optimizer import REACT_METRICS_PATH, REACT_RESULTS_PATH, Base, save_metrics_reports
 from gtsfm.common.outputs import OutputPaths, prepare_output_paths
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
+from gtsfm.evaluation.retrieval_metrics import save_retrieval_two_view_metrics
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.graph_partitioner.single_partitioner import SinglePartitioner
 from gtsfm.loader.loader_base import LoaderBase
@@ -66,6 +67,12 @@ class SceneOptimizer:
         """Ensure the React dashboards have dedicated output folders."""
         REACT_RESULTS_PATH.mkdir(parents=True, exist_ok=True)
         REACT_METRICS_PATH.mkdir(parents=True, exist_ok=True)
+
+    def _save_retrieval_diagnostics(self, output_paths: OutputPaths) -> None:
+        try:
+            save_retrieval_two_view_metrics(output_paths.metrics, output_paths.plots)
+        except Exception as exc:  # pragma: no cover - diagnostics are best-effort
+            logger.debug("Skipping retrieval diagnostics for %s: %s", output_paths.plots, exc)
 
     def run(self, client) -> None:
         """Run the SceneOptimizer."""
@@ -130,12 +137,16 @@ class SceneOptimizer:
             if futures:
                 results = client.gather(futures)  # blocking call
                 for (leaf_index, output_paths), (io_tasks, metrics) in zip(leaf_jobs, results):
+                    self._save_retrieval_diagnostics(output_paths)
                     if not metrics:
                         continue
                     if use_leaf_subdirs:
                         save_metrics_reports(metrics, str(output_paths.metrics))
                     else:
                         multiview_metrics_groups_by_leaf[leaf_index] = metrics
+
+        if not futures:
+            self._save_retrieval_diagnostics(base_output_paths)
 
         # Log total time taken and save metrics report
         end_time = time.time()

@@ -28,7 +28,13 @@ def save_retrieval_two_view_metrics(metrics_path: Path, plot_base_path: Path) ->
         return
 
     sim = np.loadtxt(str(sim_fpath), delimiter=",")
-    json_data = io_utils.read_json_file(metrics_path / "two_view_report_VIEWGRAPH_2VIEW_REPORT.json")
+
+    report_path = metrics_path / "two_view_report_VIEWGRAPH_2VIEW_REPORT.json"
+    if not report_path.exists():
+        logger.warning("Two-view report not found at %s. Skipping retrieval metrics.", report_path)
+        return
+
+    json_data = io_utils.read_json_file(report_path)
 
     sim_scores: list[float] = []
     R_errors: list[float] = []
