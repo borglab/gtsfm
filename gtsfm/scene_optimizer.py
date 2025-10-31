@@ -5,13 +5,12 @@ Authors: Ayush Baid, John Lambert
 
 import time
 from dataclasses import dataclass
-from functools import partial
 from pathlib import Path
-from typing import Any, Optional, Sequence, TypeVar, cast
+from typing import Optional, Sequence, TypeVar, cast
 
 import matplotlib
 from dask.delayed import delayed
-from dask.distributed import Client, Future, performance_report
+from dask.distributed import Client, Future, get_client, performance_report
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.cluster_optimizer import REACT_METRICS_PATH, REACT_RESULTS_PATH, Base, save_metrics_reports
@@ -137,15 +136,29 @@ def _export_merged_scene(
 
 
 def _run_export_task(
-    payload: tuple[ClusterExecutionHandles, Optional[GtsfmData]],
-    image_shapes: Sequence[tuple[int, ...]],
-    image_filenames: Sequence[str],
-    images: Sequence[Image] | Sequence[Future] | None,
+    payload: tuple[
+        ClusterExecutionHandles,
+        Optional[GtsfmData],
+        Sequence[tuple[int, ...]],
+        Sequence[str],
+        Sequence[Image] | Sequence[Future] | None,
+    ],
 ) -> None:
     """Execute merged scene export on a worker."""
-    handle, merged_scene = payload
+    handle, merged_scene, image_shapes, image_filenames, images = payload
+    resolved_images: Sequence[Image] | None
+    if images is None:
+        resolved_images = None
+    elif any(isinstance(img, Future) for img in images):
+        try:
+            resolved_images = tuple(get_client().gather(list(images)))
+        except Exception:
+            logger.warning("Failed to gather images for export; falling back to stored track colors.")
+            resolved_images = None
+    else:
+        resolved_images = images
     merged_dir = handle.output_paths.results / "merged"
-    _export_merged_scene(merged_scene, merged_dir, image_shapes, image_filenames, images)
+    _export_merged_scene(merged_scene, merged_dir, image_shapes, image_filenames, resolved_images)
 
 
 def _merge_cluster_results(
@@ -294,14 +307,21 @@ class SceneOptimizer:
         image_futures: Sequence[Future],
     ) -> Tree[Future]:
         """Schedule persistence of merged reconstructions for each cluster."""
-        export_payload_tree = Tree.zip(handles_tree, merged_tree)
-        export_fn = partial(
-            _run_export_task,
-            image_shapes=tuple(image_shapes),
-            image_filenames=tuple(image_filenames),
-            images=tuple(image_futures),
+        shared_image_shapes = tuple(image_shapes)
+        shared_image_filenames = tuple(image_filenames)
+        shared_image_futures = tuple(image_futures)
+
+        export_payload_tree = Tree.zip(handles_tree, merged_tree).map(
+            lambda value: (
+                value[0],
+                value[1],
+                shared_image_shapes,
+                shared_image_filenames,
+                shared_image_futures,
+            )
         )
-        return submit_tree_map(client, export_payload_tree, export_fn, pure=False)
+
+        return submit_tree_map(client, export_payload_tree, _run_export_task, pure=False)
 
     def run(self, client: Client) -> None:
         """Run the SceneOptimizer."""
