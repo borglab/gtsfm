@@ -202,8 +202,10 @@ class ClusterVGGT(ClusterOptimizerBase):
                 )
             )
 
+        sfm_result_graph = delayed(lambda res: res.gtsfm_data)(result_graph)
+
         return ClusterComputationGraph(
             io_tasks=tuple(io_tasks),
             metric_tasks=tuple(metrics_tasks),
-            sfm_result=None,
+            sfm_result=sfm_result_graph,
         )
