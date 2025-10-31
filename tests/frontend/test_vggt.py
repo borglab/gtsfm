@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 
 import torch
+from torch import amp
 from torchvision.transforms import v2 as transforms  # type: ignore
 
 from gtsfm.common.gtsfm_data import GtsfmData
@@ -35,6 +36,8 @@ from gtsfm.utils.vggt import (
 LocalScene = tuple[Path, GtsfmData]
 SceneTree = Tree[LocalScene]
 
+DATA_ROOT_PATH = Path(__file__).resolve().parent / "data"
+
 
 def run_vggt(
     image_batch: torch.Tensor,
@@ -42,7 +45,7 @@ def run_vggt(
     original_coords,
     seed=42,
     use_ba=False,
-    conf_thres_value=5.0,
+    conf_threshold_value=5.0,
     vggt_fixed_resolution=518,
     img_load_resolution=1024,
     max_query_pts=1000,
@@ -79,64 +82,74 @@ def run_vggt(
     extrinsic, intrinsic, depth_map, depth_conf = run_VGGT(model, image_batch, dtype, 518)
     points_3d = unproject_depth_map_to_point_map(depth_map, extrinsic, intrinsic)
 
+    reconstruction: pycolmap.Reconstruction | None = None
+    shared_camera = False
+    reconstruction_resolution = vggt_fixed_resolution
+
     if use_ba:
         image_size = np.array(image_batch.shape[-2:])
         scale = img_load_resolution / vggt_fixed_resolution
-        shared_camera = False
 
-        with torch.cuda.amp.autocast(dtype=dtype):
-            # Predicting Tracks
-            # Using VGGSfM tracker instead of VGGT tracker for efficiency
-            # VGGT tracker requires multiple backbone runs to query different frames
-            # (this is a problem caused by the training process)
-            # Will be fixed in VGGT v2
+        try:
+            with amp.autocast("cuda", dtype=dtype):  # type: ignore
+                # Predicting Tracks
+                # Using VGGSfM tracker instead of VGGT tracker for efficiency
+                # VGGT tracker requires multiple backbone runs to query different frames
+                # (this is a problem caused by the training process)
+                # Will be fixed in VGGT v2
 
-            # You can also change the pred_tracks to tracks from any other methods
-            # e.g., from COLMAP, from CoTracker, or by chaining 2D matches from Lightglue/LoFTR.
-            pred_tracks, pred_vis_scores, pred_confs, points_3d, points_rgb = predict_tracks(
-                image_batch,
-                conf=depth_conf,
-                points_3d=points_3d,
-                masks=None,
-                max_query_pts=max_query_pts,
-                query_frame_num=query_frame_num,
-                keypoint_extractor="aliked+sp",
-                fine_tracking=fine_tracking,
+                # You can also change the pred_tracks to tracks from any other methods
+                # e.g., from COLMAP, from CoTracker, or by chaining 2D matches from Lightglue/LoFTR.
+                pred_tracks, pred_vis_scores, _, points_3d, points_rgb = predict_tracks(
+                    image_batch,
+                    conf=depth_conf,
+                    points_3d=points_3d,
+                    masks=None,
+                    max_query_pts=max_query_pts,
+                    query_frame_num=query_frame_num,
+                    keypoint_extractor="aliked+sp",
+                    fine_tracking=fine_tracking,
+                )
+
+                torch.cuda.empty_cache()
+
+            # rescale the intrinsic matrix from 518 to 1024
+            intrinsic[:, :2, :] *= scale
+            track_mask = pred_vis_scores > vis_thresh
+
+            # TODO: radial distortion, iterative BA, masks
+            reconstruction, valid_track_mask = batch_np_matrix_to_pycolmap(
+                points_3d,
+                extrinsic,
+                intrinsic,
+                pred_tracks,
+                image_size,
+                masks=track_mask,
+                max_reproj_error=max_reproj_error,
+                shared_camera=shared_camera,
+                camera_type=camera_type,
+                points_rgb=points_rgb,
+                image_id_list=image_indices,
             )
 
-            torch.cuda.empty_cache()
+            if reconstruction is None:
+                raise ValueError("No reconstruction can be built with BA")
 
-        # rescale the intrinsic matrix from 518 to 1024
-        intrinsic[:, :2, :] *= scale
-        track_mask = pred_vis_scores > vis_thresh
+            if use_colmap_ba:
+                # Bundle Adjustment w/ Colmap
+                ba_options = pycolmap.BundleAdjustmentOptions()
+                pycolmap.bundle_adjustment(reconstruction, ba_options)
 
-        # TODO: radial distortion, iterative BA, masks
-        reconstruction, valid_track_mask = batch_np_matrix_to_pycolmap(
-            points_3d,
-            extrinsic,
-            intrinsic,
-            pred_tracks,
-            image_size,
-            masks=track_mask,
-            max_reproj_error=max_reproj_error,
-            shared_camera=shared_camera,
-            camera_type=camera_type,
-            points_rgb=points_rgb,
-            image_id_list=image_indices,
-        )
+            reconstruction_resolution = img_load_resolution
+        except ImportError as exc:
+            print(
+                f"predict_tracks unavailable ({exc}). Falling back to feedforward reconstruction without BA.",
+                flush=True,
+            )
+            reconstruction = None
+            use_ba = False
 
-        if reconstruction is None:
-            raise ValueError("No reconstruction can be built with BA")
-
-        if use_colmap_ba:
-
-            # Bundle Adjustment w/ Colmap
-            ba_options = pycolmap.BundleAdjustmentOptions()
-            pycolmap.bundle_adjustment(reconstruction, ba_options)
-
-        reconstruction_resolution = img_load_resolution
-    else:
-        conf_thres_value = conf_thres_value
+    if not use_ba:
         max_points_for_colmap = 100000  # randomly sample 3D points
         shared_camera = False  # in the feedforward manner, we do not support shared camera
         camera_type = "PINHOLE"  # in the feedforward manner, we only support PINHOLE camera
@@ -153,7 +166,7 @@ def run_vggt(
         # (S, H, W, 3), with x, y coordinates and frame indices
         points_xyf = create_pixel_coordinate_grid(num_frames, height, width)
 
-        conf_mask = depth_conf >= conf_thres_value
+        conf_mask = depth_conf >= conf_threshold_value
         # at most writing 100000 3d points to colmap reconstruction object
         conf_mask = randomly_limit_trues(conf_mask, max_points_for_colmap)
 
@@ -186,19 +199,19 @@ def run_vggt(
         image_id_list=image_indices,
     )
 
+    output_dir = DATA_ROOT_PATH / "vggt_test_output"
     if not use_ba:
         print("Saving reconstruction to vggt_test_output/sparse_wo_ba")
-        sparse_reconstruction_dir = Path("vggt_test_output") / "sparse_wo_ba"
+        sparse_reconstruction_dir = output_dir / "sparse_wo_ba"
     else:
         print(
             f"Saving reconstruction to vggt_test_output/sparse_w_ba_{query_frame_num}_{max_query_pts}_{use_colmap_ba}"
         )
-        sparse_reconstruction_dir = (
-            Path("vggt_test_output") / f"sparse_w_ba_{query_frame_num}_{max_query_pts}_{use_colmap_ba}"
-        )
+        sparse_reconstruction_dir = output_dir / f"sparse_w_ba_{query_frame_num}_{max_query_pts}_{use_colmap_ba}"
     sparse_reconstruction_dir.mkdir(parents=True, exist_ok=True)
-    reconstruction.write(sparse_reconstruction_dir)
-    reconstruction.write_text(sparse_reconstruction_dir)
+    assert reconstruction is not None
+    reconstruction.write(str(sparse_reconstruction_dir))
+    reconstruction.write_text(str(sparse_reconstruction_dir))
 
     # Save point cloud for fast visualization
     # trimesh.PointCloud(points_3d, colors=points_rgb).export(sparse_reconstruction_dir / "points.ply")
@@ -242,7 +255,10 @@ class TestVGGT(unittest.TestCase):
         batch_transform = transforms.Lambda(lambda x: x.type(torch.float32) / 255.0)
 
         image_batch, original_coords = loader.load_image_batch_vggt(
-            indices, resize_transform, batch_transform, img_load_resolution
+            indices,
+            img_load_resolution,
+            resize_transform,
+            batch_transform,
         )
 
         # image_batch, original_coords = loader.load_and_preprocess_images_square_vggt(indices, img_load_resolution)

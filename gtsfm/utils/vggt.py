@@ -11,7 +11,7 @@ from __future__ import annotations
 import copy
 import sys
 from pathlib import Path
-from typing import Union
+from typing import TYPE_CHECKING, Any, Callable, Union
 
 import numpy as np
 import pycolmap
@@ -50,7 +50,6 @@ _ensure_submodule_on_path(LIGHTGLUE_SUBMODULE_PATH, "LightGlue")
 
 try:
     from vggt.dependency.projection import project_3D_points_np  # type: ignore
-    from vggt.dependency.track_predict import predict_tracks  # type: ignore
     from vggt.models.vggt import VGGT  # type: ignore
     from vggt.utils.geometry import unproject_depth_map_to_point_map  # type: ignore
     from vggt.utils.helper import create_pixel_coordinate_grid, randomly_limit_trues  # type: ignore
@@ -62,12 +61,42 @@ except ModuleNotFoundError as exc:  # pragma: no cover - import guard
     ) from exc
 
 
+if TYPE_CHECKING:  # pragma: no cover - import guard for type checkers
+    from vggt.dependency.track_predict import predict_tracks as _predict_tracks_type  # noqa: F401
+
+
+_predict_tracks_impl: Callable[..., Any] | None = None
+
+
+def _import_predict_tracks() -> Callable[..., Any]:
+    """Import the tracker lazily so optional dependencies do not block other utilities."""
+    global _predict_tracks_impl
+
+    if _predict_tracks_impl is None:
+        try:
+            from vggt.dependency.track_predict import predict_tracks as _predict_tracks  # type: ignore
+        except ImportError as exc:  # pragma: no cover - import guard
+            raise ImportError(
+                "predict_tracks requires the optional LightGlue dependency. "
+                "Ensure the LightGlue submodule (including ALIKED) is installed."
+            ) from exc
+
+        _predict_tracks_impl = _predict_tracks
+
+    return _predict_tracks_impl
+
+
+def predict_tracks(*args: Any, **kwargs: Any) -> Any:
+    """Proxy for VGGSfM track prediction that loads on demand."""
+    return _import_predict_tracks()(*args, **kwargs)
+
+
 def resolve_vggt_weights_path(checkpoint_path: PathLike | None = None) -> Path:
     """Return a concrete path to the VGGT checkpoint, validating that it exists."""
     path = Path(checkpoint_path) if checkpoint_path is not None else DEFAULT_WEIGHTS_PATH
     if not path.exists():
         raise FileNotFoundError(
-            f"VGGT checkpoint not found at {path}. " "Please run 'bash download_model_weights.sh' from the repo root."
+            f"VGGT checkpoint not found at {path}. Please run 'scripts/download_model_weights.sh' from the repo root."
         )
     return path
 
@@ -259,10 +288,10 @@ def batch_np_matrix_to_pycolmap(
     valid_idx = np.nonzero(valid_mask)[0]
 
     # Only add 3D points that have sufficient 2D points
-    for vidx in valid_idx:
+    for i in valid_idx:
         # Use RGB colors if provided, otherwise use zeros
-        rgb = points_rgb[vidx] if points_rgb is not None else np.zeros(3)
-        reconstruction.add_point3D(points3d[vidx], pycolmap.Track(), rgb)
+        rgb: np.ndarray = points_rgb[i] if points_rgb is not None else np.zeros(3)
+        reconstruction.add_point3D(points3d[i], pycolmap.Track(), rgb)
 
     num_points3D = len(valid_idx)
     camera = None
@@ -368,8 +397,8 @@ def batch_np_matrix_to_pycolmap_wo_track(
     # Reconstruction object, following the format of PyCOLMAP/COLMAP
     reconstruction = pycolmap.Reconstruction()
 
-    for vidx in range(P):
-        reconstruction.add_point3D(points3d[vidx], pycolmap.Track(), points_rgb[vidx])
+    for i in range(P):
+        reconstruction.add_point3D(points3d[i], pycolmap.Track(), points_rgb[i])
 
     camera = None
     # frame idx
@@ -405,10 +434,10 @@ def batch_np_matrix_to_pycolmap_wo_track(
 
         point2D_idx = 0
 
-        points_belong_to_fidx = points_xyf[:, 2].astype(np.int32) == frame_index
-        points_belong_to_fidx = np.nonzero(points_belong_to_fidx)[0]
+        points_belong_to_frame = points_xyf[:, 2].astype(np.int32) == frame_index
+        points_belong_to_frame = np.nonzero(points_belong_to_frame)[0]
 
-        for point3D_batch_idx in points_belong_to_fidx:
+        for point3D_batch_idx in points_belong_to_frame:
             point3D_id = point3D_batch_idx + 1
             point2D_xyf = points_xyf[point3D_batch_idx]
             point2D_xy = point2D_xyf[:2]
