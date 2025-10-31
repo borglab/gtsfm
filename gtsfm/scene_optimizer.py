@@ -125,7 +125,7 @@ def _export_merged_scene(
 
     merged_path = Path(target_dir)
     merged_path.mkdir(parents=True, exist_ok=True)
-    merged_scene.export_as_colmap_text(merged_path, images=list(images) if images is not None else None)
+    merged_scene.export_as_colmap_text(merged_path)
 
 
 def _run_export_task(

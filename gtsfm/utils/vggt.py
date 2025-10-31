@@ -187,7 +187,7 @@ def _convert_measurement_to_original_resolution(
     x1, y1 = original_coord[0], original_coord[1]
     width, height = original_coord[4], original_coord[5]
 
-    # VGGT runs on the ``img_load_resolution`` square; inference downsamples that square to the
+    # VGGT runs on the ``img_load_resolution`` square; inference down-samples that square to the
     # (typically smaller) ``inference_resolution``. Undo that downscale so we can use the crop
     # metadata stored in ``original_coord``.
     scale_back_to_load = float(img_load_resolution) / float(inference_resolution)
@@ -236,7 +236,7 @@ def run_reconstruction(
         model = load_model(weights_path, device=resolved_device, dtype=resolved_dtype)
     else:
         model = model.to(resolved_device)
-        model.eval()
+        model.eval()  # type: ignore
 
     image_batch = image_batch.to(resolved_device)
     original_coords = original_coords.to(resolved_device)
