@@ -4,7 +4,7 @@ Authors: Harneet Singh Khanuja
 """
 
 import abc
-from typing import Dict, Tuple
+from typing import List, Tuple
 
 import dask
 from dask.delayed import Delayed
@@ -32,12 +32,12 @@ class GSBase(GTSFMProcess):
         pass
 
     @abc.abstractmethod
-    def splatify(self, images: Dict[int, Image], sfm_result: GtsfmData) -> Tuple[object, object]:
+    def splatify(self, images_graph: List[Image], sfm_result_graph: GtsfmData) -> Tuple[object, object]:
         """Create 3D gaussians using Gaussian Splatting.
 
         Args:
-            images: dictionary mapping image indices to input images.
-            sfm_result: object containing camera parameters and the optimized point cloud.
+            images_graph: List of images with Image object.
+            sfm_result_graph: object containing camera parameters and the optimized point cloud.
 
         Returns:
             gaussian_splats: 3D Gaussian Splats defining the entire scene

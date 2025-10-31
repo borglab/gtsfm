@@ -68,7 +68,10 @@ class ImagePairsGenerator:
         ) -> list[np.ndarray]:
             """Apply global descriptor to extract feature vectors from a batch of images."""
 
-            logger.info("🟩 Computing global descriptors for batch of %d images", len(image_batch))
+            logger.info(
+                "🟩 Computing global descriptors for batch of %d images",
+                len(image_batch),
+            )
 
             # This will call the new method you need to create in your descriptor class.
             return global_descriptor.describe_batch(images=image_batch)

@@ -40,14 +40,19 @@
         "**/CVS": true,
         "**/dask-worker-space": true
     },
-    "cSpell.words": [
+    "cSpell.ignoreWords": [
         "1dsfm",
         "absgrad",
+        "amax",
+        "extri_intri",
+        "autocast"
+    ],
+    "cSpell.words": [
         "Aditya",
         "Aishwarya",
         "Akshay",
+        "aliked",
         "allclose",
-        "amax",
         "anysplat",
         "Arandjelovic",
         "argoverse",
@@ -245,6 +250,7 @@
         "undistort",
         "undistortion",
         "Undistorts",
+        "unproject",
         "Upadhyay",
         "Venkataramanan",
         "VGGT",
@@ -257,12 +263,14 @@
         "worldframe",
         "xaxis",
         "Xiaolong",
+        "Xinan",
         "xlabel",
         "Yanwei",
         "yaxis",
         "yfcc",
         "ylabel",
         "yref",
+        "Zhang",
         "Zongyue"
     ],
     "python-envs.pythonProjects": [
