@@ -337,6 +337,27 @@ def run_reconstruction(
     if points_3d_flat.size == 0:
         fallback_reason = "VGGT produced no confident depth values; reconstruction contains cameras only."
 
+    valid_camera_indices = set(gtsfm_data.get_valid_camera_indices())
+    expected_indices = set(int(idx) for idx in image_indices)
+    if valid_camera_indices != expected_indices:
+        logger.warning(
+            "VGGT cluster returned cameras with indices %s, expected %s.",
+            sorted(valid_camera_indices),
+            sorted(expected_indices),
+        )
+
+    for track_idx, track in enumerate(gtsfm_data.get_tracks()):
+        for meas_idx in range(track.numberMeasurements()):
+            cam_idx, _ = track.measurement(meas_idx)
+            if cam_idx not in expected_indices:
+                logger.warning(
+                    "VGGT track %d references camera %d not in cluster indices %s.",
+                    track_idx,
+                    cam_idx,
+                    sorted(expected_indices),
+                )
+                break
+
     return VGGTReconstructionResult(
         gtsfm_data=gtsfm_data,
         reconstruction_resolution=inference_resolution,

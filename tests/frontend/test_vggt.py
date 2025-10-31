@@ -215,7 +215,7 @@ class TestVGGT(unittest.TestCase):
 
         self.assertIsNotNone(gtsfm_data)
         self.assertEqual(gtsfm_data.number_images(), len(indices))
-        self.assertGreaterEqual(len(gtsfm_data.get_valid_camera_indices()), len(indices))
+        self.assertCountEqual(gtsfm_data.get_valid_camera_indices(), indices)
 
     @unittest.skip("Skipping VGGT on cluster tree test for now.")
     def test_vggt_on_cluster_tree(self) -> None:

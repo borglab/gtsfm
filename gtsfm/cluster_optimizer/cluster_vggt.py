@@ -163,8 +163,9 @@ class ClusterVGGT(ClusterOptimizerBase):
         if not keys:
             return [], []
 
+        global_indices = tuple(int(idx) for idx in keys)
         image_filenames = loader.image_filenames()
-        image_names = [str(image_filenames[idx]) for idx in keys]
+        image_names = tuple(str(image_filenames[idx]) for idx in keys)
 
         config = VGGTReconstructionConfig(
             use_ba=self._use_ba,
@@ -179,14 +180,14 @@ class ClusterVGGT(ClusterOptimizerBase):
         )
 
         image_batch_graph, original_coords_graph = delayed(_load_vggt_inputs, nout=2)(
-            loader, keys, self._image_load_resolution
+            loader, global_indices, self._image_load_resolution
         )
 
         result_graph = delayed(_run_vggt_pipeline)(
             image_batch_graph,
             seed=self._seed,
             original_coords=original_coords_graph,
-            image_indices=keys,
+            image_indices=global_indices,
             image_names=image_names,
             config=config,
             weights_path=self._weights_path,
