@@ -175,13 +175,25 @@ class SceneOptimizer:
 
         image_fnames = self.loader.image_filenames()
 
+        plots_output_dir = self.create_plot_base_path()
         with performance_report(filename="dask_reports/retriever.html"):
             visibility_graph = self.image_pairs_generator.run(
                 client=client,
                 image_batch_futures=image_batch_futures,
                 image_fnames=image_fnames,
-                plots_output_dir=self.create_plot_base_path(),
+                plots_output_dir=plots_output_dir,
             )
+
+        retriever = self.image_pairs_generator._retriever
+        try:
+            retriever.save_diagnostics(
+                image_fnames=image_fnames,
+                pairs=visibility_graph,
+                plots_output_dir=plots_output_dir,
+            )
+        except Exception as exc:  # pragma: no cover - diagnostic path best-effort
+            logger.warning("Failed to persist retriever diagnostics: %s", exc)
+
         retriever_metrics = self.image_pairs_generator._retriever.evaluate(len(self.loader), visibility_graph)
         retriever_duration_sec = time.time() - retriever_start_time
         retriever_metrics.add_metric(GtsfmMetric("retriever_duration_sec", retriever_duration_sec))

@@ -54,6 +54,13 @@ class RetrieverBase(GTSFMProcess):
             Visibility graph representing image pair connections.
         """
 
+    def save_diagnostics(
+        self, image_fnames: List[str], pairs: VisibilityGraph, plots_output_dir: Optional[Path]
+    ) -> None:
+        """Persist retriever-specific diagnostics (default: no-op)."""
+        del image_fnames, pairs, plots_output_dir
+        return
+
     def evaluate(self, num_images, visibility_graph: VisibilityGraph) -> GtsfmMetricsGroup:
         """Evaluates the retriever result.
 
