@@ -20,8 +20,8 @@ from typing import Dict, List
 import numpy as np
 import torch
 import trimesh
+from demo_vggt import Timer, add_common_vggt_args
 
-from demo_vggt import Timer
 from gtsfm.utils.vggt import (
     VGGTReconstructionConfig,
     default_vggt_device,
@@ -39,28 +39,29 @@ torch.backends.cudnn.deterministic = False
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="VGGT Demo With Clustering")
-    parser.add_argument("--scene_dir", type=str, required=True, help="Directory containing the scene images")
     parser.add_argument(
-        "--output_dir", type=str, default="./vggt_output", help="Directory where clustered images will be written"
+        "--scene_dir",
+        type=str,
+        required=True,
+        help="Original dataset directory containing an `images/` subfolder used to populate clusters.",
     )
-    parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
-    parser.add_argument("--use_ba", action="store_true", default=False, help="Use BA for reconstruction")
-    parser.add_argument("--max_reproj_error", type=float, default=8.0, help="Maximum reprojection error for BA")
-    parser.add_argument("--use_colmap_ba", action="store_true", default=False, help="Run COLMAP BA after VGGT BA")
-    parser.add_argument("--shared_camera", action="store_true", default=False, help="Use shared camera for all images")
-    parser.add_argument("--camera_type", type=str, default="SIMPLE_PINHOLE", help="Camera type for reconstruction")
-    parser.add_argument("--vis_thresh", type=float, default=0.2, help="Visibility threshold for tracks")
-    parser.add_argument("--query_frame_num", type=int, default=8, help="Number of frames to query")
-    parser.add_argument("--max_query_pts", type=int, default=4096, help="Maximum number of query points")
-    parser.add_argument("--fine_tracking", action="store_true", default=True, help="Use fine tracking (slower)")
     parser.add_argument(
-        "--conf_thres_value", type=float, default=5.0, help="Confidence threshold value for depth filtering"
+        "--output_dir",
+        type=str,
+        default="./vggt_output",
+        help="Destination directory where per-cluster `images/` folders and reconstructions will be written.",
+    )
+    add_common_vggt_args(parser)
+    parser.add_argument(
+        "--use_colmap_ba",
+        action="store_true",
+        default=False,
+        help="After VGGT BA, invoke pycolmap.bundle_adjustment for an additional refinement.",
     )
     return parser.parse_args()
 
 
 def demo_fn(cluster_key: str, image_indices: List[int], args: argparse.Namespace) -> bool:
-    """Run VGGT on a single cluster and export results."""
 
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -194,4 +195,3 @@ if __name__ == "__main__":
         for cluster_key, cluster_indices in clusters.items():
             print(f"Running VGGT on cluster {cluster_key}")
             demo_fn(cluster_key, cluster_indices, args)
-

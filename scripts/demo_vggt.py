@@ -91,30 +91,79 @@ class Timer:
 # TODO: test different camera types
 
 
+def add_common_vggt_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+    """Register shared VGGT CLI options on the provided parser."""
+    parser.add_argument("--seed", type=int, default=42, help="Seed for torch/numpy/python RNGs.")
+    parser.add_argument(
+        "--use_ba",
+        action="store_true",
+        default=False,
+        help="Enable VGGSfM tracking + COLMAP-style BA (requires LightGlue with ALIKED).",
+    )
+    parser.add_argument(
+        "--max_reproj_error",
+        type=float,
+        default=8.0,
+        help="Reprojection error threshold (in pixels) when filtering VGGSfM tracks for BA.",
+    )
+    parser.add_argument(
+        "--shared_camera",
+        action="store_true",
+        default=False,
+        help="Use a single shared camera model for all frames instead of per-view cameras.",
+    )
+    parser.add_argument(
+        "--camera_type",
+        type=str,
+        default="SIMPLE_PINHOLE",
+        help="COLMAP camera model to export when BA is enabled (e.g. SIMPLE_PINHOLE, PINHOLE).",
+    )
+    parser.add_argument(
+        "--vis_thresh",
+        type=float,
+        default=0.2,
+        help="Minimum visibility confidence for a VGGSfM track to survive BA filtering.",
+    )
+    parser.add_argument(
+        "--query_frame_num",
+        type=int,
+        default=8,
+        help="Number of frames to query per tracking pass (higher increases runtime and coverage).",
+    )
+    parser.add_argument(
+        "--max_query_pts",
+        type=int,
+        default=4096,
+        help="Maximum number of VGGSfM query points per frame when BA is enabled.",
+    )
+    parser.add_argument(
+        "--fine_tracking",
+        action="store_true",
+        default=True,
+        help="Enable VGGSfM fine tracking refinement (slower but more accurate).",
+    )
+    parser.add_argument(
+        "--conf_thres_value",
+        type=float,
+        default=5.0,
+        help="Depth confidence threshold for the feed-forward path (used when BA is disabled).",
+    )
+    return parser
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="VGGT Demo")
-    parser.add_argument("--scene_dir", type=str, required=True, help="Directory containing the scene images")
-    parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
-    parser.add_argument("--use_ba", action="store_true", default=False, help="Use BA for reconstruction")
-    ######### BA parameters #########
     parser.add_argument(
-        "--max_reproj_error", type=float, default=8.0, help="Maximum reprojection error for reconstruction"
+        "--scene_dir",
+        type=str,
+        required=True,
+        help="Path to the scene root that contains an `images/` directory to reconstruct.",
     )
-    parser.add_argument("--shared_camera", action="store_true", default=False, help="Use shared camera for all images")
-    parser.add_argument("--camera_type", type=str, default="SIMPLE_PINHOLE", help="Camera type for reconstruction")
-    parser.add_argument("--vis_thresh", type=float, default=0.2, help="Visibility threshold for tracks")
-    parser.add_argument("--query_frame_num", type=int, default=8, help="Number of frames to query")
-    parser.add_argument("--max_query_pts", type=int, default=4096, help="Maximum number of query points")
-    parser.add_argument(
-        "--fine_tracking", action="store_true", default=True, help="Use fine tracking (slower but more accurate)"
-    )
-    parser.add_argument(
-        "--conf_thres_value", type=float, default=5.0, help="Confidence threshold value for depth filtering (wo BA)"
-    )
+    add_common_vggt_args(parser)
     return parser.parse_args()
 
 
-def demo_fn(args):
+def demo_fn(args: argparse.Namespace) -> bool:
     print("Arguments:", vars(args))
 
     np.random.seed(args.seed)
