@@ -48,15 +48,16 @@ def _save_reconstruction_as_text(
     copy_to_react: bool,
     output_root: Path,
 ) -> None:
-    results_path.mkdir(parents=True, exist_ok=True)
-    result.reconstruction.write_text(str(results_path))
+    target_dir = results_path / "vggt"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    result.reconstruction.write_text(str(target_dir))
 
     if copy_to_react:
         try:
             relative = results_path.relative_to(output_root)
         except ValueError:
             relative = Path(results_path.name)
-        react_destination = REACT_RESULTS_PATH / relative
+        react_destination = REACT_RESULTS_PATH / relative / "vggt"
         react_destination.mkdir(parents=True, exist_ok=True)
         result.reconstruction.write_text(str(react_destination))
 
