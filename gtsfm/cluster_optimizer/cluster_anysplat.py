@@ -13,12 +13,12 @@ import torchvision  # type: ignore
 from dask import delayed  # type: ignore
 from dask.delayed import Delayed
 
-from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterOptimizerBase
+from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterComputationGraph, ClusterOptimizerBase
 from gtsfm.common.image import Image
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.products.visibility_graph import visibility_graph_keys
-from gtsfm.utils import logger as logger_utils
 from gtsfm.ui.gtsfm_process import UiMetadata
+from gtsfm.utils import logger as logger_utils
 
 HERE_PATH = Path(__file__).parent
 ANYSPLAT_REPO_PATH = HERE_PATH.parent.parent / "thirdparty" / "AnySplat"
@@ -63,7 +63,6 @@ class ClusterAnySplat(ClusterOptimizerBase):
         if self._model is None:
             logger.info("⏳ Loading AnySplat model weights...")
             self._model = AnySplat.from_pretrained("lhjiang/anysplat")
-
 
     def __repr__(self) -> str:
         """Provide a readable summary of the optimizer configuration."""
@@ -191,7 +190,7 @@ class ClusterAnySplat(ClusterOptimizerBase):
         output_root: Path,
         visibility_graph,
         image_futures,
-    ) -> tuple[list[Delayed], list[Delayed]]:
+    ) -> ClusterComputationGraph:
         """Create a Dask computation graph to process a cluster.
 
         Returns:
@@ -232,4 +231,8 @@ class ClusterAnySplat(ClusterOptimizerBase):
             )
             io_tasks.append(delayed(self._save_splats)(splats, output_paths.results))
 
-        return io_tasks, metrics_tasks
+        return ClusterComputationGraph(
+            io_tasks=tuple(io_tasks),
+            metric_tasks=tuple(metrics_tasks),
+            sfm_result=None,
+        )

@@ -16,7 +16,7 @@ import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 from gtsfm.common.image import Image
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
-from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
+from gtsfm.ui.gtsfm_process import GTSFMProcess
 
 # Paths to save output in React folders.
 REACT_METRICS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "src" / "result_metrics"
@@ -60,12 +60,6 @@ class ClusterOptimizerBase(GTSFMProcess):
         NOTE: simple helper shared across optimizers to pass images into dense modules.
         """
         return {i: img for i, img in enumerate(image_list)}
-
-    @staticmethod
-    def get_ui_metadata() -> UiMetadata | None:
-        """Returns data needed to display node and edge info for this process in the process graph."""
-        # This class and its subclasses (unless overridden) are not part of the UI.
-        return None
 
     @abstractmethod
     def __repr__(self) -> str:

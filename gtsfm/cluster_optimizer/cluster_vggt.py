@@ -8,12 +8,17 @@ from typing import Optional
 import numpy as np
 import torch
 import torch.nn.functional as F
-from dask.delayed import Delayed, delayed
+from dask.delayed import delayed
 
 import gtsfm.utils.vggt as vggt
-from gtsfm.cluster_optimizer.cluster_optimizer_base import REACT_RESULTS_PATH, ClusterOptimizerBase
+from gtsfm.cluster_optimizer.cluster_optimizer_base import (
+    REACT_RESULTS_PATH,
+    ClusterComputationGraph,
+    ClusterOptimizerBase,
+)
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.products.visibility_graph import visibility_graph_keys
+from gtsfm.ui.gtsfm_process import UiMetadata
 from gtsfm.utils.vggt import VGGTReconstructionConfig, VGGTReconstructionResult
 
 
@@ -125,6 +130,17 @@ class ClusterVGGT(ClusterOptimizerBase):
         ]
         return "ClusterVGGT(\n  " + ",\n  ".join(str(c) for c in components) + "\n)"
 
+    @staticmethod
+    def get_ui_metadata() -> UiMetadata:
+        """Returns data needed to display node and edge info for this process in the process graph."""
+        # This class and its subclasses (unless overridden) are not part of the UI.
+        return UiMetadata(
+            display_name="VGGT",
+            input_products=("Key Images",),
+            output_products=("VGGT Reconstruction",),
+            parent_plate="Cluster Optimizer",
+        )
+
     def create_computation_graph(
         self,
         num_images: int,
@@ -134,7 +150,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         output_root: Path,
         visibility_graph,
         image_futures,
-    ) -> tuple[list[Delayed], list[Delayed]]:
+    ) -> ClusterComputationGraph:
         """Create the VGGT computation graph for a cluster."""
 
         del one_view_data_dict, image_futures  # unused in VGGT pipeline
@@ -186,4 +202,8 @@ class ClusterVGGT(ClusterOptimizerBase):
                 )
             )
 
-        return io_tasks, metrics_tasks
+        return ClusterComputationGraph(
+            io_tasks=tuple(io_tasks),
+            metric_tasks=tuple(metrics_tasks),
+            sfm_result=None,
+        )

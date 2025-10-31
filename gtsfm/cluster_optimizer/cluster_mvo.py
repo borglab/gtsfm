@@ -41,6 +41,7 @@ from gtsfm.products.one_view_data import OneViewData
 from gtsfm.products.two_view_result import TwoViewResult
 from gtsfm.products.visibility_graph import AnnotatedGraph, VisibilityGraph
 from gtsfm.two_view_estimator import TwoViewEstimator, create_two_view_estimator_futures
+from gtsfm.ui.gtsfm_process import UiMetadata
 from gtsfm.utils import transform
 
 
@@ -103,6 +104,16 @@ class ClusterMVO(ClusterOptimizerBase):
         if self.gaussian_splatting_optimizer is not None:
             components.append(f"gaussian_splatting_optimizer={self.gaussian_splatting_optimizer}")
         return "ClusterMVO(\n  " + ",\n  ".join(components) + "\n)"
+
+    @staticmethod
+    def get_ui_metadata() -> UiMetadata:
+        """Returns data needed to display node and edge info for this process in the process graph."""
+        return UiMetadata(
+            display_name="Multiview Optimizer",
+            input_products=("Key Images",),
+            output_products=("Bundle Adjustment Result",),
+            parent_plate="Cluster Optimizer",
+        )
 
     @staticmethod
     def _run_correspondence_generator(
