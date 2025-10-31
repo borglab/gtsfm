@@ -49,11 +49,9 @@ class TestClusterTreeIO(unittest.TestCase):
         # TODO(frank): these images names and shapes should be real.
         image_filenames = [f"San_Francisco_{i:04d}.jpg" for i in range(281)]  # Dummy filenames
         image_shapes = [(1936, 1296)] * len(image_filenames)  # Dummy shapes
-        merged_scene.export_as_colmap_text(
-            TEST_DATA_ROOT / "palace_merged_colmap" / "color",
-            image_filenames=image_filenames,
-            image_shapes=image_shapes,
-        )
+        for idx, (name, shape) in enumerate(zip(image_filenames, image_shapes)):
+            merged_scene.set_image_info(idx, name=name, shape=shape)
+        merged_scene.export_as_colmap_text(TEST_DATA_ROOT / "palace_merged_colmap" / "color")
 
         # We only merge 10 of the 13 clusters because of overlap issues
         self.assertEqual(merged_scene.number_tracks(), 10000)

@@ -161,13 +161,12 @@ def read_colmap(base_dir: str | Path, name: str = "ba_output") -> SceneTree | No
     return mapped_tree.prune(lambda x: x[1] is not None)
 
 
-def write_colmap(tree: SceneTree | None, output_base_dir: str | Path, name: str = "ba_output", **kwargs) -> None:
+def write_colmap(tree: SceneTree | None, output_base_dir: str | Path, name: str = "ba_output") -> None:
     """Write a COLMAP hierarchy stored as a tree in the exact nested directory structure on disk.
     Args:
         tree: Tree whose nodes contain (Path, GtsfmData|None) tuples.
         output_base_dir: Root directory where the COLMAP hierarchy will be written.
         name: Name of the subdirectory in each node where COLMAP data will be stored.
-        **kwargs: Additional keyword arguments to pass to GtsfmData.export_as_colmap_text().
     """
     if tree is None:
         return
@@ -180,4 +179,4 @@ def write_colmap(tree: SceneTree | None, output_base_dir: str | Path, name: str 
         if scene is not None:
             path = output_base_path / relative_path
             ba_output_dir = path / name
-            scene.export_as_colmap_text(ba_output_dir, **kwargs)
+            scene.export_as_colmap_text(ba_output_dir)

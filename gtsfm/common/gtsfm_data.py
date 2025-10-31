@@ -702,7 +702,7 @@ class GtsfmData:
 
     # COLMAP export functions
 
-    def write_cameras(self, save_dir: str | Path, image_shapes: Sequence[Optional[Tuple[int, ...]]]) -> None:
+    def write_cameras(self, save_dir: str | Path, image_shapes: Sequence[Tuple[int, int]]) -> None:
         """Writes the camera data file in the COLMAP format.
 
         Reference: https://colmap.github.io/format.html#cameras-txt
@@ -727,14 +727,16 @@ class GtsfmData:
                 camera_i = self.get_camera(i)
                 assert camera_i is not None, "Camera %d is None" % i
                 gtsfm_cal = camera_i.calibration()
-                shape_i = image_shapes[i] if i < len(image_shapes) else None
-                height, width = self._normalize_shape(i, shape_i)
+                if i < len(image_shapes):
+                    height, width = image_shapes[i]
+                else:
+                    height, width = self._fallback_image_shape(i)
                 colmap_cam = gtsfm_calibration_to_colmap_camera(i, gtsfm_cal, height, width)
                 to_write = [colmap_cam.id, colmap_cam.model, colmap_cam.width, colmap_cam.height, *colmap_cam.params]
                 line = " ".join([str(elem) for elem in to_write])
                 f.write(line + "\n")
 
-    def write_images(self, save_dir: str | Path, image_filenames: Sequence[Optional[str]]) -> None:
+    def write_images(self, save_dir: str | Path, image_filenames: Sequence[str]) -> None:
         """Writes the image data file in the COLMAP format.
 
         Reference: https://colmap.github.io/format.html#images-txt
@@ -794,7 +796,7 @@ class GtsfmData:
                             f.write(f" {uv_measured[0]:.3f} {uv_measured[1]:.3f} {j}")
                 f.write("\n")
 
-    def write_points(self, save_dir: str | Path, images: None | List[Image] = None) -> None:
+    def write_points(self, save_dir: str | Path, images: Optional[Sequence[Image]] = None) -> None:
         """Writes the point cloud data file in the COLMAP format.
 
         Reference: https://colmap.github.io/format.html#points3d-txt
@@ -809,6 +811,7 @@ class GtsfmData:
 
         num_pts = self.number_tracks()
         avg_track_length, _ = self.get_track_length_statistics()
+        images_list = list(images) if images is not None else None
 
         file_path = dir_path / "points3D.txt"
         with open(file_path, "w") as f:
@@ -823,8 +826,8 @@ class GtsfmData:
                 track = self.get_track(j)
 
                 r, g, b = (
-                    image_utils.get_average_point_color(track, images)
-                    if images
+                    image_utils.get_average_point_color(track, images_list)
+                    if images_list is not None
                     else (int(track.r), int(track.g), int(track.b))
                 )
                 _, avg_track_error = reprojection.compute_track_reprojection_errors(self._cameras, track)
@@ -840,8 +843,6 @@ class GtsfmData:
         self,
         save_dir: str | Path,
         images: Optional[Sequence[Image]] = None,
-        image_shapes: Optional[Sequence[Tuple[int, ...]]] = None,
-        image_filenames: Optional[Sequence[str]] = None,
     ) -> None:
         """Emulates the COLMAP option to `Export model as text`.
 
@@ -850,12 +851,10 @@ class GtsfmData:
         Args:
             save_dir: Folder where text files will be saved.
             images: Optional list of all images for this scene, in order of image index.
-            image_shapes: Optional list of image shapes (H, W, C) for each image, required if images is None.
-            image_filenames: Optional list of image file names for each image, required if images is None.
         """
         num_images = self.number_images()
-        resolved_shapes: List[Optional[tuple[int, ...]]] = [None] * num_images
-        resolved_names: List[Optional[str]] = [None] * num_images
+        resolved_shapes: List[Optional[tuple[int, ...]]] = [self.get_image_info(i).shape for i in range(num_images)]
+        resolved_names: List[Optional[str]] = [self.get_image_info(i).name for i in range(num_images)]
 
         if images is not None:
             for idx, img in enumerate(images):
@@ -864,23 +863,6 @@ class GtsfmData:
                 resolved_shapes[idx] = img.shape
                 resolved_names[idx] = img.file_name
                 self.set_image_info(idx, name=img.file_name, shape=img.shape)
-
-        if image_shapes is not None:
-            for idx, shape in enumerate(image_shapes):
-                if idx < num_images and shape is not None:
-                    resolved_shapes[idx] = shape
-
-        if image_filenames is not None:
-            for idx, name in enumerate(image_filenames):
-                if idx < num_images and name is not None:
-                    resolved_names[idx] = name
-
-        for idx in range(num_images):
-            info = self.get_image_info(idx)
-            if resolved_shapes[idx] is None and info.shape is not None:
-                resolved_shapes[idx] = info.shape
-            if resolved_names[idx] is None and info.name is not None:
-                resolved_names[idx] = info.name
 
         normalized_shapes: List[tuple[int, int]] = [
             self._normalize_shape(idx, resolved_shapes[idx]) for idx in range(num_images)
