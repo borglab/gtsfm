@@ -5,20 +5,26 @@ Authors: Harneet Singh Khanuja
 
 import sys
 from pathlib import Path
-from typing import Any, List
+from typing import Any, List, Sequence
 
 import cv2
+import gtsam
+import numpy as np
 import torch
 import torchvision  # type: ignore
 from dask import delayed  # type: ignore
 from dask.delayed import Delayed
+from gtsam import Point3, Pose3, Rot3  # type: ignore
 
+import gtsfm.common.types as gtsfm_types
 from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterOptimizerBase
+from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.products.visibility_graph import visibility_graph_keys
-from gtsfm.utils import logger as logger_utils
 from gtsfm.ui.gtsfm_process import UiMetadata
+from gtsfm.utils import logger as logger_utils
+from gtsfm.utils.anysplat import AnySplatReconstructionResult
 
 HERE_PATH = Path(__file__).parent
 ANYSPLAT_REPO_PATH = HERE_PATH.parent.parent / "thirdparty" / "AnySplat"
@@ -33,11 +39,33 @@ elif not ANYSPLAT_REPO_PATH.exists():
     )
 
 
-from src.misc.image_io import save_interpolated_video
-from src.model.model.anysplat import AnySplat
-from src.model.ply_export import export_ply
+from src.misc.image_io import save_interpolated_video  # type: ignore
+from src.model.model.anysplat import AnySplat  # type: ignore
+from src.model.ply_export import export_ply  # type: ignore
 
 logger = logger_utils.get_logger()
+
+
+def _calibration_from_intrinsic(matrix: np.ndarray) -> gtsam.Cal3_S2:
+    """Map a 3x3 intrinsic matrix to the corresponding GTSAM calibration type."""
+    fx = float(matrix[0, 0])
+    fy = float(matrix[1, 1])
+    cx = float(matrix[0, 2])
+    cy = float(matrix[1, 2])
+    return gtsam.Cal3_S2(fx, fy, 0.0, cx, cy)
+
+
+def _pose_from_extrinsic(matrix: np.ndarray) -> Pose3:
+    """Convert a AnySplat extrinsic matrix to a Pose3."""
+    if matrix.shape == (4, 4):
+        rotation = matrix[:3, :3]
+        translation = matrix[:3, 3]
+    elif matrix.shape == (3, 4):
+        rotation = matrix[:, :3]
+        translation = matrix[:, 3]
+    else:
+        raise ValueError(f"Unexpected extrinsic shape {matrix.shape}")
+    return Pose3(Rot3(rotation), Point3(*translation))  # type: ignore
 
 
 class ClusterAnySplat(ClusterOptimizerBase):
@@ -64,7 +92,6 @@ class ClusterAnySplat(ClusterOptimizerBase):
             logger.info("⏳ Loading AnySplat model weights...")
             self._model = AnySplat.from_pretrained("lhjiang/anysplat")
 
-
     def __repr__(self) -> str:
         """Provide a readable summary of the optimizer configuration."""
         components = ["Model Name = AnySplat", "Input image preprocessed to (448,448)"]
@@ -86,7 +113,9 @@ class ClusterAnySplat(ClusterOptimizerBase):
             ],
         )
 
-    def _generate_splats(self, images: List[Image]):
+    def _generate_splats(
+        self, images: List[Image], keys: list, image_names: Sequence[str]
+    ) -> AnySplatReconstructionResult:
         """
         Apply AnySplat feed forward network to generate Gaussian splats.
         Args:
@@ -109,7 +138,23 @@ class ClusterAnySplat(ClusterOptimizerBase):
         pred_context_pose["intrinsic"] = pred_context_pose["intrinsic"].cpu()
         decoder = model.decoder.cpu()
 
-        return splats, pred_context_pose, height, width, decoder
+        gtsfm_data = GtsfmData(number_images=len(keys))
+        # image_names_str = [str(name) for name in image_names] if image_names is not None else None
+        for idx, key in enumerate(keys):
+            intrinsic = pred_context_pose["intrinsic"][0][idx].numpy()
+            calibration = _calibration_from_intrinsic(intrinsic)
+            camera_cls = gtsfm_types.get_camera_class_for_calibration(calibration)
+
+            extrinsic = pred_context_pose["extrinsic"][0][idx].numpy()
+
+            pose = _pose_from_extrinsic(extrinsic)
+            gtsfm_data.add_camera(key, camera_cls(pose, calibration))  # type: ignore
+            # gtsfm_data.set_image_info(
+            #     key,
+            #     name=image_names_str[idx] if image_names_str is not None else None,
+            #     shape=(height, width),
+            # )
+        return AnySplatReconstructionResult(gtsfm_data, splats, pred_context_pose, height, width, decoder)
 
     def _preprocess_images(self, images: List[Image], device):
         """
@@ -198,10 +243,16 @@ class ClusterAnySplat(ClusterOptimizerBase):
             - List of Delayed I/O tasks to be computed
             - List of Delayed metrics to be computed
         """
+
+        del num_images, one_view_data_dict, image_futures, output_root  # unused in AnySplat pipeline
+
         io_tasks: List[Delayed] = []
         metrics_tasks: List[Delayed] = []
 
         keys = sorted(visibility_graph_keys(visibility_graph))
+
+        image_filenames = loader.image_filenames()
+        image_names = [str(image_filenames[idx]) for idx in keys]
 
         def _pack_images_for_anysplat(*images: Image) -> list[Image]:
             """Collect variadic image inputs into an ordered list."""
@@ -213,23 +264,24 @@ class ClusterAnySplat(ClusterOptimizerBase):
 
         images = delayed(_pack_images_for_anysplat)(*selected_images.values())
 
-        splats, pred_context_pose, height, width, decoder_model = delayed(self._generate_splats, nout=5)(images)
-        total_gaussians = len(keys) * height * width
-        total_voxels = splats.means.shape[1]
+        result_graph = delayed(self._generate_splats)(images, keys, image_names)
+
+        total_gaussians = len(keys) * result_graph.height * result_graph.width  # type: ignore
+        total_voxels = result_graph.splats.means.shape[1]  # type: ignore
 
         metrics_tasks.append(delayed(self._aggregate_anysplat_metrics)(total_gaussians, total_voxels))
         with self._output_annotation():
             io_tasks.append(
                 delayed(self._generate_interpolated_video)(
-                    decoder_model,
-                    pred_context_pose["extrinsic"],
-                    pred_context_pose["intrinsic"],
-                    height,
-                    width,
-                    splats,
+                    result_graph.decoder,
+                    result_graph.pred_context_pose["extrinsic"],  # type: ignore
+                    result_graph.pred_context_pose["intrinsic"],  # type: ignore
+                    result_graph.height,
+                    result_graph.width,
+                    result_graph.splats,
                     str(output_paths.results),
                 )
             )
-            io_tasks.append(delayed(self._save_splats)(splats, output_paths.results))
+            io_tasks.append(delayed(self._save_splats)(result_graph.splats, output_paths.results))
 
         return io_tasks, metrics_tasks
