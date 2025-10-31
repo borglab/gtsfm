@@ -117,8 +117,6 @@ def _finalize_io_tasks(*_args: object) -> None:
 def _export_merged_scene(
     merged_scene: Optional[GtsfmData],
     target_dir: Path,
-    image_shapes: Sequence[tuple[int, ...]],
-    image_filenames: Sequence[str],
     images: Optional[Sequence[Image]] = None,
 ) -> None:
     """Persist a merged reconstruction to COLMAP text format."""
@@ -127,25 +125,18 @@ def _export_merged_scene(
 
     merged_path = Path(target_dir)
     merged_path.mkdir(parents=True, exist_ok=True)
-    merged_scene.export_as_colmap_text(
-        merged_path,
-        images=list(images) if images is not None else None,
-        image_shapes=list(image_shapes),
-        image_filenames=list(image_filenames),
-    )
+    merged_scene.export_as_colmap_text(merged_path, images=list(images) if images is not None else None)
 
 
 def _run_export_task(
     payload: tuple[
         ClusterExecutionHandles,
         Optional[GtsfmData],
-        Sequence[tuple[int, ...]],
-        Sequence[str],
         Sequence[Image] | Sequence[Future] | None,
     ],
 ) -> None:
     """Execute merged scene export on a worker."""
-    handle, merged_scene, image_shapes, image_filenames, images = payload
+    handle, merged_scene, images = payload
     resolved_images: Sequence[Image] | None
     if images is None:
         resolved_images = None
@@ -158,7 +149,7 @@ def _run_export_task(
     else:
         resolved_images = images
     merged_dir = handle.output_paths.results / "merged"
-    _export_merged_scene(merged_scene, merged_dir, image_shapes, image_filenames, resolved_images)
+    _export_merged_scene(merged_scene, merged_dir, resolved_images)
 
 
 def _merge_cluster_results(
@@ -215,12 +206,6 @@ class SceneOptimizer:
         """Ensure the React dashboards have dedicated output folders."""
         REACT_RESULTS_PATH.mkdir(parents=True, exist_ok=True)
         REACT_METRICS_PATH.mkdir(parents=True, exist_ok=True)
-
-    def _save_retrieval_diagnostics(self, output_paths: OutputPaths) -> None:
-        try:
-            save_retrieval_two_view_metrics(output_paths.metrics, output_paths.plots)
-        except Exception as exc:  # pragma: no cover - diagnostics are best-effort
-            logger.debug("Skipping retrieval diagnostics for %s: %s", output_paths.plots, exc)
 
     def _build_cluster_context_tree(
         self,
@@ -302,21 +287,15 @@ class SceneOptimizer:
         client: Client,
         handles_tree: Tree[ClusterExecutionHandles],
         merged_tree: Tree[Future],
-        image_shapes: Sequence[tuple[int, ...]],
-        image_filenames: Sequence[str],
         image_futures: Sequence[Future],
     ) -> Tree[Future]:
         """Schedule persistence of merged reconstructions for each cluster."""
-        shared_image_shapes = tuple(image_shapes)
-        shared_image_filenames = tuple(image_filenames)
         shared_image_futures = tuple(image_futures)
 
         export_payload_tree = Tree.zip(handles_tree, merged_tree).map(
             lambda value: (
                 value[0],
                 value[1],
-                shared_image_shapes,
-                shared_image_filenames,
                 shared_image_futures,
             )
         )
@@ -341,6 +320,7 @@ class SceneOptimizer:
         assert self.graph_partitioner is not None, "Graph partitioner is not set up!"
         cluster_tree = self.graph_partitioner.run(visibility_graph)
         self.graph_partitioner.log_partition_details(cluster_tree, base_output_paths)
+        save_retrieval_two_view_metrics(base_output_paths)
 
         logger.info("🔥 GTSFM: Scheduling cluster optimizations...")
         one_view_data_dict = self.loader.get_one_view_data_dict()
@@ -361,16 +341,12 @@ class SceneOptimizer:
                 )
 
                 handles_tree = context_tree.map(self._schedule_single_cluster)
-                image_shapes = self.loader.get_image_shapes()
-                image_filenames = self.loader.image_filenames()
                 reconstruction_tree = handles_tree.map(lambda handle: handle.reconstruction)
                 merged_tree = submit_tree_map_with_children(client, reconstruction_tree, _merge_cluster_results)
                 export_tree = self._schedule_merge_exports(
                     client=client,
                     handles_tree=handles_tree,
                     merged_tree=merged_tree,
-                    image_shapes=image_shapes,
-                    image_filenames=image_filenames,
                     image_futures=image_futures,
                 )
                 root_merge_future: Optional[Future] = merged_tree.value
@@ -398,9 +374,6 @@ class SceneOptimizer:
                 merged_scene.number_images(),
                 merged_scene.number_tracks(),
             )
-
-        if not futures:
-            self._save_retrieval_diagnostics(base_output_paths)
 
         # Log total time taken and save metrics report
         end_time = time.time()
