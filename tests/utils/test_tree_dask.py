@@ -9,7 +9,7 @@ from pathlib import Path
 from dask.distributed import Client
 
 from gtsfm.utils.tree import Tree
-from gtsfm.utils.tree_dask import gather_future_tree, submit_tree_fold, submit_tree_map
+from gtsfm.utils.tree_dask import gather_future_tree, submit_tree_fold, submit_tree_map, submit_tree_map_with_children
 
 TEST_DATA_ROOT = Path(__file__).resolve().parent.parent / "data"
 
@@ -61,6 +61,14 @@ class TestTreeDask(unittest.TestCase):
         expected_tree = self.tree.map(_double)
 
         future_tree = submit_tree_map(self.get_client(), self.tree, _double)
+        result_tree = gather_future_tree(self.get_client(), future_tree)
+
+        self.assertEqual(result_tree, expected_tree)
+
+    def test_submit_tree_map_with_children_matches_sequential_map(self) -> None:
+        expected_tree = self.tree.map_with_children(_subtree_sum)
+
+        future_tree = submit_tree_map_with_children(self.get_client(), self.tree, _subtree_sum)
         result_tree = gather_future_tree(self.get_client(), future_tree)
 
         self.assertEqual(result_tree, expected_tree)

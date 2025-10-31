@@ -35,6 +35,25 @@ class Tree(Generic[T]):
         mapped_children = tuple(child.map(fn) for child in self.children)
         return Tree[U](value=fn(self.value), children=mapped_children)
 
+    def map_with_path(self, fn: Callable[[Tuple[int, ...], T], U]) -> "Tree[U]":
+        """Map tree values while exposing the path from the root to each node."""
+
+        def _visit(node: "Tree[T]", path: Tuple[int, ...]) -> "Tree[U]":
+            mapped_children = tuple(
+                _visit(child, path + (index,)) for index, child in enumerate(node.children, start=1)
+            )
+            mapped_value = fn(path, node.value)
+            return Tree(value=mapped_value, children=mapped_children)
+
+        return _visit(self, ())
+
+    def map_with_children(self, fn: Callable[[T, Tuple[U, ...]], U]) -> "Tree[U]":
+        """Map tree values using the already-mapped child results."""
+        mapped_children = tuple(child.map_with_children(fn) for child in self.children)
+        child_results = tuple(child.value for child in mapped_children)
+        mapped_value = fn(self.value, cast(Tuple[U, ...], child_results))
+        return Tree(value=mapped_value, children=mapped_children)
+
     @classmethod
     def zip(cls, a: Tree[T], b: Tree[U]) -> "Tree[Tuple[T, U]]":
         """Create a new tree by combining payload of two trees."""
