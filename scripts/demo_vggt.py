@@ -8,56 +8,59 @@ Original code from https://github.com/facebookresearch/vggt/blob/main/demo_colma
 Modified by Xinan Zhang
 """
 
-import sys
-sys.path.insert(0, "../thirdparty/vggt")
-sys.path.insert(0, "../thirdparty/LightGlue")
-
-import random
-import numpy as np
+import argparse
+import copy
+import gc
 import glob
 import os
-import copy
+import random
+import time
+
+import numpy as np
+import pycolmap
 import torch
 import torch.nn.functional as F
+import trimesh
+
+from gtsfm.utils.vggt import (  # type: ignore[attr-defined]
+    batch_np_matrix_to_pycolmap,
+    create_pixel_coordinate_grid,
+    default_vggt_device,
+    default_vggt_dtype,
+    load_and_preprocess_images_square,
+    load_vggt_model,
+    pose_encoding_to_extri_intri,
+    predict_tracks,
+    randomly_limit_trues,
+    unproject_depth_map_to_point_map,
+)
 
 # Configure CUDA settings
 torch.backends.cudnn.enabled = True
 torch.backends.cudnn.benchmark = True
 torch.backends.cudnn.deterministic = False
 
-import argparse
-from pathlib import Path
-import trimesh
-import pycolmap
-
-
-from vggt.models.vggt import VGGT
-from vggt.utils.load_fn import load_and_preprocess_images_square
-from vggt.utils.pose_enc import pose_encoding_to_extri_intri
-from vggt.utils.geometry import unproject_depth_map_to_point_map
-from vggt.utils.helper import create_pixel_coordinate_grid, randomly_limit_trues
-from vggt.dependency.track_predict import predict_tracks
-from vggt.dependency.np_to_pycolmap import batch_np_matrix_to_pycolmap
-
-import time, gc, os
-
 # Optional (nice CPU memory readout)
 try:
     import psutil
+
     _HAS_PSUTIL = True
 except Exception:
     _HAS_PSUTIL = False
+
 
 def _sync():
     # Make sure kernels finish before timing/memory reads
     if torch.cuda.is_available():
         torch.cuda.synchronize()
 
+
 def reset_peak_memory():
     if torch.cuda.is_available():
         torch.cuda.reset_peak_memory_stats()
         torch.cuda.empty_cache()
     gc.collect()
+
 
 def get_peak_memory_str():
     if torch.cuda.is_available():
@@ -70,19 +73,23 @@ def get_peak_memory_str():
             return f"CPU RSS (approx peak during run): {rss:.1f} MB"
         return "CPU memory: psutil not installed"
 
+
 class Timer:
     def __init__(self, label):
         self.label = label
         self.t0 = None
         self.elapsed = None
+
     def __enter__(self):
         _sync()
         self.t0 = time.perf_counter()
         return self
+
     def __exit__(self, exc_type, exc, tb):
         _sync()
         self.elapsed = time.perf_counter() - self.t0
         print(f"[TIMER] {self.label}: {self.elapsed:.2f} s")
+
 
 # TODO: add support for masks
 # TODO: add iterative BA
@@ -113,6 +120,7 @@ def parse_args():
     )
     return parser.parse_args()
 
+
 def _build_pycolmap_intri(fidx, intrinsics, camera_type, extra_params=None):
     """
     Helper function to get camera parameters based on camera type.
@@ -141,6 +149,7 @@ def _build_pycolmap_intri(fidx, intrinsics, camera_type, extra_params=None):
         raise ValueError(f"Camera type {camera_type} is not supported yet")
 
     return pycolmap_intri
+
 
 def batch_np_matrix_to_pycolmap_wo_track(
     points3d,
@@ -233,6 +242,7 @@ def batch_np_matrix_to_pycolmap_wo_track(
 
     return reconstruction
 
+
 def run_VGGT(model, images, dtype, resolution=518):
     # images: [B, 3, H, W]
 
@@ -245,7 +255,7 @@ def run_VGGT(model, images, dtype, resolution=518):
     reset_peak_memory()
 
     with Timer("model inference"):
-    
+
         with torch.no_grad():
             with torch.cuda.amp.autocast(dtype=dtype):
                 images = images[None]  # add batch dimension
@@ -257,9 +267,9 @@ def run_VGGT(model, images, dtype, resolution=518):
             extrinsic, intrinsic = pose_encoding_to_extri_intri(pose_enc, images.shape[-2:])
             # Predict Depth Maps
             depth_map, depth_conf = model.depth_head(aggregated_tokens_list, images, ps_idx)
-            
+
     print(get_peak_memory_str())
-    model.to('cpu')
+    model.to("cpu")
     torch.cuda.empty_cache()
 
     extrinsic = extrinsic.squeeze(0).cpu().numpy()
@@ -283,17 +293,13 @@ def demo_fn(args):
     print(f"Setting seed as: {args.seed}")
 
     # Set device and dtype
-    dtype = torch.bfloat16 if torch.cuda.get_device_capability()[0] >= 8 else torch.float16
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"Using device: {device}")
+    device = default_vggt_device()
+    dtype = default_vggt_dtype(device)
+    print(f"Using device: {device.type}")
     print(f"Using dtype: {dtype}")
 
     # Run VGGT for camera and depth estimation
-    model = VGGT()
-    checkpoint_path = "../thirdparty/vggt/weights/model.pt"
-    model.load_state_dict(torch.load(checkpoint_path, map_location="cpu"))
-    model.eval()
-    model = model.to(device)
+    model = load_vggt_model(device=device, dtype=dtype)
     print(f"Model loaded")
 
     # Get image paths and preprocess them

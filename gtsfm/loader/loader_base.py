@@ -383,6 +383,26 @@ class LoaderBase(GTSFMProcess):
             for i in range(len(self))
         ]
 
+    @staticmethod
+    # do padding to square and resize to target size
+    def pad_image(img: np.ndarray, max_side: int) -> tuple[np.ndarray, tuple[int, int, int, int]]:
+        """Pad image to square dimensions using the maximum side length observed in the batch."""
+        pad_height = max_side - img.shape[0]
+        pad_width = max_side - img.shape[1]
+
+        pad_top = pad_height // 2
+        pad_bottom = pad_height - pad_top
+        pad_left = pad_width // 2
+        pad_right = pad_width - pad_left
+
+        padded = np.pad(
+            img,
+            pad_width=((pad_top, pad_bottom), (pad_left, pad_right), (0, 0)),
+            mode="constant",
+            constant_values=0,
+        )
+        return padded, (pad_top, pad_bottom, pad_left, pad_right)
+
     def load_image_batch(
         self,
         indices: List[int],
@@ -413,28 +433,59 @@ class LoaderBase(GTSFMProcess):
             max_side = max(max(img.shape[0], img.shape[1]) for img in image_arrays)
             working_arrays = []
             for img in image_arrays:
-                pad_height = max_side - img.shape[0]
-                pad_width = max_side - img.shape[1]
-
-                pad_top = pad_height // 2
-                pad_bottom = pad_height - pad_top
-                pad_left = pad_width // 2
-                pad_right = pad_width - pad_left
-
-                padded = np.pad(
-                    img,
-                    pad_width=((pad_top, pad_bottom), (pad_left, pad_right), (0, 0)),
-                    mode="constant",
-                    constant_values=0,
-                )
+                padded, _ = self.pad_image(img, max_side)
                 working_arrays.append(padded)
 
         image_tensors = [resize_transform(arr) for arr in working_arrays]
-
         batch_tensor = torch.stack(image_tensors, dim=0)
 
         # Apply optional batch transform before returning
         return batch_transform(batch_tensor) if batch_transform else batch_tensor
+
+    def load_image_batch_vggt(
+        self,
+        indices: List[int],
+        img_load_resolution: int,
+        resize_transform: ResizeTransform,
+        batch_transform: Optional[BatchTransform] = None,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Helper function that runs on a Dask worker to load a batch of images.
+
+        Args:
+            indices: List of image indices to load
+            img_load_resolution: target image resolution for loading images.
+            resize_transform: callable that converts a numpy array (image) to a torch.Tensor of the desired size.
+            batch_transform: Optional callable that applies a preprocessing transform to the batch tensor.
+
+        Returns:
+            torch.Tensor: Batch of loaded (and optionally transformed) images.
+        """
+        # Get images as a List of [H, W, C] numpy arrays
+        image_arrays = [self.get_image(idx).value_array for idx in indices]
+
+        working_arrays = []
+        original_coords = []
+        for img in image_arrays:
+            max_side = max(img.shape[0], img.shape[1])
+            padded, (pad_top, _, pad_left, _) = self.pad_image(img, max_side)
+            working_arrays.append(padded)
+
+            scale = img_load_resolution / max_side
+            x1 = pad_left * scale
+            y1 = pad_top * scale
+            x2 = (pad_left + img.shape[1]) * scale
+            y2 = (pad_top + img.shape[0]) * scale
+
+            original_coords.append(np.array([x1, y1, x2, y2, img.shape[1], img.shape[0]]))
+
+        image_tensors = [resize_transform(arr) for arr in working_arrays]
+        batch_tensor = torch.stack(image_tensors, dim=0)
+
+        original_coords_tensor = torch.from_numpy(np.array(original_coords)).float()
+
+        # Apply optional batch transform before returning
+        transformed = batch_transform(batch_tensor) if batch_transform else batch_tensor
+        return transformed, original_coords_tensor
 
     def get_all_descriptor_image_batches_as_futures(
         self,
