@@ -6,8 +6,9 @@ Authors: Ayush Baid, John Lambert, Xiaolong Wu
 
 import itertools
 from collections import defaultdict
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 import gtsam  # type: ignore
 import numpy as np
@@ -29,6 +30,14 @@ from gtsfm.utils.pycolmap_utils import gtsfm_calibration_to_colmap_camera
 logger = logger_utils.get_logger()
 
 EQUALITY_TOLERANCE = 1e-5
+
+
+@dataclass
+class ImageInfo:
+    """Metadata describing an image associated with a camera index."""
+
+    name: Optional[str] = None
+    shape: Optional[tuple[int, ...]] = None
 
 
 class GtsfmData:
@@ -54,6 +63,7 @@ class GtsfmData:
         self._number_images = number_images
         self._cameras: dict[int, gtsfm_types.CAMERA_TYPE] = {}
         self._tracks: List[SfmTrack] = []
+        self._image_info: dict[int, ImageInfo] = {}
 
         # Initialize from inputs if provided.
         if cameras is not None:
@@ -122,7 +132,10 @@ class GtsfmData:
             camera_type = gtsfm_types.get_camera_class_for_calibration(calibration)
             gtsam_cameras[i] = camera_type(wTi, calibration)  # type: ignore
 
-        return cls(len(images), gtsam_cameras, tracks)
+        gtsfm_data = cls(len(images), gtsam_cameras, tracks)
+        for i, (image_name, _, _, image_shape) in enumerate(image_data):
+            gtsfm_data.set_image_info(i, name=image_name, shape=image_shape)
+        return gtsfm_data
 
     @classmethod
     def read_bal(cls, file_path: str) -> "GtsfmData":
@@ -197,6 +210,87 @@ class GtsfmData:
         """Returns the number of tracks."""
         return len(self._tracks)
 
+    def set_image_info(
+        self,
+        index: int,
+        *,
+        name: Optional[str] = None,
+        shape: Optional[tuple[int, ...]] = None,
+    ) -> None:
+        """Attach optional metadata for image ``index``."""
+        info = self._image_info.get(index, ImageInfo())
+        if name is not None:
+            info.name = str(name)
+        if shape is not None:
+            info.shape = tuple(int(x) for x in shape)
+        self._image_info[index] = info
+
+    def get_image_info(self, index: int) -> ImageInfo:
+        """Return metadata describing image ``index`` (lazily created)."""
+        if index not in self._image_info:
+            self._image_info[index] = ImageInfo()
+        return self._image_info[index]
+
+    def image_filenames(self) -> List[Optional[str]]:
+        """Return list of image filenames, ordered by index."""
+        return [self.get_image_info(i).name for i in range(self.number_images())]
+
+    def image_shapes(self) -> List[Optional[tuple[int, ...]]]:
+        """Return list of image shapes, ordered by index."""
+        return [self.get_image_info(i).shape for i in range(self.number_images())]
+
+    def _clone_image_info(self, indices: Optional[Iterable[int]] = None) -> dict[int, ImageInfo]:
+        """Create a shallow copy of stored image metadata."""
+        cloned: dict[int, ImageInfo] = {}
+        source_indices = indices if indices is not None else self._image_info.keys()
+        for idx in list(source_indices):
+            if idx in self._image_info:
+                info = self._image_info[idx]
+                cloned[idx] = ImageInfo(name=info.name, shape=info.shape)
+        return cloned
+
+    def _default_image_filename(self, index: int) -> str:
+        """Return a placeholder filename for ``index``."""
+        return f"image_{index:06d}.jpg"
+
+    def _fallback_image_shape(self, index: int) -> tuple[int, int]:
+        """Derive a plausible image shape from calibration when metadata is absent."""
+        camera = self.get_camera(index)
+        if camera is not None:
+            calibration = camera.calibration()
+            cx = getattr(calibration, "px", None)
+            cy = getattr(calibration, "py", None)
+            if callable(cx):
+                cx = cx()
+            if callable(cy):
+                cy = cy()
+            if isinstance(cx, (int, float)) and isinstance(cy, (int, float)):
+                width = max(int(round(cx * 2)), 1)
+                height = max(int(round(cy * 2)), 1)
+                return (height, width)
+        return (1, 1)
+
+    def _normalize_shape(self, index: int, shape: Optional[tuple[int, ...]]) -> tuple[int, int]:
+        """Ensure shapes are stored as (H, W) even if channels are present or missing."""
+        if shape is None:
+            return self._fallback_image_shape(index)
+        if len(shape) == 0:
+            return self._fallback_image_shape(index)
+        height = int(shape[0])
+        width = int(shape[1]) if len(shape) > 1 else height
+        if height <= 0 or width <= 0:
+            return self._fallback_image_shape(index)
+        return (height, width)
+
+    def _resolve_image_filename(self, index: int, name: Optional[str]) -> str:
+        """Return a concrete filename, inventing a placeholder if missing."""
+        if name is None or name == "":
+            info = self._image_info.get(index)
+            if info is not None and info.name:
+                return info.name
+            return self._default_image_filename(index)
+        return name
+
     def get_valid_camera_indices(self) -> List[int]:
         """Returns indices of valid cameras."""
         return list(self._cameras.keys())
@@ -242,6 +336,7 @@ class GtsfmData:
             raise ValueError("Camera cannot be None, should be a valid camera")
         if index not in self._cameras:
             self._cameras[index] = camera
+            self.get_image_info(index)  # ensure metadata entry exists
 
     def get_track_length_statistics(self) -> Tuple[float, float]:
         """Compute mean and median lengths of all the tracks.
@@ -306,12 +401,20 @@ class GtsfmData:
 
     @classmethod
     def from_cameras_and_tracks(
-        cls, cameras: Mapping[int, gtsfm_types.CAMERA_TYPE], tracks: List[SfmTrack], number_images: int
+        cls,
+        cameras: Mapping[int, gtsfm_types.CAMERA_TYPE],
+        tracks: List[SfmTrack],
+        number_images: int,
+        image_info: Optional[Mapping[int, ImageInfo]] = None,
     ) -> "GtsfmData":
         """Creates a GtsfmData object from a pre-existing set of cameras and tracks."""
         new_data = cls(number_images=number_images)
         new_data._cameras = dict(cameras)
         new_data._tracks = tracks
+        if image_info is not None:
+            new_data._image_info = {
+                idx: ImageInfo(name=info.name, shape=info.shape) for idx, info in image_info.items()
+            }
         return new_data
 
     @classmethod
@@ -332,6 +435,8 @@ class GtsfmData:
                 camera_i = gtsfm_data.get_camera(i)
                 assert camera_i is not None
                 new_data.add_camera(i, camera_i)
+                source_info = gtsfm_data.get_image_info(i)
+                new_data.set_image_info(i, name=source_info.name, shape=source_info.shape)
 
         new_camera_indices = new_data.get_valid_camera_indices()
 
@@ -458,6 +563,8 @@ class GtsfmData:
                 camera_i = self.get_camera(i)
                 assert camera_i is not None
                 filtered_data.add_camera(i, camera_i)
+                source_info = self.get_image_info(i)
+                filtered_data.set_image_info(i, name=source_info.name, shape=source_info.shape)
             filtered_data.add_track(track)
 
         return filtered_data, valid_mask
@@ -518,6 +625,7 @@ class GtsfmData:
         bTi_list = self.get_camera_poses()
         aTi_list = [aSb.transformFrom(bTi) if bTi is not None else None for bTi in bTi_list]
         aligned_data = GtsfmData(number_images=self.number_images())
+        aligned_data._image_info = self._clone_image_info(range(self.number_images()))
 
         # Update the camera poses to their aligned poses, but use the previous calibration.
         for i, aTi in enumerate(aTi_list):
@@ -565,6 +673,13 @@ class GtsfmData:
         max_camera_index = max(merged_cameras.keys()) if merged_cameras else -1
         number_images = max(self.number_images(), other.number_images(), max_camera_index + 1)
         merged_data = GtsfmData(number_images=number_images)
+        merged_data._image_info = self._clone_image_info(range(self.number_images()))
+        for idx, info in other._image_info.items():
+            merged_info = merged_data.get_image_info(idx)
+            if merged_info.name is None and info.name is not None:
+                merged_data.set_image_info(idx, name=info.name)
+            if merged_info.shape is None and info.shape is not None:
+                merged_data.set_image_info(idx, shape=info.shape)
 
         for key, camera in merged_cameras.items():
             merged_data.add_camera(key, camera)
@@ -581,11 +696,13 @@ class GtsfmData:
         num_tracks = self.number_tracks()
         indices_to_keep = rng.choice(num_tracks, size=int(num_tracks * fraction_points_to_keep), replace=False)
         downsampled_tracks = [self._tracks[idx] for idx in indices_to_keep]
-        return GtsfmData(self.number_images(), self.cameras(), downsampled_tracks)
+        downsampled = GtsfmData(self.number_images(), self.cameras(), downsampled_tracks)
+        downsampled._image_info = self._clone_image_info(range(self.number_images()))
+        return downsampled
 
     # COLMAP export functions
 
-    def write_cameras(self, save_dir: str | Path, image_shapes: List[Tuple[int, ...]]) -> None:
+    def write_cameras(self, save_dir: str | Path, image_shapes: Sequence[Optional[Tuple[int, ...]]]) -> None:
         """Writes the camera data file in the COLMAP format.
 
         Reference: https://colmap.github.io/format.html#cameras-txt
@@ -610,13 +727,14 @@ class GtsfmData:
                 camera_i = self.get_camera(i)
                 assert camera_i is not None, "Camera %d is None" % i
                 gtsfm_cal = camera_i.calibration()
-                shape_i = image_shapes[i]
-                colmap_cam = gtsfm_calibration_to_colmap_camera(i, gtsfm_cal, shape_i[0], shape_i[1])
+                shape_i = image_shapes[i] if i < len(image_shapes) else None
+                height, width = self._normalize_shape(i, shape_i)
+                colmap_cam = gtsfm_calibration_to_colmap_camera(i, gtsfm_cal, height, width)
                 to_write = [colmap_cam.id, colmap_cam.model, colmap_cam.width, colmap_cam.height, *colmap_cam.params]
                 line = " ".join([str(elem) for elem in to_write])
                 f.write(line + "\n")
 
-    def write_images(self, save_dir: str | Path, image_filenames: Sequence[str | None]) -> None:
+    def write_images(self, save_dir: str | Path, image_filenames: Sequence[Optional[str]]) -> None:
         """Writes the image data file in the COLMAP format.
 
         Reference: https://colmap.github.io/format.html#images-txt
@@ -662,7 +780,9 @@ class GtsfmData:
                 tx, ty, tz = itw
                 qw, qx, qy, qz = iRw_quaternion.w(), iRw_quaternion.x(), iRw_quaternion.y(), iRw_quaternion.z()
 
-                f.write(f"{i} {qw} {qx} {qy} {qz} {tx} {ty} {tz} {i} {image_filenames[i]}\n")
+                filename = image_filenames[i] if i < len(image_filenames) else None
+                resolved_name = self._resolve_image_filename(i, filename)
+                f.write(f"{i} {qw} {qx} {qy} {qz} {tx} {ty} {tz} {i} {resolved_name}\n")
 
                 # write out points2d
                 for j in range(self.number_tracks()):
@@ -733,15 +853,45 @@ class GtsfmData:
             image_shapes: Optional list of image shapes (H, W, C) for each image, required if images is None.
             image_filenames: Optional list of image file names for each image, required if images is None.
         """
-        if images is not None:
-            image_shapes_to_use = [img.shape for img in images]
-            image_file_names_to_use: List[str | None] = [img.file_name for img in images]
-        else:
-            if image_shapes is None or image_filenames is None:
-                raise ValueError("If images is None, image_shapes and image_filenames must be provided.")
-            image_shapes_to_use = image_shapes
-            image_file_names_to_use = list(image_filenames)
+        num_images = self.number_images()
+        resolved_shapes: List[Optional[tuple[int, ...]]] = [None] * num_images
+        resolved_names: List[Optional[str]] = [None] * num_images
 
-        self.write_cameras(save_dir, image_shapes_to_use)
-        self.write_images(save_dir, image_file_names_to_use)
+        if images is not None:
+            for idx, img in enumerate(images):
+                if idx >= num_images:
+                    break
+                resolved_shapes[idx] = img.shape
+                resolved_names[idx] = img.file_name
+                self.set_image_info(idx, name=img.file_name, shape=img.shape)
+
+        if image_shapes is not None:
+            for idx, shape in enumerate(image_shapes):
+                if idx < num_images and shape is not None:
+                    resolved_shapes[idx] = shape
+
+        if image_filenames is not None:
+            for idx, name in enumerate(image_filenames):
+                if idx < num_images and name is not None:
+                    resolved_names[idx] = name
+
+        for idx in range(num_images):
+            info = self.get_image_info(idx)
+            if resolved_shapes[idx] is None and info.shape is not None:
+                resolved_shapes[idx] = info.shape
+            if resolved_names[idx] is None and info.name is not None:
+                resolved_names[idx] = info.name
+
+        normalized_shapes: List[tuple[int, int]] = [
+            self._normalize_shape(idx, resolved_shapes[idx]) for idx in range(num_images)
+        ]
+        concrete_names: List[str] = [
+            self._resolve_image_filename(idx, resolved_names[idx]) for idx in range(num_images)
+        ]
+
+        for idx in range(num_images):
+            self.set_image_info(idx, name=concrete_names[idx], shape=normalized_shapes[idx])
+
+        self.write_cameras(save_dir, normalized_shapes)
+        self.write_images(save_dir, concrete_names)
         self.write_points(save_dir, images)

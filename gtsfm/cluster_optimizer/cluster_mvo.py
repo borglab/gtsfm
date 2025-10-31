@@ -517,6 +517,9 @@ def get_gtsfm_data_with_gt_cameras_and_est_tracks(
     for i, camera in enumerate(cameras_gt):
         if camera is not None:
             gt_gtsfm_data.add_camera(i, camera)
+            source_info = ba_output.get_image_info(i)
+            if source_info.name is not None or source_info.shape is not None:
+                gt_gtsfm_data.set_image_info(i, name=source_info.name, shape=source_info.shape)
     for track in ba_output.get_tracks():
         gt_gtsfm_data.add_track(track)
     return gt_gtsfm_data

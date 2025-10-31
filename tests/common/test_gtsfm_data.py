@@ -4,13 +4,24 @@ Authors: Ayush Baid
 """
 
 import copy
+import tempfile
 import unittest
 import unittest.mock as mock
 from pathlib import Path
 
 import gtsam  # type: ignore
 import numpy as np
-from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Point2, Point3, Pose3, SfmData, SfmTrack, Similarity3
+from gtsam import (
+    Cal3Bundler,
+    PinholeCameraCal3Bundler,
+    Point2,
+    Point3,
+    Pose3,
+    Rot3,
+    SfmData,
+    SfmTrack,
+    Similarity3,
+)
 
 import gtsfm.utils.graph as graph_utils
 from gtsfm.common.gtsfm_data import GtsfmData
@@ -310,6 +321,33 @@ class TestGtsfmData(unittest.TestCase):
         assert cam0 is not None
         self.assertEqual(cam0.calibration().px(), 2028)
         self.assertEqual(cam0.calibration().py(), 1520)
+
+    def test_colmap_round_trip_preserves_image_metadata(self) -> None:
+        """Ensure filenames and shapes survive an export/import cycle."""
+        data = GtsfmData(number_images=2)
+        calibration = Cal3Bundler(fx=600.0, k1=0.0, k2=0.0, u0=320.0, v0=240.0)
+        cam0 = PinholeCameraCal3Bundler(Pose3(), calibration)
+        cam1 = PinholeCameraCal3Bundler(Pose3(Rot3(), Point3(1.0, 0.0, 0.0)), calibration)
+        data.add_camera(0, cam0)
+        data.add_camera(1, cam1)
+        data.set_image_info(0, name="img0.jpg", shape=(480, 640, 3))
+        data.set_image_info(1, name="img1.jpg", shape=(720, 960, 3))
+
+        track = SfmTrack(Point3(0.0, 0.0, 5.0))
+        track.addMeasurement(0, Point2(320.0, 240.0))
+        track.addMeasurement(1, Point2(330.0, 245.0))
+        data.add_track(track)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            data.export_as_colmap_text(tmpdir)
+            round_tripped = GtsfmData.read_colmap(tmpdir)
+
+        info0 = round_tripped.get_image_info(0)
+        info1 = round_tripped.get_image_info(1)
+        self.assertEqual(info0.name, "img0.jpg")
+        self.assertEqual(info1.name, "img1.jpg")
+        self.assertEqual(info0.shape, (480, 640))
+        self.assertEqual(info1.shape, (720, 960))
 
 
 if __name__ == "__main__":
