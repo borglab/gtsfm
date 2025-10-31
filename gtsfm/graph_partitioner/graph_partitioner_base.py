@@ -5,9 +5,11 @@ Authors: Zongyue Liu
 
 from __future__ import annotations
 
+import pickle
 from abc import abstractmethod
 
 import gtsfm.utils.logger as logger_utils
+from gtsfm.common.outputs import OutputPaths
 from gtsfm.products.cluster_tree import ClusterTree
 from gtsfm.products.visibility_graph import VisibilityGraph
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
@@ -59,7 +61,7 @@ class GraphPartitionerBase(GTSFMProcess):
         """
 
     @staticmethod
-    def log_partition_details(cluster_tree: ClusterTree | None) -> None:
+    def log_partition_details(cluster_tree: ClusterTree | None, output_paths: OutputPaths) -> None:
         """Log details of each cluster for debugging.
 
         Args:
@@ -76,3 +78,9 @@ class GraphPartitionerBase(GTSFMProcess):
             logger.info("Leaf Cluster %d: keys (%d): %s", i, len(leaf_keys), list(map(int, leaf_keys)))
             logger.info("Leaf Cluster %d: num intra-cluster edges: %d", i, len(leaf.value))
             logger.debug("Leaf Cluster %d: intra-cluster edges: %s", i, leaf.value)
+
+        # Pickle the cluster tree in the results directory for later analysis.
+        with open(output_paths.results / "cluster_tree.pkl", "wb") as f:
+            pickle.dump(cluster_tree, f)
+
+        # TODO(Frank): optionally write out a networkx graph for visualization.

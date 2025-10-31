@@ -8,6 +8,8 @@ from gtsam import SymbolicBayesTreeClique  # type: ignore
 
 from gtsfm.graph_partitioner.metis_partitioner import MetisPartitioner
 from gtsfm.products.cluster_tree import ClusterTree
+from gtsfm.products.visibility_graph import visibility_graph_keys
+from gtsfm.utils.tree import PreOrderIter
 
 TEST_DATA_ROOT = Path(__file__).resolve().parent.parent / "data"
 
@@ -111,20 +113,45 @@ class TestMetisPartitioner(unittest.TestCase):
         self.assertIsNone(cluster_tree)
 
     def test_run_with_visibility_graph_from_csv(self) -> None:
-        loaded_edges = []
+        graph = []
         file = TEST_DATA_ROOT / "palace" / "visibility_graph.csv"
         with open(file, "r", newline="") as csv_file:
             reader = csv.DictReader(csv_file)
             for row in reader:
-                loaded_edges.append((int(row["i"]), int(row["j"])))
+                graph.append((int(row["i"]), int(row["j"])))
 
         # Run the partitioner on the loaded edges.
         partitioner = MetisPartitioner()
-        cluster_tree = partitioner.run(loaded_edges)
+        cluster_tree: ClusterTree | None = partitioner.run(graph)
         self.assertIsNotNone(cluster_tree)
         assert cluster_tree is not None
         leaves = tuple(cluster_tree.leaves()) if cluster_tree is not None else ()
         self.assertEqual(len(leaves), 8)
+
+        # Assert that all clusters (not just leaves) overlap with at least one child cluster.
+        for cluster in PreOrderIter(cluster_tree):
+            cluster_keys = visibility_graph_keys(cluster.value)
+            for child in cluster.children:
+                child_keys = child.all_keys()  # type: ignore
+                overlap_found = len(cluster_keys & child_keys) > 0
+                if not overlap_found:
+                    print(
+                        f"******\nCluster with keys {sorted(cluster_keys)} has no overlap with child "
+                        f"with keys {sorted(visibility_graph_keys(child.value))}"
+                    )
+                self.assertTrue(overlap_found)
+
+        # Every edge should be owned by at most one leaf cluster.
+        leaf_owners: dict[tuple[int, int], int] = {}
+        for leaf_idx, leaf in enumerate(leaves):
+            for edge in leaf.value:
+                owner = leaf_owners.get(edge)
+                self.assertNotIn(
+                    edge,
+                    leaf_owners,
+                    msg=(f"Edge {edge} already owned by leaf {owner}, but also present in leaf {leaf_idx}"),
+                )
+                leaf_owners[edge] = leaf_idx
 
 
 if __name__ == "__main__":
