@@ -196,22 +196,30 @@ class SimilarityRetriever(RetrieverBase):
         os.makedirs(plots_output_dir, exist_ok=True)
 
         sim_cpu = self._latest_similarity_matrix
+        heatmap_path = plots_output_dir / "similarity_matrix.jpg"
+        matrix_path = plots_output_dir / "similarity_matrix.txt"
+        named_pairs_path = plots_output_dir / "similarity_named_pairs.txt"
+
         sim_np = np.triu(sim_cpu.numpy())
         plt.imshow(sim_np)
         plt.title("Image Similarity Matrix")
-        plt.savefig(str(plots_output_dir / "similarity_matrix.jpg"), dpi=500)
+        plt.savefig(str(heatmap_path), dpi=500)
         plt.close("all")
+        logger.info("Saved similarity heatmap to %s", heatmap_path)
+
         np.savetxt(
-            fname=str(plots_output_dir / "similarity_matrix.txt"),
+            fname=str(matrix_path),
             X=sim_cpu.numpy(),
             fmt="%.2f",
             delimiter=",",
         )
+        logger.info("Saved similarity matrix values to %s", matrix_path)
 
         named_pairs = [(image_fnames[i], image_fnames[j]) for i, j in pairs]
-        with open(plots_output_dir / "similarity_named_pairs.txt", "w") as fid:
+        with open(named_pairs_path, "w") as fid:
             for (name_i, name_j), (i, j) in zip(named_pairs, pairs):
                 fid.write("%.4f %s %s\n" % (sim_cpu[i, j].item(), name_i, name_j))
+        logger.info("Saved similarity pair scores to %s", named_pairs_path)
 
         self._latest_similarity_matrix = None
 

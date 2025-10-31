@@ -62,12 +62,6 @@ class SceneOptimizer:
         {self.cluster_optimizer}
         """
 
-    def create_plot_base_path(self):
-        """Create plot base path."""
-        plot_base_path = self.output_root / "plots"
-        plot_base_path.mkdir(parents=True, exist_ok=True)
-        return plot_base_path
-
     def _ensure_react_directories(self) -> None:
         """Ensure the React dashboards have dedicated output folders."""
         REACT_RESULTS_PATH.mkdir(parents=True, exist_ok=True)
@@ -78,12 +72,12 @@ class SceneOptimizer:
         start_time = time.time()
         base_metrics_groups = []
         process_graph_generator = ProcessGraphGenerator()
-        process_graph_generator.save_graph()
         self._ensure_react_directories()
         base_output_paths = prepare_output_paths(self.output_root, None)
+        process_graph_generator.save_graph(str(base_output_paths.plots / "process_graph_output.svg"))
 
         logger.info("🔥 GTSFM: Running image pair retrieval...")
-        retriever_metrics, visibility_graph = self._run_retriever(client)
+        retriever_metrics, visibility_graph = self._run_retriever(client, base_output_paths)
         base_metrics_groups.append(retriever_metrics)
         image_futures = self.loader.get_all_images_as_futures(client)
 
@@ -163,7 +157,7 @@ class SceneOptimizer:
 
         save_metrics_reports(base_metrics_groups, str(base_output_paths.metrics))
 
-    def _run_retriever(self, client) -> tuple[GtsfmMetricsGroup, VisibilityGraph]:
+    def _run_retriever(self, client, output_paths: OutputPaths) -> tuple[GtsfmMetricsGroup, VisibilityGraph]:
         # TODO(Frank): refactor to move more of this logic into ImagePairsGenerator
         retriever_start_time = time.time()
         batch_size = self.image_pairs_generator._batch_size
@@ -175,7 +169,7 @@ class SceneOptimizer:
 
         image_fnames = self.loader.image_filenames()
 
-        plots_output_dir = self.create_plot_base_path()
+        plots_output_dir = output_paths.plots
         with performance_report(filename="dask_reports/retriever.html"):
             visibility_graph = self.image_pairs_generator.run(
                 client=client,
