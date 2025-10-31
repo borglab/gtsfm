@@ -74,7 +74,7 @@ def run_vggt(
         fine_tracking=fine_tracking,
         vis_thresh=vis_thresh,
         max_reproj_error=max_reproj_error,
-        conf_thres_value=conf_threshold_value,
+        confidence_threshold=conf_threshold_value,
         shared_camera=False,
         use_colmap_ba=use_colmap_ba,
         camera_type_ba=camera_type,
