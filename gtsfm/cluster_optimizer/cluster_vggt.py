@@ -160,12 +160,12 @@ class ClusterVGGT(ClusterOptimizerBase):
 
         result_graph = delayed(_run_vggt_pipeline)(
             image_batch_graph,
-            original_coords_graph,
-            keys,
-            image_names,
-            config,
-            self._weights_path,
-            self._seed,
+            seed=self._seed,
+            original_coords=original_coords_graph,
+            image_indices=keys,
+            image_names=image_names,
+            config=config,
+            weights_path=self._weights_path,
         )
 
         metrics_tasks = [delayed(_aggregate_vggt_metrics)(result_graph)]
