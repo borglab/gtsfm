@@ -10,8 +10,10 @@ from __future__ import annotations
 
 import copy
 import sys
+from contextlib import nullcontext
+from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Union
+from typing import TYPE_CHECKING, Any, Callable, Sequence, Union
 
 import numpy as np
 import pycolmap
@@ -91,6 +93,241 @@ def predict_tracks(*args: Any, **kwargs: Any) -> Any:
     return _import_predict_tracks()(*args, **kwargs)
 
 
+@dataclass(frozen=True)
+class VGGTReconstructionConfig:
+    """Configuration for the high-level VGGT reconstruction pipeline."""
+
+    use_ba: bool = False
+    vggt_fixed_resolution: int = 518
+    img_load_resolution: int = 1024
+    max_query_pts: int = 1000
+    query_frame_num: int = 4
+    fine_tracking: bool = True
+    vis_thresh: float = 0.2
+    max_reproj_error: float = 8.0
+    conf_thres_value: float = 5.0
+    max_points_for_colmap: int = 100000
+    camera_type_ba: str = "SIMPLE_PINHOLE"
+    camera_type_feedforward: str = "PINHOLE"
+    shared_camera: bool = False
+    use_colmap_ba: bool = False
+    keypoint_extractor: str = "aliked+sp"
+
+
+@dataclass
+class VGGTReconstructionResult:
+    """Outputs from the VGGT reconstruction helper."""
+
+    reconstruction: pycolmap.Reconstruction
+    reconstruction_resolution: int
+    extrinsic: np.ndarray
+    intrinsic: np.ndarray
+    depth_map: np.ndarray
+    depth_confidence: np.ndarray
+    points_3d: np.ndarray
+    points_rgb: np.ndarray | None
+    points_xyf: np.ndarray | None
+    used_ba: bool
+    valid_track_mask: np.ndarray | None
+    pred_tracks: np.ndarray | None = None
+    pred_vis_scores: np.ndarray | None = None
+    pred_confs: np.ndarray | None = None
+    fallback_reason: str | None = None
+
+
+def _to_numpy_confidence(depth_conf: np.ndarray) -> np.ndarray:
+    """Ensure the depth confidence map has shape (S, H, W)."""
+    if depth_conf.ndim == 4 and depth_conf.shape[-1] == 1:
+        return np.squeeze(depth_conf, axis=-1)
+    return depth_conf
+
+
+def run_vggt_reconstruction(
+    image_batch: torch.Tensor,
+    *,
+    image_indices: Sequence[int],
+    image_names: Sequence[str] | None = None,
+    original_coords: torch.Tensor,
+    config: VGGTReconstructionConfig | None = None,
+    device: torch.device | str | None = None,
+    dtype: torch.dtype | None = None,
+    model: VGGT | None = None,
+    checkpoint_path: PathLike | None = None,
+) -> VGGTReconstructionResult:
+    """High-level helper that runs VGGT and converts its outputs to a COLMAP reconstruction.
+
+    Args:
+        image_batch: Tensor of shape (N, 3, H, W) with pixel intensities in [0, 1].
+        image_indices: Identifiers corresponding to each image in the batch.
+        image_names: Optional list of names to assign to the COLMAP images.
+        original_coords: Tensor storing the crop/pad metadata returned by the loader.
+        config: Optional configuration for the reconstruction pipeline.
+        device: Device for inference. Defaults to :func:`default_vggt_device`.
+        dtype: Optional dtype. Defaults to :func:`default_vggt_dtype` when running on CUDA.
+        model: Optional pre-loaded VGGT model. If provided it will be used directly.
+        checkpoint_path: Optional override for the VGGT checkpoint path when ``model`` is ``None``.
+
+    Returns:
+        VGGTReconstructionResult containing the reconstructed scene information.
+    """
+    cfg = config or VGGTReconstructionConfig()
+
+    if len(image_indices) != image_batch.shape[0]:
+        raise ValueError("image_indices must have the same length as the batch dimension.")
+
+    resolved_device = default_vggt_device(device)
+    resolved_dtype = dtype
+    if resolved_dtype is None:
+        resolved_dtype = default_vggt_dtype(resolved_device) if resolved_device.type == "cuda" else torch.float32
+
+    if model is None:
+        model = load_vggt_model(checkpoint_path, device=resolved_device)
+    else:
+        model = model.to(resolved_device)
+
+    image_batch = image_batch.to(resolved_device)
+    extrinsic, intrinsic, depth_map, depth_conf = run_VGGT(
+        model, image_batch, resolved_dtype, cfg.vggt_fixed_resolution
+    )
+    points_3d = unproject_depth_map_to_point_map(depth_map, extrinsic, intrinsic)
+    depth_conf_map = _to_numpy_confidence(depth_conf)
+
+    used_ba = cfg.use_ba
+    fallback_reason: str | None = None
+    valid_track_mask: np.ndarray | None = None
+    pred_tracks: np.ndarray | None = None
+    pred_vis_scores: np.ndarray | None = None
+    pred_confs: np.ndarray | None = None
+    points_rgb: np.ndarray | None = None
+    points_xyf: np.ndarray | None = None
+
+    reconstruction: pycolmap.Reconstruction | None = None
+    reconstruction_resolution = cfg.vggt_fixed_resolution
+
+    if used_ba:
+        image_size = np.array(image_batch.shape[-2:])
+        scale = cfg.img_load_resolution / cfg.vggt_fixed_resolution
+        try:
+            autocast_ctx = (
+                torch.autocast(device_type=resolved_device.type, dtype=resolved_dtype)
+                if resolved_device.type == "cuda"
+                else nullcontext()
+            )
+            with autocast_ctx:
+                pred_tracks, pred_vis_scores, pred_confs, points_3d, points_rgb = predict_tracks(
+                    image_batch,
+                    conf=depth_conf,
+                    points_3d=points_3d,
+                    masks=None,
+                    max_query_pts=cfg.max_query_pts,
+                    query_frame_num=cfg.query_frame_num,
+                    keypoint_extractor=cfg.keypoint_extractor,
+                    fine_tracking=cfg.fine_tracking,
+                )
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+
+            intrinsic[:, :2, :] *= scale
+            track_mask = pred_vis_scores > cfg.vis_thresh
+            reconstruction, valid_track_mask = batch_np_matrix_to_pycolmap(
+                points_3d,
+                extrinsic,
+                intrinsic,
+                pred_tracks,
+                image_size,
+                masks=track_mask,
+                max_reproj_error=cfg.max_reproj_error,
+                shared_camera=cfg.shared_camera,
+                camera_type=cfg.camera_type_ba,
+                points_rgb=points_rgb,
+                image_id_list=list(image_indices),
+            )
+
+            if reconstruction is None:
+                raise ValueError("No reconstruction can be built with BA.")
+
+            if cfg.use_colmap_ba:
+                ba_options = pycolmap.BundleAdjustmentOptions()
+                pycolmap.bundle_adjustment(reconstruction, ba_options)
+
+            reconstruction_resolution = cfg.img_load_resolution
+        except ImportError as exc:
+            fallback_reason = f"predict_tracks unavailable: {exc}"
+            _LOGGER.warning("%s Falling back to feedforward reconstruction without BA.", fallback_reason)
+            reconstruction = None
+            used_ba = False
+
+    if not used_ba:
+        image_size = np.array([cfg.vggt_fixed_resolution, cfg.vggt_fixed_resolution])
+        num_frames, height, width, _ = points_3d.shape
+
+        resized = F.interpolate(
+            image_batch,
+            size=(cfg.vggt_fixed_resolution, cfg.vggt_fixed_resolution),
+            mode="bilinear",
+            align_corners=False,
+        )
+        points_rgb = (resized.detach().cpu().numpy() * 255).astype(np.uint8).transpose(0, 2, 3, 1)
+        points_xyf = create_pixel_coordinate_grid(num_frames, height, width)
+
+        conf_mask = depth_conf_map >= cfg.conf_thres_value
+        conf_mask = randomly_limit_trues(conf_mask, cfg.max_points_for_colmap)
+
+        points_3d = points_3d[conf_mask]
+        points_xyf = points_xyf[conf_mask]
+        points_rgb = points_rgb[conf_mask]
+
+        reconstruction = batch_np_matrix_to_pycolmap_wo_track(
+            points_3d,
+            points_xyf,
+            points_rgb,
+            extrinsic,
+            intrinsic,
+            image_size,
+            shared_camera=cfg.shared_camera,
+            camera_type=cfg.camera_type_feedforward,
+            image_id_list=list(image_indices),
+        )
+        reconstruction_resolution = cfg.vggt_fixed_resolution
+
+    if reconstruction is None:
+        raise ValueError("VGGT reconstruction failed to produce a valid COLMAP reconstruction.")
+
+    if isinstance(original_coords, torch.Tensor):
+        original_coords_np = original_coords.detach().cpu().numpy()
+    else:
+        original_coords_np = np.asarray(original_coords)
+
+    rename_source = list(image_names) if image_names is not None else None
+
+    rename_colmap_recons_and_rescale_camera(
+        reconstruction,
+        rename_source,
+        original_coords_np,
+        img_size=reconstruction_resolution,
+        shift_point2d_to_original_res=True,
+        shared_camera=cfg.shared_camera,
+        image_id_list=list(image_indices),
+    )
+
+    return VGGTReconstructionResult(
+        reconstruction=reconstruction,
+        reconstruction_resolution=reconstruction_resolution,
+        extrinsic=extrinsic,
+        intrinsic=intrinsic,
+        depth_map=depth_map,
+        depth_confidence=depth_conf_map,
+        points_3d=points_3d,
+        points_rgb=points_rgb,
+        points_xyf=points_xyf,
+        used_ba=used_ba,
+        valid_track_mask=valid_track_mask,
+        pred_tracks=pred_tracks,
+        pred_vis_scores=pred_vis_scores,
+        pred_confs=pred_confs,
+        fallback_reason=fallback_reason,
+    )
+
 def resolve_vggt_weights_path(checkpoint_path: PathLike | None = None) -> Path:
     """Return a concrete path to the VGGT checkpoint, validating that it exists."""
     path = Path(checkpoint_path) if checkpoint_path is not None else DEFAULT_WEIGHTS_PATH
@@ -158,7 +395,11 @@ def run_VGGT(model, images, dtype, resolution=518):
     images = F.interpolate(images, size=(resolution, resolution), mode="bilinear", align_corners=False)
 
     with torch.no_grad():
-        with amp.autocast("cuda", dtype=dtype):  # type: ignore
+        if images.device.type == "cuda":
+            autocast_ctx = amp.autocast("cuda", dtype=dtype) if dtype is not None else amp.autocast("cuda")
+        else:
+            autocast_ctx = nullcontext()
+        with autocast_ctx:  # type: ignore[arg-type]
             images = images[None]  # add batch dimension
             aggregated_tokens_list, ps_idx = model.aggregator(images)
 
@@ -169,8 +410,8 @@ def run_VGGT(model, images, dtype, resolution=518):
         # Predict Depth Maps
         depth_map, depth_conf = model.depth_head(aggregated_tokens_list, images, ps_idx)
 
-    model.to("cpu")
-    torch.cuda.empty_cache()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
 
     extrinsic = extrinsic.squeeze(0).cpu().numpy()
     intrinsic = intrinsic.squeeze(0).cpu().numpy()
@@ -277,7 +518,7 @@ def batch_np_matrix_to_pycolmap(
     assert masks is not None
 
     if masks.sum(1).min() < min_inlier_per_frame:
-        print("Not enough inliers per frame, skip BA.")
+        _LOGGER.warning("Not enough inliers per frame, skip BA.")
         return None, None
 
     # Reconstruction object, following the format of PyCOLMAP/COLMAP
@@ -351,7 +592,7 @@ def batch_np_matrix_to_pycolmap(
             image.points2D = pycolmap.ListPoint2D(points2D_list)  # type: ignore
             # image.registered = True
         except Exception as e:
-            print(f"frame {image_idx} is out of BA: {e}")
+            _LOGGER.warning("Frame %s is out of BA: %s", image_idx, e)
             # image.registered = False
 
         # add image
@@ -454,7 +695,7 @@ def batch_np_matrix_to_pycolmap_wo_track(
             image.points2D = pycolmap.ListPoint2D(points2D_list)  # type: ignore
             # image.registered = True
         except Exception as e:
-            print(f"frame {image_idx} does not have any points: {e}")
+            _LOGGER.warning("Frame %s does not have any points: %s", image_idx, e)
             # image.registered = False
 
         # add image
@@ -465,16 +706,17 @@ def batch_np_matrix_to_pycolmap_wo_track(
 
 def rename_colmap_recons_and_rescale_camera(
     reconstruction,
-    image_paths,
-    original_coords,
-    img_size,
+    image_paths=None,
+    original_coords=None,
+    img_size=None,
     shift_point2d_to_original_res=False,
     shared_camera=False,
     image_id_list=None,
 ):
-    rescale_camera = True
+    if original_coords is None or img_size is None or image_id_list is None:
+        raise ValueError("original_coords, img_size, and image_id_list must be provided.")
 
-    assert image_id_list is not None
+    rescale_camera = True
 
     # for py_image_id in reconstruction.images:
     for local_id in range(len(image_id_list)):
@@ -483,7 +725,8 @@ def rename_colmap_recons_and_rescale_camera(
         # Rename the images to the original names
         py_image = reconstruction.images[py_image_id]
         py_camera = reconstruction.cameras[py_image.camera_id]
-        # py_image.name = image_paths[local_id]
+        if image_paths is not None:
+            py_image.name = str(image_paths[local_id])
 
         resize_ratio = 1.0
         if rescale_camera:
@@ -512,7 +755,7 @@ def rename_colmap_recons_and_rescale_camera(
             # no need to rescale any more
             rescale_camera = False
 
-    print("reconstruction.images: ", reconstruction.images)
+    _LOGGER.debug("Reconstruction images: %s", reconstruction.images)
 
     return reconstruction
 
@@ -520,10 +763,13 @@ def rename_colmap_recons_and_rescale_camera(
 __all__ = [
     "VGGT_SUBMODULE_PATH",
     "DEFAULT_WEIGHTS_PATH",
+    "VGGTReconstructionConfig",
+    "VGGTReconstructionResult",
     "resolve_vggt_weights_path",
     "default_vggt_device",
     "default_vggt_dtype",
     "load_vggt_model",
+    "run_vggt_reconstruction",
     "batch_np_matrix_to_pycolmap",
     "predict_tracks",
     "unproject_depth_map_to_point_map",
