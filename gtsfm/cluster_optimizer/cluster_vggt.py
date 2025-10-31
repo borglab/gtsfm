@@ -50,26 +50,28 @@ def _save_reconstruction_as_text(
 ) -> None:
     target_dir = results_path / "vggt"
     target_dir.mkdir(parents=True, exist_ok=True)
-    result.reconstruction.write_text(str(target_dir))
+    result.gtsfm_data.export_as_colmap_text(target_dir)
 
-    if copy_to_react:
-        try:
-            relative = results_path.relative_to(output_root)
-        except ValueError:
-            relative = Path(results_path.name)
-        react_destination = REACT_RESULTS_PATH / relative / "vggt"
-        react_destination.mkdir(parents=True, exist_ok=True)
-        result.reconstruction.write_text(str(react_destination))
+    if not copy_to_react:
+        return
+
+    try:
+        relative = results_path.relative_to(output_root)
+    except ValueError:
+        relative = Path(results_path.name)
+    react_destination = REACT_RESULTS_PATH / relative / "vggt"
+    react_destination.mkdir(parents=True, exist_ok=True)
+    result.gtsfm_data.export_as_colmap_text(react_destination)
 
 
 def _aggregate_vggt_metrics(result: VGGTReconstructionResult) -> GtsfmMetricsGroup:
-    reconstruction = result.reconstruction
-    num_images = len(reconstruction.images)
-    num_points3d = len(reconstruction.points3D)
+    gtsfm_data = result.gtsfm_data
+    num_cameras = len(gtsfm_data.get_valid_camera_indices())
+    num_points3d = gtsfm_data.number_tracks()
     return GtsfmMetricsGroup(
         "vggt_runtime_metrics",
         [
-            GtsfmMetric("num_images", num_images),
+            GtsfmMetric("num_cameras", num_cameras),
             GtsfmMetric("num_points3d", num_points3d),
             GtsfmMetric("used_ba", float(result.used_ba)),
         ],
@@ -134,7 +136,7 @@ class ClusterVGGT(ClusterOptimizerBase):
     ) -> tuple[list[Delayed], list[Delayed]]:
         """Create the VGGT computation graph for a cluster."""
 
-        del num_images, one_view_data_dict, image_futures  # unused in VGGT pipeline
+        del one_view_data_dict, image_futures  # unused in VGGT pipeline
 
         keys = sorted(visibility_graph_keys(visibility_graph))
         if not keys:
@@ -167,6 +169,7 @@ class ClusterVGGT(ClusterOptimizerBase):
             image_names=image_names,
             config=config,
             weights_path=self._weights_path,
+            total_num_images=num_images,
         )
 
         metrics_tasks = [delayed(_aggregate_vggt_metrics)(result_graph)]

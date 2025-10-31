@@ -148,13 +148,6 @@ def add_common_vggt_args(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
         default=5.0,
         help="Depth confidence threshold for the feed-forward path (used when BA is disabled).",
     )
-    parser.add_argument(
-        "--colmap_format",
-        type=str,
-        choices=("bin", "txt", "both"),
-        default="bin",
-        help="Which COLMAP serialization(s) to export: binary `.bin`, text `.txt`, or both.",
-    )
     return parser
 
 
@@ -222,16 +215,17 @@ def demo_fn(args: argparse.Namespace) -> bool:
 
     reset_peak_memory()
     with Timer("VGGT reconstruction"):
-        result = run_vggt_reconstruction(
-            images,
-            image_indices=image_indices,
-            image_names=base_image_path_list,
-            original_coords=original_coords,
-            config=config,
-            device=device,
-            dtype=dtype,
-            model=model,
-        )
+    result = run_vggt_reconstruction(
+        images,
+        image_indices=image_indices,
+        image_names=base_image_path_list,
+        original_coords=original_coords,
+        config=config,
+        device=device,
+        dtype=dtype,
+        model=model,
+        total_num_images=len(image_path_list),
+    )
     print(get_peak_memory_str())
 
     if result.fallback_reason:
@@ -241,12 +235,9 @@ def demo_fn(args: argparse.Namespace) -> bool:
     sparse_reconstruction_dir = os.path.join(args.scene_dir, output_dir_name)
     print(f"Saving reconstruction to {sparse_reconstruction_dir}")
     os.makedirs(sparse_reconstruction_dir, exist_ok=True)
-    if args.colmap_format in {"bin", "both"}:
-        result.reconstruction.write(sparse_reconstruction_dir)
-    if args.colmap_format in {"txt", "both"}:
-        result.reconstruction.write_text(sparse_reconstruction_dir)
+    result.gtsfm_data.export_as_colmap_text(sparse_reconstruction_dir)
 
-    if result.points_rgb is not None:
+    if result.points_rgb is not None and result.points_3d.size > 0:
         try:
             trimesh.PointCloud(result.points_3d, colors=result.points_rgb).export(
                 os.path.join(sparse_reconstruction_dir, "points.ply")

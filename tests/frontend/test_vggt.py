@@ -89,6 +89,7 @@ def run_vggt(
         device=device,
         dtype=dtype,
         model=model,
+        total_num_images=len(image_indices),
     )
 
     output_dir = DATA_ROOT_PATH / "vggt_test_output"
@@ -99,13 +100,12 @@ def run_vggt(
     sparse_reconstruction_dir = output_dir / output_subdir
     print(f"Saving reconstruction to {sparse_reconstruction_dir}")
     sparse_reconstruction_dir.mkdir(parents=True, exist_ok=True)
-    result.reconstruction.write(str(sparse_reconstruction_dir))
-    result.reconstruction.write_text(str(sparse_reconstruction_dir))
+    result.gtsfm_data.export_as_colmap_text(sparse_reconstruction_dir)
 
     if result.fallback_reason:
         print(result.fallback_reason)
 
-    return GtsfmData(0, None, None)
+    return result.gtsfm_data
 
 
 def run_vggt_for_edges(vg: VisibilityGraph) -> GtsfmData:
@@ -159,7 +159,8 @@ class TestVGGT(unittest.TestCase):
             gtsfm_data = run_vggt(image_batch, indices, original_coords, use_ba=True)
 
         self.assertIsNotNone(gtsfm_data)
-        # self.assertEqual(gtsfm_data.number_images(), 4)
+        self.assertEqual(gtsfm_data.number_images(), len(indices))
+        self.assertGreaterEqual(len(gtsfm_data.get_valid_camera_indices()), len(indices))
 
     @unittest.skip("Skipping VGGT on cluster tree test for now.")
     def test_vggt_on_cluster_tree(self) -> None:
