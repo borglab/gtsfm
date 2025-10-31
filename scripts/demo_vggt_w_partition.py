@@ -102,7 +102,7 @@ def demo_fn(cluster_key: str, image_indices: List[int], args: argparse.Namespace
         fine_tracking=args.fine_tracking,
         vis_thresh=args.vis_thresh,
         max_reproj_error=args.max_reproj_error,
-        conf_thres_value=args.conf_thres_value,
+        confidence_threshold=args.confidence_threshold,
         shared_camera=args.shared_camera,
         use_colmap_ba=args.use_colmap_ba,
         camera_type_ba=args.camera_type,

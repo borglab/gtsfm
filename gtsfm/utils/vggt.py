@@ -19,7 +19,7 @@ import numpy as np
 import pycolmap
 import torch
 import torch.nn.functional as F
-from torch import amp
+from torch.amp import autocast as amp_autocast  # type: ignore
 
 from gtsfm.utils import logger as logger_utils
 
@@ -105,7 +105,7 @@ class VGGTReconstructionConfig:
     fine_tracking: bool = True
     vis_thresh: float = 0.2
     max_reproj_error: float = 8.0
-    conf_thres_value: float = 5.0
+    confidence_threshold: float = 5.0
     max_points_for_colmap: int = 100000
     camera_type_ba: str = "SIMPLE_PINHOLE"
     camera_type_feedforward: str = "PINHOLE"
@@ -130,9 +130,20 @@ class VGGTReconstructionResult:
     used_ba: bool
     valid_track_mask: np.ndarray | None
     pred_tracks: np.ndarray | None = None
-    pred_vis_scores: np.ndarray | None = None
-    pred_confs: np.ndarray | None = None
+    pred_visibility: np.ndarray | None = None
+    pred_confidence: np.ndarray | None = None
     fallback_reason: str | None = None
+
+
+@dataclass(frozen=True)
+class ImageSize:
+    """Explicit representation of (height, width)."""
+
+    height: int
+    width: int
+
+    def as_numpy(self) -> np.ndarray:
+        return np.array([self.height, self.width], dtype=np.int32)
 
 
 def _to_numpy_confidence(depth_conf: np.ndarray) -> np.ndarray:
@@ -152,12 +163,12 @@ def run_vggt_reconstruction(
     device: torch.device | str | None = None,
     dtype: torch.dtype | None = None,
     model: VGGT | None = None,
-    checkpoint_path: PathLike | None = None,
+    weights_path: PathLike | None = None,
 ) -> VGGTReconstructionResult:
     """High-level helper that runs VGGT and converts its outputs to a COLMAP reconstruction.
 
     Args:
-        image_batch: Tensor of shape (N, 3, H, W) with pixel intensities in [0, 1].
+        image_batch: Tensor of shape (N, 3, H, W) with pixel intensities in [0, 1] and channel order [C,H,W].
         image_indices: Identifiers corresponding to each image in the batch.
         image_names: Optional list of names to assign to the COLMAP images.
         original_coords: Tensor storing the crop/pad metadata returned by the loader.
@@ -165,7 +176,7 @@ def run_vggt_reconstruction(
         device: Device for inference. Defaults to :func:`default_vggt_device`.
         dtype: Optional dtype. Defaults to :func:`default_vggt_dtype` when running on CUDA.
         model: Optional pre-loaded VGGT model. If provided it will be used directly.
-        checkpoint_path: Optional override for the VGGT checkpoint path when ``model`` is ``None``.
+        weights_path: Optional override for the VGGT checkpoint path when ``model`` is ``None``.
 
     Returns:
         VGGTReconstructionResult containing the reconstructed scene information.
@@ -181,11 +192,14 @@ def run_vggt_reconstruction(
         resolved_dtype = default_vggt_dtype(resolved_device) if resolved_device.type == "cuda" else torch.float32
 
     if model is None:
-        model = load_vggt_model(checkpoint_path, device=resolved_device)
+        model = load_vggt_model(weights_path, device=resolved_device)
     else:
         model = model.to(resolved_device)
 
-    image_batch = image_batch.to(resolved_device)
+    image_batch = image_batch.to(resolved_device).contiguous()
+    if image_batch.ndim != 4 or image_batch.shape[1] != 3:
+        raise ValueError("image_batch must have shape (N, 3, H, W); received %s" % (image_batch.shape,))
+    height, width = (int(image_batch.shape[-2]), int(image_batch.shape[-1]))
     extrinsic, intrinsic, depth_map, depth_conf = run_VGGT(
         model, image_batch, resolved_dtype, cfg.vggt_fixed_resolution
     )
@@ -196,8 +210,8 @@ def run_vggt_reconstruction(
     fallback_reason: str | None = None
     valid_track_mask: np.ndarray | None = None
     pred_tracks: np.ndarray | None = None
-    pred_vis_scores: np.ndarray | None = None
-    pred_confs: np.ndarray | None = None
+    pred_visibility: np.ndarray | None = None
+    pred_confidence: np.ndarray | None = None
     points_rgb: np.ndarray | None = None
     points_xyf: np.ndarray | None = None
 
@@ -205,7 +219,6 @@ def run_vggt_reconstruction(
     reconstruction_resolution = cfg.vggt_fixed_resolution
 
     if used_ba:
-        image_size = np.array(image_batch.shape[-2:])
         scale = cfg.img_load_resolution / cfg.vggt_fixed_resolution
         try:
             autocast_ctx = (
@@ -214,7 +227,7 @@ def run_vggt_reconstruction(
                 else nullcontext()
             )
             with autocast_ctx:
-                pred_tracks, pred_vis_scores, pred_confs, points_3d, points_rgb = predict_tracks(
+                pred_tracks, pred_visibility, pred_confidence, points_3d, points_rgb = predict_tracks(
                     image_batch,
                     conf=depth_conf,
                     points_3d=points_3d,
@@ -228,13 +241,13 @@ def run_vggt_reconstruction(
                     torch.cuda.empty_cache()
 
             intrinsic[:, :2, :] *= scale
-            track_mask = pred_vis_scores > cfg.vis_thresh
+            track_mask = pred_visibility > cfg.vis_thresh
             reconstruction, valid_track_mask = batch_np_matrix_to_pycolmap(
                 points_3d,
                 extrinsic,
                 intrinsic,
                 pred_tracks,
-                image_size,
+                ImageSize(height=height, width=width),
                 masks=track_mask,
                 max_reproj_error=cfg.max_reproj_error,
                 shared_camera=cfg.shared_camera,
@@ -258,9 +271,6 @@ def run_vggt_reconstruction(
             used_ba = False
 
     if not used_ba:
-        image_size = np.array([cfg.vggt_fixed_resolution, cfg.vggt_fixed_resolution])
-        num_frames, height, width, _ = points_3d.shape
-
         resized = F.interpolate(
             image_batch,
             size=(cfg.vggt_fixed_resolution, cfg.vggt_fixed_resolution),
@@ -268,9 +278,10 @@ def run_vggt_reconstruction(
             align_corners=False,
         )
         points_rgb = (resized.detach().cpu().numpy() * 255).astype(np.uint8).transpose(0, 2, 3, 1)
-        points_xyf = create_pixel_coordinate_grid(num_frames, height, width)
+        num_frames, h, w, _ = points_3d.shape
+        points_xyf = create_pixel_coordinate_grid(num_frames, h, w)
 
-        conf_mask = depth_conf_map >= cfg.conf_thres_value
+        conf_mask = depth_conf_map >= cfg.confidence_threshold
         conf_mask = randomly_limit_trues(conf_mask, cfg.max_points_for_colmap)
 
         points_3d = points_3d[conf_mask]
@@ -283,7 +294,7 @@ def run_vggt_reconstruction(
             points_rgb,
             extrinsic,
             intrinsic,
-            image_size,
+            ImageSize(height=cfg.vggt_fixed_resolution, width=cfg.vggt_fixed_resolution),
             shared_camera=cfg.shared_camera,
             camera_type=cfg.camera_type_feedforward,
             image_id_list=list(image_indices),
@@ -323,15 +334,15 @@ def run_vggt_reconstruction(
         used_ba=used_ba,
         valid_track_mask=valid_track_mask,
         pred_tracks=pred_tracks,
-        pred_vis_scores=pred_vis_scores,
-        pred_confs=pred_confs,
+        pred_visibility=pred_visibility,
+        pred_confidence=pred_confidence,
         fallback_reason=fallback_reason,
     )
 
 
-def resolve_vggt_weights_path(checkpoint_path: PathLike | None = None) -> Path:
+def resolve_vggt_weights_path(weights_path: PathLike | None = None) -> Path:
     """Return a concrete path to the VGGT checkpoint, validating that it exists."""
-    path = Path(checkpoint_path) if checkpoint_path is not None else DEFAULT_WEIGHTS_PATH
+    path = Path(weights_path) if weights_path is not None else DEFAULT_WEIGHTS_PATH
     if not path.exists():
         raise FileNotFoundError(
             f"VGGT checkpoint not found at {path}. Please run 'scripts/download_model_weights.sh' from the repo root."
@@ -358,7 +369,7 @@ def default_vggt_dtype(device: torch.device | None = None) -> torch.dtype:
 
 
 def load_vggt_model(
-    checkpoint_path: PathLike | None = None,
+    weights_path: PathLike | None = None,
     *,
     device: torch.device | str | None = None,
     dtype: torch.dtype | None = None,
@@ -370,7 +381,7 @@ def load_vggt_model(
     if resolved_dtype is None and resolved_device.type == "cuda":
         resolved_dtype = default_vggt_dtype(resolved_device)
 
-    weights_path = resolve_vggt_weights_path(checkpoint_path)
+    weights_path = resolve_vggt_weights_path(weights_path)
     _LOGGER.info("⏳ Loading VGGT checkpoint from %s", weights_path)
 
     model = VGGT()
@@ -397,7 +408,7 @@ def run_VGGT(model, images, dtype, resolution=518):
 
     with torch.no_grad():
         if images.device.type == "cuda":
-            autocast_ctx = amp.autocast("cuda", dtype=dtype) if dtype is not None else amp.autocast("cuda")
+            autocast_ctx = amp_autocast("cuda", dtype=dtype) if dtype is not None else amp_autocast("cuda")
         else:
             autocast_ctx = nullcontext()
         with autocast_ctx:  # type: ignore[arg-type]
@@ -463,7 +474,7 @@ def batch_np_matrix_to_pycolmap(
     extrinsics,
     intrinsics,
     tracks,
-    image_size,
+    image_size: ImageSize,
     image_id_list,
     masks=None,
     max_reproj_error=None,
@@ -475,32 +486,23 @@ def batch_np_matrix_to_pycolmap(
     points_rgb=None,
 ):
     """
-    Convert Batched NumPy Arrays to PyCOLMAP
+    Convert batched NumPy arrays (with track information) to a PyCOLMAP reconstruction.
 
-    Check https://github.com/colmap/pycolmap for more details about its format
-
-    NOTE that colmap expects images/cameras/points3D to be 1-indexed
-    so there is a +1 offset between colmap index and batch index
-
-
-    NOTE: different from VGGSfM, this function:
-    1. Use np instead of torch
-    2. Frame index and camera id starts from 1 rather than 0 (to fit the format of PyCOLMAP)
+    Args mirror the VGGSfM helper but enforce an explicit `ImageSize` instead of a raw tuple.
     """
     # points3d: Px3
     # extrinsics: Nx3x4
     # intrinsics: Nx3x3
     # tracks: NxPx2
     # masks: NxP
-    # image_size: 2, assume all the frames have been padded to the same size
-    # where N is the number of frames and P is the number of tracks
+    # image_size: ImageSize, assume all the frames have been padded to the same size
     # image_id_list: global image id list if any
 
     N, P, _ = tracks.shape
     assert len(extrinsics) == N
     assert len(intrinsics) == N
     assert len(points3d) == P
-    assert image_size.shape[0] == 2
+    height, width = int(image_size.height), int(image_size.width)
 
     reproj_mask = None
     if max_reproj_error is not None:
@@ -532,10 +534,11 @@ def batch_np_matrix_to_pycolmap(
     # Only add 3D points that have sufficient 2D points
     for i in valid_idx:
         # Use RGB colors if provided, otherwise use zeros
-        rgb: np.ndarray = points_rgb[i] if points_rgb is not None else np.zeros(3)
-        reconstruction.add_point3D(points3d[i], pycolmap.Track(), rgb)
+        rgb = points_rgb[i] if points_rgb is not None else np.zeros(3)
+        reconstruction.add_point3D(points3d[i], pycolmap.Track(), rgb)  # type: ignore
 
     num_points3D = len(valid_idx)
+
     camera = None
     # frame idx
     for frame_index in range(N):
@@ -548,8 +551,8 @@ def batch_np_matrix_to_pycolmap(
 
             camera = pycolmap.Camera(  # type: ignore
                 model=camera_type,
-                width=image_size[0],
-                height=image_size[1],
+                width=width,
+                height=height,
                 params=pycolmap_intrinsics,
                 camera_id=image_idx,
             )
@@ -603,33 +606,27 @@ def batch_np_matrix_to_pycolmap(
 
 
 def batch_np_matrix_to_pycolmap_wo_track(
-    points3d,
-    points_xyf,
-    points_rgb,
-    extrinsics,
-    intrinsics,
-    image_size,
+    points3d,  # Px3
+    points_xyf,  # Px3, with x, y coordinates and frame indices
+    points_rgb,  # Px3, rgb colors
+    extrinsics,  # Nx3x4
+    intrinsics,  # Nx3x3
+    image_size: ImageSize,
     shared_camera=False,
     camera_type="SIMPLE_PINHOLE",
-    image_id_list=None,
+    image_id_list=None,  # global image id list if any
 ):
     """
     Convert Batched NumPy Arrays to PyCOLMAP
+    where N is the number of frames and P is the number of tracks.
 
     Different from batch_np_matrix_to_pycolmap, this function does not use tracks.
 
+    Assumes all the frames have been padded to the same size.
     It saves points3d to colmap reconstruction format only to serve as init for Gaussians or other nvs methods.
 
     Do NOT use this for BA.
     """
-    # points3d: Px3
-    # points_xyf: Px3, with x, y coordinates and frame indices
-    # points_rgb: Px3, rgb colors
-    # extrinsics: Nx3x4
-    # intrinsics: Nx3x3
-    # image_size: 2, assume all the frames have been padded to the same size
-    # where N is the number of frames and P is the number of tracks
-    # image_id_list: global image id list if any
 
     N = len(extrinsics)
     P = len(points3d)
@@ -643,9 +640,7 @@ def batch_np_matrix_to_pycolmap_wo_track(
         reconstruction.add_point3D(points3d[i], pycolmap.Track(), points_rgb[i])
 
     camera = None
-    # frame idx
     for frame_index in range(N):
-
         image_idx = image_id_list[frame_index]
 
         # set camera
@@ -654,26 +649,21 @@ def batch_np_matrix_to_pycolmap_wo_track(
 
             camera = pycolmap.Camera(
                 model=camera_type,
-                width=image_size[0],
-                height=image_size[1],
+                width=image_size.width,
+                height=image_size.height,
                 params=pycolmap_intrinsics,
                 camera_id=image_idx,
             )
-
-            # add camera
             reconstruction.add_camera(camera)
 
-        # set image
         cam_from_world = pycolmap.Rigid3d(
             pycolmap.Rotation3d(extrinsics[frame_index][:3, :3]), extrinsics[frame_index][:3, 3]
-        )  # Rot and Trans
-
+        )
         image = pycolmap.Image(
             id=image_idx, name=f"image_{image_idx}", camera_id=camera.camera_id, cam_from_world=cam_from_world
         )
 
         points2D_list = []
-
         point2D_idx = 0
 
         points_belong_to_frame = points_xyf[:, 2].astype(np.int32) == frame_index
@@ -681,11 +671,9 @@ def batch_np_matrix_to_pycolmap_wo_track(
 
         for point3D_batch_idx in points_belong_to_frame:
             point3D_id = point3D_batch_idx + 1
-            point2D_xyf = points_xyf[point3D_batch_idx]
-            point2D_xy = point2D_xyf[:2]
+            point2D_xy = points_xyf[point3D_batch_idx][:2]
             points2D_list.append(pycolmap.Point2D(point2D_xy, point3D_id))
 
-            # add element
             track = reconstruction.points3D[point3D_id].track
             track.add_element(image_idx, point2D_idx)
             point2D_idx += 1
@@ -694,12 +682,9 @@ def batch_np_matrix_to_pycolmap_wo_track(
 
         try:
             image.points2D = pycolmap.ListPoint2D(points2D_list)  # type: ignore
-            # image.registered = True
         except Exception as e:
             _LOGGER.warning("Frame %s does not have any points: %s", image_idx, e)
-            # image.registered = False
 
-        # add image
         reconstruction.add_image(image)
 
     return reconstruction
@@ -764,6 +749,7 @@ def rename_colmap_recons_and_rescale_camera(
 __all__ = [
     "VGGT_SUBMODULE_PATH",
     "DEFAULT_WEIGHTS_PATH",
+    "ImageSize",
     "VGGTReconstructionConfig",
     "VGGTReconstructionResult",
     "resolve_vggt_weights_path",

@@ -143,7 +143,7 @@ def add_common_vggt_args(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
         help="Enable VGGSfM fine tracking refinement (slower but more accurate).",
     )
     parser.add_argument(
-        "--conf_thres_value",
+        "--confidence_threshold",
         type=float,
         default=5.0,
         help="Depth confidence threshold for the feed-forward path (used when BA is disabled).",
@@ -212,7 +212,7 @@ def demo_fn(args: argparse.Namespace) -> bool:
         fine_tracking=args.fine_tracking,
         vis_thresh=args.vis_thresh,
         max_reproj_error=args.max_reproj_error,
-        conf_thres_value=args.conf_thres_value,
+        confidence_threshold=args.confidence_threshold,
         shared_camera=args.shared_camera,
         use_colmap_ba=args.use_ba,
         camera_type_ba=args.camera_type,

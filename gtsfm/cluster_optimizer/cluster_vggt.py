@@ -5,7 +5,75 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterOptimizerBase
+import numpy as np
+import torch
+import torch.nn.functional as F
+from dask.delayed import Delayed, delayed
+
+from gtsfm.cluster_optimizer.cluster_optimizer_base import REACT_RESULTS_PATH, ClusterOptimizerBase
+from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
+from gtsfm.products.visibility_graph import visibility_graph_keys
+from gtsfm.utils.vggt import VGGTReconstructionConfig, VGGTReconstructionResult, run_vggt_reconstruction
+
+
+def _resize_to_square_tensor(image: np.ndarray, target_size: int) -> torch.Tensor:
+    """Resize a HxWx3 numpy image to a square torch tensor normalized to [0,1]."""
+    tensor = torch.from_numpy(image).permute(2, 0, 1).unsqueeze(0).float()
+    tensor = F.interpolate(tensor, size=(target_size, target_size), mode="bilinear", align_corners=False)
+    return (tensor.squeeze(0)) / 255.0
+
+
+def _load_vggt_inputs(loader, indices: list[int], target_size: int):
+    """Load and preprocess a batch of images for VGGT."""
+
+    def resize_transform(arr: np.ndarray) -> torch.Tensor:
+        return _resize_to_square_tensor(arr, target_size)
+
+    return loader.load_image_batch_vggt(indices, target_size, resize_transform)
+
+
+def _run_vggt_pipeline(image_batch: torch.Tensor, seed: int, **kwargs) -> VGGTReconstructionResult:
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+
+    return run_vggt_reconstruction(image_batch, **kwargs)
+
+
+def _save_reconstruction_as_text(
+    result: VGGTReconstructionResult,
+    results_path: Path,
+    copy_to_react: bool,
+    output_root: Path,
+) -> None:
+    target_dir = results_path / "vggt"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    result.reconstruction.write_text(str(target_dir))
+
+    if copy_to_react:
+        try:
+            relative = results_path.relative_to(output_root)
+        except ValueError:
+            relative = Path(results_path.name)
+        react_destination = REACT_RESULTS_PATH / relative / "vggt"
+        react_destination.mkdir(parents=True, exist_ok=True)
+        result.reconstruction.write_text(str(react_destination))
+
+
+def _aggregate_vggt_metrics(result: VGGTReconstructionResult) -> GtsfmMetricsGroup:
+    reconstruction = result.reconstruction
+    num_images = len(reconstruction.images)
+    num_points3d = len(reconstruction.points3D)
+    return GtsfmMetricsGroup(
+        "vggt_runtime_metrics",
+        [
+            GtsfmMetric("num_images", num_images),
+            GtsfmMetric("num_points3d", num_points3d),
+            GtsfmMetric("used_ba", float(result.used_ba)),
+        ],
+    )
 
 
 class ClusterVGGT(ClusterOptimizerBase):
@@ -53,3 +121,65 @@ class ClusterVGGT(ClusterOptimizerBase):
             f"camera_type={self._camera_type}",
         ]
         return "ClusterVGGT(\n  " + ",\n  ".join(str(c) for c in components) + "\n)"
+
+    def create_computation_graph(
+        self,
+        num_images: int,
+        one_view_data_dict,
+        output_paths,
+        loader,
+        output_root: Path,
+        visibility_graph,
+        image_futures,
+    ) -> tuple[list[Delayed], list[Delayed]]:
+        """Create the VGGT computation graph for a cluster."""
+
+        del num_images, one_view_data_dict, image_futures  # unused in VGGT pipeline
+
+        keys = sorted(visibility_graph_keys(visibility_graph))
+        if not keys:
+            return [], []
+
+        image_filenames = loader.image_filenames()
+        image_names = [str(image_filenames[idx]) for idx in keys]
+
+        config = VGGTReconstructionConfig(
+            use_ba=self._use_ba,
+            vggt_fixed_resolution=self._inference_resolution,
+            img_load_resolution=self._image_load_resolution,
+            confidence_threshold=self._conf_threshold,
+            max_points_for_colmap=self._max_points_for_colmap,
+            camera_type_ba=self._camera_type,
+            camera_type_feedforward=self._camera_type,
+            shared_camera=self._shared_camera,
+            use_colmap_ba=self._use_ba,
+        )
+
+        image_batch_graph, original_coords_graph = delayed(_load_vggt_inputs, nout=2)(
+            loader, keys, self._image_load_resolution
+        )
+
+        result_graph = delayed(_run_vggt_pipeline)(
+            image_batch_graph,
+            seed=self._seed,
+            original_coords=original_coords_graph,
+            image_indices=keys,
+            image_names=image_names,
+            config=config,
+            weights_path=self._weights_path,
+        )
+
+        metrics_tasks = [delayed(_aggregate_vggt_metrics)(result_graph)]
+
+        io_tasks = []
+        with self._output_annotation():
+            io_tasks.append(
+                delayed(_save_reconstruction_as_text)(
+                    result_graph,
+                    output_paths.results,
+                    self._copy_results_to_react,
+                    output_root,
+                )
+            )
+
+        return io_tasks, metrics_tasks
