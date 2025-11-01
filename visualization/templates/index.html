@@ -20,6 +20,20 @@
 
   <!-- Main content area for the 3D viewer -->
   <main id="main-content">
+    <div id="sceneStats">
+      <div class="stat-pair">
+        <span class="label">Cameras</span>
+        <span class="value" id="statCameras">0</span>
+      </div>
+      <div class="stat-pair">
+        <span class="label">Points</span>
+        <span class="value" id="statPoints">0</span>
+      </div>
+      <div class="stat-wide">
+        <span class="label">Image</span>
+        <span class="value" id="statImageName">—</span>
+      </div>
+    </div>
     <canvas id="renderCanvas"></canvas>
     
     <!-- Heads-Up Display for viewer controls -->
