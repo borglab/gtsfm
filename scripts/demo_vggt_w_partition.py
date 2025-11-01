@@ -22,14 +22,8 @@ import torch
 import trimesh
 from demo_vggt import Timer, add_common_vggt_args
 
-from gtsfm.utils.vggt import (
-    VGGTReconstructionConfig,
-    default_vggt_device,
-    default_vggt_dtype,
-    load_and_preprocess_images_square,
-    load_vggt_model,
-    run_vggt_reconstruction,
-)
+import gtsfm.utils.vggt as vggt
+from gtsfm.utils.vggt import VGGTReconstructionConfig
 
 # Configure CUDA settings
 torch.backends.cudnn.enabled = True
@@ -71,12 +65,12 @@ def demo_fn(cluster_key: str, image_indices: List[int], args: argparse.Namespace
         torch.cuda.manual_seed_all(args.seed)
     print(f"[{cluster_key}] Setting seed as: {args.seed}")
 
-    device = default_vggt_device()
-    dtype = default_vggt_dtype(device)
+    device = vggt.default_device()
+    dtype = vggt.default_dtype(device)
     print(f"[{cluster_key}] Using device: {device.type}")
     print(f"[{cluster_key}] Using dtype: {dtype}")
 
-    model = load_vggt_model(device=device, dtype=dtype)
+    model = vggt.load_model(device=device, dtype=dtype)
     print(f"[{cluster_key}] Model loaded")
 
     image_dir = os.path.join(args.output_dir, cluster_key, "images")
@@ -88,7 +82,7 @@ def demo_fn(cluster_key: str, image_indices: List[int], args: argparse.Namespace
     img_load_resolution = 1024
     vggt_fixed_resolution = 518
 
-    images, original_coords = load_and_preprocess_images_square(image_path_list, img_load_resolution)
+    images, original_coords = vggt.load_and_preprocess_images_square(image_path_list, img_load_resolution)
     images = images.to(device)
     original_coords = original_coords.to(device)
     print(f"[{cluster_key}] Loaded {len(images)} images from {image_dir}")
@@ -109,7 +103,7 @@ def demo_fn(cluster_key: str, image_indices: List[int], args: argparse.Namespace
     )
 
     with Timer(f"[{cluster_key}] VGGT reconstruction"):
-        result = run_vggt_reconstruction(
+        result = vggt.run_reconstruction(
             images,
             image_indices=image_indices,
             image_names=base_image_path_list,
@@ -118,6 +112,7 @@ def demo_fn(cluster_key: str, image_indices: List[int], args: argparse.Namespace
             device=device,
             dtype=dtype,
             model=model,
+            total_num_images=max(image_indices) + 1,
         )
 
     if result.fallback_reason:
@@ -130,12 +125,9 @@ def demo_fn(cluster_key: str, image_indices: List[int], args: argparse.Namespace
     sparse_reconstruction_dir = os.path.join(args.output_dir, cluster_key, sparse_subdir)
     print(f"[{cluster_key}] Saving reconstruction to {sparse_reconstruction_dir}")
     os.makedirs(sparse_reconstruction_dir, exist_ok=True)
-    if args.colmap_format in {"bin", "both"}:
-        result.reconstruction.write(sparse_reconstruction_dir)
-    if args.colmap_format in {"txt", "both"}:
-        result.reconstruction.write_text(sparse_reconstruction_dir)
+    result.gtsfm_data.export_as_colmap_text(sparse_reconstruction_dir)
 
-    if result.points_rgb is not None:
+    if result.points_rgb is not None and result.points_3d.size > 0:
         try:
             trimesh.PointCloud(result.points_3d, colors=result.points_rgb).export(
                 os.path.join(sparse_reconstruction_dir, "points.ply")

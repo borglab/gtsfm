@@ -103,11 +103,8 @@ class TestClusterTreeIO(unittest.TestCase):
         tree = scene_tree.read_colmap(str(self.base_dir))
         assert tree is not None
 
-        image_shapes = [(800, 600)] * 10  # Dummy shapes
-        image_filenames = [f"image_{i}.jpg" for i in range(10)]  # Dummy filenames
-
         with tempfile.TemporaryDirectory() as temp_dir:
-            scene_tree.write_colmap(tree, temp_dir, image_shapes=image_shapes, image_filenames=image_filenames)
+            scene_tree.write_colmap(tree, temp_dir)
             # Read back the written tree and verify it matches the original
             read_back_tree = scene_tree.read_colmap(temp_dir)
             assert read_back_tree is not None, "Read back tree is None"

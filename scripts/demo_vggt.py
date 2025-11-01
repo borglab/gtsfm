@@ -19,14 +19,8 @@ import numpy as np
 import torch
 import trimesh
 
-from gtsfm.utils.vggt import (  # type: ignore[attr-defined]
-    VGGTReconstructionConfig,
-    default_vggt_device,
-    default_vggt_dtype,
-    load_and_preprocess_images_square,
-    load_vggt_model,
-    run_vggt_reconstruction,
-)
+import gtsfm.utils.vggt as vggt
+from gtsfm.utils.vggt import VGGTReconstructionConfig
 
 # Configure CUDA settings
 torch.backends.cudnn.enabled = True
@@ -58,8 +52,8 @@ def reset_peak_memory():
 def get_peak_memory_str():
     if torch.cuda.is_available():
         alloc = torch.cuda.max_memory_allocated() / (1024**2)
-        reserv = torch.cuda.max_memory_reserved() / (1024**2)
-        return f"GPU peak allocated: {alloc:.1f} MB | reserved: {reserv:.1f} MB"
+        reserve = torch.cuda.max_memory_reserved() / (1024**2)
+        return f"GPU peak allocated: {alloc:.1f} MB | reserved: {reserve:.1f} MB"
     else:
         if _HAS_PSUTIL:
             rss = psutil.Process(os.getpid()).memory_info().rss / (1024**2)
@@ -80,6 +74,7 @@ class Timer:
 
     def __exit__(self, exc_type, exc, tb):
         _sync()
+        assert self.t0 is not None
         self.elapsed = time.perf_counter() - self.t0
         print(f"[TIMER] {self.label}: {self.elapsed:.2f} s")
 
@@ -148,13 +143,6 @@ def add_common_vggt_args(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
         default=5.0,
         help="Depth confidence threshold for the feed-forward path (used when BA is disabled).",
     )
-    parser.add_argument(
-        "--colmap_format",
-        type=str,
-        choices=("bin", "txt", "both"),
-        default="bin",
-        help="Which COLMAP serialization(s) to export: binary `.bin`, text `.txt`, or both.",
-    )
     return parser
 
 
@@ -181,12 +169,12 @@ def demo_fn(args: argparse.Namespace) -> bool:
         torch.cuda.manual_seed_all(args.seed)
     print(f"Setting seed as: {args.seed}")
 
-    device = default_vggt_device()
-    dtype = default_vggt_dtype(device)
+    device = vggt.default_device()
+    dtype = vggt.default_dtype(device)
     print(f"Using device: {device.type}")
     print(f"Using dtype: {dtype}")
 
-    model = load_vggt_model(device=device, dtype=dtype)
+    model = vggt.load_model(device=device, dtype=dtype)
     print("Model loaded")
 
     image_dir = os.path.join(args.scene_dir, "images")
@@ -198,7 +186,7 @@ def demo_fn(args: argparse.Namespace) -> bool:
     vggt_fixed_resolution = 518
     img_load_resolution = 1024
 
-    images, original_coords = load_and_preprocess_images_square(image_path_list, img_load_resolution)
+    images, original_coords = vggt.load_and_preprocess_images_square(image_path_list, img_load_resolution)
     images = images.to(device)
     original_coords = original_coords.to(device)
     print(f"Loaded {len(images)} images from {image_dir}")
@@ -222,7 +210,7 @@ def demo_fn(args: argparse.Namespace) -> bool:
 
     reset_peak_memory()
     with Timer("VGGT reconstruction"):
-        result = run_vggt_reconstruction(
+        result = vggt.run_reconstruction(
             images,
             image_indices=image_indices,
             image_names=base_image_path_list,
@@ -231,6 +219,7 @@ def demo_fn(args: argparse.Namespace) -> bool:
             device=device,
             dtype=dtype,
             model=model,
+            total_num_images=len(image_path_list),
         )
     print(get_peak_memory_str())
 
@@ -241,12 +230,9 @@ def demo_fn(args: argparse.Namespace) -> bool:
     sparse_reconstruction_dir = os.path.join(args.scene_dir, output_dir_name)
     print(f"Saving reconstruction to {sparse_reconstruction_dir}")
     os.makedirs(sparse_reconstruction_dir, exist_ok=True)
-    if args.colmap_format in {"bin", "both"}:
-        result.reconstruction.write(sparse_reconstruction_dir)
-    if args.colmap_format in {"txt", "both"}:
-        result.reconstruction.write_text(sparse_reconstruction_dir)
+    result.gtsfm_data.export_as_colmap_text(sparse_reconstruction_dir)
 
-    if result.points_rgb is not None:
+    if result.points_rgb is not None and result.points_3d.size > 0:
         try:
             trimesh.PointCloud(result.points_3d, colors=result.points_rgb).export(
                 os.path.join(sparse_reconstruction_dir, "points.ply")

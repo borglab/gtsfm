@@ -7,21 +7,17 @@ import pickle
 import unittest
 from pathlib import Path
 
+import numpy as np
 import torch
 from torchvision.transforms import v2 as transforms  # type: ignore
 
+import gtsfm.utils.vggt as vggt
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.loader.olsson_loader import OlssonLoader
 from gtsfm.products.cluster_tree import ClusterTree
 from gtsfm.products.visibility_graph import VisibilityGraph
 from gtsfm.utils.tree import Tree  # PreOrderIter
-from gtsfm.utils.vggt import (
-    VGGTReconstructionConfig,
-    default_vggt_device,
-    default_vggt_dtype,
-    load_vggt_model,
-    run_vggt_reconstruction,
-)
+from gtsfm.utils.vggt import VGGTReconstructionConfig
 
 LocalScene = tuple[Path, GtsfmData]
 SceneTree = Tree[LocalScene]
@@ -53,12 +49,12 @@ def run_vggt(
         torch.cuda.manual_seed_all(seed)
     print(f"Setting seed as: {seed}")
 
-    device = default_vggt_device()
-    dtype = default_vggt_dtype(device)
+    device = vggt.default_device()
+    dtype = vggt.default_dtype(device)
     print(f"Using device: {device.type}")
     print(f"Using dtype: {dtype}")
 
-    model = load_vggt_model(device=device)
+    model = vggt.load_model(device=device)
     print("Model loaded")
 
     image_batch = image_batch.to(device)
@@ -80,7 +76,7 @@ def run_vggt(
         camera_type_ba=camera_type,
     )
 
-    result = run_vggt_reconstruction(
+    result = vggt.run_reconstruction(
         image_batch,
         image_indices=image_indices,
         image_names=[f"image_{idx}" for idx in image_indices],
@@ -89,6 +85,7 @@ def run_vggt(
         device=device,
         dtype=dtype,
         model=model,
+        total_num_images=len(image_indices),
     )
 
     output_dir = DATA_ROOT_PATH / "vggt_test_output"
@@ -99,13 +96,12 @@ def run_vggt(
     sparse_reconstruction_dir = output_dir / output_subdir
     print(f"Saving reconstruction to {sparse_reconstruction_dir}")
     sparse_reconstruction_dir.mkdir(parents=True, exist_ok=True)
-    result.reconstruction.write(str(sparse_reconstruction_dir))
-    result.reconstruction.write_text(str(sparse_reconstruction_dir))
+    result.gtsfm_data.export_as_colmap_text(sparse_reconstruction_dir)
 
     if result.fallback_reason:
         print(result.fallback_reason)
 
-    return GtsfmData(0, None, None)
+    return result.gtsfm_data
 
 
 def run_vggt_for_edges(vg: VisibilityGraph) -> GtsfmData:
@@ -124,6 +120,65 @@ class TestVGGT(unittest.TestCase):
 
     def setUp(self) -> None:
         pass
+
+    def test_coordinate_round_trip(self) -> None:
+        """Ensure the helper that maps VGGT grid coordinates back to original pixels is consistent.
+
+        VGGT operates on square, padded inputs. The loader pads each image to a square, rescales it
+        to ``img_load_resolution`` (1024 in our tests), and VGGT then down-samples that square to the
+        inference resolution (518). ``_convert_measurement_to_original_resolution`` must undo both
+        scaling steps and the padding offsets so that the merged reconstructions use the correct
+        camera indices during alignment. This test uses an analytic example where we can derive the
+        expected coordinates exactly and checks that the helper inverts the forward mapping.
+        """
+
+        width, height = 640, 480
+        img_load_resolution = 1024
+        inference_resolution = 518
+
+        max_side = max(width, height)
+        pad_left = (max_side - width) / 2.0
+        pad_top = (max_side - height) / 2.0
+        scale = img_load_resolution / max_side
+        original_coord = np.array(
+            [
+                pad_left * scale,
+                pad_top * scale,
+                (pad_left + width) * scale,
+                (pad_top + height) * scale,
+                width,
+                height,
+            ],
+            dtype=np.float32,
+        )
+
+        def forward_to_inference(u: float, v: float) -> tuple[float, float]:
+            """Simulate the loader + VGGT downsampling path to produce inference-space coords."""
+
+            u_padded = (u + pad_left) * scale
+            v_padded = (v + pad_top) * scale
+            shrink = inference_resolution / img_load_resolution
+            return (u_padded * shrink, v_padded * shrink)
+
+        # Corners and center stress the padding math.
+        samples = [
+            (0.0, 0.0),
+            (width - 1.0, 0.0),
+            (0.0, height - 1.0),
+            (width - 1.0, height - 1.0),
+            (width / 2.0, height / 2.0),
+        ]
+
+        for u_orig, v_orig in samples:
+            uv_infer = forward_to_inference(u_orig, v_orig)
+            u_back, v_back = vggt._convert_measurement_to_original_resolution(
+                uv_infer,
+                original_coord,
+                inference_resolution,
+                img_load_resolution,
+            )
+            self.assertAlmostEqual(u_back, u_orig, places=3)
+            self.assertAlmostEqual(v_back, v_orig, places=3)
 
     def test_run_vggt_on_some_images(self):
         """Load four door images using Olsson loader and run vggt on them."""
@@ -159,7 +214,8 @@ class TestVGGT(unittest.TestCase):
             gtsfm_data = run_vggt(image_batch, indices, original_coords, use_ba=True)
 
         self.assertIsNotNone(gtsfm_data)
-        # self.assertEqual(gtsfm_data.number_images(), 4)
+        self.assertEqual(gtsfm_data.number_images(), len(indices))
+        self.assertGreaterEqual(len(gtsfm_data.get_valid_camera_indices()), len(indices))
 
     @unittest.skip("Skipping VGGT on cluster tree test for now.")
     def test_vggt_on_cluster_tree(self) -> None:
