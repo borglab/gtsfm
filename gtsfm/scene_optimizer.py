@@ -6,7 +6,7 @@ Authors: Ayush Baid, John Lambert
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Sequence, TypeVar, cast
+from typing import Mapping, Optional, Sequence, TypeVar, cast
 
 import matplotlib
 from dask.delayed import delayed
@@ -197,10 +197,10 @@ class SceneOptimizer:
         client: Client,
         num_images: int,
         one_view_data_dict: dict[int, OneViewData],
-        image_futures: Sequence[Future],
+        image_future_map: Mapping[int, Future],
     ) -> Tree[ClusterContext]:
         """Annotate each cluster node with static metadata required for scheduling."""
-        shared_image_futures = tuple(image_futures)
+        shared_image_future_map = dict(image_future_map)
 
         def to_context(path: tuple[int, ...], visibility_graph: VisibilityGraph) -> ClusterContext:
             output_paths = base_output_paths if len(path) == 0 else prepare_output_paths(self.output_root, path)
@@ -212,7 +212,7 @@ class SceneOptimizer:
                 client=client,
                 num_images=num_images,
                 one_view_data_dict=one_view_data_dict,
-                image_futures=shared_image_futures,
+                image_future_map=shared_image_future_map,
                 loader=self.loader,
             )
 
@@ -260,16 +260,14 @@ class SceneOptimizer:
         client: Client,
         handles_tree: Tree[ClusterExecutionHandles],
         merged_tree: Tree[Future],
-        image_futures: Sequence[Future],
+        image_future_map: Mapping[int, Future],
     ) -> Tree[Future]:
         """Schedule persistence of merged reconstructions for each cluster."""
-        shared_image_futures = tuple(image_futures)
-
         export_payload_tree = Tree.zip(handles_tree, merged_tree).map(
             lambda value: (
                 value[0],
                 value[1],
-                shared_image_futures,
+                tuple(image_future_map[idx] for idx in sorted(image_future_map.keys())),
             )
         )
 
@@ -287,7 +285,7 @@ class SceneOptimizer:
         logger.info("🔥 GTSFM: Running image pair retrieval...")
         retriever_metrics, visibility_graph = self._run_retriever(client, base_output_paths)
         base_metrics_groups.append(retriever_metrics)
-        image_futures = self.loader.get_all_images_as_futures(client)
+        image_future_map = self.loader.get_image_futures(client)
 
         logger.info("🔥 GTSFM: Partitioning the view graph...")
         assert self.graph_partitioner is not None, "Graph partitioner is not set up!"
@@ -310,7 +308,7 @@ class SceneOptimizer:
                     client=client,
                     num_images=num_images,
                     one_view_data_dict=one_view_data_dict,
-                    image_futures=image_futures,
+                    image_future_map=image_future_map,
                 )
 
                 handles_tree = context_tree.map(self._schedule_single_cluster)
@@ -320,7 +318,7 @@ class SceneOptimizer:
                     client=client,
                     handles_tree=handles_tree,
                     merged_tree=merged_tree,
-                    image_futures=image_futures,
+                    image_future_map=image_future_map,
                 )
                 root_merge_future: Optional[Future] = merged_tree.value
                 for handle_node, merged_node, export_node in zip(

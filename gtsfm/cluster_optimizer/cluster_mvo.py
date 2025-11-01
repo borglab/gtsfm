@@ -7,7 +7,7 @@ import shutil
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional, cast
+from typing import Any, Optional, Sequence, cast
 
 import numpy as np
 from dask.delayed import Delayed, delayed
@@ -35,7 +35,6 @@ from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 from gtsfm.densify.mvs_base import MVSBase
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
-from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.products.one_view_data import OneViewData
 from gtsfm.products.two_view_result import TwoViewResult
@@ -174,7 +173,7 @@ class ClusterMVO(ClusterOptimizerBase):
 
     @staticmethod
     def _save_two_view_visualizations(
-        loader: LoaderBase,
+        images_by_index: dict[int, Image],
         two_view_results: AnnotatedGraph[TwoViewResult],
         keypoints_list: list[Keypoints],
         output_dir: Path,
@@ -184,8 +183,11 @@ class ClusterMVO(ClusterOptimizerBase):
 
         output_dir.mkdir(parents=True, exist_ok=True)
         for (i1, i2), output in two_view_results.items():
-            image_i1 = loader.get_image(i1)
-            image_i2 = loader.get_image(i2)
+            if i1 not in images_by_index or i2 not in images_by_index:
+                logger.warning("Images for indices %d or %d missing; skipping visualization.", i1, i2)
+                continue
+            image_i1 = images_by_index[i1]
+            image_i2 = images_by_index[i2]
             viz_utils.save_twoview_correspondences_viz(
                 image_i1,
                 image_i2,
@@ -196,11 +198,16 @@ class ClusterMVO(ClusterOptimizerBase):
                 file_path=str(output_dir / f"{i1}_{i2}__{image_i1.file_name}_{image_i2.file_name}.jpg"),
             )
 
+    @staticmethod
+    def _collect_cluster_images(indices: Sequence[int], images: Sequence[Image]) -> dict[int, Image]:
+        """Pair realized images with their indices for downstream consumers."""
+        return {idx: img for idx, img in zip(indices, images)}
+
     def _build_frontend_graphs(self, context: ClusterContext) -> FrontendGraphs:
         """Create delayed nodes for the full front-end pipeline."""
 
         visibility_edges = list(context.visibility_graph)
-        image_future_keys = [future.key for future in context.image_futures]
+        image_future_keys = [context.image_future_map[idx].key for idx in range(context.num_images)]
 
         keypoints_graph, putative_corr_idxs_graph, correspondence_duration_graph = delayed(
             ClusterMVO._run_correspondence_generator, nout=3
@@ -292,8 +299,14 @@ class ClusterMVO(ClusterOptimizerBase):
         """
         frontend_graphs: FrontendGraphs = self._build_frontend_graphs(context=context)
 
+        image_future_map = context.image_future_map
+        cluster_image_indices = sorted({idx for edge in context.visibility_graph for idx in edge})
+        cluster_images_graph = delayed(ClusterMVO._collect_cluster_images, pure=False)(
+            cluster_image_indices,
+            [image_future_map[idx] for idx in cluster_image_indices],
+        )
+
         # Note: the MultiviewOptimizer returns BA input and BA output aligned to GT via Sim(3).
-        image_delayed_map = context.loader.get_images_as_delayed_map()
         (
             ba_input_graph,
             ba_output_graph,
@@ -303,7 +316,7 @@ class ClusterMVO(ClusterOptimizerBase):
             keypoints_graph=frontend_graphs.padded_keypoints,  # type: ignore[arg-type]
             two_view_results_graph=frontend_graphs.two_view_results,  # type: ignore[arg-type]
             one_view_data_dict=context.one_view_data_dict,
-            image_delayed_map=image_delayed_map,
+            image_future_map=image_future_map,
             output_root=context.output_paths.plots,
         )
 
@@ -334,7 +347,7 @@ class ClusterMVO(ClusterOptimizerBase):
             with self._output_annotation():
                 delayed_io_tasks.append(
                     delayed(ClusterMVO._save_two_view_visualizations)(
-                        context.loader,
+                        cluster_images_graph,
                         frontend_graphs.two_view_results,
                         frontend_graphs.padded_keypoints,
                         context.output_paths.plots,
@@ -364,7 +377,7 @@ class ClusterMVO(ClusterOptimizerBase):
         )
 
         # Create I/O tasks.
-        images = [image_delayed_map[idx] for idx in range(context.num_images)]
+        images = [image_future_map[idx] for idx in range(context.num_images)]
         cameras_gt = [context.one_view_data_dict[idx].camera_gt for idx in range(context.num_images)]
         with self._output_annotation():
             if self._save_gtsfm_data:

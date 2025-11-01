@@ -6,7 +6,7 @@ import os
 from abc import abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING, Dict, Tuple
 
 from dask.base import annotate
 from dask.delayed import Delayed
@@ -52,7 +52,7 @@ class ClusterContext:
     client: Client
     num_images: int
     one_view_data_dict: dict[int, "OneViewData"]
-    image_futures: tuple[Future, ...]
+    image_future_map: Dict[int, Future]
     loader: "LoaderBase"
 
     @property
