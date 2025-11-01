@@ -626,6 +626,9 @@ def values_to_gtsfm_data(values: Values, initial_data: GtsfmData, shared_calib: 
 
         # Populate the result with optimized 3D point.
         result_track = SfmTrack(values.atPoint3(P(j)))
+        result_track.r = input_track.r
+        result_track.g = input_track.g
+        result_track.b = input_track.b
 
         for measurement_idx in range(input_track.numberMeasurements()):
             i, uv = input_track.measurement(measurement_idx)
