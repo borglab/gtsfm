@@ -22,13 +22,14 @@ import gtsfm.utils.viz as viz_utils
 from gtsfm.cluster_optimizer.cluster_optimizer_base import (
     REACT_METRICS_PATH,
     REACT_RESULTS_PATH,
+    ClusterComputationGraph,
+    ClusterContext,
     ClusterOptimizerBase,
     logger,
 )
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.common.outputs import OutputPaths
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 from gtsfm.densify.mvs_base import MVSBase
@@ -40,6 +41,7 @@ from gtsfm.products.one_view_data import OneViewData
 from gtsfm.products.two_view_result import TwoViewResult
 from gtsfm.products.visibility_graph import AnnotatedGraph, VisibilityGraph
 from gtsfm.two_view_estimator import TwoViewEstimator, create_two_view_estimator_futures
+from gtsfm.ui.gtsfm_process import UiMetadata
 from gtsfm.utils import transform
 
 
@@ -102,6 +104,16 @@ class ClusterMVO(ClusterOptimizerBase):
         if self.gaussian_splatting_optimizer is not None:
             components.append(f"gaussian_splatting_optimizer={self.gaussian_splatting_optimizer}")
         return "ClusterMVO(\n  " + ",\n  ".join(components) + "\n)"
+
+    @staticmethod
+    def get_ui_metadata() -> UiMetadata:
+        """Returns data needed to display node and edge info for this process in the process graph."""
+        return UiMetadata(
+            display_name="Multiview Optimizer",
+            input_products=("Key Images",),
+            output_products=("Bundle Adjustment Result",),
+            parent_plate="Cluster Optimizer",
+        )
 
     @staticmethod
     def _run_correspondence_generator(
@@ -184,18 +196,11 @@ class ClusterMVO(ClusterOptimizerBase):
                 file_path=str(output_dir / f"{i1}_{i2}__{image_i1.file_name}_{image_i2.file_name}.jpg"),
             )
 
-    def _build_frontend_graphs(
-        self,
-        num_images: int,
-        one_view_data_dict: dict[int, OneViewData],
-        loader: LoaderBase,
-        visibility_graph: VisibilityGraph,
-        image_futures: list[Future],
-    ) -> FrontendGraphs:
+    def _build_frontend_graphs(self, context: ClusterContext) -> FrontendGraphs:
         """Create delayed nodes for the full front-end pipeline."""
 
-        visibility_edges = list(visibility_graph)
-        image_future_keys = [future.key for future in image_futures]
+        visibility_edges = list(context.visibility_graph)
+        image_future_keys = [future.key for future in context.image_futures]
 
         keypoints_graph, putative_corr_idxs_graph, correspondence_duration_graph = delayed(
             ClusterMVO._run_correspondence_generator, nout=3
@@ -205,10 +210,10 @@ class ClusterMVO(ClusterOptimizerBase):
             image_future_keys,
         )
 
-        padded_keypoints_graph = delayed(_pad_keypoints_list)(keypoints_graph, num_images)
+        padded_keypoints_graph = delayed(_pad_keypoints_list)(keypoints_graph, context.num_images)
 
-        relative_pose_priors = loader.get_relative_pose_priors(visibility_graph) or {}
-        gt_scene_mesh = loader.get_gt_scene_trimesh()
+        relative_pose_priors = context.loader.get_relative_pose_priors(context.visibility_graph) or {}
+        gt_scene_mesh = context.loader.get_gt_scene_trimesh()
 
         two_view_results_graph, two_view_duration_graph = delayed(ClusterMVO._run_two_view_estimation, nout=2)(
             self.two_view_estimator,
@@ -216,7 +221,7 @@ class ClusterMVO(ClusterOptimizerBase):
             putative_corr_idxs_graph,
             relative_pose_priors,
             gt_scene_mesh,
-            one_view_data_dict,
+            context.one_view_data_dict,
         )
 
         runtime_metrics_graph = delayed(ClusterMVO._build_frontend_runtime_metrics)(
@@ -275,16 +280,7 @@ class ClusterMVO(ClusterOptimizerBase):
 
         # Downstream retrieval diagnostics are handled centrally after cluster execution.
 
-    def create_computation_graph(
-        self,
-        num_images: int,
-        one_view_data_dict: dict[int, OneViewData],
-        output_paths: OutputPaths,
-        loader: LoaderBase,
-        output_root: Path,
-        visibility_graph: VisibilityGraph,
-        image_futures: list[Future],
-    ) -> tuple[list[Delayed], list[Delayed]]:
+    def create_computation_graph(self, context: ClusterContext) -> ClusterComputationGraph | None:
         """Create Dask graphs for multi-view optimization and downstream products for a single cluster.
 
         The cluster optimizer now owns the full front-end execution for the provided `visibility_graph`
@@ -294,16 +290,10 @@ class ClusterMVO(ClusterOptimizerBase):
             - List of Delayed I/O tasks to be computed
             - List of Delayed metrics to be computed
         """
-        frontend_graphs: FrontendGraphs = self._build_frontend_graphs(
-            num_images=num_images,
-            one_view_data_dict=one_view_data_dict,
-            loader=loader,
-            visibility_graph=visibility_graph,
-            image_futures=image_futures,
-        )
+        frontend_graphs: FrontendGraphs = self._build_frontend_graphs(context=context)
 
         # Note: the MultiviewOptimizer returns BA input and BA output aligned to GT via Sim(3).
-        image_delayed_map = loader.get_images_as_delayed_map()
+        image_delayed_map = context.loader.get_images_as_delayed_map()
         (
             ba_input_graph,
             ba_output_graph,
@@ -312,9 +302,9 @@ class ClusterMVO(ClusterOptimizerBase):
         ) = self.multiview_optimizer.create_computation_graph(
             keypoints_graph=frontend_graphs.padded_keypoints,  # type: ignore[arg-type]
             two_view_results_graph=frontend_graphs.two_view_results,  # type: ignore[arg-type]
-            one_view_data_dict=one_view_data_dict,
+            one_view_data_dict=context.one_view_data_dict,
             image_delayed_map=image_delayed_map,
-            output_root=output_root,
+            output_root=context.output_paths.plots,
         )
 
         delayed_io_tasks: list[Delayed] = []
@@ -328,10 +318,10 @@ class ClusterMVO(ClusterOptimizerBase):
                 delayed_io_tasks.append(
                     delayed(self.save_full_frontend_metrics)(
                         report_graph,
-                        one_view_data_dict,
+                        context.one_view_data_dict,
                         filename=f"two_view_report_{tag}.json",
-                        metrics_path=output_paths.metrics,
-                        plot_base_path=output_paths.plots,
+                        metrics_path=context.output_paths.metrics,
+                        plot_base_path=context.output_paths.plots,
                     )
                 )
 
@@ -344,10 +334,10 @@ class ClusterMVO(ClusterOptimizerBase):
             with self._output_annotation():
                 delayed_io_tasks.append(
                     delayed(ClusterMVO._save_two_view_visualizations)(
-                        loader,
+                        context.loader,
                         frontend_graphs.two_view_results,
                         frontend_graphs.padded_keypoints,
-                        output_paths.plots,
+                        context.output_paths.plots,
                     )
                 )
 
@@ -368,14 +358,14 @@ class ClusterMVO(ClusterOptimizerBase):
         )
 
         # Modify BA input, BA output, and GT poses to have point clouds and frustums aligned with x,y,z axes.
-        gt_wTi_list = [one_view_data_dict[idx].pose_gt for idx in range(num_images)]
+        gt_wTi_list = [context.one_view_data_dict[idx].pose_gt for idx in range(context.num_images)]
         ba_input_graph, ba_output_graph, aligned_gt_wTi_list = delayed(align_estimated_gtsfm_data, nout=3)(
             ba_input_graph, ba_output_graph, gt_wTi_list
         )
 
         # Create I/O tasks.
-        images = [image_delayed_map[idx] for idx in range(num_images)]
-        cameras_gt = [one_view_data_dict[idx].camera_gt for idx in range(num_images)]
+        images = [image_delayed_map[idx] for idx in range(context.num_images)]
+        cameras_gt = [context.one_view_data_dict[idx].camera_gt for idx in range(context.num_images)]
         with self._output_annotation():
             if self._save_gtsfm_data:
                 delayed_io_tasks.append(
@@ -383,7 +373,7 @@ class ClusterMVO(ClusterOptimizerBase):
                         images,
                         ba_input_graph,
                         ba_output_graph,
-                        results_path=output_paths.results,
+                        results_path=context.output_paths.results,
                         cameras_gt=cameras_gt,
                     )
                 )
@@ -393,8 +383,8 @@ class ClusterMVO(ClusterOptimizerBase):
                             aligned_ba_input_graph=ba_input_graph,
                             aligned_ba_output_graph=ba_output_graph,
                             gt_pose_graph=aligned_gt_wTi_list,  # type: ignore[arg-type]
-                            plot_ba_input_path=output_paths.plots,
-                            plot_results_path=output_paths.plots,
+                            plot_ba_input_path=context.output_paths.plots,
+                            plot_results_path=context.output_paths.plots,
                         )
                     )
 
@@ -411,7 +401,7 @@ class ClusterMVO(ClusterOptimizerBase):
             with self._output_annotation():
                 delayed_io_tasks.append(
                     delayed(io_utils.save_point_cloud_as_ply)(
-                        save_fpath=str(output_paths.results / "dense_point_cloud.ply"),
+                        save_fpath=str(context.output_paths.results / "dense_point_cloud.ply"),
                         points=dense_points_graph,
                         rgb=dense_point_colors_graph,
                     )
@@ -433,7 +423,7 @@ class ClusterMVO(ClusterOptimizerBase):
 
             with self._output_annotation():
                 delayed_io_tasks.append(
-                    delayed(gtsfm_rendering.save_splats)(save_path=output_paths.results, splats=splats_graph)
+                    delayed(gtsfm_rendering.save_splats)(save_path=context.output_paths.results, splats=splats_graph)
                 )
                 delayed_io_tasks.append(
                     delayed(gtsfm_rendering.generate_interpolated_video)(
@@ -441,11 +431,15 @@ class ClusterMVO(ClusterOptimizerBase):
                         ba_output_graph,
                         cfg_graph,
                         splats_graph,
-                        str(output_paths.results / "interpolated_video.mp4"),
+                        str(context.output_paths.results / "interpolated_video.mp4"),
                     )
                 )
 
-        return delayed_io_tasks, metrics_graph_list
+        return ClusterComputationGraph(
+            io_tasks=tuple(delayed_io_tasks),
+            metric_tasks=tuple(metrics_graph_list),
+            sfm_result=ba_output_graph,
+        )
 
 
 def _pad_keypoints_list(keypoints_list: list[Keypoints], target_length: int) -> list[Keypoints]:

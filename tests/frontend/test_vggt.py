@@ -30,7 +30,6 @@ def run_vggt(
     image_indices: list[int],
     original_coords,
     seed=42,
-    use_ba=False,
     conf_threshold_value=5.0,
     vggt_fixed_resolution=518,
     img_load_resolution=1024,
@@ -40,7 +39,6 @@ def run_vggt(
     vis_thresh=0.2,
     max_reproj_error=8.0,
     camera_type="SIMPLE_PINHOLE",
-    use_colmap_ba=False,
 ) -> GtsfmData:
     """Run VGGT on the given image keys and return GtsfmData."""
 
@@ -62,7 +60,6 @@ def run_vggt(
     original_coords = original_coords.to(device)
 
     config = VGGTReconstructionConfig(
-        use_ba=use_ba,
         vggt_fixed_resolution=vggt_fixed_resolution,
         img_load_resolution=img_load_resolution,
         max_query_pts=max_query_pts,
@@ -72,7 +69,6 @@ def run_vggt(
         max_reproj_error=max_reproj_error,
         confidence_threshold=conf_threshold_value,
         shared_camera=False,
-        use_colmap_ba=use_colmap_ba,
         camera_type_ba=camera_type,
     )
 
@@ -89,10 +85,7 @@ def run_vggt(
     )
 
     output_dir = DATA_ROOT_PATH / "vggt_test_output"
-    if result.used_ba:
-        output_subdir = f"sparse_w_ba_{query_frame_num}_{max_query_pts}_{use_colmap_ba}"
-    else:
-        output_subdir = "sparse_wo_ba"
+    output_subdir = "sparse_wo_ba"
     sparse_reconstruction_dir = output_dir / output_subdir
     print(f"Saving reconstruction to {sparse_reconstruction_dir}")
     sparse_reconstruction_dir.mkdir(parents=True, exist_ok=True)
@@ -211,11 +204,11 @@ class TestVGGT(unittest.TestCase):
 
         with torch.no_grad():
 
-            gtsfm_data = run_vggt(image_batch, indices, original_coords, use_ba=True)
+            gtsfm_data = run_vggt(image_batch, indices, original_coords)
 
         self.assertIsNotNone(gtsfm_data)
         self.assertEqual(gtsfm_data.number_images(), len(indices))
-        self.assertGreaterEqual(len(gtsfm_data.get_valid_camera_indices()), len(indices))
+        self.assertCountEqual(gtsfm_data.get_valid_camera_indices(), indices)
 
     @unittest.skip("Skipping VGGT on cluster tree test for now.")
     def test_vggt_on_cluster_tree(self) -> None:

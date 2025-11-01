@@ -4,23 +4,69 @@ from __future__ import annotations
 
 import os
 from abc import abstractmethod
+from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING, Tuple
 
 from dask.base import annotate
 from dask.delayed import Delayed
+from dask.distributed import Client, Future
 
 import gtsfm.evaluation.metrics_report as metrics_report
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 from gtsfm.common.image import Image
+from gtsfm.common.outputs import OutputPaths, cluster_label
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
-from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
+from gtsfm.products.visibility_graph import VisibilityGraph
+from gtsfm.ui.gtsfm_process import GTSFMProcess
+
+if TYPE_CHECKING:
+    from gtsfm.loader.loader_base import LoaderBase
+    from gtsfm.products.one_view_data import OneViewData
 
 # Paths to save output in React folders.
 REACT_METRICS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "src" / "result_metrics"
 REACT_RESULTS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "public" / "results"
 
 logger = logger_utils.get_logger()
+
+
+@dataclass(frozen=True)
+class ClusterComputationGraph:
+    """Container describing the delayed tasks required for a cluster run."""
+
+    io_tasks: Tuple[Delayed, ...]
+    metric_tasks: Tuple[Delayed, ...]
+    sfm_result: Delayed | None
+
+
+@dataclass(frozen=True)
+class ClusterContext:
+    """Static metadata describing a cluster tree node."""
+
+    visibility_graph: VisibilityGraph
+    output_paths: OutputPaths
+    cluster_path: tuple[int, ...]
+    label: str
+    client: Client
+    num_images: int
+    one_view_data_dict: dict[int, "OneViewData"]
+    image_futures: tuple[Future, ...]
+    loader: "LoaderBase"
+
+    @property
+    def is_root(self) -> bool:
+        return len(self.cluster_path) == 0
+
+    @property
+    def react_results_subdir(self) -> Path:
+        """Subdirectory used when mirroring artifacts into the React workspace."""
+        subdir = Path("results")
+        if self.cluster_path:
+            for depth in range(len(self.cluster_path)):
+                subdir /= cluster_label(self.cluster_path[: depth + 1])
+        return subdir
 
 
 class ClusterOptimizerBase(GTSFMProcess):
@@ -50,12 +96,6 @@ class ClusterOptimizerBase(GTSFMProcess):
         """
         return {i: img for i, img in enumerate(image_list)}
 
-    @staticmethod
-    def get_ui_metadata() -> UiMetadata | None:
-        """Returns data needed to display node and edge info for this process in the process graph."""
-        # This class and its subclasses (unless overridden) are not part of the UI.
-        return None
-
     @abstractmethod
     def __repr__(self) -> str:
         """Provide a readable summary of the optimizer configuration."""
@@ -64,19 +104,15 @@ class ClusterOptimizerBase(GTSFMProcess):
     @abstractmethod
     def create_computation_graph(
         self,
-        num_images: int,
-        one_view_data_dict,
-        output_paths,
-        loader,
-        output_root: Path,
-        visibility_graph,
-        image_futures,
-    ) -> tuple[list[Delayed], list[Delayed]]:
+        context: ClusterContext,
+    ) -> ClusterComputationGraph | None:
         """Create a Dask computation graph to process a cluster.
 
+        Args:
+            context: Static metadata for the cluster being scheduled.
+
         Returns:
-            - List of Delayed I/O tasks to be computed
-            - List of Delayed metrics to be computed
+            ClusterComputationGraph describing delayed I/O, metrics, and the bundle-adjusted result.
         """
 
 

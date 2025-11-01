@@ -13,6 +13,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from gtsam import Point2, Point3, Pose3, Rot3, SfmTrack  # type: ignore
+from torch.amp import autocast as amp_autocast  # type: ignore
 
 import gtsfm.common.types as gtsfm_types
 from gtsfm.common.gtsfm_data import GtsfmData
@@ -56,7 +57,6 @@ from vggt.utils.pose_enc import pose_encoding_to_extri_intri  # type: ignore
 class VGGTReconstructionConfig:
     """Configuration for the high-level VGGT reconstruction pipeline."""
 
-    use_ba: bool = False
     vggt_fixed_resolution: int = 518
     img_load_resolution: int = 1024
     max_query_pts: int = 1000
@@ -69,7 +69,6 @@ class VGGTReconstructionConfig:
     camera_type_ba: str = "SIMPLE_PINHOLE"
     camera_type_feedforward: str = "PINHOLE"
     shared_camera: bool = False
-    use_colmap_ba: bool = False
     keypoint_extractor: str = "aliked+sp"
     seed: int = 42
 
@@ -186,7 +185,7 @@ def _convert_measurement_to_original_resolution(
     x1, y1 = original_coord[0], original_coord[1]
     width, height = original_coord[4], original_coord[5]
 
-    # VGGT runs on the ``img_load_resolution`` square; inference downsamples that square to the
+    # VGGT runs on the ``img_load_resolution`` square; inference down-samples that square to the
     # (typically smaller) ``inference_resolution``. Undo that downscale so we can use the crop
     # metadata stored in ``original_coord``.
     scale_back_to_load = float(img_load_resolution) / float(inference_resolution)
@@ -235,13 +234,10 @@ def run_reconstruction(
         model = load_model(weights_path, device=resolved_device, dtype=resolved_dtype)
     else:
         model = model.to(resolved_device)
-        model.eval()
+        model.eval()  # type: ignore
 
     image_batch = image_batch.to(resolved_device)
     original_coords = original_coords.to(resolved_device)
-
-    if cfg.use_ba:
-        logger.warning("VGGT bundle adjustment requires pycolmap; proceeding with feed-forward output only.")
 
     inference_resolution = cfg.vggt_fixed_resolution
     images_for_model = F.interpolate(
@@ -252,7 +248,7 @@ def run_reconstruction(
     )
 
     if resolved_device.type == "cuda":
-        autocast_ctx: Any = torch.cuda.amp.autocast(dtype=resolved_dtype)
+        autocast_ctx: Any = amp_autocast("cuda", dtype=resolved_dtype)
     else:
         autocast_ctx = nullcontext()
 
@@ -336,6 +332,27 @@ def run_reconstruction(
     if points_3d_flat.size == 0:
         fallback_reason = "VGGT produced no confident depth values; reconstruction contains cameras only."
 
+    valid_camera_indices = set(gtsfm_data.get_valid_camera_indices())
+    expected_indices = set(int(idx) for idx in image_indices)
+    if valid_camera_indices != expected_indices:
+        logger.warning(
+            "VGGT cluster returned cameras with indices %s, expected %s.",
+            sorted(valid_camera_indices),
+            sorted(expected_indices),
+        )
+
+    for track_idx, track in enumerate(gtsfm_data.get_tracks()):
+        for meas_idx in range(track.numberMeasurements()):
+            cam_idx, _ = track.measurement(meas_idx)
+            if cam_idx not in expected_indices:
+                logger.warning(
+                    "VGGT track %d references camera %d not in cluster indices %s.",
+                    track_idx,
+                    cam_idx,
+                    sorted(expected_indices),
+                )
+                break
+
     return VGGTReconstructionResult(
         gtsfm_data=gtsfm_data,
         reconstruction_resolution=inference_resolution,
@@ -360,7 +377,7 @@ def run_VGGT(model: VGGT, images: torch.Tensor, dtype: torch.dtype, resolution: 
     resized = F.interpolate(images, size=(resolution, resolution), mode="bilinear", align_corners=False)
 
     if torch.cuda.is_available():
-        autocast_ctx: Any = torch.cuda.amp.autocast(dtype=dtype)
+        autocast_ctx: Any = amp_autocast("cuda", dtype=dtype)
     else:
         autocast_ctx = nullcontext()
 

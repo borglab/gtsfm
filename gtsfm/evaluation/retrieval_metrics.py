@@ -10,26 +10,26 @@ import numpy as np
 
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
+from gtsfm.common.outputs import OutputPaths
 
 logger = logger_utils.get_logger()
 
 
-def save_retrieval_two_view_metrics(metrics_path: Path, plot_base_path: Path) -> None:
+def save_retrieval_two_view_metrics(output_paths: OutputPaths) -> None:
     """Compare NetVLAD similarity scores with pose errors after view-graph estimation.
 
     Args:
-        metrics_path: Directory containing the two-view metrics JSON files.
-        plot_base_path: Directory where scatter plots should be saved.
+        output_paths: OutputPaths object containing metrics and plots directories.
     """
     # TODO(Frank): this does not belong here, move to retriever phase
-    sim_fpath = plot_base_path / "similarity_matrix.txt"
+    sim_fpath = output_paths.plots / "similarity_matrix.txt"
     if not sim_fpath.exists():
         logger.warning("NetVLAD similarity matrix not found at %s. Skipping retrieval metrics.", sim_fpath)
         return
 
     sim = np.loadtxt(str(sim_fpath), delimiter=",")
 
-    report_path = metrics_path / "two_view_report_VIEWGRAPH_2VIEW_REPORT.json"
+    report_path = output_paths.metrics / "two_view_report_VIEWGRAPH_2VIEW_REPORT.json"
     if not report_path.exists():
         logger.warning("Two-view report not found at %s. Skipping retrieval metrics.", report_path)
         return
@@ -58,14 +58,14 @@ def save_retrieval_two_view_metrics(metrics_path: Path, plot_base_path: Path) ->
         y=R_errors,
         xlabel="Similarity score",
         ylabel="Rotation error w.r.t. GT (deg.)",
-        output_path=plot_base_path / "gt_rot_error_vs_similarity_score.jpg",
+        output_path=output_paths.plots / "gt_rot_error_vs_similarity_score.jpg",
     )
     _save_scatter(
         x=sim_scores,
         y=U_errors,
         xlabel="Similarity score",
         ylabel="Translation direction error w.r.t. GT (deg.)",
-        output_path=plot_base_path / "gt_trans_error_vs_similarity_score.jpg",
+        output_path=output_paths.plots / "gt_trans_error_vs_similarity_score.jpg",
     )
     pose_errors = np.maximum(np.array(R_errors), np.array(U_errors))
     _save_scatter(
@@ -73,7 +73,7 @@ def save_retrieval_two_view_metrics(metrics_path: Path, plot_base_path: Path) ->
         y=pose_errors.tolist(),
         xlabel="Similarity score",
         ylabel="Pose error w.r.t. GT (deg.)",
-        output_path=plot_base_path / "gt_pose_error_vs_similarity_score.jpg",
+        output_path=output_paths.plots / "gt_pose_error_vs_similarity_score.jpg",
     )
 
 

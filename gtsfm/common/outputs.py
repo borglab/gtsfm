@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Sequence
 
 
 @dataclass(frozen=True)
@@ -24,19 +24,26 @@ class OutputPaths:
             directory.mkdir(parents=True, exist_ok=True)
 
 
-def prepare_output_paths(root: Path, leaf_index: Optional[int]) -> OutputPaths:
+def cluster_label(path: Sequence[int]) -> str:
+    """Return a human-readable label like C12 for the given cluster path."""
+    return "C" + "".join(f"_{i}" for i in path) if path else "C"
+
+
+def prepare_output_paths(root: Path, cluster_path: Optional[Sequence[int]] = None) -> OutputPaths:
     """
-    Create directories for the given root (and optional leaf) and return their locations.
+    Create directories for the given root (and optional cluster path) and return their locations.
 
     Args:
         root: Base output directory for the run.
-        leaf_index: Optional index for the current leaf; if provided, sub-directories are created.
+        cluster_path: Optional tuple describing a path in the cluster tree.
 
     Returns:
         OutputPaths describing the filesystem locations for plots, metrics, and results.
     """
-    base = root / "results"
-    cluster_dir = base / f"leaf_{leaf_index}" if leaf_index else base
+    cluster_dir = root / "results"
+    if cluster_path:
+        for depth in range(len(cluster_path)):
+            cluster_dir = cluster_dir / cluster_label(cluster_path[: depth + 1])
 
     # For plotting
     output_paths = OutputPaths(

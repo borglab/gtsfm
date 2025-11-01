@@ -4,23 +4,32 @@ Authors: Ayush Baid, John Lambert
 """
 
 import time
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Sequence, TypeVar, cast
 
 import matplotlib
-from dask.distributed import performance_report
+from dask.delayed import delayed
+from dask.distributed import Client, Future, get_client, performance_report
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.cluster_optimizer import REACT_METRICS_PATH, REACT_RESULTS_PATH, Base, save_metrics_reports
-from gtsfm.common.outputs import OutputPaths, prepare_output_paths
+from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterContext
+from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm.common.image import Image
+from gtsfm.common.outputs import OutputPaths, cluster_label, prepare_output_paths
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.evaluation.retrieval_metrics import save_retrieval_two_view_metrics
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.graph_partitioner.single_partitioner import SinglePartitioner
 from gtsfm.loader.loader_base import LoaderBase
+from gtsfm.products.one_view_data import OneViewData
 from gtsfm.products.visibility_graph import VisibilityGraph
 from gtsfm.retriever.image_pairs_generator import ImagePairsGenerator
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
+from gtsfm.utils import align as align_utils
+from gtsfm.utils.tree import PreOrderIter, Tree
+from gtsfm.utils.tree_dask import submit_tree_map, submit_tree_map_with_children
 
 # Set matplotlib backend to "Agg" (Anti-Grain Geometry) for headless rendering
 # This must be called before importing pyplot or any other matplotlib modules
@@ -30,6 +39,119 @@ matplotlib.use("Agg")
 DEFAULT_OUTPUT_ROOT = str(Path(__file__).resolve().parent.parent)
 
 logger = logger_utils.get_logger()
+T = TypeVar("T")
+
+
+@dataclass(frozen=True)
+class ClusterExecutionHandles:
+    """Futures tracking the execution of a single cluster optimization."""
+
+    reconstruction: Future  # Optional[GtsfmData]
+    metrics: Future  # list[GtsfmMetricsGroup]
+    io_barrier: Future  # None
+    output_paths: OutputPaths
+    cluster_path: tuple[int, ...]
+    label: str
+    edge_count: int
+
+
+def _identity(value: T) -> T:
+    """Return value unchanged. Used to seed futures without extra scheduling."""
+    return value
+
+
+def _empty_cluster_handles(context: ClusterContext, edge_count: int) -> ClusterExecutionHandles:
+    """Create placeholder futures for clusters that were skipped."""
+    client = context.client
+    reconstruction: Future = client.submit(_identity, None, pure=False)
+    metrics: Future = client.submit(_identity, [], pure=False)
+    io_barrier: Future = client.submit(_identity, None, pure=False)
+    return ClusterExecutionHandles(
+        reconstruction=reconstruction,
+        metrics=metrics,
+        io_barrier=io_barrier,
+        output_paths=context.output_paths,
+        cluster_path=context.cluster_path,
+        label=context.label,
+        edge_count=edge_count,
+    )
+
+
+def _collect_metric_results(*results: object) -> list[GtsfmMetricsGroup]:
+    """Normalize metric outputs into a flat list."""
+    collected: list[GtsfmMetricsGroup] = []
+    for result in results:
+        if result is None:
+            continue
+        if isinstance(result, (list, tuple)):
+            for item in result:
+                if item is not None:
+                    collected.append(cast(GtsfmMetricsGroup, item))
+        else:
+            collected.append(cast(GtsfmMetricsGroup, result))
+    return collected
+
+
+def _finalize_io_tasks(*_args: object) -> None:
+    """Barrier task used to depend on all I/O side effects."""
+    return None
+
+
+def _export_merged_scene(
+    merged_scene: Optional[GtsfmData],
+    target_dir: Path,
+    images: Optional[Sequence[Image]] = None,
+) -> None:
+    """Persist a merged reconstruction to COLMAP text format."""
+    if merged_scene is None:
+        return
+
+    merged_path = Path(target_dir)
+    merged_path.mkdir(parents=True, exist_ok=True)
+    merged_scene.export_as_colmap_text(merged_path)
+
+
+def _run_export_task(
+    payload: tuple[
+        ClusterExecutionHandles,
+        Optional[GtsfmData],
+        Sequence[Image] | Sequence[Future] | None,
+    ],
+) -> None:
+    """Execute merged scene export on a worker."""
+    handle, merged_scene, images = payload
+    resolved_images: Sequence[Image] | None
+    if images is None:
+        resolved_images = None
+    elif any(isinstance(img, Future) for img in images):
+        try:
+            resolved_images = tuple(get_client().gather(list(images)))
+        except Exception:
+            logger.warning("Failed to gather images for export; falling back to stored track colors.")
+            resolved_images = None
+    else:
+        resolved_images = images
+    merged_dir = handle.output_paths.results / "merged"
+    _export_merged_scene(merged_scene, merged_dir, resolved_images)
+
+
+def _merge_cluster_results(
+    current: Optional[GtsfmData], child_results: tuple[Optional[GtsfmData], ...]
+) -> Optional[GtsfmData]:
+    """Merge bundle adjustment outputs from child clusters into the parent result."""
+    merged = current
+    for child in child_results:
+        if child is None:
+            continue
+        if merged is None:
+            merged = child
+            continue
+        try:
+            aSb = align_utils.sim3_from_Pose3_maps(merged.poses(), child.poses())
+            merged = merged.merged_with(child, aSb)
+        except Exception as exc:
+            logger.warning("Failed to merge cluster outputs: %s", exc)
+    return merged
 
 
 class SceneOptimizer:
@@ -68,13 +190,92 @@ class SceneOptimizer:
         REACT_RESULTS_PATH.mkdir(parents=True, exist_ok=True)
         REACT_METRICS_PATH.mkdir(parents=True, exist_ok=True)
 
-    def _save_retrieval_diagnostics(self, output_paths: OutputPaths) -> None:
-        try:
-            save_retrieval_two_view_metrics(output_paths.metrics, output_paths.plots)
-        except Exception as exc:  # pragma: no cover - diagnostics are best-effort
-            logger.debug("Skipping retrieval diagnostics for %s: %s", output_paths.plots, exc)
+    def _build_cluster_context_tree(
+        self,
+        cluster_tree: Tree[VisibilityGraph],
+        base_output_paths: OutputPaths,
+        client: Client,
+        num_images: int,
+        one_view_data_dict: dict[int, OneViewData],
+        image_futures: Sequence[Future],
+    ) -> Tree[ClusterContext]:
+        """Annotate each cluster node with static metadata required for scheduling."""
+        shared_image_futures = tuple(image_futures)
 
-    def run(self, client) -> None:
+        def to_context(path: tuple[int, ...], visibility_graph: VisibilityGraph) -> ClusterContext:
+            output_paths = base_output_paths if len(path) == 0 else prepare_output_paths(self.output_root, path)
+            return ClusterContext(
+                visibility_graph=visibility_graph,
+                output_paths=output_paths,
+                cluster_path=path,
+                label=cluster_label(path),
+                client=client,
+                num_images=num_images,
+                one_view_data_dict=one_view_data_dict,
+                image_futures=shared_image_futures,
+                loader=self.loader,
+            )
+
+        return cluster_tree.map_with_path(to_context)
+
+    def _schedule_single_cluster(self, context: ClusterContext) -> ClusterExecutionHandles:
+        """Schedule the optimizer for a single cluster and return futures tracking its execution."""
+        if len(context.visibility_graph) == 0:
+            logger.warning("Skipping cluster %s as it has no edges.", context.label)
+            return _empty_cluster_handles(context, 0)
+
+        logger.info(
+            "Creating computation graph for cluster %s with %d visibility edges.",
+            context.label,
+            len(context.visibility_graph),
+        )
+
+        computation = self.cluster_optimizer.create_computation_graph(
+            context=context,
+        )
+        if computation is None or computation.sfm_result is None:
+            logger.warning("Cluster optimizer produced no result for cluster %s.", context.label)
+            return _empty_cluster_handles(context, len(context.visibility_graph))
+
+        io_graph = delayed(_finalize_io_tasks, pure=False)(*computation.io_tasks)
+        metrics_graph = delayed(_collect_metric_results, pure=False)(*computation.metric_tasks)
+
+        io_future: Future = context.client.compute(io_graph)  # type: ignore
+        metrics_future: Future = context.client.compute(metrics_graph)  # type: ignore
+        reconstruction_future: Future = context.client.compute(computation.sfm_result)  # type: ignore
+
+        return ClusterExecutionHandles(
+            reconstruction=reconstruction_future,
+            metrics=metrics_future,
+            io_barrier=io_future,
+            output_paths=context.output_paths,
+            cluster_path=context.cluster_path,
+            label=context.label,
+            edge_count=len(context.visibility_graph),
+        )
+
+    def _schedule_merge_exports(
+        self,
+        *,
+        client: Client,
+        handles_tree: Tree[ClusterExecutionHandles],
+        merged_tree: Tree[Future],
+        image_futures: Sequence[Future],
+    ) -> Tree[Future]:
+        """Schedule persistence of merged reconstructions for each cluster."""
+        shared_image_futures = tuple(image_futures)
+
+        export_payload_tree = Tree.zip(handles_tree, merged_tree).map(
+            lambda value: (
+                value[0],
+                value[1],
+                shared_image_futures,
+            )
+        )
+
+        return submit_tree_map(client, export_payload_tree, _run_export_task, pure=False)
+
+    def run(self, client: Client) -> None:
         """Run the SceneOptimizer."""
         start_time = time.time()
         base_metrics_groups = []
@@ -92,61 +293,60 @@ class SceneOptimizer:
         assert self.graph_partitioner is not None, "Graph partitioner is not set up!"
         cluster_tree = self.graph_partitioner.run(visibility_graph)
         self.graph_partitioner.log_partition_details(cluster_tree, base_output_paths)
-        leaves = tuple(cluster_tree.leaves()) if cluster_tree is not None else ()
-        num_leaves = len(leaves)
-        use_leaf_subdirs = num_leaves > 1
+        save_retrieval_two_view_metrics(base_output_paths)
 
-        logger.info("🔥 GTSFM: Starting to solve subgraphs...")
-        futures = []
+        logger.info("🔥 GTSFM: Scheduling cluster optimizations...")
         one_view_data_dict = self.loader.get_one_view_data_dict()
-        leaf_jobs: list[tuple[int, OutputPaths]] = []
-        for index, leaf in enumerate(leaves, 1):
-            cluster_visibility_graph = leaf.value
-            if use_leaf_subdirs:
-                logger.info(
-                    "Creating computation graph for leaf cluster %d/%d with %d image pairs",
-                    index,
-                    num_leaves,
-                    len(cluster_visibility_graph),
+        merged_scene: Optional[GtsfmData] = None
+
+        with performance_report(filename="dask_reports/scene-optimizer.html"):
+            if cluster_tree is None:
+                logger.warning("No clusters generated by partitioner; skipping reconstruction and merge.")
+            else:
+                num_images = len(self.loader)
+                context_tree = self._build_cluster_context_tree(
+                    cluster_tree=cluster_tree,
+                    base_output_paths=base_output_paths,
+                    client=client,
+                    num_images=num_images,
+                    one_view_data_dict=one_view_data_dict,
+                    image_futures=image_futures,
                 )
 
-            if len(cluster_visibility_graph) == 0:
-                logger.warning("Skipping subgraph %d as it has no edges.", index)
-                continue
+                handles_tree = context_tree.map(self._schedule_single_cluster)
+                reconstruction_tree = handles_tree.map(lambda handle: handle.reconstruction)
+                merged_tree = submit_tree_map_with_children(client, reconstruction_tree, _merge_cluster_results)
+                export_tree = self._schedule_merge_exports(
+                    client=client,
+                    handles_tree=handles_tree,
+                    merged_tree=merged_tree,
+                    image_futures=image_futures,
+                )
+                root_merge_future: Optional[Future] = merged_tree.value
+                for handle_node, merged_node, export_node in zip(
+                    PreOrderIter(handles_tree), PreOrderIter(merged_tree), PreOrderIter(export_tree)
+                ):
+                    handle = handle_node.value
+                    merge_future = merged_node.value
+                    export_future = export_node.value
+                    metrics_groups = list(handle.metrics.result())
+                    handle.io_barrier.result()
+                    export_future.result()
+                    if handle.cluster_path == ():
+                        base_metrics_groups.extend(metrics_groups)
+                        root_merge_future = merge_future
+                    elif metrics_groups:
+                        save_metrics_reports(metrics_groups, str(handle.output_paths.metrics))
+                if root_merge_future is not None:
+                    logger.info("🔥 GTSFM: Running cluster optimization and merging...")
+                    merged_scene = root_merge_future.result()
 
-            output_paths = prepare_output_paths(self.output_root, index) if use_leaf_subdirs else base_output_paths
-
-            delayed_io_tasks_and_reports = self.cluster_optimizer.create_computation_graph(
-                num_images=len(self.loader),
-                one_view_data_dict=one_view_data_dict,
-                output_paths=output_paths,
-                loader=self.loader,
-                output_root=self.output_root,
-                visibility_graph=cluster_visibility_graph,
-                image_futures=image_futures,
+        if merged_scene is not None:
+            logger.info(
+                "Merged scene contains %d images and %d tracks.",
+                merged_scene.number_images(),
+                merged_scene.number_tracks(),
             )
-            if delayed_io_tasks_and_reports is None:
-                logger.warning("Skipping subgraph %d as it has no valid two-view results.", index)
-                continue
-            futures.append(client.compute(delayed_io_tasks_and_reports))  # client.compute returns a future
-            leaf_jobs.append((index, output_paths))
-
-        logger.info("🔥 GTSFM: Running the computation graph...")
-        multiview_metrics_groups_by_leaf: dict[int, list[GtsfmMetricsGroup]] = {}
-        with performance_report(filename="dask_reports/scene-optimizer.html"):
-            if futures:
-                results = client.gather(futures)  # blocking call
-                for (leaf_index, output_paths), (io_tasks, metrics) in zip(leaf_jobs, results):
-                    self._save_retrieval_diagnostics(output_paths)
-                    if not metrics:
-                        continue
-                    if use_leaf_subdirs:
-                        save_metrics_reports(metrics, str(output_paths.metrics))
-                    else:
-                        multiview_metrics_groups_by_leaf[leaf_index] = metrics
-
-        if not futures:
-            self._save_retrieval_diagnostics(base_output_paths)
 
         # Log total time taken and save metrics report
         end_time = time.time()
@@ -161,14 +361,9 @@ class SceneOptimizer:
         )
         base_metrics_groups.append(total_summary_metrics)
 
-        # For single cluster runs, we may have Multiview metrics to add to the base report.
-        if not use_leaf_subdirs:
-            for leaf_index in multiview_metrics_groups_by_leaf:
-                base_metrics_groups.extend(multiview_metrics_groups_by_leaf[leaf_index])
-
         save_metrics_reports(base_metrics_groups, str(base_output_paths.metrics))
 
-    def _run_retriever(self, client, output_paths: OutputPaths) -> tuple[GtsfmMetricsGroup, VisibilityGraph]:
+    def _run_retriever(self, client: Client, output_paths: OutputPaths) -> tuple[GtsfmMetricsGroup, VisibilityGraph]:
         # TODO(Frank): refactor to move more of this logic into ImagePairsGenerator
         retriever_start_time = time.time()
         batch_size = self.image_pairs_generator._batch_size

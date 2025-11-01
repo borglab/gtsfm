@@ -13,12 +13,16 @@ import torchvision  # type: ignore
 from dask import delayed  # type: ignore
 from dask.delayed import Delayed
 
-from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterOptimizerBase
+from gtsfm.cluster_optimizer.cluster_optimizer_base import (
+    ClusterComputationGraph,
+    ClusterContext,
+    ClusterOptimizerBase,
+)
 from gtsfm.common.image import Image
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.products.visibility_graph import visibility_graph_keys
-from gtsfm.utils import logger as logger_utils
 from gtsfm.ui.gtsfm_process import UiMetadata
+from gtsfm.utils import logger as logger_utils
 
 HERE_PATH = Path(__file__).parent
 ANYSPLAT_REPO_PATH = HERE_PATH.parent.parent / "thirdparty" / "AnySplat"
@@ -63,7 +67,6 @@ class ClusterAnySplat(ClusterOptimizerBase):
         if self._model is None:
             logger.info("⏳ Loading AnySplat model weights...")
             self._model = AnySplat.from_pretrained("lhjiang/anysplat")
-
 
     def __repr__(self) -> str:
         """Provide a readable summary of the optimizer configuration."""
@@ -184,14 +187,8 @@ class ClusterAnySplat(ClusterOptimizerBase):
 
     def create_computation_graph(
         self,
-        num_images: int,
-        one_view_data_dict,
-        output_paths,
-        loader,
-        output_root: Path,
-        visibility_graph,
-        image_futures,
-    ) -> tuple[list[Delayed], list[Delayed]]:
+        context: ClusterContext,
+    ) -> ClusterComputationGraph | None:
         """Create a Dask computation graph to process a cluster.
 
         Returns:
@@ -201,7 +198,9 @@ class ClusterAnySplat(ClusterOptimizerBase):
         io_tasks: List[Delayed] = []
         metrics_tasks: List[Delayed] = []
 
-        keys = sorted(visibility_graph_keys(visibility_graph))
+        keys = sorted(visibility_graph_keys(context.visibility_graph))
+        if not keys:
+            return None
 
         def _pack_images_for_anysplat(*images: Image) -> list[Image]:
             """Collect variadic image inputs into an ordered list."""
@@ -209,7 +208,7 @@ class ClusterAnySplat(ClusterOptimizerBase):
             return list(images)
 
         logger.info("Keys for AnySplat GS computation: %s", keys)
-        selected_images = loader.get_key_images_as_delayed_map(keys)
+        selected_images = context.loader.get_key_images_as_delayed_map(keys)
 
         images = delayed(_pack_images_for_anysplat)(*selected_images.values())
 
@@ -227,9 +226,13 @@ class ClusterAnySplat(ClusterOptimizerBase):
                     height,
                     width,
                     splats,
-                    str(output_paths.results),
+                    str(context.output_paths.results),
                 )
             )
-            io_tasks.append(delayed(self._save_splats)(splats, output_paths.results))
+            io_tasks.append(delayed(self._save_splats)(splats, context.output_paths.results))
 
-        return io_tasks, metrics_tasks
+        return ClusterComputationGraph(
+            io_tasks=tuple(io_tasks),
+            metric_tasks=tuple(metrics_tasks),
+            sfm_result=None,
+        )

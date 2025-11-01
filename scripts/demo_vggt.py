@@ -90,12 +90,6 @@ def add_common_vggt_args(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
     """Register shared VGGT CLI options on the provided parser."""
     parser.add_argument("--seed", type=int, default=42, help="Seed for torch/numpy/python RNGs.")
     parser.add_argument(
-        "--use_ba",
-        action="store_true",
-        default=False,
-        help="Enable VGGSfM tracking + COLMAP-style BA (requires LightGlue with ALIKED).",
-    )
-    parser.add_argument(
         "--max_reproj_error",
         type=float,
         default=8.0,
@@ -192,7 +186,6 @@ def demo_fn(args: argparse.Namespace) -> bool:
     print(f"Loaded {len(images)} images from {image_dir}")
 
     config = VGGTReconstructionConfig(
-        use_ba=args.use_ba,
         vggt_fixed_resolution=vggt_fixed_resolution,
         img_load_resolution=img_load_resolution,
         max_query_pts=args.max_query_pts,
@@ -202,7 +195,6 @@ def demo_fn(args: argparse.Namespace) -> bool:
         max_reproj_error=args.max_reproj_error,
         confidence_threshold=args.confidence_threshold,
         shared_camera=args.shared_camera,
-        use_colmap_ba=args.use_ba,
         camera_type_ba=args.camera_type,
     )
 

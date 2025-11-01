@@ -31,7 +31,6 @@ cluster_optimizer:
   inference_resolution: 518
   conf_threshold: 5.0
   max_points_for_colmap: 100000
-  use_ba: false
   shared_camera: false
   camera_type: PINHOLE
   seed: 42
