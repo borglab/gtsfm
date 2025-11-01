@@ -7,6 +7,7 @@ import pickle
 import unittest
 from pathlib import Path
 
+import numpy as np
 import torch
 from torchvision.transforms import v2 as transforms  # type: ignore
 
@@ -17,6 +18,7 @@ from gtsfm.products.visibility_graph import VisibilityGraph
 from gtsfm.utils.tree import Tree  # PreOrderIter
 from gtsfm.utils.vggt import (
     VGGTReconstructionConfig,
+    _convert_measurement_to_original_resolution,
     default_vggt_device,
     default_vggt_dtype,
     load_vggt_model,
@@ -124,6 +126,65 @@ class TestVGGT(unittest.TestCase):
 
     def setUp(self) -> None:
         pass
+
+    def test_coordinate_round_trip(self) -> None:
+        """Ensure the helper that maps VGGT grid coordinates back to original pixels is consistent.
+
+        VGGT operates on square, padded inputs. The loader pads each image to a square, rescales it
+        to ``img_load_resolution`` (1024 in our tests), and VGGT then down-samples that square to the
+        inference resolution (518). ``_convert_measurement_to_original_resolution`` must undo both
+        scaling steps and the padding offsets so that the merged reconstructions use the correct
+        camera indices during alignment. This test uses an analytic example where we can derive the
+        expected coordinates exactly and checks that the helper inverts the forward mapping.
+        """
+
+        width, height = 640, 480
+        img_load_resolution = 1024
+        inference_resolution = 518
+
+        max_side = max(width, height)
+        pad_left = (max_side - width) / 2.0
+        pad_top = (max_side - height) / 2.0
+        scale = img_load_resolution / max_side
+        original_coord = np.array(
+            [
+                pad_left * scale,
+                pad_top * scale,
+                (pad_left + width) * scale,
+                (pad_top + height) * scale,
+                width,
+                height,
+            ],
+            dtype=np.float32,
+        )
+
+        def forward_to_inference(u: float, v: float) -> tuple[float, float]:
+            """Simulate the loader + VGGT downsampling path to produce inference-space coords."""
+
+            u_padded = (u + pad_left) * scale
+            v_padded = (v + pad_top) * scale
+            shrink = inference_resolution / img_load_resolution
+            return (u_padded * shrink, v_padded * shrink)
+
+        # Corners and center stress the padding math.
+        samples = [
+            (0.0, 0.0),
+            (width - 1.0, 0.0),
+            (0.0, height - 1.0),
+            (width - 1.0, height - 1.0),
+            (width / 2.0, height / 2.0),
+        ]
+
+        for u_orig, v_orig in samples:
+            uv_infer = forward_to_inference(u_orig, v_orig)
+            u_back, v_back = _convert_measurement_to_original_resolution(
+                uv_infer,
+                original_coord,
+                inference_resolution,
+                img_load_resolution,
+            )
+            self.assertAlmostEqual(u_back, u_orig, places=3)
+            self.assertAlmostEqual(v_back, v_orig, places=3)
 
     def test_run_vggt_on_some_images(self):
         """Load four door images using Olsson loader and run vggt on them."""

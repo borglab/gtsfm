@@ -142,14 +142,8 @@ def load_vggt_model(
 
 def _pose_from_extrinsic(matrix: np.ndarray) -> Pose3:
     """Convert a VGGT extrinsic matrix (camera-from-world) to a Pose3."""
-    if matrix.shape == (4, 4):
-        rotation = matrix[:3, :3]
-        translation = matrix[:3, 3]
-    elif matrix.shape == (3, 4):
-        rotation = matrix[:, :3]
-        translation = matrix[:, 3]
-    else:
-        raise ValueError(f"Unexpected extrinsic shape {matrix.shape}")
+    rotation: np.ndarray = matrix[:3, :3]
+    translation = matrix[:3, 3]
     return Pose3(Rot3(rotation), Point3(*translation))
 
 
@@ -181,17 +175,31 @@ def _rescale_intrinsic_for_original_resolution(
 
 
 def _convert_measurement_to_original_resolution(
-    uv_square: Tuple[float, float],
+    uv_inference: Tuple[float, float],
     original_coord: np.ndarray,
-    reconstruction_resolution: int,
+    inference_resolution: int,
+    img_load_resolution: int,
 ) -> Tuple[float, float]:
-    """Convert a measurement from the square VGGT crop back to original pixels."""
-    x, y = uv_square
+    """Convert VGGT inference coordinates back to the original image coordinate system."""
+
+    x_infer, y_infer = uv_inference
     x1, y1 = original_coord[0], original_coord[1]
     width, height = original_coord[4], original_coord[5]
-    resize_ratio = max(width, height) / float(reconstruction_resolution)
-    u = (x - x1) * resize_ratio
-    v = (y - y1) * resize_ratio
+
+    # VGGT runs on the ``img_load_resolution`` square; inference downsamples that square to the
+    # (typically smaller) ``inference_resolution``. Undo that downscale so we can use the crop
+    # metadata stored in ``original_coord``.
+    scale_back_to_load = float(img_load_resolution) / float(inference_resolution)
+    x_load = x_infer * scale_back_to_load
+    y_load = y_infer * scale_back_to_load
+
+    # ``original_coord`` encodes the location of the original, possibly rectangular, image within
+    # the padded square (in *load* resolution). Remove the padding and scale the remaining pixels
+    # back to the native resolution.
+    max_side = float(max(width, height))
+    resize_ratio = max_side / float(img_load_resolution)
+    u = (x_load - x1) * resize_ratio
+    v = (y_load - y1) * resize_ratio
     u = float(np.clip(u, 0.0, max(width - 1, 0)))
     v = float(np.clip(v, 0.0, max(height - 1, 0)))
     return u, v
@@ -312,6 +320,7 @@ def run_vggt_reconstruction(
                 (float(xyf[0]), float(xyf[1])),
                 original_coords_np[frame_idx],
                 inference_resolution,
+                cfg.img_load_resolution,
             )
             track = SfmTrack(Point3(*xyz))
             color = points_rgb_flat[idx]
