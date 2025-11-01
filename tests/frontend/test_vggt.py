@@ -69,7 +69,6 @@ def run_vggt(
         max_reproj_error=max_reproj_error,
         confidence_threshold=conf_threshold_value,
         shared_camera=False,
-        camera_type_ba=camera_type,
     )
 
     result = vggt.run_reconstruction(

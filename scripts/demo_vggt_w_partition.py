@@ -91,7 +91,6 @@ def demo_fn(cluster_key: str, image_indices: List[int], args: argparse.Namespace
         max_reproj_error=args.max_reproj_error,
         confidence_threshold=args.confidence_threshold,
         shared_camera=args.shared_camera,
-        camera_type_ba=args.camera_type,
     )
 
     with Timer(f"[{cluster_key}] VGGT reconstruction"):

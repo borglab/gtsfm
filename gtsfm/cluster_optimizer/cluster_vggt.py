@@ -158,8 +158,6 @@ class ClusterVGGT(ClusterOptimizerBase):
             img_load_resolution=self._image_load_resolution,
             confidence_threshold=self._conf_threshold,
             max_points_for_colmap=self._max_points_for_colmap,
-            camera_type_ba=self._camera_type,
-            camera_type_feedforward=self._camera_type,
             shared_camera=self._shared_camera,
         )
 

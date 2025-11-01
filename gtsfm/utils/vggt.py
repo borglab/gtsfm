@@ -66,8 +66,6 @@ class VGGTReconstructionConfig:
     max_reproj_error: float = 8.0
     confidence_threshold: float = 5.0
     max_points_for_colmap: int = 100000
-    camera_type_ba: str = "SIMPLE_PINHOLE"
-    camera_type_feedforward: str = "PINHOLE"
     shared_camera: bool = False
     keypoint_extractor: str = "aliked+sp"
     seed: int = 42
@@ -146,15 +144,12 @@ def _pose_from_extrinsic(matrix: np.ndarray) -> Pose3:
     return Pose3(Rot3(cRw), Point3(*t)).inverse()
 
 
-def _calibration_from_intrinsic(matrix: np.ndarray, camera_type: str) -> gtsam.Cal3:
-    """Map a 3x3 intrinsic matrix to the corresponding GTSAM calibration type."""
+def _calibration_from_intrinsic(matrix: np.ndarray) -> gtsam.Cal3_S2:
+    """Map a 3x3 intrinsic matrix to a Cal3_S2."""
     fx = float(matrix[0, 0])
     fy = float(matrix[1, 1])
     cx = float(matrix[0, 2])
     cy = float(matrix[1, 2])
-    model = camera_type.upper()
-    if model in {"SIMPLE_PINHOLE", "SIMPLE_RADIAL", "RADIAL"}:
-        return gtsam.Cal3Bundler(fx, 0.0, 0.0, cx, cy)
     return gtsam.Cal3_S2(fx, fy, 0.0, cx, cy)
 
 
@@ -299,7 +294,7 @@ def run_reconstruction(
         scaled_intrinsic = _rescale_intrinsic_for_original_resolution(
             intrinsic_np[local_idx], inference_resolution, image_width, image_height
         )
-        calibration = _calibration_from_intrinsic(scaled_intrinsic, cfg.camera_type_feedforward)
+        calibration = _calibration_from_intrinsic(scaled_intrinsic)
         camera_cls = gtsfm_types.get_camera_class_for_calibration(calibration)
         gtsfm_data.add_camera(global_idx, camera_cls(pose, calibration))  # type: ignore[arg-type]
         gtsfm_data.set_image_info(
