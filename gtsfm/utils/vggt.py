@@ -65,7 +65,7 @@ class VGGTReconstructionConfig:
     vis_thresh: float = 0.2
     max_reproj_error: float = 8.0
     confidence_threshold: float = 5.0
-    max_points_for_colmap: int = 100000
+    max_num_points: int = 100000
     shared_camera: bool = False
     keypoint_extractor: str = "aliked+sp"
     seed: int = 42
@@ -295,7 +295,7 @@ def run_reconstruction(
     points_xyf = create_pixel_coordinate_grid(points_3d.shape[0], points_3d.shape[1], points_3d.shape[2])
 
     conf_mask = depth_conf_np >= cfg.confidence_threshold
-    conf_mask = randomly_limit_trues(conf_mask, cfg.max_points_for_colmap)
+    conf_mask = randomly_limit_trues(conf_mask, cfg.max_num_points)
 
     points_3d_flat = points_3d[conf_mask]
     points_rgb_flat = points_rgb[conf_mask] if points_rgb is not None else None
