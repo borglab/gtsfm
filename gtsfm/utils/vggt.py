@@ -141,10 +141,10 @@ def load_model(
 
 
 def _pose_from_extrinsic(matrix: np.ndarray) -> Pose3:
-    """Convert a VGGT extrinsic matrix (camera-from-world) to a Pose3."""
-    rotation: np.ndarray = matrix[:3, :3]
-    translation = matrix[:3, 3]
-    return Pose3(Rot3(rotation), Point3(*translation))
+    """Convert a VGGT extrinsic matrix (camera-from-world) to a Pose3 (world-from-camera)."""
+    cRw: np.ndarray = matrix[:3, :3]
+    t = matrix[:3, 3]
+    return Pose3(Rot3(cRw), Point3(*t)).inverse()
 
 
 def _calibration_from_intrinsic(matrix: np.ndarray, camera_type: str) -> gtsam.Cal3:
