@@ -62,25 +62,15 @@ class GraphPartitionerBase(GTSFMProcess):
 
     @staticmethod
     def log_partition_details(cluster_tree: ClusterTree | None, output_paths: OutputPaths) -> None:
-        """Log details of each cluster for debugging.
-
-        Args:
-            cluster_tree: ClusterTree object containing cluster details.
-        """
+        """Persist the cluster tree structure for later inspection and log summary stats."""
         if cluster_tree is None:
             logger.info("0 leaf clusters found.")
             return
 
-        leaves = cluster_tree.leaves()
-        logger.info("%d leaf clusters found.", len(leaves))
-        for i, leaf in enumerate(leaves, 1):
-            leaf_keys = leaf.all_keys()
-            logger.info("Leaf Cluster %d: keys (%d): %s", i, len(leaf_keys), list(map(int, leaf_keys)))
-            logger.info("Leaf Cluster %d: num intra-cluster edges: %d", i, len(leaf.value))
-            logger.debug("Leaf Cluster %d: intra-cluster edges: %s", i, leaf.value)
+        logger.info("Cluster Tree:\n%s", str(cluster_tree))
 
-        # Pickle the cluster tree in the results directory for later analysis.
-        with open(output_paths.results / "cluster_tree.pkl", "wb") as f:
-            pickle.dump(cluster_tree, f)
-
-        # TODO(Frank): optionally write out a networkx graph for visualization.
+        try:
+            with open(output_paths.results / "cluster_tree.pkl", "wb") as f:
+                pickle.dump(cluster_tree, f)
+        except Exception as exc:
+            logger.warning("Failed to serialize cluster tree: %s", exc)
