@@ -45,10 +45,12 @@ class ColmapViewer {
     this.ptSize = 2;
     this.showCams = true;
 
+    this.statsRoot = null;
     this.statsEls = null;
     this.pointsCount = 0;
     this.cameraCount = 0;
     this.currentImageName = "";
+    this.statsVisible = true;
 
     this.engine.runRenderLoop(() => this.scene.render());
     window.addEventListener("resize", () => this.engine.resize());
@@ -65,24 +67,57 @@ class ColmapViewer {
   }
 
   setStatsElements(statsEls) {
-    this.statsEls = statsEls;
+    if (!statsEls) {
+      this.statsRoot = null;
+      this.statsEls = null;
+      return;
+    }
+    const { root, cameraCount, pointCount, imageName } = statsEls;
+    this.statsRoot = root ?? null;
+    this.statsEls = {
+      cameraCount: cameraCount ?? null,
+      pointCount: pointCount ?? null,
+      imageName: imageName ?? null,
+    };
+    this._applyStatsVisibility();
     this._renderStats();
+  }
+
+  setStatsVisible(value) {
+    this.statsVisible = !!value;
+    this._applyStatsVisibility();
+  }
+
+  toggleStatsVisible() {
+    this.setStatsVisible(!this.statsVisible);
+  }
+
+  isStatsVisible() {
+    return this.statsVisible;
+  }
+
+  _applyStatsVisibility() {
+    if (!this.statsRoot) return;
+    this.statsRoot.style.display = this.statsVisible ? "" : "none";
   }
 
   _renderStats() {
     if (!this.statsEls) return;
+    this._applyStatsVisibility();
 
     const fmt = (value) => (typeof value === "number" && !Number.isNaN(value) ? value.toLocaleString() : "—");
-    if (this.statsEls.pointCount) {
+    const { cameraCount, pointCount, imageName } = this.statsEls;
+
+    if (pointCount) {
       const text = this.pointsCount ? fmt(this.pointsCount) : "0";
-      this.statsEls.pointCount.textContent = text;
+      pointCount.textContent = text;
     }
-    if (this.statsEls.cameraCount) {
+    if (cameraCount) {
       const text = this.cameraCount ? fmt(this.cameraCount) : "0";
-      this.statsEls.cameraCount.textContent = text;
+      cameraCount.textContent = text;
     }
-    if (this.statsEls.imageName) {
-      this.statsEls.imageName.textContent = this.currentImageName || "—";
+    if (imageName) {
+      imageName.textContent = this.currentImageName || "—";
     }
   }
 
@@ -349,7 +384,9 @@ async function boot() {
   const filterEl = document.getElementById("filter");
   const canvas = document.getElementById("renderCanvas");
   const viewer = new ColmapViewer(canvas);
+  const statsRoot = document.getElementById("sceneStats");
   viewer.setStatsElements({
+    root: statsRoot,
     cameraCount: document.getElementById("statCameras"),
     pointCount: document.getElementById("statPoints"),
     imageName: document.getElementById("statImageName"),
@@ -461,6 +498,18 @@ async function boot() {
   const nextBtn = document.getElementById("nextCamBtn");
   prevBtn?.addEventListener("click", () => viewer.prevCam());
   nextBtn?.addEventListener("click", () => viewer.nextCam());
+
+  const statsBtn = document.getElementById("toggleStats");
+  if (statsBtn) {
+    const syncStatsButtonLabel = () => {
+      statsBtn.textContent = viewer.isStatsVisible() ? "Hide Stats" : "Show Stats";
+    };
+    statsBtn.addEventListener("click", () => {
+      viewer.toggleStatsVisible();
+      syncStatsButtonLabel();
+    });
+    syncStatsButtonLabel();
+  }
 }
 
 window.addEventListener("DOMContentLoaded", boot);
