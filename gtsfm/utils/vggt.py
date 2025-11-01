@@ -57,7 +57,6 @@ from vggt.utils.pose_enc import pose_encoding_to_extri_intri  # type: ignore
 class VGGTReconstructionConfig:
     """Configuration for the high-level VGGT reconstruction pipeline."""
 
-    use_ba: bool = False
     vggt_fixed_resolution: int = 518
     img_load_resolution: int = 1024
     max_query_pts: int = 1000
@@ -70,7 +69,6 @@ class VGGTReconstructionConfig:
     camera_type_ba: str = "SIMPLE_PINHOLE"
     camera_type_feedforward: str = "PINHOLE"
     shared_camera: bool = False
-    use_colmap_ba: bool = False
     keypoint_extractor: str = "aliked+sp"
     seed: int = 42
 
@@ -240,9 +238,6 @@ def run_reconstruction(
 
     image_batch = image_batch.to(resolved_device)
     original_coords = original_coords.to(resolved_device)
-
-    if cfg.use_ba:
-        logger.warning("VGGT bundle adjustment requires pycolmap; proceeding with feed-forward output only.")
 
     inference_resolution = cfg.vggt_fixed_resolution
     images_for_model = F.interpolate(

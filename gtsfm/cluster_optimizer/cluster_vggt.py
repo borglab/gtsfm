@@ -98,7 +98,6 @@ class ClusterVGGT(ClusterOptimizerBase):
         inference_resolution: int = 518,
         conf_threshold: float = 5.0,
         max_points_for_colmap: int = 100000,
-        use_ba: bool = False,
         shared_camera: bool = False,
         camera_type: str = "PINHOLE",
         seed: int = 42,
@@ -116,7 +115,6 @@ class ClusterVGGT(ClusterOptimizerBase):
         self._inference_resolution = inference_resolution
         self._conf_threshold = conf_threshold
         self._max_points_for_colmap = max_points_for_colmap
-        self._use_ba = use_ba
         self._shared_camera = shared_camera
         self._camera_type = camera_type
         self._seed = seed
@@ -128,7 +126,6 @@ class ClusterVGGT(ClusterOptimizerBase):
             f"weights_path={self._weights_path}",
             f"image_load_resolution={self._image_load_resolution}",
             f"inference_resolution={self._inference_resolution}",
-            f"use_ba={self._use_ba}",
             f"shared_camera={self._shared_camera}",
             f"camera_type={self._camera_type}",
         ]
@@ -168,7 +165,6 @@ class ClusterVGGT(ClusterOptimizerBase):
         image_names = tuple(str(image_filenames[idx]) for idx in keys)
 
         config = VGGTReconstructionConfig(
-            use_ba=self._use_ba,
             vggt_fixed_resolution=self._inference_resolution,
             img_load_resolution=self._image_load_resolution,
             confidence_threshold=self._conf_threshold,
@@ -176,7 +172,6 @@ class ClusterVGGT(ClusterOptimizerBase):
             camera_type_ba=self._camera_type,
             camera_type_feedforward=self._camera_type,
             shared_camera=self._shared_camera,
-            use_colmap_ba=self._use_ba,
         )
 
         image_batch_graph, original_coords_graph = delayed(_load_vggt_inputs, nout=2)(

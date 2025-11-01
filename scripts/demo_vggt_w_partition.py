@@ -46,12 +46,6 @@ def parse_args() -> argparse.Namespace:
         help="Destination directory where per-cluster `images/` folders and reconstructions will be written.",
     )
     add_common_vggt_args(parser)
-    parser.add_argument(
-        "--use_colmap_ba",
-        action="store_true",
-        default=False,
-        help="After VGGT BA, invoke pycolmap.bundle_adjustment for an additional refinement.",
-    )
     return parser.parse_args()
 
 
@@ -88,7 +82,6 @@ def demo_fn(cluster_key: str, image_indices: List[int], args: argparse.Namespace
     print(f"[{cluster_key}] Loaded {len(images)} images from {image_dir}")
 
     config = VGGTReconstructionConfig(
-        use_ba=args.use_ba,
         vggt_fixed_resolution=vggt_fixed_resolution,
         img_load_resolution=img_load_resolution,
         max_query_pts=args.max_query_pts,
@@ -98,7 +91,6 @@ def demo_fn(cluster_key: str, image_indices: List[int], args: argparse.Namespace
         max_reproj_error=args.max_reproj_error,
         confidence_threshold=args.confidence_threshold,
         shared_camera=args.shared_camera,
-        use_colmap_ba=args.use_colmap_ba,
         camera_type_ba=args.camera_type,
     )
 
@@ -118,10 +110,7 @@ def demo_fn(cluster_key: str, image_indices: List[int], args: argparse.Namespace
     if result.fallback_reason:
         print(f"[{cluster_key}] {result.fallback_reason}")
 
-    if result.used_ba:
-        sparse_subdir = f"sparse_w_ba_{args.query_frame_num}_{args.max_query_pts}_{args.use_colmap_ba}"
-    else:
-        sparse_subdir = "sparse_wo_ba"
+    sparse_subdir = "sparse_wo_ba"
     sparse_reconstruction_dir = os.path.join(args.output_dir, cluster_key, sparse_subdir)
     print(f"[{cluster_key}] Saving reconstruction to {sparse_reconstruction_dir}")
     os.makedirs(sparse_reconstruction_dir, exist_ok=True)
