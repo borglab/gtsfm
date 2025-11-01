@@ -14,6 +14,7 @@ import gtsfm.utils.logger as logger_utils
 from gtsfm.cluster_optimizer import REACT_METRICS_PATH, REACT_RESULTS_PATH, Base, save_metrics_reports
 from gtsfm.common.outputs import OutputPaths, prepare_output_paths
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
+from gtsfm.evaluation.retrieval_metrics import save_retrieval_two_view_metrics
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.graph_partitioner.single_partitioner import SinglePartitioner
 from gtsfm.loader.loader_base import LoaderBase
@@ -62,28 +63,28 @@ class SceneOptimizer:
         {self.cluster_optimizer}
         """
 
-    def create_plot_base_path(self):
-        """Create plot base path."""
-        plot_base_path = self.output_root / "plots"
-        plot_base_path.mkdir(parents=True, exist_ok=True)
-        return plot_base_path
-
     def _ensure_react_directories(self) -> None:
         """Ensure the React dashboards have dedicated output folders."""
         REACT_RESULTS_PATH.mkdir(parents=True, exist_ok=True)
         REACT_METRICS_PATH.mkdir(parents=True, exist_ok=True)
+
+    def _save_retrieval_diagnostics(self, output_paths: OutputPaths) -> None:
+        try:
+            save_retrieval_two_view_metrics(output_paths.metrics, output_paths.plots)
+        except Exception as exc:  # pragma: no cover - diagnostics are best-effort
+            logger.debug("Skipping retrieval diagnostics for %s: %s", output_paths.plots, exc)
 
     def run(self, client) -> None:
         """Run the SceneOptimizer."""
         start_time = time.time()
         base_metrics_groups = []
         process_graph_generator = ProcessGraphGenerator()
-        process_graph_generator.save_graph()
         self._ensure_react_directories()
         base_output_paths = prepare_output_paths(self.output_root, None)
+        process_graph_generator.save_graph(str(base_output_paths.plots / "process_graph_output.svg"))
 
         logger.info("🔥 GTSFM: Running image pair retrieval...")
-        retriever_metrics, visibility_graph = self._run_retriever(client)
+        retriever_metrics, visibility_graph = self._run_retriever(client, base_output_paths)
         base_metrics_groups.append(retriever_metrics)
         image_futures = self.loader.get_all_images_as_futures(client)
 
@@ -136,12 +137,16 @@ class SceneOptimizer:
             if futures:
                 results = client.gather(futures)  # blocking call
                 for (leaf_index, output_paths), (io_tasks, metrics) in zip(leaf_jobs, results):
+                    self._save_retrieval_diagnostics(output_paths)
                     if not metrics:
                         continue
                     if use_leaf_subdirs:
                         save_metrics_reports(metrics, str(output_paths.metrics))
                     else:
                         multiview_metrics_groups_by_leaf[leaf_index] = metrics
+
+        if not futures:
+            self._save_retrieval_diagnostics(base_output_paths)
 
         # Log total time taken and save metrics report
         end_time = time.time()
@@ -163,7 +168,7 @@ class SceneOptimizer:
 
         save_metrics_reports(base_metrics_groups, str(base_output_paths.metrics))
 
-    def _run_retriever(self, client) -> tuple[GtsfmMetricsGroup, VisibilityGraph]:
+    def _run_retriever(self, client, output_paths: OutputPaths) -> tuple[GtsfmMetricsGroup, VisibilityGraph]:
         # TODO(Frank): refactor to move more of this logic into ImagePairsGenerator
         retriever_start_time = time.time()
         batch_size = self.image_pairs_generator._batch_size
@@ -175,13 +180,25 @@ class SceneOptimizer:
 
         image_fnames = self.loader.image_filenames()
 
+        plots_output_dir = output_paths.plots
         with performance_report(filename="dask_reports/retriever.html"):
             visibility_graph = self.image_pairs_generator.run(
                 client=client,
                 image_batch_futures=image_batch_futures,
                 image_fnames=image_fnames,
-                plots_output_dir=self.create_plot_base_path(),
+                plots_output_dir=plots_output_dir,
             )
+
+        retriever = self.image_pairs_generator._retriever
+        try:
+            retriever.save_diagnostics(
+                image_fnames=image_fnames,
+                pairs=visibility_graph,
+                plots_output_dir=plots_output_dir,
+            )
+        except Exception as exc:  # pragma: no cover - diagnostic path best-effort
+            logger.warning("Failed to persist retriever diagnostics: %s", exc)
+
         retriever_metrics = self.image_pairs_generator._retriever.evaluate(len(self.loader), visibility_graph)
         retriever_duration_sec = time.time() - retriever_start_time
         retriever_metrics.add_metric(GtsfmMetric("retriever_duration_sec", retriever_duration_sec))

@@ -33,7 +33,6 @@ from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 from gtsfm.densify.mvs_base import MVSBase
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
-from gtsfm.evaluation.retrieval_metrics import save_retrieval_two_view_metrics
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
@@ -274,10 +273,7 @@ class ClusterMVO(ClusterOptimizerBase):
         # Save duplicate copy within React folder.
         io_utils.save_json_file(os.path.join(REACT_METRICS_PATH, filename), metrics_list)
 
-        gt_available = any(report.R_error_deg is not None for report in two_view_report_dict.values())
-
-        if "VIEWGRAPH_2VIEW_REPORT" in filename and gt_available:
-            save_retrieval_two_view_metrics(metrics_path, plot_base_path)
+        # Downstream retrieval diagnostics are handled centrally after cluster execution.
 
     def create_computation_graph(
         self,

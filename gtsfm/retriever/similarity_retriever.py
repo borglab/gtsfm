@@ -43,6 +43,7 @@ class SimilarityRetriever(RetrieverBase):
         self._num_matched = num_matched
         self._blocksize = blocksize
         self._min_score = min_score
+        self._latest_similarity_matrix: Optional[torch.Tensor] = None
 
     def __repr__(self) -> str:
         return f"""
@@ -75,6 +76,8 @@ class SimilarityRetriever(RetrieverBase):
         if global_descriptors is None:
             raise ValueError("Global descriptors need to be provided")
         sim = self.compute_similarity_matrix(global_descriptors)
+        # Stash a CPU copy so downstream code can decide how to persist diagnostics.
+        self._latest_similarity_matrix = sim.detach().cpu()
         return self.compute_pairs_from_similarity_matrix(
             sim=sim, image_fnames=image_fnames, plots_output_dir=plots_output_dir
         )
@@ -175,29 +178,50 @@ class SimilarityRetriever(RetrieverBase):
         pairs = pairs_from_score_matrix(
             sim, invalid=is_invalid_mat, num_select=self._num_matched, min_score=self._min_score
         )
-        named_pairs = [(image_fnames[i], image_fnames[j]) for i, j in pairs]
-        if plots_output_dir:
-            os.makedirs(plots_output_dir, exist_ok=True)
-            # Save image of similarity matrix.
-            plt.imshow(np.triu(sim.detach().cpu().numpy()))
-            plt.title("Image Similarity Matrix")
-            plt.savefig(str(plots_output_dir / "similarity_matrix.jpg"), dpi=500)
-            plt.close("all")
-            # Save values in similarity matrix.
-            np.savetxt(
-                fname=str(plots_output_dir / "similarity_matrix.txt"),
-                X=sim.detach().cpu().numpy(),
-                fmt="%.2f",
-                delimiter=",",
-            )
-
-            # Save named pairs and scores.
-            with open(plots_output_dir / "similarity_named_pairs.txt", "w") as fid:
-                for _named_pair, _pair_ind in zip(named_pairs, pairs):
-                    fid.write("%.4f %s %s\n" % (sim[_pair_ind[0], _pair_ind[1]], _named_pair[0], _named_pair[1]))
-
         logger.info("Found %d pairs from the Similarity Retriever.", len(pairs))
         return pairs
+
+    def save_diagnostics(
+        self, image_fnames: List[str], pairs: VisibilityGraph, plots_output_dir: Optional[Path]
+    ) -> None:
+        """Persist diagnostic outputs for the latest similarity matrix (if available)."""
+
+        if plots_output_dir is None:
+            return
+
+        if self._latest_similarity_matrix is None:
+            logger.warning("No cached similarity matrix available to save.")
+            return
+
+        os.makedirs(plots_output_dir, exist_ok=True)
+
+        sim_cpu = self._latest_similarity_matrix
+        heatmap_path = plots_output_dir / "similarity_matrix.jpg"
+        matrix_path = plots_output_dir / "similarity_matrix.txt"
+        named_pairs_path = plots_output_dir / "similarity_named_pairs.txt"
+
+        sim_np = np.triu(sim_cpu.numpy())
+        plt.imshow(sim_np)
+        plt.title("Image Similarity Matrix")
+        plt.savefig(str(heatmap_path), dpi=500)
+        plt.close("all")
+        logger.info("Saved similarity heatmap to %s", heatmap_path)
+
+        np.savetxt(
+            fname=str(matrix_path),
+            X=sim_cpu.numpy(),
+            fmt="%.2f",
+            delimiter=",",
+        )
+        logger.info("Saved similarity matrix values to %s", matrix_path)
+
+        named_pairs = [(image_fnames[i], image_fnames[j]) for i, j in pairs]
+        with open(named_pairs_path, "w") as fid:
+            for (name_i, name_j), (i, j) in zip(named_pairs, pairs):
+                fid.write("%.4f %s %s\n" % (sim_cpu[i, j].item(), name_i, name_j))
+        logger.info("Saved similarity pair scores to %s", named_pairs_path)
+
+        self._latest_similarity_matrix = None
 
 
 def pairs_from_score_matrix(
