@@ -94,15 +94,28 @@ def default_device(device: Optional[Union[str, torch.device]] = None) -> torch.d
     """Resolve a concrete device for VGGT inference."""
     if device is not None:
         return torch.device(device)
-    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Prefer CUDA if available, then MPS (Mac GPU), then fall back to CPU
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        return torch.device("mps")
+    else:
+        return torch.device("cpu")
 
 
 def default_dtype(device: torch.device) -> torch.dtype:
     """Pick a floating-point dtype suitable for VGGT on the provided device."""
-    if device.type != "cuda":
+    if device.type == "cuda":
+        capability = torch.cuda.get_device_capability(device=device)
+        return torch.bfloat16 if capability[0] >= 8 else torch.float16
+    elif device.type == "mps":
+        # MPS has some limitations with float16, so use float32 for now
+        # Users can explicitly pass dtype=torch.float16 if they want to try it
         return torch.float32
-    capability = torch.cuda.get_device_capability(device=device)
-    return torch.bfloat16 if capability[0] >= 8 else torch.float16
+    else:
+        # CPU fallback
+        return torch.float32
 
 
 def resolve_weights_path(weights_path: PathLike | None = None) -> Path:
@@ -229,9 +242,12 @@ def run_reconstruction(
         model = load_model(weights_path, device=resolved_device, dtype=resolved_dtype)
     else:
         model = model.to(resolved_device)
+        if resolved_dtype is not None:
+            model = model.to(dtype=resolved_dtype)  # type: ignore
         model.eval()  # type: ignore
 
-    image_batch = image_batch.to(resolved_device)
+    # Ensure tensors match the model's device and dtype
+    image_batch = image_batch.to(resolved_device, dtype=resolved_dtype)
     original_coords = original_coords.to(resolved_device)
 
     inference_resolution = cfg.vggt_fixed_resolution
@@ -244,6 +260,10 @@ def run_reconstruction(
 
     if resolved_device.type == "cuda":
         autocast_ctx: Any = amp_autocast("cuda", dtype=resolved_dtype)
+    elif resolved_device.type == "mps":
+        # MPS doesn't support autocast with custom dtype, so we use nullcontext
+        # but the model will still run on MPS with the dtype we set earlier
+        autocast_ctx = nullcontext()
     else:
         autocast_ctx = nullcontext()
 
@@ -369,11 +389,18 @@ def run_VGGT(model: VGGT, images: torch.Tensor, dtype: torch.dtype, resolution: 
     """Keep a thin wrapper around the original VGGT demo helper for compatibility."""
     if images.ndim != 4 or images.shape[1] != 3:
         raise ValueError("VGGT expects images shaped as (N, 3, H, W).")
+
+    # Determine the device type from the model
+    model_device = next(model.parameters()).device
+
+    # Ensure the images match the model's device and dtype
+    images = images.to(model_device, dtype=dtype)
     resized = F.interpolate(images, size=(resolution, resolution), mode="bilinear", align_corners=False)
 
-    if torch.cuda.is_available():
+    if model_device.type == "cuda":
         autocast_ctx: Any = amp_autocast("cuda", dtype=dtype)
     else:
+        # For MPS and CPU, we don't use autocast with custom dtype
         autocast_ctx = nullcontext()
 
     with torch.no_grad():
