@@ -45,6 +45,11 @@ class ColmapViewer {
     this.ptSize = 2;
     this.showCams = true;
 
+    this.statsEls = null;
+    this.pointsCount = 0;
+    this.cameraCount = 0;
+    this.currentImageName = "";
+
     this.engine.runRenderLoop(() => this.scene.render());
     window.addEventListener("resize", () => this.engine.resize());
   }
@@ -57,6 +62,28 @@ class ColmapViewer {
   setShowCams(v) {
     this.showCams = v;
     this.frustumGroup.setEnabled(!!v);
+  }
+
+  setStatsElements(statsEls) {
+    this.statsEls = statsEls;
+    this._renderStats();
+  }
+
+  _renderStats() {
+    if (!this.statsEls) return;
+
+    const fmt = (value) => (typeof value === "number" && !Number.isNaN(value) ? value.toLocaleString() : "—");
+    if (this.statsEls.pointCount) {
+      const text = this.pointsCount ? fmt(this.pointsCount) : "0";
+      this.statsEls.pointCount.textContent = text;
+    }
+    if (this.statsEls.cameraCount) {
+      const text = this.cameraCount ? fmt(this.cameraCount) : "0";
+      this.statsEls.cameraCount.textContent = text;
+    }
+    if (this.statsEls.imageName) {
+      this.statsEls.imageName.textContent = this.currentImageName || "—";
+    }
   }
 
   async loadScene({ pointsUrl, imagesUrl }) {
@@ -77,6 +104,9 @@ class ColmapViewer {
     if (points.length) await this._createPCS(points);
     if (this.cameras.length) this._createFrusta(this.cameras);
 
+    this.pointsCount = points.length;
+    this.cameraCount = this.cameras.length;
+
     // centroid from a 100-point sample (fallback to bbox center if needed)
     this.sceneCenter = points.length
       ? this._centroidSample(points, 100)
@@ -86,12 +116,18 @@ class ColmapViewer {
 
     // remember which camera we're on for next/prev UI
     this.camIndex = 0;
+    this._updateCurrentImageName();
+    this._renderStats();
 
     this._autoFrame();
   }
 
   async _clear() {
     this.cameras = [];
+    this.pointsCount = 0;
+    this.cameraCount = 0;
+    this.currentImageName = "";
+    this._renderStats();
 
     if (this.pointsMesh) { this.pointsMesh.dispose(); this.pointsMesh = null; }
     if (this.pcs) { this.pcs.dispose(); this.pcs = null; }
@@ -144,7 +180,8 @@ class ColmapViewer {
         const center = new BABYLON.Vector3(centerWorld.x, -centerWorld.y, centerWorld.z);
         const Rcam = flip.multiply(Rcw).multiply(flip);
 
-        cams.push({ center, R: Rcam });
+        const name = s.length > 9 ? s.slice(9).join(" ") : "";
+        cams.push({ center, R: Rcam, name });
 
         // Skip 2D measurements line if present
         if (i + 1 < lines.length && /^\d/.test((lines[i + 1] || "").trim())) i++;
@@ -264,6 +301,7 @@ class ColmapViewer {
       this.camera.setPosition(pos);
       // recompute alpha/beta/radius from pos/target so orbit feels natural
       this.camera.rebuildAnglesAndRadius?.();
+      this._updateCurrentImageName();
     } else if (this.pointsMesh) {
       // simple fit by radius if no cameras
       const bb = this.pointsMesh.getBoundingInfo().boundingBox;
@@ -287,10 +325,20 @@ class ColmapViewer {
     const R = this.cameras[this.camIndex].R;
     const upWorld = BABYLON.Vector3.TransformCoordinates(new BABYLON.Vector3(0, 1, 0), R);
     this.camera.upVector = upWorld;
+    this._updateCurrentImageName();
+    this._renderStats();
   }
 
   nextCam() { this._gotoCam((this.camIndex ?? 0) + 1); }
   prevCam() { this._gotoCam((this.camIndex ?? 0) - 1); }
+
+  _updateCurrentImageName() {
+    if (!this.cameras.length) {
+      this.currentImageName = "";
+      return;
+    }
+    this.currentImageName = this.cameras[this.camIndex]?.name || "";
+  }
 }
 
 // ------------------- app bootstrap -------------------
@@ -301,6 +349,11 @@ async function boot() {
   const filterEl = document.getElementById("filter");
   const canvas = document.getElementById("renderCanvas");
   const viewer = new ColmapViewer(canvas);
+  viewer.setStatsElements({
+    cameraCount: document.getElementById("statCameras"),
+    pointCount: document.getElementById("statPoints"),
+    imageName: document.getElementById("statImageName"),
+  });
 
   let allItems = [];
 

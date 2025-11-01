@@ -185,3 +185,45 @@ body {
 #hud button:hover {
   background-color: #f8fafc;
 }
+
+/* --- Scene Statistics Overlay --- */
+#sceneStats {
+  position: absolute;
+  top: 24px;
+  left: 24px;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(6px);
+  padding: 14px 18px;
+  border-radius: 14px;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
+  display: grid;
+  gap: 8px;
+  min-width: 200px;
+  z-index: 6;
+}
+
+#sceneStats .label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+#sceneStats .value {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+#sceneStats .stat-pair,
+#sceneStats .stat-wide {
+  display: flex;
+  flex-direction: column;
+}
+
+#sceneStats .stat-wide .value {
+  max-width: 260px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
