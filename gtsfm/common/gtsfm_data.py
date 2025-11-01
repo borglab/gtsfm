@@ -638,15 +638,8 @@ class GtsfmData:
             aligned_data.add_camera(i, camera_type(aTi, calibration))  # type: ignore
         # Align estimated tracks to ground truth.
         for j in range(self.number_tracks()):
-            # Align each 3d point
             track_b = self.get_track(index=j)
-            # Place into the "a" reference frame
-            pt_a = aSb.transformFrom(track_b.point3())
-            track_a = SfmTrack(pt_a)
-            # Copy over the 2d measurements directly into the new track.
-            for k in range(track_b.numberMeasurements()):
-                i, uv = track_b.measurement(k)
-                track_a.addMeasurement(i, uv)
+            track_a = transform.track_with_sim3(aSb, track_b)
             aligned_data.add_track(track_a)
 
         return aligned_data
