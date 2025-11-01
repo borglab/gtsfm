@@ -5,10 +5,11 @@ Authors: Ayush Baid, John Lambert
 
 import os
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Mapping, Optional, Tuple
 
 import numpy as np
 from dask.delayed import Delayed, delayed
+from dask.distributed import Future
 from gtsam import Pose3, Rot3, Unit3  # type: ignore
 
 import gtsfm.common.types as gtsfm_types
@@ -95,7 +96,7 @@ class MultiViewOptimizer:
         keypoints_graph: Delayed,
         two_view_results_graph: Delayed,
         one_view_data_dict: Dict[int, OneViewData],
-        image_delayed_map: Dict[int, Delayed],
+        image_future_map: Mapping[int, Future],
         output_root: Optional[Path] = None,
     ) -> Tuple[Delayed, Delayed, Delayed, list]:
         """Creates a computation graph for multi-view optimization.
@@ -104,7 +105,7 @@ class MultiViewOptimizer:
             keypoints_graph: Delayed task producing padded keypoints for images.
             two_view_results_graph: Delayed task producing valid two-view results for image pairs.
             one_view_data_dict: Per-view data entries keyed by image index.
-            image_delayed_map: Delayed image fetch tasks keyed by image index.
+            image_future_map: Mapping of image index to cached futures for `get_image`.
             output_root: Path where output should be saved.
 
         Returns:
@@ -200,7 +201,7 @@ class MultiViewOptimizer:
         init_cameras_graph = delayed(init_cameras)(wTi_graph, all_intrinsics)
 
         cameras_gt = [one_view_data_dict[idx].camera_gt for idx in range(num_images)]
-        images: List[Delayed] = [image_delayed_map[idx] for idx in range(num_images)]
+        images: List[Future] = [image_future_map[idx] for idx in range(num_images)]
         ba_input_graph, data_assoc_metrics_graph = self.data_association_module.create_computation_graph(
             num_images,
             init_cameras_graph,
