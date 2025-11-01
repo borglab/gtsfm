@@ -6,17 +6,24 @@ import os
 from abc import abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Tuple
+from typing import TYPE_CHECKING, Tuple
 
 from dask.base import annotate
 from dask.delayed import Delayed
+from dask.distributed import Client, Future
 
 import gtsfm.evaluation.metrics_report as metrics_report
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 from gtsfm.common.image import Image
+from gtsfm.common.outputs import OutputPaths
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
+from gtsfm.products.visibility_graph import VisibilityGraph
 from gtsfm.ui.gtsfm_process import GTSFMProcess
+
+if TYPE_CHECKING:
+    from gtsfm.loader.loader_base import LoaderBase
+    from gtsfm.products.one_view_data import OneViewData
 
 # Paths to save output in React folders.
 REACT_METRICS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "src" / "result_metrics"
@@ -32,6 +39,36 @@ class ClusterComputationGraph:
     io_tasks: Tuple[Delayed, ...]
     metric_tasks: Tuple[Delayed, ...]
     sfm_result: Delayed | None
+
+
+@dataclass(frozen=True)
+class ClusterContext:
+    """Static metadata describing a cluster tree node."""
+
+    visibility_graph: VisibilityGraph
+    output_paths: OutputPaths
+    cluster_path: tuple[int, ...]
+    label: str
+    client: Client
+    num_images: int
+    one_view_data_dict: dict[int, "OneViewData"]
+    image_futures: tuple[Future, ...]
+
+    @property
+    def is_root(self) -> bool:
+        return len(self.cluster_path) == 0
+
+    @property
+    def results_relative_to_run_root(self) -> Path:
+        """Return the cluster results directory relative to the run root."""
+        base = self.output_paths.relative_results_path()
+        # Ensure we always surface a Path pointing under "results"
+        return base
+
+    @property
+    def run_root(self) -> Path:
+        """Base directory for the entire run."""
+        return self.output_paths.run_root()
 
 
 class ClusterOptimizerBase(GTSFMProcess):
@@ -69,15 +106,14 @@ class ClusterOptimizerBase(GTSFMProcess):
     @abstractmethod
     def create_computation_graph(
         self,
-        num_images: int,
-        one_view_data_dict,
-        output_paths,
-        loader,
-        output_root: Path,
-        visibility_graph,
-        image_futures,
+        context: ClusterContext,
+        loader: "LoaderBase",
     ) -> ClusterComputationGraph | None:
         """Create a Dask computation graph to process a cluster.
+
+        Args:
+            context: Static metadata for the cluster being scheduled.
+            loader: Loader used to fetch image content and auxiliary data.
 
         Returns:
             ClusterComputationGraph describing delayed I/O, metrics, and the bundle-adjusted result.

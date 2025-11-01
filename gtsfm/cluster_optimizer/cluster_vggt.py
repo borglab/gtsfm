@@ -14,9 +14,11 @@ import gtsfm.utils.vggt as vggt
 from gtsfm.cluster_optimizer.cluster_optimizer_base import (
     REACT_RESULTS_PATH,
     ClusterComputationGraph,
+    ClusterContext,
     ClusterOptimizerBase,
 )
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
+from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.products.visibility_graph import visibility_graph_keys
 from gtsfm.ui.gtsfm_process import UiMetadata
 from gtsfm.utils.logger import get_logger
@@ -56,7 +58,7 @@ def _save_reconstruction_as_text(
     result: VGGTReconstructionResult,
     results_path: Path,
     copy_to_react: bool,
-    output_root: Path,
+    relative_results_dir: Path,
 ) -> None:
     target_dir = results_path / "vggt"
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -65,11 +67,7 @@ def _save_reconstruction_as_text(
     if not copy_to_react:
         return
 
-    try:
-        relative = results_path.relative_to(output_root)
-    except ValueError:
-        relative = Path(results_path.name)
-    react_destination = REACT_RESULTS_PATH / relative / "vggt"
+    react_destination = REACT_RESULTS_PATH / relative_results_dir / "vggt"
     react_destination.mkdir(parents=True, exist_ok=True)
     result.gtsfm_data.export_as_colmap_text(react_destination)
 
@@ -144,21 +142,16 @@ class ClusterVGGT(ClusterOptimizerBase):
 
     def create_computation_graph(
         self,
-        num_images: int,
-        one_view_data_dict,
-        output_paths,
-        loader,
-        output_root: Path,
-        visibility_graph,
-        image_futures,
-    ) -> ClusterComputationGraph:
+        context: ClusterContext,
+        loader: LoaderBase,
+    ) -> ClusterComputationGraph | None:
         """Create the VGGT computation graph for a cluster."""
 
-        del one_view_data_dict, image_futures  # unused in VGGT pipeline
-
-        keys = sorted(visibility_graph_keys(visibility_graph))
+        keys = sorted(visibility_graph_keys(context.visibility_graph))
         if not keys:
-            return ClusterComputationGraph(io_tasks=(), metric_tasks=(), sfm_result=None)
+            return None
+
+        num_images = context.num_images
 
         global_indices = tuple(int(idx) for idx in keys)
         image_filenames = loader.image_filenames()
@@ -191,14 +184,15 @@ class ClusterVGGT(ClusterOptimizerBase):
 
         metrics_tasks = [delayed(_aggregate_vggt_metrics)(result_graph)]
 
-        io_tasks = []
+        io_tasks: list[Delayed] = []
+        relative_results_dir = context.results_relative_to_run_root
         with self._output_annotation():
             io_tasks.append(
                 delayed(_save_reconstruction_as_text)(
                     result_graph,
-                    output_paths.results,
+                    context.output_paths.results,
                     self._copy_results_to_react,
-                    output_root,
+                    relative_results_dir,
                 )
             )
 

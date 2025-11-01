@@ -13,9 +13,10 @@ import torchvision  # type: ignore
 from dask import delayed  # type: ignore
 from dask.delayed import Delayed
 
-from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterComputationGraph, ClusterOptimizerBase
+from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterComputationGraph, ClusterContext, ClusterOptimizerBase
 from gtsfm.common.image import Image
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
+from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.products.visibility_graph import visibility_graph_keys
 from gtsfm.ui.gtsfm_process import UiMetadata
 from gtsfm.utils import logger as logger_utils
@@ -183,14 +184,9 @@ class ClusterAnySplat(ClusterOptimizerBase):
 
     def create_computation_graph(
         self,
-        num_images: int,
-        one_view_data_dict,
-        output_paths,
-        loader,
-        output_root: Path,
-        visibility_graph,
-        image_futures,
-    ) -> ClusterComputationGraph:
+        context: ClusterContext,
+        loader: LoaderBase,
+    ) -> ClusterComputationGraph | None:
         """Create a Dask computation graph to process a cluster.
 
         Returns:
@@ -200,7 +196,9 @@ class ClusterAnySplat(ClusterOptimizerBase):
         io_tasks: List[Delayed] = []
         metrics_tasks: List[Delayed] = []
 
-        keys = sorted(visibility_graph_keys(visibility_graph))
+        keys = sorted(visibility_graph_keys(context.visibility_graph))
+        if not keys:
+            return None
 
         def _pack_images_for_anysplat(*images: Image) -> list[Image]:
             """Collect variadic image inputs into an ordered list."""
@@ -226,10 +224,10 @@ class ClusterAnySplat(ClusterOptimizerBase):
                     height,
                     width,
                     splats,
-                    str(output_paths.results),
+                    str(context.output_paths.results),
                 )
             )
-            io_tasks.append(delayed(self._save_splats)(splats, output_paths.results))
+            io_tasks.append(delayed(self._save_splats)(splats, context.output_paths.results))
 
         return ClusterComputationGraph(
             io_tasks=tuple(io_tasks),
