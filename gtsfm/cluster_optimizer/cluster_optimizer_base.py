@@ -16,7 +16,7 @@ import gtsfm.evaluation.metrics_report as metrics_report
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 from gtsfm.common.image import Image
-from gtsfm.common.outputs import OutputPaths
+from gtsfm.common.outputs import OutputPaths, cluster_label
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 from gtsfm.products.visibility_graph import VisibilityGraph
 from gtsfm.ui.gtsfm_process import GTSFMProcess
@@ -53,22 +53,20 @@ class ClusterContext:
     num_images: int
     one_view_data_dict: dict[int, "OneViewData"]
     image_futures: tuple[Future, ...]
+    loader: "LoaderBase"
 
     @property
     def is_root(self) -> bool:
         return len(self.cluster_path) == 0
 
     @property
-    def results_relative_to_run_root(self) -> Path:
-        """Return the cluster results directory relative to the run root."""
-        base = self.output_paths.relative_results_path()
-        # Ensure we always surface a Path pointing under "results"
-        return base
-
-    @property
-    def run_root(self) -> Path:
-        """Base directory for the entire run."""
-        return self.output_paths.run_root()
+    def react_results_subdir(self) -> Path:
+        """Subdirectory used when mirroring artifacts into the React workspace."""
+        subdir = Path("results")
+        if self.cluster_path:
+            for depth in range(len(self.cluster_path)):
+                subdir /= cluster_label(self.cluster_path[: depth + 1])
+        return subdir
 
 
 class ClusterOptimizerBase(GTSFMProcess):
@@ -107,13 +105,11 @@ class ClusterOptimizerBase(GTSFMProcess):
     def create_computation_graph(
         self,
         context: ClusterContext,
-        loader: "LoaderBase",
     ) -> ClusterComputationGraph | None:
         """Create a Dask computation graph to process a cluster.
 
         Args:
             context: Static metadata for the cluster being scheduled.
-            loader: Loader used to fetch image content and auxiliary data.
 
         Returns:
             ClusterComputationGraph describing delayed I/O, metrics, and the bundle-adjusted result.

@@ -8,7 +8,7 @@ from typing import Optional
 import numpy as np
 import torch
 import torch.nn.functional as F
-from dask.delayed import delayed
+from dask.delayed import Delayed, delayed
 
 import gtsfm.utils.vggt as vggt
 from gtsfm.cluster_optimizer.cluster_optimizer_base import (
@@ -18,7 +18,6 @@ from gtsfm.cluster_optimizer.cluster_optimizer_base import (
     ClusterOptimizerBase,
 )
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
-from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.products.visibility_graph import visibility_graph_keys
 from gtsfm.ui.gtsfm_process import UiMetadata
 from gtsfm.utils.logger import get_logger
@@ -143,7 +142,6 @@ class ClusterVGGT(ClusterOptimizerBase):
     def create_computation_graph(
         self,
         context: ClusterContext,
-        loader: LoaderBase,
     ) -> ClusterComputationGraph | None:
         """Create the VGGT computation graph for a cluster."""
 
@@ -151,10 +149,8 @@ class ClusterVGGT(ClusterOptimizerBase):
         if not keys:
             return None
 
-        num_images = context.num_images
-
         global_indices = tuple(int(idx) for idx in keys)
-        image_filenames = loader.image_filenames()
+        image_filenames = context.loader.image_filenames()
         image_names = tuple(str(image_filenames[idx]) for idx in keys)
 
         config = VGGTReconstructionConfig(
@@ -168,7 +164,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         )
 
         image_batch_graph, original_coords_graph = delayed(_load_vggt_inputs, nout=2)(
-            loader, global_indices, self._image_load_resolution
+            context.loader, global_indices, self._image_load_resolution
         )
 
         result_graph = delayed(_run_vggt_pipeline)(
@@ -179,20 +175,19 @@ class ClusterVGGT(ClusterOptimizerBase):
             image_names=image_names,
             config=config,
             weights_path=self._weights_path,
-            total_num_images=num_images,
+            total_num_images=context.num_images,
         )
 
         metrics_tasks = [delayed(_aggregate_vggt_metrics)(result_graph)]
 
         io_tasks: list[Delayed] = []
-        relative_results_dir = context.results_relative_to_run_root
         with self._output_annotation():
             io_tasks.append(
                 delayed(_save_reconstruction_as_text)(
                     result_graph,
                     context.output_paths.results,
                     self._copy_results_to_react,
-                    relative_results_dir,
+                    context.react_results_subdir,
                 )
             )
 

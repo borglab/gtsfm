@@ -213,6 +213,7 @@ class SceneOptimizer:
                 num_images=num_images,
                 one_view_data_dict=one_view_data_dict,
                 image_futures=shared_image_futures,
+                loader=self.loader,
             )
 
         return cluster_tree.map_with_path(to_context)
@@ -231,7 +232,6 @@ class SceneOptimizer:
 
         computation = self.cluster_optimizer.create_computation_graph(
             context=context,
-            loader=self.loader,
         )
         if computation is None or computation.sfm_result is None:
             logger.warning("Cluster optimizer produced no result for cluster %s.", context.label)

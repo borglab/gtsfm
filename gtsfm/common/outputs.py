@@ -23,23 +23,6 @@ class OutputPaths:
         ):
             directory.mkdir(parents=True, exist_ok=True)
 
-    def run_root(self) -> Path:
-        """Return the base directory for the current run (parent of the results tree)."""
-        if self.results.name == "results":
-            return self.results.parent
-        for parent in self.results.parents:
-            if parent.name == "results":
-                return parent.parent
-        return self.results.parent
-
-    def relative_results_path(self) -> Path:
-        """Return path to results directory relative to the run root."""
-        root = self.run_root()
-        try:
-            return self.results.relative_to(root)
-        except ValueError:
-            return Path(self.results.name)
-
 
 def cluster_label(path: Sequence[int]) -> str:
     """Return a human-readable label like C12 for the given cluster path."""

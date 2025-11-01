@@ -196,18 +196,11 @@ class ClusterMVO(ClusterOptimizerBase):
                 file_path=str(output_dir / f"{i1}_{i2}__{image_i1.file_name}_{image_i2.file_name}.jpg"),
             )
 
-    def _build_frontend_graphs(
-        self,
-        num_images: int,
-        one_view_data_dict: dict[int, OneViewData],
-        loader: LoaderBase,
-        visibility_graph: VisibilityGraph,
-        image_futures: list[Future],
-    ) -> FrontendGraphs:
+    def _build_frontend_graphs(self, context: ClusterContext) -> FrontendGraphs:
         """Create delayed nodes for the full front-end pipeline."""
 
-        visibility_edges = list(visibility_graph)
-        image_future_keys = [future.key for future in image_futures]
+        visibility_edges = list(context.visibility_graph)
+        image_future_keys = [future.key for future in context.image_futures]
 
         keypoints_graph, putative_corr_idxs_graph, correspondence_duration_graph = delayed(
             ClusterMVO._run_correspondence_generator, nout=3
@@ -217,10 +210,10 @@ class ClusterMVO(ClusterOptimizerBase):
             image_future_keys,
         )
 
-        padded_keypoints_graph = delayed(_pad_keypoints_list)(keypoints_graph, num_images)
+        padded_keypoints_graph = delayed(_pad_keypoints_list)(keypoints_graph, context.num_images)
 
-        relative_pose_priors = loader.get_relative_pose_priors(visibility_graph) or {}
-        gt_scene_mesh = loader.get_gt_scene_trimesh()
+        relative_pose_priors = context.loader.get_relative_pose_priors(context.visibility_graph) or {}
+        gt_scene_mesh = context.loader.get_gt_scene_trimesh()
 
         two_view_results_graph, two_view_duration_graph = delayed(ClusterMVO._run_two_view_estimation, nout=2)(
             self.two_view_estimator,
@@ -228,7 +221,7 @@ class ClusterMVO(ClusterOptimizerBase):
             putative_corr_idxs_graph,
             relative_pose_priors,
             gt_scene_mesh,
-            one_view_data_dict,
+            context.one_view_data_dict,
         )
 
         runtime_metrics_graph = delayed(ClusterMVO._build_frontend_runtime_metrics)(
@@ -287,11 +280,7 @@ class ClusterMVO(ClusterOptimizerBase):
 
         # Downstream retrieval diagnostics are handled centrally after cluster execution.
 
-    def create_computation_graph(
-        self,
-        context: ClusterContext,
-        loader: LoaderBase,
-    ) -> ClusterComputationGraph | None:
+    def create_computation_graph(self, context: ClusterContext) -> ClusterComputationGraph | None:
         """Create Dask graphs for multi-view optimization and downstream products for a single cluster.
 
         The cluster optimizer now owns the full front-end execution for the provided `visibility_graph`
@@ -301,16 +290,10 @@ class ClusterMVO(ClusterOptimizerBase):
             - List of Delayed I/O tasks to be computed
             - List of Delayed metrics to be computed
         """
-        frontend_graphs: FrontendGraphs = self._build_frontend_graphs(
-            num_images=context.num_images,
-            one_view_data_dict=context.one_view_data_dict,
-            loader=loader,
-            visibility_graph=context.visibility_graph,
-            image_futures=list(context.image_futures),
-        )
+        frontend_graphs: FrontendGraphs = self._build_frontend_graphs(context=context)
 
         # Note: the MultiviewOptimizer returns BA input and BA output aligned to GT via Sim(3).
-        image_delayed_map = loader.get_images_as_delayed_map()
+        image_delayed_map = context.loader.get_images_as_delayed_map()
         (
             ba_input_graph,
             ba_output_graph,
@@ -321,7 +304,7 @@ class ClusterMVO(ClusterOptimizerBase):
             two_view_results_graph=frontend_graphs.two_view_results,  # type: ignore[arg-type]
             one_view_data_dict=context.one_view_data_dict,
             image_delayed_map=image_delayed_map,
-            output_root=context.run_root,
+            output_root=context.output_paths.plots,
         )
 
         delayed_io_tasks: list[Delayed] = []
@@ -351,7 +334,7 @@ class ClusterMVO(ClusterOptimizerBase):
             with self._output_annotation():
                 delayed_io_tasks.append(
                     delayed(ClusterMVO._save_two_view_visualizations)(
-                        loader,
+                        context.loader,
                         frontend_graphs.two_view_results,
                         frontend_graphs.padded_keypoints,
                         context.output_paths.plots,

@@ -13,10 +13,13 @@ import torchvision  # type: ignore
 from dask import delayed  # type: ignore
 from dask.delayed import Delayed
 
-from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterComputationGraph, ClusterContext, ClusterOptimizerBase
+from gtsfm.cluster_optimizer.cluster_optimizer_base import (
+    ClusterComputationGraph,
+    ClusterContext,
+    ClusterOptimizerBase,
+)
 from gtsfm.common.image import Image
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
-from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.products.visibility_graph import visibility_graph_keys
 from gtsfm.ui.gtsfm_process import UiMetadata
 from gtsfm.utils import logger as logger_utils
@@ -185,7 +188,6 @@ class ClusterAnySplat(ClusterOptimizerBase):
     def create_computation_graph(
         self,
         context: ClusterContext,
-        loader: LoaderBase,
     ) -> ClusterComputationGraph | None:
         """Create a Dask computation graph to process a cluster.
 
@@ -206,7 +208,7 @@ class ClusterAnySplat(ClusterOptimizerBase):
             return list(images)
 
         logger.info("Keys for AnySplat GS computation: %s", keys)
-        selected_images = loader.get_key_images_as_delayed_map(keys)
+        selected_images = context.loader.get_key_images_as_delayed_map(keys)
 
         images = delayed(_pack_images_for_anysplat)(*selected_images.values())
 
