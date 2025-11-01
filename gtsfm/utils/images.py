@@ -279,10 +279,17 @@ def get_average_point_color(track: SfmTrack, images: Sequence[Image] | Mapping[i
         if image is None:
             continue
 
+        # Check if image has 3 channels (RGB)
+        if len(image.value_array.shape) != 3 or image.value_array.shape[2] != 3:
+            continue
+
         u, v = np.round(uv_measured).astype(np.int32)
+
+        # Check if measurement is inside image bounds
+        if u < 0 or u >= image.width or v < 0 or v >= image.height:
+            continue
+
         # ensure round did not push us out of bounds
-        u = np.clip(u, 0, image.width - 1)
-        v = np.clip(v, 0, image.height - 1)
         rgb_measurements.append(image.value_array[v, u])
 
     if not rgb_measurements:

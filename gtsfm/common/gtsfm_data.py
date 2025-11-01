@@ -16,6 +16,7 @@ from gtsam import Pose3, SfmTrack, Similarity3
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.graph as graph_utils
+import gtsfm.utils.images as image_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.reprojection as reprojection
@@ -224,51 +225,6 @@ class GtsfmData:
             info.shape = tuple(int(x) for x in shape)
         self._image_info[index] = info
 
-    @staticmethod
-    def _color_track_from_images(track: SfmTrack, images_by_index: Mapping[int, Image]) -> SfmTrack:
-        """Color a track by taking median of RGB values from its measurements across images."""
-        colored_track = SfmTrack(track.point3())
-        # Copy existing color values as defaults
-        colored_track.r = int(getattr(track, "r", 0))
-        colored_track.g = int(getattr(track, "g", 0))
-        colored_track.b = int(getattr(track, "b", 0))
-
-        # Copy all measurements
-        for k in range(track.numberMeasurements()):
-            image_idx, uv = track.measurement(k)
-            colored_track.addMeasurement(image_idx, uv)
-
-        # Sample RGB values from images
-        rgb_samples: list[np.ndarray] = []
-        for k in range(track.numberMeasurements()):
-            image_idx, uv = track.measurement(k)
-            image = images_by_index.get(image_idx)
-            if image is None:
-                continue
-
-            # Check if image has 3 channels (RGB)
-            if len(image.value_array.shape) != 3 or image.value_array.shape[2] != 3:
-                continue
-
-            u = int(np.round(uv[0]))
-            v = int(np.round(uv[1]))
-
-            # Check if measurement is inside image bounds
-            if u < 0 or u >= image.width or v < 0 or v >= image.height:
-                continue
-
-            pixel = image.value_array[v, u]
-            rgb_samples.append(pixel.astype(np.float32))
-
-        # Set color from averaged samples
-        if rgb_samples:
-            mean_rgb = np.median(np.vstack(rgb_samples), axis=0)
-            colored_track.r = int(np.clip(mean_rgb[0], 0, 255))
-            colored_track.g = int(np.clip(mean_rgb[1], 0, 255))
-            colored_track.b = int(np.clip(mean_rgb[2], 0, 255))
-
-        return colored_track
-
     def clone_with_image_data(self, images_by_index: Mapping[int, Image]) -> "GtsfmData":
         """Return a copy with image metadata populated and track RGB colors."""
         cloned = GtsfmData(self.number_images())
@@ -291,7 +247,19 @@ class GtsfmData:
         # Color and add all tracks
         for j in range(self.number_tracks()):
             src_track = self.get_track(j)
-            colored_track = self._color_track_from_images(src_track, images_by_index)
+            colored_track = SfmTrack(src_track.point3())
+
+            # Copy all measurements
+            for k in range(src_track.numberMeasurements()):
+                image_idx, uv = src_track.measurement(k)
+                colored_track.addMeasurement(image_idx, uv)
+
+            # Get color using the utility function (mean-based)
+            r, g, b = image_utils.get_average_point_color(src_track, images_by_index)
+            colored_track.r = r
+            colored_track.g = g
+            colored_track.b = b
+
             cloned.add_track(colored_track)
 
         return cloned
