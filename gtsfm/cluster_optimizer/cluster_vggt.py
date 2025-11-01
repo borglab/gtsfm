@@ -158,7 +158,7 @@ class ClusterVGGT(ClusterOptimizerBase):
 
         keys = sorted(visibility_graph_keys(visibility_graph))
         if not keys:
-            return [], []
+            return ClusterComputationGraph(io_tasks=(), metric_tasks=(), sfm_result=None)
 
         global_indices = tuple(int(idx) for idx in keys)
         image_filenames = loader.image_filenames()
