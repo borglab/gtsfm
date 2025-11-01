@@ -11,19 +11,13 @@ import numpy as np
 import torch
 from torchvision.transforms import v2 as transforms  # type: ignore
 
+import gtsfm.utils.vggt as vggt
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.loader.olsson_loader import OlssonLoader
 from gtsfm.products.cluster_tree import ClusterTree
 from gtsfm.products.visibility_graph import VisibilityGraph
 from gtsfm.utils.tree import Tree  # PreOrderIter
-from gtsfm.utils.vggt import (
-    VGGTReconstructionConfig,
-    _convert_measurement_to_original_resolution,
-    default_vggt_device,
-    default_vggt_dtype,
-    load_vggt_model,
-    run_vggt_reconstruction,
-)
+from gtsfm.utils.vggt import VGGTReconstructionConfig
 
 LocalScene = tuple[Path, GtsfmData]
 SceneTree = Tree[LocalScene]
@@ -55,12 +49,12 @@ def run_vggt(
         torch.cuda.manual_seed_all(seed)
     print(f"Setting seed as: {seed}")
 
-    device = default_vggt_device()
-    dtype = default_vggt_dtype(device)
+    device = vggt.default_device()
+    dtype = vggt.default_dtype(device)
     print(f"Using device: {device.type}")
     print(f"Using dtype: {dtype}")
 
-    model = load_vggt_model(device=device)
+    model = vggt.load_model(device=device)
     print("Model loaded")
 
     image_batch = image_batch.to(device)
@@ -82,7 +76,7 @@ def run_vggt(
         camera_type_ba=camera_type,
     )
 
-    result = run_vggt_reconstruction(
+    result = vggt.run_reconstruction(
         image_batch,
         image_indices=image_indices,
         image_names=[f"image_{idx}" for idx in image_indices],
@@ -177,7 +171,7 @@ class TestVGGT(unittest.TestCase):
 
         for u_orig, v_orig in samples:
             uv_infer = forward_to_inference(u_orig, v_orig)
-            u_back, v_back = _convert_measurement_to_original_resolution(
+            u_back, v_back = vggt._convert_measurement_to_original_resolution(
                 uv_infer,
                 original_coord,
                 inference_resolution,

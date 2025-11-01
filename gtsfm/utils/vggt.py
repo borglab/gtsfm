@@ -93,14 +93,14 @@ class VGGTReconstructionResult:
     fallback_reason: Optional[str] = None
 
 
-def default_vggt_device(device: Optional[Union[str, torch.device]] = None) -> torch.device:
+def default_device(device: Optional[Union[str, torch.device]] = None) -> torch.device:
     """Resolve a concrete device for VGGT inference."""
     if device is not None:
         return torch.device(device)
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def default_vggt_dtype(device: torch.device) -> torch.dtype:
+def default_dtype(device: torch.device) -> torch.dtype:
     """Pick a floating-point dtype suitable for VGGT on the provided device."""
     if device.type != "cuda":
         return torch.float32
@@ -108,7 +108,7 @@ def default_vggt_dtype(device: torch.device) -> torch.dtype:
     return torch.bfloat16 if capability[0] >= 8 else torch.float16
 
 
-def resolve_vggt_weights_path(weights_path: PathLike | None = None) -> Path:
+def resolve_weights_path(weights_path: PathLike | None = None) -> Path:
     """Return a concrete path to the VGGT checkpoint, validating that it exists."""
     checkpoint = Path(weights_path) if weights_path is not None else DEFAULT_WEIGHTS_PATH
     if not checkpoint.exists():
@@ -118,15 +118,15 @@ def resolve_vggt_weights_path(weights_path: PathLike | None = None) -> Path:
     return checkpoint
 
 
-def load_vggt_model(
+def load_model(
     weights_path: PathLike | None = None,
     *,
     device: Optional[Union[str, torch.device]] = None,
     dtype: Optional[torch.dtype] = None,
 ) -> VGGT:
     """Load the VGGT model weights on the requested device."""
-    resolved_device = default_vggt_device(device)
-    checkpoint = resolve_vggt_weights_path(weights_path)
+    resolved_device = default_device(device)
+    checkpoint = resolve_weights_path(weights_path)
 
     model = VGGT()
     state_dict = torch.load(checkpoint, map_location="cpu")
@@ -205,7 +205,7 @@ def _convert_measurement_to_original_resolution(
     return u, v
 
 
-def run_vggt_reconstruction(
+def run_reconstruction(
     image_batch: torch.Tensor,
     *,
     image_indices: Sequence[int],
@@ -228,11 +228,11 @@ def run_vggt_reconstruction(
         torch.cuda.manual_seed(cfg.seed)
         torch.cuda.manual_seed_all(cfg.seed)
 
-    resolved_device = default_vggt_device(device)
-    resolved_dtype = dtype or default_vggt_dtype(resolved_device)
+    resolved_device = default_device(device)
+    resolved_dtype = dtype or default_dtype(resolved_device)
 
     if model is None:
-        model = load_vggt_model(weights_path, device=resolved_device, dtype=resolved_dtype)
+        model = load_model(weights_path, device=resolved_device, dtype=resolved_dtype)
     else:
         model = model.to(resolved_device)
         model.eval()
@@ -258,6 +258,7 @@ def run_vggt_reconstruction(
 
     with torch.no_grad():
         with autocast_ctx:
+            assert model is not None  # for mypy
             batched = images_for_model.unsqueeze(0)
             tokens, ps_idx = model.aggregator(batched)
             pose_enc = model.camera_head(tokens)[-1]
@@ -385,11 +386,11 @@ __all__ = [
     "DEFAULT_WEIGHTS_PATH",
     "VGGT_SUBMODULE_PATH",
     "LIGHTGLUE_SUBMODULE_PATH",
-    "default_vggt_device",
-    "default_vggt_dtype",
+    "default_device",
+    "default_dtype",
     "load_and_preprocess_images_square",
-    "resolve_vggt_weights_path",
-    "load_vggt_model",
+    "resolve_weights_path",
+    "load_model",
     "run_VGGT",
-    "run_vggt_reconstruction",
+    "run_reconstruction",
 ]

@@ -10,10 +10,11 @@ import torch
 import torch.nn.functional as F
 from dask.delayed import Delayed, delayed
 
+import gtsfm.utils.vggt as vggt
 from gtsfm.cluster_optimizer.cluster_optimizer_base import REACT_RESULTS_PATH, ClusterOptimizerBase
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.products.visibility_graph import visibility_graph_keys
-from gtsfm.utils.vggt import VGGTReconstructionConfig, VGGTReconstructionResult, run_vggt_reconstruction
+from gtsfm.utils.vggt import VGGTReconstructionConfig, VGGTReconstructionResult
 
 
 def _resize_to_square_tensor(image: np.ndarray, target_size: int) -> torch.Tensor:
@@ -39,7 +40,7 @@ def _run_vggt_pipeline(image_batch: torch.Tensor, seed: int, **kwargs) -> VGGTRe
         torch.cuda.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
 
-    return run_vggt_reconstruction(image_batch, **kwargs)
+    return vggt.run_reconstruction(image_batch, **kwargs)
 
 
 def _save_reconstruction_as_text(
