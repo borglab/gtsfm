@@ -4,7 +4,7 @@ Authors: Harneet Singh Khanuja
 """
 
 import abc
-from typing import List, Tuple
+from typing import Mapping, Tuple
 
 import dask
 from dask.delayed import Delayed
@@ -32,11 +32,15 @@ class GSBase(GTSFMProcess):
         pass
 
     @abc.abstractmethod
-    def splatify(self, images_graph: List[Image], sfm_result_graph: GtsfmData) -> Tuple[object, object]:
+    def splatify(
+        self,
+        images_by_index: Mapping[int, Image],
+        sfm_result_graph: GtsfmData,
+    ) -> Tuple[object, object]:
         """Create 3D gaussians using Gaussian Splatting.
 
         Args:
-            images_graph: List of images with Image object.
+            images_by_index: Mapping of image index to image object.
             sfm_result_graph: object containing camera parameters and the optimized point cloud.
 
         Returns:
@@ -49,7 +53,7 @@ class GSBase(GTSFMProcess):
         """Generates the computation graph for performing the gaussian splats and the config parameters.
 
         Args:
-            images_graph: computation graph for images.
+            images_graph: computation graph for index→image mapping.
             sfm_result_graph: computation graph for SFM output
 
         Returns:

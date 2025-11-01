@@ -3,7 +3,7 @@
 Authors: Ayush Baid
 """
 
-from typing import List, Tuple
+from typing import List, Mapping, Sequence, Tuple
 
 import cv2 as cv
 import numpy as np
@@ -257,12 +257,12 @@ def match_image_widths(
     return scaled_image_i1, scaled_image_i2, scale_factor_i1, scale_factor_i2
 
 
-def get_average_point_color(track: SfmTrack, images: List[Image]) -> Tuple[int, int, int]:
+def get_average_point_color(track: SfmTrack, images: Sequence[Image] | Mapping[int, Image]) -> Tuple[int, int, int]:
     """Computes the average point color over all measurements in a track.
 
     Args:
         track: 3d point/landmark and its corresponding 2d measurements in various cameras.
-        images: List of all images for this scene.
+        images: Collection of images for this scene, indexable by camera id.
 
     Returns:
         r: Red color intensity, in range [0,255].
@@ -275,11 +275,21 @@ def get_average_point_color(track: SfmTrack, images: List[Image]) -> Tuple[int, 
         # process each measurement
         i, uv_measured = track.measurement(k)
 
+        image = images[i] if not isinstance(images, Mapping) else images.get(i)
+        if image is None:
+            continue
+
         u, v = np.round(uv_measured).astype(np.int32)
         # ensure round did not push us out of bounds
-        u = np.clip(u, 0, images[i].width - 1)
-        v = np.clip(v, 0, images[i].height - 1)
-        rgb_measurements += [images[i].value_array[v, u]]
+        u = np.clip(u, 0, image.width - 1)
+        v = np.clip(v, 0, image.height - 1)
+        rgb_measurements.append(image.value_array[v, u])
 
+    if not rgb_measurements:
+        return (
+            int(getattr(track, "r", 0)),
+            int(getattr(track, "g", 0)),
+            int(getattr(track, "b", 0)),
+        )
     r, g, b = np.array(rgb_measurements).mean(axis=0).astype(np.uint8)
     return r, g, b

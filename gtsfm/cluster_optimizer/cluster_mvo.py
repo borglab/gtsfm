@@ -38,7 +38,7 @@ from gtsfm.frontend.correspondence_generator.correspondence_generator_base impor
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.products.one_view_data import OneViewData
 from gtsfm.products.two_view_result import TwoViewResult
-from gtsfm.products.visibility_graph import AnnotatedGraph, VisibilityGraph, visibility_graph_keys
+from gtsfm.products.visibility_graph import AnnotatedGraph, VisibilityGraph
 from gtsfm.two_view_estimator import TwoViewEstimator, create_two_view_estimator_futures
 from gtsfm.ui.gtsfm_process import UiMetadata
 from gtsfm.utils import transform
@@ -254,11 +254,6 @@ class ClusterMVO(ClusterOptimizerBase):
         return scene.clone_with_image_data(images_by_index)
 
     @staticmethod
-    def _images_dict_to_list(images_by_index: Mapping[int, Image]) -> list[Image]:
-        """Convert an index→image map to a deterministic list ordered by index."""
-        return [images_by_index[idx] for idx in sorted(images_by_index.keys())]
-
-    @staticmethod
     def _build_frontend_runtime_metrics(
         correspondence_duration_sec: float,
         two_view_duration_sec: float,
@@ -306,11 +301,12 @@ class ClusterMVO(ClusterOptimizerBase):
         """
         frontend_graphs: FrontendGraphs = self._build_frontend_graphs(context=context)
 
-        d_cluster_images = delayed(self.resolve_visibility_images, pure=False)(
+        # Get images for all cluster indices as a delayed computation. within this cluster,
+        # Dask will materialize that dictionary exactly once and share it among those downstream tasks.
+        d_cluster_images = delayed(self.resolve_visibility_images)(
             context.visibility_graph,
             context.image_future_map,
         )
-        d_cluster_image_list = delayed(ClusterMVO._images_dict_to_list)(d_cluster_images)
 
         # Note: the MultiviewOptimizer returns BA input and BA output aligned to GT via Sim(3).
         (
@@ -435,7 +431,7 @@ class ClusterMVO(ClusterOptimizerBase):
             import gtsfm.splat.rendering as gtsfm_rendering
 
             splats_graph, cfg_graph = self.gaussian_splatting_optimizer.create_computation_graph(
-                d_cluster_image_list, ba_output_graph
+                d_cluster_images, ba_output_graph
             )
 
             with self._output_annotation():
@@ -444,7 +440,7 @@ class ClusterMVO(ClusterOptimizerBase):
                 )
                 delayed_io_tasks.append(
                     delayed(gtsfm_rendering.generate_interpolated_video)(
-                        d_cluster_image_list,
+                        d_cluster_images,
                         ba_output_graph,
                         cfg_graph,
                         splats_graph,

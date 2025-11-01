@@ -3,7 +3,7 @@
 Authors: Harneet Singh Khanuja
 """
 
-from typing import Any, Dict, List
+from typing import Any, Dict, Mapping
 
 import numpy as np
 import torch
@@ -22,7 +22,7 @@ logger = logger_utils.get_logger()
 class GaussianSplattingData(Dataset):
     """Converts the data format from GtsfmData to Gaussian Splatting input"""
 
-    def __init__(self, images: List[Image], sfm_result: GtsfmData) -> None:
+    def __init__(self, images: Mapping[int, Image], sfm_result: GtsfmData) -> None:
         """Cache images and GtsfmData for Gaussian Splatting training, including camera poses and tracks.
 
         Args:
@@ -43,16 +43,18 @@ class GaussianSplattingData(Dataset):
         #   the number of images with estimated poses，not the number of images provided to GTSFM
         self._num_valid_cameras = len(valid_camera_idxs)
 
-        self._images = [images[i] for gs_i, i in self._gaussiansplatting_idx_to_camera_idx.items()]
+        self._image_map: Dict[int, Image] = dict(images)
+        missing_indices = [i for i in valid_camera_idxs if i not in self._image_map]
+        if missing_indices:
+            raise ValueError(f"Images missing for indices {missing_indices}")
+        self._images = [self._image_map[i] for i in valid_camera_idxs]
 
         # all images need to be passed to the generate_dataparser function as the get_average_point_color subsequently
         # expects all images not just valid
-        self._all_images = images
+        self._all_images = self._image_map
 
         # Get actual image dimensions from the Image objects
-        self.actual_img_dims = [
-            (images[i].height, images[i].width) for gs_i, i in self._gaussiansplatting_idx_to_camera_idx.items()
-        ]
+        self.actual_img_dims = [(self._image_map[i].height, self._image_map[i].width) for i in valid_camera_idxs]
 
         self.intrinsics = [
             self._sfm_result.get_camera(i).calibration().K()  # type: ignore
@@ -86,7 +88,11 @@ class GaussianSplattingData(Dataset):
             self.points = points_transformed[:, :3].numpy()
             logger.info("3D points transformed successfully.")
 
-    def _generate_dataparser_outputs_from_gtsfm_data(self, gtsfm_data: GtsfmData, images: List[Image]) -> Dict:
+    def _generate_dataparser_outputs_from_gtsfm_data(
+        self,
+        gtsfm_data: GtsfmData,
+        images: Mapping[int, Image],
+    ) -> Dict:
         """Processes an in-memory GtsfmData object to generate the required outputs
         Args:
             gtsfm_data: sparse multiview reconstruction result

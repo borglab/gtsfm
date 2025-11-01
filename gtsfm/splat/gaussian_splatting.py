@@ -7,7 +7,7 @@ import itertools
 import math
 import sys
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
+from typing import Dict, Mapping, Tuple
 
 import torch
 import torch.nn.functional as F
@@ -417,7 +417,7 @@ else:
 
             return splats
 
-        def splatify(self, images_graph: List[Image], sfm_result_graph: GtsfmData):
+        def splatify(self, images_graph: Mapping[int, Image], sfm_result_graph: GtsfmData):
             """
             Main entry point to run Gaussian Splatting training and evaluation.
 
