@@ -7,7 +7,7 @@ import shutil
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional, Sequence, cast
+from typing import Any, Mapping, Optional, cast
 
 import numpy as np
 from dask.delayed import Delayed, delayed
@@ -18,6 +18,7 @@ import gtsfm.common.types as gtsfm_types
 import gtsfm.two_view_estimator as two_view_estimator
 import gtsfm.utils.ellipsoid as ellipsoid_utils
 import gtsfm.utils.io as io_utils
+import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.viz as viz_utils
 from gtsfm.cluster_optimizer.cluster_optimizer_base import (
     REACT_METRICS_PATH,
@@ -25,7 +26,6 @@ from gtsfm.cluster_optimizer.cluster_optimizer_base import (
     ClusterComputationGraph,
     ClusterContext,
     ClusterOptimizerBase,
-    logger,
 )
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
@@ -38,10 +38,12 @@ from gtsfm.frontend.correspondence_generator.correspondence_generator_base impor
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.products.one_view_data import OneViewData
 from gtsfm.products.two_view_result import TwoViewResult
-from gtsfm.products.visibility_graph import AnnotatedGraph, VisibilityGraph
+from gtsfm.products.visibility_graph import AnnotatedGraph, VisibilityGraph, visibility_graph_keys
 from gtsfm.two_view_estimator import TwoViewEstimator, create_two_view_estimator_futures
 from gtsfm.ui.gtsfm_process import UiMetadata
 from gtsfm.utils import transform
+
+logger = logger_utils.get_logger()
 
 
 @dataclass(frozen=True)
@@ -198,11 +200,6 @@ class ClusterMVO(ClusterOptimizerBase):
                 file_path=str(output_dir / f"{i1}_{i2}__{image_i1.file_name}_{image_i2.file_name}.jpg"),
             )
 
-    @staticmethod
-    def _collect_cluster_images(indices: Sequence[int], images: Sequence[Image]) -> dict[int, Image]:
-        """Pair realized images with their indices for downstream consumers."""
-        return {idx: img for idx, img in zip(indices, images)}
-
     def _build_frontend_graphs(self, context: ClusterContext) -> FrontendGraphs:
         """Create delayed nodes for the full front-end pipeline."""
 
@@ -252,6 +249,16 @@ class ClusterMVO(ClusterOptimizerBase):
         return {edge: result.post_isp_report for edge, result in two_view_results.items() if result.post_isp_report}
 
     @staticmethod
+    def _annotate_scene_with_images(scene: GtsfmData, images_by_index: Mapping[int, Image]) -> GtsfmData:
+        """Populate image metadata and colors using the scene helper."""
+        return scene.clone_with_image_data(images_by_index)
+
+    @staticmethod
+    def _images_dict_to_list(images_by_index: Mapping[int, Image]) -> list[Image]:
+        """Convert an index→image map to a deterministic list ordered by index."""
+        return [images_by_index[idx] for idx in sorted(images_by_index.keys())]
+
+    @staticmethod
     def _build_frontend_runtime_metrics(
         correspondence_duration_sec: float,
         two_view_duration_sec: float,
@@ -299,12 +306,11 @@ class ClusterMVO(ClusterOptimizerBase):
         """
         frontend_graphs: FrontendGraphs = self._build_frontend_graphs(context=context)
 
-        image_future_map = context.image_future_map
-        cluster_image_indices = sorted({idx for edge in context.visibility_graph for idx in edge})
-        cluster_images_graph = delayed(ClusterMVO._collect_cluster_images, pure=False)(
-            cluster_image_indices,
-            [image_future_map[idx] for idx in cluster_image_indices],
+        d_cluster_images = delayed(self.resolve_visibility_images, pure=False)(
+            context.visibility_graph,
+            context.image_future_map,
         )
+        d_cluster_image_list = delayed(ClusterMVO._images_dict_to_list)(d_cluster_images)
 
         # Note: the MultiviewOptimizer returns BA input and BA output aligned to GT via Sim(3).
         (
@@ -316,7 +322,7 @@ class ClusterMVO(ClusterOptimizerBase):
             keypoints_graph=frontend_graphs.padded_keypoints,  # type: ignore[arg-type]
             two_view_results_graph=frontend_graphs.two_view_results,  # type: ignore[arg-type]
             one_view_data_dict=context.one_view_data_dict,
-            image_future_map=image_future_map,
+            image_future_map=context.image_future_map,
             output_root=context.output_paths.plots,
         )
 
@@ -347,7 +353,7 @@ class ClusterMVO(ClusterOptimizerBase):
             with self._output_annotation():
                 delayed_io_tasks.append(
                     delayed(ClusterMVO._save_two_view_visualizations)(
-                        cluster_images_graph,
+                        d_cluster_images,
                         frontend_graphs.two_view_results,
                         frontend_graphs.padded_keypoints,
                         context.output_paths.plots,
@@ -377,13 +383,12 @@ class ClusterMVO(ClusterOptimizerBase):
         )
 
         # Create I/O tasks.
-        images = [image_future_map[idx] for idx in range(context.num_images)]
+        ba_output_graph = delayed(ClusterMVO._annotate_scene_with_images)(ba_output_graph, d_cluster_images)
         cameras_gt = [context.one_view_data_dict[idx].camera_gt for idx in range(context.num_images)]
         with self._output_annotation():
             if self._save_gtsfm_data:
                 delayed_io_tasks.append(
                     delayed(save_gtsfm_data)(
-                        images,
                         ba_input_graph,
                         ba_output_graph,
                         results_path=context.output_paths.results,
@@ -403,13 +408,12 @@ class ClusterMVO(ClusterOptimizerBase):
 
         # Create dense reconstruction tasks.
         if self.dense_multiview_optimizer is not None:
-            img_dict_graph = delayed(self.get_image_dictionary)(images)
             (
                 dense_points_graph,
                 dense_point_colors_graph,
                 densify_metrics_graph,
                 downsampling_metrics_graph,
-            ) = self.dense_multiview_optimizer.create_computation_graph(img_dict_graph, ba_output_graph)
+            ) = self.dense_multiview_optimizer.create_computation_graph(d_cluster_images, ba_output_graph)
 
             with self._output_annotation():
                 delayed_io_tasks.append(
@@ -431,7 +435,7 @@ class ClusterMVO(ClusterOptimizerBase):
             import gtsfm.splat.rendering as gtsfm_rendering
 
             splats_graph, cfg_graph = self.gaussian_splatting_optimizer.create_computation_graph(
-                images, ba_output_graph
+                d_cluster_image_list, ba_output_graph
             )
 
             with self._output_annotation():
@@ -440,7 +444,7 @@ class ClusterMVO(ClusterOptimizerBase):
                 )
                 delayed_io_tasks.append(
                     delayed(gtsfm_rendering.generate_interpolated_video)(
-                        images,
+                        d_cluster_image_list,
                         ba_output_graph,
                         cfg_graph,
                         splats_graph,
@@ -533,7 +537,6 @@ def get_gtsfm_data_with_gt_cameras_and_est_tracks(
 
 
 def save_gtsfm_data(
-    images: list[Image],
     ba_input_data: GtsfmData,
     ba_output_data: GtsfmData,
     results_path: Path,
@@ -550,14 +553,14 @@ def save_gtsfm_data(
     os.makedirs(output_dir, exist_ok=True)
 
     # Save input to Bundle Adjustment for debugging.
-    ba_input_data.export_as_colmap_text(images=images, save_dir=os.path.join(output_dir, "ba_input"))
+    ba_input_data.export_as_colmap_text(save_dir=os.path.join(output_dir, "ba_input"))
 
     # Save the output of Bundle Adjustment.
-    ba_output_data.export_as_colmap_text(images=images, save_dir=os.path.join(output_dir, "ba_output"))
+    ba_output_data.export_as_colmap_text(save_dir=os.path.join(output_dir, "ba_output"))
 
     # Save the ground truth in the same format, for visualization.
     gt_gtsfm_data = get_gtsfm_data_with_gt_cameras_and_est_tracks(cameras_gt, ba_output_data)
-    gt_gtsfm_data.export_as_colmap_text(images=images, save_dir=os.path.join(output_dir, "ba_gt"))
+    gt_gtsfm_data.export_as_colmap_text(save_dir=os.path.join(output_dir, "ba_gt"))
 
     # Delete old version of React results directory and save a duplicate copy.
     shutil.rmtree(REACT_RESULTS_PATH, ignore_errors=True)

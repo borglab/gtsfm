@@ -16,7 +16,6 @@ from gtsam import Pose3, SfmTrack, Similarity3
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.graph as graph_utils
-import gtsfm.utils.images as image_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.reprojection as reprojection
@@ -224,6 +223,78 @@ class GtsfmData:
         if shape is not None:
             info.shape = tuple(int(x) for x in shape)
         self._image_info[index] = info
+
+    @staticmethod
+    def _color_track_from_images(track: SfmTrack, images_by_index: Mapping[int, Image]) -> SfmTrack:
+        """Color a track by taking median of RGB values from its measurements across images."""
+        colored_track = SfmTrack(track.point3())
+        # Copy existing color values as defaults
+        colored_track.r = int(getattr(track, "r", 0))
+        colored_track.g = int(getattr(track, "g", 0))
+        colored_track.b = int(getattr(track, "b", 0))
+
+        # Copy all measurements
+        for k in range(track.numberMeasurements()):
+            image_idx, uv = track.measurement(k)
+            colored_track.addMeasurement(image_idx, uv)
+
+        # Sample RGB values from images
+        rgb_samples: list[np.ndarray] = []
+        for k in range(track.numberMeasurements()):
+            image_idx, uv = track.measurement(k)
+            image = images_by_index.get(image_idx)
+            if image is None:
+                continue
+
+            # Check if image has 3 channels (RGB)
+            if len(image.value_array.shape) != 3 or image.value_array.shape[2] != 3:
+                continue
+
+            u = int(np.round(uv[0]))
+            v = int(np.round(uv[1]))
+
+            # Check if measurement is inside image bounds
+            if u < 0 or u >= image.width or v < 0 or v >= image.height:
+                continue
+
+            pixel = image.value_array[v, u]
+            rgb_samples.append(pixel.astype(np.float32))
+
+        # Set color from averaged samples
+        if rgb_samples:
+            mean_rgb = np.median(np.vstack(rgb_samples), axis=0)
+            colored_track.r = int(np.clip(mean_rgb[0], 0, 255))
+            colored_track.g = int(np.clip(mean_rgb[1], 0, 255))
+            colored_track.b = int(np.clip(mean_rgb[2], 0, 255))
+
+        return colored_track
+
+    def clone_with_image_data(self, images_by_index: Mapping[int, Image]) -> "GtsfmData":
+        """Return a copy with image metadata populated and track RGB colors."""
+        cloned = GtsfmData(self.number_images())
+        cloned._image_info = self._clone_image_info()
+
+        # Copy all cameras
+        for idx, camera in self.cameras().items():
+            cloned.add_camera(idx, camera)
+
+        # Set image metadata from provided images
+        for idx, img in images_by_index.items():
+            if idx < 0 or idx >= cloned.number_images():
+                continue
+            info = cloned.get_image_info(idx)
+            if info.name is None and img.file_name is not None:
+                cloned.set_image_info(idx, name=img.file_name)
+            if info.shape is None:
+                cloned.set_image_info(idx, shape=img.shape)
+
+        # Color and add all tracks
+        for j in range(self.number_tracks()):
+            src_track = self.get_track(j)
+            colored_track = self._color_track_from_images(src_track, images_by_index)
+            cloned.add_track(colored_track)
+
+        return cloned
 
     def get_image_info(self, index: int) -> ImageInfo:
         """Return metadata describing image ``index`` (lazily created)."""
@@ -789,7 +860,7 @@ class GtsfmData:
                             f.write(f" {uv_measured[0]:.3f} {uv_measured[1]:.3f} {j}")
                 f.write("\n")
 
-    def write_points(self, save_dir: str | Path, images: Optional[Sequence[Image]] = None) -> None:
+    def write_points(self, save_dir: str | Path) -> None:
         """Writes the point cloud data file in the COLMAP format.
 
         Reference: https://colmap.github.io/format.html#points3d-txt
@@ -797,14 +868,12 @@ class GtsfmData:
         Args:
             self: Scene data to write.
             save_dir: Folder to put the points3D.txt file in.
-            images: Optional list of all images for this scene, in order of image index, for color extraction.
         """
         dir_path = Path(save_dir)
         dir_path.mkdir(parents=True, exist_ok=True)
 
         num_pts = self.number_tracks()
         avg_track_length, _ = self.get_track_length_statistics()
-        images_list = list(images) if images is not None else None
 
         file_path = dir_path / "points3D.txt"
         with open(file_path, "w") as f:
@@ -818,11 +887,9 @@ class GtsfmData:
             for j in range(num_pts):
                 track = self.get_track(j)
 
-                r, g, b = (
-                    image_utils.get_average_point_color(track, images_list)
-                    if images_list is not None
-                    else (int(track.r), int(track.g), int(track.b))
-                )
+                r = int(max(0, min(255, getattr(track, "r", 0))))
+                g = int(max(0, min(255, getattr(track, "g", 0))))
+                b = int(max(0, min(255, getattr(track, "b", 0))))
                 _, avg_track_error = reprojection.compute_track_reprojection_errors(self._cameras, track)
                 x, y, z = track.point3()
                 f.write(f"{j} {x} {y} {z} {r} {g} {b} {np.round(avg_track_error, 2)} ")
@@ -835,7 +902,6 @@ class GtsfmData:
     def export_as_colmap_text(
         self,
         save_dir: str | Path,
-        images: Optional[Sequence[Image]] = None,
     ) -> None:
         """Emulates the COLMAP option to `Export model as text`.
 
@@ -843,19 +909,10 @@ class GtsfmData:
 
         Args:
             save_dir: Folder where text files will be saved.
-            images: Optional list of all images for this scene, in order of image index.
         """
         num_images = self.number_images()
         resolved_shapes: List[Optional[tuple[int, ...]]] = [self.get_image_info(i).shape for i in range(num_images)]
         resolved_names: List[Optional[str]] = [self.get_image_info(i).name for i in range(num_images)]
-
-        if images is not None:
-            for idx, img in enumerate(images):
-                if idx >= num_images:
-                    break
-                resolved_shapes[idx] = img.shape
-                resolved_names[idx] = img.file_name
-                self.set_image_info(idx, name=img.file_name, shape=img.shape)
 
         normalized_shapes: List[tuple[int, int]] = [
             self._normalize_shape(idx, resolved_shapes[idx]) for idx in range(num_images)
@@ -869,4 +926,4 @@ class GtsfmData:
 
         self.write_cameras(save_dir, normalized_shapes)
         self.write_images(save_dir, concrete_names)
-        self.write_points(save_dir, images)
+        self.write_points(save_dir)
