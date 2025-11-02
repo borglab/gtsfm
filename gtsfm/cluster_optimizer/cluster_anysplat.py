@@ -3,9 +3,8 @@ https://github.com/InternRobotics/AnySplat
 Authors: Harneet Singh Khanuja
 """
 
-import sys
 from pathlib import Path
-from typing import List, Sequence
+from typing import Any, Callable, List, Sequence
 
 import cv2
 import torch
@@ -23,24 +22,7 @@ from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.products.visibility_graph import visibility_graph_keys
 from gtsfm.ui.gtsfm_process import UiMetadata
 from gtsfm.utils import logger as logger_utils
-from gtsfm.utils.anysplat import AnySplatReconstructionResult
-
-HERE_PATH = Path(__file__).parent
-ANYSPLAT_REPO_PATH = HERE_PATH.parent.parent / "thirdparty" / "AnySplat"
-
-if ANYSPLAT_REPO_PATH.exists():
-    # workaround for sibling import
-    sys.path.insert(0, str(ANYSPLAT_REPO_PATH))
-elif not ANYSPLAT_REPO_PATH.exists():
-    raise ImportError(
-        f"AnySplat is not initialized, could not find: {ANYSPLAT_REPO_PATH}.\n "
-        "Did you forget to run 'git submodule update --init --recursive' ?"
-    )
-
-
-from src.misc.image_io import save_interpolated_video  # type: ignore
-from src.model.model.anysplat import AnySplat  # type: ignore
-from src.model.ply_export import export_ply  # type: ignore
+from gtsfm.utils.anysplat import AnySplatReconstructionResult, export_ply, load_model, save_interpolated_video
 
 _SH0_NORMALIZATION_FACTOR = 0.28209479177387814
 
@@ -50,10 +32,11 @@ logger = logger_utils.get_logger()
 class ClusterAnySplat(ClusterOptimizerBase):
     """Class for AnySplat (feed forward GS implementation)"""
 
-    def __init__(self):
+    def __init__(self, model_loader: Callable[[], Any] = load_model):
         """."""
         super().__init__()
         self._model = None
+        self._model_loader = model_loader
 
     @staticmethod
     def get_ui_metadata() -> UiMetadata:
@@ -69,7 +52,7 @@ class ClusterAnySplat(ClusterOptimizerBase):
         """Lazy-load the AnySplat model to avoid unnecessary initialization."""
         if self._model is None:
             logger.info("⏳ Loading AnySplat model weights...")
-            self._model = AnySplat.from_pretrained("lhjiang/anysplat")
+            self._model = self._model_loader()
 
     def __repr__(self) -> str:
         """Provide a readable summary of the optimizer configuration."""

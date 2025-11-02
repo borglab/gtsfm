@@ -1,10 +1,13 @@
 """Helpers to integrate the AnySplat submodule with GTSFM."""
 
+from __future__ import annotations
+
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, Callable
 
-import gtsam
+import gtsam  # type: ignore
 import numpy as np
 import torch
 from gtsam import Point3, Pose3, Rot3
@@ -34,13 +37,52 @@ def _ensure_submodule_on_path(path: Path, name: str) -> None:
 
 _ensure_submodule_on_path(ANYSPLAT_SUBMODULE_PATH, "anysplat")
 
-try:
-    from src.model.decoder.decoder_splatting_cuda import DecoderSplattingCUDA  # type: ignore
-    from src.model.types import Gaussians  # type: ignore
-except ModuleNotFoundError as exc:  # pragma: no cover - import guard
-    raise ImportError(
-        "The 'anysplat' Python package could not be imported even after adding the submodule to sys.path."
-    ) from exc
+_SAVE_INTERPOLATED_VIDEO: Callable[..., Any] | None = None
+_EXPORT_PLY: Callable[..., Any] | None = None
+AnySplat: type[Any] | None = None  # type: ignore[assignment]
+DecoderSplattingCUDA: type[Any] | Any = Any  # type: ignore[assignment]
+Gaussians: type[Any] | Any = Any  # type: ignore[assignment]
+_IMPORT_ERROR: Exception | None = None
+
+try:  # pragma: no cover - exercised by integration tests, hard to simulate in unit tests.
+    from src.misc.image_io import save_interpolated_video as _save_interpolated_video_impl  # type: ignore
+    from src.model.decoder.decoder_splatting_cuda import DecoderSplattingCUDA as _DecoderSplattingCUDAImpl  # type: ignore
+    from src.model.model.anysplat import AnySplat as _AnySplatImpl  # type: ignore
+    from src.model.ply_export import export_ply as _export_ply_impl  # type: ignore
+    from src.model.types import Gaussians as _GaussiansImpl  # type: ignore
+except (ModuleNotFoundError, OSError) as exc:  # pragma: no cover - import guard
+    _IMPORT_ERROR = exc
+else:
+    _SAVE_INTERPOLATED_VIDEO = _save_interpolated_video_impl
+    _EXPORT_PLY = _export_ply_impl
+    AnySplat = _AnySplatImpl  # type: ignore[assignment]
+    DecoderSplattingCUDA = _DecoderSplattingCUDAImpl  # type: ignore[assignment]
+    Gaussians = _GaussiansImpl  # type: ignore[assignment]
+
+
+def _require_thirdparty() -> None:
+    """Ensure the AnySplat thirdparty dependencies imported successfully."""
+
+    if _IMPORT_ERROR is not None:
+        raise ImportError(
+            "The 'anysplat' Python package could not be imported even after adding the submodule to sys.path."
+        ) from _IMPORT_ERROR
+
+
+def save_interpolated_video(*args: Any, **kwargs: Any) -> Any:
+    """Proxy to AnySplat's video export helper, ensuring dependencies are present."""
+
+    _require_thirdparty()
+    assert _SAVE_INTERPOLATED_VIDEO is not None
+    return _SAVE_INTERPOLATED_VIDEO(*args, **kwargs)
+
+
+def export_ply(*args: Any, **kwargs: Any) -> Any:
+    """Proxy to AnySplat's PLY export helper, ensuring dependencies are present."""
+
+    _require_thirdparty()
+    assert _EXPORT_PLY is not None
+    return _EXPORT_PLY(*args, **kwargs)
 
 
 @dataclass
@@ -53,6 +95,21 @@ class AnySplatReconstructionResult:
     height: int
     width: int
     decoder: DecoderSplattingCUDA
+
+
+def load_model(*, device: torch.device | str | None = None) -> Any:
+    """Load AnySplat weights optionally moving the model to the requested device."""
+
+    _require_thirdparty()
+    assert AnySplat is not None
+
+    model = AnySplat.from_pretrained("lhjiang/anysplat")
+    model.eval()
+
+    if device is not None:
+        resolved_device = torch.device(device)
+        model = model.to(resolved_device)
+    return model
 
 
 def pose_from_extrinsic(matrix: np.ndarray) -> Pose3:
