@@ -12,7 +12,8 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 import gtsam  # type: ignore
 import numpy as np
-from gtsam import Pose3, SfmTrack, Similarity3
+from gtsam import Pose3, SfmTrack, Similarity3, Values
+from gtsam.symbol_shorthand import K, P, X  # type: ignore
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.graph as graph_utils
@@ -164,6 +165,58 @@ class GtsfmData:
         """
         sfm_data = gtsam.SfmData.FromBundlerFile(file_path)
         return cls.from_sfm_data(sfm_data)
+
+    @classmethod
+    def from_values(cls, values: Values, initial_data: "GtsfmData", shared_calib: bool) -> "GtsfmData":
+        """Instantiate a GtsfmData from optimized factor graph results.
+
+        Args:
+            values: Optimizer output containing poses, points, and calibrations.
+            initial_data: Input data used to build the factor graph; provides topology for cameras and tracks.
+            shared_calib: Whether all cameras shared a single calibration variable in the optimization.
+        """
+        result = cls(initial_data.number_images())
+
+        def extract_cal3(calibration_type, camera_idx: int):
+            """Extract calibration values based on the camera type."""
+            key = K(0 if shared_calib else camera_idx)
+            if calibration_type == gtsam.Cal3Fisheye:
+                return values.atCal3Fisheye(key)
+            if calibration_type == gtsam.Cal3Bundler:
+                return values.atCal3Bundler(key)
+            if calibration_type == gtsam.Cal3DS2:
+                return values.atCal3DS2(key)
+            if calibration_type == gtsam.Cal3_S2:
+                return values.atCal3_S2(key)
+            raise ValueError(f"Unsupported camera calibration type: {calibration_type.__name__}")
+
+        valid_indices = initial_data.get_valid_camera_indices()
+        first_valid_camera_idx = valid_indices[0]
+        first_camera = initial_data.get_camera(first_valid_camera_idx)
+        assert first_camera is not None, "There should be at least one valid camera in the partition."
+        first_calibration = first_camera.calibration()
+        camera_class = gtsfm_types.get_camera_class_for_calibration(first_calibration)
+
+        for camera_idx in valid_indices:
+            result.add_camera(
+                camera_idx,
+                camera_class(values.atPose3(X(camera_idx)), extract_cal3(type(first_calibration), camera_idx)),
+            )
+
+        for track_idx in range(initial_data.number_tracks()):
+            input_track = initial_data.get_track(track_idx)
+            result_track = SfmTrack(values.atPoint3(P(track_idx)))
+            result_track.r = input_track.r
+            result_track.g = input_track.g
+            result_track.b = input_track.b
+
+            for measurement_idx in range(input_track.numberMeasurements()):
+                i, uv = input_track.measurement(measurement_idx)
+                result_track.addMeasurement(i, uv)
+
+            result.add_track(result_track)
+
+        return result
 
     def __eq__(self, other: object) -> bool:
         """Checks equality with the other object."""
