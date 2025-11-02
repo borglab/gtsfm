@@ -94,7 +94,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         image_load_resolution: int = 1024,
         inference_resolution: int = 518,
         conf_threshold: float = 5.0,
-        max_points_for_colmap: int = 100000,
+        max_num_points: int = 100000,
         shared_camera: bool = False,
         camera_type: str = "PINHOLE",
         seed: int = 42,
@@ -111,7 +111,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         self._image_load_resolution = image_load_resolution
         self._inference_resolution = inference_resolution
         self._conf_threshold = conf_threshold
-        self._max_points_for_colmap = max_points_for_colmap
+        self._max_points_for_colmap = max_num_points
         self._shared_camera = shared_camera
         self._camera_type = camera_type
         self._seed = seed
@@ -157,9 +157,7 @@ class ClusterVGGT(ClusterOptimizerBase):
             vggt_fixed_resolution=self._inference_resolution,
             img_load_resolution=self._image_load_resolution,
             confidence_threshold=self._conf_threshold,
-            max_points_for_colmap=self._max_points_for_colmap,
-            camera_type_ba=self._camera_type,
-            camera_type_feedforward=self._camera_type,
+            max_num_points=self._max_points_for_colmap,
             shared_camera=self._shared_camera,
         )
 

@@ -65,9 +65,7 @@ class VGGTReconstructionConfig:
     vis_thresh: float = 0.2
     max_reproj_error: float = 8.0
     confidence_threshold: float = 5.0
-    max_points_for_colmap: int = 100000
-    camera_type_ba: str = "SIMPLE_PINHOLE"
-    camera_type_feedforward: str = "PINHOLE"
+    max_num_points: int = 100000
     shared_camera: bool = False
     keypoint_extractor: str = "aliked+sp"
     seed: int = 42
@@ -96,15 +94,28 @@ def default_device(device: Optional[Union[str, torch.device]] = None) -> torch.d
     """Resolve a concrete device for VGGT inference."""
     if device is not None:
         return torch.device(device)
-    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Prefer CUDA if available, then MPS (Mac GPU), then fall back to CPU
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        return torch.device("mps")
+    else:
+        return torch.device("cpu")
 
 
 def default_dtype(device: torch.device) -> torch.dtype:
     """Pick a floating-point dtype suitable for VGGT on the provided device."""
-    if device.type != "cuda":
+    if device.type == "cuda":
+        capability = torch.cuda.get_device_capability(device=device)
+        return torch.bfloat16 if capability[0] >= 8 else torch.float16
+    elif device.type == "mps":
+        # MPS has some limitations with float16, so use float32 for now
+        # Users can explicitly pass dtype=torch.float16 if they want to try it
         return torch.float32
-    capability = torch.cuda.get_device_capability(device=device)
-    return torch.bfloat16 if capability[0] >= 8 else torch.float16
+    else:
+        # CPU fallback
+        return torch.float32
 
 
 def resolve_weights_path(weights_path: PathLike | None = None) -> Path:
@@ -146,15 +157,12 @@ def _pose_from_extrinsic(matrix: np.ndarray) -> Pose3:
     return Pose3(Rot3(cRw), Point3(*t)).inverse()
 
 
-def _calibration_from_intrinsic(matrix: np.ndarray, camera_type: str) -> gtsam.Cal3:
-    """Map a 3x3 intrinsic matrix to the corresponding GTSAM calibration type."""
+def _calibration_from_intrinsic(matrix: np.ndarray) -> gtsam.Cal3_S2:
+    """Map a 3x3 intrinsic matrix to a Cal3_S2."""
     fx = float(matrix[0, 0])
     fy = float(matrix[1, 1])
     cx = float(matrix[0, 2])
     cy = float(matrix[1, 2])
-    model = camera_type.upper()
-    if model in {"SIMPLE_PINHOLE", "SIMPLE_RADIAL", "RADIAL"}:
-        return gtsam.Cal3Bundler(fx, 0.0, 0.0, cx, cy)
     return gtsam.Cal3_S2(fx, fy, 0.0, cx, cy)
 
 
@@ -234,9 +242,12 @@ def run_reconstruction(
         model = load_model(weights_path, device=resolved_device, dtype=resolved_dtype)
     else:
         model = model.to(resolved_device)
+        if resolved_dtype is not None:
+            model = model.to(dtype=resolved_dtype)  # type: ignore
         model.eval()  # type: ignore
 
-    image_batch = image_batch.to(resolved_device)
+    # Ensure tensors match the model's device and dtype
+    image_batch = image_batch.to(resolved_device, dtype=resolved_dtype)
     original_coords = original_coords.to(resolved_device)
 
     inference_resolution = cfg.vggt_fixed_resolution
@@ -249,6 +260,10 @@ def run_reconstruction(
 
     if resolved_device.type == "cuda":
         autocast_ctx: Any = amp_autocast("cuda", dtype=resolved_dtype)
+    elif resolved_device.type == "mps":
+        # MPS doesn't support autocast with custom dtype, so we use nullcontext
+        # but the model will still run on MPS with the dtype we set earlier
+        autocast_ctx = nullcontext()
     else:
         autocast_ctx = nullcontext()
 
@@ -280,7 +295,7 @@ def run_reconstruction(
     points_xyf = create_pixel_coordinate_grid(points_3d.shape[0], points_3d.shape[1], points_3d.shape[2])
 
     conf_mask = depth_conf_np >= cfg.confidence_threshold
-    conf_mask = randomly_limit_trues(conf_mask, cfg.max_points_for_colmap)
+    conf_mask = randomly_limit_trues(conf_mask, cfg.max_num_points)
 
     points_3d_flat = points_3d[conf_mask]
     points_rgb_flat = points_rgb[conf_mask] if points_rgb is not None else None
@@ -299,7 +314,7 @@ def run_reconstruction(
         scaled_intrinsic = _rescale_intrinsic_for_original_resolution(
             intrinsic_np[local_idx], inference_resolution, image_width, image_height
         )
-        calibration = _calibration_from_intrinsic(scaled_intrinsic, cfg.camera_type_feedforward)
+        calibration = _calibration_from_intrinsic(scaled_intrinsic)
         camera_cls = gtsfm_types.get_camera_class_for_calibration(calibration)
         gtsfm_data.add_camera(global_idx, camera_cls(pose, calibration))  # type: ignore[arg-type]
         gtsfm_data.set_image_info(
@@ -374,11 +389,18 @@ def run_VGGT(model: VGGT, images: torch.Tensor, dtype: torch.dtype, resolution: 
     """Keep a thin wrapper around the original VGGT demo helper for compatibility."""
     if images.ndim != 4 or images.shape[1] != 3:
         raise ValueError("VGGT expects images shaped as (N, 3, H, W).")
+
+    # Determine the device type from the model
+    model_device = next(model.parameters()).device
+
+    # Ensure the images match the model's device and dtype
+    images = images.to(model_device, dtype=dtype)
     resized = F.interpolate(images, size=(resolution, resolution), mode="bilinear", align_corners=False)
 
-    if torch.cuda.is_available():
+    if model_device.type == "cuda":
         autocast_ctx: Any = amp_autocast("cuda", dtype=dtype)
     else:
+        # For MPS and CPU, we don't use autocast with custom dtype
         autocast_ctx = nullcontext()
 
     with torch.no_grad():

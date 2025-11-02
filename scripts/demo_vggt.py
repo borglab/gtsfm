@@ -195,7 +195,6 @@ def demo_fn(args: argparse.Namespace) -> bool:
         max_reproj_error=args.max_reproj_error,
         confidence_threshold=args.confidence_threshold,
         shared_camera=args.shared_camera,
-        camera_type_ba=args.camera_type,
     )
 
     image_indices = list(range(1, len(image_path_list) + 1))

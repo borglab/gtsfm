@@ -27,10 +27,10 @@ graph_partitioner:
 cluster_optimizer:
   _target_: gtsfm.cluster_optimizer.cluster_vggt.ClusterVGGT
   weights_path: null
-  image_load_resolution: 1024
-  inference_resolution: 518
-  conf_threshold: 5.0
-  max_num_points: 100000
+  image_load_resolution: 512
+  inference_resolution: 392
+  conf_threshold: 2.0
+  max_num_points: 50000
   shared_camera: false
   camera_type: PINHOLE
   seed: 42
