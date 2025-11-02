@@ -15,7 +15,7 @@ from dask.delayed import Delayed
 from gtsam import Point3, SfmTrack
 
 import gtsfm.common.types as gtsfm_types
-import gtsfm.utils.anysplat as anysplat
+import gtsfm.utils.torch as torch_utils
 from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterComputationGraph, ClusterContext, ClusterOptimizerBase
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
@@ -133,29 +133,28 @@ class ClusterAnySplat(ClusterOptimizerBase):
         self._ensure_model_loaded()
         assert self._model is not None, "Model should be loaded by now"
 
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        model = self._model.to(device)
+        device = torch_utils.default_device()
         processed_images = self._preprocess_images(images, device)
         _, _, _, height, width = processed_images.shape
-        splats, pred_context_pose = model.inference((processed_images + 1) * 0.5)
+        splats, pred_context_pose = self._model.inference((processed_images + 1) * 0.5)
 
         # Move results to CPU to avoid Dask serialization errors.
         for attr in ["means", "scales", "rotations", "harmonics", "opacities"]:
             setattr(splats, attr, getattr(splats, attr).cpu())
         pred_context_pose["extrinsic"] = pred_context_pose["extrinsic"].cpu()
         pred_context_pose["intrinsic"] = pred_context_pose["intrinsic"].cpu()
-        decoder = model.decoder.cpu()
+        decoder = self._model.decoder.cpu()
 
         gtsfm_data = GtsfmData(number_images=len(global_indices))
         image_names_str = [str(name) for name in image_names] if image_names is not None else None
         for local_idx, global_idx in enumerate(global_indices):
             intrinsic = pred_context_pose["intrinsic"][0][local_idx].numpy()
-            calibration = anysplat.calibration_from_intrinsic(intrinsic, "PINHOLE")
+            calibration = torch_utils.calibration_from_intrinsic(intrinsic)
             camera_cls = gtsfm_types.get_camera_class_for_calibration(calibration)  # type: ignore
 
             extrinsic = pred_context_pose["extrinsic"][0][local_idx].numpy()
 
-            pose = anysplat.pose_from_extrinsic(extrinsic)
+            pose = torch_utils.pose_from_extrinsic(extrinsic)
             gtsfm_data.add_camera(global_idx, camera_cls(pose, calibration))  # type: ignore
             gtsfm_data.set_image_info(
                 global_idx,
@@ -217,7 +216,7 @@ class ClusterAnySplat(ClusterOptimizerBase):
         result: AnySplatReconstructionResult,
         save_gs_files_path: str,
     ) -> None:
-        device = "cuda" if torch.cuda.is_available() else "cpu"
+        device = torch_utils.default_device()
         if device == "cpu":
             logger.warning("CUDA not available, cannot generate interpolated video on CPU.")
             return

@@ -23,6 +23,7 @@ import trimesh
 from demo_vggt import Timer, add_common_vggt_args
 
 import gtsfm.utils.vggt as vggt
+from gtsfm.utils import torch as torch_utils
 from gtsfm.utils.vggt import VGGTReconstructionConfig
 
 # Configure CUDA settings
@@ -59,7 +60,7 @@ def demo_fn(cluster_key: str, image_indices: List[int], args: argparse.Namespace
         torch.cuda.manual_seed_all(args.seed)
     print(f"[{cluster_key}] Setting seed as: {args.seed}")
 
-    device = vggt.default_device()
+    device = torch_utils.default_device()
     dtype = vggt.default_dtype(device)
     print(f"[{cluster_key}] Using device: {device.type}")
     print(f"[{cluster_key}] Using dtype: {dtype}")

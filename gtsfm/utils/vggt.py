@@ -8,16 +8,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional, Sequence, Tuple, Union
 
-import gtsam  # type: ignore
 import numpy as np
 import torch
 import torch.nn.functional as F
-from gtsam import Point2, Point3, Pose3, Rot3, SfmTrack  # type: ignore
+from gtsam import Point2, Point3, SfmTrack  # type: ignore
 from torch.amp import autocast as amp_autocast  # type: ignore
 
 import gtsfm.common.types as gtsfm_types
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.utils import logger as logger_utils
+from gtsfm.utils import torch as torch_utils
 
 PathLike = Union[str, Path]
 
@@ -90,20 +90,6 @@ class VGGTReconstructionResult:
     fallback_reason: Optional[str] = None
 
 
-def default_device(device: Optional[Union[str, torch.device]] = None) -> torch.device:
-    """Resolve a concrete device for VGGT inference."""
-    if device is not None:
-        return torch.device(device)
-
-    # Prefer CUDA if available, then MPS (Mac GPU), then fall back to CPU
-    if torch.cuda.is_available():
-        return torch.device("cuda")
-    elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-        return torch.device("mps")
-    else:
-        return torch.device("cpu")
-
-
 def default_dtype(device: torch.device) -> torch.dtype:
     """Pick a floating-point dtype suitable for VGGT on the provided device."""
     if device.type == "cuda":
@@ -135,7 +121,7 @@ def load_model(
     dtype: Optional[torch.dtype] = None,
 ) -> VGGT:
     """Load the VGGT model weights on the requested device."""
-    resolved_device = default_device(device)
+    resolved_device = torch_utils.default_device(device)
     checkpoint = resolve_weights_path(weights_path)
 
     model = VGGT()
@@ -148,22 +134,6 @@ def load_model(
     if dtype is not None:
         model = model.to(dtype=dtype)
     return model
-
-
-def _pose_from_extrinsic(matrix: np.ndarray) -> Pose3:
-    """Convert a VGGT extrinsic matrix (camera-from-world) to a Pose3 (world-from-camera)."""
-    cRw: np.ndarray = matrix[:3, :3]
-    t = matrix[:3, 3]
-    return Pose3(Rot3(cRw), Point3(*t)).inverse()
-
-
-def _calibration_from_intrinsic(matrix: np.ndarray) -> gtsam.Cal3_S2:
-    """Map a 3x3 intrinsic matrix to a Cal3_S2."""
-    fx = float(matrix[0, 0])
-    fy = float(matrix[1, 1])
-    cx = float(matrix[0, 2])
-    cy = float(matrix[1, 2])
-    return gtsam.Cal3_S2(fx, fy, 0.0, cx, cy)
 
 
 def _rescale_intrinsic_for_original_resolution(
@@ -235,7 +205,7 @@ def run_reconstruction(
         torch.cuda.manual_seed(cfg.seed)
         torch.cuda.manual_seed_all(cfg.seed)
 
-    resolved_device = default_device(device)
+    resolved_device = torch_utils.default_device(device)
     resolved_dtype = dtype or default_dtype(resolved_device)
 
     if model is None:
@@ -307,14 +277,14 @@ def run_reconstruction(
     gtsfm_data = GtsfmData(number_images=total_num_images)
 
     for local_idx, global_idx in enumerate(image_indices):
-        pose = _pose_from_extrinsic(extrinsic_np[local_idx])
+        pose = torch_utils.pose_from_extrinsic(extrinsic_np[local_idx])
         image_width = float(original_coords_np[local_idx, 4])
         image_height = float(original_coords_np[local_idx, 5])
 
         scaled_intrinsic = _rescale_intrinsic_for_original_resolution(
             intrinsic_np[local_idx], inference_resolution, image_width, image_height
         )
-        calibration = _calibration_from_intrinsic(scaled_intrinsic)
+        calibration = torch_utils.calibration_from_intrinsic(scaled_intrinsic)
         camera_cls = gtsfm_types.get_camera_class_for_calibration(calibration)
         gtsfm_data.add_camera(global_idx, camera_cls(pose, calibration))  # type: ignore[arg-type]
         gtsfm_data.set_image_info(
@@ -425,7 +395,6 @@ __all__ = [
     "DEFAULT_WEIGHTS_PATH",
     "VGGT_SUBMODULE_PATH",
     "LIGHTGLUE_SUBMODULE_PATH",
-    "default_device",
     "default_dtype",
     "load_and_preprocess_images_square",
     "resolve_weights_path",

@@ -7,10 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
-import gtsam  # type: ignore
-import numpy as np
 import torch
-from gtsam import Point3, Pose3, Rot3
 
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.utils import logger as logger_utils
@@ -124,22 +121,3 @@ def load_model(
         resolved_device = torch.device(device)
         model = model.to(resolved_device)
     return model
-
-
-def pose_from_extrinsic(matrix: np.ndarray) -> Pose3:
-    """Convert a Anysplat extrinsic matrix (camera-from-world) to a Pose3 (world-from-camera)."""
-    cRw: np.ndarray = matrix[:3, :3]
-    t = matrix[:3, 3]
-    return Pose3(Rot3(cRw), Point3(*t)).inverse()
-
-
-def calibration_from_intrinsic(matrix: np.ndarray, camera_type: str) -> gtsam.Cal3:
-    """Map a 3x3 intrinsic matrix to the corresponding GTSAM calibration type."""
-    fx = float(matrix[0, 0])
-    fy = float(matrix[1, 1])
-    cx = float(matrix[0, 2])
-    cy = float(matrix[1, 2])
-    model = camera_type.upper()
-    if model in {"SIMPLE_PINHOLE", "SIMPLE_RADIAL", "RADIAL"}:
-        return gtsam.Cal3Bundler(fx, 0.0, 0.0, cx, cy)
-    return gtsam.Cal3_S2(fx, fy, 0.0, cx, cy)
