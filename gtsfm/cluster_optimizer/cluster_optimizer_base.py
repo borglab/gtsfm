@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Dict, Mapping, Tuple
 
 from dask.base import annotate
-from dask.delayed import Delayed
+from dask.delayed import Delayed, delayed
 from dask.distributed import Client, Future, get_client
 
 import gtsfm.evaluation.metrics_report as metrics_report
@@ -45,15 +45,15 @@ class ClusterComputationGraph:
 class ClusterContext:
     """Static metadata describing a cluster tree node."""
 
-    visibility_graph: VisibilityGraph
-    output_paths: OutputPaths
-    cluster_path: tuple[int, ...]
-    label: str
     client: Client
-    num_images: int
+    loader: "LoaderBase"
+    output_paths: OutputPaths
     one_view_data_dict: dict[int, "OneViewData"]
     image_future_map: Dict[int, Future]
-    loader: "LoaderBase"
+    num_images: int
+    visibility_graph: VisibilityGraph
+    cluster_path: tuple[int, ...]
+    label: str
 
     @property
     def is_root(self) -> bool:
@@ -67,26 +67,6 @@ class ClusterContext:
             for depth in range(len(self.cluster_path)):
                 subdir /= cluster_label(self.cluster_path[: depth + 1])
         return subdir
-
-
-class ClusterOptimizerBase(GTSFMProcess):
-    """Base class for cluster optimizers delivering per-cluster computations."""
-
-    def __init__(
-        self,
-        pose_angular_error_thresh: float = 3.0,
-        output_worker: None | str = None,
-    ) -> None:
-        self._pose_angular_error_thresh = pose_angular_error_thresh
-        self._output_worker = output_worker
-
-    @property
-    def pose_angular_error_thresh(self) -> float:
-        return self._pose_angular_error_thresh
-
-    def _output_annotation(self):
-        """Context manager routing heavy I/O to the optional output worker."""
-        return annotate(workers=self._output_worker) if self._output_worker else annotate()
 
     @staticmethod
     def resolve_visibility_graph_images(
@@ -114,6 +94,35 @@ class ClusterOptimizerBase(GTSFMProcess):
             return {}
 
         return {idx: img for idx, img in zip(indices, images) if img is not None}
+
+    def get_delayed_image_map(self) -> Delayed:
+        """Get images for all cluster indices as a delayed computation. within this cluster,
+        Dask will materialize that dictionary exactly once and share it among those downstream tasks.
+        """
+        return delayed(self.resolve_visibility_graph_images)(
+            self.visibility_graph,
+            self.image_future_map,
+        )
+
+
+class ClusterOptimizerBase(GTSFMProcess):
+    """Base class for cluster optimizers delivering per-cluster computations."""
+
+    def __init__(
+        self,
+        pose_angular_error_thresh: float = 3.0,
+        output_worker: None | str = None,
+    ) -> None:
+        self._pose_angular_error_thresh = pose_angular_error_thresh
+        self._output_worker = output_worker
+
+    @property
+    def pose_angular_error_thresh(self) -> float:
+        return self._pose_angular_error_thresh
+
+    def _output_annotation(self):
+        """Context manager routing heavy I/O to the optional output worker."""
+        return annotate(workers=self._output_worker) if self._output_worker else annotate()
 
     @abstractmethod
     def __repr__(self) -> str:

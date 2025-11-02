@@ -302,11 +302,7 @@ class ClusterMVO(ClusterOptimizerBase):
         frontend_graphs: FrontendGraphs = self._build_frontend_graphs(context=context)
 
         # Get images for all cluster indices as a delayed computation. within this cluster,
-        # Dask will materialize that dictionary exactly once and share it among those downstream tasks.
-        d_cluster_images = delayed(self.resolve_visibility_graph_images)(
-            context.visibility_graph,
-            context.image_future_map,
-        )
+        d_cluster_images = context.get_delayed_image_map()
 
         # Note: the MultiviewOptimizer returns BA input and BA output aligned to GT via Sim(3).
         (

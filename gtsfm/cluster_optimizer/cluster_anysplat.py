@@ -5,25 +5,25 @@ Authors: Harneet Singh Khanuja
 
 from functools import partial
 from pathlib import Path
-from typing import Any, Callable, Hashable, List, Sequence
+from typing import Any, Callable, Hashable, List
 
 import cv2
 import torch
 import torchvision  # type: ignore
 from dask import delayed  # type: ignore
 from dask.delayed import Delayed
-from gtsam import Point3, SfmTrack
+from gtsam import Point3, SfmTrack  # type: ignore
 
 import gtsfm.common.types as gtsfm_types
+import gtsfm.utils.anysplat as anysplat_utils
 import gtsfm.utils.torch as torch_utils
 from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterComputationGraph, ClusterContext, ClusterOptimizerBase
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
-from gtsfm.products.visibility_graph import visibility_graph_keys
 from gtsfm.ui.gtsfm_process import UiMetadata
 from gtsfm.utils import logger as logger_utils
-from gtsfm.utils.anysplat import AnySplatReconstructionResult, export_ply, load_model, save_interpolated_video
+from gtsfm.utils.anysplat import AnySplatReconstructionResult
 
 _SH0_NORMALIZATION_FACTOR = 0.28209479177387814
 
@@ -40,24 +40,25 @@ class ClusterAnySplat(ClusterOptimizerBase):
         self,
         model_loader: Callable[[], Any] | None = None,
         *,
-        local_files_only: bool | None = None,
+        local_files_only: bool | None = None,  # TODO(Frank): remove, True if path, False otherwise
         weights_path: str | Path | None = None,
         model_cache_key: Hashable | None = None,
     ):
         """."""
         super().__init__()
         self._model = None
+        self._device = torch_utils.default_device()
         if model_loader is not None:
             self._model_loader = model_loader
             self._model_cache_key = model_cache_key
         else:
-            loader_kwargs: dict[str, Any] = {}
+            loader_kwargs: dict[str, Any] = {"device": self._device}
             if weights_path is not None:
                 loader_kwargs["checkpoint_path"] = Path(weights_path)
                 loader_kwargs["local_files_only"] = True if local_files_only is None else local_files_only
             elif local_files_only is not None:
                 loader_kwargs["local_files_only"] = local_files_only
-            self._model_loader = partial(load_model, **loader_kwargs)
+            self._model_loader = partial(anysplat_utils.load_model, **loader_kwargs)
             if model_cache_key is not None:
                 self._model_cache_key = model_cache_key
             else:
@@ -98,14 +99,10 @@ class ClusterAnySplat(ClusterOptimizerBase):
         components = ["Model Name = AnySplat", "Input image preprocessed to (448,448)"]
         return "Feed Forward Gaussian Splatting(\n  " + ",\n  ".join(str(c) for c in components) + "\n)"
 
-    def _aggregate_anysplat_metrics(
-        self,
-        result: AnySplatReconstructionResult,
-        global_indices: tuple,
-    ) -> GtsfmMetricsGroup:
+    def _aggregate_anysplat_metrics(self, result: AnySplatReconstructionResult) -> GtsfmMetricsGroup:
         """Capture simple runtime metrics for the front-end."""
 
-        gaussian_count = len(global_indices) * result.height * result.width
+        gaussian_count = result.gtsfm_data.number_images() * result.height * result.width
         voxel_count = result.splats.means.shape[1]
         return GtsfmMetricsGroup(
             "anysplat_runtime_metrics",
@@ -116,15 +113,11 @@ class ClusterAnySplat(ClusterOptimizerBase):
             ],
         )
 
-    def _generate_splats(
-        self, images: List[Image], global_indices: tuple, image_names: Sequence[str]
-    ) -> AnySplatReconstructionResult:
+    def _generate_splats(self, images: dict[int, Image]) -> AnySplatReconstructionResult:
         """
         Apply AnySplat feed forward network to generate Gaussian splats.
         Args:
-            images: List of all images.
-            global_indices:
-            image_names:
+            images: Dictionary of images indexed by their global indices.
 
         Returns:
             an AnySplatReconstructionResult object
@@ -133,9 +126,9 @@ class ClusterAnySplat(ClusterOptimizerBase):
         self._ensure_model_loaded()
         assert self._model is not None, "Model should be loaded by now"
 
-        device = torch_utils.default_device()
-        processed_images = self._preprocess_images(images, device)
+        processed_images = self._preprocess_images(images, self._device)
         _, _, _, height, width = processed_images.shape
+        logger.info("🔵 Running AnySplat on %d images.", len(images))
         splats, pred_context_pose = self._model.inference((processed_images + 1) * 0.5)
 
         # Move results to CPU to avoid Dask serialization errors.
@@ -145,9 +138,8 @@ class ClusterAnySplat(ClusterOptimizerBase):
         pred_context_pose["intrinsic"] = pred_context_pose["intrinsic"].cpu()
         decoder = self._model.decoder.cpu()
 
-        gtsfm_data = GtsfmData(number_images=len(global_indices))
-        image_names_str = [str(name) for name in image_names] if image_names is not None else None
-        for local_idx, global_idx in enumerate(global_indices):
+        gtsfm_data = GtsfmData(number_images=len(images))
+        for local_idx, (global_idx, img) in enumerate(images.items()):
             intrinsic = pred_context_pose["intrinsic"][0][local_idx].numpy()
             calibration = torch_utils.calibration_from_intrinsic(intrinsic)
             camera_cls = gtsfm_types.get_camera_class_for_calibration(calibration)  # type: ignore
@@ -158,8 +150,8 @@ class ClusterAnySplat(ClusterOptimizerBase):
             gtsfm_data.add_camera(global_idx, camera_cls(pose, calibration))  # type: ignore
             gtsfm_data.set_image_info(
                 global_idx,
-                name=image_names_str[local_idx] if image_names_str is not None else None,
-                shape=(height, width),
+                name=img.file_name,
+                shape=(height, width),  # TODO(Frank): check if this is correct!
             )
 
         logger.info("Adding Gaussian means to GtsfmData as 3D tracks.")
@@ -184,12 +176,12 @@ class ClusterAnySplat(ClusterOptimizerBase):
 
         return AnySplatReconstructionResult(gtsfm_data, splats, pred_context_pose, height, width, decoder)
 
-    def _preprocess_images(self, images: List[Image], device):
+    def _preprocess_images(self, images: dict[int, Image], device):
         """
         Converts the data format from GtsfmData to AnySplat input
         """
         images_list = []
-        for i, img in enumerate(images):
+        for img in images.values():
             height, width = img.shape[:2]
             img_array = img.value_array
             if width > height:
@@ -216,7 +208,7 @@ class ClusterAnySplat(ClusterOptimizerBase):
         result: AnySplatReconstructionResult,
         save_gs_files_path: str,
     ) -> None:
-        device = torch_utils.default_device()
+        device = self._device
         if device == "cpu":
             logger.warning("CUDA not available, cannot generate interpolated video on CPU.")
             return
@@ -229,7 +221,7 @@ class ClusterAnySplat(ClusterOptimizerBase):
             setattr(result.splats, attr, getattr(result.splats, attr).to(device))
 
         b = 1  # AnySplat convention
-        save_interpolated_video(
+        anysplat_utils.save_interpolated_video(
             extrinsics,
             intrinsics,
             b,
@@ -242,7 +234,7 @@ class ClusterAnySplat(ClusterOptimizerBase):
 
     def _save_splats(self, result: AnySplatReconstructionResult, save_gs_files_path: Path) -> None:
         splats = result.splats
-        export_ply(
+        anysplat_utils.export_ply(
             splats.means[0],
             splats.scales[0],
             splats.rotations[0],
@@ -265,27 +257,14 @@ class ClusterAnySplat(ClusterOptimizerBase):
         io_tasks: List[Delayed] = []
         metrics_tasks: List[Delayed] = []
 
-        keys = sorted(visibility_graph_keys(context.visibility_graph))
-        if not keys:
-            return None
+        # Get images for all cluster indices as a delayed computation. within this cluster,
+        d_cluster_images = context.get_delayed_image_map()
+        if context.num_images == 0:
+            raise ValueError("Cluster has no images to process.")
 
-        global_indices = tuple(int(idx) for idx in keys)
-        image_filenames = context.loader.image_filenames()
-        image_names = tuple(str(image_filenames[idx]) for idx in keys)
+        result_graph = delayed(self._generate_splats)(d_cluster_images)
 
-        def _pack_images_for_anysplat(*images: Image) -> list[Image]:
-            """Collect variadic image inputs into an ordered list."""
-
-            return list(images)
-
-        logger.info("Keys for AnySplat GS computation: %s", keys)
-        selected_images = context.loader.get_key_images_as_delayed_map(keys)
-
-        images = delayed(_pack_images_for_anysplat)(*selected_images.values())
-
-        result_graph = delayed(self._generate_splats)(images, global_indices, image_names)
-
-        metrics_tasks.append(delayed(self._aggregate_anysplat_metrics)(result_graph, global_indices))
+        metrics_tasks.append(delayed(self._aggregate_anysplat_metrics)(result_graph))
         with self._output_annotation():
             io_tasks.append(
                 delayed(self._generate_interpolated_video)(
