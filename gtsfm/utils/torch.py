@@ -9,7 +9,7 @@ from gtsam import Point3, Pose3, Rot3
 
 
 def default_device(device: Optional[Union[str, torch.device]] = None) -> torch.device:
-    """Resolve a concrete device for VGGT inference."""
+    """Resolve a concrete device for PyTorch inference."""
     if device is not None:
         return torch.device(device)
 
