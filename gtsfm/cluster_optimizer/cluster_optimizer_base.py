@@ -96,7 +96,7 @@ class ClusterContext:
         return {idx: img for idx, img in zip(indices, images) if img is not None}
 
     def get_delayed_image_map(self) -> Delayed:
-        """Get images for all cluster indices as a delayed computation. within this cluster,
+        """Get images for all cluster indices as a delayed computation. Within this cluster,
         Dask will materialize that dictionary exactly once and share it among those downstream tasks.
         """
         return delayed(self.resolve_visibility_graph_images)(
