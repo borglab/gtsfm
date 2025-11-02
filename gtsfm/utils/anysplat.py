@@ -46,7 +46,9 @@ _IMPORT_ERROR: Exception | None = None
 
 try:  # pragma: no cover - exercised by integration tests, hard to simulate in unit tests.
     from src.misc.image_io import save_interpolated_video as _save_interpolated_video_impl  # type: ignore
-    from src.model.decoder.decoder_splatting_cuda import DecoderSplattingCUDA as _DecoderSplattingCUDAImpl  # type: ignore
+    from src.model.decoder.decoder_splatting_cuda import (
+        DecoderSplattingCUDA as _DecoderSplattingCUDAImpl,
+    )  # type: ignore
     from src.model.model.anysplat import AnySplat as _AnySplatImpl  # type: ignore
     from src.model.ply_export import export_ply as _export_ply_impl  # type: ignore
     from src.model.types import Gaussians as _GaussiansImpl  # type: ignore
