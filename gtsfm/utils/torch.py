@@ -23,7 +23,7 @@ def default_device(device: Optional[Union[str, torch.device]] = None) -> torch.d
 
 
 def pose_from_extrinsic(matrix: np.ndarray) -> Pose3:
-    """Convert a VGGT extrinsic matrix (camera-from-world) to a Pose3 (world-from-camera)."""
+    """Convert an extrinsic matrix (camera-from-world) to a Pose3 (world-from-camera)."""
     cRw: np.ndarray = matrix[:3, :3]
     t = matrix[:3, 3]
     return Pose3(Rot3(cRw), Point3(*t)).inverse()
