@@ -19,11 +19,11 @@ def add_loader_args(parser: ArgumentParser) -> None:
     parser.add_argument(
         "--loader",
         type=str,
-        default="olsson",
+        default=None,
         help=(
             "Loader type. Available options include: argoverse, astrovision, colmap, "
             "hilti, mobilebrick, olsson, one_d_sfm, "
-            "tanks_and_temples, yfcc_imb. Default: olsson"
+            "tanks_and_temples, yfcc_imb. Falls back to config when omitted."
         ),
     )
 
