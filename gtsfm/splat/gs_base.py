@@ -23,7 +23,7 @@ class GSBase(GTSFMProcess):
         return UiMetadata(
             display_name="3D Gaussian Splatting",
             input_products=("Images", "Optimized Camera Poses", "Optimized 3D Tracks"),
-            output_products=("Dense Colored 3D Point Cloud",),
+            output_products=("Colored 3D Gaussian Splats ply file", "Interpolated path rendered video"),
             parent_plate="Gaussian Splatting",
         )
 

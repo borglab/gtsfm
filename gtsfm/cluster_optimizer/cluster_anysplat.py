@@ -3,43 +3,28 @@ https://github.com/InternRobotics/AnySplat
 Authors: Harneet Singh Khanuja
 """
 
-import sys
 from pathlib import Path
-from typing import Any, List
+from typing import Any, Callable, List, Sequence
 
 import cv2
 import torch
 import torchvision  # type: ignore
 from dask import delayed  # type: ignore
 from dask.delayed import Delayed
+from gtsam import Point3, SfmTrack
 
-from gtsfm.cluster_optimizer.cluster_optimizer_base import (
-    ClusterComputationGraph,
-    ClusterContext,
-    ClusterOptimizerBase,
-)
+import gtsfm.common.types as gtsfm_types
+import gtsfm.utils.anysplat as anysplat
+from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterComputationGraph, ClusterContext, ClusterOptimizerBase
+from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.products.visibility_graph import visibility_graph_keys
 from gtsfm.ui.gtsfm_process import UiMetadata
 from gtsfm.utils import logger as logger_utils
+from gtsfm.utils.anysplat import AnySplatReconstructionResult, export_ply, load_model, save_interpolated_video
 
-HERE_PATH = Path(__file__).parent
-ANYSPLAT_REPO_PATH = HERE_PATH.parent.parent / "thirdparty" / "AnySplat"
-
-if ANYSPLAT_REPO_PATH.exists():
-    # workaround for sibling import
-    sys.path.insert(0, str(ANYSPLAT_REPO_PATH))
-elif not ANYSPLAT_REPO_PATH.exists():
-    raise ImportError(
-        f"AnySplat is not initialized, could not find: {ANYSPLAT_REPO_PATH}.\n "
-        "Did you forget to run 'git submodule update --init --recursive' ?"
-    )
-
-
-from src.misc.image_io import save_interpolated_video
-from src.model.model.anysplat import AnySplat
-from src.model.ply_export import export_ply
+_SH0_NORMALIZATION_FACTOR = 0.28209479177387814
 
 logger = logger_utils.get_logger()
 
@@ -47,10 +32,11 @@ logger = logger_utils.get_logger()
 class ClusterAnySplat(ClusterOptimizerBase):
     """Class for AnySplat (feed forward GS implementation)"""
 
-    def __init__(self):
+    def __init__(self, model_loader: Callable[[], Any] = load_model):
         """."""
         super().__init__()
         self._model = None
+        self._model_loader = model_loader
 
     @staticmethod
     def get_ui_metadata() -> UiMetadata:
@@ -66,7 +52,7 @@ class ClusterAnySplat(ClusterOptimizerBase):
         """Lazy-load the AnySplat model to avoid unnecessary initialization."""
         if self._model is None:
             logger.info("⏳ Loading AnySplat model weights...")
-            self._model = AnySplat.from_pretrained("lhjiang/anysplat")
+            self._model = self._model_loader()
 
     def __repr__(self) -> str:
         """Provide a readable summary of the optimizer configuration."""
@@ -75,11 +61,13 @@ class ClusterAnySplat(ClusterOptimizerBase):
 
     def _aggregate_anysplat_metrics(
         self,
-        gaussian_count: int,
-        voxel_count: int,
+        result: AnySplatReconstructionResult,
+        global_indices: tuple,
     ) -> GtsfmMetricsGroup:
         """Capture simple runtime metrics for the front-end."""
 
+        gaussian_count = len(global_indices) * result.height * result.width
+        voxel_count = result.splats.means.shape[1]
         return GtsfmMetricsGroup(
             "anysplat_runtime_metrics",
             [
@@ -89,11 +77,18 @@ class ClusterAnySplat(ClusterOptimizerBase):
             ],
         )
 
-    def _generate_splats(self, images: List[Image]):
+    def _generate_splats(
+        self, images: List[Image], global_indices: tuple, image_names: Sequence[str]
+    ) -> AnySplatReconstructionResult:
         """
         Apply AnySplat feed forward network to generate Gaussian splats.
         Args:
             images: List of all images.
+            global_indices:
+            image_names:
+
+        Returns:
+            an AnySplatReconstructionResult object
         """
 
         self._ensure_model_loaded()
@@ -112,7 +107,44 @@ class ClusterAnySplat(ClusterOptimizerBase):
         pred_context_pose["intrinsic"] = pred_context_pose["intrinsic"].cpu()
         decoder = model.decoder.cpu()
 
-        return splats, pred_context_pose, height, width, decoder
+        gtsfm_data = GtsfmData(number_images=len(global_indices))
+        image_names_str = [str(name) for name in image_names] if image_names is not None else None
+        for local_idx, global_idx in enumerate(global_indices):
+            intrinsic = pred_context_pose["intrinsic"][0][local_idx].numpy()
+            calibration = anysplat.calibration_from_intrinsic(intrinsic, "PINHOLE")
+            camera_cls = gtsfm_types.get_camera_class_for_calibration(calibration)  # type: ignore
+
+            extrinsic = pred_context_pose["extrinsic"][0][local_idx].numpy()
+
+            pose = anysplat.pose_from_extrinsic(extrinsic)
+            gtsfm_data.add_camera(global_idx, camera_cls(pose, calibration))  # type: ignore
+            gtsfm_data.set_image_info(
+                global_idx,
+                name=image_names_str[local_idx] if image_names_str is not None else None,
+                shape=(height, width),
+            )
+
+        logger.info("Adding Gaussian means to GtsfmData as 3D tracks.")
+        splats_means = splats.means[0].cpu().numpy()
+        dc_color = splats.harmonics[..., 0][0]
+
+        colors_tensor = (dc_color * _SH0_NORMALIZATION_FACTOR + 0.5).clamp(0.0, 1.0)
+        colors_np = (colors_tensor * 255).cpu().numpy()
+
+        if splats_means.size > 0:
+            for idx, xyz in enumerate(splats_means):
+                color = colors_np[idx]
+
+                track = SfmTrack(Point3(*xyz))
+
+                track.r = float(color[0])
+                track.g = float(color[1])
+                track.b = float(color[2])
+
+                gtsfm_data.add_track(track)
+        logger.info(f"Added {len(splats_means)} tracks from Gaussian means.")
+
+        return AnySplatReconstructionResult(gtsfm_data, splats, pred_context_pose, height, width, decoder)
 
     def _preprocess_images(self, images: List[Image], device):
         """
@@ -143,12 +175,7 @@ class ClusterAnySplat(ClusterOptimizerBase):
 
     def _generate_interpolated_video(
         self,
-        decoder_model: Any,
-        extrinsics: torch.Tensor,
-        intrinsics: torch.Tensor,
-        height: int,
-        width: int,
-        splats: Any,
+        result: AnySplatReconstructionResult,
         save_gs_files_path: str,
     ) -> None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -157,25 +184,26 @@ class ClusterAnySplat(ClusterOptimizerBase):
             return
 
         # Move data to GPU
-        decoder_model = decoder_model.to(device)
-        extrinsics = extrinsics.to(device)
-        intrinsics = intrinsics.to(device)
+        decoder_model = result.decoder.to(device)
+        extrinsics = result.pred_context_pose["extrinsic"].to(device)
+        intrinsics = result.pred_context_pose["intrinsic"].to(device)
         for attr in ["means", "scales", "rotations", "harmonics", "opacities"]:
-            setattr(splats, attr, getattr(splats, attr).to(device))
+            setattr(result.splats, attr, getattr(result.splats, attr).to(device))
 
         b = 1  # AnySplat convention
         save_interpolated_video(
             extrinsics,
             intrinsics,
             b,
-            height,
-            width,
-            splats,
+            result.height,
+            result.width,
+            result.splats,
             save_gs_files_path,
             decoder_model,
         )
 
-    def _save_splats(self, splats, save_gs_files_path: Path) -> None:
+    def _save_splats(self, result: AnySplatReconstructionResult, save_gs_files_path: Path) -> None:
+        splats = result.splats
         export_ply(
             splats.means[0],
             splats.scales[0],
@@ -183,6 +211,8 @@ class ClusterAnySplat(ClusterOptimizerBase):
             splats.harmonics[0],
             splats.opacities[0],
             save_gs_files_path / "gaussian_splats.ply",
+            save_sh_dc_only=True,  # Since current model use SH_degree = 4, which require large memory to store, we can
+            # only save the DC band to save memory.
         )
 
     def create_computation_graph(
@@ -192,8 +222,7 @@ class ClusterAnySplat(ClusterOptimizerBase):
         """Create a Dask computation graph to process a cluster.
 
         Returns:
-            - List of Delayed I/O tasks to be computed
-            - List of Delayed metrics to be computed
+            a ClusterComputationGraph object
         """
         io_tasks: List[Delayed] = []
         metrics_tasks: List[Delayed] = []
@@ -201,6 +230,10 @@ class ClusterAnySplat(ClusterOptimizerBase):
         keys = sorted(visibility_graph_keys(context.visibility_graph))
         if not keys:
             return None
+
+        global_indices = tuple(int(idx) for idx in keys)
+        image_filenames = context.loader.image_filenames()
+        image_names = tuple(str(image_filenames[idx]) for idx in keys)
 
         def _pack_images_for_anysplat(*images: Image) -> list[Image]:
             """Collect variadic image inputs into an ordered list."""
@@ -212,27 +245,22 @@ class ClusterAnySplat(ClusterOptimizerBase):
 
         images = delayed(_pack_images_for_anysplat)(*selected_images.values())
 
-        splats, pred_context_pose, height, width, decoder_model = delayed(self._generate_splats, nout=5)(images)
-        total_gaussians = len(keys) * height * width
-        total_voxels = splats.means.shape[1]
+        result_graph = delayed(self._generate_splats)(images, global_indices, image_names)
 
-        metrics_tasks.append(delayed(self._aggregate_anysplat_metrics)(total_gaussians, total_voxels))
+        metrics_tasks.append(delayed(self._aggregate_anysplat_metrics)(result_graph, global_indices))
         with self._output_annotation():
             io_tasks.append(
                 delayed(self._generate_interpolated_video)(
-                    decoder_model,
-                    pred_context_pose["extrinsic"],
-                    pred_context_pose["intrinsic"],
-                    height,
-                    width,
-                    splats,
+                    result_graph,
                     str(context.output_paths.results),
                 )
             )
-            io_tasks.append(delayed(self._save_splats)(splats, context.output_paths.results))
+            io_tasks.append(delayed(self._save_splats)(result_graph, context.output_paths.results))
+
+        sfm_result_graph = delayed(lambda res: res.gtsfm_data)(result_graph)
 
         return ClusterComputationGraph(
             io_tasks=tuple(io_tasks),
             metric_tasks=tuple(metrics_tasks),
-            sfm_result=None,
+            sfm_result=sfm_result_graph,
         )
