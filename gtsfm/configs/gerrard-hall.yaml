@@ -4,9 +4,11 @@
 _target_: gtsfm.scene_optimizer.SceneOptimizer
 
 loader:
-  _target_: gtsfm.loader.Olsson
-  dataset_dir: tests/data/set1_lund_door
+  _target_: gtsfm.loader.Colmap
+  images_dir: benchmarks/gerrard-hall/images/
+  dataset_dir: benchmarks/gerrard-hall/sparse/
   max_resolution: 760
+  input_worker: null
 
 image_pairs_generator:
   _target_: gtsfm.retriever.image_pairs_generator.ImagePairsGenerator
@@ -17,7 +19,7 @@ image_pairs_generator:
   retriever:
     _target_: gtsfm.retriever.JointSimilaritySequential
     num_matched: 5
-    min_score: 0.79
+    min_score: 0.2
     max_frame_lookahead: 2
   batch_size: 16
 
