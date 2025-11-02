@@ -99,13 +99,25 @@ class AnySplatReconstructionResult:
     decoder: DecoderSplattingCUDA
 
 
-def load_model(*, device: torch.device | str | None = None) -> Any:
+def load_model(
+    *,
+    device: torch.device | str | None = None,
+    local_files_only: bool = False,
+    checkpoint_path: str | Path | None = None,
+) -> Any:
     """Load AnySplat weights optionally moving the model to the requested device."""
 
     _require_thirdparty()
     assert AnySplat is not None
 
-    model = AnySplat.from_pretrained("lhjiang/anysplat")
+    target = checkpoint_path or "lhjiang/anysplat"
+    load_kwargs: dict[str, Any] = {}
+    if checkpoint_path is None:
+        load_kwargs["local_files_only"] = local_files_only
+    else:
+        load_kwargs["local_files_only"] = True
+
+    model = AnySplat.from_pretrained(target, **load_kwargs)
     model.eval()
 
     if device is not None:

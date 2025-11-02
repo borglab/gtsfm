@@ -3,6 +3,7 @@
 Authors: Frank Dellaert
 """
 
+from pathlib import Path
 import unittest
 from unittest import mock
 
@@ -48,6 +49,30 @@ class ClusterAnySplatTest(unittest.TestCase):
         with mock.patch.object(anysplat, "_IMPORT_ERROR", RuntimeError("torch_scatter missing")):
             with self.assertRaisesRegex(ImportError, r"anysplat.*could not be imported"):
                 anysplat.load_model()
+
+    @mock.patch("gtsfm.cluster_optimizer.cluster_anysplat.load_model")
+    def test_local_files_only_flag_forwarded(self, mocked_loader) -> None:
+        """Ensure hydra flag is forwarded to the default model loader."""
+
+        mocked_loader.return_value = _DummyAnySplatModel()
+        optimizer = ClusterAnySplat(local_files_only=True)
+
+        optimizer._ensure_model_loaded()
+
+        mocked_loader.assert_called_once_with(local_files_only=True)
+
+    @mock.patch("gtsfm.cluster_optimizer.cluster_anysplat.load_model")
+    def test_weights_path_implies_local_only(self, mocked_loader) -> None:
+        """Explicit checkpoints should be loaded from disk without extra flags."""
+
+        mocked_loader.return_value = _DummyAnySplatModel()
+        optimizer = ClusterAnySplat(weights_path="/tmp/fake/model")
+
+        optimizer._ensure_model_loaded()
+
+        mocked_loader.assert_called_once_with(
+            checkpoint_path=Path("/tmp/fake/model"), local_files_only=True
+        )
 
 
 if __name__ == "__main__":

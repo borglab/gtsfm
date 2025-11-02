@@ -3,6 +3,7 @@ https://github.com/InternRobotics/AnySplat
 Authors: Harneet Singh Khanuja
 """
 
+from functools import partial
 from pathlib import Path
 from typing import Any, Callable, List, Sequence
 
@@ -32,11 +33,26 @@ logger = logger_utils.get_logger()
 class ClusterAnySplat(ClusterOptimizerBase):
     """Class for AnySplat (feed forward GS implementation)"""
 
-    def __init__(self, model_loader: Callable[[], Any] = load_model):
+    def __init__(
+        self,
+        model_loader: Callable[[], Any] | None = None,
+        *,
+        local_files_only: bool | None = None,
+        weights_path: str | Path | None = None,
+    ):
         """."""
         super().__init__()
         self._model = None
-        self._model_loader = model_loader
+        if model_loader is not None:
+            self._model_loader = model_loader
+        else:
+            loader_kwargs: dict[str, Any] = {}
+            if weights_path is not None:
+                loader_kwargs["checkpoint_path"] = Path(weights_path)
+                loader_kwargs["local_files_only"] = True if local_files_only is None else local_files_only
+            elif local_files_only is not None:
+                loader_kwargs["local_files_only"] = local_files_only
+            self._model_loader = partial(load_model, **loader_kwargs)
 
     @staticmethod
     def get_ui_metadata() -> UiMetadata:
