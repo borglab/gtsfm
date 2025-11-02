@@ -5,12 +5,26 @@ from __future__ import annotations
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Protocol
 
 import torch
 
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.utils import logger as logger_utils
+from gtsfm.utils.splat import GaussiansProtocol
+
+
+class DecoderSplattingCUDAProtocol(Protocol):
+    """Type protocol for AnySplat DecoderSplattingCUDA to satisfy mypy."""
+
+    def cpu(self) -> DecoderSplattingCUDAProtocol:
+        """Move the decoder to CPU."""
+        ...
+
+    def to(self, device: torch.device | str) -> DecoderSplattingCUDAProtocol:
+        """Move the decoder to the specified device."""
+        ...
+
 
 logger = logger_utils.get_logger()
 
@@ -37,8 +51,8 @@ _ensure_submodule_on_path(ANYSPLAT_SUBMODULE_PATH, "anysplat")
 _SAVE_INTERPOLATED_VIDEO: Callable[..., Any] | None = None
 _EXPORT_PLY: Callable[..., Any] | None = None
 AnySplat: type[Any] | None = None  # type: ignore[assignment]
-DecoderSplattingCUDA: type[Any] | Any = Any  # type: ignore[assignment]
-Gaussians: type[Any] | Any = Any  # type: ignore[assignment]
+DecoderSplattingCUDA: type[DecoderSplattingCUDAProtocol] | Any = Any  # type: ignore[assignment]
+Gaussians: type[GaussiansProtocol] | Any = Any  # type: ignore[assignment]
 _IMPORT_ERROR: Exception | None = None
 
 try:  # pragma: no cover - exercised by integration tests, hard to simulate in unit tests.
@@ -89,11 +103,11 @@ class AnySplatReconstructionResult:
     """Outputs from the Anysplat generate splats function."""
 
     gtsfm_data: GtsfmData
-    splats: Gaussians
+    splats: GaussiansProtocol
     pred_context_pose: dict[str, torch.Tensor]
     height: int
     width: int
-    decoder: DecoderSplattingCUDA
+    decoder: DecoderSplattingCUDAProtocol
 
 
 def load_model(
