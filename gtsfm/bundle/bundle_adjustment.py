@@ -254,26 +254,6 @@ class BundleAdjustmentOptimizer:
 
         return graph
 
-    def __initial_values(self, initial_data: GtsfmData) -> Values:
-        """Initialize all the variables in the factor graph."""
-        initial_values = Values()
-
-        # Add each camera.
-        for loop_idx, i in enumerate(initial_data.get_valid_camera_indices()):
-            camera_i = initial_data.get_camera(i)
-            assert camera_i is not None, f"Camera {i} in initial data is None"
-            initial_values.insert(X(i), camera_i.pose())
-            if not self._shared_calib or loop_idx == 0:
-                # add only one value if calibrations are shared
-                initial_values.insert(K(self.__map_to_calibration_variable(i)), camera_i.calibration())
-
-        # Add each SfmTrack.
-        for j in range(initial_data.number_tracks()):
-            track = initial_data.get_track(j)
-            initial_values.insert(P(j), track.point3())
-
-        return initial_values
-
     def __optimize_factor_graph(self, graph: NonlinearFactorGraph, initial_values: Values) -> Values:
         """Optimize the factor graph."""
         start_time = time.time()
@@ -352,7 +332,7 @@ class BundleAdjustmentOptimizer:
         graph = self.__construct_factor_graph(
             cameras_to_model, initial_data, absolute_pose_priors, relative_pose_priors
         )
-        initial_values = self.__initial_values(initial_data)
+        initial_values = initial_data.to_values(shared_calib=self._shared_calib)
         result_values = self.__optimize_factor_graph(graph, initial_values)
 
         # Print error.

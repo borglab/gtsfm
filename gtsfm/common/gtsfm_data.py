@@ -395,6 +395,24 @@ class GtsfmData:
         """Returns camera for given index, or None."""
         return self._cameras.get(index)
 
+    def to_values(self, shared_calib: bool = False) -> Values:
+        """Create a gtsam.Values populated with poses, calibrations, and landmarks."""
+        values = Values()
+
+        for loop_idx, camera_idx in enumerate(self.get_valid_camera_indices()):
+            camera = self.get_camera(camera_idx)
+            assert camera is not None, f"Camera {camera_idx} in GtsfmData is None"
+            values.insert(X(camera_idx), camera.pose())
+            if not shared_calib or loop_idx == 0:
+                calib_symbol = K(0 if shared_calib else camera_idx)
+                values.insert(calib_symbol, camera.calibration())
+
+        for track_idx in range(self.number_tracks()):
+            track = self.get_track(track_idx)
+            values.insert(P(track_idx), track.point3())
+
+        return values
+
     def poses(self) -> Dict[int, Pose3]:
         """Returns poses as a dictionary, without missing poses."""
         return {i: cam.pose() for i, cam in self._cameras.items() if cam is not None}

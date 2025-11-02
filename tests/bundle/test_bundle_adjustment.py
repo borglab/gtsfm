@@ -26,6 +26,26 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
 
         self.test_data = EXAMPLE_DATA
 
+    def _clone_with_shared_calibration(self, data: GtsfmData) -> GtsfmData:
+        """Return a copy of ``data`` where all cameras share the first camera's calibration."""
+        shared_clone = GtsfmData(data.number_images())
+        valid_camera_indices = data.get_valid_camera_indices()
+        assert len(valid_camera_indices) > 0
+        first_cam = data.get_camera(valid_camera_indices[0])
+        assert first_cam is not None
+        camera_type = type(first_cam)
+        shared_calibration = first_cam.calibration()
+
+        for idx in valid_camera_indices:
+            cam = data.get_camera(idx)
+            assert cam is not None
+            shared_clone.add_camera(idx, camera_type(cam.pose(), shared_calibration))
+
+        for track_idx in range(data.number_tracks()):
+            shared_clone.add_track(data.get_track(track_idx))
+
+        return shared_clone
+
     # def test_simple_scene(self):
     #     """Test the simple scene using the `run_ba` API."""
 
@@ -57,6 +77,19 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
             result = dask.compute(computed_result)[0]
 
         self.assertEqual(result, expected_result)
+
+    def test_values_roundtrip_without_shared_calib(self):
+        """Ensure GtsfmData <-> gtsam.Values conversion preserves scene when calibrations are independent."""
+        values = self.test_data.to_values(shared_calib=False)
+        reconstructed = GtsfmData.from_values(values, initial_data=self.test_data, shared_calib=False)
+        self.assertEqual(reconstructed, self.test_data)
+
+    def test_values_roundtrip_with_shared_calib(self):
+        """Ensure GtsfmData <-> gtsam.Values conversion preserves scene when calibration is shared."""
+        shared_calib_data = self._clone_with_shared_calibration(self.test_data)
+        values = shared_calib_data.to_values(shared_calib=True)
+        reconstructed = GtsfmData.from_values(values, initial_data=shared_calib_data, shared_calib=True)
+        self.assertEqual(reconstructed, shared_calib_data)
 
 
 if __name__ == "__main__":
