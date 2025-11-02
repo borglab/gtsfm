@@ -3,8 +3,8 @@
 Authors: Akshay Krishnan
 """
 
-from pathlib import Path
 import unittest
+from pathlib import Path
 
 from dask.distributed import Client, LocalCluster
 from PIL import Image
@@ -33,9 +33,10 @@ class TestMast3rCorrespondenceGenerator(unittest.TestCase):
     def test_data(self) -> None:
         corr_gen = Mast3rCorrespondenceGenerator()
 
-        keypoints, match_indices = corr_gen.generate_correspondences(
-            self._client, self._loader.get_all_images_as_futures(self._client), IMAGE_PAIRS
-        )
+        image_future_map = self._loader.get_image_futures(self._client)
+        image_futures = [image_future_map[i] for i in range(len(self._loader))]
+
+        keypoints, match_indices = corr_gen.generate_correspondences(self._client, image_futures, IMAGE_PAIRS)
 
         self.assertEqual(len(keypoints), 3)  # Corresponds to images 0, 1, 2 used in IMAGE_PAIRS
         self.assertEqual(len(match_indices), len(IMAGE_PAIRS))

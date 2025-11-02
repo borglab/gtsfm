@@ -5,7 +5,7 @@ Authors: Harneet Singh Khanuja
 """
 
 from pathlib import Path
-from typing import Any, List
+from typing import Any, Mapping
 
 import cv2
 import numpy as np
@@ -126,11 +126,17 @@ def generate_interpolated_path(
 
 
 @torch.no_grad()
-def generate_interpolated_video(images: List[Image], gtsfm_data: GtsfmData, cfg: Any, splats: dict, video_fpath: str):
+def generate_interpolated_video(
+    images_by_index: Mapping[int, Image],
+    gtsfm_data: GtsfmData,
+    cfg: Any,
+    splats: dict,
+    video_fpath: str,
+):
     """
     Renders a video with interpolated poses from the training poses
     Args:
-            images: computation graph for images.
+            images_by_index: computation graph for images keyed by index.
             gtsfm_data: computation graph for SfM output
             cfg: computation graph for the training Config parameters
             splats: computation graph for the gaussian splats
@@ -141,7 +147,7 @@ def generate_interpolated_video(images: List[Image], gtsfm_data: GtsfmData, cfg:
     fps = cfg.fps
     device = "cuda" if torch.cuda.is_available() else "cpu"
     splats = {key: v.to(device) for key, v in splats.items()}
-    full_dataset = GaussianSplattingData(images, gtsfm_data)
+    full_dataset = GaussianSplattingData(images_by_index, gtsfm_data)
     wTi_np = generate_interpolated_path(full_dataset.wTi_tensor, num_frames, spline_degree=2)
 
     wTi_np = np.concatenate(

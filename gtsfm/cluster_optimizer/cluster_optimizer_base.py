@@ -6,11 +6,11 @@ import os
 from abc import abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING, Dict, Mapping, Tuple
 
 from dask.base import annotate
 from dask.delayed import Delayed
-from dask.distributed import Client, Future
+from dask.distributed import Client, Future, get_client
 
 import gtsfm.evaluation.metrics_report as metrics_report
 import gtsfm.utils.logger as logger_utils
@@ -18,7 +18,7 @@ import gtsfm.utils.metrics as metrics_utils
 from gtsfm.common.image import Image
 from gtsfm.common.outputs import OutputPaths, cluster_label
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
-from gtsfm.products.visibility_graph import VisibilityGraph
+from gtsfm.products.visibility_graph import VisibilityGraph, visibility_graph_keys
 from gtsfm.ui.gtsfm_process import GTSFMProcess
 
 if TYPE_CHECKING:
@@ -52,7 +52,7 @@ class ClusterContext:
     client: Client
     num_images: int
     one_view_data_dict: dict[int, "OneViewData"]
-    image_futures: tuple[Future, ...]
+    image_future_map: Dict[int, Future]
     loader: "LoaderBase"
 
     @property
@@ -89,12 +89,31 @@ class ClusterOptimizerBase(GTSFMProcess):
         return annotate(workers=self._output_worker) if self._output_worker else annotate()
 
     @staticmethod
-    def get_image_dictionary(image_list: list[Image]) -> dict[int, Image]:
-        """Convert a list of images to the MVS input format.
+    def resolve_visibility_graph_images(
+        visibility_graph: VisibilityGraph,
+        image_future_map: Mapping[int, Future],
+    ) -> dict[int, Image]:
+        """Gather the subset of images referenced by a visibility graph.
 
-        NOTE: simple helper shared across optimizers to pass images into dense modules.
+        Args:
+            visibility_graph: Edges describing which cameras participate in the cluster.
+            image_future_map: Mapping from camera index to the loader-provided image future.
+
+        Returns:
+            Dictionary of realized `Image` objects keyed by camera index. Missing images are skipped.
         """
-        return {i: img for i, img in enumerate(image_list)}
+        indices = sorted(idx for idx in visibility_graph_keys(visibility_graph) if idx in image_future_map)
+        if not indices:
+            return {}
+
+        futures = [image_future_map[idx] for idx in indices]
+        try:
+            images = get_client().gather(futures) if futures else []
+        except Exception as exc:
+            logger.warning("Failed to gather images for indices %s: %s", indices, exc)
+            return {}
+
+        return {idx: img for idx, img in zip(indices, images) if img is not None}
 
     @abstractmethod
     def __repr__(self) -> str:

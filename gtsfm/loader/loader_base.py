@@ -360,14 +360,25 @@ class LoaderBase(GTSFMProcess):
         N = len(self)
         return [self.get_absolute_pose_prior(i) for i in range(N)]
 
-    def get_images_as_delayed_map(self) -> Dict[int, Delayed]:
-        """Creates a computation graph for image fetches keyed by image index."""
+    def get_image_futures(self, client: Client) -> Dict[int, Future]:
+        """Submit one get_image future per index and return them keyed by index.
 
-        N = len(self)
-        annotation = dask_annotate(workers=self._input_worker) if self._input_worker else dask_annotate()
-        with annotation:
-            delayed_images = {i: delayed(self.get_image)(i) for i in range(N)}
-        return delayed_images
+        Args:
+            client: Dask client responsible for executing the image load tasks.
+
+        Returns:
+            Dictionary mapping image index -> Future resolving to `Image`.
+        """
+        workers = [self._input_worker] if self._input_worker else None
+        future_map: Dict[int, Future] = {}
+        for idx in range(len(self)):
+            future_map[idx] = client.submit(
+                self.get_image,
+                idx,
+                workers=workers,
+                key=f"loader-get-image-{idx}",
+            )
+        return future_map
 
     def get_key_images_as_delayed_map(self, keys: List[int]) -> Dict[int, Delayed]:
         """Creates a computation graph to fetch images, using the provided keys as identifiers."""
@@ -376,12 +387,6 @@ class LoaderBase(GTSFMProcess):
         with annotation:
             delayed_images = {key: delayed(self.get_image)(key) for key in keys}
         return delayed_images
-
-    def get_all_images_as_futures(self, client: Client) -> List[Future]:
-        return [
-            client.submit(self.get_image, i, workers=[self._input_worker] if self._input_worker else None)
-            for i in range(len(self))
-        ]
 
     @staticmethod
     # do padding to square and resize to target size

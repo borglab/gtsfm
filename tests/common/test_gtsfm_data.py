@@ -349,6 +349,26 @@ class TestGtsfmData(unittest.TestCase):
         self.assertEqual(info0.shape, (480, 640))
         self.assertEqual(info1.shape, (720, 960))
 
+    def test_transform_with_sim3_preserves_colors(self) -> None:
+        """Colors should persist when a scene is transported to a new frame."""
+        data = GtsfmData(number_images=1)
+        calibration = Cal3Bundler(fx=500.0, k1=0.0, k2=0.0, u0=320.0, v0=240.0)
+        data.add_camera(0, PinholeCameraCal3Bundler(Pose3(), calibration))
+
+        track = SfmTrack(Point3(1.0, 2.0, 3.0))
+        track.addMeasurement(0, Point2(10.0, 20.0))
+        track.r = 12
+        track.g = 34
+        track.b = 56
+        data.add_track(track)
+
+        sim_transform = Similarity3(Rot3.RzRyRx(0.1, -0.2, 0.05), Point3(0.5, -0.3, 0.1), 1.1)
+        transformed = data.transform_with_sim3(sim_transform)
+        transformed_track = transformed.get_track(0)
+        self.assertEqual(transformed_track.r, 12)
+        self.assertEqual(transformed_track.g, 34)
+        self.assertEqual(transformed_track.b, 56)
+
 
 if __name__ == "__main__":
     unittest.main()
