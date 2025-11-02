@@ -47,13 +47,13 @@ class ClusterContext:
 
     client: Client
     loader: "LoaderBase"
-    output_paths: OutputPaths
-    one_view_data_dict: dict[int, "OneViewData"]
-    image_future_map: Dict[int, Future]
     num_images: int
-    visibility_graph: VisibilityGraph
+    output_paths: OutputPaths
+    image_future_map: Dict[int, Future]
+    one_view_data_dict: dict[int, "OneViewData"]
     cluster_path: tuple[int, ...]
     label: str
+    visibility_graph: VisibilityGraph
 
     @property
     def is_root(self) -> bool:
