@@ -22,6 +22,11 @@ class _DummyAnySplatModel:
 class ClusterAnySplatTest(unittest.TestCase):
     """Exercise the minimal AnySplat cluster bootstrapping logic."""
 
+    def setUp(self) -> None:
+        from gtsfm.cluster_optimizer import cluster_anysplat
+
+        cluster_anysplat._MODEL_CACHE.clear()
+
     def test_model_loader_invoked_once(self) -> None:
         """Ensure lazy-loading uses the injected loader and caches its result."""
 
@@ -73,6 +78,23 @@ class ClusterAnySplatTest(unittest.TestCase):
         mocked_loader.assert_called_once_with(
             checkpoint_path=Path("/tmp/fake/model"), local_files_only=True
         )
+
+    @mock.patch("gtsfm.cluster_optimizer.cluster_anysplat.load_model")
+    def test_model_cache_reused_across_instances(self, mocked_loader) -> None:
+        """Verify workers reuse the cached model instead of reloading per cluster."""
+
+        cached_model = _DummyAnySplatModel()
+        mocked_loader.return_value = cached_model
+
+        optimizer_one = ClusterAnySplat(local_files_only=True)
+        optimizer_two = ClusterAnySplat(local_files_only=True)
+
+        optimizer_one._ensure_model_loaded()
+        optimizer_two._ensure_model_loaded()
+
+        mocked_loader.assert_called_once_with(local_files_only=True)
+        self.assertIs(optimizer_two._model, cached_model)
+        self.assertIs(optimizer_one._model, optimizer_two._model)
 
 
 if __name__ == "__main__":

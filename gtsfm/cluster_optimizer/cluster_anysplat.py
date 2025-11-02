@@ -5,7 +5,7 @@ Authors: Harneet Singh Khanuja
 
 from functools import partial
 from pathlib import Path
-from typing import Any, Callable, List, Sequence
+from typing import Any, Callable, Hashable, List, Sequence
 
 import cv2
 import torch
@@ -29,6 +29,9 @@ _SH0_NORMALIZATION_FACTOR = 0.28209479177387814
 
 logger = logger_utils.get_logger()
 
+# Module-level cache to reuse AnySplat weights per worker process.
+_MODEL_CACHE: dict[Hashable, Any] = {}
+
 
 class ClusterAnySplat(ClusterOptimizerBase):
     """Class for AnySplat (feed forward GS implementation)"""
@@ -39,12 +42,14 @@ class ClusterAnySplat(ClusterOptimizerBase):
         *,
         local_files_only: bool | None = None,
         weights_path: str | Path | None = None,
+        model_cache_key: Hashable | None = None,
     ):
         """."""
         super().__init__()
         self._model = None
         if model_loader is not None:
             self._model_loader = model_loader
+            self._model_cache_key = model_cache_key
         else:
             loader_kwargs: dict[str, Any] = {}
             if weights_path is not None:
@@ -53,6 +58,14 @@ class ClusterAnySplat(ClusterOptimizerBase):
             elif local_files_only is not None:
                 loader_kwargs["local_files_only"] = local_files_only
             self._model_loader = partial(load_model, **loader_kwargs)
+            if model_cache_key is not None:
+                self._model_cache_key = model_cache_key
+            else:
+                cache_local_files_only = loader_kwargs.get("local_files_only")
+                checkpoint = loader_kwargs.get("checkpoint_path")
+                self._model_cache_key = ("default_anysplat_loader", checkpoint, cache_local_files_only)
+        if not hasattr(self, "_model_cache_key"):
+            self._model_cache_key = None
 
     @staticmethod
     def get_ui_metadata() -> UiMetadata:
@@ -66,9 +79,19 @@ class ClusterAnySplat(ClusterOptimizerBase):
 
     def _ensure_model_loaded(self) -> None:
         """Lazy-load the AnySplat model to avoid unnecessary initialization."""
-        if self._model is None:
-            logger.info("⏳ Loading AnySplat model weights...")
-            self._model = self._model_loader()
+        if self._model is not None:
+            return
+
+        cache_key = getattr(self, "_model_cache_key", None)
+        if cache_key is not None and cache_key in _MODEL_CACHE:
+            self._model = _MODEL_CACHE[cache_key]
+            return
+
+        logger.info("⏳ Loading AnySplat model weights...")
+        model = self._model_loader()
+        self._model = model
+        if cache_key is not None:
+            _MODEL_CACHE[cache_key] = model
 
     def __repr__(self) -> str:
         """Provide a readable summary of the optimizer configuration."""
