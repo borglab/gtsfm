@@ -830,14 +830,19 @@ class GtsfmData:
                     if images_list is not None
                     else (int(track.r), int(track.g), int(track.b))
                 )
-                _, avg_track_error = reprojection.compute_track_reprojection_errors(self._cameras, track)
                 x, y, z = track.point3()
-                f.write(f"{j} {x} {y} {z} {r} {g} {b} {np.round(avg_track_error, 2)} ")
 
-                for k in range(track.numberMeasurements()):
-                    i, uv_measured = track.measurement(k)
-                    f.write(f"{i} {point2d_idx} ")
-                f.write("\n")
+                if track.numberMeasurements() > 0:
+                    _, avg_track_error = reprojection.compute_track_reprojection_errors(self._cameras, track)
+                    f.write(f"{j} {x} {y} {z} {r} {g} {b} {np.round(avg_track_error, 2)} ")
+                    for k in range(track.numberMeasurements()):
+                        i, uv_measured = track.measurement(k)
+                        f.write(f"{i} {point2d_idx} ")
+                    f.write("\n")
+                else:
+                    # For tracks with no measurements (e.g., from dense point clouds), error is 0.
+                    avg_track_error = 0.0
+                    f.write(f"{j} {x} {y} {z} {r} {g} {b} {np.round(avg_track_error, 2)} \n")
 
     def export_as_colmap_text(
         self,

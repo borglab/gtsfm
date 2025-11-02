@@ -1,0 +1,133 @@
+"""Helpers to integrate the AnySplat submodule with GTSFM."""
+
+from __future__ import annotations
+
+import sys
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Callable
+
+import gtsam  # type: ignore
+import numpy as np
+import torch
+from gtsam import Point3, Pose3, Rot3
+
+from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm.utils import logger as logger_utils
+
+logger = logger_utils.get_logger()
+
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+THIRDPARTY_ROOT = REPO_ROOT / "thirdparty"
+ANYSPLAT_SUBMODULE_PATH = THIRDPARTY_ROOT / "AnySplat"
+
+
+def _ensure_submodule_on_path(path: Path, name: str) -> None:
+    """Add a vendored thirdparty module to ``sys.path`` if needed."""
+    if not path.exists():
+        raise ImportError(
+            f"Required submodule '{name}' not found at {path}. " "Run 'git submodule update --init --recursive'?"
+        )
+
+    path_str = str(path)
+    if path_str not in sys.path:
+        sys.path.insert(0, path_str)
+
+
+_ensure_submodule_on_path(ANYSPLAT_SUBMODULE_PATH, "anysplat")
+
+_SAVE_INTERPOLATED_VIDEO: Callable[..., Any] | None = None
+_EXPORT_PLY: Callable[..., Any] | None = None
+AnySplat: type[Any] | None = None  # type: ignore[assignment]
+DecoderSplattingCUDA: type[Any] | Any = Any  # type: ignore[assignment]
+Gaussians: type[Any] | Any = Any  # type: ignore[assignment]
+_IMPORT_ERROR: Exception | None = None
+
+try:  # pragma: no cover - exercised by integration tests, hard to simulate in unit tests.
+    from src.misc.image_io import save_interpolated_video as _save_interpolated_video_impl  # type: ignore
+    from src.model.decoder.decoder_splatting_cuda import (
+        DecoderSplattingCUDA as _DecoderSplattingCUDAImpl,
+    )  # type: ignore
+    from src.model.model.anysplat import AnySplat as _AnySplatImpl  # type: ignore
+    from src.model.ply_export import export_ply as _export_ply_impl  # type: ignore
+    from src.model.types import Gaussians as _GaussiansImpl  # type: ignore
+except (ModuleNotFoundError, OSError) as exc:  # pragma: no cover - import guard
+    _IMPORT_ERROR = exc
+else:
+    _SAVE_INTERPOLATED_VIDEO = _save_interpolated_video_impl
+    _EXPORT_PLY = _export_ply_impl
+    AnySplat = _AnySplatImpl  # type: ignore[assignment]
+    DecoderSplattingCUDA = _DecoderSplattingCUDAImpl  # type: ignore[assignment]
+    Gaussians = _GaussiansImpl  # type: ignore[assignment]
+
+
+def _require_thirdparty() -> None:
+    """Ensure the AnySplat thirdparty dependencies imported successfully."""
+
+    if _IMPORT_ERROR is not None:
+        raise ImportError(
+            "The 'anysplat' Python package could not be imported even after adding the submodule to sys.path."
+        ) from _IMPORT_ERROR
+
+
+def save_interpolated_video(*args: Any, **kwargs: Any) -> Any:
+    """Proxy to AnySplat's video export helper, ensuring dependencies are present."""
+
+    _require_thirdparty()
+    assert _SAVE_INTERPOLATED_VIDEO is not None
+    return _SAVE_INTERPOLATED_VIDEO(*args, **kwargs)
+
+
+def export_ply(*args: Any, **kwargs: Any) -> Any:
+    """Proxy to AnySplat's PLY export helper, ensuring dependencies are present."""
+
+    _require_thirdparty()
+    assert _EXPORT_PLY is not None
+    return _EXPORT_PLY(*args, **kwargs)
+
+
+@dataclass
+class AnySplatReconstructionResult:
+    """Outputs from the Anysplat generate splats function."""
+
+    gtsfm_data: GtsfmData
+    splats: Gaussians
+    pred_context_pose: dict[str, torch.Tensor]
+    height: int
+    width: int
+    decoder: DecoderSplattingCUDA
+
+
+def load_model(*, device: torch.device | str | None = None) -> Any:
+    """Load AnySplat weights optionally moving the model to the requested device."""
+
+    _require_thirdparty()
+    assert AnySplat is not None
+
+    model = AnySplat.from_pretrained("lhjiang/anysplat")
+    model.eval()
+
+    if device is not None:
+        resolved_device = torch.device(device)
+        model = model.to(resolved_device)
+    return model
+
+
+def pose_from_extrinsic(matrix: np.ndarray) -> Pose3:
+    """Convert a Anysplat extrinsic matrix (camera-from-world) to a Pose3 (world-from-camera)."""
+    cRw: np.ndarray = matrix[:3, :3]
+    t = matrix[:3, 3]
+    return Pose3(Rot3(cRw), Point3(*t)).inverse()
+
+
+def calibration_from_intrinsic(matrix: np.ndarray, camera_type: str) -> gtsam.Cal3:
+    """Map a 3x3 intrinsic matrix to the corresponding GTSAM calibration type."""
+    fx = float(matrix[0, 0])
+    fy = float(matrix[1, 1])
+    cx = float(matrix[0, 2])
+    cy = float(matrix[1, 2])
+    model = camera_type.upper()
+    if model in {"SIMPLE_PINHOLE", "SIMPLE_RADIAL", "RADIAL"}:
+        return gtsam.Cal3Bundler(fx, 0.0, 0.0, cx, cy)
+    return gtsam.Cal3_S2(fx, fy, 0.0, cx, cy)
