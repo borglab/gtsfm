@@ -5,7 +5,7 @@ Authors: Harneet Singh Khanuja
 
 import sys
 from pathlib import Path
-from typing import Any, List, Sequence
+from typing import List, Sequence
 
 import cv2
 import torch
