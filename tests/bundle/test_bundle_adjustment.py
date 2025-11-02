@@ -91,6 +91,15 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
         reconstructed = GtsfmData.from_values(values, initial_data=shared_calib_data, shared_calib=True)
         self.assertEqual(reconstructed, shared_calib_data)
 
+    def test_run_simple_ba(self):
+        """Test run_simple_ba on simple scene."""
+        computed_result, error = self.ba.run_simple_ba(
+            self.test_data,
+        )
+
+        self.assertEqual(computed_result.number_images(), self.test_data.number_images())
+        self.assertAlmostEqual(error, 2.32, places=2)
+
 
 if __name__ == "__main__":
     unittest.main()
