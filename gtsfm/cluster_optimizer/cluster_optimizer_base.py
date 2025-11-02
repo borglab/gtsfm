@@ -89,7 +89,7 @@ class ClusterOptimizerBase(GTSFMProcess):
         return annotate(workers=self._output_worker) if self._output_worker else annotate()
 
     @staticmethod
-    def resolve_visibility_images(
+    def resolve_visibility_graph_images(
         visibility_graph: VisibilityGraph,
         image_future_map: Mapping[int, Future],
     ) -> dict[int, Image]:

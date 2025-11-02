@@ -303,7 +303,7 @@ class ClusterMVO(ClusterOptimizerBase):
 
         # Get images for all cluster indices as a delayed computation. within this cluster,
         # Dask will materialize that dictionary exactly once and share it among those downstream tasks.
-        d_cluster_images = delayed(self.resolve_visibility_images)(
+        d_cluster_images = delayed(self.resolve_visibility_graph_images)(
             context.visibility_graph,
             context.image_future_map,
         )
