@@ -35,3 +35,4 @@ cluster_optimizer:
   camera_type: PINHOLE
   seed: 42
   copy_results_to_react: true
+  model_cache_key: null

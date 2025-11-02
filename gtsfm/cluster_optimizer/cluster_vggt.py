@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
+from typing import Any, Hashable, Optional
 
 import numpy as np
 import torch
@@ -25,6 +25,9 @@ from gtsfm.utils.vggt import VGGTReconstructionConfig, VGGTReconstructionResult
 
 logger = get_logger()
 
+# Module-level cache to avoid reloading VGGT weights per cluster.
+_VGGT_MODEL_CACHE: dict[Hashable, Any] = {}
+
 
 def _resize_to_square_tensor(image: np.ndarray, target_size: int) -> torch.Tensor:
     """Resize a HxWx3 numpy image to a square torch tensor normalized to [0,1]."""
@@ -42,7 +45,30 @@ def _load_vggt_inputs(loader, indices: list[int], target_size: int):
     return loader.load_image_batch_vggt(indices, target_size, resize_transform)
 
 
-def _run_vggt_pipeline(image_batch: torch.Tensor, seed: int, **kwargs) -> VGGTReconstructionResult:
+def _resolve_vggt_model(cache_key: Hashable | None, loader_kwargs: dict[str, Any] | None) -> Any | None:
+    """Fetch (or lazily load) a VGGT model for the current worker."""
+
+    if cache_key is None:
+        return None
+
+    if cache_key in _VGGT_MODEL_CACHE:
+        return _VGGT_MODEL_CACHE[cache_key]
+
+    logger.info("⏳ Loading VGGT model weights...")
+    loader_kwargs = loader_kwargs or {}
+    model = vggt.load_model(**loader_kwargs)
+    _VGGT_MODEL_CACHE[cache_key] = model
+    return model
+
+
+def _run_vggt_pipeline(
+    image_batch: torch.Tensor,
+    seed: int,
+    *,
+    model_cache_key: Hashable | None = None,
+    loader_kwargs: dict[str, Any] | None = None,
+    **kwargs,
+) -> VGGTReconstructionResult:
     torch.manual_seed(seed)
     np.random.seed(seed)
     if torch.cuda.is_available():
@@ -50,6 +76,9 @@ def _run_vggt_pipeline(image_batch: torch.Tensor, seed: int, **kwargs) -> VGGTRe
         torch.cuda.manual_seed_all(seed)
 
     logger.info("🔵 Running VGGT on %d images.", image_batch.shape[0])
+    cached_model = _resolve_vggt_model(model_cache_key, loader_kwargs)
+    if cached_model is not None:
+        kwargs = {**kwargs, "model": cached_model}
     return vggt.run_reconstruction(image_batch, **kwargs)
 
 
@@ -102,6 +131,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         scene_dir: Optional[str] = None,
         pose_angular_error_thresh: float = 3.0,
         output_worker: Optional[str] = None,
+        model_cache_key: Hashable | bool | None = None,
     ) -> None:
         super().__init__(
             pose_angular_error_thresh=pose_angular_error_thresh,
@@ -117,6 +147,16 @@ class ClusterVGGT(ClusterOptimizerBase):
         self._seed = seed
         self._copy_results_to_react = copy_results_to_react
         self._explicit_scene_dir = Path(scene_dir) if scene_dir is not None else None
+        self._loader_kwargs: dict[str, Any] = {}
+        if self._weights_path is not None:
+            self._loader_kwargs["weights_path"] = self._weights_path
+
+        if model_cache_key is False:
+            self._model_cache_key: Hashable | None = None
+        elif model_cache_key is None:
+            self._model_cache_key = ("default_vggt_loader", self._weights_path)
+        else:
+            self._model_cache_key = model_cache_key
 
     def __repr__(self) -> str:
         components = [
@@ -174,6 +214,8 @@ class ClusterVGGT(ClusterOptimizerBase):
             config=config,
             weights_path=self._weights_path,
             total_num_images=context.num_images,
+            model_cache_key=self._model_cache_key,
+            loader_kwargs=self._loader_kwargs or None,
         )
 
         metrics_tasks = [delayed(_aggregate_vggt_metrics)(result_graph)]
