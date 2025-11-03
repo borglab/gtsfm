@@ -7,6 +7,7 @@ import unittest
 
 import dask
 import gtsam  # type: ignore
+import numpy as np
 
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
 from gtsfm.common.gtsfm_data import GtsfmData
@@ -21,8 +22,8 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
     def setUp(self):
         super().setUp()
 
-        output_reproj_error_thresh = [100.0]
-        self.ba = BundleAdjustmentOptimizer(output_reproj_error_thresh)
+        reproj_error_thresholds = [100.0]
+        self.ba = BundleAdjustmentOptimizer(reproj_error_thresholds=reproj_error_thresholds)
 
         self.test_data = EXAMPLE_DATA
 
@@ -90,6 +91,29 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
         values = shared_calib_data.to_values(shared_calib=True)
         reconstructed = GtsfmData.from_values(values, initial_data=shared_calib_data, shared_calib=True)
         self.assertEqual(reconstructed, shared_calib_data)
+
+    def test_from_values_without_initial_data(self):
+        """Ensure from_values succeeds without access to the original initial_data."""
+        values = self.test_data.to_values(shared_calib=False)
+        reconstructed = GtsfmData.from_values(values)
+
+        self.assertEqual(reconstructed.number_images(), self.test_data.number_images())
+        self.assertEqual(reconstructed.get_valid_camera_indices(), self.test_data.get_valid_camera_indices())
+        self.assertEqual(reconstructed.number_tracks(), self.test_data.number_tracks())
+
+        for camera_idx in self.test_data.get_valid_camera_indices():
+            original = self.test_data.get_camera(camera_idx)
+            rebuilt = reconstructed.get_camera(camera_idx)
+            self.assertIsNotNone(original)
+            self.assertIsNotNone(rebuilt)
+            assert original is not None and rebuilt is not None
+            self.assertTrue(original.pose().equals(rebuilt.pose(), 1e-9))
+            self.assertTrue(original.calibration().equals(rebuilt.calibration(), 1e-9))
+
+        for track_idx in range(self.test_data.number_tracks()):
+            original_point = self.test_data.get_track(track_idx).point3()
+            rebuilt_point = reconstructed.get_track(track_idx).point3()
+            self.assertTrue(np.allclose(rebuilt_point, original_point))
 
     def test_run_simple_ba(self):
         """Test run_simple_ba on simple scene."""

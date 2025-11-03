@@ -167,53 +167,109 @@ class GtsfmData:
         return cls.from_sfm_data(sfm_data)
 
     @classmethod
-    def from_values(cls, values: Values, initial_data: "GtsfmData", shared_calib: bool) -> "GtsfmData":
+    def from_values(
+        cls, values: Values, initial_data: Optional["GtsfmData"] = None, shared_calib: bool = False
+    ) -> "GtsfmData":
         """Instantiate a GtsfmData from optimized factor graph results.
 
         Args:
             values: Optimizer output containing poses, points, and calibrations.
-            initial_data: Input data used to build the factor graph; provides topology for cameras and tracks.
+            initial_data: Optional input data used to build the factor graph; provides topology for cameras and tracks.
             shared_calib: Whether all cameras shared a single calibration variable in the optimization.
         """
-        result = cls(initial_data.number_images())
 
-        def extract_cal3(calibration_type, camera_idx: int):
-            """Extract calibration values based on the camera type."""
-            key = K(0 if shared_calib else camera_idx)
-            if calibration_type == gtsam.Cal3Fisheye:
-                return values.atCal3Fisheye(key)
-            if calibration_type == gtsam.Cal3Bundler:
-                return values.atCal3Bundler(key)
-            if calibration_type == gtsam.Cal3DS2:
-                return values.atCal3DS2(key)
-            if calibration_type == gtsam.Cal3_S2:
-                return values.atCal3_S2(key)
-            raise ValueError(f"Unsupported camera calibration type: {calibration_type.__name__}")
+        def _symbol_indices(value_keys: Iterable[int], char: str) -> List[int]:
+            indices = []
+            for key in value_keys:
+                symbol = gtsam.Symbol(key)
+                if chr(symbol.chr()) == char:
+                    indices.append(symbol.index())
+            return sorted(indices)
 
-        valid_indices = initial_data.get_valid_camera_indices()
-        first_valid_camera_idx = valid_indices[0]
-        first_camera = initial_data.get_camera(first_valid_camera_idx)
-        assert first_camera is not None, "There should be at least one valid camera in the partition."
-        first_calibration = first_camera.calibration()
-        camera_class = gtsfm_types.get_camera_class_for_calibration(first_calibration)
+        keys_list = list(values.keys())
+        pose_indices = (
+            initial_data.get_valid_camera_indices() if initial_data is not None else _symbol_indices(keys_list, "x")
+        )
 
-        for camera_idx in valid_indices:
-            result.add_camera(
-                camera_idx,
-                camera_class(values.atPose3(X(camera_idx)), extract_cal3(type(first_calibration), camera_idx)),
-            )
+        if not pose_indices:
+            return cls(0)
 
-        for track_idx in range(initial_data.number_tracks()):
-            input_track = initial_data.get_track(track_idx)
-            result_track = SfmTrack(values.atPoint3(P(track_idx)))
-            result_track.r = input_track.r
-            result_track.g = input_track.g
-            result_track.b = input_track.b
+        number_images = initial_data.number_images() if initial_data is not None else (max(pose_indices) + 1)
 
-            for measurement_idx in range(input_track.numberMeasurements()):
-                i, uv = input_track.measurement(measurement_idx)
-                result_track.addMeasurement(i, uv)
+        result = cls(number_images)
 
+        calibration_extractors = (
+            (gtsam.Cal3Fisheye, values.atCal3Fisheye),
+            (gtsam.Cal3Bundler, values.atCal3Bundler),
+            (gtsam.Cal3DS2, values.atCal3DS2),
+            (gtsam.Cal3_S2, values.atCal3_S2),
+        )
+
+        calibration_type = None
+        calibration_extractor = None
+
+        if initial_data is not None:
+            first_camera_idx = pose_indices[0]
+            first_camera = initial_data.get_camera(first_camera_idx)
+            assert first_camera is not None, "Initial data missing camera for reconstruction."
+            calibration_type = type(first_camera.calibration())
+
+        else:
+            calib_indices = _symbol_indices(keys_list, "k")
+            if calib_indices:
+                calib_key = K(calib_indices[0])
+                for candidate_type, extractor in calibration_extractors:
+                    try:
+                        extractor(calib_key)
+                        calibration_type = candidate_type
+                        calibration_extractor = extractor
+                        break
+                    except RuntimeError:
+                        continue
+            if calibration_type is None and calib_indices:
+                raise ValueError("Unsupported calibration type encountered in Values.")
+
+        if calibration_extractor is None and calibration_type is not None:
+            for candidate_type, extractor in calibration_extractors:
+                if candidate_type == calibration_type:
+                    calibration_extractor = extractor
+                    break
+
+        if calibration_type is None:
+            raise ValueError("Unable to determine calibration type for reconstruction.")
+
+        def _calibration_for_idx(i: int) -> gtsfm_types.CALIBRATION_TYPE:
+            key = K(0 if shared_calib else i)
+            if calibration_extractor is not None:
+                return calibration_extractor(key)
+            assert initial_data is not None
+            camera = initial_data.get_camera(i)
+            assert camera is not None
+            return camera.calibration()
+
+        sample_calibration = _calibration_for_idx(pose_indices[0])
+        camera_class = gtsfm_types.get_camera_class_for_calibration(sample_calibration)
+
+        for i in pose_indices:
+            cal_i = _calibration_for_idx(i)
+            result.add_camera(i, camera_class(values.atPose3(X(i)), cal_i))  # type: ignore
+
+        if initial_data is not None:
+            track_indices = list(range(initial_data.number_tracks()))
+        else:
+            track_indices = _symbol_indices(keys_list, "p")
+
+        for track_idx in track_indices:
+            point = values.atPoint3(P(track_idx))
+            result_track = SfmTrack(point)
+            if initial_data is not None:
+                input_track = initial_data.get_track(track_idx)
+                result_track.r = input_track.r
+                result_track.g = input_track.g
+                result_track.b = input_track.b
+                for measurement_idx in range(input_track.numberMeasurements()):
+                    i, uv = input_track.measurement(measurement_idx)
+                    result_track.addMeasurement(i, uv)
             result.add_track(result_track)
 
         return result
@@ -399,12 +455,12 @@ class GtsfmData:
         """Create a gtsam.Values populated with poses, calibrations, and landmarks."""
         values = Values()
 
-        for loop_idx, camera_idx in enumerate(self.get_valid_camera_indices()):
-            camera = self.get_camera(camera_idx)
-            assert camera is not None, f"Camera {camera_idx} in GtsfmData is None"
-            values.insert(X(camera_idx), camera.pose())
+        for loop_idx, i in enumerate(self.get_valid_camera_indices()):
+            camera = self.get_camera(i)
+            assert camera is not None, f"Camera {i} in GtsfmData is None"
+            values.insert(X(i), camera.pose())
             if not shared_calib or loop_idx == 0:
-                calib_symbol = K(0 if shared_calib else camera_idx)
+                calib_symbol = K(0 if shared_calib else i)
                 values.insert(calib_symbol, camera.calibration())
 
         for track_idx in range(self.number_tracks()):

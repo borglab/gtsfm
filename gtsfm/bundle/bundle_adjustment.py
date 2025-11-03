@@ -6,7 +6,7 @@ Authors: Xiaolong Wu, John Lambert, Ayush Baid
 import time
 from collections import Counter
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import dask
 import gtsam  # type: ignore
@@ -52,7 +52,7 @@ class BundleAdjustmentOptimizer:
 
     def __init__(
         self,
-        reproj_error_thresholds: List[Optional[float]] = [None],
+        reproj_error_thresholds: Sequence[Optional[float]] = [None],
         robust_measurement_noise: bool = False,
         shared_calib: bool = False,
         max_iterations: Optional[int] = None,
