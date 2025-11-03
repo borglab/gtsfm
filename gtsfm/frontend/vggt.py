@@ -602,13 +602,13 @@ def run_vggt_tracking(
         images: Tensor shaped ``(num_frames, 3, H, W)`` at the *square* VGGT load resolution. You can reuse
             the ``images`` tensor that you passed into :func:`run_reconstruction`; typically this is the output
             from ``load_and_preprocess_images_square`` prior to interpolation.
-        inference: Output from :func:`run_VGGT`. The ``depth_confidence`` and optional ``dense_points`` tensors
+        vggt_output: Output from :func:`run_VGGT`. The ``depth_confidence`` and optional ``dense_points`` tensors
             are consumed directly, avoiding redundant transfers or recomputation.
-        config: Optional :class:`VGGTReconstructionConfig`. We reuse the existing configuration container because
+        config: Optional :class:`VggtConfiguration`. We reuse the existing configuration container because
             it already captures the tracker-specific parameters (``max_query_pts``, ``query_frame_num``, etc.).
         tracker_kwargs: Optional dictionary to override individual keyword arguments passed to the underlying
             :func:`vggt.dependency.track_predict.predict_tracks` function. This is useful if you want to tweak
-            settings not exposed via :class:`VGGTReconstructionConfig`.
+            settings not exposed via :class:`VggtConfiguration`.
 
     Returns:
         :class:`VGGTTrackingResult` aggregating the numpy arrays emitted by the tracker. The visibility scores can
@@ -618,21 +618,21 @@ def run_vggt_tracking(
 
     Example:
         >>> vggt_output = run_VGGT(image_batch, model=model, dtype=dtype, return_dense_points=True)
-        >>> cfg = VGGTReconstructionConfig()
+        >>> cfg = VggtConfiguration()
         >>> tracking = run_vggt_tracking(image_batch, vggt_output, config=cfg)
         >>> high_quality = tracking.visibilities > cfg.vis_thresh
         >>> first_track_pixels = tracking.tracks[:, 0]
     """
 
-    cfg = config or VGGTReconstructionConfig()
+    cfg = config or VggtConfiguration()
     predict_tracks = _import_predict_tracks()
 
     # We will track on whatever device the images are already on.
     # TODO(Frank): maybe we should enforce GPU here?
     device = images.device
     dtype = images.dtype
-    conf_tensor = inference.depth_confidence.to(device=device, dtype=dtype)
-    points_tensor = inference.dense_points.to(device=device, dtype=dtype)
+    conf_tensor = vggt_output.depth_confidence.to(device=device, dtype=dtype)
+    points_tensor = vggt_output.dense_points.to(device=device, dtype=dtype)
 
     tracks, vis_scores, confidences, points_3d, colors = predict_tracks(
         images,
