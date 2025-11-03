@@ -11,10 +11,9 @@ from typing import Any, Optional, Sequence, Tuple, Union
 import numpy as np
 import torch
 import torch.nn.functional as F
-from gtsam import Point2, Point3, SfmTrack  # type: ignore
+from gtsam import Point2  # type: ignore
 from torch.amp import autocast as amp_autocast  # type: ignore
 
-import gtsfm.common.types as gtsfm_types
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.utils import logger as logger_utils
 from gtsfm.utils import torch as torch_utils
@@ -218,16 +217,14 @@ def _convert_vggt_outputs_to_gtsfm_data(
     gtsfm_data = GtsfmData(number_images=len(image_indices))
 
     for local_idx, global_idx in enumerate(image_indices):
-        pose = torch_utils.pose_from_extrinsic(extrinsic[local_idx])
         image_width = float(original_coords_np[local_idx, 4])
         image_height = float(original_coords_np[local_idx, 5])
 
         scaled_intrinsic = _rescale_intrinsic_for_original_resolution(
             intrinsic[local_idx], config.vggt_fixed_resolution, image_width, image_height
         )
-        calibration = torch_utils.calibration_from_intrinsic(scaled_intrinsic)
-        camera_cls = gtsfm_types.get_camera_class_for_calibration(calibration)
-        gtsfm_data.add_camera(global_idx, camera_cls(pose, calibration))  # type: ignore[arg-type]
+        camera = torch_utils.camera_from_matrices(extrinsic[local_idx], scaled_intrinsic)
+        gtsfm_data.add_camera(global_idx, camera)  # type: ignore[arg-type]
         gtsfm_data.set_image_info(
             global_idx,
             name=image_names_str[local_idx] if image_names_str is not None else None,
@@ -235,8 +232,8 @@ def _convert_vggt_outputs_to_gtsfm_data(
         )
 
     if points_3d.size > 0 and points_rgb is not None:
-        for idx, xyz in enumerate(points_3d):
-            xyf = points_xyf[idx]
+        for j, xyz in enumerate(points_3d):
+            xyf = points_xyf[j]
             frame_float = float(xyf[2])
             frame_idx = int(np.clip(round(frame_float), 0, len(image_indices) - 1))
             u, v = _convert_measurement_to_original_resolution(
@@ -245,16 +242,12 @@ def _convert_vggt_outputs_to_gtsfm_data(
                 config.vggt_fixed_resolution,
                 config.img_load_resolution,
             )
-            track = SfmTrack(Point3(*xyz))
-            color = points_rgb[idx]
-            track.r = float(color[0])
-            track.g = float(color[1])
-            track.b = float(color[2])
+            track = torch_utils.colored_track_from_point(xyz, points_rgb[j])
             global_idx = image_indices[frame_idx]
             track.addMeasurement(global_idx, Point2(u, v))
             gtsfm_data.add_track(track)
 
-    expected_indices = set(int(idx) for idx in image_indices)
+    expected_indices = set(int(i) for i in image_indices)
     valid_camera_indices = set(gtsfm_data.get_valid_camera_indices())
     if valid_camera_indices != expected_indices:
         logger.warning(
@@ -263,13 +256,13 @@ def _convert_vggt_outputs_to_gtsfm_data(
             sorted(expected_indices),
         )
 
-    for track_idx, track in enumerate(gtsfm_data.get_tracks()):
+    for j, track in enumerate(gtsfm_data.get_tracks()):
         for meas_idx in range(track.numberMeasurements()):
             cam_idx, _ = track.measurement(meas_idx)
             if cam_idx not in expected_indices:
                 logger.warning(
                     "VGGT track %d references camera %d not in cluster indices %s.",
-                    track_idx,
+                    j,
                     cam_idx,
                     sorted(expected_indices),
                 )
