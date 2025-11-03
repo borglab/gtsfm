@@ -12,7 +12,7 @@ from torchvision.transforms import v2 as transforms  # type: ignore
 
 import gtsfm.frontend.vggt as vggt
 from gtsfm.common.gtsfm_data import GtsfmData
-from gtsfm.frontend.vggt import VGGTReconstructionConfig
+from gtsfm.frontend.vggt import VggtConfiguration
 from gtsfm.loader.olsson_loader import OlssonLoader
 from gtsfm.utils import torch as torch_utils
 from gtsfm.utils.tree import Tree  # PreOrderIter
@@ -57,7 +57,7 @@ def run_vggt(
     print("image_batch: ", image_batch.shape)
     original_coords = original_coords.to(device)
 
-    config = VGGTReconstructionConfig(
+    config = VggtConfiguration(
         vggt_fixed_resolution=vggt_fixed_resolution,
         img_load_resolution=img_load_resolution,
         max_query_pts=max_query_pts,

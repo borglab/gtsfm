@@ -20,7 +20,7 @@ import torch
 import trimesh
 
 import gtsfm.frontend.vggt as vggt
-from gtsfm.frontend.vggt import VGGTReconstructionConfig
+from gtsfm.frontend.vggt import VggtConfiguration
 from gtsfm.utils import torch as torch_utils
 
 # Configure CUDA settings
@@ -186,7 +186,7 @@ def demo_fn(args: argparse.Namespace) -> bool:
     original_coords = original_coords.to(device)
     print(f"Loaded {len(images)} images from {image_dir}")
 
-    config = VGGTReconstructionConfig(
+    config = VggtConfiguration(
         vggt_fixed_resolution=vggt_fixed_resolution,
         img_load_resolution=img_load_resolution,
         max_query_pts=args.max_query_pts,
