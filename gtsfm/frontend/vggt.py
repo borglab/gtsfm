@@ -557,12 +557,21 @@ def run_vggt_tracking(
     cfg = config or VggtConfiguration()
     predict_tracks = _import_predict_tracks()
 
-    # We will track on whatever device the images are already on.
-    # TODO(Frank): maybe we should enforce GPU here?
-    device = images.device
-    dtype = images.dtype
-    conf_tensor = vggt_output.depth_confidence.to(device=device, dtype=dtype)
-    points_tensor = vggt_output.dense_points.to(device=device, dtype=dtype)
+    device = vggt_output.device
+    if device.type != "cuda":
+        raise RuntimeError(
+            "VGGT tracking requires a CUDA-capable GPU because DINO relies on flash attention. "
+            "Re-run the pipeline with CUDA available."
+        )
+
+    dtype = torch.float32  # Tracker stack (LightGlue / DINO) expects fp32 inputs.
+
+    if images.device != device or images.dtype != dtype:
+        logger.info("Moving VGGT tracking inputs to %s (dtype=%s) for DINO attention.", device, dtype)
+        images = images.to(device=device, dtype=dtype, non_blocking=True)
+
+    conf_tensor = vggt_output.depth_confidence.to(device="cpu", dtype=dtype, non_blocking=True)
+    points_tensor = vggt_output.dense_points.to(device="cpu", dtype=dtype, non_blocking=True)
 
     tracks, vis_scores, confidences, points_3d, colors = predict_tracks(
         images,
