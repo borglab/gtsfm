@@ -50,6 +50,10 @@ from vggt.utils.helper import create_pixel_coordinate_grid, randomly_limit_trues
 from vggt.utils.load_fn import load_and_preprocess_images_square  # type: ignore
 from vggt.utils.pose_enc import pose_encoding_to_extri_intri  # type: ignore
 
+from gtsfm.frontend.anysplat import (
+    batchify_unproject_depth_map_to_point_map as _anysplat_batchify_unproject,
+)  # type: ignore
+
 
 @dataclass
 class VGGTReconstructionConfig:
@@ -73,12 +77,14 @@ class VGGTReconstructionConfig:
 class VGGTInferenceResult:
     """Outputs produced by a single VGGT forward pass."""
 
+    device: torch.device
+    dtype: torch.dtype
+    resized_images: torch.Tensor
     extrinsic: torch.Tensor
     intrinsic: torch.Tensor
     depth_map: torch.Tensor
     depth_confidence: torch.Tensor
-    device: torch.device
-    dtype: torch.dtype
+    dense_points: Optional[torch.Tensor] = None
 
 
 @dataclass
@@ -183,27 +189,23 @@ def _convert_measurement_to_original_resolution(
 
 
 def _unproject_to_colored_points(
-    config: VGGTReconstructionConfig, image_batch: torch.Tensor, inference: VGGTInferenceResult
+    config: VGGTReconstructionConfig, inference: VGGTInferenceResult
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Convert raw VGGT predictions into point attributes."""
-    extrinsic_np = inference.extrinsic.detach().cpu().numpy()
-    intrinsic_np = inference.intrinsic.detach().cpu().numpy()
-    depth_map_np = inference.depth_map.detach().cpu().numpy()
-    depth_conf_np = inference.depth_confidence.detach().cpu().numpy()
-    if depth_conf_np.ndim == 4 and depth_conf_np.shape[-1] == 1:
-        depth_conf_np = np.squeeze(depth_conf_np, axis=-1)
-    points_3d = unproject_depth_map_to_point_map(depth_map_np, extrinsic_np, intrinsic_np)
-    inference_resolution = config.vggt_fixed_resolution
-    points_rgb_tensor = F.interpolate(
-        image_batch.detach().cpu(),
-        size=(inference_resolution, inference_resolution),
-        mode="bilinear",
-        align_corners=False,
-    )
-    points_rgb = (points_rgb_tensor.to(torch.float32).numpy().transpose(0, 2, 3, 1) * 255).astype(np.uint8)
+    if inference.dense_points is not None:
+        points_3d = inference.dense_points.to(torch.float32).cpu().numpy()
+    else:
+        logger.warning("Using CPU un-projection for VGGT point cloud generation.")
+        extrinsic_np = inference.extrinsic.to(torch.float32).cpu().numpy()
+        intrinsic_np = inference.intrinsic.to(torch.float32).cpu().numpy()
+        depth_map_np = inference.depth_map.to(torch.float32).cpu().numpy()
+        points_3d = unproject_depth_map_to_point_map(depth_map_np, extrinsic_np, intrinsic_np)
 
+    points_rgb = (inference.resized_images.to(torch.float32).cpu().numpy().transpose(0, 2, 3, 1) * 255).astype(np.uint8)
+
+    depth_conf_np = inference.depth_confidence.to(torch.float32).cpu().numpy()
     conf_mask = depth_conf_np >= config.confidence_threshold
-    conf_mask = randomly_limit_trues(conf_mask, config.max_num_points)
+    conf_mask = randomly_limit_trues(conf_mask, config.max_num_points)  # limit number of points if asked
     return points_3d[conf_mask], points_rgb[conf_mask]
 
 
@@ -219,9 +221,9 @@ def _convert_vggt_outputs_to_gtsfm_data(
 ) -> GtsfmData:
     """Convert raw VGGT predictions into ``GtsfmData``."""
 
-    extrinsic_np = inference.extrinsic.detach().cpu().numpy()
-    intrinsic_np = inference.intrinsic.detach().cpu().numpy()
-    original_coords_np = original_coords.detach().cpu().numpy()
+    extrinsic_np = inference.extrinsic.to(torch.float32).cpu().numpy()
+    intrinsic_np = inference.intrinsic.to(torch.float32).cpu().numpy()
+    original_coords_np = original_coords.to(torch.float32).cpu().numpy()
     image_names_str = [str(name) for name in image_names] if image_names is not None else None
 
     gtsfm_data = GtsfmData(number_images=len(image_indices))
@@ -294,9 +296,10 @@ def run_reconstruction(
         config=cfg,
         model=model,
         weights_path=weights_path,
+        return_dense_points=True,
     )
 
-    points_3d, points_rgb = _unproject_to_colored_points(cfg, image_batch, vggt_output)
+    points_3d, points_rgb = _unproject_to_colored_points(cfg, vggt_output)
 
     gtsfm_data = _convert_vggt_outputs_to_gtsfm_data(
         config=cfg,
@@ -323,14 +326,17 @@ def run_VGGT(
     dtype: Optional[torch.dtype] = None,
     model: Optional[VGGT] = None,
     weights_path: PathLike | None = None,
-    resolution: Optional[int] = None,
+    return_dense_points: bool = True,
 ) -> VGGTInferenceResult:
-    """Run VGGT on a batch of images and return raw model predictions."""
+    """Run VGGT on a batch of images and return raw model predictions.
+
+    Set ``return_dense_points`` to ``True`` to additionally compute the full per-pixel
+    point cloud using the optional AnySplat acceleration path (when available).
+    """
     if image_batch.ndim != 4 or image_batch.shape[1] != 3:
         raise ValueError("VGGT expects images shaped as (N, 3, H, W).")
 
     cfg = config or VGGTReconstructionConfig()
-    inference_resolution = resolution or cfg.vggt_fixed_resolution
 
     resolved_device = torch_utils.default_device(device)
     resolved_dtype = dtype or default_dtype(resolved_device)
@@ -347,7 +353,8 @@ def run_VGGT(
 
     assert model is not None
     image_batch = image_batch.to(resolved_device, dtype=resolved_dtype)
-    images_for_model = F.interpolate(
+    inference_resolution = cfg.vggt_fixed_resolution
+    resized_images = F.interpolate(
         image_batch,
         size=(inference_resolution, inference_resolution),
         mode="bilinear",
@@ -356,34 +363,37 @@ def run_VGGT(
 
     if resolved_device.type == "cuda":
         autocast_ctx: Any = amp_autocast("cuda", dtype=resolved_dtype)
-    elif resolved_device.type == "mps":
-        autocast_ctx = nullcontext()
     else:
         autocast_ctx = nullcontext()
 
+    dense_points: Optional[torch.Tensor] = None
     with torch.no_grad():
         with autocast_ctx:
-            batched = images_for_model.unsqueeze(0)
-            tokens, ps_idx = model.aggregator(batched)
+            batched = resized_images.unsqueeze(0)  # make into (training) batch of 1
+            tokens, ps_idx = model.aggregator(batched)  # transformer backbone
             pose_enc = model.camera_head(tokens)[-1]
             extrinsic, intrinsic = pose_encoding_to_extri_intri(pose_enc, batched.shape[-2:])
             depth_map, depth_conf = model.depth_head(tokens, batched, ps_idx)
 
-    extrinsic = extrinsic.detach().squeeze(0)
-    intrinsic = intrinsic.detach().squeeze(0)
-    depth_map = depth_map.detach().squeeze(0)
-    depth_confidence = depth_conf.detach().squeeze(0)
+            if return_dense_points:
+                if _anysplat_batchify_unproject is not None:
+                    dense_points = _anysplat_batchify_unproject(depth_map, extrinsic, intrinsic)
+                else:
+                    logger.warning("GPU batch un-projection requested but AnySplat dependency is unavailable.")
 
+    depth_confidence = depth_conf.squeeze(0)
     if depth_confidence.ndim == 4 and depth_confidence.shape[-1] == 1:
         depth_confidence = depth_confidence.squeeze(-1)
 
     return VGGTInferenceResult(
-        extrinsic=extrinsic,
-        intrinsic=intrinsic,
-        depth_map=depth_map,
-        depth_confidence=depth_confidence,
         device=resolved_device,
         dtype=resolved_dtype,
+        resized_images=resized_images,
+        extrinsic=extrinsic.squeeze(0),
+        intrinsic=intrinsic.squeeze(0),
+        depth_map=depth_map.squeeze(0),
+        depth_confidence=depth_confidence,
+        dense_points=dense_points.squeeze(0) if dense_points is not None else None,
     )
 
 
