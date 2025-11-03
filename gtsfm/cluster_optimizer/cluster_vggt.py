@@ -195,6 +195,7 @@ class ClusterVGGT(ClusterOptimizerBase):
             img_load_resolution=self._image_load_resolution,
             confidence_threshold=self._conf_threshold,
             max_num_points=self._max_points_for_colmap,
+            tracking=True,
         )
 
         image_batch_graph, original_coords_graph = delayed(_load_vggt_inputs, nout=2)(
