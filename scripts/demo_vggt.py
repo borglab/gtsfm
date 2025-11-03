@@ -215,10 +215,10 @@ def demo_fn(args: argparse.Namespace) -> bool:
         )
     print(get_peak_memory_str())
 
-    if result.fallback_reason:
-        print(result.fallback_reason)
+    if result.points_3d.size == 0:
+        print("VGGT produced no confident 3D structure.")
 
-    output_dir_name = "sparse_w_ba" if result.used_ba else "sparse_wo_ba"
+    output_dir_name = "sparse_wo_ba"
     sparse_reconstruction_dir = os.path.join(args.scene_dir, output_dir_name)
     print(f"Saving reconstruction to {sparse_reconstruction_dir}")
     os.makedirs(sparse_reconstruction_dir, exist_ok=True)

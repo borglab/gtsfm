@@ -76,18 +76,8 @@ class VGGTReconstructionResult:
     """Outputs from the VGGT reconstruction helper."""
 
     gtsfm_data: GtsfmData
-    reconstruction_resolution: int
-    extrinsic: np.ndarray
-    intrinsic: np.ndarray
-    depth_map: np.ndarray
-    depth_confidence: np.ndarray
     points_3d: np.ndarray
     points_rgb: Optional[np.ndarray]
-    points_xyf: Optional[np.ndarray]
-    image_indices: Tuple[int, ...]
-    used_ba: bool
-    valid_track_mask: Optional[np.ndarray]
-    fallback_reason: Optional[str] = None
 
 
 def default_dtype(device: torch.device) -> torch.dtype:
@@ -195,14 +185,8 @@ def _convert_vggt_outputs_to_gtsfm_data(
     image_names: Optional[Sequence[str]],
     config: VGGTReconstructionConfig,
     inference_resolution: int,
-) -> Tuple[
-    GtsfmData,
-    np.ndarray,
-    Optional[np.ndarray],
-    np.ndarray,
-    Optional[str],
-]:
-    """Convert raw VGGT predictions into ``GtsfmData`` and accompanying point attributes."""
+) -> Tuple[GtsfmData, np.ndarray, Optional[np.ndarray]]:
+    """Convert raw VGGT predictions into ``GtsfmData`` and point attributes."""
     points_3d = unproject_depth_map_to_point_map(depth_map, extrinsic, intrinsic)
     points_rgb_tensor = F.interpolate(
         image_batch.detach().cpu(),
@@ -264,10 +248,6 @@ def _convert_vggt_outputs_to_gtsfm_data(
             track.addMeasurement(global_idx, Point2(u, v))
             gtsfm_data.add_track(track)
 
-    fallback_reason = None
-    if points_3d_flat.size == 0:
-        fallback_reason = "VGGT produced no confident depth values; reconstruction contains cameras only."
-
     expected_indices = set(int(idx) for idx in image_indices)
     valid_camera_indices = set(gtsfm_data.get_valid_camera_indices())
     if valid_camera_indices != expected_indices:
@@ -289,7 +269,7 @@ def _convert_vggt_outputs_to_gtsfm_data(
                 )
                 break
 
-    return gtsfm_data, points_3d_flat, points_rgb_flat, points_xyf_flat, fallback_reason
+    return gtsfm_data, points_3d_flat, points_rgb_flat
 
 
 def run_reconstruction(
@@ -364,13 +344,7 @@ def run_reconstruction(
     if depth_conf_np.ndim == 4 and depth_conf_np.shape[-1] == 1:
         depth_conf_np = np.squeeze(depth_conf_np, axis=-1)
 
-    (
-        gtsfm_data,
-        points_3d_flat,
-        points_rgb_flat,
-        points_xyf_flat,
-        fallback_reason,
-    ) = _convert_vggt_outputs_to_gtsfm_data(
+    gtsfm_data, points_3d_flat, points_rgb_flat = _convert_vggt_outputs_to_gtsfm_data(
         extrinsic=extrinsic_np,
         intrinsic=intrinsic_np,
         depth_map=depth_map_np,
@@ -386,18 +360,8 @@ def run_reconstruction(
 
     return VGGTReconstructionResult(
         gtsfm_data=gtsfm_data,
-        reconstruction_resolution=inference_resolution,
-        extrinsic=extrinsic_np,
-        intrinsic=intrinsic_np,
-        depth_map=depth_map_np,
-        depth_confidence=depth_conf_np,
         points_3d=points_3d_flat,
         points_rgb=points_rgb_flat,
-        points_xyf=points_xyf_flat,
-        image_indices=tuple(image_indices),
-        used_ba=False,
-        valid_track_mask=None,
-        fallback_reason=fallback_reason,
     )
 
 

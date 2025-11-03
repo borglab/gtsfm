@@ -107,8 +107,8 @@ def demo_fn(cluster_key: str, image_indices: List[int], args: argparse.Namespace
             total_num_images=max(image_indices) + 1,
         )
 
-    if result.fallback_reason:
-        print(f"[{cluster_key}] {result.fallback_reason}")
+    if result.points_3d.size == 0:
+        print(f"[{cluster_key}] VGGT produced no confident 3D structure.")
 
     sparse_subdir = "sparse_wo_ba"
     sparse_reconstruction_dir = os.path.join(args.output_dir, cluster_key, sparse_subdir)

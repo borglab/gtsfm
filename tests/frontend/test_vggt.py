@@ -91,8 +91,8 @@ def run_vggt(
     sparse_reconstruction_dir.mkdir(parents=True, exist_ok=True)
     result.gtsfm_data.export_as_colmap_text(sparse_reconstruction_dir)
 
-    if result.fallback_reason:
-        print(result.fallback_reason)
+    if result.points_3d.size == 0:
+        print("VGGT produced no confident 3D structure.")
 
     return result.gtsfm_data
 

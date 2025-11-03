@@ -109,7 +109,6 @@ def _aggregate_vggt_metrics(result: VGGTReconstructionResult) -> GtsfmMetricsGro
         [
             GtsfmMetric("num_cameras", num_cameras),
             GtsfmMetric("num_points3d", num_points3d),
-            GtsfmMetric("used_ba", float(result.used_ba)),
         ],
     )
 

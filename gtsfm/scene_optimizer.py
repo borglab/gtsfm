@@ -26,7 +26,7 @@ from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.products.visibility_graph import VisibilityGraph
 from gtsfm.retriever.image_pairs_generator import ImagePairsGenerator
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
-from gtsfm.utils.tree import PreOrderIter, Tree
+from gtsfm.utils.tree import PreOrderIter
 from gtsfm.utils.tree_dask import submit_tree_map_with_children
 
 # Set matplotlib backend to "Agg" (Anti-Grain Geometry) for headless rendering
