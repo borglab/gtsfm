@@ -13,7 +13,13 @@
   <!-- Sidebar for scene selection and info -->
   <aside id="sidebar">
     <h2>Reconstructions</h2>
-    <div id="info">Loading...</div>
+    <div id="info" class="info-summary" role="status" aria-live="polite">
+      <div class="info-pill" data-role="count">—</div>
+      <div class="info-details">
+        <div class="info-title" data-role="title">Loading reconstructions…</div>
+        <div class="info-path" data-role="path">Checking workspace…</div>
+      </div>
+    </div>
     <input type="text" id="filter" placeholder="Filter scenes...">
     <div id="sceneList"></div>
   </aside>

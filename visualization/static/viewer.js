@@ -1099,6 +1099,9 @@ class ColmapViewer {
 
 async function boot() {
   const info = document.getElementById("info");
+  const infoCountEl = info?.querySelector('[data-role="count"]') ?? null;
+  const infoTitleEl = info?.querySelector('[data-role="title"]') ?? null;
+  const infoPathEl = info?.querySelector('[data-role="path"]') ?? null;
   const listEl = document.getElementById("sceneList");
   const filterEl = document.getElementById("filter");
   const canvas = document.getElementById("renderCanvas");
@@ -1120,14 +1123,52 @@ async function boot() {
   });
   viewer.setHudElement(document.getElementById("hud"));
 
+  const setInfoState = ({ count, title, path, isError = false }) => {
+    if (!info) return;
+    info.classList.toggle("info-error", !!isError);
+    if (infoCountEl && typeof count !== "undefined" && count !== null) {
+      infoCountEl.textContent = `${count}`;
+    }
+    if (infoTitleEl && typeof title !== "undefined" && title !== null) {
+      infoTitleEl.textContent = title;
+    }
+    if (infoPathEl && typeof path !== "undefined" && path !== null) {
+      infoPathEl.textContent = path;
+      infoPathEl.title = path;
+    }
+  };
+
+  setInfoState({
+    count: "…",
+    title: "Loading reconstructions",
+    path: "Fetching data from server…",
+    isError: false,
+  });
+
   let allItems = [];
 
   try {
     const data = await fetch("/api/scenes").then(r => r.ok ? r.json() : Promise.reject(`Fetch failed: ${r.statusText}`));
-    info.textContent = `${data.count} items found in ${data.base_dir}`;
+    const count = Number.isFinite(data.count) ? data.count : 0;
+    const countLabel = count === 0 ? "0" : count.toLocaleString();
+    const noun = count === 1 ? "item" : "items";
+    const title = count === 0 ? "No items found" : `${countLabel} ${noun} ready to explore`;
+    const baseDir = data.base_dir || "—";
+    setInfoState({
+      count: countLabel,
+      title,
+      path: `Base directory: ${baseDir}`,
+      isError: false,
+    });
     allItems = data.items.map((item, index) => ({ ...item, originalIndex: index }));
   } catch (error) {
-    info.textContent = "Error loading reconstruction data.";
+    const message = error instanceof Error ? error.message : String(error);
+    setInfoState({
+      count: "!",
+      title: "Error loading reconstruction data",
+      path: message || "Please check the server logs.",
+      isError: true,
+    });
     console.error(error);
     return;
   }
