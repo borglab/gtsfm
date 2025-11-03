@@ -184,11 +184,8 @@ def _convert_measurement_to_original_resolution(
 
 
 def _unproject_to_colored_points(
-    *,
-    inference: VGGTInferenceResult,
-    image_batch: torch.Tensor,
-    config: VGGTReconstructionConfig,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    config: VGGTReconstructionConfig, image_batch: torch.Tensor, inference: VGGTInferenceResult
+) -> Tuple[np.ndarray, np.ndarray]:
     """Convert raw VGGT predictions into point attributes."""
     extrinsic_np = inference.extrinsic.detach().cpu().numpy()
     intrinsic_np = inference.intrinsic.detach().cpu().numpy()
@@ -205,11 +202,10 @@ def _unproject_to_colored_points(
         align_corners=False,
     )
     points_rgb = (points_rgb_tensor.to(torch.float32).numpy().transpose(0, 2, 3, 1) * 255).astype(np.uint8)
-    points_xyf = create_pixel_coordinate_grid(points_3d.shape[0], points_3d.shape[1], points_3d.shape[2])
 
     conf_mask = depth_conf_np >= config.confidence_threshold
     conf_mask = randomly_limit_trues(conf_mask, config.max_num_points)
-    return points_3d[conf_mask], points_rgb[conf_mask], points_xyf[conf_mask]
+    return points_3d[conf_mask], points_rgb[conf_mask]
 
 
 def _convert_vggt_outputs_to_gtsfm_data(
@@ -221,7 +217,6 @@ def _convert_vggt_outputs_to_gtsfm_data(
     config: VGGTReconstructionConfig,
     points_3d: np.ndarray,
     points_rgb: np.ndarray,
-    points_xyf: np.ndarray,
 ) -> GtsfmData:
     """Convert raw VGGT predictions into ``GtsfmData``."""
 
@@ -249,18 +244,7 @@ def _convert_vggt_outputs_to_gtsfm_data(
 
     if points_3d.size > 0 and points_rgb is not None:
         for j, xyz in enumerate(points_3d):
-            xyf = points_xyf[j]
-            frame_float = float(xyf[2])
-            frame_idx = int(np.clip(round(frame_float), 0, len(image_indices) - 1))
-            u, v = _convert_measurement_to_original_resolution(
-                (float(xyf[0]), float(xyf[1])),
-                original_coords_np[frame_idx],
-                config.vggt_fixed_resolution,
-                config.img_load_resolution,
-            )
             track = torch_utils.colored_track_from_point(xyz, points_rgb[j])
-            global_idx = image_indices[frame_idx]
-            track.addMeasurement(global_idx, Point2(u, v))
             gtsfm_data.add_track(track)
 
     expected_indices = set(int(i) for i in image_indices)
@@ -317,11 +301,7 @@ def run_reconstruction(
         weights_path=weights_path,
     )
 
-    points_3d, points_rgb, points_xyf = _unproject_to_colored_points(
-        config=cfg,
-        image_batch=image_batch,
-        inference=vggt_output,
-    )
+    points_3d, points_rgb = _unproject_to_colored_points(cfg, image_batch, vggt_output)
 
     gtsfm_data = _convert_vggt_outputs_to_gtsfm_data(
         config=cfg,
@@ -331,7 +311,6 @@ def run_reconstruction(
         image_names=image_names,
         points_3d=points_3d,
         points_rgb=points_rgb,
-        points_xyf=points_xyf,
     )
 
     return VGGTReconstructionResult(
@@ -365,8 +344,10 @@ def run_VGGT(
         model = load_model(weights_path, device=resolved_device, dtype=resolved_dtype)
     else:
         model = model.to(resolved_device)
+        assert model is not None, "model should not be None here"
         if resolved_dtype is not None:
             model = model.to(dtype=resolved_dtype)
+        assert model is not None, "model should not be None here"
         model.eval()
 
     assert model is not None
