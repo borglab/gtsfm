@@ -182,6 +182,116 @@ def _convert_measurement_to_original_resolution(
     return u, v
 
 
+def _convert_vggt_outputs_to_gtsfm_data(
+    *,
+    extrinsic: np.ndarray,
+    intrinsic: np.ndarray,
+    depth_map: np.ndarray,
+    depth_confidence: np.ndarray,
+    image_batch: torch.Tensor,
+    original_coords: torch.Tensor,
+    image_indices: Sequence[int],
+    total_num_images: int,
+    image_names: Optional[Sequence[str]],
+    config: VGGTReconstructionConfig,
+    inference_resolution: int,
+) -> Tuple[
+    GtsfmData,
+    np.ndarray,
+    Optional[np.ndarray],
+    np.ndarray,
+    Optional[str],
+]:
+    """Convert raw VGGT predictions into ``GtsfmData`` and accompanying point attributes."""
+    points_3d = unproject_depth_map_to_point_map(depth_map, extrinsic, intrinsic)
+    points_rgb_tensor = F.interpolate(
+        image_batch.detach().cpu(),
+        size=(inference_resolution, inference_resolution),
+        mode="bilinear",
+        align_corners=False,
+    )
+    points_rgb = (
+        points_rgb_tensor.to(torch.float32).numpy().transpose(0, 2, 3, 1) * 255
+    ).astype(np.uint8)
+    points_xyf = create_pixel_coordinate_grid(points_3d.shape[0], points_3d.shape[1], points_3d.shape[2])
+
+    conf_mask = depth_confidence >= config.confidence_threshold
+    conf_mask = randomly_limit_trues(conf_mask, config.max_num_points)
+
+    points_3d_flat = points_3d[conf_mask]
+    points_rgb_flat = points_rgb[conf_mask] if points_rgb is not None else None
+    points_xyf_flat = points_xyf[conf_mask]
+
+    original_coords_np = original_coords.detach().cpu().numpy()
+    image_names_str = [str(name) for name in image_names] if image_names is not None else None
+
+    gtsfm_data = GtsfmData(number_images=total_num_images)
+
+    for local_idx, global_idx in enumerate(image_indices):
+        pose = torch_utils.pose_from_extrinsic(extrinsic[local_idx])
+        image_width = float(original_coords_np[local_idx, 4])
+        image_height = float(original_coords_np[local_idx, 5])
+
+        scaled_intrinsic = _rescale_intrinsic_for_original_resolution(
+            intrinsic[local_idx], inference_resolution, image_width, image_height
+        )
+        calibration = torch_utils.calibration_from_intrinsic(scaled_intrinsic)
+        camera_cls = gtsfm_types.get_camera_class_for_calibration(calibration)
+        gtsfm_data.add_camera(global_idx, camera_cls(pose, calibration))  # type: ignore[arg-type]
+        gtsfm_data.set_image_info(
+            global_idx,
+            name=image_names_str[local_idx] if image_names_str is not None else None,
+            shape=(int(image_height), int(image_width)),
+        )
+
+    if points_3d_flat.size > 0 and points_rgb_flat is not None:
+        for idx, xyz in enumerate(points_3d_flat):
+            xyf = points_xyf_flat[idx]
+            frame_float = float(xyf[2])
+            frame_idx = int(np.clip(round(frame_float), 0, len(image_indices) - 1))
+            u, v = _convert_measurement_to_original_resolution(
+                (float(xyf[0]), float(xyf[1])),
+                original_coords_np[frame_idx],
+                inference_resolution,
+                config.img_load_resolution,
+            )
+            track = SfmTrack(Point3(*xyz))
+            color = points_rgb_flat[idx]
+            track.r = float(color[0])
+            track.g = float(color[1])
+            track.b = float(color[2])
+            global_idx = image_indices[frame_idx]
+            track.addMeasurement(global_idx, Point2(u, v))
+            gtsfm_data.add_track(track)
+
+    fallback_reason = None
+    if points_3d_flat.size == 0:
+        fallback_reason = "VGGT produced no confident depth values; reconstruction contains cameras only."
+
+    expected_indices = set(int(idx) for idx in image_indices)
+    valid_camera_indices = set(gtsfm_data.get_valid_camera_indices())
+    if valid_camera_indices != expected_indices:
+        logger.warning(
+            "VGGT cluster returned cameras with indices %s, expected %s.",
+            sorted(valid_camera_indices),
+            sorted(expected_indices),
+        )
+
+    for track_idx, track in enumerate(gtsfm_data.get_tracks()):
+        for meas_idx in range(track.numberMeasurements()):
+            cam_idx, _ = track.measurement(meas_idx)
+            if cam_idx not in expected_indices:
+                logger.warning(
+                    "VGGT track %d references camera %d not in cluster indices %s.",
+                    track_idx,
+                    cam_idx,
+                    sorted(expected_indices),
+                )
+                break
+
+    return gtsfm_data, points_3d_flat, points_rgb_flat, points_xyf_flat, fallback_reason
+
+
 def run_reconstruction(
     image_batch: torch.Tensor,
     *,
@@ -254,91 +364,25 @@ def run_reconstruction(
     if depth_conf_np.ndim == 4 and depth_conf_np.shape[-1] == 1:
         depth_conf_np = np.squeeze(depth_conf_np, axis=-1)
 
-    points_3d = unproject_depth_map_to_point_map(depth_map_np, extrinsic_np, intrinsic_np)
-    points_rgb_tensor = F.interpolate(
-        image_batch.cpu(),
-        size=(inference_resolution, inference_resolution),
-        mode="bilinear",
-        align_corners=False,
+    (
+        gtsfm_data,
+        points_3d_flat,
+        points_rgb_flat,
+        points_xyf_flat,
+        fallback_reason,
+    ) = _convert_vggt_outputs_to_gtsfm_data(
+        extrinsic=extrinsic_np,
+        intrinsic=intrinsic_np,
+        depth_map=depth_map_np,
+        depth_confidence=depth_conf_np,
+        image_batch=image_batch,
+        original_coords=original_coords,
+        image_indices=image_indices,
+        total_num_images=total_num_images,
+        image_names=image_names,
+        config=cfg,
+        inference_resolution=inference_resolution,
     )
-    points_rgb = (
-        points_rgb_tensor.to(torch.float32).numpy().transpose(0, 2, 3, 1) * 255
-    ).astype(np.uint8)
-    points_xyf = create_pixel_coordinate_grid(points_3d.shape[0], points_3d.shape[1], points_3d.shape[2])
-
-    conf_mask = depth_conf_np >= cfg.confidence_threshold
-    conf_mask = randomly_limit_trues(conf_mask, cfg.max_num_points)
-
-    points_3d_flat = points_3d[conf_mask]
-    points_rgb_flat = points_rgb[conf_mask] if points_rgb is not None else None
-    points_xyf_flat = points_xyf[conf_mask]
-
-    original_coords_np = original_coords.detach().cpu().numpy()
-    image_names_str = [str(name) for name in image_names] if image_names is not None else None
-
-    gtsfm_data = GtsfmData(number_images=total_num_images)
-
-    for local_idx, global_idx in enumerate(image_indices):
-        pose = torch_utils.pose_from_extrinsic(extrinsic_np[local_idx])
-        image_width = float(original_coords_np[local_idx, 4])
-        image_height = float(original_coords_np[local_idx, 5])
-
-        scaled_intrinsic = _rescale_intrinsic_for_original_resolution(
-            intrinsic_np[local_idx], inference_resolution, image_width, image_height
-        )
-        calibration = torch_utils.calibration_from_intrinsic(scaled_intrinsic)
-        camera_cls = gtsfm_types.get_camera_class_for_calibration(calibration)
-        gtsfm_data.add_camera(global_idx, camera_cls(pose, calibration))  # type: ignore[arg-type]
-        gtsfm_data.set_image_info(
-            global_idx,
-            name=image_names_str[local_idx] if image_names_str is not None else None,
-            shape=(int(image_height), int(image_width)),
-        )
-
-    if points_3d_flat.size > 0 and points_rgb_flat is not None:
-        for idx, xyz in enumerate(points_3d_flat):
-            xyf = points_xyf_flat[idx]
-            frame_float = float(xyf[2])
-            frame_idx = int(np.clip(round(frame_float), 0, len(image_indices) - 1))
-            u, v = _convert_measurement_to_original_resolution(
-                (float(xyf[0]), float(xyf[1])),
-                original_coords_np[frame_idx],
-                inference_resolution,
-                cfg.img_load_resolution,
-            )
-            track = SfmTrack(Point3(*xyz))
-            color = points_rgb_flat[idx]
-            track.r = float(color[0])
-            track.g = float(color[1])
-            track.b = float(color[2])
-            global_idx = image_indices[frame_idx]
-            track.addMeasurement(global_idx, Point2(u, v))
-            gtsfm_data.add_track(track)
-
-    fallback_reason = None
-    if points_3d_flat.size == 0:
-        fallback_reason = "VGGT produced no confident depth values; reconstruction contains cameras only."
-
-    valid_camera_indices = set(gtsfm_data.get_valid_camera_indices())
-    expected_indices = set(int(idx) for idx in image_indices)
-    if valid_camera_indices != expected_indices:
-        logger.warning(
-            "VGGT cluster returned cameras with indices %s, expected %s.",
-            sorted(valid_camera_indices),
-            sorted(expected_indices),
-        )
-
-    for track_idx, track in enumerate(gtsfm_data.get_tracks()):
-        for meas_idx in range(track.numberMeasurements()):
-            cam_idx, _ = track.measurement(meas_idx)
-            if cam_idx not in expected_indices:
-                logger.warning(
-                    "VGGT track %d references camera %d not in cluster indices %s.",
-                    track_idx,
-                    cam_idx,
-                    sorted(expected_indices),
-                )
-                break
 
     return VGGTReconstructionResult(
         gtsfm_data=gtsfm_data,
