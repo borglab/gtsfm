@@ -1355,8 +1355,9 @@ async function boot() {
   filterEl.value = "";
   renderList(filterEl.value);
   if (allItems.length > 0 && !filterEl.value) {
-    const first = listEl.querySelector(".item");
-    if (first) first.click();
+    const candidates = Array.from(listEl.querySelectorAll(".item"));
+    const preferred = candidates.find((el) => (el.dataset.kind ?? "scene") !== "splat");
+    (preferred ?? candidates[0])?.click();
   }
   filterEl.addEventListener("input", () => renderList(filterEl.value));
 
