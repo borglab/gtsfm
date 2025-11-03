@@ -71,6 +71,18 @@ class VGGTReconstructionConfig:
 
 
 @dataclass
+class VGGTInferenceResult:
+    """Outputs produced by a single VGGT forward pass."""
+
+    extrinsic: torch.Tensor
+    intrinsic: torch.Tensor
+    depth_map: torch.Tensor
+    depth_confidence: torch.Tensor
+    device: torch.device
+    dtype: torch.dtype
+
+
+@dataclass
 class VGGTReconstructionResult:
     """Outputs from the VGGT reconstruction helper."""
 
@@ -173,15 +185,18 @@ def _convert_measurement_to_original_resolution(
 
 def _unproject_to_colored_points(
     *,
-    extrinsic: np.ndarray,
-    intrinsic: np.ndarray,
-    depth_map: np.ndarray,
-    depth_confidence: np.ndarray,
+    inference: VGGTInferenceResult,
     image_batch: torch.Tensor,
     config: VGGTReconstructionConfig,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Convert raw VGGT predictions into point attributes."""
-    points_3d = unproject_depth_map_to_point_map(depth_map, extrinsic, intrinsic)
+    extrinsic_np = inference.extrinsic.detach().cpu().numpy()
+    intrinsic_np = inference.intrinsic.detach().cpu().numpy()
+    depth_map_np = inference.depth_map.detach().cpu().numpy()
+    depth_conf_np = inference.depth_confidence.detach().cpu().numpy()
+    if depth_conf_np.ndim == 4 and depth_conf_np.shape[-1] == 1:
+        depth_conf_np = np.squeeze(depth_conf_np, axis=-1)
+    points_3d = unproject_depth_map_to_point_map(depth_map_np, extrinsic_np, intrinsic_np)
     inference_resolution = config.vggt_fixed_resolution
     points_rgb_tensor = F.interpolate(
         image_batch.detach().cpu(),
@@ -192,15 +207,14 @@ def _unproject_to_colored_points(
     points_rgb = (points_rgb_tensor.to(torch.float32).numpy().transpose(0, 2, 3, 1) * 255).astype(np.uint8)
     points_xyf = create_pixel_coordinate_grid(points_3d.shape[0], points_3d.shape[1], points_3d.shape[2])
 
-    conf_mask = depth_confidence >= config.confidence_threshold
+    conf_mask = depth_conf_np >= config.confidence_threshold
     conf_mask = randomly_limit_trues(conf_mask, config.max_num_points)
     return points_3d[conf_mask], points_rgb[conf_mask], points_xyf[conf_mask]
 
 
 def _convert_vggt_outputs_to_gtsfm_data(
     *,
-    extrinsic: np.ndarray,
-    intrinsic: np.ndarray,
+    inference: VGGTInferenceResult,
     original_coords: torch.Tensor,
     image_indices: Sequence[int],
     image_names: Optional[Sequence[str]],
@@ -211,6 +225,8 @@ def _convert_vggt_outputs_to_gtsfm_data(
 ) -> GtsfmData:
     """Convert raw VGGT predictions into ``GtsfmData``."""
 
+    extrinsic_np = inference.extrinsic.detach().cpu().numpy()
+    intrinsic_np = inference.intrinsic.detach().cpu().numpy()
     original_coords_np = original_coords.detach().cpu().numpy()
     image_names_str = [str(name) for name in image_names] if image_names is not None else None
 
@@ -221,9 +237,9 @@ def _convert_vggt_outputs_to_gtsfm_data(
         image_height = float(original_coords_np[local_idx, 5])
 
         scaled_intrinsic = _rescale_intrinsic_for_original_resolution(
-            intrinsic[local_idx], config.vggt_fixed_resolution, image_width, image_height
+            intrinsic_np[local_idx], config.vggt_fixed_resolution, image_width, image_height
         )
-        camera = torch_utils.camera_from_matrices(extrinsic[local_idx], scaled_intrinsic)
+        camera = torch_utils.camera_from_matrices(extrinsic_np[local_idx], scaled_intrinsic)
         gtsfm_data.add_camera(global_idx, camera)  # type: ignore[arg-type]
         gtsfm_data.set_image_info(
             global_idx,
@@ -292,68 +308,24 @@ def run_reconstruction(
         torch.cuda.manual_seed(cfg.seed)
         torch.cuda.manual_seed_all(cfg.seed)
 
-    resolved_device = torch_utils.default_device(device)
-    resolved_dtype = dtype or default_dtype(resolved_device)
-
-    if model is None:
-        model = load_model(weights_path, device=resolved_device, dtype=resolved_dtype)
-    else:
-        model = model.to(resolved_device)
-        if resolved_dtype is not None:
-            model = model.to(dtype=resolved_dtype)  # type: ignore
-        model.eval()  # type: ignore
-
-    # Ensure tensors match the model's device and dtype
-    image_batch = image_batch.to(resolved_device, dtype=resolved_dtype)
-    original_coords = original_coords.to(resolved_device)
-
-    inference_resolution = cfg.vggt_fixed_resolution
-    images_for_model = F.interpolate(
+    vggt_output = run_VGGT(
         image_batch,
-        size=(inference_resolution, inference_resolution),
-        mode="bilinear",
-        align_corners=False,
+        config=cfg,
+        device=device,
+        dtype=dtype,
+        model=model,
+        weights_path=weights_path,
     )
-
-    if resolved_device.type == "cuda":
-        autocast_ctx: Any = amp_autocast("cuda", dtype=resolved_dtype)
-    elif resolved_device.type == "mps":
-        # MPS doesn't support autocast with custom dtype, so we use nullcontext
-        # but the model will still run on MPS with the dtype we set earlier
-        autocast_ctx = nullcontext()
-    else:
-        autocast_ctx = nullcontext()
-
-    with torch.no_grad():
-        with autocast_ctx:
-            assert model is not None  # for mypy
-            batched = images_for_model.unsqueeze(0)
-            tokens, ps_idx = model.aggregator(batched)
-            pose_enc = model.camera_head(tokens)[-1]
-            extrinsic, intrinsic = pose_encoding_to_extri_intri(pose_enc, batched.shape[-2:])
-            depth_map, depth_conf = model.depth_head(tokens, batched, ps_idx)
-
-    extrinsic_np = extrinsic.squeeze(0).cpu().numpy()
-    intrinsic_np = intrinsic.squeeze(0).cpu().numpy()
-    depth_map_np = depth_map.squeeze(0).cpu().numpy()
-    depth_conf_np = depth_conf.squeeze(0).cpu().numpy()
-
-    if depth_conf_np.ndim == 4 and depth_conf_np.shape[-1] == 1:
-        depth_conf_np = np.squeeze(depth_conf_np, axis=-1)
 
     points_3d, points_rgb, points_xyf = _unproject_to_colored_points(
         config=cfg,
         image_batch=image_batch,
-        extrinsic=extrinsic_np,
-        intrinsic=intrinsic_np,
-        depth_map=depth_map_np,
-        depth_confidence=depth_conf_np,
+        inference=vggt_output,
     )
 
     gtsfm_data = _convert_vggt_outputs_to_gtsfm_data(
         config=cfg,
-        extrinsic=extrinsic_np,
-        intrinsic=intrinsic_np,
+        inference=vggt_output,
         original_coords=original_coords,
         image_indices=image_indices,
         image_names=image_names,
@@ -369,37 +341,73 @@ def run_reconstruction(
     )
 
 
-def run_VGGT(model: VGGT, images: torch.Tensor, dtype: torch.dtype, resolution: int = 518):
-    """Keep a thin wrapper around the original VGGT demo helper for compatibility."""
-    if images.ndim != 4 or images.shape[1] != 3:
+def run_VGGT(
+    image_batch: torch.Tensor,
+    *,
+    config: Optional[VGGTReconstructionConfig] = None,
+    device: Optional[Union[str, torch.device]] = None,
+    dtype: Optional[torch.dtype] = None,
+    model: Optional[VGGT] = None,
+    weights_path: PathLike | None = None,
+    resolution: Optional[int] = None,
+) -> VGGTInferenceResult:
+    """Run VGGT on a batch of images and return raw model predictions."""
+    if image_batch.ndim != 4 or image_batch.shape[1] != 3:
         raise ValueError("VGGT expects images shaped as (N, 3, H, W).")
 
-    # Determine the device type from the model
-    model_device = next(model.parameters()).device
+    cfg = config or VGGTReconstructionConfig()
+    inference_resolution = resolution or cfg.vggt_fixed_resolution
 
-    # Ensure the images match the model's device and dtype
-    images = images.to(model_device, dtype=dtype)
-    resized = F.interpolate(images, size=(resolution, resolution), mode="bilinear", align_corners=False)
+    resolved_device = torch_utils.default_device(device)
+    resolved_dtype = dtype or default_dtype(resolved_device)
 
-    if model_device.type == "cuda":
-        autocast_ctx: Any = amp_autocast("cuda", dtype=dtype)
+    if model is None:
+        model = load_model(weights_path, device=resolved_device, dtype=resolved_dtype)
     else:
-        # For MPS and CPU, we don't use autocast with custom dtype
+        model = model.to(resolved_device)
+        if resolved_dtype is not None:
+            model = model.to(dtype=resolved_dtype)
+        model.eval()
+
+    assert model is not None
+    image_batch = image_batch.to(resolved_device, dtype=resolved_dtype)
+    images_for_model = F.interpolate(
+        image_batch,
+        size=(inference_resolution, inference_resolution),
+        mode="bilinear",
+        align_corners=False,
+    )
+
+    if resolved_device.type == "cuda":
+        autocast_ctx: Any = amp_autocast("cuda", dtype=resolved_dtype)
+    elif resolved_device.type == "mps":
+        autocast_ctx = nullcontext()
+    else:
         autocast_ctx = nullcontext()
 
     with torch.no_grad():
         with autocast_ctx:
-            batched = resized.unsqueeze(0)
+            batched = images_for_model.unsqueeze(0)
             tokens, ps_idx = model.aggregator(batched)
             pose_enc = model.camera_head(tokens)[-1]
             extrinsic, intrinsic = pose_encoding_to_extri_intri(pose_enc, batched.shape[-2:])
             depth_map, depth_conf = model.depth_head(tokens, batched, ps_idx)
 
-    return (
-        extrinsic.squeeze(0).cpu().numpy(),
-        intrinsic.squeeze(0).cpu().numpy(),
-        depth_map.squeeze(0).cpu().numpy(),
-        depth_conf.squeeze(0).cpu().numpy(),
+    extrinsic = extrinsic.detach().squeeze(0)
+    intrinsic = intrinsic.detach().squeeze(0)
+    depth_map = depth_map.detach().squeeze(0)
+    depth_confidence = depth_conf.detach().squeeze(0)
+
+    if depth_confidence.ndim == 4 and depth_confidence.shape[-1] == 1:
+        depth_confidence = depth_confidence.squeeze(-1)
+
+    return VGGTInferenceResult(
+        extrinsic=extrinsic,
+        intrinsic=intrinsic,
+        depth_map=depth_map,
+        depth_confidence=depth_confidence,
+        device=resolved_device,
+        dtype=resolved_dtype,
     )
 
 
@@ -476,12 +484,16 @@ def run_vggt_tracking(
         crop using :func:`_convert_measurement_to_original_resolution` if you plan to add them to ``GtsfmData``.
 
     Example:
-        >>> extrinsic, intrinsic, depth_map, depth_conf = run_VGGT(model, image_batch, dtype)
-        >>> dense_points = unproject_depth_map_to_point_map(depth_map, extrinsic, intrinsic)
+        >>> vggt_output = run_VGGT(image_batch, model=model, dtype=dtype)
+        >>> dense_points = unproject_depth_map_to_point_map(
+        ...     vggt_output.depth_map,
+        ...     vggt_output.extrinsic,
+        ...     vggt_output.intrinsic,
+        ... )
         >>> cfg = VGGTReconstructionConfig()
         >>> tracking = run_vggt_tracking(
         ...     images=image_batch,
-        ...     depth_confidence=depth_conf,
+        ...     depth_confidence=vggt_output.depth_confidence,
         ...     dense_points_3d=dense_points,
         ...     config=cfg,
         ... )
@@ -543,7 +555,7 @@ __all__ = [
     "load_model",
     "run_VGGT",
     "run_reconstruction",
-    "_import_predict_tracks",
     "run_vggt_tracking",
     "VGGTTrackingResult",
+    "VGGTInferenceResult",
 ]
