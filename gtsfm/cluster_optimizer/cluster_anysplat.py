@@ -12,9 +12,7 @@ import torch
 import torchvision  # type: ignore
 from dask import delayed  # type: ignore
 from dask.delayed import Delayed
-from gtsam import Point3, SfmTrack  # type: ignore
 
-import gtsfm.common.types as gtsfm_types
 import gtsfm.frontend.anysplat as anysplat_utils
 import gtsfm.utils.torch as torch_utils
 from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterComputationGraph, ClusterContext, ClusterOptimizerBase
@@ -145,13 +143,9 @@ class ClusterAnySplat(ClusterOptimizerBase):
         gtsfm_data = GtsfmData(number_images=len(images))
         for local_idx, (global_idx, img) in enumerate(images.items()):
             intrinsic = pred_context_pose["intrinsic"][0][local_idx].numpy()
-            calibration = torch_utils.calibration_from_intrinsic(intrinsic)
-            camera_cls = gtsfm_types.get_camera_class_for_calibration(calibration)  # type: ignore
-
             extrinsic = pred_context_pose["extrinsic"][0][local_idx].numpy()
-
-            pose = torch_utils.pose_from_extrinsic(extrinsic)
-            gtsfm_data.add_camera(global_idx, camera_cls(pose, calibration))  # type: ignore
+            camera = torch_utils.camera_from_matrices(extrinsic, intrinsic)
+            gtsfm_data.add_camera(global_idx, camera)  # type: ignore
             gtsfm_data.set_image_info(
                 global_idx,
                 name=img.file_name,
@@ -180,14 +174,10 @@ class ClusterAnySplat(ClusterOptimizerBase):
         colors_np = (colors_tensor * 255).cpu().numpy()
 
         if splats_means.size > 0:
-            for idx, xyz in enumerate(splats_means):
-                color = colors_np[idx]
+            for j, xyz in enumerate(splats_means):
+                color = colors_np[j]
 
-                track = SfmTrack(Point3(*xyz))
-
-                track.r = float(color[0])
-                track.g = float(color[1])
-                track.b = float(color[2])
+                track = torch_utils.colored_track_from_point(xyz, color)
 
                 gtsfm_data.add_track(track)
         logger.info(f"Added {len(splats_means)} tracks from Gaussian means.")
