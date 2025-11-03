@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Mapping, Optional, Sequence
 from dask.distributed import Client, Future, get_client
 
 import gtsfm.utils.logger as logger_utils
+from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.utils import align as align_utils
@@ -89,7 +90,13 @@ def combine_results(
             merged = merged.merged_with(child, aSb)
         except Exception as exc:
             logger.warning("Failed to merge cluster outputs: %s", exc)
-    return merged
+    if merged is None:
+        return None
+    try:
+        return BundleAdjustmentOptimizer().run_simple_ba(merged)[0]
+    except Exception as e:
+        logger.warning("Failed to run bundle adjustment: %s", e)
+        return merged
 
 
 __all__ = ["combine_results", "schedule_exports"]

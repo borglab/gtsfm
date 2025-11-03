@@ -292,7 +292,20 @@ class BundleAdjustmentOptimizer:
         """Determines whether two-view bundle adjustment is being executed."""
         return len(initial_data.get_valid_camera_indices()) == 2
 
-    def run_simple_ba(self, initial_data: GtsfmData) -> Tuple[GtsfmData, float]:
+    def __optimize_and_recover(
+        self, initial_data: GtsfmData, graph: NonlinearFactorGraph, verbose: bool
+    ) -> Tuple[GtsfmData, Values, float]:
+        """Optimize the graph, report errors, and convert `Values` back to `GtsfmData`."""
+        initial_values = initial_data.to_values(shared_calib=self._shared_calib)
+        result_values = self.__optimize_factor_graph(graph, initial_values)
+        final_error = graph.error(result_values)
+        if verbose:
+            logger.info("initial error: %.2f", graph.error(initial_values))
+            logger.info("final error: %.2f", final_error)
+        optimized_data = GtsfmData.from_values(result_values, initial_data, self._shared_calib)
+        return optimized_data, result_values, final_error
+
+    def run_simple_ba(self, initial_data: GtsfmData, verbose: bool = True) -> Tuple[GtsfmData, float]:
         """Runs bundle adjustment and optionally filters the resulting tracks by reprojection error.
 
         Args:
@@ -304,10 +317,7 @@ class BundleAdjustmentOptimizer:
         """
         cameras_to_model = sorted(initial_data.get_valid_camera_indices())
         graph = self.__construct_simple_factor_graph(cameras_to_model, initial_data)
-        initial_values = initial_data.to_values(shared_calib=self._shared_calib)
-        result_values = self.__optimize_factor_graph(graph, initial_values)
-        final_error = graph.error(result_values)
-        optimized_data = GtsfmData.from_values(result_values, initial_data, self._shared_calib)
+        optimized_data, _, final_error = self.__optimize_and_recover(initial_data, graph, verbose)
         return optimized_data, final_error
 
     def run_ba_stage_with_filtering(
@@ -348,14 +358,7 @@ class BundleAdjustmentOptimizer:
         graph = self.__construct_factor_graph(
             cameras_to_model, initial_data, absolute_pose_priors, relative_pose_priors
         )
-        initial_values = initial_data.to_values(shared_calib=self._shared_calib)
-        result_values = self.__optimize_factor_graph(graph, initial_values)
-
-        # Print error.
-        final_error = graph.error(result_values)
-        if verbose:
-            logger.info("initial error: %.2f", graph.error(initial_values))
-            logger.info("final error: %.2f", final_error)
+        optimized_data, result_values, final_error = self.__optimize_and_recover(initial_data, graph, verbose)
 
         if self.is_two_view_ba(initial_data):
             try:
@@ -373,8 +376,6 @@ class BundleAdjustmentOptimizer:
                     return None, None, None, None
 
         # Convert the `Values` results to a `GtsfmData` instance.
-        optimized_data = GtsfmData.from_values(result_values, initial_data, self._shared_calib)
-
         # Filter landmarks by reprojection error.
         if reproj_error_thresh is not None:
             if verbose:
