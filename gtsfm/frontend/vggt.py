@@ -365,7 +365,6 @@ def run_VGGT(
     else:
         autocast_ctx = nullcontext()
 
-    dense_points: Optional[torch.Tensor] = None
     with torch.no_grad():
         with autocast_ctx:
             batched = resized_images.unsqueeze(0)  # make into (training) batch of 1
@@ -595,12 +594,7 @@ def _import_predict_tracks():
 
 
 def run_vggt_tracking(
-    images: torch.Tensor,
-    *,
-    depth_confidence: Optional[Union[np.ndarray, torch.Tensor]] = None,
-    dense_points_3d: Optional[Union[np.ndarray, torch.Tensor]] = None,
-    config: Optional[VGGTReconstructionConfig] = None,
-    tracker_kwargs: Optional[dict[str, Any]] = None,
+    images: torch.Tensor, inference: VGGTInferenceResult, *, config: Optional[VGGTReconstructionConfig] = None
 ) -> VGGTTrackingResult:
     """Generate dense feature tracks using the VGGSfM tracker shipped with VGGT.
 
@@ -608,13 +602,8 @@ def run_vggt_tracking(
         images: Tensor shaped ``(num_frames, 3, H, W)`` at the *square* VGGT load resolution. You can reuse
             the ``images`` tensor that you passed into :func:`run_reconstruction`; typically this is the output
             from ``load_and_preprocess_images_square`` prior to interpolation.
-        depth_confidence: Optional dense confidence volume produced by VGGT's depth head. When using the value
-            returned from :func:`run_reconstruction`, pass the ``depth_conf_np`` array you stored before calling
-            :func:`_unproject_to_colored_points`. The tensor is expected to align with ``images`` spatially, i.e.
-            be square with shape ``(num_frames, 1, H, W)``.
-        dense_points_3d: Optional dense point cloud in VGGT's inference frame. Provide the per-pixel 3D points
-            prior to the outlier pruning applied in :func:`_unproject_to_colored_points` so that the tracker can
-            look up metric depth at query locations. The expected shape is ``(num_frames, H, W, 3)``.
+        inference: Output from :func:`run_VGGT`. The ``depth_confidence`` and optional ``dense_points`` tensors
+            are consumed directly, avoiding redundant transfers or recomputation.
         config: Optional :class:`VGGTReconstructionConfig`. We reuse the existing configuration container because
             it already captures the tracker-specific parameters (``max_query_pts``, ``query_frame_num``, etc.).
         tracker_kwargs: Optional dictionary to override individual keyword arguments passed to the underlying
@@ -628,19 +617,9 @@ def run_vggt_tracking(
         crop using :func:`_convert_measurement_to_original_resolution` if you plan to add them to ``GtsfmData``.
 
     Example:
-        >>> vggt_output = run_VGGT(image_batch, model=model, dtype=dtype)
-        >>> dense_points = unproject_depth_map_to_point_map(
-        ...     vggt_output.depth_map,
-        ...     vggt_output.extrinsic,
-        ...     vggt_output.intrinsic,
-        ... )
+        >>> vggt_output = run_VGGT(image_batch, model=model, dtype=dtype, return_dense_points=True)
         >>> cfg = VGGTReconstructionConfig()
-        >>> tracking = run_vggt_tracking(
-        ...     images=image_batch,
-        ...     depth_confidence=vggt_output.depth_confidence,
-        ...     dense_points_3d=dense_points,
-        ...     config=cfg,
-        ... )
+        >>> tracking = run_vggt_tracking(image_batch, vggt_output, config=cfg)
         >>> high_quality = tracking.visibilities > cfg.vis_thresh
         >>> first_track_pixels = tracking.tracks[:, 0]
     """
@@ -648,42 +627,26 @@ def run_vggt_tracking(
     cfg = config or VGGTReconstructionConfig()
     predict_tracks = _import_predict_tracks()
 
+    # We will track on whatever device the images are already on.
+    # TODO(Frank): maybe we should enforce GPU here?
     device = images.device
     dtype = images.dtype
-
-    def _to_matching_tensor(value: Optional[Union[np.ndarray, torch.Tensor]]) -> Optional[torch.Tensor]:
-        if value is None:
-            return None
-        if isinstance(value, torch.Tensor):
-            return value.to(device=device, dtype=dtype)
-        return torch.from_numpy(value).to(device=device, dtype=dtype)
-
-    conf_tensor = _to_matching_tensor(depth_confidence)
-    points_tensor = _to_matching_tensor(dense_points_3d)
-
-    tracker_args: dict[str, Any] = {
-        "max_query_pts": cfg.max_query_pts,
-        "query_frame_num": cfg.query_frame_num,
-        "keypoint_extractor": cfg.keypoint_extractor,
-        "fine_tracking": cfg.fine_tracking,
-    }
-    if tracker_kwargs:
-        tracker_args.update(tracker_kwargs)
+    conf_tensor = inference.depth_confidence.to(device=device, dtype=dtype)
+    points_tensor = inference.dense_points.to(device=device, dtype=dtype)
 
     tracks, vis_scores, confidences, points_3d, colors = predict_tracks(
         images,
         conf=conf_tensor,
         points_3d=points_tensor,
-        masks=None,
-        **tracker_args,
+        masks=None,  # ignored anyway !
+        max_query_pts=cfg.max_query_pts,
+        query_frame_num=cfg.query_frame_num,
+        keypoint_extractor=cfg.keypoint_extractor,
+        fine_tracking=cfg.fine_tracking,
     )
 
     return VGGTTrackingResult(
-        tracks=tracks,
-        visibilities=vis_scores,
-        confidences=confidences,
-        points_3d=points_3d,
-        colors=colors,
+        tracks=tracks, visibilities=vis_scores, confidences=confidences, points_3d=points_3d, colors=colors
     )
 
 
