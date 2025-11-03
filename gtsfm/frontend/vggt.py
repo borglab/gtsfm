@@ -261,7 +261,9 @@ def run_reconstruction(
         mode="bilinear",
         align_corners=False,
     )
-    points_rgb = (points_rgb_tensor.numpy().transpose(0, 2, 3, 1) * 255).astype(np.uint8)
+    points_rgb = (
+        points_rgb_tensor.to(torch.float32).numpy().transpose(0, 2, 3, 1) * 255
+    ).astype(np.uint8)
     points_xyf = create_pixel_coordinate_grid(points_3d.shape[0], points_3d.shape[1], points_3d.shape[2])
 
     conf_mask = depth_conf_np >= cfg.confidence_threshold
