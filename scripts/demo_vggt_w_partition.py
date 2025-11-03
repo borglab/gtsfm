@@ -104,7 +104,6 @@ def demo_fn(cluster_key: str, image_indices: List[int], args: argparse.Namespace
             device=device,
             dtype=dtype,
             model=model,
-            total_num_images=max(image_indices) + 1,
         )
 
     if result.points_3d.size == 0:

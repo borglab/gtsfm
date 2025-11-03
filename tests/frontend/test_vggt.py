@@ -81,7 +81,6 @@ def run_vggt(
         device=device,
         dtype=dtype,
         model=model,
-        total_num_images=len(image_indices),
     )
 
     output_dir = DATA_ROOT_PATH / "vggt_test_output"

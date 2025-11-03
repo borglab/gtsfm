@@ -172,44 +172,50 @@ def _convert_measurement_to_original_resolution(
     return u, v
 
 
-def _convert_vggt_outputs_to_gtsfm_data(
+def _unproject_to_colored_points(
     *,
     extrinsic: np.ndarray,
     intrinsic: np.ndarray,
     depth_map: np.ndarray,
     depth_confidence: np.ndarray,
     image_batch: torch.Tensor,
-    original_coords: torch.Tensor,
-    image_indices: Sequence[int],
-    total_num_images: int,
-    image_names: Optional[Sequence[str]],
     config: VGGTReconstructionConfig,
-    inference_resolution: int,
-) -> Tuple[GtsfmData, np.ndarray, Optional[np.ndarray]]:
-    """Convert raw VGGT predictions into ``GtsfmData`` and point attributes."""
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Convert raw VGGT predictions into point attributes."""
     points_3d = unproject_depth_map_to_point_map(depth_map, extrinsic, intrinsic)
+    inference_resolution = config.vggt_fixed_resolution
     points_rgb_tensor = F.interpolate(
         image_batch.detach().cpu(),
         size=(inference_resolution, inference_resolution),
         mode="bilinear",
         align_corners=False,
     )
-    points_rgb = (
-        points_rgb_tensor.to(torch.float32).numpy().transpose(0, 2, 3, 1) * 255
-    ).astype(np.uint8)
+    points_rgb = (points_rgb_tensor.to(torch.float32).numpy().transpose(0, 2, 3, 1) * 255).astype(np.uint8)
     points_xyf = create_pixel_coordinate_grid(points_3d.shape[0], points_3d.shape[1], points_3d.shape[2])
 
     conf_mask = depth_confidence >= config.confidence_threshold
     conf_mask = randomly_limit_trues(conf_mask, config.max_num_points)
+    return points_3d[conf_mask], points_rgb[conf_mask], points_xyf[conf_mask]
 
-    points_3d_flat = points_3d[conf_mask]
-    points_rgb_flat = points_rgb[conf_mask] if points_rgb is not None else None
-    points_xyf_flat = points_xyf[conf_mask]
+
+def _convert_vggt_outputs_to_gtsfm_data(
+    *,
+    extrinsic: np.ndarray,
+    intrinsic: np.ndarray,
+    original_coords: torch.Tensor,
+    image_indices: Sequence[int],
+    image_names: Optional[Sequence[str]],
+    config: VGGTReconstructionConfig,
+    points_3d: np.ndarray,
+    points_rgb: np.ndarray,
+    points_xyf: np.ndarray,
+) -> GtsfmData:
+    """Convert raw VGGT predictions into ``GtsfmData``."""
 
     original_coords_np = original_coords.detach().cpu().numpy()
     image_names_str = [str(name) for name in image_names] if image_names is not None else None
 
-    gtsfm_data = GtsfmData(number_images=total_num_images)
+    gtsfm_data = GtsfmData(number_images=len(image_indices))
 
     for local_idx, global_idx in enumerate(image_indices):
         pose = torch_utils.pose_from_extrinsic(extrinsic[local_idx])
@@ -217,7 +223,7 @@ def _convert_vggt_outputs_to_gtsfm_data(
         image_height = float(original_coords_np[local_idx, 5])
 
         scaled_intrinsic = _rescale_intrinsic_for_original_resolution(
-            intrinsic[local_idx], inference_resolution, image_width, image_height
+            intrinsic[local_idx], config.vggt_fixed_resolution, image_width, image_height
         )
         calibration = torch_utils.calibration_from_intrinsic(scaled_intrinsic)
         camera_cls = gtsfm_types.get_camera_class_for_calibration(calibration)
@@ -228,19 +234,19 @@ def _convert_vggt_outputs_to_gtsfm_data(
             shape=(int(image_height), int(image_width)),
         )
 
-    if points_3d_flat.size > 0 and points_rgb_flat is not None:
-        for idx, xyz in enumerate(points_3d_flat):
-            xyf = points_xyf_flat[idx]
+    if points_3d.size > 0 and points_rgb is not None:
+        for idx, xyz in enumerate(points_3d):
+            xyf = points_xyf[idx]
             frame_float = float(xyf[2])
             frame_idx = int(np.clip(round(frame_float), 0, len(image_indices) - 1))
             u, v = _convert_measurement_to_original_resolution(
                 (float(xyf[0]), float(xyf[1])),
                 original_coords_np[frame_idx],
-                inference_resolution,
+                config.vggt_fixed_resolution,
                 config.img_load_resolution,
             )
             track = SfmTrack(Point3(*xyz))
-            color = points_rgb_flat[idx]
+            color = points_rgb[idx]
             track.r = float(color[0])
             track.g = float(color[1])
             track.b = float(color[2])
@@ -269,7 +275,7 @@ def _convert_vggt_outputs_to_gtsfm_data(
                 )
                 break
 
-    return gtsfm_data, points_3d_flat, points_rgb_flat
+    return gtsfm_data
 
 
 def run_reconstruction(
@@ -283,11 +289,9 @@ def run_reconstruction(
     dtype: Optional[torch.dtype] = None,
     model: Optional[VGGT] = None,
     weights_path: PathLike | None = None,
-    total_num_images: Optional[int] = None,
 ) -> VGGTReconstructionResult:
     """Run VGGT on a batch of images and convert outputs to ``GtsfmData``."""
     cfg = config or VGGTReconstructionConfig()
-    total_num_images = total_num_images or (max(image_indices) + 1)
 
     torch.manual_seed(cfg.seed)
     np.random.seed(cfg.seed)
@@ -344,24 +348,31 @@ def run_reconstruction(
     if depth_conf_np.ndim == 4 and depth_conf_np.shape[-1] == 1:
         depth_conf_np = np.squeeze(depth_conf_np, axis=-1)
 
-    gtsfm_data, points_3d_flat, points_rgb_flat = _convert_vggt_outputs_to_gtsfm_data(
+    points_3d, points_rgb, points_xyf = _unproject_to_colored_points(
+        config=cfg,
+        image_batch=image_batch,
         extrinsic=extrinsic_np,
         intrinsic=intrinsic_np,
         depth_map=depth_map_np,
         depth_confidence=depth_conf_np,
-        image_batch=image_batch,
+    )
+
+    gtsfm_data = _convert_vggt_outputs_to_gtsfm_data(
+        config=cfg,
+        extrinsic=extrinsic_np,
+        intrinsic=intrinsic_np,
         original_coords=original_coords,
         image_indices=image_indices,
-        total_num_images=total_num_images,
         image_names=image_names,
-        config=cfg,
-        inference_resolution=inference_resolution,
+        points_3d=points_3d,
+        points_rgb=points_rgb,
+        points_xyf=points_xyf,
     )
 
     return VGGTReconstructionResult(
         gtsfm_data=gtsfm_data,
-        points_3d=points_3d_flat,
-        points_rgb=points_rgb_flat,
+        points_3d=points_3d,
+        points_rgb=points_rgb,
     )
 
 
