@@ -21,17 +21,25 @@
   <!-- Main content area for the 3D viewer -->
   <main id="main-content">
     <div id="sceneStats">
-      <div class="stat-pair">
-        <span class="label">Cameras</span>
-        <span class="value" id="statCameras">0</span>
+      <div class="stat-group" data-mode="scene">
+        <div class="stat-pair">
+          <span class="label">Cameras</span>
+          <span class="value" id="statCameras">0</span>
+        </div>
+        <div class="stat-pair">
+          <span class="label">Points</span>
+          <span class="value" id="statPoints">0</span>
+        </div>
+        <div class="stat-wide">
+          <span class="label">Image</span>
+          <span class="value" id="statImageName">—</span>
+        </div>
       </div>
-      <div class="stat-pair">
-        <span class="label">Points</span>
-        <span class="value" id="statPoints">0</span>
-      </div>
-      <div class="stat-wide">
-        <span class="label">Image</span>
-        <span class="value" id="statImageName">—</span>
+      <div class="stat-group" data-mode="splat">
+        <div class="stat-pair">
+          <span class="label">Splats</span>
+          <span class="value" id="statSplats">0</span>
+        </div>
       </div>
     </div>
     <canvas id="renderCanvas"></canvas>
@@ -48,6 +56,15 @@
       <label>
         Point Size: <input type="range" id="ptSize" min="1" max="10" value="2">
       </label>
+    </div>
+
+    <div id="loadingOverlay" class="loading-overlay" role="status" aria-live="polite">
+      <div class="loading-box">
+        <span id="loadingMessage">Loading…</span>
+        <div class="loading-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100">
+          <div class="loading-progress-fill" id="loadingProgress" aria-valuenow="0"></div>
+        </div>
+      </div>
     </div>
   </main>
 

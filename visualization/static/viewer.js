@@ -42,6 +42,12 @@ class ColmapViewer {
     this.frustumGroup = new BABYLON.TransformNode("frusta", this.scene);
     this.cameras = [];
 
+    this.splatsUrl = null;
+    this.splatsMesh = null;
+    this._splatsLoadingPromise = null;
+    this.splatsPointCount = 0;
+    this.mode = "idle";
+
     this.ptSize = 2;
     this.showCams = true;
 
@@ -51,6 +57,13 @@ class ColmapViewer {
     this.cameraCount = 0;
     this.currentImageName = "";
     this.statsVisible = true;
+    this.loadingEls = null;
+    this.hudRoot = null;
+    this.resourceCache = new Map();
+    this.resourceCacheLimit = 8;
+    this.parsedPointsCache = new Map();
+    this.parsedCamsCache = new Map();
+    this.parsedCacheLimit = 4;
 
     this.engine.runRenderLoop(() => this.scene.render());
     window.addEventListener("resize", () => this.engine.resize());
@@ -72,15 +85,46 @@ class ColmapViewer {
       this.statsEls = null;
       return;
     }
-    const { root, cameraCount, pointCount, imageName } = statsEls;
+    const {
+      root,
+      cameraCount,
+      pointCount,
+      imageName,
+      splatCount,
+      sceneGroup,
+      splatGroup,
+    } = statsEls;
     this.statsRoot = root ?? null;
     this.statsEls = {
       cameraCount: cameraCount ?? null,
       pointCount: pointCount ?? null,
       imageName: imageName ?? null,
+      splatCount: splatCount ?? null,
+      sceneGroup: sceneGroup ?? null,
+      splatGroup: splatGroup ?? null,
     };
     this._applyStatsVisibility();
     this._renderStats();
+    this._setLoadingState({ active: false });
+  }
+
+  setHudElement(hudRoot) {
+    this.hudRoot = hudRoot ?? null;
+    this._applyHudMode();
+  }
+
+  setLoadingElements(loadingEls) {
+    if (!loadingEls) {
+      this.loadingEls = null;
+      return;
+    }
+    const { overlay, bar, message } = loadingEls;
+    this.loadingEls = {
+      overlay: overlay ?? null,
+      bar: bar ?? null,
+      message: message ?? null,
+    };
+    this._setLoadingState({ active: false, progress: 0 });
   }
 
   setStatsVisible(value) {
@@ -101,12 +145,40 @@ class ColmapViewer {
     this.statsRoot.style.display = this.statsVisible ? "" : "none";
   }
 
+  _applyStatsMode() {
+    if (!this.statsEls) return;
+    const { sceneGroup, splatGroup } = this.statsEls;
+    const showScene = this.mode !== "splat";
+    const showSplats = this.mode === "splat";
+    if (sceneGroup) sceneGroup.style.display = showScene ? "grid" : "none";
+    if (splatGroup) splatGroup.style.display = showSplats ? "grid" : "none";
+  }
+
+  _applyHudMode() {
+    if (!this.hudRoot) return;
+    const hideHud = this.mode === "splat";
+    if (hideHud) {
+      this.hudRoot.classList.add("hud-hidden");
+    } else {
+      this.hudRoot.classList.remove("hud-hidden");
+    }
+  }
+
   _renderStats() {
     if (!this.statsEls) return;
     this._applyStatsVisibility();
+    this._applyStatsMode();
 
     const fmt = (value) => (typeof value === "number" && !Number.isNaN(value) ? value.toLocaleString() : "—");
-    const { cameraCount, pointCount, imageName } = this.statsEls;
+    const { cameraCount, pointCount, imageName, splatCount } = this.statsEls;
+
+    if (this.mode === "splat") {
+      if (splatCount) {
+        const text = this.splatsPointCount ? fmt(this.splatsPointCount) : "0";
+        splatCount.textContent = text;
+      }
+      return;
+    }
 
     if (pointCount) {
       const text = this.pointsCount ? fmt(this.pointsCount) : "0";
@@ -119,59 +191,166 @@ class ColmapViewer {
     if (imageName) {
       imageName.textContent = this.currentImageName || "—";
     }
+    if (splatCount) {
+      const text = this.splatsPointCount ? fmt(this.splatsPointCount) : "0";
+      splatCount.textContent = text;
+    }
   }
 
-  async loadScene({ pointsUrl, imagesUrl }) {
+  _setLoadingState({ active = null, message = null, progress = null } = {}) {
+    if (!this.loadingEls) return;
+    const { overlay, bar, message: msgEl } = this.loadingEls;
+    if (overlay && active !== null) {
+      if (active) {
+        overlay.classList.add("active");
+      } else {
+        overlay.classList.remove("active");
+      }
+    }
+    if (msgEl && message !== null) {
+      msgEl.textContent = message;
+    }
+    if (bar && progress !== null && Number.isFinite(progress)) {
+      const clamped = Math.max(0, Math.min(1, progress));
+      bar.style.width = `${clamped * 100}%`;
+      bar.setAttribute("aria-valuenow", String(Math.round(clamped * 100)));
+    }
+  }
+
+  _updateLoadingProgress(progress) {
+    this._setLoadingState({ progress });
+  }
+
+  async _yieldFrame() {
+    await new Promise((resolve) => requestAnimationFrame(() => resolve()));
+  }
+
+  async loadScene({ pointsUrl, imagesUrl, splatsUrl = null }) {
     await this._clear();
+    this.mode = "scene";
+    this.splatsUrl = splatsUrl;
+    this._applyHudMode();
 
-    const fetchOpts = { cache: "no-store" };
-    const [pointsText, imagesText] = await Promise.all([
-      fetch(pointsUrl, fetchOpts).then(r => r.ok ? r.text() : Promise.reject(new Error(`Failed to load ${pointsUrl}`))),
-      fetch(imagesUrl, fetchOpts).then(r => r.ok ? r.text() : "")
-    ]);
+    try {
+      this._setLoadingState({ active: true, message: "Loading reconstruction…", progress: 0 });
 
-    const points = this._parsePoints(pointsText);
-    this.cameras = imagesText ? this._parseCams(imagesText) : [];
-    console.log('first camera center:', this.cameras[0]?.center);
-    console.log('scene extent:', this._sceneExtent());
-    console.log(`Loaded: #points=${points.length}, #cams=${this.cameras.length}`);
+      const fetchOpts = { cache: "no-store" };
+      const cachedPoints = pointsUrl ? this.parsedPointsCache.get(pointsUrl) : null;
+      const cachedCameras = imagesUrl ? this.parsedCamsCache.get(imagesUrl) : null;
+      const needPoints = !cachedPoints;
+      const needCameras = imagesUrl ? !cachedCameras : false;
 
-    if (points.length) await this._createPCS(points);
-    if (this.cameras.length) this._createFrusta(this.cameras);
+      const [pointsText, imagesText] = await Promise.all([
+        needPoints ? this._fetchResource(pointsUrl, "text", fetchOpts) : Promise.resolve(null),
+        needCameras ? this._fetchResource(imagesUrl, "text", fetchOpts) : Promise.resolve(null),
+      ]);
 
-    this.pointsCount = points.length;
-    this.cameraCount = this.cameras.length;
+      if (needPoints) {
+        this._setLoadingState({ message: "Parsing points…", progress: 0.35 });
+      }
 
-    // centroid from a 100-point sample (fallback to bbox center if needed)
-    this.sceneCenter = points.length
-      ? this._centroidSample(points, 100)
-      : (this.pointsMesh
-        ? this.pointsMesh.getBoundingInfo().boundingBox.centerWorld.clone()
-        : new BABYLON.Vector3(0, 0, 0));
+      const points = cachedPoints ?? this._parsePoints(pointsText ?? "");
+      if (needPoints && pointsUrl) {
+        this._rememberParsed(this.parsedPointsCache, pointsUrl, points, this.parsedCacheLimit);
+      }
 
-    // remember which camera we're on for next/prev UI
-    this.camIndex = 0;
-    this._updateCurrentImageName();
+      if (imagesUrl) {
+        this.cameras = cachedCameras ?? (imagesText ? this._parseCams(imagesText) : []);
+        if (needCameras) {
+          this._rememberParsed(this.parsedCamsCache, imagesUrl, this.cameras, this.parsedCacheLimit);
+        }
+      } else {
+        this.cameras = [];
+      }
+      console.log('first camera center:', this.cameras[0]?.center);
+      console.log('scene extent:', this._sceneExtent());
+      console.log(`Loaded: #points=${points.length}, #cams=${this.cameras.length}`);
+
+      this._setLoadingState({ message: "Building point cloud…", progress: 0.6 });
+
+      if (points.length) await this._createPCS(points);
+      if (this.cameras.length) this._createFrusta(this.cameras);
+
+      this.pointsCount = points.length;
+      this.cameraCount = this.cameras.length;
+
+      // centroid from a 100-point sample (fallback to bbox center if needed)
+      this.sceneCenter = points.length
+        ? this._centroidSample(points, 100)
+        : (this.pointsMesh
+          ? this.pointsMesh.getBoundingInfo().boundingBox.centerWorld.clone()
+          : new BABYLON.Vector3(0, 0, 0));
+
+      // remember which camera we're on for next/prev UI
+      this.camIndex = 0;
+      this._updateCurrentImageName();
+      this._renderStats();
+
+      this._autoFrame();
+      this._setLoadingState({ progress: 1 });
+    } finally {
+      this._setLoadingState({ active: false });
+    }
+  }
+
+  async loadSplatsFile({ splatsUrl, label = "" }) {
+    await this._clear();
+    this.mode = "splat";
+    this.splatsUrl = splatsUrl;
+    this.currentImageName = label;
+    this._applyHudMode();
+
+    try {
+      await this._ensureSplatsMesh();
+    } catch (err) {
+      console.warn("Failed to load gaussian splats:", err);
+      this._renderStats();
+      return;
+    }
+
+    if (!this.splatsMesh) {
+      this._renderStats();
+      return;
+    }
+
+    this.pointsCount = 0;
+    this.cameraCount = 0;
     this._renderStats();
 
-    this._autoFrame();
+    const bb = this.splatsMesh.getBoundingInfo().boundingBox;
+    const center = bb.centerWorld.clone();
+    this.sceneCenter = center;
+    this.camera.setTarget(center);
+    const size = Math.max(
+      bb.maximumWorld.x - bb.minimumWorld.x,
+      bb.maximumWorld.y - bb.minimumWorld.y,
+      bb.maximumWorld.z - bb.minimumWorld.z
+    ) || 1.0;
+    this.camera.radius = size * 1.6;
+    this.camera.rebuildAnglesAndRadius?.();
   }
 
   async _clear() {
+    this.mode = "idle";
     this.cameras = [];
     this.pointsCount = 0;
     this.cameraCount = 0;
     this.currentImageName = "";
-    this._renderStats();
+    this._applyHudMode();
 
     if (this.pointsMesh) { this.pointsMesh.dispose(); this.pointsMesh = null; }
     if (this.pcs) { this.pcs.dispose(); this.pcs = null; }
+    this._clearSplats();
+    this.splatsUrl = null;
+    this.splatsPointCount = 0;
+    this.sceneCenter = null;
 
     if (this.frustumGroup) {
       for (const ch of this.frustumGroup.getChildren()) ch.dispose();
       this.frustumGroup.setEnabled(false);
       this.frustumGroup.setEnabled(true);
     }
+    this._renderStats();
   }
 
   // ------------------- parsing -------------------
@@ -263,6 +442,546 @@ class ColmapViewer {
     mat.emissiveColor = new BABYLON.Color3(1, 1, 1); // ensure full vertex color visibility
     this.pointsMesh.material = mat;
     this.pcs = pcs;
+  }
+
+  _clearSplats() {
+    if (this.splatsMesh) {
+      try {
+        this.splatsMesh.thinInstanceSetBuffer("matrix", null);
+        this.splatsMesh.thinInstanceSetBuffer("color", null);
+      } catch (err) {
+        console.warn("Unable to clear splat thin instances:", err);
+      }
+      this.splatsMesh.dispose();
+      this.splatsMesh = null;
+    }
+    this._splatsLoadingPromise = null;
+    this.splatsPointCount = 0;
+  }
+
+  async _ensureSplatsMesh() {
+    if (!this.splatsUrl) return;
+    if (this.splatsMesh) return;
+    if (this._splatsLoadingPromise) {
+      await this._splatsLoadingPromise;
+      return;
+    }
+    this._setLoadingState({ active: true, message: "Loading splat file…", progress: 0 });
+    this._splatsLoadingPromise = (async () => {
+      const buffer = await this._fetchResource(this.splatsUrl, "arrayBuffer", { cache: "no-store" });
+      const splats = this._parseSplatsPly(buffer);
+      if (!splats.length) {
+        throw new Error("Parsed gaussian splats contained no points.");
+      }
+      this._setLoadingState({ message: "Rendering splats…", progress: 0.15 });
+      await this._createSplatsMesh(splats);
+      this.splatsPointCount = splats.length;
+      this._setLoadingState({ progress: 1 });
+    })();
+    try {
+      await this._splatsLoadingPromise;
+    } finally {
+      this._setLoadingState({ active: false });
+      this._splatsLoadingPromise = null;
+    }
+  }
+
+  async _createSplatsMesh(splats) {
+    const base = BABYLON.MeshBuilder.CreateSphere(
+      "splatBase",
+      { diameter: 2, segments: 6 },
+      this.scene
+    );
+    base.isVisible = true;
+    base.isPickable = false;
+    base.alwaysSelectAsActiveMesh = true;
+    base.thinInstanceEnablePicking = false;
+
+    const material = new BABYLON.StandardMaterial("splatsMaterial", this.scene);
+    material.disableLighting = true;
+    material.emissiveColor = new BABYLON.Color3(1, 1, 1);
+    material.backFaceCulling = false;
+    material.alphaMode = BABYLON.Constants.ALPHA_COMBINE;
+    material.transparencyMode = BABYLON.Material.MATERIAL_ALPHABLEND;
+    material.zWrite = false;
+    material.useInstancedBuffers = true;
+    if ("useInstancingColor" in material) {
+      material.useInstancingColor = true;
+    }
+    base.material = material;
+
+    const matrixBuffer = new Float32Array(splats.length * 16);
+    const colorBuffer = new Float32Array(splats.length * 4);
+    const tmpScale = new BABYLON.Vector3();
+    const tmpQuat = new BABYLON.Quaternion();
+    const tmpPos = new BABYLON.Vector3();
+    const tmpMatrix = new BABYLON.Matrix();
+    const MIN_SCALE = 0.01;
+
+    for (let i = 0; i < splats.length; i++) {
+      const s = splats[i];
+      const scale = s.scale ?? [0, 0, 0];
+      const rot = s.rotation ?? [0, 0, 0, 1];
+      const opacity = Number.isFinite(s.opacity) ? Math.min(1, Math.max(0, s.opacity)) : 1.0;
+
+      const sx = Number.isFinite(scale[0]) ? Math.max(MIN_SCALE, Math.exp(scale[0])) : 1;
+      const sy = Number.isFinite(scale[1]) ? Math.max(MIN_SCALE, Math.exp(scale[1])) : 1;
+      const sz = Number.isFinite(scale[2]) ? Math.max(MIN_SCALE, Math.exp(scale[2])) : 1;
+      tmpScale.set(sx, sy, sz);
+
+      const qx = Number.isFinite(rot[0]) ? rot[0] : 0;
+      const qy = Number.isFinite(rot[1]) ? rot[1] : 0;
+      const qz = Number.isFinite(rot[2]) ? rot[2] : 0;
+      const qw = Number.isFinite(rot[3]) ? rot[3] : 1;
+      tmpQuat.set(qx, qy, qz, qw);
+      tmpQuat.normalize();
+      tmpPos.set(s.x, s.y, s.z);
+
+      BABYLON.Matrix.ComposeToRef(tmpScale, tmpQuat, tmpPos, tmpMatrix);
+      tmpMatrix.copyToArray(matrixBuffer, i * 16);
+
+      colorBuffer[i * 4 + 0] = s.r;
+      colorBuffer[i * 4 + 1] = s.g;
+      colorBuffer[i * 4 + 2] = s.b;
+      colorBuffer[i * 4 + 3] = opacity;
+
+      if (splats.length > 1000 && i % 2000 === 0) {
+        this._updateLoadingProgress(i / splats.length);
+        await this._yieldFrame();
+      }
+    }
+    this._updateLoadingProgress(0.98);
+
+    base.thinInstanceSetBuffer("matrix", matrixBuffer, 16);
+    base.thinInstanceSetBuffer("color", colorBuffer, 4);
+    base.thinInstanceRefreshBoundingInfo();
+    base.setEnabled(true);
+    this._updateLoadingProgress(1.0);
+    if (splats.length > 1000) {
+      await this._yieldFrame();
+    }
+    this.splatsMesh = base;
+  }
+
+  _parseSplatsPly(buffer) {
+    if (typeof buffer === "string") {
+      buffer = new TextEncoder().encode(buffer).buffer;
+    }
+    if (!(buffer instanceof ArrayBuffer)) {
+      console.warn("PLY parser expected ArrayBuffer input.");
+      return [];
+    }
+
+    const bytes = new Uint8Array(buffer);
+    if (bytes.length < 32) {
+      console.warn("PLY file too small.");
+      return [];
+    }
+
+    const findHeaderEnd = () => {
+      const marker = "end_header";
+      const markerChars = Array.from(marker).map(ch => ch.charCodeAt(0));
+      for (let i = 0; i <= bytes.length - markerChars.length; i++) {
+        let matched = true;
+        for (let j = 0; j < markerChars.length; j++) {
+          if (bytes[i + j] !== markerChars[j]) {
+            matched = false;
+            break;
+          }
+        }
+        if (!matched) continue;
+        let end = i + markerChars.length;
+        if (end < bytes.length && bytes[end] === 13) end += 1;
+        if (end < bytes.length && bytes[end] === 10) {
+          return end + 1;
+        }
+        if (end < bytes.length && bytes[end] === 13 && end + 1 < bytes.length && bytes[end + 1] === 10) {
+          return end + 2;
+        }
+      }
+      return -1;
+    };
+
+    const headerEnd = findHeaderEnd();
+    if (headerEnd < 0) {
+      console.warn("PLY header missing end_header.");
+      return [];
+    }
+
+    const headerText = new TextDecoder().decode(bytes.slice(0, headerEnd));
+    const headerLines = headerText.split(/\r?\n/).map(line => line.trim());
+    if (!headerLines.length || headerLines[0].toLowerCase() !== "ply") {
+      console.warn("gaussian_splats.ply missing PLY header.");
+      return [];
+    }
+
+    let formatLine = null;
+    let format = "";
+    let vertexCount = 0;
+    const properties = [];
+    let inVertexElement = false;
+    for (let i = 1; i < headerLines.length; i++) {
+      const line = headerLines[i];
+      if (!line) continue;
+      if (line.startsWith("format")) {
+        formatLine = line;
+        const parts = line.split(/\s+/);
+        format = (parts[1] || "").toLowerCase();
+        continue;
+      }
+      if (line.startsWith("element")) {
+        const parts = line.split(/\s+/);
+        inVertexElement = parts[1] === "vertex";
+        if (inVertexElement && parts.length >= 3) {
+          vertexCount = parseInt(parts[2], 10) || 0;
+        }
+        continue;
+      }
+      if (line.startsWith("property")) {
+        if (!inVertexElement) continue;
+        const parts = line.split(/\s+/);
+        if (parts[1] === "list") {
+          console.warn("List properties in vertex element are not supported.");
+          return [];
+        }
+        const type = parts[1];
+        const name = parts[parts.length - 1];
+        const size = this._plyTypeSize(type);
+        if (!size) {
+          console.warn(`Unsupported PLY property type: ${type}`);
+          return [];
+        }
+        properties.push({ type, name, size });
+        continue;
+      }
+    }
+
+    if (!format) {
+      console.warn("PLY header missing format line.");
+      return [];
+    }
+    if (!properties.length) {
+      console.warn("PLY vertex element missing properties.");
+      return [];
+    }
+
+    const payloadBuffer = buffer.slice(headerEnd);
+    if (format.includes("ascii")) {
+      const payloadText = new TextDecoder().decode(payloadBuffer);
+      return this._parseSplatsPlyAscii(payloadText, properties, vertexCount);
+    }
+    if (format.includes("binary_little_endian")) {
+      return this._parseSplatsPlyBinary(payloadBuffer, properties, vertexCount, true);
+    }
+    if (format.includes("binary_big_endian")) {
+      return this._parseSplatsPlyBinary(payloadBuffer, properties, vertexCount, false);
+    }
+
+    console.warn(`Unsupported PLY format: ${formatLine || format}`);
+    return [];
+  }
+
+  _parseSplatsPlyAscii(text, properties, vertexCount) {
+    const lines = text.split(/\r?\n/);
+    const idx = this._plyBuildIndexMap(properties);
+    if (idx.x < 0 || idx.y < 0 || idx.z < 0) {
+      console.warn("PLY file does not define x/y/z properties.");
+      return [];
+    }
+    const points = [];
+    const totalVertices = vertexCount || lines.length;
+    for (let i = 0; i < lines.length; i++) {
+      if (vertexCount && points.length >= vertexCount) break;
+      const line = (lines[i] || "").trim();
+      if (!line || line.startsWith("comment")) continue;
+      const parts = line.split(/\s+/);
+      if (parts.length < properties.length) continue;
+      const x = parseFloat(parts[idx.x]);
+      const y = parseFloat(parts[idx.y]);
+      const z = parseFloat(parts[idx.z]);
+      if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) continue;
+
+      const components = {};
+      if (idx.red >= 0) components.red = parseFloat(parts[idx.red]);
+      if (idx.green >= 0) components.green = parseFloat(parts[idx.green]);
+      if (idx.blue >= 0) components.blue = parseFloat(parts[idx.blue]);
+      if (idx.fdc0 >= 0) components.fdc0 = parseFloat(parts[idx.fdc0]);
+      if (idx.fdc1 >= 0) components.fdc1 = parseFloat(parts[idx.fdc1]);
+      if (idx.fdc2 >= 0) components.fdc2 = parseFloat(parts[idx.fdc2]);
+      const { r, g, b } = this._plyColorFromComponents(components);
+
+      const opacityRaw = idx.opacity >= 0 ? parseFloat(parts[idx.opacity]) : 1.0;
+      const opacity = Number.isFinite(opacityRaw) ? Math.min(1, Math.max(0, opacityRaw)) : 1.0;
+      const scale0 = idx.scale0 >= 0 ? parseFloat(parts[idx.scale0]) : 0;
+      const scale1 = idx.scale1 >= 0 ? parseFloat(parts[idx.scale1]) : 0;
+      const scale2 = idx.scale2 >= 0 ? parseFloat(parts[idx.scale2]) : 0;
+      const rot0 = idx.rot0 >= 0 ? parseFloat(parts[idx.rot0]) : 0;
+      const rot1 = idx.rot1 >= 0 ? parseFloat(parts[idx.rot1]) : 0;
+      const rot2 = idx.rot2 >= 0 ? parseFloat(parts[idx.rot2]) : 0;
+      const rot3 = idx.rot3 >= 0 ? parseFloat(parts[idx.rot3]) : 1;
+
+      points.push({
+        x,
+        y: -y,
+        z,
+        r,
+        g,
+        b,
+        opacity,
+        scale: [scale0, scale1, scale2],
+        rotation: [rot0, rot1, rot2, rot3],
+      });
+      if (points.length >= totalVertices) break;
+    }
+    return this._plyDownsample(points);
+  }
+
+  _parseSplatsPlyBinary(buffer, properties, vertexCount, littleEndian) {
+    if (!(buffer instanceof ArrayBuffer)) {
+      if (ArrayBuffer.isView(buffer)) {
+        buffer = buffer.buffer;
+      } else {
+        console.warn("Binary PLY parser expected ArrayBuffer.");
+        return [];
+      }
+    }
+    const idx = this._plyBuildIndexMap(properties);
+    if (idx.x < 0 || idx.y < 0 || idx.z < 0) {
+      console.warn("PLY file does not define x/y/z properties.");
+      return [];
+    }
+
+    const view = new DataView(buffer);
+    const stride = properties.reduce((sum, prop) => sum + prop.size, 0);
+    if (!stride) {
+      console.warn("Invalid stride computed for PLY vertex data.");
+      return [];
+    }
+    const availableVertices = Math.floor(view.byteLength / stride);
+    const totalVertices = vertexCount ? Math.min(vertexCount, availableVertices) : availableVertices;
+    const points = [];
+    let offset = 0;
+    for (let i = 0; i < totalVertices; i++) {
+      let x, y, z;
+      let red, green, blue;
+      let fdc0, fdc1, fdc2;
+      let opacity = 1.0;
+      let scale0 = 0, scale1 = 0, scale2 = 0;
+      let rot0 = 0, rot1 = 0, rot2 = 0, rot3 = 1;
+      for (const prop of properties) {
+        const value = this._plyReadValue(view, offset, prop.type, littleEndian);
+        offset += prop.size;
+        switch (prop.name) {
+          case "x": x = value; break;
+          case "y": y = value; break;
+          case "z": z = value; break;
+          case "red": red = value; break;
+          case "green": green = value; break;
+          case "blue": blue = value; break;
+          case "f_dc_0": fdc0 = value; break;
+          case "f_dc_1": fdc1 = value; break;
+          case "f_dc_2": fdc2 = value; break;
+          case "opacity": opacity = value; break;
+          case "scale_0": scale0 = value; break;
+          case "scale_1": scale1 = value; break;
+          case "scale_2": scale2 = value; break;
+          case "rot_0": rot0 = value; break;
+          case "rot_1": rot1 = value; break;
+          case "rot_2": rot2 = value; break;
+          case "rot_3": rot3 = value; break;
+          default: break;
+        }
+      }
+      if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) continue;
+      const { r, g, b } = this._plyColorFromComponents({ red, green, blue, fdc0, fdc1, fdc2 });
+      const alpha = Number.isFinite(opacity) ? Math.min(1, Math.max(0, opacity)) : 1.0;
+      points.push({
+        x,
+        y: -y,
+        z,
+        r,
+        g,
+        b,
+        opacity: alpha,
+        scale: [scale0, scale1, scale2],
+        rotation: [rot0, rot1, rot2, rot3 || 1],
+      });
+    }
+    return this._plyDownsample(points);
+  }
+
+  _plyBuildIndexMap(properties) {
+    const find = (name) => properties.findIndex(p => p.name === name);
+    return {
+      x: find("x"),
+      y: find("y"),
+      z: find("z"),
+      red: find("red"),
+      green: find("green"),
+      blue: find("blue"),
+      fdc0: find("f_dc_0"),
+      fdc1: find("f_dc_1"),
+      fdc2: find("f_dc_2"),
+      opacity: find("opacity"),
+      scale0: find("scale_0"),
+      scale1: find("scale_1"),
+      scale2: find("scale_2"),
+      rot0: find("rot_0"),
+      rot1: find("rot_1"),
+      rot2: find("rot_2"),
+      rot3: find("rot_3"),
+    };
+  }
+
+  _plyColorFromComponents(components) {
+    const clamp01 = (v) => Math.min(1, Math.max(0, v));
+    const { red, green, blue, fdc0, fdc1, fdc2 } = components;
+    if ([red, green, blue].every(v => typeof v === "number" && Number.isFinite(v))) {
+      return {
+        r: clamp01(red / 255),
+        g: clamp01(green / 255),
+        b: clamp01(blue / 255),
+      };
+    }
+    if ([fdc0, fdc1, fdc2].every(v => typeof v === "number" && Number.isFinite(v))) {
+      const SH_C0 = 0.28209479177387814;
+      return {
+        r: clamp01(0.5 + SH_C0 * fdc0),
+        g: clamp01(0.5 + SH_C0 * fdc1),
+        b: clamp01(0.5 + SH_C0 * fdc2),
+      };
+    }
+    return { r: 0.6, g: 0.6, b: 0.6 };
+  }
+
+  _plyDownsample(points, maxPoints = 200000) {
+    if (points.length <= maxPoints) return points;
+    const step = Math.ceil(points.length / maxPoints);
+    const sampled = [];
+    for (let i = 0; i < points.length; i += step) {
+      sampled.push(points[i]);
+    }
+    return sampled;
+  }
+
+  _plyTypeSize(type) {
+    const key = (type || "").toLowerCase();
+    switch (key) {
+      case "char":
+      case "uchar":
+      case "int8":
+      case "uint8":
+        return 1;
+      case "short":
+      case "ushort":
+      case "int16":
+      case "uint16":
+        return 2;
+      case "int":
+      case "uint":
+      case "float":
+      case "float32":
+      case "int32":
+      case "uint32":
+        return 4;
+      case "double":
+      case "float64":
+      case "int64":
+      case "uint64":
+        return 8;
+      default:
+        return 0;
+    }
+  }
+
+  _plyReadValue(view, offset, type, littleEndian) {
+    const key = (type || "").toLowerCase();
+    switch (key) {
+      case "char":
+      case "int8":
+        return view.getInt8(offset);
+      case "uchar":
+      case "uint8":
+        return view.getUint8(offset);
+      case "short":
+      case "int16":
+        return view.getInt16(offset, littleEndian);
+      case "ushort":
+      case "uint16":
+        return view.getUint16(offset, littleEndian);
+      case "int":
+      case "int32":
+        return view.getInt32(offset, littleEndian);
+      case "uint":
+      case "uint32":
+        return view.getUint32(offset, littleEndian);
+      case "float":
+      case "float32":
+        return view.getFloat32(offset, littleEndian);
+      case "double":
+      case "float64":
+        return view.getFloat64(offset, littleEndian);
+      case "int64":
+      case "uint64":
+        {
+          let high;
+          let low;
+          if (littleEndian) {
+            low = view.getUint32(offset, true);
+            high = view.getInt32(offset + 4, true);
+          } else {
+            high = view.getInt32(offset, false);
+            low = view.getUint32(offset + 4, false);
+          }
+          return high * 2 ** 32 + low;
+        }
+      default:
+        return 0;
+    }
+  }
+
+  async _fetchResource(url, kind = "text", fetchOpts = {}) {
+    if (!url) {
+      return kind === "arrayBuffer" ? new ArrayBuffer(0) : "";
+    }
+    const key = `${kind}:${url}`;
+    if (this.resourceCache.has(key)) {
+      const cached = this.resourceCache.get(key);
+      if (kind === "arrayBuffer") {
+        return cached.slice(0);
+      }
+      return cached;
+    }
+    const response = await fetch(url, fetchOpts);
+    if (!response.ok) {
+      throw new Error(`Failed to load ${url}`);
+    }
+    if (kind === "arrayBuffer") {
+      const buffer = await response.arrayBuffer();
+      this._rememberResource(key, buffer);
+      return buffer.slice(0);
+    }
+    const text = await response.text();
+    this._rememberResource(key, text);
+    return text;
+  }
+
+  _rememberResource(key, value) {
+    this.resourceCache.set(key, value);
+    if (this.resourceCache.size > this.resourceCacheLimit) {
+      const firstKey = this.resourceCache.keys().next().value;
+      this.resourceCache.delete(firstKey);
+    }
+  }
+
+  _rememberParsed(cache, key, value, limit) {
+    if (!cache || !key) return;
+    cache.set(key, value);
+    while (cache.size > limit) {
+      const oldestKey = cache.keys().next().value;
+      if (oldestKey === key && cache.size === 1) break;
+      cache.delete(oldestKey);
+    }
   }
 
   _sceneExtent() {
@@ -390,13 +1109,22 @@ async function boot() {
     cameraCount: document.getElementById("statCameras"),
     pointCount: document.getElementById("statPoints"),
     imageName: document.getElementById("statImageName"),
+    splatCount: document.getElementById("statSplats"),
+    sceneGroup: statsRoot?.querySelector('[data-mode="scene"]') ?? null,
+    splatGroup: statsRoot?.querySelector('[data-mode="splat"]') ?? null,
   });
+  viewer.setLoadingElements({
+    overlay: document.getElementById("loadingOverlay"),
+    bar: document.getElementById("loadingProgress"),
+    message: document.getElementById("loadingMessage"),
+  });
+  viewer.setHudElement(document.getElementById("hud"));
 
   let allItems = [];
 
   try {
     const data = await fetch("/api/scenes").then(r => r.ok ? r.json() : Promise.reject(`Fetch failed: ${r.statusText}`));
-    info.textContent = `${data.count} reconstructions found in ${data.base_dir}`;
+    info.textContent = `${data.count} items found in ${data.base_dir}`;
     allItems = data.items.map((item, index) => ({ ...item, originalIndex: index }));
   } catch (error) {
     info.textContent = "Error loading reconstruction data.";
@@ -432,7 +1160,7 @@ async function boot() {
         const finalFolderName = item.rel_path.split('/').pop() || item.label;
         html += `
           <li>
-            <div class="item" data-idx="${item.originalIndex}">
+            <div class="item" data-idx="${item.originalIndex}" data-kind="${item.kind || "scene"}">
               <div>${finalFolderName}</div>
               <small>${item.rel_path}</small>
             </div>
@@ -448,7 +1176,7 @@ async function boot() {
     const needle = query.trim().toLowerCase();
     const filtered = allItems.filter(it => it.label.toLowerCase().includes(needle));
     if (filtered.length === 0) {
-      listEl.innerHTML = '<div style="padding: 20px; text-align: center; color: #64748b;">No scenes found.</div>';
+      listEl.innerHTML = '<div style="padding: 20px; text-align: center; color: #64748b;">No items found.</div>';
       return;
     }
     const sceneTree = buildTree(filtered);
@@ -461,7 +1189,11 @@ async function boot() {
         const item = allItems.find(it => it.originalIndex === originalIndex);
         if (item) {
           console.log("Loading scene:", item);
-          await viewer.loadScene({ pointsUrl: item.points, imagesUrl: item.images });
+          if ((item.kind || "scene") === "splat") {
+            await viewer.loadSplatsFile({ splatsUrl: item.splats, label: item.label });
+          } else {
+            await viewer.loadScene({ pointsUrl: item.points, imagesUrl: item.images, splatsUrl: item.splats });
+          }
         }
       };
     });
@@ -469,7 +1201,7 @@ async function boot() {
 
 
   // Default search term
-  filterEl.value = "ba_output";
+  filterEl.value = "";
   renderList(filterEl.value);
   if (allItems.length > 0 && !filterEl.value) {
     const first = listEl.querySelector(".item");
