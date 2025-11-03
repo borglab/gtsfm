@@ -43,11 +43,13 @@ class ClusterAnySplat(ClusterOptimizerBase):
         local_files_only: bool | None = None,  # TODO(Frank): remove, True if path, False otherwise
         weights_path: str | Path | None = None,
         model_cache_key: Hashable | None = None,
+        max_num_points: int | None = None,
     ):
         """."""
         super().__init__()
         self._model = None
         self._device = torch_utils.default_device()
+        self._max_gaussians = max_num_points
         if model_loader is not None:
             self._model_loader = model_loader
             self._model_cache_key = model_cache_key
@@ -155,8 +157,22 @@ class ClusterAnySplat(ClusterOptimizerBase):
             )
 
         logger.info("Adding Gaussian means to GtsfmData as 3D tracks.")
-        splats_means = splats.means[0].cpu().numpy()
-        dc_color = splats.harmonics[..., 0][0]
+        splats_means = splats.means[0].cpu().numpy()  # type: ignore
+        dc_color = splats.harmonics[..., 0][0]  # type: ignore
+
+        logger.info("max gaussians %s", self._max_gaussians)
+        if self._max_gaussians is not None and splats.opacities.shape[1] > self._max_gaussians:
+            logger.info(f"Filtering Gaussians to {self._max_gaussians}")
+
+            op = splats.opacities[0]
+            K = min(self._max_gaussians, op.numel())
+
+            topk = torch.topk(op, k=K, largest=True, sorted=True)
+            idx = topk.indices.to(splats.means.device).long()
+
+            splats_means = splats.means[:, idx, :][0].cpu().numpy()
+
+            dc_color = splats.harmonics[:, idx, :, :][..., 0][0]
 
         colors_tensor = (dc_color * _SH0_NORMALIZATION_FACTOR + 0.5).clamp(0.0, 1.0)
         colors_np = (colors_tensor * 255).cpu().numpy()

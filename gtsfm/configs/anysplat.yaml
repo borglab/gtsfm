@@ -28,3 +28,4 @@ cluster_optimizer:
   _target_: gtsfm.cluster_optimizer.cluster_anysplat.ClusterAnySplat
   local_files_only: null
   weights_path: null
+  max_num_points: 100000

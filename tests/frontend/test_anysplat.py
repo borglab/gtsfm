@@ -3,9 +3,11 @@
 Authors: Frank Dellaert
 """
 
-from pathlib import Path
 import unittest
+from pathlib import Path
 from unittest import mock
+
+import torch
 
 from gtsfm.cluster_optimizer.cluster_anysplat import ClusterAnySplat
 from gtsfm.utils import anysplat
@@ -55,7 +57,7 @@ class ClusterAnySplatTest(unittest.TestCase):
             with self.assertRaisesRegex(ImportError, r"anysplat.*could not be imported"):
                 anysplat.load_model()
 
-    @mock.patch("gtsfm.cluster_optimizer.cluster_anysplat.load_model")
+    @mock.patch("gtsfm.utils.anysplat.load_model")
     def test_local_files_only_flag_forwarded(self, mocked_loader) -> None:
         """Ensure hydra flag is forwarded to the default model loader."""
 
@@ -64,9 +66,9 @@ class ClusterAnySplatTest(unittest.TestCase):
 
         optimizer._ensure_model_loaded()
 
-        mocked_loader.assert_called_once_with(local_files_only=True)
+        mocked_loader.assert_called_once_with(device=torch.device("cuda"), local_files_only=True)
 
-    @mock.patch("gtsfm.cluster_optimizer.cluster_anysplat.load_model")
+    @mock.patch("gtsfm.utils.anysplat.load_model")
     def test_weights_path_implies_local_only(self, mocked_loader) -> None:
         """Explicit checkpoints should be loaded from disk without extra flags."""
 
@@ -76,10 +78,10 @@ class ClusterAnySplatTest(unittest.TestCase):
         optimizer._ensure_model_loaded()
 
         mocked_loader.assert_called_once_with(
-            checkpoint_path=Path("/tmp/fake/model"), local_files_only=True
+            device=torch.device("cuda"), checkpoint_path=Path("/tmp/fake/model"), local_files_only=True
         )
 
-    @mock.patch("gtsfm.cluster_optimizer.cluster_anysplat.load_model")
+    @mock.patch("gtsfm.utils.anysplat.load_model")
     def test_model_cache_reused_across_instances(self, mocked_loader) -> None:
         """Verify workers reuse the cached model instead of reloading per cluster."""
 
@@ -92,7 +94,7 @@ class ClusterAnySplatTest(unittest.TestCase):
         optimizer_one._ensure_model_loaded()
         optimizer_two._ensure_model_loaded()
 
-        mocked_loader.assert_called_once_with(local_files_only=True)
+        mocked_loader.assert_called_once_with(device=torch.device("cuda"), local_files_only=True)
         self.assertIs(optimizer_two._model, cached_model)
         self.assertIs(optimizer_one._model, optimizer_two._model)
 
