@@ -54,12 +54,14 @@ from gtsfm.frontend.anysplat import (
     batchify_unproject_depth_map_to_point_map as _anysplat_batchify_unproject,
 )  # type: ignore
 
+DEFAULT_FIXED_RESOLUTION = 518
+
 
 @dataclass
 class VGGTReconstructionConfig:
     """Configuration for the high-level VGGT reconstruction pipeline."""
 
-    vggt_fixed_resolution: int = 518
+    vggt_fixed_resolution: int = DEFAULT_FIXED_RESOLUTION
     img_load_resolution: int = 1024
     max_query_pts: int = 1000
     query_frame_num: int = 4
@@ -84,7 +86,7 @@ class VGGTInferenceResult:
     intrinsic: torch.Tensor
     depth_map: torch.Tensor
     depth_confidence: torch.Tensor
-    dense_points: Optional[torch.Tensor] = None
+    dense_points: torch.Tensor
 
 
 @dataclass
@@ -93,7 +95,7 @@ class VGGTReconstructionResult:
 
     gtsfm_data: GtsfmData
     points_3d: np.ndarray
-    points_rgb: Optional[np.ndarray]
+    points_rgb: np.ndarray
 
 
 def default_dtype(device: torch.device) -> torch.dtype:
@@ -188,19 +190,11 @@ def _convert_measurement_to_original_resolution(
     return u, v
 
 
-def _unproject_to_colored_points(
+def _high_confidence_pointcloud(
     config: VGGTReconstructionConfig, inference: VGGTInferenceResult
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Convert raw VGGT predictions into point attributes."""
-    if inference.dense_points is not None:
-        points_3d = inference.dense_points.to(torch.float32).cpu().numpy()
-    else:
-        logger.warning("Using CPU un-projection for VGGT point cloud generation.")
-        extrinsic_np = inference.extrinsic.to(torch.float32).cpu().numpy()
-        intrinsic_np = inference.intrinsic.to(torch.float32).cpu().numpy()
-        depth_map_np = inference.depth_map.to(torch.float32).cpu().numpy()
-        points_3d = unproject_depth_map_to_point_map(depth_map_np, extrinsic_np, intrinsic_np)
-
+    points_3d = inference.dense_points.to(torch.float32).cpu().numpy()
     points_rgb = (inference.resized_images.to(torch.float32).cpu().numpy().transpose(0, 2, 3, 1) * 255).astype(np.uint8)
 
     depth_conf_np = inference.depth_confidence.to(torch.float32).cpu().numpy()
@@ -252,7 +246,7 @@ def _convert_vggt_outputs_to_gtsfm_data(
 
 
 def run_reconstruction(
-    image_batch: torch.Tensor,
+    images: torch.Tensor,
     *,
     image_indices: Sequence[int],
     image_names: Optional[Sequence[str]] = None,
@@ -261,7 +255,22 @@ def run_reconstruction(
     model: Optional[VGGT] = None,
     weights_path: PathLike | None = None,
 ) -> VGGTReconstructionResult:
-    """Run VGGT on a batch of images and convert outputs to ``GtsfmData``."""
+    """Run VGGT on a batch of images and convert outputs to ``GtsfmData``.
+
+    Args:
+        images: Tensor shaped ``(num_frames, 3, H, W)`` at the *square* VGGT load resolution. You can
+            obtain this tensor by calling ``load_and_preprocess_images_square`` prior to interpolation.
+        image_indices: Sequence of global image indices corresponding to the provided ``images`` batch.
+        image_names: Optional sequence of image filenames corresponding to the provided ``images`` batch.
+        original_coords: Tensor shaped ``(num_frames, 6)`` giving the original image crop metadata
+            for each image in ``images``. Each row is ``(x1, y1, x2, y2, width, height)``.
+        config: Optional :class:`VGGTReconstructionConfig`.
+        model: Optional pre-loaded VGGT model. If ``None``, the model is loaded from ``weights_path``.
+        weights_path: Optional path to VGGT checkpoint. Ignored if ``model`` is provided.
+
+    Returns:
+        :class:`VGGTReconstructionResult` containing the reconstructed ``GtsfmData`` and point cloud.
+    """
     cfg = config or VGGTReconstructionConfig()
 
     torch.manual_seed(cfg.seed)
@@ -270,15 +279,9 @@ def run_reconstruction(
         torch.cuda.manual_seed(cfg.seed)
         torch.cuda.manual_seed_all(cfg.seed)
 
-    vggt_output = run_VGGT(
-        image_batch,
-        config=cfg,
-        model=model,
-        weights_path=weights_path,
-        return_dense_points=True,
-    )
+    vggt_output = run_VGGT(images, config=cfg, model=model, weights_path=weights_path)
 
-    points_3d, points_rgb = _unproject_to_colored_points(cfg, vggt_output)
+    points_3d, points_rgb = _high_confidence_pointcloud(cfg, vggt_output)
 
     gtsfm_data = _convert_vggt_outputs_to_gtsfm_data(
         config=cfg,
@@ -298,27 +301,22 @@ def run_reconstruction(
 
 
 def run_VGGT(
-    image_batch: torch.Tensor,
+    images: torch.Tensor,
     *,
     config: Optional[VGGTReconstructionConfig] = None,
-    device: Optional[Union[str, torch.device]] = None,
-    dtype: Optional[torch.dtype] = None,
     model: Optional[VGGT] = None,
     weights_path: PathLike | None = None,
-    return_dense_points: bool = True,
 ) -> VGGTInferenceResult:
     """Run VGGT on a batch of images and return raw model predictions.
 
     Set ``return_dense_points`` to ``True`` to additionally compute the full per-pixel
     point cloud using the optional AnySplat acceleration path (when available).
     """
-    if image_batch.ndim != 4 or image_batch.shape[1] != 3:
+    if images.ndim != 4 or images.shape[1] != 3:
         raise ValueError("VGGT expects images shaped as (N, 3, H, W).")
 
-    cfg = config or VGGTReconstructionConfig()
-
-    resolved_device = torch_utils.default_device(device)
-    resolved_dtype = dtype or default_dtype(resolved_device)
+    resolved_device = torch_utils.default_device()
+    resolved_dtype = default_dtype(resolved_device)
 
     if model is None:
         model = load_model(weights_path, device=resolved_device, dtype=resolved_dtype)
@@ -331,21 +329,15 @@ def run_VGGT(
         model.eval()
 
     assert model is not None
-    image_batch = image_batch.to(resolved_device, dtype=resolved_dtype)
-    inference_resolution = cfg.vggt_fixed_resolution
-    resized_images = F.interpolate(
-        image_batch,
-        size=(inference_resolution, inference_resolution),
-        mode="bilinear",
-        align_corners=False,
-    )
+    images = images.to(resolved_device, dtype=resolved_dtype)
+    res = config.vggt_fixed_resolution if config else DEFAULT_FIXED_RESOLUTION
+    resized_images = F.interpolate(images, size=(res, res), mode="bilinear")
 
     if resolved_device.type == "cuda":
         autocast_ctx: Any = amp_autocast("cuda", dtype=resolved_dtype)
     else:
         autocast_ctx = nullcontext()
 
-    dense_points: Optional[torch.Tensor] = None
     with torch.no_grad():
         with autocast_ctx:
             batched = resized_images.unsqueeze(0)  # make into (training) batch of 1
@@ -354,11 +346,8 @@ def run_VGGT(
             extrinsic, intrinsic = pose_encoding_to_extri_intri(pose_enc, batched.shape[-2:])
             depth_map, depth_conf = model.depth_head(tokens, batched, ps_idx)
 
-            if return_dense_points:
-                if _anysplat_batchify_unproject is not None:
-                    dense_points = _anysplat_batchify_unproject(depth_map, extrinsic, intrinsic)
-                else:
-                    logger.warning("GPU batch un-projection requested but AnySplat dependency is unavailable.")
+            assert _anysplat_batchify_unproject is not None, "Anysplat dependencies not available"
+            dense_points = _anysplat_batchify_unproject(depth_map, extrinsic, intrinsic)
 
     depth_confidence = depth_conf.squeeze(0)
     if depth_confidence.ndim == 4 and depth_confidence.shape[-1] == 1:
@@ -372,7 +361,7 @@ def run_VGGT(
         intrinsic=intrinsic.squeeze(0),
         depth_map=depth_map.squeeze(0),
         depth_confidence=depth_confidence,
-        dense_points=dense_points.squeeze(0) if dense_points is not None else None,
+        dense_points=dense_points.squeeze(0),
     )
 
 
@@ -416,12 +405,7 @@ def _import_predict_tracks():
 
 
 def run_vggt_tracking(
-    images: torch.Tensor,
-    *,
-    depth_confidence: Optional[Union[np.ndarray, torch.Tensor]] = None,
-    dense_points_3d: Optional[Union[np.ndarray, torch.Tensor]] = None,
-    config: Optional[VGGTReconstructionConfig] = None,
-    tracker_kwargs: Optional[dict[str, Any]] = None,
+    images: torch.Tensor, inference: VGGTInferenceResult, *, config: Optional[VGGTReconstructionConfig] = None
 ) -> VGGTTrackingResult:
     """Generate dense feature tracks using the VGGSfM tracker shipped with VGGT.
 
@@ -429,13 +413,8 @@ def run_vggt_tracking(
         images: Tensor shaped ``(num_frames, 3, H, W)`` at the *square* VGGT load resolution. You can reuse
             the ``images`` tensor that you passed into :func:`run_reconstruction`; typically this is the output
             from ``load_and_preprocess_images_square`` prior to interpolation.
-        depth_confidence: Optional dense confidence volume produced by VGGT's depth head. When using the value
-            returned from :func:`run_reconstruction`, pass the ``depth_conf_np`` array you stored before calling
-            :func:`_unproject_to_colored_points`. The tensor is expected to align with ``images`` spatially, i.e.
-            be square with shape ``(num_frames, 1, H, W)``.
-        dense_points_3d: Optional dense point cloud in VGGT's inference frame. Provide the per-pixel 3D points
-            prior to the outlier pruning applied in :func:`_unproject_to_colored_points` so that the tracker can
-            look up metric depth at query locations. The expected shape is ``(num_frames, H, W, 3)``.
+        inference: Output from :func:`run_VGGT`. The ``depth_confidence`` and optional ``dense_points`` tensors
+            are consumed directly, avoiding redundant transfers or recomputation.
         config: Optional :class:`VGGTReconstructionConfig`. We reuse the existing configuration container because
             it already captures the tracker-specific parameters (``max_query_pts``, ``query_frame_num``, etc.).
         tracker_kwargs: Optional dictionary to override individual keyword arguments passed to the underlying
@@ -449,19 +428,9 @@ def run_vggt_tracking(
         crop using :func:`_convert_measurement_to_original_resolution` if you plan to add them to ``GtsfmData``.
 
     Example:
-        >>> vggt_output = run_VGGT(image_batch, model=model, dtype=dtype)
-        >>> dense_points = unproject_depth_map_to_point_map(
-        ...     vggt_output.depth_map,
-        ...     vggt_output.extrinsic,
-        ...     vggt_output.intrinsic,
-        ... )
+        >>> vggt_output = run_VGGT(image_batch, model=model, dtype=dtype, return_dense_points=True)
         >>> cfg = VGGTReconstructionConfig()
-        >>> tracking = run_vggt_tracking(
-        ...     images=image_batch,
-        ...     depth_confidence=vggt_output.depth_confidence,
-        ...     dense_points_3d=dense_points,
-        ...     config=cfg,
-        ... )
+        >>> tracking = run_vggt_tracking(image_batch, vggt_output, config=cfg)
         >>> high_quality = tracking.visibilities > cfg.vis_thresh
         >>> first_track_pixels = tracking.tracks[:, 0]
     """
@@ -469,42 +438,26 @@ def run_vggt_tracking(
     cfg = config or VGGTReconstructionConfig()
     predict_tracks = _import_predict_tracks()
 
+    # We will track on whatever device the images are already on.
+    # TODO(Frank): maybe we should enforce GPU here?
     device = images.device
     dtype = images.dtype
-
-    def _to_matching_tensor(value: Optional[Union[np.ndarray, torch.Tensor]]) -> Optional[torch.Tensor]:
-        if value is None:
-            return None
-        if isinstance(value, torch.Tensor):
-            return value.to(device=device, dtype=dtype)
-        return torch.from_numpy(value).to(device=device, dtype=dtype)
-
-    conf_tensor = _to_matching_tensor(depth_confidence)
-    points_tensor = _to_matching_tensor(dense_points_3d)
-
-    tracker_args: dict[str, Any] = {
-        "max_query_pts": cfg.max_query_pts,
-        "query_frame_num": cfg.query_frame_num,
-        "keypoint_extractor": cfg.keypoint_extractor,
-        "fine_tracking": cfg.fine_tracking,
-    }
-    if tracker_kwargs:
-        tracker_args.update(tracker_kwargs)
+    conf_tensor = inference.depth_confidence.to(device=device, dtype=dtype)
+    points_tensor = inference.dense_points.to(device=device, dtype=dtype)
 
     tracks, vis_scores, confidences, points_3d, colors = predict_tracks(
         images,
         conf=conf_tensor,
         points_3d=points_tensor,
-        masks=None,
-        **tracker_args,
+        masks=None,  # ignored anyway !
+        max_query_pts=cfg.max_query_pts,
+        query_frame_num=cfg.query_frame_num,
+        keypoint_extractor=cfg.keypoint_extractor,
+        fine_tracking=cfg.fine_tracking,
     )
 
     return VGGTTrackingResult(
-        tracks=tracks,
-        visibilities=vis_scores,
-        confidences=confidences,
-        points_3d=points_3d,
-        colors=colors,
+        tracks=tracks, visibilities=vis_scores, confidences=confidences, points_3d=points_3d, colors=colors
     )
 
 
