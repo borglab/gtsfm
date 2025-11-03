@@ -58,6 +58,7 @@ def _resolve_vggt_model(cache_key: Hashable | None, loader_kwargs: dict[str, Any
     loader_kwargs = loader_kwargs or {}
     model = vggt.load_model(**loader_kwargs)
     _VGGT_MODEL_CACHE[cache_key] = model
+    logger.info("✅ VGGT model weights loaded successfully.")
     return model
 
 
