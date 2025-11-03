@@ -60,18 +60,20 @@ DEFAULT_FIXED_RESOLUTION = 518
 class VggtConfiguration:
     """Configuration for the high-level VGGT reconstruction pipeline."""
 
-    vggt_fixed_resolution: int = DEFAULT_FIXED_RESOLUTION
     img_load_resolution: int = 1024
-    max_query_pts: int = 1000
-    query_frame_num: int = 4
-    fine_tracking: bool = True
-    vis_thresh: float = 0.2
-    max_reproj_error: float = 8.0
+    vggt_fixed_resolution: int = DEFAULT_FIXED_RESOLUTION
+    seed: int = 42
     confidence_threshold: float = 5.0
     max_num_points: int = 100000
-    shared_camera: bool = False
+
+    # Tracking-specific parameters:
+    tracking: bool = False
+    max_query_pts: int = 1000
+    query_frame_num: int = 4
     keypoint_extractor: str = "aliked+sp"
-    seed: int = 42
+    fine_tracking: bool = True
+    vis_thresh: float = 0.2
+    max_reproj_error: float = 8.0  # TODO(Frank): Does not seem to be used
 
 
 @dataclass

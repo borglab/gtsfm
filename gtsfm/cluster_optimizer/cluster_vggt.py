@@ -124,7 +124,6 @@ class ClusterVGGT(ClusterOptimizerBase):
         inference_resolution: int = 518,
         conf_threshold: float = 5.0,
         max_num_points: int = 100000,
-        shared_camera: bool = False,
         camera_type: str = "PINHOLE",
         seed: int = 42,
         copy_results_to_react: bool = True,
@@ -142,7 +141,6 @@ class ClusterVGGT(ClusterOptimizerBase):
         self._inference_resolution = inference_resolution
         self._conf_threshold = conf_threshold
         self._max_points_for_colmap = max_num_points
-        self._shared_camera = shared_camera
         self._camera_type = camera_type
         self._seed = seed
         self._copy_results_to_react = copy_results_to_react
@@ -163,7 +161,6 @@ class ClusterVGGT(ClusterOptimizerBase):
             f"weights_path={self._weights_path}",
             f"image_load_resolution={self._image_load_resolution}",
             f"inference_resolution={self._inference_resolution}",
-            f"shared_camera={self._shared_camera}",
             f"camera_type={self._camera_type}",
         ]
         return "ClusterVGGT(\n  " + ",\n  ".join(str(c) for c in components) + "\n)"
@@ -198,7 +195,6 @@ class ClusterVGGT(ClusterOptimizerBase):
             img_load_resolution=self._image_load_resolution,
             confidence_threshold=self._conf_threshold,
             max_num_points=self._max_points_for_colmap,
-            shared_camera=self._shared_camera,
         )
 
         image_batch_graph, original_coords_graph = delayed(_load_vggt_inputs, nout=2)(

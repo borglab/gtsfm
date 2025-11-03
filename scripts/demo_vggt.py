@@ -97,12 +97,6 @@ def add_common_vggt_args(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
         help="Reprojection error threshold (in pixels) when filtering VGGSfM tracks for BA.",
     )
     parser.add_argument(
-        "--shared_camera",
-        action="store_true",
-        default=False,
-        help="Use a single shared camera model for all frames instead of per-view cameras.",
-    )
-    parser.add_argument(
         "--camera_type",
         type=str,
         default="SIMPLE_PINHOLE",
@@ -195,7 +189,6 @@ def demo_fn(args: argparse.Namespace) -> bool:
         vis_thresh=args.vis_thresh,
         max_reproj_error=args.max_reproj_error,
         confidence_threshold=args.confidence_threshold,
-        shared_camera=args.shared_camera,
     )
 
     image_indices = list(range(1, len(image_path_list) + 1))

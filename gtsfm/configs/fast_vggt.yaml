@@ -31,7 +31,6 @@ cluster_optimizer:
   inference_resolution: 392
   conf_threshold: 2.0
   max_num_points: 50000
-  shared_camera: false
   camera_type: PINHOLE
   seed: 42
   copy_results_to_react: true
