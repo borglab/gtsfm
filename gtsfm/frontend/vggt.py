@@ -193,9 +193,7 @@ def load_model(
         hint = "Ensure your thirdparty/vggt checkout provides the requested functionality."
         if ctor_kwargs and not _USING_FASTVGGT:
             hint += " (FastVGGT submodule is required for options such as 'merging'.)"
-        raise TypeError(
-            f"Failed to construct VGGT with custom arguments {ctor_kwargs}. {hint}"
-        ) from exc
+        raise TypeError(f"Failed to construct VGGT with custom arguments {ctor_kwargs}. {hint}") from exc
     state_dict = torch.load(checkpoint, map_location="cpu")
     missing, unexpected = model.load_state_dict(state_dict, strict=False)
     if unexpected:
