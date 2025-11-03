@@ -627,12 +627,16 @@ def run_vggt_tracking(
         crop using :func:`_convert_measurement_to_original_resolution` if you plan to add them to ``GtsfmData``.
 
     Example:
-        >>> extrinsic, intrinsic, depth_map, depth_conf = run_VGGT(model, image_batch, dtype)
-        >>> dense_points = unproject_depth_map_to_point_map(depth_map, extrinsic, intrinsic)
+        >>> vggt_output = run_VGGT(image_batch, model=model, dtype=dtype)
+        >>> dense_points = unproject_depth_map_to_point_map(
+        ...     vggt_output.depth_map,
+        ...     vggt_output.extrinsic,
+        ...     vggt_output.intrinsic,
+        ... )
         >>> cfg = VGGTReconstructionConfig()
         >>> tracking = run_vggt_tracking(
         ...     images=image_batch,
-        ...     depth_confidence=depth_conf,
+        ...     depth_confidence=vggt_output.depth_confidence,
         ...     dense_points_3d=dense_points,
         ...     config=cfg,
         ... )
