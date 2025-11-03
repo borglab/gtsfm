@@ -204,7 +204,6 @@ class ClusterVGGT(ClusterOptimizerBase):
             max_query_pts=self._tracking_max_query_pts,
             query_frame_num=self._tracking_query_frame_num,
             fine_tracking=self._tracking_fine_tracking,
-            tracking=True,
         )
 
         image_batch_graph, original_coords_graph = delayed(_load_vggt_inputs, nout=2)(
