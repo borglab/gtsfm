@@ -45,6 +45,8 @@ class ColmapViewer {
     this.splatsUrl = null;
     this.splatsMesh = null;
     this._splatsLoadingPromise = null;
+    this._activeSplatsToken = null;
+    this._splatsMeshToken = null;
     this.splatsPointCount = 0;
     this.mode = "idle";
 
@@ -64,6 +66,8 @@ class ColmapViewer {
     this.parsedPointsCache = new Map();
     this.parsedCamsCache = new Map();
     this.parsedCacheLimit = 4;
+    this._busyState = null;
+    this._busyListeners = new Set();
 
     this.engine.runRenderLoop(() => this.scene.render());
     window.addEventListener("resize", () => this.engine.resize());
@@ -125,6 +129,49 @@ class ColmapViewer {
       message: message ?? null,
     };
     this._setLoadingState({ active: false, progress: 0 });
+  }
+
+  isBusy() {
+    return !!this._busyState;
+  }
+
+  onBusyChange(listener) {
+    if (typeof listener !== "function") return () => {};
+    this._busyListeners.add(listener);
+    try {
+      listener(this.isBusy(), this._busyState?.reason ?? null);
+    } catch (err) {
+      console.warn("Busy listener threw on registration:", err);
+    }
+    return () => this._busyListeners.delete(listener);
+  }
+
+  _beginBusy(reason = null) {
+    if (this._busyState) {
+      console.warn("Overwriting existing busy state:", this._busyState.reason, "→", reason);
+    }
+    const token = Symbol("busy");
+    this._busyState = { token, reason: reason ?? null };
+    this._notifyBusyChange();
+    return token;
+  }
+
+  _endBusy(token) {
+    if (!this._busyState || this._busyState.token !== token) return;
+    this._busyState = null;
+    this._notifyBusyChange();
+  }
+
+  _notifyBusyChange() {
+    const busy = this.isBusy();
+    const reason = this._busyState?.reason ?? null;
+    for (const listener of this._busyListeners) {
+      try {
+        listener(busy, reason);
+      } catch (err) {
+        console.warn("Busy listener threw:", err);
+      }
+    }
   }
 
   setStatsVisible(value) {
@@ -226,12 +273,13 @@ class ColmapViewer {
   }
 
   async loadScene({ pointsUrl, imagesUrl, splatsUrl = null }) {
-    await this._clear();
-    this.mode = "scene";
-    this.splatsUrl = splatsUrl;
-    this._applyHudMode();
-
+    const busyToken = this._beginBusy("scene");
     try {
+      await this._clear();
+      this.mode = "scene";
+      this.splatsUrl = splatsUrl;
+      this._applyHudMode();
+
       this._setLoadingState({ active: true, message: "Loading reconstruction…", progress: 0 });
 
       const fetchOpts = { cache: "no-store" };
@@ -290,44 +338,59 @@ class ColmapViewer {
       this._setLoadingState({ progress: 1 });
     } finally {
       this._setLoadingState({ active: false });
+      this._endBusy(busyToken);
     }
   }
 
   async loadSplatsFile({ splatsUrl, label = "" }) {
-    await this._clear();
-    this.mode = "splat";
-    this.splatsUrl = splatsUrl;
-    this.currentImageName = label;
-    this._applyHudMode();
-
+    const busyToken = this._beginBusy("splat");
     try {
-      await this._ensureSplatsMesh();
-    } catch (err) {
-      console.warn("Failed to load gaussian splats:", err);
+      await this._clear();
+      this.mode = "splat";
+      this.splatsUrl = splatsUrl;
+      this.currentImageName = label;
+      const token = Symbol("splatsLoad");
+      this._activeSplatsToken = token;
+      this._splatsMeshToken = null;
+      this._applyHudMode();
+
+      try {
+        await this._ensureSplatsMesh(token);
+      } catch (err) {
+        if (this._activeSplatsToken === token) {
+          console.warn("Failed to load gaussian splats:", err);
+          this._renderStats();
+        }
+        return;
+      }
+
+      if (this._activeSplatsToken !== token) {
+        return;
+      }
+
+      if (!this.splatsMesh) {
+        this._renderStats();
+        return;
+      }
+
+      this.pointsCount = 0;
+      this.cameraCount = 0;
       this._renderStats();
-      return;
+
+      const bb = this.splatsMesh.getBoundingInfo().boundingBox;
+      const center = bb.centerWorld.clone();
+      this.sceneCenter = center;
+      this.camera.setTarget(center);
+      const size = Math.max(
+        bb.maximumWorld.x - bb.minimumWorld.x,
+        bb.maximumWorld.y - bb.minimumWorld.y,
+        bb.maximumWorld.z - bb.minimumWorld.z
+      ) || 1.0;
+      this.camera.radius = size * 1.6;
+      this.camera.rebuildAnglesAndRadius?.();
+    } finally {
+      this._endBusy(busyToken);
     }
-
-    if (!this.splatsMesh) {
-      this._renderStats();
-      return;
-    }
-
-    this.pointsCount = 0;
-    this.cameraCount = 0;
-    this._renderStats();
-
-    const bb = this.splatsMesh.getBoundingInfo().boundingBox;
-    const center = bb.centerWorld.clone();
-    this.sceneCenter = center;
-    this.camera.setTarget(center);
-    const size = Math.max(
-      bb.maximumWorld.x - bb.minimumWorld.x,
-      bb.maximumWorld.y - bb.minimumWorld.y,
-      bb.maximumWorld.z - bb.minimumWorld.z
-    ) || 1.0;
-    this.camera.radius = size * 1.6;
-    this.camera.rebuildAnglesAndRadius?.();
   }
 
   async _clear() {
@@ -341,6 +404,9 @@ class ColmapViewer {
     if (this.pointsMesh) { this.pointsMesh.dispose(); this.pointsMesh = null; }
     if (this.pcs) { this.pcs.dispose(); this.pcs = null; }
     this._clearSplats();
+    this._activeSplatsToken = null;
+    this._splatsMeshToken = null;
+    this._splatsLoadingPromise = null;
     this.splatsUrl = null;
     this.splatsPointCount = 0;
     this.sceneCenter = null;
@@ -456,37 +522,65 @@ class ColmapViewer {
       this.splatsMesh = null;
     }
     this._splatsLoadingPromise = null;
+    this._splatsMeshToken = null;
     this.splatsPointCount = 0;
   }
 
-  async _ensureSplatsMesh() {
-    if (!this.splatsUrl) return;
-    if (this.splatsMesh) return;
-    if (this._splatsLoadingPromise) {
-      await this._splatsLoadingPromise;
+  async _ensureSplatsMesh(requestToken = null) {
+    const token = requestToken ?? this._activeSplatsToken;
+    if (!this.splatsUrl || !token) return;
+    if (this.splatsMesh && this._splatsMeshToken === token) return;
+
+    if (this._splatsLoadingPromise?.token === token) {
+      await this._splatsLoadingPromise.promise;
       return;
     }
-    this._setLoadingState({ active: true, message: "Loading splat file…", progress: 0 });
-    this._splatsLoadingPromise = (async () => {
+
+    const isTokenActive = () => this._activeSplatsToken === token && this.mode === "splat";
+    const updateLoading = (payload) => {
+      if (isTokenActive()) this._setLoadingState(payload);
+    };
+
+    updateLoading({ active: true, message: "Loading splat file…", progress: 0 });
+
+    const promise = (async () => {
       const buffer = await this._fetchResource(this.splatsUrl, "arrayBuffer", { cache: "no-store" });
+      if (!isTokenActive()) return;
+
       const splats = this._parseSplatsPly(buffer);
       if (!splats.length) {
-        throw new Error("Parsed gaussian splats contained no points.");
+        if (isTokenActive()) {
+          throw new Error("Parsed gaussian splats contained no points.");
+        }
+        return;
       }
-      this._setLoadingState({ message: "Rendering splats…", progress: 0.15 });
-      await this._createSplatsMesh(splats);
+
+      updateLoading({ message: "Rendering splats…", progress: 0.15 });
+      await this._createSplatsMesh(splats, token);
+
+      if (!isTokenActive()) return;
+
       this.splatsPointCount = splats.length;
-      this._setLoadingState({ progress: 1 });
+      this._renderStats();
+      updateLoading({ progress: 1 });
     })();
+
+    this._splatsLoadingPromise = { token, promise };
+
     try {
-      await this._splatsLoadingPromise;
+      await promise;
     } finally {
-      this._setLoadingState({ active: false });
-      this._splatsLoadingPromise = null;
+      if (this._splatsLoadingPromise?.token === token) {
+        this._splatsLoadingPromise = null;
+      }
+      updateLoading({ active: false });
     }
   }
 
-  async _createSplatsMesh(splats) {
+  async _createSplatsMesh(splats, token = null) {
+    const isTokenActive = () => !token || (this._activeSplatsToken === token && this.mode === "splat");
+    if (!isTokenActive()) return;
+
     const base = BABYLON.MeshBuilder.CreateSphere(
       "splatBase",
       { diameter: 2, segments: 6 },
@@ -509,6 +603,13 @@ class ColmapViewer {
       material.useInstancingColor = true;
     }
     base.material = material;
+
+    const bailIfStale = () => {
+      if (isTokenActive()) return false;
+      material.dispose();
+      base.dispose();
+      return true;
+    };
 
     const matrixBuffer = new Float32Array(splats.length * 16);
     const colorBuffer = new Float32Array(splats.length * 4);
@@ -546,21 +647,27 @@ class ColmapViewer {
       colorBuffer[i * 4 + 3] = opacity;
 
       if (splats.length > 1000 && i % 2000 === 0) {
-        this._updateLoadingProgress(i / splats.length);
+        if (bailIfStale()) return;
+        if (isTokenActive()) this._updateLoadingProgress(i / splats.length);
         await this._yieldFrame();
+        if (bailIfStale()) return;
       }
     }
-    this._updateLoadingProgress(0.98);
+    if (bailIfStale()) return;
+    if (isTokenActive()) this._updateLoadingProgress(0.98);
 
     base.thinInstanceSetBuffer("matrix", matrixBuffer, 16);
     base.thinInstanceSetBuffer("color", colorBuffer, 4);
     base.thinInstanceRefreshBoundingInfo();
     base.setEnabled(true);
-    this._updateLoadingProgress(1.0);
+    if (bailIfStale()) return;
+    if (isTokenActive()) this._updateLoadingProgress(1.0);
     if (splats.length > 1000) {
       await this._yieldFrame();
+      if (bailIfStale()) return;
     }
     this.splatsMesh = base;
+    this._splatsMeshToken = token ?? null;
   }
 
   _parseSplatsPly(buffer) {
@@ -1123,6 +1230,13 @@ async function boot() {
   });
   viewer.setHudElement(document.getElementById("hud"));
 
+  const updateInteractionLock = (busy) => {
+    listEl.classList.toggle("is-disabled", !!busy);
+    if (filterEl) filterEl.disabled = !!busy;
+  };
+  viewer.onBusyChange((busy) => updateInteractionLock(busy));
+  updateInteractionLock(viewer.isBusy());
+
   const setInfoState = ({ count, title, path, isError = false }) => {
     if (!info) return;
     info.classList.toggle("info-error", !!isError);
@@ -1224,17 +1338,17 @@ async function boot() {
     listEl.innerHTML = renderTree(sceneTree);
     listEl.querySelectorAll(".item").forEach(el => {
       el.onclick = async () => {
+        if (viewer.isBusy()) return;
         listEl.querySelectorAll(".item").forEach(n => n.classList.remove("active"));
         el.classList.add("active");
         const originalIndex = parseInt(el.dataset.idx, 10);
         const item = allItems.find(it => it.originalIndex === originalIndex);
-        if (item) {
-          console.log("Loading scene:", item);
-          if ((item.kind || "scene") === "splat") {
-            await viewer.loadSplatsFile({ splatsUrl: item.splats, label: item.label });
-          } else {
-            await viewer.loadScene({ pointsUrl: item.points, imagesUrl: item.images, splatsUrl: item.splats });
-          }
+        if (!item) return;
+        console.log("Loading scene:", item);
+        if ((item.kind || "scene") === "splat") {
+          await viewer.loadSplatsFile({ splatsUrl: item.splats, label: item.label });
+        } else {
+          await viewer.loadScene({ pointsUrl: item.points, imagesUrl: item.images, splatsUrl: item.splats });
         }
       };
     });

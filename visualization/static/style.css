@@ -146,10 +146,28 @@ body {
   box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.15);
 }
 
+#filter:disabled {
+  background: #f8fafc;
+  color: #94a3b8;
+  border-color: rgba(148, 163, 184, 0.5);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
 #sceneList {
   overflow-y: auto;
   flex-grow: 1;
   margin: 0 -10px; /* Counteract item padding */
+}
+
+#sceneList.is-disabled {
+  pointer-events: none;
+  opacity: 0.45;
+  filter: grayscale(0.2);
+}
+
+#sceneList.is-disabled .item {
+  cursor: wait;
 }
 
 /* Hierarchical List Styling */
