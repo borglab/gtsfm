@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Tuple
 
 from dask.distributed import Client, Future
+from gtsam import Similarity3
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
@@ -58,6 +59,7 @@ def combine_results(
     if len(child_results) == 0:
         return current
 
+    logger.info("🫱🏻‍🫲🏽 Merging with %d children", len(child_results))
     merged = current
     for child in child_results:
         if child is None:
@@ -67,15 +69,19 @@ def combine_results(
             continue
         try:
             aSb = align_utils.sim3_from_Pose3_maps(merged.poses(), child.poses())
+        except Exception as exc:
+            logger.warning("⚠️ Failed to align cluster outputs: %s", exc)
+            aSb = Similarity3()
+        try:
             merged = merged.merged_with(child, aSb)
         except Exception as exc:
-            logger.warning("Failed to merge cluster outputs: %s", exc)
+            logger.warning("⚠️ Failed to merge cluster outputs: %s", exc)
     if merged is None:
         return None
     try:
         return BundleAdjustmentOptimizer().run_simple_ba(merged)[0]
     except Exception as e:
-        logger.warning("Failed to run bundle adjustment: %s", e)
+        logger.warning("⚠️ Failed to run bundle adjustment: %s", e)
         return merged
 
 
