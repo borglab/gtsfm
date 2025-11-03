@@ -26,6 +26,5 @@ graph_partitioner:
 
 cluster_optimizer:
   _target_: gtsfm.cluster_optimizer.cluster_anysplat.ClusterAnySplat
-  local_files_only: null
-  weights_path: null
+  local_checkpoint: null
   max_num_points: null

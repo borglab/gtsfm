@@ -40,12 +40,17 @@ class ClusterAnySplat(ClusterOptimizerBase):
         self,
         model_loader: Callable[[], Any] | None = None,
         *,
-        local_files_only: bool | None = None,  # TODO(Frank): remove, True if path, False otherwise
-        weights_path: str | Path | None = None,
+        local_checkpoint: str | Path | None = None,
         model_cache_key: Hashable | None = None,
         max_num_points: int | None = None,
     ):
-        """."""
+        """
+        Initializes the ClusterAnySplat optimizer.
+        Args:
+            model_loader (Callable[[], Any] | None): Optional custom model loader function.
+            local_checkpoint (str | Path | None): Local filesystem path to the model weights checkpoint.
+            model_cache_key (Hashable | None): Key used to cache/reuse the loaded model across worker processes.
+        """
         super().__init__()
         self._model = None
         self._device = torch_utils.default_device()
@@ -55,18 +60,15 @@ class ClusterAnySplat(ClusterOptimizerBase):
             self._model_cache_key = model_cache_key
         else:
             loader_kwargs: dict[str, Any] = {"device": self._device}
-            if weights_path is not None:
-                loader_kwargs["checkpoint_path"] = Path(weights_path)
-                loader_kwargs["local_files_only"] = True if local_files_only is None else local_files_only
-            elif local_files_only is not None:
-                loader_kwargs["local_files_only"] = local_files_only
+            if local_checkpoint is not None:
+                checkpoint_path = local_checkpoint if isinstance(local_checkpoint, Path) else Path(local_checkpoint)
+                loader_kwargs["checkpoint_path"] = checkpoint_path.expanduser()
             self._model_loader = partial(anysplat_utils.load_model, **loader_kwargs)
             if model_cache_key is not None:
                 self._model_cache_key = model_cache_key
             else:
-                cache_local_files_only = loader_kwargs.get("local_files_only")
                 checkpoint = loader_kwargs.get("checkpoint_path")
-                self._model_cache_key = ("default_anysplat_loader", checkpoint, cache_local_files_only)
+                self._model_cache_key = ("default_anysplat_loader", checkpoint)
         if not hasattr(self, "_model_cache_key"):
             self._model_cache_key = None
 

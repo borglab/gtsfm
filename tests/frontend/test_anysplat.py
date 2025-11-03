@@ -7,10 +7,9 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-import torch
-
 from gtsfm.cluster_optimizer.cluster_anysplat import ClusterAnySplat
 from gtsfm.utils import anysplat
+from gtsfm.utils import torch as torch_utils
 
 
 class _DummyAnySplatModel:
@@ -58,28 +57,32 @@ class ClusterAnySplatTest(unittest.TestCase):
                 anysplat.load_model()
 
     @mock.patch("gtsfm.utils.anysplat.load_model")
-    def test_local_files_only_flag_forwarded(self, mocked_loader) -> None:
-        """Ensure hydra flag is forwarded to the default model loader."""
+    def test_default_loader_uses_remote_repo(self, mocked_loader) -> None:
+        """Ensure default loader leaves checkpoint unset so the remote repo is used."""
 
         mocked_loader.return_value = _DummyAnySplatModel()
-        optimizer = ClusterAnySplat(local_files_only=True)
+        optimizer = ClusterAnySplat()
 
         optimizer._ensure_model_loaded()
 
-        mocked_loader.assert_called_once_with(device=torch.device("cuda"), local_files_only=True)
+        mocked_loader.assert_called_once()
+        kwargs = mocked_loader.call_args.kwargs
+        self.assertEqual(kwargs["device"], torch_utils.default_device())
+        self.assertNotIn("checkpoint_path", kwargs)
 
     @mock.patch("gtsfm.utils.anysplat.load_model")
-    def test_weights_path_implies_local_only(self, mocked_loader) -> None:
-        """Explicit checkpoints should be loaded from disk without extra flags."""
+    def test_local_checkpoint_forwarded(self, mocked_loader) -> None:
+        """Explicit checkpoints should be loaded from disk."""
 
         mocked_loader.return_value = _DummyAnySplatModel()
-        optimizer = ClusterAnySplat(weights_path="/tmp/fake/model")
+        optimizer = ClusterAnySplat(local_checkpoint=Path("/tmp/fake/model.pt"))
 
         optimizer._ensure_model_loaded()
 
-        mocked_loader.assert_called_once_with(
-            device=torch.device("cuda"), checkpoint_path=Path("/tmp/fake/model"), local_files_only=True
-        )
+        mocked_loader.assert_called_once()
+        kwargs = mocked_loader.call_args.kwargs
+        self.assertEqual(kwargs["device"], torch_utils.default_device())
+        self.assertEqual(kwargs["checkpoint_path"], Path("/tmp/fake/model.pt"))
 
     @mock.patch("gtsfm.utils.anysplat.load_model")
     def test_model_cache_reused_across_instances(self, mocked_loader) -> None:
@@ -88,13 +91,16 @@ class ClusterAnySplatTest(unittest.TestCase):
         cached_model = _DummyAnySplatModel()
         mocked_loader.return_value = cached_model
 
-        optimizer_one = ClusterAnySplat(local_files_only=True)
-        optimizer_two = ClusterAnySplat(local_files_only=True)
+        optimizer_one = ClusterAnySplat()
+        optimizer_two = ClusterAnySplat()
 
         optimizer_one._ensure_model_loaded()
         optimizer_two._ensure_model_loaded()
 
-        mocked_loader.assert_called_once_with(device=torch.device("cuda"), local_files_only=True)
+        mocked_loader.assert_called_once()
+        kwargs = mocked_loader.call_args.kwargs
+        self.assertEqual(kwargs["device"], torch_utils.default_device())
+        self.assertNotIn("checkpoint_path", kwargs)
         self.assertIs(optimizer_two._model, cached_model)
         self.assertIs(optimizer_one._model, optimizer_two._model)
 
