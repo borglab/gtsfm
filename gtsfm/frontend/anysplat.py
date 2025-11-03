@@ -5,15 +5,26 @@ from __future__ import annotations
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Protocol
 
-import gtsam  # type: ignore
-import numpy as np
 import torch
-from gtsam import Point3, Pose3, Rot3
 
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.utils import logger as logger_utils
+from gtsfm.utils.splat import GaussiansProtocol
+
+
+class DecoderSplattingCUDAProtocol(Protocol):
+    """Type protocol for AnySplat DecoderSplattingCUDA to satisfy mypy."""
+
+    def cpu(self) -> DecoderSplattingCUDAProtocol:
+        """Move the decoder to CPU."""
+        ...
+
+    def to(self, device: torch.device | str) -> DecoderSplattingCUDAProtocol:
+        """Move the decoder to the specified device."""
+        ...
+
 
 logger = logger_utils.get_logger()
 
@@ -40,8 +51,8 @@ _ensure_submodule_on_path(ANYSPLAT_SUBMODULE_PATH, "anysplat")
 _SAVE_INTERPOLATED_VIDEO: Callable[..., Any] | None = None
 _EXPORT_PLY: Callable[..., Any] | None = None
 AnySplat: type[Any] | None = None  # type: ignore[assignment]
-DecoderSplattingCUDA: type[Any] | Any = Any  # type: ignore[assignment]
-Gaussians: type[Any] | Any = Any  # type: ignore[assignment]
+DecoderSplattingCUDA: type[DecoderSplattingCUDAProtocol] | Any = Any  # type: ignore[assignment]
+Gaussians: type[GaussiansProtocol] | Any = Any  # type: ignore[assignment]
 _IMPORT_ERROR: Exception | None = None
 
 try:  # pragma: no cover - exercised by integration tests, hard to simulate in unit tests.
@@ -92,42 +103,29 @@ class AnySplatReconstructionResult:
     """Outputs from the Anysplat generate splats function."""
 
     gtsfm_data: GtsfmData
-    splats: Gaussians
+    splats: GaussiansProtocol
     pred_context_pose: dict[str, torch.Tensor]
     height: int
     width: int
-    decoder: DecoderSplattingCUDA
+    decoder: DecoderSplattingCUDAProtocol
 
 
-def load_model(*, device: torch.device | str | None = None) -> Any:
+def load_model(
+    *,
+    device: torch.device | str | None = None,
+    checkpoint_path: str | Path | None = None,
+) -> Any:
     """Load AnySplat weights optionally moving the model to the requested device."""
 
     _require_thirdparty()
     assert AnySplat is not None
 
-    model = AnySplat.from_pretrained("lhjiang/anysplat")
+    target = str(checkpoint_path) if checkpoint_path is not None else "lhjiang/anysplat"
+
+    model = AnySplat.from_pretrained(target)
     model.eval()
 
     if device is not None:
         resolved_device = torch.device(device)
         model = model.to(resolved_device)
     return model
-
-
-def pose_from_extrinsic(matrix: np.ndarray) -> Pose3:
-    """Convert a Anysplat extrinsic matrix (camera-from-world) to a Pose3 (world-from-camera)."""
-    cRw: np.ndarray = matrix[:3, :3]
-    t = matrix[:3, 3]
-    return Pose3(Rot3(cRw), Point3(*t)).inverse()
-
-
-def calibration_from_intrinsic(matrix: np.ndarray, camera_type: str) -> gtsam.Cal3:
-    """Map a 3x3 intrinsic matrix to the corresponding GTSAM calibration type."""
-    fx = float(matrix[0, 0])
-    fy = float(matrix[1, 1])
-    cx = float(matrix[0, 2])
-    cy = float(matrix[1, 2])
-    model = camera_type.upper()
-    if model in {"SIMPLE_PINHOLE", "SIMPLE_RADIAL", "RADIAL"}:
-        return gtsam.Cal3Bundler(fx, 0.0, 0.0, cx, cy)
-    return gtsam.Cal3_S2(fx, fy, 0.0, cx, cy)

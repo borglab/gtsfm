@@ -19,8 +19,9 @@ import numpy as np
 import torch
 import trimesh
 
-import gtsfm.utils.vggt as vggt
-from gtsfm.utils.vggt import VGGTReconstructionConfig
+import gtsfm.frontend.vggt as vggt
+from gtsfm.frontend.vggt import VGGTReconstructionConfig
+from gtsfm.utils import torch as torch_utils
 
 # Configure CUDA settings
 torch.backends.cudnn.enabled = True
@@ -163,7 +164,7 @@ def demo_fn(args: argparse.Namespace) -> bool:
         torch.cuda.manual_seed_all(args.seed)
     print(f"Setting seed as: {args.seed}")
 
-    device = vggt.default_device()
+    device = torch_utils.default_device()
     dtype = vggt.default_dtype(device)
     print(f"Using device: {device.type}")
     print(f"Using dtype: {dtype}")

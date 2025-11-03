@@ -5,17 +5,28 @@ Authors: Harneet Singh Khanuja
 
 import math
 import random
-from typing import Literal, Tuple
+from typing import Literal, Protocol, Tuple
 
 import cv2
-import gtsam
+import gtsam  # type: ignore
 import numpy as np
 import torch
-from sklearn.neighbors import NearestNeighbors
+from sklearn.neighbors import NearestNeighbors  # type: ignore
 
 from gtsfm.utils import logger as logger_utils
 
 logger = logger_utils.get_logger()
+
+
+class GaussiansProtocol(Protocol):
+    """Type protocol for Gaussian splats to satisfy mypy."""
+
+    means: torch.Tensor
+    scales: torch.Tensor
+    rotations: torch.Tensor
+    harmonics: torch.Tensor
+    opacities: torch.Tensor
+    covariances: torch.Tensor
 
 
 # See https://github.com/nerfstudio-project/nerfstudio/blob/main/nerfstudio/cameras/camera_utils.py

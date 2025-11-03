@@ -11,13 +11,14 @@ import numpy as np
 import torch
 from torchvision.transforms import v2 as transforms  # type: ignore
 
-import gtsfm.utils.vggt as vggt
+import gtsfm.frontend.vggt as vggt
 from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm.frontend.vggt import VGGTReconstructionConfig
 from gtsfm.loader.olsson_loader import OlssonLoader
 from gtsfm.products.cluster_tree import ClusterTree
 from gtsfm.products.visibility_graph import VisibilityGraph
+from gtsfm.utils import torch as torch_utils
 from gtsfm.utils.tree import Tree  # PreOrderIter
-from gtsfm.utils.vggt import VGGTReconstructionConfig
 
 LocalScene = tuple[Path, GtsfmData]
 SceneTree = Tree[LocalScene]
@@ -47,7 +48,7 @@ def run_vggt(
         torch.cuda.manual_seed_all(seed)
     print(f"Setting seed as: {seed}")
 
-    device = vggt.default_device()
+    device = torch_utils.default_device()
     dtype = vggt.default_dtype(device)
     print(f"Using device: {device.type}")
     print(f"Using dtype: {dtype}")

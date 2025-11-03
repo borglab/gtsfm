@@ -1,13 +1,14 @@
-# AnySplat cluster-only configuration.
+# Default front-end configuration.
 
 # @package _global_
 _target_: gtsfm.scene_optimizer.SceneOptimizer
 
 loader:
-  _target_: gtsfm.loader.Olsson
-  dataset_dir: ???  # Required: set to the dataset root on the command line.
-  images_dir: null
+  _target_: gtsfm.loader.Colmap
+  images_dir: benchmarks/gerrard-hall/images/
+  dataset_dir: benchmarks/gerrard-hall/sparse/
   max_resolution: 760
+  input_worker: null
 
 image_pairs_generator:
   _target_: gtsfm.retriever.image_pairs_generator.ImagePairsGenerator
@@ -16,15 +17,16 @@ image_pairs_generator:
     global_descriptor_obj:
       _target_: gtsfm.frontend.global_descriptor.MegaLoc
   retriever:
-    _target_: gtsfm.retriever.Similarity
+    _target_: gtsfm.retriever.JointSimilaritySequential
     num_matched: 5
-    min_score: 0.79
+    min_score: 0.2
+    max_frame_lookahead: 2
   batch_size: 16
 
 graph_partitioner:
-  _target_: gtsfm.graph_partitioner.Single
+  _target_: gtsfm.graph_partitioner.Metis
 
 cluster_optimizer:
   _target_: gtsfm.cluster_optimizer.cluster_anysplat.ClusterAnySplat
   local_checkpoint: null
-  max_num_points: 100000
+  max_num_points: null
