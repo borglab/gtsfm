@@ -248,27 +248,6 @@ def _convert_vggt_outputs_to_gtsfm_data(
             track = torch_utils.colored_track_from_point(xyz, points_rgb[j])
             gtsfm_data.add_track(track)
 
-    expected_indices = set(int(i) for i in image_indices)
-    valid_camera_indices = set(gtsfm_data.get_valid_camera_indices())
-    if valid_camera_indices != expected_indices:
-        logger.warning(
-            "VGGT cluster returned cameras with indices %s, expected %s.",
-            sorted(valid_camera_indices),
-            sorted(expected_indices),
-        )
-
-    for j, track in enumerate(gtsfm_data.get_tracks()):
-        for meas_idx in range(track.numberMeasurements()):
-            cam_idx, _ = track.measurement(meas_idx)
-            if cam_idx not in expected_indices:
-                logger.warning(
-                    "VGGT track %d references camera %d not in cluster indices %s.",
-                    j,
-                    cam_idx,
-                    sorted(expected_indices),
-                )
-                break
-
     return gtsfm_data
 
 
