@@ -211,7 +211,6 @@ def demo_fn(args: argparse.Namespace) -> bool:
             device=device,
             dtype=dtype,
             model=model,
-            total_num_images=len(image_path_list),
         )
     print(get_peak_memory_str())
 

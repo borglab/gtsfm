@@ -6,7 +6,7 @@ from unittest import mock
 
 import torch
 
-from gtsfm.cluster_optimizer.cluster_vggt import ClusterVGGT, _VGGT_MODEL_CACHE, _run_vggt_pipeline
+from gtsfm.cluster_optimizer.cluster_vggt import _VGGT_MODEL_CACHE, ClusterVGGT, _run_vggt_pipeline
 
 
 class ClusterVGGTCacheTest(unittest.TestCase):
@@ -39,7 +39,6 @@ class ClusterVGGTCacheTest(unittest.TestCase):
             image_names=None,
             config=None,
             weights_path=None,
-            total_num_images=2,
         )
 
         _run_vggt_pipeline(

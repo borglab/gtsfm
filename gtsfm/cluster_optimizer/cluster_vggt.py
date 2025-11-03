@@ -212,7 +212,6 @@ class ClusterVGGT(ClusterOptimizerBase):
             image_names=image_names,
             config=config,
             weights_path=self._weights_path,
-            total_num_images=context.num_images,
             model_cache_key=self._model_cache_key,
             loader_kwargs=self._loader_kwargs or None,
         )
