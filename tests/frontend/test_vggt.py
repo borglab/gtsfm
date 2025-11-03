@@ -78,8 +78,6 @@ def run_vggt(
         image_names=[f"image_{idx}" for idx in image_indices],
         original_coords=original_coords,
         config=config,
-        device=device,
-        dtype=dtype,
         model=model,
     )
 

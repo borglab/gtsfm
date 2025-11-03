@@ -101,8 +101,6 @@ def demo_fn(cluster_key: str, image_indices: List[int], args: argparse.Namespace
             image_names=base_image_path_list,
             original_coords=original_coords,
             config=config,
-            device=device,
-            dtype=dtype,
             model=model,
         )
 

@@ -208,8 +208,6 @@ def demo_fn(args: argparse.Namespace) -> bool:
             image_names=base_image_path_list,
             original_coords=original_coords,
             config=config,
-            device=device,
-            dtype=dtype,
             model=model,
         )
     print(get_peak_memory_str())

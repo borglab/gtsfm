@@ -11,7 +11,6 @@ from typing import Any, Optional, Sequence, Tuple, Union
 import numpy as np
 import torch
 import torch.nn.functional as F
-from gtsam import Point2  # type: ignore
 from torch.amp import autocast as amp_autocast  # type: ignore
 
 from gtsfm.common.gtsfm_data import GtsfmData
@@ -278,8 +277,6 @@ def run_reconstruction(
     image_names: Optional[Sequence[str]] = None,
     original_coords: torch.Tensor,
     config: Optional[VGGTReconstructionConfig] = None,
-    device: Optional[Union[str, torch.device]] = None,
-    dtype: Optional[torch.dtype] = None,
     model: Optional[VGGT] = None,
     weights_path: PathLike | None = None,
 ) -> VGGTReconstructionResult:
@@ -295,8 +292,6 @@ def run_reconstruction(
     vggt_output = run_VGGT(
         image_batch,
         config=cfg,
-        device=device,
-        dtype=dtype,
         model=model,
         weights_path=weights_path,
     )
