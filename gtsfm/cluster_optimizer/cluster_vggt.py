@@ -19,7 +19,7 @@ from gtsfm.cluster_optimizer.cluster_optimizer_base import (
 )
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
-from gtsfm.frontend.vggt import VGGTReconstructionConfig
+from gtsfm.frontend.vggt import VggtConfiguration
 from gtsfm.products.visibility_graph import visibility_graph_keys
 from gtsfm.ui.gtsfm_process import UiMetadata
 from gtsfm.utils.logger import get_logger
@@ -193,7 +193,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         image_filenames = context.loader.image_filenames()
         image_names = tuple(str(image_filenames[idx]) for idx in keys)
 
-        config = VGGTReconstructionConfig(
+        config = VggtConfiguration(
             vggt_fixed_resolution=self._inference_resolution,
             img_load_resolution=self._image_load_resolution,
             confidence_threshold=self._conf_threshold,
