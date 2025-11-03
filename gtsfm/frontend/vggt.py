@@ -392,77 +392,7 @@ def run_VGGT(
     )
 
 
-def run_reconstruction(
-    images: torch.Tensor,
-    *,
-    image_indices: Sequence[int],
-    image_names: Optional[Sequence[str]] = None,
-    original_coords: torch.Tensor,
-    config: Optional[VggtConfiguration] = None,
-    model: Optional[VGGT] = None,
-    weights_path: PathLike | None = None,
-) -> VggtReconstruction:
-    """Run VGGT on a batch of images and convert outputs to ``GtsfmData``.
-
-    Args:
-        images: Tensor shaped ``(num_frames, 3, H, W)`` at the *square* VGGT load resolution. You can
-            obtain this tensor by calling ``load_and_preprocess_images_square`` prior to interpolation.
-        image_indices: Sequence of global image indices corresponding to the provided ``images`` batch.
-        image_names: Optional sequence of image filenames corresponding to the provided ``images`` batch.
-        original_coords: Tensor shaped ``(num_frames, 6)`` giving the original image crop metadata
-            for each image in ``images``. Each row is ``(x1, y1, x2, y2, width, height)``.
-        config: Optional :class:`VggtConfiguration`.
-        model: Optional pre-loaded VGGT model. If ``None``, the model is loaded from ``weights_path``.
-        weights_path: Optional path to VGGT checkpoint. Ignored if ``model`` is provided.
-
-    Returns:
-        :class:`VggtReconstruction` containing the reconstructed ``GtsfmData`` and point cloud.
-    """
-    cfg = config or VggtConfiguration()
-
-    torch.manual_seed(cfg.seed)
-    np.random.seed(cfg.seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed(cfg.seed)
-        torch.cuda.manual_seed_all(cfg.seed)
-
-    vggt_output = run_VGGT(images, config=cfg, model=model, weights_path=weights_path)
-
-    points_3d, points_rgb = _high_confidence_pointcloud(cfg, vggt_output)
-
-    gtsfm_data = _convert_vggt_outputs_to_gtsfm_data(
-        config=cfg,
-        vggt_output=vggt_output,
-        original_coords=original_coords,
-        image_indices=image_indices,
-        image_names=image_names,
-        points_3d=points_3d,
-        points_rgb=points_rgb,
-    )
-
-    return VggtReconstruction(
-        gtsfm_data=gtsfm_data,
-        points_3d=points_3d,
-        points_rgb=points_rgb,
-    )
-
-
-def run_reconstruction_gtsfm_data_only(images: torch.Tensor, **kwargs) -> GtsfmData:
-    """Run VGGT on a batch of images and convert outputs to ``GtsfmData``.
-
-    Args:
-        images: Tensor shaped ``(num_frames, 3, H, W)`` at the *square* VGGT load resolution. You can
-            obtain this tensor by calling ``load_and_preprocess_images_square`` prior to interpolation.
-        **kwargs: Additional keyword arguments passed to :func:`run_reconstruction`.
-
-    Returns:
-        The reconstructed ``GtsfmData``.
-    """
-    result = run_reconstruction(images, **kwargs)
-    return result.gtsfm_data
-
-
-# --- vggt_tracking -------------------------------------------------
+# --- VGGT tracking -------------------------------------------------
 
 
 @dataclass
@@ -649,6 +579,84 @@ def run_vggt_tracking(
         tracks=tracks, visibilities=vis_scores, confidences=confidences, points_3d=points_3d, colors=colors
     )
 
+
+# --- VGGT reconstruction -------------------------------------------------
+
+
+def run_reconstruction(
+    images: torch.Tensor,
+    *,
+    image_indices: Sequence[int],
+    image_names: Optional[Sequence[str]] = None,
+    original_coords: torch.Tensor,
+    config: Optional[VggtConfiguration] = None,
+    model: Optional[VGGT] = None,
+    weights_path: PathLike | None = None,
+) -> VggtReconstruction:
+    """Run VGGT on a batch of images and convert outputs to ``GtsfmData``.
+
+    Args:
+        images: Tensor shaped ``(num_frames, 3, H, W)`` at the *square* VGGT load resolution. You can
+            obtain this tensor by calling ``load_and_preprocess_images_square`` prior to interpolation.
+        image_indices: Sequence of global image indices corresponding to the provided ``images`` batch.
+        image_names: Optional sequence of image filenames corresponding to the provided ``images`` batch.
+        original_coords: Tensor shaped ``(num_frames, 6)`` giving the original image crop metadata
+            for each image in ``images``. Each row is ``(x1, y1, x2, y2, width, height)``.
+        config: Optional :class:`VggtConfiguration`.
+        model: Optional pre-loaded VGGT model. If ``None``, the model is loaded from ``weights_path``.
+        weights_path: Optional path to VGGT checkpoint. Ignored if ``model`` is provided.
+
+    Returns:
+        :class:`VggtReconstruction` containing the reconstructed ``GtsfmData`` and point cloud.
+    """
+    cfg = config or VggtConfiguration()
+
+    torch.manual_seed(cfg.seed)
+    np.random.seed(cfg.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(cfg.seed)
+        torch.cuda.manual_seed_all(cfg.seed)
+
+    vggt_output = run_VGGT(images, config=cfg, model=model, weights_path=weights_path)
+
+    if cfg.tracking:
+        tracking_result = run_vggt_tracking(images, vggt_output, config=cfg)
+
+    points_3d, points_rgb = _high_confidence_pointcloud(cfg, vggt_output)
+
+    gtsfm_data = _convert_vggt_outputs_to_gtsfm_data(
+        config=cfg,
+        vggt_output=vggt_output,
+        original_coords=original_coords,
+        image_indices=image_indices,
+        image_names=image_names,
+        points_3d=points_3d,
+        points_rgb=points_rgb,
+    )
+
+    return VggtReconstruction(
+        gtsfm_data=gtsfm_data,
+        points_3d=points_3d,
+        points_rgb=points_rgb,
+    )
+
+
+def run_reconstruction_gtsfm_data_only(images: torch.Tensor, **kwargs) -> GtsfmData:
+    """Run VGGT on a batch of images and convert outputs to ``GtsfmData``.
+
+    Args:
+        images: Tensor shaped ``(num_frames, 3, H, W)`` at the *square* VGGT load resolution. You can
+            obtain this tensor by calling ``load_and_preprocess_images_square`` prior to interpolation.
+        **kwargs: Additional keyword arguments passed to :func:`run_reconstruction`.
+
+    Returns:
+        The reconstructed ``GtsfmData``.
+    """
+    result = run_reconstruction(images, **kwargs)
+    return result.gtsfm_data
+
+
+# -------------------------------------------------------------------------
 
 __all__ = [
     "VggtConfiguration",
