@@ -203,12 +203,8 @@ class ColmapViewer {
 
   _applyHudMode() {
     if (!this.hudRoot) return;
-    const hideHud = this.mode === "splat";
-    if (hideHud) {
-      this.hudRoot.classList.add("hud-hidden");
-    } else {
-      this.hudRoot.classList.remove("hud-hidden");
-    }
+    this.hudRoot.classList.remove("hud-hidden");
+    this.hudRoot.classList.toggle("hud-splat-mode", this.mode === "splat");
   }
 
   _renderStats() {

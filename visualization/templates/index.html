@@ -53,13 +53,13 @@
     <!-- Heads-Up Display for viewer controls -->
     <div id="hud">
       <button id="toggleBg">Toggle BG</button>
-      <button id="prevCamBtn">◀︎</button>
-      <button id="nextCamBtn">▶︎</button>
+      <button id="prevCamBtn" class="hud-scene-only">◀︎</button>
+      <button id="nextCamBtn" class="hud-scene-only">▶︎</button>
       <button id="toggleStats">Hide Stats</button>
-      <label>
+      <label class="hud-scene-only">
         <input type="checkbox" id="toggleCams" checked> Show Cameras
       </label>
-      <label>
+      <label class="hud-scene-only">
         Point Size: <input type="range" id="ptSize" min="1" max="10" value="2">
       </label>
     </div>

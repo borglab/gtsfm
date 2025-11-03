@@ -272,6 +272,16 @@ body {
   background-color: #f8fafc;
 }
 
+#hud button.is-active {
+  background: rgba(29, 78, 216, 0.12);
+  border-color: rgba(29, 78, 216, 0.35);
+  color: var(--brand-primary);
+}
+
+#hud.hud-splat-mode .hud-scene-only {
+  display: none;
+}
+
 .hud-hidden {
   display: none !important;
 }
