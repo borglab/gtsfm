@@ -17,8 +17,9 @@ from gtsfm.cluster_optimizer.cluster_optimizer_base import (
     ClusterContext,
     ClusterOptimizerBase,
 )
+from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
-from gtsfm.frontend.vggt import VGGTReconstructionConfig, VGGTReconstructionResult
+from gtsfm.frontend.vggt import VGGTReconstructionConfig
 from gtsfm.products.visibility_graph import visibility_graph_keys
 from gtsfm.ui.gtsfm_process import UiMetadata
 from gtsfm.utils.logger import get_logger
@@ -69,7 +70,7 @@ def _run_vggt_pipeline(
     model_cache_key: Hashable | None = None,
     loader_kwargs: dict[str, Any] | None = None,
     **kwargs,
-) -> VGGTReconstructionResult:
+) -> GtsfmData:
     torch.manual_seed(seed)
     np.random.seed(seed)
     if torch.cuda.is_available():
@@ -80,31 +81,30 @@ def _run_vggt_pipeline(
     cached_model = _resolve_vggt_model(model_cache_key, loader_kwargs)
     if cached_model is not None:
         kwargs = {**kwargs, "model": cached_model}
-    return vggt.run_reconstruction(image_batch, **kwargs)
+    return vggt.run_reconstruction_gtsfm_data_only(image_batch, **kwargs)
 
 
 def _save_reconstruction_as_text(
-    result: VGGTReconstructionResult,
+    result: GtsfmData,
     results_path: Path,
     copy_to_react: bool,
     relative_results_dir: Path,
 ) -> None:
     target_dir = results_path / "vggt"
     target_dir.mkdir(parents=True, exist_ok=True)
-    result.gtsfm_data.export_as_colmap_text(target_dir)
+    result.export_as_colmap_text(target_dir)
 
     if not copy_to_react:
         return
 
     react_destination = REACT_RESULTS_PATH / relative_results_dir / "vggt"
     react_destination.mkdir(parents=True, exist_ok=True)
-    result.gtsfm_data.export_as_colmap_text(react_destination)
+    result.export_as_colmap_text(react_destination)
 
 
-def _aggregate_vggt_metrics(result: VGGTReconstructionResult) -> GtsfmMetricsGroup:
-    gtsfm_data = result.gtsfm_data
-    num_cameras = len(gtsfm_data.get_valid_camera_indices())
-    num_points3d = gtsfm_data.number_tracks()
+def _aggregate_vggt_metrics(result: GtsfmData) -> GtsfmMetricsGroup:
+    num_cameras = len(result.get_valid_camera_indices())
+    num_points3d = result.number_tracks()
     return GtsfmMetricsGroup(
         "vggt_runtime_metrics",
         [
@@ -230,10 +230,8 @@ class ClusterVGGT(ClusterOptimizerBase):
                 )
             )
 
-        sfm_result_graph = delayed(lambda res: res.gtsfm_data)(result_graph)
-
         return ClusterComputationGraph(
             io_tasks=tuple(io_tasks),
             metric_tasks=tuple(metrics_tasks),
-            sfm_result=sfm_result_graph,
+            sfm_result=result_graph,
         )

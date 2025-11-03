@@ -3,7 +3,6 @@
 Authors: Xinan Zhang and Frank Dellaert
 """
 
-import pickle
 import unittest
 from pathlib import Path
 
@@ -15,8 +14,6 @@ import gtsfm.frontend.vggt as vggt
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.frontend.vggt import VGGTReconstructionConfig
 from gtsfm.loader.olsson_loader import OlssonLoader
-from gtsfm.products.cluster_tree import ClusterTree
-from gtsfm.products.visibility_graph import VisibilityGraph
 from gtsfm.utils import torch as torch_utils
 from gtsfm.utils.tree import Tree  # PreOrderIter
 
@@ -94,13 +91,6 @@ def run_vggt(
     return result.gtsfm_data
 
 
-def run_vggt_for_edges(vg: VisibilityGraph) -> GtsfmData:
-    return GtsfmData(0, None, None)  # dummy
-    # keys = visibility_graph_keys(vg)
-    # TODO: load images using the loader and the call the above
-    # return run_vggt(keys)
-
-
 TEST_DATA = Path(__file__).parent.parent / "data"
 PALACE = TEST_DATA / "palace"
 DOOR = TEST_DATA / "set1_lund_door"
@@ -111,6 +101,7 @@ class TestVGGT(unittest.TestCase):
     def setUp(self) -> None:
         pass
 
+    @unittest.skip("Skipping VGGT end-to-end test for now since it is slow and requires GPU.")
     def test_coordinate_round_trip(self) -> None:
         """Ensure the helper that maps VGGT grid coordinates back to original pixels is consistent.
 
@@ -170,6 +161,7 @@ class TestVGGT(unittest.TestCase):
             self.assertAlmostEqual(u_back, u_orig, places=3)
             self.assertAlmostEqual(v_back, v_orig, places=3)
 
+    @unittest.skip("Skipping VGGT end-to-end test for now since it is slow and requires GPU.")
     def test_run_vggt_on_some_images(self):
         """Load four door images using Olsson loader and run vggt on them."""
 
@@ -206,23 +198,6 @@ class TestVGGT(unittest.TestCase):
         self.assertIsNotNone(gtsfm_data)
         self.assertEqual(gtsfm_data.number_images(), len(indices))
         self.assertCountEqual(gtsfm_data.get_valid_camera_indices(), indices)
-
-    @unittest.skip("Skipping VGGT on cluster tree test for now.")
-    def test_vggt_on_cluster_tree(self) -> None:
-        """Test VGGT on a small cluster tree."""
-        data_path = PALACE / "cluster_tree.pkl"
-        with open(data_path, "rb") as f:
-            cluster_tree = pickle.load(f)
-
-        self.assertIsNotNone(cluster_tree)
-        self.assertIsInstance(cluster_tree, ClusterTree)
-
-        assert cluster_tree is not None
-        vggt_results: Tree[GtsfmData] = cluster_tree.map(run_vggt_for_edges)
-        # for node in PreOrderIter(vggt_results):
-        #     print(f"ClusterTree node with {node.value}")
-
-        self.assertEqual(vggt_results.value.number_images(), 35)
 
 
 if __name__ == "__main__":
