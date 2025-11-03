@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest import mock
 
 from gtsfm.cluster_optimizer.cluster_anysplat import ClusterAnySplat
-from gtsfm.utils import anysplat
+from gtsfm.frontend import anysplat
 from gtsfm.utils import torch as torch_utils
 
 
@@ -56,7 +56,7 @@ class ClusterAnySplatTest(unittest.TestCase):
             with self.assertRaisesRegex(ImportError, r"anysplat.*could not be imported"):
                 anysplat.load_model()
 
-    @mock.patch("gtsfm.utils.anysplat.load_model")
+    @mock.patch("gtsfm.frontend.anysplat.load_model")
     def test_default_loader_uses_remote_repo(self, mocked_loader) -> None:
         """Ensure default loader leaves checkpoint unset so the remote repo is used."""
 
@@ -70,7 +70,7 @@ class ClusterAnySplatTest(unittest.TestCase):
         self.assertEqual(kwargs["device"], torch_utils.default_device())
         self.assertNotIn("checkpoint_path", kwargs)
 
-    @mock.patch("gtsfm.utils.anysplat.load_model")
+    @mock.patch("gtsfm.frontend.anysplat.load_model")
     def test_local_checkpoint_forwarded(self, mocked_loader) -> None:
         """Explicit checkpoints should be loaded from disk."""
 
@@ -84,7 +84,7 @@ class ClusterAnySplatTest(unittest.TestCase):
         self.assertEqual(kwargs["device"], torch_utils.default_device())
         self.assertEqual(kwargs["checkpoint_path"], Path("/tmp/fake/model.pt"))
 
-    @mock.patch("gtsfm.utils.anysplat.load_model")
+    @mock.patch("gtsfm.frontend.anysplat.load_model")
     def test_model_cache_reused_across_instances(self, mocked_loader) -> None:
         """Verify workers reuse the cached model instead of reloading per cluster."""
 

@@ -10,7 +10,7 @@ import torch
 import torch.nn.functional as F
 from dask.delayed import Delayed, delayed
 
-import gtsfm.utils.vggt as vggt
+import gtsfm.frontend.vggt as vggt
 from gtsfm.cluster_optimizer.cluster_optimizer_base import (
     REACT_RESULTS_PATH,
     ClusterComputationGraph,
@@ -18,10 +18,10 @@ from gtsfm.cluster_optimizer.cluster_optimizer_base import (
     ClusterOptimizerBase,
 )
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
+from gtsfm.frontend.vggt import VGGTReconstructionConfig, VGGTReconstructionResult
 from gtsfm.products.visibility_graph import visibility_graph_keys
 from gtsfm.ui.gtsfm_process import UiMetadata
 from gtsfm.utils.logger import get_logger
-from gtsfm.utils.vggt import VGGTReconstructionConfig, VGGTReconstructionResult
 
 logger = get_logger()
 

@@ -22,9 +22,9 @@ import torch
 import trimesh
 from demo_vggt import Timer, add_common_vggt_args
 
-import gtsfm.utils.vggt as vggt
+import gtsfm.frontend.vggt as vggt
+from gtsfm.frontend.vggt import VGGTReconstructionConfig
 from gtsfm.utils import torch as torch_utils
-from gtsfm.utils.vggt import VGGTReconstructionConfig
 
 # Configure CUDA settings
 torch.backends.cudnn.enabled = True

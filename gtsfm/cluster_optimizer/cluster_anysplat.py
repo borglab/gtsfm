@@ -15,15 +15,15 @@ from dask.delayed import Delayed
 from gtsam import Point3, SfmTrack  # type: ignore
 
 import gtsfm.common.types as gtsfm_types
-import gtsfm.utils.anysplat as anysplat_utils
+import gtsfm.frontend.anysplat as anysplat_utils
 import gtsfm.utils.torch as torch_utils
 from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterComputationGraph, ClusterContext, ClusterOptimizerBase
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
+from gtsfm.frontend.anysplat import AnySplatReconstructionResult
 from gtsfm.ui.gtsfm_process import UiMetadata
 from gtsfm.utils import logger as logger_utils
-from gtsfm.utils.anysplat import AnySplatReconstructionResult
 
 _SH0_NORMALIZATION_FACTOR = 0.28209479177387814
 
