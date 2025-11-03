@@ -129,7 +129,7 @@ class VggtConfiguration:
 
 
 @dataclass
-class VggtOutput:
+class VggtOutput:  # TODO(Frank): derive from base class shared with AnySplat (in utils.torch.py)
     """Outputs produced by a single VGGT forward pass."""
 
     device: torch.device
@@ -307,7 +307,20 @@ def _convert_vggt_outputs_to_gtsfm_data(
             track = torch_utils.colored_track_from_point(xyz, points_rgb[j])
             gtsfm_data.add_track(track)
 
+    # TODO(Frank): optionally, add the tracks from the tracking after running inference
+
     return gtsfm_data
+
+
+def _offload_vggt_model(model: Optional[VGGT]) -> None:
+    """Move the VGGT model back to CPU to free GPU memory for tracking."""
+    if model is None or not torch.cuda.is_available():
+        return
+    try:
+        model.to("cpu")
+    except RuntimeError as exc:  # pragma: no cover - defensive
+        logger.warning("Failed to offload VGGT model to CPU: %s", exc)
+    torch.cuda.empty_cache()
 
 
 def run_VGGT(
@@ -628,6 +641,12 @@ def run_reconstruction(
 
     vggt_output = run_VGGT(images, config=cfg, model=model, weights_path=weights_path)
 
+    if cfg.tracking and vggt_output.device.type == "cuda":
+        if model is not None:
+            _offload_vggt_model(model)
+        else:
+            torch.cuda.empty_cache()
+
     if cfg.tracking:
         tracking_result = run_vggt_tracking(images, vggt_output, config=cfg)
 
@@ -641,6 +660,7 @@ def run_reconstruction(
         image_names=image_names,
         points_3d=points_3d,
         points_rgb=points_rgb,
+        # tracking_result=tracking_result
     )
 
     return VggtReconstruction(
