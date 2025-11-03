@@ -6,30 +6,28 @@ Authors: Ayush Baid, John Lambert
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping, Optional, Sequence, TypeVar, cast
+from typing import Optional, TypeVar, cast
 
 import matplotlib
 from dask.delayed import delayed
-from dask.distributed import Client, Future, get_client, performance_report
+from dask.distributed import Client, Future, performance_report
 
 import gtsfm.utils.logger as logger_utils
+from gtsfm import cluster_merging
 from gtsfm.cluster_optimizer import REACT_METRICS_PATH, REACT_RESULTS_PATH, Base, save_metrics_reports
 from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterContext
 from gtsfm.common.gtsfm_data import GtsfmData
-from gtsfm.common.image import Image
 from gtsfm.common.outputs import OutputPaths, cluster_label, prepare_output_paths
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.evaluation.retrieval_metrics import save_retrieval_two_view_metrics
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.graph_partitioner.single_partitioner import SinglePartitioner
 from gtsfm.loader.loader_base import LoaderBase
-from gtsfm.products.one_view_data import OneViewData
 from gtsfm.products.visibility_graph import VisibilityGraph
 from gtsfm.retriever.image_pairs_generator import ImagePairsGenerator
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
-from gtsfm.utils import align as align_utils
 from gtsfm.utils.tree import PreOrderIter, Tree
-from gtsfm.utils.tree_dask import submit_tree_map, submit_tree_map_with_children
+from gtsfm.utils.tree_dask import submit_tree_map_with_children
 
 # Set matplotlib backend to "Agg" (Anti-Grain Geometry) for headless rendering
 # This must be called before importing pyplot or any other matplotlib modules
@@ -97,63 +95,6 @@ def _finalize_io_tasks(*_args: object) -> None:
     return None
 
 
-def _export_merged_scene(
-    merged_scene: Optional[GtsfmData],
-    target_dir: Path,
-    images: Optional[Sequence[Image]] = None,
-) -> None:
-    """Persist a merged reconstruction to COLMAP text format."""
-    if merged_scene is None:
-        return
-
-    merged_path = Path(target_dir)
-    merged_path.mkdir(parents=True, exist_ok=True)
-    merged_scene.export_as_colmap_text(merged_path)
-
-
-def _run_export_task(
-    payload: tuple[
-        ClusterExecutionHandles,
-        Optional[GtsfmData],
-        Sequence[Image] | Sequence[Future] | None,
-    ],
-) -> None:
-    """Execute merged scene export on a worker."""
-    handle, merged_scene, images = payload
-    resolved_images: Sequence[Image] | None
-    if images is None:
-        resolved_images = None
-    elif any(isinstance(img, Future) for img in images):
-        try:
-            resolved_images = tuple(get_client().gather(list(images)))
-        except Exception:
-            logger.warning("Failed to gather images for export; falling back to stored track colors.")
-            resolved_images = None
-    else:
-        resolved_images = images
-    merged_dir = handle.output_paths.results / "merged"
-    _export_merged_scene(merged_scene, merged_dir, resolved_images)
-
-
-def _merge_cluster_results(
-    current: Optional[GtsfmData], child_results: tuple[Optional[GtsfmData], ...]
-) -> Optional[GtsfmData]:
-    """Merge bundle adjustment outputs from child clusters into the parent result."""
-    merged = current
-    for child in child_results:
-        if child is None:
-            continue
-        if merged is None:
-            merged = child
-            continue
-        try:
-            aSb = align_utils.sim3_from_Pose3_maps(merged.poses(), child.poses())
-            merged = merged.merged_with(child, aSb)
-        except Exception as exc:
-            logger.warning("Failed to merge cluster outputs: %s", exc)
-    return merged
-
-
 class SceneOptimizer:
     """Wrapper combining different modules to run the whole pipeline on a
     loader."""
@@ -189,34 +130,6 @@ class SceneOptimizer:
         """Ensure the React dashboards have dedicated output folders."""
         REACT_RESULTS_PATH.mkdir(parents=True, exist_ok=True)
         REACT_METRICS_PATH.mkdir(parents=True, exist_ok=True)
-
-    def _build_cluster_context_tree(
-        self,
-        cluster_tree: Tree[VisibilityGraph],
-        base_output_paths: OutputPaths,
-        client: Client,
-        num_images: int,
-        one_view_data_dict: dict[int, OneViewData],
-        image_future_map: Mapping[int, Future],
-    ) -> Tree[ClusterContext]:
-        """Annotate each cluster node with static metadata required for scheduling."""
-        shared_image_future_map = dict(image_future_map)
-
-        def to_context(path: tuple[int, ...], visibility_graph: VisibilityGraph) -> ClusterContext:
-            output_paths = base_output_paths if len(path) == 0 else prepare_output_paths(self.output_root, path)
-            return ClusterContext(
-                visibility_graph=visibility_graph,
-                output_paths=output_paths,
-                cluster_path=path,
-                label=cluster_label(path),
-                client=client,
-                num_images=num_images,
-                one_view_data_dict=one_view_data_dict,
-                image_future_map=shared_image_future_map,
-                loader=self.loader,
-            )
-
-        return cluster_tree.map_with_path(to_context)
 
     def _schedule_single_cluster(self, context: ClusterContext) -> ClusterExecutionHandles:
         """Schedule the optimizer for a single cluster and return futures tracking its execution."""
@@ -254,25 +167,6 @@ class SceneOptimizer:
             edge_count=len(context.visibility_graph),
         )
 
-    def _schedule_merge_exports(
-        self,
-        *,
-        client: Client,
-        handles_tree: Tree[ClusterExecutionHandles],
-        merged_tree: Tree[Future],
-        image_future_map: Mapping[int, Future],
-    ) -> Tree[Future]:
-        """Schedule persistence of merged reconstructions for each cluster."""
-        export_payload_tree = Tree.zip(handles_tree, merged_tree).map(
-            lambda value: (
-                value[0],
-                value[1],
-                tuple(image_future_map[idx] for idx in sorted(image_future_map.keys())),
-            )
-        )
-
-        return submit_tree_map(client, export_payload_tree, _run_export_task, pure=False)
-
     def run(self, client: Client) -> None:
         """Run the SceneOptimizer."""
         start_time = time.time()
@@ -302,27 +196,32 @@ class SceneOptimizer:
                 logger.warning("No clusters generated by partitioner; skipping reconstruction and merge.")
             else:
                 num_images = len(self.loader)
-                context_tree = self._build_cluster_context_tree(
-                    cluster_tree=cluster_tree,
-                    base_output_paths=base_output_paths,
-                    client=client,
-                    num_images=num_images,
-                    one_view_data_dict=one_view_data_dict,
-                    image_future_map=image_future_map,
-                )
+
+                def to_context(path: tuple[int, ...], visibility_graph: VisibilityGraph) -> ClusterContext:
+                    output_paths = base_output_paths if len(path) == 0 else prepare_output_paths(self.output_root, path)
+                    return ClusterContext(
+                        client=client,
+                        loader=self.loader,
+                        num_images=num_images,
+                        output_paths=output_paths,
+                        image_future_map=image_future_map,
+                        one_view_data_dict=one_view_data_dict,
+                        cluster_path=path,
+                        label=cluster_label(path),
+                        visibility_graph=visibility_graph,
+                    )
+
+                context_tree = cluster_tree.map_with_path(to_context)
 
                 handles_tree = context_tree.map(self._schedule_single_cluster)
                 reconstruction_tree = handles_tree.map(lambda handle: handle.reconstruction)
-                merged_tree = submit_tree_map_with_children(client, reconstruction_tree, _merge_cluster_results)
-                export_tree = self._schedule_merge_exports(
-                    client=client,
-                    handles_tree=handles_tree,
-                    merged_tree=merged_tree,
-                    image_future_map=image_future_map,
+                merged_future_tree = submit_tree_map_with_children(
+                    client, reconstruction_tree, cluster_merging.combine_results
                 )
-                root_merge_future: Optional[Future] = merged_tree.value
+                export_tree = cluster_merging.schedule_exports(client, handles_tree, merged_future_tree)
+                root_merge_future: Optional[Future] = merged_future_tree.value
                 for handle_node, merged_node, export_node in zip(
-                    PreOrderIter(handles_tree), PreOrderIter(merged_tree), PreOrderIter(export_tree)
+                    PreOrderIter(handles_tree), PreOrderIter(merged_future_tree), PreOrderIter(export_tree)
                 ):
                     handle = handle_node.value
                     merge_future = merged_node.value

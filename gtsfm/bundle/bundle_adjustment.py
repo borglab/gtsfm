@@ -6,13 +6,13 @@ Authors: Xiaolong Wu, John Lambert, Ayush Baid
 import time
 from collections import Counter
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import dask
 import gtsam  # type: ignore
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import BetweenFactorPose3, NonlinearFactorGraph, PinholeCameraCal3Fisheye, PriorFactorPose3, SfmTrack, Values
+from gtsam import BetweenFactorPose3, NonlinearFactorGraph, PinholeCameraCal3Fisheye, PriorFactorPose3, Values
 from gtsam.noiseModel import Diagonal, Isotropic, Robust, mEstimator  # type: ignore
 from gtsam.symbol_shorthand import K, P, X  # type: ignore
 
@@ -52,7 +52,7 @@ class BundleAdjustmentOptimizer:
 
     def __init__(
         self,
-        reproj_error_thresholds: List[Optional[float]] = [None],
+        reproj_error_thresholds: Sequence[Optional[float]] = [None],
         robust_measurement_noise: bool = False,
         shared_calib: bool = False,
         max_iterations: Optional[int] = None,
@@ -215,14 +215,10 @@ class BundleAdjustmentOptimizer:
 
         return graph
 
-    def __construct_factor_graph(
-        self,
-        cameras_to_model: List[int],
-        initial_data: GtsfmData,
-        absolute_pose_priors: List[Optional[PosePrior]],
-        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
+    def __construct_simple_factor_graph(
+        self, cameras_to_model: List[int], initial_data: GtsfmData
     ) -> NonlinearFactorGraph:
-        """Construct the factor graph with reprojection factors, BetweenFactors, and prior factors."""
+        """Construct the factor graph with just reprojection factors and calibration priors."""
         is_fisheye_calibration = isinstance(initial_data.get_camera(cameras_to_model[0]), PinholeCameraCal3Fisheye)
 
         graph = NonlinearFactorGraph()
@@ -235,6 +231,22 @@ class BundleAdjustmentOptimizer:
                 is_fisheye_calibration=is_fisheye_calibration,
             )
         )
+        graph.push_back(self.__calibration_priors(initial_data, cameras_to_model, is_fisheye_calibration))
+
+        return graph
+
+    def __construct_factor_graph(
+        self,
+        cameras_to_model: List[int],
+        initial_data: GtsfmData,
+        absolute_pose_priors: List[Optional[PosePrior]],
+        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
+    ) -> NonlinearFactorGraph:
+        """Construct the factor graph with reprojection factors, BetweenFactors, and prior factors."""
+        # Create a factor graph.
+        graph = self.__construct_simple_factor_graph(cameras_to_model, initial_data)
+
+        # Add priors
         graph.push_back(
             self._between_factors(relative_pose_priors=relative_pose_priors, cameras_to_model=cameras_to_model)
         )
@@ -245,34 +257,12 @@ class BundleAdjustmentOptimizer:
                 first_valid_camera_idx=cameras_to_model[0],
             )
         )
-        graph.push_back(self.__calibration_priors(initial_data, cameras_to_model, is_fisheye_calibration))
-
         # Also add a prior on the position of the first landmark to fix the scale
         graph.push_back(
             gtsam.PriorFactorPoint3(P(0), initial_data.get_track(0).point3(), Isotropic.Sigma(POINT3_DOF, 0.1))
         )
 
         return graph
-
-    def __initial_values(self, initial_data: GtsfmData) -> Values:
-        """Initialize all the variables in the factor graph."""
-        initial_values = Values()
-
-        # Add each camera.
-        for loop_idx, i in enumerate(initial_data.get_valid_camera_indices()):
-            camera_i = initial_data.get_camera(i)
-            assert camera_i is not None, f"Camera {i} in initial data is None"
-            initial_values.insert(X(i), camera_i.pose())
-            if not self._shared_calib or loop_idx == 0:
-                # add only one value if calibrations are shared
-                initial_values.insert(K(self.__map_to_calibration_variable(i)), camera_i.calibration())
-
-        # Add each SfmTrack.
-        for j in range(initial_data.number_tracks()):
-            track = initial_data.get_track(j)
-            initial_values.insert(P(j), track.point3())
-
-        return initial_values
 
     def __optimize_factor_graph(self, graph: NonlinearFactorGraph, initial_values: Values) -> Values:
         """Optimize the factor graph."""
@@ -293,18 +283,6 @@ class BundleAdjustmentOptimizer:
 
         return result_values
 
-    def __cameras_to_model(
-        self,
-        initial_data: GtsfmData,
-        absolute_pose_priors: List[Optional[PosePrior]],
-        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
-    ) -> List[int]:
-        """Get the cameras which are to be modeled in the factor graph. We are using ability to add initial values as
-        proxy for this function."""
-        cameras: Set[int] = set(initial_data.get_valid_camera_indices())
-
-        return sorted(list(cameras))
-
     def get_two_view_ba_pose_graph_keys(self, initial_data: GtsfmData):
         """Retrieves GTSAM keys for camera poses in a 2-view BA problem."""
         valid_camera_indices = initial_data.get_valid_camera_indices()
@@ -313,6 +291,34 @@ class BundleAdjustmentOptimizer:
     def is_two_view_ba(self, initial_data: GtsfmData) -> bool:
         """Determines whether two-view bundle adjustment is being executed."""
         return len(initial_data.get_valid_camera_indices()) == 2
+
+    def __optimize_and_recover(
+        self, initial_data: GtsfmData, graph: NonlinearFactorGraph, verbose: bool
+    ) -> Tuple[GtsfmData, Values, float]:
+        """Optimize the graph, report errors, and convert `Values` back to `GtsfmData`."""
+        initial_values = initial_data.to_values(shared_calib=self._shared_calib)
+        result_values = self.__optimize_factor_graph(graph, initial_values)
+        final_error = graph.error(result_values)
+        if verbose:
+            logger.info("initial error: %.2f", graph.error(initial_values))
+            logger.info("final error: %.2f", final_error)
+        optimized_data = GtsfmData.from_values(result_values, initial_data, self._shared_calib)
+        return optimized_data, result_values, final_error
+
+    def run_simple_ba(self, initial_data: GtsfmData, verbose: bool = True) -> Tuple[GtsfmData, float]:
+        """Runs bundle adjustment and optionally filters the resulting tracks by reprojection error.
+
+        Args:
+            initial_data: Initialized cameras, tracks w/ their 3d landmark from triangulation.
+
+        Results:
+            Optimized camera poses, 3D point w/ tracks, and error metrics, aligned to GT (if provided).
+            Final error value of the optimization problem.
+        """
+        cameras_to_model = sorted(initial_data.get_valid_camera_indices())
+        graph = self.__construct_simple_factor_graph(cameras_to_model, initial_data)
+        optimized_data, _, final_error = self.__optimize_and_recover(initial_data, graph, verbose)
+        return optimized_data, final_error
 
     def run_ba_stage_with_filtering(
         self,
@@ -348,21 +354,11 @@ class BundleAdjustmentOptimizer:
             )
             return initial_data, initial_data, [False] * initial_data.number_tracks(), 0.0
 
-        cameras_to_model = self.__cameras_to_model(initial_data, absolute_pose_priors, relative_pose_priors)
+        cameras_to_model = sorted(initial_data.get_valid_camera_indices())
         graph = self.__construct_factor_graph(
-            cameras_to_model=cameras_to_model,
-            initial_data=initial_data,
-            absolute_pose_priors=absolute_pose_priors,
-            relative_pose_priors=relative_pose_priors,
+            cameras_to_model, initial_data, absolute_pose_priors, relative_pose_priors
         )
-        initial_values = self.__initial_values(initial_data=initial_data)
-        result_values = self.__optimize_factor_graph(graph, initial_values)
-
-        # Print error.
-        final_error = graph.error(result_values)
-        if verbose:
-            logger.info("initial error: %.2f", graph.error(initial_values))
-            logger.info("final error: %.2f", final_error)
+        optimized_data, result_values, final_error = self.__optimize_and_recover(initial_data, graph, verbose)
 
         if self.is_two_view_ba(initial_data):
             try:
@@ -380,8 +376,6 @@ class BundleAdjustmentOptimizer:
                     return None, None, None, None
 
         # Convert the `Values` results to a `GtsfmData` instance.
-        optimized_data = values_to_gtsfm_data(result_values, initial_data, self._shared_calib)
-
         # Filter landmarks by reprojection error.
         if reproj_error_thresh is not None:
             if verbose:
@@ -575,65 +569,3 @@ class BundleAdjustmentOptimizer:
             save_dir=save_dir,
         )
         return filtered_sfm_data, metrics_graph
-
-
-def values_to_gtsfm_data(values: Values, initial_data: GtsfmData, shared_calib: bool) -> GtsfmData:
-    """Cast results from the optimization to GtsfmData object.
-
-    Args:
-        values: Results of factor graph optimization.
-        initial_data: Data used to generate the factor graph; used to extract information about poses and 3d points in
-                      the graph.
-        shared_calib: Flag indicating if calibrations were shared between the cameras.
-
-    Returns:
-        Optimized poses and landmarks.
-    """
-    result = GtsfmData(initial_data.number_images())
-
-    def extract_cal3(calibration_type, camera_idx):
-        """Extracts calibration values based on the camera type."""
-        key = K(0 if shared_calib else camera_idx)
-        if calibration_type == gtsam.Cal3Fisheye:
-            return values.atCal3Fisheye(key)
-        elif calibration_type == gtsam.Cal3Bundler:
-            return values.atCal3Bundler(key)
-        elif calibration_type == gtsam.Cal3DS2:
-            return values.atCal3DS2(key)
-        elif calibration_type == gtsam.Cal3_S2:
-            return values.atCal3_S2(key)
-        else:
-            raise ValueError(f"Unsupported camera calibration type: {calibration_type.__name__}")
-
-    # Find the first valid camera in the partition
-    first_valid_camera_idx = initial_data.get_valid_camera_indices()[0]
-    first_camera = initial_data.get_camera(first_valid_camera_idx)
-
-    assert first_camera is not None, "There should be at least one valid camera in the partition."
-    first_calibration = first_camera.calibration()
-    camera_class = gtsfm_types.get_camera_class_for_calibration(first_calibration)
-
-    # Add cameras.
-    for i in initial_data.get_valid_camera_indices():
-        result.add_camera(
-            i,
-            camera_class(values.atPose3(X(i)), extract_cal3(type(first_calibration), i)),
-        )
-
-    # Add tracks.
-    for j in range(initial_data.number_tracks()):
-        input_track = initial_data.get_track(j)
-
-        # Populate the result with optimized 3D point.
-        result_track = SfmTrack(values.atPoint3(P(j)))
-        result_track.r = input_track.r
-        result_track.g = input_track.g
-        result_track.b = input_track.b
-
-        for measurement_idx in range(input_track.numberMeasurements()):
-            i, uv = input_track.measurement(measurement_idx)
-            result_track.addMeasurement(i, uv)
-
-        result.add_track(result_track)
-
-    return result
