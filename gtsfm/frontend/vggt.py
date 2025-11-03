@@ -365,6 +365,7 @@ def run_VGGT(
     else:
         autocast_ctx = nullcontext()
 
+    dense_points: Optional[torch.Tensor] = None
     with torch.no_grad():
         with autocast_ctx:
             batched = resized_images.unsqueeze(0)  # make into (training) batch of 1
