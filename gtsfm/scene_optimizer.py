@@ -215,18 +215,13 @@ class SceneOptimizer:
 
                 handles_tree = context_tree.map(self._schedule_single_cluster)
                 reconstruction_tree = handles_tree.map(lambda handle: handle.reconstruction)
-                merged_tree = submit_tree_map_with_children(
+                merged_future_tree = submit_tree_map_with_children(
                     client, reconstruction_tree, cluster_merging.combine_results
                 )
-                export_tree = cluster_merging.schedule_exports(
-                    client=client,
-                    handles_tree=handles_tree,
-                    merged_tree=merged_tree,
-                    image_future_map=image_future_map,
-                )
-                root_merge_future: Optional[Future] = merged_tree.value
+                export_tree = cluster_merging.schedule_exports(client, handles_tree, merged_future_tree)
+                root_merge_future: Optional[Future] = merged_future_tree.value
                 for handle_node, merged_node, export_node in zip(
-                    PreOrderIter(handles_tree), PreOrderIter(merged_tree), PreOrderIter(export_tree)
+                    PreOrderIter(handles_tree), PreOrderIter(merged_future_tree), PreOrderIter(export_tree)
                 ):
                     handle = handle_node.value
                     merge_future = merged_node.value
