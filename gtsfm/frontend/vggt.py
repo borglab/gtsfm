@@ -554,6 +554,134 @@ def run_vggt_tracking(
     )
 
 
+# --- vggt_tracking -------------------------------------------------
+
+
+@dataclass
+class VGGTTrackingResult:
+    """Container for the optional VGGT tracking pipeline outputs.
+
+    Attributes:
+        tracks: Array shaped ``(num_frames, num_tracks, 2)`` giving per-frame pixel coordinates.
+        visibilities: Array shaped ``(num_frames, num_tracks)`` with per-frame visibility scores.
+        confidences: Optional array containing per-track confidence values (may be ``None``).
+        points_3d: Optional array of per-track 3D points (may be ``None``).
+        colors: Optional array of per-track RGB colors in ``uint8`` range ``[0, 255]`` (may be ``None``).
+    """
+
+    tracks: np.ndarray
+    visibilities: np.ndarray
+    confidences: Optional[np.ndarray]
+    points_3d: Optional[np.ndarray]
+    colors: Optional[np.ndarray]
+
+
+def _import_predict_tracks():
+    """Return the vendored ``predict_tracks`` helper from the VGGT submodule.
+
+    The tracker lives in ``thirdparty/vggt``. We keep this import behind a small helper so that runtime
+    errors surface with a clear explanation when the submodule is missing.
+    """
+
+    try:
+        from vggt.dependency.track_predict import predict_tracks as _predict_tracks  # type: ignore
+    except ImportError as exc:  # pragma: no cover - exercised only when the submodule is absent
+        raise ImportError(
+            "Could not import VGGT tracker utilities. Ensure the 'vggt' submodule is checked out by "
+            "running `git submodule update --init --recursive`."
+        ) from exc
+    return _predict_tracks
+
+
+def run_vggt_tracking(
+    images: torch.Tensor,
+    *,
+    depth_confidence: Optional[Union[np.ndarray, torch.Tensor]] = None,
+    dense_points_3d: Optional[Union[np.ndarray, torch.Tensor]] = None,
+    config: Optional[VGGTReconstructionConfig] = None,
+    tracker_kwargs: Optional[dict[str, Any]] = None,
+) -> VGGTTrackingResult:
+    """Generate dense feature tracks using the VGGSfM tracker shipped with VGGT.
+
+    Parameters:
+        images: Tensor shaped ``(num_frames, 3, H, W)`` at the *square* VGGT load resolution. You can reuse
+            the ``images`` tensor that you passed into :func:`run_reconstruction`; typically this is the output
+            from ``load_and_preprocess_images_square`` prior to interpolation.
+        depth_confidence: Optional dense confidence volume produced by VGGT's depth head. When using the value
+            returned from :func:`run_reconstruction`, pass the ``depth_conf_np`` array you stored before calling
+            :func:`_unproject_to_colored_points`. The tensor is expected to align with ``images`` spatially, i.e.
+            be square with shape ``(num_frames, 1, H, W)``.
+        dense_points_3d: Optional dense point cloud in VGGT's inference frame. Provide the per-pixel 3D points
+            prior to the outlier pruning applied in :func:`_unproject_to_colored_points` so that the tracker can
+            look up metric depth at query locations. The expected shape is ``(num_frames, H, W, 3)``.
+        config: Optional :class:`VGGTReconstructionConfig`. We reuse the existing configuration container because
+            it already captures the tracker-specific parameters (``max_query_pts``, ``query_frame_num``, etc.).
+        tracker_kwargs: Optional dictionary to override individual keyword arguments passed to the underlying
+            :func:`vggt.dependency.track_predict.predict_tracks` function. This is useful if you want to tweak
+            settings not exposed via :class:`VGGTReconstructionConfig`.
+
+    Returns:
+        :class:`VGGTTrackingResult` aggregating the numpy arrays emitted by the tracker. The visibility scores can
+        be thresholded manually, e.g. ``mask = result.visibilities > config.vis_thresh``. The tracks are expressed
+        in the same *square* coordinate frame as ``images``; remember to rescale them back to the original image
+        crop using :func:`_convert_measurement_to_original_resolution` if you plan to add them to ``GtsfmData``.
+
+    Example:
+        >>> extrinsic, intrinsic, depth_map, depth_conf = run_VGGT(model, image_batch, dtype)
+        >>> dense_points = unproject_depth_map_to_point_map(depth_map, extrinsic, intrinsic)
+        >>> cfg = VGGTReconstructionConfig()
+        >>> tracking = run_vggt_tracking(
+        ...     images=image_batch,
+        ...     depth_confidence=depth_conf,
+        ...     dense_points_3d=dense_points,
+        ...     config=cfg,
+        ... )
+        >>> high_quality = tracking.visibilities > cfg.vis_thresh
+        >>> first_track_pixels = tracking.tracks[:, 0]
+    """
+
+    cfg = config or VGGTReconstructionConfig()
+    predict_tracks = _import_predict_tracks()
+
+    device = images.device
+    dtype = images.dtype
+
+    def _to_matching_tensor(value: Optional[Union[np.ndarray, torch.Tensor]]) -> Optional[torch.Tensor]:
+        if value is None:
+            return None
+        if isinstance(value, torch.Tensor):
+            return value.to(device=device, dtype=dtype)
+        return torch.from_numpy(value).to(device=device, dtype=dtype)
+
+    conf_tensor = _to_matching_tensor(depth_confidence)
+    points_tensor = _to_matching_tensor(dense_points_3d)
+
+    tracker_args: dict[str, Any] = {
+        "max_query_pts": cfg.max_query_pts,
+        "query_frame_num": cfg.query_frame_num,
+        "keypoint_extractor": cfg.keypoint_extractor,
+        "fine_tracking": cfg.fine_tracking,
+    }
+    if tracker_kwargs:
+        tracker_args.update(tracker_kwargs)
+
+    tracks, vis_scores, confidences, points_3d, colors = predict_tracks(
+        images,
+        conf=conf_tensor,
+        points_3d=points_tensor,
+        masks=None,
+        **tracker_args,
+    )
+
+    return VGGTTrackingResult(
+        tracks=tracks,
+        visibilities=vis_scores,
+        confidences=confidences,
+        points_3d=points_3d,
+        colors=colors,
+    )
+
+
 __all__ = [
     "VggtConfiguration",
     "VggtReconstruction",
