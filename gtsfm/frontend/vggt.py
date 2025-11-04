@@ -432,10 +432,6 @@ def run_vggt_tracking(
             are consumed directly, avoiding redundant transfers or recomputation.
         config: Optional :class:`VggtConfiguration`. We reuse the existing configuration container because
             it already captures the tracker-specific parameters (``max_query_pts``, ``query_frame_num``, etc.).
-        tracker_kwargs: Optional dictionary to override individual keyword arguments passed to the underlying
-            :func:`vggt.dependency.track_predict.predict_tracks` function. This is useful if you want to tweak
-            settings not exposed via :class:`VggtConfiguration`.
-
     Returns:
         :class:`VGGTTrackingResult` aggregating the numpy arrays emitted by the tracker. The visibility scores can
         be thresholded manually, e.g. ``mask = result.visibilities > config.vis_thresh``. The tracks are expressed
