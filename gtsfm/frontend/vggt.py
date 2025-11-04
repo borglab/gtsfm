@@ -16,6 +16,7 @@ from torch.amp import autocast as amp_autocast  # type: ignore
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.utils import logger as logger_utils
 from gtsfm.utils import torch as torch_utils
+from gtsam import Point2
 
 PathLike = Union[str, Path]
 
@@ -124,7 +125,7 @@ class VggtConfiguration:
     query_frame_num: int = 4
     keypoint_extractor: str = "aliked+sp"
     fine_tracking: bool = True
-    vis_thresh: float = 0.2
+    track_vis_thresh: float = 0.2
     max_reproj_error: float = 8.0  # TODO(Frank): Does not seem to be used
 
 
@@ -277,6 +278,7 @@ def _convert_vggt_outputs_to_gtsfm_data(
     config: VggtConfiguration,
     points_3d: np.ndarray,
     points_rgb: np.ndarray,
+    tracking_result: VGGTTrackingResult = None,
 ) -> GtsfmData:
     """Convert raw VGGT predictions into ``GtsfmData``."""
 
@@ -301,13 +303,40 @@ def _convert_vggt_outputs_to_gtsfm_data(
             name=image_names_str[local_idx] if image_names_str is not None else None,
             shape=(int(image_height), int(image_width)),
         )
+        
+        if points_3d.size > 0 and points_rgb is not None:
+            for j, xyz in enumerate(points_3d):
+                track = torch_utils.colored_track_from_point(xyz, points_rgb[j])
+                gtsfm_data.add_track(track)
 
-    if points_3d.size > 0 and points_rgb is not None:
-        for j, xyz in enumerate(points_3d):
-            track = torch_utils.colored_track_from_point(xyz, points_rgb[j])
+    if tracking_result:
+        
+        # track masks according to visibility, reprojection error, etc
+        track_mask = tracking_result.visibilities > config.track_vis_thresh
+        inlier_num = track_mask.sum(0)
+        true_indices = np.where(track_mask)
+        # print('track_mask, inlier_num ', track_mask.shape, inlier_num.shape) (4, 2901) (2901,)
+
+        valid_mask = inlier_num >= 2  # a track is invalid if without two inliers
+        # print('np.nonzero(valid_mask): ', np.nonzero(valid_mask).shape)
+        valid_idx = np.nonzero(valid_mask)[0]
+
+        num_points3D = len(valid_idx)
+        # print('num_points3D: ', num_points3D) 2300
+        
+        for valid_id in valid_idx:
+            rgb = points_rgb[valid_id] if points_rgb is not None else np.zeros(3)
+            track = torch_utils.colored_track_from_point(tracking_result.points_3d[valid_id], rgb)
+            frame_idx = np.where(track_mask[:,valid_id])[0]
+            for local_id in frame_idx:
+                global_idx = image_indices[local_id]
+                u, v = tracking_result.tracks[local_id, valid_id]
+                u, v = int(u), int(v)
+                # print(u, v)
+                track.addMeasurement(global_idx, Point2(u, v))
             gtsfm_data.add_track(track)
 
-    # TODO(Frank): optionally, add the tracks from the tracking after running inference
+        # TODO(Frank): optionally, add the tracks from the tracking after running inference
 
     return gtsfm_data
 
@@ -597,6 +626,19 @@ def run_vggt_tracking(
             keypoint_extractor=cfg.keypoint_extractor,
             fine_tracking=cfg.fine_tracking,
         )
+    
+    # print('images: ', images.shape)
+    # print('tracks: ', tracks.shape)
+    # print('vis_scores: ', vis_scores.shape)
+    # print('confidences: ', confidences.shape)
+    # print('points_3d: ', points_3d.shape)
+    # print('colors: ', colors.shape)
+    # images: torch.Size([4, 3, 1024, 1024])
+    # tracks:  (4, 2901, 2)
+    # vis_scores:  (4, 2901)
+    # confidences:  (2901,)
+    # points_3d:  (2901, 3)
+    # colors:  (2901, 3)
 
     return VGGTTrackingResult(
         tracks=tracks, visibilities=vis_scores, confidences=confidences, points_3d=points_3d, colors=colors
@@ -648,6 +690,7 @@ def run_reconstruction(
         else:
             torch.cuda.empty_cache()
 
+    tracking_result = None
     if cfg.tracking:
         tracking_result = run_vggt_tracking(images, vggt_output, config=cfg)
 
@@ -661,7 +704,7 @@ def run_reconstruction(
         image_names=image_names,
         points_3d=points_3d,
         points_rgb=points_rgb,
-        # tracking_result=tracking_result
+        tracking_result=tracking_result
     )
 
     return VggtReconstruction(
