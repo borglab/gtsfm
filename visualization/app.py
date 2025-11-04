@@ -18,17 +18,19 @@ def add_no_cache_headers(response):
 
 
 def find_scenes(base_dir: Path) -> list[dict[str, str]]:
-    """Recursively find all ba_output folders with COLMAP outputs.
+    """Recursively find COLMAP reconstructions and standalone gaussian splat files.
 
     Args:
         base_dir: base directory to scan.
 
     Returns:
-        List of scenes found, each as a dictionary with keys:
+        List of items found, each as a dictionary with keys:
             - label: human-readable label for the scene
             - rel_path: relative path from base_dir
             - points: URL path to points3D.txt
             - images: URL path to images.txt
+            - splats: optional URL path to gaussian_splats.ply (if available)
+            - kind: "scene" for reconstructions, "splat" for standalone files
     """
     scenes = []
     for points_file in base_dir.rglob("points3D.txt"):
@@ -43,17 +45,56 @@ def find_scenes(base_dir: Path) -> list[dict[str, str]]:
             # nice label: last 2 parts (…/sequence/ba_output)
             parts = rel.split("/")
             label = "/".join(parts[-3:]) if len(parts) >= 3 else rel
+            splats_path = _find_splats_file(scene_dir, base_dir)
+            splats_url = None
+            if splats_path is not None:
+                splats_rel = splats_path.relative_to(base_dir).as_posix()
+                splats_url = f"/data/{quote(splats_rel)}"
             scenes.append(
                 {
+                    "kind": "scene",
                     "label": label,
                     "rel_path": rel,  # served via /data/<rel_path>/*
                     "points": f"/data/{quote(rel)}/points3D.txt",
                     "images": f"/data/{quote(rel)}/images.txt",
+                    "splats": splats_url,
                 }
             )
+    for splats_file in base_dir.rglob("gaussian_splats.ply"):
+        try:
+            rel_splat = splats_file.relative_to(base_dir).as_posix()
+        except ValueError:
+            continue
+        scenes.append(
+            {
+                "kind": "splat",
+                "label": rel_splat,
+                "rel_path": rel_splat,
+                "points": None,
+                "images": None,
+                "splats": f"/data/{quote(rel_splat)}",
+            }
+        )
     # Sort for stability
     scenes.sort(key=lambda x: x["rel_path"])
     return scenes
+
+
+def _find_splats_file(scene_dir: Path, base_dir: Path) -> Path | None:
+    """Search upward from scene_dir for gaussian_splats.ply, stopping at base_dir."""
+    current = scene_dir
+    while True:
+        candidate = current / "gaussian_splats.ply"
+        if candidate.exists():
+            try:
+                candidate.relative_to(base_dir)
+                return candidate
+            except ValueError:
+                return None
+        if current == base_dir or current.parent == current:
+            break
+        current = current.parent
+    return None
 
 
 BASE_DIR = Path(os.environ.get("RESULTS_DIR", "results")).resolve()

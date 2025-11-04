@@ -13,7 +13,13 @@
   <!-- Sidebar for scene selection and info -->
   <aside id="sidebar">
     <h2>Reconstructions</h2>
-    <div id="info">Loading...</div>
+    <div id="info" class="info-summary" role="status" aria-live="polite">
+      <div class="info-pill" data-role="count">—</div>
+      <div class="info-details">
+        <div class="info-title" data-role="title">Loading reconstructions…</div>
+        <div class="info-path" data-role="path">Checking workspace…</div>
+      </div>
+    </div>
     <input type="text" id="filter" placeholder="Filter scenes...">
     <div id="sceneList"></div>
   </aside>
@@ -21,17 +27,25 @@
   <!-- Main content area for the 3D viewer -->
   <main id="main-content">
     <div id="sceneStats">
-      <div class="stat-pair">
-        <span class="label">Cameras</span>
-        <span class="value" id="statCameras">0</span>
+      <div class="stat-group" data-mode="scene">
+        <div class="stat-pair">
+          <span class="label">Cameras</span>
+          <span class="value" id="statCameras">0</span>
+        </div>
+        <div class="stat-pair">
+          <span class="label">Points</span>
+          <span class="value" id="statPoints">0</span>
+        </div>
+        <div class="stat-wide">
+          <span class="label">Image</span>
+          <span class="value" id="statImageName">—</span>
+        </div>
       </div>
-      <div class="stat-pair">
-        <span class="label">Points</span>
-        <span class="value" id="statPoints">0</span>
-      </div>
-      <div class="stat-wide">
-        <span class="label">Image</span>
-        <span class="value" id="statImageName">—</span>
+      <div class="stat-group" data-mode="splat">
+        <div class="stat-pair">
+          <span class="label">Splats</span>
+          <span class="value" id="statSplats">0</span>
+        </div>
       </div>
     </div>
     <canvas id="renderCanvas"></canvas>
@@ -39,15 +53,24 @@
     <!-- Heads-Up Display for viewer controls -->
     <div id="hud">
       <button id="toggleBg">Toggle BG</button>
-      <button id="prevCamBtn">◀︎</button>
-      <button id="nextCamBtn">▶︎</button>
+      <button id="prevCamBtn" class="hud-scene-only">◀︎</button>
+      <button id="nextCamBtn" class="hud-scene-only">▶︎</button>
       <button id="toggleStats">Hide Stats</button>
-      <label>
+      <label class="hud-scene-only">
         <input type="checkbox" id="toggleCams" checked> Show Cameras
       </label>
-      <label>
+      <label class="hud-scene-only">
         Point Size: <input type="range" id="ptSize" min="1" max="10" value="2">
       </label>
+    </div>
+
+    <div id="loadingOverlay" class="loading-overlay" role="status" aria-live="polite">
+      <div class="loading-box">
+        <span id="loadingMessage">Loading…</span>
+        <div class="loading-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100">
+          <div class="loading-progress-fill" id="loadingProgress" aria-valuenow="0"></div>
+        </div>
+      </div>
     </div>
   </main>
 
