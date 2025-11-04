@@ -255,8 +255,7 @@ def run_VGGT(
 ) -> VggtOutput:
     """Run VGGT on a batch of images and return raw model predictions.
 
-    Set ``return_dense_points`` to ``True`` to additionally compute the full per-pixel
-    point cloud using the optional AnySplat acceleration path (when available).
+    Computes the full per-pixel point cloud using the AnySplat acceleration path (when available).
     """
     if images.ndim != 4 or images.shape[1] != 3:
         raise ValueError("VGGT expects images shaped as (N, 3, H, W).")
