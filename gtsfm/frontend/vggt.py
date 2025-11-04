@@ -439,7 +439,7 @@ def run_vggt_tracking(
         crop using :func:`_convert_measurement_to_original_resolution` if you plan to add them to ``GtsfmData``.
 
     Example:
-        >>> vggt_output = run_VGGT(image_batch, model=model, dtype=dtype, return_dense_points=True)
+        >>> vggt_output = run_VGGT(image_batch, model=model)
         >>> cfg = VggtConfiguration()
         >>> tracking = run_vggt_tracking(image_batch, vggt_output, config=cfg)
         >>> high_quality = tracking.visibilities > cfg.vis_thresh
