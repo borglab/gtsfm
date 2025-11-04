@@ -4,6 +4,7 @@ Authors: Harneet Singh Khanuja
 """
 
 import unittest
+from dataclasses import dataclass
 
 import gtsam
 import numpy as np
@@ -17,6 +18,18 @@ def dict_allclose(dict_a, dict_b, atol=1e-7):
     if dict_a.keys() != dict_b.keys():
         return False
     return all(torch.allclose(dict_a[k], dict_b[k], atol=atol) for k in dict_a)
+
+
+@dataclass
+class DummyGaussians:
+    """Minimal GaussiansProtocol implementation for unit testing."""
+
+    means: torch.Tensor
+    scales: torch.Tensor
+    rotations: torch.Tensor
+    harmonics: torch.Tensor
+    opacities: torch.Tensor
+    covariances: torch.Tensor
 
 
 class TestIoUtils(unittest.TestCase):
@@ -156,7 +169,7 @@ class TestIoUtils(unittest.TestCase):
         )
 
     def test_transform_gaussian_splats(self):
-        """Ensures correct transformation from coordinate system A to B"""
+        """Ensures correct transformation from coordinate system A to B."""
 
         base_gaussian_splats = {
             "means": torch.Tensor([[0.5, 0, 0], [2.5, 0, 0], [0, 1.4, 3]]),
@@ -166,103 +179,136 @@ class TestIoUtils(unittest.TestCase):
             "scales": torch.log(torch.Tensor([[0.3, 0.15, 0.05], [0.4, 2.3, 1.5], [0.1, 0.2, 1]])),
         }
 
-        test_gaussian_splats = {"means": [], "quats": [], "scales": []}
+        sim3_cases = [
+            gtsam.Similarity3(gtsam.Rot3(), gtsam.Point3(1.5, 1, 0.5), 1.0),
+            gtsam.Similarity3(gtsam.Rot3.Rz(np.deg2rad(90)), gtsam.Point3(0, 0, 0), 1.0),
+            gtsam.Similarity3(gtsam.Rot3(), gtsam.Point3(0, 0, 0), 2.5),
+            gtsam.Similarity3(
+                gtsam.Rot3(0.82236317, 0.02226003, 0.43967974, 0.36042341),
+                gtsam.Point3(-1, 0.5, 1),
+                0.5,
+            ),
+        ]
 
-        for i in range(len(base_gaussian_splats["means"])):
+        for sim3 in sim3_cases:
+            expected_dict = self._compute_expected_dict(base_gaussian_splats, sim3)
+            transformed_dict = splat.transform_gaussian_splats(base_gaussian_splats, sim3)
+            self.assertTrue(dict_allclose(expected_dict, transformed_dict))
+            self._assert_gaussian_protocol_transform(base_gaussian_splats, sim3, expected_dict)
+
+    @staticmethod
+    def _compute_expected_dict(base_gaussian_splats, sim3):
+        expected = {"means": [], "quats": [], "scales": []}
+        num_gaussians = base_gaussian_splats["means"].shape[0]
+        for i in range(num_gaussians):
             base_gaussian = {
                 "mean": base_gaussian_splats["means"][i],
                 "quat": base_gaussian_splats["quats"][i],
                 "scale": base_gaussian_splats["scales"][i],
             }
+            transformed = splat.transform_gaussian(base_gaussian, sim3)
+            expected["means"].append(transformed["mean"])
+            expected["quats"].append(transformed["quat"])
+            expected["scales"].append(transformed["scale"])
+        return {key: torch.stack(values) for key, values in expected.items()}
 
-            # --- Test 1: Translation Only ---
-            sim3_1 = gtsam.Similarity3(gtsam.Rot3(), gtsam.Point3(1.5, 1, 0.5), torch.tensor(1.0))
-            gauss_B_1 = splat.transform_gaussian(base_gaussian, sim3_1)
+    def _assert_gaussian_protocol_transform(self, base_gaussian_splats, sim3, expected_dict):
+        dummy_gaussians = self._make_dummy_gaussians(base_gaussian_splats)
+        transformed = splat.transform_gaussian_splats(dummy_gaussians, sim3)
 
-            test_gaussian_splats["means"].append(gauss_B_1["mean"])
-            test_gaussian_splats["quats"].append(gauss_B_1["quat"])
-            test_gaussian_splats["scales"].append(gauss_B_1["scale"])
+        self.assertIsInstance(transformed, DummyGaussians)
 
-        for key in test_gaussian_splats:
-            test_gaussian_splats[key] = torch.stack(test_gaussian_splats[key])
+        expected_means = expected_dict["means"].unsqueeze(0)
+        expected_scales = torch.exp(expected_dict["scales"]).unsqueeze(0)
+        expected_rotations_xyzw = torch.cat(
+            [expected_dict["quats"][:, 1:], expected_dict["quats"][:, :1]], dim=-1
+        ).unsqueeze(0)
+        self.assertTrue(torch.allclose(transformed.means, expected_means, atol=1e-6))
+        self.assertTrue(torch.allclose(transformed.scales, expected_scales, atol=1e-6))
+        self.assertTrue(torch.allclose(transformed.rotations, expected_rotations_xyzw, atol=1e-6))
+        self.assertTrue(torch.allclose(transformed.covariances, dummy_gaussians.covariances))
+        self.assertEqual(transformed.means.shape, dummy_gaussians.means.shape)
 
-        self.assertTrue(
-            dict_allclose(test_gaussian_splats, splat.transform_gaussian_splats(base_gaussian_splats, sim3_1))
+    @staticmethod
+    def _make_dummy_gaussians(base_gaussian_splats) -> DummyGaussians:
+        means = base_gaussian_splats["means"].unsqueeze(0)
+        scales_linear = torch.exp(base_gaussian_splats["scales"]).unsqueeze(0)
+        quats_wxyz = base_gaussian_splats["quats"]
+        rotations_xyzw = torch.cat([quats_wxyz[:, 1:], quats_wxyz[:, :1]], dim=-1).unsqueeze(0)
+
+        batch_size, num_gaussians = means.shape[0], means.shape[1]
+        harmonics = torch.zeros((batch_size, num_gaussians, 3, 25), dtype=means.dtype, device=means.device)
+        opacities = torch.ones((batch_size, num_gaussians), dtype=means.dtype, device=means.device)
+
+        diag_entries = torch.tensor([1.0, 2.0, 3.0], dtype=means.dtype, device=means.device)
+        base_covariance = torch.diag(diag_entries)
+        covariances = base_covariance.unsqueeze(0).repeat(num_gaussians, 1, 1).unsqueeze(0)
+
+        return DummyGaussians(
+            means=means,
+            scales=scales_linear,
+            rotations=rotations_xyzw,
+            harmonics=harmonics,
+            opacities=opacities,
+            covariances=covariances,
         )
 
-        test_gaussian_splats = {"means": [], "quats": [], "scales": []}
+    def test_merge_gaussian_splats_dict(self):
+        """Ensure gaussian dictionaries merge via concatenation."""
 
-        for i in range(len(base_gaussian_splats["means"])):
-            base_gaussian = {
-                "mean": base_gaussian_splats["means"][i],
-                "quat": base_gaussian_splats["quats"][i],
-                "scale": base_gaussian_splats["scales"][i],
-            }
+        gaussians_a = {
+            "means": torch.tensor([[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]]),
+            "quats": torch.tensor([[1.0, 0.0, 0.0, 0.0], [0.7071, 0.0, 0.7071, 0.0]]),
+            "scales": torch.log(torch.tensor([[0.2, 0.2, 0.2], [0.3, 0.3, 0.3]])),
+        }
+        gaussians_b = {
+            "means": torch.tensor([[2.0, 2.0, 2.0]]),
+            "quats": torch.tensor([[0.5, 0.5, 0.5, 0.5]]),
+            "scales": torch.log(torch.tensor([[0.4, 0.4, 0.4]])),
+        }
 
-            # --- Test 2: Rotation Only ---
-            sim3_2 = gtsam.Similarity3(gtsam.Rot3.Rz(np.deg2rad(90)), gtsam.Point3(0, 0, 0), torch.tensor(1.0))
-            gauss_B_2 = splat.transform_gaussian(base_gaussian, sim3_2)
-
-            test_gaussian_splats["means"].append(gauss_B_2["mean"])
-            test_gaussian_splats["quats"].append(gauss_B_2["quat"])
-            test_gaussian_splats["scales"].append(gauss_B_2["scale"])
-
-        for key in test_gaussian_splats:
-            test_gaussian_splats[key] = torch.stack(test_gaussian_splats[key])
-
+        merged = splat.merge_gaussian_splats(gaussians_a, gaussians_b)
+        self.assertIsInstance(merged, dict)
+        self.assertEqual(merged["means"].shape[0], 3)
+        self.assertTrue(torch.allclose(merged["means"], torch.cat([gaussians_a["means"], gaussians_b["means"]], dim=0)))
+        self.assertTrue(torch.allclose(merged["quats"], torch.cat([gaussians_a["quats"], gaussians_b["quats"]], dim=0)))
         self.assertTrue(
-            dict_allclose(test_gaussian_splats, splat.transform_gaussian_splats(base_gaussian_splats, sim3_2))
+            torch.allclose(merged["scales"], torch.cat([gaussians_a["scales"], gaussians_b["scales"]], dim=0))
         )
 
-        test_gaussian_splats = {"means": [], "quats": [], "scales": []}
+    def test_merge_gaussian_splats_protocol(self):
+        """Ensure dataclass gaussians merge via concatenation along gaussian axis."""
 
-        for i in range(len(base_gaussian_splats["means"])):
-            base_gaussian = {
-                "mean": base_gaussian_splats["means"][i],
-                "quat": base_gaussian_splats["quats"][i],
-                "scale": base_gaussian_splats["scales"][i],
-            }
+        base_a = {
+            "means": torch.tensor([[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]]),
+            "quats": torch.tensor([[1.0, 0.0, 0.0, 0.0], [0.9239, 0.0, 0.3827, 0.0]]),
+            "scales": torch.log(torch.tensor([[0.2, 0.2, 0.2], [0.3, 0.3, 0.3]])),
+        }
+        base_b = {
+            "means": torch.tensor([[2.0, 2.0, 2.0]]),
+            "quats": torch.tensor([[0.7071, 0.0, 0.0, 0.7071]]),
+            "scales": torch.log(torch.tensor([[0.4, 0.4, 0.4]])),
+        }
 
-            # --- Test 3: Scale Only ---
-            sim3_3 = gtsam.Similarity3(gtsam.Rot3(), gtsam.Point3(0, 0, 0), torch.tensor(2.5))
-            gauss_B_3 = splat.transform_gaussian(base_gaussian, sim3_3)
+        gaussians_a = self._make_dummy_gaussians(base_a)
+        gaussians_b = self._make_dummy_gaussians(base_b)
 
-            test_gaussian_splats["means"].append(gauss_B_3["mean"])
-            test_gaussian_splats["quats"].append(gauss_B_3["quat"])
-            test_gaussian_splats["scales"].append(gauss_B_3["scale"])
+        merged = splat.merge_gaussian_splats(gaussians_a, gaussians_b)
+        self.assertIsInstance(merged, DummyGaussians)
 
-        for key in test_gaussian_splats:
-            test_gaussian_splats[key] = torch.stack(test_gaussian_splats[key])
+        expected_means = torch.cat([gaussians_a.means, gaussians_b.means], dim=1)
+        expected_scales = torch.cat([gaussians_a.scales, gaussians_b.scales], dim=1)
+        expected_rotations = torch.cat([gaussians_a.rotations, gaussians_b.rotations], dim=1)
+        expected_harmonics = torch.cat([gaussians_a.harmonics, gaussians_b.harmonics], dim=1)
+        expected_opacities = torch.cat([gaussians_a.opacities, gaussians_b.opacities], dim=1)
+        expected_covariances = torch.cat([gaussians_a.covariances, gaussians_b.covariances], dim=1)
 
-        self.assertTrue(
-            dict_allclose(test_gaussian_splats, splat.transform_gaussian_splats(base_gaussian_splats, sim3_3))
-        )
-
-        test_gaussian_splats = {"means": [], "quats": [], "scales": []}
-
-        for i in range(len(base_gaussian_splats["means"])):
-            base_gaussian = {
-                "mean": base_gaussian_splats["means"][i],
-                "quat": base_gaussian_splats["quats"][i],
-                "scale": base_gaussian_splats["scales"][i],
-            }
-
-            # --- Test 4: Combined Transformation ---
-            sim3_4 = gtsam.Similarity3(
-                gtsam.Rot3(0.82236317, 0.02226003, 0.43967974, 0.36042341), gtsam.Point3(-1, 0.5, 1), torch.tensor(0.5)
-            )
-            gauss_B_4 = splat.transform_gaussian(base_gaussian, sim3_4)
-
-            test_gaussian_splats["means"].append(gauss_B_4["mean"])
-            test_gaussian_splats["quats"].append(gauss_B_4["quat"])
-            test_gaussian_splats["scales"].append(gauss_B_4["scale"])
-
-        for key in test_gaussian_splats:
-            test_gaussian_splats[key] = torch.stack(test_gaussian_splats[key])
-
-        self.assertTrue(
-            dict_allclose(test_gaussian_splats, splat.transform_gaussian_splats(base_gaussian_splats, sim3_4))
-        )
+        self.assertTrue(torch.allclose(merged.means, expected_means))
+        self.assertTrue(torch.allclose(merged.scales, expected_scales))
+        self.assertTrue(torch.allclose(merged.rotations, expected_rotations))
+        self.assertTrue(torch.allclose(merged.harmonics, expected_harmonics))
+        self.assertTrue(torch.allclose(merged.opacities, expected_opacities))
+        self.assertTrue(torch.allclose(merged.covariances, expected_covariances))
 
     def test_transform_camera_poses(self):
         """Ensures correct transformation from coordinate system A to B"""

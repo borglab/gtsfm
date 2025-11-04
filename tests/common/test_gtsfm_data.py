@@ -23,8 +23,11 @@ from gtsam import (
     Similarity3,
 )
 
+import torch
+
 import gtsfm.utils.graph as graph_utils
 from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm.utils import splat
 
 GTSAM_EXAMPLE_FILE = "dubrovnik-3-7-pre"  # Example data with 3 cameras and 7 tracks.
 EXAMPLE_DATA = GtsfmData.read_bal(gtsam.findExampleDataFile(GTSAM_EXAMPLE_FILE))
@@ -175,6 +178,73 @@ class TestGtsfmData(unittest.TestCase):
         # check the track
         self.assertEqual(computed.number_tracks(), 1)
         self.assertTrue(computed.get_track(0).equals(track_to_add, EQUALITY_TOLERANCE))
+
+    def test_gaussian_splats_accessors(self) -> None:
+        """Ensure Gaussian splats can be attached and queried."""
+        data = GtsfmData(number_images=1)
+        self.assertFalse(data.has_gaussian_splats())
+
+        gaussians = {
+            "means": torch.tensor([[0.0, 0.0, 0.0]], dtype=torch.float32),
+            "quats": torch.tensor([[1.0, 0.0, 0.0, 0.0]], dtype=torch.float32),
+            "scales": torch.log(torch.tensor([[0.5, 0.5, 0.5]], dtype=torch.float32)),
+        }
+
+        data.set_gaussian_splats(gaussians)
+        self.assertTrue(data.has_gaussian_splats())
+        self.assertIs(data.get_gaussian_splats(), gaussians)
+
+    def test_transform_with_gaussian_splats(self) -> None:
+        """Ensure Sim(3) transforms update attached Gaussian splats."""
+        data = GtsfmData(number_images=1)
+        data.add_camera(0, PinholeCameraCal3Bundler(Pose3(), Cal3Bundler()))
+
+        gaussians = {
+            "means": torch.tensor([[1.0, 0.0, 0.0]], dtype=torch.float32),
+            "quats": torch.tensor([[1.0, 0.0, 0.0, 0.0]], dtype=torch.float32),
+            "scales": torch.log(torch.tensor([[1.0, 1.0, 1.0]], dtype=torch.float32)),
+        }
+        data.set_gaussian_splats(gaussians)
+
+        aSb = Similarity3(Rot3(), Point3(1.0, 0.0, 0.0), 2.0)
+        transformed = data.transform_with_sim3(aSb)
+        transformed_gaussians = transformed.get_gaussian_splats()
+        assert transformed_gaussians is not None
+
+        expected = splat.transform_gaussian_splats(gaussians, aSb)
+        self.assertTrue(torch.allclose(transformed_gaussians["means"], expected["means"]))
+        self.assertTrue(torch.allclose(transformed_gaussians["quats"], expected["quats"]))
+        self.assertTrue(torch.allclose(transformed_gaussians["scales"], expected["scales"]))
+
+    def test_merged_with_gaussian_splats(self) -> None:
+        """Ensure merging scenes combines Gaussian splats."""
+        scene_a = GtsfmData(number_images=1)
+        scene_a.add_camera(0, PinholeCameraCal3Bundler(Pose3(), Cal3Bundler()))
+        splats_a = {
+            "means": torch.tensor([[0.0, 0.0, 0.0]], dtype=torch.float32),
+            "quats": torch.tensor([[1.0, 0.0, 0.0, 0.0]], dtype=torch.float32),
+            "scales": torch.log(torch.tensor([[0.5, 0.5, 0.5]], dtype=torch.float32)),
+        }
+        scene_a.set_gaussian_splats(splats_a)
+
+        scene_b = GtsfmData(number_images=1)
+        scene_b.add_camera(0, PinholeCameraCal3Bundler(Pose3(), Cal3Bundler()))
+        splats_b = {
+            "means": torch.tensor([[1.0, 0.0, 0.0]], dtype=torch.float32),
+            "quats": torch.tensor([[1.0, 0.0, 0.0, 0.0]], dtype=torch.float32),
+            "scales": torch.log(torch.tensor([[0.6, 0.6, 0.6]], dtype=torch.float32)),
+        }
+        scene_b.set_gaussian_splats(splats_b)
+
+        identity = Similarity3()
+        merged = scene_a.merged_with(scene_b, identity)
+        merged_gaussians = merged.get_gaussian_splats()
+        assert merged_gaussians is not None
+
+        expected = splat.merge_gaussian_splats(splats_a, splats_b)
+        self.assertTrue(torch.allclose(merged_gaussians["means"], expected["means"]))
+        self.assertTrue(torch.allclose(merged_gaussians["quats"], expected["quats"]))
+        self.assertTrue(torch.allclose(merged_gaussians["scales"], expected["scales"]))
 
     @mock.patch.object(graph_utils, "get_nodes_in_largest_connected_component", return_value=[1, 2, 4])
     def test_select_largest_connected_component(self, graph_largest_cc_mock):

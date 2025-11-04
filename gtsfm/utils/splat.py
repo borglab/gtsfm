@@ -5,6 +5,7 @@ Authors: Harneet Singh Khanuja
 
 import math
 import random
+from dataclasses import is_dataclass, replace
 from typing import Literal, Protocol, Tuple
 
 import cv2
@@ -312,48 +313,139 @@ def transform_gaussian(gaussianA: dict, bSa: gtsam.Similarity3) -> dict:
     return gaussianB
 
 
-def transform_gaussian_splats(gaussian_splats: dict, bSa: gtsam.Similarity3) -> dict:
+def transform_gaussian_splats(
+    gaussian_splats: dict[str, torch.Tensor] | GaussiansProtocol, bSa: gtsam.Similarity3
+) -> dict[str, torch.Tensor] | GaussiansProtocol:
     """
-    Transforms Gaussian Splats from one coordinate system to another using gtsam.Similarity3
+    Transforms Gaussian splats from one coordinate system to another using ``gtsam.Similarity3``.
+
     Args:
-        gaussian_splats (dict): A dictionary representing the Gaussian splats in coordinate system A.
-        bSa (gtsam.Similarity3): The transformation from coordinate system A to B.
+        gaussian_splats: Collection of Gaussians expressed either as a dictionary containing
+            ``means`` (N,3), ``quats`` (N,4) in ``w,x,y,z`` order, and ``scales`` (N,3) stored in
+            log-space; or an object adhering to :class:`GaussiansProtocol` with rotations in ``x,y,z,w`` order
+            and scales expressed linearly and shape having batch_size = 1 in dim 0.
+        bSa: The transformation from coordinate system ``A`` to ``B``.
+
     Returns:
-        converted_gaussian_splats: A dictionary representing the Gaussian splats in coordinate system B.
+        Gaussian splats in coordinate system ``B`` with the same container type as the input.
     """
 
-    means = gaussian_splats["means"]
-    R = torch.tensor(bSa.rotation().matrix(), dtype=torch.float32).to(means.device)
-    t = torch.tensor(bSa.translation(), dtype=torch.float32).to(means.device)
-    s = torch.tensor(bSa.scale()).to(means.device)
+    def _apply_quaternion_left_multiply(sim3_quat_wxyz: torch.Tensor, quats_wxyz: torch.Tensor) -> torch.Tensor:
+        """Left-multiply ``quats_wxyz`` by ``sim3_quat_wxyz`` (both in w,x,y,z order)."""
+        w0, x0, y0, z0 = sim3_quat_wxyz
+        w1, x1, y1, z1 = quats_wxyz.unbind(-1)
+        converted_w = w0 * w1 - x0 * x1 - y0 * y1 - z0 * z1
+        converted_x = w0 * x1 + x0 * w1 + y0 * z1 - z0 * y1
+        converted_y = w0 * y1 - x0 * z1 + y0 * w1 + z0 * x1
+        converted_z = w0 * z1 + x0 * y1 - y0 * x1 + z0 * w1
+        converted = torch.stack([converted_w, converted_x, converted_y, converted_z], dim=-1)
+        converted = converted / converted.norm(dim=-1, keepdim=True)
+        converted[converted[..., 0] < 0] *= -1.0
+        return converted
 
-    converted_means = s * ((R @ means.T).T + t)
+    is_dict_input = isinstance(gaussian_splats, dict)
+    means = gaussian_splats["means"] if is_dict_input else gaussian_splats.means
+    dtype = means.dtype
+    device = means.device
 
-    w0, x0, y0, z0 = bSa.rotation().toQuaternion().coeffs()[[3, 0, 1, 2]]
-    w1, x1, y1, z1 = gaussian_splats["quats"].unbind(-1)
+    R_np = bSa.rotation().matrix()
+    t_np = bSa.translation()
+    scale_value = float(bSa.scale())
 
-    converted_quaternions_w = w0 * w1 - x0 * x1 - y0 * y1 - z0 * z1
-    converted_quaternions_x = w0 * x1 + x0 * w1 + y0 * z1 - z0 * y1
-    converted_quaternions_y = w0 * y1 - x0 * z1 + y0 * w1 + z0 * x1
-    converted_quaternions_z = w0 * z1 + x0 * y1 - y0 * x1 + z0 * w1
+    R = torch.tensor(R_np, dtype=dtype, device=device)
+    t = torch.tensor(t_np, dtype=dtype, device=device)
+    s = torch.tensor(scale_value, dtype=dtype, device=device)
 
-    converted_quaternions = torch.stack(
-        [converted_quaternions_w, converted_quaternions_x, converted_quaternions_y, converted_quaternions_z], dim=1
+    if means.ndim == 2:
+        converted_means = torch.matmul(means, R.T) + t
+    else:
+        converted_means = torch.matmul(means, R.T) + t.unsqueeze(0)
+    converted_means = converted_means * s
+
+    sim3_quat_coeffs = torch.tensor(bSa.rotation().toQuaternion().coeffs(), dtype=dtype, device=device)
+    sim3_quat_wxyz = sim3_quat_coeffs[[3, 0, 1, 2]]
+
+    if is_dict_input:
+        quats_wxyz = gaussian_splats["quats"]
+        converted_quaternions = _apply_quaternion_left_multiply(
+            sim3_quat_wxyz.to(dtype=quats_wxyz.dtype, device=quats_wxyz.device),
+            quats_wxyz,
+        )
+        scales_tensor = gaussian_splats["scales"]
+        scale_offset = torch.log(torch.tensor(scale_value, dtype=scales_tensor.dtype, device=scales_tensor.device))
+        converted_scales = scales_tensor + scale_offset
+
+        converted_gaussian_splats = gaussian_splats.copy()
+        converted_gaussian_splats["means"] = converted_means
+        converted_gaussian_splats["quats"] = converted_quaternions
+        converted_gaussian_splats["scales"] = converted_scales
+        return converted_gaussian_splats
+
+    rotations_xyzw = gaussian_splats.rotations
+    rotations_wxyz = torch.cat([rotations_xyzw[..., 3:], rotations_xyzw[..., :3]], dim=-1)
+    converted_rotations_wxyz = _apply_quaternion_left_multiply(
+        sim3_quat_wxyz.to(dtype=rotations_xyzw.dtype, device=rotations_xyzw.device),
+        rotations_wxyz,
+    )
+    converted_rotations_xyzw = torch.cat([converted_rotations_wxyz[..., 1:], converted_rotations_wxyz[..., :1]], dim=-1)
+
+    converted_scales = gaussian_splats.scales * torch.tensor(
+        scale_value, dtype=gaussian_splats.scales.dtype, device=gaussian_splats.scales.device
     )
 
-    converted_quaternions = converted_quaternions / converted_quaternions.norm(dim=-1, keepdim=True)
+    if not is_dataclass(gaussian_splats):
+        raise TypeError("Expected gaussian_splats to be a dataclass implementing GaussiansProtocol.")
 
-    converted_quaternions[converted_quaternions[:, 0] < 0] *= -1.0
-
-    converted_scales = torch.log(torch.tensor(bSa.scale())) + gaussian_splats["scales"]
-
-    # we only update the means, quaternions and scales (covariance) as opacity and color do not change.
-    converted_gaussian_splats = gaussian_splats.copy()
-    converted_gaussian_splats["means"] = converted_means
-    converted_gaussian_splats["quats"] = converted_quaternions
-    converted_gaussian_splats["scales"] = converted_scales
-
+    replace_kwargs = {
+        "means": converted_means,
+        "scales": converted_scales,
+        "rotations": converted_rotations_xyzw,
+    }
+    converted_gaussian_splats = replace(gaussian_splats, **replace_kwargs)
     return converted_gaussian_splats
+
+
+def merge_gaussian_splats(
+    gaussians_a: dict[str, torch.Tensor] | GaussiansProtocol,
+    gaussians_b: dict[str, torch.Tensor] | GaussiansProtocol,
+) -> dict[str, torch.Tensor] | GaussiansProtocol:
+    """
+    Concatenate two gaussian collections along the gaussian dimension.
+
+    The inputs must both be dictionaries or both be dataclass implementations of :class:`GaussiansProtocol`.
+    For dictionaries, all keys must match exactly. For protocol inputs, the batch dimension is assumed to be
+    the leading axis (size ``B``) and the gaussian dimension at index 1. All tensors are concatenated along that
+    gaussian axis and the same representation type is returned.
+    """
+
+    is_dict_input = isinstance(gaussians_a, dict)
+    if is_dict_input != isinstance(gaussians_b, dict):
+        raise TypeError("Both gaussian collections must share the same representation (dict or dataclass).")
+
+    if is_dict_input:
+        keys_a = set(gaussians_a.keys())
+        keys_b = set(gaussians_b.keys())
+        if keys_a != keys_b:
+            raise ValueError("Gaussian dictionaries must contain identical keys to be merged.")
+
+        merged: dict[str, torch.Tensor] = {}
+        for key in gaussians_a:
+            merged[key] = torch.cat([gaussians_a[key], gaussians_b[key]], dim=0)
+        return merged
+
+    if not is_dataclass(gaussians_a) or not is_dataclass(gaussians_b):
+        raise TypeError("Expected dataclass instances implementing GaussiansProtocol.")
+    if type(gaussians_a) is not type(gaussians_b):
+        raise TypeError("Gaussian dataclasses must be of the same concrete type.")
+
+    if gaussians_a.means.shape[0] != gaussians_b.means.shape[0]:
+        raise ValueError("Gaussian batches must share the same batch dimension to be merged.")
+
+    merged_kwargs = {}
+    for attr in ("means", "scales", "rotations", "harmonics", "opacities", "covariances"):
+        merged_kwargs[attr] = torch.cat([getattr(gaussians_a, attr), getattr(gaussians_b, attr)], dim=1)
+
+    return replace(gaussians_a, **merged_kwargs)
 
 
 def transform_camera_pose(aTc: torch.Tensor, bSa: gtsam.Similarity3) -> torch.Tensor:

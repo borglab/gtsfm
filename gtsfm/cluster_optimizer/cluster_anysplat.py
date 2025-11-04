@@ -134,7 +134,7 @@ class ClusterAnySplat(ClusterOptimizerBase):
         splats, pred_context_pose = self._model.inference((processed_images + 1) * 0.5)
 
         # Move results to CPU to avoid Dask serialization errors.
-        for attr in ["means", "scales", "rotations", "harmonics", "opacities"]:
+        for attr in ["means", "scales", "rotations", "harmonics", "opacities", "covariances"]:
             setattr(splats, attr, getattr(splats, attr).cpu())
         pred_context_pose["extrinsic"] = pred_context_pose["extrinsic"].cpu()
         pred_context_pose["intrinsic"] = pred_context_pose["intrinsic"].cpu()
@@ -156,7 +156,6 @@ class ClusterAnySplat(ClusterOptimizerBase):
         splats_means = splats.means[0].cpu().numpy()  # type: ignore
         dc_color = splats.harmonics[..., 0][0]  # type: ignore
 
-        logger.info("max gaussians %s", self._max_gaussians)
         if self._max_gaussians is not None and splats.opacities.shape[1] > self._max_gaussians:
             logger.info(f"Filtering Gaussians to {self._max_gaussians}")
 
@@ -176,11 +175,12 @@ class ClusterAnySplat(ClusterOptimizerBase):
         if splats_means.size > 0:
             for j, xyz in enumerate(splats_means):
                 color = colors_np[j]
-
                 track = torch_utils.colored_track_from_point(xyz, color)
-
                 gtsfm_data.add_track(track)
+
         logger.info(f"Added {len(splats_means)} tracks from Gaussian means.")
+
+        gtsfm_data.set_gaussian_splats(splats)
 
         return AnySplatReconstructionResult(gtsfm_data, splats, pred_context_pose, height, width, decoder)
 

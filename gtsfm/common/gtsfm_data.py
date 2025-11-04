@@ -8,7 +8,7 @@ import itertools
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Union
 
 import gtsam  # type: ignore
 import numpy as np
@@ -27,10 +27,13 @@ from gtsfm.evaluation.metrics import GtsfmMetric
 from gtsfm.products.visibility_graph import ImageIndexPairs
 from gtsfm.utils import align, transform
 from gtsfm.utils.pycolmap_utils import gtsfm_calibration_to_colmap_camera
+from gtsfm.utils.splat import GaussiansProtocol, merge_gaussian_splats, transform_gaussian_splats
 
 logger = logger_utils.get_logger()
 
 EQUALITY_TOLERANCE = 1e-5
+
+GaussianSplatsType = Union[dict[str, Any], GaussiansProtocol]
 
 
 @dataclass
@@ -53,6 +56,7 @@ class GtsfmData:
         number_images: int,
         cameras: Optional[Mapping[int, gtsfm_types.CAMERA_TYPE]] = None,
         tracks: Optional[List[SfmTrack]] = None,
+        gaussian_splats: Optional[GaussianSplatsType] = None,
     ) -> None:
         """Initializes the class.
 
@@ -65,6 +69,7 @@ class GtsfmData:
         self._cameras: dict[int, gtsfm_types.CAMERA_TYPE] = {}
         self._tracks: List[SfmTrack] = []
         self._image_info: dict[int, ImageInfo] = {}
+        self._gaussian_splats: Optional[GaussianSplatsType] = None
 
         # Initialize from inputs if provided.
         if cameras is not None:
@@ -73,6 +78,8 @@ class GtsfmData:
         if tracks is not None:
             for track in tracks:
                 self.add_track(track)
+        if gaussian_splats is not None:
+            self.set_gaussian_splats(gaussian_splats)
 
     def __repr__(self) -> str:
         """String representation of the object."""
@@ -82,6 +89,18 @@ class GtsfmData:
             f"num_cameras={len(self._cameras)}, "
             f"num_tracks={len(self._tracks)})"
         )
+
+    def has_gaussian_splats(self) -> bool:
+        """Return True if Gaussian splats have been attached."""
+        return self._gaussian_splats is not None
+
+    def get_gaussian_splats(self) -> Optional[GaussianSplatsType]:
+        """Return the stored Gaussian splats, if any."""
+        return self._gaussian_splats
+
+    def set_gaussian_splats(self, gaussian_splats: Optional[GaussianSplatsType]) -> None:
+        """Attach Gaussian splats to the scene."""
+        self._gaussian_splats = gaussian_splats
 
     @classmethod
     def from_sfm_data(cls, sfm_data: gtsam.SfmData) -> "GtsfmData":
@@ -283,6 +302,9 @@ class GtsfmData:
         if self._number_images != other.number_images():
             return False
 
+        if self.has_gaussian_splats() != other.has_gaussian_splats():
+            return False
+
         for i, cam in self._cameras.items():
             other_cam = other.get_camera(i)
             assert other_cam is not None
@@ -370,6 +392,9 @@ class GtsfmData:
             colored_track.b = b
 
             cloned.add_track(colored_track)
+
+        if self._gaussian_splats is not None:
+            cloned.set_gaussian_splats(self._gaussian_splats)
 
         return cloned
 
@@ -555,7 +580,7 @@ class GtsfmData:
             camera_edges += extra_camera_edges
 
         if len(camera_edges) == 0:
-            return GtsfmData(self._number_images)
+            return GtsfmData(self._number_images, gaussian_splats=self._gaussian_splats)
 
         cameras_in_largest_cc = graph_utils.get_nodes_in_largest_connected_component(camera_edges)
         logger.info(
@@ -572,9 +597,10 @@ class GtsfmData:
         tracks: List[SfmTrack],
         number_images: int,
         image_info: Optional[Mapping[int, ImageInfo]] = None,
+        gaussian_splats: Optional[GaussianSplatsType] = None,
     ) -> "GtsfmData":
         """Creates a GtsfmData object from a pre-existing set of cameras and tracks."""
-        new_data = cls(number_images=number_images)
+        new_data = cls(number_images=number_images, gaussian_splats=gaussian_splats)
         new_data._cameras = dict(cameras)
         new_data._tracks = tracks
         if image_info is not None:
@@ -617,6 +643,9 @@ class GtsfmData:
                     break
             if is_valid:
                 new_data.add_track(track)
+
+        if gtsfm_data._gaussian_splats is not None:
+            new_data.set_gaussian_splats(gtsfm_data._gaussian_splats)
 
         return new_data
 
@@ -716,7 +745,7 @@ class GtsfmData:
             New instance, and list of valid flags, one for each track.
         """
         # TODO: move this function to utils or GTSAM
-        filtered_data = GtsfmData(self.number_images())
+        filtered_data = GtsfmData(self.number_images(), gaussian_splats=self._gaussian_splats)
 
         valid_mask = [self.__validate_track(track, reproj_err_thresh) for track in self._tracks]
 
@@ -808,6 +837,9 @@ class GtsfmData:
             track_a = transform.track_with_sim3(aSb, track_b)
             aligned_data.add_track(track_a)
 
+        if self._gaussian_splats is not None:
+            aligned_data.set_gaussian_splats(transform_gaussian_splats(self._gaussian_splats, aSb))
+
         return aligned_data
 
     def merged_with(self, other: "GtsfmData", aSb: Similarity3) -> "GtsfmData":
@@ -846,6 +878,17 @@ class GtsfmData:
         for track in merged_tracks:
             merged_data._tracks.append(track)
 
+        merged_gaussians: Optional[GaussianSplatsType] = None
+        if self._gaussian_splats is not None:
+            merged_gaussians = self._gaussian_splats
+        if other._gaussian_splats is not None:
+            transformed_other_gaussians = transform_gaussian_splats(other._gaussian_splats, aSb)
+            if merged_gaussians is None:
+                merged_gaussians = transformed_other_gaussians
+            else:
+                merged_gaussians = merge_gaussian_splats(merged_gaussians, transformed_other_gaussians)
+        merged_data.set_gaussian_splats(merged_gaussians)
+
         return merged_data
 
     def downsample(self, fraction_points_to_keep: float, seed: int = 42) -> "GtsfmData":
@@ -855,7 +898,12 @@ class GtsfmData:
         num_tracks = self.number_tracks()
         indices_to_keep = rng.choice(num_tracks, size=int(num_tracks * fraction_points_to_keep), replace=False)
         downsampled_tracks = [self._tracks[idx] for idx in indices_to_keep]
-        downsampled = GtsfmData(self.number_images(), self.cameras(), downsampled_tracks)
+        downsampled = GtsfmData(
+            self.number_images(),
+            self.cameras(),
+            downsampled_tracks,
+            gaussian_splats=self._gaussian_splats,
+        )
         downsampled._image_info = self._clone_image_info(range(self.number_images()))
         return downsampled
 
