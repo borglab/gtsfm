@@ -20,7 +20,7 @@ import torch
 import trimesh
 
 import gtsfm.frontend.vggt as vggt
-from gtsfm.frontend.vggt import VGGTReconstructionConfig
+from gtsfm.frontend.vggt import VggtConfiguration
 from gtsfm.utils import torch as torch_utils
 
 # Configure CUDA settings
@@ -95,12 +95,6 @@ def add_common_vggt_args(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
         type=float,
         default=8.0,
         help="Reprojection error threshold (in pixels) when filtering VGGSfM tracks for BA.",
-    )
-    parser.add_argument(
-        "--shared_camera",
-        action="store_true",
-        default=False,
-        help="Use a single shared camera model for all frames instead of per-view cameras.",
     )
     parser.add_argument(
         "--camera_type",
@@ -186,7 +180,7 @@ def demo_fn(args: argparse.Namespace) -> bool:
     original_coords = original_coords.to(device)
     print(f"Loaded {len(images)} images from {image_dir}")
 
-    config = VGGTReconstructionConfig(
+    config = VggtConfiguration(
         vggt_fixed_resolution=vggt_fixed_resolution,
         img_load_resolution=img_load_resolution,
         max_query_pts=args.max_query_pts,
@@ -195,7 +189,6 @@ def demo_fn(args: argparse.Namespace) -> bool:
         vis_thresh=args.vis_thresh,
         max_reproj_error=args.max_reproj_error,
         confidence_threshold=args.confidence_threshold,
-        shared_camera=args.shared_camera,
     )
 
     image_indices = list(range(1, len(image_path_list) + 1))
@@ -208,17 +201,14 @@ def demo_fn(args: argparse.Namespace) -> bool:
             image_names=base_image_path_list,
             original_coords=original_coords,
             config=config,
-            device=device,
-            dtype=dtype,
             model=model,
-            total_num_images=len(image_path_list),
         )
     print(get_peak_memory_str())
 
-    if result.fallback_reason:
-        print(result.fallback_reason)
+    if result.points_3d.size == 0:
+        print("VGGT produced no confident 3D structure.")
 
-    output_dir_name = "sparse_w_ba" if result.used_ba else "sparse_wo_ba"
+    output_dir_name = "sparse_wo_ba"
     sparse_reconstruction_dir = os.path.join(args.scene_dir, output_dir_name)
     print(f"Saving reconstruction to {sparse_reconstruction_dir}")
     os.makedirs(sparse_reconstruction_dir, exist_ok=True)

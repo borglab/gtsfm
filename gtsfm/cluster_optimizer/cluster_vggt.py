@@ -17,8 +17,9 @@ from gtsfm.cluster_optimizer.cluster_optimizer_base import (
     ClusterContext,
     ClusterOptimizerBase,
 )
+from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
-from gtsfm.frontend.vggt import VGGTReconstructionConfig, VGGTReconstructionResult
+from gtsfm.frontend.vggt import VggtConfiguration
 from gtsfm.products.visibility_graph import visibility_graph_keys
 from gtsfm.ui.gtsfm_process import UiMetadata
 from gtsfm.utils.logger import get_logger
@@ -58,6 +59,7 @@ def _resolve_vggt_model(cache_key: Hashable | None, loader_kwargs: dict[str, Any
     loader_kwargs = loader_kwargs or {}
     model = vggt.load_model(**loader_kwargs)
     _VGGT_MODEL_CACHE[cache_key] = model
+    logger.info("✅ VGGT model weights loaded successfully.")
     return model
 
 
@@ -68,7 +70,7 @@ def _run_vggt_pipeline(
     model_cache_key: Hashable | None = None,
     loader_kwargs: dict[str, Any] | None = None,
     **kwargs,
-) -> VGGTReconstructionResult:
+) -> GtsfmData:
     torch.manual_seed(seed)
     np.random.seed(seed)
     if torch.cuda.is_available():
@@ -79,37 +81,35 @@ def _run_vggt_pipeline(
     cached_model = _resolve_vggt_model(model_cache_key, loader_kwargs)
     if cached_model is not None:
         kwargs = {**kwargs, "model": cached_model}
-    return vggt.run_reconstruction(image_batch, **kwargs)
+    return vggt.run_reconstruction_gtsfm_data_only(image_batch, **kwargs)
 
 
 def _save_reconstruction_as_text(
-    result: VGGTReconstructionResult,
+    result: GtsfmData,
     results_path: Path,
     copy_to_react: bool,
     relative_results_dir: Path,
 ) -> None:
     target_dir = results_path / "vggt"
     target_dir.mkdir(parents=True, exist_ok=True)
-    result.gtsfm_data.export_as_colmap_text(target_dir)
+    result.export_as_colmap_text(target_dir)
 
     if not copy_to_react:
         return
 
     react_destination = REACT_RESULTS_PATH / relative_results_dir / "vggt"
     react_destination.mkdir(parents=True, exist_ok=True)
-    result.gtsfm_data.export_as_colmap_text(react_destination)
+    result.export_as_colmap_text(react_destination)
 
 
-def _aggregate_vggt_metrics(result: VGGTReconstructionResult) -> GtsfmMetricsGroup:
-    gtsfm_data = result.gtsfm_data
-    num_cameras = len(gtsfm_data.get_valid_camera_indices())
-    num_points3d = gtsfm_data.number_tracks()
+def _aggregate_vggt_metrics(result: GtsfmData) -> GtsfmMetricsGroup:
+    num_cameras = len(result.get_valid_camera_indices())
+    num_points3d = result.number_tracks()
     return GtsfmMetricsGroup(
         "vggt_runtime_metrics",
         [
             GtsfmMetric("num_cameras", num_cameras),
             GtsfmMetric("num_points3d", num_points3d),
-            GtsfmMetric("used_ba", float(result.used_ba)),
         ],
     )
 
@@ -124,7 +124,6 @@ class ClusterVGGT(ClusterOptimizerBase):
         inference_resolution: int = 518,
         conf_threshold: float = 5.0,
         max_num_points: int = 100000,
-        shared_camera: bool = False,
         camera_type: str = "PINHOLE",
         seed: int = 42,
         copy_results_to_react: bool = True,
@@ -142,7 +141,6 @@ class ClusterVGGT(ClusterOptimizerBase):
         self._inference_resolution = inference_resolution
         self._conf_threshold = conf_threshold
         self._max_points_for_colmap = max_num_points
-        self._shared_camera = shared_camera
         self._camera_type = camera_type
         self._seed = seed
         self._copy_results_to_react = copy_results_to_react
@@ -163,7 +161,6 @@ class ClusterVGGT(ClusterOptimizerBase):
             f"weights_path={self._weights_path}",
             f"image_load_resolution={self._image_load_resolution}",
             f"inference_resolution={self._inference_resolution}",
-            f"shared_camera={self._shared_camera}",
             f"camera_type={self._camera_type}",
         ]
         return "ClusterVGGT(\n  " + ",\n  ".join(str(c) for c in components) + "\n)"
@@ -193,12 +190,11 @@ class ClusterVGGT(ClusterOptimizerBase):
         image_filenames = context.loader.image_filenames()
         image_names = tuple(str(image_filenames[idx]) for idx in keys)
 
-        config = VGGTReconstructionConfig(
+        config = VggtConfiguration(
             vggt_fixed_resolution=self._inference_resolution,
             img_load_resolution=self._image_load_resolution,
             confidence_threshold=self._conf_threshold,
             max_num_points=self._max_points_for_colmap,
-            shared_camera=self._shared_camera,
         )
 
         image_batch_graph, original_coords_graph = delayed(_load_vggt_inputs, nout=2)(
@@ -213,7 +209,6 @@ class ClusterVGGT(ClusterOptimizerBase):
             image_names=image_names,
             config=config,
             weights_path=self._weights_path,
-            total_num_images=context.num_images,
             model_cache_key=self._model_cache_key,
             loader_kwargs=self._loader_kwargs or None,
         )
@@ -231,10 +226,8 @@ class ClusterVGGT(ClusterOptimizerBase):
                 )
             )
 
-        sfm_result_graph = delayed(lambda res: res.gtsfm_data)(result_graph)
-
         return ClusterComputationGraph(
             io_tasks=tuple(io_tasks),
             metric_tasks=tuple(metrics_tasks),
-            sfm_result=sfm_result_graph,
+            sfm_result=result_graph,
         )

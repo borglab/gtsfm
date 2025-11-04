@@ -231,6 +231,8 @@ class BundleAdjustmentOptimizer:
                 is_fisheye_calibration=is_fisheye_calibration,
             )
         )
+        if graph.size() == 0:
+            raise ValueError("BundleAdjustmentOptimizer: No reprojection factors available.")
         graph.push_back(self.__calibration_priors(initial_data, cameras_to_model, is_fisheye_calibration))
 
         return graph

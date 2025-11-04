@@ -68,18 +68,21 @@ def combine_results(
             merged = child
             continue
         try:
+            # Use cameras to estimate a similarity transform between merged and child.
             aSb = align_utils.sim3_from_Pose3_maps(merged.poses(), child.poses())
         except Exception as exc:
             logger.warning("⚠️ Failed to align cluster outputs: %s", exc)
-            aSb = Similarity3()
+            aSb = Similarity3()  # identity
         try:
-            merged = merged.merged_with(child, aSb)
+            merged = merged.merged_with(child, aSb)  # Should always succeed
         except Exception as exc:
             logger.warning("⚠️ Failed to merge cluster outputs: %s", exc)
+
+    # Done merging, now run BA to refine.
     if merged is None:
         return None
     try:
-        return BundleAdjustmentOptimizer().run_simple_ba(merged)[0]
+        return BundleAdjustmentOptimizer().run_simple_ba(merged)[0]  # Can definitely fail
     except Exception as e:
         logger.warning("⚠️ Failed to run bundle adjustment: %s", e)
         return merged

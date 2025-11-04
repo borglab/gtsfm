@@ -23,7 +23,7 @@ import trimesh
 from demo_vggt import Timer, add_common_vggt_args
 
 import gtsfm.frontend.vggt as vggt
-from gtsfm.frontend.vggt import VGGTReconstructionConfig
+from gtsfm.frontend.vggt import VggtConfiguration
 from gtsfm.utils import torch as torch_utils
 
 # Configure CUDA settings
@@ -82,7 +82,7 @@ def demo_fn(cluster_key: str, image_indices: List[int], args: argparse.Namespace
     original_coords = original_coords.to(device)
     print(f"[{cluster_key}] Loaded {len(images)} images from {image_dir}")
 
-    config = VGGTReconstructionConfig(
+    config = VggtConfiguration(
         vggt_fixed_resolution=vggt_fixed_resolution,
         img_load_resolution=img_load_resolution,
         max_query_pts=args.max_query_pts,
@@ -91,7 +91,6 @@ def demo_fn(cluster_key: str, image_indices: List[int], args: argparse.Namespace
         vis_thresh=args.vis_thresh,
         max_reproj_error=args.max_reproj_error,
         confidence_threshold=args.confidence_threshold,
-        shared_camera=args.shared_camera,
     )
 
     with Timer(f"[{cluster_key}] VGGT reconstruction"):
@@ -101,14 +100,11 @@ def demo_fn(cluster_key: str, image_indices: List[int], args: argparse.Namespace
             image_names=base_image_path_list,
             original_coords=original_coords,
             config=config,
-            device=device,
-            dtype=dtype,
             model=model,
-            total_num_images=max(image_indices) + 1,
         )
 
-    if result.fallback_reason:
-        print(f"[{cluster_key}] {result.fallback_reason}")
+    if result.points_3d.size == 0:
+        print(f"[{cluster_key}] VGGT produced no confident 3D structure.")
 
     sparse_subdir = "sparse_wo_ba"
     sparse_reconstruction_dir = os.path.join(args.output_dir, cluster_key, sparse_subdir)
