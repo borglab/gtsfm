@@ -267,9 +267,13 @@ def _convert_vggt_outputs_to_gtsfm_data(
             for local_id in frame_idx:
                 global_idx = image_indices[local_id]
                 u, v = tracking_result.tracks[local_id, valid_id]
-                u, v = int(u), int(v)
-                # print(u, v)
-                track.addMeasurement(global_idx, Point2(u, v))
+                rescaled_u, rescaled_v = _convert_measurement_to_original_resolution(
+                    (float(u), float(v)),
+                    original_coords_np[local_id],
+                    config.vggt_fixed_resolution,
+                    config.img_load_resolution,
+                )
+                track.addMeasurement(global_idx, Point2(rescaled_u, rescaled_v))
             gtsfm_data.add_track(track)
 
         # TODO(Frank): optionally, add the tracks from the tracking after running inference
