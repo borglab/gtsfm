@@ -240,10 +240,10 @@ def _convert_vggt_outputs_to_gtsfm_data(
             shape=(int(image_height), int(image_width)),
         )
         
-        if points_3d.size > 0 and points_rgb is not None:
-            for j, xyz in enumerate(points_3d):
-                track = torch_utils.colored_track_from_point(xyz, points_rgb[j])
-                gtsfm_data.add_track(track)
+    if points_3d.size > 0 and points_rgb is not None:
+        for j, xyz in enumerate(points_3d):
+            track = torch_utils.colored_track_from_point(xyz, points_rgb[j])
+            gtsfm_data.add_track(track)
 
     if tracking_result:
         
