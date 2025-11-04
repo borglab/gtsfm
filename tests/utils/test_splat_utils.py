@@ -3,6 +3,7 @@
 Authors: Harneet Singh Khanuja
 """
 
+import math
 import unittest
 from dataclasses import dataclass
 
@@ -105,6 +106,51 @@ class TestIoUtils(unittest.TestCase):
         w2c_torch = torch.linalg.inv(c2w)
 
         self.assertTrue(torch.allclose(w2c_func, w2c_torch))
+
+    def test_quaternion_to_matrix_xyzw(self):
+        """Ensures conversion from quaternion to rotation matrix matches expectation."""
+
+        # Identity quaternion -> identity matrix.
+        identity_quat = torch.tensor([[0.0, 0.0, 0.0, 1.0]], dtype=torch.float64)
+        identity_mat = splat.quaternion_to_matrix_xyzw(identity_quat)
+        self.assertEqual(identity_mat.shape, (1, 3, 3))
+        self.assertTrue(torch.allclose(identity_mat[0], torch.eye(3, dtype=torch.float64)))
+
+        # 90-degree rotation about Z axis.
+        half_angle = math.pi / 4.0
+        quat_z90 = torch.tensor([[0.0, 0.0, math.sin(half_angle), math.cos(half_angle)]], dtype=torch.float32)
+        rot_mat = splat.quaternion_to_matrix_xyzw(quat_z90)[0]
+        expected = torch.tensor(
+            [[0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]],
+            dtype=torch.float32,
+        )
+        self.assertTrue(torch.allclose(rot_mat, expected, atol=1e-6))
+
+        # Batched input (batch_size, num_gaussians, 4).
+        batched = torch.stack([identity_quat.squeeze(0).float(), quat_z90.squeeze(0)], dim=0).unsqueeze(0)
+        batched_mats = splat.quaternion_to_matrix_xyzw(batched)
+        self.assertEqual(batched_mats.shape, (1, 2, 3, 3))
+        self.assertTrue(torch.allclose(batched_mats[0, 0], torch.eye(3)))
+        self.assertTrue(torch.allclose(batched_mats[0, 1], expected, atol=1e-6))
+
+    def test_build_covariance_from_scales_quaternion(self):
+        """Ensures covariance construction follows R S Sᵀ Rᵀ."""
+
+        scales = torch.tensor([[[1.0, 2.0, 3.0]]], dtype=torch.float32)
+        identity_quat = torch.tensor([[[0.0, 0.0, 0.0, 1.0]]], dtype=torch.float32)
+
+        cov_identity = splat.build_covariance_from_scales_quaternion(scales, identity_quat)
+        self.assertEqual(cov_identity.shape, (1, 1, 3, 3))
+        expected_diag = torch.diag(torch.tensor([1.0, 4.0, 9.0], dtype=torch.float32))
+        self.assertTrue(torch.allclose(cov_identity[0, 0], expected_diag))
+
+        # With rotation about Z axis.
+        half_angle = math.pi / 4.0
+        quat_z90 = torch.tensor([[[0.0, 0.0, math.sin(half_angle), math.cos(half_angle)]]], dtype=torch.float32)
+        cov_rot = splat.build_covariance_from_scales_quaternion(scales, quat_z90)
+        R = splat.quaternion_to_matrix_xyzw(quat_z90)[0, 0]
+        expected_rot = R @ expected_diag @ R.T
+        self.assertTrue(torch.allclose(cov_rot[0, 0], expected_rot, atol=1e-6))
 
     def test_transform_gaussian(self):
         """Ensures correct transformation from coordinate system A to B"""
@@ -226,7 +272,8 @@ class TestIoUtils(unittest.TestCase):
         self.assertTrue(torch.allclose(transformed.means, expected_means, atol=1e-6))
         self.assertTrue(torch.allclose(transformed.scales, expected_scales, atol=1e-6))
         self.assertTrue(torch.allclose(transformed.rotations, expected_rotations_xyzw, atol=1e-6))
-        self.assertTrue(torch.allclose(transformed.covariances, dummy_gaussians.covariances))
+        expected_covariances = splat.build_covariance_from_scales_quaternion(expected_scales, expected_rotations_xyzw)
+        self.assertTrue(torch.allclose(transformed.covariances, expected_covariances, atol=1e-5))
         self.assertEqual(transformed.means.shape, dummy_gaussians.means.shape)
 
     @staticmethod
@@ -240,9 +287,7 @@ class TestIoUtils(unittest.TestCase):
         harmonics = torch.zeros((batch_size, num_gaussians, 3, 25), dtype=means.dtype, device=means.device)
         opacities = torch.ones((batch_size, num_gaussians), dtype=means.dtype, device=means.device)
 
-        diag_entries = torch.tensor([1.0, 2.0, 3.0], dtype=means.dtype, device=means.device)
-        base_covariance = torch.diag(diag_entries)
-        covariances = base_covariance.unsqueeze(0).repeat(num_gaussians, 1, 1).unsqueeze(0)
+        covariances = splat.build_covariance_from_scales_quaternion(scales_linear, rotations_xyzw)
 
         return DummyGaussians(
             means=means,
@@ -301,7 +346,7 @@ class TestIoUtils(unittest.TestCase):
         expected_rotations = torch.cat([gaussians_a.rotations, gaussians_b.rotations], dim=1)
         expected_harmonics = torch.cat([gaussians_a.harmonics, gaussians_b.harmonics], dim=1)
         expected_opacities = torch.cat([gaussians_a.opacities, gaussians_b.opacities], dim=1)
-        expected_covariances = torch.cat([gaussians_a.covariances, gaussians_b.covariances], dim=1)
+        expected_covariances = splat.build_covariance_from_scales_quaternion(expected_scales, expected_rotations)
 
         self.assertTrue(torch.allclose(merged.means, expected_means))
         self.assertTrue(torch.allclose(merged.scales, expected_scales))

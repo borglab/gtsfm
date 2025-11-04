@@ -225,7 +225,7 @@ class ClusterAnySplat(ClusterOptimizerBase):
         decoder_model = result.decoder.to(device)
         extrinsics = result.pred_context_pose["extrinsic"].to(device)
         intrinsics = result.pred_context_pose["intrinsic"].to(device)
-        for attr in ["means", "scales", "rotations", "harmonics", "opacities"]:
+        for attr in ["means", "scales", "rotations", "harmonics", "opacities", "covariances"]:
             setattr(result.splats, attr, getattr(result.splats, attr).to(device))
 
         b = 1  # AnySplat convention

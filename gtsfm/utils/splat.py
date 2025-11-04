@@ -253,6 +253,44 @@ def set_random_seed(seed: int):
     torch.manual_seed(seed)
 
 
+def quaternion_to_matrix_xyzw(quaternions: torch.Tensor) -> torch.Tensor:
+    """
+    Convert quaternions in (x, y, z, w) format to rotation matrices using GTSAM.
+
+    Args:
+        quaternions: tensor of shape (..., 4).
+
+    Returns:
+        Rotation matrices of shape (..., 3, 3).
+    """
+    original_shape = quaternions.shape[:-1]
+    flat_quats = quaternions.reshape(-1, 4).cpu().numpy()
+    rotation_mats = []
+    for q in flat_quats:
+        wxyz = np.array([q[3], q[0], q[1], q[2]], dtype=float)
+        rot = gtsam.Rot3.Quaternion(*wxyz)
+        rotation_mats.append(rot.matrix())
+    rotation_mats = np.stack(rotation_mats, axis=0).reshape(*original_shape, 3, 3)
+    return torch.tensor(rotation_mats, device=quaternions.device, dtype=quaternions.dtype)
+
+
+def build_covariance_from_scales_quaternion(scales: torch.Tensor, rotations_xyzw: torch.Tensor) -> torch.Tensor:
+    """
+    Compute per-Gaussian covariance matrices via cov = R @ S @ S @ Rᵀ.
+
+    Args:
+        scales: tensor of shape (..., 3)
+        rotations_xyzw: tensor of shape (..., 4)
+
+    Returns:
+        Covariance matrices of shape (..., 3, 3)
+    """
+    R = quaternion_to_matrix_xyzw(rotations_xyzw)
+    S = torch.diag_embed(scales)
+    cov = R @ S @ S.transpose(-1, -2) @ R.transpose(-1, -2)
+    return cov
+
+
 # See https://github.com/nerfstudio-project/nerfstudio/blob/main/nerfstudio/models/splatfacto.py
 @torch.compile()
 def get_viewmat(wTi_tensor: torch.Tensor) -> torch.Tensor:
@@ -389,9 +427,8 @@ def transform_gaussian_splats(
     )
     converted_rotations_xyzw = torch.cat([converted_rotations_wxyz[..., 1:], converted_rotations_wxyz[..., :1]], dim=-1)
 
-    converted_scales = gaussian_splats.scales * torch.tensor(
-        scale_value, dtype=gaussian_splats.scales.dtype, device=gaussian_splats.scales.device
-    )
+    converted_scales = gaussian_splats.scales * s
+    converted_covariances = build_covariance_from_scales_quaternion(converted_scales, converted_rotations_xyzw)
 
     if not is_dataclass(gaussian_splats):
         raise TypeError("Expected gaussian_splats to be a dataclass implementing GaussiansProtocol.")
@@ -400,6 +437,7 @@ def transform_gaussian_splats(
         "means": converted_means,
         "scales": converted_scales,
         "rotations": converted_rotations_xyzw,
+        "covariances": converted_covariances,
     }
     converted_gaussian_splats = replace(gaussian_splats, **replace_kwargs)
     return converted_gaussian_splats
@@ -442,8 +480,11 @@ def merge_gaussian_splats(
         raise ValueError("Gaussian batches must share the same batch dimension to be merged.")
 
     merged_kwargs = {}
-    for attr in ("means", "scales", "rotations", "harmonics", "opacities", "covariances"):
+    for attr in ("means", "scales", "rotations", "harmonics", "opacities"):
         merged_kwargs[attr] = torch.cat([getattr(gaussians_a, attr), getattr(gaussians_b, attr)], dim=1)
+    merged_kwargs["covariances"] = build_covariance_from_scales_quaternion(
+        merged_kwargs["scales"], merged_kwargs["rotations"]
+    )
 
     return replace(gaussians_a, **merged_kwargs)
 
