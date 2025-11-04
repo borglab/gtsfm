@@ -128,6 +128,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         tracking_max_query_pts: int = 1000,
         tracking_query_frame_num: int = 4,
         tracking_fine_tracking: bool = True,
+        track_vis_thresh: float = 0.2,
         camera_type: str = "PINHOLE",
         seed: int = 42,
         copy_results_to_react: bool = True,
@@ -152,6 +153,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         self._tracking_max_query_pts = tracking_max_query_pts
         self._tracking_query_frame_num = tracking_query_frame_num
         self._tracking_fine_tracking = tracking_fine_tracking
+        self._track_vis_thresh = track_vis_thresh
         self._camera_type = camera_type
         self._seed = seed
         self._copy_results_to_react = copy_results_to_react
