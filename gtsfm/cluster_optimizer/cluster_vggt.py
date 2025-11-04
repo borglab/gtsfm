@@ -124,6 +124,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         inference_resolution: int = 518,
         conf_threshold: float = 5.0,
         max_num_points: int = 100000,
+        tracking: bool = False,
         tracking_max_query_pts: int = 1000,
         tracking_query_frame_num: int = 4,
         tracking_fine_tracking: bool = True,
@@ -147,6 +148,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         self._inference_resolution = inference_resolution
         self._conf_threshold = conf_threshold
         self._max_points_for_colmap = max_num_points
+        self._tracking = tracking
         self._tracking_max_query_pts = tracking_max_query_pts
         self._tracking_query_frame_num = tracking_query_frame_num
         self._tracking_fine_tracking = tracking_fine_tracking
