@@ -35,6 +35,7 @@ cluster_optimizer:
   tracking_max_query_pts: 512
   tracking_query_frame_num: 3
   tracking_fine_tracking: false
+  track_vis_thresh: 0.2
   camera_type: PINHOLE
   seed: 42
   copy_results_to_react: true
