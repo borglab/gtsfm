@@ -413,16 +413,17 @@ def run_vggt_tracking(
     conf_tensor = vggt_output.depth_confidence.to(device="cpu", dtype=dtype, non_blocking=True)
     points_tensor = vggt_output.dense_points.to(device="cpu", dtype=dtype, non_blocking=True)
 
-    tracks, vis_scores, confidences, points_3d, colors = predict_tracks(
-        images,
-        conf=conf_tensor,
-        points_3d=points_tensor,
-        masks=None,  # ignored anyway !
-        max_query_pts=cfg.max_query_pts,
-        query_frame_num=cfg.query_frame_num,
-        keypoint_extractor=cfg.keypoint_extractor,
-        fine_tracking=cfg.fine_tracking,
-    )
+    with torch.no_grad():
+        tracks, vis_scores, confidences, points_3d, colors = predict_tracks(
+            images,
+            conf=conf_tensor,
+            points_3d=points_tensor,
+            masks=None,  # ignored anyway !
+            max_query_pts=cfg.max_query_pts,
+            query_frame_num=cfg.query_frame_num,
+            keypoint_extractor=cfg.keypoint_extractor,
+            fine_tracking=cfg.fine_tracking,
+        )
 
     return VGGTTrackingResult(
         tracks=tracks, visibilities=vis_scores, confidences=confidences, points_3d=points_3d, colors=colors
