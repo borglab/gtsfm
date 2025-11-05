@@ -15,11 +15,19 @@ from dask.delayed import Delayed
 
 import gtsfm.frontend.anysplat as anysplat_utils
 import gtsfm.utils.torch as torch_utils
-from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterComputationGraph, ClusterContext, ClusterOptimizerBase
+from gtsfm.cluster_optimizer.cluster_optimizer_base import (
+    REACT_RESULTS_PATH,
+    ClusterComputationGraph,
+    ClusterContext,
+    ClusterOptimizerBase,
+)
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.frontend.anysplat import AnySplatReconstructionResult
+from gtsfm.frontend.anysplat import (
+    batchify_unproject_depth_map_to_point_map as _anysplat_batchify_unproject,
+)  # type: ignore
 from gtsfm.ui.gtsfm_process import UiMetadata
 from gtsfm.utils import logger as logger_utils
 
@@ -29,6 +37,20 @@ logger = logger_utils.get_logger()
 
 # Module-level cache to reuse AnySplat weights per worker process.
 _MODEL_CACHE: dict[Hashable, Any] = {}
+
+
+def _save_reconstruction_as_text(
+    result: GtsfmData,
+    results_path: Path,
+    relative_results_dir: Path,
+) -> None:
+    target_dir = results_path / "anysplat"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    result.export_as_colmap_text(target_dir)
+
+    react_destination = REACT_RESULTS_PATH / relative_results_dir / "anysplat"
+    react_destination.mkdir(parents=True, exist_ok=True)
+    result.export_as_colmap_text(react_destination)
 
 
 class ClusterAnySplat(ClusterOptimizerBase):
@@ -105,7 +127,7 @@ class ClusterAnySplat(ClusterOptimizerBase):
         """Capture simple runtime metrics for the front-end."""
 
         gaussian_count = result.gtsfm_data.number_images() * result.height * result.width
-        voxel_count = result.splats.means.shape[1]
+        voxel_count = result.gtsfm_data.get_gaussian_splats().means.shape[1]
         return GtsfmMetricsGroup(
             "anysplat_runtime_metrics",
             [
@@ -131,7 +153,33 @@ class ClusterAnySplat(ClusterOptimizerBase):
         processed_images = self._preprocess_images(images, self._device)
         _, _, _, height, width = processed_images.shape
         logger.info("🔵 Running AnySplat on %d images.", len(images))
-        splats, pred_context_pose = self._model.inference((processed_images + 1) * 0.5)
+        depth_outputs: dict[str, torch.Tensor] = {}
+        depth_head = getattr(getattr(self._model, "encoder", None), "depth_head", None)
+
+        def _capture_depth(
+            _module: torch.nn.Module,
+            _inputs: tuple[Any, ...],
+            outputs: Any,
+        ) -> None:
+            if depth_outputs or not isinstance(outputs, tuple) or len(outputs) < 2:
+                return
+            depth, confidence = outputs[:2]
+            depth_outputs["depth_map"] = depth.detach().cpu()
+            depth_outputs["depth_confidence"] = confidence.detach().cpu()
+
+        hook = depth_head.register_forward_hook(_capture_depth) if depth_head else None
+
+        try:
+            splats, pred_context_pose = self._model.inference((processed_images + 1) * 0.5)
+        finally:
+            if hook:
+                hook.remove()
+        depth_map = depth_outputs.get("depth_map")
+        depth_confidence = depth_outputs.get("depth_confidence")
+        if depth_map is not None:
+            logger.info("Depth map %s", depth_map.shape)
+        if depth_confidence is not None:
+            logger.info("Depth confidence %s", depth_confidence.shape)
 
         # Move results to CPU to avoid Dask serialization errors.
         for attr in ["means", "scales", "rotations", "harmonics", "opacities", "covariances"]:
@@ -182,7 +230,16 @@ class ClusterAnySplat(ClusterOptimizerBase):
 
         gtsfm_data.set_gaussian_splats(splats)
 
-        return AnySplatReconstructionResult(gtsfm_data, splats, pred_context_pose, height, width, decoder)
+        return AnySplatReconstructionResult(
+            gtsfm_data,
+            splats,
+            pred_context_pose,
+            height,
+            width,
+            decoder,
+            depth_map=depth_map,
+            depth_confidence=depth_confidence,
+        )
 
     def _preprocess_images(self, images: dict[int, Image], device):
         """
@@ -225,8 +282,9 @@ class ClusterAnySplat(ClusterOptimizerBase):
         decoder_model = result.decoder.to(device)
         extrinsics = result.pred_context_pose["extrinsic"].to(device)
         intrinsics = result.pred_context_pose["intrinsic"].to(device)
+        splats = result.gtsfm_data.get_gaussian_splats()
         for attr in ["means", "scales", "rotations", "harmonics", "opacities", "covariances"]:
-            setattr(result.splats, attr, getattr(result.splats, attr).to(device))
+            setattr(splats, attr, getattr(splats, attr).to(device))
 
         b = 1  # AnySplat convention
         anysplat_utils.save_interpolated_video(
@@ -235,13 +293,13 @@ class ClusterAnySplat(ClusterOptimizerBase):
             b,
             result.height,
             result.width,
-            result.splats,
+            splats,
             save_gs_files_path,
             decoder_model,
         )
 
     def _save_splats(self, result: AnySplatReconstructionResult, save_gs_files_path: Path) -> None:
-        splats = result.splats
+        splats = result.gtsfm_data.get_gaussian_splats()
         anysplat_utils.export_ply(
             splats.means[0],
             splats.scales[0],
@@ -274,6 +332,13 @@ class ClusterAnySplat(ClusterOptimizerBase):
 
         metrics_tasks.append(delayed(self._aggregate_anysplat_metrics)(result_graph))
         with self._output_annotation():
+            io_tasks.append(
+                delayed(_save_reconstruction_as_text)(
+                    result_graph.gtsfm_data,
+                    context.output_paths.results,
+                    context.react_results_subdir,
+                )
+            )
             io_tasks.append(
                 delayed(self._generate_interpolated_video)(
                     result_graph,

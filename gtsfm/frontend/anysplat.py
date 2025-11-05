@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Protocol
+from typing import Any, Callable, Optional, Protocol
 
 import torch
 
@@ -113,6 +113,8 @@ class AnySplatReconstructionResult:
     height: int
     width: int
     decoder: DecoderSplattingCUDAProtocol
+    depth_map: Optional[torch.Tensor] = None
+    depth_confidence: Optional[torch.Tensor] = None
 
 
 def load_model(
@@ -133,4 +135,9 @@ def load_model(
     if device is not None:
         resolved_device = torch.device(device)
         model = model.to(resolved_device)
+
+    logger.info("✅ VGGT model weights loaded successfully.")
+    return model
+
+    logger.info("✅ VGGT model weights loaded successfully.")
     return model
