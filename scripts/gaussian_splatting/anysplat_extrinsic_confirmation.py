@@ -52,8 +52,6 @@ def collect_pose_pairs_from_runtime() -> Optional[tuple[list[Pose3], list[Pose3]
     mvo_pose_list = []
     for pose_matrix, loader_idx in zip(extrinsics, selected_indices):
         pose_gt = loader.get_camera_pose(loader_idx)
-        if pose_gt is None:
-            continue
         anysplat_pose_list.append(pose3_from_c2w(torch.from_numpy(pose_matrix)))
         mvo_pose_list.append(pose_gt)
 
