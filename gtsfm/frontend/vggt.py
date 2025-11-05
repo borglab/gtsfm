@@ -68,7 +68,7 @@ class VggtConfiguration:
     max_num_points: int = 100000
 
     # Tracking-specific parameters:
-    tracking: bool = False
+    tracking: bool = True
     max_query_pts: int = 1000
     query_frame_num: int = 4
     keypoint_extractor: str = "aliked+sp"
@@ -93,11 +93,78 @@ class VggtOutput:  # TODO(Frank): derive from base class shared with AnySplat (i
 
 @dataclass
 class VggtReconstruction:
-    """Outputs from the VGGT reconstruction helper."""
+    """Outputs from the VGGT reconstruction helper.
+
+    Attributes:
+        gtsfm_data: Sparse scene estimate including cameras and tracks in original image coordinates.
+        points_3d: Dense point cloud filtered by VGGT confidence scores.
+        points_rgb: Per-point RGB colors aligned with ``points_3d``.
+        tracking_result: Optional dense tracking payload in the square VGGT coordinate frame.
+    """
 
     gtsfm_data: GtsfmData
     points_3d: np.ndarray
     points_rgb: np.ndarray
+    tracking_result: "VGGTTrackingResult | None" = None
+
+    def visualize_tracks(
+        self,
+        images: torch.Tensor | np.ndarray,
+        *,
+        output_dir: PathLike,
+        visibility_threshold: float = 0.2,
+        frames_per_row: int = 4,
+        save_grid: bool = True,
+    ) -> None:
+        """Overlay tracked feature trajectories on the provided image tensor.
+
+        Args:
+            images: Tensor shaped ``(num_frames, 3, H, W)`` (or an array convertible to it) in the same
+                coordinate frame used for tracking, i.e. the square VGGT load resolution.
+            output_dir: Destination directory for visualization artifacts.
+            visibility_threshold: Minimum per-frame visibility score for a track sample to be rendered.
+            frames_per_row: Number of frames per row when generating the grid visualization.
+            save_grid: Whether to emit the stitched grid image alongside per-frame overlays.
+        """
+        if self.tracking_result is None:
+            raise ValueError("Tracking results are unavailable; ensure VGGT ran with tracking enabled.")
+
+        if not isinstance(images, torch.Tensor):
+            images = torch.from_numpy(np.asarray(images))
+
+        if images.ndim != 4:
+            raise ValueError(
+                f"Expected images shaped (num_frames, 3, H, W); received tensor with shape {tuple(images.shape)}."
+            )
+
+        images = images.detach().cpu()
+
+        tracks = torch.from_numpy(self.tracking_result.tracks).to(dtype=torch.float32)
+        visibilities = torch.from_numpy(self.tracking_result.visibilities).to(dtype=torch.float32)
+
+        if tracks.shape[0] != images.shape[0]:
+            raise ValueError(
+                "Number of frames in images does not match tracked trajectories "
+                f"({images.shape[0]=} vs {tracks.shape[0]=})."
+            )
+
+        visibility_mask = (visibilities > visibility_threshold).to(dtype=torch.bool)
+
+        output_dir_path = Path(output_dir)
+        output_dir_path.mkdir(parents=True, exist_ok=True)
+
+        from vggt.utils.visual_track import visualize_tracks_on_images  # deferred import
+
+        visualize_tracks_on_images(
+            images=images,
+            tracks=tracks,
+            track_vis_mask=visibility_mask,
+            out_dir=str(output_dir_path),
+            image_format="CHW",
+            normalize_mode="[0,1]",
+            frames_per_row=frames_per_row,
+            save_grid=save_grid,
+        )
 
 
 def default_dtype(device: torch.device) -> torch.dtype:
@@ -542,6 +609,7 @@ def run_reconstruction(
         gtsfm_data=gtsfm_data,
         points_3d=points_3d,
         points_rgb=points_rgb,
+        tracking_result=tracking_result,
     )
 
 
