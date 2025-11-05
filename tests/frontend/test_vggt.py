@@ -63,7 +63,7 @@ def run_vggt(
         max_query_pts=max_query_pts,
         query_frame_num=query_frame_num,
         fine_tracking=fine_tracking,
-        vis_thresh=vis_thresh,
+        track_vis_thresh=vis_thresh,
         max_reproj_error=max_reproj_error,
         confidence_threshold=conf_threshold_value,
     )
@@ -83,6 +83,12 @@ def run_vggt(
     print(f"Saving reconstruction to {sparse_reconstruction_dir}")
     sparse_reconstruction_dir.mkdir(parents=True, exist_ok=True)
     result.gtsfm_data.export_as_colmap_text(sparse_reconstruction_dir)
+
+    result.visualize_tracks(
+        images=image_batch,              # the same (num_frames,3,H,W) tensor used for VGGT
+        output_dir=Path("track_visuals"),
+        visibility_threshold=0.2,
+    )
 
     if result.points_3d.size == 0:
         print("VGGT produced no confident 3D structure.")
@@ -160,7 +166,7 @@ class TestVGGT(unittest.TestCase):
             self.assertAlmostEqual(u_back, u_orig, places=3)
             self.assertAlmostEqual(v_back, v_orig, places=3)
 
-    @unittest.skip("Skipping VGGT end-to-end test for now since it is slow and requires GPU.")
+    # @unittest.skip("Skipping VGGT end-to-end test for now since it is slow and requires GPU.")
     def test_run_vggt_on_some_images(self):
         """Load four door images using Olsson loader and run vggt on them."""
 
