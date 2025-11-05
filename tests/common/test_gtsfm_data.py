@@ -11,23 +11,12 @@ from pathlib import Path
 
 import gtsam  # type: ignore
 import numpy as np
-from gtsam import (
-    Cal3Bundler,
-    PinholeCameraCal3Bundler,
-    Point2,
-    Point3,
-    Pose3,
-    Rot3,
-    SfmData,
-    SfmTrack,
-    Similarity3,
-)
-
 import torch
+from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Point2, Point3, Pose3, Rot3, SfmData, SfmTrack, Similarity3
 
 import gtsfm.utils.graph as graph_utils
 from gtsfm.common.gtsfm_data import GtsfmData
-from gtsfm.utils import splat
+from gtsfm.utils import splat, transform
 
 GTSAM_EXAMPLE_FILE = "dubrovnik-3-7-pre"  # Example data with 3 cameras and 7 tracks.
 EXAMPLE_DATA = GtsfmData.read_bal(gtsam.findExampleDataFile(GTSAM_EXAMPLE_FILE))
@@ -211,7 +200,7 @@ class TestGtsfmData(unittest.TestCase):
         transformed_gaussians = transformed.get_gaussian_splats()
         assert transformed_gaussians is not None
 
-        expected = splat.transform_gaussian_splats(gaussians, aSb)
+        expected = transform.transform_gaussian_splats(gaussians, aSb)
         self.assertTrue(torch.allclose(transformed_gaussians["means"], expected["means"]))
         self.assertTrue(torch.allclose(transformed_gaussians["quats"], expected["quats"]))
         self.assertTrue(torch.allclose(transformed_gaussians["scales"], expected["scales"]))
