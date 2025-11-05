@@ -7,8 +7,6 @@ import math
 import unittest
 from dataclasses import dataclass
 
-import gtsam
-import numpy as np
 import torch
 
 from gtsfm.utils import splat
