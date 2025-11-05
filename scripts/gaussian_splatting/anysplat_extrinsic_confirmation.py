@@ -8,6 +8,8 @@ import pytest
 import torch
 from gtsam import Point3, Pose3, Rot3
 
+from gtsfm.cluster_optimizer.cluster_anysplat import ClusterAnySplat
+from gtsfm.loader.colmap_loader import ColmapLoader
 from gtsfm.utils import align, transform
 from gtsfm.utils.geometry_comparisons import compute_relative_rotation_angle
 
@@ -24,12 +26,6 @@ def pose3_from_c2w(matrix: torch.Tensor) -> Pose3:
 
 def collect_pose_pairs_from_runtime() -> Optional[tuple[list[Pose3], list[Pose3]]]:
     """Run AnySplat on the Lund Door subset and pair it with COLMAP camera poses."""
-
-    try:
-        from gtsfm.cluster_optimizer.cluster_anysplat import ClusterAnySplat
-        from gtsfm.loader.colmap_loader import ColmapLoader
-    except ModuleNotFoundError as exc:  # pragma: no cover - dependency not installed
-        pytest.skip(f"Missing dependency required to run pipelines: {exc}")
 
     dataset_root = Path(GTSFM_LUND_DOOR_ROOT)
     colmap_dir = dataset_root / "colmap_ground_truth"
@@ -74,7 +70,7 @@ def test_sim3_alignment_recovers_similarity() -> None:
     pre_translation_errors = np.array(
         [np.linalg.norm(a.translation() - b.translation()) for a, b in zip(anysplat_poses, mvo_poses)]
     )
-    print(np.max(pre_translation_errors))
+    print("Max pre translation error", np.max(pre_translation_errors))
     assert np.max(pre_translation_errors) > 1e-2
 
     recovered_sim3 = align.sim3_from_Pose3s_robust(anysplat_poses, mvo_poses)
@@ -86,13 +82,13 @@ def test_sim3_alignment_recovers_similarity() -> None:
     post_translation_errors = np.array(
         [np.linalg.norm(a.translation() - b.translation()) for a, b in zip(anysplat_poses, aligned_mvo)]
     )
-    print(np.max(post_translation_errors))
+    print("Max post translation error", np.max(post_translation_errors))
     assert np.max(post_translation_errors) < trans_tol
 
     post_rotation_errors = np.array(
         [compute_relative_rotation_angle(a.rotation(), b.rotation()) for a, b in zip(anysplat_poses, aligned_mvo)]
     )
-    print(np.max(post_rotation_errors))
+    print("Max rotation error", np.max(post_rotation_errors))
     assert np.max(post_rotation_errors) < rot_tol_deg
     assert np.max(pre_translation_errors) > 10 * np.max(post_translation_errors)
 
