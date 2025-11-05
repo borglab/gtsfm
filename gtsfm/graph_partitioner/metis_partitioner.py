@@ -11,6 +11,7 @@ from gtsam import Ordering, SymbolicBayesTree, SymbolicBayesTreeClique, Symbolic
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.products.cluster_tree import ClusterTree
 from gtsfm.products.visibility_graph import VisibilityGraph, valid_visibility_graph_or_raise
+from gtsfm.utils.graph import get_nodes_in_largest_connected_component
 
 
 @dataclass(frozen=True)
@@ -26,6 +27,10 @@ class MetisPartitioner(GraphPartitionerBase):
     def __init__(self) -> None:
         super().__init__(process_name="MetisPartitioner")
 
+    def _extract_largest_component_subgraph(self, graph: VisibilityGraph) -> VisibilityGraph:
+        nodes_in_largest = set(get_nodes_in_largest_connected_component(graph))
+        return [(i, j) for i, j in graph if i in nodes_in_largest and j in nodes_in_largest]
+
     def run(self, graph: VisibilityGraph) -> ClusterTree | None:
         """Cluster a visibility graph using the clique structure of the symbolic Bayes tree."""
         if len(graph) == 0:
@@ -38,7 +43,14 @@ class MetisPartitioner(GraphPartitionerBase):
         if len(roots) == 0:
             return None
         if len(roots) > 1:
-            raise ValueError("MetisPartitioner: VisibilityGraph is disconnected.")
+            graph = self._extract_largest_component_subgraph(graph)
+            roots = self.symbolic_bayes_tree(graph).roots()
+
+            if len(roots) > 1:
+                raise ValueError(
+                    "MetisPartitioner: VisibilityGraph is disconnected after largest connected component extraction."
+                )
+
         root_result = self._cluster_from_clique(roots[0], graph)
         return root_result.cluster if root_result else None
 
