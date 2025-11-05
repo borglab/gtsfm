@@ -253,6 +253,31 @@ def set_random_seed(seed: int):
     torch.manual_seed(seed)
 
 
+# See https://github.com/nerfstudio-project/nerfstudio/blob/main/nerfstudio/models/splatfacto.py
+@torch.compile()
+def get_viewmat(wTi_tensor: torch.Tensor) -> torch.Tensor:
+    """
+    Converts a batch of camera-to-world matrices to gsplat's world-to-camera format.
+    This function is compiled with torch.compile for a speed boost.
+    It converts to the gsplat standard ([Right, Down, Forward]).
+
+    Args:
+        wTi_tensor: A tensor of camera-to-world matrices with shape [N, 4, 4].
+    Returns:
+        A tensor of world-to-camera matrices with shape [N, 4, 4].
+    """
+    R = wTi_tensor[:, :3, :3]  # [N, 3, 3]
+    T = wTi_tensor[:, :3, 3:4]  # [N, 3, 1]
+    # analytic matrix inverse to get world2camera matrix
+    R_inv = R.transpose(1, 2)
+    T_inv = -torch.bmm(R_inv, T)
+    viewmat = torch.zeros(R.shape[0], 4, 4, device=R.device, dtype=R.dtype)
+    viewmat[:, :3, :3] = R_inv
+    viewmat[:, :3, 3:4] = T_inv
+    viewmat[:, 3, 3] = 1.0
+    return viewmat
+
+
 def quaternion_to_matrix_xyzw(quaternions: torch.Tensor) -> torch.Tensor:
     """
     Convert quaternions in (x, y, z, w) format to rotation matrices using GTSAM.
@@ -289,158 +314,6 @@ def build_covariance_from_scales_quaternion(scales: torch.Tensor, rotations_xyzw
     S = torch.diag_embed(scales)
     cov = R @ S @ S.transpose(-1, -2) @ R.transpose(-1, -2)
     return cov
-
-
-# See https://github.com/nerfstudio-project/nerfstudio/blob/main/nerfstudio/models/splatfacto.py
-@torch.compile()
-def get_viewmat(wTi_tensor: torch.Tensor) -> torch.Tensor:
-    """
-    Converts a batch of camera-to-world matrices to gsplat's world-to-camera format.
-    This function is compiled with torch.compile for a speed boost.
-    It converts to the gsplat standard ([Right, Down, Forward]).
-
-    Args:
-        wTi_tensor: A tensor of camera-to-world matrices with shape [N, 4, 4].
-    Returns:
-        A tensor of world-to-camera matrices with shape [N, 4, 4].
-    """
-    R = wTi_tensor[:, :3, :3]  # [N, 3, 3]
-    T = wTi_tensor[:, :3, 3:4]  # [N, 3, 1]
-    # analytic matrix inverse to get world2camera matrix
-    R_inv = R.transpose(1, 2)
-    T_inv = -torch.bmm(R_inv, T)
-    viewmat = torch.zeros(R.shape[0], 4, 4, device=R.device, dtype=R.dtype)
-    viewmat[:, :3, :3] = R_inv
-    viewmat[:, :3, 3:4] = T_inv
-    viewmat[:, 3, 3] = 1.0
-    return viewmat
-
-
-def transform_gaussian(gaussianA: dict, bSa: gtsam.Similarity3) -> dict:
-    """
-    Transforms a Gaussian Splat from one coordinate system to another using gtsam.Similarity3
-    Args:
-        gaussianA (dict): A dictionary representing the Gaussian in coordinate system A.
-        bSa (gtsam.Similarity3): The transformation from coordinate system A to B.
-    Returns:
-        gaussianB: A dictionary representing the Gaussian in coordinate system B.
-    """
-    meanA = gaussianA["mean"]
-    meanB = torch.Tensor(bSa.transformFrom(meanA))
-
-    w = gaussianA["quat"][0]
-    x = gaussianA["quat"][1]
-    y = gaussianA["quat"][2]
-    z = gaussianA["quat"][3]
-
-    q = gtsam.Rot3.Quaternion(w, x, y, z)
-    bRa = bSa.rotation()
-    rotationB = torch.Tensor((bRa * q).toQuaternion().coeffs())[[3, 0, 1, 2]]
-
-    if rotationB[0] < 0:
-        rotationB *= -1.0
-
-    scaleB = torch.log(torch.tensor(bSa.scale())) + gaussianA["scale"]
-
-    # we only update the means, quaternions and scales (covariance) as opacity and color do not change.
-    gaussianB = gaussianA.copy()
-    gaussianB["mean"] = meanB
-    gaussianB["quat"] = rotationB
-    gaussianB["scale"] = scaleB
-
-    return gaussianB
-
-
-def transform_gaussian_splats(
-    gaussian_splats: dict[str, torch.Tensor] | GaussiansProtocol, bSa: gtsam.Similarity3
-) -> dict[str, torch.Tensor] | GaussiansProtocol:
-    """
-    Transforms Gaussian splats from one coordinate system to another using ``gtsam.Similarity3``.
-
-    Args:
-        gaussian_splats: Collection of Gaussians expressed either as a dictionary containing
-            ``means`` (N,3), ``quats`` (N,4) in ``w,x,y,z`` order, and ``scales`` (N,3) stored in
-            log-space; or an object adhering to :class:`GaussiansProtocol` with rotations in ``x,y,z,w`` order
-            and scales expressed linearly and shape having batch_size = 1 in dim 0.
-        bSa: The transformation from coordinate system ``A`` to ``B``.
-
-    Returns:
-        Gaussian splats in coordinate system ``B`` with the same container type as the input.
-    """
-
-    def _apply_quaternion_left_multiply(sim3_quat_wxyz: torch.Tensor, quats_wxyz: torch.Tensor) -> torch.Tensor:
-        """Left-multiply ``quats_wxyz`` by ``sim3_quat_wxyz`` (both in w,x,y,z order)."""
-        w0, x0, y0, z0 = sim3_quat_wxyz
-        w1, x1, y1, z1 = quats_wxyz.unbind(-1)
-        converted_w = w0 * w1 - x0 * x1 - y0 * y1 - z0 * z1
-        converted_x = w0 * x1 + x0 * w1 + y0 * z1 - z0 * y1
-        converted_y = w0 * y1 - x0 * z1 + y0 * w1 + z0 * x1
-        converted_z = w0 * z1 + x0 * y1 - y0 * x1 + z0 * w1
-        converted = torch.stack([converted_w, converted_x, converted_y, converted_z], dim=-1)
-        converted = converted / converted.norm(dim=-1, keepdim=True)
-        converted[converted[..., 0] < 0] *= -1.0
-        return converted
-
-    is_dict_input = isinstance(gaussian_splats, dict)
-    means = gaussian_splats["means"] if is_dict_input else gaussian_splats.means
-    dtype = means.dtype
-    device = means.device
-
-    R_np = bSa.rotation().matrix()
-    t_np = bSa.translation()
-    scale_value = float(bSa.scale())
-
-    R = torch.tensor(R_np, dtype=dtype, device=device)
-    t = torch.tensor(t_np, dtype=dtype, device=device)
-    s = torch.tensor(scale_value, dtype=dtype, device=device)
-
-    if means.ndim == 2:
-        converted_means = torch.matmul(means, R.T) + t
-    else:
-        converted_means = torch.matmul(means, R.T) + t.unsqueeze(0)
-    converted_means = converted_means * s
-
-    sim3_quat_coeffs = torch.tensor(bSa.rotation().toQuaternion().coeffs(), dtype=dtype, device=device)
-    sim3_quat_wxyz = sim3_quat_coeffs[[3, 0, 1, 2]]
-
-    if is_dict_input:
-        quats_wxyz = gaussian_splats["quats"]
-        converted_quaternions = _apply_quaternion_left_multiply(
-            sim3_quat_wxyz.to(dtype=quats_wxyz.dtype, device=quats_wxyz.device),
-            quats_wxyz,
-        )
-        scales_tensor = gaussian_splats["scales"]
-        scale_offset = torch.log(torch.tensor(scale_value, dtype=scales_tensor.dtype, device=scales_tensor.device))
-        converted_scales = scales_tensor + scale_offset
-
-        converted_gaussian_splats = gaussian_splats.copy()
-        converted_gaussian_splats["means"] = converted_means
-        converted_gaussian_splats["quats"] = converted_quaternions
-        converted_gaussian_splats["scales"] = converted_scales
-        return converted_gaussian_splats
-
-    rotations_xyzw = gaussian_splats.rotations
-    rotations_wxyz = torch.cat([rotations_xyzw[..., 3:], rotations_xyzw[..., :3]], dim=-1)
-    converted_rotations_wxyz = _apply_quaternion_left_multiply(
-        sim3_quat_wxyz.to(dtype=rotations_xyzw.dtype, device=rotations_xyzw.device),
-        rotations_wxyz,
-    )
-    converted_rotations_xyzw = torch.cat([converted_rotations_wxyz[..., 1:], converted_rotations_wxyz[..., :1]], dim=-1)
-
-    converted_scales = gaussian_splats.scales * s
-    converted_covariances = build_covariance_from_scales_quaternion(converted_scales, converted_rotations_xyzw)
-
-    if not is_dataclass(gaussian_splats):
-        raise TypeError("Expected gaussian_splats to be a dataclass implementing GaussiansProtocol.")
-
-    replace_kwargs = {
-        "means": converted_means,
-        "scales": converted_scales,
-        "rotations": converted_rotations_xyzw,
-        "covariances": converted_covariances,
-    }
-    converted_gaussian_splats = replace(gaussian_splats, **replace_kwargs)
-    return converted_gaussian_splats
 
 
 def merge_gaussian_splats(
@@ -487,25 +360,3 @@ def merge_gaussian_splats(
     )
 
     return replace(gaussians_a, **merged_kwargs)
-
-
-def transform_camera_pose(aTc: torch.Tensor, bSa: gtsam.Similarity3) -> torch.Tensor:
-    """
-    Transforms camera pose from coordinate frame A to B
-    Args:
-        aTc: 4x4 camera-to-world pose in frame A
-        bSa (gtsam.Similarity3): The transformation from coordinate system A to B.
-
-    Returns:
-        bTc: 4x4 camera-to-world pose in frame B
-    """
-    assert aTc.shape == (4, 4)
-
-    aRc = aTc[:3, :3].cpu().numpy()
-    atc = aTc[:3, 3:4].cpu().numpy().squeeze()
-
-    pose_a = gtsam.Pose3(gtsam.Rot3(aRc), gtsam.Point3(atc))
-
-    pose_b = bSa.transformFrom(pose_a).matrix()
-    bTc = torch.from_numpy(pose_b).to(aTc.device, dtype=aTc.dtype)
-    return bTc

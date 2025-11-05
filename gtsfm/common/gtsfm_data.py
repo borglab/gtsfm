@@ -27,7 +27,8 @@ from gtsfm.evaluation.metrics import GtsfmMetric
 from gtsfm.products.visibility_graph import ImageIndexPairs
 from gtsfm.utils import align, transform
 from gtsfm.utils.pycolmap_utils import gtsfm_calibration_to_colmap_camera
-from gtsfm.utils.splat import GaussiansProtocol, merge_gaussian_splats, transform_gaussian_splats
+from gtsfm.utils.splat import GaussiansProtocol, merge_gaussian_splats
+from gtsfm.utils.transform import transform_gaussian_splats
 
 logger = logger_utils.get_logger()
 
