@@ -223,6 +223,7 @@ def _rescale_intrinsic_for_original_resolution(
 ) -> np.ndarray:
     """Adapt intrinsics estimated on a square crop back to the original image size."""
     resized = intrinsic.copy()
+    # print('image_width, image_height: ', image_width, image_height)
     resize_ratio = max(image_width, image_height) / float(reconstruction_resolution)
     resized[:2, :] *= resize_ratio
     resized[0, 2] = image_width / 2.0
@@ -231,35 +232,50 @@ def _rescale_intrinsic_for_original_resolution(
 
 
 def _convert_measurement_to_original_resolution(
-    uv_inference: Tuple[float, float],
+    uv: Tuple[float, float],
     original_coord: np.ndarray,
     inference_resolution: int,
     img_load_resolution: int,
+    *,
+    measurement_in_load_resolution: bool = False,
 ) -> Tuple[float, float]:
-    """Convert VGGT vggt_output coordinates back to the original image coordinate system."""
+    """Convert VGGT coordinates back to the original image coordinate system.
 
-    x_infer, y_infer = uv_inference
+    Args:
+        uv: Input measurement in either inference or load resolution space.
+        original_coord: Metadata describing the crop location within the padded square, expressed at load resolution.
+        inference_resolution: Resolution of VGGT inference grid.
+        img_load_resolution: Resolution used when images were padded/resized prior to inference.
+        measurement_in_load_resolution: Set ``True`` if ``uv`` already lives in the load resolution.
+    """
+
+    x_infer, y_infer = uv
     x1, y1 = original_coord[0], original_coord[1]
     width, height = original_coord[4], original_coord[5]
 
     # VGGT runs on the ``img_load_resolution`` square; vggt_output down-samples that square to the
     # (typically smaller) ``inference_resolution``. Undo that downscale so we can use the crop
     # metadata stored in ``original_coord``.
-    scale_back_to_load = float(img_load_resolution) / float(img_load_resolution) # TODO: duplicated!
-    x_load = x_infer * scale_back_to_load
-    y_load = y_infer * scale_back_to_load
+    if measurement_in_load_resolution:
+        x_load = x_infer
+        y_load = y_infer
+    else:
+        scale_back_to_load = float(img_load_resolution) / float(inference_resolution)
+        x_load = x_infer * scale_back_to_load
+        y_load = y_infer * scale_back_to_load
 
     # ``original_coord`` encodes the location of the original, possibly rectangular, image within
     # the padded square (in *load* resolution). Remove the padding and scale the remaining pixels
     # back to the native resolution.
     max_side = float(max(width, height))
     resize_ratio = max_side / float(img_load_resolution)
-    # print('img_load_resolution, inference_resolution, max_side: ', img_load_resolution, inference_resolution, max_side)
-    # 1024 518 1530.0 TODO: for debug only, should be removed later
     u = (x_load - x1) * resize_ratio
     v = (y_load - y1) * resize_ratio
-    u = float(np.clip(u, 0.0, max(width - 1, 0)))
-    v = float(np.clip(v, 0.0, max(height - 1, 0)))   
+
+    max_u = max(width - 0.5, 0.0)
+    max_v = max(height - 0.5, 0.0)
+    u = float(np.clip(u, 0.0, max_u))
+    v = float(np.clip(v, 0.0, max_v))
     return u, v
 
 
@@ -343,6 +359,7 @@ def _convert_vggt_outputs_to_gtsfm_data(
                     original_coords_np[local_id],
                     config.vggt_fixed_resolution,
                     config.img_load_resolution,
+                    measurement_in_load_resolution=True,
                 )
                 track.addMeasurement(global_idx, Point2(rescaled_u, rescaled_v))
             gtsfm_data.add_track(track)
@@ -393,7 +410,8 @@ def run_VGGT(
     images = images.to(resolved_device, dtype=resolved_dtype)
     res = config.vggt_fixed_resolution if config else DEFAULT_FIXED_RESOLUTION
     resized_images = F.interpolate(images, size=(res, res), mode="bilinear")
-
+    # print('resized_images: ', resized_images.shape) 518, 518
+    
     if resolved_device.type == "cuda":
         autocast_ctx: Any = amp_autocast("cuda", dtype=resolved_dtype)
     else:
@@ -527,13 +545,15 @@ def run_vggt_tracking(
             fine_tracking=cfg.fine_tracking,
         )
     
-    # print('images: ', images.shape)
-    # print('tracks: ', tracks.shape)
-    # print('vis_scores: ', vis_scores.shape)
-    # print('confidences: ', confidences.shape)
-    # print('points_3d: ', points_3d.shape)
-    # print('colors: ', colors.shape)
+    print('images: ', images.shape)
+    print('conf_tensor: ', conf_tensor.shape)
+    print('tracks: ', tracks.shape)
+    print('vis_scores: ', vis_scores.shape)
+    print('confidences: ', confidences.shape)
+    print('points_3d: ', points_3d.shape)
+    print('colors: ', colors.shape)
     # images: torch.Size([4, 3, 1024, 1024])
+    # conf_tensor:  torch.Size([4, 518, 518])
     # tracks:  (4, 2901, 2)
     # vis_scores:  (4, 2901)
     # confidences:  (2901,)
