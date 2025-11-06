@@ -11,12 +11,12 @@ from typing import Any, Optional, Sequence, Tuple, Union
 import numpy as np
 import torch
 import torch.nn.functional as F
+from gtsam import Point2
 from torch.amp import autocast as amp_autocast  # type: ignore
 
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.utils import logger as logger_utils
 from gtsfm.utils import torch as torch_utils
-from gtsam import Point2
 
 PathLike = Union[str, Path]
 
@@ -164,7 +164,7 @@ class VggtReconstruction:
         images: torch.Tensor | np.ndarray,
         *,
         output_dir: PathLike,
-        visibility_threshold: float = 0.,
+        visibility_threshold: float = 0.0,
         frames_per_row: int = 4,
         save_grid: bool = True,
     ) -> None:
@@ -193,7 +193,7 @@ class VggtReconstruction:
 
         tracks = torch.from_numpy(self.tracking_result.tracks).to(dtype=torch.float32)
         visibilities = torch.from_numpy(self.tracking_result.visibilities).to(dtype=torch.float32)
-        
+
         # print('tracks: ', tracks[0,0])
 
         if tracks.shape[0] != images.shape[0]:
@@ -287,6 +287,7 @@ def _rescale_intrinsic_for_original_resolution(
 ) -> np.ndarray:
     """Adapt intrinsics estimated on a square crop back to the original image size."""
     resized = intrinsic.copy()
+    # print('image_width, image_height: ', image_width, image_height)
     resize_ratio = max(image_width, image_height) / float(reconstruction_resolution)
     resized[:2, :] *= resize_ratio
     resized[0, 2] = image_width / 2.0
@@ -295,35 +296,50 @@ def _rescale_intrinsic_for_original_resolution(
 
 
 def _convert_measurement_to_original_resolution(
-    uv_inference: Tuple[float, float],
+    uv: Tuple[float, float],
     original_coord: np.ndarray,
     inference_resolution: int,
     img_load_resolution: int,
+    *,
+    measurement_in_load_resolution: bool = False,
 ) -> Tuple[float, float]:
-    """Convert VGGT vggt_output coordinates back to the original image coordinate system."""
+    """Convert VGGT coordinates back to the original image coordinate system.
 
-    x_infer, y_infer = uv_inference
+    Args:
+        uv: Input measurement in either inference or load resolution space.
+        original_coord: Metadata describing the crop location within the padded square, expressed at load resolution.
+        inference_resolution: Resolution of VGGT inference grid.
+        img_load_resolution: Resolution used when images were padded/resized prior to inference.
+        measurement_in_load_resolution: Set ``True`` if ``uv`` already lives in the load resolution.
+    """
+
+    x_infer, y_infer = uv
     x1, y1 = original_coord[0], original_coord[1]
     width, height = original_coord[4], original_coord[5]
 
     # VGGT runs on the ``img_load_resolution`` square; vggt_output down-samples that square to the
     # (typically smaller) ``inference_resolution``. Undo that downscale so we can use the crop
     # metadata stored in ``original_coord``.
-    scale_back_to_load = float(img_load_resolution) / float(img_load_resolution) # TODO: duplicated!
-    x_load = x_infer * scale_back_to_load
-    y_load = y_infer * scale_back_to_load
+    if measurement_in_load_resolution:
+        x_load = x_infer
+        y_load = y_infer
+    else:
+        scale_back_to_load = float(img_load_resolution) / float(inference_resolution)
+        x_load = x_infer * scale_back_to_load
+        y_load = y_infer * scale_back_to_load
 
     # ``original_coord`` encodes the location of the original, possibly rectangular, image within
     # the padded square (in *load* resolution). Remove the padding and scale the remaining pixels
     # back to the native resolution.
     max_side = float(max(width, height))
     resize_ratio = max_side / float(img_load_resolution)
-    # print('img_load_resolution, inference_resolution, max_side: ', img_load_resolution, inference_resolution, max_side)
-    # 1024 518 1530.0 TODO: for debug only, should be removed later
     u = (x_load - x1) * resize_ratio
     v = (y_load - y1) * resize_ratio
-    u = float(np.clip(u, 0.0, max(width - 1, 0)))
-    v = float(np.clip(v, 0.0, max(height - 1, 0)))   
+
+    max_u = max(width - 0.5, 0.0)
+    max_v = max(height - 0.5, 0.0)
+    u = float(np.clip(u, 0.0, max_u))
+    v = float(np.clip(v, 0.0, max_v))
     return u, v
 
 
@@ -374,14 +390,14 @@ def _convert_vggt_outputs_to_gtsfm_data(
             name=image_names_str[local_idx] if image_names_str is not None else None,
             shape=(int(image_height), int(image_width)),
         )
-        
+
     # if points_3d.size > 0 and points_rgb is not None:
     #     for j, xyz in enumerate(points_3d):
     #         track = torch_utils.colored_track_from_point(xyz, points_rgb[j])
     #         gtsfm_data.add_track(track)
 
     if tracking_result:
-        
+
         # track masks according to visibility, reprojection error, etc
         track_mask = tracking_result.visibilities > config.track_vis_thresh
         inlier_num = track_mask.sum(0)
@@ -394,11 +410,11 @@ def _convert_vggt_outputs_to_gtsfm_data(
 
         num_points3D = len(valid_idx)
         # print('num_points3D: ', num_points3D) 2300
-        
+
         for valid_id in valid_idx:
             rgb = points_rgb[valid_id] if points_rgb is not None else np.zeros(3)
             track = torch_utils.colored_track_from_point(tracking_result.points_3d[valid_id], rgb)
-            frame_idx = np.where(track_mask[:,valid_id])[0]
+            frame_idx = np.where(track_mask[:, valid_id])[0]
             for local_id in frame_idx:
                 global_idx = image_indices[local_id]
                 u, v = tracking_result.tracks[local_id, valid_id]
@@ -407,6 +423,7 @@ def _convert_vggt_outputs_to_gtsfm_data(
                     original_coords_np[local_id],
                     config.vggt_fixed_resolution,
                     config.img_load_resolution,
+                    measurement_in_load_resolution=True,
                 )
                 track.addMeasurement(global_idx, Point2(rescaled_u, rescaled_v))
             gtsfm_data.add_track(track)
@@ -699,14 +716,16 @@ def run_vggt_tracking(
             keypoint_extractor=cfg.keypoint_extractor,
             fine_tracking=cfg.fine_tracking,
         )
-    
-    # print('images: ', images.shape)
-    # print('tracks: ', tracks.shape)
-    # print('vis_scores: ', vis_scores.shape)
-    # print('confidences: ', confidences.shape)
-    # print('points_3d: ', points_3d.shape)
-    # print('colors: ', colors.shape)
+
+    print("images: ", images.shape)
+    print("conf_tensor: ", conf_tensor.shape)
+    print("tracks: ", tracks.shape)
+    print("vis_scores: ", vis_scores.shape)
+    print("confidences: ", confidences.shape)
+    print("points_3d: ", points_3d.shape)
+    print("colors: ", colors.shape)
     # images: torch.Size([4, 3, 1024, 1024])
+    # conf_tensor:  torch.Size([4, 518, 518])
     # tracks:  (4, 2901, 2)
     # vis_scores:  (4, 2901)
     # confidences:  (2901,)
@@ -777,7 +796,7 @@ def run_reconstruction(
         image_names=image_names,
         points_3d=points_3d,
         points_rgb=points_rgb,
-        tracking_result=tracking_result
+        tracking_result=tracking_result,
     )
 
     return VggtReconstruction(
