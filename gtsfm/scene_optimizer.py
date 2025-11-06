@@ -213,7 +213,12 @@ class SceneOptimizer:
 
                 context_tree = cluster_tree.map_with_path(to_context)
 
-                handles_tree = context_tree.map(self._schedule_single_cluster)
+                def _schedule_leaf_only(context: ClusterContext, child_handles: tuple[ClusterExecutionHandles, ...]) -> ClusterExecutionHandles:
+                    if child_handles:
+                        return _empty_cluster_handles(context, len(context.visibility_graph))
+                    return self._schedule_single_cluster(context)
+
+                handles_tree = context_tree.map_with_children(_schedule_leaf_only)
                 reconstruction_tree = handles_tree.map(lambda handle: handle.reconstruction)
                 merged_future_tree = submit_tree_map_with_children(
                     client, reconstruction_tree, cluster_merging.combine_results

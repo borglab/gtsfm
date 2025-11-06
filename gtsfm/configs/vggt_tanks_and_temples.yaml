@@ -1,0 +1,46 @@
+# VGGT cluster-only configuration.
+
+# @package _global_
+_target_: gtsfm.scene_optimizer.SceneOptimizer
+
+loader:
+  _target_: gtsfm.loader.tanks_and_temples_loader.TanksAndTemplesLoader
+  dataset_dir: ??? # Required: override with the scene root (e.g. Barn).
+  images_dir: ??? # Optional override; defaults to {dataset_dir}/images if omitted.
+  poses_fpath: ??? # Required: COLMAP pose log (e.g. Barn/Barn_COLMAP_SfM.log).
+  bounding_polyhedron_json_fpath: ??? # Required: scene bounding volume JSON.
+  ply_alignment_fpath: ??? # Required: Sim(3) alignment transform text file.
+  lidar_ply_fpath: null
+  colmap_ply_fpath: null
+  max_resolution: 768
+  max_num_images: null
+  input_worker: null
+
+image_pairs_generator:
+  _target_: gtsfm.retriever.image_pairs_generator.ImagePairsGenerator
+  global_descriptor:
+    _target_: gtsfm.frontend.cacher.global_descriptor_cacher.GlobalDescriptorCacher
+    global_descriptor_obj:
+      _target_: gtsfm.frontend.global_descriptor.MegaLoc
+  retriever:
+    _target_: gtsfm.retriever.JointSimilaritySequential
+    num_matched: 5
+    min_score: 0.3
+    max_frame_lookahead: 15
+  batch_size: 10
+
+graph_partitioner:
+  _target_: gtsfm.graph_partitioner.Metis
+  max_cluster_size: 30
+
+cluster_optimizer:
+  _target_: gtsfm.cluster_optimizer.cluster_vggt.ClusterVGGT
+  weights_path: null
+  image_load_resolution: 768
+  inference_resolution: 518
+  conf_threshold: 5.0
+  max_num_points: 100000
+  camera_type: PINHOLE
+  seed: 42
+  copy_results_to_react: true
+  model_cache_key: null
