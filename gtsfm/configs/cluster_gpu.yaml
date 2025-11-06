@@ -1,0 +1,14 @@
+# GPU-enabled cluster configuration
+
+workers:
+  - host: host1.cc.gatech.edu
+    gpus: 1
+    gpu_memory_pool: "10GB"
+    use_ucx: true
+    system_memory: "10GB"
+
+  - host: host1.cc.gatech.edu
+    gpus: 1
+    gpu_memory_pool: "10GB"
+    use_ucx: true
+    system_memory: "10GB"
