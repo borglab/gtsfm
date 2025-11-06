@@ -112,7 +112,7 @@ class VggtReconstruction:
         images: torch.Tensor | np.ndarray,
         *,
         output_dir: PathLike,
-        visibility_threshold: float = 0.2,
+        visibility_threshold: float = 0.,
         frames_per_row: int = 4,
         save_grid: bool = True,
     ) -> None:
@@ -141,6 +141,8 @@ class VggtReconstruction:
 
         tracks = torch.from_numpy(self.tracking_result.tracks).to(dtype=torch.float32)
         visibilities = torch.from_numpy(self.tracking_result.visibilities).to(dtype=torch.float32)
+        
+        # print('tracks: ', tracks[0,0])
 
         if tracks.shape[0] != images.shape[0]:
             raise ValueError(
@@ -243,7 +245,7 @@ def _convert_measurement_to_original_resolution(
     # VGGT runs on the ``img_load_resolution`` square; vggt_output down-samples that square to the
     # (typically smaller) ``inference_resolution``. Undo that downscale so we can use the crop
     # metadata stored in ``original_coord``.
-    scale_back_to_load = float(img_load_resolution) / float(inference_resolution)
+    scale_back_to_load = float(img_load_resolution) / float(img_load_resolution) # TODO: duplicated!
     x_load = x_infer * scale_back_to_load
     y_load = y_infer * scale_back_to_load
 
@@ -252,10 +254,12 @@ def _convert_measurement_to_original_resolution(
     # back to the native resolution.
     max_side = float(max(width, height))
     resize_ratio = max_side / float(img_load_resolution)
+    # print('img_load_resolution, inference_resolution, max_side: ', img_load_resolution, inference_resolution, max_side)
+    # 1024 518 1530.0 TODO: for debug only, should be removed later
     u = (x_load - x1) * resize_ratio
     v = (y_load - y1) * resize_ratio
     u = float(np.clip(u, 0.0, max(width - 1, 0)))
-    v = float(np.clip(v, 0.0, max(height - 1, 0)))
+    v = float(np.clip(v, 0.0, max(height - 1, 0)))   
     return u, v
 
 
@@ -307,10 +311,10 @@ def _convert_vggt_outputs_to_gtsfm_data(
             shape=(int(image_height), int(image_width)),
         )
         
-    if points_3d.size > 0 and points_rgb is not None:
-        for j, xyz in enumerate(points_3d):
-            track = torch_utils.colored_track_from_point(xyz, points_rgb[j])
-            gtsfm_data.add_track(track)
+    # if points_3d.size > 0 and points_rgb is not None:
+    #     for j, xyz in enumerate(points_3d):
+    #         track = torch_utils.colored_track_from_point(xyz, points_rgb[j])
+    #         gtsfm_data.add_track(track)
 
     if tracking_result:
         
@@ -342,8 +346,6 @@ def _convert_vggt_outputs_to_gtsfm_data(
                 )
                 track.addMeasurement(global_idx, Point2(rescaled_u, rescaled_v))
             gtsfm_data.add_track(track)
-
-        # TODO(Frank): optionally, add the tracks from the tracking after running inference
 
     return gtsfm_data
 
