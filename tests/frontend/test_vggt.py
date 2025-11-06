@@ -84,11 +84,11 @@ def run_vggt(
     sparse_reconstruction_dir.mkdir(parents=True, exist_ok=True)
     result.gtsfm_data.export_as_colmap_text(sparse_reconstruction_dir)
 
-    result.visualize_tracks(
-        images=image_batch,              # the same (num_frames,3,H,W) tensor used for VGGT
-        output_dir=Path("track_visuals"),
-        visibility_threshold=0.2,
-    )
+    # result.visualize_tracks(
+    #     images=image_batch,              # the same (num_frames,3,H,W) tensor used for VGGT
+    #     output_dir=Path("track_visuals"),
+    #     visibility_threshold=0.2,
+    # )
 
     if result.points_3d.size == 0:
         print("VGGT produced no confident 3D structure.")
@@ -106,7 +106,7 @@ class TestVGGT(unittest.TestCase):
     def setUp(self) -> None:
         pass
 
-    @unittest.skip("Skipping VGGT end-to-end test for now since it is slow and requires GPU.")
+    # @unittest.skip("Skipping VGGT end-to-end test for now since it is slow and requires GPU.")
     def test_coordinate_round_trip(self) -> None:
         """Ensure the helper that maps VGGT grid coordinates back to original pixels is consistent.
 
@@ -166,7 +166,18 @@ class TestVGGT(unittest.TestCase):
             self.assertAlmostEqual(u_back, u_orig, places=3)
             self.assertAlmostEqual(v_back, v_orig, places=3)
 
-    # @unittest.skip("Skipping VGGT end-to-end test for now since it is slow and requires GPU.")
+            uv_load = ((u_orig + pad_left) * scale, (v_orig + pad_top) * scale)
+            u_back_load, v_back_load = vggt._convert_measurement_to_original_resolution(
+                uv_load,
+                original_coord,
+                inference_resolution,
+                img_load_resolution,
+                measurement_in_load_resolution=True,
+            )
+            self.assertAlmostEqual(u_back_load, u_orig, places=3)
+            self.assertAlmostEqual(v_back_load, v_orig, places=3)
+
+    @unittest.skip("Skipping VGGT end-to-end test for now since it is slow and requires GPU.")
     def test_run_vggt_on_some_images(self):
         """Load four door images using Olsson loader and run vggt on them."""
 
@@ -203,6 +214,95 @@ class TestVGGT(unittest.TestCase):
         self.assertIsNotNone(gtsfm_data)
         self.assertEqual(gtsfm_data.number_images(), len(indices))
         self.assertCountEqual(gtsfm_data.get_valid_camera_indices(), indices)
+
+    def test_convert_measurement_to_original_resolution_door_extremes(self) -> None:
+        """Ensure VGGT coordinate conversion preserves pixel centers for a real Door image."""
+
+        img_load_resolution = 1024
+        inference_resolution = vggt.DEFAULT_FIXED_RESOLUTION
+
+        def _jpeg_size(path: Path) -> tuple[int, int]:
+            with path.open("rb") as stream:
+                if stream.read(2) != b"\xFF\xD8":
+                    raise ValueError("Not a JPEG file.")
+                while True:
+                    marker_start = stream.read(1)
+                    if not marker_start:
+                        raise ValueError("Reached EOF before finding SOF marker.")
+                    if marker_start != b"\xFF":
+                        continue
+                    marker_code = stream.read(1)
+                    if not marker_code or marker_code == b"\x00":
+                        continue
+                    code = marker_code[0]
+                    if code in {0xD8, 0xD9} or 0xD0 <= code <= 0xD7:
+                        continue
+                    length_bytes = stream.read(2)
+                    if len(length_bytes) != 2:
+                        raise ValueError("Unexpected end of marker payload.")
+                    block_length = int.from_bytes(length_bytes, "big")
+                    if code in {0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF}:
+                        payload = stream.read(block_length - 2)
+                        if len(payload) != block_length - 2:
+                            raise ValueError("Incomplete SOF payload.")
+                        height = int.from_bytes(payload[1:3], "big")
+                        width = int.from_bytes(payload[3:5], "big")
+                        return width, height
+                    stream.seek(block_length - 2, 1)
+
+        image_path = DOOR / "images" / "DSC_0004.JPG"
+        width, height = _jpeg_size(image_path)
+        max_side = max(width, height)
+        pad_width = max_side - width
+        pad_height = max_side - height
+        pad_left = pad_width // 2
+        pad_top = pad_height // 2
+        scale = img_load_resolution / max_side
+
+        original_coord = np.array(
+            [
+                pad_left * scale,
+                pad_top * scale,
+                (pad_left + width) * scale,
+                (pad_top + height) * scale,
+                width,
+                height,
+            ],
+            dtype=np.float32,
+        )
+
+        def forward_to_inference(u: float, v: float) -> tuple[float, float]:
+            u_padded = (u + pad_left) * scale
+            v_padded = (v + pad_top) * scale
+            shrink = inference_resolution / img_load_resolution
+            return (u_padded * shrink, v_padded * shrink)
+
+        samples = [
+            (0.5, 0.5),
+            (width - 0.5, height - 0.5),
+        ]
+
+        for u_orig, v_orig in samples:
+            uv_infer = forward_to_inference(u_orig, v_orig)
+            u_back, v_back = vggt._convert_measurement_to_original_resolution(
+                uv_infer,
+                original_coord,
+                inference_resolution,
+                img_load_resolution,
+            )
+            self.assertAlmostEqual(u_back, u_orig, places=3)
+            self.assertAlmostEqual(v_back, v_orig, places=3)
+
+            uv_load = ((u_orig + pad_left) * scale, (v_orig + pad_top) * scale)
+            u_back_load, v_back_load = vggt._convert_measurement_to_original_resolution(
+                uv_load,
+                original_coord,
+                inference_resolution,
+                img_load_resolution,
+                measurement_in_load_resolution=True,
+            )
+            self.assertAlmostEqual(u_back_load, u_orig, places=3)
+            self.assertAlmostEqual(v_back_load, v_orig, places=3)
 
 
 if __name__ == "__main__":
