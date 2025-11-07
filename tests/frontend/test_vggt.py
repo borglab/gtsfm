@@ -165,7 +165,7 @@ def _visualize_gtsfm_tracks_on_original_frames(
             row = frame_idx // frames_per_row
             col = frame_idx % frames_per_row
             grid_pt = (int(round(col * max_w + u)), int(round(row * max_h + v)))
-            cv2.circle(grid_canvas, grid_pt, radius=3, color=color_bgr, thickness=-1)
+            cv2.circle(grid_canvas, grid_pt, radius=5, color=color_bgr, thickness=-1)
             if last_grid_point is not None:
                 cv2.line(grid_canvas, last_grid_point, grid_pt, color=color_bgr, thickness=2, lineType=cv2.LINE_AA)
             last_grid_point = grid_pt if len(measurements) > 1 else None
@@ -178,7 +178,7 @@ def _visualize_gtsfm_tracks_on_original_frames(
             if point_idx >= MAX_POINTS_PER_FRAME:
                 break
             pt = (int(round(u)), int(round(v)))
-            cv2.circle(canvas, pt, radius=3, color=color_bgr, thickness=-1)
+            cv2.circle(canvas, pt, radius=5, color=color_bgr, thickness=-1)
         cv2.imwrite(str(output_dir / f"frame_{local_idx:04d}.png"), canvas)
 
 
@@ -263,7 +263,7 @@ def run_vggt(
 
 
 TEST_DATA = Path(__file__).parent.parent / "data"
-PALACE = TEST_DATA / "palace"
+PALACE = TEST_DATA / "palace-fine-arts-281"
 DOOR = TEST_DATA / "set1_lund_door"
 
 
@@ -349,7 +349,7 @@ class TestVGGT(unittest.TestCase):
 
         img_load_original_resolution = 760
         img_load_resolution = 1024
-        loader = OlssonLoader(dataset_dir=str(DOOR), max_resolution=img_load_original_resolution)
+        loader = OlssonLoader(dataset_dir=str(PALACE), max_resolution=img_load_original_resolution)
         indices = [4, 11, 8, 2]
 
         # resize_transform = None
