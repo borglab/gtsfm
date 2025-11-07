@@ -384,7 +384,7 @@ class GtsfmRunner:
             })
 
         cluster = LocalCUDACluster(**cluster_kwargs)
-        logger.info(f"✅ LocalCUDACluster created successfully")
+        logger.info("✅ LocalCUDACluster created successfully")
 
         return cluster
 
@@ -456,30 +456,6 @@ class GtsfmRunner:
         )
 
     def _create_dask_client(self):
-        if self.parsed_args.cluster_config:
-            cluster = self.setup_ssh_cluster_with_retries()
-            client = Client(cluster)
-            client.forward_logging()
-            # getting first worker's IP address and port to do IO
-            io_worker = list(client.scheduler_info()["workers"].keys())[0]
-            self.scene_optimizer.loader._input_worker = io_worker
-            self.scene_optimizer.cluster_optimizer._output_worker = io_worker
-        else:
-            local_cluster_kwargs = {
-                "n_workers": self.parsed_args.num_workers,
-                "threads_per_worker": self.parsed_args.threads_per_worker,
-                "dashboard_address": self.parsed_args.dashboard_port,
-            }
-            if self.parsed_args.worker_memory_limit is not None:
-                local_cluster_kwargs["memory_limit"] = self.parsed_args.worker_memory_limit
-            cluster = LocalCluster(**local_cluster_kwargs)
-            client = Client(cluster)
-
-        # Display Dask dashboard URL before processing starts
-        print(f"\n🚀 Dask Dashboard available at: {client.dashboard_link}")
-        return client
-
-    def _create_dask_client_gpu_cluster(self):
         if self.parsed_args.cluster_config:
             cluster = self.setup_ssh_cluster_with_retries()
             client = Client(cluster)
