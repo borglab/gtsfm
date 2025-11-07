@@ -970,14 +970,21 @@ class GtsfmData:
         num_pts = self.number_tracks()
         avg_track_length, _ = self.get_track_length_statistics()
 
+        # Assign per-image indices to every keypoint so POINT2D_IDX matches COLMAP expectations.
+        measurement_point2d_indices: Dict[tuple[int, int], int] = {}
+        per_image_counts: defaultdict[int, int] = defaultdict(int)
+        for track_idx in range(num_pts):
+            track = self.get_track(track_idx)
+            for measurement_idx in range(track.numberMeasurements()):
+                image_id, _ = track.measurement(measurement_idx)
+                measurement_point2d_indices[(track_idx, measurement_idx)] = per_image_counts[image_id]
+                per_image_counts[image_id] += 1
+
         file_path = dir_path / "points3D.txt"
         with open(file_path, "w") as f:
             f.write("# 3D point list with one line of data per point:\n")
             f.write("#   POINT3D_ID, X, Y, Z, R, G, B, ERROR, TRACK[] as (IMAGE_ID, POINT2D_IDX)\n")
             f.write(f"# Number of points: {num_pts}, mean track length: {np.round(avg_track_length, 2)}\n")
-
-            # TODO: assign unique indices to all keypoints (2d points)
-            point2d_idx = 0
 
             for j in range(num_pts):
                 track = self.get_track(j)
@@ -992,6 +999,7 @@ class GtsfmData:
                     f.write(f"{j} {x} {y} {z} {r} {g} {b} {np.round(avg_track_error, 2)} ")
                     for k in range(track.numberMeasurements()):
                         i, uv_measured = track.measurement(k)
+                        point2d_idx = measurement_point2d_indices[(j, k)]
                         f.write(f"{i} {point2d_idx} ")
                     f.write("\n")
                 else:
