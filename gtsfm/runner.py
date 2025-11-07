@@ -1,17 +1,15 @@
 """Base class for runner that executes SfM."""
 
 import argparse
-import asyncio
 import logging
 import os
-import subprocess
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, List, cast
+from typing import cast
 
 import hydra
 from dask import config as dask_config
-from dask.distributed import Client, LocalCluster, Scheduler, SSHCluster
+from dask.distributed import Client, LocalCluster, SSHCluster
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
 
@@ -276,24 +274,23 @@ class GtsfmRunner:
         config = OmegaConf.load(os.path.join("gtsfm", "configs", self.parsed_args.cluster_config))
         workers = dict(config)["workers"]
         scheduler = workers[0]
-        
         # Detect GPU cluster configuration
         is_gpu_cluster = any("gpus" in w or "gpu_memory_pool" in w for w in workers)
-        
+
         connected = False
         retry_count = 0
-        
+
         while retry_count < self.parsed_args.num_retry_cluster_connection and not connected:
             logger.info(f"Connecting to the cluster: attempt {retry_count + 1}")
             logger.info(f"Using {scheduler} as scheduler")
             logger.info(f"Using {len(workers)} workers")
-            
+
             if is_gpu_cluster:
                 logger.info("🎮 GPU cluster configuration detected")
-            
+
             try:
                 if is_gpu_cluster:
-                    cluster = self._create_gpu_ssh_cluster(scheduler, workers)
+                    cluster = self._create_gpu_cluster(scheduler, workers)
                 else:
                     cluster = SSHCluster(
                         [scheduler] + workers,
@@ -309,96 +306,180 @@ class GtsfmRunner:
             except Exception as e:
                 logger.info(f"Worker failed to start: {str(e)}")
                 retry_count += 1
-                
+
         if not connected:
             raise ValueError(
                 f"Connection to cluster could not be established after {self.parsed_args.num_retry_cluster_connection}"
                 " attempts. Aborting..."
             )
 
-    def _create_gpu_ssh_cluster(self, scheduler, workers):
-        """Create SSH cluster with GPU workers (one worker per GPU).
-        
+    def _create_gpu_cluster(self, scheduler, workers):
+        """Create GPU cluster (LocalCUDACluster for single machine, SSHCluster for distributed).
+
         Args:
             scheduler: First worker dict serving as scheduler
             workers: List of worker configuration dicts with GPU settings
-            
+
         Returns:
-            SSHCluster with GPU-enabled workers
+            Cluster with GPU-enabled workers
         """
-        from collections import defaultdict
-        
+        # Check if all workers are on the same host (Case 1)
+        unique_hosts = set(w["host"] for w in workers)
+
+        if len(unique_hosts) == 1:
+            # Case 1: All workers on same multi-GPU machine → use LocalCUDACluster
+            return self._create_local_cuda_cluster(workers)
+        else:
+            # Case 2: Distributed multi-GPU machines → use SSHCluster with dask-cuda-worker
+            return self._create_distributed_gpu_cluster(scheduler, workers)
+
+    def _create_local_cuda_cluster(self, workers):
+        """Create LocalCUDACluster for single multi-GPU machine (Case 1).
+
+        Args:
+            workers: List of worker configuration dicts with GPU settings
+
+        Returns:
+            LocalCUDACluster configured for the specified GPUs
+        """
+        try:
+            from dask_cuda import LocalCUDACluster
+        except ImportError:
+            raise ImportError(
+                "dask-cuda is required for GPU clusters. Install with: pip install dask-cuda"
+            )
+
+        host = workers[0]["host"]
+        n_workers = len(workers)
+
+        # Get GPU configuration from first worker (assuming uniform config)
+        use_ucx = workers[0].get("use_ucx", False)
+        protocol = "ucx" if use_ucx else "tcp"
+        gpu_memory_pool = workers[0].get("gpu_memory_pool", "10GB")
+        system_memory = workers[0].get("system_memory", "10GB")
+
+        # Build CUDA_VISIBLE_DEVICES string based on number of workers
+        gpu_ids = ",".join(str(i) for i in range(n_workers))
+
+        logger.info(f"🎮 Creating LocalCUDACluster on {host}")
+        logger.info(f"📌 Using {n_workers} GPUs: {gpu_ids}")
+        logger.info(f"📌 Protocol: {protocol} | RMM pool: {gpu_memory_pool} | Memory: {system_memory}")
+
+        cluster_kwargs = {
+            "n_workers": n_workers,
+            "CUDA_VISIBLE_DEVICES": gpu_ids,
+            "protocol": protocol,
+            "rmm_pool_size": gpu_memory_pool,
+            "device_memory_limit": system_memory,
+            "threads_per_worker": 1,  # One thread per GPU worker
+            "dashboard_address": self.parsed_args.dashboard_port,
+        }
+
+        # Add UCX-specific settings if enabled
+        if use_ucx:
+            cluster_kwargs.update({
+                "enable_tcp_over_ucx": True,
+                "enable_nvlink": True,
+                "enable_infiniband": False,
+            })
+
+        cluster = LocalCUDACluster(**cluster_kwargs)
+        logger.info(f"✅ LocalCUDACluster created successfully")
+
+        return cluster
+
+    def _create_distributed_gpu_cluster(self, scheduler, workers):
+        """This function is working in progress
+        Create SSHCluster for distributed multi-GPU machines.
+
+        This requires manual setup of dask-cuda-workers on each remote host.
+
+        Args:
+            scheduler: First worker dict serving as scheduler
+            workers: List of worker configuration dicts with GPU settings
+
+        Returns:
+            SSHCluster connected to pre-started dask-cuda-workers
+        """
         scheduler_host = scheduler["host"]
-        
-        # Track GPU assignment per host (for auto-incrementing GPU IDs)
+
+        # Track GPU assignment per host
         gpu_counter = defaultdict(int)
-        
-        # Build worker specifications
-        worker_specs = []
+
+        logger.info("🎮 Distributed GPU cluster detected")
+        logger.info("⚠️  For distributed GPU clusters, you must manually start dask-cuda-workers:")
+        logger.info("")
+
+        # First, start the scheduler
+        logger.info(f"On {scheduler_host}:")
+        logger.info(f"  dask scheduler --port 8786 --dashboard-address {self.parsed_args.dashboard_port}")
+        logger.info("")
+
+        # Then provide commands for each worker
+        scheduler_address = f"tcp://{scheduler_host}:8786"
+
         for worker_config in workers:
             host = worker_config["host"]
             gpu_id = gpu_counter[host]
             gpu_counter[host] += 1
-            
+
             use_ucx = worker_config.get("use_ucx", False)
             protocol = "ucx" if use_ucx else "tcp"
             gpu_memory_pool = worker_config.get("gpu_memory_pool", "10GB")
             system_memory = worker_config.get("system_memory", "10GB")
-            
-            spec = {
-                "host": host,
-                "gpu_id": gpu_id,
-                "protocol": protocol,
-                "rmm_pool_size": gpu_memory_pool,
-                "memory_limit": system_memory,
-            }
-            worker_specs.append(spec)
-            
-            logger.info(
-                f"📌 Worker: {host}:GPU{gpu_id} | "
-                f"protocol={protocol} | RMM={gpu_memory_pool} | RAM={system_memory}"
-            )
-        
-        # Build custom worker commands for each worker
-        # Each SSH connection will run a dask-cuda-worker with specific GPU assignment
-        worker_cmd_list = []
-        hosts_list = [scheduler_host]  # Start with scheduler
-        
-        for spec in worker_specs:
-            # Build environment-prefixed command for this worker
+
+            logger.info(f"On {host} (GPU {gpu_id}):")
             cmd_parts = [
-                f"CUDA_VISIBLE_DEVICES={spec['gpu_id']}",
+                f"CUDA_VISIBLE_DEVICES={gpu_id}",
                 "dask-cuda-worker",
-                f"--rmm-pool-size {spec['rmm_pool_size']}",
-                f"--memory-limit {spec['memory_limit']}",
+                scheduler_address,
+                f"--rmm-pool-size {gpu_memory_pool}",
+                f"--memory-limit {system_memory}",
                 "--nthreads 1",
-                f"--protocol {spec['protocol']}",
-                "--no-dashboard",
             ]
-            
-            worker_cmd = " ".join(cmd_parts)
-            worker_cmd_list.append(worker_cmd)
-            hosts_list.append(spec["host"])
-        
-        # Since SSHCluster doesn't support per-worker custom commands directly,
-        # we use the worker_options with environment variables approach
-        # This requires dask-cuda to be installed on all nodes
-        
-        logger.info(f"🚀 Starting GPU cluster with {len(worker_specs)} GPU workers")
-        
-        # Use SSHCluster with worker_class for GPU workers
-        cluster = SSHCluster(
-            hosts_list,
-            connect_options={"known_hosts": None},
-            scheduler_options={"dashboard_address": self.parsed_args.dashboard_port},
-            worker_module="dask_cuda.dask_cuda_worker",
-            # Pass environment variables and options to workers
-            # Note: This is a simplified version; you may need to customize further
+            if use_ucx:
+                cmd_parts.extend([
+                    f"--protocol {protocol}",
+                    "--enable-tcp-over-ucx",
+                    "--enable-nvlink",
+                ])
+
+            logger.info(f"  {' '.join(cmd_parts)}")
+            logger.info("")
+
+        # Raise an error to prevent automatic execution for now
+        raise NotImplementedError(
+            "Distributed GPU clusters (Case 2) require manual worker setup. "
+            "Please start the scheduler and workers manually using the commands above, "
+            "then connect your client directly to the scheduler address. "
+            "\n\nAlternatively, ensure all GPU workers are on the same machine to use LocalCUDACluster."
         )
-        
-        return cluster
 
     def _create_dask_client(self):
+        if self.parsed_args.cluster_config:
+            cluster = self.setup_ssh_cluster_with_retries()
+            client = Client(cluster)
+            client.forward_logging()
+            # getting first worker's IP address and port to do IO
+            io_worker = list(client.scheduler_info()["workers"].keys())[0]
+            self.scene_optimizer.loader._input_worker = io_worker
+            self.scene_optimizer.cluster_optimizer._output_worker = io_worker
+        else:
+            local_cluster_kwargs = {
+                "n_workers": self.parsed_args.num_workers,
+                "threads_per_worker": self.parsed_args.threads_per_worker,
+                "dashboard_address": self.parsed_args.dashboard_port,
+            }
+            if self.parsed_args.worker_memory_limit is not None:
+                local_cluster_kwargs["memory_limit"] = self.parsed_args.worker_memory_limit
+            cluster = LocalCluster(**local_cluster_kwargs)
+            client = Client(cluster)
+
+        # Display Dask dashboard URL before processing starts
+        print(f"\n🚀 Dask Dashboard available at: {client.dashboard_link}")
+        return client
+
+    def _create_dask_client_gpu_cluster(self):
         if self.parsed_args.cluster_config:
             cluster = self.setup_ssh_cluster_with_retries()
             client = Client(cluster)
