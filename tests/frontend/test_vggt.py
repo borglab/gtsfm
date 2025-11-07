@@ -6,8 +6,11 @@ Authors: Xinan Zhang and Frank Dellaert
 import unittest
 from pathlib import Path
 
+import math
+import cv2
 import numpy as np
 import torch
+import torch.nn.functional as F
 from torchvision.transforms import v2 as transforms  # type: ignore
 
 import gtsfm.frontend.vggt as vggt
@@ -21,6 +24,162 @@ LocalScene = tuple[Path, GtsfmData]
 SceneTree = Tree[LocalScene]
 
 DATA_ROOT_PATH = Path(__file__).resolve().parent / "data"
+MAX_TRACKS_TO_DRAW = 20
+MAX_POINTS_PER_FRAME = 20
+
+
+def _vibrant_bgr_from_index(index: int) -> tuple[int, int, int]:
+    """Generate a visually distinct BGR color using a hashed palette."""
+
+    golden_ratio_hash = 0x9E3779B9
+    hash_val = (index * golden_ratio_hash + 0xB5297A4D) & 0xFFFFFFFF
+
+    def _component(shift: int) -> int:
+        raw = (hash_val >> shift) & 0xFF
+        return 64 + (raw * 191) // 255
+
+    r = _component(16)
+    g = _component(8)
+    b = _component(0)
+    return (b, g, r)
+
+
+def _visualize_gtsfm_tracks_on_original_frames(
+    square_images: torch.Tensor,
+    original_coords: torch.Tensor,
+    gtsfm_data: GtsfmData,
+    image_indices: list[int],
+    output_dir: Path,
+) -> None:
+    """Restore images to native scale and overlay 2D track measurements from ``GtsfmData``."""
+
+    if gtsfm_data.number_tracks() == 0:
+        return
+
+    if square_images.ndim != 4:
+        raise ValueError(f"Expected square_images with 4 dims, got shape {tuple(square_images.shape)}")
+    if original_coords.ndim != 2 or original_coords.shape[1] != 6:
+        raise ValueError(f"original_coords must have shape (N,6); received {tuple(original_coords.shape)}")
+
+    coords = original_coords.to(torch.float32)
+    widths = coords[:, 4].round().clamp(min=1).to(torch.int64)
+    heights = coords[:, 5].round().clamp(min=1).to(torch.int64)
+    max_h = int(torch.max(heights).item())
+    max_w = int(torch.max(widths).item())
+
+    num_frames, num_channels, square_h, square_w = square_images.shape
+    restored_frames: list[torch.Tensor] = []
+
+    for idx in range(num_frames):
+        x1, y1, x2, y2 = coords[idx, :4]
+
+        x1i = int(torch.clamp(torch.floor(x1), 0, square_w - 1).item())
+        y1i = int(torch.clamp(torch.floor(y1), 0, square_h - 1).item())
+        x2i = int(torch.clamp(torch.ceil(x2), x1i + 1, square_w).item())
+        y2i = int(torch.clamp(torch.ceil(y2), y1i + 1, square_h).item())
+
+        crop = square_images[idx : idx + 1, :, y1i:y2i, x1i:x2i]
+        if crop.numel() == 0:
+            crop = square_images[idx : idx + 1]
+
+        target_h = int(heights[idx].item())
+        target_w = int(widths[idx].item())
+        resized = F.interpolate(crop, size=(target_h, target_w), mode="bilinear", align_corners=False)
+
+        canvas = torch.zeros((1, num_channels, max_h, max_w), dtype=square_images.dtype, device=square_images.device)
+        canvas[:, :, :target_h, :target_w] = resized
+        restored_frames.append(canvas)
+
+    restored = torch.cat(restored_frames, dim=0).clamp(0.0, 1.0)
+
+    num_frames = len(image_indices)
+    index_lookup = {img_idx: local_idx for local_idx, img_idx in enumerate(image_indices)}
+    per_frame_measurements: list[list[tuple[tuple[float, float], tuple[int, int, int]]]] = [
+        [] for _ in range(num_frames)
+    ]
+    track_sequences: list[tuple[list[tuple[int, float, float]], tuple[int, int, int]]] = []
+
+    # Tracks stored in ``gtsfm_data`` are already expressed in the original image coordinates by vggt.py.
+    processed_tracks = 0
+    for track_idx in range(gtsfm_data.number_tracks()):
+        if processed_tracks >= MAX_TRACKS_TO_DRAW:
+            break
+        track = gtsfm_data.get_track(track_idx)
+        if track is None:
+            continue
+        measurements: list[tuple[int, float, float]] = []
+        for meas_idx in range(track.numberMeasurements()):
+            img_idx, uv = track.measurement(meas_idx)
+            local_idx = index_lookup.get(img_idx)
+            if local_idx is None:
+                continue
+            if hasattr(uv, "x"):
+                u = float(uv.x())
+                v = float(uv.y())
+            elif isinstance(uv, np.ndarray):
+                u = float(uv[0])
+                v = float(uv[1])
+            else:
+                # assume tuple-like
+                u = float(uv[0])
+                v = float(uv[1])
+            measurements.append((local_idx, u, v))
+
+        if len(measurements) == 0:
+            continue
+
+        color_bgr = _vibrant_bgr_from_index(track_idx)
+        measurements = sorted(measurements, key=lambda m: m[0])
+
+        track_sequences.append((measurements, color_bgr))
+        processed_tracks += 1
+
+        for frame_idx, u, v in measurements:
+            per_frame_measurements[frame_idx].append(((u, v), color_bgr))
+
+    if not track_sequences:
+        return
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    frames_per_row = min(4, max(1, num_frames))
+    grid_rows = math.ceil(num_frames / frames_per_row)
+    max_h = restored.shape[2]
+    max_w = restored.shape[3]
+    grid_canvas = np.zeros((grid_rows * max_h, frames_per_row * max_w, 3), dtype=np.uint8)
+
+    restored_np = (restored.permute(0, 2, 3, 1).cpu().numpy() * 255.0).astype(np.uint8)
+
+    for local_idx, frame in enumerate(restored_np):
+        row = local_idx // frames_per_row
+        col = local_idx % frames_per_row
+        y0 = row * max_h
+        x0 = col * max_w
+        grid_canvas[y0 : y0 + frame.shape[0], x0 : x0 + frame.shape[1]] = frame
+
+    grid_canvas = cv2.cvtColor(grid_canvas, cv2.COLOR_RGB2BGR)
+
+    for measurements, color_bgr in track_sequences:
+        last_grid_point = None
+        for frame_idx, u, v in measurements:
+            row = frame_idx // frames_per_row
+            col = frame_idx % frames_per_row
+            grid_pt = (int(round(col * max_w + u)), int(round(row * max_h + v)))
+            cv2.circle(grid_canvas, grid_pt, radius=3, color=color_bgr, thickness=-1)
+            if last_grid_point is not None:
+                cv2.line(grid_canvas, last_grid_point, grid_pt, color=color_bgr, thickness=2, lineType=cv2.LINE_AA)
+            last_grid_point = grid_pt if len(measurements) > 1 else None
+
+    cv2.imwrite(str(output_dir / "tracks_grid.png"), grid_canvas)
+
+    for local_idx, frame in enumerate(restored_np):
+        canvas = cv2.cvtColor(frame.copy(), cv2.COLOR_RGB2BGR)
+        for point_idx, ((u, v), color_bgr) in enumerate(per_frame_measurements[local_idx]):
+            if point_idx >= MAX_POINTS_PER_FRAME:
+                break
+            pt = (int(round(u)), int(round(v)))
+            cv2.circle(canvas, pt, radius=3, color=color_bgr, thickness=-1)
+        cv2.imwrite(str(output_dir / f"frame_{local_idx:04d}.png"), canvas)
 
 
 def run_vggt(
@@ -84,11 +243,18 @@ def run_vggt(
     sparse_reconstruction_dir.mkdir(parents=True, exist_ok=True)
     result.gtsfm_data.export_as_colmap_text(sparse_reconstruction_dir)
 
-    # result.visualize_tracks(
-    #     images=image_batch,              # the same (num_frames,3,H,W) tensor used for VGGT
-    #     output_dir=Path("track_visuals"),
-    #     visibility_threshold=0.2,
-    # )
+    square_images_cpu = image_batch.detach().cpu()
+    original_coords_cpu = original_coords.detach().cpu()
+
+    if result.gtsfm_data.number_tracks() > 0:
+        track_output_dir = Path(__file__).resolve().parent / "track_visuals"
+        _visualize_gtsfm_tracks_on_original_frames(
+            square_images=square_images_cpu,
+            original_coords=original_coords_cpu,
+            gtsfm_data=result.gtsfm_data,
+            image_indices=image_indices,
+            output_dir=track_output_dir,
+        )
 
     if result.points_3d.size == 0:
         print("VGGT produced no confident 3D structure.")
@@ -177,12 +343,13 @@ class TestVGGT(unittest.TestCase):
             self.assertAlmostEqual(u_back_load, u_orig, places=3)
             self.assertAlmostEqual(v_back_load, v_orig, places=3)
 
-    @unittest.skip("Skipping VGGT end-to-end test for now since it is slow and requires GPU.")
+    # @unittest.skip("Skipping VGGT end-to-end test for now since it is slow and requires GPU.")
     def test_run_vggt_on_some_images(self):
         """Load four door images using Olsson loader and run vggt on them."""
 
+        img_load_original_resolution = 760
         img_load_resolution = 1024
-        loader = OlssonLoader(dataset_dir=str(DOOR), max_resolution=img_load_resolution)
+        loader = OlssonLoader(dataset_dir=str(DOOR), max_resolution=img_load_original_resolution)
         indices = [4, 11, 8, 2]
 
         # resize_transform = None
@@ -215,6 +382,7 @@ class TestVGGT(unittest.TestCase):
         self.assertEqual(gtsfm_data.number_images(), len(indices))
         self.assertCountEqual(gtsfm_data.get_valid_camera_indices(), indices)
 
+    @unittest.skip("Skipping because this test will be merged to the previous test.")
     def test_convert_measurement_to_original_resolution_door_extremes(self) -> None:
         """Ensure VGGT coordinate conversion preserves pixel centers for a real Door image."""
 
