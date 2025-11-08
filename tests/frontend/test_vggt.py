@@ -7,6 +7,8 @@ import unittest
 from pathlib import Path
 
 import math
+from typing import Any
+
 import cv2
 import numpy as np
 import torch
@@ -24,8 +26,8 @@ LocalScene = tuple[Path, GtsfmData]
 SceneTree = Tree[LocalScene]
 
 DATA_ROOT_PATH = Path(__file__).resolve().parent / "data"
-MAX_TRACKS_TO_DRAW = 20
-MAX_POINTS_PER_FRAME = 20
+MAX_TRACKS_TO_DRAW = 200
+MAX_POINTS_PER_FRAME = 200
 
 
 def _vibrant_bgr_from_index(index: int) -> tuple[int, int, int]:
@@ -44,17 +46,10 @@ def _vibrant_bgr_from_index(index: int) -> tuple[int, int, int]:
     return (b, g, r)
 
 
-def _visualize_gtsfm_tracks_on_original_frames(
-    square_images: torch.Tensor,
-    original_coords: torch.Tensor,
-    gtsfm_data: GtsfmData,
-    image_indices: list[int],
-    output_dir: Path,
-) -> None:
-    """Restore images to native scale and overlay 2D track measurements from ``GtsfmData``."""
-
-    if gtsfm_data.number_tracks() == 0:
-        return
+def _restore_images_to_original_scale(
+    square_images: torch.Tensor, original_coords: torch.Tensor
+) -> torch.Tensor:
+    """Crop padded square VGGT inputs back to their native aspect ratios."""
 
     if square_images.ndim != 4:
         raise ValueError(f"Expected square_images with 4 dims, got shape {tuple(square_images.shape)}")
@@ -90,14 +85,29 @@ def _visualize_gtsfm_tracks_on_original_frames(
         canvas[:, :, :target_h, :target_w] = resized
         restored_frames.append(canvas)
 
-    restored = torch.cat(restored_frames, dim=0).clamp(0.0, 1.0)
+    return torch.cat(restored_frames, dim=0).clamp(0.0, 1.0)
+
+
+def _visualize_gtsfm_tracks_on_original_frames(
+    square_images: torch.Tensor,
+    original_coords: torch.Tensor,
+    gtsfm_data: GtsfmData,
+    image_indices: list[int],
+    output_dir: Path,
+) -> None:
+    """Restore images to native scale and overlay 2D track measurements from ``GtsfmData``."""
+
+    if gtsfm_data.number_tracks() == 0:
+        return
+
+    restored = _restore_images_to_original_scale(square_images, original_coords)
 
     num_frames = len(image_indices)
     index_lookup = {img_idx: local_idx for local_idx, img_idx in enumerate(image_indices)}
     per_frame_measurements: list[list[tuple[tuple[float, float], tuple[int, int, int]]]] = [
         [] for _ in range(num_frames)
     ]
-    track_sequences: list[tuple[list[tuple[int, float, float]], tuple[int, int, int]]] = []
+    track_sequences: list[dict[str, Any]] = []
 
     # Tracks stored in ``gtsfm_data`` are already expressed in the original image coordinates by vggt.py.
     processed_tracks = 0
@@ -130,8 +140,15 @@ def _visualize_gtsfm_tracks_on_original_frames(
 
         color_bgr = _vibrant_bgr_from_index(track_idx)
         measurements = sorted(measurements, key=lambda m: m[0])
+        point3 = track.point3() if hasattr(track, "point3") else None
 
-        track_sequences.append((measurements, color_bgr))
+        track_sequences.append(
+            {
+                "measurements": measurements,
+                "color": color_bgr,
+                "point3": point3,
+            }
+        )
         processed_tracks += 1
 
         for frame_idx, u, v in measurements:
@@ -159,7 +176,9 @@ def _visualize_gtsfm_tracks_on_original_frames(
 
     grid_canvas = cv2.cvtColor(grid_canvas, cv2.COLOR_RGB2BGR)
 
-    for measurements, color_bgr in track_sequences:
+    for track_info in track_sequences:
+        measurements = track_info["measurements"]
+        color_bgr = track_info["color"]
         last_grid_point = None
         for frame_idx, u, v in measurements:
             row = frame_idx // frames_per_row
@@ -180,6 +199,49 @@ def _visualize_gtsfm_tracks_on_original_frames(
             pt = (int(round(u)), int(round(v)))
             cv2.circle(canvas, pt, radius=5, color=color_bgr, thickness=-1)
         cv2.imwrite(str(output_dir / f"frame_{local_idx:04d}.png"), canvas)
+
+    for local_idx, frame in enumerate(restored_np):
+        img_idx = image_indices[local_idx]
+        camera = gtsfm_data.get_camera(img_idx)
+        if camera is None:
+            continue
+
+        canvas = cv2.cvtColor(frame.copy(), cv2.COLOR_RGB2BGR)
+        height, width = frame.shape[:2]
+        for track_info in track_sequences:
+            point3 = track_info["point3"]
+            if point3 is None:
+                continue
+            try:
+                uv = camera.project(point3)
+            except Exception:
+                continue
+
+            if hasattr(uv, "x"):
+                u = float(uv.x())
+                v = float(uv.y())
+            elif isinstance(uv, np.ndarray):
+                u = float(uv[0])
+                v = float(uv[1])
+            else:
+                u = float(uv[0])
+                v = float(uv[1])
+            if not (0 <= u < width and 0 <= v < height):
+                continue
+
+            color_bgr = track_info["color"]
+            pt = (int(round(u)), int(round(v)))
+            cv2.drawMarker(
+                canvas,
+                pt,
+                color=color_bgr,
+                markerType=cv2.MARKER_CROSS,
+                markerSize=10,
+                thickness=2,
+                line_type=cv2.LINE_AA,
+            )
+
+        cv2.imwrite(str(output_dir / f"reproj_{local_idx:04d}.png"), canvas)
 
 
 def run_vggt(
@@ -272,7 +334,7 @@ class TestVGGT(unittest.TestCase):
     def setUp(self) -> None:
         pass
 
-    # @unittest.skip("Skipping VGGT end-to-end test for now since it is slow and requires GPU.")
+    @unittest.skip("Skipping VGGT end-to-end test for now since it is slow and requires GPU.")
     def test_coordinate_round_trip(self) -> None:
         """Ensure the helper that maps VGGT grid coordinates back to original pixels is consistent.
 
