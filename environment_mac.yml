@@ -22,6 +22,9 @@ dependencies:
   - lz4=4.4.4
   - msgpack-python=1.1.1
   - python-graphviz
+    # GPU/UCX support for multi-GPU communication
+  - distributed-ucx==12.0.0 # New UCX implementation
+  - dask-cuda>=24.8.0
   # core functionality and APIs
   - hydra-core
   - matplotlib>=3.5
