@@ -254,3 +254,64 @@ def visualize_tracks(processed_images, tracks, vis_scores, out_dir, vis_thresh=0
         frame_path = out_dir / f"frame_{frame_idx:03d}.png"
         fig.savefig(frame_path, bbox_inches="tight", pad_inches=0)
         plt.close(fig)
+
+
+def compute_reprojection_errors(
+    points_3d: np.ndarray,
+    tracks_2d: np.ndarray,
+    track_mask: np.ndarray,
+    extrinsic_cTw: torch.Tensor,
+    intrinsics_pixels: torch.Tensor,
+) -> np.ndarray:
+    """Compute per-track mean reprojection error (in pixels) using available observations."""
+
+    extrinsic_np = extrinsic_cTw.cpu().numpy()
+    intrinsics_np = intrinsics_pixels.cpu().numpy()
+    if extrinsic_np.ndim == 4:
+        extrinsic_np = extrinsic_np[0]
+    if intrinsics_np.ndim == 4:
+        intrinsics_np = intrinsics_np[0]
+
+    num_tracks = points_3d.shape[0]
+    reproj_errors = np.full(num_tracks, np.inf, dtype=np.float32)
+
+    def _project_point(point_xyz: np.ndarray, cTw: np.ndarray, intrinsic: np.ndarray) -> np.ndarray | None:
+        cam_coords = cTw[:, :3] @ point_xyz + cTw[:, 3]
+        z = cam_coords[2]
+        if np.abs(z) < 1e-6:
+            return None
+        normalized = np.array([cam_coords[0] / z, cam_coords[1] / z, 1.0], dtype=np.float64)
+        pixel_matrix = intrinsic[:2, :3]
+        projected = pixel_matrix @ normalized
+        return projected.astype(np.float32)
+
+    for track_id in range(num_tracks):
+        frame_ids = np.nonzero(track_mask[:, track_id])[0]
+        if frame_ids.size == 0:
+            continue
+        residuals: list[float] = []
+        point_xyz = points_3d[track_id]
+        for local_id in frame_ids:
+            projected = _project_point(point_xyz, extrinsic_np[local_id], intrinsics_np[local_id])
+            if projected is None or not np.all(np.isfinite(projected)):
+                continue
+            measurement = tracks_2d[local_id, track_id]
+            if not np.all(np.isfinite(measurement)):
+                continue
+            residuals.append(float(np.linalg.norm(projected - measurement)))
+        if residuals:
+            reproj_errors[track_id] = float(np.mean(residuals))
+
+    return reproj_errors
+
+
+def log_reprojection_metrics(reprojection_errors, mask):
+    finite_errors = reprojection_errors[mask]
+    logger.info(
+        "Reprojection error stats across %d tracks - mean: %.3f px, median: %.3f px, " "min: %.3f px, max: %.3f px.",
+        finite_errors.size,
+        float(np.mean(finite_errors)),
+        float(np.median(finite_errors)),
+        float(np.min(finite_errors)),
+        float(np.max(finite_errors)),
+    )

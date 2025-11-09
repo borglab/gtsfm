@@ -81,10 +81,13 @@ class ClusterAnySplat(ClusterOptimizerBase):
         tracking: bool | None = True,
         max_query_pts: int | None = 2048,
         query_frame_num: int | None = 5,
+        keypoint_extractor: str | None = "aliked+sp",
         max_points_num: int | None = 163840,
         fine_tracking: bool | None = True,
         track_vis_thresh: float | None = 0.9,
         num_inliers: int | None = 2,
+        confidence_thresh: float | None = 0.0,
+        reproj_error_thresh: float | None = None,
     ):
         """
         Initializes the ClusterAnySplat optimizer.
@@ -96,10 +99,13 @@ class ClusterAnySplat(ClusterOptimizerBase):
             tracking (bool | None): Boolean used for signaling if tracking will be used for merging
             max_query_pts (int | None): VGGT tracking argument with its default value
             query_frame_num (int | None): VGGT tracking argument with its default value
+            keypoint_extractor (str | None): VGGT tracking argument with its default value
             max_points_num (int | None): VGGT tracking argument with its default value
             fine_tracking (int | None): VGGT tracking argument with its default value
             track_vis_thresh (int | None): VGGT tracking argument with its default value
             num_inliers (int | None): threshold for considering a track valid
+            confidence_thresh (float | None): minimum confidence required for a retained track
+            reproj_error_thresh (float | None): optional per-track reprojection error ceiling in pixels
         """
         super().__init__()
         self._model = None
@@ -109,9 +115,12 @@ class ClusterAnySplat(ClusterOptimizerBase):
         self.max_query_pts = max_query_pts
         self.query_frame_num = query_frame_num
         self.max_points_num = max_points_num
+        self.keypoint_extractor = keypoint_extractor
         self.fine_tracking = fine_tracking
         self.track_vis_thresh = track_vis_thresh
         self.num_inliers = num_inliers
+        self.confidence_thresh = confidence_thresh
+        self.reproj_error_thresh = reproj_error_thresh
 
         if model_loader is not None:
             self._model_loader = model_loader
@@ -286,12 +295,12 @@ class ClusterAnySplat(ClusterOptimizerBase):
                     masks=None,  # ignored anyway !
                     max_query_pts=self.max_query_pts,
                     query_frame_num=self.query_frame_num,
+                    keypoint_extractor=self.keypoint_extractor,
                     max_points_num=self.max_points_num,
                     fine_tracking=self.fine_tracking,
                 )
 
             del (
-                confidences,
                 colors,
                 dense_points,
                 depth_map,
@@ -301,11 +310,40 @@ class ClusterAnySplat(ClusterOptimizerBase):
                 tracking_images,
             )
 
+            logger.info("Tracks before filtering %s", points_3d.shape[0])
             track_mask = vis_scores > self.track_vis_thresh
             inlier_num = track_mask.sum(0)
-
+            self.num_inliers = len(images)
             valid_mask = inlier_num >= self.num_inliers  # a track is invalid if without mentioned number of inliers
+
+            confidence_mask = confidences >= self.confidence_thresh
+            valid_mask = np.logical_and(valid_mask, confidence_mask)
+
+            if self.reproj_error_thresh is not None:
+                reprojection_errors = anysplat_utils.compute_reprojection_errors(
+                    points_3d=points_3d,
+                    tracks_2d=tracks,
+                    track_mask=track_mask,
+                    extrinsic_cTw=extrinsic_cTw,
+                    intrinsics_pixels=intrinsics_pixels,
+                )
+                finite_reproj_mask = np.isfinite(reprojection_errors)
+                if np.any(finite_reproj_mask):
+                    anysplat_utils.log_reprojection_metrics(reprojection_errors, finite_reproj_mask)
+                else:
+                    logger.info("No valid reprojection errors could be computed for the current cluster.")
+
+                reproj_mask = np.logical_and(finite_reproj_mask, reprojection_errors < self.reproj_error_thresh)
+                valid_mask = np.logical_and(valid_mask, reproj_mask)
+
+                anysplat_utils.log_reprojection_metrics(reprojection_errors, valid_mask)
+
+                del reproj_mask, finite_reproj_mask
+
+            del confidences, vis_scores
+
             valid_idx = np.nonzero(valid_mask)[0]
+            logger.info("Valid tracks after filtering %s", len(valid_idx))
 
             global_indices = list(images.keys())
             for valid_id in valid_idx:

@@ -31,7 +31,10 @@ cluster_optimizer:
   tracking: True
   max_query_pts: 2048
   query_frame_num: 5
+  keypoint_extractor: aliked+sp
   max_points_num: 163840
   fine_tracking: True
-  track_vis_thresh: 0.9
+  track_vis_thresh: 0.99
   num_inliers: 2
+  confidence_thresh: 0.9
+  reproj_error_thresh: 0.5
