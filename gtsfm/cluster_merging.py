@@ -96,7 +96,9 @@ def combine_results(
         try:
             post_ba_result.set_gaussian_splats(None)
             postba_S_current = align_utils.sim3_from_Pose3_maps(post_ba_result.poses(), current.poses())  # type: ignore
-            merged_gaussians = transform_gaussian_splats(current.get_gaussian_splats(), postba_S_current)  # type: ignore
+            merged_gaussians = transform_gaussian_splats(
+                current.get_gaussian_splats(), postba_S_current  # type: ignore
+            )
             for child in child_results:
                 if child is None:
                     continue
