@@ -29,4 +29,11 @@ graph_partitioner:
 cluster_optimizer:
   _target_: gtsfm.cluster_optimizer.cluster_anysplat.ClusterAnySplat
   local_checkpoint: null
-  max_num_points: null
+  max_num_points: 100000
+  tracking: True
+  max_query_pts: 2048
+  query_frame_num: 5
+  max_points_num: 163840
+  fine_tracking: True
+  track_vis_thresh: 0.9
+  num_inliers: 2

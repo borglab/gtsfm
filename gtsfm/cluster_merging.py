@@ -10,8 +10,11 @@ from gtsam import Similarity3
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
+from gtsfm.cluster_optimizer.cluster_anysplat import save_splats
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.utils import align as align_utils
+from gtsfm.utils.splat import GaussiansProtocol, merge_gaussian_splats
+from gtsfm.utils.transform import transform_gaussian_splats
 from gtsfm.utils.tree import Tree
 from gtsfm.utils.tree_dask import submit_tree_map
 
@@ -32,6 +35,13 @@ def _run_export_task(payload: Tuple[Optional[Path], Optional[GtsfmData]]) -> Non
         return
     merged_dir.mkdir(parents=True, exist_ok=True)
     merged_scene.export_as_colmap_text(merged_dir)
+    if merged_scene.has_gaussian_splats():
+        gaussian_splats = merged_scene.get_gaussian_splats()
+        if isinstance(gaussian_splats, GaussiansProtocol):
+            try:
+                save_splats(merged_scene, merged_dir)
+            except Exception as exc:
+                logger.warning("⚠️ Failed to export Gaussian splats: %s", exc)
 
 
 def schedule_exports(
@@ -82,7 +92,35 @@ def combine_results(
     if merged is None:
         return None
     try:
-        return BundleAdjustmentOptimizer().run_simple_ba(merged)[0]  # Can definitely fail
+        post_ba_result, _ = BundleAdjustmentOptimizer().run_simple_ba(merged)
+        try:
+            post_ba_result.set_gaussian_splats(None)
+            postba_S_current = align_utils.sim3_from_Pose3_maps(post_ba_result.poses(), current.poses())  # type: ignore
+            merged_gaussians = transform_gaussian_splats(current.get_gaussian_splats(), postba_S_current)  # type: ignore
+            for child in child_results:
+                if child is None:
+                    continue
+                try:
+                    postba_S_child = align_utils.sim3_from_Pose3_maps(post_ba_result.poses(), child.poses())
+
+                    if child.has_gaussian_splats():
+                        transformed_other_gaussians = transform_gaussian_splats(
+                            child.get_gaussian_splats(), postba_S_child  # type: ignore
+                        )
+                        if merged_gaussians is None:
+                            merged_gaussians = transformed_other_gaussians
+                        else:
+                            merged_gaussians = merge_gaussian_splats(merged_gaussians, transformed_other_gaussians)
+
+                except Exception as e:
+                    logger.warning("⚠️ Failed to align and merge gaussians: %s", e)
+            post_ba_result.set_gaussian_splats(merged_gaussians)
+            return post_ba_result  # Can definitely fail
+
+        except Exception as alignment_exc:
+            logger.warning("⚠️ Failed to compute pre/post BA Sim(3): %s", alignment_exc)
+            return merged
+
     except Exception as e:
         logger.warning("⚠️ Failed to run bundle adjustment: %s", e)
         return merged
