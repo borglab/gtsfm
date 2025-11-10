@@ -492,6 +492,15 @@ def run_VGGT(
         except Exception as exc:  # pragma: no cover - best effort for FastVGGT compatibility
             logger.warning("Failed to update VGGT patch dimensions (%dx%d): %s", patch_w, patch_h, exc)
 
+    # FastVGGT requires the model to know the actual patch grid dimensions used for token merging.
+    patch_w = max(1, resized_images.shape[-1] // getattr(model.aggregator, "patch_size", 14))
+    patch_h = max(1, resized_images.shape[-2] // getattr(model.aggregator, "patch_size", 14))
+    if hasattr(model, "update_patch_dimensions"):
+        try:
+            model.update_patch_dimensions(patch_w, patch_h)
+        except Exception as exc:  # pragma: no cover - best effort for FastVGGT compatibility
+            logger.warning("Failed to update VGGT patch dimensions (%dx%d): %s", patch_w, patch_h, exc)
+
     if resolved_device.type == "cuda":
         autocast_ctx: Any = amp_autocast("cuda", dtype=resolved_dtype)
     else:
