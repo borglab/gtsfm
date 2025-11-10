@@ -205,3 +205,5 @@ benchmarks/**
 plot.jpg
 vggt/**
 palace_metis/**
+results_eth3d/
+results_360/

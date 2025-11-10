@@ -1,0 +1,1 @@
+./run --loader colmap --dataset_dir tests/data/pipes/dslr_calibration_undistorted --images_dir tests/data/pipes/images --config_name vggt --graph_partitioner metis --worker_memory_limit=24GB

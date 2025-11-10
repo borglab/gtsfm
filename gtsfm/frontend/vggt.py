@@ -63,7 +63,7 @@ class VggtConfiguration:
     img_load_resolution: int = 1024
     vggt_fixed_resolution: int = DEFAULT_FIXED_RESOLUTION
     seed: int = 42
-    confidence_threshold: float = 5.0
+    confidence_threshold: float = 0.0
     max_num_points: int = 100000
 
     # Tracking-specific parameters:

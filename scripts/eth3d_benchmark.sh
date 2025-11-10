@@ -6,25 +6,26 @@ CLUSTER_CONFIG=$2
 
 now=$(date +"%Y%m%d_%H%M%S")
 
-ETH3D_ROOT=/usr/local/gtsfm-data/eth3d_datasets/multi_view_training_dslr_undistorted
+#ETH3D_ROOT=/usr/local/gtsfm-data/eth3d_datasets/multi_view_training_dslr_undistorted
 #ETH3D_ROOT=/home/tdriver6/Downloads/eth3d_datasets
+ETH3D_ROOT=/home/tdriver6/Documents/eth3d
 
 # Includes all "high-resolution multi-view" datasets from 'training' split (i.e. w/ public GT data)
 # See https://www.eth3d.net/datasets for more information.
 datasets=(
     courtyard
-    delivery_area
-    electro
-    facade
-    kicker
-    meadow
-    office
-    pipes
-    playground
-    relief_2
-    relief
-    terrace
-    terrains
+    #delivery_area
+    #electro
+    #facade
+    #kicker
+    #meadow
+    #office
+    #pipes
+    #playground
+    #relief_2
+    #relief
+    #terrace
+    #terrains
 )
 
 max_frame_lookahead_sizes=(
@@ -97,24 +98,10 @@ for num_matched in ${num_matched_sizes[@]}; do
                 # images_dir="${ETH3D_ROOT}/${dataset}_dslr_undistorted/${dataset}/images"
                 # colmap_files_dirpath="${ETH3D_ROOT}/${dataset}_dslr_undistorted/${dataset}/dslr_calibration_undistorted"
 
-                OUTPUT_ROOT=${USER_ROOT}/${now}/${now}__${dataset}__results__num_matched${num_matched}__maxframelookahead${max_frame_lookahead}__760p__unified_${correspondence_generator_config_name}
+                OUTPUT_ROOT=${USER_ROOT}/${now}/${now}__${dataset}__results__vggt
                 mkdir -p $OUTPUT_ROOT
 
-                ./run \
-                --loader colmap \
-                --run_mvs false \
-                --config_name unified \
-                --correspondence_generator_config_name $correspondence_generator_config_name \
-                --share_intrinsics \
-                --dataset_dir $colmap_files_dirpath \
-                --images_dir $images_dir \
-                --num_workers 1 \
-                --num_matched $num_matched \
-                --max_frame_lookahead $max_frame_lookahead \
-                --worker_memory_limit "32GB" \
-                --output_root $OUTPUT_ROOT \
-                --max_resolution 760 \
-                $CLUSTER_ARGS \
+                ./run --loader colmap --dataset_dir $colmap_files_dirpath --images_dir $images_dir --config_name vggt --graph_partitioner metis --worker_memory_limit=24GB \
                 2>&1 | tee $OUTPUT_ROOT/out.log
             done
         done
