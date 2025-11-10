@@ -23,7 +23,7 @@ jobs:
           cache-environment-key: environment-${{ github.sha }}
           init-shell: bash
           generate-run-shell: false
-          post-cleanup: shell-init
+          post-cleanup: none
 
   test:
     name: Unit tests and python checks
@@ -41,7 +41,7 @@ jobs:
           cache-environment-key: environment-${{ github.sha }}
           init-shell: bash
           generate-run-shell: false
-          post-cleanup: shell-init
+          post-cleanup: none
       - name: Environment setup
         run: |
           bash .github/scripts/setup.sh
@@ -115,7 +115,7 @@ jobs:
           cache-environment-key: environment-${{ github.sha }}
           init-shell: bash
           generate-run-shell: false
-          post-cleanup: shell-init
+          post-cleanup: none
       - name: Environment setup
         run: |
           bash .github/scripts/setup.sh
