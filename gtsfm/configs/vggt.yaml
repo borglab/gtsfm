@@ -16,9 +16,8 @@ image_pairs_generator:
     global_descriptor_obj:
       _target_: gtsfm.frontend.global_descriptor.MegaLoc
   retriever:
-    _target_: gtsfm.retriever.JointSimilaritySequential
+    _target_: gtsfm.retriever.Similarity
     num_matched: 5
-    max_frame_lookahead: 2
     min_score: 0.2
   batch_size: 16
 
