@@ -3,10 +3,9 @@
 Authors: Xinan Zhang and Frank Dellaert
 """
 
+import math
 import unittest
 from pathlib import Path
-
-import math
 from typing import Any
 
 import cv2
@@ -46,9 +45,7 @@ def _vibrant_bgr_from_index(index: int) -> tuple[int, int, int]:
     return (b, g, r)
 
 
-def _restore_images_to_original_scale(
-    square_images: torch.Tensor, original_coords: torch.Tensor
-) -> torch.Tensor:
+def _restore_images_to_original_scale(square_images: torch.Tensor, original_coords: torch.Tensor) -> torch.Tensor:
     """Crop padded square VGGT inputs back to their native aspect ratios."""
 
     if square_images.ndim != 4:
@@ -305,7 +302,6 @@ def run_vggt(
     sparse_reconstruction_dir.mkdir(parents=True, exist_ok=True)
     result.gtsfm_data.export_as_colmap_text(sparse_reconstruction_dir)
 
-<<<<<<< HEAD
     square_images_cpu = image_batch.detach().cpu()
     original_coords_cpu = original_coords.detach().cpu()
 
@@ -319,8 +315,6 @@ def run_vggt(
             output_dir=track_output_dir,
         )
 
-=======
->>>>>>> master
     if result.points_3d.size == 0:
         print("VGGT produced no confident 3D structure.")
 
@@ -397,7 +391,6 @@ class TestVGGT(unittest.TestCase):
             self.assertAlmostEqual(u_back, u_orig, places=3)
             self.assertAlmostEqual(v_back, v_orig, places=3)
 
-<<<<<<< HEAD
             uv_load = ((u_orig + pad_left) * scale, (v_orig + pad_top) * scale)
             u_back_load, v_back_load = vggt._convert_measurement_to_original_resolution(
                 uv_load,
@@ -410,9 +403,6 @@ class TestVGGT(unittest.TestCase):
             self.assertAlmostEqual(v_back_load, v_orig, places=3)
 
     # @unittest.skip("Skipping VGGT end-to-end test for now since it is slow and requires GPU.")
-=======
-    @unittest.skip("Skipping VGGT end-to-end test for now since it is slow and requires GPU.")
->>>>>>> master
     def test_run_vggt_on_some_images(self):
         """Load four door images using Olsson loader and run vggt on them."""
 
@@ -451,7 +441,6 @@ class TestVGGT(unittest.TestCase):
         self.assertEqual(gtsfm_data.number_images(), len(indices))
         self.assertCountEqual(gtsfm_data.get_valid_camera_indices(), indices)
 
-<<<<<<< HEAD
     @unittest.skip("Skipping because this test will be merged to the previous test.")
     def test_convert_measurement_to_original_resolution_door_extremes(self) -> None:
         """Ensure VGGT coordinate conversion preserves pixel centers for a real Door image."""
@@ -461,13 +450,13 @@ class TestVGGT(unittest.TestCase):
 
         def _jpeg_size(path: Path) -> tuple[int, int]:
             with path.open("rb") as stream:
-                if stream.read(2) != b"\xFF\xD8":
+                if stream.read(2) != b"\xff\xd8":
                     raise ValueError("Not a JPEG file.")
                 while True:
                     marker_start = stream.read(1)
                     if not marker_start:
                         raise ValueError("Reached EOF before finding SOF marker.")
-                    if marker_start != b"\xFF":
+                    if marker_start != b"\xff":
                         continue
                     marker_code = stream.read(1)
                     if not marker_code or marker_code == b"\x00":
@@ -542,8 +531,6 @@ class TestVGGT(unittest.TestCase):
             self.assertAlmostEqual(u_back_load, u_orig, places=3)
             self.assertAlmostEqual(v_back_load, v_orig, places=3)
 
-=======
->>>>>>> master
 
 if __name__ == "__main__":
     unittest.main()
