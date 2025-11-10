@@ -21,9 +21,6 @@ jobs:
         with:
           environment-file: environment_linux_cpuonly.yml
           cache-environment-key: environment-${{ github.sha }}
-          init-shell: bash
-          generate-run-shell: false
-          post-cleanup: none
 
   test:
     name: Unit tests and python checks
@@ -39,9 +36,6 @@ jobs:
         with:
           environment-file: environment_linux_cpuonly.yml
           cache-environment-key: environment-${{ github.sha }}
-          init-shell: bash
-          generate-run-shell: false
-          post-cleanup: none
       - name: Environment setup
         run: |
           bash .github/scripts/setup.sh
@@ -113,9 +107,6 @@ jobs:
         with:
           environment-file: environment_linux_cpuonly.yml
           cache-environment-key: environment-${{ github.sha }}
-          init-shell: bash
-          generate-run-shell: false
-          post-cleanup: none
       - name: Environment setup
         run: |
           bash .github/scripts/setup.sh
