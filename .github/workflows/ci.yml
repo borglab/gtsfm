@@ -17,10 +17,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v5.0.0
-      - uses: mamba-org/setup-micromamba@v2
+      - uses: mamba-org/setup-micromamba@v3
         with:
           environment-file: environment_linux_cpuonly.yml
           cache-environment-key: environment-${{ github.sha }}
+          init-shell: bash
 
   test:
     name: Unit tests and python checks
@@ -32,10 +33,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v5.0.0
-      - uses: mamba-org/setup-micromamba@v2
+      - uses: mamba-org/setup-micromamba@v3
         with:
           environment-file: environment_linux_cpuonly.yml
           cache-environment-key: environment-${{ github.sha }}
+          init-shell: bash
       - name: Environment setup
         run: |
           bash .github/scripts/setup.sh
@@ -103,10 +105,11 @@ jobs:
         with:
           path: cache
           key: ${{ matrix.config_dataset_info[0] }}-${{ matrix.config_dataset_info[1] }}-${{ matrix.config_dataset_info[2] }}-${{ matrix.config_dataset_info[6] }}-${{ env.CACHE_NUMBER_FRONTEND }}
-      - uses: mamba-org/setup-micromamba@v2
+      - uses: mamba-org/setup-micromamba@v3
         with:
           environment-file: environment_linux_cpuonly.yml
           cache-environment-key: environment-${{ github.sha }}
+          init-shell: bash
       - name: Environment setup
         run: |
           bash .github/scripts/setup.sh
