@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sys
 from contextlib import nullcontext
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional, Sequence, Tuple, Union
 
@@ -24,6 +24,7 @@ logger = logger_utils.get_logger()
 REPO_ROOT = Path(__file__).resolve().parents[2]
 THIRDPARTY_ROOT = REPO_ROOT / "thirdparty"
 VGGT_SUBMODULE_PATH = THIRDPARTY_ROOT / "vggt"
+FASTVGGT_SUBMODULE_PATH = THIRDPARTY_ROOT / "FastVGGT"
 LIGHTGLUE_SUBMODULE_PATH = THIRDPARTY_ROOT / "LightGlue"
 DEFAULT_WEIGHTS_PATH = VGGT_SUBMODULE_PATH / "weights" / "model.pt"
 
@@ -41,10 +42,28 @@ def _ensure_submodule_on_path(path: Path, name: str) -> None:
         sys.path.insert(0, path_str)
 
 
+_USING_FASTVGGT = False
+if FASTVGGT_SUBMODULE_PATH.exists():
+    try:
+        _ensure_submodule_on_path(FASTVGGT_SUBMODULE_PATH, "FastVGGT")
+        _USING_FASTVGGT = True
+    except ImportError:
+        _USING_FASTVGGT = False
+
 _ensure_submodule_on_path(VGGT_SUBMODULE_PATH, "vggt")
+if _USING_FASTVGGT:
+    fast_path = str(FASTVGGT_SUBMODULE_PATH)
+    if fast_path in sys.path:
+        sys.path.remove(fast_path)
+    sys.path.insert(0, fast_path)
 _ensure_submodule_on_path(LIGHTGLUE_SUBMODULE_PATH, "LightGlue")
 
 from vggt.models.vggt import VGGT  # type: ignore
+
+if _USING_FASTVGGT:
+    logger.info("⚡ FastVGGT enabled via thirdparty/FastVGGT.")
+else:
+    logger.info("📷 Using vanilla VGGT (FastVGGT submodule not detected).")
 from vggt.utils.helper import randomly_limit_trues  # type: ignore
 from vggt.utils.load_fn import load_and_preprocess_images_square  # type: ignore
 from vggt.utils.pose_enc import pose_encoding_to_extri_intri  # type: ignore
@@ -54,6 +73,36 @@ from gtsfm.frontend.anysplat import (
 )  # type: ignore
 
 DEFAULT_FIXED_RESOLUTION = 518
+
+_DTYPE_ALIASES: dict[str, torch.dtype] = {
+    "float32": torch.float32,
+    "fp32": torch.float32,
+    "float": torch.float32,
+    "float64": torch.float64,
+    "double": torch.float64,
+    "float16": torch.float16,
+    "fp16": torch.float16,
+    "half": torch.float16,
+    "bfloat16": torch.bfloat16,
+    "bf16": torch.bfloat16,
+}
+
+
+def _resolve_dtype_argument(arg: Optional[Union[str, torch.dtype]]) -> Optional[torch.dtype]:
+    """Convert a config-friendly dtype specifier into a ``torch.dtype``."""
+    if arg is None:
+        return None
+    if isinstance(arg, torch.dtype):
+        return arg
+    if isinstance(arg, str):
+        key = arg.lower()
+        if key in _DTYPE_ALIASES:
+            return _DTYPE_ALIASES[key]
+        candidate = getattr(torch, key, None)
+        if isinstance(candidate, torch.dtype):
+            return candidate
+        raise ValueError(f"Unrecognized torch dtype string '{arg}'.")
+    raise TypeError(f"Unsupported dtype specifier of type {type(arg)!r}: {arg!r}")
 
 
 @dataclass
@@ -65,6 +114,9 @@ class VggtConfiguration:
     seed: int = 42
     confidence_threshold: float = 5.0
     max_num_points: int = 100000
+    dtype: Optional[Union[str, torch.dtype]] = None
+    model_ctor_kwargs: dict[str, Any] = field(default_factory=dict)
+    use_sparse_attention: bool = False
 
     # Tracking-specific parameters:
     tracking: bool = False
@@ -128,14 +180,28 @@ def load_model(
     *,
     device: Optional[Union[str, torch.device]] = None,
     dtype: Optional[torch.dtype] = None,
+    model_kwargs: Optional[dict[str, Any]] = None,
 ) -> VGGT:
     """Load the VGGT model weights on the requested device."""
     resolved_device = torch_utils.default_device(device)
     checkpoint = resolve_weights_path(weights_path)
 
-    model = VGGT()
+    ctor_kwargs = dict(model_kwargs) if model_kwargs else {}
+    try:
+        model = VGGT(**ctor_kwargs)
+    except TypeError as exc:
+        hint = "Ensure your thirdparty/vggt checkout provides the requested functionality."
+        if ctor_kwargs and not _FASTVGGT_AVAILABLE:
+            hint += " (FastVGGT submodule is required for options such as 'merging'.)"
+        raise TypeError(
+            f"Failed to construct VGGT with custom arguments {ctor_kwargs}. {hint}"
+        ) from exc
     state_dict = torch.load(checkpoint, map_location="cpu")
-    model.load_state_dict(state_dict)
+    missing, unexpected = model.load_state_dict(state_dict, strict=False)
+    if unexpected:
+        logger.warning("VGGT checkpoint had unexpected keys (ignored): %s", unexpected[:5])
+    if missing:
+        logger.warning("VGGT checkpoint missing keys (ignored): %s", missing[:5])
     model.eval()
     model.to(resolved_device)
 
@@ -261,10 +327,19 @@ def run_VGGT(
         raise ValueError("VGGT expects images shaped as (N, 3, H, W).")
 
     resolved_device = torch_utils.default_device()
-    resolved_dtype = default_dtype(resolved_device)
+    cfg = config or VggtConfiguration()
+    requested_dtype = _resolve_dtype_argument(cfg.dtype)
+    resolved_dtype = requested_dtype or default_dtype(resolved_device)
+
+    config_model_kwargs = dict(cfg.model_ctor_kwargs) if cfg.model_ctor_kwargs else None
 
     if model is None:
-        model = load_model(weights_path, device=resolved_device, dtype=resolved_dtype)
+        model = load_model(
+            weights_path,
+            device=resolved_device,
+            dtype=resolved_dtype,
+            model_kwargs=config_model_kwargs,
+        )
     else:
         model = model.to(resolved_device)
         assert model is not None, "model should not be None here"
@@ -275,8 +350,17 @@ def run_VGGT(
 
     assert model is not None
     images = images.to(resolved_device, dtype=resolved_dtype)
-    res = config.vggt_fixed_resolution if config else DEFAULT_FIXED_RESOLUTION
+    res = cfg.vggt_fixed_resolution if cfg else DEFAULT_FIXED_RESOLUTION
     resized_images = F.interpolate(images, size=(res, res), mode="bilinear")
+
+    # FastVGGT requires the model to know the actual patch grid dimensions used for token merging.
+    patch_w = max(1, resized_images.shape[-1] // getattr(model.aggregator, "patch_size", 14))
+    patch_h = max(1, resized_images.shape[-2] // getattr(model.aggregator, "patch_size", 14))
+    if hasattr(model, "update_patch_dimensions"):
+        try:
+            model.update_patch_dimensions(patch_w, patch_h)
+        except Exception as exc:  # pragma: no cover - best effort for FastVGGT compatibility
+            logger.warning("Failed to update VGGT patch dimensions (%dx%d): %s", patch_w, patch_h, exc)
 
     if resolved_device.type == "cuda":
         autocast_ctx: Any = amp_autocast("cuda", dtype=resolved_dtype)

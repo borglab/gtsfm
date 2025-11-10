@@ -10,3 +10,4 @@ In this directory (`./thirdparty/`), we maintain third party modules
 | OA-Net       |  ICCV 2019      |   [Arxiv](https://arxiv.org/abs/1908.04964)          |           [Github](https://github.com/zjhthu/OANet) | |
 | Instant-NGP  | SIGGRAPH 2022   | [Arxiv](https://arxiv.org/abs/2201.05989) | [Github](https://github.com/NVlabs/instant-ngp) | non-commercial |
 | D2-Net       | CVPR 2019       | [Arxiv](https://arxiv.org/abs/1905.03561) | [Github](https://github.com/mihaidusmanu/d2-net) | BSD-Clear-Clause |
+| FastVGGT     | arXiv 2025      | [arXiv](https://arxiv.org/abs/2509.02560) | [Github](https://github.com/mystorm16/FastVGGT) | See upstream repo |

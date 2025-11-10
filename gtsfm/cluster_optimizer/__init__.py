@@ -9,6 +9,7 @@ __all__ = [
     "Base",
     "Multiview",
     "Vggt",
+    "FastVggt",
     "Anysplat",
     "REACT_METRICS_PATH",
     "REACT_RESULTS_PATH",
@@ -22,12 +23,14 @@ if TYPE_CHECKING:
     from .cluster_mvo import ClusterMVO as Multiview
     from .cluster_optimizer_base import ClusterOptimizerBase as Base
     from .cluster_vggt import ClusterVGGT as Vggt
+    from .cluster_fast_vggt import ClusterFastVGGT as FastVggt
 
 # Short name → (module, class) for lazy attribute access.
 _MOD_MAP = {
     "Base": ("gtsfm.cluster_optimizer.cluster_optimizer_base", "ClusterOptimizerBase"),
     "Multiview": ("gtsfm.cluster_optimizer.cluster_mvo", "ClusterMVO"),
     "Vggt": ("gtsfm.cluster_optimizer.cluster_vggt", "ClusterVGGT"),
+    "FastVggt": ("gtsfm.cluster_optimizer.cluster_fast_vggt", "ClusterFastVGGT"),
     "Anysplat": ("gtsfm.cluster_optimizer.cluster_anysplat", "ClusterAnySplat"),
 }
 

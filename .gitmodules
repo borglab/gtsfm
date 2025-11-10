@@ -10,3 +10,6 @@
 [submodule "thirdparty/AnySplat"]
 	path = thirdparty/AnySplat
 	url = https://github.com/InternRobotics/AnySplat.git
+[submodule "thirdparty/FastVGGT"]
+	path = thirdparty/FastVGGT
+	url = https://github.com/mystorm16/FastVGGT.git
