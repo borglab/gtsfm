@@ -316,8 +316,12 @@ class ClusterAnySplat(ClusterOptimizerBase):
             self.num_inliers = len(images)
             valid_mask = inlier_num >= self.num_inliers  # a track is invalid if without mentioned number of inliers
 
+            logger.info("Valid tracks after inlier filtering %s", sum(valid_mask))
+
             confidence_mask = confidences >= self.confidence_thresh
             valid_mask = np.logical_and(valid_mask, confidence_mask)
+
+            logger.info("Valid tracks after confidence filtering %s", sum(valid_mask))
 
             if self.reproj_error_thresh is not None:
                 reprojection_errors = anysplat_utils.compute_reprojection_errors(
@@ -336,6 +340,8 @@ class ClusterAnySplat(ClusterOptimizerBase):
                 reproj_mask = np.logical_and(finite_reproj_mask, reprojection_errors < self.reproj_error_thresh)
                 valid_mask = np.logical_and(valid_mask, reproj_mask)
 
+                logger.info("Valid tracks after reprojection error filtering %s", sum(valid_mask))
+
                 anysplat_utils.log_reprojection_metrics(reprojection_errors, valid_mask)
 
                 del reproj_mask, finite_reproj_mask
@@ -343,7 +349,6 @@ class ClusterAnySplat(ClusterOptimizerBase):
             del confidences, vis_scores
 
             valid_idx = np.nonzero(valid_mask)[0]
-            logger.info("Valid tracks after filtering %s", len(valid_idx))
 
             global_indices = list(images.keys())
             for valid_id in valid_idx:

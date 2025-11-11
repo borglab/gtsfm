@@ -36,5 +36,5 @@ cluster_optimizer:
   fine_tracking: True
   track_vis_thresh: 0.99
   num_inliers: 2
-  confidence_thresh: 0.9
+  confidence_thresh: 20
   reproj_error_thresh: 0.5

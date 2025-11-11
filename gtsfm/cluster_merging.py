@@ -94,10 +94,9 @@ def combine_results(
     try:
         post_ba_result, _ = BundleAdjustmentOptimizer().run_simple_ba(merged)
         try:
-            for idx in range(merged.number_images()):
+            for idx in merged.get_valid_camera_indices():
                 info = merged.get_image_info(idx)
-                if info.name is not None or info.shape is not None:
-                    post_ba_result.set_image_info(idx, name=info.name, shape=info.shape)
+                post_ba_result.set_image_info(idx, name=info.name, shape=info.shape)
 
             post_ba_result.set_gaussian_splats(None)
             postba_S_current = align_utils.sim3_from_Pose3_maps(post_ba_result.poses(), current.poses())  # type: ignore
