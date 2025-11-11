@@ -2,16 +2,19 @@
 
 from __future__ import annotations
 
+import importlib
 import sys
 from contextlib import nullcontext
 from dataclasses import dataclass, field
+from importlib.machinery import ModuleSpec
 from pathlib import Path
+from types import ModuleType
 from typing import Any, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import torch
 import torch.nn.functional as F
-from gtsam import Point2
+from gtsam import Point2, Point3
 from torch.amp import autocast as amp_autocast  # type: ignore
 
 from gtsfm.common.gtsfm_data import GtsfmData
@@ -28,6 +31,7 @@ VGGT_SUBMODULE_PATH = THIRDPARTY_ROOT / "vggt"
 FASTVGGT_SUBMODULE_PATH = THIRDPARTY_ROOT / "FastVGGT"
 LIGHTGLUE_SUBMODULE_PATH = THIRDPARTY_ROOT / "LightGlue"
 DEFAULT_WEIGHTS_PATH = VGGT_SUBMODULE_PATH / "weights" / "model.pt"
+_VANILLA_VGGT_NAMESPACE = "_gtsfm_vanilla_vggt"
 
 
 def _ensure_submodule_on_path(path: Path, name: str) -> None:
@@ -41,6 +45,32 @@ def _ensure_submodule_on_path(path: Path, name: str) -> None:
     path_str = str(path)
     if path_str not in sys.path:
         sys.path.insert(0, path_str)
+
+
+def _import_from_vanilla_vggt(module_suffix: str) -> ModuleType:
+    """Import a module from the vanilla VGGT submodule even when FastVGGT shadows ``vggt``."""
+
+    package_root = (VGGT_SUBMODULE_PATH / "vggt").resolve()
+    if not package_root.exists():
+        raise ImportError(
+            f"Vanilla VGGT tracker utilities not found at {package_root}. "
+            "Run 'git submodule update --init --recursive' to fetch them."
+        )
+
+    alias = _VANILLA_VGGT_NAMESPACE
+    namespace = sys.modules.get(alias)
+    if namespace is None:
+        path_str = str(package_root)
+        namespace = ModuleType(alias)
+        namespace.__path__ = [path_str]
+        namespace.__package__ = alias
+        spec = ModuleSpec(alias, loader=None, is_package=True)
+        spec.submodule_search_locations = list(namespace.__path__)
+        namespace.__spec__ = spec
+        sys.modules[alias] = namespace
+
+    full_name = f"{alias}.{module_suffix}"
+    return importlib.import_module(full_name)
 
 
 _USING_FASTVGGT = False
@@ -358,6 +388,19 @@ def _high_confidence_pointcloud(config: VggtConfiguration, vggt_output: VggtOutp
     return points_3d[conf_mask], points_rgb[conf_mask]
 
 
+def _is_point_in_front_of_camera(camera, point_xyz: np.ndarray, *, epsilon: float = 1e-6) -> bool:
+    """Return True if ``point_xyz`` projects in front of ``camera``."""
+    if camera is None:
+        return False
+    try:
+        x, y, z = (float(point_xyz[0]), float(point_xyz[1]), float(point_xyz[2]))
+        cam_point = camera.pose().transformTo(Point3(x, y, z))
+    except Exception:
+        return False
+    z_val = cam_point[2] if isinstance(cam_point, np.ndarray) else cam_point.z()
+    return float(z_val) > epsilon
+
+
 def _convert_vggt_outputs_to_gtsfm_data(
     *,
     vggt_output: VggtOutput,
@@ -393,10 +436,10 @@ def _convert_vggt_outputs_to_gtsfm_data(
             shape=(int(image_height), int(image_width)),
         )
 
-    # if points_3d.size > 0 and points_rgb is not None:
-    #     for j, xyz in enumerate(points_3d):
-    #         track = torch_utils.colored_track_from_point(xyz, points_rgb[j])
-    #         gtsfm_data.add_track(track)
+    if tracking_result is None and points_3d.size > 0 and points_rgb is not None:
+        for j, xyz in enumerate(points_3d):
+            track = torch_utils.colored_track_from_point(xyz, points_rgb[j])
+            gtsfm_data.add_track(track)
 
     if tracking_result:
 
@@ -414,12 +457,22 @@ def _convert_vggt_outputs_to_gtsfm_data(
         # print('num_points3D: ', num_points3D) 2300
 
         for valid_id in valid_idx:
-            rgb = points_rgb[valid_id] if points_rgb is not None else np.zeros(3)
-            track = torch_utils.colored_track_from_point(tracking_result.points_3d[valid_id], rgb)
+            rgb: np.ndarray
+            if tracking_result.colors is not None and valid_id < tracking_result.colors.shape[0]:
+                rgb = tracking_result.colors[valid_id]
+            elif points_rgb is not None and valid_id < points_rgb.shape[0]:
+                rgb = points_rgb[valid_id]
+            else:
+                rgb = np.zeros(3, dtype=np.uint8)
+            point_xyz = tracking_result.points_3d[valid_id]
+            track = torch_utils.colored_track_from_point(point_xyz, rgb)
             frame_idx = np.where(track_mask[:, valid_id])[0]
             for local_id in frame_idx:
                 global_idx = image_indices[local_id]
                 u, v = tracking_result.tracks[local_id, valid_id]
+                camera = gtsfm_data.get_camera(global_idx)
+                if not _is_point_in_front_of_camera(camera, point_xyz):
+                    continue
                 rescaled_u, rescaled_v = _convert_measurement_to_original_resolution(
                     (float(u), float(v)),
                     original_coords_np[local_id],
@@ -428,6 +481,7 @@ def _convert_vggt_outputs_to_gtsfm_data(
                     measurement_in_load_resolution=True,
                 )
                 track.addMeasurement(global_idx, Point2(rescaled_u, rescaled_v))
+
             gtsfm_data.add_track(track)
 
     return gtsfm_data
@@ -560,10 +614,22 @@ def _import_predict_tracks():
     try:
         from vggt.dependency.track_predict import predict_tracks as _predict_tracks  # type: ignore
     except ImportError as exc:  # pragma: no cover - exercised only when the submodule is absent
-        raise ImportError(
+        # FastVGGT strips the tracker utilities, so fall back to the vanilla VGGT namespace if possible.
+        if _USING_FASTVGGT:
+            try:
+                tracker_module = _import_from_vanilla_vggt("dependency.track_predict")
+                logger.info("Using tracker utilities from the vanilla VGGT submodule.")
+                return tracker_module.predict_tracks  # type: ignore[attr-defined]
+            except ImportError as fallback_exc:
+                exc = fallback_exc
+
+        hint = (
             "Could not import VGGT tracker utilities. Ensure the 'vggt' submodule is checked out by "
             "running `git submodule update --init --recursive`."
-        ) from exc
+        )
+        if _USING_FASTVGGT:
+            hint += " FastVGGT does not bundle the tracker code, so the vanilla VGGT submodule must remain accessible."
+        raise ImportError(hint) from exc
     return _predict_tracks
 
 
@@ -710,6 +776,10 @@ def run_reconstruction(
         points_rgb=points_rgb,
         tracking_result=tracking_result,
     )
+
+    if vggt_output.device.type == "cuda":
+        del vggt_output
+        torch.cuda.empty_cache()
 
     return VggtReconstruction(
         gtsfm_data=gtsfm_data,
