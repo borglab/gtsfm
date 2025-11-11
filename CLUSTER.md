@@ -1,6 +1,6 @@
 # GTSFM on CLUSTER
 
-### How to Run GTSfM on a Cluster?
+## How to Run GTSfM on a Cluster?
 
 GTSfM uses the [SSHCluster](https://docs.dask.org/en/stable/deploying-ssh.html#dask.distributed.SSHCluster) module of [Dask](https://distributed.dask.org/en/stable/) to provide cluster-utilization functionality for SfM execution. This readme is a step-by-step guide on how to set up your machines for a successful run on a cluster.
 
@@ -10,7 +10,7 @@ GTSfM uses the [SSHCluster](https://docs.dask.org/en/stable/deploying-ssh.html#d
 3. Enable passwordless SSH between all the workers (machines) on the cluster.
     - Log in individually to each machine listed in the cluster config file.
     - For each of the other machines on the cluster, run:
-        * ```bash 
+        * ```bash
           ssh-copy-id {username}@{machine_ip_address_of_another_worker}
           ```
         * If you see `/usr/bin/ssh-copy-id: ERROR: No identities found`, then run `ssh-keygen -t rsa` first.
@@ -23,19 +23,19 @@ GTSfM uses the [SSHCluster](https://docs.dask.org/en/stable/deploying-ssh.html#d
         conda env create -f environment_linux.yml
         conda activate gtsfm-v1
          ```
-5. Log into scheduler and cluster machines to set up conda environment initialize in `bashrc 
+5. Log into scheduler and cluster machines to set up conda environment initialize in `bashrc
     - ` nano ~/.bashrc ` or `code ~/.bashrc `
     - add `conda activate gtsfm-v1` at the end of `# <<< conda initialize <<<`section
     - add `export PYTHONPATH="/home/username/gtsfm:$PYTHONPATH"` after `conda activate gtsfm-v1`
-    - Place the whole `# <<< conda initialize <<<` before 
+    - Place the whole `# <<< conda initialize <<<` before
     ```
-    # If not running interactively, don't do anything    
+    # If not running interactively, don't do anything
     case $- in
         *i*) ;;
         *) return;;
     esac
     ```
- 
+
     - After the above set up, when ssh into another machine, the environment would be automatically `gtsfm-v1`
     - `which python` and `echo $CONDA_PREFIX` should point to the same envs
     - *Note: When Dask uses SSH to start workers, it runs a non-interactive shell. So it hits the `return` and never reaches the conda initialization or `PYTHONPATH`.*
@@ -43,7 +43,7 @@ GTSfM uses the [SSHCluster](https://docs.dask.org/en/stable/deploying-ssh.html#d
     - *`export PATH="$HOME/miniconda3/bin:$PATH"` This line ensures conda's Python is found first.*
 
 6. Add the host keys to your `known_hosts` file.
-    - On  cluster machine, run the following commands in  terminal. 
+    - On  cluster machine, run the following commands in  terminal.
     This will SSH to each machine, and you will be prompted to trust its key
     ```
     ssh username@localhost
@@ -53,7 +53,7 @@ GTSfM uses the [SSHCluster](https://docs.dask.org/en/stable/deploying-ssh.html#d
 
     - After doing so, the keys will be saved in ~/.ssh/known_hosts
     - Otherwise, you would need set up SSHCluster with extra options `connect_options={"known_hosts": None}`
-    
+
 
 
 7. Update the weight
@@ -81,3 +81,19 @@ GTSfM uses the [SSHCluster](https://docs.dask.org/en/stable/deploying-ssh.html#d
       scp -r username@host:machine/results/path /local/computer/directory
       ```
 > **Note:** Please utilize `gtsfm/utils/ssh_passwordless_setup.py` to facilitate the set up
+
+## How to Run GTSfM on a machine with multiple GPU
+
+### Best Practice
+- According to the dask document, it is best to assign each worker per GPU
+- GPU memory space: allocating most, though not all
+- Use ucx connection instead of tcp to speed up same machine in-between GPU communication
+
+### There are two cases for the multi-GPUs
+
+- Case 1: Single Machine with multiple GPUs
+Use `LocalCUDACluster`
+
+- Case 2: Multiple Machines SSH, with multiple GPUs
+Have to manually set up `CUDA_VISIBLE_DEVICES` on the calculation node
+

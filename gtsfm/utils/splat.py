@@ -5,6 +5,7 @@ Authors: Harneet Singh Khanuja
 
 import math
 import random
+from dataclasses import is_dataclass, replace
 from typing import Literal, Protocol, Tuple
 
 import cv2
@@ -277,102 +278,85 @@ def get_viewmat(wTi_tensor: torch.Tensor) -> torch.Tensor:
     return viewmat
 
 
-def transform_gaussian(gaussianA: dict, bSa: gtsam.Similarity3) -> dict:
+def quaternion_to_matrix_xyzw(quaternions: torch.Tensor) -> torch.Tensor:
     """
-    Transforms a Gaussian Splat from one coordinate system to another using gtsam.Similarity3
+    Convert quaternions in (x, y, z, w) format to rotation matrices using GTSAM.
+
     Args:
-        gaussianA (dict): A dictionary representing the Gaussian in coordinate system A.
-        bSa (gtsam.Similarity3): The transformation from coordinate system A to B.
+        quaternions: tensor of shape (..., 4).
+
     Returns:
-        gaussianB: A dictionary representing the Gaussian in coordinate system B.
+        Rotation matrices of shape (..., 3, 3).
     """
-    meanA = gaussianA["mean"]
-    meanB = torch.Tensor(bSa.transformFrom(meanA))
-
-    w = gaussianA["quat"][0]
-    x = gaussianA["quat"][1]
-    y = gaussianA["quat"][2]
-    z = gaussianA["quat"][3]
-
-    q = gtsam.Rot3.Quaternion(w, x, y, z)
-    bRa = bSa.rotation()
-    rotationB = torch.Tensor((bRa * q).toQuaternion().coeffs())[[3, 0, 1, 2]]
-
-    if rotationB[0] < 0:
-        rotationB *= -1.0
-
-    scaleB = torch.log(torch.tensor(bSa.scale())) + gaussianA["scale"]
-
-    # we only update the means, quaternions and scales (covariance) as opacity and color do not change.
-    gaussianB = gaussianA.copy()
-    gaussianB["mean"] = meanB
-    gaussianB["quat"] = rotationB
-    gaussianB["scale"] = scaleB
-
-    return gaussianB
+    original_shape = quaternions.shape[:-1]
+    flat_quats = quaternions.reshape(-1, 4).cpu().numpy()
+    rotation_mats = []
+    for q in flat_quats:
+        wxyz = np.array([q[3], q[0], q[1], q[2]], dtype=float)
+        rot = gtsam.Rot3.Quaternion(*wxyz)
+        rotation_mats.append(rot.matrix())
+    rotation_mats = np.stack(rotation_mats, axis=0).reshape(*original_shape, 3, 3)
+    return torch.tensor(rotation_mats, device=quaternions.device, dtype=quaternions.dtype)
 
 
-def transform_gaussian_splats(gaussian_splats: dict, bSa: gtsam.Similarity3) -> dict:
+def build_covariance_from_scales_quaternion(scales: torch.Tensor, rotations_xyzw: torch.Tensor) -> torch.Tensor:
     """
-    Transforms Gaussian Splats from one coordinate system to another using gtsam.Similarity3
+    Compute per-Gaussian covariance matrices via cov = R @ S @ S @ Rᵀ.
+
     Args:
-        gaussian_splats (dict): A dictionary representing the Gaussian splats in coordinate system A.
-        bSa (gtsam.Similarity3): The transformation from coordinate system A to B.
+        scales: tensor of shape (..., 3)
+        rotations_xyzw: tensor of shape (..., 4)
+
     Returns:
-        converted_gaussian_splats: A dictionary representing the Gaussian splats in coordinate system B.
+        Covariance matrices of shape (..., 3, 3)
+    """
+    R = quaternion_to_matrix_xyzw(rotations_xyzw)
+    S = torch.diag_embed(scales)
+    cov = R @ S @ S.transpose(-1, -2) @ R.transpose(-1, -2)
+    return cov
+
+
+def merge_gaussian_splats(
+    gaussians_a: dict[str, torch.Tensor] | GaussiansProtocol,
+    gaussians_b: dict[str, torch.Tensor] | GaussiansProtocol,
+) -> dict[str, torch.Tensor] | GaussiansProtocol:
+    """
+    Concatenate two gaussian collections along the gaussian dimension.
+
+    The inputs must both be dictionaries or both be dataclass implementations of :class:`GaussiansProtocol`.
+    For dictionaries, all keys must match exactly. For protocol inputs, the batch dimension is assumed to be
+    the leading axis (size ``B``) and the gaussian dimension at index 1. All tensors are concatenated along that
+    gaussian axis and the same representation type is returned.
     """
 
-    means = gaussian_splats["means"]
-    R = torch.tensor(bSa.rotation().matrix(), dtype=torch.float32).to(means.device)
-    t = torch.tensor(bSa.translation(), dtype=torch.float32).to(means.device)
-    s = torch.tensor(bSa.scale()).to(means.device)
+    is_dict_input = isinstance(gaussians_a, dict)
+    if is_dict_input != isinstance(gaussians_b, dict):
+        raise TypeError("Both gaussian collections must share the same representation (dict or dataclass).")
 
-    converted_means = s * ((R @ means.T).T + t)
+    if is_dict_input:
+        keys_a = set(gaussians_a.keys())
+        keys_b = set(gaussians_b.keys())
+        if keys_a != keys_b:
+            raise ValueError("Gaussian dictionaries must contain identical keys to be merged.")
 
-    w0, x0, y0, z0 = bSa.rotation().toQuaternion().coeffs()[[3, 0, 1, 2]]
-    w1, x1, y1, z1 = gaussian_splats["quats"].unbind(-1)
+        merged: dict[str, torch.Tensor] = {}
+        for key in gaussians_a:
+            merged[key] = torch.cat([gaussians_a[key], gaussians_b[key]], dim=0)
+        return merged
 
-    converted_quaternions_w = w0 * w1 - x0 * x1 - y0 * y1 - z0 * z1
-    converted_quaternions_x = w0 * x1 + x0 * w1 + y0 * z1 - z0 * y1
-    converted_quaternions_y = w0 * y1 - x0 * z1 + y0 * w1 + z0 * x1
-    converted_quaternions_z = w0 * z1 + x0 * y1 - y0 * x1 + z0 * w1
+    if not is_dataclass(gaussians_a) or not is_dataclass(gaussians_b):
+        raise TypeError("Expected dataclass instances implementing GaussiansProtocol.")
+    if type(gaussians_a) is not type(gaussians_b):
+        raise TypeError("Gaussian dataclasses must be of the same concrete type.")
 
-    converted_quaternions = torch.stack(
-        [converted_quaternions_w, converted_quaternions_x, converted_quaternions_y, converted_quaternions_z], dim=1
+    if gaussians_a.means.shape[0] != gaussians_b.means.shape[0]:
+        raise ValueError("Gaussian batches must share the same batch dimension to be merged.")
+
+    merged_kwargs = {}
+    for attr in ("means", "scales", "rotations", "harmonics", "opacities"):
+        merged_kwargs[attr] = torch.cat([getattr(gaussians_a, attr), getattr(gaussians_b, attr)], dim=1)
+    merged_kwargs["covariances"] = build_covariance_from_scales_quaternion(
+        merged_kwargs["scales"], merged_kwargs["rotations"]
     )
 
-    converted_quaternions = converted_quaternions / converted_quaternions.norm(dim=-1, keepdim=True)
-
-    converted_quaternions[converted_quaternions[:, 0] < 0] *= -1.0
-
-    converted_scales = torch.log(torch.tensor(bSa.scale())) + gaussian_splats["scales"]
-
-    # we only update the means, quaternions and scales (covariance) as opacity and color do not change.
-    converted_gaussian_splats = gaussian_splats.copy()
-    converted_gaussian_splats["means"] = converted_means
-    converted_gaussian_splats["quats"] = converted_quaternions
-    converted_gaussian_splats["scales"] = converted_scales
-
-    return converted_gaussian_splats
-
-
-def transform_camera_pose(aTc: torch.Tensor, bSa: gtsam.Similarity3) -> torch.Tensor:
-    """
-    Transforms camera pose from coordinate frame A to B
-    Args:
-        aTc: 4x4 camera-to-world pose in frame A
-        bSa (gtsam.Similarity3): The transformation from coordinate system A to B.
-
-    Returns:
-        bTc: 4x4 camera-to-world pose in frame B
-    """
-    assert aTc.shape == (4, 4)
-
-    aRc = aTc[:3, :3].cpu().numpy()
-    atc = aTc[:3, 3:4].cpu().numpy().squeeze()
-
-    pose_a = gtsam.Pose3(gtsam.Rot3(aRc), gtsam.Point3(atc))
-
-    pose_b = bSa.transformFrom(pose_a).matrix()
-    bTc = torch.from_numpy(pose_b).to(aTc.device, dtype=aTc.dtype)
-    return bTc
+    return replace(gaussians_a, **merged_kwargs)

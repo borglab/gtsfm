@@ -11,12 +11,12 @@ from typing import Any, Optional, Sequence, Tuple, Union
 import numpy as np
 import torch
 import torch.nn.functional as F
+from gtsam import Point2
 from torch.amp import autocast as amp_autocast  # type: ignore
 
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.utils import logger as logger_utils
 from gtsfm.utils import torch as torch_utils
-from gtsam import Point2
 
 PathLike = Union[str, Path]
 
@@ -112,7 +112,7 @@ class VggtReconstruction:
         images: torch.Tensor | np.ndarray,
         *,
         output_dir: PathLike,
-        visibility_threshold: float = 0.,
+        visibility_threshold: float = 0.0,
         frames_per_row: int = 4,
         save_grid: bool = True,
     ) -> None:
@@ -141,7 +141,7 @@ class VggtReconstruction:
 
         tracks = torch.from_numpy(self.tracking_result.tracks).to(dtype=torch.float32)
         visibilities = torch.from_numpy(self.tracking_result.visibilities).to(dtype=torch.float32)
-        
+
         # print('tracks: ', tracks[0,0])
 
         if tracks.shape[0] != images.shape[0]:
@@ -326,14 +326,14 @@ def _convert_vggt_outputs_to_gtsfm_data(
             name=image_names_str[local_idx] if image_names_str is not None else None,
             shape=(int(image_height), int(image_width)),
         )
-        
+
     # if points_3d.size > 0 and points_rgb is not None:
     #     for j, xyz in enumerate(points_3d):
     #         track = torch_utils.colored_track_from_point(xyz, points_rgb[j])
     #         gtsfm_data.add_track(track)
 
     if tracking_result:
-        
+
         # track masks according to visibility, reprojection error, etc
         track_mask = tracking_result.visibilities > config.track_vis_thresh
         inlier_num = track_mask.sum(0)
@@ -346,11 +346,11 @@ def _convert_vggt_outputs_to_gtsfm_data(
 
         num_points3D = len(valid_idx)
         # print('num_points3D: ', num_points3D) 2300
-        
+
         for valid_id in valid_idx:
             rgb = points_rgb[valid_id] if points_rgb is not None else np.zeros(3)
             track = torch_utils.colored_track_from_point(tracking_result.points_3d[valid_id], rgb)
-            frame_idx = np.where(track_mask[:,valid_id])[0]
+            frame_idx = np.where(track_mask[:, valid_id])[0]
             for local_id in frame_idx:
                 global_idx = image_indices[local_id]
                 u, v = tracking_result.tracks[local_id, valid_id]
@@ -411,7 +411,7 @@ def run_VGGT(
     res = config.vggt_fixed_resolution if config else DEFAULT_FIXED_RESOLUTION
     resized_images = F.interpolate(images, size=(res, res), mode="bilinear")
     # print('resized_images: ', resized_images.shape) 518, 518
-    
+
     if resolved_device.type == "cuda":
         autocast_ctx: Any = amp_autocast("cuda", dtype=resolved_dtype)
     else:
@@ -544,14 +544,14 @@ def run_vggt_tracking(
             keypoint_extractor=cfg.keypoint_extractor,
             fine_tracking=cfg.fine_tracking,
         )
-    
-    print('images: ', images.shape)
-    print('conf_tensor: ', conf_tensor.shape)
-    print('tracks: ', tracks.shape)
-    print('vis_scores: ', vis_scores.shape)
-    print('confidences: ', confidences.shape)
-    print('points_3d: ', points_3d.shape)
-    print('colors: ', colors.shape)
+
+    print("images: ", images.shape)
+    print("conf_tensor: ", conf_tensor.shape)
+    print("tracks: ", tracks.shape)
+    print("vis_scores: ", vis_scores.shape)
+    print("confidences: ", confidences.shape)
+    print("points_3d: ", points_3d.shape)
+    print("colors: ", colors.shape)
     # images: torch.Size([4, 3, 1024, 1024])
     # conf_tensor:  torch.Size([4, 518, 518])
     # tracks:  (4, 2901, 2)
@@ -624,7 +624,7 @@ def run_reconstruction(
         image_names=image_names,
         points_3d=points_3d,
         points_rgb=points_rgb,
-        tracking_result=tracking_result
+        tracking_result=tracking_result,
     )
 
     return VggtReconstruction(
