@@ -261,7 +261,7 @@ def load_model(
         model = VGGT(**ctor_kwargs)
     except TypeError as exc:
         hint = "Ensure your thirdparty/vggt checkout provides the requested functionality."
-        if ctor_kwargs and not _FASTVGGT_AVAILABLE:
+        if ctor_kwargs and not _USING_FASTVGGT:
             hint += " (FastVGGT submodule is required for options such as 'merging'.)"
         raise TypeError(
             f"Failed to construct VGGT with custom arguments {ctor_kwargs}. {hint}"
