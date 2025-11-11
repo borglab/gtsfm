@@ -55,7 +55,7 @@ class Ransac(OpencvVerifierBase):
         uv_norm_i2: np.ndarray,
         match_indices: np.ndarray,
         fx: float,
-        robust_estimation_type: RobustEstimationType = RobustEstimationType.USAC_ACCURATE,
+        robust_estimation_type: RobustEstimationType = RobustEstimationType.USAC_MAGSAC,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Estimate the Essential matrix from correspondences.
 
