@@ -2,21 +2,24 @@
 
 from __future__ import annotations
 
+import importlib
 import sys
 from contextlib import nullcontext
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from importlib.machinery import ModuleSpec
 from pathlib import Path
+from types import ModuleType
 from typing import Any, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import torch
 import torch.nn.functional as F
+from gtsam import Point2, Point3
 from torch.amp import autocast as amp_autocast  # type: ignore
 
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.utils import logger as logger_utils
 from gtsfm.utils import torch as torch_utils
-from gtsam import Point2
 
 PathLike = Union[str, Path]
 
@@ -25,8 +28,10 @@ logger = logger_utils.get_logger()
 REPO_ROOT = Path(__file__).resolve().parents[2]
 THIRDPARTY_ROOT = REPO_ROOT / "thirdparty"
 VGGT_SUBMODULE_PATH = THIRDPARTY_ROOT / "vggt"
+FASTVGGT_SUBMODULE_PATH = THIRDPARTY_ROOT / "FastVGGT"
 LIGHTGLUE_SUBMODULE_PATH = THIRDPARTY_ROOT / "LightGlue"
 DEFAULT_WEIGHTS_PATH = VGGT_SUBMODULE_PATH / "weights" / "model.pt"
+_VANILLA_VGGT_NAMESPACE = "_gtsfm_vanilla_vggt"
 
 
 def _ensure_submodule_on_path(path: Path, name: str) -> None:
@@ -42,10 +47,54 @@ def _ensure_submodule_on_path(path: Path, name: str) -> None:
         sys.path.insert(0, path_str)
 
 
+def _import_from_vanilla_vggt(module_suffix: str) -> ModuleType:
+    """Import a module from the vanilla VGGT submodule even when FastVGGT shadows ``vggt``."""
+
+    package_root = (VGGT_SUBMODULE_PATH / "vggt").resolve()
+    if not package_root.exists():
+        raise ImportError(
+            f"Vanilla VGGT tracker utilities not found at {package_root}. "
+            "Run 'git submodule update --init --recursive' to fetch them."
+        )
+
+    alias = _VANILLA_VGGT_NAMESPACE
+    namespace = sys.modules.get(alias)
+    if namespace is None:
+        path_str = str(package_root)
+        namespace = ModuleType(alias)
+        namespace.__path__ = [path_str]
+        namespace.__package__ = alias
+        spec = ModuleSpec(alias, loader=None, is_package=True)
+        spec.submodule_search_locations = list(namespace.__path__)
+        namespace.__spec__ = spec
+        sys.modules[alias] = namespace
+
+    full_name = f"{alias}.{module_suffix}"
+    return importlib.import_module(full_name)
+
+
+_USING_FASTVGGT = False
+if FASTVGGT_SUBMODULE_PATH.exists():
+    try:
+        _ensure_submodule_on_path(FASTVGGT_SUBMODULE_PATH, "FastVGGT")
+        _USING_FASTVGGT = True
+    except ImportError:
+        _USING_FASTVGGT = False
+
 _ensure_submodule_on_path(VGGT_SUBMODULE_PATH, "vggt")
+if _USING_FASTVGGT:
+    fast_path = str(FASTVGGT_SUBMODULE_PATH)
+    if fast_path in sys.path:
+        sys.path.remove(fast_path)
+    sys.path.insert(0, fast_path)
 _ensure_submodule_on_path(LIGHTGLUE_SUBMODULE_PATH, "LightGlue")
 
 from vggt.models.vggt import VGGT  # type: ignore
+
+if _USING_FASTVGGT:
+    logger.info("⚡ FastVGGT enabled via thirdparty/FastVGGT.")
+else:
+    logger.info("📷 Using vanilla VGGT (FastVGGT submodule not detected).")
 from vggt.utils.helper import randomly_limit_trues  # type: ignore
 from vggt.utils.load_fn import load_and_preprocess_images_square  # type: ignore
 from vggt.utils.pose_enc import pose_encoding_to_extri_intri  # type: ignore
@@ -55,6 +104,36 @@ from gtsfm.frontend.anysplat import (
 )  # type: ignore
 
 DEFAULT_FIXED_RESOLUTION = 518
+
+_DTYPE_ALIASES: dict[str, torch.dtype] = {
+    "float32": torch.float32,
+    "fp32": torch.float32,
+    "float": torch.float32,
+    "float64": torch.float64,
+    "double": torch.float64,
+    "float16": torch.float16,
+    "fp16": torch.float16,
+    "half": torch.float16,
+    "bfloat16": torch.bfloat16,
+    "bf16": torch.bfloat16,
+}
+
+
+def _resolve_dtype_argument(arg: Optional[Union[str, torch.dtype]]) -> Optional[torch.dtype]:
+    """Convert a config-friendly dtype specifier into a ``torch.dtype``."""
+    if arg is None:
+        return None
+    if isinstance(arg, torch.dtype):
+        return arg
+    if isinstance(arg, str):
+        key = arg.lower()
+        if key in _DTYPE_ALIASES:
+            return _DTYPE_ALIASES[key]
+        candidate = getattr(torch, key, None)
+        if isinstance(candidate, torch.dtype):
+            return candidate
+        raise ValueError(f"Unrecognized torch dtype string '{arg}'.")
+    raise TypeError(f"Unsupported dtype specifier of type {type(arg)!r}: {arg!r}")
 
 
 @dataclass
@@ -66,6 +145,9 @@ class VggtConfiguration:
     seed: int = 42
     confidence_threshold: float = 5.0
     max_num_points: int = 100000
+    dtype: Optional[Union[str, torch.dtype]] = None
+    model_ctor_kwargs: dict[str, Any] = field(default_factory=dict)
+    use_sparse_attention: bool = False
 
     # Tracking-specific parameters:
     tracking: bool = True
@@ -112,7 +194,7 @@ class VggtReconstruction:
         images: torch.Tensor | np.ndarray,
         *,
         output_dir: PathLike,
-        visibility_threshold: float = 0.,
+        visibility_threshold: float = 0.0,
         frames_per_row: int = 4,
         save_grid: bool = True,
     ) -> None:
@@ -141,7 +223,7 @@ class VggtReconstruction:
 
         tracks = torch.from_numpy(self.tracking_result.tracks).to(dtype=torch.float32)
         visibilities = torch.from_numpy(self.tracking_result.visibilities).to(dtype=torch.float32)
-        
+
         # print('tracks: ', tracks[0,0])
 
         if tracks.shape[0] != images.shape[0]:
@@ -198,14 +280,28 @@ def load_model(
     *,
     device: Optional[Union[str, torch.device]] = None,
     dtype: Optional[torch.dtype] = None,
+    model_kwargs: Optional[dict[str, Any]] = None,
 ) -> VGGT:
     """Load the VGGT model weights on the requested device."""
     resolved_device = torch_utils.default_device(device)
     checkpoint = resolve_weights_path(weights_path)
 
-    model = VGGT()
+    ctor_kwargs = dict(model_kwargs) if model_kwargs else {}
+    try:
+        model = VGGT(**ctor_kwargs)
+    except TypeError as exc:
+        hint = "Ensure your thirdparty/vggt checkout provides the requested functionality."
+        if ctor_kwargs and not _USING_FASTVGGT:
+            hint += " (FastVGGT submodule is required for options such as 'merging'.)"
+        raise TypeError(
+            f"Failed to construct VGGT with custom arguments {ctor_kwargs}. {hint}"
+        ) from exc
     state_dict = torch.load(checkpoint, map_location="cpu")
-    model.load_state_dict(state_dict)
+    missing, unexpected = model.load_state_dict(state_dict, strict=False)
+    if unexpected:
+        logger.warning("VGGT checkpoint had unexpected keys (ignored): %s", unexpected[:5])
+    if missing:
+        logger.warning("VGGT checkpoint missing keys (ignored): %s", missing[:5])
     model.eval()
     model.to(resolved_device)
 
@@ -292,6 +388,19 @@ def _high_confidence_pointcloud(config: VggtConfiguration, vggt_output: VggtOutp
     return points_3d[conf_mask], points_rgb[conf_mask]
 
 
+def _is_point_in_front_of_camera(camera, point_xyz: np.ndarray, *, epsilon: float = 1e-6) -> bool:
+    """Return True if ``point_xyz`` projects in front of ``camera``."""
+    if camera is None:
+        return False
+    try:
+        x, y, z = (float(point_xyz[0]), float(point_xyz[1]), float(point_xyz[2]))
+        cam_point = camera.pose().transformTo(Point3(x, y, z))
+    except Exception:
+        return False
+    z_val = cam_point[2] if isinstance(cam_point, np.ndarray) else cam_point.z()
+    return float(z_val) > epsilon
+
+
 def _convert_vggt_outputs_to_gtsfm_data(
     *,
     vggt_output: VggtOutput,
@@ -326,14 +435,14 @@ def _convert_vggt_outputs_to_gtsfm_data(
             name=image_names_str[local_idx] if image_names_str is not None else None,
             shape=(int(image_height), int(image_width)),
         )
-        
-    # if points_3d.size > 0 and points_rgb is not None:
-    #     for j, xyz in enumerate(points_3d):
-    #         track = torch_utils.colored_track_from_point(xyz, points_rgb[j])
-    #         gtsfm_data.add_track(track)
+
+    if tracking_result is None and points_3d.size > 0 and points_rgb is not None:
+        for j, xyz in enumerate(points_3d):
+            track = torch_utils.colored_track_from_point(xyz, points_rgb[j])
+            gtsfm_data.add_track(track)
 
     if tracking_result:
-        
+
         # track masks according to visibility, reprojection error, etc
         track_mask = tracking_result.visibilities > config.track_vis_thresh
         inlier_num = track_mask.sum(0)
@@ -346,14 +455,24 @@ def _convert_vggt_outputs_to_gtsfm_data(
 
         num_points3D = len(valid_idx)
         # print('num_points3D: ', num_points3D) 2300
-        
+
         for valid_id in valid_idx:
-            rgb = points_rgb[valid_id] if points_rgb is not None else np.zeros(3)
-            track = torch_utils.colored_track_from_point(tracking_result.points_3d[valid_id], rgb)
-            frame_idx = np.where(track_mask[:,valid_id])[0]
+            rgb: np.ndarray
+            if tracking_result.colors is not None and valid_id < tracking_result.colors.shape[0]:
+                rgb = tracking_result.colors[valid_id]
+            elif points_rgb is not None and valid_id < points_rgb.shape[0]:
+                rgb = points_rgb[valid_id]
+            else:
+                rgb = np.zeros(3, dtype=np.uint8)
+            point_xyz = tracking_result.points_3d[valid_id]
+            track = torch_utils.colored_track_from_point(point_xyz, rgb)
+            frame_idx = np.where(track_mask[:, valid_id])[0]
             for local_id in frame_idx:
                 global_idx = image_indices[local_id]
                 u, v = tracking_result.tracks[local_id, valid_id]
+                camera = gtsfm_data.get_camera(global_idx)
+                if not _is_point_in_front_of_camera(camera, point_xyz):
+                    continue
                 rescaled_u, rescaled_v = _convert_measurement_to_original_resolution(
                     (float(u), float(v)),
                     original_coords_np[local_id],
@@ -362,6 +481,7 @@ def _convert_vggt_outputs_to_gtsfm_data(
                     measurement_in_load_resolution=True,
                 )
                 track.addMeasurement(global_idx, Point2(rescaled_u, rescaled_v))
+
             gtsfm_data.add_track(track)
 
     return gtsfm_data
@@ -394,10 +514,19 @@ def run_VGGT(
         raise ValueError("VGGT expects images shaped as (N, 3, H, W).")
 
     resolved_device = torch_utils.default_device()
-    resolved_dtype = default_dtype(resolved_device)
+    cfg = config or VggtConfiguration()
+    requested_dtype = _resolve_dtype_argument(cfg.dtype)
+    resolved_dtype = requested_dtype or default_dtype(resolved_device)
+
+    config_model_kwargs = dict(cfg.model_ctor_kwargs) if cfg.model_ctor_kwargs else None
 
     if model is None:
-        model = load_model(weights_path, device=resolved_device, dtype=resolved_dtype)
+        model = load_model(
+            weights_path,
+            device=resolved_device,
+            dtype=resolved_dtype,
+            model_kwargs=config_model_kwargs,
+        )
     else:
         model = model.to(resolved_device)
         assert model is not None, "model should not be None here"
@@ -408,10 +537,19 @@ def run_VGGT(
 
     assert model is not None
     images = images.to(resolved_device, dtype=resolved_dtype)
-    res = config.vggt_fixed_resolution if config else DEFAULT_FIXED_RESOLUTION
+    res = cfg.vggt_fixed_resolution if cfg else DEFAULT_FIXED_RESOLUTION
     resized_images = F.interpolate(images, size=(res, res), mode="bilinear")
     # print('resized_images: ', resized_images.shape) 518, 518
-    
+
+    # FastVGGT requires the model to know the actual patch grid dimensions used for token merging.
+    patch_w = max(1, resized_images.shape[-1] // getattr(model.aggregator, "patch_size", 14))
+    patch_h = max(1, resized_images.shape[-2] // getattr(model.aggregator, "patch_size", 14))
+    if hasattr(model, "update_patch_dimensions"):
+        try:
+            model.update_patch_dimensions(patch_w, patch_h)
+        except Exception as exc:  # pragma: no cover - best effort for FastVGGT compatibility
+            logger.warning("Failed to update VGGT patch dimensions (%dx%d): %s", patch_w, patch_h, exc)
+
     if resolved_device.type == "cuda":
         autocast_ctx: Any = amp_autocast("cuda", dtype=resolved_dtype)
     else:
@@ -476,10 +614,22 @@ def _import_predict_tracks():
     try:
         from vggt.dependency.track_predict import predict_tracks as _predict_tracks  # type: ignore
     except ImportError as exc:  # pragma: no cover - exercised only when the submodule is absent
-        raise ImportError(
+        # FastVGGT strips the tracker utilities, so fall back to the vanilla VGGT namespace if possible.
+        if _USING_FASTVGGT:
+            try:
+                tracker_module = _import_from_vanilla_vggt("dependency.track_predict")
+                logger.info("Using tracker utilities from the vanilla VGGT submodule.")
+                return tracker_module.predict_tracks  # type: ignore[attr-defined]
+            except ImportError as fallback_exc:
+                exc = fallback_exc
+
+        hint = (
             "Could not import VGGT tracker utilities. Ensure the 'vggt' submodule is checked out by "
             "running `git submodule update --init --recursive`."
-        ) from exc
+        )
+        if _USING_FASTVGGT:
+            hint += " FastVGGT does not bundle the tracker code, so the vanilla VGGT submodule must remain accessible."
+        raise ImportError(hint) from exc
     return _predict_tracks
 
 
@@ -544,14 +694,14 @@ def run_vggt_tracking(
             keypoint_extractor=cfg.keypoint_extractor,
             fine_tracking=cfg.fine_tracking,
         )
-    
-    print('images: ', images.shape)
-    print('conf_tensor: ', conf_tensor.shape)
-    print('tracks: ', tracks.shape)
-    print('vis_scores: ', vis_scores.shape)
-    print('confidences: ', confidences.shape)
-    print('points_3d: ', points_3d.shape)
-    print('colors: ', colors.shape)
+
+    print("images: ", images.shape)
+    print("conf_tensor: ", conf_tensor.shape)
+    print("tracks: ", tracks.shape)
+    print("vis_scores: ", vis_scores.shape)
+    print("confidences: ", confidences.shape)
+    print("points_3d: ", points_3d.shape)
+    print("colors: ", colors.shape)
     # images: torch.Size([4, 3, 1024, 1024])
     # conf_tensor:  torch.Size([4, 518, 518])
     # tracks:  (4, 2901, 2)
@@ -624,8 +774,12 @@ def run_reconstruction(
         image_names=image_names,
         points_3d=points_3d,
         points_rgb=points_rgb,
-        tracking_result=tracking_result
+        tracking_result=tracking_result,
     )
+
+    if vggt_output.device.type == "cuda":
+        del vggt_output
+        torch.cuda.empty_cache()
 
     return VggtReconstruction(
         gtsfm_data=gtsfm_data,

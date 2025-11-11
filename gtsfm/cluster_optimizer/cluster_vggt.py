@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Hashable, Optional
+from typing import Any, Hashable, Optional, Union
 
 import numpy as np
 import torch
@@ -136,6 +136,14 @@ class ClusterVGGT(ClusterOptimizerBase):
         pose_angular_error_thresh: float = 3.0,
         output_worker: Optional[str] = None,
         model_cache_key: Hashable | bool | None = None,
+        inference_dtype: Optional[Union[str, torch.dtype]] = None,
+        model_ctor_kwargs: Optional[dict[str, Any]] = None,
+        use_sparse_attention: bool = False,
+        fast_dtype: Optional[Union[str, torch.dtype]] = None,
+        merging: Optional[int] = None,
+        vis_attn_map: bool = False,
+        enable_protection: bool = False,
+        extra_model_kwargs: Optional[dict[str, Any]] = None,
     ) -> None:
         super().__init__(
             pose_angular_error_thresh=pose_angular_error_thresh,
@@ -155,14 +163,48 @@ class ClusterVGGT(ClusterOptimizerBase):
         self._seed = seed
         self._copy_results_to_react = copy_results_to_react
         self._explicit_scene_dir = Path(scene_dir) if scene_dir is not None else None
+        self._use_sparse_attention = use_sparse_attention
+        self._dtype = inference_dtype
+        if fast_dtype is not None:
+            if self._dtype is None:
+                self._dtype = fast_dtype
+            elif self._dtype != fast_dtype:
+                logger.warning(
+                    "Ignoring fast_dtype=%s because inference_dtype=%s is already specified.",
+                    fast_dtype,
+                    self._dtype,
+                )
+
+        self._model_ctor_kwargs = dict(model_ctor_kwargs) if model_ctor_kwargs is not None else {}
+        if extra_model_kwargs:
+            self._model_ctor_kwargs.update(extra_model_kwargs)
+
+        def _maybe_set_model_kw(key: str, value: Any) -> None:
+            if value is None:
+                return
+            self._model_ctor_kwargs.setdefault(key, value)
+
+        _maybe_set_model_kw("merging", merging)
+        if vis_attn_map:
+            self._model_ctor_kwargs.setdefault("vis_attn_map", True)
+        if enable_protection:
+            self._model_ctor_kwargs.setdefault("enable_protection", True)
+
         self._loader_kwargs: dict[str, Any] = {}
         if self._weights_path is not None:
             self._loader_kwargs["weights_path"] = self._weights_path
+        if self._model_ctor_kwargs:
+            self._loader_kwargs["model_kwargs"] = self._model_ctor_kwargs
 
         if model_cache_key is False:
             self._model_cache_key: Hashable | None = None
         elif model_cache_key is None:
-            self._model_cache_key = ("default_vggt_loader", self._weights_path)
+            kwargs_key = (
+                tuple(sorted((k, repr(v)) for k, v in self._model_ctor_kwargs.items()))
+                if self._model_ctor_kwargs
+                else None
+            )
+            self._model_cache_key = ("default_vggt_loader", self._weights_path, kwargs_key)
         else:
             self._model_cache_key = model_cache_key
 
@@ -172,7 +214,11 @@ class ClusterVGGT(ClusterOptimizerBase):
             f"image_load_resolution={self._image_load_resolution}",
             f"inference_resolution={self._inference_resolution}",
             f"camera_type={self._camera_type}",
+            f"dtype={self._dtype}",
+            f"use_sparse_attention={self._use_sparse_attention}",
         ]
+        if self._model_ctor_kwargs:
+            components.append(f"model_ctor_kwargs={self._model_ctor_kwargs}")
         return "ClusterVGGT(\n  " + ",\n  ".join(str(c) for c in components) + "\n)"
 
     @staticmethod
@@ -210,6 +256,9 @@ class ClusterVGGT(ClusterOptimizerBase):
             query_frame_num=self._tracking_query_frame_num,
             fine_tracking=self._tracking_fine_tracking,
             track_vis_thresh=self._track_vis_thresh,
+            dtype=self._dtype,
+            model_ctor_kwargs=self._model_ctor_kwargs.copy(),
+            use_sparse_attention=self._use_sparse_attention,
         )
 
         image_batch_graph, original_coords_graph = delayed(_load_vggt_inputs, nout=2)(

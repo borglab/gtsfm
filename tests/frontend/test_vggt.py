@@ -3,10 +3,9 @@
 Authors: Xinan Zhang and Frank Dellaert
 """
 
+import math
 import unittest
 from pathlib import Path
-
-import math
 from typing import Any
 
 import cv2
@@ -46,9 +45,7 @@ def _vibrant_bgr_from_index(index: int) -> tuple[int, int, int]:
     return (b, g, r)
 
 
-def _restore_images_to_original_scale(
-    square_images: torch.Tensor, original_coords: torch.Tensor
-) -> torch.Tensor:
+def _restore_images_to_original_scale(square_images: torch.Tensor, original_coords: torch.Tensor) -> torch.Tensor:
     """Crop padded square VGGT inputs back to their native aspect ratios."""
 
     if square_images.ndim != 4:
@@ -453,13 +450,13 @@ class TestVGGT(unittest.TestCase):
 
         def _jpeg_size(path: Path) -> tuple[int, int]:
             with path.open("rb") as stream:
-                if stream.read(2) != b"\xFF\xD8":
+                if stream.read(2) != b"\xff\xd8":
                     raise ValueError("Not a JPEG file.")
                 while True:
                     marker_start = stream.read(1)
                     if not marker_start:
                         raise ValueError("Reached EOF before finding SOF marker.")
-                    if marker_start != b"\xFF":
+                    if marker_start != b"\xff":
                         continue
                     marker_code = stream.read(1)
                     if not marker_code or marker_code == b"\x00":
