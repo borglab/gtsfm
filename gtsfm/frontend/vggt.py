@@ -293,9 +293,7 @@ def load_model(
         hint = "Ensure your thirdparty/vggt checkout provides the requested functionality."
         if ctor_kwargs and not _USING_FASTVGGT:
             hint += " (FastVGGT submodule is required for options such as 'merging'.)"
-        raise TypeError(
-            f"Failed to construct VGGT with custom arguments {ctor_kwargs}. {hint}"
-        ) from exc
+        raise TypeError(f"Failed to construct VGGT with custom arguments {ctor_kwargs}. {hint}") from exc
     state_dict = torch.load(checkpoint, map_location="cpu")
     missing, unexpected = model.load_state_dict(state_dict, strict=False)
     if unexpected:
@@ -446,15 +444,9 @@ def _convert_vggt_outputs_to_gtsfm_data(
         # track masks according to visibility, reprojection error, etc
         track_mask = tracking_result.visibilities > config.track_vis_thresh
         inlier_num = track_mask.sum(0)
-        true_indices = np.where(track_mask)
-        # print('track_mask, inlier_num ', track_mask.shape, inlier_num.shape) (4, 2901) (2901,)
 
         valid_mask = inlier_num >= 2  # a track is invalid if without two inliers
-        # print('np.nonzero(valid_mask): ', np.nonzero(valid_mask).shape)
         valid_idx = np.nonzero(valid_mask)[0]
-
-        num_points3D = len(valid_idx)
-        # print('num_points3D: ', num_points3D) 2300
 
         for valid_id in valid_idx:
             rgb: np.ndarray
@@ -540,6 +532,15 @@ def run_VGGT(
     res = cfg.vggt_fixed_resolution if cfg else DEFAULT_FIXED_RESOLUTION
     resized_images = F.interpolate(images, size=(res, res), mode="bilinear")
     # print('resized_images: ', resized_images.shape) 518, 518
+
+    # FastVGGT requires the model to know the actual patch grid dimensions used for token merging.
+    patch_w = max(1, resized_images.shape[-1] // getattr(model.aggregator, "patch_size", 14))
+    patch_h = max(1, resized_images.shape[-2] // getattr(model.aggregator, "patch_size", 14))
+    if hasattr(model, "update_patch_dimensions"):
+        try:
+            model.update_patch_dimensions(patch_w, patch_h)
+        except Exception as exc:  # pragma: no cover - best effort for FastVGGT compatibility
+            logger.warning("Failed to update VGGT patch dimensions (%dx%d): %s", patch_w, patch_h, exc)
 
     # FastVGGT requires the model to know the actual patch grid dimensions used for token merging.
     patch_w = max(1, resized_images.shape[-1] // getattr(model.aggregator, "patch_size", 14))
