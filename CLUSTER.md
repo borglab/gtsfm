@@ -97,3 +97,61 @@ Use `LocalCUDACluster`
 - Case 2: Multiple Machines SSH, with multiple GPUs
 Have to manually set up `CUDA_VISIBLE_DEVICES` on the calculation node
 
+---
+
+## How to Run GTSfM on SLURM Clusters
+
+By Using `dask-jobqueue`
+
+### Prerequisites
+
+1. **Install dask-jobqueue** (if not already installed):
+   ```bash
+   conda install dask-jobqueue
+   ```
+   This is already included in `environment_linux.yml` if you set up a fresh environment.
+
+2. **SLURM parameters**:
+   - Account/project name
+   - Available partitions/queues
+   - Resource limits (cores, memory, walltime)
+
+
+### Senerio 1: Standalone SLURM Script (Testing)
+
+
+```bash
+python scripts/run_gtsfm_slurm.py \
+    --account myproject \
+    --queue gpu \
+    --gpu \
+    --gpus_per_job 1 \
+    --num_jobs 2 \
+    --cores 4 \
+    --memory 16GB \
+    --walltime 01:00:00 \
+    -- --dataset_dir tests/data/set1_lund_door --config_name unified_binary.yaml graph_partitioner.max_depth=1
+```
+
+
+#### With InfiniBand and Local Storage
+
+```bash
+python scripts/run_gtsfm_slurm.py \
+    --account YOUR_ACCOUNT \
+    --interface ib0 \
+    --local_directory '$TMPDIR' \
+    --num_jobs 8 \
+    -- --dataset_dir tests/data/set1_lund_door --config_name unified_binary.yaml graph_partitioner.max_depth=1
+```
+
+
+
+### Best Practices for SLURM
+
+- **Local Storage**: use `--slurm_local_directory '$TMPDIR'` or similar to avoid overloading network filesystems
+- **Network Interface**: Use `--slurm_interface ib0` on systems with InfiniBand for better performance
+- **Walltime**: Set longer than expected runtime but not excessively long to avoid queue delays
+- **Memory**: Leave some headroom (e.g., request 30GB if you expect to use 25GB)
+
+

@@ -19,6 +19,7 @@ dependencies:
   - asyncssh
   - dask=2025.9.1
   - distributed=2025.9.1
+  - dask-jobqueue>=0.8.0 # For SLURM/PBS/SGE support
   - lz4=4.4.4
   - msgpack-python=1.1.1
   - python-graphviz
