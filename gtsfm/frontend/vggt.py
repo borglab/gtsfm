@@ -444,15 +444,12 @@ def _convert_vggt_outputs_to_gtsfm_data(
         # track masks according to visibility, reprojection error, etc
         track_mask = tracking_result.visibilities > config.track_vis_thresh
         inlier_num = track_mask.sum(0)
-        true_indices = np.where(track_mask)
         # print('track_mask, inlier_num ', track_mask.shape, inlier_num.shape) (4, 2901) (2901,)
 
         valid_mask = inlier_num >= 2  # a track is invalid if without two inliers
         # print('np.nonzero(valid_mask): ', np.nonzero(valid_mask).shape)
         valid_idx = np.nonzero(valid_mask)[0]
-
-        num_points3D = len(valid_idx)
-        # print('num_points3D: ', num_points3D) 2300
+        # print('num_points3D: ', len(valid_idx)) 2300
 
         for valid_id in valid_idx:
             rgb: np.ndarray
