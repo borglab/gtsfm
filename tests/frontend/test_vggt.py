@@ -402,7 +402,7 @@ class TestVGGT(unittest.TestCase):
             self.assertAlmostEqual(u_back_load, u_orig, places=3)
             self.assertAlmostEqual(v_back_load, v_orig, places=3)
 
-    # @unittest.skip("Skipping VGGT end-to-end test for now since it is slow and requires GPU.")
+    @unittest.skip("Skipping VGGT end-to-end test for now since it is slow and requires GPU.")
     def test_run_vggt_on_some_images(self):
         """Load four door images using Olsson loader and run vggt on them."""
 
