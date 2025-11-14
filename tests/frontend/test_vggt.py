@@ -408,7 +408,7 @@ class TestVGGT(unittest.TestCase):
 
         img_load_original_resolution = 760
         img_load_resolution = 1024
-        loader = OlssonLoader(dataset_dir=str(PALACE), max_resolution=img_load_original_resolution)
+        loader = OlssonLoader(dataset_dir=str(DOOR), max_resolution=img_load_original_resolution)
         indices = [4, 11, 8, 2]
 
         # resize_transform = None
