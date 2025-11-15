@@ -34,6 +34,14 @@ class MeasurementSummary:
     failure_reason: Optional[str]
 
 
+@dataclass
+class TrackStats:
+    total_tracks: int
+    offending_tracks: int
+    reprojection_offenders: int
+    depth_offenders: int
+
+
 def _format_pair(values: Sequence[float]) -> str:
     return f"[{values[0]:.3f}, {values[1]:.3f}]"
 
@@ -60,17 +68,36 @@ def inspect_track(
     track_id: Optional[int],
     offending_only: bool,
     error_threshold: float,
-) -> None:
+) -> TrackStats:
     """Load a COLMAP-format model and print diagnostics for one or more tracks."""
     if not model_dir.exists():
         raise FileNotFoundError(f"Model directory '{model_dir}' does not exist")
 
     data = GtsfmData.read_colmap(str(model_dir))
+    offending_tracks = 0
+    reproj_offenders = 0
+    depth_offenders = 0
+
     if track_id is not None:
-        _inspect_single_track(data, track_id, offending_only, error_threshold)
+        track_stats = [_inspect_single_track(data, track_id, offending_only, error_threshold)]
+        total_tracks = 1
     else:
-        for idx in range(data.number_tracks()):
-            _inspect_single_track(data, idx, offending_only, error_threshold)
+        total_tracks = data.number_tracks()
+        track_stats = [
+            _inspect_single_track(data, idx, offending_only, error_threshold) for idx in range(total_tracks)
+        ]
+
+    for offending, reproj_offending, depth_offending in track_stats:
+        offending_tracks += int(offending)
+        reproj_offenders += int(reproj_offending)
+        depth_offenders += int(depth_offending)
+
+    return TrackStats(
+        total_tracks=total_tracks,
+        offending_tracks=offending_tracks,
+        reprojection_offenders=reproj_offenders,
+        depth_offenders=depth_offenders,
+    )
 
 
 def _inspect_single_track(
@@ -78,7 +105,7 @@ def _inspect_single_track(
     track_id: int,
     offending_only: bool,
     error_threshold: float,
-) -> None:
+) -> Tuple[bool, bool, bool]:
     """Print diagnostics for a single track index."""
     if track_id < 0 or track_id >= data.number_tracks():
         raise ValueError(f"Track id {track_id} out of bounds (0..{data.number_tracks() - 1})")
@@ -128,25 +155,34 @@ def _inspect_single_track(
         )
         summaries.append(summary)
 
-    if offending_only and not _has_offending_measurement(summaries, error_threshold):
-        return
+    offending, reproj_offending, depth_offending = _classify_offending_measurements(summaries, error_threshold)
+
+    if offending_only and not offending:
+        return offending, reproj_offending, depth_offending
 
     print(f"Track {track_id}: point=({point[0]:.6f}, {point[1]:.6f}, {point[2]:.6f})")
     print(f"  Num measurements: {track.numberMeasurements()}")
     for summary in summaries:
         print("  - " + _describe_measurement(summary))
+    return offending, reproj_offending, depth_offending
 
 
-def _has_offending_measurement(summaries: Sequence[MeasurementSummary], error_threshold: float) -> bool:
-    """Return True if any measurement has negative depth, high error, or failed reprojection."""
+def _classify_offending_measurements(
+    summaries: Sequence[MeasurementSummary], error_threshold: float
+) -> Tuple[bool, bool, bool]:
+    offending = False
+    reproj_offending = False
+    depth_offending = False
     for summary in summaries:
         if summary.failure_reason is not None:
-            return True
+            offending = True
         if summary.depth is not None and summary.depth < 0:
-            return True
+            depth_offending = True
+            offending = True
         if summary.reproj_error is not None and summary.reproj_error > error_threshold:
-            return True
-    return False
+            reproj_offending = True
+            offending = True
+    return offending, reproj_offending, depth_offending
 
 
 def parse_args() -> argparse.Namespace:
@@ -189,7 +225,14 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    inspect_track(args.model_dir, args.track_id, args.offending_only, args.error_threshold)
+    stats = inspect_track(args.model_dir, args.track_id, args.offending_only, args.error_threshold)
+    print(
+        "Track summary: "
+        f"total={stats.total_tracks}, "
+        f"offending={stats.offending_tracks}, "
+        f"reprojection_offenders={stats.reprojection_offenders}, "
+        f"depth_offenders={stats.depth_offenders}"
+    )
 
 
 if __name__ == "__main__":
