@@ -31,6 +31,9 @@ cluster_optimizer:
   inference_resolution: 392
   conf_threshold: 2.0
   max_num_points: 50000
+  tracking_max_query_pts: 384
+  tracking_query_frame_num: 2
+  tracking_fine_tracking: false
   camera_type: PINHOLE
   seed: 42
   copy_results_to_react: true
