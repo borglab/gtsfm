@@ -112,6 +112,9 @@ class SceneOptimizer:
         self.image_pairs_generator = image_pairs_generator
         self.graph_partitioner = graph_partitioner
         self.cluster_optimizer = cluster_optimizer
+        cluster_merging.set_run_bundle_adjustment_on_parent(
+            getattr(self.cluster_optimizer, "run_bundle_adjustment_on_parent", True)
+        )
 
         self.output_root = Path(output_root)
         if output_worker is not None:

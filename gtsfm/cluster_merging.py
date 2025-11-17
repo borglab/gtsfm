@@ -22,6 +22,14 @@ if TYPE_CHECKING:
 
 logger = logger_utils.get_logger()
 
+_RUN_BUNDLE_ADJUSTMENT_ON_PARENT = True
+
+
+def set_run_bundle_adjustment_on_parent(enabled: bool) -> None:
+    """Configure whether parent bundles should run bundle adjustment."""
+    global _RUN_BUNDLE_ADJUSTMENT_ON_PARENT
+    _RUN_BUNDLE_ADJUSTMENT_ON_PARENT = enabled
+
 
 def _compute_scene_reprojection_stats(scene: Optional[GtsfmData]) -> Optional[tuple[float, float, float, float]]:
     """Aggregate reprojection error stats for a scene."""
@@ -130,17 +138,19 @@ def combine_results(
             logger.warning("⚠️ Failed to merge cluster outputs: %s", exc)
 
     _log_scene_reprojection_stats(merged, "merged result (camera only)")
-    return merged
-    # # Done merging, now run BA to refine.
-    # if merged is None:
-    #     return None
-    # try:
-    #     merged_with_ba = BundleAdjustmentOptimizer().run_simple_ba(merged)[0]  # Can definitely fail
-    #     _log_scene_reprojection_stats(merged_with_ba, "merged result (with ba)")
-    #     return merged_with_ba
-    # except Exception as e:
-    #     logger.warning("⚠️ Failed to run bundle adjustment: %s", e)
-    #     return merged
+
+    if not _RUN_BUNDLE_ADJUSTMENT_ON_PARENT:
+        return merged
+
+    if merged is None:
+        return None
+    try:
+        merged_with_ba = BundleAdjustmentOptimizer().run_simple_ba(merged)[0]  # Can definitely fail
+        _log_scene_reprojection_stats(merged_with_ba, "merged result (with ba)")
+        return merged_with_ba
+    except Exception as exc:
+        logger.warning("⚠️ Failed to run bundle adjustment: %s", exc)
+        return merged
 
 
 __all__ = ["combine_results", "schedule_exports"]
