@@ -17,6 +17,7 @@ import torch.nn.functional as F
 from gtsam import Point2, Point3
 from torch.amp import autocast as amp_autocast  # type: ignore
 
+from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.utils import logger as logger_utils
 from gtsfm.utils import torch as torch_utils
@@ -148,6 +149,7 @@ class VggtConfiguration:
     dtype: Optional[Union[str, torch.dtype]] = None
     model_ctor_kwargs: dict[str, Any] = field(default_factory=dict)
     use_sparse_attention: bool = False
+    run_bundle_adjustment_on_leaf: bool = False
 
     # Tracking-specific parameters:
     tracking: bool = True
@@ -434,6 +436,13 @@ def _convert_vggt_outputs_to_gtsfm_data(
             shape=(int(image_height), int(image_width)),
         )
 
+    # We have to comment out the following for now
+    # Because it may cause error in ba
+    # if points_3d.size > 0 and points_rgb is not None:
+    #     for j, xyz in enumerate(points_3d):
+    #         track = torch_utils.colored_track_from_point(xyz, points_rgb[j])
+    #         gtsfm_data.add_track(track)
+
     if tracking_result is None and points_3d.size > 0 and points_rgb is not None:
         for j, xyz in enumerate(points_3d):
             track = torch_utils.colored_track_from_point(xyz, points_rgb[j])
@@ -446,6 +455,8 @@ def _convert_vggt_outputs_to_gtsfm_data(
         inlier_num = track_mask.sum(0)
 
         valid_mask = inlier_num >= 2  # a track is invalid if without two inliers
+        if tracking_result.confidences is not None:
+            valid_mask = np.logical_and(valid_mask, tracking_result.confidences > config.confidence_threshold)
         valid_idx = np.nonzero(valid_mask)[0]
 
         for valid_id in valid_idx:
@@ -475,6 +486,16 @@ def _convert_vggt_outputs_to_gtsfm_data(
                 track.addMeasurement(global_idx, Point2(rescaled_u, rescaled_v))
 
             gtsfm_data.add_track(track)
+
+    if config.run_bundle_adjustment_on_leaf:
+        if gtsfm_data.number_tracks() == 0:
+            logger.warning("Skipping bundle adjustment because VGGT produced no valid tracks.")
+        else:
+            try:
+                optimizer = BundleAdjustmentOptimizer()
+                gtsfm_data, _ = optimizer.run_simple_ba(gtsfm_data, verbose=False)
+            except Exception as exc:
+                logger.warning("⚠️ Failed to run bundle adjustment: %s", exc)
 
     return gtsfm_data
 
@@ -696,20 +717,20 @@ def run_vggt_tracking(
             fine_tracking=cfg.fine_tracking,
         )
 
-    print("images: ", images.shape)
-    print("conf_tensor: ", conf_tensor.shape)
-    print("tracks: ", tracks.shape)
-    print("vis_scores: ", vis_scores.shape)
-    print("confidences: ", confidences.shape)
-    print("points_3d: ", points_3d.shape)
-    print("colors: ", colors.shape)
-    # images: torch.Size([4, 3, 1024, 1024])
-    # conf_tensor:  torch.Size([4, 518, 518])
-    # tracks:  (4, 2901, 2)
-    # vis_scores:  (4, 2901)
-    # confidences:  (2901,)
-    # points_3d:  (2901, 3)
-    # colors:  (2901, 3)
+    # print("images: ", images.shape)
+    # print("conf_tensor: ", conf_tensor.shape)
+    # print("tracks: ", tracks.shape)
+    # print("vis_scores: ", vis_scores.shape)
+    # print("confidences: ", confidences.shape)
+    # print("points_3d: ", points_3d.shape)
+    # print("colors: ", colors.shape)
+    # # images: torch.Size([4, 3, 1024, 1024])
+    # # conf_tensor:  torch.Size([4, 518, 518])
+    # # tracks:  (4, 2901, 2)
+    # # vis_scores:  (4, 2901)
+    # # confidences:  (2901,)
+    # # points_3d:  (2901, 3)
+    # # colors:  (2901, 3)
 
     return VGGTTrackingResult(
         tracks=tracks, visibilities=vis_scores, confidences=confidences, points_3d=points_3d, colors=colors

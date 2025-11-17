@@ -7,11 +7,13 @@ from typing import TYPE_CHECKING, Optional, Tuple
 
 from dask.distributed import Client, Future
 from gtsam import Similarity3
+import numpy as np
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.utils import align as align_utils
+from gtsfm.utils.reprojection import compute_track_reprojection_errors
 from gtsfm.utils.tree import Tree
 from gtsfm.utils.tree_dask import submit_tree_map
 
@@ -19,6 +21,53 @@ if TYPE_CHECKING:
     from gtsfm.scene_optimizer import ClusterExecutionHandles
 
 logger = logger_utils.get_logger()
+
+
+def _compute_scene_reprojection_stats(scene: Optional[GtsfmData]) -> Optional[tuple[float, float, float, float]]:
+    """Aggregate reprojection error stats for a scene."""
+    if scene is None:
+        return None
+    cameras = scene.cameras()
+    if len(cameras) == 0 or scene.number_tracks() == 0:
+        return None
+
+    error_blocks: list[np.ndarray] = []
+    for track in scene.tracks():
+        if track.numberMeasurements() == 0:
+            continue
+        errors, _ = compute_track_reprojection_errors(cameras, track)
+        if errors.size == 0:
+            continue
+        valid_errors = errors[~np.isnan(errors)]
+        if valid_errors.size > 0:
+            error_blocks.append(valid_errors)
+
+    if len(error_blocks) == 0:
+        return None
+    all_errors = np.concatenate(error_blocks)
+    return (
+        float(np.mean(all_errors)),
+        float(np.median(all_errors)),
+        float(np.min(all_errors)),
+        float(np.max(all_errors)),
+    )
+
+
+def _log_scene_reprojection_stats(scene: Optional[GtsfmData], label: str) -> None:
+    """Log reprojection error statistics."""
+    stats = _compute_scene_reprojection_stats(scene)
+    if stats is None:
+        logger.info("📏 %s reprojection error stats unavailable", label)
+        return
+    mean, median, min_err, max_err = stats
+    logger.info(
+        "📏 %s reprojection error (px): mean=%.2f median=%.2f min=%.2f max=%.2f",
+        label,
+        mean,
+        median,
+        min_err,
+        max_err,
+    )
 
 
 def _run_export_task(payload: Tuple[Optional[Path], Optional[GtsfmData]]) -> None:
@@ -60,6 +109,8 @@ def combine_results(
         return current
 
     logger.info("🫱🏻‍🫲🏽 Merging with %d children", len(child_results))
+    for idx, child in enumerate(child_results):
+        _log_scene_reprojection_stats(child, f"child #{idx}")
     merged = current
     for child in child_results:
         if child is None:
@@ -78,14 +129,18 @@ def combine_results(
         except Exception as exc:
             logger.warning("⚠️ Failed to merge cluster outputs: %s", exc)
 
-    # Done merging, now run BA to refine.
-    if merged is None:
-        return None
-    try:
-        return BundleAdjustmentOptimizer().run_simple_ba(merged)[0]  # Can definitely fail
-    except Exception as e:
-        logger.warning("⚠️ Failed to run bundle adjustment: %s", e)
-        return merged
+    _log_scene_reprojection_stats(merged, "merged result (camera only)")
+    return merged
+    # # Done merging, now run BA to refine.
+    # if merged is None:
+    #     return None
+    # try:
+    #     merged_with_ba = BundleAdjustmentOptimizer().run_simple_ba(merged)[0]  # Can definitely fail
+    #     _log_scene_reprojection_stats(merged_with_ba, "merged result (with ba)")
+    #     return merged_with_ba
+    # except Exception as e:
+    #     logger.warning("⚠️ Failed to run bundle adjustment: %s", e)
+    #     return merged
 
 
 __all__ = ["combine_results", "schedule_exports"]

@@ -25,6 +25,19 @@ graph_partitioner:
   _target_: gtsfm.graph_partitioner.Metis
 
 cluster_optimizer:
-  _target_: gtsfm.cluster_optimizer.cluster_anysplat.ClusterAnySplat
-  local_checkpoint: null
-  max_num_points: null
+  _target_: gtsfm.cluster_optimizer.cluster_vggt.ClusterVGGT
+  weights_path: null
+  image_load_resolution: 1024
+  inference_resolution: 518
+  conf_threshold: 5.0
+  max_num_points: 100000
+  tracking: true
+  tracking_max_query_pts: 512
+  tracking_query_frame_num: 3
+  tracking_fine_tracking: false
+  track_vis_thresh: 0.2
+  camera_type: PINHOLE
+  seed: 42
+  copy_results_to_react: true
+  run_bundle_adjustment_on_leaf: false
+  model_cache_key: null

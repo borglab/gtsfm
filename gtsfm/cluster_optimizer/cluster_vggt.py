@@ -144,6 +144,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         vis_attn_map: bool = False,
         enable_protection: bool = False,
         extra_model_kwargs: Optional[dict[str, Any]] = None,
+        run_bundle_adjustment_on_leaf: bool = False,
     ) -> None:
         super().__init__(
             pose_angular_error_thresh=pose_angular_error_thresh,
@@ -165,6 +166,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         self._explicit_scene_dir = Path(scene_dir) if scene_dir is not None else None
         self._use_sparse_attention = use_sparse_attention
         self._dtype = inference_dtype
+        self._run_bundle_adjustment_on_leaf = run_bundle_adjustment_on_leaf
         if fast_dtype is not None:
             if self._dtype is None:
                 self._dtype = fast_dtype
@@ -216,6 +218,7 @@ class ClusterVGGT(ClusterOptimizerBase):
             f"camera_type={self._camera_type}",
             f"dtype={self._dtype}",
             f"use_sparse_attention={self._use_sparse_attention}",
+            f"run_bundle_adjustment_on_leaf={self._run_bundle_adjustment_on_leaf}",
         ]
         if self._model_ctor_kwargs:
             components.append(f"model_ctor_kwargs={self._model_ctor_kwargs}")
@@ -259,6 +262,7 @@ class ClusterVGGT(ClusterOptimizerBase):
             dtype=self._dtype,
             model_ctor_kwargs=self._model_ctor_kwargs.copy(),
             use_sparse_attention=self._use_sparse_attention,
+            run_bundle_adjustment_on_leaf=self._run_bundle_adjustment_on_leaf,
         )
 
         image_batch_graph, original_coords_graph = delayed(_load_vggt_inputs, nout=2)(
