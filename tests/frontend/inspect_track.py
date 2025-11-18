@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import math
+import statistics
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -40,6 +41,10 @@ class TrackStats:
     offending_tracks: int
     reprojection_offenders: int
     depth_offenders: int
+    mean_reproj_error: Optional[float]
+    median_reproj_error: Optional[float]
+    min_reproj_error: Optional[float]
+    max_reproj_error: Optional[float]
 
 
 def _format_pair(values: Sequence[float]) -> str:
@@ -77,26 +82,41 @@ def inspect_track(
     offending_tracks = 0
     reproj_offenders = 0
     depth_offenders = 0
+    all_reproj_errors: list[float] = []
 
     if track_id is not None:
-        track_stats = [_inspect_single_track(data, track_id, offending_only, error_threshold)]
         total_tracks = 1
+        track_ids: Sequence[int] = [track_id]
     else:
         total_tracks = data.number_tracks()
-        track_stats = [
-            _inspect_single_track(data, idx, offending_only, error_threshold) for idx in range(total_tracks)
-        ]
+        track_ids = range(total_tracks)
 
-    for offending, reproj_offending, depth_offending in track_stats:
+    for idx in track_ids:
+        offending, reproj_offending, depth_offending, track_errors = _inspect_single_track(
+            data, idx, offending_only, error_threshold
+        )
         offending_tracks += int(offending)
         reproj_offenders += int(reproj_offending)
         depth_offenders += int(depth_offending)
+        all_reproj_errors.extend(track_errors)
+
+    if all_reproj_errors:
+        mean_error = float(sum(all_reproj_errors)) / len(all_reproj_errors)
+        median_error = float(statistics.median(all_reproj_errors))
+        min_error = float(min(all_reproj_errors))
+        max_error = float(max(all_reproj_errors))
+    else:
+        mean_error = median_error = min_error = max_error = None
 
     return TrackStats(
         total_tracks=total_tracks,
         offending_tracks=offending_tracks,
         reprojection_offenders=reproj_offenders,
         depth_offenders=depth_offenders,
+        mean_reproj_error=mean_error,
+        median_reproj_error=median_error,
+        min_reproj_error=min_error,
+        max_reproj_error=max_error,
     )
 
 
@@ -105,7 +125,7 @@ def _inspect_single_track(
     track_id: int,
     offending_only: bool,
     error_threshold: float,
-) -> Tuple[bool, bool, bool]:
+) -> Tuple[bool, bool, bool, list[float]]:
     """Print diagnostics for a single track index."""
     if track_id < 0 or track_id >= data.number_tracks():
         raise ValueError(f"Track id {track_id} out of bounds (0..{data.number_tracks() - 1})")
@@ -120,34 +140,21 @@ def _inspect_single_track(
         image_info = data.get_image_info(cam_idx)
         failure_reason: Optional[str] = None
         uv_reproj: Optional[Tuple[float, float]] = None
-        depth: Optional[float] = None
         reproj_error: Optional[float] = None
 
-        uv_measured_tuple: Tuple[float, float]
-        if hasattr(uv_measured, "x"):  # gtsam Point2
-            uv_measured_tuple = (float(uv_measured.x()), float(uv_measured.y()))
-        else:
-            uv_measured_tuple = (float(uv_measured[0]), float(uv_measured[1]))
+        cam_frame_point = camera.pose().transformTo(point)
+        depth = float(cam_frame_point[2])
 
-        if camera is None:
-            failure_reason = "camera missing"
-        else:
-            try:
-                reproj = camera.project(point)
-                if hasattr(reproj, "x"):
-                    uv_reproj = (float(reproj.x()), float(reproj.y()))
-                else:
-                    uv_reproj = (float(reproj[0]), float(reproj[1]))
-                reproj_error = float(math.dist(uv_reproj, uv_measured_tuple))
-                cam_frame_point = camera.pose().transformTo(point)
-                depth = float(cam_frame_point[2])
-            except Exception as exc:  # pragma: no cover - gtsam throws rich runtime errors.
-                failure_reason = str(exc)
+        try:
+            uv_reproj = camera.project(point)
+            reproj_error = float(math.dist(uv_reproj, uv_measured))
+        except Exception as exc:  # pragma: no cover - gtsam throws rich runtime errors.
+            failure_reason = str(exc)
 
         summary = MeasurementSummary(
             camera_idx=cam_idx,
             image_name=image_info.name,
-            uv_measured=uv_measured_tuple,
+            uv_measured=uv_measured,
             uv_reprojected=uv_reproj,
             depth=depth,
             reproj_error=reproj_error,
@@ -156,15 +163,16 @@ def _inspect_single_track(
         summaries.append(summary)
 
     offending, reproj_offending, depth_offending = _classify_offending_measurements(summaries, error_threshold)
+    track_errors = [summary.reproj_error for summary in summaries if summary.reproj_error is not None]
 
     if offending_only and not offending:
-        return offending, reproj_offending, depth_offending
+        return offending, reproj_offending, depth_offending, track_errors
 
     print(f"Track {track_id}: point=({point[0]:.6f}, {point[1]:.6f}, {point[2]:.6f})")
     print(f"  Num measurements: {track.numberMeasurements()}")
     for summary in summaries:
         print("  - " + _describe_measurement(summary))
-    return offending, reproj_offending, depth_offending
+    return offending, reproj_offending, depth_offending, track_errors
 
 
 def _classify_offending_measurements(
@@ -226,6 +234,16 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     stats = inspect_track(args.model_dir, args.track_id, args.offending_only, args.error_threshold)
+    if stats.mean_reproj_error is None:
+        print("Reprojection error stats: unavailable (no valid measurements).")
+    else:
+        print(
+            "Reprojection error stats (px): "
+            f"mean={stats.mean_reproj_error:.4f}, "
+            f"median={stats.median_reproj_error:.4f}, "
+            f"min={stats.min_reproj_error:.4f}, "
+            f"max={stats.max_reproj_error:.4f}"
+        )
     print(
         "Track summary: "
         f"total={stats.total_tracks}, "
