@@ -5,6 +5,7 @@ Authors: Ayush Baid, John Lambert
 
 import time
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from typing import Optional, TypeVar, cast
 
@@ -112,8 +113,8 @@ class SceneOptimizer:
         self.image_pairs_generator = image_pairs_generator
         self.graph_partitioner = graph_partitioner
         self.cluster_optimizer = cluster_optimizer
-        cluster_merging.set_run_bundle_adjustment_on_parent(
-            getattr(self.cluster_optimizer, "run_bundle_adjustment_on_parent", True)
+        self._run_bundle_adjustment_on_parent = getattr(
+            self.cluster_optimizer, "run_bundle_adjustment_on_parent", True
         )
 
         self.output_root = Path(output_root)
@@ -218,9 +219,11 @@ class SceneOptimizer:
 
                 handles_tree = context_tree.map(self._schedule_single_cluster)
                 reconstruction_tree = handles_tree.map(lambda handle: handle.reconstruction)
-                merged_future_tree = submit_tree_map_with_children(
-                    client, reconstruction_tree, cluster_merging.combine_results
+                merge_fn = partial(
+                    cluster_merging.combine_results,
+                    run_bundle_adjustment_on_parent=self._run_bundle_adjustment_on_parent,
                 )
+                merged_future_tree = submit_tree_map_with_children(client, reconstruction_tree, merge_fn)
                 export_tree = cluster_merging.schedule_exports(client, handles_tree, merged_future_tree)
                 root_merge_future: Optional[Future] = merged_future_tree.value
                 for handle_node, merged_node, export_node in zip(

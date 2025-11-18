@@ -22,14 +22,6 @@ if TYPE_CHECKING:
 
 logger = logger_utils.get_logger()
 
-_RUN_BUNDLE_ADJUSTMENT_ON_PARENT = True
-
-
-def set_run_bundle_adjustment_on_parent(enabled: bool) -> None:
-    """Configure whether parent bundles should run bundle adjustment."""
-    global _RUN_BUNDLE_ADJUSTMENT_ON_PARENT
-    _RUN_BUNDLE_ADJUSTMENT_ON_PARENT = enabled
-
 
 def _compute_scene_reprojection_stats(scene: Optional[GtsfmData]) -> Optional[tuple[float, float, float, float]]:
     """Aggregate reprojection error stats for a scene."""
@@ -110,7 +102,10 @@ def schedule_exports(
 
 
 def combine_results(
-    current: Optional[GtsfmData], child_results: tuple[Optional[GtsfmData], ...]
+    current: Optional[GtsfmData],
+    child_results: tuple[Optional[GtsfmData], ...],
+    *,
+    run_bundle_adjustment_on_parent: bool = True,
 ) -> Optional[GtsfmData]:
     """Merge bundle adjustment outputs from child clusters into the parent result."""
     if len(child_results) == 0:
@@ -139,7 +134,7 @@ def combine_results(
 
     _log_scene_reprojection_stats(merged, "merged result (camera only)")
 
-    if not _RUN_BUNDLE_ADJUSTMENT_ON_PARENT:
+    if not run_bundle_adjustment_on_parent:
         return merged
 
     if merged is None:

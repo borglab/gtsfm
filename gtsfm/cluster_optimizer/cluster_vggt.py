@@ -145,6 +145,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         enable_protection: bool = False,
         extra_model_kwargs: Optional[dict[str, Any]] = None,
         run_bundle_adjustment_on_leaf: bool = False,
+        run_bundle_adjustment_on_parent: bool = True,
     ) -> None:
         super().__init__(
             pose_angular_error_thresh=pose_angular_error_thresh,
@@ -197,6 +198,7 @@ class ClusterVGGT(ClusterOptimizerBase):
             self._loader_kwargs["weights_path"] = self._weights_path
         if self._model_ctor_kwargs:
             self._loader_kwargs["model_kwargs"] = self._model_ctor_kwargs
+        self.run_bundle_adjustment_on_parent = run_bundle_adjustment_on_parent
 
         if model_cache_key is False:
             self._model_cache_key: Hashable | None = None
