@@ -3,6 +3,8 @@
 # @package _global_
 _target_: gtsfm.scene_optimizer.SceneOptimizer
 
+plot_reprojection_histograms: true
+
 loader:
   _target_: gtsfm.loader.Olsson
   dataset_dir: tests/data/set1_lund_door

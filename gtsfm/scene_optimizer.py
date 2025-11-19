@@ -108,6 +108,7 @@ class SceneOptimizer:
         graph_partitioner: GraphPartitionerBase = SinglePartitioner(),
         output_root: str = DEFAULT_OUTPUT_ROOT,
         output_worker: Optional[str] = None,
+        plot_reprojection_histograms: bool = True,
     ) -> None:
         self.loader = loader
         self.image_pairs_generator = image_pairs_generator
@@ -116,6 +117,7 @@ class SceneOptimizer:
         self._run_bundle_adjustment_on_parent = getattr(
             self.cluster_optimizer, "run_bundle_adjustment_on_parent", True
         )
+        self._plot_reprojection_histograms = plot_reprojection_histograms
 
         self.output_root = Path(output_root)
         if output_worker is not None:
@@ -222,6 +224,7 @@ class SceneOptimizer:
                 merge_fn = partial(
                     cluster_merging.combine_results,
                     run_bundle_adjustment_on_parent=self._run_bundle_adjustment_on_parent,
+                    plot_reprojection_histograms=self._plot_reprojection_histograms,
                 )
                 merged_future_tree = submit_tree_map_with_children(client, reconstruction_tree, merge_fn)
                 export_tree = cluster_merging.schedule_exports(client, handles_tree, merged_future_tree)

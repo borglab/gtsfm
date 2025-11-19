@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Tuple
 
@@ -22,8 +23,50 @@ if TYPE_CHECKING:
 
 logger = logger_utils.get_logger()
 
+_SCENE_PLOTS_DIR_ATTR = "_gtsfm_plots_dir"
+_SCENE_LABEL_ATTR = "_gtsfm_cluster_label"
 
-def _compute_scene_reprojection_stats(scene: Optional[GtsfmData]) -> Optional[tuple[float, float, float, float]]:
+
+def _sanitize_component(value: str, fallback: str) -> str:
+    sanitized = re.sub(r"[^A-Za-z0-9]+", "_", value).strip("_").lower()
+    return sanitized or fallback
+
+
+def annotate_scene_with_metadata(
+    scene: Optional[GtsfmData],
+    plots_dir: str | Path | None,
+    cluster_label: Optional[str],
+) -> Optional[GtsfmData]:
+    """Attach plotting metadata to a scene before it is merged downstream."""
+    if scene is None:
+        return None
+    if plots_dir is not None:
+        setattr(scene, _SCENE_PLOTS_DIR_ATTR, Path(plots_dir))
+    if cluster_label is not None:
+        setattr(scene, _SCENE_LABEL_ATTR, cluster_label)
+    return scene
+
+
+def _propagate_scene_metadata(target: Optional[GtsfmData], *sources: Optional[GtsfmData]) -> None:
+    """Ensure merged scenes keep the plots directory and label metadata."""
+    if target is None:
+        return
+    for source in sources:
+        if source is None:
+            continue
+        plots_dir = getattr(source, _SCENE_PLOTS_DIR_ATTR, None)
+        label = getattr(source, _SCENE_LABEL_ATTR, None)
+        if plots_dir is not None or label is not None:
+            annotate_scene_with_metadata(target, plots_dir, label)
+        if getattr(target, _SCENE_PLOTS_DIR_ATTR, None) is not None and getattr(
+            target, _SCENE_LABEL_ATTR, None
+        ) is not None:
+            break
+
+
+def _compute_scene_reprojection_stats(
+    scene: Optional[GtsfmData],
+) -> Optional[tuple[np.ndarray, float, float, float, float]]:
     """Aggregate reprojection error stats for a scene."""
     if scene is None:
         return None
@@ -46,6 +89,7 @@ def _compute_scene_reprojection_stats(scene: Optional[GtsfmData]) -> Optional[tu
         return None
     all_errors = np.concatenate(error_blocks)
     return (
+        all_errors,
         float(np.mean(all_errors)),
         float(np.median(all_errors)),
         float(np.min(all_errors)),
@@ -53,13 +97,13 @@ def _compute_scene_reprojection_stats(scene: Optional[GtsfmData]) -> Optional[tu
     )
 
 
-def _log_scene_reprojection_stats(scene: Optional[GtsfmData], label: str) -> None:
+def _log_scene_reprojection_stats(scene: Optional[GtsfmData], label: str, *, plot_histograms: bool) -> None:
     """Log reprojection error statistics."""
     stats = _compute_scene_reprojection_stats(scene)
     if stats is None:
         logger.info("📏 %s reprojection error stats unavailable", label)
         return
-    mean, median, min_err, max_err = stats
+    errors, mean, median, min_err, max_err = stats
     logger.info(
         "📏 %s reprojection error (px): mean=%.2f median=%.2f min=%.2f max=%.2f",
         label,
@@ -68,6 +112,64 @@ def _log_scene_reprojection_stats(scene: Optional[GtsfmData], label: str) -> Non
         min_err,
         max_err,
     )
+    if plot_histograms:
+        _plot_reprojection_error_distribution(errors, scene, label, mean, median, min_err, max_err)
+
+
+def _plot_reprojection_error_distribution(
+    errors: np.ndarray,
+    scene: Optional[GtsfmData],
+    label: str,
+    mean: float,
+    median: float,
+    min_err: float,
+    max_err: float,
+) -> None:
+    """Persist a histogram of reprojection errors for diagnostics."""
+    if scene is None:
+        return
+    plots_dir: Optional[Path] = getattr(scene, _SCENE_PLOTS_DIR_ATTR, None)
+    if plots_dir is None:
+        return
+    cluster_label = getattr(scene, _SCENE_LABEL_ATTR, None) or label
+    sanitized_cluster = _sanitize_component(cluster_label, "scene")
+    sanitized_context = _sanitize_component(label, "context")
+    output_path = plots_dir / f"{sanitized_cluster}_{sanitized_context}_reprojection_error_hist.png"
+
+    try:
+        import matplotlib.pyplot as plt  # Local import, plotting only happens when needed
+
+        plots_dir.mkdir(parents=True, exist_ok=True)
+        bin_count = int(np.clip(np.sqrt(errors.size) * 2, 10, 120))
+        fig, ax = plt.subplots(figsize=(6.4, 4.0))
+        ax.hist(errors, bins=bin_count, color="#1f77b4", edgecolor="white")
+        ax.set_title(f"{cluster_label} reprojection error distribution")
+        ax.set_xlabel("Reprojection error (px)")
+        ax.set_ylabel("Track count")
+        ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.5)
+        stats_text = "\n".join(
+            [
+                f"mean: {mean:.2f} px",
+                f"median: {median:.2f} px",
+                f"min: {min_err:.2f} px",
+                f"max: {max_err:.2f} px",
+            ]
+        )
+        ax.text(
+            0.98,
+            0.98,
+            stats_text,
+            transform=ax.transAxes,
+            ha="right",
+            va="top",
+            fontsize=9,
+            bbox=dict(facecolor="white", alpha=0.7, edgecolor="none"),
+        )
+        fig.tight_layout()
+        fig.savefig(output_path, dpi=150)
+        plt.close(fig)
+    except Exception as exc:  # pragma: no cover - plotting is best-effort
+        logger.warning("⚠️ Failed to save reprojection error plot %s: %s", output_path, exc)
 
 
 def _run_export_task(payload: Tuple[Optional[Path], Optional[GtsfmData]]) -> None:
@@ -106,6 +208,7 @@ def combine_results(
     child_results: tuple[Optional[GtsfmData], ...],
     *,
     run_bundle_adjustment_on_parent: bool = True,
+    plot_reprojection_histograms: bool = True,
 ) -> Optional[GtsfmData]:
     """Merge bundle adjustment outputs from child clusters into the parent result."""
     if len(child_results) == 0:
@@ -113,7 +216,8 @@ def combine_results(
 
     logger.info("🫱🏻‍🫲🏽 Merging with %d children", len(child_results))
     for idx, child in enumerate(child_results):
-        _log_scene_reprojection_stats(child, f"child #{idx}")
+        _log_scene_reprojection_stats(child, f"child #{idx}", plot_histograms=plot_reprojection_histograms)
+    metadata_source = current if current is not None else next((c for c in child_results if c is not None), None)
     merged = current
     for child in child_results:
         if child is None:
@@ -132,7 +236,8 @@ def combine_results(
         except Exception as exc:
             logger.warning("⚠️ Failed to merge cluster outputs: %s", exc)
 
-    _log_scene_reprojection_stats(merged, "merged result (camera only)")
+    _propagate_scene_metadata(merged, metadata_source)
+    _log_scene_reprojection_stats(merged, "merged result (camera only)", plot_histograms=plot_reprojection_histograms)
 
     if not run_bundle_adjustment_on_parent:
         return merged
@@ -141,11 +246,20 @@ def combine_results(
         return None
     try:
         merged_with_ba = BundleAdjustmentOptimizer().run_simple_ba(merged)[0]  # Can definitely fail
-        _log_scene_reprojection_stats(merged_with_ba, "merged result (with ba)")
+        _propagate_scene_metadata(merged_with_ba, merged)
+        _log_scene_reprojection_stats(
+            merged_with_ba,
+            "merged result (with ba)",
+            plot_histograms=plot_reprojection_histograms,
+        )
         return merged_with_ba
     except Exception as exc:
         logger.warning("⚠️ Failed to run bundle adjustment: %s", exc)
         return merged
 
 
-__all__ = ["combine_results", "schedule_exports"]
+__all__ = [
+    "combine_results",
+    "schedule_exports",
+    "annotate_scene_with_metadata",
+]

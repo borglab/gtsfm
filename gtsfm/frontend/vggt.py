@@ -459,6 +459,8 @@ def _convert_vggt_outputs_to_gtsfm_data(
             valid_mask = np.logical_and(valid_mask, tracking_result.confidences > config.confidence_threshold)
         valid_idx = np.nonzero(valid_mask)[0]
 
+        #TODO: add filtering based on reprojection error.
+        
         for valid_id in valid_idx:
             rgb: np.ndarray
             if tracking_result.colors is not None and valid_id < tracking_result.colors.shape[0]:

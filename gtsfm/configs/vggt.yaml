@@ -3,6 +3,8 @@
 # @package _global_
 _target_: gtsfm.scene_optimizer.SceneOptimizer
 
+plot_reprojection_histograms: false
+
 loader:
   _target_: gtsfm.loader.Olsson
   dataset_dir: ??? # Required: set to the dataset root on the command line.
@@ -40,4 +42,5 @@ cluster_optimizer:
   seed: 42
   copy_results_to_react: true
   run_bundle_adjustment_on_leaf: false
+  run_bundle_adjustment_on_parent: true
   model_cache_key: null
