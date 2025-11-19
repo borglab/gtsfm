@@ -158,10 +158,15 @@ class SceneOptimizer:
 
         io_graph = delayed(_finalize_io_tasks, pure=False)(*computation.io_tasks)
         metrics_graph = delayed(_collect_metric_results, pure=False)(*computation.metric_tasks)
+        annotated_reconstruction = delayed(cluster_merging.annotate_scene_with_metadata, pure=False)(
+            computation.sfm_result,
+            context.output_paths.plots,
+            context.label,
+        )
 
         io_future: Future = context.client.compute(io_graph)  # type: ignore
         metrics_future: Future = context.client.compute(metrics_graph)  # type: ignore
-        reconstruction_future: Future = context.client.compute(computation.sfm_result)  # type: ignore
+        reconstruction_future: Future = context.client.compute(annotated_reconstruction)  # type: ignore
 
         return ClusterExecutionHandles(
             reconstruction=reconstruction_future,
