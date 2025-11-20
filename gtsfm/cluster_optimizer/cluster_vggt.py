@@ -146,11 +146,14 @@ class ClusterVGGT(ClusterOptimizerBase):
         extra_model_kwargs: Optional[dict[str, Any]] = None,
         run_bundle_adjustment_on_leaf: bool = False,
         run_bundle_adjustment_on_parent: bool = True,
+        max_reproj_error: float = 8.0,
+        plot_reprojection_histograms: bool = True,
     ) -> None:
         super().__init__(
             pose_angular_error_thresh=pose_angular_error_thresh,
             output_worker=output_worker,
         )
+        self.plot_reprojection_histograms = plot_reprojection_histograms
         self._weights_path = Path(weights_path) if weights_path is not None else None
         self._image_load_resolution = image_load_resolution
         self._inference_resolution = inference_resolution
@@ -162,6 +165,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         self._tracking_fine_tracking = tracking_fine_tracking
         self._track_vis_thresh = track_vis_thresh
         self._camera_type = camera_type
+        self._max_reproj_error = max_reproj_error
         self._seed = seed
         self._copy_results_to_react = copy_results_to_react
         self._explicit_scene_dir = Path(scene_dir) if scene_dir is not None else None
@@ -265,6 +269,7 @@ class ClusterVGGT(ClusterOptimizerBase):
             model_ctor_kwargs=self._model_ctor_kwargs.copy(),
             use_sparse_attention=self._use_sparse_attention,
             run_bundle_adjustment_on_leaf=self._run_bundle_adjustment_on_leaf,
+            max_reproj_error=self._max_reproj_error,
         )
 
         image_batch_graph, original_coords_graph = delayed(_load_vggt_inputs, nout=2)(

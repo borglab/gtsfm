@@ -3,8 +3,6 @@
 # @package _global_
 _target_: gtsfm.scene_optimizer.SceneOptimizer
 
-plot_reprojection_histograms: true
-
 loader:
   _target_: gtsfm.loader.Olsson
   dataset_dir: tests/data/set1_lund_door
@@ -39,8 +37,10 @@ cluster_optimizer:
   tracking_fine_tracking: false
   track_vis_thresh: 0.2
   camera_type: PINHOLE
+  max_reproj_error: 3.0
   seed: 42
   copy_results_to_react: true
-  run_bundle_adjustment_on_leaf: true
+  plot_reprojection_histograms: true
+  run_bundle_adjustment_on_leaf: false
   run_bundle_adjustment_on_parent: true
   model_cache_key: null

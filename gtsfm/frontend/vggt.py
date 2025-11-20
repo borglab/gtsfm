@@ -158,7 +158,7 @@ class VggtConfiguration:
     keypoint_extractor: str = "aliked+sp"
     fine_tracking: bool = True
     track_vis_thresh: float = 0.2
-    max_reproj_error: float = 8.0  # TODO(Frank): Does not seem to be used
+    max_reproj_error: float = 8.0
 
 
 @dataclass
@@ -459,8 +459,13 @@ def _convert_vggt_outputs_to_gtsfm_data(
             valid_mask = np.logical_and(valid_mask, tracking_result.confidences > config.confidence_threshold)
         valid_idx = np.nonzero(valid_mask)[0]
 
-        #TODO: add filtering based on reprojection error.
-        
+        max_reproj_error = float(config.max_reproj_error)
+        enforce_reproj_filter = (
+            tracking_result.points_3d is not None
+            and np.isfinite(max_reproj_error)
+            and max_reproj_error > 0.0
+        )
+
         for valid_id in valid_idx:
             rgb: np.ndarray
             if tracking_result.colors is not None and valid_id < tracking_result.colors.shape[0]:
@@ -470,7 +475,9 @@ def _convert_vggt_outputs_to_gtsfm_data(
             else:
                 rgb = np.zeros(3, dtype=np.uint8)
             point_xyz = tracking_result.points_3d[valid_id]
-            track = torch_utils.colored_track_from_point(point_xyz, rgb)
+            gtsam_point = Point3(float(point_xyz[0]), float(point_xyz[1]), float(point_xyz[2]))
+            per_track_measurements: list[tuple[int, float, float]] = []
+            max_error_for_track = 0.0
             frame_idx = np.where(track_mask[:, valid_id])[0]
             for local_id in frame_idx:
                 global_idx = image_indices[local_id]
@@ -485,8 +492,22 @@ def _convert_vggt_outputs_to_gtsfm_data(
                     config.img_load_resolution,
                     measurement_in_load_resolution=True,
                 )
-                track.addMeasurement(global_idx, Point2(rescaled_u, rescaled_v))
+                if enforce_reproj_filter:
+                    projected = camera.project(gtsam_point)
+                    proj_u = float(projected[0])
+                    proj_v = float(projected[1])
+                    reproj_err = float(np.hypot(rescaled_u - proj_u, rescaled_v - proj_v))
+                    max_error_for_track = max(max_error_for_track, reproj_err)
+                per_track_measurements.append((global_idx, rescaled_u, rescaled_v))
 
+            if len(per_track_measurements) < 2:
+                continue
+            if enforce_reproj_filter and max_error_for_track > max_reproj_error:
+                continue
+
+            track = torch_utils.colored_track_from_point(point_xyz, rgb)
+            for global_idx, rescaled_u, rescaled_v in per_track_measurements:
+                track.addMeasurement(global_idx, Point2(rescaled_u, rescaled_v))
             gtsfm_data.add_track(track)
 
     if config.run_bundle_adjustment_on_leaf:
@@ -769,6 +790,7 @@ def run_reconstruction(
         :class:`VggtReconstruction` containing the reconstructed ``GtsfmData`` and point cloud.
     """
     cfg = config or VggtConfiguration()
+    # TODO: also include max_reproj_error in config, contingent on the config file, one example is in door.yaml
 
     torch.manual_seed(cfg.seed)
     np.random.seed(cfg.seed)

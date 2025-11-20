@@ -117,7 +117,9 @@ class SceneOptimizer:
         self._run_bundle_adjustment_on_parent = getattr(
             self.cluster_optimizer, "run_bundle_adjustment_on_parent", True
         )
-        self._plot_reprojection_histograms = plot_reprojection_histograms
+        self._plot_reprojection_histograms = getattr(
+            self.cluster_optimizer, "plot_reprojection_histograms", plot_reprojection_histograms
+        )
 
         self.output_root = Path(output_root)
         if output_worker is not None:
