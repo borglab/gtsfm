@@ -77,7 +77,14 @@ def _run_vggt_pipeline(
         torch.cuda.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
 
-    logger.info("🔵 Running VGGT on %d images.", image_batch.shape[0])
+    cluster_label = kwargs.pop("cluster_label", None)
+    partition_indices = kwargs.get("image_indices")
+    if cluster_label is not None:
+        logger.info("🔵 Running VGGT on %s with %d images.", str(cluster_label).lower(), image_batch.shape[0])
+    elif partition_indices:
+        logger.info("🔵 Running VGGT on %d images for partition %s.", image_batch.shape[0], partition_indices)
+    else:
+        logger.info("🔵 Running VGGT on %d images.", image_batch.shape[0])
     cached_model = _resolve_vggt_model(model_cache_key, loader_kwargs)
     if cached_model is not None:
         kwargs = {**kwargs, "model": cached_model}
@@ -286,6 +293,7 @@ class ClusterVGGT(ClusterOptimizerBase):
             weights_path=self._weights_path,
             model_cache_key=self._model_cache_key,
             loader_kwargs=self._loader_kwargs or None,
+            cluster_label=context.label,
         )
 
         metrics_tasks = [delayed(_aggregate_vggt_metrics)(result_graph)]
