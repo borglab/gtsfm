@@ -222,6 +222,8 @@ def combine_results(
     for child in child_results:
         if child is None:
             continue
+        if child.number_tracks() == 0:
+            continue
         if merged is None:
             merged = child
             continue
@@ -256,6 +258,16 @@ def combine_results(
     zero_track_cameras = sorted(all_cameras - cameras_with_measurements)
     if zero_track_cameras:
         logger.warning("📋 Cameras with zero tracks before parent BA: %s", zero_track_cameras)
+        if cameras_with_measurements:
+            merged = GtsfmData.from_selected_cameras(merged, sorted(cameras_with_measurements))
+            logger.info(
+                "Pruned %d zero-track cameras; %d cameras remain for parent BA.",
+                len(zero_track_cameras),
+                len(merged.get_valid_camera_indices()),
+            )
+        else:
+            logger.warning("All cameras lack tracks; skipping parent BA.")
+            return merged
     else:
         logger.info("✅ All cameras have at least one track before parent BA.")
 
