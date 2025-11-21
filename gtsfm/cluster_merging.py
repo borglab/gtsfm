@@ -244,6 +244,21 @@ def combine_results(
 
     if merged is None:
         return None
+
+    # Log cameras that have no supporting track measurements before running BA.
+    all_cameras = set(merged.get_valid_camera_indices())
+    cameras_with_measurements: set[int] = set()
+    for track_idx in range(merged.number_tracks()):
+        track = merged.get_track(track_idx)
+        for m_idx in range(track.numberMeasurements()):
+            cam_idx, _ = track.measurement(m_idx)
+            cameras_with_measurements.add(cam_idx)
+    zero_track_cameras = sorted(all_cameras - cameras_with_measurements)
+    if zero_track_cameras:
+        logger.warning("📋 Cameras with zero tracks before parent BA: %s", zero_track_cameras)
+    else:
+        logger.info("✅ All cameras have at least one track before parent BA.")
+
     try:
         merged_with_ba = BundleAdjustmentOptimizer().run_simple_ba(merged)[0]  # Can definitely fail
         _propagate_scene_metadata(merged_with_ba, merged)
