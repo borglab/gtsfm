@@ -38,7 +38,7 @@ jobs:
       PYTHON_VERSION: 3.8
 
     steps:
-      - uses: actions/checkout@v5.0.0
+      - uses: actions/checkout@v6.0.0
       - name: Cache frontend
         uses: actions/cache@v4
         env:
