@@ -231,8 +231,8 @@ def combine_results(
             # Use cameras to estimate a similarity transform between merged and child.
             aSb = align_utils.sim3_from_Pose3_maps(merged.poses(), child.poses())
         except Exception as exc:
-            logger.warning("⚠️ Failed to align cluster outputs: %s", exc)
-            aSb = Similarity3()  # identity
+            logger.warning("⚠️ Failed to align cluster outputs: %s; skipping child", exc)
+            continue
         try:
             merged = merged.merged_with(child, aSb)  # Should always succeed
         except Exception as exc:
@@ -240,6 +240,42 @@ def combine_results(
 
     _propagate_scene_metadata(merged, metadata_source)
     _log_scene_reprojection_stats(merged, "merged result (camera only)", plot_histograms=plot_reprojection_histograms)
+    if merged is not None and merged.number_tracks() > 0:
+        track_errors: list[float] = []
+        tracks = merged.tracks()
+        cameras = merged.cameras()
+        for track in tracks:
+            errors, _ = compute_track_reprojection_errors(cameras, track)
+            mean_error = float(np.nanmean(errors)) if errors.size > 0 else np.nan
+            track_errors.append(mean_error)
+        finite_errors = np.array(track_errors, dtype=float)
+        finite_errors = finite_errors[np.isfinite(finite_errors)]
+        if finite_errors.size > 0:
+            median_error = float(np.median(finite_errors))
+            error_threshold = min(5.0, median_error * 5.0)
+            retained_tracks = [
+                track for track, err in zip(tracks, track_errors) if np.isfinite(err) and err <= error_threshold
+            ]
+            removed_count = merged.number_tracks() - len(retained_tracks)
+            if removed_count > 0:
+                logger.info(
+                    "🧹 Dropping %d tracks with reprojection error > %.2f px (median=%.2f).",
+                    removed_count,
+                    error_threshold,
+                    median_error,
+                )
+                filtered = GtsfmData(
+                    merged.number_images(),
+                    cameras=cameras,
+                    tracks=retained_tracks,
+                    gaussian_splats=merged.get_gaussian_splats(),
+                )
+                for idx in range(merged.number_images()):
+                    info = merged.get_image_info(idx)
+                    if info.name is not None or info.shape is not None:
+                        filtered.set_image_info(idx, name=info.name, shape=info.shape)
+                _propagate_scene_metadata(filtered, merged)
+                merged = filtered
 
     if not run_bundle_adjustment_on_parent:
         return merged
