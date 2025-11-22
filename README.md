@@ -44,14 +44,14 @@ On **Linux**, with CUDA support, run:
 conda env create -f environment_linux.yml
 conda activate gtsfm-v1 # you may need "source activate gtsfm-v1" depending upon your bash and conda set-up
 ```
-check your cuda version then install install `torch_scatter` from pre-built wheels
+Check your cuda version then install `torch_scatter` from pre-built wheels
 
 For example, for CUDA 12.1 → use cu121 
 ```bash
 pip install torch-scatter -f https://data.pyg.org/whl/torch-2.5.1+cu121.html
 ```
 
-For use PACE, please install `environment_linux_PACE.yml` instead of `environment_linux.yml`
+To use PACE, please install `environment_linux_PACE.yml` instead of `environment_linux.yml`
 
 On **macOS**, there is no CUDA support, so run:
 
