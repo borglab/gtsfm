@@ -15,26 +15,26 @@ dependencies:
   - pytest-cov
   - flake8
   - isort
-  # dask and related
+  # dask and related - using versions compatible with dask-cuda 23.10.0
   - asyncssh
-  - dask=2025.9.1
-  - distributed=2025.9.1
+  - dask=2023.9.2       
+  - distributed=2023.9.2  
   - lz4=4.4.4
   - msgpack-python=1.1.1
   - python-graphviz
-  - toolz =1.1.0
-  - tornado=6.5.2
+  - toolz=1.1.0
+  - tornado<6.3       
   # GPU/UCX support for multi-GPU communication
-  # - distributed-ucx==12.0.0 # New UCX implementation
-  # - dask-cuda>=24.8.0
+  - dask-cuda=23.10.0  
+  - ucx               
   # core functionality and APIs
   - hydra-core
   - matplotlib>=3.5
   - networkx
   - nodejs
-  - numpy=2.2.6
+  - numpy<2            
   - open3d
-  - pandas=2.3.3
+  - pandas<1.6         
   - pillow>=9.0.0
   - scikit-learn
   - scipy
@@ -48,11 +48,12 @@ dependencies:
   - tabulate
   - simplejson
   - pyparsing>=3.0.9
-  - psycopg2 # Added for PostgreSQL support
+  - psycopg2
   # testing
   - parameterized
   - wget
   - pip:
+      # PyTorch with CUDA 12.1 support (optimal for PACE H100/H200/L40S GPUs)
       - torch==2.5.1
       - torchvision==0.20.1
       - opencv-python>=4.5.4.60
