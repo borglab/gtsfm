@@ -340,7 +340,7 @@ class GtsfmRunner:
         # Get configuration from first worker (assuming uniform config)
         use_ucx = workers[0].get("use_ucx", False)
         protocol = "ucx" if use_ucx else "tcp"
-        rmm_pool_size = workers[0].get("gpu_memory_pool", "10GB")
+        rmm_pool_size = workers[0].get("gpu_memory_pool", None)
         device_memory_limit = workers[0].get("system_memory", "10GB")
         
         logger.info(f"🎮 Creating LocalCUDACluster with {n_workers} workers")
@@ -350,11 +350,19 @@ class GtsfmRunner:
         cluster_kwargs = {
             "n_workers": n_workers,
             "protocol": protocol,
-            "rmm_pool_size": rmm_pool_size,
             "device_memory_limit": device_memory_limit,
             "threads_per_worker": 1,  # One thread per GPU worker
             "dashboard_address": self.parsed_args.dashboard_port,
         }
+
+        # Only add rmm_pool_size if RMM is available and requested
+        if rmm_pool_size is not None:
+            try:
+                import rmm
+                cluster_kwargs["rmm_pool_size"] = rmm_pool_size
+                logger.info(f"RMM enabled with pool size: {rmm_pool_size}")
+            except ImportError:
+                logger.warning(f"RMM not available, skipping GPU memory pooling")
 
         # Add UCX-specific settings if enabled
         if use_ucx:

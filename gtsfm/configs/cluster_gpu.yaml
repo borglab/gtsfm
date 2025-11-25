@@ -3,11 +3,7 @@
 workers:
   - host: localhost
     gpus: 1
-    use_ucx: true
-    gpu_memory_pool: "10GB"
     system_memory: "10GB"
   - host: localhost
     gpus: 1
-    use_ucx: true
-    gpu_memory_pool: "10GB"
     system_memory: "10GB"
