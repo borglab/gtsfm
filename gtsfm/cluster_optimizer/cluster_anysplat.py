@@ -175,7 +175,9 @@ class ClusterAnySplat(ClusterOptimizerBase):
         if splats_means.size > 0:
             for j, xyz in enumerate(splats_means):
                 color = colors_np[j]
+
                 track = torch_utils.colored_track_from_point(xyz, color)
+
                 gtsfm_data.add_track(track)
 
         logger.info(f"Added {len(splats_means)} tracks from Gaussian means.")

@@ -17,9 +17,9 @@ image_pairs_generator:
       _target_: gtsfm.frontend.global_descriptor.MegaLoc
   retriever:
     _target_: gtsfm.retriever.Similarity
-    num_matched: 5
-    min_score: 0.79
-  batch_size: 16
+    num_matched: 20
+    min_score: 0.5
+  batch_size: 50
 
 graph_partitioner:
   _target_: gtsfm.graph_partitioner.Single
@@ -27,13 +27,10 @@ graph_partitioner:
 cluster_optimizer:
   _target_: gtsfm.cluster_optimizer.cluster_vggt.ClusterVGGT
   weights_path: null
-  image_load_resolution: 512
-  inference_resolution: 392
-  conf_threshold: 2.0
-  max_num_points: 50000
-  tracking_max_query_pts: 384
-  tracking_query_frame_num: 2
-  tracking_fine_tracking: false
+  image_load_resolution: 1024
+  inference_resolution: 518
+  conf_threshold: 5.0
+  max_num_points: 100000
   camera_type: PINHOLE
   seed: 42
   copy_results_to_react: true
