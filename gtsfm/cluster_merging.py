@@ -231,8 +231,8 @@ def combine_results(
             # Use cameras to estimate a similarity transform between merged and child.
             aSb = align_utils.sim3_from_Pose3_maps(merged.poses(), child.poses())
         except Exception as exc:
-            logger.warning("⚠️ Failed to align cluster outputs: %s; skipping child", exc)
-            continue
+            logger.warning("⚠️ Failed to align cluster outputs: %s", exc)
+            aSb = Similarity3()  # identity
         try:
             merged = merged.merged_with(child, aSb)  # Should always succeed
         except Exception as exc:
