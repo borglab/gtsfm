@@ -353,13 +353,7 @@ class GtsfmRunner:
 
         # Only add rmm_pool_size if RMM is available and requested
         if rmm_pool_size is not None:
-            try:
-                import rmm
-
-                cluster_kwargs["rmm_pool_size"] = rmm_pool_size
-                logger.info(f"RMM enabled with pool size: {rmm_pool_size}")
-            except ImportError:
-                logger.warning("RMM not available, skipping GPU memory pooling")
+            logger.warning("RMM pool size is not supported in this version of GTSFM.")
 
         # Add UCX-specific settings if enabled
         if use_ucx:
