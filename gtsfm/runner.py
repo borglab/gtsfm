@@ -313,12 +313,11 @@ class GtsfmRunner:
                 " attempts. Aborting..."
             )
 
-
     def _create_local_cuda_cluster(self, workers):
         """Create LocalCUDACluster for single multi-GPU machine with SLURM.
-        
-        SLURM automatically sets CUDA_VISIBLE_DEVICES, so we don't need to 
-        manually configure GPU IDs. We just need to tell dask-cuda how many 
+
+        SLURM automatically sets CUDA_VISIBLE_DEVICES, so we don't need to
+        manually configure GPU IDs. We just need to tell dask-cuda how many
         workers to create and their memory limits.
 
         Args:
@@ -330,19 +329,16 @@ class GtsfmRunner:
         try:
             from dask_cuda import LocalCUDACluster
         except ImportError:
-            raise ImportError(
-                "dask-cuda is required for GPU clusters. "
-                "Install with: pip install dask-cuda"
-            )
+            raise ImportError("dask-cuda is required for GPU clusters. " "Install with: pip install dask-cuda")
 
         n_workers = len(workers)
-        
+
         # Get configuration from first worker (assuming uniform config)
         use_ucx = workers[0].get("use_ucx", False)
         protocol = "ucx" if use_ucx else "tcp"
         rmm_pool_size = workers[0].get("gpu_memory_pool", None)
         device_memory_limit = workers[0].get("system_memory", "10GB")
-        
+
         logger.info(f"🎮 Creating LocalCUDACluster with {n_workers} workers")
         logger.info(f"📌 SLURM CUDA_VISIBLE_DEVICES: {os.environ.get('CUDA_VISIBLE_DEVICES', 'not set')}")
         logger.info(f"📌 Protocol: {protocol} | RMM pool: {rmm_pool_size} | Device memory: {device_memory_limit}")
@@ -359,18 +355,21 @@ class GtsfmRunner:
         if rmm_pool_size is not None:
             try:
                 import rmm
+
                 cluster_kwargs["rmm_pool_size"] = rmm_pool_size
                 logger.info(f"RMM enabled with pool size: {rmm_pool_size}")
             except ImportError:
-                logger.warning(f"RMM not available, skipping GPU memory pooling")
+                logger.warning("RMM not available, skipping GPU memory pooling")
 
         # Add UCX-specific settings if enabled
         if use_ucx:
-            cluster_kwargs.update({
-                "enable_tcp_over_ucx": True,
-                "enable_nvlink": True,
-                "enable_infiniband": False,
-            })
+            cluster_kwargs.update(
+                {
+                    "enable_tcp_over_ucx": True,
+                    "enable_nvlink": True,
+                    "enable_infiniband": False,
+                }
+            )
 
         cluster = LocalCUDACluster(**cluster_kwargs)
         logger.info("✅ LocalCUDACluster created successfully")
@@ -379,7 +378,7 @@ class GtsfmRunner:
 
     def _create_dask_client(self):
         if self.parsed_args.cluster_config:
-            # Case 2 or 3: Distributed multi-GPU machines 
+            # Case 2 or 3: Distributed multi-GPU machines
             cluster = self.setup_ssh_cluster_with_retries()
             client = Client(cluster)
             client.forward_logging()
@@ -395,7 +394,7 @@ class GtsfmRunner:
                 logger.info("🖥️  Single-machine multi-GPU cluster")
                 logger.info("   All workers can access data locally")
         else:
-            # Case 1: Single Local Machine 
+            # Case 1: Single Local Machine
             local_cluster_kwargs = {
                 "n_workers": self.parsed_args.num_workers,
                 "threads_per_worker": self.parsed_args.threads_per_worker,
