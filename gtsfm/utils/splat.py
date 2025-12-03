@@ -6,7 +6,7 @@ Authors: Harneet Singh Khanuja
 import math
 import random
 from dataclasses import is_dataclass, replace
-from typing import Literal, Protocol, Tuple
+from typing import Literal, Protocol, Tuple, runtime_checkable
 
 import cv2
 import gtsam  # type: ignore
@@ -19,6 +19,7 @@ from gtsfm.utils import logger as logger_utils
 logger = logger_utils.get_logger()
 
 
+@runtime_checkable
 class GaussiansProtocol(Protocol):
     """Type protocol for Gaussian splats to satisfy mypy."""
 
