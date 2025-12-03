@@ -312,6 +312,7 @@ class GtsfmRunner:
                 f"Connection to cluster could not be established after {self.parsed_args.num_retry_cluster_connection}"
                 " attempts. Aborting..."
             )
+        return cluster, config
 
     def _create_local_cuda_cluster(self, workers):
         """Create LocalCUDACluster for single multi-GPU machine with SLURM.
@@ -329,7 +330,7 @@ class GtsfmRunner:
         try:
             from dask_cuda import LocalCUDACluster
         except ImportError:
-            raise ImportError("dask-cuda is required for GPU clusters. " "Install with: pip install dask-cuda")
+            raise ImportError("dask-cuda is required for GPU clusters. Install with: pip install dask-cuda")
 
         n_workers = len(workers)
 
@@ -373,10 +374,10 @@ class GtsfmRunner:
     def _create_dask_client(self):
         if self.parsed_args.cluster_config:
             # Case 2 or 3: Distributed multi-GPU machines
-            cluster = self.setup_ssh_cluster_with_retries()
+            cluster, config = self.setup_ssh_cluster_with_retries()
             client = Client(cluster)
             client.forward_logging()
-            config = OmegaConf.load(os.path.join("gtsfm", "configs", self.parsed_args.cluster_config))
+
             workers = dict(config)["workers"]
             unique_hosts = set(w["host"] for w in workers)
 

@@ -71,7 +71,7 @@ GTSfM uses the [SSHCluster](https://docs.dask.org/en/stable/deploying-ssh.html#d
       ```
     - Always provide absolute paths for all directories
 
-10. If you would like to check out the dask dashboard, you will need to do port forwarding from machine to your local computer:
+10. If you would like to check out the dask dashboard, you will need to do port forwarding from machine to your local computer
     - ```
       ssh -N -f -L localhost:local_port:localhost:machine_port username@machine_adress
       ```
