@@ -781,7 +781,6 @@ def run_reconstruction(
         :class:`VggtReconstruction` containing the reconstructed ``GtsfmData`` and point cloud.
     """
     cfg = config or VggtConfiguration()
-    # TODO: also include max_reproj_error in config, contingent on the config file, one example is in door.yaml
 
     torch.manual_seed(cfg.seed)
     np.random.seed(cfg.seed)
