@@ -77,7 +77,14 @@ def _run_vggt_pipeline(
         torch.cuda.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
 
-    logger.info("🔵 Running VGGT on %d images.", image_batch.shape[0])
+    cluster_label = kwargs.pop("cluster_label", None)
+    partition_indices = kwargs.get("image_indices")
+    if cluster_label is not None:
+        logger.info("🔵 Running VGGT on %s with %d images.", str(cluster_label).lower(), image_batch.shape[0])
+    elif partition_indices:
+        logger.info("🔵 Running VGGT on %d images for partition %s.", image_batch.shape[0], partition_indices)
+    else:
+        logger.info("🔵 Running VGGT on %d images.", image_batch.shape[0])
     cached_model = _resolve_vggt_model(model_cache_key, loader_kwargs)
     if cached_model is not None:
         kwargs = {**kwargs, "model": cached_model}
@@ -124,6 +131,11 @@ class ClusterVGGT(ClusterOptimizerBase):
         inference_resolution: int = 518,
         conf_threshold: float = 5.0,
         max_num_points: int = 100000,
+        tracking: bool = False,
+        tracking_max_query_pts: int = 1000,
+        tracking_query_frame_num: int = 4,
+        tracking_fine_tracking: bool = True,
+        track_vis_thresh: float = 0.2,
         camera_type: str = "PINHOLE",
         seed: int = 42,
         copy_results_to_react: bool = True,
@@ -134,28 +146,70 @@ class ClusterVGGT(ClusterOptimizerBase):
         inference_dtype: Optional[Union[str, torch.dtype]] = None,
         model_ctor_kwargs: Optional[dict[str, Any]] = None,
         use_sparse_attention: bool = False,
+        fast_dtype: Optional[Union[str, torch.dtype]] = None,
+        merging: Optional[int] = None,
+        vis_attn_map: bool = False,
+        enable_protection: bool = False,
+        extra_model_kwargs: Optional[dict[str, Any]] = None,
+        run_bundle_adjustment_on_leaf: bool = False,
+        run_bundle_adjustment_on_parent: bool = True,
+        max_reproj_error: float = 8.0,
+        plot_reprojection_histograms: bool = True,
     ) -> None:
         super().__init__(
             pose_angular_error_thresh=pose_angular_error_thresh,
             output_worker=output_worker,
         )
+        self.plot_reprojection_histograms = plot_reprojection_histograms
         self._weights_path = Path(weights_path) if weights_path is not None else None
         self._image_load_resolution = image_load_resolution
         self._inference_resolution = inference_resolution
         self._conf_threshold = conf_threshold
         self._max_points_for_colmap = max_num_points
+        self._tracking = tracking
+        self._tracking_max_query_pts = tracking_max_query_pts
+        self._tracking_query_frame_num = tracking_query_frame_num
+        self._tracking_fine_tracking = tracking_fine_tracking
+        self._track_vis_thresh = track_vis_thresh
         self._camera_type = camera_type
+        self._max_reproj_error = max_reproj_error
         self._seed = seed
         self._copy_results_to_react = copy_results_to_react
         self._explicit_scene_dir = Path(scene_dir) if scene_dir is not None else None
         self._use_sparse_attention = use_sparse_attention
         self._dtype = inference_dtype
+        self._run_bundle_adjustment_on_leaf = run_bundle_adjustment_on_leaf
+        if fast_dtype is not None:
+            if self._dtype is None:
+                self._dtype = fast_dtype
+            elif self._dtype != fast_dtype:
+                logger.warning(
+                    "Ignoring fast_dtype=%s because inference_dtype=%s is already specified.",
+                    fast_dtype,
+                    self._dtype,
+                )
+
         self._model_ctor_kwargs = dict(model_ctor_kwargs) if model_ctor_kwargs is not None else {}
+        if extra_model_kwargs:
+            self._model_ctor_kwargs.update(extra_model_kwargs)
+
+        def _maybe_set_model_kw(key: str, value: Any) -> None:
+            if value is None:
+                return
+            self._model_ctor_kwargs.setdefault(key, value)
+
+        _maybe_set_model_kw("merging", merging)
+        if vis_attn_map:
+            self._model_ctor_kwargs.setdefault("vis_attn_map", True)
+        if enable_protection:
+            self._model_ctor_kwargs.setdefault("enable_protection", True)
+
         self._loader_kwargs: dict[str, Any] = {}
         if self._weights_path is not None:
             self._loader_kwargs["weights_path"] = self._weights_path
         if self._model_ctor_kwargs:
             self._loader_kwargs["model_kwargs"] = self._model_ctor_kwargs
+        self.run_bundle_adjustment_on_parent = run_bundle_adjustment_on_parent
 
         if model_cache_key is False:
             self._model_cache_key: Hashable | None = None
@@ -177,6 +231,7 @@ class ClusterVGGT(ClusterOptimizerBase):
             f"camera_type={self._camera_type}",
             f"dtype={self._dtype}",
             f"use_sparse_attention={self._use_sparse_attention}",
+            f"run_bundle_adjustment_on_leaf={self._run_bundle_adjustment_on_leaf}",
         ]
         if self._model_ctor_kwargs:
             components.append(f"model_ctor_kwargs={self._model_ctor_kwargs}")
@@ -212,9 +267,16 @@ class ClusterVGGT(ClusterOptimizerBase):
             img_load_resolution=self._image_load_resolution,
             confidence_threshold=self._conf_threshold,
             max_num_points=self._max_points_for_colmap,
+            tracking=self._tracking,
+            max_query_pts=self._tracking_max_query_pts,
+            query_frame_num=self._tracking_query_frame_num,
+            fine_tracking=self._tracking_fine_tracking,
+            track_vis_thresh=self._track_vis_thresh,
             dtype=self._dtype,
             model_ctor_kwargs=self._model_ctor_kwargs.copy(),
             use_sparse_attention=self._use_sparse_attention,
+            run_bundle_adjustment_on_leaf=self._run_bundle_adjustment_on_leaf,
+            max_reproj_error=self._max_reproj_error,
         )
 
         image_batch_graph, original_coords_graph = delayed(_load_vggt_inputs, nout=2)(
@@ -231,6 +293,7 @@ class ClusterVGGT(ClusterOptimizerBase):
             weights_path=self._weights_path,
             model_cache_key=self._model_cache_key,
             loader_kwargs=self._loader_kwargs or None,
+            cluster_label=context.label,
         )
 
         metrics_tasks = [delayed(_aggregate_vggt_metrics)(result_graph)]

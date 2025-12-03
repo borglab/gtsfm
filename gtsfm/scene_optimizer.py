@@ -5,6 +5,7 @@ Authors: Ayush Baid, John Lambert
 
 import time
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from typing import Optional, TypeVar, cast
 
@@ -107,11 +108,18 @@ class SceneOptimizer:
         graph_partitioner: GraphPartitionerBase = SinglePartitioner(),
         output_root: str = DEFAULT_OUTPUT_ROOT,
         output_worker: Optional[str] = None,
+        plot_reprojection_histograms: bool = True,
     ) -> None:
         self.loader = loader
         self.image_pairs_generator = image_pairs_generator
         self.graph_partitioner = graph_partitioner
         self.cluster_optimizer = cluster_optimizer
+        self._run_bundle_adjustment_on_parent = getattr(
+            self.cluster_optimizer, "run_bundle_adjustment_on_parent", True
+        )
+        self._plot_reprojection_histograms = getattr(
+            self.cluster_optimizer, "plot_reprojection_histograms", plot_reprojection_histograms
+        )
 
         self.output_root = Path(output_root)
         if output_worker is not None:
@@ -152,10 +160,15 @@ class SceneOptimizer:
 
         io_graph = delayed(_finalize_io_tasks, pure=False)(*computation.io_tasks)
         metrics_graph = delayed(_collect_metric_results, pure=False)(*computation.metric_tasks)
+        annotated_reconstruction = delayed(cluster_merging.annotate_scene_with_metadata, pure=False)(
+            computation.sfm_result,
+            context.output_paths.plots,
+            context.label,
+        )
 
         io_future: Future = context.client.compute(io_graph)  # type: ignore
         metrics_future: Future = context.client.compute(metrics_graph)  # type: ignore
-        reconstruction_future: Future = context.client.compute(computation.sfm_result)  # type: ignore
+        reconstruction_future: Future = context.client.compute(annotated_reconstruction)  # type: ignore
 
         return ClusterExecutionHandles(
             reconstruction=reconstruction_future,
@@ -215,9 +228,12 @@ class SceneOptimizer:
 
                 handles_tree = context_tree.map(self._schedule_single_cluster)
                 reconstruction_tree = handles_tree.map(lambda handle: handle.reconstruction)
-                merged_future_tree = submit_tree_map_with_children(
-                    client, reconstruction_tree, cluster_merging.combine_results
+                merge_fn = partial(
+                    cluster_merging.combine_results,
+                    run_bundle_adjustment_on_parent=self._run_bundle_adjustment_on_parent,
+                    plot_reprojection_histograms=self._plot_reprojection_histograms,
                 )
+                merged_future_tree = submit_tree_map_with_children(client, reconstruction_tree, merge_fn)
                 export_tree = cluster_merging.schedule_exports(client, handles_tree, merged_future_tree)
                 root_merge_future: Optional[Future] = merged_future_tree.value
                 for handle_node, merged_node, export_node in zip(

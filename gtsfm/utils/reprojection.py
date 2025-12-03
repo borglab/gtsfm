@@ -58,6 +58,29 @@ def _compute_reprojection_errors_core(
     return errors, avg_error
 
 
+def compute_reprojection_errors_with_stats(
+    track_camera_dict: Dict[int, CAMERA_TYPE], point3d: np.ndarray, measurements: Iterator[Tuple[int, np.ndarray]]
+) -> Tuple[np.ndarray, float, float, float]:
+    """Compute reprojection errors and summary stats for a 3D point and its measurements.
+
+    Args:
+        track_camera_dict: Dict of cameras, with camera indices as keys.
+        point3d: 3D point to project.
+        measurements: Iterator yielding (camera_idx, uv_measured) tuples.
+
+    Returns:
+        Tuple of (errors array, mean error, min error, max error). Stats ignore NaNs.
+    """
+    errors, avg_error = _compute_reprojection_errors_core(track_camera_dict, point3d, measurements)
+    if np.isnan(errors).all():
+        min_error = max_error = median_error = np.nan
+    else:
+        min_error = float(np.nanmin(errors))
+        max_error = float(np.nanmax(errors))
+        median_error = float(np.nanmedian(errors))
+    return errors, avg_error, median_error, min_error, max_error
+
+
 def compute_track_reprojection_errors(
     track_camera_dict: Dict[int, CAMERA_TYPE], track: SfmTrack
 ) -> Tuple[np.ndarray, float]:
