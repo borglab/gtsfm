@@ -73,12 +73,12 @@ def compute_reprojection_errors_with_stats(
     """
     errors, avg_error = _compute_reprojection_errors_core(track_camera_dict, point3d, measurements)
     if np.isnan(errors).all():
-        min_error = max_error = medium_error = np.nan
+        min_error = max_error = median_error = np.nan
     else:
         min_error = float(np.nanmin(errors))
         max_error = float(np.nanmax(errors))
-        medium_error = float(np.median(errors))
-    return errors, avg_error, medium_error, min_error, max_error
+        median_error = float(np.nanmedian(errors))
+    return errors, avg_error, median_error, min_error, max_error
 
 
 def compute_track_reprojection_errors(
