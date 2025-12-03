@@ -226,7 +226,6 @@ class VggtReconstruction:
         tracks = torch.from_numpy(self.tracking_result.tracks).to(dtype=torch.float32)
         visibilities = torch.from_numpy(self.tracking_result.visibilities).to(dtype=torch.float32)
 
-        # print('tracks: ', tracks[0,0])
 
         if tracks.shape[0] != images.shape[0]:
             raise ValueError(
