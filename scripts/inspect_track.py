@@ -68,6 +68,162 @@ def _describe_measurement(summary: MeasurementSummary) -> str:
     return ", ".join(parts)
 
 
+def _visualize_gtsfm_tracks_on_original_frames(
+    square_images: torch.Tensor,
+    original_coords: torch.Tensor,
+    gtsfm_data: GtsfmData,
+    image_indices: list[int],
+    output_dir: Path,
+) -> None:
+    """Restore images to native scale and overlay 2D track measurements from ``GtsfmData``."""
+
+    if gtsfm_data.number_tracks() == 0:
+        return
+
+    restored = _restore_images_to_original_scale(square_images, original_coords)
+
+    num_frames = len(image_indices)
+    index_lookup = {img_idx: local_idx for local_idx, img_idx in enumerate(image_indices)}
+    per_frame_measurements: list[list[tuple[tuple[float, float], tuple[int, int, int]]]] = [
+        [] for _ in range(num_frames)
+    ]
+    track_sequences: list[dict[str, Any]] = []
+
+    # Tracks stored in ``gtsfm_data`` are already expressed in the original image coordinates by vggt.py.
+    processed_tracks = 0
+    for track_idx in range(gtsfm_data.number_tracks()):
+        if processed_tracks >= MAX_TRACKS_TO_DRAW:
+            break
+        track = gtsfm_data.get_track(track_idx)
+        if track is None:
+            continue
+        measurements: list[tuple[int, float, float]] = []
+        for meas_idx in range(track.numberMeasurements()):
+            img_idx, uv = track.measurement(meas_idx)
+            local_idx = index_lookup.get(img_idx)
+            if local_idx is None:
+                continue
+            if hasattr(uv, "x"):
+                u = float(uv.x())
+                v = float(uv.y())
+            elif isinstance(uv, np.ndarray):
+                u = float(uv[0])
+                v = float(uv[1])
+            else:
+                # assume tuple-like
+                u = float(uv[0])
+                v = float(uv[1])
+            measurements.append((local_idx, u, v))
+
+        if len(measurements) == 0:
+            continue
+
+        color_bgr = _vibrant_bgr_from_index(track_idx)
+        measurements = sorted(measurements, key=lambda m: m[0])
+        point3 = track.point3() if hasattr(track, "point3") else None
+
+        track_sequences.append(
+            {
+                "measurements": measurements,
+                "color": color_bgr,
+                "point3": point3,
+            }
+        )
+        processed_tracks += 1
+
+        for frame_idx, u, v in measurements:
+            per_frame_measurements[frame_idx].append(((u, v), color_bgr))
+
+    if not track_sequences:
+        return
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    frames_per_row = min(4, max(1, num_frames))
+    grid_rows = math.ceil(num_frames / frames_per_row)
+    max_h = restored.shape[2]
+    max_w = restored.shape[3]
+    grid_canvas = np.zeros((grid_rows * max_h, frames_per_row * max_w, 3), dtype=np.uint8)
+
+    restored_np = (restored.permute(0, 2, 3, 1).cpu().numpy() * 255.0).astype(np.uint8)
+
+    for local_idx, frame in enumerate(restored_np):
+        row = local_idx // frames_per_row
+        col = local_idx % frames_per_row
+        y0 = row * max_h
+        x0 = col * max_w
+        grid_canvas[y0 : y0 + frame.shape[0], x0 : x0 + frame.shape[1]] = frame
+
+    grid_canvas = cv2.cvtColor(grid_canvas, cv2.COLOR_RGB2BGR)
+
+    for track_info in track_sequences:
+        measurements = track_info["measurements"]
+        color_bgr = track_info["color"]
+        last_grid_point = None
+        for frame_idx, u, v in measurements:
+            row = frame_idx // frames_per_row
+            col = frame_idx % frames_per_row
+            grid_pt = (int(round(col * max_w + u)), int(round(row * max_h + v)))
+            cv2.circle(grid_canvas, grid_pt, radius=5, color=color_bgr, thickness=-1)
+            if last_grid_point is not None:
+                cv2.line(grid_canvas, last_grid_point, grid_pt, color=color_bgr, thickness=2, lineType=cv2.LINE_AA)
+            last_grid_point = grid_pt if len(measurements) > 1 else None
+
+    cv2.imwrite(str(output_dir / "tracks_grid.png"), grid_canvas)
+
+    for local_idx, frame in enumerate(restored_np):
+        canvas = cv2.cvtColor(frame.copy(), cv2.COLOR_RGB2BGR)
+        for point_idx, ((u, v), color_bgr) in enumerate(per_frame_measurements[local_idx]):
+            if point_idx >= MAX_POINTS_PER_FRAME:
+                break
+            pt = (int(round(u)), int(round(v)))
+            cv2.circle(canvas, pt, radius=5, color=color_bgr, thickness=-1)
+        cv2.imwrite(str(output_dir / f"frame_{local_idx:04d}.png"), canvas)
+
+    for local_idx, frame in enumerate(restored_np):
+        img_idx = image_indices[local_idx]
+        camera = gtsfm_data.get_camera(img_idx)
+        if camera is None:
+            continue
+
+        canvas = cv2.cvtColor(frame.copy(), cv2.COLOR_RGB2BGR)
+        height, width = frame.shape[:2]
+        for track_info in track_sequences:
+            point3 = track_info["point3"]
+            if point3 is None:
+                continue
+            try:
+                uv = camera.project(point3)
+            except Exception:
+                continue
+
+            if hasattr(uv, "x"):
+                u = float(uv.x())
+                v = float(uv.y())
+            elif isinstance(uv, np.ndarray):
+                u = float(uv[0])
+                v = float(uv[1])
+            else:
+                u = float(uv[0])
+                v = float(uv[1])
+            if not (0 <= u < width and 0 <= v < height):
+                continue
+
+            color_bgr = track_info["color"]
+            pt = (int(round(u)), int(round(v)))
+            cv2.drawMarker(
+                canvas,
+                pt,
+                color=color_bgr,
+                markerType=cv2.MARKER_CROSS,
+                markerSize=10,
+                thickness=2,
+                line_type=cv2.LINE_AA,
+            )
+
+        cv2.imwrite(str(output_dir / f"reproj_{local_idx:04d}.png"), canvas)
+
+
 def inspect_track(
     model_dir: Path,
     track_id: Optional[int],
