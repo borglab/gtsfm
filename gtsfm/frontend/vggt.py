@@ -718,6 +718,11 @@ def run_vggt_tracking(
 
     conf_tensor = vggt_output.depth_confidence.to(device="cpu", dtype=dtype, non_blocking=True)
     points_tensor = vggt_output.dense_points.to(device="cpu", dtype=dtype, non_blocking=True)
+    
+    # Free GPU memory held by vggt_output tensors now that we've moved them to CPU.
+    vggt_output.depth_confidence = None
+    vggt_output.dense_points = None
+    torch.cuda.empty_cache()
 
     with torch.no_grad():
         tracks, vis_scores, confidences, points_3d, colors = predict_tracks(
