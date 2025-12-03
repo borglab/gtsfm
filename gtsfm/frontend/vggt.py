@@ -226,7 +226,6 @@ class VggtReconstruction:
         tracks = torch.from_numpy(self.tracking_result.tracks).to(dtype=torch.float32)
         visibilities = torch.from_numpy(self.tracking_result.visibilities).to(dtype=torch.float32)
 
-
         if tracks.shape[0] != images.shape[0]:
             raise ValueError(
                 "Number of frames in images does not match tracked trajectories "
@@ -434,7 +433,6 @@ def _convert_vggt_outputs_to_gtsfm_data(
             name=image_names_str[local_idx] if image_names_str is not None else None,
             shape=(int(image_height), int(image_width)),
         )
-
 
     if tracking_result is None and points_3d.size > 0 and points_rgb is not None:
         for j, xyz in enumerate(points_3d):
@@ -718,11 +716,6 @@ def run_vggt_tracking(
 
     conf_tensor = vggt_output.depth_confidence.to(device="cpu", dtype=dtype, non_blocking=True)
     points_tensor = vggt_output.dense_points.to(device="cpu", dtype=dtype, non_blocking=True)
-    
-    # Free GPU memory held by vggt_output tensors now that we've moved them to CPU.
-    vggt_output.depth_confidence = None
-    vggt_output.dense_points = None
-    torch.cuda.empty_cache()
 
     with torch.no_grad():
         tracks, vis_scores, confidences, points_3d, colors = predict_tracks(
