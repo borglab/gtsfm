@@ -3,12 +3,9 @@
 Authors: Xinan Zhang and Frank Dellaert
 """
 
-import math
 import unittest
 from pathlib import Path
-from typing import Any
 
-import cv2
 import numpy as np
 import torch
 import torch.nn.functional as F
