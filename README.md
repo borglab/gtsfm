@@ -51,7 +51,13 @@ For example, for CUDA 12.1 → use cu121
 pip install torch-scatter -f https://data.pyg.org/whl/torch-2.5.1+cu121.html
 ```
 
-To use PACE, please install `environment_linux_PACE.yml` instead of `environment_linux.yml`
+To use PACE, use the same linux installation `environment_linux.yml`
+
+Then add `dask-cuda`
+```bash
+conda install -c rapidsai -c conda-forge dask-cuda
+```
+
 
 On **macOS**, there is no CUDA support, so run:
 

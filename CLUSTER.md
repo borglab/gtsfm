@@ -71,29 +71,57 @@ GTSfM uses the [SSHCluster](https://docs.dask.org/en/stable/deploying-ssh.html#d
       ```
     - Always provide absolute paths for all directories
 
-10. If you would like to check out the dask dashboard, you will need to do port forwarding from machine to your local computer:
+10. If you would like to check out the dask dashboard, you will need to do port forwarding from machine to your local computer
     - ```
       ssh -N -f -L localhost:local_port:localhost:machine_port username@machine_adress
       ```
 
-11. The results will be generated on the scheduler machine. If you would like to download results from the scheduler machine to your local computer:
+11. The results will be generated on the scheduler machine. If you would like to download results from the scheduler machine to your local computer
     - ```
       scp -r username@host:machine/results/path /local/computer/directory
       ```
+Or you can take advantage of the vs-code port, in the scheduler machine to check report
+
 > **Note:** Please utilize `gtsfm/utils/ssh_passwordless_setup.py` to facilitate the set up
 
-## How to Run GTSfM on a machine with multiple GPU
+## How to Run GTSfM on machine with multiple GPUs
+### Use PACE Phoenix, Slurm as example
 
-### Best Practice
-- According to the dask document, it is best to assign each worker per GPU
-- GPU memory space: allocating most, though not all
-- Use ucx connection instead of tcp to speed up same machine in-between GPU communication
 
-### There are two cases for the multi-GPUs
+- Use `salloc` to request resource, then you don't need `dask-jobqueue`, which is for submitting jobs from within code. 
+- Slurm would automatically set up `CUDA_VISIBLE_DEVICES`
+- Memory settings should be slightly less than allocation per GPU to leave headroom
 
-- Case 1: Single Machine with multiple GPUs
-Use `LocalCUDACluster`
+- check result by `./viz ` on log in node, not on computation node
 
-- Case 2: Multiple Machines SSH, with multiple GPUs
-Have to manually set up `CUDA_VISIBLE_DEVICES` on the calculation node
+### Cluster Workflow, on `gtsfm/runner.py`
 
+```bash
+run() → _create_dask_client()
+│
+├─ if cluster_config?
+│  │
+│  ├─ NO ──────────────────────────> [1] LocalCluster (CPU/GPU)
+│  │                                   
+│  │
+│  └─ YES → setup_ssh_cluster_with_retries()
+│           │
+│           ├─ check: is_gpu_cluster?
+│           │
+│           ├─ NO ───────────────────> [2] SSHCluster 
+│           │                           Multi Machines with GPU on each
+│           │                           Use cluster.yaml
+│           │                           workers: [host1, host2, host3]
+│           │
+│           └─ YES → _create_gpu_cluster()
+│                    │
+│                    ├─ check: unique_hosts == 1?
+│                    │
+│                    ├─ YES ──────────> [3] LocalCUDACluster
+│                    │                   Single Machine and Multi GPU (PACE)
+│                    │                   Use cluster_gpu.yaml
+│                    │                   workers: [localhost, localhost]
+│                    │
+│                    └─ NO ───────────> [4] NotImplementedError
+│                                        Multi Machines and Multi GPUs on each (Not Support)
+```
