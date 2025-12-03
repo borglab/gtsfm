@@ -461,9 +461,7 @@ def _convert_vggt_outputs_to_gtsfm_data(
 
         max_reproj_error = float(config.max_reproj_error)
         enforce_reproj_filter = (
-            tracking_result.points_3d is not None
-            and np.isfinite(max_reproj_error)
-            and max_reproj_error > 0.0
+            tracking_result.points_3d is not None and np.isfinite(max_reproj_error) and max_reproj_error > 0.0
         )
 
         for valid_id in valid_idx:
@@ -574,7 +572,7 @@ def run_VGGT(
     assert model is not None
     images = images.to(resolved_device, dtype=resolved_dtype)
     res = cfg.vggt_fixed_resolution if cfg else DEFAULT_FIXED_RESOLUTION
-    resized_images = F.interpolate(images, size=(res, res), mode="bilinear")
+    resized_images = F.interpolate(images, size=(res, res), mode="bilinear", align_corners=False, antialias=True)
     # print('resized_images: ', resized_images.shape) 518, 518
 
     # FastVGGT requires the model to know the actual patch grid dimensions used for token merging.
