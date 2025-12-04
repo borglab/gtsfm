@@ -209,6 +209,8 @@ def combine_results(
     *,
     run_bundle_adjustment_on_parent: bool = True,
     plot_reprojection_histograms: bool = True,
+    drop_outlier_after_camera_merging: bool = True,
+    drop_camera_with_no_track: bool = True,
 ) -> Optional[GtsfmData]:
     """Merge bundle adjustment outputs from child clusters into the parent result."""
     if len(child_results) == 0:
@@ -240,7 +242,7 @@ def combine_results(
 
     _propagate_scene_metadata(merged, metadata_source)
     _log_scene_reprojection_stats(merged, "merged result (camera only)", plot_histograms=plot_reprojection_histograms)
-    if merged is not None and merged.number_tracks() > 0:
+    if drop_outlier_after_camera_merging and merged is not None and merged.number_tracks() > 0:
         track_errors: list[float] = []
         tracks = merged.tracks()
         cameras = merged.cameras()
@@ -294,6 +296,7 @@ def combine_results(
     zero_track_cameras = sorted(all_cameras - cameras_with_measurements)
     if zero_track_cameras:
         logger.warning("📋 Cameras with zero tracks before parent BA: %s", zero_track_cameras)
+    if drop_camera_with_no_track and zero_track_cameras:
         if cameras_with_measurements:
             merged = GtsfmData.from_selected_cameras(merged, sorted(cameras_with_measurements))
             logger.info(
@@ -304,8 +307,10 @@ def combine_results(
         else:
             logger.warning("All cameras lack tracks; skipping parent BA.")
             return merged
-    else:
+    elif not zero_track_cameras:
         logger.info("✅ All cameras have at least one track before parent BA.")
+    else:
+        logger.info("📌 Retaining zero-track cameras before parent BA (drop disabled).")
 
     try:
         merged_with_ba = BundleAdjustmentOptimizer().run_simple_ba(merged)[0]  # Can definitely fail
