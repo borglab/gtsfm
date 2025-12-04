@@ -124,6 +124,7 @@ class SceneOptimizer:
             self.cluster_optimizer, "drop_outlier_after_camera_merging", True
         )
         self._drop_camera_with_no_track = getattr(self.cluster_optimizer, "drop_camera_with_no_track", True)
+        self._drop_child_if_merging_fail = getattr(self.cluster_optimizer, "drop_child_if_merging_fail", False)
 
         self.output_root = Path(output_root)
         if output_worker is not None:
@@ -238,6 +239,7 @@ class SceneOptimizer:
                     plot_reprojection_histograms=self._plot_reprojection_histograms,
                     drop_outlier_after_camera_merging=self._drop_outlier_after_camera_merging,
                     drop_camera_with_no_track=self._drop_camera_with_no_track,
+                    drop_child_if_merging_fail=self._drop_child_if_merging_fail,
                 )
                 merged_future_tree = submit_tree_map_with_children(client, reconstruction_tree, merge_fn)
                 export_tree = cluster_merging.schedule_exports(client, handles_tree, merged_future_tree)

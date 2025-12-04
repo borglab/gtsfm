@@ -211,6 +211,7 @@ def combine_results(
     plot_reprojection_histograms: bool = True,
     drop_outlier_after_camera_merging: bool = True,
     drop_camera_with_no_track: bool = True,
+    drop_child_if_merging_fail: bool = False,
 ) -> Optional[GtsfmData]:
     """Merge bundle adjustment outputs from child clusters into the parent result."""
     if len(child_results) == 0:
@@ -234,6 +235,9 @@ def combine_results(
             aSb = align_utils.sim3_from_Pose3_maps(merged.poses(), child.poses())
         except Exception as exc:
             logger.warning("⚠️ Failed to align cluster outputs: %s", exc)
+            if drop_child_if_merging_fail:
+                logger.info("🧹 Dropping child reconstruction after failed alignment.")
+                continue
             aSb = Similarity3()  # identity
         try:
             merged = merged.merged_with(child, aSb)  # Should always succeed

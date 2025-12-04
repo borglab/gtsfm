@@ -156,6 +156,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         max_reproj_error: float = 8.0,
         plot_reprojection_histograms: bool = True,
         drop_outlier_after_camera_merging: bool = True,
+        drop_child_if_merging_fail: bool = True,
         drop_camera_with_no_track: bool = True,
     ) -> None:
         super().__init__(
@@ -164,6 +165,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         )
         self.plot_reprojection_histograms = plot_reprojection_histograms
         self.drop_outlier_after_camera_merging = drop_outlier_after_camera_merging
+        self.drop_child_if_merging_fail = drop_child_if_merging_fail
         self.drop_camera_with_no_track = drop_camera_with_no_track
         self._weights_path = Path(weights_path) if weights_path is not None else None
         self._image_load_resolution = image_load_resolution
