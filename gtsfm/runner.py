@@ -302,7 +302,7 @@ class GtsfmRunner:
                         },
                     )
                 connected = True
-                return cluster
+                return cluster, config
             except Exception as e:
                 logger.info(f"Worker failed to start: {str(e)}")
                 retry_count += 1
