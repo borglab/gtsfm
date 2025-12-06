@@ -31,12 +31,13 @@ cluster_optimizer:
   local_checkpoint: null
   max_num_points: 100000
   tracking: True
-  max_query_pts: 2048
+  max_query_pts: 1024
   query_frame_num: 5
   keypoint_extractor: aliked+sp
   max_points_num: 163840
-  fine_tracking: True
+  fine_tracking: False
   track_vis_thresh: 0.99
   num_inliers: 2
   confidence_thresh: 20
-  reproj_error_thresh: 0.5
+  reproj_error_thresh: 3
+  cluster_ba: True

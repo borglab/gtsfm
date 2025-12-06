@@ -92,6 +92,8 @@ def combine_results(
     if merged is None:
         return None
     try:
+        logger.info("Before BA:")
+        merged.log_scene_reprojection_error_stats()
         post_ba_result, _ = BundleAdjustmentOptimizer().run_simple_ba(merged)
         try:
             for idx in merged.get_valid_camera_indices():
@@ -121,6 +123,8 @@ def combine_results(
                 except Exception as e:
                     logger.warning("⚠️ Failed to align and merge gaussians: %s", e)
             post_ba_result.set_gaussian_splats(merged_gaussians)
+            logger.info("Post BA:")
+            post_ba_result.log_scene_reprojection_error_stats()
             return post_ba_result  # Can definitely fail
 
         except Exception as alignment_exc:

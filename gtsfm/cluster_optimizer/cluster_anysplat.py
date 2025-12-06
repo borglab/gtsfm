@@ -17,6 +17,7 @@ from dask.delayed import Delayed
 
 import gtsfm.frontend.anysplat as anysplat_utils
 import gtsfm.utils.torch as torch_utils
+from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
 from gtsfm.cluster_optimizer.cluster_optimizer_base import (
     REACT_RESULTS_PATH,
     ClusterComputationGraph,
@@ -31,7 +32,9 @@ from gtsfm.frontend.anysplat import (
     batchify_unproject_depth_map_to_point_map as _anysplat_batchify_unproject,
 )  # type: ignore
 from gtsfm.ui.gtsfm_process import UiMetadata
+from gtsfm.utils import align as align_utils
 from gtsfm.utils import logger as logger_utils
+from gtsfm.utils.transform import transform_gaussian_splats
 
 logger = logger_utils.get_logger()
 
@@ -88,6 +91,7 @@ class ClusterAnySplat(ClusterOptimizerBase):
         num_inliers: int | None = 2,
         confidence_thresh: float | None = 0.0,
         reproj_error_thresh: float | None = None,
+        cluster_ba: bool | None = False,
     ):
         """
         Initializes the ClusterAnySplat optimizer.
@@ -106,6 +110,7 @@ class ClusterAnySplat(ClusterOptimizerBase):
             num_inliers (int | None): threshold for considering a track valid
             confidence_thresh (float | None): minimum confidence required for a retained track
             reproj_error_thresh (float | None): optional per-track reprojection error ceiling in pixels
+            cluster_ba (bool | None): optional BA operation on individual cluster (Default: False)
         """
         super().__init__()
         self._model = None
@@ -121,6 +126,7 @@ class ClusterAnySplat(ClusterOptimizerBase):
         self.num_inliers = num_inliers
         self.confidence_thresh = confidence_thresh
         self.reproj_error_thresh = reproj_error_thresh
+        self.cluster_ba = cluster_ba
 
         if model_loader is not None:
             self._model_loader = model_loader
@@ -228,20 +234,26 @@ class ClusterAnySplat(ClusterOptimizerBase):
         # Move results to CPU to avoid Dask serialization errors.
         for attr in ["means", "scales", "rotations", "harmonics", "opacities", "covariances"]:
             setattr(splats, attr, getattr(splats, attr).cpu())
-        pred_context_pose["extrinsic"] = pred_context_pose["extrinsic"].cpu()
-        pred_context_pose["intrinsic"] = pred_context_pose["intrinsic"].cpu()
+        pred_context_pose["extrinsic"] = pred_context_pose["extrinsic"].cpu()  # anysplat returns w2c extrinsics
+        pred_context_pose["intrinsic"] = pred_context_pose[
+            "intrinsic"
+        ].cpu()  # the intrinsics received from anysplat are normalized
         decoder = self._model.decoder.cpu()
 
         gtsfm_data = GtsfmData(number_images=len(images))
         for local_idx, (global_idx, img) in enumerate(images.items()):
             intrinsic = pred_context_pose["intrinsic"][0][local_idx].numpy()
             extrinsic = pred_context_pose["extrinsic"][0][local_idx].numpy()
-            camera = torch_utils.camera_from_matrices(extrinsic, intrinsic, wTc_flag=True)
+            intrinsics_pixels = intrinsic.copy()
+            intrinsics_pixels[..., 0, :] *= width
+            intrinsics_pixels[..., 1, :] *= height
+            camera = torch_utils.camera_from_matrices(extrinsic, intrinsics_pixels, wTc_flag=True)
             gtsfm_data.add_camera(global_idx, camera)  # type: ignore
             gtsfm_data.set_image_info(
                 global_idx,
                 name=img.file_name,
-                shape=(height, width),  # TODO(Frank): check if this is correct!
+                shape=(height, width),  # while the image while passing through the model inference in 448,448
+                # the intrinsic outputs were initially normalized so unnormalized ones are used to create gtsfm data
             )
 
         if not self.tracking:
@@ -256,7 +268,7 @@ class ClusterAnySplat(ClusterOptimizerBase):
         gtsfm_data.set_gaussian_splats(splats)
 
         if self.tracking:
-            logger.info("Will try merging using track correspondences")
+            logger.info("Will use track correspondences in later merging")
             dense_points = None
             extrinsic_wTc = pred_context_pose["extrinsic"]
             extrinsic_cTw = torch.linalg.inv(extrinsic_wTc)[..., :3, :]
@@ -264,9 +276,8 @@ class ClusterAnySplat(ClusterOptimizerBase):
             intrinsics_pixels = intrinsics_norm.clone()
             intrinsics_pixels[..., 0, :] *= width
             intrinsics_pixels[..., 1, :] *= height
+            # the depth map and depth confidence are 448,448 shapes so normalized intrinsics are unnormalized
             dense_points = _anysplat_batchify_unproject(depth_map, extrinsic_cTw, intrinsics_pixels)
-
-            # squeeze all before passing to predict tracks
 
             if not torch.cuda.is_available():
                 raise RuntimeError(
@@ -313,7 +324,7 @@ class ClusterAnySplat(ClusterOptimizerBase):
             logger.info("Tracks before filtering %s", points_3d.shape[0])
             track_mask = vis_scores > self.track_vis_thresh
             inlier_num = track_mask.sum(0)
-            self.num_inliers = len(images)
+            self.num_inliers = min(len(images), 3)
             valid_mask = inlier_num >= self.num_inliers  # a track is invalid if without mentioned number of inliers
 
             logger.info("Valid tracks after inlier filtering %s", sum(valid_mask))
@@ -332,19 +343,19 @@ class ClusterAnySplat(ClusterOptimizerBase):
                     intrinsics_pixels=intrinsics_pixels,
                 )
                 finite_reproj_mask = np.isfinite(reprojection_errors)
-                if np.any(finite_reproj_mask):
-                    anysplat_utils.log_reprojection_metrics(reprojection_errors, finite_reproj_mask)
-                else:
-                    logger.info("No valid reprojection errors could be computed for the current cluster.")
+                # if np.any(finite_reproj_mask):
+                #     anysplat_utils.log_reprojection_metrics(reprojection_errors, finite_reproj_mask)
+                # else:
+                #     logger.info("No valid reprojection errors could be computed for the current cluster.")
 
                 reproj_mask = np.logical_and(finite_reproj_mask, reprojection_errors < self.reproj_error_thresh)
                 valid_mask = np.logical_and(valid_mask, reproj_mask)
 
                 logger.info("Valid tracks after reprojection error filtering %s", sum(valid_mask))
 
-                anysplat_utils.log_reprojection_metrics(reprojection_errors, valid_mask)
+                # anysplat_utils.log_reprojection_metrics(reprojection_errors, valid_mask)
 
-                del reproj_mask, finite_reproj_mask
+            del reproj_mask, finite_reproj_mask
 
             del confidences, vis_scores
 
@@ -358,8 +369,33 @@ class ClusterAnySplat(ClusterOptimizerBase):
                     global_idx = global_indices[local_id]
                     u, v = tracks[local_id, valid_id]
 
-                    track.addMeasurement(global_idx, gtsam.Point2(u / 448, v / 448))
+                    track.addMeasurement(global_idx, gtsam.Point2(u, v))  # if we save normalized tracks,
+                    # then we would have to normalize u and v as well
                 gtsfm_data.add_track(track)
+
+            logger.info("After filtering")
+            gtsfm_data.log_scene_reprojection_error_stats()
+
+        if self.cluster_ba:
+            post_ba_gtsfm_data, _ = BundleAdjustmentOptimizer().run_simple_ba(gtsfm_data)
+            for idx in post_ba_gtsfm_data.get_valid_camera_indices():
+                info = gtsfm_data.get_image_info(idx)
+                post_ba_gtsfm_data.set_image_info(idx, name=info.name, shape=info.shape)
+            postba_S_preba = align_utils.sim3_from_Pose3_maps(post_ba_gtsfm_data.poses(), gtsfm_data.poses())
+            post_ba_gaussians = transform_gaussian_splats(gtsfm_data.get_gaussian_splats(), postba_S_preba)  # type: ignore
+            post_ba_gtsfm_data.set_gaussian_splats(post_ba_gaussians)
+
+            logger.info("After cluster BA")
+            post_ba_gtsfm_data.log_scene_reprojection_error_stats()
+
+            return AnySplatReconstructionResult(
+                post_ba_gtsfm_data,
+                splats,
+                pred_context_pose,
+                height,
+                width,
+                decoder,
+            )
 
         return AnySplatReconstructionResult(
             gtsfm_data,
@@ -416,6 +452,7 @@ class ClusterAnySplat(ClusterOptimizerBase):
             setattr(splats, attr, getattr(splats, attr).to(device))
 
         b = 1  # AnySplat convention
+        # anysplat function internally scales the normalized intrinsics to height and width
         anysplat_utils.save_interpolated_video(
             extrinsics,
             intrinsics,
