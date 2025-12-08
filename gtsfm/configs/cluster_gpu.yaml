@@ -1,0 +1,9 @@
+# GPU-enabled cluster configuration
+
+workers:
+  - host: localhost
+    gpus: 1
+    system_memory: "10GB"
+  - host: localhost
+    gpus: 1
+    system_memory: "10GB"

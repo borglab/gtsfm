@@ -75,10 +75,11 @@ dependencies:
       - lightning
       - sk-video
       - xformers==0.0.29
-      - torch_scatter==2.1.2
       - e3nn
       - colorspacious
       - plyfile
       - imageio==2.37.0
       - imageio-ffmpeg
-      - jaxtyping
+      - visu3d==1.5.3
+      - etils==1.7.0
+      - torch-scatter==2.1.2

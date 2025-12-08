@@ -1,4 +1,4 @@
-# VGGT cluster-only configuration.
+# FastVGGT cluster-only configuration.
 
 # @package _global_
 _target_: gtsfm.scene_optimizer.SceneOptimizer
@@ -25,17 +25,24 @@ graph_partitioner:
   _target_: gtsfm.graph_partitioner.Single
 
 cluster_optimizer:
-  _target_: gtsfm.cluster_optimizer.cluster_vggt.ClusterVGGT
+  _target_: gtsfm.cluster_optimizer.cluster_fast_vggt.ClusterFastVGGT
   weights_path: null
-  image_load_resolution: 512
-  inference_resolution: 392
-  conf_threshold: 2.0
-  max_num_points: 50000
-  tracking_max_query_pts: 384
-  tracking_query_frame_num: 2
-  tracking_fine_tracking: false
+  image_load_resolution: 1024
+  inference_resolution: 518
+  conf_threshold: 5.0
+  max_num_points: 100000
   camera_type: PINHOLE
+  tracking: true
+  tracking_max_query_pts: 512
+  tracking_query_frame_num: 3
+  tracking_fine_tracking: false
+  track_vis_thresh: 0.2
   seed: 42
   copy_results_to_react: true
   run_bundle_adjustment_on_leaf: false
   model_cache_key: null
+  merging: 0  # Set >0 to enable FastVGGT token merging.
+  vis_attn_map: false
+  enable_protection: false
+  fast_dtype: bfloat16
+  extra_model_kwargs: {}

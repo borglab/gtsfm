@@ -273,43 +273,123 @@ class GtsfmRunner:
         config = OmegaConf.load(os.path.join("gtsfm", "configs", self.parsed_args.cluster_config))
         workers = dict(config)["workers"]
         scheduler = workers[0]
+        # Detect GPU cluster configuration
+        is_gpu_cluster = any("gpus" in w or "gpu_memory_pool" in w for w in workers)
+
         connected = False
         retry_count = 0
+
         while retry_count < self.parsed_args.num_retry_cluster_connection and not connected:
             logger.info(f"Connecting to the cluster: attempt {retry_count + 1}")
             logger.info(f"Using {scheduler} as scheduler")
-            logger.info(f"Using {workers} as workers")
+            logger.info(f"Using {len(workers)} workers")
+
+            if is_gpu_cluster:
+                logger.info("🎮 GPU cluster configuration detected")
+
             try:
-                cluster = SSHCluster(
-                    [scheduler] + workers,
-                    scheduler_options={"dashboard_address": self.parsed_args.dashboard_port},
-                    worker_options={
-                        "n_workers": self.parsed_args.num_workers,
-                        "nthreads": self.parsed_args.threads_per_worker,
-                        "memory_limit": self.parsed_args.worker_memory_limit,
-                    },
-                )
+                if is_gpu_cluster:
+                    cluster = self._create_local_cuda_cluster(workers)
+                    logger.info("🎮 GPU cluster created successfully")
+                else:
+                    cluster = SSHCluster(
+                        [scheduler] + workers,
+                        scheduler_options={"dashboard_address": self.parsed_args.dashboard_port},
+                        worker_options={
+                            "n_workers": self.parsed_args.num_workers,
+                            "nthreads": self.parsed_args.threads_per_worker,
+                            "memory_limit": self.parsed_args.worker_memory_limit,
+                        },
+                    )
                 connected = True
-                return cluster
+                return cluster, config
             except Exception as e:
                 logger.info(f"Worker failed to start: {str(e)}")
                 retry_count += 1
+
         if not connected:
             raise ValueError(
                 f"Connection to cluster could not be established after {self.parsed_args.num_retry_cluster_connection}"
                 " attempts. Aborting..."
             )
+        return cluster, config
+
+    def _create_local_cuda_cluster(self, workers):
+        """Create LocalCUDACluster for single multi-GPU machine with SLURM.
+
+        SLURM automatically sets CUDA_VISIBLE_DEVICES, so we don't need to
+        manually configure GPU IDs. We just need to tell dask-cuda how many
+        workers to create and their memory limits.
+
+        Args:
+            workers: List of worker configuration dicts with GPU settings
+
+        Returns:
+            LocalCUDACluster configured for the specified GPUs
+        """
+        try:
+            from dask_cuda import LocalCUDACluster
+        except ImportError:
+            raise ImportError("dask-cuda is required for GPU clusters. Install with: pip install dask-cuda")
+
+        n_workers = len(workers)
+
+        # Get configuration from first worker (assuming uniform config)
+        use_ucx = workers[0].get("use_ucx", False)
+        protocol = "ucx" if use_ucx else "tcp"
+        rmm_pool_size = workers[0].get("gpu_memory_pool", None)
+        device_memory_limit = workers[0].get("system_memory", "10GB")
+
+        logger.info(f"🎮 Creating LocalCUDACluster with {n_workers} workers")
+        logger.info(f"📌 SLURM CUDA_VISIBLE_DEVICES: {os.environ.get('CUDA_VISIBLE_DEVICES', 'not set')}")
+        logger.info(f"📌 Protocol: {protocol} | RMM pool: {rmm_pool_size} | Device memory: {device_memory_limit}")
+
+        cluster_kwargs = {
+            "n_workers": n_workers,
+            "protocol": protocol,
+            "device_memory_limit": device_memory_limit,
+            "threads_per_worker": 1,  # One thread per GPU worker
+            "dashboard_address": self.parsed_args.dashboard_port,
+        }
+
+        # Only add rmm_pool_size if RMM is available and requested
+        if rmm_pool_size is not None:
+            logger.warning("RMM pool size is not supported in this version of GTSFM.")
+
+        # Add UCX-specific settings if enabled
+        if use_ucx:
+            cluster_kwargs.update(
+                {
+                    "enable_tcp_over_ucx": True,
+                    "enable_nvlink": True,
+                    "enable_infiniband": False,
+                }
+            )
+
+        cluster = LocalCUDACluster(**cluster_kwargs)
+        logger.info("✅ LocalCUDACluster created successfully")
+
+        return cluster
 
     def _create_dask_client(self):
         if self.parsed_args.cluster_config:
-            cluster = self.setup_ssh_cluster_with_retries()
+            # Case 2 or 3: Distributed multi-GPU machines
+            cluster, config = self.setup_ssh_cluster_with_retries()
             client = Client(cluster)
             client.forward_logging()
-            # getting first worker's IP address and port to do IO
-            io_worker = list(client.scheduler_info()["workers"].keys())[0]
-            self.scene_optimizer.loader._input_worker = io_worker
-            self.scene_optimizer.cluster_optimizer._output_worker = io_worker
+
+            workers = dict(config)["workers"]
+            unique_hosts = set(w["host"] for w in workers)
+
+            if len(unique_hosts) > 1:
+                io_worker = list(client.scheduler_info()["workers"].keys())[0]
+                self.scene_optimizer.loader._input_worker = io_worker
+                self.scene_optimizer.cluster_optimizer._output_worker = io_worker
+            else:
+                logger.info("🖥️  Single-machine multi-GPU cluster")
+                logger.info("   All workers can access data locally")
         else:
+            # Case 1: Single Local Machine
             local_cluster_kwargs = {
                 "n_workers": self.parsed_args.num_workers,
                 "threads_per_worker": self.parsed_args.threads_per_worker,

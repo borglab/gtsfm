@@ -88,10 +88,12 @@ class ClusterAnySplat(ClusterOptimizerBase):
         max_points_num: int | None = 163840,
         fine_tracking: bool | None = True,
         track_vis_thresh: float | None = 0.9,
-        num_inliers: int | None = 2,
+        num_inliers: int | None = 3,
         confidence_thresh: float | None = 0.0,
         reproj_error_thresh: float | None = None,
-        cluster_ba: bool | None = False,
+        run_bundle_adjustment_on_leaf: bool | None = False,
+        run_bundle_adjustment_on_parent: bool | None = True,
+        plot_reprojection_histograms: bool | None = True,
     ):
         """
         Initializes the ClusterAnySplat optimizer.
@@ -110,7 +112,9 @@ class ClusterAnySplat(ClusterOptimizerBase):
             num_inliers (int | None): threshold for considering a track valid
             confidence_thresh (float | None): minimum confidence required for a retained track
             reproj_error_thresh (float | None): optional per-track reprojection error ceiling in pixels
-            cluster_ba (bool | None): optional BA operation on individual cluster (Default: False)
+            run_bundle_adjustment_on_leaf (bool | None): optional BA operation on individual cluster (Default: False)
+            run_bundle_adjustment_on_parent (bool | None): optional BA operation on after camera merging (Default: True)
+            plot_reprojection_histograms (bool | None): optional plotting reprojection error histograms (Default: True)
         """
         super().__init__()
         self._model = None
@@ -126,7 +130,9 @@ class ClusterAnySplat(ClusterOptimizerBase):
         self.num_inliers = num_inliers
         self.confidence_thresh = confidence_thresh
         self.reproj_error_thresh = reproj_error_thresh
-        self.cluster_ba = cluster_ba
+        self.run_bundle_adjustment_on_leaf = run_bundle_adjustment_on_leaf
+        self.run_bundle_adjustment_on_parent = run_bundle_adjustment_on_parent
+        self.plot_reprojection_histograms = plot_reprojection_histograms
 
         if model_loader is not None:
             self._model_loader = model_loader
@@ -268,7 +274,7 @@ class ClusterAnySplat(ClusterOptimizerBase):
         gtsfm_data.set_gaussian_splats(splats)
 
         if self.tracking:
-            logger.info("Will use track correspondences in later merging")
+            logger.info("Will use track correspondences in merging")
             dense_points = None
             extrinsic_wTc = pred_context_pose["extrinsic"]
             extrinsic_cTw = torch.linalg.inv(extrinsic_wTc)[..., :3, :]
@@ -321,18 +327,18 @@ class ClusterAnySplat(ClusterOptimizerBase):
                 tracking_images,
             )
 
-            logger.info("Tracks before filtering %s", points_3d.shape[0])
+            logger.info("🔢 Number of tracks before filtering %s", points_3d.shape[0])
             track_mask = vis_scores > self.track_vis_thresh
             inlier_num = track_mask.sum(0)
             self.num_inliers = min(len(images), 3)
             valid_mask = inlier_num >= self.num_inliers  # a track is invalid if without mentioned number of inliers
 
-            logger.info("Valid tracks after inlier filtering %s", sum(valid_mask))
+            logger.info("🔢 Valid track count after inlier filtering %s", sum(valid_mask))
 
             confidence_mask = confidences >= self.confidence_thresh
             valid_mask = np.logical_and(valid_mask, confidence_mask)
 
-            logger.info("Valid tracks after confidence filtering %s", sum(valid_mask))
+            logger.info("🔢 Valid track count after confidence filtering %s", sum(valid_mask))
 
             if self.reproj_error_thresh is not None:
                 reprojection_errors = anysplat_utils.compute_reprojection_errors(
@@ -344,16 +350,16 @@ class ClusterAnySplat(ClusterOptimizerBase):
                 )
                 finite_reproj_mask = np.isfinite(reprojection_errors)
                 # if np.any(finite_reproj_mask):
-                #     anysplat_utils.log_reprojection_metrics(reprojection_errors, finite_reproj_mask)
+                #     anysplat_utils.log_reprojection_metrics_per_track(reprojection_errors, finite_reproj_mask)
                 # else:
                 #     logger.info("No valid reprojection errors could be computed for the current cluster.")
 
                 reproj_mask = np.logical_and(finite_reproj_mask, reprojection_errors < self.reproj_error_thresh)
                 valid_mask = np.logical_and(valid_mask, reproj_mask)
 
-                logger.info("Valid tracks after reprojection error filtering %s", sum(valid_mask))
+                logger.info("Valid track count after reprojection error filtering %s", sum(valid_mask))
 
-                # anysplat_utils.log_reprojection_metrics(reprojection_errors, valid_mask)
+                # anysplat_utils.log_reprojection_metrics_per_track(reprojection_errors, valid_mask)
 
             del reproj_mask, finite_reproj_mask
 
@@ -373,29 +379,34 @@ class ClusterAnySplat(ClusterOptimizerBase):
                     # then we would have to normalize u and v as well
                 gtsfm_data.add_track(track)
 
-            logger.info("After filtering")
+            logger.info("📏 Reprojection error stats after filtering")
             gtsfm_data.log_scene_reprojection_error_stats()
 
-        if self.cluster_ba:
-            post_ba_gtsfm_data, _ = BundleAdjustmentOptimizer().run_simple_ba(gtsfm_data)
-            for idx in post_ba_gtsfm_data.get_valid_camera_indices():
-                info = gtsfm_data.get_image_info(idx)
-                post_ba_gtsfm_data.set_image_info(idx, name=info.name, shape=info.shape)
-            postba_S_preba = align_utils.sim3_from_Pose3_maps(post_ba_gtsfm_data.poses(), gtsfm_data.poses())
-            post_ba_gaussians = transform_gaussian_splats(gtsfm_data.get_gaussian_splats(), postba_S_preba)  # type: ignore
-            post_ba_gtsfm_data.set_gaussian_splats(post_ba_gaussians)
+        if self.run_bundle_adjustment_on_leaf:
+            if gtsfm_data.number_tracks() == 0:
+                logger.warning("Skipping bundle adjustment because VGGT produced no valid tracks.")
+            else:
+                try:
+                    post_ba_gtsfm_data, _ = BundleAdjustmentOptimizer().run_simple_ba(gtsfm_data)
+                    for idx in post_ba_gtsfm_data.get_valid_camera_indices():
+                        info = gtsfm_data.get_image_info(idx)
+                        post_ba_gtsfm_data.set_image_info(idx, name=info.name, shape=info.shape)
+                    postba_S_preba = align_utils.sim3_from_Pose3_maps(post_ba_gtsfm_data.poses(), gtsfm_data.poses())
+                    post_ba_gaussians = transform_gaussian_splats(gtsfm_data.get_gaussian_splats(), postba_S_preba)  # type: ignore
+                    post_ba_gtsfm_data.set_gaussian_splats(post_ba_gaussians)
 
-            logger.info("After cluster BA")
-            post_ba_gtsfm_data.log_scene_reprojection_error_stats()
-
-            return AnySplatReconstructionResult(
-                post_ba_gtsfm_data,
-                splats,
-                pred_context_pose,
-                height,
-                width,
-                decoder,
-            )
+                    logger.info("📏 Reprojection error stats after running BA on individual node")
+                    post_ba_gtsfm_data.log_scene_reprojection_error_stats()
+                    return AnySplatReconstructionResult(
+                        post_ba_gtsfm_data,
+                        splats,
+                        pred_context_pose,
+                        height,
+                        width,
+                        decoder,
+                    )
+                except Exception as exc:
+                    logger.warning("⚠️ Failed to run bundle adjustment: %s", exc)
 
         return AnySplatReconstructionResult(
             gtsfm_data,

@@ -35,7 +35,9 @@ cluster_optimizer:
   max_points_num: 163840
   fine_tracking: True
   track_vis_thresh: 0.99
-  num_inliers: 2
+  num_inliers: 3
   confidence_thresh: 20
-  reproj_error_thresh: 2                                                                                    
-  cluster_ba: True
+  reproj_error_thresh: 1                                                                                   
+  run_bundle_adjustment_on_leaf: false
+  plot_reprojection_histograms: true
+  run_bundle_adjustment_on_parent: true
