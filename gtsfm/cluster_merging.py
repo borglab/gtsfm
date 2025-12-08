@@ -6,15 +6,18 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Tuple
 
+import numpy as np
 from dask.distributed import Client, Future
 from gtsam import Similarity3
-import numpy as np
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
+from gtsfm.cluster_optimizer.cluster_anysplat import save_splats
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.utils import align as align_utils
 from gtsfm.utils.reprojection import compute_track_reprojection_errors
+from gtsfm.utils.splat import GaussiansProtocol, merge_gaussian_splats
+from gtsfm.utils.transform import transform_gaussian_splats
 from gtsfm.utils.tree import Tree
 from gtsfm.utils.tree_dask import submit_tree_map
 
@@ -58,9 +61,10 @@ def _propagate_scene_metadata(target: Optional[GtsfmData], *sources: Optional[Gt
         label = getattr(source, _SCENE_LABEL_ATTR, None)
         if plots_dir is not None or label is not None:
             annotate_scene_with_metadata(target, plots_dir, label)
-        if getattr(target, _SCENE_PLOTS_DIR_ATTR, None) is not None and getattr(
-            target, _SCENE_LABEL_ATTR, None
-        ) is not None:
+        if (
+            getattr(target, _SCENE_PLOTS_DIR_ATTR, None) is not None
+            and getattr(target, _SCENE_LABEL_ATTR, None) is not None
+        ):
             break
 
 
@@ -183,6 +187,13 @@ def _run_export_task(payload: Tuple[Optional[Path], Optional[GtsfmData]]) -> Non
         return
     merged_dir.mkdir(parents=True, exist_ok=True)
     merged_scene.export_as_colmap_text(merged_dir)
+    if merged_scene.has_gaussian_splats():
+        gaussian_splats = merged_scene.get_gaussian_splats()
+        if isinstance(gaussian_splats, GaussiansProtocol):
+            try:
+                save_splats(merged_scene, merged_dir)
+            except Exception as exc:
+                logger.warning("⚠️ Failed to export Gaussian splats: %s", exc)
 
 
 def schedule_exports(
@@ -270,7 +281,7 @@ def combine_results(
                     tracks=retained_tracks,
                     gaussian_splats=merged.get_gaussian_splats(),
                 )
-                for idx in range(merged.number_images()):
+                for idx in merged.get_valid_camera_indices():
                     info = merged.get_image_info(idx)
                     if info.name is not None or info.shape is not None:
                         filtered.set_image_info(idx, name=info.name, shape=info.shape)
@@ -309,13 +320,51 @@ def combine_results(
 
     try:
         merged_with_ba = BundleAdjustmentOptimizer().run_simple_ba(merged)[0]  # Can definitely fail
+        for idx in merged.get_valid_camera_indices():
+            info = merged.get_image_info(idx)
+            merged_with_ba.set_image_info(idx, name=info.name, shape=info.shape)
         _propagate_scene_metadata(merged_with_ba, merged)
         _log_scene_reprojection_stats(
             merged_with_ba,
             "merged result (with ba)",
             plot_histograms=plot_reprojection_histograms,
         )
-        return merged_with_ba
+        if merged.has_gaussian_splats():
+            logger.info("🫱🏻‍🫲🏽 Merging Gaussians")
+            try:
+                merged_with_ba.set_gaussian_splats(None)
+                postba_S_current = align_utils.sim3_from_Pose3_maps(
+                    merged_with_ba.poses(), current.poses()  # type: ignore
+                )
+                merged_gaussians = transform_gaussian_splats(
+                    current.get_gaussian_splats(), postba_S_current  # type: ignore
+                )
+                for child in child_results:
+                    if child is None:
+                        continue
+                    try:
+                        postba_S_child = align_utils.sim3_from_Pose3_maps(merged_with_ba.poses(), child.poses())
+
+                        if child.has_gaussian_splats():
+                            transformed_other_gaussians = transform_gaussian_splats(
+                                child.get_gaussian_splats(), postba_S_child  # type: ignore
+                            )
+                            if merged_gaussians is None:
+                                merged_gaussians = transformed_other_gaussians
+                            else:
+                                merged_gaussians = merge_gaussian_splats(merged_gaussians, transformed_other_gaussians)
+                    except Exception as e:
+                        logger.warning("⚠️ Failed to align and merge gaussians: %s", e)
+                merged_with_ba.set_gaussian_splats(merged_gaussians)
+                return merged_with_ba
+
+            except Exception as alignment_exc:
+                logger.warning("⚠️ Failed to compute pre/post BA Sim(3): %s", alignment_exc)
+                return merged
+
+        else:
+            logger.info("✖️ No Gaussians to merge")
+            return merged_with_ba
     except Exception as exc:
         logger.warning("⚠️ Failed to run bundle adjustment: %s", exc)
         return merged

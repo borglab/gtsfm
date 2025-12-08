@@ -505,7 +505,11 @@ def _convert_vggt_outputs_to_gtsfm_data(
         else:
             try:
                 optimizer = BundleAdjustmentOptimizer()
-                gtsfm_data, _ = optimizer.run_simple_ba(gtsfm_data, verbose=False)
+                gtsfm_data_with_ba, _ = optimizer.run_simple_ba(gtsfm_data, verbose=False)
+                for idx in gtsfm_data.get_valid_camera_indices():
+                    info = gtsfm_data.get_image_info(idx)
+                    gtsfm_data_with_ba.set_image_info(idx, name=info.name, shape=info.shape)
+                return gtsfm_data_with_ba
             except Exception as exc:
                 logger.warning("⚠️ Failed to run bundle adjustment: %s", exc)
 

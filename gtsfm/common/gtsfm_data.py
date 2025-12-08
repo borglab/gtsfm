@@ -407,11 +407,11 @@ class GtsfmData:
 
     def image_filenames(self) -> List[Optional[str]]:
         """Return list of image filenames, ordered by index."""
-        return [self.get_image_info(i).name for i in range(self.number_images())]
+        return [self.get_image_info(i).name for i in self.get_valid_camera_indices()]
 
     def image_shapes(self) -> List[Optional[tuple[int, ...]]]:
         """Return list of image shapes, ordered by index."""
-        return [self.get_image_info(i).shape for i in range(self.number_images())]
+        return [self.get_image_info(i).shape for i in self.get_valid_camera_indices()]
 
     def _clone_image_info(self, indices: Optional[Iterable[int]] = None) -> dict[int, ImageInfo]:
         """Create a shallow copy of stored image metadata."""
@@ -868,9 +868,9 @@ class GtsfmData:
         merged_data._image_info = self._clone_image_info(range(self.number_images()))
         for idx, info in other._image_info.items():
             merged_info = merged_data.get_image_info(idx)
-            if merged_info.name is None and info.name is not None:
+            if merged_info.name in (None, f"image_{idx:06d}.jpg") and info.name is not None:
                 merged_data.set_image_info(idx, name=info.name)
-            if merged_info.shape is None and info.shape is not None:
+            if merged_info.shape in (None, (1, 1)) and info.shape is not None:
                 merged_data.set_image_info(idx, shape=info.shape)
 
         for key, camera in merged_cameras.items():

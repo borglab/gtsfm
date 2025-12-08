@@ -5,11 +5,11 @@ Authors: Ayush Baid
 
 import argparse
 import os
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pycolmap
-from gtsam import Pose3, Similarity3
+from gtsam import Point3, Pose3, Rot3, Similarity3
 from scipy.spatial.transform import Rotation
 
 import gtsfm.utils.io as io_utils
@@ -29,6 +29,30 @@ def load_poses(colmap_dirpath: str) -> Dict[str, Pose3]:
     return dict(zip(img_fnames, wTi_list))
 
 
+def align_with_colmap(
+    baseline_wTi_dict: Dict[str, Pose3], current_wTi_dict: Dict[str, Pose3]
+) -> Tuple[Similarity3, Dict[str, Pose3]]:
+    """Align pose dictionaries using COLMAP's similarity estimation on camera centers."""
+    common_fnames = sorted(baseline_wTi_dict.keys() & current_wTi_dict.keys())
+    if len(common_fnames) < 2:
+        raise RuntimeError("Need at least two overlapping cameras for COLMAP-based alignment.")
+
+    baseline_centers = np.stack([baseline_wTi_dict[fname].translation() for fname in common_fnames])
+    current_centers = np.stack([current_wTi_dict[fname].translation() for fname in common_fnames])
+
+    ransac_opts = pycolmap.RANSACOptions()
+    ransac_opts.max_error = 0.1
+    sim = pycolmap.estimate_sim3d_robust(current_centers, baseline_centers, ransac_opts)
+
+    quat_xyzw = sim["tgt_from_src"].rotation.quat
+    aRb = Rot3.Quaternion(quat_xyzw[3], quat_xyzw[0], quat_xyzw[1], quat_xyzw[2])
+    atb = Point3(sim["tgt_from_src"].translation)
+    aSb = Similarity3(aRb, atb, sim["tgt_from_src"].scale)
+
+    aligned_dict = {fname: aSb.transformFrom(pose) for fname, pose in current_wTi_dict.items()}
+    return aSb, aligned_dict
+
+
 def compare_poses(baseline_dirpath: str, eval_dirpath: str, output_dirpath: str) -> None:
     """Compare the pose metrics between two reconstructions (Colmap format).
 
@@ -43,16 +67,7 @@ def compare_poses(baseline_dirpath: str, eval_dirpath: str, output_dirpath: str)
     common_fnames = baseline_wTi_dict.keys() & current_wTi_dict.keys()
 
     if args.use_pycolmap_alignment:
-        current_reconstruction = pycolmap.Reconstruction(eval_dirpath)
-        baselineScurrent = Similarity3(
-            current_reconstruction.align_robust(
-                list(baseline_wTi_dict.keys()),
-                [wTi.translation() for wTi in baseline_wTi_dict.values()],
-                min_common_images=3,
-            ).matrix
-        )
-        current_wTi_dict = {fname: baselineScurrent.transformFrom(wTi) for fname, wTi in current_wTi_dict.items()}
-
+        baselineScurrent, current_wTi_dict = align_with_colmap(baseline_wTi_dict, current_wTi_dict)
         aRb = baselineScurrent.rotation().matrix()
         atb = baselineScurrent.translation()
         rz, ry, rx = Rotation.from_matrix(aRb).as_euler("zyx", degrees=True)
@@ -87,16 +102,16 @@ def compare_poses(baseline_dirpath: str, eval_dirpath: str, output_dirpath: str)
     metrics.append(metric_utils.compute_translation_distance_metric(wti_aligned_list, baseline_wti_list))
     metrics.append(metric_utils.compute_translation_angle_metric(baseline_wTi_list, current_wTi_list))
     relative_rotation_error_metric = metric_utils.compute_relative_rotation_angle_metric(
-        i2Ri1_dict_gt, current_wTi_list
+        i2Ri1_dict_gt, current_wTi_list, store_full_data=True
     )
     metrics.append(relative_rotation_error_metric)
     relative_translation_error_metric = metric_utils.compute_relative_translation_angle_metric(
-        i2Ui1_dict_gt, current_wTi_list
+        i2Ui1_dict_gt, current_wTi_list, store_full_data=True
     )
     metrics.append(relative_translation_error_metric)
 
-    rotation_angular_errors = relative_rotation_error_metric._data
-    translation_angular_errors = relative_translation_error_metric._data
+    rotation_angular_errors = relative_rotation_error_metric.data
+    translation_angular_errors = relative_translation_error_metric.data
     metrics.extend(
         metric_utils.compute_pose_auc_metric(
             rotation_angular_errors, translation_angular_errors, save_dir=output_dirpath
