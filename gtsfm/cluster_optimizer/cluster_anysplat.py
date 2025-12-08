@@ -361,7 +361,7 @@ class ClusterAnySplat(ClusterOptimizerBase):
 
                 # anysplat_utils.log_reprojection_metrics_per_track(reprojection_errors, valid_mask)
 
-            del reproj_mask, finite_reproj_mask
+                del reproj_mask, finite_reproj_mask
 
             del confidences, vis_scores
 

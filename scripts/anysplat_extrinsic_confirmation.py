@@ -17,7 +17,7 @@ GTSFM_LUND_DOOR_ROOT = Path("tests/data/set1_lund_door")
 GTSFM_NUM_LUND_IMAGES = 12
 
 
-def pose3_from_c2w(matrix: torch.Tensor) -> Pose3:
+def pose3_from_w2c(matrix: torch.Tensor) -> Pose3:
     """Convert a camera→world matrix to a Pose3 (world pose of the camera)."""
     rotation = Rot3(matrix[:3, :3].numpy())
     translation = Point3(*matrix[:3, 3].numpy())
@@ -42,7 +42,11 @@ def collect_pose_pairs_from_runtime() -> Optional[tuple[list[Pose3], list[Pose3]
     selected_indices = list(range(min(num_images, len(loader))))
     images = {new_idx: loader.get_image_full_res(idx) for new_idx, idx in enumerate(selected_indices)}
 
-    anysplat_cluster = ClusterAnySplat()
+    anysplat_cluster = ClusterAnySplat(
+        tracking=False,
+        reproj_error_thresh=None,
+        run_bundle_adjustment_on_leaf=False,
+    )
 
     with torch.no_grad():
         anysplat_result = anysplat_cluster._generate_splats(images)
@@ -52,7 +56,7 @@ def collect_pose_pairs_from_runtime() -> Optional[tuple[list[Pose3], list[Pose3]
     mvo_pose_list = []
     for pose_matrix, loader_idx in zip(extrinsics, selected_indices):
         pose_gt = loader.get_camera_pose(loader_idx)
-        anysplat_pose_list.append(pose3_from_c2w(torch.from_numpy(pose_matrix)))
+        anysplat_pose_list.append(pose3_from_w2c(torch.from_numpy(pose_matrix)))
         mvo_pose_list.append(pose_gt)
 
     if not anysplat_pose_list or not mvo_pose_list:
