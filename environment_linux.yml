@@ -83,3 +83,4 @@ dependencies:
       - visu3d==1.5.3
       - etils==1.7.0
       - torch-scatter==2.1.2
+      - nbformat==5.10.4

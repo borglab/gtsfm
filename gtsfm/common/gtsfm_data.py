@@ -871,7 +871,6 @@ class GtsfmData:
             if merged_info.name in (None, f"image_{idx:06d}.jpg") and info.name is not None:
                 merged_data.set_image_info(idx, name=info.name)
             if merged_info.shape in (None, (1, 1)) and info.shape is not None:
-                # if merged_info.shape is None and info.shape is not None:
                 merged_data.set_image_info(idx, shape=info.shape)
 
         for key, camera in merged_cameras.items():

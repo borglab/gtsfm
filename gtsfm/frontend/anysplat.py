@@ -305,7 +305,7 @@ def compute_reprojection_errors(
     return reproj_errors
 
 
-def log_reprojection_metrics(reprojection_errors, mask):
+def log_reprojection_metrics_per_track(reprojection_errors, mask):
     finite_errors = reprojection_errors[mask]
     logger.info(
         "Reprojection error stats across %d tracks - mean: %.3f px, median: %.3f px, " "min: %.3f px, max: %.3f px.",
