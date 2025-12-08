@@ -392,7 +392,9 @@ class ClusterAnySplat(ClusterOptimizerBase):
                         info = gtsfm_data.get_image_info(idx)
                         post_ba_gtsfm_data.set_image_info(idx, name=info.name, shape=info.shape)
                     postba_S_preba = align_utils.sim3_from_Pose3_maps(post_ba_gtsfm_data.poses(), gtsfm_data.poses())
-                    post_ba_gaussians = transform_gaussian_splats(gtsfm_data.get_gaussian_splats(), postba_S_preba)  # type: ignore
+                    post_ba_gaussians = transform_gaussian_splats(
+                        gtsfm_data.get_gaussian_splats(), postba_S_preba  # type: ignore
+                    )
                     post_ba_gtsfm_data.set_gaussian_splats(post_ba_gaussians)
 
                     logger.info("📏 Reprojection error stats after running BA on individual node")

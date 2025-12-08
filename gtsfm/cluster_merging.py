@@ -333,7 +333,9 @@ def combine_results(
             logger.info("🫱🏻‍🫲🏽 Merging Gaussians")
             try:
                 merged_with_ba.set_gaussian_splats(None)
-                postba_S_current = align_utils.sim3_from_Pose3_maps(merged_with_ba.poses(), current.poses())  # type: ignore
+                postba_S_current = align_utils.sim3_from_Pose3_maps(
+                    merged_with_ba.poses(), current.poses()  # type: ignore
+                )
                 merged_gaussians = transform_gaussian_splats(
                     current.get_gaussian_splats(), postba_S_current  # type: ignore
                 )
