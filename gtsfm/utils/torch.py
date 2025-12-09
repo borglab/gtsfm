@@ -31,6 +31,13 @@ def pose_from_extrinsic(matrix: np.ndarray) -> Pose3:
     return Pose3(Rot3(cRw), Point3(*t)).inverse()
 
 
+def pose_from_extrinsic_wTc(matrix: np.ndarray) -> Pose3:
+    """Convert an extrinsic matrix (camera-to-world) to a Pose3 (camera-to-world)."""
+    wRc: np.ndarray = matrix[:3, :3]
+    t = matrix[:3, 3]
+    return Pose3(Rot3(wRc), Point3(*t))
+
+
 def calibration_from_intrinsic(matrix: np.ndarray) -> gtsam.Cal3_S2:
     """Map a 3x3 intrinsic matrix to a Cal3_S2."""
     fx = float(matrix[0, 0])
@@ -40,10 +47,15 @@ def calibration_from_intrinsic(matrix: np.ndarray) -> gtsam.Cal3_S2:
     return gtsam.Cal3_S2(fx, fy, 0.0, cx, cy)
 
 
-def camera_from_matrices(extrinsic: np.ndarray, intrinsic: np.ndarray) -> gtsfm_types.CAMERA_TYPE:
+def camera_from_matrices(
+    extrinsic: np.ndarray, intrinsic: np.ndarray, wTc_flag: bool = False
+) -> gtsfm_types.CAMERA_TYPE:
     """Instantiate a Pinhole camera from raw extrinsic/intrinsic matrices."""
     calibration = calibration_from_intrinsic(intrinsic)
-    pose = pose_from_extrinsic(extrinsic)
+    if wTc_flag is True:
+        pose = pose_from_extrinsic_wTc(extrinsic)
+    else:
+        pose = pose_from_extrinsic(extrinsic)
     return gtsfm_types.create_camera(pose, calibration)
 
 

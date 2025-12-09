@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Any, Callable, Hashable, List
 
 import cv2
+import gtsam
+import numpy as np
 import torch
 import torchvision  # type: ignore
 from dask import delayed  # type: ignore
@@ -15,20 +17,58 @@ from dask.delayed import Delayed
 
 import gtsfm.frontend.anysplat as anysplat_utils
 import gtsfm.utils.torch as torch_utils
-from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterComputationGraph, ClusterContext, ClusterOptimizerBase
+from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
+from gtsfm.cluster_optimizer.cluster_optimizer_base import (
+    REACT_RESULTS_PATH,
+    ClusterComputationGraph,
+    ClusterContext,
+    ClusterOptimizerBase,
+)
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.frontend.anysplat import AnySplatReconstructionResult
+from gtsfm.frontend.anysplat import (
+    batchify_unproject_depth_map_to_point_map as _anysplat_batchify_unproject,
+)  # type: ignore
 from gtsfm.ui.gtsfm_process import UiMetadata
+from gtsfm.utils import align as align_utils
 from gtsfm.utils import logger as logger_utils
-
-_SH0_NORMALIZATION_FACTOR = 0.28209479177387814
+from gtsfm.utils.transform import transform_gaussian_splats
 
 logger = logger_utils.get_logger()
 
 # Module-level cache to reuse AnySplat weights per worker process.
 _MODEL_CACHE: dict[Hashable, Any] = {}
+
+
+def save_splats(result: GtsfmData, save_gs_files_path: Path) -> None:
+    splats = result.get_gaussian_splats()
+    anysplat_utils.export_ply(
+        splats.means[0],
+        splats.scales[0],
+        splats.rotations[0],
+        splats.harmonics[0],
+        splats.opacities[0],
+        save_gs_files_path / "gaussian_splats.ply",
+        save_sh_dc_only=True,  # Since current model use SH_degree = 4, which require large memory to store, we can
+        # only save the DC band to save memory.
+    )
+
+
+def _save_reconstruction_as_text(
+    result: GtsfmData,
+    results_path: Path,
+    relative_results_dir: Path,
+) -> None:
+    target_dir = results_path / "anysplat"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    result.export_as_colmap_text(target_dir)
+    save_splats(result, target_dir)
+
+    react_destination = REACT_RESULTS_PATH / relative_results_dir / "anysplat"
+    react_destination.mkdir(parents=True, exist_ok=True)
+    result.export_as_colmap_text(react_destination)
 
 
 class ClusterAnySplat(ClusterOptimizerBase):
@@ -41,6 +81,19 @@ class ClusterAnySplat(ClusterOptimizerBase):
         local_checkpoint: str | Path | None = None,
         model_cache_key: Hashable | None = None,
         max_num_points: int | None = None,
+        tracking: bool | None = True,
+        max_query_pts: int | None = 2048,
+        query_frame_num: int | None = 5,
+        keypoint_extractor: str | None = "aliked+sp",
+        max_points_num: int | None = 163840,
+        fine_tracking: bool | None = True,
+        track_vis_thresh: float | None = 0.9,
+        num_inliers: int | None = 3,
+        confidence_thresh: float | None = 0.0,
+        reproj_error_thresh: float | None = None,
+        run_bundle_adjustment_on_leaf: bool | None = False,
+        run_bundle_adjustment_on_parent: bool | None = True,
+        plot_reprojection_histograms: bool | None = True,
     ):
         """
         Initializes the ClusterAnySplat optimizer.
@@ -48,11 +101,39 @@ class ClusterAnySplat(ClusterOptimizerBase):
             model_loader (Callable[[], Any] | None): Optional custom model loader function.
             local_checkpoint (str | Path | None): Local filesystem path to the model weights checkpoint.
             model_cache_key (Hashable | None): Key used to cache/reuse the loaded model across worker processes.
+            max_num_points (int | None): Maximum number of points (gaussian means) to save if tracking is False
+            tracking (bool | None): Boolean used for signaling if tracking will be used for merging
+            max_query_pts (int | None): VGGT tracking argument with its default value
+            query_frame_num (int | None): VGGT tracking argument with its default value
+            keypoint_extractor (str | None): VGGT tracking argument with its default value
+            max_points_num (int | None): VGGT tracking argument with its default value
+            fine_tracking (int | None): VGGT tracking argument with its default value
+            track_vis_thresh (int | None): VGGT tracking argument with its default value
+            num_inliers (int | None): threshold for considering a track valid
+            confidence_thresh (float | None): minimum confidence required for a retained track
+            reproj_error_thresh (float | None): optional per-track reprojection error ceiling in pixels
+            run_bundle_adjustment_on_leaf (bool | None): optional BA operation on individual cluster (Default: False)
+            run_bundle_adjustment_on_parent (bool | None): optional BA operation on after camera merging (Default: True)
+            plot_reprojection_histograms (bool | None): optional plotting reprojection error histograms (Default: True)
         """
         super().__init__()
         self._model = None
         self._device = torch_utils.default_device()
-        self._max_gaussians = max_num_points
+        self.max_gaussians = max_num_points
+        self.tracking = tracking
+        self.max_query_pts = max_query_pts
+        self.query_frame_num = query_frame_num
+        self.max_points_num = max_points_num
+        self.keypoint_extractor = keypoint_extractor
+        self.fine_tracking = fine_tracking
+        self.track_vis_thresh = track_vis_thresh
+        self.num_inliers = num_inliers
+        self.confidence_thresh = confidence_thresh
+        self.reproj_error_thresh = reproj_error_thresh
+        self.run_bundle_adjustment_on_leaf = run_bundle_adjustment_on_leaf
+        self.run_bundle_adjustment_on_parent = run_bundle_adjustment_on_parent
+        self.plot_reprojection_histograms = plot_reprojection_histograms
+
         if model_loader is not None:
             self._model_loader = model_loader
             self._model_cache_key = model_cache_key
@@ -105,7 +186,7 @@ class ClusterAnySplat(ClusterOptimizerBase):
         """Capture simple runtime metrics for the front-end."""
 
         gaussian_count = result.gtsfm_data.number_images() * result.height * result.width
-        voxel_count = result.splats.means.shape[1]
+        voxel_count = result.gtsfm_data.get_gaussian_splats().means.shape[1]
         return GtsfmMetricsGroup(
             "anysplat_runtime_metrics",
             [
@@ -131,60 +212,212 @@ class ClusterAnySplat(ClusterOptimizerBase):
         processed_images = self._preprocess_images(images, self._device)
         _, _, _, height, width = processed_images.shape
         logger.info("🔵 Running AnySplat on %d images.", len(images))
-        splats, pred_context_pose = self._model.inference((processed_images + 1) * 0.5)
+
+        depth_outputs: dict[str, torch.Tensor] = {}
+        depth_head = getattr(getattr(self._model, "encoder", None), "depth_head", None)
+
+        def _capture_depth(
+            _module: torch.nn.Module,
+            _inputs: tuple[Any, ...],
+            outputs: Any,
+        ) -> None:
+            if depth_outputs or not isinstance(outputs, tuple) or len(outputs) < 2:
+                return
+            depth, confidence = outputs[:2]
+            depth_outputs["depth_map"] = depth.detach().cpu()
+            depth_outputs["depth_confidence"] = confidence.detach().cpu()
+
+        hook = depth_head.register_forward_hook(_capture_depth) if depth_head else None
+
+        try:
+            splats, pred_context_pose = self._model.inference((processed_images + 1) * 0.5)
+        finally:
+            if hook:
+                hook.remove()
+        depth_map = depth_outputs.get("depth_map")
+        depth_confidence = depth_outputs.get("depth_confidence")
 
         # Move results to CPU to avoid Dask serialization errors.
         for attr in ["means", "scales", "rotations", "harmonics", "opacities", "covariances"]:
             setattr(splats, attr, getattr(splats, attr).cpu())
-        pred_context_pose["extrinsic"] = pred_context_pose["extrinsic"].cpu()
-        pred_context_pose["intrinsic"] = pred_context_pose["intrinsic"].cpu()
+        pred_context_pose["extrinsic"] = pred_context_pose["extrinsic"].cpu()  # anysplat returns w2c extrinsics
+        pred_context_pose["intrinsic"] = pred_context_pose[
+            "intrinsic"
+        ].cpu()  # the intrinsics received from anysplat are normalized
         decoder = self._model.decoder.cpu()
 
         gtsfm_data = GtsfmData(number_images=len(images))
         for local_idx, (global_idx, img) in enumerate(images.items()):
             intrinsic = pred_context_pose["intrinsic"][0][local_idx].numpy()
             extrinsic = pred_context_pose["extrinsic"][0][local_idx].numpy()
-            camera = torch_utils.camera_from_matrices(extrinsic, intrinsic)
+            intrinsics_pixels = intrinsic.copy()
+            intrinsics_pixels[..., 0, :] *= width
+            intrinsics_pixels[..., 1, :] *= height
+            camera = torch_utils.camera_from_matrices(extrinsic, intrinsics_pixels, wTc_flag=True)
             gtsfm_data.add_camera(global_idx, camera)  # type: ignore
             gtsfm_data.set_image_info(
                 global_idx,
                 name=img.file_name,
-                shape=(height, width),  # TODO(Frank): check if this is correct!
+                shape=(height, width),  # while the image while passing through the model inference in 448,448
+                # the intrinsic outputs were initially normalized so unnormalized ones are used to create gtsfm data
             )
 
-        logger.info("Adding Gaussian means to GtsfmData as 3D tracks.")
-        splats_means = splats.means[0].cpu().numpy()  # type: ignore
-        dc_color = splats.harmonics[..., 0][0]  # type: ignore
-
-        if self._max_gaussians is not None and splats.opacities.shape[1] > self._max_gaussians:
-            logger.info(f"Filtering Gaussians to {self._max_gaussians}")
-
-            op = splats.opacities[0]
-            K = min(self._max_gaussians, op.numel())
-
-            topk = torch.topk(op, k=K, largest=True, sorted=True)
-            idx = topk.indices.to(splats.means.device).long()
-
-            splats_means = splats.means[:, idx, :][0].cpu().numpy()
-
-            dc_color = splats.harmonics[:, idx, :, :][..., 0][0]
-
-        colors_tensor = (dc_color * _SH0_NORMALIZATION_FACTOR + 0.5).clamp(0.0, 1.0)
-        colors_np = (colors_tensor * 255).cpu().numpy()
-
-        if splats_means.size > 0:
-            for j, xyz in enumerate(splats_means):
-                color = colors_np[j]
-
-                track = torch_utils.colored_track_from_point(xyz, color)
-
-                gtsfm_data.add_track(track)
-
-        logger.info(f"Added {len(splats_means)} tracks from Gaussian means.")
+        if not self.tracking:
+            logger.info("Tracking Disabled, will use camera-only merging")
+            gtsfm_data = anysplat_utils.add_tracks_with_gaussian_mean(
+                splats,
+                self.max_gaussians,
+                gtsfm_data,
+            )
+            del depth_map, depth_confidence
 
         gtsfm_data.set_gaussian_splats(splats)
 
-        return AnySplatReconstructionResult(gtsfm_data, splats, pred_context_pose, height, width, decoder)
+        if self.tracking:
+            logger.info("Will use track correspondences in merging")
+            dense_points = None
+            extrinsic_wTc = pred_context_pose["extrinsic"]
+            extrinsic_cTw = torch.linalg.inv(extrinsic_wTc)[..., :3, :]
+            intrinsics_norm = pred_context_pose["intrinsic"]
+            intrinsics_pixels = intrinsics_norm.clone()
+            intrinsics_pixels[..., 0, :] *= width
+            intrinsics_pixels[..., 1, :] *= height
+            # the depth map and depth confidence are 448,448 shapes so normalized intrinsics are unnormalized
+            dense_points = _anysplat_batchify_unproject(depth_map, extrinsic_cTw, intrinsics_pixels)
+
+            if not torch.cuda.is_available():
+                raise RuntimeError(
+                    "VGGT tracking requires a CUDA-capable GPU (DINO uses flash attention). "
+                    "Re-run the pipeline with a CUDA GPU available."
+                )
+            device = torch.device("cuda")
+            dense_points = dense_points.to(device)
+            dtype = torch.float32  # Tracker stack (LightGlue / DINO) expects fp32 inputs.
+
+            if processed_images.device != device or processed_images.dtype != dtype:
+                logger.info("Moving VGGT tracking inputs to %s (dtype=%s) for DINO attention.", device, dtype)
+                tracking_images = processed_images.to(device=device, dtype=dtype, non_blocking=True)
+                tracking_images = ((tracking_images + 1) / 2).clamp(0, 1)
+            else:
+                tracking_images = ((processed_images + 1) / 2).clamp(0, 1)
+
+            conf_tensor = depth_confidence.squeeze(0).to(device="cpu")
+            points_tensor = dense_points.squeeze(0).to(device="cpu")
+            predict_tracks = anysplat_utils.import_predict_tracks()
+            with torch.no_grad():
+                tracks, vis_scores, confidences, points_3d, colors = predict_tracks(
+                    tracking_images.squeeze(0),
+                    conf=conf_tensor,
+                    points_3d=points_tensor,
+                    masks=None,  # ignored anyway !
+                    max_query_pts=self.max_query_pts,
+                    query_frame_num=self.query_frame_num,
+                    keypoint_extractor=self.keypoint_extractor,
+                    max_points_num=self.max_points_num,
+                    fine_tracking=self.fine_tracking,
+                )
+
+            del (
+                colors,
+                dense_points,
+                depth_map,
+                depth_confidence,
+                conf_tensor,
+                points_tensor,
+                tracking_images,
+            )
+
+            logger.info("🔢 Number of tracks before filtering %s", points_3d.shape[0])
+            track_mask = vis_scores > self.track_vis_thresh
+            inlier_num = track_mask.sum(0)
+            self.num_inliers = min(len(images), 3)
+            valid_mask = inlier_num >= self.num_inliers  # a track is invalid if without mentioned number of inliers
+
+            logger.info("🔢 Valid track count after inlier filtering %s", sum(valid_mask))
+
+            confidence_mask = confidences >= self.confidence_thresh
+            valid_mask = np.logical_and(valid_mask, confidence_mask)
+
+            logger.info("🔢 Valid track count after confidence filtering %s", sum(valid_mask))
+
+            if self.reproj_error_thresh is not None:
+                reprojection_errors = anysplat_utils.compute_reprojection_errors(
+                    points_3d=points_3d,
+                    tracks_2d=tracks,
+                    track_mask=track_mask,
+                    extrinsic_cTw=extrinsic_cTw,
+                    intrinsics_pixels=intrinsics_pixels,
+                )
+                finite_reproj_mask = np.isfinite(reprojection_errors)
+                # if np.any(finite_reproj_mask):
+                #     anysplat_utils.log_reprojection_metrics_per_track(reprojection_errors, finite_reproj_mask)
+                # else:
+                #     logger.info("No valid reprojection errors could be computed for the current cluster.")
+
+                reproj_mask = np.logical_and(finite_reproj_mask, reprojection_errors < self.reproj_error_thresh)
+                valid_mask = np.logical_and(valid_mask, reproj_mask)
+
+                logger.info("Valid track count after reprojection error filtering %s", sum(valid_mask))
+
+                # anysplat_utils.log_reprojection_metrics_per_track(reprojection_errors, valid_mask)
+
+                del reproj_mask, finite_reproj_mask
+
+            del confidences, vis_scores
+
+            valid_idx = np.nonzero(valid_mask)[0]
+
+            global_indices = list(images.keys())
+            for valid_id in valid_idx:
+                track = torch_utils.colored_track_from_point(points_3d[valid_id], np.zeros(3).astype(float).tolist())
+                frame_idx = np.where(track_mask[:, valid_id])[0]
+                for local_id in frame_idx:
+                    global_idx = global_indices[local_id]
+                    u, v = tracks[local_id, valid_id]
+
+                    track.addMeasurement(global_idx, gtsam.Point2(u, v))  # if we save normalized tracks,
+                    # then we would have to normalize u and v as well
+                gtsfm_data.add_track(track)
+
+            logger.info("📏 Reprojection error stats after filtering")
+            gtsfm_data.log_scene_reprojection_error_stats()
+
+        if self.run_bundle_adjustment_on_leaf:
+            if gtsfm_data.number_tracks() == 0:
+                logger.warning("Skipping bundle adjustment because VGGT produced no valid tracks.")
+            else:
+                try:
+                    post_ba_gtsfm_data, _ = BundleAdjustmentOptimizer().run_simple_ba(gtsfm_data)
+                    for idx in post_ba_gtsfm_data.get_valid_camera_indices():
+                        info = gtsfm_data.get_image_info(idx)
+                        post_ba_gtsfm_data.set_image_info(idx, name=info.name, shape=info.shape)
+                    postba_S_preba = align_utils.sim3_from_Pose3_maps(post_ba_gtsfm_data.poses(), gtsfm_data.poses())
+                    post_ba_gaussians = transform_gaussian_splats(
+                        gtsfm_data.get_gaussian_splats(), postba_S_preba  # type: ignore
+                    )
+                    post_ba_gtsfm_data.set_gaussian_splats(post_ba_gaussians)
+
+                    logger.info("📏 Reprojection error stats after running BA on individual node")
+                    post_ba_gtsfm_data.log_scene_reprojection_error_stats()
+                    return AnySplatReconstructionResult(
+                        post_ba_gtsfm_data,
+                        splats,
+                        pred_context_pose,
+                        height,
+                        width,
+                        decoder,
+                    )
+                except Exception as exc:
+                    logger.warning("⚠️ Failed to run bundle adjustment: %s", exc)
+
+        return AnySplatReconstructionResult(
+            gtsfm_data,
+            splats,
+            pred_context_pose,
+            height,
+            width,
+            decoder,
+        )
 
     def _preprocess_images(self, images: dict[int, Image], device):
         """
@@ -227,33 +460,26 @@ class ClusterAnySplat(ClusterOptimizerBase):
         decoder_model = result.decoder.to(device)
         extrinsics = result.pred_context_pose["extrinsic"].to(device)
         intrinsics = result.pred_context_pose["intrinsic"].to(device)
+        splats = result.gtsfm_data.get_gaussian_splats()
         for attr in ["means", "scales", "rotations", "harmonics", "opacities", "covariances"]:
-            setattr(result.splats, attr, getattr(result.splats, attr).to(device))
+            setattr(splats, attr, getattr(splats, attr).to(device))
 
         b = 1  # AnySplat convention
+        # anysplat function internally scales the normalized intrinsics to height and width
         anysplat_utils.save_interpolated_video(
             extrinsics,
             intrinsics,
             b,
             result.height,
             result.width,
-            result.splats,
+            splats,
             save_gs_files_path,
             decoder_model,
         )
 
-    def _save_splats(self, result: AnySplatReconstructionResult, save_gs_files_path: Path) -> None:
-        splats = result.splats
-        anysplat_utils.export_ply(
-            splats.means[0],
-            splats.scales[0],
-            splats.rotations[0],
-            splats.harmonics[0],
-            splats.opacities[0],
-            save_gs_files_path / "gaussian_splats.ply",
-            save_sh_dc_only=True,  # Since current model use SH_degree = 4, which require large memory to store, we can
-            # only save the DC band to save memory.
-        )
+        del intrinsics, extrinsics, decoder_model
+        for attr in ["means", "scales", "rotations", "harmonics", "opacities", "covariances"]:
+            setattr(splats, attr, getattr(splats, attr).cpu())
 
     def create_computation_graph(
         self,
@@ -277,12 +503,18 @@ class ClusterAnySplat(ClusterOptimizerBase):
         metrics_tasks.append(delayed(self._aggregate_anysplat_metrics)(result_graph))
         with self._output_annotation():
             io_tasks.append(
-                delayed(self._generate_interpolated_video)(
-                    result_graph,
-                    str(context.output_paths.results),
+                delayed(_save_reconstruction_as_text)(
+                    result_graph.gtsfm_data,
+                    context.output_paths.results,
+                    context.react_results_subdir,
                 )
             )
-            io_tasks.append(delayed(self._save_splats)(result_graph, context.output_paths.results))
+            io_tasks.append(
+                delayed(self._generate_interpolated_video)(
+                    result_graph,
+                    str(context.output_paths.results / "anysplat"),
+                )
+            )
 
         sfm_result_graph = delayed(lambda res: res.gtsfm_data)(result_graph)
 
