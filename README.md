@@ -73,6 +73,122 @@ Now, install `gtsfm` as a module:
 ```bash
 pip install -e .
 ```
+### Alternative: Using UV (Faster Package Management)
+
+[UV](https://docs.astral.sh/uv/) is an extremely fast Python package manager written in Rust that can replace pip, conda, and virtualenv. It's 10-100x faster than traditional tools.
+
+#### Install UV
+
+On **Linux** or **macOS**:
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+#### Set Up GTSfM with UV
+
+Navigate to the GTSfM directory and set up the environment:
+
+```bash
+cd /gtsfm
+
+# 1. Clean existing environment (if any)
+rm -rf .venv
+
+# 2. Install Python 3.10 using UV (if not already installed)
+uv python install 3.10
+
+# 3. Create environment based on pyproject.toml and sync dependencies using Python 3.10
+uv sync --python 3.10
+
+# 4. Verify Python version
+uv run python --version
+# Should display: Python 3.10.x
+
+# 5. Install torch-scatter
+# Check your CUDA version first, then install the appropriate version
+# For CUDA 12.1, use cu121:
+uv pip install torch-scatter --find-links https://data.pyg.org/whl/torch-2.5.1+cu121.html
+
+# 6. Verify installation
+uv run python -c "import gtsfm; import pydegensac; import torch; print('✅ Success!')"
+
+```
+#### Add System Level Package
+```bash
+# Linux
+sudo apt-get install nodejs npm
+sudo apt-get install graphviz
+# macOS
+brew install node
+brew install graphviz
+```
+#### Go to gest using UV
+```bash
+uv run ./run --dataset_dir tests/data/set1_lund_door \
+--config_name unified_binary.yaml \
+--loader olsson \
+--num_workers 2 graph_partitioner.max_depth=1
+```
+
+```bash
+uv run .github/scripts/execute_single_benchmark.sh skydio-8 lightglue 15 colmap-loader 760 true
+```
+
+#### Managing Packages with UV
+
+**Adding a new package:**
+```bash
+uv add <package-name>
+# Example: uv add numpy
+```
+
+**Adding a development dependency:**
+```bash
+uv add --dev <package-name>
+# Example: uv add --dev pytest
+```
+
+**Removing a package:**
+```bash
+uv remove <package-name>
+# Example: uv remove numpy
+```
+
+**Installing a package without adding to dependencies:**
+```bash
+uv pip install <package-name>
+```
+
+#### When to Use `uv lock`
+
+The `uv lock` command updates the lock file (`uv.lock`) without installing packages. Use it when:
+
+- **After manually editing `pyproject.toml`:** When you directly modify dependencies in the configuration file
+- **To update dependencies:** When you want to resolve and lock new versions without installing
+- **In CI/CD pipelines:** To ensure reproducible builds by generating a lock file
+- **Before committing changes:** To update the lock file for team members
+
+```bash
+# Update lock file after editing pyproject.toml
+uv lock
+
+# Update lock file and install packages
+uv lock && uv sync
+```
+
+> **Note:** `uv add` and `uv remove` automatically update the lock file, so you typically don't need to run `uv lock` manually after these commands.
+
+#### Running Commands with UV
+
+Once set up, prefix Python commands with `uv run`:
+
+```bash
+# Run GTSfM
+uv run python -m gtsfm.runner --config_name deep_front_end.yaml
+
+# Or use the run script
+uv run ./run --dataset_dir tests/data/set1_lund_door --config_name deep_front_end.yaml
+```
 
 Make sure that you can run `python -c "import gtsfm; import gtsam; print('hello world')"` in python, and you are good to go!
 
