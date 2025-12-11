@@ -120,7 +120,6 @@ dependencies = [
     "dacite",
     "lightning",
     "sk-video",
-    "xformers==0.0.29",
     "e3nn",
     "colorspacious",
     "plyfile",
@@ -139,6 +138,7 @@ dependencies = [
 [project.optional-dependencies]
 # GPU support (CUDA) - for Linux with NVIDIA GPUs
 cuda = [
+    "xformers==0.0.29", 
     "dask-cuda>=24.8.0 ; sys_platform == 'linux'",
 ]
 

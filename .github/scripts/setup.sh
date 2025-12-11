@@ -13,7 +13,15 @@ conda info --envs
 ##########################################################
 
 cd $GITHUB_WORKSPACE
-pip install -e .
+
+if python -c "import torch; exit(0 if torch.cuda.is_available() else 1)" 2>/dev/null; then
+    echo "✅ CUDA detected, installing with GPU support..."
+    pip install -e ".[cuda]"
+else
+    echo "⚠️ No CUDA detected, installing CPU version..."
+    pip install -e .
+fi
+
 git submodule update --init --recursive
 
 ##########################################################
