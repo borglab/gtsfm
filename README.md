@@ -89,7 +89,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 Navigate to the GTSfM directory and set up the environment:
 
 ```bash
-cd /gtsfm
+cd path/to/gtsfm
 
 # 1. Clean existing environment (if any)
 rm -rf .venv
@@ -122,7 +122,7 @@ sudo apt-get install graphviz
 brew install node
 brew install graphviz
 ```
-#### Go to gest using UV
+#### Go to test using UV
 ```bash
 uv run ./run --dataset_dir tests/data/set1_lund_door \
 --config_name unified_binary.yaml \

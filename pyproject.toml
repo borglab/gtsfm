@@ -26,7 +26,7 @@ name = "gtsfm"
 version = "0.2.0"
 description = "Georgia Tech Structure from Motion - End-to-end SfM pipeline based on GTSAM"
 readme = "README.md"
-requires-python = ">=3.10,<3.11"
+requires-python = ">=3.10,<3.12"
 license = {text = "BSD-3-Clause"}
 keywords = ["computer-vision", "structure-from-motion", "sfm", "3d-reconstruction"]
 authors = [
@@ -114,7 +114,7 @@ dependencies = [
     "gsplat==1.5.3",
     "torchmetrics==1.7.3",
     "tyro==0.9.24",
-    "Flask>=3.0",
+    "Flask>=3.0,<4.0",
     
     # AnySplat
     "dacite",
@@ -143,9 +143,6 @@ cuda = [
 ]
 
 # macOS specific dependencies
-macos = [
-    "dask-cuda>=24.8.0 ; sys_platform == 'darwin'",
-]
 
 # All platform-specific dependencies
 all = [
@@ -238,6 +235,7 @@ generated-members = ["numpy.*", "torch.*", "cv2.*", "cv.*", "scipy.*", "gtsam.*"
 # Flake8 Configuration (Style Checking)
 # Note: Flake8 doesn't read from pyproject.toml natively
 # This is for reference. Use setup.cfg or .flake8 file instead
+# Or use a plugin like flake8-pyproject to enable pyproject.toml support
 # ============================================================================
 [tool.flake8]
 max-line-length = 120
