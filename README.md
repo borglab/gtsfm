@@ -73,47 +73,55 @@ Now, install `gtsfm` as a module:
 ```bash
 pip install -e .
 ```
-### Alternative: Using UV (Faster Package Management)
 
-[UV](https://docs.astral.sh/uv/) is an extremely fast Python package manager written in Rust that can replace pip, conda, and virtualenv. It's 10-100x faster than traditional tools.
+Make sure that you can run `python -c "import gtsfm; import gtsam; print('hello world')"` in python, and you are good to go!
 
-#### Install UV
-
-On **Linux** or **macOS**:
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
 
 #### Set Up GTSfM with UV
 
-Navigate to the GTSfM directory and set up the environment:
+**Basic Installation:**
+Navigate to the GTSfM directory:
 
 ```bash
 cd path/to/gtsfm
 
-# 1. Clean existing environment (if any)
+# Clean existing environment (if any)
 rm -rf .venv
 
-# 2. Install Python 3.10 using UV (if not already installed)
-uv python install 3.10
-
-# 3. Create environment based on pyproject.toml and sync dependencies using Python 3.10
+# Install core dependencies
 uv sync --python 3.10
 
-# 4. Verify Python version
-uv run python --version
-# Should display: Python 3.10.x
-
-# 5. Install torch-scatter
-# Check your CUDA version first, then install the appropriate version
-# For CUDA 12.1, use cu121:
+# Install torch-scatter (platform-specific)
+# For Linux (CUDA 12.1):
 uv pip install torch-scatter --find-links https://data.pyg.org/whl/torch-2.5.1+cu121.html
 
-# 6. Verify installation
-uv run python -c "import gtsfm; import pydegensac; import torch; print('✅ Success!')"
-
+# For macOS (CPU):
+uv pip install torch-scatter --find-links https://data.pyg.org/whl/torch-2.5.1+cpu.html
 ```
-#### Add System Level Package
+
+**Multi-GPU Installation (For Distributed Computing):**
+
+If you have multiple GPUs on the same machine and want to use Dask for distributed GPU computing:
+
+```bash
+# Multiple GPUs per node (e.g., 4x or 8x A100)
+uv sync --python 3.10 --extra complete --extra multi-gpu
+```
+
+This adds `dask-cuda` for GPU-aware distributed scheduling.
+
+**When do you need `--extra multi-gpu`?**
+- You have multiple GPUs on the same machine
+- You want to use Dask to distribute work across GPUs
+- You're running on a GPU cluster node
+
+**When you DON'T need it:**
+- Single GPU workstation
+- Laptop with one GPU
+- CPU-only machines
+- Multiple machines (handled differently)
+
+**Add System Level Package**
 ```bash
 # Linux
 sudo apt-get install nodejs npm
@@ -122,6 +130,12 @@ sudo apt-get install graphviz
 brew install node
 brew install graphviz
 ```
+
+**Verify installation**
+```bash
+uv run python -c "import gtsfm; import pydegensac; import torch; import torch_scatter; print('✅ Success!')"
+```
+
 #### Go to test using UV
 ```bash
 uv run ./run --dataset_dir tests/data/set1_lund_door \

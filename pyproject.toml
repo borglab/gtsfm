@@ -1,21 +1,13 @@
 # ============================================================================
-# IMPORTANT: Manual Installation Required
+# INSTALLATION INSTRUCTIONS
 # ============================================================================
-# After running `uv sync`, you need to manually install torch-scatter:
+# Installation (two steps):
+#   1. uv sync --python 3.10
+#   2. uv pip install torch-scatter --find-links https://data.pyg.org/whl/torch-2.5.1+cu121.html
 #
-# 1. Activate the virtual environment:
-#    source .venv/bin/activate
-#
-# 2. Check your CUDA version, then install torch-scatter from pre-built wheels:
-#    For CUDA 12.1:
-#    pip install torch-scatter -f https://data.pyg.org/whl/torch-2.5.1+cu121.html
-#
-# 3. For CPU-only or other CUDA versions, adjust the URL accordingly:
-#    https://data.pyg.org/whl/
-#
-# Additionally, nodejs, graphviz are required for visualization tools:
-# - Linux:   sudo apt-get install nodejs npm graphviz
-# - macOS:   brew install node
+# System packages also required:
+#   - Linux:  sudo apt-get install nodejs npm graphviz
+#   - macOS:  brew install node graphviz
 # ============================================================================
 
 # ============================================================================
@@ -26,24 +18,9 @@ name = "gtsfm"
 version = "0.2.0"
 description = "Georgia Tech Structure from Motion - End-to-end SfM pipeline based on GTSAM"
 readme = "README.md"
-requires-python = ">=3.10,<3.12"
+requires-python = ">=3.10,<3.11"
 license = {text = "BSD-3-Clause"}
 keywords = ["computer-vision", "structure-from-motion", "sfm", "3d-reconstruction"]
-authors = [
-    {name = "GTSFM Contributors"}
-]
-classifiers = [
-    "Development Status :: 5 - Production/Stable",
-    "Intended Audience :: Developers",
-    "Intended Audience :: Science/Research",
-    "Operating System :: POSIX",
-    "Operating System :: MacOS",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Topic :: Scientific/Engineering :: Artificial Intelligence",
-    "Topic :: Scientific/Engineering :: Image Recognition",
-]
 
 # ============================================================================
 # Core Dependencies (Production)
@@ -127,8 +104,6 @@ dependencies = [
     "imageio-ffmpeg",
     "visu3d==1.5.3",
     "etils==1.7.0",
-    # NOTE: torch-scatter==2.1.2 must be installed manually after torch
-    # See installation instructions at the top of this file
     "nbformat==5.10.4",
 ]
 
@@ -136,17 +111,21 @@ dependencies = [
 # Optional Dependencies (Extras)
 # ============================================================================
 [project.optional-dependencies]
-# GPU support (CUDA) - for Linux with NVIDIA GPUs
-cuda = [
-    "xformers==0.0.29", 
+# Includes torch-scatter (required) and xformers (GPU acceleration)
+complete = [
+    "xformers==0.0.29 ; sys_platform == 'linux'",
+]
+
+# Multi-GPU support (only needed for distributed computing with multiple GPUs per node)
+# Requires CUDA-aware hardware and drivers
+multi-gpu = [
     "dask-cuda>=24.8.0 ; sys_platform == 'linux'",
 ]
 
-# macOS specific dependencies
-
-# All platform-specific dependencies
+# All optional features combined (for power users and clusters)
 all = [
-    "dask-cuda>=24.8.0",
+    "xformers==0.0.29 ; sys_platform == 'linux'",
+    "dask-cuda>=24.8.0 ; sys_platform == 'linux'",
 ]
 
 # ============================================================================
@@ -168,10 +147,10 @@ dev = [
 ]
 
 # ============================================================================
-# Dependency Sources (for PyTorch GPU/CPU selection)
+# Dependency Sources (for PyTorch and torch-scatter GPU/CPU selection)
 # ============================================================================
 [tool.uv.sources]
-# PyTorch: Use CUDA on Linux, CPU on macOS
+# PyTorch: Use CUDA 12.1 on Linux, CPU on macOS
 torch = [
     { index = "pytorch-cu121", marker = "sys_platform == 'linux'" },
     { index = "pytorch-cpu", marker = "sys_platform == 'darwin'" },
@@ -210,6 +189,13 @@ default-groups = ["dev"]
 
 # Package as editable install (for development)
 package = true
+
+# ============================================================================
+# UV Extra Build Dependencies
+# ============================================================================
+# Packages that require other packages to be available during build time
+[tool.uv.extra-build-dependencies]
+torch-scatter = ["torch"]
 
 # ============================================================================
 # Black Configuration (Code Formatting)
