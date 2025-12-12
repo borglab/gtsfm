@@ -111,7 +111,6 @@ dependencies = [
 # Optional Dependencies (Extras)
 # ============================================================================
 [project.optional-dependencies]
-# Includes torch-scatter (required) and xformers (GPU acceleration)
 complete = [
     "xformers==0.0.29 ; sys_platform == 'linux'",
 ]
@@ -147,7 +146,7 @@ dev = [
 ]
 
 # ============================================================================
-# Dependency Sources (for PyTorch and torch-scatter GPU/CPU selection)
+# Dependency Sources
 # ============================================================================
 [tool.uv.sources]
 # PyTorch: Use CUDA 12.1 on Linux, CPU on macOS
@@ -189,13 +188,6 @@ default-groups = ["dev"]
 
 # Package as editable install (for development)
 package = true
-
-# ============================================================================
-# UV Extra Build Dependencies
-# ============================================================================
-# Packages that require other packages to be available during build time
-[tool.uv.extra-build-dependencies]
-torch-scatter = ["torch"]
 
 # ============================================================================
 # Black Configuration (Code Formatting)

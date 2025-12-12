@@ -88,15 +88,16 @@ cd path/to/gtsfm
 # Clean existing environment (if any)
 rm -rf .venv
 
-# Install core dependencies
+# Install on Linux for CPU only and macOS
 uv sync --python 3.10
+
+# Install on Linux with CUDA GPU
+uv sync --python 3.10 --extra complete
 
 # Install torch-scatter (platform-specific)
 # For Linux (CUDA 12.1):
 uv pip install torch-scatter --find-links https://data.pyg.org/whl/torch-2.5.1+cu121.html
 
-# For macOS (CPU):
-uv pip install torch-scatter --find-links https://data.pyg.org/whl/torch-2.5.1+cpu.html
 ```
 
 **Multi-GPU Installation (For Distributed Computing):**
