@@ -120,6 +120,7 @@ class SceneOptimizer:
         self._plot_reprojection_histograms = getattr(
             self.cluster_optimizer, "plot_reprojection_histograms", plot_reprojection_histograms
         )
+        self._merge_duplicate_tracks = getattr(self.cluster_optimizer, "merge_duplicate_tracks", True)
         self._drop_outlier_after_camera_merging = getattr(
             self.cluster_optimizer, "drop_outlier_after_camera_merging", True
         )
@@ -237,6 +238,7 @@ class SceneOptimizer:
                     cluster_merging.combine_results,
                     run_bundle_adjustment_on_parent=self._run_bundle_adjustment_on_parent,
                     plot_reprojection_histograms=self._plot_reprojection_histograms,
+                    merge_duplicate_tracks=self._merge_duplicate_tracks,
                     drop_outlier_after_camera_merging=self._drop_outlier_after_camera_merging,
                     drop_camera_with_no_track=self._drop_camera_with_no_track,
                     drop_child_if_merging_fail=self._drop_child_if_merging_fail,
