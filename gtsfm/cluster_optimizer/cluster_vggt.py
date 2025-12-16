@@ -155,6 +155,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         run_bundle_adjustment_on_parent: bool = True,
         max_reproj_error: float = 8.0,
         plot_reprojection_histograms: bool = True,
+        merge_duplicate_tracks: bool = True,
         drop_outlier_after_camera_merging: bool = True,
         drop_child_if_merging_fail: bool = True,
         drop_camera_with_no_track: bool = True,
@@ -167,6 +168,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         self.drop_outlier_after_camera_merging = drop_outlier_after_camera_merging
         self.drop_child_if_merging_fail = drop_child_if_merging_fail
         self.drop_camera_with_no_track = drop_camera_with_no_track
+        self.merge_duplicate_tracks = merge_duplicate_tracks
         self._weights_path = Path(weights_path) if weights_path is not None else None
         self._image_load_resolution = image_load_resolution
         self._inference_resolution = inference_resolution

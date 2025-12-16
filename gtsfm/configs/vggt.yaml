@@ -38,8 +38,9 @@ cluster_optimizer:
   track_vis_thresh: 0.2
   camera_type: PINHOLE
   drop_outlier_after_camera_merging: false
-  drop_child_if_merging_fail: true
+  drop_child_if_merging_fail: false
   drop_camera_with_no_track: true
+  merge_duplicate_tracks: false
   seed: 42
   copy_results_to_react: true
   plot_reprojection_histograms: true
