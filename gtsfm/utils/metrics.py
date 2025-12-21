@@ -19,6 +19,7 @@ from trimesh import Trimesh
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.verification as verification_utils
+from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.types import CALIBRATION_TYPE, CAMERA_TYPE
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
@@ -382,6 +383,26 @@ def compute_pose_auc_metric(
     for threshold, auc in zip(thresholds_deg, AUCs):
         metrics.append(GtsfmMetric(f"pose_auc_@{threshold}_deg", auc))
     return metrics
+
+
+def get_pose_metrics(
+    result_data: GtsfmData,
+    cameras_gt: List[Optional[CAMERA_TYPE]],
+    save_dir: Optional[str] = None,
+) -> GtsfmMetricsGroup:
+    """Compute pose metrics for a BA result after aligning with ground truth."""
+    poses_gt = [cam.pose() if cam is not None else None for cam in cameras_gt]
+
+    valid_poses_gt_count = len(poses_gt) - poses_gt.count(None)
+    if valid_poses_gt_count == 0:
+        return GtsfmMetricsGroup(name="ba_pose_error_metrics", metrics=[])
+
+    aligned_result_data = result_data.align_via_sim3_and_transform(poses_gt)
+    return compute_ba_pose_metrics(
+        gt_wTi_list=poses_gt,
+        computed_wTi_list=aligned_result_data.get_camera_poses(),
+        save_dir=save_dir,
+    )
 
 
 def compute_ba_pose_metrics(
