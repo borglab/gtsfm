@@ -3,6 +3,7 @@
 Authors: Ayush Baid
 """
 
+import gc
 import time
 from pathlib import Path
 
@@ -20,6 +21,12 @@ from gtsfm.products.visibility_graph import VisibilityGraph
 from gtsfm.retriever.retriever_base import RetrieverBase
 
 logger = logger_utils.get_logger()
+
+
+def _empty_cuda_cache() -> None:
+    """Best-effort CUDA cache cleanup on workers."""
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
 
 
 class ImagePairsGenerator:
@@ -78,6 +85,8 @@ class ImagePairsGenerator:
 
         descriptors: list[np.ndarray] | None = None  # Will hold global descriptors if computed
 
+        descriptor_futures: list[Future] = []
+        global_descriptor_future: Future | None = None
         if self._global_descriptor is not None:
             logger.info("🟩 About to scatter descriptor")
             scatter_start = time.time()
@@ -87,7 +96,7 @@ class ImagePairsGenerator:
             logger.info(f"🟩 Scatter completed in {time.time()-scatter_start:.1f} seconds")
 
             # Submit descriptor extraction jobs for all images in parallel
-            descriptor_futures: list[Future] = [
+            descriptor_futures = [
                 client.submit(apply_global_descriptor_batch, global_descriptor_future, batch_future)
                 for batch_future in image_batch_futures
             ]
@@ -97,6 +106,19 @@ class ImagePairsGenerator:
 
             # Flatten the batched results
             descriptors = [desc for batch in batched_descriptors for desc in batch]  # type: ignore
+
+        # Eagerly free batch/descriptor futures to avoid holding tensors on the worker.
+        try:
+            if descriptor_futures:
+                client.cancel(descriptor_futures)
+            if global_descriptor_future is not None:
+                client.cancel(global_descriptor_future)
+            if image_batch_futures:
+                client.cancel(image_batch_futures)
+            client.run(gc.collect)
+            client.run(_empty_cuda_cache)
+        except Exception as exc:  # pragma: no cover - best-effort cleanup
+            logger.debug("Skipping worker memory cleanup: %s", exc)
 
         # Use retriever to construct visibility graph based on descriptors and filenames
         logger.info("⏳ Computing visibility graph...")
