@@ -14,8 +14,8 @@ image_pairs_generator:
       _target_: gtsfm.frontend.global_descriptor.MegaLoc
   retriever:
     _target_: gtsfm.retriever.Similarity
-    num_matched: 5
-    min_score: 0.79
+    num_matched: 15
+    min_score: 0.4
   batch_size: 16
 
 graph_partitioner:
