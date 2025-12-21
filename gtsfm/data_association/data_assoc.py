@@ -159,14 +159,14 @@ class DataAssociation(GTSFMProcess):
 
         track_cheirality_failure_ratio = exit_codes_wrt_computed_distribution[
             TriangulationExitCode.CHEIRALITY_FAILURE
-        ] / len(tracks_2d)
+        ] / (len(tracks_2d) + 1e-6)
 
         # Pick only the largest connected component.
         # TODO(Ayush): remove this for hilti as disconnected components not an issue?
         cam_edges_from_prior = [k for k, v in relative_pose_priors.items() if v is not None]
         connected_data = triangulated_data.select_largest_connected_component(extra_camera_edges=cam_edges_from_prior)
         num_accepted_tracks = connected_data.number_tracks()
-        accepted_tracks_ratio = num_accepted_tracks / len(tracks_2d)
+        accepted_tracks_ratio = num_accepted_tracks / (len(tracks_2d) + 1e-6)
 
         mean_3d_track_length, median_3d_track_length = connected_data.get_track_length_statistics()
         track_lengths_3d = connected_data.get_track_lengths()
@@ -222,6 +222,13 @@ class DataAssociation(GTSFMProcess):
             avg_track_reproj_errors: List of average reprojection errors per track.
             triangulation_exit_codes: Exit codes for each triangulation call.
         """
+        sfm_tracks, avg_track_reproj_errors, triangulation_exit_codes = [], [], []
+        if len(cameras) == 0:
+            logger.warning("No cameras found, skipping triangulation.")
+            return sfm_tracks, avg_track_reproj_errors, triangulation_exit_codes
+        elif len(tracks_2d) == 0:
+            logger.warning("No tracks found, skipping triangulation.")
+            return sfm_tracks, avg_track_reproj_errors, triangulation_exit_codes
 
         def triangulate_batch(
             point3d_initializer: Point3dInitializer, tracks_2d: List[SfmTrack2d]
@@ -251,7 +258,6 @@ class DataAssociation(GTSFMProcess):
         triangulation_results = dask_compute(*triangulation_results)
 
         # Unpack results.
-        sfm_tracks, avg_track_reproj_errors, triangulation_exit_codes = [], [], []
         if batch_size == 1:
             for sfm_track, avg_track_reproj_error, exit_code in triangulation_results:
                 sfm_tracks.append(sfm_track)
