@@ -90,8 +90,8 @@ Before setting up the Python environment, install required system packages:
 sudo apt-get install nodejs npm graphviz
 
 # macOS
-brew install node graphviz**Basic Installation:**
-Navigate to the GTSfM directory:
+brew install node graphviz
+
 ```
 
 **Basic Installation:**
