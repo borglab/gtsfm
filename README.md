@@ -77,7 +77,22 @@ pip install -e .
 Make sure that you can run `python -c "import gtsfm; import gtsam; print('hello world')"` in python, and you are good to go!
 
 
-#### Set Up GTSfM with UV
+### Alternative: Set Up GTSfM with UV
+
+**Install UV:**
+```bash
+curl -LsSf https://astral.sh/uv/install.sh 
+```
+
+Before setting up the Python environment, install required system packages:
+```bash
+# Linux
+sudo apt-get install nodejs npm graphviz
+
+# macOS
+brew install node graphviz**Basic Installation:**
+Navigate to the GTSfM directory:
+```
 
 **Basic Installation:**
 Navigate to the GTSfM directory:
@@ -95,8 +110,8 @@ uv sync --python 3.10
 uv sync --python 3.10 --extra complete
 
 # Install torch-scatter (platform-specific)
-# For Linux (CUDA 12.1):
-uv pip install torch-scatter --find-links https://data.pyg.org/whl/torch-2.5.1+cu121.html
+# For Linux (CUDA 12.8):
+uv pip install torch-scatter --find-links https://data.pyg.org/whl/torch-2.7.0+cu128.html
 
 ```
 
@@ -122,22 +137,13 @@ This adds `dask-cuda` for GPU-aware distributed scheduling.
 - CPU-only machines
 - Multiple machines (handled differently)
 
-**Add System Level Package**
-```bash
-# Linux
-sudo apt-get install nodejs npm
-sudo apt-get install graphviz
-# macOS
-brew install node
-brew install graphviz
-```
 
 **Verify installation**
 ```bash
-uv run python -c "import gtsfm; import pydegensac; import torch; import torch_scatter; print('✅ Success!')"
+uv run python -c "import gtsfm; import pydegensac; import torch; import torch_scatter; print('✅ Success')"
 ```
 
-#### Go to test using UV
+### Go to test using UV
 ```bash
 uv run ./run --dataset_dir tests/data/set1_lund_door \
 --config_name unified_binary.yaml \
@@ -149,7 +155,7 @@ uv run ./run --dataset_dir tests/data/set1_lund_door \
 uv run .github/scripts/execute_single_benchmark.sh skydio-8 lightglue 15 colmap-loader 760 true
 ```
 
-#### Managing Packages with UV
+### Managing Packages with UV
 
 **Adding a new package:**
 ```bash
@@ -174,7 +180,7 @@ uv remove <package-name>
 uv pip install <package-name>
 ```
 
-#### When to Use `uv lock`
+### When to Use `uv lock`
 
 The `uv lock` command updates the lock file (`uv.lock`) without installing packages. Use it when:
 
@@ -193,7 +199,7 @@ uv lock && uv sync
 
 > **Note:** `uv add` and `uv remove` automatically update the lock file, so you typically don't need to run `uv lock` manually after these commands.
 
-#### Running Commands with UV
+### Running Commands with UV
 
 Once set up, prefix Python commands with `uv run`:
 
