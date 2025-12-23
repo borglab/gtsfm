@@ -68,8 +68,8 @@ dependencies = [
     "wget",
     
     # PyTorch (sources configured below for GPU/CPU selection)
-    "torch>=2.7.0,<2.8.0",
-    "torchvision>=0.22.0,<0.23.0",
+    "torch>=2.5.0,<2.8.0",
+    "torchvision>=0.20.0,<0.23.0",
     
     # Computer vision
     "opencv-python>=4.5.4.60",
