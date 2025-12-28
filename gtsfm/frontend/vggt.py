@@ -446,8 +446,8 @@ def _convert_vggt_outputs_to_gtsfm_data(
         inlier_num = track_mask.sum(0)
 
         valid_mask = inlier_num >= 2  # a track is invalid if without two inliers
-        if tracking_result.confidences is not None:
-            valid_mask = np.logical_and(valid_mask, tracking_result.confidences > config.confidence_threshold)
+        # if tracking_result.confidences is not None:
+        #     valid_mask = np.logical_and(valid_mask, tracking_result.confidences > config.confidence_threshold)
         valid_idx = np.nonzero(valid_mask)[0]
 
         max_reproj_error = float(config.max_reproj_error)
