@@ -264,7 +264,7 @@ def combine_results(
         measurement_to_track: dict[tuple[int, float, float], int] = {}
 
         def _measurement_key(cam_idx: int, uv: np.ndarray) -> tuple[int, float, float]:
-            return cam_idx, round(float(uv[0]), 3), round(float(uv[1]), 3)
+            return cam_idx, round(float(uv[0])), round(float(uv[1]))
 
         for track in merged.tracks():
             measurements = [track.measurement(k) for k in range(track.numberMeasurements())]
