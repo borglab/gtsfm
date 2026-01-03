@@ -385,26 +385,6 @@ def compute_pose_auc_metric(
     return metrics
 
 
-def get_pose_metrics(
-    result_data: GtsfmData,
-    cameras_gt: List[Optional[CAMERA_TYPE]],
-    save_dir: Optional[str] = None,
-) -> GtsfmMetricsGroup:
-    """Compute pose metrics for a BA result after aligning with ground truth."""
-    poses_gt = [cam.pose() if cam is not None else None for cam in cameras_gt]
-
-    valid_poses_gt_count = len(poses_gt) - poses_gt.count(None)
-    if valid_poses_gt_count == 0:
-        return GtsfmMetricsGroup(name="ba_pose_error_metrics", metrics=[])
-
-    aligned_result_data = result_data.align_via_sim3_and_transform(poses_gt)
-    return compute_ba_pose_metrics(
-        gt_wTi_list=poses_gt,
-        computed_wTi_list=aligned_result_data.get_camera_poses(),
-        save_dir=save_dir,
-    )
-
-
 def compute_ba_pose_metrics(
     gt_wTi_list: List[Optional[Pose3]],
     computed_wTi_list: List[Optional[Pose3]],

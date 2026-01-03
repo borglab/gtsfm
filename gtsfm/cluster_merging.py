@@ -188,6 +188,35 @@ def _plot_reprojection_error_distribution(
         logger.warning("⚠️ Failed to save reprojection error plot %s: %s", output_path, exc)
 
 
+def _get_pose_metrics(
+    result_data: GtsfmData,
+    cameras_gt: list[Optional[gtsfm_types.CAMERA_TYPE]],
+    save_dir: Optional[str] = None,
+) -> GtsfmMetricsGroup:
+    """Compute pose metrics for a BA result after aligning with ground truth.
+    
+    Args:
+        result_data: The GtsfmData object to compute pose metrics for.
+        cameras_gt: The ground truth cameras.
+        save_dir: The directory to save the pose metrics to.
+
+    Returns:
+        A GtsfmMetricsGroup object containing the pose metrics.
+    """
+    poses_gt = [cam.pose() if cam is not None else None for cam in cameras_gt]
+
+    valid_poses_gt_count = len(poses_gt) - poses_gt.count(None)
+    if valid_poses_gt_count == 0:
+        return GtsfmMetricsGroup(name="ba_pose_error_metrics", metrics=[])
+
+    aligned_result_data = result_data.align_via_sim3_and_transform(poses_gt)
+    return metrics_utils.compute_ba_pose_metrics(
+        gt_wTi_list=poses_gt,
+        computed_wTi_list=aligned_result_data.get_camera_poses(),
+        save_dir=save_dir,
+    )
+
+
 def compute_merging_metrics(
     merged_scene: Optional[GtsfmData],
     *,
@@ -222,7 +251,7 @@ def compute_merging_metrics(
         metrics.extend(merged_scene.get_metrics(suffix="_merged", store_full_data=store_full_data))
     merging_metrics = GtsfmMetricsGroup(name="merging_metrics", metrics=metrics)
     if cameras_gt is not None and merged_scene is not None:
-        ba_pose_error_metrics = metrics_utils.get_pose_metrics(
+        ba_pose_error_metrics = _get_pose_metrics(
             merged_scene,
             cameras_gt,
             save_dir=pose_save_dir,
