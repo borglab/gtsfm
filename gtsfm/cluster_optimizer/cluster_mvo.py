@@ -28,6 +28,7 @@ from gtsfm.cluster_optimizer.cluster_optimizer_base import (
     ClusterOptimizerBase,
 )
 from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm.common.types import create_camera
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
@@ -377,6 +378,9 @@ class ClusterMVO(ClusterOptimizerBase):
         # Create I/O tasks.
         ba_output_graph = delayed(ClusterMVO._annotate_scene_with_images)(ba_output_graph, d_cluster_images)
         cameras_gt = [context.one_view_data_dict[idx].camera_gt for idx in range(context.num_images)]
+        # Align GT cameras using the same Sim(3)/axis alignment applied to BA outputs so they live in the
+        # exported frame and stay consistent with the aligned tracks.
+        aligned_cameras_gt = delayed(_align_cameras_to_poses)(cameras_gt, aligned_gt_wTi_list)
         with self._output_annotation():
             if self._save_gtsfm_data:
                 delayed_io_tasks.append(
@@ -384,7 +388,7 @@ class ClusterMVO(ClusterOptimizerBase):
                         ba_input_graph,
                         ba_output_graph,
                         results_path=context.output_paths.results,
-                        cameras_gt=cameras_gt,
+                        cameras_gt=aligned_cameras_gt,
                     )
                 )
                 if self._save_3d_viz:
@@ -484,6 +488,19 @@ def align_estimated_gtsfm_data(
     a_gt_poses = transform.optional_Pose3s_with_sim3(aSw, gt_wTi_list)
 
     return a_ba_input, a_ba_output, a_gt_poses
+
+
+def _align_cameras_to_poses(
+    cameras_gt: list[Optional[gtsfm_types.CAMERA_TYPE]], aligned_gt_wTi_list: list[Optional[Pose3]]
+) -> list[Optional[gtsfm_types.CAMERA_TYPE]]:
+    """Transport GT cameras into the aligned frame to match aligned tracks."""
+    aligned_cameras_gt: list[Optional[gtsfm_types.CAMERA_TYPE]] = []
+    for aligned_pose, cam in zip(aligned_gt_wTi_list, cameras_gt):
+        if aligned_pose is None or cam is None:
+            aligned_cameras_gt.append(None)
+            continue
+        aligned_cameras_gt.append(create_camera(aligned_pose, cam.calibration()))
+    return aligned_cameras_gt
 
 
 def save_matplotlib_visualizations(
