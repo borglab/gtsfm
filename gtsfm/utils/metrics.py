@@ -19,7 +19,6 @@ from trimesh import Trimesh
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.verification as verification_utils
-from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.types import CALIBRATION_TYPE, CAMERA_TYPE
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
