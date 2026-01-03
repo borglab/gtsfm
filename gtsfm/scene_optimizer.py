@@ -269,14 +269,15 @@ class SceneOptimizer:
                     export_future = export_node.value
 
                     metrics_groups = list(handle.metrics.result())
-                    merged_result = merge_future.result()
                     handle.io_barrier.result()
                     export_future.result()
                     if handle.cluster_path == ():
+                        merged_result = merge_future.result()
                         base_metrics_groups.extend(metrics_groups)
                         base_metrics_groups.append(merged_result.metrics)
                         root_merge_future = merge_future
                     elif metrics_groups:
+                        merged_result = merge_future.result()
                         metrics_groups.append(merged_result.metrics)
                         save_metrics_reports(metrics_groups, str(handle.output_paths.metrics))
                 if root_merge_future is not None:

@@ -36,7 +36,12 @@ _SCENE_LABEL_ATTR = "_gtsfm_cluster_label"
 
 @dataclass(frozen=True)
 class MergedNodeResult:
-    """Results of merging child scenes with parent scenes in the reconstruction tree."""
+    """Results of merging child scenes with parent scenes in the reconstruction tree.
+    
+    Attributes:
+        scene: The merged scene.
+        metrics: The metrics for the merged scene.
+    """
 
     scene: Optional[GtsfmData]
     metrics: GtsfmMetricsGroup
@@ -227,7 +232,20 @@ def compute_merging_metrics(
     child_camera_counts: list[int] | None = None,
     child_camera_overlap_with_parent: list[int] | None = None,
 ) -> GtsfmMetricsGroup:
-    """Build metrics describing a merged reconstruction at a tree node."""
+    """Build metrics describing a merged reconstruction at a tree node.
+    
+    Args:
+        merged_scene: The merged scene.
+        child_count: The number of children.
+        cameras_gt: The ground truth cameras.
+        save_dir: The directory to save the metrics to.
+        store_full_data: Whether to store full data.
+        child_camera_counts: The number of cameras in each child.
+        child_camera_overlap_with_parent: The number of cameras in the parent that are also in each child.
+
+    Returns:
+        A GtsfmMetricsGroup object containing the merging metrics.
+    """
     child_camera_counts = child_camera_counts or []
     child_camera_overlap_with_parent = child_camera_overlap_with_parent or []
     child_camera_counts_arr = np.asarray(child_camera_counts, dtype=np.int32)
@@ -260,11 +278,11 @@ def compute_merging_metrics(
     return merging_metrics
 
 
-def _run_export_task(payload: Tuple[Optional[Path], Future]) -> None:
+def _run_export_task(payload: Tuple[Optional[Path], Future | MergedNodeResult]) -> None:
     """Persist a merged reconstruction to COLMAP text format.
 
     Args:
-        payload: Tuple pairing the directory to export into with the resolved merged reconstruction.
+        payload: Tuple pairing the directory, and the future or result of the merged reconstruction.
     """
     merged_dir, merged_future = payload
     merged_result = merged_future.result() if isinstance(merged_future, Future) else merged_future
@@ -312,7 +330,22 @@ def combine_results(
     drop_child_if_merging_fail: bool = False,
     store_full_data: bool = False,
 ) -> MergedNodeResult:
-    """Merge bundle adjustment outputs from child clusters into the parent result and compute metrics."""
+    """Merge bundle adjustment outputs from child clusters into the parent result and compute metrics.
+    
+    Args:
+        current: The current scene.
+        child_results: The results of the child clusters.
+        cameras_gt: The ground truth cameras.
+        run_bundle_adjustment_on_parent: Whether to run bundle adjustment on the parent.
+        plot_reprojection_histograms: Whether to plot the reprojection error histograms.
+        drop_outlier_after_camera_merging: Whether to drop outlier tracks after camera merging.
+        drop_camera_with_no_track: Whether to drop cameras with no tracks.
+        drop_child_if_merging_fail: Whether to drop child scenes if merging fails.
+        store_full_data: Whether to store full data.
+
+    Returns:
+        A MergedNodeResult object containing the merged scene and its metrics.
+    """
     child_scenes: tuple[Optional[GtsfmData], ...] = tuple(child.scene for child in child_results)
     if len(child_scenes) == 0:
         return MergedNodeResult(
