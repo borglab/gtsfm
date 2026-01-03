@@ -258,13 +258,14 @@ def get_relative_translation_angles(
 ) -> List[float]:
     """Returns a list of relative translation angles, skipping None values."""
     angles: List[float] = []
-    for i1, i2 in i2Ui1_dict:
-        i2Ui1 = i2Ui1_dict[(i1, i2)]
-        if i2Ui1 is None or wTi_list[i1] is None or wTi_list[i2] is None:
+    valid_i2Ui1 = {k: i2Ui1 for k, i2Ui1 in i2Ui1_dict.items() if i2Ui1 is not None}
+    for (i1, i2), i2Ui1 in valid_i2Ui1.items():
+        if wTi_list[i1] is None or wTi_list[i2] is None:
+            angles.append(np.nan)
             continue
         angle = comp_utils.compute_translation_to_direction_angle(i2Ui1, wTi_list[i2], wTi_list[i1])
-        if angle is not None:
-            angles.append(angle)
+        assert angle is not None
+        angles.append(angle)
     return angles
 
 
@@ -296,16 +297,17 @@ def get_relative_rotation_angles(
 ) -> List[float]:
     """Returns a list of relative rotation angles, skipping None values."""
     angles: List[float] = []
-    for i1, i2 in i2Ri1_dict:
-        i2Ri1 = i2Ri1_dict[(i1, i2)]
-        if i2Ri1 is None or wTi_list[i1] is None or wTi_list[i2] is None:
+    valid_i2Ri1 = {k: i2Ri1 for k, i2Ri1 in i2Ri1_dict.items() if i2Ri1 is not None}
+    for (i1, i2), i2Ri1 in valid_i2Ri1.items():
+        if wTi_list[i1] is None or wTi_list[i2] is None:
+            angles.append(np.nan)
             continue
         wRi1_gt = wTi_list[i1].rotation()  # type: ignore
         wRi2_gt = wTi_list[i2].rotation()  # type: ignore
         i2Ri1_gt = wRi2_gt.between(wRi1_gt)
         angle = comp_utils.compute_relative_rotation_angle(i2Ri1, i2Ri1_gt)
-        if angle is not None:
-            angles.append(angle)
+        assert angle is not None
+        angles.append(angle)
     return angles
 
 
@@ -367,14 +369,16 @@ def compute_pose_auc_metric(
     Returns:
         One GtsfmMetric for each angular error threshold.
     """
+    if len(rotation_angular_errors) != len(translation_angular_errors):
+        raise ValueError("# of rotation and translation angular errors must match.")
+
     if not isinstance(rotation_angular_errors, np.ndarray):
         rotation_angular_errors = np.array(rotation_angular_errors)
+        rotation_angular_errors = np.nan_to_num(rotation_angular_errors, nan=np.inf)
 
     if not isinstance(translation_angular_errors, np.ndarray):
         translation_angular_errors = np.array(translation_angular_errors)
-
-    if len(rotation_angular_errors) != len(translation_angular_errors):
-        raise ValueError("# of rotation and translation angular errors must match.")
+        translation_angular_errors = np.nan_to_num(translation_angular_errors, nan=np.inf)
 
     pose_errors = np.maximum(rotation_angular_errors, translation_angular_errors)
     AUCs = pose_auc(pose_errors, thresholds_deg, save_dir=save_dir)
@@ -400,7 +404,8 @@ def compute_ba_pose_metrics(
     Returns:
         A group of metrics that describe errors associated with a bundle adjustment result (w.r.t. GT).
     """
-    i2Ri1_dict_gt, i2Ui1_dict_gt = get_all_relative_rotations_translations(gt_wTi_list)
+    # We dont include Ground truth poses that are None, fair as this is "ground truth".
+    i2Ri1_dict_gt, i2Ui1_dict_gt = get_all_relative_rotations_translations(gt_wTi_list, include_none=False)
 
     wRi_aligned_list, wti_aligned_list = get_rotations_translations_from_poses(computed_wTi_list)
     gt_wRi_list, gt_wti_list = get_rotations_translations_from_poses(gt_wTi_list)
@@ -424,7 +429,7 @@ def compute_ba_pose_metrics(
 
 
 def get_all_relative_rotations_translations(
-    wTi_list: List[Optional[Pose3]],
+    wTi_list: List[Optional[Pose3]], include_none: bool = True,
 ) -> Tuple[Dict[Tuple[int, int], Optional[Rot3]], Dict[Tuple[int, int], Optional[Unit3]]]:
     """Compute measurements of *all* 2-view translation directions between image pairs.
 
@@ -443,13 +448,17 @@ def get_all_relative_rotations_translations(
     for i1, i2 in possible_img_pair_idxs:
         # compute the exact relative pose
         if wTi_list[i1] is None or wTi_list[i2] is None:
-            i2Ri1, i2Ui1 = None, None
+            if include_none:
+                i2Ui1_dict[(i1, i2)] = None
+                i2Ri1_dict[(i1, i2)] = None
+            else:
+                logger.warning(f"Ground truth pose {i1} or {i2} is None, skipping...")
         else:
             i2Ti1 = wTi_list[i2].between(wTi_list[i1])  # type: ignore
             i2Ui1 = Unit3(i2Ti1.translation())
             i2Ri1 = i2Ti1.rotation()
-        i2Ui1_dict[(i1, i2)] = i2Ui1
-        i2Ri1_dict[(i1, i2)] = i2Ri1
+            i2Ui1_dict[(i1, i2)] = i2Ui1
+            i2Ri1_dict[(i1, i2)] = i2Ri1
     return i2Ri1_dict, i2Ui1_dict
 
 
