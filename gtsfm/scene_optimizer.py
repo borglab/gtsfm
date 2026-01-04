@@ -123,7 +123,7 @@ class SceneOptimizer:
             self.cluster_optimizer, "drop_outlier_after_camera_merging", True
         )
         self._drop_camera_with_no_track = getattr(self.cluster_optimizer, "drop_camera_with_no_track", True)
-        self._drop_child_if_merging_fail = getattr(self.cluster_optimizer, "drop_child_if_merging_fail", False)
+        self._drop_child_if_merging_fail = getattr(self.cluster_optimizer, "drop_child_if_merging_fail", True)
 
         self.output_root = Path(output_root)
         if output_worker is not None:
