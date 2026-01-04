@@ -72,9 +72,20 @@ class ClusterMVO(ClusterOptimizerBase):
         save_two_view_viz: bool = False,
         pose_angular_error_thresh: float = 3,
         output_worker: Optional[str] = None,
+        drop_child_if_merging_fail: bool = True,
+        drop_camera_with_no_track: bool = True,
+        drop_outlier_after_camera_merging: bool = True,
+        plot_reprojection_histograms: bool = True,
+        run_bundle_adjustment_on_parent: bool = True,
     ) -> None:
         # correspondence_generator is MVO-specific; do not pass it to base class.
-        super().__init__(pose_angular_error_thresh=pose_angular_error_thresh, output_worker=output_worker)
+        super().__init__(pose_angular_error_thresh=pose_angular_error_thresh, output_worker=output_worker,
+            drop_child_if_merging_fail=drop_child_if_merging_fail,
+            drop_camera_with_no_track=drop_camera_with_no_track,
+            drop_outlier_after_camera_merging=drop_outlier_after_camera_merging,
+            plot_reprojection_histograms=plot_reprojection_histograms,
+            run_bundle_adjustment_on_parent=run_bundle_adjustment_on_parent,
+        )
         # assign MVO-only correspondence generator on this instance
         self.correspondence_generator = correspondence_generator
         self.two_view_estimator = two_view_estimator
