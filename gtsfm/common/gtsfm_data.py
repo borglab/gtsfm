@@ -834,7 +834,7 @@ class GtsfmData:
             aligned_data.add_camera(i, camera_type(aTi, calibration))  # type: ignore
         # Align estimated tracks to ground truth.
         for j in range(self.number_tracks()):
-            track_b = self.get_track(index=j)
+            track_b = self.get_track(index=j) 
             track_a = transform.track_with_sim3(aSb, track_b)
             aligned_data.add_track(track_a)
 
@@ -844,7 +844,7 @@ class GtsfmData:
         return aligned_data
 
     def merged_with(self, other: "GtsfmData", aSb: Similarity3) -> "GtsfmData":
-        """Return a new scene containing self and ``other`` expressed in this scene's frame.
+        """Return a new scene containing self and ``other`` transformed to this scene's frame.
 
         Args:
             other: Scene to merge, currently expressed in frame ``b``.
