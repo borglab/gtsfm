@@ -111,8 +111,18 @@ class ClusterOptimizerBase(GTSFMProcess):
     def __init__(
         self,
         pose_angular_error_thresh: float = 3.0,
+        drop_child_if_merging_fail: bool = True,
+        drop_camera_with_no_track: bool = True,
+        drop_outlier_after_camera_merging: bool = True,
+        plot_reprojection_histograms: bool = True,
+        run_bundle_adjustment_on_parent: bool = True,
         output_worker: None | str = None,
     ) -> None:
+        self.drop_child_if_merging_fail = drop_child_if_merging_fail
+        self.drop_camera_with_no_track = drop_camera_with_no_track
+        self.drop_outlier_after_camera_merging = drop_outlier_after_camera_merging
+        self.plot_reprojection_histograms = plot_reprojection_histograms
+        self.run_bundle_adjustment_on_parent = run_bundle_adjustment_on_parent
         self._pose_angular_error_thresh = pose_angular_error_thresh
         self._output_worker = output_worker
 
