@@ -255,13 +255,24 @@ def compute_translation_distance_metric(
 def get_relative_translation_angles(
     i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]],
     wTi_list: List[Optional[Pose3]],
+    include_none: bool = False,
 ) -> List[float]:
-    """Returns a list of relative translation angles, skipping None values."""
+    """Returns a list of relative translation angles, skipping None values if include_none is False.
+    
+    Args:
+        i2Ui1_dict: Dict from (i1, i2) to relative translation direction i2Ui1.
+        wTi_list: List of camera poses indexed by image index.
+        include_none: Whether to include None values in the metrics.
+
+    Returns:
+        A list of relative translation angles, in degrees.
+    """
     angles: List[float] = []
     valid_i2Ui1 = {k: i2Ui1 for k, i2Ui1 in i2Ui1_dict.items() if i2Ui1 is not None}
     for (i1, i2), i2Ui1 in valid_i2Ui1.items():
         if wTi_list[i1] is None or wTi_list[i2] is None:
-            angles.append(np.nan)
+            if include_none:
+                angles.append(np.nan)
             continue
         angle = comp_utils.compute_translation_to_direction_angle(i2Ui1, wTi_list[i2], wTi_list[i1])
         assert angle is not None
@@ -293,14 +304,24 @@ def compute_relative_translation_angle_metric(
 
 
 def get_relative_rotation_angles(
-    i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]], wTi_list: List[Optional[Pose3]]
+    i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]], wTi_list: List[Optional[Pose3]], include_none: bool = False,
 ) -> List[float]:
-    """Returns a list of relative rotation angles, skipping None values."""
+    """Returns a list of relative rotation angles, skipping None values if include_none is False.
+    
+    Args:
+        i2Ri1_dict: Dict from (i1, i2) to relative rotation i2Ri1.
+        wTi_list: List of camera poses indexed by image index.
+        include_none: Whether to include None values in the metrics.
+
+    Returns:
+        A list of relative rotation angles, in degrees.
+    """
     angles: List[float] = []
     valid_i2Ri1 = {k: i2Ri1 for k, i2Ri1 in i2Ri1_dict.items() if i2Ri1 is not None}
     for (i1, i2), i2Ri1 in valid_i2Ri1.items():
         if wTi_list[i1] is None or wTi_list[i2] is None:
-            angles.append(np.nan)
+            if include_none:
+                angles.append(np.nan)
             continue
         wRi1_gt = wTi_list[i1].rotation()  # type: ignore
         wRi2_gt = wTi_list[i2].rotation()  # type: ignore
@@ -400,6 +421,7 @@ def compute_ba_pose_metrics(
     Args:
         gt_wTi_list: List of ground truth poses.
         computed_wTi_list: List of computed poses.
+        save_dir: Directory to save the metrics plots.
 
     Returns:
         A group of metrics that describe errors associated with a bundle adjustment result (w.r.t. GT).
@@ -413,12 +435,12 @@ def compute_ba_pose_metrics(
     metrics = []
     metrics.append(compute_rotation_angle_metric(wRi_aligned_list, gt_wRi_list))
     metrics.append(compute_translation_distance_metric(wti_aligned_list, gt_wti_list))
-    translation_angular_errors = get_relative_translation_angles(i2Ui1_dict_gt, computed_wTi_list)
+    translation_angular_errors = get_relative_translation_angles(i2Ui1_dict_gt, computed_wTi_list, include_none=True)
     metrics.append(
         GtsfmMetric("relative_translation_angle_error_deg", np.array(translation_angular_errors, dtype=np.float32))
     )
     metrics.append(compute_translation_angle_metric(gt_wTi_list, computed_wTi_list))
-    rotation_angular_errors = get_relative_rotation_angles(i2Ri1_dict_gt, computed_wTi_list)
+    rotation_angular_errors = get_relative_rotation_angles(i2Ri1_dict_gt, computed_wTi_list, include_none=True)
     metrics.append(
         GtsfmMetric("relative_rotation_angle_error_deg", np.array(rotation_angular_errors, dtype=np.float32))
     )
@@ -435,6 +457,7 @@ def get_all_relative_rotations_translations(
 
     Args:
         wTi_list: List of poses (e.g. could be ground truth).
+        include_none: Whether to include None values in the metrics.
 
     Returns:
         i2Ui1_dict: Dict from (i1, i2) to unit translation direction i2Ui1.
