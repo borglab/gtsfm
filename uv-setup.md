@@ -137,22 +137,38 @@ uv lock && uv sync
 
 ## Running Commands with UV
 
-Once set up, prefix Python commands with `uv run`:
+You have two options for running Python commands with UV:
 
+### Option 1: Activate the Virtual Environment 
+
+Activate the virtual environment once per shell session:
+
+**Linux/macOS:**
 ```bash
-# Run GTSfM
-uv run python -m gtsfm.runner --config_name deep_front_end.yaml
-
-# Or use the run script
-uv run ./run --dataset_dir tests/data/set1_lund_door --config_name deep_front_end.yaml
+source .venv/bin/activate
 ```
 
-Make sure that you can run `python -c "import gtsfm; import gtsam; print('hello world')"` in python, and you are good to go!
+After activation, you can run commands directly without the `uv run` prefix:
 
-## Next Steps
+```bash
+# Verify installation
+python -c "import gtsfm; import gtsam; print('hello world')"
 
-Return to the main [README.md](README.md) to continue with:
-- Downloading model weights
-- Running 3D reconstruction
-- Usage examples
+```
+
+To deactivate the environment:
+```bash
+deactivate
+```
+
+### Option 2: Use `uv run` Prefix
+
+Prefix Python commands with `uv run` (no activation needed):
+
+```bash
+# Verify installation
+uv run python -c "import gtsfm; import gtsam; print('hello world')"
+
+```
+
 

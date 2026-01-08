@@ -52,10 +52,3 @@ pip install -e .
 
 Make sure that you can run `python -c "import gtsfm; import gtsam; print('hello world')"` in python, and you are good to go!
 
-## Next Steps
-
-Return to the main [README.md](README.md) to continue with:
-- Downloading model weights
-- Running 3D reconstruction
-- Usage examples
-

@@ -43,11 +43,7 @@ For detailed Conda installation instructions, see **[conda-setup.md](conda-setup
 
 For detailed UV installation instructions, see **[uv-setup.md](uv-setup.md)**
 
-Both methods will allow you to run GTSfM successfully. After installation, verify by running:
-
-```bash
-python -c "import gtsfm; import gtsam; print('hello world')"
-```
+Both methods will allow you to run GTSfM successfully.
 
 ## Try It on Google Colab  
 
