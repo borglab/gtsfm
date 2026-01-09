@@ -37,11 +37,13 @@ uv sync --python 3.10
 
 # Install on Linux with CUDA GPU
 uv sync --python 3.10 --extra complete
+```
+##  Install torch-scatter (platform-specific)
+For NVIDIA drivers 550+ (which support CUDA 12.8), 
+use cu128 because that's what PyTorch 2.7.0 was compiled with.
+PyTorch brings its own CUDA runtime, system CUDA version doesn't matter.
 
-# Install torch-scatter (platform-specific)
-# For NVIDIA drivers 550+ (which support CUDA 12.8)
-# Use cu128 because that's what PyTorch 2.7.0 was compiled with.
-# PyTorch brings its own CUDA runtime, system CUDA version doesn't matter.
+```bash
 uv pip install torch-scatter --find-links https://data.pyg.org/whl/torch-2.7.0+cu128.html
 
 ```

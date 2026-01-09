@@ -19,18 +19,14 @@ conda activate gtsfm-v1 # you may need "source activate gtsfm-v1" depending upon
 
 Check your cuda version then install `torch_scatter` from pre-built wheels
 
-For example, for CUDA 12.1 → use cu121 
+For example, for CUDA 12.1, use cu121 
 ```bash
 pip install torch-scatter -f https://data.pyg.org/whl/torch-2.5.1+cu121.html
 ```
 
-### Using PACE Cluster
-
-To use PACE, use the same linux installation `environment_linux.yml`
-
-Then add `dask-cuda`
+For CUDA 13, use cu128
 ```bash
-conda install -c rapidsai -c conda-forge dask-cuda
+pip install torch-scatter --find-links https://data.pyg.org/whl/torch-2.7.0+cu128.html
 ```
 
 ### macOS (no CUDA support)
@@ -49,6 +45,7 @@ pip install -e .
 ```
 
 ## Verify Installation
+
 
 Make sure that you can run `python -c "import gtsfm; import gtsam; print('hello world')"` in python, and you are good to go!
 
