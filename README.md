@@ -37,11 +37,11 @@ GTSfM supports two installation methods. Choose the one that best fits your work
 
 ### Option 1: Conda Setup (Recommended for most users)
 
-For detailed Conda installation instructions, see **[conda-setup.md](conda-setup.md)**
+For detailed Conda installation instructions, see **[conda-setup.md](docs/setup/conda-setup.md)**
 
 ### Option 2: UV Setup (Fast alternative package manager)
 
-For detailed UV installation instructions, see **[uv-setup.md](uv-setup.md)**
+For detailed UV installation instructions, see **[uv-setup.md](docs/setup/uv-setup.md)**
 
 Both methods will allow you to run GTSfM successfully.
 
@@ -158,7 +158,7 @@ Refer to the detailed guide:
 ### Running GTSFM on a Multi-Machine Cluster  
 
 For users who want to run GTSFM on a **cluster of multiple machines**, follow the setup instructions here:  
-📄 [CLUSTER.md](https://github.com/borglab/gtsfm/tree/master/CLUSTER.md)  
+📄 [CLUSTER.md](https://github.com/borglab/gtsfm/tree/master/docs/deployment/CLUSTER.md)  
 
 ### Where Are the Results Stored?  
 
@@ -260,7 +260,7 @@ GTSfM is designed in a modular way. Each module can be swapped out with a new on
 
 ## Contributing
 
-Contributions are always welcome! Please be aware of our [contribution guidelines for this project](CONTRIBUTING.md).
+Contributions are always welcome! Please be aware of our [contribution guidelines for this project](docs/CONTRIBUTING.md).
 
 ## Citing this work
 
