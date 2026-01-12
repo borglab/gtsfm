@@ -125,13 +125,17 @@ def _log_scene_reprojection_stats(scene: Optional[GtsfmData], label: str, *, plo
         logger.info("📏 %s reprojection error stats unavailable", label)
         return
     errors, mean, median, min_err, max_err = stats
+    assert scene is not None
     logger.info(
-        "📏 %s reprojection error (px): mean=%.2f median=%.2f min=%.2f max=%.2f",
+        "📏 %s reprojection error (px): mean=%.2f median=%.2f min=%.2f max=%.2f, #cameras=%d, #tracks=%d, #images=%d",
         label,
         mean,
         median,
         min_err,
         max_err,
+        len(scene.cameras()),
+        scene.number_tracks(),
+        scene.number_images(),
     )
     if plot_histograms:
         _plot_reprojection_error_distribution(errors, scene, label, mean, median, min_err, max_err)
@@ -208,16 +212,17 @@ def _get_pose_metrics(
     Returns:
         A GtsfmMetricsGroup object containing the pose metrics.
     """
+    # TODO: this uses all cameras in the ground truth, but we only need the ones that are present in input to this node.
+    # TODO: this can only be fixed if we use a field in result data to store the valid input images.
     poses_gt = [cam.pose() if cam is not None else None for cam in cameras_gt]
 
-    valid_poses_gt_count = len(poses_gt) - poses_gt.count(None)
-    if valid_poses_gt_count == 0:
+    if len(poses_gt) == 0:
         return GtsfmMetricsGroup(name="ba_pose_error_metrics", metrics=[])
 
     aligned_result_data = result_data.align_via_sim3_and_transform(poses_gt)
     return metrics_utils.compute_ba_pose_metrics(
         gt_wTi_list=poses_gt,
-        computed_wTi_list=aligned_result_data.get_camera_poses(),
+        computed_wTi=aligned_result_data.get_camera_poses(),
         save_dir=save_dir,
     )
 
@@ -327,12 +332,8 @@ def _remove_cameras_with_no_tracks(scene: GtsfmData) -> tuple[GtsfmData, bool]:
         A tuple containing the scene with cameras removed and a boolean indicating if the scene should run BA.
     """
     all_cameras = set(scene.get_valid_camera_indices())
-    cameras_with_measurements: set[int] = set()
-    for track_idx in range(scene.number_tracks()):
-        track = scene.get_track(track_idx)
-        for m_idx in range(track.numberMeasurements()):
-            cam_idx, _ = track.measurement(m_idx)
-            cameras_with_measurements.add(cam_idx)
+    camera_measurement_map = scene.get_camera_to_measurement_map()
+    cameras_with_measurements = set(camera_measurement_map.keys())
     zero_track_cameras = sorted(all_cameras - cameras_with_measurements)
     if zero_track_cameras:
         logger.warning("📋 Cameras with zero tracks before parent BA: %s", zero_track_cameras)

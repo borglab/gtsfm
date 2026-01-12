@@ -268,7 +268,8 @@ class TwoViewEstimator(DaskDBModuleBase):
 
         # Unpack results.
         valid_corr_idxs = verified_corr_idxs[triangulated_indices][valid_mask]
-        wTi1, wTi2 = ba_output.get_camera_poses()  # extract the camera poses
+        ba_output_poses = ba_output.get_camera_poses()  # extract the camera poses
+        wTi1, wTi2 = ba_output_poses[0], ba_output_poses[1]
         if wTi1 is None or wTi2 is None:
             logger.warning("2-view BA failed...")
             return i2Ri1_initial, i2Ui1_initial, valid_corr_idxs

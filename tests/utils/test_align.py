@@ -272,7 +272,9 @@ class TestAlignmentUtils(unittest.TestCase):
                 track = SfmTrack(pt)
                 track = add_dummy_measurements_to_track(track)
                 gtsfm_data.add_track(track)
-        aligned_sfm_result = sfm_result.align_via_sim3_and_transform(gt_gtsfm_data.get_camera_poses())
+
+        # OK to use get_camera_poses_list() because the ground truth is complete.
+        aligned_sfm_result = sfm_result.align_via_sim3_and_transform(gt_gtsfm_data.get_camera_poses_list())
         # tracks and poses should match GT now, after applying estimated scale and shift.
         assert aligned_sfm_result == gt_gtsfm_data
 

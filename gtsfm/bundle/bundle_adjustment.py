@@ -12,7 +12,7 @@ import dask
 import gtsam  # type: ignore
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import BetweenFactorPose3, NonlinearFactorGraph, PinholeCameraCal3Fisheye, PriorFactorPose3, Values
+from gtsam import BetweenFactorPose3, NonlinearFactorGraph, PinholeCameraCal3Fisheye, PriorFactorPose3, PriorFactorPoint3, Values
 from gtsam.noiseModel import Diagonal, Isotropic, Robust, mEstimator  # type: ignore
 from gtsam.symbol_shorthand import K, P, X  # type: ignore
 
@@ -233,6 +233,23 @@ class BundleAdjustmentOptimizer:
         )
         if graph.size() == 0:
             raise ValueError("BundleAdjustmentOptimizer: No reprojection factors available.")
+        
+        if not cameras_to_model:
+            return graph
+
+        first_camera = initial_data.get_camera(cameras_to_model[0])
+        assert first_camera is not None, "First camera in initial data is None"
+        graph.push_back(
+            PriorFactorPose3(
+                X(cameras_to_model[0]),
+                first_camera.pose(),
+                Isotropic.Sigma(CAM_POSE3_DOF, self._cam_pose3_prior_noise_sigma),
+            )
+        )
+
+        graph.push_back(
+            PriorFactorPoint3(P(0), initial_data.get_track(0).point3(), Isotropic.Sigma(POINT3_DOF, 0.1))
+        )
         graph.push_back(self.__calibration_priors(initial_data, cameras_to_model, is_fisheye_calibration))
 
         return graph
@@ -276,8 +293,8 @@ class BundleAdjustmentOptimizer:
 
         if self._max_iterations:
             params.setMaxIterations(self._max_iterations)
-        lm = gtsam.LevenbergMarquardtOptimizer(graph, initial_values, params)
 
+        lm = gtsam.LevenbergMarquardtOptimizer(graph, initial_values, params)
         result_values = lm.optimize()
 
         elapsed_time = time.time() - start_time
@@ -520,7 +537,7 @@ class BundleAdjustmentOptimizer:
         # Align the sparse multi-view estimate after BA to the ground truth pose graph.
         aligned_filtered_data = filtered_data.align_via_sim3_and_transform(poses_gt)
         ba_pose_error_metrics = metrics_utils.compute_ba_pose_metrics(
-            gt_wTi_list=poses_gt, computed_wTi_list=aligned_filtered_data.get_camera_poses(), save_dir=save_dir
+            gt_wTi_list=poses_gt, computed_wTi=aligned_filtered_data.get_camera_poses(), save_dir=save_dir
         )
         ba_metrics.extend(metrics_group=ba_pose_error_metrics)
 

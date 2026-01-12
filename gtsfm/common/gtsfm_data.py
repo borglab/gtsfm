@@ -70,7 +70,8 @@ class GtsfmData:
         self._cameras: dict[int, gtsfm_types.CAMERA_TYPE] = {}
         self._tracks: List[SfmTrack] = []
         self._image_info: dict[int, ImageInfo] = {}
-        self._gaussian_splats: Optional[GaussianSplatsType] = None
+        self._gaussian_splats: GaussianSplatsType | None = None
+        self._camera_to_measurement_map: dict[int, list[tuple[int, int]]] | None = None
 
         # Initialize from inputs if provided.
         if cameras is not None:
@@ -499,11 +500,22 @@ class GtsfmData:
         """Returns poses as a dictionary, without missing poses."""
         return {i: cam.pose() for i, cam in self._cameras.items() if cam is not None}
 
-    def get_camera_poses(self) -> List[Optional[Pose3]]:
-        """Returns poses for all cameras (wTi), including missing ones as None."""
+    def get_camera_poses_list(self) -> List[Pose3 | None]:
+        """Returns poses for all cameras (wTi), including missing ones as None.
+        
+        It is recommended to use get_camera_poses() instead, which returns a dictionary. 
+        # TODO: the number of images may be incorrect, which leaves this function buggy. 
+
+        Returns:
+            List of poses for all cameras (wTi), including missing ones as None.
+        """
         cameras = [self.get_camera(i) for i in range(self.number_images())]
         poses = [camera.pose() if camera is not None else None for camera in cameras]
         return poses
+
+    def get_camera_poses(self) -> Dict[int, Pose3]:
+        """Returns poses for all cameras (wTi), including missing ones as None."""
+        return {i: cam.pose() for i, cam in self._cameras.items()}
 
     def get_track(self, index: int) -> SfmTrack:
         """Returns track at given index."""
@@ -554,6 +566,34 @@ class GtsfmData:
 
         track_lengths = [self.get_track(j).numberMeasurements() for j in range(self.number_tracks())]
         return np.array(track_lengths, dtype=np.uint32)
+
+    def _populate_camera_to_measurement_map(self) -> None:
+        """Populate the camera to measurement map."""
+        if self._camera_to_measurement_map is None:
+            self._camera_to_measurement_map = {}
+
+        for track_idx in range(self.number_tracks()):
+            track = self.get_track(track_idx)
+            for m_idx in range(track.numberMeasurements()):
+                i, _ = track.measurement(m_idx)
+                if i not in self._camera_to_measurement_map:
+                    self._camera_to_measurement_map[i] = [(track_idx, m_idx)]
+                else:
+                    self._camera_to_measurement_map[i].append((track_idx, m_idx))
+
+    def get_camera_to_measurement_map(self) -> dict[int, list[tuple[int, int]]]:
+        """Get the camera to measurement map."""
+        if self._camera_to_measurement_map is None:
+            self._populate_camera_to_measurement_map()
+        assert self._camera_to_measurement_map is not None
+        return self._camera_to_measurement_map
+
+    def get_measurements_for_camera(self, camera_index: int) -> list[tuple[int, int]]:
+        """Get the measurements for a camera."""
+        if self._camera_to_measurement_map is None:
+            self._populate_camera_to_measurement_map()
+        assert self._camera_to_measurement_map is not None
+        return self._camera_to_measurement_map.get(camera_index, [])
 
     def select_largest_connected_component(self, extra_camera_edges: Optional[ImageIndexPairs] = None) -> "GtsfmData":
         """Selects the subset of data belonging to the largest connected component of the graph where the edges are
@@ -809,8 +849,10 @@ class GtsfmData:
         Returns:
             The estimated Sim(3) transformation aSb.
         """
-        bTi_list = self.get_camera_poses()
-        return align.sim3_from_optional_Pose3s(aTi_list, bTi_list)
+        bTi_dict = self.get_camera_poses()
+        aTi_subset, bTi_list = zip(*[(aTi_list[i], bTi_dict[i]) for i in bTi_dict])
+
+        return align.sim3_from_optional_Pose3s(aTi_subset, bTi_list)
 
     def transform_with_sim3(self, aSb: Similarity3) -> "GtsfmData":
         """Assume current tracks and cameras are in frame "b", then transport them to frame "a".
@@ -818,20 +860,17 @@ class GtsfmData:
         Returns:
             New GtsfmData object which has been transformed from frame b to frame a.
         """
-        bTi_list = self.get_camera_poses()
-        aTi_list = [aSb.transformFrom(bTi) if bTi is not None else None for bTi in bTi_list]
         aligned_data = GtsfmData(number_images=self.number_images())
-        aligned_data._image_info = self._clone_image_info(range(self.number_images()))
+        aligned_data._image_info = self._clone_image_info()
 
         # Update the camera poses to their aligned poses, but use the previous calibration.
-        for i, aTi in enumerate(aTi_list):
-            if aTi is None:
-                continue
-            camera_i = self.get_camera(i)
-            assert camera_i is not None
-            calibration = camera_i.calibration()
+        for idx, bTi_camera in self.cameras().items():
+            assert bTi_camera is not None
+            bTi = bTi_camera.pose()
+            aTi = aSb.transformFrom(bTi)
+            calibration = bTi_camera.calibration()
             camera_type = gtsfm_types.get_camera_class_for_calibration(calibration)
-            aligned_data.add_camera(i, camera_type(aTi, calibration))  # type: ignore
+            aligned_data.add_camera(idx, camera_type(aTi, calibration))  # type: ignore
         # Align estimated tracks to ground truth.
         for j in range(self.number_tracks()):
             track_b = self.get_track(index=j) 
@@ -856,22 +895,20 @@ class GtsfmData:
         merged_cameras = dict(self.cameras())
         transformed_other_cameras = transform.camera_map_with_sim3(aSb, other.cameras())
         for key, camera in transformed_other_cameras.items():
-            if key not in merged_cameras:
+            if key not in merged_cameras and camera is not None:
                 merged_cameras[key] = camera
 
         merged_tracks = list(self.tracks())
         merged_tracks.extend(transform.tracks_with_sim3(aSb, other.tracks()))
 
-        max_camera_index = max(merged_cameras.keys()) if merged_cameras else -1
-        number_images = max(self.number_images(), other.number_images(), max_camera_index + 1)
-        merged_data = GtsfmData(number_images=number_images)
-        merged_data._image_info = self._clone_image_info(range(self.number_images()))
+        merged_image_info = self._clone_image_info(range(self.number_images()))
         for idx, info in other._image_info.items():
-            merged_info = merged_data.get_image_info(idx)
-            if merged_info.name in (None, f"image_{idx:06d}.jpg") and info.name is not None:
-                merged_data.set_image_info(idx, name=info.name)
-            if merged_info.shape in (None, (1, 1)) and info.shape is not None:
-                merged_data.set_image_info(idx, shape=info.shape)
+            if idx in merged_image_info:
+                continue
+            merged_image_info[idx] = ImageInfo(name=info.name, shape=info.shape)
+
+        merged_data = GtsfmData(number_images=len(merged_image_info))
+        merged_data._image_info = merged_image_info
 
         for key, camera in merged_cameras.items():
             merged_data.add_camera(key, camera)

@@ -386,7 +386,7 @@ def compute_pose_auc_metric(
 
 def compute_ba_pose_metrics(
     gt_wTi_list: List[Optional[Pose3]],
-    computed_wTi_list: List[Optional[Pose3]],
+    computed_wTi: Dict[int, Pose3],
     save_dir: Optional[str] = None,
 ) -> GtsfmMetricsGroup:
     """Compute pose errors w.r.t. GT for the bundle adjustment result.
@@ -402,6 +402,7 @@ def compute_ba_pose_metrics(
     """
     i2Ri1_dict_gt, i2Ui1_dict_gt = get_all_relative_rotations_translations(gt_wTi_list)
 
+    computed_wTi_list = [computed_wTi[i] if i in computed_wTi else None for i in range(len(gt_wTi_list))]
     wRi_aligned_list, wti_aligned_list = get_rotations_translations_from_poses(computed_wTi_list)
     gt_wRi_list, gt_wti_list = get_rotations_translations_from_poses(gt_wTi_list)
 

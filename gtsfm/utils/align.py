@@ -125,15 +125,11 @@ def sim3_from_optional_Pose3s(aTi_list: Sequence[Optional[Pose3]], bTi_list: Seq
 
     # Only choose target poses for which there is a corresponding estimated pose.
     corresponding_aTi_list = []
-    valid_camera_idxs = []
     valid_bTi_list = []
-    for i, bTi in enumerate(bTi_list):
-        aTi = aTi_list[i]
-        if aTi is None or bTi is None:
-            continue
-        valid_camera_idxs.append(i)
-        valid_bTi_list.append(bTi)
-        corresponding_aTi_list.append(aTi)
+    for aTi, bTi in zip(aTi_list, bTi_list):
+        if aTi is not None and bTi is not None:
+            corresponding_aTi_list.append(aTi)
+            valid_bTi_list.append(bTi)
 
     return sim3_from_Pose3s_robust(aTi_list=list(corresponding_aTi_list), bTi_list=list(valid_bTi_list))
 
@@ -280,7 +276,7 @@ def sim3_from_Pose3s(aTi_list: list[Pose3], bTi_list: list[Pose3]) -> Similarity
 
     aSb = Similarity3.Align(valid_pose_tuples)
     if np.isnan(aSb.scale()) or aSb.scale() == 0:
-        logger.warning("GTSAM Sim3.Align failed. Aligning ourselves")
+        logger.debug("GTSAM Sim3.Align failed with scale: %.2f. Aligning ourselves", aSb.scale())
         # we have run into a case where points have no translation between them (i.e. panorama).
         # We will first align the rotations and then align the translation by using centroids.
         # TODO: handle it in GTSAM
