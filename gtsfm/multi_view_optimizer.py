@@ -170,7 +170,7 @@ class MultiViewOptimizer:
             viewgraph_estimation_metrics = delayed(GtsfmMetricsGroup("view_graph_estimation_metrics", []))
 
         # Prune the graph to a single connected component.
-        gt_wTi = {idx: one_view_data_dict[idx].pose_gt for idx in one_view_data_dict.keys()}
+        gt_wTi = {k: val.pose_gt for k, val in one_view_data_dict.items()}
         gt_wTi_list = [gt_wTi[i] for i in sorted(list(gt_wTi.keys()))]
         pruned_i2Ri1_graph, pruned_i2Ui1_graph = delayed(graph_utils.prune_to_largest_connected_component, nout=2)(
             viewgraph_i2Ri1_graph, viewgraph_i2Ui1_graph, pose_priors_graph

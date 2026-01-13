@@ -243,7 +243,6 @@ def compute_merging_metrics(
 
     Args:
         merged_scene: The merged scene.
-        child_count: The number of children.
         cameras_gt: The ground truth cameras.
         save_dir: The directory to save the metrics to.
         store_full_data: Whether to store full data.
