@@ -430,7 +430,7 @@ def _align_and_merge_results(result1: GtsfmData, result2: GtsfmData, drop_if_mer
 
 
 def combine_results(
-    current: Optional[GtsfmData],
+    current: GtsfmData | None,
     child_results: tuple[MergedNodeResult, ...],
     *,
     cameras_gt: Optional[list[Optional[gtsfm_types.CAMERA_TYPE]]] = None,
@@ -458,17 +458,6 @@ def combine_results(
         A MergedNodeResult object containing the merged scene and its metrics.
     """
 
-    child_scenes: tuple[Optional[GtsfmData], ...] = tuple(child.scene for child in child_results)
-
-    # Some stats for the merging metrics.
-    parent_camera_set = set(current.get_valid_camera_indices()) if current is not None else set()
-    child_camera_counts: list[int] = []
-    child_camera_overlap_with_parent: list[int] = []
-    for child_scene in child_scenes:
-        child_cam_set = set(child_scene.get_valid_camera_indices()) if child_scene is not None else set()
-        child_camera_counts.append(len(child_cam_set))
-        child_camera_overlap_with_parent.append(len(child_cam_set & parent_camera_set))
-
     def _finalize_result(result_scene: Optional[GtsfmData]) -> MergedNodeResult:
         return MergedNodeResult(
             result_scene,
@@ -480,6 +469,20 @@ def combine_results(
                 child_camera_overlap_with_parent=child_camera_overlap_with_parent,
             ),
         )
+
+    if current is None:
+        return _finalize_result(None)
+
+    child_scenes: tuple[Optional[GtsfmData], ...] = tuple(child.scene for child in child_results)
+
+    # Some stats for the merging metrics.
+    parent_camera_set = set(current.get_valid_camera_indices()) if current is not None else set()
+    child_camera_counts: list[int] = []
+    child_camera_overlap_with_parent: list[int] = []
+    for child_scene in child_scenes:
+        child_cam_set = set(child_scene.get_valid_camera_indices()) if child_scene is not None else set()
+        child_camera_counts.append(len(child_cam_set))
+        child_camera_overlap_with_parent.append(len(child_cam_set & parent_camera_set))
 
     # Log reprojection stats for the current scene and all children.
     _log_scene_reprojection_stats(current, "Current Node", plot_histograms=plot_reprojection_histograms)
@@ -496,37 +499,22 @@ def combine_results(
 
     metadata_source = current
 
-    # Initialize the merged scene: pick the first child if present, otherwise use the current scene.
-    if len(valid_child_scenes) == 0:
-        merged = current
-        merged_is_current_frame = True
-    else:
-        merged = valid_child_scenes[0]
-        valid_child_scenes.pop(0)
-        merged_is_current_frame = False
+    # Initialize the merged scene: use the current scene.
+    merged = current
+    _log_scene_reprojection_stats(merged, "Current node", plot_histograms=plot_reprojection_histograms)
 
     # Merge all children into the merged scene.
     for i, child in enumerate(valid_child_scenes):
-        assert merged is not None
         merged = _align_and_merge_results(merged, child, drop_if_merging_fails=drop_child_if_merging_fail)
-        _log_scene_reprojection_stats(merged, f"merged with child #{i}", plot_histograms=plot_reprojection_histograms)
-
-    # If merged did not start in the current frame, merge it with the current scene.
-    if not merged_is_current_frame and current is not None:
-        assert merged is not None
-        merged = _align_and_merge_results(merged, current, drop_if_merging_fails=drop_child_if_merging_fail)
+        _log_scene_reprojection_stats(merged, f"Merged with child #{i+1}", plot_histograms=plot_reprojection_histograms)
 
     _propagate_scene_metadata(merged, metadata_source)
-    _log_scene_reprojection_stats(merged, "merged result (camera only)", plot_histograms=plot_reprojection_histograms)
 
     if drop_outlier_after_camera_merging and merged is not None and merged.number_tracks() > 0:
         merged = _drop_outlier_tracks(merged)
 
     if not run_bundle_adjustment_on_parent:
         return _finalize_result(merged)
-
-    if merged is None:
-        return _finalize_result(None)
 
     # Log cameras that have no supporting track measurements before running BA.
     if drop_camera_with_no_track:
