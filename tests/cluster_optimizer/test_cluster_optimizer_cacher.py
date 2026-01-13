@@ -3,10 +3,7 @@
 Authors: GitHub Copilot
 """
 import unittest
-from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-import numpy as np
 
 from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterComputationGraph, ClusterContext
 from gtsfm.cluster_optimizer.cluster_optimizer_cacher import ClusterOptimizerCacher
@@ -14,8 +11,6 @@ from gtsfm.common.gtsfm_data import GtsfmData
 
 # Dummy GtsfmData for testing
 DUMMY_GTSFM_DATA = GtsfmData(number_images=5)
-
-ROOT_PATH = Path(__file__).resolve().parent.parent.parent
 
 
 class TestClusterOptimizerCacher(unittest.TestCase):
@@ -99,7 +94,12 @@ class TestClusterOptimizerCacher(unittest.TestCase):
 
     def test_attribute_delegation(self) -> None:
         """Test that public attributes are delegated to the wrapped optimizer."""
+        # Set a public attribute on the mock optimizer
         self.mock_optimizer.some_public_attribute = "test_value"
+        
+        # Verify the attribute was set on the mock
+        self.assertEqual(self.mock_optimizer.some_public_attribute, "test_value")
+        
         obj_under_test = ClusterOptimizerCacher(optimizer=self.mock_optimizer)
         
         # Test that public attributes are delegated
