@@ -112,8 +112,7 @@ def save_json_file(
     """
     os.makedirs(os.path.dirname(json_fpath), exist_ok=True)
     with open(json_fpath, "w") as f:
-        # ignore_nan=False replaces any NaN with null so that RTF frontend can
-        # parse it
+        # ignore_nan=False replaces any NaN with null so downstream JSON parsers can handle it.
         json.dump(data, f, indent=4, ignore_nan=True)
 
 

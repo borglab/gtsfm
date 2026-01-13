@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 from abc import abstractmethod
 from dataclasses import dataclass
-from pathlib import Path
 from typing import TYPE_CHECKING, Dict, Mapping, Tuple
 
 from dask.base import annotate
@@ -16,7 +15,7 @@ import gtsfm.evaluation.metrics_report as metrics_report
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 from gtsfm.common.image import Image
-from gtsfm.common.outputs import OutputPaths, cluster_label
+from gtsfm.common.outputs import OutputPaths
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 from gtsfm.products.visibility_graph import VisibilityGraph, visibility_graph_keys
 from gtsfm.ui.gtsfm_process import GTSFMProcess
@@ -24,10 +23,6 @@ from gtsfm.ui.gtsfm_process import GTSFMProcess
 if TYPE_CHECKING:
     from gtsfm.loader.loader_base import LoaderBase
     from gtsfm.products.one_view_data import OneViewData
-
-# Paths to save output in React folders.
-REACT_METRICS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "src" / "result_metrics"
-REACT_RESULTS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "public" / "results"
 
 logger = logger_utils.get_logger()
 
@@ -58,15 +53,6 @@ class ClusterContext:
     @property
     def is_root(self) -> bool:
         return len(self.cluster_path) == 0
-
-    @property
-    def react_results_subdir(self) -> Path:
-        """Subdirectory used when mirroring artifacts into the React workspace."""
-        subdir = Path("results")
-        if self.cluster_path:
-            for depth in range(len(self.cluster_path)):
-                subdir /= cluster_label(self.cluster_path[: depth + 1])
-        return subdir
 
     @staticmethod
     def resolve_visibility_graph_images(
@@ -150,7 +136,6 @@ def save_metrics_reports(metrics_group_list: list[GtsfmMetricsGroup], metrics_pa
     NOTE: central helper for persisting metrics used by different optimizers (MVO, VGGT).
     """
     metrics_utils.save_metrics_as_json(metrics_group_list, metrics_path)
-    metrics_utils.save_metrics_as_json(metrics_group_list, str(REACT_METRICS_PATH))
 
     metrics_report.generate_metrics_report_html(
         metrics_group_list, os.path.join(metrics_path, "gtsfm_metrics_report.html"), None

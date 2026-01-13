@@ -41,7 +41,6 @@ cluster_optimizer:
   drop_child_if_merging_fail: true
   drop_camera_with_no_track: true
   seed: 42
-  copy_results_to_react: true
   plot_reprojection_histograms: true
   run_bundle_adjustment_on_leaf: false
   run_bundle_adjustment_on_parent: true

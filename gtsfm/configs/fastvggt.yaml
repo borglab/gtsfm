@@ -38,7 +38,6 @@ cluster_optimizer:
   tracking_fine_tracking: false
   track_vis_thresh: 0.2
   seed: 42
-  copy_results_to_react: true
   run_bundle_adjustment_on_leaf: false
   model_cache_key: null
   merging: 0  # Set >0 to enable FastVGGT token merging.

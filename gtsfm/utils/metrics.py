@@ -29,7 +29,6 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 StatsDict = Dict[str, Union[Optional[float], List[Optional[float]]]]
 
 METRICS_PATH = Path(__file__).resolve().parent.parent.parent / "result_metrics"
-REACT_METRICS_PATH = Path(__file__).resolve().parent.parent.parent / "rtf_vis_tool" / "src" / "result_metrics"
 
 EPSILON = 1e-12
 
