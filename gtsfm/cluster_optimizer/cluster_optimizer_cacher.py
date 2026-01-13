@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import hashlib
+import typing
 from pathlib import Path
 from typing import Optional, TYPE_CHECKING
-import typing
 
 import numpy as np
 from dask.delayed import Delayed, delayed
@@ -37,11 +37,6 @@ class ClusterOptimizerCacher(ClusterOptimizerBase):
     def __init__(self, optimizer: ClusterOptimizerBase) -> None:
         super().__init__(
             pose_angular_error_thresh=optimizer.pose_angular_error_thresh,
-            drop_child_if_merging_fail=optimizer.drop_child_if_merging_fail,
-            drop_camera_with_no_track=optimizer.drop_camera_with_no_track,
-            drop_outlier_after_camera_merging=optimizer.drop_outlier_after_camera_merging,
-            plot_reprojection_histograms=optimizer.plot_reprojection_histograms,
-            run_bundle_adjustment_on_parent=optimizer.run_bundle_adjustment_on_parent,
             output_worker=optimizer._output_worker,
         )
         self._optimizer = optimizer
@@ -70,6 +65,11 @@ class ClusterOptimizerCacher(ClusterOptimizerBase):
         """Restore state and keep worker routing consistent."""
         self._optimizer = typing.cast(ClusterOptimizerBase, state["_optimizer"])
         self._optimizer_hash = typing.cast(str, state["_optimizer_hash"])
+        # Re-initialize the base class to mimic the constructor.
+        super().__init__(
+            pose_angular_error_thresh=self._optimizer.pose_angular_error_thresh,
+            output_worker=self._optimizer._output_worker,
+        )
 
     def _get_cache_path(self, cache_key: str) -> Path:
         return CACHE_ROOT_PATH / "cluster_optimizer" / f"{cache_key}.pbz2"
@@ -91,11 +91,7 @@ class ClusterOptimizerCacher(ClusterOptimizerBase):
     def _generate_cache_key(self, context: ClusterContext) -> str:
         """Generate a stable key from optimizer config and cluster definition."""
         edges = np.array(sorted(context.visibility_graph), dtype=np.int64)
-        edges_hash = (
-            cache_utils.generate_hash_for_numpy_array(edges)
-            if edges.size
-            else cache_utils.generate_hash_for_numpy_array(np.array([]))
-        )
+        edges_hash = cache_utils.generate_hash_for_numpy_array(edges)
         path_hash = hashlib.sha1("_".join(map(str, context.cluster_path)).encode()).hexdigest()
         indices = sorted(visibility_graph_keys(context.visibility_graph))
         image_hashes = [self._hash_one_view_data(context.one_view_data_dict.get(idx)) for idx in indices]
