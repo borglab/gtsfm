@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from typing import Optional
 
 import numpy as np
-from gtsam import Rot3, Unit3
 
 
 @dataclass(frozen=False)
@@ -31,8 +30,6 @@ class TwoViewEstimationReport:
             Sampson error (using GT epipolar geometry).
         R_error_deg: relative pose error w.r.t. GT. Only defined if GT poses provided.
         U_error_deg: relative translation error w.r.t. GT. Only defined if GT poses provided.
-        i2Ri1: relative rotation.
-        i2Ui1: relative translation direction.
         reproj_error_gt_model: reprojection errors between correspondences w.r.t. GT.
         inlier_avg_reproj_error_gt_model: average reprojection error of inliers.
         outlier_avg_reproj_error_gt_model: average reprojection error of outliers.
@@ -46,8 +43,6 @@ class TwoViewEstimationReport:
     v_corr_idxs_inlier_mask_gt: Optional[np.ndarray] = None
     R_error_deg: Optional[float] = None
     U_error_deg: Optional[float] = None
-    i2Ri1: Optional[Rot3] = None
-    i2Ui1: Optional[Unit3] = None
     reproj_error_gt_model: Optional[np.ndarray] = None
     inlier_avg_reproj_error_gt_model: Optional[float] = None
     outlier_avg_reproj_error_gt_model: Optional[float] = None
