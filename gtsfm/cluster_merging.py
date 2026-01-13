@@ -127,7 +127,7 @@ def _log_scene_reprojection_stats(scene: Optional[GtsfmData], label: str, *, plo
     errors, mean, median, min_err, max_err = stats
     assert scene is not None
     logger.info(
-        "📏 %s reprojection error (px): mean=%.2f median=%.2f min=%.2f max=%.2f, #cameras=%d, #tracks=%d, #images=%d, #infos=%d",
+        "📏 %s reprojection error (px): mean=%.2f median=%.2f min=%.2f max=%.2f, #cameras=%d, #tracks=%d, #images=%d",
         label,
         mean,
         median,
@@ -136,7 +136,6 @@ def _log_scene_reprojection_stats(scene: Optional[GtsfmData], label: str, *, plo
         len(scene.cameras()),
         scene.number_tracks(),
         scene.number_images(),
-        len(scene._image_info),
     )
     if plot_histograms:
         _plot_reprojection_error_distribution(errors, scene, label, mean, median, min_err, max_err)
