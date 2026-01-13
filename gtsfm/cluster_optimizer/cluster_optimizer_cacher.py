@@ -35,6 +35,11 @@ class ClusterOptimizerCacher(ClusterOptimizerBase):
     """Caches the delayed bundle result produced by a cluster optimizer."""
 
     def __init__(self, optimizer: ClusterOptimizerBase) -> None:
+        """Initializes the cacher with the actual cluster optimizer object.
+
+        Args:
+            optimizer: cluster optimizer to use in case of cache miss.
+        """
         super().__init__(
             pose_angular_error_thresh=optimizer.pose_angular_error_thresh,
             output_worker=optimizer._output_worker,
