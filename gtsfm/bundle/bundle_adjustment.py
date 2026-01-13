@@ -103,7 +103,7 @@ class BundleAdjustmentOptimizer:
         return 0 if self._shared_calib else camera_idx
 
     def __reprojection_factors(
-        self, initial_data: GtsfmData, first_valid_camera_idx: int, is_fisheye_calibration: bool
+        self, initial_data: GtsfmData, cameras_to_model: List[int], is_fisheye_calibration: bool
     ) -> NonlinearFactorGraph:
         """Generate reprojection factors using the tracks."""
         graph = NonlinearFactorGraph()
@@ -114,7 +114,7 @@ class BundleAdjustmentOptimizer:
             measurement_noise = Robust(mEstimator.Huber(1.345), measurement_noise)
 
         # Note: Assumes all calibration types are the same.
-        first_camera = initial_data.get_camera(first_valid_camera_idx)
+        first_camera = initial_data.get_camera(cameras_to_model[0])
         assert first_camera is not None, "First camera in initial data is None"
         sfm_factor_class = gtsfm_types.get_sfm_factor_for_calibration(first_camera.calibration())
         for j in range(initial_data.number_tracks()):
@@ -124,6 +124,8 @@ class BundleAdjustmentOptimizer:
                 # `i` represents the camera index, and `uv` is the 2d measurement
                 i, uv = track.measurement(m_idx)
                 # Note use of shorthand symbols `X` and `P`.
+                if i not in cameras_to_model:
+                    continue
                 graph.push_back(
                     sfm_factor_class(
                         uv,
@@ -234,7 +236,7 @@ class BundleAdjustmentOptimizer:
         graph.push_back(
             self.__reprojection_factors(
                 initial_data=initial_data,
-                first_valid_camera_idx=cameras_to_model[0],
+                cameras_to_model=cameras_to_model,
                 is_fisheye_calibration=is_fisheye_calibration,
             )
         )
