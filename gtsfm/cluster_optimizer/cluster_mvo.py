@@ -79,7 +79,9 @@ class ClusterMVO(ClusterOptimizerBase):
         run_bundle_adjustment_on_parent: bool = True,
     ) -> None:
         # correspondence_generator is MVO-specific; do not pass it to base class.
-        super().__init__(pose_angular_error_thresh=pose_angular_error_thresh, output_worker=output_worker,
+        super().__init__(
+            pose_angular_error_thresh=pose_angular_error_thresh,
+            output_worker=output_worker,
             drop_child_if_merging_fail=drop_child_if_merging_fail,
             drop_camera_with_no_track=drop_camera_with_no_track,
             drop_outlier_after_camera_merging=drop_outlier_after_camera_merging,
@@ -545,7 +547,7 @@ def get_gtsfm_data_with_gt_cameras_and_est_tracks(
     NOTE: utility to export GT cameras alongside estimated tracks for visualization.
     """
     gt_gtsfm_data = GtsfmData(number_images=len(cameras_gt))
-    # It is okay to use cameras_gt indices, since they are ground truth, and are complete. 
+    # It is okay to use cameras_gt indices, since they are ground truth, and are complete.
     for i, camera in enumerate(cameras_gt):
         if camera is not None:
             gt_gtsfm_data.add_camera(i, camera)

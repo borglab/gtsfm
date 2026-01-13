@@ -66,13 +66,15 @@ def tracks_with_sim3(aSb: Similarity3, tracks_b: Sequence[SfmTrack]) -> list[Sfm
     return [track_with_sim3(aSb, track_b) for track_b in tracks_b]
 
 
-def camera_map_with_sim3(aSb: Similarity3, cameras_b: Mapping[int, CAMERA_TYPE | None]) -> dict[int, CAMERA_TYPE | None]:
+def camera_map_with_sim3(
+    aSb: Similarity3, cameras_b: Mapping[int, CAMERA_TYPE | None]
+) -> dict[int, CAMERA_TYPE | None]:
     """Transport a camera dictionary from frame ``b`` to frame ``a`` using a Sim(3) transform.
-    
+
     Args:
         aSb: The transformation from frame ``b`` to frame ``a``.
         cameras_b: The camera dictionary in frame ``b``, can contain None values.
-    
+
     Returns:
         The camera dictionary in frame ``a``, preserving None values when present in the input.
     """

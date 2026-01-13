@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Optional, Tuple
 
 import numpy as np
 from dask.distributed import Client, Future
-from gtsam import Similarity3
+from gtsam import Similarity3, Pose3
 
 import gtsfm.utils.logger as logger_utils
 import gtsfm.common.types as gtsfm_types
