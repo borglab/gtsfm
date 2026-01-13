@@ -78,7 +78,7 @@ def view_scene(args: argparse.Namespace) -> None:
             wTi_list_gt[i] = zcwTw.compose(wTi_list_gt[i])
 
         # Align the poses.
-        aSw = align.sim3_from_optional_Pose3s(wTi_list_gt, wTi_list)
+        aSw = align.sim3_from_optional_Pose3s_robust(wTi_list_gt, wTi_list)
         wTi_aligned_list = transform.Pose3s_with_sim3(aSw, wTi_list)
         point_cloud = transform.point_cloud_with_sim3(aSw, point_cloud)
 

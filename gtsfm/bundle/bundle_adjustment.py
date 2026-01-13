@@ -12,7 +12,14 @@ import dask
 import gtsam  # type: ignore
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import BetweenFactorPose3, NonlinearFactorGraph, PinholeCameraCal3Fisheye, PriorFactorPose3, PriorFactorPoint3, Values
+from gtsam import (
+    BetweenFactorPose3,
+    NonlinearFactorGraph,
+    PinholeCameraCal3Fisheye,
+    PriorFactorPose3,
+    PriorFactorPoint3,
+    Values,
+)
 from gtsam.noiseModel import Diagonal, Isotropic, Robust, mEstimator  # type: ignore
 from gtsam.symbol_shorthand import K, P, X  # type: ignore
 
@@ -233,7 +240,7 @@ class BundleAdjustmentOptimizer:
         )
         if graph.size() == 0:
             raise ValueError("BundleAdjustmentOptimizer: No reprojection factors available.")
-        
+
         if not cameras_to_model:
             return graph
 
@@ -247,9 +254,7 @@ class BundleAdjustmentOptimizer:
             )
         )
 
-        graph.push_back(
-            PriorFactorPoint3(P(0), initial_data.get_track(0).point3(), Isotropic.Sigma(POINT3_DOF, 0.1))
-        )
+        graph.push_back(PriorFactorPoint3(P(0), initial_data.get_track(0).point3(), Isotropic.Sigma(POINT3_DOF, 0.1)))
         graph.push_back(self.__calibration_priors(initial_data, cameras_to_model, is_fisheye_calibration))
 
         return graph
@@ -528,16 +533,16 @@ class BundleAdjustmentOptimizer:
         """
         ba_metrics = GtsfmMetricsGroup(name=METRICS_GROUP, metrics=unfiltered_data.get_metrics(suffix="_unfiltered"))
 
-        poses_gt = [cam.pose() if cam is not None else None for cam in cameras_gt]
-
-        valid_poses_gt_count = len(poses_gt) - poses_gt.count(None)
-        if valid_poses_gt_count == 0:
+        input_image_idxs = list(unfiltered_data._image_info.keys())
+        poses_gt = {i: cameras_gt[i].pose() for i in input_image_idxs if i in cameras_gt and cameras_gt[i] is not None}
+        poses_gt_list = [cam.pose() if cam is not None else None for cam in cameras_gt]
+        if not poses_gt:
             return ba_metrics
 
         # Align the sparse multi-view estimate after BA to the ground truth pose graph.
-        aligned_filtered_data = filtered_data.align_via_sim3_and_transform(poses_gt)
+        aligned_filtered_data = filtered_data.align_via_sim3_and_transform(poses_gt_list)
         ba_pose_error_metrics = metrics_utils.compute_ba_pose_metrics(
-            gt_wTi_list=poses_gt, computed_wTi=aligned_filtered_data.get_camera_poses(), save_dir=save_dir
+            gt_wTi=poses_gt, computed_wTi=aligned_filtered_data.get_camera_poses(), save_dir=save_dir
         )
         ba_metrics.extend(metrics_group=ba_pose_error_metrics)
 

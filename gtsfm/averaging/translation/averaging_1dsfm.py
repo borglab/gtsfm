@@ -666,7 +666,7 @@ def compute_metrics(
             wTi_list.append(None)
         else:
             wTi_list.append(Pose3(wRi, wti))
-    aSw = align.sim3_from_optional_Pose3s(gt_wTi_list, wTi_list)
+    aSw = align.sim3_from_optional_Pose3s_robust(gt_wTi_list, wTi_list)
     wTi_aligned_list = transform.optional_Pose3s_with_sim3(aSw, wTi_list)
     wti_aligned_list = [wTi.translation() if wTi is not None else None for wTi in wTi_aligned_list]
     gt_wti_list = [gt_wTi.translation() if gt_wTi is not None else None for gt_wTi in gt_wTi_list]

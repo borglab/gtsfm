@@ -385,7 +385,7 @@ def compute_pose_auc_metric(
 
 
 def compute_ba_pose_metrics(
-    gt_wTi_list: List[Optional[Pose3]],
+    gt_wTi: Dict[int, Pose3],
     computed_wTi: Dict[int, Pose3],
     save_dir: Optional[str] = None,
 ) -> GtsfmMetricsGroup:
@@ -400,9 +400,12 @@ def compute_ba_pose_metrics(
     Returns:
         A group of metrics that describe errors associated with a bundle adjustment result (w.r.t. GT).
     """
-    i2Ri1_dict_gt, i2Ui1_dict_gt = get_all_relative_rotations_translations(gt_wTi_list)
+    i2Ri1_dict_gt, i2Ui1_dict_gt = get_all_relative_rotations_translations(gt_wTi)
 
-    computed_wTi_list = [computed_wTi[i] if i in computed_wTi else None for i in range(len(gt_wTi_list))]
+    camera_idxs = sorted(list(gt_wTi.keys()))
+
+    computed_wTi_list = [computed_wTi[i] if i in computed_wTi else None for i in camera_idxs]
+    gt_wTi_list = [gt_wTi[i] for i in camera_idxs]
     wRi_aligned_list, wti_aligned_list = get_rotations_translations_from_poses(computed_wTi_list)
     gt_wRi_list, gt_wti_list = get_rotations_translations_from_poses(gt_wTi_list)
 
@@ -425,8 +428,8 @@ def compute_ba_pose_metrics(
 
 
 def get_all_relative_rotations_translations(
-    wTi_list: List[Optional[Pose3]],
-) -> Tuple[Dict[Tuple[int, int], Optional[Rot3]], Dict[Tuple[int, int], Optional[Unit3]]]:
+    wTi: Dict[int, Pose3],
+) -> Tuple[Dict[Tuple[int, int], Rot3], Dict[Tuple[int, int], Unit3]]:
     """Compute measurements of *all* 2-view translation directions between image pairs.
 
     Args:
@@ -435,20 +438,16 @@ def get_all_relative_rotations_translations(
     Returns:
         i2Ui1_dict: Dict from (i1, i2) to unit translation direction i2Ui1.
     """
-    number_images = len(wTi_list)  # vs. using ba_output.number_images()
-
     # check against all possible image pairs -- compute unit translation directions
     i2Ui1_dict = {}
     i2Ri1_dict = {}
-    possible_img_pair_idxs = list(itertools.combinations(range(number_images), 2))
+    possible_img_pair_idxs = list(itertools.combinations(list(wTi.keys()), 2))
     for i1, i2 in possible_img_pair_idxs:
+        assert wTi[i1] is not None and wTi[i2] is not None
         # compute the exact relative pose
-        if wTi_list[i1] is None or wTi_list[i2] is None:
-            i2Ri1, i2Ui1 = None, None
-        else:
-            i2Ti1 = wTi_list[i2].between(wTi_list[i1])  # type: ignore
-            i2Ui1 = Unit3(i2Ti1.translation())
-            i2Ri1 = i2Ti1.rotation()
+        i2Ti1 = wTi[i2].between(wTi[i1])  # type: ignore
+        i2Ui1 = Unit3(i2Ti1.translation())
+        i2Ri1 = i2Ti1.rotation()
         i2Ui1_dict[(i1, i2)] = i2Ui1
         i2Ri1_dict[(i1, i2)] = i2Ri1
     return i2Ri1_dict, i2Ui1_dict

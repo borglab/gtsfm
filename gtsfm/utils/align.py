@@ -107,7 +107,9 @@ def sim3_from_Pose3_maps(a: Mapping[int, Pose3], b: Mapping[int, Pose3]) -> Simi
         ) from exc
 
 
-def sim3_from_optional_Pose3s(aTi_list: Sequence[Optional[Pose3]], bTi_list: Sequence[Optional[Pose3]]) -> Similarity3:
+def sim3_from_optional_Pose3s_robust(
+    aTi_list: Sequence[Optional[Pose3]], bTi_list: Sequence[Optional[Pose3]]
+) -> Similarity3:
     """Estimate Sim(3) alignment while allowing missing poses in the inputs.
 
     This is a convenience wrapper for ``estimate_sim3_robust`` that tolerates dropped cameras.

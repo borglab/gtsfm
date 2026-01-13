@@ -416,7 +416,7 @@ def _remove_cameras_with_no_tracks(scene: GtsfmData) -> tuple[GtsfmData, bool]:
         logger.warning("📋 Cameras with zero tracks before node-level BA: %s", zero_track_cameras)
     if zero_track_cameras:
         if cameras_with_measurements:
-            scene = GtsfmData.from_selected_cameras(scene, sorted(cameras_with_measurements))
+            scene = GtsfmData.from_selected_cameras(scene, sorted(cameras_with_measurements), keep_all_image_infos=True)
             logger.info(
                 "Pruned %d zero-track cameras; %d cameras remain for parent BA.",
                 len(zero_track_cameras),
@@ -440,7 +440,7 @@ def _convert_vggt_outputs_to_gtsfm_data(
     config: VggtConfiguration,
     points_3d: np.ndarray,
     points_rgb: np.ndarray,
-    tracking_result: VGGTTrackingResult = None,
+    tracking_result: VGGTTrackingResult | None = None,
 ) -> GtsfmData:
     """Convert raw VGGT predictions into ``GtsfmData``."""
 
@@ -541,9 +541,6 @@ def _convert_vggt_outputs_to_gtsfm_data(
                     return gtsfm_data
                 optimizer = BundleAdjustmentOptimizer()
                 gtsfm_data_with_ba, _ = optimizer.run_simple_ba(gtsfm_data, verbose=False)
-                for idx in gtsfm_data.get_valid_camera_indices():
-                    info = gtsfm_data.get_image_info(idx)
-                    gtsfm_data_with_ba.set_image_info(idx, name=info.name, shape=info.shape)
                 return gtsfm_data_with_ba
             except Exception as exc:
                 logger.warning("⚠️ Failed to run bundle adjustment: %s", exc)

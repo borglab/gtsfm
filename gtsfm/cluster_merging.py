@@ -37,7 +37,7 @@ _SCENE_LABEL_ATTR = "_gtsfm_cluster_label"
 @dataclass(frozen=True)
 class MergedNodeResult:
     """Results of merging child scenes with parent scenes in the reconstruction tree.
-    
+
     Attributes:
         scene: The merged scene.
         metrics: The metrics for the merged scene.
@@ -127,7 +127,7 @@ def _log_scene_reprojection_stats(scene: Optional[GtsfmData], label: str, *, plo
     errors, mean, median, min_err, max_err = stats
     assert scene is not None
     logger.info(
-        "📏 %s reprojection error (px): mean=%.2f median=%.2f min=%.2f max=%.2f, #cameras=%d, #tracks=%d, #images=%d",
+        "📏 %s reprojection error (px): mean=%.2f median=%.2f min=%.2f max=%.2f, #cameras=%d, #tracks=%d, #images=%d, #infos=%d",
         label,
         mean,
         median,
@@ -136,6 +136,7 @@ def _log_scene_reprojection_stats(scene: Optional[GtsfmData], label: str, *, plo
         len(scene.cameras()),
         scene.number_tracks(),
         scene.number_images(),
+        len(scene._image_info),
     )
     if plot_histograms:
         _plot_reprojection_error_distribution(errors, scene, label, mean, median, min_err, max_err)
@@ -203,7 +204,7 @@ def _get_pose_metrics(
     save_dir: Optional[str] = None,
 ) -> GtsfmMetricsGroup:
     """Compute pose metrics for a BA result after aligning with ground truth.
-    
+
     Args:
         result_data: The GtsfmData object to compute pose metrics for.
         cameras_gt: The ground truth cameras.
@@ -212,16 +213,19 @@ def _get_pose_metrics(
     Returns:
         A GtsfmMetricsGroup object containing the pose metrics.
     """
-    # TODO: this uses all cameras in the ground truth, but we only need the ones that are present in input to this node.
-    # TODO: this can only be fixed if we use a field in result data to store the valid input images.
-    poses_gt = [cam.pose() if cam is not None else None for cam in cameras_gt]
+    # Compute metrics for only those images that belong to the merged scene.
+    image_idxs = list(result_data._image_info.keys())
+    poses_gt: dict[int, Pose3] = {
+        i: cameras_gt[i].pose() for i in image_idxs if i in cameras_gt and cameras_gt[i] is not None
+    }
+    poses_gt_list = [cam.pose() if cam is not None else None for cam in cameras_gt]
 
     if len(poses_gt) == 0:
         return GtsfmMetricsGroup(name="ba_pose_error_metrics", metrics=[])
 
-    aligned_result_data = result_data.align_via_sim3_and_transform(poses_gt)
+    aligned_result_data = result_data.align_via_sim3_and_transform(poses_gt_list)
     return metrics_utils.compute_ba_pose_metrics(
-        gt_wTi_list=poses_gt,
+        gt_wTi=poses_gt,
         computed_wTi=aligned_result_data.get_camera_poses(),
         save_dir=save_dir,
     )
@@ -237,7 +241,7 @@ def compute_merging_metrics(
     child_camera_overlap_with_parent: list[int] | None = None,
 ) -> GtsfmMetricsGroup:
     """Build metrics describing a merged reconstruction at a tree node.
-    
+
     Args:
         merged_scene: The merged scene.
         child_count: The number of children.
@@ -339,7 +343,7 @@ def _remove_cameras_with_no_tracks(scene: GtsfmData) -> tuple[GtsfmData, bool]:
         logger.warning("📋 Cameras with zero tracks before parent BA: %s", zero_track_cameras)
     if zero_track_cameras:
         if cameras_with_measurements:
-            scene = GtsfmData.from_selected_cameras(scene, sorted(cameras_with_measurements))
+            scene = GtsfmData.from_selected_cameras(scene, sorted(cameras_with_measurements), keep_all_image_infos=True)
             logger.info(
                 "Pruned %d zero-track cameras; %d cameras remain for parent BA.",
                 len(zero_track_cameras),
@@ -386,16 +390,13 @@ def _drop_outlier_tracks(scene: GtsfmData) -> GtsfmData:
                 error_threshold,
                 median_error,
             )
-            filtered = GtsfmData(
-                scene.number_images(),
-                cameras=cameras,
-                tracks=retained_tracks,
+            filtered = GtsfmData.from_cameras_and_tracks(
+                cameras,
+                retained_tracks,
+                number_images=scene.number_images(),
+                image_info=scene._clone_image_info(),
                 gaussian_splats=scene.get_gaussian_splats(),
             )
-            for idx in scene.get_valid_camera_indices():
-                info = scene.get_image_info(idx)
-                if info.name is not None or info.shape is not None:
-                    filtered.set_image_info(idx, name=info.name, shape=info.shape)
             _propagate_scene_metadata(filtered, scene)
             scene = filtered
     return scene
@@ -408,7 +409,7 @@ def _align_and_merge_results(result1: GtsfmData, result2: GtsfmData, drop_if_mer
         result1: The first result to merge.
         result2: The second result to merge.
         drop_if_merging_fails: Whether to drop result2 if merging fails.
-    
+
     Returns:
         The merged result if merging succeeds, otherwise the first result.
     """
@@ -441,7 +442,7 @@ def combine_results(
     store_full_data: bool = False,
 ) -> MergedNodeResult:
     """Run the merging and parent BA pipeline using already-transformed children.
-    
+
     Args:
         current: The current scene.
         child_results: The results of the child clusters.
@@ -505,10 +506,11 @@ def combine_results(
         merged_is_current_frame = False
 
     # Merge all children into the merged scene.
-    for child in valid_child_scenes:
+    for i, child in enumerate(valid_child_scenes):
         assert merged is not None
         merged = _align_and_merge_results(merged, child, drop_if_merging_fails=drop_child_if_merging_fail)
-    
+        _log_scene_reprojection_stats(merged, f"merged with child #{i}", plot_histograms=plot_reprojection_histograms)
+
     # If merged did not start in the current frame, merge it with the current scene.
     if not merged_is_current_frame and current is not None:
         assert merged is not None
@@ -536,9 +538,6 @@ def combine_results(
 
     try:
         merged_with_ba = BundleAdjustmentOptimizer().run_simple_ba(merged)[0]  # Can definitely fail
-        for idx in merged.get_valid_camera_indices():
-            info = merged.get_image_info(idx)
-            merged_with_ba.set_image_info(idx, name=info.name, shape=info.shape)
         _propagate_scene_metadata(merged_with_ba, merged)
         _log_scene_reprojection_stats(
             merged_with_ba,
