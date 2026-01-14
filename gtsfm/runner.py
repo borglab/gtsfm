@@ -24,6 +24,7 @@ logger = logger_utils.get_logger()
 
 DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent.parent
 
+
 class GtsfmRunner:
     def __init__(self, override_args=None) -> None:
         argparser: argparse.ArgumentParser = self.construct_argparser()
