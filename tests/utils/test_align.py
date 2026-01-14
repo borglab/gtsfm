@@ -182,7 +182,7 @@ class TestAlignmentUtils(unittest.TestCase):
         aTi_list = [wT0, wT1, wT2, wT3]
         # `b` frame contains the estimates
         bTi_list = [None, wT1, None, wT3]
-        aSb = align.sim3_from_optional_Pose3s(aTi_list, bTi_list)
+        aSb = align.sim3_from_optional_Pose3s_robust(aTi_list, bTi_list)
         aTi_list_ = transform.optional_Pose3s_with_sim3(aSb, bTi_list)
 
         # indices 0 and 2 should still have no estimated pose, even after alignment
@@ -309,7 +309,7 @@ class TestAlignmentUtils(unittest.TestCase):
 
         bTi_list = copy.deepcopy(aTi_list)
 
-        aSb = align.sim3_from_optional_Pose3s(aTi_list, bTi_list)
+        aSb = align.sim3_from_optional_Pose3s_robust(aTi_list, bTi_list)
         aligned_bTi_list_est = transform.optional_Pose3s_with_sim3(aSb, bTi_list)
 
         self.__assert_equality_on_pose3s(aTi_list, aligned_bTi_list_est)
@@ -334,7 +334,7 @@ class TestAlignmentUtils(unittest.TestCase):
             None,
         ]
 
-        aSb = align.sim3_from_optional_Pose3s(aTi_list, bTi_list)
+        aSb = align.sim3_from_optional_Pose3s_robust(aTi_list, bTi_list)
         aligned_bTi_list_est = transform.optional_Pose3s_with_sim3(aSb, bTi_list)
         assert np.isclose(aSb.scale(), 1.0, atol=1e-2)
         assert aligned_bTi_list_est[1] is not None
@@ -356,7 +356,7 @@ class TestAlignmentUtils(unittest.TestCase):
             Pose3(Rot3(), Point3(0, 0, 2000)),
         ]
 
-        aSb = align.sim3_from_optional_Pose3s(aTi_list, bTi_list)
+        aSb = align.sim3_from_optional_Pose3s_robust(aTi_list, bTi_list)
         assert isinstance(aSb, Similarity3)
 
     def test_align_gtsfm_data_via_Sim3_to_poses_skydio32(self) -> None:
