@@ -18,6 +18,7 @@ from gtsfm.cluster_optimizer.cluster_anysplat import save_splats
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.utils import align as align_utils
+from gtsfm.utils import data_utils
 import gtsfm.utils.metrics as metrics_utils
 from gtsfm.utils.reprojection import compute_track_reprojection_errors
 from gtsfm.utils.splat import GaussiansProtocol, merge_gaussian_splats
@@ -324,36 +325,7 @@ def schedule_exports(
     return submit_tree_map(client, export_payload_tree, _run_export_task, pure=False)
 
 
-def _remove_cameras_with_no_tracks(scene: GtsfmData) -> tuple[GtsfmData, bool]:
-    """Remove cameras with no tracks from a scene.
 
-    Args:
-        scene: The scene to remove cameras from.
-
-    Returns:
-        A tuple containing the scene with cameras removed and a boolean indicating if the scene should run BA.
-    """
-    all_cameras = set(scene.get_valid_camera_indices())
-    camera_measurement_map = scene.get_camera_to_measurement_map()
-    cameras_with_measurements = set(camera_measurement_map.keys())
-    zero_track_cameras = sorted(all_cameras - cameras_with_measurements)
-    if zero_track_cameras:
-        logger.warning("📋 Cameras with zero tracks before parent BA: %s", zero_track_cameras)
-    if zero_track_cameras:
-        if cameras_with_measurements:
-            scene = GtsfmData.from_selected_cameras(scene, sorted(cameras_with_measurements), keep_all_image_infos=True)
-            logger.info(
-                "Pruned %d zero-track cameras; %d cameras remain for parent BA.",
-                len(zero_track_cameras),
-                len(scene.get_valid_camera_indices()),
-            )
-        else:
-            logger.warning("All cameras lack tracks; skipping parent BA.")
-            return scene, False
-    elif not zero_track_cameras:
-        logger.info("✅ All cameras have at least one track before parent BA.")
-
-    return scene, True
 
 
 def _drop_outlier_tracks(scene: GtsfmData) -> GtsfmData:
@@ -516,7 +488,7 @@ def combine_results(
 
     # Log cameras that have no supporting track measurements before running BA.
     if drop_camera_with_no_track:
-        merged, should_run_ba = _remove_cameras_with_no_tracks(merged)
+        merged, should_run_ba = data_utils.remove_cameras_with_no_tracks(merged, "parent BA")
         if not should_run_ba:
             return _finalize_result(merged)
     else:
