@@ -671,10 +671,9 @@ class GtsfmData:
         Returns:
             New object with the selected cameras and associated tracks.
         """
-        camera_indices = gtsfm_data.get_valid_camera_indices()
         new_data = cls(number_images=gtsfm_data.number_images() if keep_all_image_infos else len(camera_indices))
 
-        for i in camera_indices:
+        for i in gtsfm_data.get_valid_camera_indices():
             if i in camera_indices:
                 camera_i = gtsfm_data.get_camera(i)
                 assert camera_i is not None
