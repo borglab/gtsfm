@@ -19,6 +19,7 @@ from torch.amp import autocast as amp_autocast  # type: ignore
 
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
 from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm.utils import data_utils
 from gtsfm.utils import logger as logger_utils
 from gtsfm.utils import torch as torch_utils
 
@@ -399,36 +400,7 @@ def _is_point_in_front_of_camera(camera, point_xyz: np.ndarray, *, epsilon: floa
     return float(z_val) > epsilon
 
 
-def _remove_cameras_with_no_tracks(scene: GtsfmData) -> tuple[GtsfmData, bool]:
-    """Remove cameras with no tracks from a scene.
 
-    Args:
-        scene: The scene to remove cameras from.
-
-    Returns:
-        A tuple containing the scene with cameras removed and a boolean indicating if the scene should run BA.
-    """
-    all_cameras = set(scene.get_valid_camera_indices())
-    camera_measurement_map = scene.get_camera_to_measurement_map()
-    cameras_with_measurements = set(camera_measurement_map.keys())
-    zero_track_cameras = sorted(all_cameras - cameras_with_measurements)
-    if zero_track_cameras:
-        logger.warning("📋 Cameras with zero tracks before node-level BA: %s", zero_track_cameras)
-    if zero_track_cameras:
-        if cameras_with_measurements:
-            scene = GtsfmData.from_selected_cameras(scene, sorted(cameras_with_measurements), keep_all_image_infos=True)
-            logger.info(
-                "Pruned %d zero-track cameras; %d cameras remain for parent BA.",
-                len(zero_track_cameras),
-                len(scene.get_valid_camera_indices()),
-            )
-        else:
-            logger.warning("All cameras lack tracks; skipping node-level BA.")
-            return scene, False
-    elif not zero_track_cameras:
-        logger.info("✅ All cameras have at least one track before node-level BA.")
-
-    return scene, True
 
 
 def _convert_vggt_outputs_to_gtsfm_data(
@@ -536,7 +508,7 @@ def _convert_vggt_outputs_to_gtsfm_data(
             logger.warning("Skipping bundle adjustment because VGGT produced no valid tracks.")
         else:
             try:
-                gtsfm_data, should_run_ba = _remove_cameras_with_no_tracks(gtsfm_data)
+                gtsfm_data, should_run_ba = data_utils.remove_cameras_with_no_tracks(gtsfm_data, "node-level BA")
                 if not should_run_ba:
                     return gtsfm_data
                 optimizer = BundleAdjustmentOptimizer()
