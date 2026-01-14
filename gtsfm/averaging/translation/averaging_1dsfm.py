@@ -623,7 +623,9 @@ def compute_metrics(
         return GtsfmMetricsGroup("translation_averaging_metrics", ta_metrics)
 
     # Get ground truth translation directions for the measurements.
-    _, gt_i2Ui1_dict = metrics_utils.get_all_relative_rotations_translations(gt_wTi_list)
+    _, gt_i2Ui1_dict = metrics_utils.get_all_relative_rotations_translations(
+        {i: gt_wTi for i, gt_wTi in enumerate(gt_wTi_list) if gt_wTi is not None}
+    )
 
     if len(inlier_i1_i2_pairs) > 0:
         threshold_suffix = str(int(MAX_INLIER_MEASUREMENT_ERROR_DEG)) + "_deg"
@@ -670,7 +672,6 @@ def compute_metrics(
     wTi_aligned_list = transform.optional_Pose3s_with_sim3(aSw, wTi_list)
     wti_aligned_list = [wTi.translation() if wTi is not None else None for wTi in wTi_aligned_list]
     gt_wti_list = [gt_wTi.translation() if gt_wTi is not None else None for gt_wTi in gt_wTi_list]
-    _, gt_i2Ui1_dict = metrics_utils.get_all_relative_rotations_translations(gt_wTi_list)
 
     ta_metrics.extend(
         [

@@ -84,15 +84,18 @@ def compare_poses(baseline_dirpath: str, eval_dirpath: str, output_dirpath: str)
 
     baseline_wTi_list: List[Pose3] = []
     current_wTi_list: List[Optional[Pose3]] = []
-    for fname, wTi in baseline_wTi_dict.items():
-        baseline_wTi_list.append(wTi)
+    fnames = sorted(baseline_wTi_dict.keys())
+    baseline_wTi_idx_dict = {}
+    for i, fname in enumerate(fnames):
+        baseline_wTi_list.append(baseline_wTi_dict[fname])
         current_wTi_list.append(current_wTi_dict.get(fname))
+        baseline_wTi_idx_dict[i] = baseline_wTi_dict[fname]
 
     if not args.use_pycolmap_alignment:
         aSb = align.sim3_from_optional_Pose3s_robust(baseline_wTi_list, current_wTi_list)
         current_wTi_list = transform.optional_Pose3s_with_sim3(aSb, current_wTi_list)
 
-    i2Ri1_dict_gt, i2Ui1_dict_gt = metric_utils.get_all_relative_rotations_translations(baseline_wTi_list)
+    i2Ri1_dict_gt, i2Ui1_dict_gt = metric_utils.get_all_relative_rotations_translations(baseline_wTi_idx_dict)
 
     wRi_aligned_list, wti_aligned_list = metric_utils.get_rotations_translations_from_poses(current_wTi_list)
     baseline_wRi_list, baseline_wti_list = metric_utils.get_rotations_translations_from_poses(baseline_wTi_list)
