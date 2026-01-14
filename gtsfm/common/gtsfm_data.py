@@ -520,7 +520,7 @@ class GtsfmData:
         return poses
 
     def get_camera_poses(self) -> Dict[int, Pose3]:
-        """Returns poses for all cameras (wTi), including missing ones as None."""
+        """Returns poses as a dictionary, without missing poses."""
         return {i: cam.pose() for i, cam in self._cameras.items()}
 
     def get_track(self, index: int) -> SfmTrack:
@@ -681,6 +681,7 @@ class GtsfmData:
                 source_info = gtsfm_data.get_image_info(i)
                 new_data.set_image_info(i, name=source_info.name, shape=source_info.shape)
             elif keep_all_image_infos:
+                source_info = gtsfm_data.get_image_info(i)
                 new_data.set_image_info(i, name=source_info.name, shape=source_info.shape)
 
         new_camera_indices = new_data.get_valid_camera_indices()
