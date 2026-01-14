@@ -140,7 +140,7 @@ class BundleAdjustmentOptimizer:
                 )
 
         if len(cameras_with_tracks) != len(set(cameras_to_model)):
-            raise ValueError(f"Some cameras in the graph have no tracks: {cameras_with_tracks - set(cameras_to_model)}")
+            raise ValueError(f"Some cameras in the graph have no tracks: {set(cameras_to_model) - cameras_with_tracks}")
 
         return graph
 
@@ -262,7 +262,8 @@ class BundleAdjustmentOptimizer:
             )
         )
 
-        graph.push_back(PriorFactorPoint3(P(0), initial_data.get_track(0).point3(), Isotropic.Sigma(POINT3_DOF, 0.1)))
+        if initial_data.number_tracks() > 0:
+            graph.push_back(PriorFactorPoint3(P(0), initial_data.get_track(0).point3(), Isotropic.Sigma(POINT3_DOF, 0.1)))
         graph.push_back(self.__calibration_priors(initial_data, cameras_to_model, is_fisheye_calibration))
 
         return graph
