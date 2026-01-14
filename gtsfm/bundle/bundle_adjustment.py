@@ -117,12 +117,15 @@ class BundleAdjustmentOptimizer:
         first_camera = initial_data.get_camera(cameras_to_model[0])
         assert first_camera is not None, "First camera in initial data is None"
         sfm_factor_class = gtsfm_types.get_sfm_factor_for_calibration(first_camera.calibration())
+
+        cameras_with_tracks = set()
         for j in range(initial_data.number_tracks()):
             track = initial_data.get_track(j)  # SfmTrack
             # Retrieve the SfmMeasurement objects.
             for m_idx in range(track.numberMeasurements()):
                 # `i` represents the camera index, and `uv` is the 2d measurement
                 i, uv = track.measurement(m_idx)
+                cameras_with_tracks.add(i)
                 # Note use of shorthand symbols `X` and `P`.
                 if i not in cameras_to_model:
                     continue
@@ -135,6 +138,9 @@ class BundleAdjustmentOptimizer:
                         K(self.__map_to_calibration_variable(i)),
                     )  # type: ignore
                 )
+
+        if len(cameras_with_tracks) != len(set(cameras_to_model)):
+            raise ValueError(f"Some cameras in the graph have no tracks: {cameras_with_tracks - set(cameras_to_model)}")
 
         return graph
 
