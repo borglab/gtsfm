@@ -132,15 +132,12 @@ class TestIoUtils(unittest.TestCase):
         camera = PinholeCameraCal3Bundler(original_wTc, default_intrinsics)
         gtsfm_data = GtsfmData(number_images=1)
         gtsfm_data.add_camera(0, camera)
-
-        image = Image(value_array=None, file_name="dummy_image.jpg")  # type: ignore
-        images = [image]
+        gtsfm_data.set_image_info(0, name="dummy_image.jpg", shape=(1, 1))
 
         # Perform write and read operations inside a temporary directory
         with tempfile.TemporaryDirectory() as tempdir:
             images_fpath = Path(tempdir) / "images.txt"
-            image_filenames = [img.file_name for img in images]
-            gtsfm_data.write_images(tempdir, image_filenames)
+            gtsfm_data.write_images(tempdir)
             wTi_list, _ = io_utils.read_images_txt(images_fpath)
             recovered_wTc = wTi_list[0]
 
