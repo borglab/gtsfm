@@ -14,7 +14,6 @@ from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, Rot3, SfmTrack  
 import gtsfm.utils.io as io_utils
 import thirdparty.colmap.scripts.python.read_write_model as colmap_io
 from gtsfm.common.gtsfm_data import GtsfmData
-from gtsfm.common.image import Image
 
 TEST_DATA_ROOT = Path(__file__).resolve().parent.parent / "data"
 
