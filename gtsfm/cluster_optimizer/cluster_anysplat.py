@@ -18,12 +18,7 @@ from dask.delayed import Delayed
 import gtsfm.frontend.anysplat as anysplat_utils
 import gtsfm.utils.torch as torch_utils
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
-from gtsfm.cluster_optimizer.cluster_optimizer_base import (
-    REACT_RESULTS_PATH,
-    ClusterComputationGraph,
-    ClusterContext,
-    ClusterOptimizerBase,
-)
+from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterComputationGraph, ClusterContext, ClusterOptimizerBase
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
@@ -59,16 +54,11 @@ def save_splats(result: GtsfmData, save_gs_files_path: Path) -> None:
 def _save_reconstruction_as_text(
     result: GtsfmData,
     results_path: Path,
-    relative_results_dir: Path,
 ) -> None:
     target_dir = results_path / "anysplat"
     target_dir.mkdir(parents=True, exist_ok=True)
     result.export_as_colmap_text(target_dir)
     save_splats(result, target_dir)
-
-    react_destination = REACT_RESULTS_PATH / relative_results_dir / "anysplat"
-    react_destination.mkdir(parents=True, exist_ok=True)
-    result.export_as_colmap_text(react_destination)
 
 
 class ClusterAnySplat(ClusterOptimizerBase):
@@ -506,7 +496,6 @@ class ClusterAnySplat(ClusterOptimizerBase):
                 delayed(_save_reconstruction_as_text)(
                     result_graph.gtsfm_data,
                     context.output_paths.results,
-                    context.react_results_subdir,
                 )
             )
             io_tasks.append(

@@ -23,7 +23,6 @@ dask_config.set({"distributed.scheduler.worker-ttl": None})
 logger = logger_utils.get_logger()
 
 DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent.parent
-REACT_METRICS_PATH = DEFAULT_OUTPUT_ROOT / "rtf_vis_tool" / "src" / "result_metrics"
 
 
 class GtsfmRunner:

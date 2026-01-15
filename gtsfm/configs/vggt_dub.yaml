@@ -33,6 +33,5 @@ cluster_optimizer:
   max_num_points: 100000
   camera_type: PINHOLE
   seed: 42
-  copy_results_to_react: true
   run_bundle_adjustment_on_leaf: false
   model_cache_key: null

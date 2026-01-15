@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import shutil
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -20,13 +19,7 @@ import gtsfm.utils.ellipsoid as ellipsoid_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.viz as viz_utils
-from gtsfm.cluster_optimizer.cluster_optimizer_base import (
-    REACT_METRICS_PATH,
-    REACT_RESULTS_PATH,
-    ClusterComputationGraph,
-    ClusterContext,
-    ClusterOptimizerBase,
-)
+from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterComputationGraph, ClusterContext, ClusterOptimizerBase
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.types import create_camera
 from gtsfm.common.image import Image
@@ -298,9 +291,6 @@ class ClusterMVO(ClusterOptimizerBase):
 
         io_utils.save_json_file(os.path.join(metrics_path, filename), metrics_list)
 
-        # Save duplicate copy within React folder.
-        io_utils.save_json_file(os.path.join(REACT_METRICS_PATH, filename), metrics_list)
-
         # Downstream retrieval diagnostics are handled centrally after cluster execution.
 
     def create_computation_graph(self, context: ClusterContext) -> ClusterComputationGraph | None:
@@ -566,8 +556,6 @@ def save_gtsfm_data(
     cameras_gt: list[Optional[gtsfm_types.CAMERA_TYPE]],
 ) -> None:
     """Saves the Gtsfm data before and after bundle adjustment.
-
-    NOTE: centralize on-disk export and React duplication here.
     """
     start_time = time.time()
     output_dir = str(results_path)
@@ -584,13 +572,6 @@ def save_gtsfm_data(
     # Save the ground truth in the same format, for visualization.
     gt_gtsfm_data = get_gtsfm_data_with_gt_cameras_and_est_tracks(cameras_gt, ba_output_data)
     gt_gtsfm_data.export_as_colmap_text(save_dir=os.path.join(output_dir, "ba_gt"))
-
-    # Delete old version of React results directory and save a duplicate copy.
-    shutil.rmtree(REACT_RESULTS_PATH, ignore_errors=True)
-    try:
-        shutil.copytree(src=results_path, dst=REACT_RESULTS_PATH)
-    except Exception:
-        logger.warning("Could not copy results to REACT_RESULTS_PATH: %s", REACT_RESULTS_PATH)
 
     duration_sec = time.time() - start_time
     logger.info("🚀 GtsfmData I/O took %.2f min.", duration_sec / 60.0)

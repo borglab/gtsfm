@@ -29,7 +29,6 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 StatsDict = Dict[str, Union[Optional[float], List[Optional[float]]]]
 
 METRICS_PATH = Path(__file__).resolve().parent.parent.parent / "result_metrics"
-REACT_METRICS_PATH = Path(__file__).resolve().parent.parent.parent / "rtf_vis_tool" / "src" / "result_metrics"
 
 EPSILON = 1e-12
 
@@ -255,16 +254,35 @@ def compute_translation_distance_metric(
 def get_relative_translation_angles(
     i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]],
     wTi_list: List[Optional[Pose3]],
+    include_none: bool = False,
 ) -> List[float]:
-    """Returns a list of relative translation angles, skipping None values."""
+    """Returns a list of relative translation angles, with optional `np.nan` entries for missing poses.
+
+    If either pose in a pair is ``None`` and ``include_none`` is:
+      * ``False``: that pair is skipped and contributes no entry to the output list.
+      * ``True``: a ``np.nan`` value is appended to the output list for that pair.
+
+    Args:
+        i2Ui1_dict: Dict from (i1, i2) to relative translation direction i2Ui1.
+        wTi_list: List of camera poses indexed by image index.
+        include_none: Whether to include pose pairs with missing poses in the metrics by appending ``np.nan``
+            for those pairs instead of skipping them.
+
+    Returns:
+        A list of relative translation angles, in degrees.
+    """
     angles: List[float] = []
-    for i1, i2 in i2Ui1_dict:
-        i2Ui1 = i2Ui1_dict[(i1, i2)]
-        if i2Ui1 is None or wTi_list[i1] is None or wTi_list[i2] is None:
+    valid_i2Ui1 = {k: i2Ui1 for k, i2Ui1 in i2Ui1_dict.items() if i2Ui1 is not None}
+    for (i1, i2), i2Ui1 in valid_i2Ui1.items():
+        poses_missing = wTi_list[i1] is None or wTi_list[i2] is None
+        if poses_missing and include_none:
+            angles.append(np.nan)
+            continue
+        elif poses_missing:
             continue
         angle = comp_utils.compute_translation_to_direction_angle(i2Ui1, wTi_list[i2], wTi_list[i1])
-        if angle is not None:
-            angles.append(angle)
+        assert angle is not None
+        angles.append(angle)
     return angles
 
 
@@ -292,20 +310,51 @@ def compute_relative_translation_angle_metric(
 
 
 def get_relative_rotation_angles(
-    i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]], wTi_list: List[Optional[Pose3]]
+    i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]],
+    wTi_list: List[Optional[Pose3]],
+    include_none: bool = False,
 ) -> List[float]:
-    """Returns a list of relative rotation angles, skipping None values."""
+    """Returns a list of relative rotation angles, in degrees.
+
+    This function iterates over all provided relative rotations and their corresponding
+    poses, and computes the angle between each estimated relative rotation and the
+    ground-truth relative rotation (derived from ``wTi_list``).
+
+    - Pairs whose relative rotation ``i2Ri1`` is ``None`` are always skipped and never
+      contribute a value to the returned list, regardless of ``include_none``.
+    - For pairs where ``i2Ri1`` is valid but either ``wTi_list[i1]`` or ``wTi_list[i2]``
+      is ``None``, the behavior depends on ``include_none``:
+
+        * If ``include_none`` is ``False`` (default), such pairs are skipped.
+        * If ``include_none`` is ``True``, a ``np.nan`` value is appended to the
+          returned list for each such pair, so they are still represented in the
+          metrics instead of being omitted.
+
+    Args:
+        i2Ri1_dict: Dict from ``(i1, i2)`` to relative rotation ``i2Ri1``.
+        wTi_list: List of camera poses indexed by image index.
+        include_none: Whether to include pairs with missing poses in the metrics by
+            appending ``np.nan`` values (when ``True``) instead of skipping them.
+
+    Returns:
+        A list of relative rotation angles, in degrees, optionally containing
+        ``np.nan`` entries for pairs with missing poses when ``include_none`` is True.
+    """
     angles: List[float] = []
-    for i1, i2 in i2Ri1_dict:
-        i2Ri1 = i2Ri1_dict[(i1, i2)]
-        if i2Ri1 is None or wTi_list[i1] is None or wTi_list[i2] is None:
+    valid_i2Ri1 = {k: i2Ri1 for k, i2Ri1 in i2Ri1_dict.items() if i2Ri1 is not None}
+    for (i1, i2), i2Ri1 in valid_i2Ri1.items():
+        poses_missing = wTi_list[i1] is None or wTi_list[i2] is None
+        if poses_missing and include_none:
+            angles.append(np.nan)
+            continue
+        elif poses_missing:
             continue
         wRi1_gt = wTi_list[i1].rotation()  # type: ignore
         wRi2_gt = wTi_list[i2].rotation()  # type: ignore
         i2Ri1_gt = wRi2_gt.between(wRi1_gt)
         angle = comp_utils.compute_relative_rotation_angle(i2Ri1, i2Ri1_gt)
-        if angle is not None:
-            angles.append(angle)
+        assert angle is not None
+        angles.append(angle)
     return angles
 
 
@@ -367,14 +416,16 @@ def compute_pose_auc_metric(
     Returns:
         One GtsfmMetric for each angular error threshold.
     """
+    if len(rotation_angular_errors) != len(translation_angular_errors):
+        raise ValueError("# of rotation and translation angular errors must match.")
+
     if not isinstance(rotation_angular_errors, np.ndarray):
         rotation_angular_errors = np.array(rotation_angular_errors)
+    rotation_angular_errors = np.nan_to_num(rotation_angular_errors, nan=np.inf)
 
     if not isinstance(translation_angular_errors, np.ndarray):
         translation_angular_errors = np.array(translation_angular_errors)
-
-    if len(rotation_angular_errors) != len(translation_angular_errors):
-        raise ValueError("# of rotation and translation angular errors must match.")
+    translation_angular_errors = np.nan_to_num(translation_angular_errors, nan=np.inf)
 
     pose_errors = np.maximum(rotation_angular_errors, translation_angular_errors)
     AUCs = pose_auc(pose_errors, thresholds_deg, save_dir=save_dir)
@@ -396,6 +447,7 @@ def compute_ba_pose_metrics(
     Args:
         gt_wTi_list: List of ground truth poses.
         computed_wTi_list: List of computed poses.
+        save_dir: Directory to save the metrics plots.
 
     Returns:
         A group of metrics that describe errors associated with a bundle adjustment result (w.r.t. GT).
@@ -412,12 +464,12 @@ def compute_ba_pose_metrics(
     metrics = []
     metrics.append(compute_rotation_angle_metric(wRi_aligned_list, gt_wRi_list))
     metrics.append(compute_translation_distance_metric(wti_aligned_list, gt_wti_list))
-    translation_angular_errors = get_relative_translation_angles(i2Ui1_dict_gt, computed_wTi_list)
+    translation_angular_errors = get_relative_translation_angles(i2Ui1_dict_gt, computed_wTi_list, include_none=True)
     metrics.append(
         GtsfmMetric("relative_translation_angle_error_deg", np.array(translation_angular_errors, dtype=np.float32))
     )
     metrics.append(compute_translation_angle_metric(gt_wTi_list, computed_wTi_list))
-    rotation_angular_errors = get_relative_rotation_angles(i2Ri1_dict_gt, computed_wTi_list)
+    rotation_angular_errors = get_relative_rotation_angles(i2Ri1_dict_gt, computed_wTi_list, include_none=True)
     metrics.append(
         GtsfmMetric("relative_rotation_angle_error_deg", np.array(rotation_angular_errors, dtype=np.float32))
     )
@@ -434,9 +486,17 @@ def get_all_relative_rotations_translations(
 
     Args:
         wTi_list: List of poses (e.g. could be ground truth).
+        include_none: Whether to include None values in the returned metrics dictionaries.
+            If True, for any image pair (i1, i2) where at least one of wTi_list[i1] or
+            wTi_list[i2] is None, entries (i1, i2): None are added to both the rotation
+            and translation dictionaries. If False, such pairs are skipped entirely and
+            no entry is added for them.
 
     Returns:
-        i2Ui1_dict: Dict from (i1, i2) to unit translation direction i2Ui1.
+        i2Ri1_dict: Dict from (i1, i2) to relative rotation i2Ri1.
+        i2Ui1_dict: Dict from (i1, i2) to unit translation direction i2Ui1. The values
+            may be None for pose pairs where at least one pose is None and include_none
+            is True.
     """
     # check against all possible image pairs -- compute unit translation directions
     i2Ui1_dict = {}
