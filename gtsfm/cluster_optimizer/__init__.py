@@ -3,7 +3,7 @@
 import importlib
 from typing import TYPE_CHECKING
 
-from .cluster_optimizer_base import REACT_METRICS_PATH, REACT_RESULTS_PATH, logger, save_metrics_reports
+from .cluster_optimizer_base import logger, save_metrics_reports
 
 __all__ = [
     "Base",
@@ -12,8 +12,6 @@ __all__ = [
     "FastVggt",
     "Anysplat",
     "Cacher",
-    "REACT_METRICS_PATH",
-    "REACT_RESULTS_PATH",
     "logger",
     "save_metrics_reports",
 ]
