@@ -5,7 +5,7 @@ Authors: Ayush Baid
 
 import argparse
 import os
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Tuple
 
 import numpy as np
 import pycolmap
