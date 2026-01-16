@@ -823,7 +823,7 @@ class GtsfmData:
 
         return filtered_data, valid_mask
 
-    def align_via_sim3_and_transform(self, aTi_list: Sequence[Optional[Pose3]]) -> "GtsfmData":
+    def align_via_sim3_and_transform(self, aTi: dict[int, Pose3]) -> "GtsfmData":
         """Return a copy of the scene aligned to the supplied reference poses via Sim(3).
 
         Args:
@@ -832,7 +832,7 @@ class GtsfmData:
         Returns:
             New GtsfmData aligned to the reference pose graph.
         """
-        aSb = self.align_to_poses_via_sim3(aTi_list)
+        aSb = self.align_to_poses_via_sim3(aTi)
         return self.transform_with_sim3(aSb)
 
     def get_metrics(self, suffix: str, store_full_data: bool = False) -> List[GtsfmMetric]:
@@ -858,7 +858,7 @@ class GtsfmData:
         )
         return metrics
 
-    def align_to_poses_via_sim3(self, aTi_list: Sequence[Optional[Pose3]]) -> Similarity3:
+    def align_to_poses_via_sim3(self, aTi: dict[int, Pose3]) -> Similarity3:
         """Estimate a Sim(3) transformation that aligns the scene to the supplied reference poses.
 
         Args:
@@ -868,9 +868,7 @@ class GtsfmData:
             The estimated Sim(3) transformation aSb.
         """
         bTi_dict = self.get_camera_poses()
-        aTi_subset, bTi_list = zip(*[(aTi_list[i], bTi_dict[i]) for i in bTi_dict])
-
-        return align.sim3_from_optional_Pose3s_robust(aTi_subset, bTi_list)
+        return align.sim3_from_Pose3_maps_robust(aTi, bTi_dict)
 
     def transform_with_sim3(self, aSb: Similarity3) -> "GtsfmData":
         """Assume current tracks and cameras are in frame "b", then transport them to frame "a".

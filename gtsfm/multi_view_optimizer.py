@@ -228,8 +228,13 @@ class MultiViewOptimizer:
             ba_metrics_graph,
         ]
 
+        # This conversion is OK since the GT poses are expected to be complete.
+        gt_wTi_dict: dict[int, Pose3] = {
+            i: gt_wTi_list[i] for i in range(len(gt_wTi_list)) if gt_wTi_list[i] is not None
+        }
+
         # Align the sparse multi-view estimate before BA to the ground truth pose graph.
-        ba_input_graph = delayed(GtsfmData.align_via_sim3_and_transform)(ba_input_graph, gt_wTi_list)
+        ba_input_graph = delayed(GtsfmData.align_via_sim3_and_transform)(ba_input_graph, gt_wTi_dict)
 
         return ba_input_graph, ba_result_graph, viewgraph_two_view_reports_graph, multiview_optimizer_metrics_graph
 

@@ -66,29 +66,33 @@ def view_scene(args: argparse.Namespace) -> None:
     is_nearby = np.linalg.norm(point_cloud, axis=1) < args.max_range
     point_cloud = point_cloud[is_nearby]
     rgb = rgb[is_nearby]
-    for i in range(len(wTi_list)):
-        wTi_list[i] = zcwTw.compose(wTi_list[i])
+    wTi = dict(zip(img_fnames, wTi_list))
+    wTi = {k: zcwTw.compose(v) for k, v in wTi.items() if v is not None}
 
     if args.gt_olsson_dir is not None or args.gt_colmap_dir is not None:
-        wTi_list_gt, gt_calibrations = _load_common_gt_poses(args, img_fnames)
+        gt_wTi, gt_calibrations = _load_common_gt_poses(args, img_fnames)
         if len(gt_calibrations) == 1:
-            gt_calibrations = gt_calibrations * len(img_fnames)
+            gt_cal = list(gt_calibrations.values())[0]
+            gt_calibrations = {k: gt_cal for k in img_fnames}
 
-        for i in range(len(wTi_list_gt)):
-            wTi_list_gt[i] = zcwTw.compose(wTi_list_gt[i])
+        gt_wTi = {k: zcwTw.compose(v) for k, v in gt_wTi.items() if v is not None}
 
         # Align the poses.
-        aSw = align.sim3_from_optional_Pose3s_robust(wTi_list_gt, wTi_list)
-        wTi_aligned_list = transform.Pose3s_with_sim3(aSw, wTi_list)
+        aSw = align.sim3_from_Pose3_maps_robust(gt_wTi, wTi)
+        wTi_aligned = transform.Pose3_map_with_sim3(aSw, wTi)
         point_cloud = transform.point_cloud_with_sim3(aSw, point_cloud)
+
+        gt_wTi_list = [gt_wTi[i] for i in img_fnames]
+        wTi_list = [wTi_aligned[i] for i in img_fnames]
+        gt_cal_list = [gt_calibrations[i] for i in img_fnames]
 
         open3d_vis_utils.draw_scene_with_gt_open3d(
             point_cloud=point_cloud,
             rgb=rgb,
-            wTi_list=wTi_aligned_list,
+            wTi_list=wTi_list,
             calibrations=calibrations,
-            gt_wTi_list=wTi_list_gt,
-            gt_calibrations=gt_calibrations,
+            gt_wTi_list=gt_wTi_list,
+            gt_calibrations=gt_cal_list,
             args=args,
         )
 
@@ -97,7 +101,9 @@ def view_scene(args: argparse.Namespace) -> None:
         open3d_vis_utils.draw_scene_open3d(point_cloud, rgb, wTi_list, calibrations, args)
 
 
-def _load_common_gt_poses(args: argparse.Namespace, img_fnames: List[str]) -> Tuple[List[Pose3], List[Cal3Bundler]]:
+def _load_common_gt_poses(
+    args: argparse.Namespace, img_fnames: List[str]
+) -> Tuple[dict[str, Pose3], dict[str, Cal3Bundler]]:
     """Load GT poses that are common to the provided scene reconstruction.
 
     Args:
@@ -130,12 +136,9 @@ def _load_common_gt_poses(args: argparse.Namespace, img_fnames: List[str]) -> Tu
             len(gt_img_fnames),
             len(common_fnames),
         )
+        gt_cal_dict = dict(zip(gt_img_fnames, gt_calibrations))
 
-        common_gt_wTi_list: List[Pose3] = []
-        for fname in img_fnames:
-            common_gt_wTi_list.append(gt_pose_dict.get(fname))
-
-    return common_gt_wTi_list, gt_calibrations
+    return gt_pose_dict, gt_cal_dict
 
 
 if __name__ == "__main__":
