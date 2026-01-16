@@ -16,7 +16,6 @@ from gtsam import BetweenFactorPose3, NonlinearFactorGraph, PinholeCameraCal3Fis
 from gtsam.noiseModel import Diagonal, Isotropic, Robust, mEstimator  # type: ignore
 from gtsam.symbol_shorthand import K, P, X  # type: ignore
 
-from gtsfm.averaging.translation.averaging_1dsfm import compute_metrics
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
@@ -439,7 +438,9 @@ class BundleAdjustmentOptimizer:
         """Runs the equivalent of `run_ba()` and `evaluate()` in a single function, to enable time profiling."""
         if verbose:
             logger.info(
-                "Input: %d tracks on %d cameras", initial_data.number_tracks(), len(initial_data.get_valid_camera_indices())
+                "Input: %d tracks on %d cameras", 
+                initial_data.number_tracks(), 
+                len(initial_data.get_valid_camera_indices())
             )
 
         # No cameras or tracks to optimize, so bundle adjustment is not possible.
