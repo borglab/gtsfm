@@ -16,6 +16,7 @@ from gtsam import BetweenFactorPose3, NonlinearFactorGraph, PinholeCameraCal3Fis
 from gtsam.noiseModel import Diagonal, Isotropic, Robust, mEstimator  # type: ignore
 from gtsam.symbol_shorthand import K, P, X  # type: ignore
 
+from gtsfm.averaging.translation.averaging_1dsfm import compute_metrics
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
@@ -329,7 +330,7 @@ class BundleAdjustmentOptimizer:
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         reproj_error_thresh: Optional[float],
         verbose: bool = True,
-    ) -> Tuple[GtsfmData, GtsfmData, List[bool], float]:
+    ) -> Tuple[Optional[GtsfmData], Optional[GtsfmData], Optional[List[bool]], Optional[float]]:
         """Runs bundle adjustment and optionally filters the resulting tracks by reprojection error.
 
         Args:
@@ -398,7 +399,7 @@ class BundleAdjustmentOptimizer:
         absolute_pose_priors: List[Optional[PosePrior]],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         verbose: bool = True,
-    ) -> Tuple[GtsfmData, GtsfmData, List[bool]]:
+    ) -> Tuple[Optional[GtsfmData], Optional[GtsfmData], Optional[List[bool]]]:
         """Runs bundle adjustment by forming a factor graph and optimizing it using Levenberg–Marquardt optimization.
 
         Args:
@@ -413,23 +414,16 @@ class BundleAdjustmentOptimizer:
             Valid mask as a list of booleans, indicating for each input track whether it was below the re-projection
                 threshold.
         """
-        num_ba_steps = len(self._reproj_error_thresholds)
-        for step, reproj_error_thresh in enumerate(self._reproj_error_thresholds):
-            # Use intermediate result as initial condition for next step.
-            (optimized_data, filtered_result, valid_mask, final_error) = self.run_ba_stage_with_filtering(
-                initial_data,
-                absolute_pose_priors,
-                relative_pose_priors,
-                reproj_error_thresh,
-                verbose,
-            )
-            # Print intermediate results.
-            if num_ba_steps > 1:
-                logger.info(
-                    "[BA Step %d/%d] Error: %.2f, Number of tracks: %d"
-                    % (step + 1, num_ba_steps, final_error, filtered_result.number_tracks())
-                )
-
+        optimized_data, filtered_result, valid_mask, _ = self._run_ba_and_evaluate(
+            initial_data=initial_data,
+            absolute_pose_priors=absolute_pose_priors,
+            relative_pose_priors=relative_pose_priors,
+            cameras_gt=[None],
+            save_dir=None,
+            verbose=verbose,
+            compute_metrics=False,
+        )
+        
         return optimized_data, filtered_result, valid_mask
 
     def _run_ba_and_evaluate(
@@ -440,13 +434,16 @@ class BundleAdjustmentOptimizer:
         cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
         save_dir: Optional[str] = None,
         verbose: bool = True,
-    ) -> Tuple[GtsfmData, GtsfmData, List[bool], GtsfmMetricsGroup]:
+        compute_metrics: bool = True,
+    ) -> Tuple[Optional[GtsfmData], Optional[GtsfmData], Optional[List[bool]], Optional[GtsfmMetricsGroup]]:
         """Runs the equivalent of `run_ba()` and `evaluate()` in a single function, to enable time profiling."""
-        logger.info(
-            "Input: %d tracks on %d cameras", initial_data.number_tracks(), len(initial_data.get_valid_camera_indices())
-        )
+        if verbose:
+            logger.info(
+                "Input: %d tracks on %d cameras", initial_data.number_tracks(), len(initial_data.get_valid_camera_indices())
+            )
+
+        # No cameras or tracks to optimize, so bundle adjustment is not possible.
         if initial_data.number_tracks() == 0 or len(initial_data.get_valid_camera_indices()) == 0:
-            # No cameras or tracks to optimize, so bundle adjustment is not possible.
             logger.error(
                 "Bundle adjustment aborting, optimization cannot be performed without any tracks or any cameras."
             )
@@ -456,20 +453,42 @@ class BundleAdjustmentOptimizer:
                 [False] * initial_data.number_tracks(),
                 GtsfmMetricsGroup(METRICS_GROUP, []),
             )
+        
+        # No BA steps specified.
+        num_ba_steps = len(self._reproj_error_thresholds)
+        if num_ba_steps == 0:   
+            logger.error(
+                "Bundle adjustment aborting, no BA steps specified."
+            )
+            return (
+                initial_data,
+                initial_data,
+                [False] * initial_data.number_tracks(),
+                GtsfmMetricsGroup(METRICS_GROUP, []),
+            )
+
+        # Run the BA steps sequentially.
         step_times = []
         start_time = time.time()
-
-        num_ba_steps = len(self._reproj_error_thresholds)
+        filtered_result = initial_data
+        metrics = GtsfmMetricsGroup(METRICS_GROUP, [])
         for step, reproj_error_thresh in enumerate(self._reproj_error_thresholds):
             step_start_time = time.time()
             (optimized_data, filtered_result, valid_mask, final_error) = self.run_ba_stage_with_filtering(
-                initial_data=initial_data,
+                initial_data=filtered_result,
                 absolute_pose_priors=absolute_pose_priors,
                 relative_pose_priors=relative_pose_priors,
                 reproj_error_thresh=reproj_error_thresh,
                 verbose=verbose,
             )
             step_times.append(time.time() - step_start_time)
+
+            # Catch failure due to Indeterminate Linear System.
+            if optimized_data is None or filtered_result is None:
+                logger.error(
+                    "BA result discarded due to Indeterminate Linear System (ILS) when computing marginals."
+                )
+                return None, None, None, None
 
             # Print intermediate results.
             if num_ba_steps > 1:
@@ -483,12 +502,14 @@ class BundleAdjustmentOptimizer:
                         filtered_result.number_tracks(),
                     )
                 )
-        total_time = time.time() - start_time
 
-        metrics = self.evaluate(optimized_data, filtered_result, cameras_gt, save_dir)
-        for i, step_time in enumerate(step_times):
-            metrics.add_metric(GtsfmMetric(f"step_{i}_run_duration_sec", step_time))
-        metrics.add_metric(GtsfmMetric("total_run_duration_sec", total_time))
+        # Optionally compute metrics.
+        if compute_metrics:
+            total_time = time.time() - start_time
+            metrics = self.evaluate(optimized_data, filtered_result, cameras_gt, save_dir)
+            for i, step_time in enumerate(step_times):
+                metrics.add_metric(GtsfmMetric(f"step_{i}_run_duration_sec", step_time))
+            metrics.add_metric(GtsfmMetric("total_run_duration_sec", total_time))
 
         return optimized_data, filtered_result, valid_mask, metrics
 

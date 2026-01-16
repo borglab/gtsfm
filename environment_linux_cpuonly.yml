@@ -1,4 +1,4 @@
-name: gtsfm-v1
+name: gtsfm-v2
 channels:
   - conda-forge
 dependencies:
