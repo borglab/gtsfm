@@ -31,9 +31,9 @@ def Pose3_map_with_se3(aTb: Pose3, pose_map_b: Mapping[int, Pose3]) -> dict[int,
     return {i: aTb.compose(pose_b) for i, pose_b in pose_map_b.items()}
 
 
-def Pose3_map_with_sim3(aSb: Similarity3, pose_maps_b: Mapping[int, Pose3]) -> dict[int, Pose3]:
+def Pose3_map_with_sim3(aSb: Similarity3, pose_map_b: Mapping[int, Pose3]) -> dict[int, Pose3]:
     """Transport a Pose3 dictionary from frame ``b`` to frame ``a`` using a Sim(3) transform."""
-    return {i: aSb.transformFrom(pose_b) for i, pose_b in pose_maps_b.items()}
+    return {i: aSb.transformFrom(pose_b) for i, pose_b in pose_map_b.items()}
 
 
 def Pose3s_with_sim3(aSb: Similarity3, poses_b: Sequence[Pose3]) -> list[Pose3]:

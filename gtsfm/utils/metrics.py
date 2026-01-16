@@ -242,7 +242,7 @@ def compute_translation_distance_metric(
 ) -> GtsfmMetric:
     """Computes statistics for the distance between estimated and GT translations.
 
-    Assumes that the estimat  ed and GT translations have been aligned and do not
+    Assumes that the estimated and GT translations have been aligned and do not
     have a gauge freedom (including scale).
 
     Args:
@@ -543,7 +543,7 @@ def get_precision_recall_from_errors(
 
 def get_rotations_translations_from_poses(
     poses: dict[int | str, Optional[Pose3]],
-) -> Tuple[dict[int, Optional[Rot3]], dict[int, Optional[np.ndarray]]]:
+) -> Tuple[dict[int | str, Optional[Rot3]], dict[int | str, Optional[np.ndarray]]]:
     """Decompose each 6-dof pose to a 3-dof rotation and 3-dof position keyed by image id."""
     rotations = {k: v.rotation() if v is not None else None for k, v in poses.items()}
     translations = {k: v.translation() if v is not None else None for k, v in poses.items()}
