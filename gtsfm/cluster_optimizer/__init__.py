@@ -3,7 +3,7 @@
 import importlib
 from typing import TYPE_CHECKING
 
-from .cluster_optimizer_base import REACT_METRICS_PATH, REACT_RESULTS_PATH, logger, save_metrics_reports
+from .cluster_optimizer_base import logger, save_metrics_reports
 
 __all__ = [
     "Base",
@@ -11,8 +11,7 @@ __all__ = [
     "Vggt",
     "FastVggt",
     "Anysplat",
-    "REACT_METRICS_PATH",
-    "REACT_RESULTS_PATH",
+    "Cacher",
     "logger",
     "save_metrics_reports",
 ]
@@ -22,6 +21,7 @@ if TYPE_CHECKING:
     from .cluster_anysplat import ClusterAnySplat as Anysplat
     from .cluster_mvo import ClusterMVO as Multiview
     from .cluster_optimizer_base import ClusterOptimizerBase as Base
+    from .cluster_optimizer_cacher import ClusterOptimizerCacher as Cacher
     from .cluster_vggt import ClusterVGGT as Vggt
     from .cluster_fast_vggt import ClusterFastVGGT as FastVggt
 
@@ -32,6 +32,7 @@ _MOD_MAP = {
     "Vggt": ("gtsfm.cluster_optimizer.cluster_vggt", "ClusterVGGT"),
     "FastVggt": ("gtsfm.cluster_optimizer.cluster_fast_vggt", "ClusterFastVGGT"),
     "Anysplat": ("gtsfm.cluster_optimizer.cluster_anysplat", "ClusterAnySplat"),
+    "Cacher": ("gtsfm.cluster_optimizer.cluster_optimizer_cacher", "ClusterOptimizerCacher"),
 }
 
 

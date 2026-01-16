@@ -14,7 +14,7 @@ from dask.distributed import Client, Future, performance_report
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm import cluster_merging
-from gtsfm.cluster_optimizer import REACT_METRICS_PATH, REACT_RESULTS_PATH, Base, save_metrics_reports
+from gtsfm.cluster_optimizer import Base, save_metrics_reports
 from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterContext
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.outputs import OutputPaths, cluster_label, prepare_output_paths
@@ -138,11 +138,6 @@ class SceneOptimizer:
         {self.cluster_optimizer}
         """
 
-    def _ensure_react_directories(self) -> None:
-        """Ensure the React dashboards have dedicated output folders."""
-        REACT_RESULTS_PATH.mkdir(parents=True, exist_ok=True)
-        REACT_METRICS_PATH.mkdir(parents=True, exist_ok=True)
-
     def _schedule_single_cluster(self, context: ClusterContext) -> ClusterExecutionHandles:
         """Schedule the optimizer for a single cluster and return futures tracking its execution."""
         if len(context.visibility_graph) == 0:
@@ -191,7 +186,6 @@ class SceneOptimizer:
 
         # Process Graph Generation: Visualize the process graph, which is a flow of data across GTSFM's modules.
         process_graph_generator = ProcessGraphGenerator()
-        self._ensure_react_directories()
         base_output_paths = prepare_output_paths(self.output_root, None)
         process_graph_generator.save_graph(str(base_output_paths.plots / "process_graph_output.svg"))
 

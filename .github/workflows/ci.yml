@@ -3,7 +3,6 @@ name: CI
 on:
   pull_request:
     paths-ignore:
-      - "rtf_vis_tool/**"
       - "gtsfm/visualization/**"
   workflow_dispatch:
 
@@ -50,11 +49,6 @@ jobs:
             --ignore tests/runner/test_frontend_runner.py \
             --ignore tests/frontend/correspondence_generator/test_mast3r_correspondence_generator.py
           uv run coverage report
-      
-      - name: React-Three-Fiber app tests
-        run: |
-          set -e
-          cd rtf_vis_tool && npm install --legacy-peer-deps && npm test
 
   benchmark:
     name: Benchmark
@@ -87,7 +81,7 @@ jobs:
       - uses: actions/checkout@v6.0.1
       
       - name: Cache frontend
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         env:
           CACHE_NUMBER_FRONTEND: 3
         with:

@@ -38,6 +38,5 @@ cluster_optimizer:
   track_vis_thresh: 0.2
   camera_type: PINHOLE
   seed: 42
-  copy_results_to_react: true
   run_bundle_adjustment_on_leaf: false
   model_cache_key: null
