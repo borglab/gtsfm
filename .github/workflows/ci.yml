@@ -8,53 +8,49 @@ on:
   workflow_dispatch:
 
 jobs:
-  mamba-setup:
-    name: Populate micromamba cache
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        shell: bash -l {0}
-
-    steps:
-      - uses: actions/checkout@v6.0.1
-      - uses: mamba-org/setup-micromamba@v2
-        with:
-          environment-file: environment_linux_cpuonly.yml
-          cache-environment-key: environment-${{ github.sha }}
-
   test:
     name: Unit tests and python checks
-    needs: mamba-setup
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        shell: bash -l {0}
 
     steps:
       - uses: actions/checkout@v6.0.1
-      - uses: mamba-org/setup-micromamba@v2
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
         with:
-          environment-file: environment_linux_cpuonly.yml
-          cache-environment-key: environment-${{ github.sha }}
+          version: "0.9.17"  
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nodejs npm graphviz
+      
+      - name: Install project dependencies
+        run: |
+          uv sync --locked --python 3.10
+          uv pip install torch-scatter --find-links https://data.pyg.org/whl/torch-2.5.1+cu121.html
+      
       - name: Environment setup
         run: |
           bash .github/scripts/setup.sh
-          pip install pytest-cov
-          pip install flake8
-          conda info
+      
       - name: Flake check
         run: |
           set -e
-          flake8 --max-line-length 120 --ignore E201,E202,E203,E231,W291,W293,E303,W391,E402,W503,E731 gtsfm tests
+          uv run flake8 --max-line-length 120 --ignore E201,E202,E203,E231,W291,W293,E303,W391,E402,W503,E731 gtsfm tests
+      
       - name: Unit tests
         run: |
           set -e
-          pytest tests -m "not slow" --durations=0 --cov gtsfm \
+          uv run pytest tests -m "not slow" --durations=0 --cov gtsfm \
             --ignore tests/repro_tests \
             --ignore tests/loader/test_argoverse_dataset_loader.py \
             --ignore tests/runner/test_frontend_runner.py \
             --ignore tests/frontend/correspondence_generator/test_mast3r_correspondence_generator.py
-          coverage report
+          uv run coverage report
+      
       - name: React-Three-Fiber app tests
         run: |
           set -e
@@ -63,13 +59,10 @@ jobs:
   benchmark:
     name: Benchmark
     if: ${{ !contains(github.event.pull_request.title, '[skip benchmarks]') }}
-    needs: mamba-setup
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        #    config      dataset       lookahead  ext  source     loader       max-res  share-intrinsics
-        # prettier-ignore
         config_dataset_info: [
             [sift      , door-12             , 15, JPG, test_data, olsson-loader , 1296, true ],
             [lightglue , door-12             , 15, JPG, test_data, olsson-loader , 1296, true ],
@@ -89,35 +82,46 @@ jobs:
             [sift      , south-building-128  , 15, jpg, wget     , colmap-loader ,  760, true ],
             [lightglue , south-building-128  , 15, jpg, wget     , colmap-loader ,  760, true ],
           ]
-    defaults:
-      run:
-        shell: bash -l {0}
 
     steps:
       - uses: actions/checkout@v6.0.1
+      
       - name: Cache frontend
         uses: actions/cache@v4
         env:
-          # Increase this value to reset cache
           CACHE_NUMBER_FRONTEND: 3
         with:
           path: cache
           key: ${{ matrix.config_dataset_info[0] }}-${{ matrix.config_dataset_info[1] }}-${{ matrix.config_dataset_info[2] }}-${{ matrix.config_dataset_info[6] }}-${{ env.CACHE_NUMBER_FRONTEND }}
-      - uses: mamba-org/setup-micromamba@v2
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
         with:
-          environment-file: environment_linux_cpuonly.yml
-          cache-environment-key: environment-${{ github.sha }}
-      - name: Environment setup
+          version: "0.9.17"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      
+      - name: Install system dependencies
         run: |
-          bash .github/scripts/setup.sh
-          conda info
+          sudo apt-get update
+          sudo apt-get install -y nodejs npm graphviz
+      
+      - name: Install project dependencies
+        run: |
+          uv sync --locked --python 3.10
+          uv pip install torch-scatter --find-links https://data.pyg.org/whl/torch-2.5.1+cu121.html
+      
+      - name: Environment setup
+        run: bash .github/scripts/setup.sh
+      
       - name: Prepare dataset
         run: |
           DATASET_NAME=${{ matrix.config_dataset_info[1] }}
           DATASET_SRC=${{ matrix.config_dataset_info[4] }}
           bash .github/scripts/download_single_benchmark.sh \
             $DATASET_NAME \
-            $DATASET_SRC \
+            $DATASET_SRC
+      
       - name: Run GTSFM
         run: |
           DATASET_NAME=${{ matrix.config_dataset_info[1] }}
@@ -134,7 +138,7 @@ jobs:
             $MAX_RESOLUTION \
             $SHARE_INTRINSICS
 
-      - name: Archive dataset metrics, plots, and output data (camera poses + points)
+      - name: Archive dataset metrics, plots, and output data
         uses: actions/upload-artifact@v5
         with:
           name: results-${{ matrix.config_dataset_info[0] }}-${{ matrix.config_dataset_info[1] }}-${{ matrix.config_dataset_info[2] }}-${{ matrix.config_dataset_info[3] }}-${{ matrix.config_dataset_info[4] }}-${{ matrix.config_dataset_info[5] }}-${{ matrix.config_dataset_info[6] }}-${{ matrix.config_dataset_info[7] }}.zip
