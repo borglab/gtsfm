@@ -4,7 +4,7 @@ Authors: Ayush Baid, John Lambert
 """
 
 import copy
-from typing import Mapping, Optional, Sequence
+from typing import Optional, Sequence
 
 import gtsam  # type: ignore
 import numpy as np
@@ -39,9 +39,7 @@ def _log_sim3_transform(sim3: Similarity3, label: str = "Sim(3)") -> None:
     logger.debug("%s Scale `asb`: %.2f", label, float(sim3.scale()))
 
 
-def _create_aTb_factors(
-    a: Mapping[int, Pose3], b: Mapping[int, Pose3], common_keys: Sequence[int]
-) -> NonlinearFactorGraph:
+def _create_aTb_factors(a: dict[int, Pose3], b: dict[int, Pose3], common_keys: Sequence[int]) -> NonlinearFactorGraph:
     """Create a factor graph encoding pose priors for the unknown transform ``aTb``."""
     sigmas: np.ndarray = np.array([0.1] * 3 + [0.1] * 3)
     noise_model = gtsam.noiseModel.Diagonal.Sigmas(sigmas)
@@ -53,7 +51,7 @@ def _create_aTb_factors(
     return graph
 
 
-def _create_aTb_initial_estimate(a: Mapping[int, Pose3], b: Mapping[int, Pose3], common_keys: Sequence[int]) -> Values:
+def _create_aTb_initial_estimate(a: dict[int, Pose3], b: dict[int, Pose3], common_keys: Sequence[int]) -> Values:
     """Seed the optimizer with an initial guess for ``aTb``."""
     initial = Values()
     first_key = common_keys[0]
@@ -77,7 +75,7 @@ def so3_from_Pose3s(aTi_list: Sequence[Pose3], bTi_list: Sequence[Pose3]) -> Rot
     return gtsam.FindKarcherMeanRot3(aRb_list) if len(aRb_list) > 0 else Rot3()
 
 
-def se3_from_Pose3_maps(a: Mapping[int, Pose3], b: Mapping[int, Pose3]) -> Pose3:
+def se3_from_Pose3_maps(a: dict[int, Pose3], b: dict[int, Pose3]) -> Pose3:
     """Estimate the SE(3) transform ``aTb`` that best aligns the overlapping poses."""
     common_keys = [key for key in a if key in b]
     if not common_keys:
@@ -93,7 +91,7 @@ def se3_from_Pose3_maps(a: Mapping[int, Pose3], b: Mapping[int, Pose3]) -> Pose3
     return result.atPose3(KEY)
 
 
-def sim3_from_Pose3_maps(a: Mapping[int, Pose3], b: Mapping[int, Pose3]) -> Similarity3:
+def sim3_from_Pose3_maps(a: dict[int, Pose3], b: dict[int, Pose3]) -> Similarity3:
     """Estimate the Sim(3) transform ``aSb`` that best aligns the overlapping poses."""
     common_keys = [key for key in a if key in b]
     pose_pairs = [(a[key], b[key]) for key in common_keys]
@@ -107,9 +105,7 @@ def sim3_from_Pose3_maps(a: Mapping[int, Pose3], b: Mapping[int, Pose3]) -> Simi
         ) from exc
 
 
-def sim3_from_optional_Pose3s_robust(
-    aTi_list: Sequence[Optional[Pose3]], bTi_list: Sequence[Optional[Pose3]]
-) -> Similarity3:
+def sim3_from_Pose3_maps_robust(aTi: dict[int, Pose3], bTi: dict[int, Pose3]) -> Similarity3:
     """Estimate Sim(3) alignment while allowing missing poses in the inputs.
 
     This is a convenience wrapper for ``estimate_sim3_robust`` that tolerates dropped cameras.
@@ -123,17 +119,15 @@ def sim3_from_optional_Pose3s_robust(
     Returns:
         aSb: Similarity(3) object that aligns the two pose graphs.
     """
-    assert len(aTi_list) == len(bTi_list)
-
     # Only choose target poses for which there is a corresponding estimated pose.
-    corresponding_aTi_list = []
-    valid_bTi_list = []
-    for aTi, bTi in zip(aTi_list, bTi_list):
-        if aTi is not None and bTi is not None:
-            corresponding_aTi_list.append(aTi)
-            valid_bTi_list.append(bTi)
+    corresponding_aTi = []
+    corresponding_bTi = []
+    for i, aTi in aTi.items():
+        if aTi is not None and bTi.get(i) is not None:
+            corresponding_aTi.append(aTi)
+            corresponding_bTi.append(bTi.get(i))
 
-    return sim3_from_Pose3s_robust(aTi_list=list(corresponding_aTi_list), bTi_list=list(valid_bTi_list))
+    return sim3_from_Pose3s_robust(aTi_list=corresponding_aTi, bTi_list=corresponding_bTi)
 
 
 def sim3_from_Pose3s_exhaustive(aTi_list: list[Pose3], bTi_list: list[Pose3]) -> Similarity3:
@@ -159,7 +153,9 @@ def sim3_from_Pose3s_exhaustive(aTi_list: list[Pose3], bTi_list: list[Pose3]) ->
     best_aSb = sim3_from_Pose3s(aTi_list, bTi_list)
     aTi_candidate_all: list[Pose3] = [best_aSb.transformFrom(bTi) for bTi in bTi_list]
     best_pose_auc_5deg: float = metric_utils.pose_auc_from_poses(
-        computed_wTis=aTi_candidate_all, ref_wTis=aTi_list, thresholds_deg=[5]
+        computed_wTis={i: pose for i, pose in enumerate(aTi_candidate_all)},
+        ref_wTis={i: pose for i, pose in enumerate(aTi_list)},
+        thresholds_deg=[5],
     )[0]
 
     for i1 in range(n_to_align):
@@ -172,7 +168,9 @@ def sim3_from_Pose3s_exhaustive(aTi_list: list[Pose3], bTi_list: list[Pose3]) ->
             aTi_candidate_: list[Pose3] = [aSb_candidate.transformFrom(bTi) for bTi in bTi_list]
 
             pose_auc_5deg = metric_utils.pose_auc_from_poses(
-                computed_wTis=aTi_candidate_, ref_wTis=aTi_list, thresholds_deg=[5]
+                computed_wTis={i: pose for i, pose in enumerate(aTi_candidate_)},
+                ref_wTis={i: pose for i, pose in enumerate(aTi_list)},
+                thresholds_deg=[5],
             )[0]
 
             if pose_auc_5deg > best_pose_auc_5deg:
@@ -219,7 +217,9 @@ def sim3_from_Pose3s_robust(
     best_aSb = sim3_from_Pose3s(aTi_list, bTi_list)
     aTi_candidate_all: list[Pose3] = [best_aSb.transformFrom(bTi) for bTi in bTi_list]
     best_pose_auc_5deg: float = metric_utils.pose_auc_from_poses(
-        computed_wTis=aTi_candidate_all, ref_wTis=aTi_list, thresholds_deg=[5]
+        computed_wTis={i: pose for i, pose in enumerate(aTi_candidate_all)},
+        ref_wTis={i: pose for i, pose in enumerate(aTi_list)},
+        thresholds_deg=[5],
     )[0]
 
     sample_pose_pairs = np.random.choice(
@@ -237,7 +237,9 @@ def sim3_from_Pose3s_robust(
         aTi_candidate_: list[Pose3] = [aSb_candidate.transformFrom(bTi) for bTi in bTi_list]
 
         pose_auc_5deg = metric_utils.pose_auc_from_poses(
-            computed_wTis=aTi_candidate_, ref_wTis=aTi_list, thresholds_deg=[5]
+            computed_wTis={i: pose for i, pose in enumerate(aTi_candidate_)},
+            ref_wTis={i: pose for i, pose in enumerate(aTi_list)},
+            thresholds_deg=[5],
         )[0]
 
         if pose_auc_5deg > best_pose_auc_5deg:

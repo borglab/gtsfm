@@ -546,12 +546,11 @@ class BundleAdjustmentOptimizer:
 
         input_image_idxs = list(unfiltered_data._image_info.keys())
         poses_gt = {i: cameras_gt[i].pose() for i in input_image_idxs if i in cameras_gt and cameras_gt[i] is not None}
-        poses_gt_list = [cam.pose() if cam is not None else None for cam in cameras_gt]
         if not poses_gt:
             return ba_metrics
 
         # Align the sparse multi-view estimate after BA to the ground truth pose graph.
-        aligned_filtered_data = filtered_data.align_via_sim3_and_transform(poses_gt_list)
+        aligned_filtered_data = filtered_data.align_via_sim3_and_transform(poses_gt)
         ba_pose_error_metrics = metrics_utils.compute_ba_pose_metrics(
             gt_wTi=poses_gt, computed_wTi=aligned_filtered_data.get_camera_poses(), save_dir=save_dir
         )

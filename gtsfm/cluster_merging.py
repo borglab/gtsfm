@@ -216,14 +216,13 @@ def _get_pose_metrics(
     # Compute metrics for only those images that belong to the merged scene.
     image_idxs = list(result_data._image_info.keys())
     poses_gt: dict[int, Pose3] = {
-        i: cameras_gt[i].pose() for i in image_idxs if i in cameras_gt and cameras_gt[i] is not None
+        i: cameras_gt[i].pose() for i in image_idxs if i < len(cameras_gt) and cameras_gt[i] is not None
     }
-    poses_gt_list = [cam.pose() if cam is not None else None for cam in cameras_gt]
 
     if len(poses_gt) == 0:
         return GtsfmMetricsGroup(name="ba_pose_error_metrics", metrics=[])
 
-    aligned_result_data = result_data.align_via_sim3_and_transform(poses_gt_list)
+    aligned_result_data = result_data.align_via_sim3_and_transform(poses_gt)
     return metrics_utils.compute_ba_pose_metrics(
         gt_wTi=poses_gt,
         computed_wTi=aligned_result_data.get_camera_poses(),
@@ -323,9 +322,6 @@ def schedule_exports(
     export_payload_tree = Tree.zip(handles_tree, merged_future_tree).map_with_children(_to_payload_with_future)
 
     return submit_tree_map(client, export_payload_tree, _run_export_task, pure=False)
-
-
-
 
 
 def _drop_outlier_tracks(scene: GtsfmData) -> GtsfmData:

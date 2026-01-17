@@ -179,18 +179,20 @@ class TestAlignmentUtils(unittest.TestCase):
         wT3 = Pose3(Rot3(), ones * 3)
 
         # `a` frame is the target/reference frame
-        aTi_list = [wT0, wT1, wT2, wT3]
+        aTi_dict = {0: wT0, 1: wT1, 2: wT2, 3: wT3}
         # `b` frame contains the estimates
-        bTi_list = [None, wT1, None, wT3]
-        aSb = align.sim3_from_optional_Pose3s_robust(aTi_list, bTi_list)
-        aTi_list_ = transform.optional_Pose3s_with_sim3(aSb, bTi_list)
+        bTi_dict = {1: wT1, 3: wT3}
+        aSb = align.sim3_from_Pose3_maps_robust(aTi_dict, bTi_dict)
+        aTi_dict_aligned = transform.Pose3_map_with_sim3(aSb, bTi_dict)
 
         # indices 0 and 2 should still have no estimated pose, even after alignment
-        assert aTi_list_[0] is None
-        assert aTi_list_[2] is None
+        assert 0 not in aTi_dict_aligned
+        assert 2 not in aTi_dict_aligned
 
         # identity alignment should preserve poses, should still match GT/targets at indices 1 and 3
-        self.__assert_equality_on_pose3s(computed=[aTi_list_[1], aTi_list_[3]], expected=[aTi_list[1], aTi_list[3]])
+        self.__assert_equality_on_pose3s(
+            computed=[aTi_dict_aligned[1], aTi_dict_aligned[3]], expected=[aTi_dict[1], aTi_dict[3]]
+        )
 
     def test_gtsfm_data_align_via_Sim3_to_poses(self) -> None:
         """Ensure that alignment of a SFM result to ground truth camera poses works correctly.
@@ -273,8 +275,7 @@ class TestAlignmentUtils(unittest.TestCase):
                 track = add_dummy_measurements_to_track(track)
                 gtsfm_data.add_track(track)
 
-        # OK to use get_camera_poses_list() because the ground truth is complete.
-        aligned_sfm_result = sfm_result.align_via_sim3_and_transform(gt_gtsfm_data.get_camera_poses_list())
+        aligned_sfm_result = sfm_result.align_via_sim3_and_transform(gt_gtsfm_data.get_camera_poses())
         # tracks and poses should match GT now, after applying estimated scale and shift.
         assert aligned_sfm_result == gt_gtsfm_data
 
@@ -308,9 +309,12 @@ class TestAlignmentUtils(unittest.TestCase):
         aTi_list = aTi_list + aTi_list
 
         bTi_list = copy.deepcopy(aTi_list)
+        aTi_dict = {i: aTi for i, aTi in enumerate(aTi_list)}
+        bTi_dict = {i: bTi for i, bTi in enumerate(bTi_list)}
 
-        aSb = align.sim3_from_optional_Pose3s_robust(aTi_list, bTi_list)
-        aligned_bTi_list_est = transform.optional_Pose3s_with_sim3(aSb, bTi_list)
+        aSb = align.sim3_from_Pose3_maps_robust(aTi_dict, bTi_dict)
+        aligned_bTi_dict_est = transform.Pose3_map_with_sim3(aSb, bTi_dict)
+        aligned_bTi_list_est = [aligned_bTi_dict_est[i] for i in sorted(aligned_bTi_dict_est.keys())]
 
         self.__assert_equality_on_pose3s(aTi_list, aligned_bTi_list_est)
 
@@ -334,7 +338,9 @@ class TestAlignmentUtils(unittest.TestCase):
             None,
         ]
 
-        aSb = align.sim3_from_optional_Pose3s_robust(aTi_list, bTi_list)
+        aTi_dict = {i: aTi for i, aTi in enumerate(aTi_list)}
+        bTi_dict = {i: bTi for i, bTi in enumerate(bTi_list)}
+        aSb = align.sim3_from_Pose3_maps_robust(aTi_dict, bTi_dict)
         aligned_bTi_list_est = transform.optional_Pose3s_with_sim3(aSb, bTi_list)
         assert np.isclose(aSb.scale(), 1.0, atol=1e-2)
         assert aligned_bTi_list_est[1] is not None
@@ -343,20 +349,13 @@ class TestAlignmentUtils(unittest.TestCase):
         assert np.allclose(aligned_bTi_list_est[2].translation(), [Point3(-0.0113879, 9.94237, 0)], atol=1e-3)
 
     def test_ransac_align_poses_sim3_if_no_ground_truth_provided(self) -> None:
-        aTi_list = [
-            None,
-            None,
-            None,
-        ]
+        bTi_dict = {
+            0: Pose3(Rot3(), Point3(50.1, 0, 0)),
+            1: Pose3(Rot3(), Point3(0, 9.9, 0)),
+            2: Pose3(Rot3(), Point3(0, 0, 2000)),
+        }
 
-        # Below was previously in b's frame. Has a bit of noise compared to pose graph above.
-        bTi_list = [
-            Pose3(Rot3(), Point3(50.1, 0, 0)),
-            Pose3(Rot3(), Point3(0, 9.9, 0)),
-            Pose3(Rot3(), Point3(0, 0, 2000)),
-        ]
-
-        aSb = align.sim3_from_optional_Pose3s_robust(aTi_list, bTi_list)
+        aSb = align.sim3_from_Pose3_maps_robust({}, bTi_dict)
         assert isinstance(aSb, Similarity3)
 
     def test_align_gtsfm_data_via_Sim3_to_poses_skydio32(self) -> None:
@@ -948,7 +947,8 @@ class TestAlignmentUtils(unittest.TestCase):
             cameras=unaligned_cameras, tracks=unaligned_tracks, number_images=32
         )
         unaligned_metrics = unaligned_filtered_data.get_metrics(suffix="_filtered")
-        aligned_filtered_data = unaligned_filtered_data.align_via_sim3_and_transform(poses_gt)
+        poses_gt_dict: dict[int, Pose3] = {i: poses_gt[i] for i in range(len(poses_gt)) if poses_gt[i] is not None}
+        aligned_filtered_data = unaligned_filtered_data.align_via_sim3_and_transform(poses_gt_dict)
 
         aligned_metrics = aligned_filtered_data.get_metrics(suffix="_filtered")
 
