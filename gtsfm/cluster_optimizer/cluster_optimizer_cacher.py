@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import typing
 from pathlib import Path
 from typing import Optional, TYPE_CHECKING
@@ -34,11 +35,12 @@ logger = logger_utils.get_logger()
 class ClusterOptimizerCacher(ClusterOptimizerBase):
     """Caches the delayed bundle result produced by a cluster optimizer."""
 
-    def __init__(self, optimizer: ClusterOptimizerBase) -> None:
+    def __init__(self, optimizer: ClusterOptimizerBase, cache_subdir: Optional[str] = None) -> None:
         """Initializes the cacher with the actual cluster optimizer object.
 
         Args:
             optimizer: cluster optimizer to use in case of cache miss.
+            cache_subdir: Optional subdirectory (relative to cache root) for storing cache entries.
         """
         super().__init__(
             pose_angular_error_thresh=optimizer.pose_angular_error_thresh,
@@ -46,6 +48,8 @@ class ClusterOptimizerCacher(ClusterOptimizerBase):
         )
         self._optimizer = optimizer
         self._optimizer_hash = hashlib.sha1(repr(optimizer).encode()).hexdigest()
+        self._cache_subdir = cache_subdir if cache_subdir is not None else os.getenv("GTSFM_CACHE_SUBDIR")
+        self._cache_root_path = self._resolve_cache_root(self._cache_subdir)
 
     def __repr__(self) -> str:
         return repr(self._optimizer)
@@ -64,20 +68,33 @@ class ClusterOptimizerCacher(ClusterOptimizerBase):
         return {
             "_optimizer": self._optimizer,
             "_optimizer_hash": self._optimizer_hash,
+            "_cache_subdir": self._cache_subdir,
         }
 
     def __setstate__(self, state: dict[str, object]) -> None:
         """Restore state and keep worker routing consistent."""
         self._optimizer = typing.cast(ClusterOptimizerBase, state["_optimizer"])
         self._optimizer_hash = typing.cast(str, state["_optimizer_hash"])
+        self._cache_subdir = typing.cast(Optional[str], state.get("_cache_subdir"))
+        self._cache_root_path = self._resolve_cache_root(self._cache_subdir)
         # Re-initialize the base class to mimic the constructor.
         super().__init__(
             pose_angular_error_thresh=self._optimizer.pose_angular_error_thresh,
             output_worker=self._optimizer._output_worker,
         )
 
+    @staticmethod
+    def _resolve_cache_root(cache_subdir: Optional[str]) -> Path:
+        """Resolve the cache root path, optionally using a subdirectory or absolute override."""
+        if not cache_subdir:
+            return CACHE_ROOT_PATH
+        subdir_path = Path(cache_subdir)
+        if subdir_path.is_absolute():
+            return subdir_path
+        return CACHE_ROOT_PATH / subdir_path
+
     def _get_cache_path(self, cache_key: str) -> Path:
-        return CACHE_ROOT_PATH / "cluster_optimizer" / f"{cache_key}.pbz2"
+        return self._cache_root_path / "cluster_optimizer" / f"{cache_key}.pbz2"
 
     def _hash_one_view_data(self, one_view_data: Optional["OneViewData"]) -> str:
         """Compute a stable hash for OneViewData contents."""

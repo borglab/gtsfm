@@ -151,6 +151,7 @@ class VggtConfiguration:
     model_ctor_kwargs: dict[str, Any] = field(default_factory=dict)
     use_sparse_attention: bool = False
     run_bundle_adjustment_on_leaf: bool = False
+    store_pre_ba_result: bool = False
 
     # Tracking-specific parameters:
     tracking: bool = True
@@ -181,7 +182,8 @@ class VggtReconstruction:
     """Outputs from the VGGT reconstruction helper.
 
     Attributes:
-        gtsfm_data: Sparse scene estimate including cameras and tracks in original image coordinates.
+        gtsfm_data: Sparse scene estimate (post-BA if enabled) in original image coordinates.
+        pre_ba_data: Optional sparse scene estimate before bundle adjustment (debug-only).
         points_3d: Dense point cloud filtered by VGGT confidence scores.
         points_rgb: Per-point RGB colors aligned with ``points_3d``.
         tracking_result: Optional dense tracking payload in the square VGGT coordinate frame.
@@ -190,6 +192,7 @@ class VggtReconstruction:
     gtsfm_data: GtsfmData
     points_3d: np.ndarray
     points_rgb: np.ndarray
+    pre_ba_data: GtsfmData | None = None
     tracking_result: "VGGTTrackingResult | None" = None
 
     def visualize_tracks(
@@ -382,7 +385,8 @@ def _high_confidence_pointcloud(config: VggtConfiguration, vggt_output: VggtOutp
     )
 
     depth_conf_np = vggt_output.depth_confidence.to(torch.float32).cpu().numpy()
-    conf_mask = depth_conf_np >= config.confidence_threshold
+    conf_threshold = min(config.confidence_threshold, depth_conf_np.mean() - depth_conf_np.std())
+    conf_mask = depth_conf_np >= conf_threshold
     conf_mask = randomly_limit_trues(conf_mask, config.max_num_points)  # limit number of points if asked
     return points_3d[conf_mask], points_rgb[conf_mask]
 
@@ -400,9 +404,6 @@ def _is_point_in_front_of_camera(camera, point_xyz: np.ndarray, *, epsilon: floa
     return float(z_val) > epsilon
 
 
-
-
-
 def _convert_vggt_outputs_to_gtsfm_data(
     *,
     vggt_output: VggtOutput,
@@ -413,7 +414,7 @@ def _convert_vggt_outputs_to_gtsfm_data(
     points_3d: np.ndarray,
     points_rgb: np.ndarray,
     tracking_result: VGGTTrackingResult | None = None,
-) -> GtsfmData:
+) -> tuple[GtsfmData, GtsfmData | None]:
     """Convert raw VGGT predictions into ``GtsfmData``."""
 
     extrinsic_np = vggt_output.extrinsic.to(torch.float32).cpu().numpy()
@@ -503,21 +504,24 @@ def _convert_vggt_outputs_to_gtsfm_data(
                 track.addMeasurement(global_idx, Point2(rescaled_u, rescaled_v))
             gtsfm_data.add_track(track)
 
+    gtsfm_data_pre_ba: GtsfmData | None = None
     if config.run_bundle_adjustment_on_leaf:
+        if config.store_pre_ba_result:
+            gtsfm_data_pre_ba = gtsfm_data
         if gtsfm_data.number_tracks() == 0:
             logger.warning("Skipping bundle adjustment because VGGT produced no valid tracks.")
         else:
             try:
                 gtsfm_data, should_run_ba = data_utils.remove_cameras_with_no_tracks(gtsfm_data, "node-level BA")
                 if not should_run_ba:
-                    return gtsfm_data
+                    return gtsfm_data, gtsfm_data_pre_ba
                 optimizer = BundleAdjustmentOptimizer()
                 gtsfm_data_with_ba, _ = optimizer.run_simple_ba(gtsfm_data, verbose=False)
-                return gtsfm_data_with_ba
+                return gtsfm_data_with_ba, gtsfm_data_pre_ba
             except Exception as exc:
                 logger.warning("⚠️ Failed to run bundle adjustment: %s", exc)
 
-    return gtsfm_data
+    return gtsfm_data, gtsfm_data_pre_ba
 
 
 def _offload_vggt_model(model: Optional[VGGT]) -> None:
@@ -808,7 +812,7 @@ def run_reconstruction(
 
     points_3d, points_rgb = _high_confidence_pointcloud(cfg, vggt_output)
 
-    gtsfm_data = _convert_vggt_outputs_to_gtsfm_data(
+    gtsfm_data, gtsfm_data_pre_ba = _convert_vggt_outputs_to_gtsfm_data(
         config=cfg,
         vggt_output=vggt_output,
         original_coords=original_coords,
@@ -825,6 +829,7 @@ def run_reconstruction(
 
     return VggtReconstruction(
         gtsfm_data=gtsfm_data,
+        pre_ba_data=gtsfm_data_pre_ba,
         points_3d=points_3d,
         points_rgb=points_rgb,
         tracking_result=tracking_result,
