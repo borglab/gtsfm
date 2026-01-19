@@ -545,7 +545,9 @@ class BundleAdjustmentOptimizer:
         ba_metrics = GtsfmMetricsGroup(name=METRICS_GROUP, metrics=unfiltered_data.get_metrics(suffix="_unfiltered"))
 
         input_image_idxs = list(unfiltered_data._image_info.keys())
-        poses_gt = {i: cameras_gt[i].pose() for i in input_image_idxs if i in cameras_gt and cameras_gt[i] is not None}
+        poses_gt = {
+            i: cameras_gt[i].pose() for i in input_image_idxs if i < len(cameras_gt) and cameras_gt[i] is not None
+        }
         if not poses_gt:
             return ba_metrics
 
