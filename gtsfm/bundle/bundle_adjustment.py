@@ -102,9 +102,7 @@ class BundleAdjustmentOptimizer:
     def __map_to_calibration_variable(self, camera_idx: int) -> int:
         return 0 if self._shared_calib else camera_idx
 
-    def __reprojection_factors(
-        self, initial_data: GtsfmData, cameras_to_model: List[int], is_fisheye_calibration: bool
-    ) -> NonlinearFactorGraph:
+    def __reprojection_factors(self, initial_data: GtsfmData, cameras_to_model: list[int]) -> NonlinearFactorGraph:
         """Generate reprojection factors using the tracks."""
         graph = NonlinearFactorGraph()
 
@@ -191,9 +189,7 @@ class BundleAdjustmentOptimizer:
 
         return graph
 
-    def __calibration_priors(
-        self, initial_data: GtsfmData, cameras_to_model: List[int], is_fisheye_calibration: bool
-    ) -> NonlinearFactorGraph:
+    def __calibration_priors(self, initial_data: GtsfmData, cameras_to_model: list[int]) -> NonlinearFactorGraph:
         """Generate prior factors on calibration parameters of the cameras."""
         graph = NonlinearFactorGraph()
 
@@ -234,24 +230,22 @@ class BundleAdjustmentOptimizer:
         self, cameras_to_model: List[int], initial_data: GtsfmData
     ) -> NonlinearFactorGraph:
         """Construct the factor graph with just reprojection factors and calibration priors."""
-        is_fisheye_calibration = isinstance(initial_data.get_camera(cameras_to_model[0]), PinholeCameraCal3Fisheye)
 
         graph = NonlinearFactorGraph()
+        if not cameras_to_model:
+            return graph
 
-        # Create a factor graph.
+        # Add reprojection factors between cameras and tracks.
         graph.push_back(
             self.__reprojection_factors(
                 initial_data=initial_data,
                 cameras_to_model=cameras_to_model,
-                is_fisheye_calibration=is_fisheye_calibration,
             )
         )
         if graph.size() == 0:
             raise ValueError("BundleAdjustmentOptimizer: No reprojection factors available.")
 
-        if not cameras_to_model:
-            return graph
-
+        # Add prior factor on first camera pose to fix absolute poses.
         first_camera = initial_data.get_camera(cameras_to_model[0])
         assert first_camera is not None, "First camera in initial data is None"
         graph.push_back(
@@ -262,11 +256,12 @@ class BundleAdjustmentOptimizer:
             )
         )
 
+        # Add prior factor on the position of the first landmark to fix the scale.
         if initial_data.number_tracks() > 0:
             graph.push_back(
                 PriorFactorPoint3(P(0), initial_data.get_track(0).point3(), Isotropic.Sigma(POINT3_DOF, 0.1))
             )
-        graph.push_back(self.__calibration_priors(initial_data, cameras_to_model, is_fisheye_calibration))
+        graph.push_back(self.__calibration_priors(initial_data, cameras_to_model))
 
         return graph
 
