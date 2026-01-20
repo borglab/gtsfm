@@ -15,7 +15,6 @@ from dask.delayed import Delayed
 from gtsam import (
     BetweenFactorPose3,
     NonlinearFactorGraph,
-    PinholeCameraCal3Fisheye,
     PriorFactorPose3,
     PriorFactorPoint3,
     Values,
