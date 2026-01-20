@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import shutil
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -20,14 +19,9 @@ import gtsfm.utils.ellipsoid as ellipsoid_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.viz as viz_utils
-from gtsfm.cluster_optimizer.cluster_optimizer_base import (
-    REACT_METRICS_PATH,
-    REACT_RESULTS_PATH,
-    ClusterComputationGraph,
-    ClusterContext,
-    ClusterOptimizerBase,
-)
+from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterComputationGraph, ClusterContext, ClusterOptimizerBase
 from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm.common.types import create_camera
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
@@ -284,9 +278,6 @@ class ClusterMVO(ClusterOptimizerBase):
 
         io_utils.save_json_file(os.path.join(metrics_path, filename), metrics_list)
 
-        # Save duplicate copy within React folder.
-        io_utils.save_json_file(os.path.join(REACT_METRICS_PATH, filename), metrics_list)
-
         # Downstream retrieval diagnostics are handled centrally after cluster execution.
 
     def create_computation_graph(self, context: ClusterContext) -> ClusterComputationGraph | None:
@@ -377,6 +368,9 @@ class ClusterMVO(ClusterOptimizerBase):
         # Create I/O tasks.
         ba_output_graph = delayed(ClusterMVO._annotate_scene_with_images)(ba_output_graph, d_cluster_images)
         cameras_gt = [context.one_view_data_dict[idx].camera_gt for idx in range(context.num_images)]
+        # Align GT cameras using the same Sim(3)/axis alignment applied to BA outputs so they live in the
+        # exported frame and stay consistent with the aligned tracks.
+        aligned_cameras_gt = delayed(_align_cameras_to_poses)(cameras_gt, aligned_gt_wTi_list)
         with self._output_annotation():
             if self._save_gtsfm_data:
                 delayed_io_tasks.append(
@@ -384,7 +378,7 @@ class ClusterMVO(ClusterOptimizerBase):
                         ba_input_graph,
                         ba_output_graph,
                         results_path=context.output_paths.results,
-                        cameras_gt=cameras_gt,
+                        cameras_gt=aligned_cameras_gt,
                     )
                 )
                 if self._save_3d_viz:
@@ -486,6 +480,19 @@ def align_estimated_gtsfm_data(
     return a_ba_input, a_ba_output, a_gt_poses
 
 
+def _align_cameras_to_poses(
+    cameras_gt: list[Optional[gtsfm_types.CAMERA_TYPE]], aligned_gt_wTi_list: list[Optional[Pose3]]
+) -> list[Optional[gtsfm_types.CAMERA_TYPE]]:
+    """Transport GT cameras into the aligned frame to match aligned tracks."""
+    aligned_cameras_gt: list[Optional[gtsfm_types.CAMERA_TYPE]] = []
+    for aligned_pose, cam in zip(aligned_gt_wTi_list, cameras_gt):
+        if aligned_pose is None or cam is None:
+            aligned_cameras_gt.append(None)
+            continue
+        aligned_cameras_gt.append(create_camera(aligned_pose, cam.calibration()))
+    return aligned_cameras_gt
+
+
 def save_matplotlib_visualizations(
     aligned_ba_input_graph: Delayed,
     aligned_ba_output_graph: Delayed,
@@ -535,8 +542,6 @@ def save_gtsfm_data(
     cameras_gt: list[Optional[gtsfm_types.CAMERA_TYPE]],
 ) -> None:
     """Saves the Gtsfm data before and after bundle adjustment.
-
-    NOTE: centralize on-disk export and React duplication here.
     """
     start_time = time.time()
     output_dir = str(results_path)
@@ -553,13 +558,6 @@ def save_gtsfm_data(
     # Save the ground truth in the same format, for visualization.
     gt_gtsfm_data = get_gtsfm_data_with_gt_cameras_and_est_tracks(cameras_gt, ba_output_data)
     gt_gtsfm_data.export_as_colmap_text(save_dir=os.path.join(output_dir, "ba_gt"))
-
-    # Delete old version of React results directory and save a duplicate copy.
-    shutil.rmtree(REACT_RESULTS_PATH, ignore_errors=True)
-    try:
-        shutil.copytree(src=results_path, dst=REACT_RESULTS_PATH)
-    except Exception:
-        logger.warning("Could not copy results to REACT_RESULTS_PATH: %s", REACT_RESULTS_PATH)
 
     duration_sec = time.time() - start_time
     logger.info("🚀 GtsfmData I/O took %.2f min.", duration_sec / 60.0)

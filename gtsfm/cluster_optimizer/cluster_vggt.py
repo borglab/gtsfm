@@ -11,12 +11,7 @@ import torch.nn.functional as F
 from dask.delayed import Delayed, delayed
 
 import gtsfm.frontend.vggt as vggt
-from gtsfm.cluster_optimizer.cluster_optimizer_base import (
-    REACT_RESULTS_PATH,
-    ClusterComputationGraph,
-    ClusterContext,
-    ClusterOptimizerBase,
-)
+from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterComputationGraph, ClusterContext, ClusterOptimizerBase
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.frontend.vggt import VggtConfiguration
@@ -94,19 +89,10 @@ def _run_vggt_pipeline(
 def _save_reconstruction_as_text(
     result: GtsfmData,
     results_path: Path,
-    copy_to_react: bool,
-    relative_results_dir: Path,
 ) -> None:
     target_dir = results_path / "vggt"
     target_dir.mkdir(parents=True, exist_ok=True)
     result.export_as_colmap_text(target_dir)
-
-    if not copy_to_react:
-        return
-
-    react_destination = REACT_RESULTS_PATH / relative_results_dir / "vggt"
-    react_destination.mkdir(parents=True, exist_ok=True)
-    result.export_as_colmap_text(react_destination)
 
 
 def _aggregate_vggt_metrics(result: GtsfmData) -> GtsfmMetricsGroup:
@@ -138,7 +124,6 @@ class ClusterVGGT(ClusterOptimizerBase):
         track_vis_thresh: float = 0.2,
         camera_type: str = "PINHOLE",
         seed: int = 42,
-        copy_results_to_react: bool = True,
         scene_dir: Optional[str] = None,
         pose_angular_error_thresh: float = 3.0,
         output_worker: Optional[str] = None,
@@ -182,7 +167,6 @@ class ClusterVGGT(ClusterOptimizerBase):
         self._camera_type = camera_type
         self._max_reproj_error = max_reproj_error
         self._seed = seed
-        self._copy_results_to_react = copy_results_to_react
         self._explicit_scene_dir = Path(scene_dir) if scene_dir is not None else None
         self._use_sparse_attention = use_sparse_attention
         self._dtype = inference_dtype
@@ -312,8 +296,6 @@ class ClusterVGGT(ClusterOptimizerBase):
                 delayed(_save_reconstruction_as_text)(
                     result_graph,
                     context.output_paths.results,
-                    self._copy_results_to_react,
-                    context.react_results_subdir,
                 )
             )
 

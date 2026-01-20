@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Tuple
 
@@ -11,10 +12,13 @@ from dask.distributed import Client, Future
 from gtsam import Similarity3
 
 import gtsfm.utils.logger as logger_utils
+import gtsfm.common.types as gtsfm_types
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
 from gtsfm.cluster_optimizer.cluster_anysplat import save_splats
 from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.utils import align as align_utils
+import gtsfm.utils.metrics as metrics_utils
 from gtsfm.utils.reprojection import compute_track_reprojection_errors
 from gtsfm.utils.splat import GaussiansProtocol, merge_gaussian_splats
 from gtsfm.utils.transform import transform_gaussian_splats
@@ -28,6 +32,19 @@ logger = logger_utils.get_logger()
 
 _SCENE_PLOTS_DIR_ATTR = "_gtsfm_plots_dir"
 _SCENE_LABEL_ATTR = "_gtsfm_cluster_label"
+
+
+@dataclass(frozen=True)
+class MergedNodeResult:
+    """Results of merging child scenes with parent scenes in the reconstruction tree.
+    
+    Attributes:
+        scene: The merged scene.
+        metrics: The metrics for the merged scene.
+    """
+
+    scene: Optional[GtsfmData]
+    metrics: GtsfmMetricsGroup
 
 
 def _sanitize_component(value: str, fallback: str) -> str:
@@ -176,13 +193,100 @@ def _plot_reprojection_error_distribution(
         logger.warning("⚠️ Failed to save reprojection error plot %s: %s", output_path, exc)
 
 
-def _run_export_task(payload: Tuple[Optional[Path], Optional[GtsfmData]]) -> None:
+def _get_pose_metrics(
+    result_data: GtsfmData,
+    cameras_gt: list[Optional[gtsfm_types.CAMERA_TYPE]],
+    save_dir: Optional[str] = None,
+) -> GtsfmMetricsGroup:
+    """Compute pose metrics for a BA result after aligning with ground truth.
+    
+    Args:
+        result_data: The GtsfmData object to compute pose metrics for.
+        cameras_gt: The ground truth cameras.
+        save_dir: The directory to save the pose metrics to.
+
+    Returns:
+        A GtsfmMetricsGroup object containing the pose metrics.
+    """
+    poses_gt = [cam.pose() if cam is not None else None for cam in cameras_gt]
+
+    valid_poses_gt_count = len(poses_gt) - poses_gt.count(None)
+    if valid_poses_gt_count == 0:
+        return GtsfmMetricsGroup(name="ba_pose_error_metrics", metrics=[])
+
+    aligned_result_data = result_data.align_via_sim3_and_transform(poses_gt)
+    return metrics_utils.compute_ba_pose_metrics(
+        gt_wTi_list=poses_gt,
+        computed_wTi_list=aligned_result_data.get_camera_poses(),
+        save_dir=save_dir,
+    )
+
+
+def compute_merging_metrics(
+    merged_scene: Optional[GtsfmData],
+    *,
+    child_count: int,
+    cameras_gt: Optional[list[Optional[gtsfm_types.CAMERA_TYPE]]] = None,
+    save_dir: Optional[str | Path] = None,
+    store_full_data: bool = False,
+    child_camera_counts: list[int] | None = None,
+    child_camera_overlap_with_parent: list[int] | None = None,
+) -> GtsfmMetricsGroup:
+    """Build metrics describing a merged reconstruction at a tree node.
+    
+    Args:
+        merged_scene: The merged scene.
+        child_count: The number of children.
+        cameras_gt: The ground truth cameras.
+        save_dir: The directory to save the metrics to.
+        store_full_data: Whether to store full data.
+        child_camera_counts: The number of cameras in each child.
+        child_camera_overlap_with_parent: The number of cameras in the parent that are also in each child.
+
+    Returns:
+        A GtsfmMetricsGroup object containing the merging metrics.
+    """
+    child_camera_counts = child_camera_counts or []
+    child_camera_overlap_with_parent = child_camera_overlap_with_parent or []
+    child_camera_counts_arr = np.asarray(child_camera_counts, dtype=np.int32)
+    child_camera_overlap_arr = np.asarray(child_camera_overlap_with_parent, dtype=np.int32)
+    pose_save_dir = str(save_dir) if isinstance(save_dir, Path) else save_dir
+    metrics = [
+        GtsfmMetric("merge_success", 1 if merged_scene is not None else 0),
+        GtsfmMetric("merge_child_count", child_count),
+        GtsfmMetric(
+            "child_camera_counts",
+            child_camera_counts_arr,
+            store_full_data=True,
+        ),
+        GtsfmMetric(
+            "child_camera_overlap_with_parent",
+            child_camera_overlap_arr,
+            store_full_data=True,
+        ),
+    ]
+    if merged_scene is not None:
+        metrics.extend(merged_scene.get_metrics(suffix="_merged", store_full_data=store_full_data))
+    merging_metrics = GtsfmMetricsGroup(name="merging_metrics", metrics=metrics)
+    if cameras_gt is not None and merged_scene is not None:
+        ba_pose_error_metrics = _get_pose_metrics(
+            merged_scene,
+            cameras_gt,
+            save_dir=pose_save_dir,
+        )
+        merging_metrics.extend(ba_pose_error_metrics)
+    return merging_metrics
+
+
+def _run_export_task(payload: Tuple[Optional[Path], Future | MergedNodeResult]) -> None:
     """Persist a merged reconstruction to COLMAP text format.
 
     Args:
-        payload: Tuple pairing the directory to export into with the resolved merged reconstruction.
+        payload: Tuple pairing the directory, and the future or result of the merged reconstruction.
     """
-    merged_dir, merged_scene = payload
+    merged_dir, merged_future = payload
+    merged_result = merged_future.result() if isinstance(merged_future, Future) else merged_future
+    merged_scene = merged_result.scene
     if merged_dir is None or merged_scene is None:
         return
     merged_dir.mkdir(parents=True, exist_ok=True)
@@ -216,25 +320,73 @@ def schedule_exports(
 
 def combine_results(
     current: Optional[GtsfmData],
-    child_results: tuple[Optional[GtsfmData], ...],
+    child_results: tuple[MergedNodeResult, ...],
     *,
+    cameras_gt: Optional[list[Optional[gtsfm_types.CAMERA_TYPE]]] = None,
     run_bundle_adjustment_on_parent: bool = True,
     plot_reprojection_histograms: bool = True,
     merge_duplicate_tracks: bool = True,
     drop_outlier_after_camera_merging: bool = True,
     drop_camera_with_no_track: bool = True,
     drop_child_if_merging_fail: bool = False,
-) -> Optional[GtsfmData]:
-    """Merge bundle adjustment outputs from child clusters into the parent result."""
-    if len(child_results) == 0:
-        return current
+    store_full_data: bool = False,
+) -> MergedNodeResult:
+    """Merge bundle adjustment outputs from child clusters into the parent result and compute metrics.
+    
+    Args:
+        current: The current scene.
+        child_results: The results of the child clusters.
+        cameras_gt: The ground truth cameras.
+        run_bundle_adjustment_on_parent: Whether to run bundle adjustment on the parent.
+        plot_reprojection_histograms: Whether to plot the reprojection error histograms.
+        drop_outlier_after_camera_merging: Whether to drop outlier tracks after camera merging.
+        drop_camera_with_no_track: Whether to drop cameras with no tracks.
+        drop_child_if_merging_fail: Whether to drop child scenes if merging fails.
+        store_full_data: Whether to store full data.
 
-    logger.info("🫱🏻‍🫲🏽 Merging with %d children", len(child_results))
-    for idx, child in enumerate(child_results):
+    Returns:
+        A MergedNodeResult object containing the merged scene and its metrics.
+    """
+    child_scenes: tuple[Optional[GtsfmData], ...] = tuple(child.scene for child in child_results)
+    if len(child_scenes) == 0:
+        return MergedNodeResult(
+            current,
+            compute_merging_metrics(
+                current,
+                child_count=0,
+                cameras_gt=cameras_gt,
+                store_full_data=store_full_data,
+            ),
+        )
+
+    child_count = len(child_scenes)
+    parent_camera_set = set(current.get_valid_camera_indices()) if current is not None else set()
+    child_camera_counts: list[int] = []
+    child_camera_overlap_with_parent: list[int] = []
+    for child_scene in child_scenes:
+        child_cam_set = set(child_scene.get_valid_camera_indices()) if child_scene is not None else set()
+        child_camera_counts.append(len(child_cam_set))
+        child_camera_overlap_with_parent.append(len(child_cam_set & parent_camera_set))
+
+    def _finalize_result(result_scene: Optional[GtsfmData]) -> MergedNodeResult:
+        return MergedNodeResult(
+            result_scene,
+            compute_merging_metrics(
+                result_scene,
+                child_count=child_count,
+                cameras_gt=cameras_gt,
+                store_full_data=store_full_data,
+                child_camera_counts=child_camera_counts,
+                child_camera_overlap_with_parent=child_camera_overlap_with_parent,
+            ),
+        )
+
+    logger.info("🫱🏻‍🫲🏽 Merging with %d children", child_count)
+    for idx, child in enumerate(child_scenes):
         _log_scene_reprojection_stats(child, f"child #{idx}", plot_histograms=plot_reprojection_histograms)
-    metadata_source = current if current is not None else next((c for c in child_results if c is not None), None)
+    metadata_source = current if current is not None else next((c for c in child_scenes if c is not None), None)
     merged = current
-    for child in child_results:
+    for child in child_scenes:
         if child is None:
             continue
         if child.number_tracks() == 0:
@@ -338,10 +490,10 @@ def combine_results(
                 merged = filtered
 
     if not run_bundle_adjustment_on_parent:
-        return merged
+        return _finalize_result(merged)
 
     if merged is None:
-        return None
+        return _finalize_result(None)
 
     # Log cameras that have no supporting track measurements before running BA.
     all_cameras = set(merged.get_valid_camera_indices())
@@ -364,7 +516,7 @@ def combine_results(
             )
         else:
             logger.warning("All cameras lack tracks; skipping parent BA.")
-            return merged
+            return _finalize_result(merged)
     elif not zero_track_cameras:
         logger.info("✅ All cameras have at least one track before parent BA.")
     else:
@@ -391,7 +543,7 @@ def combine_results(
                 merged_gaussians = transform_gaussian_splats(
                     current.get_gaussian_splats(), postba_S_current  # type: ignore
                 )
-                for child in child_results:
+                for child in child_scenes:
                     if child is None:
                         continue
                     try:
@@ -408,22 +560,24 @@ def combine_results(
                     except Exception as e:
                         logger.warning("⚠️ Failed to align and merge gaussians: %s", e)
                 merged_with_ba.set_gaussian_splats(merged_gaussians)
-                return merged_with_ba
+                return _finalize_result(merged_with_ba)
 
             except Exception as alignment_exc:
                 logger.warning("⚠️ Failed to compute pre/post BA Sim(3): %s", alignment_exc)
-                return merged
+                return _finalize_result(merged)
 
         else:
             logger.info("✖️ No Gaussians to merge")
-            return merged_with_ba
+            return _finalize_result(merged_with_ba)
     except Exception as exc:
         logger.warning("⚠️ Failed to run bundle adjustment: %s", exc)
-        return merged
+        return _finalize_result(merged)
 
 
 __all__ = [
+    "MergedNodeResult",
     "combine_results",
     "schedule_exports",
+    "compute_merging_metrics",
     "annotate_scene_with_metadata",
 ]

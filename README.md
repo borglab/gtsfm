@@ -33,48 +33,17 @@ This repository includes external repositories as Git submodules, so, unless you
 git submodule update --init --recursive
 ```
 
-### Create a Conda Environment
+GTSfM supports two installation methods. Choose the one that best fits your workflow:
 
-To run GTSfM, first, we need to create a conda environment with the required dependencies.
+### Option 1: Conda Setup (Recommended for most users)
 
-[Install MiniConda](https://www.anaconda.com/docs/getting-started/miniconda/install) if needed, then:
+For detailed Conda installation instructions, see **[conda-setup.md](docs/setup/conda-setup.md)**
 
-On **Linux**, with CUDA support, run:
-```bash
-conda env create -f environment_linux.yml
-conda activate gtsfm-v1 # you may need "source activate gtsfm-v1" depending upon your bash and conda set-up
-```
-Check your cuda version then install `torch_scatter` from pre-built wheels
+### Option 2: UV Setup (Fast alternative package manager)
 
-For example, for CUDA 12.1 → use cu121 
-```bash
-pip install torch-scatter -f https://data.pyg.org/whl/torch-2.5.1+cu121.html
-```
+For detailed UV installation instructions, see **[uv-setup.md](docs/setup/uv-setup.md)**
 
-To use PACE, use the same linux installation `environment_linux.yml`
-
-Then add `dask-cuda`
-```bash
-conda install -c rapidsai -c conda-forge dask-cuda
-```
-
-
-On **macOS**, there is no CUDA support, so run:
-
-```bash
-conda env create -f environment_mac.yml
-conda activate gtsfm-v1
-```
-
-### Install `gtsfm` as a module
-
-Now, install `gtsfm` as a module:
-
-```bash
-pip install -e .
-```
-
-Make sure that you can run `python -c "import gtsfm; import gtsam; print('hello world')"` in python, and you are good to go!
+Both methods will allow you to run GTSfM successfully.
 
 ## Try It on Google Colab  
 
@@ -189,7 +158,7 @@ Refer to the detailed guide:
 ### Running GTSFM on a Multi-Machine Cluster  
 
 For users who want to run GTSFM on a **cluster of multiple machines**, follow the setup instructions here:  
-📄 [CLUSTER.md](https://github.com/borglab/gtsfm/tree/master/CLUSTER.md)  
+📄 [CLUSTER.md](https://github.com/borglab/gtsfm/tree/master/docs/deployment/CLUSTER.md)  
 
 ### Where Are the Results Stored?  
 
@@ -291,7 +260,7 @@ GTSfM is designed in a modular way. Each module can be swapped out with a new on
 
 ## Contributing
 
-Contributions are always welcome! Please be aware of our [contribution guidelines for this project](CONTRIBUTING.md).
+Contributions are always welcome! Please be aware of our [contribution guidelines for this project](docs/CONTRIBUTING.md).
 
 ## Citing this work
 

@@ -5,7 +5,6 @@ Authors: Ayush Baid, John Lambert
 
 import time
 from dataclasses import dataclass
-from functools import partial
 from pathlib import Path
 from typing import Optional, TypeVar, cast
 
@@ -15,7 +14,7 @@ from dask.distributed import Client, Future, performance_report
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm import cluster_merging
-from gtsfm.cluster_optimizer import REACT_METRICS_PATH, REACT_RESULTS_PATH, Base, save_metrics_reports
+from gtsfm.cluster_optimizer import Base, save_metrics_reports
 from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterContext
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.outputs import OutputPaths, cluster_label, prepare_output_paths
@@ -140,11 +139,6 @@ class SceneOptimizer:
         {self.cluster_optimizer}
         """
 
-    def _ensure_react_directories(self) -> None:
-        """Ensure the React dashboards have dedicated output folders."""
-        REACT_RESULTS_PATH.mkdir(parents=True, exist_ok=True)
-        REACT_METRICS_PATH.mkdir(parents=True, exist_ok=True)
-
     def _schedule_single_cluster(self, context: ClusterContext) -> ClusterExecutionHandles:
         """Schedule the optimizer for a single cluster and return futures tracking its execution."""
         if len(context.visibility_graph) == 0:
@@ -190,8 +184,9 @@ class SceneOptimizer:
         """Run the SceneOptimizer."""
         start_time = time.time()
         base_metrics_groups = []
+
+        # Process Graph Generation: Visualize the process graph, which is a flow of data across GTSFM's modules.
         process_graph_generator = ProcessGraphGenerator()
-        self._ensure_react_directories()
         base_output_paths = prepare_output_paths(self.output_root, None)
         process_graph_generator.save_graph(str(base_output_paths.plots / "process_graph_output.svg"))
 
@@ -200,6 +195,7 @@ class SceneOptimizer:
         base_metrics_groups.append(retriever_metrics)
         image_future_map = self.loader.get_image_futures(client)
 
+        # Graph partitioning: Divide the visibility graph into clusters (runs eagerly, no delayed/futures).
         logger.info("🔥 GTSFM: Partitioning the view graph...")
         assert self.graph_partitioner is not None, "Graph partitioner is not set up!"
         cluster_tree = self.graph_partitioner.run(visibility_graph)
@@ -232,37 +228,59 @@ class SceneOptimizer:
 
                 context_tree = cluster_tree.map_with_path(to_context)
 
+                # Runs reconstruction on each node of the VisibilityGraph (with context) tree.
+                # Returns handles to various outputs: reconstruction, metrics, io_barrier etc.
                 handles_tree = context_tree.map(self._schedule_single_cluster)
+
+                # Get the reconstruction handle and run merging to get a tree of merged result handles. 
                 reconstruction_tree = handles_tree.map(lambda handle: handle.reconstruction)
-                merge_fn = partial(
-                    cluster_merging.combine_results,
-                    run_bundle_adjustment_on_parent=self._run_bundle_adjustment_on_parent,
-                    plot_reprojection_histograms=self._plot_reprojection_histograms,
-                    merge_duplicate_tracks=self._merge_duplicate_tracks,
-                    drop_outlier_after_camera_merging=self._drop_outlier_after_camera_merging,
-                    drop_camera_with_no_track=self._drop_camera_with_no_track,
-                    drop_child_if_merging_fail=self._drop_child_if_merging_fail,
-                )
+
+                cameras_gt = self.loader.get_gt_cameras()
+
+                def merge_fn(
+                    reconstruction: object, child_results: tuple[cluster_merging.MergedNodeResult, ...]
+                ) -> cluster_merging.MergedNodeResult:
+                    return cluster_merging.combine_results(
+                        cast(Optional[GtsfmData], reconstruction),
+                        child_results,
+                        cameras_gt=cameras_gt,
+                        run_bundle_adjustment_on_parent=self._run_bundle_adjustment_on_parent,
+                        plot_reprojection_histograms=self._plot_reprojection_histograms,
+                        merge_duplicate_tracks=self._merge_duplicate_tracks,
+                        drop_outlier_after_camera_merging=self._drop_outlier_after_camera_merging,
+                        drop_camera_with_no_track=self._drop_camera_with_no_track,
+                        drop_child_if_merging_fail=self._drop_child_if_merging_fail,
+                        store_full_data=False,
+                    )
+
                 merged_future_tree = submit_tree_map_with_children(client, reconstruction_tree, merge_fn)
                 export_tree = cluster_merging.schedule_exports(client, handles_tree, merged_future_tree)
                 root_merge_future: Optional[Future] = merged_future_tree.value
                 for handle_node, merged_node, export_node in zip(
-                    PreOrderIter(handles_tree), PreOrderIter(merged_future_tree), PreOrderIter(export_tree)
+                    PreOrderIter(handles_tree),
+                    PreOrderIter(merged_future_tree),
+                    PreOrderIter(export_tree),
                 ):
                     handle = handle_node.value
                     merge_future = merged_node.value
                     export_future = export_node.value
+
                     metrics_groups = list(handle.metrics.result())
                     handle.io_barrier.result()
                     export_future.result()
                     if handle.cluster_path == ():
+                        merged_result = merge_future.result()
                         base_metrics_groups.extend(metrics_groups)
+                        base_metrics_groups.append(merged_result.metrics)
                         root_merge_future = merge_future
                     elif metrics_groups:
+                        merged_result = merge_future.result()
+                        metrics_groups.append(merged_result.metrics)
                         save_metrics_reports(metrics_groups, str(handle.output_paths.metrics))
                 if root_merge_future is not None:
                     logger.info("🔥 GTSFM: Running cluster optimization and merging...")
-                    merged_scene = root_merge_future.result()
+                    root_merge_result = root_merge_future.result()
+                    merged_scene = root_merge_result.scene
 
         if merged_scene is not None:
             logger.info(
@@ -270,6 +288,8 @@ class SceneOptimizer:
                 merged_scene.number_images(),
                 merged_scene.number_tracks(),
             )
+        else:
+            logger.warning("Merging failed, no final merged scene found.")
 
         # Log total time taken and save metrics report
         end_time = time.time()

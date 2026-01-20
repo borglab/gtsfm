@@ -1,6 +1,6 @@
-"""Algorithms to center and align 3D points and camera frustums to the x, y, and z axes using SVD. 
+"""Algorithms to center and align 3D points and camera frustums to the x, y, and z axes using SVD.
 
-Process is similar to Principal Component Analysis. Used in React Three Fiber Visualization Tool.
+Process is similar to Principal Component Analysis.
 
 Authors: Adi Singh
 """

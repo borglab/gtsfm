@@ -23,7 +23,6 @@ dask_config.set({"distributed.scheduler.worker-ttl": None})
 logger = logger_utils.get_logger()
 
 DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent.parent
-REACT_METRICS_PATH = DEFAULT_OUTPUT_ROOT / "rtf_vis_tool" / "src" / "result_metrics"
 
 
 class GtsfmRunner:
@@ -151,7 +150,7 @@ class GtsfmRunner:
         )
         parser.add_argument("--threads_per_worker", type=int, default=1, help="Number of threads per each worker.")
         parser.add_argument(
-            "--worker_memory_limit", type=str, default="8GB", help="Memory limit per worker, e.g. `8GB`"
+            "--worker_memory_limit", type=str, default="16GB", help="Memory limit per worker, e.g. `16GB`"
         )
         parser.add_argument("--dashboard_port", type=str, default=":8787", help="dask dashboard port number")
         parser.add_argument(
