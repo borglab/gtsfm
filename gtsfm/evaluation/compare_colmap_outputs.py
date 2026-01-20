@@ -5,7 +5,7 @@ Authors: Ayush Baid
 
 import argparse
 import os
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Tuple
 
 import numpy as np
 import pycolmap
@@ -82,31 +82,25 @@ def compare_poses(baseline_dirpath: str, eval_dirpath: str, output_dirpath: str)
         len(common_fnames),
     )
 
-    baseline_wTi_list: List[Pose3] = []
-    current_wTi_list: List[Optional[Pose3]] = []
-    for fname, wTi in baseline_wTi_dict.items():
-        baseline_wTi_list.append(wTi)
-        current_wTi_list.append(current_wTi_dict.get(fname))
-
     if not args.use_pycolmap_alignment:
-        aSb = align.sim3_from_optional_Pose3s(baseline_wTi_list, current_wTi_list)
-        current_wTi_list = transform.optional_Pose3s_with_sim3(aSb, current_wTi_list)
+        aSb = align.sim3_from_Pose3_maps_robust(baseline_wTi_dict, current_wTi_dict)
+        current_wTi_dict = transform.Pose3_map_with_sim3(aSb, current_wTi_dict)
 
-    i2Ri1_dict_gt, i2Ui1_dict_gt = metric_utils.get_all_relative_rotations_translations(baseline_wTi_list)
+    i2Ri1_dict_gt, i2Ui1_dict_gt = metric_utils.get_all_relative_rotations_translations(baseline_wTi_dict)
 
-    wRi_aligned_list, wti_aligned_list = metric_utils.get_rotations_translations_from_poses(current_wTi_list)
-    baseline_wRi_list, baseline_wti_list = metric_utils.get_rotations_translations_from_poses(baseline_wTi_list)
+    wRi_aligned, wti_aligned = metric_utils.get_rotations_translations_from_poses(current_wTi_dict)
+    baseline_wRi, baseline_wti = metric_utils.get_rotations_translations_from_poses(baseline_wTi_dict)
 
     metrics = []
-    metrics.append(metric_utils.compute_rotation_angle_metric(wRi_aligned_list, baseline_wRi_list))
-    metrics.append(metric_utils.compute_translation_distance_metric(wti_aligned_list, baseline_wti_list))
-    metrics.append(metric_utils.compute_translation_angle_metric(baseline_wTi_list, current_wTi_list))
+    metrics.append(metric_utils.compute_rotation_angle_metric(wRi_aligned, baseline_wRi))
+    metrics.append(metric_utils.compute_translation_distance_metric(wti_aligned, baseline_wti))
+    metrics.append(metric_utils.compute_translation_angle_metric(baseline_wTi_dict, current_wTi_dict))
     relative_rotation_error_metric = metric_utils.compute_relative_rotation_angle_metric(
-        i2Ri1_dict_gt, current_wTi_list, store_full_data=True
+        i2Ri1_dict_gt, current_wTi_dict, store_full_data=True
     )
     metrics.append(relative_rotation_error_metric)
     relative_translation_error_metric = metric_utils.compute_relative_translation_angle_metric(
-        i2Ui1_dict_gt, current_wTi_list, store_full_data=True
+        i2Ui1_dict_gt, current_wTi_dict, store_full_data=True
     )
     metrics.append(relative_translation_error_metric)
 

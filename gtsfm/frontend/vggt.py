@@ -19,6 +19,7 @@ from torch.amp import autocast as amp_autocast  # type: ignore
 
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
 from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm.utils import data_utils
 from gtsfm.utils import logger as logger_utils
 from gtsfm.utils import torch as torch_utils
 
@@ -399,6 +400,9 @@ def _is_point_in_front_of_camera(camera, point_xyz: np.ndarray, *, epsilon: floa
     return float(z_val) > epsilon
 
 
+
+
+
 def _convert_vggt_outputs_to_gtsfm_data(
     *,
     vggt_output: VggtOutput,
@@ -408,7 +412,7 @@ def _convert_vggt_outputs_to_gtsfm_data(
     config: VggtConfiguration,
     points_3d: np.ndarray,
     points_rgb: np.ndarray,
-    tracking_result: VGGTTrackingResult = None,
+    tracking_result: VGGTTrackingResult | None = None,
 ) -> GtsfmData:
     """Convert raw VGGT predictions into ``GtsfmData``."""
 
@@ -504,11 +508,11 @@ def _convert_vggt_outputs_to_gtsfm_data(
             logger.warning("Skipping bundle adjustment because VGGT produced no valid tracks.")
         else:
             try:
+                gtsfm_data, should_run_ba = data_utils.remove_cameras_with_no_tracks(gtsfm_data, "node-level BA")
+                if not should_run_ba:
+                    return gtsfm_data
                 optimizer = BundleAdjustmentOptimizer()
                 gtsfm_data_with_ba, _ = optimizer.run_simple_ba(gtsfm_data, verbose=False)
-                for idx in gtsfm_data.get_valid_camera_indices():
-                    info = gtsfm_data.get_image_info(idx)
-                    gtsfm_data_with_ba.set_image_info(idx, name=info.name, shape=info.shape)
                 return gtsfm_data_with_ba
             except Exception as exc:
                 logger.warning("⚠️ Failed to run bundle adjustment: %s", exc)

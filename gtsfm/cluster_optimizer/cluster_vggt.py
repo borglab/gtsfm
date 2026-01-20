@@ -147,11 +147,12 @@ class ClusterVGGT(ClusterOptimizerBase):
         super().__init__(
             pose_angular_error_thresh=pose_angular_error_thresh,
             output_worker=output_worker,
+            drop_child_if_merging_fail=drop_child_if_merging_fail,
+            drop_camera_with_no_track=drop_camera_with_no_track,
+            drop_outlier_after_camera_merging=drop_outlier_after_camera_merging,
+            plot_reprojection_histograms=plot_reprojection_histograms,
+            run_bundle_adjustment_on_parent=run_bundle_adjustment_on_parent,
         )
-        self.plot_reprojection_histograms = plot_reprojection_histograms
-        self.drop_outlier_after_camera_merging = drop_outlier_after_camera_merging
-        self.drop_child_if_merging_fail = drop_child_if_merging_fail
-        self.drop_camera_with_no_track = drop_camera_with_no_track
         self._weights_path = Path(weights_path) if weights_path is not None else None
         self._image_load_resolution = image_load_resolution
         self._inference_resolution = inference_resolution
@@ -199,7 +200,6 @@ class ClusterVGGT(ClusterOptimizerBase):
             self._loader_kwargs["weights_path"] = self._weights_path
         if self._model_ctor_kwargs:
             self._loader_kwargs["model_kwargs"] = self._model_ctor_kwargs
-        self.run_bundle_adjustment_on_parent = run_bundle_adjustment_on_parent
 
         if model_cache_key is False:
             self._model_cache_key: Hashable | None = None

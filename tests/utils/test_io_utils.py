@@ -14,7 +14,6 @@ from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, Rot3, SfmTrack  
 import gtsfm.utils.io as io_utils
 import thirdparty.colmap.scripts.python.read_write_model as colmap_io
 from gtsfm.common.gtsfm_data import GtsfmData
-from gtsfm.common.image import Image
 
 TEST_DATA_ROOT = Path(__file__).resolve().parent.parent / "data"
 
@@ -132,15 +131,12 @@ class TestIoUtils(unittest.TestCase):
         camera = PinholeCameraCal3Bundler(original_wTc, default_intrinsics)
         gtsfm_data = GtsfmData(number_images=1)
         gtsfm_data.add_camera(0, camera)
-
-        image = Image(value_array=None, file_name="dummy_image.jpg")  # type: ignore
-        images = [image]
+        gtsfm_data.set_image_info(0, name="dummy_image.jpg", shape=(1, 1))
 
         # Perform write and read operations inside a temporary directory
         with tempfile.TemporaryDirectory() as tempdir:
             images_fpath = Path(tempdir) / "images.txt"
-            image_filenames = [img.file_name for img in images]
-            gtsfm_data.write_images(tempdir, image_filenames)
+            gtsfm_data.write_images(tempdir)
             wTi_list, _ = io_utils.read_images_txt(images_fpath)
             recovered_wTc = wTi_list[0]
 
@@ -163,16 +159,15 @@ class TestIoUtils(unittest.TestCase):
             camera = PinholeCameraCal3Bundler(Pose3(), original_calibrations[i])
             gtsfm_data.add_camera(i, camera)
 
-        # Generate dummy images
-        image = Image(value_array=np.zeros((240, 320)), file_name="dummy_image.jpg")
-        images = [image for i in range(len(original_calibrations))]
+        # Create image infos
+        for i in range(len(original_calibrations)):
+            gtsfm_data.set_image_info(i, name=f"dummy_image_{i}.jpg", shape=(240, 320))
 
         # Round trip
         with tempfile.TemporaryDirectory() as tempdir:
             cameras_fpath = Path(tempdir) / "cameras.txt"
 
-            image_shapes = [img.shape for img in images]
-            gtsfm_data.write_cameras(tempdir, image_shapes)
+            gtsfm_data.write_cameras(tempdir)
             recovered_calibrations, _ = io_utils.read_cameras_txt(cameras_fpath)
 
         assert recovered_calibrations is not None

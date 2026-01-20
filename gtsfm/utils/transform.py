@@ -31,6 +31,11 @@ def Pose3_map_with_se3(aTb: Pose3, pose_map_b: Mapping[int, Pose3]) -> dict[int,
     return {i: aTb.compose(pose_b) for i, pose_b in pose_map_b.items()}
 
 
+def Pose3_map_with_sim3(aSb: Similarity3, pose_map_b: Mapping[int, Pose3]) -> dict[int, Pose3]:
+    """Transport a Pose3 dictionary from frame ``b`` to frame ``a`` using a Sim(3) transform."""
+    return {i: aSb.transformFrom(pose_b) for i, pose_b in pose_map_b.items()}
+
+
 def Pose3s_with_sim3(aSb: Similarity3, poses_b: Sequence[Pose3]) -> list[Pose3]:
     """Transport a list of Pose3s from frame ``b`` to frame ``a`` using a Sim(3) transform."""
     return [aSb.transformFrom(pose_b) for pose_b in poses_b]
@@ -66,11 +71,22 @@ def tracks_with_sim3(aSb: Similarity3, tracks_b: Sequence[SfmTrack]) -> list[Sfm
     return [track_with_sim3(aSb, track_b) for track_b in tracks_b]
 
 
-def camera_map_with_sim3(aSb: Similarity3, cameras_b: Mapping[int, CAMERA_TYPE]) -> dict[int, CAMERA_TYPE]:
-    """Transport a camera dictionary from frame ``b`` to frame ``a`` using a Sim(3) transform."""
-    cameras_a: dict[int, CAMERA_TYPE] = {}
+def camera_map_with_sim3(
+    aSb: Similarity3, cameras_b: Mapping[int, CAMERA_TYPE | None]
+) -> dict[int, CAMERA_TYPE | None]:
+    """Transport a camera dictionary from frame ``b`` to frame ``a`` using a Sim(3) transform.
+
+    Args:
+        aSb: The transformation from frame ``b`` to frame ``a``.
+        cameras_b: The camera dictionary in frame ``b``, can contain None values.
+
+    Returns:
+        The camera dictionary in frame ``a``, preserving None values when present in the input.
+    """
+    cameras_a: dict[int, CAMERA_TYPE | None] = {}
     for i, camera_b in cameras_b.items():
         if camera_b is None:
+            cameras_a[i] = None
             continue
         new_pose = aSb.transformFrom(camera_b.pose())
         cameras_a[i] = create_camera(new_pose, camera_b.calibration())

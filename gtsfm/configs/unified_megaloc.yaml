@@ -23,6 +23,12 @@ graph_partitioner:
 
 cluster_optimizer:
   _target_: gtsfm.cluster_optimizer.Multiview
+  drop_outlier_after_camera_merging: false
+  drop_child_if_merging_fail: true
+  drop_camera_with_no_track: true
+  plot_reprojection_histograms: true
+  run_bundle_adjustment_on_parent: true
+
   correspondence_generator:
     _target_: gtsfm.frontend.correspondence_generator.det_desc_correspondence_generator.DetDescCorrespondenceGenerator
 
