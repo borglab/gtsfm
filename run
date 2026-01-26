@@ -3,8 +3,15 @@
 # Usage: ./run [arguments...]
 # Example: ./run --config_name sift_front_end.yaml --loader olsson --dataset_dir /path/to/data
 
-if [ "$#" -eq 0 ]; then
-  exec python gtsfm/runner.py --help
+# Detect if uv is available, use it; otherwise fall back to python
+if command -v uv &> /dev/null; then
+  PYTHON_CMD="uv run python"
 else
-  exec python gtsfm/runner.py "$@"
+  PYTHON_CMD="python"
+fi
+
+if [ "$#" -eq 0 ]; then
+  exec $PYTHON_CMD gtsfm/runner.py --help
+else
+  exec $PYTHON_CMD gtsfm/runner.py "$@"
 fi
