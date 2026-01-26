@@ -103,7 +103,7 @@ jobs:
       - name: Install project dependencies
         run: |
           uv sync --locked --python 3.10
-          uv pip install torch-scatter --find-links https://data.pyg.org/whl/torch-2.5.1+cu128.html
+          uv pip install torch-scatter --find-links https://data.pyg.org/whl/torch-2.5.1+cu121.html
       
       - name: Environment setup
         run: bash .github/scripts/setup.sh
