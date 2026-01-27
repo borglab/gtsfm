@@ -45,5 +45,5 @@ cluster_optimizer:
     seed: 42
     plot_reprojection_histograms: true
     run_bundle_adjustment_on_leaf: false
-    run_bundle_adjustment_on_parent: true
+    run_bundle_adjustment_on_parent: false
     model_cache_key: null
