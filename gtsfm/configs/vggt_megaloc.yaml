@@ -31,7 +31,7 @@ cluster_optimizer:
     weights_path: null
     image_load_resolution: 1024
     inference_resolution: 518
-    conf_threshold: 5.0
+    conf_threshold: 0.0
     max_num_points: 100000
     tracking: true
     tracking_max_query_pts: 512
@@ -44,9 +44,9 @@ cluster_optimizer:
     drop_camera_with_no_track: true
     seed: 42
     plot_reprojection_histograms: true
-    run_bundle_adjustment_on_leaf: false
+    run_bundle_adjustment_on_leaf: true
     run_bundle_adjustment_on_parent: true
     model_cache_key: null
-    # store_pre_ba_result: true
+    store_pre_ba_result: true
 
-use_nonlinear_sim3_alignment: false
+use_nonlinear_sim3_merging: false
