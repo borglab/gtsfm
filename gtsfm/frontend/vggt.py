@@ -451,14 +451,20 @@ def _convert_vggt_outputs_to_gtsfm_data(
         inlier_num = track_mask.sum(0)
 
         valid_mask = inlier_num >= 2  # a track is invalid if without two inliers
+        confidence_threshold = config.confidence_threshold
+        confidence_threshold = min(
+            confidence_threshold, np.mean(tracking_result.confidences) + np.std(tracking_result.confidences)
+        )
         if tracking_result.confidences is not None:
-            valid_mask = np.logical_and(valid_mask, tracking_result.confidences > config.confidence_threshold)
+            valid_mask = np.logical_and(valid_mask, tracking_result.confidences > confidence_threshold)
         valid_idx = np.nonzero(valid_mask)[0]
 
         max_reproj_error = float(config.max_reproj_error)
         enforce_reproj_filter = (
             tracking_result.points_3d is not None and np.isfinite(max_reproj_error) and max_reproj_error > 0.0
         )
+
+        logger.info("num points 3d: %d, num valid idx: %d", tracking_result.points_3d.shape[0], len(valid_idx))
 
         for valid_id in valid_idx:
             rgb: np.ndarray
@@ -492,11 +498,11 @@ def _convert_vggt_outputs_to_gtsfm_data(
                     proj_v = float(projected[1])
                     reproj_err = float(np.hypot(rescaled_u - proj_u, rescaled_v - proj_v))
                     max_error_for_track = max(max_error_for_track, reproj_err)
+                    # if reproj_err > max_reproj_error:
+                    #     continue
                 per_track_measurements.append((global_idx, rescaled_u, rescaled_v))
 
             if len(per_track_measurements) < 2:
-                continue
-            if enforce_reproj_filter and max_error_for_track > max_reproj_error:
                 continue
 
             track = torch_utils.colored_track_from_point(point_xyz, rgb)
@@ -515,7 +521,7 @@ def _convert_vggt_outputs_to_gtsfm_data(
                 gtsfm_data, should_run_ba = data_utils.remove_cameras_with_no_tracks(gtsfm_data, "node-level BA")
                 if not should_run_ba:
                     return gtsfm_data, gtsfm_data_pre_ba
-                optimizer = BundleAdjustmentOptimizer()
+                optimizer = BundleAdjustmentOptimizer(robust_measurement_noise=False, calibration_prior_noise_sigma=10)
                 gtsfm_data_with_ba, _ = optimizer.run_simple_ba(gtsfm_data, verbose=False)
                 return gtsfm_data_with_ba, gtsfm_data_pre_ba
             except Exception as exc:

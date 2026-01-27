@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Hashable, Optional, Union
 
+from gtsam import Pose3
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -12,12 +13,14 @@ from dask.delayed import Delayed, delayed
 
 import gtsfm.frontend.vggt as vggt
 from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterComputationGraph, ClusterContext, ClusterOptimizerBase
+import gtsfm.common.types as gtsfm_types
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.frontend.vggt import VggtConfiguration, VggtReconstruction
 from gtsfm.products.visibility_graph import visibility_graph_keys
 from gtsfm.ui.gtsfm_process import UiMetadata
 from gtsfm.utils.logger import get_logger
+import gtsfm.utils.metrics as metrics_utils
 
 logger = get_logger()
 
@@ -106,16 +109,55 @@ def _save_pre_ba_reconstruction_as_text(
     _save_reconstruction_as_text(pre_ba_result, results_path, subdir="vggt_pre_ba")
 
 
-def _aggregate_vggt_metrics(result: GtsfmData) -> GtsfmMetricsGroup:
-    num_cameras = len(result.get_valid_camera_indices())
-    num_points3d = result.number_tracks()
-    return GtsfmMetricsGroup(
-        "vggt_runtime_metrics",
-        [
-            GtsfmMetric("num_cameras", num_cameras),
-            GtsfmMetric("num_points3d", num_points3d),
-        ],
+def _get_pose_metrics(
+    result_data: GtsfmData,
+    cameras_gt: list[Optional[gtsfm_types.CAMERA_TYPE]],
+    save_dir: Optional[str] = None,
+) -> GtsfmMetricsGroup:
+    """Compute pose metrics for a VGGT result after aligning with ground truth."""
+    image_idxs = list(result_data._image_info.keys())
+    poses_gt: dict[int, Pose3] = {}
+    for i in image_idxs:
+        if i >= len(cameras_gt):
+            continue
+        camera = cameras_gt[i]
+        if camera is not None:
+            poses_gt[i] = camera.pose()
+    if len(poses_gt) == 0:
+        return GtsfmMetricsGroup(name="ba_pose_error_metrics", metrics=[])
+    aligned_result_data = result_data.align_via_sim3_and_transform(poses_gt)
+    computed_wTi: dict[int, Optional[Pose3]] = {i: pose for i, pose in aligned_result_data.get_camera_poses().items()}
+    return metrics_utils.compute_ba_pose_metrics(
+        gt_wTi=poses_gt,
+        computed_wTi=computed_wTi,
+        save_dir=save_dir,
+        store_full_data=True,
     )
+
+
+def _aggregate_vggt_metrics(
+    result: GtsfmData,
+    cameras_gt: Optional[list[Optional[gtsfm_types.CAMERA_TYPE]]] = None,
+    pre_ba_result: Optional[GtsfmData] = None,
+    *,
+    save_dir: Optional[str] = None,
+) -> list[GtsfmMetricsGroup]:
+    def _build_metrics_group(scene: GtsfmData, name: str) -> GtsfmMetricsGroup:
+        metrics_group = GtsfmMetricsGroup(
+            name,
+            [
+                GtsfmMetric("num_cameras", len(scene.get_valid_camera_indices())),
+                GtsfmMetric("num_points3d", scene.number_tracks()),
+            ],
+        )
+        if cameras_gt is not None:
+            metrics_group.extend(_get_pose_metrics(scene, cameras_gt, save_dir=save_dir))
+        return metrics_group
+
+    metrics_groups = [_build_metrics_group(result, "cluster_vggt_metrics")]
+    if pre_ba_result is not None:
+        metrics_groups.append(_build_metrics_group(pre_ba_result, "cluster_vggt_pre_ba_metrics"))
+    return metrics_groups
 
 
 def _extract_post_ba_result(result: VggtReconstruction) -> GtsfmData:
@@ -310,8 +352,17 @@ class ClusterVGGT(ClusterOptimizerBase):
             cluster_label=context.label,
         )
         result_graph = delayed(_extract_post_ba_result)(reconstruction_graph)
+        pre_ba_result_graph = delayed(_extract_pre_ba_result)(reconstruction_graph)
 
-        metrics_tasks = [delayed(_aggregate_vggt_metrics)(result_graph)]
+        cameras_gt = [context.one_view_data_dict[idx].camera_gt for idx in range(context.num_images)]
+        metrics_tasks = [
+            delayed(_aggregate_vggt_metrics)(
+                result_graph,
+                cameras_gt=cameras_gt,
+                pre_ba_result=pre_ba_result_graph,
+                save_dir=str(context.output_paths.metrics),
+            )
+        ]
 
         io_tasks: list[Delayed] = []
         with self._output_annotation():
@@ -323,7 +374,7 @@ class ClusterVGGT(ClusterOptimizerBase):
             )
             io_tasks.append(
                 delayed(_save_pre_ba_reconstruction_as_text)(
-                    delayed(_extract_pre_ba_result)(reconstruction_graph),
+                    pre_ba_result_graph,
                     context.output_paths.results,
                 )
             )
