@@ -22,7 +22,7 @@ image_pairs_generator:
   batch_size: 16
 
 graph_partitioner:
-  _target_: gtsfm.graph_partitioner.Single
+  _target_: gtsfm.graph_partitioner.Metis
 
 cluster_optimizer:
   _target_: gtsfm.cluster_optimizer.Cacher
