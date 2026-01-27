@@ -39,9 +39,7 @@ _SCENE_LABEL_ATTR = "_gtsfm_cluster_label"
 def _create_unary_measurements(scene: GtsfmData) -> list[UnaryMeasurementPose3]:
     # TODO(akshay-krishnan): investigate using a scene-dependent noise model
     # perhaps * np.exp(-len(scene.get_valid_camera_indices()) / 100.0)
-    noise_model = gtsam.noiseModel.Diagonal.Sigmas(
-        np.array([1e-2, 1e-2, 1e-2, 1e-1, 1e-1, 1e-1])
-    )
+    noise_model = gtsam.noiseModel.Diagonal.Sigmas(np.array([1e-2, 1e-2, 1e-2, 1e-1, 1e-1, 1e-1]))
     unary_measurements = []
     for i, camera in scene.get_camera_poses().items():
         if camera is None:
@@ -277,9 +275,7 @@ def _get_pose_metrics(
 
     aligned_result_data = result_data.align_via_sim3_and_transform(poses_gt)
     return metrics_utils.compute_ba_pose_metrics(
-        gt_wTi=poses_gt,
-        computed_wTi=aligned_result_data.get_camera_poses(),
-        save_dir=save_dir,
+        gt_wTi=poses_gt, computed_wTi=aligned_result_data.get_camera_poses(), save_dir=save_dir, store_full_data=True
     )
 
 
@@ -386,6 +382,8 @@ def _drop_outlier_tracks(scene: GtsfmData) -> GtsfmData:
     Returns:
         The scene with outlier tracks dropped.
     """
+    if scene.number_tracks() == 0:
+        return scene
     track_errors: list[float] = []
     tracks = scene.tracks()
     cameras = scene.cameras()
@@ -538,10 +536,12 @@ def combine_results(
 
     _propagate_scene_metadata(merged, metadata_source)
 
-    if drop_outlier_after_camera_merging and merged is not None and merged.number_tracks() > 0:
-        merged = _drop_outlier_tracks(merged)
+    if merged is None:
+        return _finalize_result(None)
 
     if not run_bundle_adjustment_on_parent:
+        if drop_outlier_after_camera_merging:
+            merged = _drop_outlier_tracks(merged)
         return _finalize_result(merged)
 
     # Log cameras that have no supporting track measurements before running BA.
@@ -560,6 +560,14 @@ def combine_results(
             "merged result (with ba)",
             plot_histograms=plot_reprojection_histograms,
         )
+        if drop_outlier_after_camera_merging:
+            merged_with_ba = _drop_outlier_tracks(merged_with_ba)
+            _log_scene_reprojection_stats(
+                merged_with_ba,
+                "merged result (with ba + outlier filtering)",
+                plot_histograms=plot_reprojection_histograms,
+            )
+
         # TODO: the order here is different from the merging order above, we should fix this.
         if merged.has_gaussian_splats():
             logger.info("🫱🏻‍🫲🏽 Merging Gaussians")
