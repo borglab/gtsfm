@@ -47,3 +47,5 @@ cluster_optimizer:
     run_bundle_adjustment_on_leaf: false
     run_bundle_adjustment_on_parent: false
     model_cache_key: null
+
+# use_nonlinear_sim3_alignment: false
