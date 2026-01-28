@@ -176,20 +176,22 @@ def _build_pose_lists(
 
 def _compute_pose_metrics(baseline_list: List[Pose3], current_aligned_list: List[Pose3]) -> GtsfmMetricsGroup:
     """Compute the same pose metrics as compare_colmap_outputs, without plotting."""
-    i2Ri1_dict_gt, i2Ui1_dict_gt = metric_utils.get_all_relative_rotations_translations(baseline_list)
-    wRi_aligned_list, wti_aligned_list = metric_utils.get_rotations_translations_from_poses(current_aligned_list)
-    baseline_wRi_list, baseline_wti_list = metric_utils.get_rotations_translations_from_poses(baseline_list)
+    baseline_dict = {i: pose for i, pose in enumerate(baseline_list)}
+    current_dict = {i: pose for i, pose in enumerate(current_aligned_list)}
+    i2Ri1_dict_gt, i2Ui1_dict_gt = metric_utils.get_all_relative_rotations_translations(baseline_dict)
+    wRi_aligned_dict, wti_aligned_dict = metric_utils.get_rotations_translations_from_poses(current_dict)
+    baseline_wRi_dict, baseline_wti_dict = metric_utils.get_rotations_translations_from_poses(baseline_dict)
 
     metrics = []
-    metrics.append(metric_utils.compute_rotation_angle_metric(wRi_aligned_list, baseline_wRi_list))
-    metrics.append(metric_utils.compute_translation_distance_metric(wti_aligned_list, baseline_wti_list))
-    metrics.append(metric_utils.compute_translation_angle_metric(baseline_list, current_aligned_list))
+    metrics.append(metric_utils.compute_rotation_angle_metric(wRi_aligned_dict, baseline_wRi_dict))
+    metrics.append(metric_utils.compute_translation_distance_metric(wti_aligned_dict, baseline_wti_dict))
+    metrics.append(metric_utils.compute_translation_angle_metric(baseline_dict, current_dict))
     relative_rotation_error_metric = metric_utils.compute_relative_rotation_angle_metric(
-        i2Ri1_dict_gt, current_aligned_list, store_full_data=True
+        i2Ri1_dict_gt, current_dict, store_full_data=True
     )
     metrics.append(relative_rotation_error_metric)
     relative_translation_error_metric = metric_utils.compute_relative_translation_angle_metric(
-        i2Ui1_dict_gt, current_aligned_list, store_full_data=True
+        i2Ui1_dict_gt, current_dict, store_full_data=True
     )
     metrics.append(relative_translation_error_metric)
     thresholds_deg = (1.0, 2.5, 5.0, 10.0, 20.0)
@@ -895,4 +897,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
