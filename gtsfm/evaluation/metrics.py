@@ -208,7 +208,7 @@ class GtsfmMetric:
             The metric as a dict representation explained above.
         """
         if self._dim == 0:
-            return {self._name: self._data.tolist()}
+            return {self._name: round(self._data.tolist(), 4)}
         metric_dict = {SUMMARY_KEY: self.summary}
         if self._data is not None:
             metric_dict[FULL_DATA_KEY] = self._data.tolist()

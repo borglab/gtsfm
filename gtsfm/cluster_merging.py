@@ -7,9 +7,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Tuple
 
+import gtsam
 import numpy as np
 from dask.distributed import Client, Future
-from gtsam import Similarity3, Pose3
+from gtsam import Similarity3, Pose3, UnaryMeasurementPose3, TrajectoryAlignerSim3
 
 import gtsfm.utils.logger as logger_utils
 import gtsfm.common.types as gtsfm_types
@@ -33,6 +34,56 @@ logger = logger_utils.get_logger()
 
 _SCENE_PLOTS_DIR_ATTR = "_gtsfm_plots_dir"
 _SCENE_LABEL_ATTR = "_gtsfm_cluster_label"
+
+
+def _create_unary_measurements(scene: GtsfmData) -> list[UnaryMeasurementPose3]:
+    # TODO(akshay-krishnan): investigate using a scene-dependent noise model
+    # perhaps * np.exp(-len(scene.get_valid_camera_indices()) / 100.0)
+    noise_model = gtsam.noiseModel.Diagonal.Sigmas(np.array([1e-2, 1e-2, 1e-2, 1e-1, 1e-1, 1e-1]))
+    unary_measurements = []
+    for i, camera in scene.get_camera_poses().items():
+        if camera is None:
+            continue
+        unary_measurement = UnaryMeasurementPose3(i, camera, noise_model)
+        unary_measurements.append(unary_measurement)
+    return unary_measurements
+
+
+def merge_scenes_with_sim3_nonlinear(parent_scene: GtsfmData, children_scenes: list[GtsfmData]) -> GtsfmData:
+    if len(children_scenes) == 0:
+        return parent_scene
+
+    aTi_measurements = _create_unary_measurements(parent_scene)
+    parent_camera_ids = set(parent_scene.get_valid_camera_indices())
+    valid_child_scenes = []
+
+    for i, child_scene in enumerate(children_scenes):
+        child_camera_ids = set(child_scene.get_valid_camera_indices())
+        common_camera_ids = parent_camera_ids & child_camera_ids
+        if len(common_camera_ids) == 0:
+            logger.warning("Child scene %d has insufficient overlap with parent, skipping", i)
+            continue
+        valid_child_scenes.append(child_scene)
+
+    if len(valid_child_scenes) == 0:
+        return parent_scene
+
+    aTi_measurements = _create_unary_measurements(parent_scene)
+    bTi_measurements = [_create_unary_measurements(child_scene) for child_scene in valid_child_scenes]
+    aligner = TrajectoryAlignerSim3(aTi_measurements, bTi_measurements)
+    result = aligner.solve()
+
+    opt_aTi = {i: result.atPose3(i) for i in parent_scene.get_valid_camera_indices() if i in result.keys()}
+
+    merged = parent_scene
+    for i, aTi in opt_aTi.items():
+        merged.update_camera_pose(i, aTi)
+
+    for i, child_scene in enumerate(valid_child_scenes):
+        opt_bSa = result.atSimilarity3(gtsam.Symbol("S", i).key())
+        opt_aSb = opt_bSa.inverse()
+        merged = merged.merged_with(child_scene, opt_aSb)  # type: ignore
+    return merged
 
 
 @dataclass(frozen=True)
@@ -224,9 +275,7 @@ def _get_pose_metrics(
 
     aligned_result_data = result_data.align_via_sim3_and_transform(poses_gt)
     return metrics_utils.compute_ba_pose_metrics(
-        gt_wTi=poses_gt,
-        computed_wTi=aligned_result_data.get_camera_poses(),
-        save_dir=save_dir,
+        gt_wTi=poses_gt, computed_wTi=aligned_result_data.get_camera_poses(), save_dir=save_dir, store_full_data=True
     )
 
 
@@ -333,6 +382,8 @@ def _drop_outlier_tracks(scene: GtsfmData) -> GtsfmData:
     Returns:
         The scene with outlier tracks dropped.
     """
+    if scene.number_tracks() == 0:
+        return scene
     track_errors: list[float] = []
     tracks = scene.tracks()
     cameras = scene.cameras()
@@ -406,6 +457,7 @@ def combine_results(
     drop_camera_with_no_track: bool = True,
     drop_child_if_merging_fail: bool = True,
     store_full_data: bool = False,
+    use_nonlinear_sim3_alignment: bool = False,
 ) -> MergedNodeResult:
     """Run the merging and parent BA pipeline using already-transformed children.
 
@@ -469,17 +521,27 @@ def combine_results(
     merged = current
     _log_scene_reprojection_stats(merged, "Current node", plot_histograms=plot_reprojection_histograms)
 
-    # Merge all children into the merged scene.
-    for i, child in enumerate(valid_child_scenes):
-        merged = _align_and_merge_results(merged, child, drop_if_merging_fails=drop_child_if_merging_fail)
-        _log_scene_reprojection_stats(merged, f"Merged with child #{i+1}", plot_histograms=plot_reprojection_histograms)
+    if use_nonlinear_sim3_alignment:
+        merged = merge_scenes_with_sim3_nonlinear(merged, valid_child_scenes)
+        _log_scene_reprojection_stats(
+            merged, "Merged with children (nonlinear alignment)", plot_histograms=plot_reprojection_histograms
+        )
+    else:
+        # Merge all children into the merged scene.
+        for i, child in enumerate(valid_child_scenes):
+            merged = _align_and_merge_results(merged, child, drop_if_merging_fails=drop_child_if_merging_fail)
+            _log_scene_reprojection_stats(
+                merged, f"Merged with child #{i+1}", plot_histograms=plot_reprojection_histograms
+            )
 
     _propagate_scene_metadata(merged, metadata_source)
 
-    if drop_outlier_after_camera_merging and merged is not None and merged.number_tracks() > 0:
-        merged = _drop_outlier_tracks(merged)
+    if merged is None:
+        return _finalize_result(None)
 
     if not run_bundle_adjustment_on_parent:
+        if drop_outlier_after_camera_merging:
+            merged = _drop_outlier_tracks(merged)
         return _finalize_result(merged)
 
     # Log cameras that have no supporting track measurements before running BA.
@@ -498,6 +560,14 @@ def combine_results(
             "merged result (with ba)",
             plot_histograms=plot_reprojection_histograms,
         )
+        if drop_outlier_after_camera_merging:
+            merged_with_ba = _drop_outlier_tracks(merged_with_ba)
+            _log_scene_reprojection_stats(
+                merged_with_ba,
+                "merged result (with ba + outlier filtering)",
+                plot_histograms=plot_reprojection_histograms,
+            )
+
         # TODO: the order here is different from the merging order above, we should fix this.
         if merged.has_gaussian_splats():
             logger.info("🫱🏻‍🫲🏽 Merging Gaussians")
