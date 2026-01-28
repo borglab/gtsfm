@@ -145,6 +145,7 @@ class VggtConfiguration:
     model_ctor_kwargs: dict[str, Any] = field(default_factory=dict)
     use_sparse_attention: bool = False
     run_bundle_adjustment_on_leaf: bool = False
+    store_pre_ba_result: bool = False
 
     # Tracking-specific parameters:
     tracking: bool = True
@@ -175,7 +176,8 @@ class VggtReconstruction:
     """Outputs from the VGGT reconstruction helper.
 
     Attributes:
-        gtsfm_data: Sparse scene estimate including cameras and tracks in original image coordinates.
+        gtsfm_data: Sparse scene estimate (post-BA if enabled) in original image coordinates.
+        pre_ba_data: Optional sparse scene estimate before bundle adjustment (debug-only).
         points_3d: Dense point cloud filtered by VGGT confidence scores.
         points_rgb: Per-point RGB colors aligned with ``points_3d``.
         tracking_result: Optional dense tracking payload in the square VGGT coordinate frame.
@@ -184,6 +186,7 @@ class VggtReconstruction:
     gtsfm_data: GtsfmData
     points_3d: np.ndarray
     points_rgb: np.ndarray
+    pre_ba_data: GtsfmData | None = None
     tracking_result: "VGGTTrackingResult | None" = None
 
     def visualize_tracks(
@@ -310,7 +313,8 @@ def _high_confidence_pointcloud(config: VggtConfiguration, vggt_output: VggtOutp
     points_rgb = (vggt_output.images.to(torch.float32).cpu().numpy().transpose(0, 2, 3, 1) * 255).astype(np.uint8)
 
     depth_conf_np = vggt_output.depth_confidence.to(torch.float32).cpu().numpy()
-    conf_mask = depth_conf_np >= config.confidence_threshold
+    conf_threshold = min(config.confidence_threshold, depth_conf_np.mean() - depth_conf_np.std())
+    conf_mask = depth_conf_np >= conf_threshold
     conf_mask = randomly_limit_trues(conf_mask, config.max_num_points)  # limit number of points if asked
     return points_3d[conf_mask], points_rgb[conf_mask]
 
@@ -338,7 +342,7 @@ def _convert_vggt_outputs_to_gtsfm_data(
     points_3d: np.ndarray,
     points_rgb: np.ndarray,
     tracking_result: VGGTTrackingResult | None = None,
-) -> GtsfmData:
+) -> tuple[GtsfmData, GtsfmData | None]:
     """Convert raw VGGT predictions into ``GtsfmData``."""
 
     extrinsic_np = vggt_output.extrinsic.to(torch.float32).cpu().numpy()
@@ -369,6 +373,19 @@ def _convert_vggt_outputs_to_gtsfm_data(
 
     if tracking_result:
 
+        # track masks according to visibility, reprojection error, etc
+        track_mask = tracking_result.visibilities > config.track_vis_thresh
+        inlier_num = track_mask.sum(0)
+
+        valid_mask = inlier_num >= 2  # a track is invalid if without two inliers
+        confidence_threshold = config.confidence_threshold
+        confidence_threshold = min(
+            confidence_threshold, np.mean(tracking_result.confidences) + np.std(tracking_result.confidences)
+        )
+        if tracking_result.confidences is not None:
+            valid_mask = np.logical_and(valid_mask, tracking_result.confidences > confidence_threshold)
+        valid_idx = np.nonzero(valid_mask)[0]
+
         max_reproj_error = float(config.max_reproj_error)
         track_mask = tracking_result.visibilities > config.track_vis_thresh
         if tracking_result.confidences is not None:
@@ -378,10 +395,7 @@ def _convert_vggt_outputs_to_gtsfm_data(
             tracking_result.points_3d is not None and np.isfinite(max_reproj_error) and max_reproj_error > 0.0
         )
 
-        inlier_num = track_mask.sum(0)
-        min_measurements = 2
-        valid_mask = inlier_num >= min_measurements  # a track is invalid if without two inliers
-        valid_idx = np.nonzero(valid_mask)[0]
+        logger.info("num points 3d: %d, num valid idx: %d", tracking_result.points_3d.shape[0], len(valid_idx))
 
         for valid_id in valid_idx:
             rgb: np.ndarray
@@ -412,31 +426,32 @@ def _convert_vggt_outputs_to_gtsfm_data(
                     max_error_for_track = max(max_error_for_track, reproj_err)
                 per_track_measurements.append((global_idx, float_u, float_v))
 
-            if len(per_track_measurements) < min_measurements:
-                continue
-            if enforce_reproj_filter and max_error_for_track > max_reproj_error:
-                continue
+            # if len(per_track_measurements) < min_measurements:
+            #     continue
 
             track = torch_utils.colored_track_from_point(point_xyz, rgb)
             for global_idx, float_u, float_v in per_track_measurements:
                 track.addMeasurement(global_idx, Point2(float_u, float_v))
             gtsfm_data.add_track(track)
 
+    gtsfm_data_pre_ba: GtsfmData | None = None
     if config.run_bundle_adjustment_on_leaf:
+        if config.store_pre_ba_result:
+            gtsfm_data_pre_ba = gtsfm_data
         if gtsfm_data.number_tracks() == 0:
             logger.warning("Skipping bundle adjustment because VGGT produced no valid tracks.")
         else:
             try:
                 gtsfm_data, should_run_ba = data_utils.remove_cameras_with_no_tracks(gtsfm_data, "node-level BA")
                 if not should_run_ba:
-                    return gtsfm_data
-                optimizer = BundleAdjustmentOptimizer()
+                    return gtsfm_data, gtsfm_data_pre_ba
+                optimizer = BundleAdjustmentOptimizer(robust_measurement_noise=False, calibration_prior_noise_sigma=10)
                 gtsfm_data_with_ba, _ = optimizer.run_simple_ba(gtsfm_data, verbose=False)
-                return gtsfm_data_with_ba
+                return gtsfm_data_with_ba, gtsfm_data_pre_ba
             except Exception as exc:
                 logger.warning("⚠️ Failed to run bundle adjustment: %s", exc)
 
-    return gtsfm_data
+    return gtsfm_data, gtsfm_data_pre_ba
 
 
 def _offload_vggt_model(model: Optional[VGGT]) -> None:
@@ -799,7 +814,7 @@ def run_reconstruction(
 
     points_3d, points_rgb = _high_confidence_pointcloud(cfg, vggt_output)
 
-    gtsfm_data = _convert_vggt_outputs_to_gtsfm_data(
+    gtsfm_data, gtsfm_data_pre_ba = _convert_vggt_outputs_to_gtsfm_data(
         config=cfg,
         vggt_output=vggt_output,
         original_coords=original_coords,
@@ -816,6 +831,7 @@ def run_reconstruction(
 
     return VggtReconstruction(
         gtsfm_data=gtsfm_data,
+        pre_ba_data=gtsfm_data_pre_ba,
         points_3d=points_3d,
         points_rgb=points_rgb,
         tracking_result=tracking_result,

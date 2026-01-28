@@ -1,0 +1,52 @@
+# VGGT cluster-only configuration.
+
+# @package _global_
+_target_: gtsfm.scene_optimizer.SceneOptimizer
+
+loader:
+  _target_: gtsfm.loader.Olsson
+  dataset_dir: ??? # Required: set to the dataset root on the command line.
+  images_dir: null
+  max_resolution: 760
+
+image_pairs_generator:
+  _target_: gtsfm.retriever.image_pairs_generator.ImagePairsGenerator
+  global_descriptor:
+    _target_: gtsfm.frontend.cacher.global_descriptor_cacher.GlobalDescriptorCacher
+    global_descriptor_obj:
+      _target_: gtsfm.frontend.global_descriptor.MegaLoc
+  retriever:
+    _target_: gtsfm.retriever.Similarity
+    num_matched: 15
+    min_score: 0.4
+  batch_size: 16
+
+graph_partitioner:
+  _target_: gtsfm.graph_partitioner.Metis
+
+cluster_optimizer:
+  _target_: gtsfm.cluster_optimizer.Cacher
+  optimizer:
+    _target_: gtsfm.cluster_optimizer.cluster_vggt.ClusterVGGT
+    weights_path: null
+    image_load_resolution: 1024
+    inference_resolution: 518
+    conf_threshold: 5.0
+    max_num_points: 100000
+    tracking: true
+    tracking_max_query_pts: 512
+    tracking_query_frame_num: 3
+    tracking_fine_tracking: false
+    track_vis_thresh: 0.2
+    camera_type: PINHOLE
+    drop_outlier_after_camera_merging: false
+    drop_child_if_merging_fail: true
+    drop_camera_with_no_track: true
+    seed: 42
+    plot_reprojection_histograms: true
+    run_bundle_adjustment_on_leaf: false
+    run_bundle_adjustment_on_parent: true
+    model_cache_key: null
+    # store_pre_ba_result: true
+
+use_nonlinear_sim3_alignment: false

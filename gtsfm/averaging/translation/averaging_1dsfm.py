@@ -51,7 +51,7 @@ from gtsfm.utils import align, transform
 MAX_PROJECTION_DIRECTIONS = 2000
 OUTLIER_WEIGHT_THRESHOLD = 0.125
 
-NOISE_MODEL_DIMENSION = 3  # chordal distances on Unit3
+NOISE_MODEL_DIMENSION = 2  # chordal distances on Unit3
 NOISE_MODEL_SIGMA = 0.01
 HUBER_LOSS_K = 1.3  # default value from GTSAM
 
@@ -73,7 +73,7 @@ C = symbol_shorthand.A  # for camera translation variables
 L = symbol_shorthand.B  # for track (landmark) translation variables
 
 RelativeDirectionsDict = AnnotatedGraph[Unit3]
-DUMMY_NOISE_MODEL = gtsam.noiseModel.Isotropic.Sigma(3, 1e-2)  # MFAS does not use this.
+DUMMY_NOISE_MODEL = gtsam.noiseModel.Isotropic.Sigma(2, 1e-2)  # MFAS does not use this.
 
 
 class TranslationAveraging1DSFM(TranslationAveragingBase):
@@ -465,9 +465,9 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         )
 
         noise_model = gtsam.noiseModel.Isotropic.Sigma(NOISE_MODEL_DIMENSION, NOISE_MODEL_SIGMA)
-        if self._robust_measurement_noise:
-            huber_loss = gtsam.noiseModel.mEstimator.Huber.Create(HUBER_LOSS_K)
-            noise_model = gtsam.noiseModel.Robust.Create(huber_loss, noise_model)
+        # if self._robust_measurement_noise:
+        #     huber_loss = gtsam.noiseModel.mEstimator.Huber.Create(HUBER_LOSS_K)
+        #     noise_model = gtsam.noiseModel.Robust.Create(huber_loss, noise_model)
 
         w_i1Ui2_measurements = self._binary_measurements_from_dict(w_i2Ui1_dict, w_i2Ui1_dict_tracks, noise_model)
 

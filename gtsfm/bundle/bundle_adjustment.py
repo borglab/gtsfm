@@ -248,12 +248,18 @@ class BundleAdjustmentOptimizer:
         first_camera = initial_data.get_camera(cameras_to_model[0])
         assert first_camera is not None, "First camera in initial data is None"
         graph.push_back(
-            PriorFactorPose3(
+            gtsam.NonlinearEqualityPose3(
                 X(cameras_to_model[0]),
                 first_camera.pose(),
-                Isotropic.Sigma(CAM_POSE3_DOF, self._cam_pose3_prior_noise_sigma),
             )
         )
+        # graph.push_back(
+        #     PriorFactorPose3(
+        #         X(cameras_to_model[0]),
+        #         first_camera.pose(),
+        #         Isotropic.Sigma(CAM_POSE3_DOF, self._cam_pose3_prior_noise_sigma),
+        #     )
+        # )
 
         # Add prior factor on the position of the first landmark to fix the scale.
         if initial_data.number_tracks() > 0:
