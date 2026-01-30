@@ -1,11 +1,10 @@
 import math
 import os
+import time
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import numpy as np
-import torch
-import time
 
 # Attempt to import faiss; handle cases where it might not be installed if strict deps aren't enforced
 try:
@@ -24,7 +23,6 @@ class FaissRetriever(RetrieverBase):
         self,
         num_matched: int,
         min_score: float = 0.1,
-        use_gpu: bool = True,
         index_type: str = "flat",
         nlist: Optional[int] = None,
         nprobe: Optional[int] = None,
@@ -44,7 +42,6 @@ class FaissRetriever(RetrieverBase):
         Args:
             num_matched: Number of K potential matches to provide per query.
             min_score: Minimum allowed similarity score to accept a match.
-            use_gpu: Whether to use GPU for FAISS index if available.
             index_type: FAISS index type: "flat", "ivf_flat", or "hnsw".
             nlist: IVF cluster count. If None, choose based on dataset size.
             nprobe: IVF probes per query. If None, choose based on nlist.
@@ -72,20 +69,7 @@ class FaissRetriever(RetrieverBase):
         self._oversample_factor = max(1.0, oversample_factor)
 
         self._validate_index_type()
-
-        # Check if GPU is actually requested and available
-        faiss_gpu_available = self._faiss_gpu_available()
-        self._use_gpu = use_gpu and torch.cuda.is_available() and faiss_gpu_available
-        if use_gpu and not torch.cuda.is_available():
-            logger.warning("GPU requested for FaissRetriever but CUDA is not available. Falling back to CPU.")
-        elif use_gpu and not faiss_gpu_available:
-            logger.warning("GPU requested for FaissRetriever but FAISS GPU is not available. Falling back to CPU.")
-
-        if self._index_type == "hnsw" and self._use_gpu:
-            logger.warning("HNSW index is CPU-only in FAISS. Falling back to CPU.")
-            self._use_gpu = False
-
-        self._gpu_resources = None
+        self._latest_query_results: Optional[List[List[Tuple[int, float]]]] = None
 
     def __repr__(self) -> str:
         return f"""
@@ -99,7 +83,6 @@ class FaissRetriever(RetrieverBase):
             HNSW efSearch: {self._hnsw_ef_search}
             HNSW efConstruction: {self._hnsw_ef_construction}
             Oversample factor: {self._oversample_factor}
-            Backend: {"GPU" if self._use_gpu else "CPU"}
         """
 
     def set_num_matched(self, n: int) -> None:
@@ -140,10 +123,12 @@ class FaissRetriever(RetrieverBase):
         dim = descriptors.shape[1]
 
         # 2. Build Index
+        start_time = time.time()
         index = self._build_index(descriptors)
+        total_time = time.time() - start_time
 
         index.add(descriptors)
-        logger.info("Built FAISS index for %d images (Dimension: %d)", num_images, dim)
+        logger.info("Built FAISS index for %d images (Dimension: %d) in %0.4f seconds", num_images, dim, total_time)
 
         # 3. Perform Search
         # We query (K * oversample_factor + 1) to recover upper-triangular neighbors.
@@ -154,7 +139,8 @@ class FaissRetriever(RetrieverBase):
 
         # 4. Filter and Format Pairs
         start_time = time.time()
-        pairs = self._filter_results(scores, indices, num_images)
+        pairs, per_query_results = self._filter_results(scores, indices, num_images)
+        self._latest_query_results = per_query_results
         total_time = time.time() - start_time
         logger.info("Total %0.5f Time to compute similarity matrix", total_time)
         
@@ -166,8 +152,10 @@ class FaissRetriever(RetrieverBase):
 
         return pairs
 
-    def _filter_results(self, scores: np.ndarray, indices: np.ndarray, num_images: int) -> VisibilityGraph:
-        """Filter raw FAISS results into unique, valid pairs.
+    def _filter_results(
+        self, scores: np.ndarray, indices: np.ndarray, num_images: int
+    ) -> tuple[VisibilityGraph, List[List[Tuple[int, float]]]]:
+        """Filter raw FAISS results into unique, valid pairs and per-query ranked matches.
         
         Criteria:
         1. Remove self-matches (i == j).
@@ -183,11 +171,13 @@ class FaissRetriever(RetrieverBase):
             scores = np.array(scores)
             indices = np.array(indices)
 
-        pairs = []
+        pairs: List[Tuple[int, int]] = []
+        per_query_results: List[List[Tuple[int, float]]] = []
 
         # Iterate through queries
         for i in range(num_images):
             row_pairs = 0
+            query_matches: List[Tuple[int, float]] = []
             for k in range(scores.shape[1]):
                 j = int(indices[i, k])
                 score = float(scores[i, k])
@@ -207,11 +197,13 @@ class FaissRetriever(RetrieverBase):
                     break
 
                 pairs.append((i, j))
+                query_matches.append((j, score))
                 row_pairs += 1
                 if row_pairs >= self._num_matched:
                     break
-        
-        return sorted(pairs)
+            per_query_results.append(query_matches)
+
+        return pairs, per_query_results
 
     def save_diagnostics(
         self, 
@@ -242,15 +234,20 @@ class FaissRetriever(RetrieverBase):
         
         logger.info("Saved retrieval diagnostics to %s", named_pairs_path)
 
-    def _faiss_gpu_available(self) -> bool:
-        if not hasattr(faiss, "StandardGpuResources"):
-            return False
-        if hasattr(faiss, "get_num_gpus"):
-            try:
-                return faiss.get_num_gpus() > 0
-            except Exception:
-                return False
-        return True
+        if self._latest_query_results is None:
+            logger.warning("No cached FAISS query results available to save scores.")
+            return
+
+        ranked_pairs_path = plots_output_dir / "faiss_named_pairs.txt"
+        with open(ranked_pairs_path, "w") as f:
+            f.write("# Format: score name_i name_j\n")
+            for i, matches in enumerate(self._latest_query_results):
+                name_i = image_fnames[i]
+                for j, score in matches:
+                    name_j = image_fnames[j]
+                    f.write(f"{score:.4f} {name_i} {name_j}\n")
+        logger.info("Saved ranked retrieval diagnostics to %s", ranked_pairs_path)
+        self._latest_query_results = None
 
     def _normalize_index_type(self, index_type: str) -> str:
         normalized = index_type.strip().lower()
@@ -301,12 +298,6 @@ class FaissRetriever(RetrieverBase):
             )
         else:
             raise ValueError(f"Unsupported FAISS index_type: {self._index_type}")
-
-        if self._use_gpu:
-            self._gpu_resources = faiss.StandardGpuResources()
-            index = faiss.index_cpu_to_gpu(self._gpu_resources, 0, index)
-            if self._index_type == "ivf_flat":
-                index.nprobe = self._resolve_nprobe(self._resolve_nlist(num_images))
 
         return index
 
