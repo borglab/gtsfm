@@ -5,13 +5,13 @@
 
 # Detect if uv is available, use it; otherwise fall back to python
 if command -v uv &> /dev/null; then
-  PYTHON_CMD="uv run python"
+  PYTHON_CMD=(uv run python)  
 else
-  PYTHON_CMD="python"
+  PYTHON_CMD=(python)
 fi
 
 if [ "$#" -eq 0 ]; then
-  exec $PYTHON_CMD gtsfm/runner.py --help
+  exec "${PYTHON_CMD[@]}" gtsfm/runner.py --help
 else
-  exec $PYTHON_CMD gtsfm/runner.py "$@"
+  exec "${PYTHON_CMD[@]}" gtsfm/runner.py "$@"
 fi
