@@ -57,7 +57,7 @@ dependencies:
       - pydegensac
       - colour
       - trimesh[easy]
-      - gtsam==4.3a0
+      - gtsam-develop
       - pydot
       # dust3r/mast3r
       - roma
