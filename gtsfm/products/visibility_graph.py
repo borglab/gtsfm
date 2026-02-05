@@ -36,3 +36,16 @@ def visibility_graph_keys(edges: Iterable[ImageIndexPair]) -> FrozenSet[int]:
 def filter_annotations_by_edges(edges: Iterable[ImageIndexPair], annotations: AnnotatedGraph[T]) -> AnnotatedGraph[T]:
     """Restrict `annotations` to entries keyed by `edges`."""
     return {edge: annotations[edge] for edge in edges if edge in annotations}
+
+
+def prune_edges(graph: VisibilityGraph, bad_edges: set[ImageIndexPair]) -> VisibilityGraph:
+    """Remove bad edges from a visibility graph.
+
+    Args:
+        graph: The original visibility graph.
+        bad_edges: Set of edges to remove.
+
+    Returns:
+        New visibility graph with bad edges removed.
+    """
+    return [edge for edge in graph if edge not in bad_edges]

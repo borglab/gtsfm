@@ -23,9 +23,11 @@ from gtsfm.evaluation.retrieval_metrics import save_retrieval_two_view_metrics
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.graph_partitioner.single_partitioner import SinglePartitioner
 from gtsfm.loader.loader_base import LoaderBase
+from gtsfm.products.edge_quality import EdgeQualityGraph
 from gtsfm.products.visibility_graph import VisibilityGraph
 from gtsfm.retriever.image_pairs_generator import ImagePairsGenerator
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
+from gtsfm.utils.edge_quality import aggregate_edge_quality, export_edge_quality_to_json, identify_bad_edges
 from gtsfm.utils.tree import PreOrderIter
 from gtsfm.utils.tree_dask import submit_tree_map_with_children
 
@@ -51,6 +53,7 @@ class ClusterExecutionHandles:
     cluster_path: tuple[int, ...]
     label: str
     edge_count: int
+    edge_quality: Optional[Future] = None  # Optional[EdgeQualityGraph]
 
 
 def _identity(value: T) -> T:
@@ -64,6 +67,7 @@ def _empty_cluster_handles(context: ClusterContext, edge_count: int) -> ClusterE
     reconstruction: Future = client.submit(_identity, None, pure=False)
     metrics: Future = client.submit(_identity, [], pure=False)
     io_barrier: Future = client.submit(_identity, None, pure=False)
+    edge_quality: Future = client.submit(_identity, {}, pure=False)
     return ClusterExecutionHandles(
         reconstruction=reconstruction,
         metrics=metrics,
@@ -72,6 +76,7 @@ def _empty_cluster_handles(context: ClusterContext, edge_count: int) -> ClusterE
         cluster_path=context.cluster_path,
         label=context.label,
         edge_count=edge_count,
+        edge_quality=edge_quality,
     )
 
 
@@ -169,6 +174,11 @@ class SceneOptimizer:
         metrics_future: Future = context.client.compute(metrics_graph)  # type: ignore
         reconstruction_future: Future = context.client.compute(annotated_reconstruction)  # type: ignore
 
+        # Compute edge quality if available
+        edge_quality_future: Optional[Future] = None
+        if computation.edge_quality is not None:
+            edge_quality_future = context.client.compute(computation.edge_quality)  # type: ignore
+
         return ClusterExecutionHandles(
             reconstruction=reconstruction_future,
             metrics=metrics_future,
@@ -177,6 +187,7 @@ class SceneOptimizer:
             cluster_path=context.cluster_path,
             label=context.label,
             edge_count=len(context.visibility_graph),
+            edge_quality=edge_quality_future,
         )
 
     def run(self, client: Client) -> None:
@@ -230,6 +241,11 @@ class SceneOptimizer:
                 # Runs reconstruction on each node of the VisibilityGraph (with context) tree.
                 # Returns handles to various outputs: reconstruction, metrics, io_barrier etc.
                 handles_tree = context_tree.map(self._schedule_single_cluster)
+
+                # Collect and evaluate edge quality from all clusters BEFORE fold
+                all_edge_quality = self._collect_and_evaluate_edge_quality(
+                    handles_tree, base_output_paths, visibility_graph
+                )
 
                 # Get the reconstruction handle and run merging to get a tree of merged result handles. 
                 reconstruction_tree = handles_tree.map(lambda handle: handle.reconstruction)
@@ -302,6 +318,75 @@ class SceneOptimizer:
         base_metrics_groups.append(total_summary_metrics)
 
         save_metrics_reports(base_metrics_groups, str(base_output_paths.metrics))
+
+    def _collect_and_evaluate_edge_quality(
+        self,
+        handles_tree,
+        base_output_paths: OutputPaths,
+        visibility_graph: VisibilityGraph,
+    ) -> EdgeQualityGraph:
+        """Collect edge quality from all clusters and evaluate for bad edges.
+
+        This is called AFTER the map step (cluster reconstructions) but BEFORE
+        the fold step (merging). If bad edges are found, they are logged and
+        exported for analysis.
+
+        Args:
+            handles_tree: Tree of ClusterExecutionHandles from cluster optimizations.
+            base_output_paths: Output paths for saving edge quality report.
+            visibility_graph: Original visibility graph for reference.
+
+        Returns:
+            Aggregated EdgeQualityGraph from all clusters.
+        """
+        logger.info("🔍 Collecting edge quality from cluster reconstructions...")
+
+        # Collect edge quality from all cluster handles
+        cluster_edge_qualities: list[EdgeQualityGraph] = []
+        for handle_node in PreOrderIter(handles_tree):
+            handle = handle_node.value
+            if handle.edge_quality is not None:
+                try:
+                    edge_quality_result = handle.edge_quality.result()
+                    if edge_quality_result:
+                        cluster_edge_qualities.append(edge_quality_result)
+                        logger.debug(
+                            "Collected %d edge quality scores from cluster %s",
+                            len(edge_quality_result),
+                            handle.label,
+                        )
+                except Exception as exc:
+                    logger.warning("Failed to collect edge quality from cluster %s: %s", handle.label, exc)
+
+        if not cluster_edge_qualities:
+            logger.warning("No edge quality data collected from any cluster.")
+            return {}
+
+        # Aggregate edge quality (handles edges appearing in multiple clusters)
+        all_edge_quality = aggregate_edge_quality(cluster_edge_qualities)
+        logger.info("Aggregated edge quality for %d edges.", len(all_edge_quality))
+
+        # Identify bad edges
+        bad_edges = identify_bad_edges(all_edge_quality)
+        if bad_edges:
+            logger.warning(
+                "⚠️ Identified %d bad edges out of %d total (%.1f%%).",
+                len(bad_edges),
+                len(all_edge_quality),
+                100.0 * len(bad_edges) / len(all_edge_quality) if all_edge_quality else 0,
+            )
+        else:
+            logger.info("✅ All %d edges passed quality thresholds.", len(all_edge_quality))
+
+        # Export edge quality report for debugging
+        try:
+            export_path = Path(base_output_paths.results) / "edge_quality_report.json"
+            export_edge_quality_to_json(all_edge_quality, bad_edges, export_path)
+            logger.info("Edge quality report saved to %s", export_path)
+        except Exception as exc:
+            logger.warning("Failed to export edge quality report: %s", exc)
+
+        return all_edge_quality
 
     def _run_retriever(self, client: Client, output_paths: OutputPaths) -> tuple[GtsfmMetricsGroup, VisibilityGraph]:
         # TODO(Frank): refactor to move more of this logic into ImagePairsGenerator

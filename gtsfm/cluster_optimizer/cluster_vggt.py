@@ -14,9 +14,11 @@ import gtsfm.frontend.vggt as vggt
 from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterComputationGraph, ClusterContext, ClusterOptimizerBase
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
-from gtsfm.frontend.vggt import VggtConfiguration
-from gtsfm.products.visibility_graph import visibility_graph_keys
+from gtsfm.frontend.vggt import VggtConfiguration, VggtReconstruction
+from gtsfm.products.edge_quality import EdgeQualityGraph
+from gtsfm.products.visibility_graph import VisibilityGraph, visibility_graph_keys
 from gtsfm.ui.gtsfm_process import UiMetadata
+from gtsfm.utils.edge_quality import compute_edge_quality
 from gtsfm.utils.logger import get_logger
 
 logger = get_logger()
@@ -95,16 +97,93 @@ def _save_reconstruction_as_text(
     result.export_as_colmap_text(target_dir)
 
 
-def _aggregate_vggt_metrics(result: GtsfmData) -> GtsfmMetricsGroup:
-    num_cameras = len(result.get_valid_camera_indices())
-    num_points3d = result.number_tracks()
-    return GtsfmMetricsGroup(
-        "vggt_runtime_metrics",
-        [
-            GtsfmMetric("num_cameras", num_cameras),
-            GtsfmMetric("num_points3d", num_points3d),
-        ],
+def _save_pre_ba_reconstruction_as_text(
+    pre_ba_result: Optional[GtsfmData],
+    results_path: Path,
+) -> None:
+    if pre_ba_result is None:
+        return
+    _save_reconstruction_as_text(pre_ba_result, results_path, subdir="vggt_pre_ba")
+
+
+def _get_pose_metrics(
+    result_data: GtsfmData,
+    cameras_gt: list[Optional[gtsfm_types.CAMERA_TYPE]],
+    save_dir: Optional[str] = None,
+) -> GtsfmMetricsGroup:
+    """Compute pose metrics for a VGGT result after aligning with ground truth."""
+    image_idxs = list(result_data._image_info.keys())
+    poses_gt: dict[int, Pose3] = {}
+    for i in image_idxs:
+        if i >= len(cameras_gt):
+            continue
+        camera = cameras_gt[i]
+        if camera is not None:
+            poses_gt[i] = camera.pose()
+    if len(poses_gt) == 0:
+        return GtsfmMetricsGroup(name="ba_pose_error_metrics", metrics=[])
+    aligned_result_data = result_data.align_via_sim3_and_transform(poses_gt)
+    computed_wTi: dict[int, Optional[Pose3]] = {i: pose for i, pose in aligned_result_data.get_camera_poses().items()}
+    return metrics_utils.compute_ba_pose_metrics(
+        gt_wTi=poses_gt,
+        computed_wTi=computed_wTi,
+        save_dir=save_dir,
+        store_full_data=True,
     )
+
+
+def _aggregate_vggt_metrics(
+    result: GtsfmData,
+    cameras_gt: Optional[list[Optional[gtsfm_types.CAMERA_TYPE]]] = None,
+    pre_ba_result: Optional[GtsfmData] = None,
+    *,
+    save_dir: Optional[str] = None,
+) -> list[GtsfmMetricsGroup]:
+    def _build_metrics_group(scene: GtsfmData, name: str) -> GtsfmMetricsGroup:
+        metrics_group = GtsfmMetricsGroup(
+            name,
+            [
+                GtsfmMetric("num_cameras", len(scene.get_valid_camera_indices())),
+                GtsfmMetric("num_points3d", scene.number_tracks()),
+            ],
+        )
+        if cameras_gt is not None:
+            metrics_group.extend(_get_pose_metrics(scene, cameras_gt, save_dir=save_dir))
+        return metrics_group
+
+    metrics_groups = [_build_metrics_group(result, "cluster_vggt_metrics")]
+    if pre_ba_result is not None:
+        metrics_groups.append(_build_metrics_group(pre_ba_result, "cluster_vggt_pre_ba_metrics"))
+    return metrics_groups
+
+
+def _extract_post_ba_result(result: VggtReconstruction) -> GtsfmData:
+    """Extract the post-BA reconstruction from the VGGT pipeline output."""
+    return result.gtsfm_data
+
+
+def _extract_pre_ba_result(result: VggtReconstruction) -> Optional[GtsfmData]:
+    """Extract the optional pre-BA reconstruction for debugging."""
+    return result.pre_ba_data
+
+
+def _compute_cluster_edge_quality(
+    gtsfm_data: GtsfmData,
+    visibility_graph: VisibilityGraph,
+) -> EdgeQualityGraph:
+    """Compute edge quality scores for all edges in the cluster.
+
+    This function is called after VGGT reconstruction completes and evaluates
+    the quality of each visibility graph edge based on the reconstructed tracks.
+
+    Args:
+        gtsfm_data: Reconstruction result with cameras and tracks.
+        visibility_graph: Edges in this cluster to evaluate.
+
+    Returns:
+        EdgeQualityGraph mapping each edge to its quality score.
+    """
+    return compute_edge_quality(gtsfm_data, visibility_graph)
 
 
 class ClusterVGGT(ClusterOptimizerBase):
@@ -195,11 +274,13 @@ class ClusterVGGT(ClusterOptimizerBase):
         if enable_protection:
             self._model_ctor_kwargs.setdefault("enable_protection", True)
 
+
         self._loader_kwargs: dict[str, Any] = {}
         if self._weights_path is not None:
             self._loader_kwargs["weights_path"] = self._weights_path
         if self._model_ctor_kwargs:
             self._loader_kwargs["model_kwargs"] = self._model_ctor_kwargs
+
 
         if model_cache_key is False:
             self._model_cache_key: Hashable | None = None
@@ -296,9 +377,22 @@ class ClusterVGGT(ClusterOptimizerBase):
                     context.output_paths.results,
                 )
             )
+            io_tasks.append(
+                delayed(_save_pre_ba_reconstruction_as_text)(
+                    pre_ba_result_graph,
+                    context.output_paths.results,
+                )
+            )
+
+        # Compute edge quality for this cluster's edges
+        edge_quality_graph = delayed(_compute_cluster_edge_quality)(
+            result_graph,
+            context.visibility_graph,
+        )
 
         return ClusterComputationGraph(
             io_tasks=tuple(io_tasks),
             metric_tasks=tuple(metrics_tasks),
             sfm_result=result_graph,
+            edge_quality=edge_quality_graph,
         )
