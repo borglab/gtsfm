@@ -34,6 +34,7 @@ class ClusterComputationGraph:
     io_tasks: Tuple[Delayed, ...]
     metric_tasks: Tuple[Delayed, ...]
     sfm_result: Delayed | None
+    edge_quality: Delayed | None = None  # EdgeQualityGraph computed after reconstruction
 
 
 @dataclass(frozen=True)
