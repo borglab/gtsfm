@@ -589,7 +589,7 @@ class LoaderBase(GTSFMProcess):
         # Check if we have different shapes
         # In theory our model can also work well with different shapes
         if len(shapes) > 1:
-            print(f"Warning: Found images with different shapes: {shapes}")
+            logger.warning("Found images with different shapes: %s", shapes)
             # Find maximum dimensions
             max_height = max(shape[0] for shape in shapes)
             max_width = max(shape[1] for shape in shapes)

@@ -377,8 +377,9 @@ def _convert_vggt_outputs_to_gtsfm_data(
         track_mask = tracking_result.visibilities > config.track_vis_thresh
         inlier_num = track_mask.sum(0)
 
-        valid_mask = inlier_num >= 2  # a track is invalid if without two inliers
-        confidence_threshold = config.confidence_threshold
+        min_measurements = 2
+        valid_mask = inlier_num >= min_measurements  # a track is invalid if without two inliers
+        confidence_threshold = config.track_conf_thresh
         confidence_threshold = min(
             confidence_threshold, np.mean(tracking_result.confidences) + np.std(tracking_result.confidences)
         )
@@ -416,18 +417,16 @@ def _convert_vggt_outputs_to_gtsfm_data(
                 camera = gtsfm_data.get_camera(global_idx)
                 if not _is_point_in_front_of_camera(camera, point_xyz):
                     continue
-                float_u = float(u)
-                float_v = float(v)
                 if enforce_reproj_filter:
                     projected = camera.project(gtsam_point)
                     proj_u = float(projected[0])
                     proj_v = float(projected[1])
-                    reproj_err = float(np.hypot(float_u - proj_u, float_v - proj_v))
+                    reproj_err = float(np.hypot(u - proj_u, v - proj_v))
                     max_error_for_track = max(max_error_for_track, reproj_err)
-                per_track_measurements.append((global_idx, float_u, float_v))
+                per_track_measurements.append((global_idx, u, v))
 
-            # if len(per_track_measurements) < min_measurements:
-            #     continue
+            if len(per_track_measurements) < min_measurements:
+                continue
 
             track = torch_utils.colored_track_from_point(point_xyz, rgb)
             for global_idx, float_u, float_v in per_track_measurements:
@@ -528,19 +527,19 @@ def run_VGGT(
     if depth_confidence.ndim == 4 and depth_confidence.shape[-1] == 1:
         depth_confidence = depth_confidence.squeeze(-1)
 
-    depth_map_fp32 = depth_map.squeeze(0).to(dtype=torch.float32)
-    extrinsic_fp32 = extrinsic.squeeze(0).to(dtype=torch.float32)
-    intrinsic_fp32 = intrinsic.squeeze(0).to(dtype=torch.float32)
-    dense_points_np = unproject_depth_map_to_point_map(depth_map_fp32, extrinsic_fp32, intrinsic_fp32)
+    depth_map = depth_map.squeeze(0).to(dtype=torch.float32)
+    extrinsic = extrinsic.squeeze(0).to(dtype=torch.float32)
+    intrinsic = intrinsic.squeeze(0).to(dtype=torch.float32)
+    dense_points_np = unproject_depth_map_to_point_map(depth_map, extrinsic, intrinsic)
     dense_points = torch.from_numpy(dense_points_np).to(device=resolved_device, dtype=torch.float32)
 
     return VggtOutput(
         device=resolved_device,
         dtype=resolved_dtype,
         images=images,
-        extrinsic=extrinsic.squeeze(0),
-        intrinsic=intrinsic.squeeze(0),
-        depth_map=depth_map.squeeze(0),
+        extrinsic=extrinsic,
+        intrinsic=intrinsic,
+        depth_map=depth_map,
         depth_confidence=depth_confidence,
         dense_points=dense_points,
     )

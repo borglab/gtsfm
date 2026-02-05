@@ -5,22 +5,22 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Hashable, Optional, Union
 
-from gtsam import Pose3
 import numpy as np
 import torch
 import torch.nn.functional as F
 from dask.delayed import Delayed, delayed
+from gtsam import Pose3
 
-import gtsfm.frontend.vggt as vggt
-from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterComputationGraph, ClusterContext, ClusterOptimizerBase
 import gtsfm.common.types as gtsfm_types
+import gtsfm.frontend.vggt as vggt
+import gtsfm.utils.metrics as metrics_utils
+from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterComputationGraph, ClusterContext, ClusterOptimizerBase
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.frontend.vggt import VggtConfiguration, VggtReconstruction
 from gtsfm.products.visibility_graph import visibility_graph_keys
 from gtsfm.ui.gtsfm_process import UiMetadata
 from gtsfm.utils.logger import get_logger
-import gtsfm.utils.metrics as metrics_utils
 
 logger = get_logger()
 
@@ -326,8 +326,10 @@ class ClusterVGGT(ClusterOptimizerBase):
             max_reproj_error=self._max_reproj_error,
         )
 
+        # mode is fixed to "crop", it resizes the width to 518 while maintaining aspect ratio and only if
+        # height is > 518 then crops
         image_batch_graph, original_coords_graph = delayed(_load_vggt_inputs, nout=2)(
-            context.loader, global_indices, mode="crop"  # mode is fixed to "crop"
+            context.loader, global_indices, mode="crop"
         )
 
         reconstruction_graph = delayed(_run_vggt_pipeline)(

@@ -7,7 +7,6 @@ loader:
   _target_: gtsfm.loader.Olsson
   dataset_dir: ??? # Required: set to the dataset root on the command line.
   images_dir: null
-  max_resolution: 518 # VGGT recommended max resolution. Non editable. mode is fixed to "crop"
 
 image_pairs_generator:
   _target_: gtsfm.retriever.image_pairs_generator.ImagePairsGenerator
