@@ -38,6 +38,8 @@ cluster_optimizer:
     tracking_query_frame_num: 3
     tracking_fine_tracking: false
     track_vis_thresh: 0.2
+    track_conf_thresh: 0.2
+    max_reproj_error: 0 # 0.0 means no filtering based on reproj error
     camera_type: PINHOLE
     drop_outlier_after_camera_merging: false
     drop_child_if_merging_fail: true
