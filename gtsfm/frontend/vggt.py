@@ -510,27 +510,24 @@ def _convert_vggt_outputs_to_gtsfm_data(
     if tracking_result:
 
         # track masks according to visibility, reprojection error, etc
+        max_reproj_error = float(config.max_reproj_error)
         track_mask = tracking_result.visibilities > config.track_vis_thresh
-        inlier_num = track_mask.sum(0)
 
-        min_measurements = 2
-        valid_mask = inlier_num >= min_measurements  # a track is invalid if without two inliers
         confidence_threshold = config.track_conf_thresh
         confidence_threshold = min(
             confidence_threshold, np.mean(tracking_result.confidences) + np.std(tracking_result.confidences)
         )
         if tracking_result.confidences is not None:
-            valid_mask = np.logical_and(valid_mask, tracking_result.confidences > confidence_threshold)
-        valid_idx = np.nonzero(valid_mask)[0]
-
-        max_reproj_error = float(config.max_reproj_error)
-        track_mask = tracking_result.visibilities > config.track_vis_thresh
-        if tracking_result.confidences is not None:
-            track_mask = np.logical_and(track_mask, tracking_result.confidences > config.track_conf_thresh)
+            track_mask = np.logical_and(track_mask, tracking_result.confidences > confidence_threshold)
 
         enforce_reproj_filter = (
             tracking_result.points_3d is not None and np.isfinite(max_reproj_error) and max_reproj_error > 0.0
         )
+
+        inlier_num = track_mask.sum(0)
+        min_measurements = 2
+        valid_mask = inlier_num >= min_measurements  # a track is invalid if without two inliers
+        valid_idx = np.nonzero(valid_mask)[0]
 
         logger.info("num points 3d: %d, num valid idx: %d", tracking_result.points_3d.shape[0], len(valid_idx))
 
@@ -563,7 +560,8 @@ def _convert_vggt_outputs_to_gtsfm_data(
 
             if len(per_track_measurements) < min_measurements:
                 continue
-
+            if enforce_reproj_filter and max_error_for_track > max_reproj_error:
+                continue
             track = torch_utils.colored_track_from_point(point_xyz, rgb)
             for global_idx, float_u, float_v in per_track_measurements:
                 track.addMeasurement(global_idx, Point2(float_u, float_v))
