@@ -465,9 +465,9 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         )
 
         noise_model = gtsam.noiseModel.Isotropic.Sigma(NOISE_MODEL_DIMENSION, NOISE_MODEL_SIGMA)
-        # if self._robust_measurement_noise:
-        #     huber_loss = gtsam.noiseModel.mEstimator.Huber.Create(HUBER_LOSS_K)
-        #     noise_model = gtsam.noiseModel.Robust.Create(huber_loss, noise_model)
+        if self._robust_measurement_noise:
+            huber_loss = gtsam.noiseModel.mEstimator.Huber.Create(HUBER_LOSS_K)
+            noise_model = gtsam.noiseModel.Robust.Create(huber_loss, noise_model)
 
         w_i1Ui2_measurements = self._binary_measurements_from_dict(w_i2Ui1_dict, w_i2Ui1_dict_tracks, noise_model)
 
