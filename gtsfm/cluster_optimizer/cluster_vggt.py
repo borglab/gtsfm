@@ -37,7 +37,7 @@ def _resize_to_square_tensor(image: np.ndarray, target_size: int) -> torch.Tenso
 
 def _load_vggt_inputs(loader, indices: list[int], mode: str):
     """Load and preprocess a batch of images for VGGT."""
-    return loader.load_image_batch_vggt_loader(indices, mode=mode)
+    return vggt.load_image_batch_vggt_loader(loader, indices, mode=mode)
 
 
 def _resolve_vggt_model(cache_key: Hashable | None, loader_kwargs: dict[str, Any] | None) -> Any | None:

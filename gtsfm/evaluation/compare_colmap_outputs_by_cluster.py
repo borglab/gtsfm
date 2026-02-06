@@ -10,9 +10,9 @@ import argparse
 import csv
 import json
 import os
+import textwrap
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
-import textwrap
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -304,9 +304,7 @@ def _align_poses(
     baseline_dict = {i: pose for i, pose in enumerate(baseline_list)}
     current_dict = {i: pose for i, pose in enumerate(current_list)}
     if use_ransac:
-        aSb = _estimate_sim3_ransac(
-            baseline_list, current_list, max_hypotheses, inlier_thresh, rng, cluster_label
-        )
+        aSb = _estimate_sim3_ransac(baseline_list, current_list, max_hypotheses, inlier_thresh, rng, cluster_label)
     else:
         aSb = align.sim3_from_Pose3_maps(baseline_dict, current_dict)
     current_aligned_list = [aSb.transformFrom(pose) for pose in current_list]
@@ -338,18 +336,32 @@ def _plot_camera_centers(
         tip = pose.transformFrom(np.array([0.0, 0.0, arrow_len]))
         direction = tip - origin
         ax.quiver(
-            origin[0], origin[1], origin[2],
-            direction[0], direction[1], direction[2],
-            color="tab:blue", linewidth=0.5, arrow_length_ratio=0.2, alpha=0.6
+            origin[0],
+            origin[1],
+            origin[2],
+            direction[0],
+            direction[1],
+            direction[2],
+            color="tab:blue",
+            linewidth=0.5,
+            arrow_length_ratio=0.2,
+            alpha=0.6,
         )
     for pose in current_list:
         origin = pose.transformFrom(np.array([0.0, 0.0, 0.0]))
         tip = pose.transformFrom(np.array([0.0, 0.0, arrow_len]))
         direction = tip - origin
         ax.quiver(
-            origin[0], origin[1], origin[2],
-            direction[0], direction[1], direction[2],
-            color="tab:orange", linewidth=0.5, arrow_length_ratio=0.2, alpha=0.6
+            origin[0],
+            origin[1],
+            origin[2],
+            direction[0],
+            direction[1],
+            direction[2],
+            color="tab:orange",
+            linewidth=0.5,
+            arrow_length_ratio=0.2,
+            alpha=0.6,
         )
 
     ax.scatter(
@@ -871,7 +883,9 @@ def main() -> None:
         _plot_pose_auc_vs_input_images(all_pose_auc_by_label_and_count, auc_vs_images_plot_path)
     if fig_output_dir is not None and all_rotation_auc_values:
         rotation_auc_plot_path = fig_output_dir / "rotation_auc_boxplot_all_clusters.png"
-        _plot_pose_auc_boxplot(all_rotation_auc_values, rotation_auc_plot_path, "Rotation AUC by threshold (all clusters)")
+        _plot_pose_auc_boxplot(
+            all_rotation_auc_values, rotation_auc_plot_path, "Rotation AUC by threshold (all clusters)"
+        )
     if fig_output_dir is not None and all_translation_auc_values:
         translation_auc_plot_path = fig_output_dir / "translation_auc_boxplot_all_clusters.png"
         _plot_pose_auc_boxplot(

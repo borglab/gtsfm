@@ -12,13 +12,7 @@ import dask
 import gtsam  # type: ignore
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import (
-    BetweenFactorPose3,
-    NonlinearFactorGraph,
-    PriorFactorPose3,
-    PriorFactorPoint3,
-    Values,
-)
+from gtsam import BetweenFactorPose3, NonlinearFactorGraph, PriorFactorPoint3, PriorFactorPose3, Values
 from gtsam.noiseModel import Diagonal, Isotropic, Robust, mEstimator  # type: ignore
 from gtsam.symbol_shorthand import K, P, X  # type: ignore
 
@@ -248,18 +242,12 @@ class BundleAdjustmentOptimizer:
         first_camera = initial_data.get_camera(cameras_to_model[0])
         assert first_camera is not None, "First camera in initial data is None"
         graph.push_back(
-            gtsam.NonlinearEqualityPose3(
+            PriorFactorPose3(
                 X(cameras_to_model[0]),
                 first_camera.pose(),
+                Isotropic.Sigma(CAM_POSE3_DOF, self._cam_pose3_prior_noise_sigma),
             )
         )
-        # graph.push_back(
-        #     PriorFactorPose3(
-        #         X(cameras_to_model[0]),
-        #         first_camera.pose(),
-        #         Isotropic.Sigma(CAM_POSE3_DOF, self._cam_pose3_prior_noise_sigma),
-        #     )
-        # )
 
         # Add prior factor on the position of the first landmark to fix the scale.
         if initial_data.number_tracks() > 0:
