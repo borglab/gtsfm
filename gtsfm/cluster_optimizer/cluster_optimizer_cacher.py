@@ -21,6 +21,7 @@ from gtsfm.cluster_optimizer.cluster_optimizer_base import (
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.products.visibility_graph import visibility_graph_keys
 from gtsfm.ui.gtsfm_process import UiMetadata
+from gtsfm.utils.edge_quality import compute_edge_quality
 
 if TYPE_CHECKING:
     from gtsfm.products.one_view_data import OneViewData
@@ -131,7 +132,13 @@ class ClusterOptimizerCacher(ClusterOptimizerBase):
         cached_result = self._load_result_from_cache(context)
         if cached_result is not None:
             cached_graph: Delayed = delayed(lambda r: r, pure=False)(cached_result)
-            return ClusterComputationGraph(io_tasks=tuple(), metric_tasks=tuple(), sfm_result=cached_graph)
+            io_tasks = (
+                delayed(self._save_cached_result_outputs, pure=False)(cached_graph, context.output_paths.results),
+            )
+            edge_quality_graph = delayed(compute_edge_quality)(cached_graph, context.visibility_graph)
+            return ClusterComputationGraph(
+                io_tasks=io_tasks, metric_tasks=tuple(), sfm_result=cached_graph, edge_quality=edge_quality_graph
+            )
 
         computation = self._optimizer.create_computation_graph(context)
         if computation is None or computation.sfm_result is None:
@@ -144,4 +151,5 @@ class ClusterOptimizerCacher(ClusterOptimizerBase):
             io_tasks=computation.io_tasks,
             metric_tasks=computation.metric_tasks,
             sfm_result=sfm_result_with_cache,
+            edge_quality=computation.edge_quality,
         )
