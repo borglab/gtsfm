@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6.0.2
       
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -78,7 +78,7 @@ jobs:
           ]
 
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6.0.2
       
       - name: Cache frontend
         uses: actions/cache@v5
