@@ -62,10 +62,10 @@ def _make_scene_3_cameras() -> tuple[GtsfmData, dict[int, PinholeCameraCal3Bundl
     Camera layout:
         cam0 at (0,0,0), cam1 at (2,-2,0), cam2 at (4,0,0)
 
-    Tracks (all with perfect measurements → 0 reprojection error):
-        Track 0: pt (1,2,1) seen by [cam0, cam1]       → supports edge (0,1)
-        Track 1: pt (3,1,1) seen by [cam1, cam2]       → supports edge (1,2)
-        Track 2: pt (2,1,1) seen by [cam0, cam1, cam2] → supports edges (0,1), (0,2), (1,2)
+    Tracks (all with perfect measurements -> 0 reprojection error):
+        Track 0: pt (1,2,1) seen by [cam0, cam1]       -> supports edge (0,1)
+        Track 1: pt (3,1,1) seen by [cam1, cam2]       -> supports edge (1,2)
+        Track 2: pt (2,1,1) seen by [cam0, cam1, cam2] -> supports edges (0,1), (0,2), (1,2)
     """
     cameras = {
         0: _make_camera(0, 0, 0),
@@ -90,7 +90,7 @@ class TestComputeEdgeQuality:
     """Tests for the main compute_edge_quality function."""
 
     def test_none_reconstruction(self):
-        """None GtsfmData → all edges get inf error and 0 tracks."""
+        """None GtsfmData -> all edges get inf error and 0 tracks."""
         vis_graph = [(0, 1), (1, 2)]
         result = compute_edge_quality(None, vis_graph)
 
@@ -99,10 +99,9 @@ class TestComputeEdgeQuality:
             score = result[edge]
             assert score.num_supporting_tracks == 0
             assert score.mean_reproj_error_px == float("inf")
-            assert score.track_coverage_ratio == 0.0
 
     def test_empty_reconstruction_no_tracks(self):
-        """GtsfmData with cameras but no tracks → same as None."""
+        """GtsfmData with cameras but no tracks -> same as None."""
         cameras = {0: _make_camera(0, 0, 0), 1: _make_camera(1, 0, 0)}
         scene = GtsfmData(number_images=2, cameras=cameras)
 
@@ -113,7 +112,7 @@ class TestComputeEdgeQuality:
         assert result[(0, 1)].mean_reproj_error_px == float("inf")
 
     def test_good_edge_low_error(self):
-        """Perfect measurements → ~0 reprojection error."""
+        """Perfect measurements -> ~0 reprojection error."""
         scene, cameras = _make_scene_3_cameras()
         vis_graph = [(0, 1)]
 
@@ -122,12 +121,12 @@ class TestComputeEdgeQuality:
 
         # Track 0 and Track 2 both span edge (0,1)
         assert score.num_supporting_tracks == 2
-        # Perfect projection → 0 error
+        # Perfect projection -> 0 error
         np.testing.assert_allclose(score.mean_reproj_error_px, 0.0, atol=1e-6)
         np.testing.assert_allclose(score.max_reproj_error_px, 0.0, atol=1e-6)
 
     def test_bad_edge_high_error(self):
-        """Noisy measurements → high reprojection error."""
+        """Noisy measurements -> high reprojection error."""
         cameras = {
             0: _make_camera(0, 0, 0),
             1: _make_camera(2, -2, 0),
@@ -145,14 +144,12 @@ class TestComputeEdgeQuality:
         score = result[(0, 1)]
 
         assert score.num_supporting_tracks == 1
-        # cam0 has 0 error, cam1 has ~22.36px error → mean should be ~11.18
+        # cam0 has 0 error, cam1 has ~22.36px error -> mean should be ~11.18
         assert score.mean_reproj_error_px > 5.0
         assert score.max_reproj_error_px > 10.0
 
     def test_edge_with_no_supporting_tracks(self):
-        """Edge in visibility graph but no track spans it → inf error, 0 tracks."""
-        scene, _ = _make_scene_3_cameras()
-        # Edge (0,2) is supported by Track 2, but let's query an edge that doesn't exist
+        """Edge in visibility graph but no track spans it -> inf error, 0 tracks."""
         # Create a scene where no track spans (0,2) by only using tracks 0 and 1
         cameras = {
             0: _make_camera(0, 0, 0),
@@ -173,26 +170,6 @@ class TestComputeEdgeQuality:
         assert result[(0, 1)].num_supporting_tracks == 1
         assert result[(1, 2)].num_supporting_tracks == 1
 
-    def test_track_coverage_with_expected_counts(self):
-        """Verify track_coverage_ratio when expected_tracks_per_edge is provided."""
-        scene, _ = _make_scene_3_cameras()
-        vis_graph = [(0, 1), (1, 2)]
-
-        # Edge (0,1) has 2 tracks. If we expected 10, coverage = 2/10 = 0.2
-        expected = {(0, 1): 10, (1, 2): 2}
-        result = compute_edge_quality(scene, vis_graph, expected_tracks_per_edge=expected)
-
-        np.testing.assert_allclose(result[(0, 1)].track_coverage_ratio, 2.0 / 10.0)
-        np.testing.assert_allclose(result[(1, 2)].track_coverage_ratio, 2.0 / 2.0)
-
-    def test_track_coverage_without_expected_counts(self):
-        """Without expected counts, coverage is 1.0 if any tracks exist, 0.0 otherwise."""
-        scene, _ = _make_scene_3_cameras()
-        vis_graph = [(0, 1)]
-
-        result = compute_edge_quality(scene, vis_graph)
-        assert result[(0, 1)].track_coverage_ratio == 1.0
-
     def test_multi_camera_track_supports_multiple_edges(self):
         """A track spanning 3 cameras supports C(3,2)=3 edges."""
         scene, _ = _make_scene_3_cameras()
@@ -209,7 +186,7 @@ class TestComputeEdgeQuality:
         assert result[(1, 2)].num_supporting_tracks == 2
 
     def test_empty_visibility_graph(self):
-        """Empty visibility graph → empty result."""
+        """Empty visibility graph -> empty result."""
         scene, _ = _make_scene_3_cameras()
         result = compute_edge_quality(scene, [])
         assert result == {}
@@ -224,49 +201,47 @@ class TestIdentifyBadEdges:
     """Tests for the bad edge identification function."""
 
     def test_no_bad_edges(self):
-        """All edges pass thresholds → empty set."""
+        """All edges pass thresholds -> empty set."""
         quality: EdgeQualityGraph = {
-            (0, 1): EdgeQualityScore(5, 1.0, 2.0, 0.5),
-            (1, 2): EdgeQualityScore(3, 2.0, 3.0, 0.8),
+            (0, 1): EdgeQualityScore(5, 1.0, 2.0),
+            (1, 2): EdgeQualityScore(3, 2.0, 3.0),
         }
-        bad = identify_bad_edges(quality, max_reproj_error_px=5.0, min_track_coverage=0.1)
+        bad = identify_bad_edges(quality, max_reproj_error_px=5.0)
         assert bad == set()
 
     def test_all_bad_edges(self):
-        """All edges fail → full set."""
+        """All edges fail -> full set."""
         quality: EdgeQualityGraph = {
-            (0, 1): EdgeQualityScore(1, 10.0, 15.0, 0.01),
-            (1, 2): EdgeQualityScore(0, float("inf"), float("inf"), 0.0),
+            (0, 1): EdgeQualityScore(1, 10.0, 15.0),
+            (1, 2): EdgeQualityScore(0, float("inf"), float("inf")),
         }
         bad = identify_bad_edges(quality)
         assert bad == {(0, 1), (1, 2)}
 
     def test_mixed_edges(self):
-        """Some good, some bad → correct subset."""
+        """Some good, some bad -> correct subset."""
         quality: EdgeQualityGraph = {
-            (0, 1): EdgeQualityScore(5, 1.0, 2.0, 0.5),  # good
-            (1, 2): EdgeQualityScore(1, 8.0, 12.0, 0.3),  # bad: high error
-            (0, 2): EdgeQualityScore(1, 2.0, 3.0, 0.05),  # bad: low coverage
+            (0, 1): EdgeQualityScore(5, 1.0, 2.0),  # good
+            (1, 2): EdgeQualityScore(1, 8.0, 12.0),  # bad: high error
+            (0, 2): EdgeQualityScore(1, 2.0, 3.0),   # good
         }
-        bad = identify_bad_edges(quality, max_reproj_error_px=5.0, min_track_coverage=0.1)
-        assert bad == {(1, 2), (0, 2)}
+        bad = identify_bad_edges(quality, max_reproj_error_px=5.0)
+        assert bad == {(1, 2)}
 
     def test_empty_input(self):
-        """Empty quality dict → empty set."""
+        """Empty quality dict -> empty set."""
         assert identify_bad_edges({}) == set()
 
     def test_custom_thresholds(self):
         """Stricter thresholds catch more edges."""
         quality: EdgeQualityGraph = {
-            (0, 1): EdgeQualityScore(5, 2.0, 3.0, 0.3),
-            (1, 2): EdgeQualityScore(3, 4.0, 5.0, 0.2),
+            (0, 1): EdgeQualityScore(5, 2.0, 3.0),
+            (1, 2): EdgeQualityScore(3, 4.0, 5.0),
         }
         # Default thresholds: both pass
         assert identify_bad_edges(quality) == set()
         # Strict error threshold: (1,2) fails
         assert identify_bad_edges(quality, max_reproj_error_px=3.0) == {(1, 2)}
-        # Strict coverage threshold: both fail
-        assert identify_bad_edges(quality, min_track_coverage=0.5) == {(0, 1), (1, 2)}
 
 
 # ===========================================================================
@@ -279,21 +254,20 @@ class TestMergeEdgeQuality:
 
     def test_single_score_passthrough(self):
         """Single score returns identical values."""
-        score = EdgeQualityScore(5, 2.0, 3.0, 0.5)
+        score = EdgeQualityScore(5, 2.0, 3.0)
         merged = merge_edge_quality([score])
         assert merged == score
 
     def test_merge_worst_case(self):
-        """Multiple scores: max error, min coverage, sum tracks."""
+        """Multiple scores: max error, sum tracks."""
         scores = [
-            EdgeQualityScore(3, 1.0, 2.0, 0.8),
-            EdgeQualityScore(5, 3.0, 4.0, 0.5),
+            EdgeQualityScore(3, 1.0, 2.0),
+            EdgeQualityScore(5, 3.0, 4.0),
         ]
         merged = merge_edge_quality(scores)
         assert merged.num_supporting_tracks == 8  # 3 + 5
         assert merged.mean_reproj_error_px == 3.0  # max(1.0, 3.0)
         assert merged.max_reproj_error_px == 4.0  # max(2.0, 4.0)
-        assert merged.track_coverage_ratio == 0.5  # min(0.8, 0.5)
 
     def test_empty_raises(self):
         """Empty list raises ValueError."""
@@ -303,15 +277,14 @@ class TestMergeEdgeQuality:
     def test_merge_three_scores(self):
         """Merging 3 scores uses worst-case across all."""
         scores = [
-            EdgeQualityScore(2, 1.0, 2.0, 0.9),
-            EdgeQualityScore(3, 5.0, 6.0, 0.3),
-            EdgeQualityScore(1, 2.0, 3.0, 0.7),
+            EdgeQualityScore(2, 1.0, 2.0),
+            EdgeQualityScore(3, 5.0, 6.0),
+            EdgeQualityScore(1, 2.0, 3.0),
         ]
         merged = merge_edge_quality(scores)
         assert merged.num_supporting_tracks == 6
         assert merged.mean_reproj_error_px == 5.0
         assert merged.max_reproj_error_px == 6.0
-        assert merged.track_coverage_ratio == 0.3
 
 
 # ===========================================================================
@@ -323,12 +296,12 @@ class TestAggregateEdgeQuality:
     """Tests for aggregating edge quality across clusters."""
 
     def test_non_overlapping_clusters(self):
-        """Disjoint edges from different clusters → union unchanged."""
+        """Disjoint edges from different clusters -> union unchanged."""
         cluster_a: EdgeQualityGraph = {
-            (0, 1): EdgeQualityScore(5, 1.0, 2.0, 0.5),
+            (0, 1): EdgeQualityScore(5, 1.0, 2.0),
         }
         cluster_b: EdgeQualityGraph = {
-            (2, 3): EdgeQualityScore(3, 2.0, 3.0, 0.8),
+            (2, 3): EdgeQualityScore(3, 2.0, 3.0),
         }
         result = aggregate_edge_quality([cluster_a, cluster_b])
         assert len(result) == 2
@@ -336,30 +309,29 @@ class TestAggregateEdgeQuality:
         assert result[(2, 3)] == cluster_b[(2, 3)]
 
     def test_overlapping_edge(self):
-        """Same edge in 2 clusters → merged via worst-case."""
+        """Same edge in 2 clusters -> merged via worst-case."""
         cluster_a: EdgeQualityGraph = {
-            (0, 1): EdgeQualityScore(3, 1.0, 2.0, 0.8),
+            (0, 1): EdgeQualityScore(3, 1.0, 2.0),
         }
         cluster_b: EdgeQualityGraph = {
-            (0, 1): EdgeQualityScore(5, 3.0, 4.0, 0.5),
+            (0, 1): EdgeQualityScore(5, 3.0, 4.0),
         }
         result = aggregate_edge_quality([cluster_a, cluster_b])
         assert len(result) == 1
         merged = result[(0, 1)]
         assert merged.num_supporting_tracks == 8  # 3 + 5
         assert merged.mean_reproj_error_px == 3.0  # max
-        assert merged.track_coverage_ratio == 0.5  # min
 
     def test_empty_clusters(self):
-        """Empty list of clusters → empty result."""
+        """Empty list of clusters -> empty result."""
         result = aggregate_edge_quality([])
         assert result == {}
 
     def test_single_cluster(self):
-        """Single cluster → scores unchanged."""
+        """Single cluster -> scores unchanged."""
         cluster: EdgeQualityGraph = {
-            (0, 1): EdgeQualityScore(5, 1.0, 2.0, 0.5),
-            (1, 2): EdgeQualityScore(3, 2.0, 3.0, 0.8),
+            (0, 1): EdgeQualityScore(5, 1.0, 2.0),
+            (1, 2): EdgeQualityScore(3, 2.0, 3.0),
         }
         result = aggregate_edge_quality([cluster])
         assert result == cluster
@@ -381,20 +353,20 @@ class TestPruneEdges:
         assert result == [(0, 1), (2, 3)]
 
     def test_prune_none(self):
-        """Empty bad_edges → graph unchanged."""
+        """Empty bad_edges -> graph unchanged."""
         graph = [(0, 1), (1, 2)]
         result = prune_edges(graph, set())
         assert result == graph
 
     def test_prune_all(self):
-        """All edges bad → empty graph."""
+        """All edges bad -> empty graph."""
         graph = [(0, 1), (1, 2)]
         bad = {(0, 1), (1, 2)}
         result = prune_edges(graph, bad)
         assert result == []
 
     def test_prune_nonexistent_edge(self):
-        """Bad edges not in graph → no effect."""
+        """Bad edges not in graph -> no effect."""
         graph = [(0, 1), (1, 2)]
         bad = {(5, 6)}
         result = prune_edges(graph, bad)
@@ -412,7 +384,7 @@ class TestExportEdgeQualityToJson:
     def test_export_creates_file(self, tmp_path: Path):
         """File is created with valid JSON."""
         quality: EdgeQualityGraph = {
-            (0, 1): EdgeQualityScore(5, 1.5, 2.5, 0.6),
+            (0, 1): EdgeQualityScore(5, 1.5, 2.5),
         }
         bad_edges: set[tuple[int, int]] = set()
         output_path = tmp_path / "edge_quality.json"
@@ -428,8 +400,8 @@ class TestExportEdgeQualityToJson:
     def test_export_content(self, tmp_path: Path):
         """Verify metadata counts and edge entries."""
         quality: EdgeQualityGraph = {
-            (0, 1): EdgeQualityScore(5, 1.5, 2.5, 0.6),
-            (1, 2): EdgeQualityScore(0, float("inf"), float("inf"), 0.0),
+            (0, 1): EdgeQualityScore(5, 1.5, 2.5),
+            (1, 2): EdgeQualityScore(0, float("inf"), float("inf")),
         }
         bad_edges = {(1, 2)}
         output_path = tmp_path / "edge_quality.json"
@@ -448,7 +420,7 @@ class TestExportEdgeQualityToJson:
 
     def test_export_creates_parent_dirs(self, tmp_path: Path):
         """Export creates parent directories if they don't exist."""
-        quality: EdgeQualityGraph = {(0, 1): EdgeQualityScore(5, 1.5, 2.5, 0.6)}
+        quality: EdgeQualityGraph = {(0, 1): EdgeQualityScore(5, 1.5, 2.5)}
         output_path = tmp_path / "nested" / "dir" / "edge_quality.json"
 
         export_edge_quality_to_json(quality, set(), output_path)
@@ -462,10 +434,10 @@ class TestExportEdgeQualityToJson:
 
 
 class TestEdgeQualityIntegration:
-    """End-to-end test: synthetic scene → compute quality → identify bad edges."""
+    """End-to-end test: synthetic scene -> compute quality -> identify bad edges."""
 
     def test_good_scene_no_bad_edges(self):
-        """Scene with perfect measurements → all edges pass."""
+        """Scene with perfect measurements -> all edges pass."""
         scene, _ = _make_scene_3_cameras()
         vis_graph = [(0, 1), (0, 2), (1, 2)]
 
@@ -477,7 +449,7 @@ class TestEdgeQualityIntegration:
             assert not score.is_bad()
 
     def test_scene_with_one_bad_edge(self):
-        """Scene where one edge has noisy measurements → correctly flagged."""
+        """Scene where one edge has noisy measurements -> correctly flagged."""
         cameras = {
             0: _make_camera(0, 0, 0),
             1: _make_camera(2, -2, 0),
@@ -503,7 +475,7 @@ class TestEdgeQualityIntegration:
         assert (1, 2) in bad
 
     def test_prune_bad_edge_from_graph(self):
-        """Full flow: compute quality → identify bad → prune → verify."""
+        """Full flow: compute quality -> identify bad -> prune -> verify."""
         cameras = {
             0: _make_camera(0, 0, 0),
             1: _make_camera(2, -2, 0),

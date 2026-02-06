@@ -10,20 +10,18 @@ import itertools
 import json
 from collections import defaultdict
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
 
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.products.edge_quality import EdgeQualityGraph, EdgeQualityScore
-from gtsfm.products.visibility_graph import AnnotatedGraph, ImageIndexPair, VisibilityGraph
+from gtsfm.products.visibility_graph import ImageIndexPair, VisibilityGraph
 from gtsfm.utils.reprojection import compute_track_reprojection_errors
 
 
 def compute_edge_quality(
     gtsfm_data: GtsfmData,
     visibility_graph: VisibilityGraph,
-    expected_tracks_per_edge: Optional[AnnotatedGraph[int]] = None,
 ) -> EdgeQualityGraph:
     """Compute quality scores for each edge based on reconstruction quality.
 
@@ -33,9 +31,6 @@ def compute_edge_quality(
     Args:
         gtsfm_data: Reconstruction result containing cameras and tracks.
         visibility_graph: List of image pairs (edges) to evaluate.
-        expected_tracks_per_edge: Optional dict mapping edge to expected number
-            of tracks (e.g., from two-view inlier count). Used for computing
-            track_coverage_ratio.
 
     Returns:
         EdgeQualityGraph mapping each edge to its EdgeQualityScore.
@@ -47,7 +42,6 @@ def compute_edge_quality(
                 num_supporting_tracks=0,
                 mean_reproj_error_px=float("inf"),
                 max_reproj_error_px=float("inf"),
-                track_coverage_ratio=0.0,
             )
             for edge in visibility_graph
         }
@@ -75,7 +69,6 @@ def compute_edge_quality(
                 num_supporting_tracks=0,
                 mean_reproj_error_px=float("inf"),
                 max_reproj_error_px=float("inf"),
-                track_coverage_ratio=0.0,
             )
             continue
 
@@ -89,19 +82,10 @@ def compute_edge_quality(
             mean_error = float(np.nanmean(reproj_errors))
             max_error = float(np.nanmax(reproj_errors))
 
-        # Compute track coverage ratio
-        if expected_tracks_per_edge is not None and edge in expected_tracks_per_edge:
-            expected = expected_tracks_per_edge[edge]
-            coverage_ratio = num_tracks / expected if expected > 0 else 1.0
-        else:
-            # If no expected count, assume coverage is based on having any tracks
-            coverage_ratio = 1.0 if num_tracks > 0 else 0.0
-
         edge_quality[edge] = EdgeQualityScore(
             num_supporting_tracks=num_tracks,
             mean_reproj_error_px=mean_error,
             max_reproj_error_px=max_error,
-            track_coverage_ratio=coverage_ratio,
         )
 
     return edge_quality
@@ -169,13 +153,10 @@ def _compute_edge_reproj_errors(
 def identify_bad_edges(
     edge_quality: EdgeQualityGraph,
     max_reproj_error_px: float = 5.0,
-    min_track_coverage: float = 0.1,
 ) -> set[ImageIndexPair]:
     """Identify edges that fail quality thresholds.
 
-    An edge is considered bad if:
-    - mean_reproj_error_px > max_reproj_error_px, OR
-    - track_coverage_ratio < min_track_coverage
+    An edge is considered bad if its mean reprojection error exceeds the threshold.
 
     Quality threshold guidelines:
     - Good: < 1.0 px reprojection error
@@ -186,15 +167,14 @@ def identify_bad_edges(
     Args:
         edge_quality: Dict mapping edges to their quality scores.
         max_reproj_error_px: Maximum allowed mean reprojection error.
-        min_track_coverage: Minimum required track coverage ratio.
 
     Returns:
-        Set of edges that fail the quality thresholds.
+        Set of edges that fail the quality threshold.
     """
     bad_edges: set[ImageIndexPair] = set()
 
     for edge, score in edge_quality.items():
-        if score.is_bad(max_reproj_error_px, min_track_coverage):
+        if score.is_bad(max_reproj_error_px):
             bad_edges.add(edge)
 
     return bad_edges
@@ -223,7 +203,6 @@ def merge_edge_quality(scores: list[EdgeQualityScore]) -> EdgeQualityScore:
         num_supporting_tracks=sum(s.num_supporting_tracks for s in scores),
         mean_reproj_error_px=max(s.mean_reproj_error_px for s in scores),  # worst case
         max_reproj_error_px=max(s.max_reproj_error_px for s in scores),
-        track_coverage_ratio=min(s.track_coverage_ratio for s in scores),  # worst case
     )
 
 
@@ -289,7 +268,6 @@ def export_edge_quality_to_json(
                 "max_reproj_error_px": round(score.max_reproj_error_px, 3)
                 if score.max_reproj_error_px != float("inf")
                 else "inf",
-                "track_coverage": round(score.track_coverage_ratio, 3),
                 "is_bad": (i, j) in bad_edges,
             }
             for (i, j), score in sorted_edges

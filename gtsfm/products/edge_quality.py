@@ -5,7 +5,6 @@ based on the reconstruction quality of clusters that contain them.
 """
 
 from dataclasses import dataclass
-from typing import Optional
 
 from gtsfm.products.visibility_graph import AnnotatedGraph, ImageIndexPair
 
@@ -23,19 +22,15 @@ class EdgeQualityScore:
         mean_reproj_error_px: Mean reprojection error (in pixels) of measurements
             from cameras i and j in supporting tracks.
         max_reproj_error_px: Maximum reprojection error (outlier indicator).
-        track_coverage_ratio: Ratio of actual tracks to expected tracks. A value
-            of 1.0 means all expected matches triangulated successfully.
     """
 
     num_supporting_tracks: int
     mean_reproj_error_px: float
     max_reproj_error_px: float
-    track_coverage_ratio: float
 
     def is_bad(
         self,
         max_reproj_error_px: float = 5.0,
-        min_track_coverage: float = 0.1,
     ) -> bool:
         """Check if this edge fails quality thresholds.
 
@@ -47,16 +42,11 @@ class EdgeQualityScore:
 
         Args:
             max_reproj_error_px: Maximum allowed mean reprojection error.
-            min_track_coverage: Minimum required track coverage ratio.
 
         Returns:
-            True if the edge fails either threshold.
+            True if the edge exceeds the reprojection error threshold.
         """
-        if self.mean_reproj_error_px > max_reproj_error_px:
-            return True
-        if self.track_coverage_ratio < min_track_coverage:
-            return True
-        return False
+        return self.mean_reproj_error_px > max_reproj_error_px
 
 
 # Type alias: maps edge (i,j) to its quality score
