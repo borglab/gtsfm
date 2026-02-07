@@ -12,13 +12,7 @@ import dask
 import gtsam  # type: ignore
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import (
-    BetweenFactorPose3,
-    NonlinearFactorGraph,
-    PriorFactorPose3,
-    PriorFactorPoint3,
-    Values,
-)
+from gtsam import BetweenFactorPose3, NonlinearFactorGraph, PriorFactorPoint3, PriorFactorPose3, Values
 from gtsam.noiseModel import Diagonal, Isotropic, Robust, mEstimator  # type: ignore
 from gtsam.symbol_shorthand import K, P, X  # type: ignore
 

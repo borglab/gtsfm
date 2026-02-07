@@ -444,6 +444,7 @@ def compute_ba_pose_metrics(
     gt_wTi: dict[int, Pose3],
     computed_wTi: dict[int, Optional[Pose3]],
     save_dir: Optional[str] = None,
+    store_full_data: bool = False,
 ) -> GtsfmMetricsGroup:
     """Compute pose errors w.r.t. GT for the bundle adjustment result.
 
@@ -453,6 +454,7 @@ def compute_ba_pose_metrics(
         gt_wTi: Dict of ground truth poses keyed by camera id.
         computed_wTi: Dict of computed poses keyed by camera id.
         save_dir: Directory to save the metrics plots.
+        store_full_data: Whether to store full data.
 
     Returns:
         A group of metrics that describe errors associated with a bundle adjustment result (w.r.t. GT).
@@ -477,12 +479,20 @@ def compute_ba_pose_metrics(
     gt_wTi_opt: dict[int, Optional[Pose3]] = {i: pose for i, pose in gt_wTi.items()}
     translation_angular_errors = get_relative_translation_angles(i2Ui1_gt_opt, computed_wTi_opt, include_none=True)
     metrics.append(
-        GtsfmMetric("relative_translation_angle_error_deg", np.array(translation_angular_errors, dtype=np.float32))
+        GtsfmMetric(
+            "relative_translation_angle_error_deg",
+            np.array(translation_angular_errors, dtype=np.float32),
+            store_full_data=store_full_data,
+        )
     )
     metrics.append(compute_translation_angle_metric(gt_wTi_opt, computed_wTi_opt))
     rotation_angular_errors = get_relative_rotation_angles(i2Ri1_gt_opt, computed_wTi_opt, include_none=True)
     metrics.append(
-        GtsfmMetric("relative_rotation_angle_error_deg", np.array(rotation_angular_errors, dtype=np.float32))
+        GtsfmMetric(
+            "relative_rotation_angle_error_deg",
+            np.array(rotation_angular_errors, dtype=np.float32),
+            store_full_data=store_full_data,
+        )
     )
 
     metrics.extend(compute_pose_auc_metric(rotation_angular_errors, translation_angular_errors, save_dir=save_dir))

@@ -9,12 +9,15 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from dask.delayed import Delayed, delayed
+from gtsam import Pose3
 
+import gtsfm.common.types as gtsfm_types
 import gtsfm.frontend.vggt as vggt
+import gtsfm.utils.metrics as metrics_utils
 from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterComputationGraph, ClusterContext, ClusterOptimizerBase
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
-from gtsfm.frontend.vggt import VggtConfiguration
+from gtsfm.frontend.vggt import VggtConfiguration, VggtReconstruction
 from gtsfm.products.visibility_graph import visibility_graph_keys
 from gtsfm.ui.gtsfm_process import UiMetadata
 from gtsfm.utils.logger import get_logger
@@ -32,13 +35,9 @@ def _resize_to_square_tensor(image: np.ndarray, target_size: int) -> torch.Tenso
     return (tensor.squeeze(0)) / 255.0
 
 
-def _load_vggt_inputs(loader, indices: list[int], target_size: int):
+def _load_vggt_inputs(loader, indices: list[int], mode: str):
     """Load and preprocess a batch of images for VGGT."""
-
-    def resize_transform(arr: np.ndarray) -> torch.Tensor:
-        return _resize_to_square_tensor(arr, target_size)
-
-    return loader.load_image_batch_vggt(indices, target_size, resize_transform)
+    return vggt.load_image_batch_vggt_loader(loader, indices, mode=mode)
 
 
 def _resolve_vggt_model(cache_key: Hashable | None, loader_kwargs: dict[str, Any] | None) -> Any | None:
@@ -65,7 +64,7 @@ def _run_vggt_pipeline(
     model_cache_key: Hashable | None = None,
     loader_kwargs: dict[str, Any] | None = None,
     **kwargs,
-) -> GtsfmData:
+) -> VggtReconstruction:
     torch.manual_seed(seed)
     np.random.seed(seed)
     if torch.cuda.is_available():
@@ -83,28 +82,88 @@ def _run_vggt_pipeline(
     cached_model = _resolve_vggt_model(model_cache_key, loader_kwargs)
     if cached_model is not None:
         kwargs = {**kwargs, "model": cached_model}
-    return vggt.run_reconstruction_gtsfm_data_only(image_batch, **kwargs)
+    return vggt.run_reconstruction(image_batch, **kwargs)
 
 
 def _save_reconstruction_as_text(
     result: GtsfmData,
     results_path: Path,
+    *,
+    subdir: str = "vggt",
 ) -> None:
-    target_dir = results_path / "vggt"
+    target_dir = results_path / subdir
     target_dir.mkdir(parents=True, exist_ok=True)
     result.export_as_colmap_text(target_dir)
 
 
-def _aggregate_vggt_metrics(result: GtsfmData) -> GtsfmMetricsGroup:
-    num_cameras = len(result.get_valid_camera_indices())
-    num_points3d = result.number_tracks()
-    return GtsfmMetricsGroup(
-        "vggt_runtime_metrics",
-        [
-            GtsfmMetric("num_cameras", num_cameras),
-            GtsfmMetric("num_points3d", num_points3d),
-        ],
+def _save_pre_ba_reconstruction_as_text(
+    pre_ba_result: Optional[GtsfmData],
+    results_path: Path,
+) -> None:
+    if pre_ba_result is None:
+        return
+    _save_reconstruction_as_text(pre_ba_result, results_path, subdir="vggt_pre_ba")
+
+
+def _get_pose_metrics(
+    result_data: GtsfmData,
+    cameras_gt: list[Optional[gtsfm_types.CAMERA_TYPE]],
+    save_dir: Optional[str] = None,
+) -> GtsfmMetricsGroup:
+    """Compute pose metrics for a VGGT result after aligning with ground truth."""
+    image_idxs = list(result_data._image_info.keys())
+    poses_gt: dict[int, Pose3] = {}
+    for i in image_idxs:
+        if i >= len(cameras_gt):
+            continue
+        camera = cameras_gt[i]
+        if camera is not None:
+            poses_gt[i] = camera.pose()
+    if len(poses_gt) == 0:
+        return GtsfmMetricsGroup(name="ba_pose_error_metrics", metrics=[])
+    aligned_result_data = result_data.align_via_sim3_and_transform(poses_gt)
+    computed_wTi: dict[int, Optional[Pose3]] = {i: pose for i, pose in aligned_result_data.get_camera_poses().items()}
+    return metrics_utils.compute_ba_pose_metrics(
+        gt_wTi=poses_gt,
+        computed_wTi=computed_wTi,
+        save_dir=save_dir,
+        store_full_data=True,
     )
+
+
+def _aggregate_vggt_metrics(
+    result: GtsfmData,
+    cameras_gt: Optional[list[Optional[gtsfm_types.CAMERA_TYPE]]] = None,
+    pre_ba_result: Optional[GtsfmData] = None,
+    *,
+    save_dir: Optional[str] = None,
+) -> list[GtsfmMetricsGroup]:
+    def _build_metrics_group(scene: GtsfmData, name: str) -> GtsfmMetricsGroup:
+        metrics_group = GtsfmMetricsGroup(
+            name,
+            [
+                GtsfmMetric("num_cameras", len(scene.get_valid_camera_indices())),
+                GtsfmMetric("num_points3d", scene.number_tracks()),
+            ],
+        )
+        if cameras_gt is not None:
+            metrics_group.extend(_get_pose_metrics(scene, cameras_gt, save_dir=save_dir))
+        return metrics_group
+
+    metrics_groups = [_build_metrics_group(result, "cluster_vggt_metrics")]
+    if pre_ba_result is not None:
+        metrics_groups.append(_build_metrics_group(pre_ba_result, "cluster_vggt_pre_ba_metrics"))
+    return metrics_groups
+
+
+def _extract_post_ba_result(result: VggtReconstruction) -> GtsfmData:
+    """Extract the post-BA reconstruction from the VGGT pipeline output."""
+    return result.gtsfm_data
+
+
+def _extract_pre_ba_result(result: VggtReconstruction) -> Optional[GtsfmData]:
+    """Extract the optional pre-BA reconstruction for debugging."""
+    return result.pre_ba_data
 
 
 class ClusterVGGT(ClusterOptimizerBase):
@@ -113,15 +172,14 @@ class ClusterVGGT(ClusterOptimizerBase):
     def __init__(
         self,
         weights_path: Optional[str] = None,
-        image_load_resolution: int = 1024,
-        inference_resolution: int = 518,
         conf_threshold: float = 5.0,
         max_num_points: int = 100000,
         tracking: bool = False,
-        tracking_max_query_pts: int = 1000,
-        tracking_query_frame_num: int = 4,
-        tracking_fine_tracking: bool = True,
-        track_vis_thresh: float = 0.2,
+        tracking_max_query_pts: int = 2048,
+        tracking_query_frame_num: int = 3,
+        track_vis_thresh: float = 0.05,
+        track_conf_thresh: float = 0.2,
+        keypoint_extractor: str = "aliked+sp+sift",
         camera_type: str = "PINHOLE",
         seed: int = 42,
         scene_dir: Optional[str] = None,
@@ -137,6 +195,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         enable_protection: bool = False,
         extra_model_kwargs: Optional[dict[str, Any]] = None,
         run_bundle_adjustment_on_leaf: bool = False,
+        store_pre_ba_result: bool = False,
         run_bundle_adjustment_on_parent: bool = True,
         max_reproj_error: float = 8.0,
         plot_reprojection_histograms: bool = True,
@@ -154,15 +213,14 @@ class ClusterVGGT(ClusterOptimizerBase):
             run_bundle_adjustment_on_parent=run_bundle_adjustment_on_parent,
         )
         self._weights_path = Path(weights_path) if weights_path is not None else None
-        self._image_load_resolution = image_load_resolution
-        self._inference_resolution = inference_resolution
         self._conf_threshold = conf_threshold
         self._max_points_for_colmap = max_num_points
         self._tracking = tracking
         self._tracking_max_query_pts = tracking_max_query_pts
         self._tracking_query_frame_num = tracking_query_frame_num
-        self._tracking_fine_tracking = tracking_fine_tracking
         self._track_vis_thresh = track_vis_thresh
+        self._track_conf_thresh = track_conf_thresh
+        self._keypoint_extractor = keypoint_extractor
         self._camera_type = camera_type
         self._max_reproj_error = max_reproj_error
         self._seed = seed
@@ -170,6 +228,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         self._use_sparse_attention = use_sparse_attention
         self._dtype = inference_dtype
         self._run_bundle_adjustment_on_leaf = run_bundle_adjustment_on_leaf
+        self._store_pre_ba_result = store_pre_ba_result
         if fast_dtype is not None:
             if self._dtype is None:
                 self._dtype = fast_dtype
@@ -216,8 +275,6 @@ class ClusterVGGT(ClusterOptimizerBase):
     def __repr__(self) -> str:
         components = [
             f"weights_path={self._weights_path}",
-            f"image_load_resolution={self._image_load_resolution}",
-            f"inference_resolution={self._inference_resolution}",
             f"camera_type={self._camera_type}",
             f"dtype={self._dtype}",
             f"use_sparse_attention={self._use_sparse_attention}",
@@ -253,27 +310,29 @@ class ClusterVGGT(ClusterOptimizerBase):
         image_names = tuple(str(image_filenames[idx]) for idx in keys)
 
         config = VggtConfiguration(
-            vggt_fixed_resolution=self._inference_resolution,
-            img_load_resolution=self._image_load_resolution,
             confidence_threshold=self._conf_threshold,
             max_num_points=self._max_points_for_colmap,
             tracking=self._tracking,
             max_query_pts=self._tracking_max_query_pts,
             query_frame_num=self._tracking_query_frame_num,
-            fine_tracking=self._tracking_fine_tracking,
             track_vis_thresh=self._track_vis_thresh,
+            track_conf_thresh=self._track_conf_thresh,
+            keypoint_extractor=self._keypoint_extractor,
             dtype=self._dtype,
             model_ctor_kwargs=self._model_ctor_kwargs.copy(),
             use_sparse_attention=self._use_sparse_attention,
             run_bundle_adjustment_on_leaf=self._run_bundle_adjustment_on_leaf,
+            store_pre_ba_result=self._store_pre_ba_result,
             max_reproj_error=self._max_reproj_error,
         )
 
+        # mode is fixed to "crop", it resizes the width to 518 while maintaining aspect ratio and only if
+        # height is > 518 then crops
         image_batch_graph, original_coords_graph = delayed(_load_vggt_inputs, nout=2)(
-            context.loader, global_indices, self._image_load_resolution
+            context.loader, global_indices, mode="crop"
         )
 
-        result_graph = delayed(_run_vggt_pipeline)(
+        reconstruction_graph = delayed(_run_vggt_pipeline)(
             image_batch_graph,
             seed=self._seed,
             original_coords=original_coords_graph,
@@ -285,14 +344,30 @@ class ClusterVGGT(ClusterOptimizerBase):
             loader_kwargs=self._loader_kwargs or None,
             cluster_label=context.label,
         )
+        result_graph = delayed(_extract_post_ba_result)(reconstruction_graph)
+        pre_ba_result_graph = delayed(_extract_pre_ba_result)(reconstruction_graph)
 
-        metrics_tasks = [delayed(_aggregate_vggt_metrics)(result_graph)]
+        cameras_gt = [context.one_view_data_dict[idx].camera_gt for idx in range(context.num_images)]
+        metrics_tasks = [
+            delayed(_aggregate_vggt_metrics)(
+                result_graph,
+                cameras_gt=cameras_gt,
+                pre_ba_result=pre_ba_result_graph,
+                save_dir=str(context.output_paths.metrics),
+            )
+        ]
 
         io_tasks: list[Delayed] = []
         with self._output_annotation():
             io_tasks.append(
                 delayed(_save_reconstruction_as_text)(
                     result_graph,
+                    context.output_paths.results,
+                )
+            )
+            io_tasks.append(
+                delayed(_save_pre_ba_reconstruction_as_text)(
+                    pre_ba_result_graph,
                     context.output_paths.results,
                 )
             )

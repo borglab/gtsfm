@@ -952,12 +952,12 @@ class TestAlignmentUtils(unittest.TestCase):
 
         aligned_metrics = aligned_filtered_data.get_metrics(suffix="_filtered")
 
-        assert unaligned_metrics[3].name == "reprojection_errors_filtered_px"
-        assert aligned_metrics[3].name == "reprojection_errors_filtered_px"
+        assert unaligned_metrics[4].name == "reprojection_errors_filtered_px"
+        assert aligned_metrics[4].name == "reprojection_errors_filtered_px"
 
         # Reprojection error should be unaffected by Sim(3) alignment.
         for key in ["min", "max", "median", "mean", "stddev"]:
-            assert np.isclose(unaligned_metrics[3].summary[key], aligned_metrics[3].summary[key])
+            assert np.isclose(unaligned_metrics[4].summary[key], aligned_metrics[4].summary[key])
 
 
 if __name__ == "__main__":
