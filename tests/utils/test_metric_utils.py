@@ -177,14 +177,14 @@ class TestMetricUtils(unittest.TestCase):
         )
         metrics = aligned_filtered_data.get_metrics(suffix="_filtered")
 
-        assert metrics[0].name == "number_cameras"
-        assert np.isclose(metrics[0]._data, np.array(5.0, dtype=np.float32))
+        assert metrics[1].name == "number_cameras"
+        assert np.isclose(metrics[1]._data, np.array(5.0, dtype=np.float32))
 
-        assert metrics[1].name == "number_tracks_filtered"
-        assert np.isclose(metrics[1]._data, np.array(7.0, dtype=np.float32))
+        assert metrics[2].name == "number_tracks_filtered"
+        assert np.isclose(metrics[2]._data, np.array(7.0, dtype=np.float32))
 
-        assert metrics[2].name == "3d_track_lengths_filtered"
-        assert metrics[2].summary == {
+        assert metrics[3].name == "3d_track_lengths_filtered"
+        assert metrics[3].summary == {
             "min": 2,
             "max": 2,
             "median": 2.0,
@@ -195,8 +195,8 @@ class TestMetricUtils(unittest.TestCase):
             "invalid": 0,
         }
 
-        assert metrics[3].name == "reprojection_errors_filtered_px"
-        assert metrics[3].summary == {"min": np.nan, "max": np.nan, "median": np.nan, "mean": np.nan, "stddev": np.nan}
+        assert metrics[4].name == "reprojection_errors_filtered_px"
+        assert metrics[4].summary == {"min": np.nan, "max": np.nan, "median": np.nan, "mean": np.nan, "stddev": np.nan}
 
 
 def test_compute_percentage_change_improve() -> None:
