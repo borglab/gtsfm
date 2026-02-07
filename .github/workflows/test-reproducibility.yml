@@ -6,27 +6,29 @@ jobs:
   run-repro-tests:
     name: Run reproducibility tests for different algorithms
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        shell: bash -l {0}
-
-    env:
-      PYTHON_VERSION: 3.8
 
     steps:
       - uses: actions/checkout@v6.0.1
-      - uses: conda-incubator/setup-miniconda@v3
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
         with:
-          mamba-version: "*"
-          activate-environment: gtsfm-v1
-          environment-file: environment_linux_cpuonly.yml
-          python-version: 3.8
+          version: "0.9.17"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nodejs npm graphviz
+      
+      - name: Install project dependencies
+        run: |
+          uv sync --locked --python 3.10
+          uv pip install torch-scatter --find-links https://data.pyg.org/whl/torch-2.7.0+cu128.html
+      
       - name: Environment setup
-        run: |
-          bash .github/scripts/setup.sh
-          pip install pytest-cov
-          pip install flake8
-          conda info
+        run: bash .github/scripts/setup.sh
+      
       - name: Reproducibility tests
-        run: |
-          pytest tests/repro_tests
+        run: uv run pytest tests/repro_tests
