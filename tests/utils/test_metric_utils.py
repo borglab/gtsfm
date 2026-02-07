@@ -177,7 +177,7 @@ class TestMetricUtils(unittest.TestCase):
         )
         metrics = aligned_filtered_data.get_metrics(suffix="_filtered")
 
-        assert metrics[1].name == "number_cameras"
+        assert metrics[1].name == "number_cameras_filtered"
         assert np.isclose(metrics[1]._data, np.array(5.0, dtype=np.float32))
 
         assert metrics[2].name == "number_tracks_filtered"
