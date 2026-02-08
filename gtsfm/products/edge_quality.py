@@ -34,6 +34,10 @@ class EdgeQualityScore:
     ) -> bool:
         """Check if this edge fails quality thresholds.
 
+        An edge is bad if:
+        - It has zero supporting tracks (no 3D geometry between the cameras), OR
+        - Its mean reprojection error exceeds the threshold.
+
         Quality thresholds:
         - Good: < 1.0 px reprojection error
         - Acceptable: 1.0-3.0 px
@@ -44,8 +48,10 @@ class EdgeQualityScore:
             max_reproj_error_px: Maximum allowed mean reprojection error.
 
         Returns:
-            True if the edge exceeds the reprojection error threshold.
+            True if the edge has no supporting tracks or exceeds the error threshold.
         """
+        if self.num_supporting_tracks == 0:
+            return True
         return self.mean_reproj_error_px > max_reproj_error_px
 
 

@@ -89,6 +89,13 @@ class GtsfmRunner:
         parser.add_argument(
             "--share_intrinsics", action="store_true", help="Shares the intrinsics between all the cameras."
         )
+        parser.add_argument(
+            "--edge_quality_json",
+            type=str,
+            default=None,
+            help="Path to edge_quality_report.json from a previous run. "
+            "Bad edges will be pruned before partitioning.",
+        )
 
         # Cluster Optimizers
         # MVO flags
@@ -180,6 +187,9 @@ class GtsfmRunner:
 
             if getattr(self.parsed_args, "graph_partitioner", None):
                 overrides.append(f"+graph_partitioner={self.parsed_args.graph_partitioner}")
+
+            if self.parsed_args.edge_quality_json:
+                overrides.append("+edge_quality_json_path=" + str(self.parsed_args.edge_quality_json))
 
             if getattr(self, "_hydra_cli_overrides", None):
                 overrides.extend(self._hydra_cli_overrides)

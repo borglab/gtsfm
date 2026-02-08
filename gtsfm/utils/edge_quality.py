@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import itertools
 import json
+import re
 from collections import defaultdict
 from pathlib import Path
 
@@ -287,3 +288,21 @@ def export_edge_quality_to_json(
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(data, indent=2))
+
+
+def load_bad_edges_from_json(json_path: Path) -> set[ImageIndexPair]:
+    """Load bad edges from a previously exported edge quality report.
+
+    Args:
+        json_path: Path to edge_quality_report.json from a prior pipeline run.
+
+    Returns:
+        Set of bad edge (i, j) tuples.
+    """
+    data = json.loads(json_path.read_text())
+    bad_edges: set[ImageIndexPair] = set()
+    for edge_str in data.get("bad_edges", []):
+        match = re.match(r"\((\d+),(\d+)\)", edge_str)
+        if match:
+            bad_edges.add((int(match.group(1)), int(match.group(2))))
+    return bad_edges
