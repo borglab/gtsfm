@@ -238,6 +238,7 @@ def export_edge_quality_to_json(
     edge_quality: EdgeQualityGraph,
     bad_edges: set[ImageIndexPair],
     output_path: Path,
+    image_filenames: list[str] | None = None,
 ) -> None:
     """Export edge quality analysis to JSON for debugging.
 
@@ -245,6 +246,7 @@ def export_edge_quality_to_json(
         edge_quality: Dict mapping edges to their quality scores.
         bad_edges: Set of edges identified as bad.
         output_path: Path to write the JSON file.
+        image_filenames: Optional list of image filenames indexed by image index.
     """
     # Sort edges by quality (worst first)
     sorted_edges = sorted(
@@ -253,27 +255,35 @@ def export_edge_quality_to_json(
         reverse=True,
     )
 
-    data = {
+    def _edge_entry(i: int, j: int, score: EdgeQualityScore) -> dict:
+        entry: dict = {
+            "num_tracks": score.num_supporting_tracks,
+            "mean_reproj_error_px": round(score.mean_reproj_error_px, 3)
+            if score.mean_reproj_error_px != float("inf")
+            else "inf",
+            "max_reproj_error_px": round(score.max_reproj_error_px, 3)
+            if score.max_reproj_error_px != float("inf")
+            else "inf",
+            "is_bad": (i, j) in bad_edges,
+        }
+        if image_filenames is not None:
+            entry["image_i"] = image_filenames[i] if i < len(image_filenames) else f"idx_{i}"
+            entry["image_j"] = image_filenames[j] if j < len(image_filenames) else f"idx_{j}"
+        return entry
+
+    data: dict = {
         "metadata": {
             "total_edges": len(edge_quality),
             "bad_edge_count": len(bad_edges),
             "edges_with_no_tracks": sum(1 for s in edge_quality.values() if s.num_supporting_tracks == 0),
         },
-        "edge_quality": {
-            f"({i},{j})": {
-                "num_tracks": score.num_supporting_tracks,
-                "mean_reproj_error_px": round(score.mean_reproj_error_px, 3)
-                if score.mean_reproj_error_px != float("inf")
-                else "inf",
-                "max_reproj_error_px": round(score.max_reproj_error_px, 3)
-                if score.max_reproj_error_px != float("inf")
-                else "inf",
-                "is_bad": (i, j) in bad_edges,
-            }
-            for (i, j), score in sorted_edges
-        },
-        "bad_edges": [f"({i},{j})" for i, j in sorted(bad_edges)],
     }
+    if image_filenames is not None:
+        data["image_filenames"] = image_filenames
+    data["edge_quality"] = {
+        f"({i},{j})": _edge_entry(i, j, score) for (i, j), score in sorted_edges
+    }
+    data["bad_edges"] = [f"({i},{j})" for i, j in sorted(bad_edges)]
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(data, indent=2))

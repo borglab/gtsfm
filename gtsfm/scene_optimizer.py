@@ -381,7 +381,10 @@ class SceneOptimizer:
         # Export edge quality report for debugging
         try:
             export_path = Path(base_output_paths.results) / "edge_quality_report.json"
-            export_edge_quality_to_json(all_edge_quality, bad_edges, export_path)
+            export_edge_quality_to_json(
+                all_edge_quality, bad_edges, export_path,
+                image_filenames=self.loader.image_filenames(),
+            )
             logger.info("Edge quality report saved to %s", export_path)
         except Exception as exc:
             logger.warning("Failed to export edge quality report: %s", exc)

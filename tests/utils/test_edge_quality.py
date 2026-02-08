@@ -427,6 +427,37 @@ class TestExportEdgeQualityToJson:
 
         assert output_path.exists()
 
+    def test_export_with_image_filenames(self, tmp_path: Path):
+        """Image filenames are included in JSON when provided."""
+        quality: EdgeQualityGraph = {
+            (0, 1): EdgeQualityScore(5, 1.5, 2.5),
+            (1, 2): EdgeQualityScore(0, float("inf"), float("inf")),
+        }
+        fnames = ["img_000.jpg", "img_001.jpg", "img_002.jpg"]
+        output_path = tmp_path / "edge_quality.json"
+
+        export_edge_quality_to_json(quality, {(1, 2)}, output_path, image_filenames=fnames)
+
+        data = json.loads(output_path.read_text())
+        # Top-level filename list
+        assert data["image_filenames"] == fnames
+        # Per-edge filenames
+        assert data["edge_quality"]["(0,1)"]["image_i"] == "img_000.jpg"
+        assert data["edge_quality"]["(0,1)"]["image_j"] == "img_001.jpg"
+        assert data["edge_quality"]["(1,2)"]["image_i"] == "img_001.jpg"
+        assert data["edge_quality"]["(1,2)"]["image_j"] == "img_002.jpg"
+
+    def test_export_without_image_filenames(self, tmp_path: Path):
+        """Without image_filenames, JSON has no filename fields (backward compat)."""
+        quality: EdgeQualityGraph = {(0, 1): EdgeQualityScore(5, 1.5, 2.5)}
+        output_path = tmp_path / "edge_quality.json"
+
+        export_edge_quality_to_json(quality, set(), output_path)
+
+        data = json.loads(output_path.read_text())
+        assert "image_filenames" not in data
+        assert "image_i" not in data["edge_quality"]["(0,1)"]
+
 
 # ===========================================================================
 # Integration test: full pipeline from synthetic scene to bad edge detection
