@@ -66,13 +66,21 @@ Gaussians: type[GaussiansProtocol] | Any = Any  # type: ignore[assignment]
 _IMPORT_ERROR: Exception | None = None
 batchify_unproject_depth_map_to_point_map: Callable[..., torch.Tensor] | None = None
 
+# Import the geometry helper first — it only needs torch.
+try:  # pragma: no cover
+    from src.model.encoder.vggt.utils.geometry import (
+        batchify_unproject_depth_map_to_point_map as _batchify_unproject_impl,
+    )  # type: ignore
+except (ModuleNotFoundError, OSError):  # pragma: no cover
+    _batchify_unproject_impl = None
+
+batchify_unproject_depth_map_to_point_map = _batchify_unproject_impl
+
+# Full AnySplat model imports (heavier dependencies like gsplat, einops, jaxtyping).
 try:  # pragma: no cover - exercised by integration tests, hard to simulate in unit tests.
     from src.misc.image_io import save_interpolated_video as _save_interpolated_video_impl  # type: ignore
     from src.model.decoder.decoder_splatting_cuda import (
         DecoderSplattingCUDA as _DecoderSplattingCUDAImpl,
-    )  # type: ignore
-    from src.model.encoder.vggt.utils.geometry import (
-        batchify_unproject_depth_map_to_point_map as _batchify_unproject_impl,
     )  # type: ignore
     from src.model.model.anysplat import AnySplat as _AnySplatImpl  # type: ignore
     from src.model.ply_export import export_ply as _export_ply_impl  # type: ignore
@@ -85,7 +93,6 @@ else:
     AnySplat = _AnySplatImpl  # type: ignore[assignment]
     DecoderSplattingCUDA = _DecoderSplattingCUDAImpl  # type: ignore[assignment]
     Gaussians = _GaussiansImpl  # type: ignore[assignment]
-    batchify_unproject_depth_map_to_point_map = _batchify_unproject_impl
 
 
 def import_predict_tracks():
