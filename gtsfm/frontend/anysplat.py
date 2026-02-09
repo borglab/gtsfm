@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -66,13 +67,19 @@ Gaussians: type[GaussiansProtocol] | Any = Any  # type: ignore[assignment]
 _IMPORT_ERROR: Exception | None = None
 batchify_unproject_depth_map_to_point_map: Callable[..., torch.Tensor] | None = None
 
-# Import the geometry helper first — it only needs torch.
-try:  # pragma: no cover
-    from src.model.encoder.vggt.utils.geometry import (
-        batchify_unproject_depth_map_to_point_map as _batchify_unproject_impl,
-    )  # type: ignore
-except (ModuleNotFoundError, OSError):  # pragma: no cover
-    _batchify_unproject_impl = None
+# Import the geometry helper directly from the file to bypass __init__.py
+# chains in AnySplat that pull in heavy deps (gsplat, einops, jaxtyping).
+_GEOMETRY_FILE = ANYSPLAT_SUBMODULE_PATH / "src" / "model" / "encoder" / "vggt" / "utils" / "geometry.py"
+_batchify_unproject_impl: Callable[..., torch.Tensor] | None = None
+if _GEOMETRY_FILE.is_file():  # pragma: no cover
+    try:
+        _spec = importlib.util.spec_from_file_location("_anysplat_geometry", _GEOMETRY_FILE)
+        if _spec is not None and _spec.loader is not None:
+            _mod = importlib.util.module_from_spec(_spec)
+            _spec.loader.exec_module(_mod)  # type: ignore[union-attr]
+            _batchify_unproject_impl = getattr(_mod, "batchify_unproject_depth_map_to_point_map", None)
+    except Exception:
+        _batchify_unproject_impl = None
 
 batchify_unproject_depth_map_to_point_map = _batchify_unproject_impl
 
