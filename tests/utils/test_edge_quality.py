@@ -19,6 +19,7 @@ from gtsfm.utils.edge_quality import (
     compute_edge_quality,
     export_edge_quality_to_json,
     identify_bad_edges,
+    load_bad_edges_from_json,
     merge_edge_quality,
 )
 
@@ -457,6 +458,38 @@ class TestExportEdgeQualityToJson:
         data = json.loads(output_path.read_text())
         assert "image_filenames" not in data
         assert "image_i" not in data["edge_quality"]["(0,1)"]
+
+
+# ===========================================================================
+# Tests for load_bad_edges_from_json
+# ===========================================================================
+
+
+class TestLoadBadEdgesFromJson:
+    """Tests for loading bad edges from a previously exported JSON report."""
+
+    def test_load_bad_edges(self, tmp_path: Path):
+        """Bad edges are correctly parsed from JSON report."""
+        quality: EdgeQualityGraph = {
+            (0, 1): EdgeQualityScore(5, 1.5, 2.5),
+            (2, 3): EdgeQualityScore(0, float("inf"), float("inf")),
+            (4, 5): EdgeQualityScore(3, 8.0, 12.0),
+        }
+        bad_edges = {(2, 3), (4, 5)}
+        output_path = tmp_path / "edge_quality.json"
+        export_edge_quality_to_json(quality, bad_edges, output_path)
+
+        loaded = load_bad_edges_from_json(output_path)
+        assert loaded == bad_edges
+
+    def test_load_no_bad_edges(self, tmp_path: Path):
+        """Empty bad_edges list returns empty set."""
+        quality: EdgeQualityGraph = {(0, 1): EdgeQualityScore(5, 1.5, 2.5)}
+        output_path = tmp_path / "edge_quality.json"
+        export_edge_quality_to_json(quality, set(), output_path)
+
+        loaded = load_bad_edges_from_json(output_path)
+        assert loaded == set()
 
 
 # ===========================================================================
