@@ -81,7 +81,7 @@ cluster_optimizer:
 
     trans_avg_module:
       _target_: gtsfm.averaging.translation.rig_1dsfm.RigTranslationAveraging1DSFM
-      robust_measurement_noise: True
+      robust_ba_mode: "HUBER"
       projection_sampling_method: SAMPLE_INPUT_MEASUREMENTS
 
     data_association_module:
@@ -99,7 +99,7 @@ cluster_optimizer:
     bundle_adjustment_module:
       _target_: gtsfm.bundle.rig_bundle_adjustment.RigBundleAdjustmentOptimizer.
       reproj_error_thresholds: [10, 5, 3] # for (multistage) post-optimization filtering
-      robust_measurement_noise: True
+      robust_ba_mode: "HUBER"
       shared_calib: False
 
   # comment out to not run

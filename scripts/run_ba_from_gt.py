@@ -300,9 +300,7 @@ def _log_intrinsics_comparison(
         gt_params = _extract_params(gt_calib)
         pre_params = _extract_params(pre_calib)
         all_keys = sorted(set(gt_params) | set(pre_params))
-        diffs = {
-            key: pre_params.get(key, float("nan")) - gt_params.get(key, float("nan")) for key in all_keys
-        }
+        diffs = {key: pre_params.get(key, float("nan")) - gt_params.get(key, float("nan")) for key in all_keys}
         logger.info(
             "  %s gt=%s pre_ba=%s diff=%s",
             name,
@@ -757,7 +755,7 @@ def run_bundle_adjustment_from_gt(
         save_iteration_visualization=True,
         calibration_prior_noise_sigma=10.0,
         measurement_noise_sigma=2.0,
-        robust_measurement_noise=True,
+        robust_ba_mode=RobustBAMode.Huber,
         shared_calib=True,
     )
     if factor_graph_output_path is not None:

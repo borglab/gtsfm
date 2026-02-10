@@ -17,7 +17,7 @@ import torch.nn.functional as F
 from gtsam import Point2, Point3
 from torch.amp import autocast as amp_autocast  # type: ignore
 
-from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
+from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer, RobustBAMode
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.utils import data_utils
 from gtsfm.utils import logger as logger_utils
@@ -542,14 +542,14 @@ def _convert_vggt_outputs_to_gtsfm_data(
                 if not should_run_ba:
                     return gtsfm_data, gtsfm_data_pre_ba
                 optimizer = BundleAdjustmentOptimizer(
-                    robust_measurement_noise=True,
+                    robust_ba_mode=RobustBAMode.Huber,
                     calibration_prior_noise_sigma=15.0,
                     robust_noise_basin=0.5,
                     shared_calib=True,
                 )
                 gtsfm_data_with_ba, _ = optimizer.run_simple_ba(gtsfm_data, verbose=False)
                 optimizer = BundleAdjustmentOptimizer(
-                    robust_measurement_noise=True,
+                    robust_ba_mode=RobustBAMode.Huber,
                     calibration_prior_noise_sigma=15.0,
                     robust_noise_basin=0.2,
                     shared_calib=True,

@@ -14,7 +14,7 @@ from gtsam import Similarity3, Pose3, UnaryMeasurementPose3, TrajectoryAlignerSi
 
 import gtsfm.utils.logger as logger_utils
 import gtsfm.common.types as gtsfm_types
-from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
+from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer, RobustBAMode
 from gtsfm.cluster_optimizer.cluster_anysplat import save_splats
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
@@ -554,11 +554,17 @@ def combine_results(
 
     try:
         optimizer = BundleAdjustmentOptimizer(
-            robust_measurement_noise=True, calibration_prior_noise_sigma=15.0, robust_noise_basin=0.5, shared_calib=True
+            robust_ba_mode=RobustBAMode.Huber,
+            calibration_prior_noise_sigma=15.0,
+            robust_noise_basin=0.5,
+            shared_calib=True,
         )
         merged_with_ba, _ = optimizer.run_simple_ba(merged, verbose=False)
         optimizer = BundleAdjustmentOptimizer(
-            robust_measurement_noise=True, calibration_prior_noise_sigma=10.0, robust_noise_basin=0.1, shared_calib=True
+            robust_ba_mode=RobustBAMode.Huber,
+            calibration_prior_noise_sigma=10.0,
+            robust_noise_basin=0.1,
+            shared_calib=True,
         )
         merged_with_ba, _ = optimizer.run_simple_ba(merged_with_ba, verbose=False)
         _propagate_scene_metadata(merged_with_ba, merged)

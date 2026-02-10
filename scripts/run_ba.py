@@ -277,7 +277,7 @@ def run_bundle_adjustment(
             print_summary=print_summary,
             save_iteration_visualization=True,
             calibration_prior_noise_sigma=10.0,
-            robust_measurement_noise=True,
+            robust_ba_mode=RobustBAMode.Huber,
             measurement_noise_sigma=2.0,
             shared_calib=True,
             robust_noise_basin=basin,

@@ -45,6 +45,20 @@ class ImageInfo:
     shape: Optional[tuple[int, ...]] = None
 
 
+def get_average_calibration(initial_data: "GtsfmData") -> gtsfm_types.CALIBRATION_TYPE:
+    """Get the average calibration from the cameras."""
+    calibration_vectors = []
+    calib_cls = None
+    for i in initial_data.get_valid_camera_indices():
+        camera = initial_data.get_camera(i)
+        if calib_cls is None:
+            calib_cls = type(camera.calibration())
+        assert camera is not None, "Camera in initial data is None"
+        calibration_vectors.append(camera.calibration().vector())
+    average_calibration_vector = np.mean(calibration_vectors, axis=0)
+    return calib_cls(average_calibration_vector)  # type: ignore
+
+
 class GtsfmData:
     """Class containing cameras and tracks, essentially describing the complete 3D scene.
 
@@ -489,9 +503,10 @@ class GtsfmData:
             camera = self.get_camera(i)
             assert camera is not None, f"Camera {i} in GtsfmData is None"
             values.insert(X(i), camera.pose())
-            if not shared_calib or loop_idx == 0:
-                calib_symbol = K(0 if shared_calib else i)
-                values.insert(calib_symbol, camera.calibration())
+            if shared_calib and loop_idx == 0:
+                values.insert(K(0), get_average_calibration(self))
+            else:
+                values.insert(K(i), camera.calibration())
 
         for track_idx in range(self.number_tracks()):
             track = self.get_track(track_idx)

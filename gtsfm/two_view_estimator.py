@@ -21,6 +21,7 @@ import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metric_utils
 from gtsfm.bundle.two_view_ba import TwoViewBundleAdjustment
+from gtsfm.bundle.bundle_adjustment import RobustBAMode
 from gtsfm.common.dask_db_module_base import DaskDBModuleBase
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.keypoints import Keypoints
@@ -84,7 +85,7 @@ class TwoViewEstimator(DaskDBModuleBase):
         self._allow_indeterminate_linear_system = allow_indeterminate_linear_system
         self._ba_optimizer = TwoViewBundleAdjustment(
             reproj_error_thresholds=ba_reproj_error_thresholds,
-            robust_measurement_noise=True,
+            robust_ba_mode=RobustBAMode.Huber,
             max_iterations=bundle_adjust_2view_maxiters,
             allow_indeterminate_linear_system=allow_indeterminate_linear_system,
         )
