@@ -21,6 +21,15 @@ from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 SUBPLOTS_PER_ROW = 3
 
 
+def _extract_numeric_summary_values(summary: Dict[str, Any]) -> np.ndarray:
+    """Return numeric summary values only, ignoring nested structures."""
+    numeric_vals: list[float] = []
+    for val in summary.values():
+        if isinstance(val, (int, float, np.integer, np.floating)):
+            numeric_vals.append(float(val))
+    return np.asarray(numeric_vals, dtype=float)
+
+
 def get_readable_metric_name(metric_name: str) -> str:
     """Helper to convert a metric name separated by underscores to readable format.
 
@@ -131,7 +140,11 @@ def create_plots_for_distributions(metrics_dict: Dict[str, Any]) -> str:
     for metric, value in metrics_dict.items():
         if not isinstance(value, dict):
             continue
-        all_nan_summary = all(np.isnan(v) for v in value[metrics.SUMMARY_KEY].values())
+        summary = value.get(metrics.SUMMARY_KEY, {})
+        numeric_summary = _extract_numeric_summary_values(summary)
+        if numeric_summary.size == 0:
+            continue
+        all_nan_summary = np.isnan(numeric_summary).all()
         if not all_nan_summary:
             distribution_metrics.append(metric)
 
@@ -177,7 +190,11 @@ def create_plots_for_distributions_and_compare(
     # Separate all the 1D distribution metrics.
     for metric, value in metrics_dict.items():
         if isinstance(value, dict):
-            all_nan_summary = all(np.isnan(v) for v in value[metrics.SUMMARY_KEY].values())
+            summary = value.get(metrics.SUMMARY_KEY, {})
+            numeric_summary = _extract_numeric_summary_values(summary)
+            if numeric_summary.size == 0:
+                continue
+            all_nan_summary = np.isnan(numeric_summary).all()
             if not all_nan_summary:
                 distribution_metrics.append(metric)
     if len(distribution_metrics) == 0:
@@ -227,11 +244,13 @@ def get_figures_for_metrics(metrics_group: GtsfmMetricsGroup) -> Tuple[str, str]
     for metric_name, value in metrics_dict.items():
         if isinstance(value, dict):
             # Metrics with a dict representation must contain a summary.
-            if metrics.SUMMARY_KEY not in value:
-                raise ValueError(f"Metric {metric_name} does not contain a summary.")
+            summary = value.get(metrics.SUMMARY_KEY)
+            if summary is None or "median" not in summary or "mean" not in summary:
+                # Not a standard distribution summary, skip adding scalar projections.
+                continue
             # Add a scalar metric for median of 1D distributions.
-            scalar_metrics["median_" + metric_name] = value[metrics.SUMMARY_KEY]["median"]
-            scalar_metrics["mean_" + metric_name] = value[metrics.SUMMARY_KEY]["mean"]
+            scalar_metrics["median_" + metric_name] = summary["median"]
+            scalar_metrics["mean_" + metric_name] = summary["mean"]
         else:
             scalar_metrics[metric_name] = value
     table = create_table_for_scalar_metrics(scalar_metrics)
@@ -295,10 +314,16 @@ def get_figures_for_metrics_and_compare(
             else:
                 other_pipelines_metrics[gtsfm_metric_name].append("")
         if isinstance(gtsfm_metric_value, dict):
+            summary = gtsfm_metric_value.get(metrics.SUMMARY_KEY)
+            if summary is None or "median" not in summary or "mean" not in summary:
+                continue
             add_scalar_metric(scalar_metrics, gtsfm_metric_name, gtsfm_metric_value)
             for other_pipeline_metric_name, other_pipelines_metric_values in other_pipelines_metrics.items():
                 for other_pipeline_metric_value in other_pipelines_metric_values:
                     if isinstance(other_pipeline_metric_value, dict):
+                        other_summary = other_pipeline_metric_value.get(metrics.SUMMARY_KEY)
+                        if other_summary is None or "median" not in other_summary or "mean" not in other_summary:
+                            continue
                         add_scalar_metric(scalar_metrics, gtsfm_metric_name, other_pipeline_metric_value)
                     else:
                         other_pipeline_metric_value = {"summary": {"median": np.nan, "mean": np.nan, "stddev": np.nan}}

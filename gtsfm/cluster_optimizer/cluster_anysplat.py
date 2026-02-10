@@ -243,7 +243,7 @@ class ClusterAnySplat(ClusterOptimizerBase):
             intrinsics_pixels = intrinsic.copy()
             intrinsics_pixels[..., 0, :] *= width
             intrinsics_pixels[..., 1, :] *= height
-            camera = torch_utils.camera_from_matrices(extrinsic, intrinsics_pixels, wTc_flag=True)
+            camera = torch_utils.camera_from_matrices(extrinsic, intrinsics_pixels, wTc_flag=True, use_cal3_bundler=True)
             gtsfm_data.add_camera(global_idx, camera)  # type: ignore
             gtsfm_data.set_image_info(
                 global_idx,

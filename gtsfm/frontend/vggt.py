@@ -22,6 +22,7 @@ from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.utils import data_utils
 from gtsfm.utils import logger as logger_utils
 from gtsfm.utils import torch as torch_utils
+from gtsfm.densify import mvs_utils
 
 PathLike = Union[str, Path]
 
@@ -160,7 +161,8 @@ class VggtConfiguration:
     keypoint_extractor: str = "aliked+sp"
     fine_tracking: bool = True
     track_vis_thresh: float = 0.2
-    max_reproj_error: float = 8.0
+    max_reproj_error: float = 14.0
+    min_triangulation_angle: float = 10.0
 
 
 @dataclass
@@ -321,7 +323,6 @@ def _rescale_intrinsic_for_original_resolution(
 ) -> np.ndarray:
     """Adapt intrinsics estimated on a square crop back to the original image size."""
     resized = intrinsic.copy()
-    # print('image_width, image_height: ', image_width, image_height)
     resize_ratio = max(image_width, image_height) / float(reconstruction_resolution)
     resized[:2, :] *= resize_ratio
     resized[0, 2] = image_width / 2.0
@@ -431,7 +432,7 @@ def _convert_vggt_outputs_to_gtsfm_data(
         scaled_intrinsic = _rescale_intrinsic_for_original_resolution(
             intrinsic_np[local_idx], config.vggt_fixed_resolution, image_width, image_height
         )
-        camera = torch_utils.camera_from_matrices(extrinsic_np[local_idx], scaled_intrinsic)
+        camera = torch_utils.camera_from_matrices(extrinsic_np[local_idx], scaled_intrinsic, use_cal3_bundler=True)
         gtsfm_data.add_camera(global_idx, camera)  # type: ignore[arg-type]
         gtsfm_data.set_image_info(
             global_idx,
@@ -453,7 +454,7 @@ def _convert_vggt_outputs_to_gtsfm_data(
         valid_mask = inlier_num >= 2  # a track is invalid if without two inliers
         confidence_threshold = config.confidence_threshold
         confidence_threshold = min(
-            confidence_threshold, np.mean(tracking_result.confidences) + np.std(tracking_result.confidences)
+            confidence_threshold, np.mean(tracking_result.confidences) - np.std(tracking_result.confidences)
         )
         if tracking_result.confidences is not None:
             valid_mask = np.logical_and(valid_mask, tracking_result.confidences > confidence_threshold)
@@ -477,7 +478,6 @@ def _convert_vggt_outputs_to_gtsfm_data(
             point_xyz = tracking_result.points_3d[valid_id]
             gtsam_point = Point3(float(point_xyz[0]), float(point_xyz[1]), float(point_xyz[2]))
             per_track_measurements: list[tuple[int, float, float]] = []
-            max_error_for_track = 0.0
             frame_idx = np.where(track_mask[:, valid_id])[0]
             for local_id in frame_idx:
                 global_idx = image_indices[local_id]
@@ -497,18 +497,32 @@ def _convert_vggt_outputs_to_gtsfm_data(
                     proj_u = float(projected[0])
                     proj_v = float(projected[1])
                     reproj_err = float(np.hypot(rescaled_u - proj_u, rescaled_v - proj_v))
-                    max_error_for_track = max(max_error_for_track, reproj_err)
-                    # if reproj_err > max_reproj_error:
-                    #     continue
+                    if reproj_err > max_reproj_error:
+                        continue
                 per_track_measurements.append((global_idx, rescaled_u, rescaled_v))
 
             if len(per_track_measurements) < 2:
+                continue
+            max_triangulation_angle = 0.0
+            for i in range(len(frame_idx)):
+                for j in range(i + 1, len(frame_idx)):
+                    global_idx_i = image_indices[frame_idx[i]]
+                    global_idx_j = image_indices[frame_idx[j]]
+                    camera_i = gtsfm_data.get_camera(global_idx_i)
+                    camera_j = gtsfm_data.get_camera(global_idx_j)
+                    triangulation_angle = mvs_utils.calculate_triangulation_angle_in_degrees(
+                        camera_i, camera_j, gtsam_point
+                    )
+                    max_triangulation_angle = max(max_triangulation_angle, triangulation_angle)
+
+            if max_triangulation_angle < config.min_triangulation_angle:
                 continue
 
             track = torch_utils.colored_track_from_point(point_xyz, rgb)
             for global_idx, rescaled_u, rescaled_v in per_track_measurements:
                 track.addMeasurement(global_idx, Point2(rescaled_u, rescaled_v))
             gtsfm_data.add_track(track)
+        logger.info("num valid tracks after filtering: %d out of %d", gtsfm_data.number_tracks(), len(valid_idx))
 
     gtsfm_data_pre_ba: GtsfmData | None = None
     if config.run_bundle_adjustment_on_leaf:
@@ -518,11 +532,29 @@ def _convert_vggt_outputs_to_gtsfm_data(
             logger.warning("Skipping bundle adjustment because VGGT produced no valid tracks.")
         else:
             try:
+                gtsfm_data = gtsfm_data.filter_landmark_measurements(config.max_reproj_error)
+                logger.info(
+                    "num valid tracks after filtering: %d out of %d",
+                    gtsfm_data.number_tracks(),
+                    gtsfm_data_pre_ba.number_tracks(),
+                )
                 gtsfm_data, should_run_ba = data_utils.remove_cameras_with_no_tracks(gtsfm_data, "node-level BA")
                 if not should_run_ba:
                     return gtsfm_data, gtsfm_data_pre_ba
-                optimizer = BundleAdjustmentOptimizer(robust_measurement_noise=False, calibration_prior_noise_sigma=10)
+                optimizer = BundleAdjustmentOptimizer(
+                    robust_measurement_noise=True,
+                    calibration_prior_noise_sigma=15.0,
+                    robust_noise_basin=0.5,
+                    shared_calib=True,
+                )
                 gtsfm_data_with_ba, _ = optimizer.run_simple_ba(gtsfm_data, verbose=False)
+                optimizer = BundleAdjustmentOptimizer(
+                    robust_measurement_noise=True,
+                    calibration_prior_noise_sigma=15.0,
+                    robust_noise_basin=0.2,
+                    shared_calib=True,
+                )
+                gtsfm_data_with_ba, _ = optimizer.run_simple_ba(gtsfm_data_with_ba, verbose=False)
                 return gtsfm_data_with_ba, gtsfm_data_pre_ba
             except Exception as exc:
                 logger.warning("⚠️ Failed to run bundle adjustment: %s", exc)

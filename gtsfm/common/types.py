@@ -6,6 +6,7 @@ Authors: Ayush Baid, Travis Driver
 from typing import Type, Union
 
 import gtsam  # type: ignore
+import numpy as np
 
 CALIBRATION_TYPE = Union[gtsam.Cal3Bundler, gtsam.Cal3_S2, gtsam.Cal3DS2, gtsam.Cal3Fisheye]
 CAMERA_TYPE = Union[
@@ -106,6 +107,32 @@ def get_prior_factor_for_calibration(calibration: CALIBRATION_TYPE) -> Type[PRIO
         return gtsam.PriorFactorCal3Fisheye
     else:  # If the calibration type is not recognized, raise an error.
         raise ValueError(f"Unsupported calibration type: {type(calibration)}. Supported types are {CALIBRATION_TYPE}.")
+
+
+def get_noise_model_for_calibration(calibration, focal_sigma: float, pp_sigma: float) -> gtsam.noiseModel.Diagonal:
+    """Get the noise model for the calibration, based on the calibration type.
+
+    Convenience function to only set the focal length and principal point noise, and leave the rest at 1e-5.
+
+    Args:
+        calibration: the calibration object to get the noise model for.
+        focal_sigma: the sigma for the focal length.
+        pp_sigma: the sigma for the principal point.
+
+    Returns:
+        A Diagonal noise model with the given sigma for the focal length and principal point.
+    """
+    if isinstance(calibration, gtsam.Cal3Bundler):
+        sigmas = np.array([focal_sigma, 1e-5, 1e-5, pp_sigma, pp_sigma])
+    elif isinstance(calibration, gtsam.Cal3_S2):
+        sigmas = np.array([focal_sigma, focal_sigma, 1e-5, pp_sigma, pp_sigma])
+    elif isinstance(calibration, gtsam.Cal3DS2):
+        sigmas = np.array([focal_sigma, focal_sigma, 1e-5, pp_sigma, pp_sigma, 1e-5, 1e-5, 1e-5, 1e-5])
+    elif isinstance(calibration, gtsam.Cal3Fisheye):
+        sigmas = np.array([focal_sigma, focal_sigma, 1e-5, pp_sigma, pp_sigma, 1e-5, 1e-5, 1e-5, 1e-5])
+    else:  # If the calibration type is not recognized, raise an error.
+        raise ValueError(f"Unsupported calibration type: {type(calibration)}. Supported types are {CALIBRATION_TYPE}.")
+    return gtsam.noiseModel.Diagonal.Sigmas(sigmas)
 
 
 def get_sfm_factor_for_calibration(calibration: CALIBRATION_TYPE) -> Type[SFM_FACTOR_TYPE]:

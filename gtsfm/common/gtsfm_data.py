@@ -275,10 +275,7 @@ class GtsfmData:
             cal_i = _calibration_for_idx(i)
             result.add_camera(i, camera_class(values.atPose3(X(i)), cal_i))  # type: ignore
 
-        if initial_data is not None:
-            track_indices = list(range(initial_data.number_tracks()))
-        else:
-            track_indices = _symbol_indices(keys_list, "p")
+        track_indices = _symbol_indices(keys_list, "p")
 
         for track_idx in track_indices:
             point = values.atPoint3(P(track_idx))
@@ -830,6 +827,39 @@ class GtsfmData:
             filtered_data.add_track(track)
 
         return filtered_data, valid_mask
+
+    def filter_landmark_measurements(self, reproj_err_thresh: float = 5) -> "GtsfmData":
+        """Filters out landmarks with high reprojection error
+
+        Args:
+            reproj_err_thresh: reprojection err threshold for each measurement.
+
+        Returns:
+            New instance, and list of valid flags, one for each track.
+        """
+        # TODO: move this function to utils or GTSAM
+        filtered_data = GtsfmData(self.number_images(), gaussian_splats=self._gaussian_splats)
+        filtered_data._image_info = self._clone_image_info()
+
+        for track in self._tracks:
+            errors, _ = reprojection.compute_track_reprojection_errors(self._cameras, track)
+            new_track = SfmTrack(track.point3())
+            track_cameras = set()
+            for k in range(track.numberMeasurements()):
+                if np.isnan(errors[k]) or errors[k] > reproj_err_thresh:
+                    continue
+                i, uv = track.measurement(k)
+                new_track.addMeasurement(i, uv)
+                track_cameras.add(i)
+            if len(track_cameras) < 2:
+                continue
+            filtered_data.add_track(new_track)
+            for i in track_cameras:
+                camera_i = self.get_camera(i)
+                assert camera_i is not None
+                filtered_data.add_camera(i, camera_i)
+
+        return filtered_data
 
     def align_via_sim3_and_transform(self, aTi: dict[int, Pose3]) -> "GtsfmData":
         """Return a copy of the scene aligned to the supplied reference poses via Sim(3).

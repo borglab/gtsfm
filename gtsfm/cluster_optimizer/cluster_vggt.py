@@ -203,6 +203,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         store_pre_ba_result: bool = False,
         run_bundle_adjustment_on_parent: bool = True,
         max_reproj_error: float = 8.0,
+        min_triangulation_angle: float = 10.0,
         plot_reprojection_histograms: bool = True,
         drop_outlier_after_camera_merging: bool = True,
         drop_child_if_merging_fail: bool = True,
@@ -235,6 +236,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         self._dtype = inference_dtype
         self._run_bundle_adjustment_on_leaf = run_bundle_adjustment_on_leaf
         self._store_pre_ba_result = store_pre_ba_result
+        self._min_triangulation_angle = min_triangulation_angle
         if fast_dtype is not None:
             if self._dtype is None:
                 self._dtype = fast_dtype
@@ -333,6 +335,7 @@ class ClusterVGGT(ClusterOptimizerBase):
             run_bundle_adjustment_on_leaf=self._run_bundle_adjustment_on_leaf,
             store_pre_ba_result=self._store_pre_ba_result,
             max_reproj_error=self._max_reproj_error,
+            min_triangulation_angle=self._min_triangulation_angle,
         )
 
         image_batch_graph, original_coords_graph = delayed(_load_vggt_inputs, nout=2)(

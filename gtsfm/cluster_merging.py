@@ -553,7 +553,14 @@ def combine_results(
         logger.info("📌 Retaining zero-track cameras before parent BA (drop disabled).")
 
     try:
-        merged_with_ba = BundleAdjustmentOptimizer().run_simple_ba(merged)[0]  # Can definitely fail
+        optimizer = BundleAdjustmentOptimizer(
+            robust_measurement_noise=True, calibration_prior_noise_sigma=15.0, robust_noise_basin=0.5, shared_calib=True
+        )
+        merged_with_ba, _ = optimizer.run_simple_ba(merged, verbose=False)
+        optimizer = BundleAdjustmentOptimizer(
+            robust_measurement_noise=True, calibration_prior_noise_sigma=10.0, robust_noise_basin=0.1, shared_calib=True
+        )
+        merged_with_ba, _ = optimizer.run_simple_ba(merged_with_ba, verbose=False)
         _propagate_scene_metadata(merged_with_ba, merged)
         _log_scene_reprojection_stats(
             merged_with_ba,
