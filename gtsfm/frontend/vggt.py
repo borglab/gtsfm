@@ -542,19 +542,11 @@ def _convert_vggt_outputs_to_gtsfm_data(
                 if not should_run_ba:
                     return gtsfm_data, gtsfm_data_pre_ba
                 optimizer = BundleAdjustmentOptimizer(
-                    robust_ba_mode=RobustBAMode.Huber,
+                    robust_ba_mode=RobustBAMode.GMC,
                     calibration_prior_noise_sigma=15.0,
-                    robust_noise_basin=0.5,
                     shared_calib=True,
                 )
-                gtsfm_data_with_ba, _ = optimizer.run_simple_ba(gtsfm_data, verbose=False)
-                optimizer = BundleAdjustmentOptimizer(
-                    robust_ba_mode=RobustBAMode.Huber,
-                    calibration_prior_noise_sigma=15.0,
-                    robust_noise_basin=0.2,
-                    shared_calib=True,
-                )
-                gtsfm_data_with_ba, _ = optimizer.run_simple_ba(gtsfm_data_with_ba, verbose=False)
+                gtsfm_data_with_ba, _ = optimizer.run_iterative_robust_ba(gtsfm_data, [0.8, 0.5, 0.2])
                 return gtsfm_data_with_ba, gtsfm_data_pre_ba
             except Exception as exc:
                 logger.warning("⚠️ Failed to run bundle adjustment: %s", exc)

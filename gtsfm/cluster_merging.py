@@ -554,19 +554,12 @@ def combine_results(
 
     try:
         optimizer = BundleAdjustmentOptimizer(
-            robust_ba_mode=RobustBAMode.Huber,
+            robust_ba_mode=RobustBAMode.HUBER,
             calibration_prior_noise_sigma=15.0,
             robust_noise_basin=0.5,
             shared_calib=True,
         )
-        merged_with_ba, _ = optimizer.run_simple_ba(merged, verbose=False)
-        optimizer = BundleAdjustmentOptimizer(
-            robust_ba_mode=RobustBAMode.Huber,
-            calibration_prior_noise_sigma=10.0,
-            robust_noise_basin=0.1,
-            shared_calib=True,
-        )
-        merged_with_ba, _ = optimizer.run_simple_ba(merged_with_ba, verbose=False)
+        merged_with_ba, _ = optimizer.run_iterative_robust_ba(merged, [0.8, 0.5, 0.2])
         _propagate_scene_metadata(merged_with_ba, merged)
         _log_scene_reprojection_stats(
             merged_with_ba,

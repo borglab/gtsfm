@@ -85,7 +85,7 @@ class TwoViewEstimator(DaskDBModuleBase):
         self._allow_indeterminate_linear_system = allow_indeterminate_linear_system
         self._ba_optimizer = TwoViewBundleAdjustment(
             reproj_error_thresholds=ba_reproj_error_thresholds,
-            robust_ba_mode=RobustBAMode.Huber,
+            robust_ba_mode=RobustBAMode.HUBER,
             max_iterations=bundle_adjust_2view_maxiters,
             allow_indeterminate_linear_system=allow_indeterminate_linear_system,
         )
