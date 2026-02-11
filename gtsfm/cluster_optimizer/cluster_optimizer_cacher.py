@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import typing
 from pathlib import Path
 from typing import Optional, TYPE_CHECKING
@@ -34,18 +35,26 @@ logger = logger_utils.get_logger()
 class ClusterOptimizerCacher(ClusterOptimizerBase):
     """Caches the delayed bundle result produced by a cluster optimizer."""
 
-    def __init__(self, optimizer: ClusterOptimizerBase) -> None:
+    def __init__(self, optimizer: ClusterOptimizerBase, cache_subdir: Optional[str] = None) -> None:
         """Initializes the cacher with the actual cluster optimizer object.
 
         Args:
             optimizer: cluster optimizer to use in case of cache miss.
+            cache_subdir: Optional subdirectory (relative to cache root) for storing cache entries.
         """
+        run_bundle_adjustment_on_leaf = getattr(optimizer, "run_bundle_adjustment_on_leaf", None)
+        if run_bundle_adjustment_on_leaf is None:
+            run_bundle_adjustment_on_leaf = getattr(optimizer, "_run_bundle_adjustment_on_leaf", False)
         super().__init__(
             pose_angular_error_thresh=optimizer.pose_angular_error_thresh,
+            run_bundle_adjustment_on_leaf=run_bundle_adjustment_on_leaf,
+            run_bundle_adjustment_on_parent=getattr(optimizer, "run_bundle_adjustment_on_parent", True),
             output_worker=optimizer._output_worker,
         )
         self._optimizer = optimizer
         self._optimizer_hash = hashlib.sha1(repr(optimizer).encode()).hexdigest()
+        self._cache_subdir = cache_subdir if cache_subdir is not None else os.getenv("GTSFM_CACHE_SUBDIR")
+        self._cache_root_path = self._resolve_cache_root(self._cache_subdir)
 
     def __repr__(self) -> str:
         return repr(self._optimizer)
@@ -64,20 +73,38 @@ class ClusterOptimizerCacher(ClusterOptimizerBase):
         return {
             "_optimizer": self._optimizer,
             "_optimizer_hash": self._optimizer_hash,
+            "_cache_subdir": self._cache_subdir,
         }
 
     def __setstate__(self, state: dict[str, object]) -> None:
         """Restore state and keep worker routing consistent."""
         self._optimizer = typing.cast(ClusterOptimizerBase, state["_optimizer"])
         self._optimizer_hash = typing.cast(str, state["_optimizer_hash"])
+        self._cache_subdir = typing.cast(Optional[str], state.get("_cache_subdir"))
+        self._cache_root_path = self._resolve_cache_root(self._cache_subdir)
         # Re-initialize the base class to mimic the constructor.
+        run_bundle_adjustment_on_leaf = getattr(self._optimizer, "run_bundle_adjustment_on_leaf", None)
+        if run_bundle_adjustment_on_leaf is None:
+            run_bundle_adjustment_on_leaf = getattr(self._optimizer, "_run_bundle_adjustment_on_leaf", False)
         super().__init__(
             pose_angular_error_thresh=self._optimizer.pose_angular_error_thresh,
+            run_bundle_adjustment_on_leaf=run_bundle_adjustment_on_leaf,
+            run_bundle_adjustment_on_parent=getattr(self._optimizer, "run_bundle_adjustment_on_parent", True),
             output_worker=self._optimizer._output_worker,
         )
 
+    @staticmethod
+    def _resolve_cache_root(cache_subdir: Optional[str]) -> Path:
+        """Resolve the cache root path, optionally using a subdirectory or absolute override."""
+        if not cache_subdir:
+            return CACHE_ROOT_PATH
+        subdir_path = Path(cache_subdir)
+        if subdir_path.is_absolute():
+            return subdir_path
+        return CACHE_ROOT_PATH / subdir_path
+
     def _get_cache_path(self, cache_key: str) -> Path:
-        return CACHE_ROOT_PATH / "cluster_optimizer" / f"{cache_key}.pbz2"
+        return self._cache_root_path / "cluster_optimizer" / f"{cache_key}.pbz2"
 
     def _hash_one_view_data(self, one_view_data: Optional["OneViewData"]) -> str:
         """Compute a stable hash for OneViewData contents."""
@@ -127,11 +154,25 @@ class ClusterOptimizerCacher(ClusterOptimizerBase):
         io_utils.write_to_bz2_file(result, cache_path)
         return result
 
+    def _save_cached_result_outputs(self, result: GtsfmData, results_path: Path) -> None:
+        """Persist cached outputs expected by downstream tooling.
+
+        Currently used to re-export VGGT reconstructions in COLMAP text format.
+        """
+        if "VGGT" not in type(self._optimizer).__name__:
+            return
+        target_dir = results_path / "vggt"
+        target_dir.mkdir(parents=True, exist_ok=True)
+        result.export_as_colmap_text(target_dir)
+
     def create_computation_graph(self, context: ClusterContext) -> ClusterComputationGraph | None:
         cached_result = self._load_result_from_cache(context)
         if cached_result is not None:
             cached_graph: Delayed = delayed(lambda r: r, pure=False)(cached_result)
-            return ClusterComputationGraph(io_tasks=tuple(), metric_tasks=tuple(), sfm_result=cached_graph)
+            io_tasks = (
+                delayed(self._save_cached_result_outputs, pure=False)(cached_graph, context.output_paths.results),
+            )
+            return ClusterComputationGraph(io_tasks=io_tasks, metric_tasks=tuple(), sfm_result=cached_graph)
 
         computation = self._optimizer.create_computation_graph(context)
         if computation is None or computation.sfm_result is None:

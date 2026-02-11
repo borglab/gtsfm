@@ -102,6 +102,7 @@ class ClusterOptimizerBase(GTSFMProcess):
         drop_outlier_after_camera_merging: bool = True,
         plot_reprojection_histograms: bool = True,
         run_bundle_adjustment_on_parent: bool = True,
+        run_bundle_adjustment_on_leaf: bool = False,
         output_worker: None | str = None,
     ) -> None:
         self.drop_child_if_merging_fail = drop_child_if_merging_fail
@@ -109,6 +110,7 @@ class ClusterOptimizerBase(GTSFMProcess):
         self.drop_outlier_after_camera_merging = drop_outlier_after_camera_merging
         self.plot_reprojection_histograms = plot_reprojection_histograms
         self.run_bundle_adjustment_on_parent = run_bundle_adjustment_on_parent
+        self.run_bundle_adjustment_on_leaf = run_bundle_adjustment_on_leaf
         self._pose_angular_error_thresh = pose_angular_error_thresh
         self._output_worker = output_worker
 

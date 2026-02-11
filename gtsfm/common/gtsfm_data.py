@@ -540,6 +540,14 @@ class GtsfmData:
         """Returns all tracks."""
         return self._tracks
 
+    def update_camera_pose(self, index: int, pose: Pose3) -> None:
+        """Updates the pose of a camera at index."""
+        if index not in self._cameras:
+            raise ValueError(f"Camera at index {index} not found")
+        K = self._cameras[index].calibration()
+        new_camera = gtsfm_types.get_camera_class_for_calibration(K)(pose, K)
+        self._cameras[index] = new_camera
+
     def add_camera(self, index: int, camera: gtsfm_types.CAMERA_TYPE) -> None:
         """Adds camera at index if not already present."""
         if camera is None:
@@ -846,11 +854,12 @@ class GtsfmData:
     def get_metrics(self, suffix: str, store_full_data: bool = False) -> List[GtsfmMetric]:
         """Helper to get bundle adjustment metrics from a GtsfmData object with a suffix for metric names."""
         metrics = []
-        metrics.append(GtsfmMetric(name="number_cameras", data=len(self.get_valid_camera_indices())))
-        metrics.append(GtsfmMetric("number_tracks" + suffix, self.number_tracks()))
+        metrics.append(GtsfmMetric(name=f"number_images{suffix}", data=self.number_images()))
+        metrics.append(GtsfmMetric(name=f"number_cameras{suffix}", data=len(self.get_valid_camera_indices())))
+        metrics.append(GtsfmMetric(name=f"number_tracks{suffix}", data=self.number_tracks()))
         metrics.append(
             GtsfmMetric(
-                name="3d_track_lengths" + suffix,
+                name=f"3d_track_lengths{suffix}",
                 data=self.get_track_lengths(),
                 plot_type=GtsfmMetric.PlotType.HISTOGRAM,
                 store_full_data=store_full_data,
