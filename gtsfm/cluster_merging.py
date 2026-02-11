@@ -39,11 +39,18 @@ _SCENE_LABEL_ATTR = "_gtsfm_cluster_label"
 def _create_unary_measurements(scene: GtsfmData) -> list[UnaryMeasurementPose3]:
     # TODO(akshay-krishnan): investigate using a scene-dependent noise model
     # perhaps * np.exp(-len(scene.get_valid_camera_indices()) / 100.0)
-    noise_model = gtsam.noiseModel.Diagonal.Sigmas(np.array([1e-2, 1e-2, 1e-2, 1e-1, 1e-1, 1e-1]))
+
     unary_measurements = []
+    camera_reproj_errors = scene.get_scene_reprojection_errors_per_camera()
+    num_good_measurements = {
+        cam_id: (~np.isnan(errors) & (errors < 2.0)).sum() for cam_id, errors in camera_reproj_errors.items()
+    }
     for i, camera in scene.get_camera_poses().items():
         if camera is None:
             continue
+        noise_model = gtsam.noiseModel.Diagonal.Sigmas(
+            np.array([1e-2, 1e-2, 1e-2, 1e-1, 1e-1, 1e-1]) / np.sqrt(num_good_measurements[i])
+        )
         unary_measurement = UnaryMeasurementPose3(i, camera, noise_model)
         unary_measurements.append(unary_measurement)
     return unary_measurements
@@ -528,7 +535,7 @@ def combine_results(
         )
     else:
         # Merge all children into the merged scene.
-        for i, child in enumerate(valid_child_scenes):
+        for i, child in enumerate[GtsfmData](valid_child_scenes):
             merged = _align_and_merge_results(merged, child, drop_if_merging_fails=drop_child_if_merging_fail)
             _log_scene_reprojection_stats(
                 merged, f"Merged with child #{i+1}", plot_histograms=plot_reprojection_histograms
@@ -555,11 +562,11 @@ def combine_results(
     try:
         optimizer = BundleAdjustmentOptimizer(
             robust_ba_mode=RobustBAMode.HUBER,
-            calibration_prior_noise_sigma=15.0,
+            calibration_prior_noise_sigma=10.0,
             robust_noise_basin=0.5,
             shared_calib=True,
         )
-        merged_with_ba, _ = optimizer.run_iterative_robust_ba(merged, [0.8, 0.5, 0.2])
+        merged_with_ba, _ = optimizer.run_simple_ba(merged)
         _propagate_scene_metadata(merged_with_ba, merged)
         _log_scene_reprojection_stats(
             merged_with_ba,
