@@ -61,6 +61,10 @@ def colmap_camera_to_gtsam_calibration(camera: ColmapCamera) -> CALIBRATION_TYPE
         # See https://github.com/colmap/colmap/blob/1f6812e333a1e4b2ef56aa74e2c3873e4e3a40cd/src/colmap/sensor/models.h#L273  # noqa: E501
         fx, fy, cx, cy, k1, k2, p1, p2 = camera.params[:8]
         return gtsam.Cal3DS2(fx, fy, 0.0, cx, cy, k1, k2, p1, p2)
+    elif camera_model_name == "SIMPLE_PINHOLE":
+        # See https://github.com/colmap/colmap/blob/1f6812e333a1e4b2ef56aa74e2c3873e4e3a40cd/src/colmap/sensor/models.h#L196  # noqa: E501
+        f, cx, cy = camera.params
+        return gtsam.Cal3_S2(f, f, 0.0, cx, cy)
     elif camera_model_name == "PINHOLE":
         # See https://github.com/colmap/colmap/blob/1f6812e333a1e4b2ef56aa74e2c3873e4e3a40cd/src/colmap/sensor/models.h#L196  # noqa: E501
         fx, fy, cx, cy = camera.params
