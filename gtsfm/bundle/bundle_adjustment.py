@@ -22,6 +22,7 @@ import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.tracks as track_utils
 from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm.common import gtsfm_data
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
@@ -215,19 +216,6 @@ class BundleAdjustmentOptimizer:
 
         return graph
 
-    def __get_average_calibration(
-        self, initial_data: GtsfmData, cameras_to_model: List[int]
-    ) -> gtsfm_types.CALIBRATION_TYPE:
-        """Get the average calibration from the cameras."""
-        calibration_vectors = []
-        for i in cameras_to_model:
-            camera = initial_data.get_camera(i)
-            assert camera is not None, "Camera in initial data is None"
-            calibration_vectors.append(camera.calibration().vector())
-        average_calibration_vector = np.mean(calibration_vectors, axis=0)
-        calib_cls = type(initial_data.get_camera(cameras_to_model[0]).calibration())  # type: ignore
-        return calib_cls(average_calibration_vector)  # type: ignore
-
     def __calibration_priors(self, initial_data: GtsfmData, cameras_to_model: List[int]) -> NonlinearFactorGraph:
         """Generate prior factors on calibration parameters of the cameras."""
         graph = NonlinearFactorGraph()
@@ -245,7 +233,7 @@ class BundleAdjustmentOptimizer:
             graph.push_back(
                 calibration_prior_factor_class(
                     K(self.__map_to_calibration_variable(first_valid_camera_idx)),
-                    self.__get_average_calibration(initial_data, cameras_to_model),  # type: ignore
+                    gtsfm_data.get_average_calibration(initial_data, cameras_to_model),  # type: ignore
                     noise_model,
                 )
             )

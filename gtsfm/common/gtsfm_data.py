@@ -45,18 +45,31 @@ class ImageInfo:
     shape: Optional[tuple[int, ...]] = None
 
 
-def get_average_calibration(initial_data: "GtsfmData") -> gtsfm_types.CALIBRATION_TYPE:
+def get_average_calibration(
+    initial_data: "GtsfmData", camera_indices: Optional[List[int]] = None
+) -> gtsfm_types.CALIBRATION_TYPE:
     """Get the average calibration from the cameras."""
     calibration_vectors = []
     calib_cls = None
-    for i in initial_data.get_valid_camera_indices():
-        camera = initial_data.get_camera(i)
+    cam_indices = camera_indices if camera_indices is not None else initial_data.get_valid_camera_indices()
+
+    def to_cal_vector(c: gtsam.CALIBRATION_TYPE) -> np.ndarray:
+        if isinstance(c, gtsam.Cal3Bundler):
+            return np.array([c.fx(), c.k1(), c.k2(), c.px(), c.py()])
+        else:
+            return c.vector()
+
+    for i in cam_indices:
+        camera_cal = initial_data.get_camera(i).calibration()
         if calib_cls is None:
-            calib_cls = type(camera.calibration())
-        assert camera is not None, "Camera in initial data is None"
-        calibration_vectors.append(camera.calibration().vector())
+            calib_cls = type(camera_cal)
+        calibration_vectors.append(to_cal_vector(camera_cal))
     average_calibration_vector = np.mean(calibration_vectors, axis=0)
-    return calib_cls(average_calibration_vector)  # type: ignore
+    if isinstance(calib_cls, gtsam.Cal3Bundler):
+        # Cal3Bundler expects the parameters in the order: fx, k1, k2, px, py, no vector constructor.
+        return calib_cls(*average_calibration_vector.tolist())
+    else:
+        return calib_cls(average_calibration_vector)
 
 
 class GtsfmData:
