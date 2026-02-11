@@ -290,19 +290,42 @@ def export_edge_quality_to_json(
     output_path.write_text(json.dumps(data, indent=2))
 
 
-def load_bad_edges_from_json(json_path: Path) -> set[ImageIndexPair]:
+def load_bad_edges_from_json(json_path: Path) -> list[ImageIndexPair]:
     """Load bad edges from a previously exported edge quality report.
+
+    Edges are returned ordered by severity: zero-track edges first (worst),
+    then edges with quantifiable reprojection error sorted by descending
+    mean error. This ordering is used by iterative connectivity-preserving
+    pruning to remove the worst edges first.
 
     Args:
         json_path: Path to edge_quality_report.json from a prior pipeline run.
 
     Returns:
-        Set of bad edge (i, j) tuples.
+        List of bad edge (i, j) tuples, ordered by severity (worst first).
     """
     data = json.loads(json_path.read_text())
-    bad_edges: set[ImageIndexPair] = set()
+    edge_quality_data = data.get("edge_quality", {})
+
+    zero_track_edges: list[ImageIndexPair] = []
+    reproj_error_edges: list[tuple[float, ImageIndexPair]] = []
+
     for edge_str in data.get("bad_edges", []):
         match = re.match(r"\((\d+),(\d+)\)", edge_str)
-        if match:
-            bad_edges.add((int(match.group(1)), int(match.group(2))))
-    return bad_edges
+        if not match:
+            continue
+        edge: ImageIndexPair = (int(match.group(1)), int(match.group(2)))
+        info = edge_quality_data.get(edge_str, {})
+        num_tracks = info.get("num_tracks", 0)
+        if num_tracks == 0:
+            zero_track_edges.append(edge)
+        else:
+            mean_err = info.get("mean_reproj_error_px", 0)
+            if isinstance(mean_err, str):  # "inf"
+                mean_err = float("inf")
+            reproj_error_edges.append((mean_err, edge))
+
+    # Sort reproj-error edges by descending error (worst first)
+    reproj_error_edges.sort(key=lambda x: x[0], reverse=True)
+
+    return zero_track_edges + [edge for _, edge in reproj_error_edges]

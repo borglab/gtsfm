@@ -221,7 +221,7 @@ class SceneOptimizer:
                 visibility_graph, bad_edges
             )
             logger.info(
-                "Pruned %d bad edges (%d kept as bridges): %d -> %d edges remaining.",
+                "Pruned %d bad edges (%d kept for connectivity): %d -> %d edges remaining.",
                 len(removed),
                 len(kept),
                 original_count,

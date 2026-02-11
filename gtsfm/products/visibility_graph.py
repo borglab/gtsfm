@@ -59,19 +59,21 @@ def prune_edges(graph: VisibilityGraph, bad_edges: set[ImageIndexPair]) -> Visib
 
 def prune_edges_preserve_connectivity(
     graph: VisibilityGraph,
-    bad_edges: set[ImageIndexPair],
+    bad_edges: list[ImageIndexPair],
 ) -> tuple[VisibilityGraph, set[ImageIndexPair], set[ImageIndexPair]]:
     """Remove bad edges without disconnecting the graph.
 
-    Bridge edges (whose removal would disconnect the graph) are kept even
-    if they appear in ``bad_edges``.
+    Edges are removed iteratively in the order given by ``bad_edges``
+    (caller should sort worst-first: zero-track edges before high-reproj-error).
+    After tentatively removing each edge, a connectivity check is performed;
+    if the endpoints become disconnected the edge is kept.
 
     Args:
         graph: The original visibility graph.
-        bad_edges: Set of edges to remove.
+        bad_edges: Ordered list of edges to try removing (worst first).
 
     Returns:
-        Tuple of (pruned_graph, removed_edges, kept_bridge_edges).
+        Tuple of (pruned_graph, removed_edges, kept_edges).
     """
     if not graph or not bad_edges:
         return list(graph), set(), set()
@@ -79,21 +81,29 @@ def prune_edges_preserve_connectivity(
     G = nx.Graph()
     G.add_edges_from(graph)
 
-    # nx.bridges() may yield (u,v) with u > v; canonicalize to (min, max).
-    bridge_set: set[ImageIndexPair] = set()
-    for u, v in nx.bridges(G):
-        bridge_set.add((min(u, v), max(u, v)))
+    bad_edge_set = set(bad_edges)
+    removed: set[ImageIndexPair] = set()
+    kept: set[ImageIndexPair] = set()
 
-    removable = bad_edges - bridge_set
-    kept_as_bridges = bad_edges & bridge_set
+    for u, v in bad_edges:
+        if not G.has_edge(u, v):
+            # Edge not in graph (duplicate in bad list or not in original graph).
+            continue
+        G.remove_edge(u, v)
+        if nx.has_path(G, u, v):
+            removed.add((u, v))
+        else:
+            # Removing this edge would disconnect the graph — put it back.
+            G.add_edge(u, v)
+            kept.add((u, v))
 
-    pruned = [edge for edge in graph if edge not in removable]
+    pruned = [edge for edge in graph if edge not in removed]
 
-    if kept_as_bridges:
+    if kept:
         logger.info(
-            "Connectivity-preserving prune: %d bad edges removed, %d kept as bridges.",
-            len(removable),
-            len(kept_as_bridges),
+            "Connectivity-preserving prune: %d bad edges removed, %d kept for connectivity.",
+            len(removed),
+            len(kept),
         )
 
-    return pruned, removable, kept_as_bridges
+    return pruned, removed, kept
