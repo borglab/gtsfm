@@ -547,6 +547,7 @@ def _convert_vggt_outputs_to_gtsfm_data(
                     shared_calib=True,
                 )
                 gtsfm_data_with_ba, _ = optimizer.run_iterative_robust_ba(gtsfm_data, [0.8, 0.5, 0.2])
+                gtsfm_data_with_ba = gtsfm_data_with_ba.filter_landmark_measurements(5.0)
                 return gtsfm_data_with_ba, gtsfm_data_pre_ba
             except Exception as exc:
                 logger.warning("⚠️ Failed to run bundle adjustment: %s", exc)
