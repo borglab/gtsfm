@@ -13,7 +13,7 @@ import dask
 import gtsam  # type: ignore
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import BetweenFactorPose3, NonlinearFactorGraph, PriorFactorPose3, PriorFactorPoint3, Values
+from gtsam import BetweenFactorPose3, NonlinearFactorGraph, PriorFactorPoint3, PriorFactorPose3, Values
 from gtsam.noiseModel import Diagonal, Isotropic, Robust, mEstimator  # type: ignore
 from gtsam.symbol_shorthand import K, P, X  # type: ignore
 
@@ -216,7 +216,7 @@ class BundleAdjustmentOptimizer:
 
         return graph
 
-    def __calibration_priors(self, initial_data: GtsfmData, cameras_to_model: List[int]) -> NonlinearFactorGraph:
+    def __calibration_priors(self, initial_data: GtsfmData, cameras_to_model: list[int]) -> NonlinearFactorGraph:
         """Generate prior factors on calibration parameters of the cameras."""
         graph = NonlinearFactorGraph()
 
@@ -259,6 +259,8 @@ class BundleAdjustmentOptimizer:
         """Construct the factor graph with just reprojection factors and calibration priors."""
 
         graph = NonlinearFactorGraph()
+        if not cameras_to_model:
+            return graph
 
         reprojection_graph, cameras_without_tracks = self.__reprojection_factors(
             initial_data=initial_data,
@@ -614,7 +616,7 @@ class BundleAdjustmentOptimizer:
         """
         ba_metrics = GtsfmMetricsGroup(name=METRICS_GROUP, metrics=unfiltered_data.get_metrics(suffix="_unfiltered"))
 
-        input_image_idxs = unfiltered_data.get_valid_camera_indices()
+        input_image_idxs = list(unfiltered_data._image_info.keys())
         poses_gt = {
             i: cameras_gt[i].pose() for i in input_image_idxs if i < len(cameras_gt) and cameras_gt[i] is not None
         }

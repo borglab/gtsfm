@@ -7,7 +7,6 @@ loader:
   _target_: gtsfm.loader.Olsson
   dataset_dir: ??? # Required: set to the dataset root on the command line.
   images_dir: null
-  max_resolution: 760
 
 image_pairs_generator:
   _target_: gtsfm.retriever.image_pairs_generator.ImagePairsGenerator
@@ -18,26 +17,26 @@ image_pairs_generator:
   retriever:
     _target_: gtsfm.retriever.Similarity
     num_matched: 5
-    min_score: 0.79
+    min_score: 0.25
   batch_size: 16
 
 graph_partitioner:
-  _target_: gtsfm.graph_partitioner.Single
+  _target_: gtsfm.graph_partitioner.Metis
 
 cluster_optimizer:
   _target_: gtsfm.cluster_optimizer.Cacher
   optimizer:
     _target_: gtsfm.cluster_optimizer.cluster_vggt.ClusterVGGT
     weights_path: null
-    image_load_resolution: 1024
-    inference_resolution: 518
     conf_threshold: 5.0
     max_num_points: 100000
     tracking: true
-    tracking_max_query_pts: 512
+    tracking_max_query_pts: 2048
     tracking_query_frame_num: 3
-    tracking_fine_tracking: false
-    track_vis_thresh: 0.2
+    keypoint_extractor: aliked+sp+sift
+    track_vis_thresh: 0.05
+    track_conf_thresh: 0.2
+    max_reproj_error: 0 # 0.0 means no filtering based on reproj error
     camera_type: PINHOLE
     drop_outlier_after_camera_merging: false
     drop_child_if_merging_fail: true
@@ -45,5 +44,5 @@ cluster_optimizer:
     seed: 42
     plot_reprojection_histograms: true
     run_bundle_adjustment_on_leaf: false
-    run_bundle_adjustment_on_parent: true
+    run_bundle_adjustment_on_parent: false
     model_cache_key: null

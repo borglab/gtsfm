@@ -465,9 +465,9 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         )
 
         noise_model = gtsam.noiseModel.Isotropic.Sigma(NOISE_MODEL_DIMENSION, NOISE_MODEL_SIGMA)
-        # if self._robust_measurement_noise:
-        #     huber_loss = gtsam.noiseModel.mEstimator.Huber.Create(HUBER_LOSS_K)
-        #     noise_model = gtsam.noiseModel.Robust.Create(huber_loss, noise_model)
+        if self._robust_measurement_noise:
+            huber_loss = gtsam.noiseModel.mEstimator.Huber.Create(HUBER_LOSS_K)
+            noise_model = gtsam.noiseModel.Robust.Create(huber_loss, noise_model)
 
         w_i1Ui2_measurements = self._binary_measurements_from_dict(w_i2Ui1_dict, w_i2Ui1_dict_tracks, noise_model)
 
@@ -622,11 +622,9 @@ def compute_metrics(
     if not gt_available:
         return GtsfmMetricsGroup("translation_averaging_metrics", ta_metrics)
 
-    gt_wTi_map = {i: gt_wTi for i, gt_wTi in enumerate(gt_wTi_list)}
+    gt_wTi_map = {i: gt_wTi for i, gt_wTi in enumerate(gt_wTi_list) if gt_wTi is not None}
     # Get ground truth translation directions for the measurements.
-    _, gt_i2Ui1_dict = metrics_utils.get_all_relative_rotations_translations(
-        {i: gt_wTi for i, gt_wTi in enumerate(gt_wTi_list) if gt_wTi is not None}
-    )
+    _, gt_i2Ui1_dict = metrics_utils.get_all_relative_rotations_translations(gt_wTi_map)
 
     if len(inlier_i1_i2_pairs) > 0:
         threshold_suffix = str(int(MAX_INLIER_MEASUREMENT_ERROR_DEG)) + "_deg"

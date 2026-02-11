@@ -634,6 +634,12 @@ class GtsfmData:
         assert self._camera_to_measurement_map is not None
         return self._camera_to_measurement_map.get(camera_index, [])
 
+    def get_all_image_ids(self) -> list[int]:
+        """Get all image ids: this is a superset of the valid camera indices, obtained from image_info."""
+        if not self._image_info:
+            return self.get_valid_camera_indices()
+        return list(self._image_info.keys())
+
     def select_largest_connected_component(self, extra_camera_edges: Optional[ImageIndexPairs] = None) -> "GtsfmData":
         """Selects the subset of data belonging to the largest connected component of the graph where the edges are
         between cameras which feature in the same track.
@@ -713,7 +719,9 @@ class GtsfmData:
                 new_data.add_camera(i, camera_i)
                 source_info = gtsfm_data.get_image_info(i)
                 new_data.set_image_info(i, name=source_info.name, shape=source_info.shape)
-            elif keep_all_image_infos:
+
+        for i in gtsfm_data.get_all_image_ids():
+            if i in camera_indices or keep_all_image_infos:
                 source_info = gtsfm_data.get_image_info(i)
                 new_data.set_image_info(i, name=source_info.name, shape=source_info.shape)
 
@@ -997,10 +1005,11 @@ class GtsfmData:
         merged_tracks.extend(transform.tracks_with_sim3(aSb, other.tracks()))
 
         merged_image_info = self._clone_image_info()
-        for idx, info in other._image_info.items():
+        for idx in other.get_all_image_ids():
             if idx in merged_image_info:
                 continue
-            merged_image_info[idx] = ImageInfo(name=info.name, shape=info.shape)
+            source_info = other.get_image_info(idx)
+            merged_image_info[idx] = ImageInfo(name=source_info.name, shape=source_info.shape)
 
         merged_data = GtsfmData(number_images=len(merged_image_info))
         merged_data._image_info = merged_image_info

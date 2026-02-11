@@ -5,22 +5,22 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Hashable, Optional, Union
 
-from gtsam import Pose3
 import numpy as np
 import torch
 import torch.nn.functional as F
 from dask.delayed import Delayed, delayed
+from gtsam import Pose3
 
-import gtsfm.frontend.vggt as vggt
-from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterComputationGraph, ClusterContext, ClusterOptimizerBase
 import gtsfm.common.types as gtsfm_types
+import gtsfm.frontend.vggt as vggt
+import gtsfm.utils.metrics as metrics_utils
+from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterComputationGraph, ClusterContext, ClusterOptimizerBase
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.frontend.vggt import VggtConfiguration, VggtReconstruction
 from gtsfm.products.visibility_graph import visibility_graph_keys
 from gtsfm.ui.gtsfm_process import UiMetadata
 from gtsfm.utils.logger import get_logger
-import gtsfm.utils.metrics as metrics_utils
 
 logger = get_logger()
 
@@ -35,13 +35,9 @@ def _resize_to_square_tensor(image: np.ndarray, target_size: int) -> torch.Tenso
     return (tensor.squeeze(0)) / 255.0
 
 
-def _load_vggt_inputs(loader, indices: list[int], target_size: int):
+def _load_vggt_inputs(loader, indices: list[int], mode: str):
     """Load and preprocess a batch of images for VGGT."""
-
-    def resize_transform(arr: np.ndarray) -> torch.Tensor:
-        return _resize_to_square_tensor(arr, target_size)
-
-    return loader.load_image_batch_vggt(indices, target_size, resize_transform)
+    return vggt.load_image_batch_vggt_loader(loader, indices, mode=mode)
 
 
 def _resolve_vggt_model(cache_key: Hashable | None, loader_kwargs: dict[str, Any] | None) -> Any | None:
@@ -176,15 +172,14 @@ class ClusterVGGT(ClusterOptimizerBase):
     def __init__(
         self,
         weights_path: Optional[str] = None,
-        image_load_resolution: int = 1024,
-        inference_resolution: int = 518,
         conf_threshold: float = 5.0,
         max_num_points: int = 100000,
         tracking: bool = False,
-        tracking_max_query_pts: int = 1000,
-        tracking_query_frame_num: int = 4,
-        tracking_fine_tracking: bool = True,
-        track_vis_thresh: float = 0.2,
+        tracking_max_query_pts: int = 2048,
+        tracking_query_frame_num: int = 3,
+        track_vis_thresh: float = 0.05,
+        track_conf_thresh: float = 0.2,
+        keypoint_extractor: str = "aliked+sp+sift",
         camera_type: str = "PINHOLE",
         seed: int = 42,
         scene_dir: Optional[str] = None,
@@ -219,15 +214,14 @@ class ClusterVGGT(ClusterOptimizerBase):
             run_bundle_adjustment_on_parent=run_bundle_adjustment_on_parent,
         )
         self._weights_path = Path(weights_path) if weights_path is not None else None
-        self._image_load_resolution = image_load_resolution
-        self._inference_resolution = inference_resolution
         self._conf_threshold = conf_threshold
         self._max_points_for_colmap = max_num_points
         self._tracking = tracking
         self._tracking_max_query_pts = tracking_max_query_pts
         self._tracking_query_frame_num = tracking_query_frame_num
-        self._tracking_fine_tracking = tracking_fine_tracking
         self._track_vis_thresh = track_vis_thresh
+        self._track_conf_thresh = track_conf_thresh
+        self._keypoint_extractor = keypoint_extractor
         self._camera_type = camera_type
         self._max_reproj_error = max_reproj_error
         self._seed = seed
@@ -283,8 +277,6 @@ class ClusterVGGT(ClusterOptimizerBase):
     def __repr__(self) -> str:
         components = [
             f"weights_path={self._weights_path}",
-            f"image_load_resolution={self._image_load_resolution}",
-            f"inference_resolution={self._inference_resolution}",
             f"camera_type={self._camera_type}",
             f"dtype={self._dtype}",
             f"use_sparse_attention={self._use_sparse_attention}",
@@ -320,15 +312,14 @@ class ClusterVGGT(ClusterOptimizerBase):
         image_names = tuple(str(image_filenames[idx]) for idx in keys)
 
         config = VggtConfiguration(
-            vggt_fixed_resolution=self._inference_resolution,
-            img_load_resolution=self._image_load_resolution,
             confidence_threshold=self._conf_threshold,
             max_num_points=self._max_points_for_colmap,
             tracking=self._tracking,
             max_query_pts=self._tracking_max_query_pts,
             query_frame_num=self._tracking_query_frame_num,
-            fine_tracking=self._tracking_fine_tracking,
             track_vis_thresh=self._track_vis_thresh,
+            track_conf_thresh=self._track_conf_thresh,
+            keypoint_extractor=self._keypoint_extractor,
             dtype=self._dtype,
             model_ctor_kwargs=self._model_ctor_kwargs.copy(),
             use_sparse_attention=self._use_sparse_attention,
@@ -338,8 +329,10 @@ class ClusterVGGT(ClusterOptimizerBase):
             min_triangulation_angle=self._min_triangulation_angle,
         )
 
+        # mode is fixed to "crop", it resizes the width to 518 while maintaining aspect ratio and only if
+        # height is > 518 then crops
         image_batch_graph, original_coords_graph = delayed(_load_vggt_inputs, nout=2)(
-            context.loader, global_indices, self._image_load_resolution
+            context.loader, global_indices, mode="crop"
         )
 
         reconstruction_graph = delayed(_run_vggt_pipeline)(
