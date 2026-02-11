@@ -198,6 +198,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         store_pre_ba_result: bool = False,
         run_bundle_adjustment_on_parent: bool = True,
         max_reproj_error: float = 8.0,
+        min_triangulation_angle: float = 0.0,
         plot_reprojection_histograms: bool = True,
         drop_outlier_after_camera_merging: bool = True,
         drop_child_if_merging_fail: bool = True,
@@ -223,6 +224,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         self._keypoint_extractor = keypoint_extractor
         self._camera_type = camera_type
         self._max_reproj_error = max_reproj_error
+        self._min_triangulation_angle = min_triangulation_angle
         self._seed = seed
         self._explicit_scene_dir = Path(scene_dir) if scene_dir is not None else None
         self._use_sparse_attention = use_sparse_attention
@@ -324,6 +326,7 @@ class ClusterVGGT(ClusterOptimizerBase):
             run_bundle_adjustment_on_leaf=self._run_bundle_adjustment_on_leaf,
             store_pre_ba_result=self._store_pre_ba_result,
             max_reproj_error=self._max_reproj_error,
+            min_triangulation_angle=self._min_triangulation_angle,
         )
 
         # mode is fixed to "crop", it resizes the width to 518 while maintaining aspect ratio and only if
