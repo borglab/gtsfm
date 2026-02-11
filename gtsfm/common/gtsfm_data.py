@@ -53,7 +53,7 @@ def get_average_calibration(
     calib_cls = None
     cam_indices = camera_indices if camera_indices is not None else initial_data.get_valid_camera_indices()
 
-    def to_cal_vector(c: gtsam.CALIBRATION_TYPE) -> np.ndarray:
+    def to_cal_vector(c: gtsfm_types.CALIBRATION_TYPE) -> np.ndarray:
         if isinstance(c, gtsam.Cal3Bundler):
             return np.array([c.fx(), c.k1(), c.k2(), c.px(), c.py()])
         else:
@@ -65,11 +65,11 @@ def get_average_calibration(
             calib_cls = type(camera_cal)
         calibration_vectors.append(to_cal_vector(camera_cal))
     average_calibration_vector = np.mean(calibration_vectors, axis=0)
-    if isinstance(calib_cls, gtsam.Cal3Bundler):
+    if calib_cls == gtsam.Cal3Bundler:
         # Cal3Bundler expects the parameters in the order: fx, k1, k2, px, py, no vector constructor.
-        return calib_cls(*average_calibration_vector.tolist())
+        return calib_cls(*average_calibration_vector.tolist())  # type: ignore
     else:
-        return calib_cls(average_calibration_vector)
+        return calib_cls(average_calibration_vector)  # type: ignore
 
 
 class GtsfmData:
@@ -518,7 +518,7 @@ class GtsfmData:
             values.insert(X(i), camera.pose())
             if shared_calib and loop_idx == 0:
                 values.insert(K(0), get_average_calibration(self))
-            else:
+            if not shared_calib:
                 values.insert(K(i), camera.calibration())
 
         for track_idx in range(self.number_tracks()):
