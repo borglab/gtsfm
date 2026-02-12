@@ -291,6 +291,7 @@ class VggtConfiguration:
     track_conf_thresh: float = 0.2
     keypoint_extractor: str = "aliked+sp+sift"
     max_reproj_error: float = 8.0
+    min_triangulation_angle: float = 0.0
 
 
 @dataclass
@@ -565,6 +566,13 @@ def _convert_vggt_outputs_to_gtsfm_data(
             track = torch_utils.colored_track_from_point(point_xyz, rgb)
             for global_idx, float_u, float_v in per_track_measurements:
                 track.addMeasurement(global_idx, Point2(float_u, float_v))
+            min_triangulation_angle = config.min_triangulation_angle
+            if min_triangulation_angle > 0.0:
+                import gtsfm.utils.tracks as track_utils  # local import to avoid heavier dependency at module load
+
+                cameras = gtsfm_data.cameras()
+                if track_utils.get_max_triangulation_angle(track, cameras) < min_triangulation_angle:
+                    continue
             gtsfm_data.add_track(track)
 
     gtsfm_data_pre_ba: GtsfmData | None = None
@@ -578,7 +586,7 @@ def _convert_vggt_outputs_to_gtsfm_data(
                 gtsfm_data, should_run_ba = data_utils.remove_cameras_with_no_tracks(gtsfm_data, "node-level BA")
                 if not should_run_ba:
                     return gtsfm_data, gtsfm_data_pre_ba
-                optimizer = BundleAdjustmentOptimizer(robust_measurement_noise=False, calibration_prior_noise_sigma=10)
+                optimizer = BundleAdjustmentOptimizer()
                 gtsfm_data_with_ba, _ = optimizer.run_simple_ba(gtsfm_data, verbose=False)
                 return gtsfm_data_with_ba, gtsfm_data_pre_ba
             except Exception as exc:
