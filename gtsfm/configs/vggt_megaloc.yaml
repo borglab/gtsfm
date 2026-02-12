@@ -29,17 +29,13 @@ cluster_optimizer:
   optimizer:
     _target_: gtsfm.cluster_optimizer.cluster_vggt.ClusterVGGT
     weights_path: null
-    image_load_resolution: 1024
-    inference_resolution: 518
     conf_threshold: 0.1
     max_num_points: 100000
     tracking: true
     tracking_max_query_pts: 512
     tracking_query_frame_num: 3
-    tracking_fine_tracking: false
     track_vis_thresh: 0.2
     track_conf_thresh: 0.2
-    max_reproj_error: 0 # 0.0 means no filtering based on reproj error
     camera_type: PINHOLE
     drop_outlier_after_camera_merging: false
     drop_child_if_merging_fail: true
