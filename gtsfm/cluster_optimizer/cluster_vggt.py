@@ -28,13 +28,6 @@ logger = get_logger()
 _VGGT_MODEL_CACHE: dict[Hashable, Any] = {}
 
 
-def _resize_to_square_tensor(image: np.ndarray, target_size: int) -> torch.Tensor:
-    """Resize a HxWx3 numpy image to a square torch tensor normalized to [0,1]."""
-    tensor = torch.from_numpy(image).permute(2, 0, 1).unsqueeze(0).float()
-    tensor = F.interpolate(tensor, size=(target_size, target_size), mode="bilinear", align_corners=False)
-    return (tensor.squeeze(0)) / 255.0
-
-
 def _load_vggt_inputs(loader, indices: list[int], mode: str):
     """Load and preprocess a batch of images for VGGT."""
     return vggt.load_image_batch_vggt_loader(loader, indices, mode=mode)
