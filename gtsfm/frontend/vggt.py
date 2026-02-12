@@ -18,7 +18,6 @@ from PIL import Image as PILImage
 from torch.amp import autocast as amp_autocast  # type: ignore
 from torchvision import transforms as TF
 
-import gtsfm.common.types as gtsfm_types
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.utils import data_utils
@@ -571,10 +570,7 @@ def _convert_vggt_outputs_to_gtsfm_data(
             if min_triangulation_angle > 0.0:
                 import gtsfm.utils.tracks as track_utils  # local import to avoid heavier dependency at module load
 
-                cameras: dict[int, gtsfm_types.CAMERA_TYPE] = {}
-                for global_idx, _, _ in per_track_measurements:
-                    camera = gtsfm_data.get_camera(global_idx)
-                    cameras[global_idx] = camera
+                cameras = gtsfm_data.cameras()
                 if track_utils.get_max_triangulation_angle(track, cameras) < min_triangulation_angle:
                     continue
             gtsfm_data.add_track(track)
