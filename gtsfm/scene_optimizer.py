@@ -269,10 +269,12 @@ class SceneOptimizer:
                         merged_result = merge_future.result()
                         base_metrics_groups.extend(metrics_groups)
                         base_metrics_groups.append(merged_result.metrics)
+                        base_metrics_groups.append(merged_result.pre_ba_metrics)
                         root_merge_future = merge_future
                     else:
                         merged_result = merge_future.result()
                         metrics_groups.append(merged_result.metrics)
+                        metrics_groups.append(merged_result.pre_ba_metrics)
                         save_metrics_reports(metrics_groups, str(handle.output_paths.metrics))
                 if root_merge_future is not None:
                     logger.info("🔥 GTSFM: Running cluster optimization and merging...")

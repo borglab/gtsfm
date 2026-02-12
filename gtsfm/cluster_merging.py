@@ -103,7 +103,9 @@ class MergedNodeResult:
     """
 
     scene: Optional[GtsfmData]
+    pre_ba_scene: Optional[GtsfmData]
     metrics: GtsfmMetricsGroup
+    pre_ba_metrics: GtsfmMetricsGroup
 
 
 def _sanitize_component(value: str, fallback: str) -> str:
@@ -294,6 +296,7 @@ def compute_merging_metrics(
     store_full_data: bool = False,
     child_camera_counts: list[int] | None = None,
     child_camera_overlap_with_parent: list[int] | None = None,
+    suffix: str = "",
 ) -> GtsfmMetricsGroup:
     """Build metrics describing a merged reconstruction at a tree node.
 
@@ -329,7 +332,7 @@ def compute_merging_metrics(
     ]
     if merged_scene is not None:
         metrics.extend(merged_scene.get_metrics(suffix="_merged", store_full_data=store_full_data))
-    merging_metrics = GtsfmMetricsGroup(name="merging_metrics", metrics=metrics)
+    merging_metrics = GtsfmMetricsGroup(name=f"merging_metrics{suffix}", metrics=metrics)
     if cameras_gt is not None and merged_scene is not None:
         ba_pose_error_metrics = _get_pose_metrics(
             merged_scene,
@@ -360,6 +363,18 @@ def _run_export_task(payload: Tuple[Optional[Path], Future | MergedNodeResult]) 
                 save_splats(merged_scene, merged_dir)
             except Exception as exc:
                 logger.warning("⚠️ Failed to export Gaussian splats: %s", exc)
+    pre_ba_merged = merged_result.pre_ba_scene
+    if pre_ba_merged is not None:
+        pre_ba_dir = merged_dir.parent / "merged_pre_ba"
+        pre_ba_dir.mkdir(parents=True, exist_ok=True)
+        pre_ba_merged.export_as_colmap_text(pre_ba_dir)
+        if pre_ba_merged.has_gaussian_splats():
+            gaussian_splats = pre_ba_merged.get_gaussian_splats()
+            if isinstance(gaussian_splats, GaussiansProtocol):
+                try:
+                    save_splats(pre_ba_merged, pre_ba_dir)
+                except Exception as exc:
+                    logger.warning("⚠️ Failed to export Gaussian splats: %s", exc)
 
 
 def schedule_exports(
@@ -483,20 +498,29 @@ def combine_results(
         A MergedNodeResult object containing the merged scene and its metrics.
     """
 
-    def _finalize_result(result_scene: Optional[GtsfmData]) -> MergedNodeResult:
+    def _finalize_result(result_scene: Optional[GtsfmData], pre_ba_scene: Optional[GtsfmData]) -> MergedNodeResult:
         return MergedNodeResult(
-            result_scene,
-            compute_merging_metrics(
+            scene=result_scene,
+            pre_ba_scene=pre_ba_scene,
+            metrics=compute_merging_metrics(
                 result_scene,
                 cameras_gt=cameras_gt,
                 store_full_data=store_full_data,
                 child_camera_counts=child_camera_counts,
                 child_camera_overlap_with_parent=child_camera_overlap_with_parent,
             ),
+            pre_ba_metrics=compute_merging_metrics(
+                pre_ba_scene,
+                cameras_gt=cameras_gt,
+                store_full_data=store_full_data,
+                child_camera_counts=child_camera_counts,
+                child_camera_overlap_with_parent=child_camera_overlap_with_parent,
+                suffix="_pre_ba",
+            ),
         )
 
     if current is None:
-        return _finalize_result(None)
+        return _finalize_result(None, None)
 
     child_scenes: tuple[Optional[GtsfmData], ...] = tuple(child.scene for child in child_results)
 
@@ -520,7 +544,7 @@ def combine_results(
             _log_scene_reprojection_stats(child, f"child #{idx}", plot_histograms=plot_reprojection_histograms)
 
     if len(valid_child_scenes) == 0:
-        return _finalize_result(current)
+        return _finalize_result(current, None)
 
     metadata_source = current
 
@@ -544,18 +568,18 @@ def combine_results(
     _propagate_scene_metadata(merged, metadata_source)
 
     if merged is None:
-        return _finalize_result(None)
+        return _finalize_result(None, None)
 
     if not run_bundle_adjustment_on_parent:
         if drop_outlier_after_camera_merging:
             merged = _drop_outlier_tracks(merged)
-        return _finalize_result(merged)
+        return _finalize_result(merged, None)
 
     # Log cameras that have no supporting track measurements before running BA.
     if drop_camera_with_no_track:
         merged, should_run_ba = data_utils.remove_cameras_with_no_tracks(merged, "parent BA")
         if not should_run_ba:
-            return _finalize_result(merged)
+            return _finalize_result(merged, None)
     else:
         logger.info("📌 Retaining zero-track cameras before parent BA (drop disabled).")
 
@@ -608,18 +632,18 @@ def combine_results(
                     except Exception as e:
                         logger.warning("⚠️ Failed to align and merge gaussians: %s", e)
                 merged_with_ba.set_gaussian_splats(merged_gaussians)
-                return _finalize_result(merged_with_ba)
+                return _finalize_result(merged_with_ba, merged)
 
             except Exception as alignment_exc:
                 logger.warning("⚠️ Failed to compute pre/post BA Sim(3): %s", alignment_exc)
-                return _finalize_result(merged)
+                return _finalize_result(merged_with_ba, merged)
 
         else:
             logger.info("✖️ No Gaussians to merge")
-            return _finalize_result(merged_with_ba)
+            return _finalize_result(merged_with_ba, merged)
     except Exception as exc:
         logger.warning("⚠️ Failed to run bundle adjustment: %s", exc)
-        return _finalize_result(merged)
+        return _finalize_result(merged, None)
 
 
 __all__ = [
