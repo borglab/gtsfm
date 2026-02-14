@@ -480,6 +480,7 @@ def combine_results(
     drop_child_if_merging_fail: bool = True,
     store_full_data: bool = False,
     use_nonlinear_sim3_alignment: bool = False,
+    use_shared_calibration: bool = True,
 ) -> MergedNodeResult:
     """Run the merging and parent BA pipeline using already-transformed children.
 
@@ -587,8 +588,9 @@ def combine_results(
         optimizer = BundleAdjustmentOptimizer(
             robust_ba_mode=RobustBAMode.HUBER,
             calibration_prior_focal_sigma=10.0,
+            use_calibration_prior=True,
+            shared_calib=use_shared_calibration,
             robust_noise_basin=0.5,
-            shared_calib=True,
         )
         merged_with_ba, _ = optimizer.run_simple_ba(merged)
         _propagate_scene_metadata(merged_with_ba, merged)

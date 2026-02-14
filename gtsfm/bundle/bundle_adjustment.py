@@ -90,8 +90,8 @@ class BundleAdjustmentOptimizer:
             max_iterations (optional): Max number of iterations when optimizing the factor graph. None means no cap.
                 Defaults to None.
             cam_pose3_prior_noise_sigma (optional): Camera Pose3 prior noise sigma.
-            calibration_prior_noise_sigma (optional): Calibration prior noise sigma. Default to 1e-5, which is
-                essentially fixed.
+            calibration_prior_focal_sigma (optional): Sigma for the prior on the focal length, defaults to 20.0.
+            calibration_prior_dist_sigma (optional): Sigma for the prior on the distortion parameters, defaults to 0.1.
             measurement_noise_sigma (optional): Measurement noise sigma in pixel units.
             allow_indeterminate_linear_system: Reject a two-view measurement if an indeterminate linear system is
                 encountered during marginal covariance computation after bundle adjustment.

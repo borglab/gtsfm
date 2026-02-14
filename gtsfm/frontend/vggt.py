@@ -293,6 +293,9 @@ class VggtConfiguration:
     keypoint_extractor: str = "aliked+sp+sift"
     max_reproj_error: float = 14.0
     min_triangulation_angle: float = 10.0
+    ba_use_calibration_prior: bool = False
+    ba_use_undistorted_camera_model: bool = False
+    ba_use_shared_calibration: bool = True
 
 
 @dataclass
@@ -496,7 +499,9 @@ def _convert_vggt_outputs_to_gtsfm_data(
 
         scaled_intrinsic = intrinsic_np[local_idx]
 
-        camera = torch_utils.camera_from_matrices(extrinsic_np[local_idx], scaled_intrinsic, use_cal3_bundler=True)
+        camera = torch_utils.camera_from_matrices(
+            extrinsic_np[local_idx], scaled_intrinsic, use_cal3_bundler=not config.ba_use_undistorted_camera_model
+        )
         gtsfm_data.add_camera(global_idx, camera)  # type: ignore[arg-type]
         gtsfm_data.set_image_info(
             global_idx,
@@ -603,8 +608,8 @@ def _convert_vggt_outputs_to_gtsfm_data(
                     return gtsfm_data, gtsfm_data_pre_ba
                 optimizer = BundleAdjustmentOptimizer(
                     robust_ba_mode=RobustBAMode.GMC,
-                    calibration_prior_focal_sigma=15.0,
-                    shared_calib=True,
+                    shared_calib=config.ba_use_shared_calibration,
+                    use_calibration_prior=config.ba_use_calibration_prior,
                 )
                 gtsfm_data_with_ba, _ = optimizer.run_iterative_robust_ba(gtsfm_data, [0.8, 0.5, 0.2])
                 gtsfm_data_with_ba = gtsfm_data_with_ba.filter_landmark_measurements(5.0)

@@ -196,6 +196,9 @@ class ClusterVGGT(ClusterOptimizerBase):
         drop_outlier_after_camera_merging: bool = True,
         drop_child_if_merging_fail: bool = True,
         drop_camera_with_no_track: bool = True,
+        ba_use_calibration_prior: bool = False,
+        ba_use_undistorted_camera_model: bool = False,
+        use_shared_calibration: bool = True,
     ) -> None:
         super().__init__(
             pose_angular_error_thresh=pose_angular_error_thresh,
@@ -205,6 +208,7 @@ class ClusterVGGT(ClusterOptimizerBase):
             drop_outlier_after_camera_merging=drop_outlier_after_camera_merging,
             plot_reprojection_histograms=plot_reprojection_histograms,
             run_bundle_adjustment_on_parent=run_bundle_adjustment_on_parent,
+            use_shared_calibration=use_shared_calibration,
         )
         self._weights_path = Path(weights_path) if weights_path is not None else None
         self._conf_threshold = conf_threshold
@@ -224,6 +228,8 @@ class ClusterVGGT(ClusterOptimizerBase):
         self._run_bundle_adjustment_on_leaf = run_bundle_adjustment_on_leaf
         self._store_pre_ba_result = store_pre_ba_result
         self._min_triangulation_angle = min_triangulation_angle
+        self._ba_use_calibration_prior = ba_use_calibration_prior
+        self._ba_use_undistorted_camera_model = ba_use_undistorted_camera_model
         if fast_dtype is not None:
             if self._dtype is None:
                 self._dtype = fast_dtype
@@ -320,6 +326,9 @@ class ClusterVGGT(ClusterOptimizerBase):
             store_pre_ba_result=self._store_pre_ba_result,
             max_reproj_error=self._max_reproj_error,
             min_triangulation_angle=self._min_triangulation_angle,
+            ba_use_calibration_prior=self._ba_use_calibration_prior,
+            ba_use_undistorted_camera_model=self._ba_use_undistorted_camera_model,
+            ba_use_shared_calibration=self._use_shared_calibration,
         )
 
         # mode is fixed to "crop", it resizes the width to 518 while maintaining aspect ratio and only if

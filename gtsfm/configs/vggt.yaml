@@ -46,3 +46,6 @@ cluster_optimizer:
     run_bundle_adjustment_on_leaf: false
     run_bundle_adjustment_on_parent: false
     model_cache_key: null
+    ba_use_calibration_prior: false
+    ba_use_undistorted_camera_model: false
+    use_shared_calibration: true  # Change to false for unstructured datasets.

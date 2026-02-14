@@ -243,7 +243,10 @@ class ClusterAnySplat(ClusterOptimizerBase):
             intrinsics_pixels = intrinsic.copy()
             intrinsics_pixels[..., 0, :] *= width
             intrinsics_pixels[..., 1, :] *= height
-            camera = torch_utils.camera_from_matrices(extrinsic, intrinsics_pixels, wTc_flag=True, use_cal3_bundler=True)
+            # TODO(akshay-krishnan): Add support for pinhole camera model.
+            camera = torch_utils.camera_from_matrices(
+                extrinsic, intrinsics_pixels, wTc_flag=True, use_cal3_bundler=True
+            )
             gtsfm_data.add_camera(global_idx, camera)  # type: ignore
             gtsfm_data.set_image_info(
                 global_idx,
@@ -377,6 +380,7 @@ class ClusterAnySplat(ClusterOptimizerBase):
                 logger.warning("Skipping bundle adjustment because VGGT produced no valid tracks.")
             else:
                 try:
+                    # TODO(akshay-krishnan): Configure this to be same as VGGT's bundle adjustment optimizer.
                     post_ba_gtsfm_data, _ = BundleAdjustmentOptimizer().run_simple_ba(gtsfm_data)
                     for idx in post_ba_gtsfm_data.get_valid_camera_indices():
                         info = gtsfm_data.get_image_info(idx)
