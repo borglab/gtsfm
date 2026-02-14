@@ -89,5 +89,5 @@ cluster_optimizer:
       robust_ba_mode: "HUBER"
       shared_calib: False
       cam_pose3_prior_noise_sigma: 0.01
-      calibration_prior_noise_sigma: 1e-5
+      calibration_prior_focal_sigma: 20.0
       measurement_noise_sigma: 1.0

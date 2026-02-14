@@ -66,7 +66,8 @@ class BundleAdjustmentOptimizer:
         shared_calib: bool = False,
         max_iterations: Optional[int] = None,
         cam_pose3_prior_noise_sigma: float = 0.1,
-        calibration_prior_noise_sigma: float = 0.05,
+        calibration_prior_focal_sigma: float = 20.0,
+        calibration_prior_dist_sigma: float = 0.1,
         measurement_noise_sigma: float = 2.0,
         allow_indeterminate_linear_system: bool = True,
         print_summary: bool = False,
@@ -106,7 +107,9 @@ class BundleAdjustmentOptimizer:
         self._shared_calib = shared_calib
         self._max_iterations = max_iterations
         self._cam_pose3_prior_noise_sigma = cam_pose3_prior_noise_sigma
-        self._calibration_prior_noise_sigma = calibration_prior_noise_sigma
+        self._use_calibration_prior = use_calibration_prior
+        self._calibration_prior_focal_sigma = calibration_prior_focal_sigma
+        self._calibration_prior_dist_sigma = calibration_prior_dist_sigma
         self._measurement_noise_sigma = measurement_noise_sigma
         self._allow_indeterminate_linear_system = allow_indeterminate_linear_system
         self._ordering_type = ordering_type
@@ -227,7 +230,11 @@ class BundleAdjustmentOptimizer:
         calibration_prior_factor_class = gtsfm_types.get_prior_factor_for_calibration(first_camera.calibration())
         calibration_dim = first_camera.calibration().dim()
         noise_model = gtsfm_types.get_noise_model_for_calibration(
-            first_camera.calibration(), focal_sigma=self._calibration_prior_noise_sigma, pp_sigma=1e-5
+            first_camera.calibration(),
+            focal_sigma=self._calibration_prior_focal_sigma,
+            dist_sigma=self._calibration_prior_dist_sigma,
+            pp_sigma=1e-5,
+            skew_sigma=1e-6,
         )
         if self._shared_calib:
             graph.push_back(

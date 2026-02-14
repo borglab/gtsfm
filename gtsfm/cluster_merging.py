@@ -586,7 +586,7 @@ def combine_results(
     try:
         optimizer = BundleAdjustmentOptimizer(
             robust_ba_mode=RobustBAMode.HUBER,
-            calibration_prior_noise_sigma=10.0,
+            calibration_prior_focal_sigma=10.0,
             robust_noise_basin=0.5,
             shared_calib=True,
         )

@@ -603,7 +603,7 @@ def _convert_vggt_outputs_to_gtsfm_data(
                     return gtsfm_data, gtsfm_data_pre_ba
                 optimizer = BundleAdjustmentOptimizer(
                     robust_ba_mode=RobustBAMode.GMC,
-                    calibration_prior_noise_sigma=15.0,
+                    calibration_prior_focal_sigma=15.0,
                     shared_calib=True,
                 )
                 gtsfm_data_with_ba, _ = optimizer.run_iterative_robust_ba(gtsfm_data, [0.8, 0.5, 0.2])
