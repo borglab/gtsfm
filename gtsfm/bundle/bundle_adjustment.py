@@ -75,6 +75,7 @@ class BundleAdjustmentOptimizer:
         max_iterations: Optional[int] = None,
         cam_pose3_prior_noise_sigma: float = 0.1,
         calibration_prior_noise_sigma: float = 0.05,
+        calibration_prior_dist_sigma: float = 1e-5,
         measurement_noise_sigma: float = 2.0,
         allow_indeterminate_linear_system: bool = True,
         print_summary: bool = False,
@@ -109,6 +110,7 @@ class BundleAdjustmentOptimizer:
         self._max_iterations = max_iterations
         self._cam_pose3_prior_noise_sigma = cam_pose3_prior_noise_sigma
         self._calibration_prior_noise_sigma = calibration_prior_noise_sigma
+        self._calibration_prior_dist_sigma = calibration_prior_dist_sigma
         self._measurement_noise_sigma = measurement_noise_sigma
         self._allow_indeterminate_linear_system = allow_indeterminate_linear_system
         self._ordering_type = ordering_type
@@ -227,7 +229,10 @@ class BundleAdjustmentOptimizer:
         calibration_dim = first_camera.calibration().dim()
         # noise_model = Isotropic.Sigma(calibration_dim, self._calibration_prior_noise_sigma)
         noise_model = gtsfm_types.get_noise_model_for_calibration(
-            first_camera.calibration(), self._calibration_prior_noise_sigma, 1e-5
+            first_camera.calibration(),
+            self._calibration_prior_noise_sigma,
+            pp_sigma=1e-5,
+            dist_sigma=self._calibration_prior_dist_sigma,
         )
         if self._shared_calib:
             graph.push_back(
@@ -299,7 +304,7 @@ class BundleAdjustmentOptimizer:
         #     graph.push_back(
         #         PriorFactorPoint3(P(0), initial_data.get_track(0).point3(), Isotropic.Sigma(POINT3_DOF, 0.1))
         #     )
-        graph.push_back(self.__calibration_priors(initial_data, cameras_to_model, is_fisheye_calibration))
+        # graph.push_back(self.__calibration_priors(initial_data, cameras_to_model, is_fisheye_calibration))
 
         return graph, cameras_without_tracks
 
@@ -965,6 +970,7 @@ class BundleAdjustmentOptimizer:
         cameras_to_model = sorted(initial_data.get_valid_camera_indices())
 
         graph, cameras_without_tracks = self.__construct_simple_factor_graph(cameras_to_model, initial_data)
+
         if factor_graph_output_path is not None:
             self.__write_factor_graph(graph, Path(factor_graph_output_path))
         optimized_data, result_values, final_error = self.__optimize_and_recover(

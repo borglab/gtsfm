@@ -110,7 +110,7 @@ def get_prior_factor_for_calibration(calibration: CALIBRATION_TYPE) -> Type[PRIO
 
 
 def get_noise_model_for_calibration(
-    calibration, focal_sigma: float, pp_sigma: float, other_sigma: float = 1e-6
+    calibration, focal_sigma: float, pp_sigma: float, skew_sigma: float = 1e-6, dist_sigma: float = 1e-6
 ) -> gtsam.noiseModel.Diagonal:
     """Get the noise model for the calibration, based on the calibration type.
 
@@ -125,21 +125,21 @@ def get_noise_model_for_calibration(
         A Diagonal noise model with the given sigma for the focal length and principal point.
     """
     if isinstance(calibration, gtsam.Cal3Bundler):
-        sigmas = np.array([focal_sigma, other_sigma, other_sigma])  # f, k1, k2
+        sigmas = np.array([focal_sigma, dist_sigma, dist_sigma])  # f, k1, k2
     elif isinstance(calibration, gtsam.Cal3_S2):
-        sigmas = np.array([focal_sigma, focal_sigma, other_sigma, pp_sigma, pp_sigma])  # fx, fy, s, cx, cy
+        sigmas = np.array([focal_sigma, focal_sigma, skew_sigma, pp_sigma, pp_sigma])  # fx, fy, s, cx, cy
     elif isinstance(calibration, gtsam.Cal3DS2):
         sigmas = np.array(
             [
                 focal_sigma,
                 focal_sigma,
-                other_sigma,  # skew
+                skew_sigma,  # skew
                 pp_sigma,
                 pp_sigma,
-                other_sigma,  # k1
-                other_sigma,  # k2
-                other_sigma,  # p1
-                other_sigma,  # p2
+                dist_sigma,  # k1
+                dist_sigma,  # k2
+                dist_sigma,  # p1
+                dist_sigma,  # p2
             ]
         )
     elif isinstance(calibration, gtsam.Cal3Fisheye):
@@ -147,13 +147,13 @@ def get_noise_model_for_calibration(
             [
                 focal_sigma,
                 focal_sigma,
-                other_sigma,  # skew
+                skew_sigma,  # skew
                 pp_sigma,
                 pp_sigma,
-                other_sigma,  # k1
-                other_sigma,  # k2
-                other_sigma,  # p1
-                other_sigma,  # p2
+                dist_sigma,  # k1
+                dist_sigma,  # k2
+                dist_sigma,  # p1
+                dist_sigma,  # p2
             ]
         )
     else:  # If the calibration type is not recognized, raise an error.

@@ -37,36 +37,90 @@ def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-_FACTOR_LINE = re.compile(r"^\s*Factor\s+\d+:\s*(.+)$")
+_FACTOR_LINE = re.compile(r"^\s*Factor\s+(\d+):\s*(.*)$")
 _KEY_TOKEN = re.compile(r"\b[A-Za-z]\d+\b")
 
 
 def _parse_factors(text: str) -> list[tuple[str, tuple[str, ...], str]]:
+    """Parse factors as full serialized blocks.
+
+    We group contiguous lines by factor id, so each parsed item contains the full
+    factor block (including `.z[...]` measurements and all numeric values).
+    """
     factors: list[tuple[str, tuple[str, ...], str]] = []
+    current_factor_id: int | None = None
+    current_factor_headers: list[str] = []
+    current_block_lines: list[str] = []
+
+    def _flush_current_block() -> None:
+        nonlocal current_factor_headers, current_block_lines
+        if not current_block_lines:
+            return
+        header = next(
+            (h for h in current_factor_headers if h and not h.startswith("keys =") and not h.startswith(".z[")),
+            current_factor_headers[0] if current_factor_headers else "Factor",
+        )
+        block_text = "\n".join(current_block_lines).strip()
+        keys = tuple(_KEY_TOKEN.findall(block_text))
+        factors.append((header, keys, block_text))
+        current_factor_headers = []
+        current_block_lines = []
+
     for line in text.splitlines():
         match = _FACTOR_LINE.match(line)
-        if not match:
+        if match:
+            factor_id = int(match.group(1))
+            factor_header = match.group(2).strip()
+            if current_factor_id is None:
+                current_factor_id = factor_id
+            elif factor_id != current_factor_id:
+                _flush_current_block()
+                current_factor_id = factor_id
+            current_factor_headers.append(factor_header)
+            current_block_lines.append(line)
             continue
-        body = match.group(1).strip()
-        factor_type = body
-        for sep in ("(", " on ", "{"):
-            if sep in factor_type:
-                factor_type = factor_type.split(sep, 1)[0].strip()
-        keys = tuple(_KEY_TOKEN.findall(line))
-        factors.append((factor_type, keys, body))
+        if current_factor_id is not None:
+            current_block_lines.append(line)
+
+    _flush_current_block()
     return factors
+
+
+def _log_factor_summary(label: str, path: Path, factors: list[tuple[str, tuple[str, ...], str]]) -> None:
+    unique_keys = {key for _, keys, _ in factors for key in keys}
+    factor_type_counts = Counter(ftype for ftype, _, _ in factors)
+    factor_count = len(factors)
+    variable_count = len(unique_keys)
+    density = (factor_count / variable_count) if variable_count else 0.0
+
+    logger.info("%s summary: %s", label, path)
+    logger.info("  - factors: %d", factor_count)
+    logger.info("  - variables (unique keys): %d", variable_count)
+    logger.info("  - factor-to-variable ratio: %.2f", density)
+    logger.info("  - distinct factor types: %d", len(factor_type_counts))
+    if factor_type_counts:
+        logger.info("  - most common factor types (top 5):")
+        for factor_type, count in factor_type_counts.most_common(5):
+            percent = (100.0 * count / factor_count) if factor_count else 0.0
+            logger.info("      * %s: %d (%.1f%%)", factor_type, count, percent)
+    else:
+        logger.info("  - most common factor types (top 5): <none>")
 
 
 def _compare_file(a_path: Path, b_path: Path) -> bool:
     a_data = _read_bytes(a_path)
     b_data = _read_bytes(b_path)
-    if a_data == b_data:
-        return True
 
     a_text = a_data.decode("utf-8", errors="ignore")
     b_text = b_data.decode("utf-8", errors="ignore")
     a_factors = _parse_factors(a_text)
     b_factors = _parse_factors(b_text)
+    _log_factor_summary("A", a_path, a_factors)
+    _log_factor_summary("B", b_path, b_factors)
+
+    if a_data == b_data:
+        logger.info("Match: %s vs %s (byte-identical)", a_path, b_path)
+        return True
 
     if not a_factors or not b_factors:
         logger.info(

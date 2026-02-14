@@ -24,6 +24,7 @@ from typing import Optional
 
 import numpy as np
 from gtsam import Pose3, SfmTrack
+import gtsam
 
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
 from gtsfm.common.gtsfm_data import GtsfmData
@@ -253,7 +254,11 @@ def _override_gt_intrinsics_with_preba(
             continue
         calib = preba_cam.calibration()
         cam_class = gtsfm_types.get_camera_class_for_calibration(calib)
-        updated.append(cam_class(gt_cam.pose(), calib))  # type: ignore
+        f = (calib.fx() + calib.fy()) / 2.0
+        new_calib = gtsam.Cal3_S2(f, f, 0.0, calib.px(), calib.py())
+        # new_calib = gtsam.Cal3DS2(f, f, 0.0, calib.px(), calib.py(), 0.0, 0.0, 0.0, 0.0)
+        print("cam_class ", idx, type(cam_class), type(gt_cam.calibration()), gt_cam.calibration(), calib)
+        updated.append(gtsam.PinholeCameraCal3_S2(gt_cam.pose(), new_calib))  # type: ignore
     return updated
 
 
@@ -300,9 +305,7 @@ def _log_intrinsics_comparison(
         gt_params = _extract_params(gt_calib)
         pre_params = _extract_params(pre_calib)
         all_keys = sorted(set(gt_params) | set(pre_params))
-        diffs = {
-            key: pre_params.get(key, float("nan")) - gt_params.get(key, float("nan")) for key in all_keys
-        }
+        diffs = {key: pre_params.get(key, float("nan")) - gt_params.get(key, float("nan")) for key in all_keys}
         logger.info(
             "  %s gt=%s pre_ba=%s diff=%s",
             name,
@@ -356,6 +359,99 @@ def _log_image_scales(
             scale_u,
             scale_v,
         )
+
+
+def _map_gt_cameras_to_preba(
+    pre_ba_data: GtsfmData,
+    cameras_gt: list[Optional[gtsfm_types.CAMERA_TYPE]],
+    gt_filenames: list[str],
+) -> dict[int, gtsfm_types.CAMERA_TYPE]:
+    name_to_gt_idx = {name: idx for idx, name in enumerate(gt_filenames)}
+    for name, idx in list(name_to_gt_idx.items()):
+        name_to_gt_idx[Path(name).name] = idx
+    gt_by_preba_idx: dict[int, gtsfm_types.CAMERA_TYPE] = {}
+    for pre_idx in pre_ba_data.get_valid_camera_indices():
+        pre_name = pre_ba_data.get_image_info(pre_idx).name
+        if pre_name is None:
+            continue
+        gt_idx = name_to_gt_idx.get(pre_name) or name_to_gt_idx.get(Path(pre_name).name)
+        if gt_idx is None or gt_idx >= len(cameras_gt):
+            continue
+        gt_cam = cameras_gt[gt_idx]
+        if gt_cam is None:
+            continue
+        gt_by_preba_idx[pre_idx] = gt_cam
+    return gt_by_preba_idx
+
+
+def _filter_tracks_with_cameras(
+    pre_ba_data: GtsfmData,
+    cameras_by_idx: dict[int, gtsfm_types.CAMERA_TYPE],
+    reproj_err_thresh: float,
+) -> tuple[GtsfmData, list[int]]:
+    filtered = GtsfmData(pre_ba_data.number_images())
+    filtered._image_info = pre_ba_data._clone_image_info()
+    valid_track_ids = []
+    for track_idx, track in enumerate(pre_ba_data.tracks()):
+        if track.numberMeasurements() == 0:
+            continue
+        errors, _ = reprojection_utils.compute_track_reprojection_errors(cameras_by_idx, track)
+        new_track = SfmTrack(track.point3())
+        track_cameras = set()
+        for k in range(track.numberMeasurements()):
+            if np.isnan(errors[k]) or errors[k] > reproj_err_thresh:
+                continue
+            i, uv = track.measurement(k)
+            new_track.addMeasurement(i, uv)
+            track_cameras.add(i)
+        if len(track_cameras) < 2:
+            continue
+        filtered.add_track(new_track)
+        valid_track_ids.append(track_idx)
+        for i in track_cameras:
+            camera_i = pre_ba_data.get_camera(i)
+            assert camera_i is not None
+            filtered.add_camera(i, camera_i)
+    return filtered, valid_track_ids
+
+
+def _copy_data_with_track_ids(data: GtsfmData, track_ids: list[int]) -> GtsfmData:
+    copied = GtsfmData(data.number_images())
+    copied._image_info = data._clone_image_info()
+    for track_idx in track_ids:
+        track = data.get_track(track_idx)
+        copied.add_track(track)
+    for cam_idx in data.get_valid_camera_indices():
+        camera = data.get_camera(cam_idx)
+        assert camera is not None
+        copied.add_camera(cam_idx, camera)
+    return copied
+
+
+def _retriangulate_tracks(pre_ba_data: GtsfmData) -> GtsfmData:
+    cameras = pre_ba_data.cameras()
+    point3d_initializer = Point3dInitializer(
+        track_camera_dict=cameras,
+        options=TriangulationOptions(mode=TriangulationSamplingMode.NO_RANSAC),
+    )
+    retriangulated = GtsfmData(pre_ba_data.number_images())
+    retriangulated._image_info = pre_ba_data._clone_image_info()
+    for cam_idx, cam in cameras.items():
+        retriangulated.add_camera(cam_idx, cam)
+
+    for track in pre_ba_data.tracks():
+        if track.numberMeasurements() < 2:
+            continue
+        measurements: list[SfmMeasurement] = []
+        for k in range(track.numberMeasurements()):
+            i, uv = track.measurement(k)
+            measurements.append(SfmMeasurement(i, uv))
+        track_2d = SfmTrack2d(measurements)
+        track_3d, _, _ = point3d_initializer.triangulate(track_2d)
+        if track_3d is None:
+            continue
+        retriangulated.add_track(track_3d)
+    return retriangulated
 
 
 def _remap_tracks_to_gt(
@@ -696,6 +792,21 @@ def _save_reprojection_error_histograms(
     )
 
 
+def _update_cameras_with_gt(
+    pre_ba_data: GtsfmData,
+    pre_ba_to_gt_map: dict[int, int],
+    gt_cameras: list[Optional[gtsfm_types.CAMERA_TYPE]],
+) -> GtsfmData:
+    updated = GtsfmData(pre_ba_data.number_images())
+    updated._image_info = pre_ba_data._clone_image_info()
+    for cam_idx in pre_ba_data.get_valid_camera_indices():
+        new_cam_idx = pre_ba_to_gt_map[cam_idx]
+        camera = gt_cameras[new_cam_idx]
+        assert camera is not None
+        updated.add_camera(cam_idx, camera)
+    return updated
+
+
 def run_bundle_adjustment_from_gt(
     pre_ba_dir: str,
     output_dir: str,
@@ -709,6 +820,9 @@ def run_bundle_adjustment_from_gt(
     save_track_viz: bool,
     use_preba_intrinsics: bool,
     factor_graph_output_path: Optional[str],
+    save_gt_filtered_preba: bool,
+    gt_filter_reproj_thresh: Optional[float],
+    gt_filtered_subdir: str,
 ) -> tuple[GtsfmData, GtsfmData]:
     pre_ba_data = _load_pre_ba_data(pre_ba_dir)
     if pre_ba_filter_reproj_thresh is not None:
@@ -720,6 +834,32 @@ def run_bundle_adjustment_from_gt(
         _log_intrinsics_comparison(filtered_pre_ba_data, cameras_gt, gt_filenames)
         cameras_gt = _override_gt_intrinsics_with_preba(filtered_pre_ba_data, cameras_gt, gt_filenames)
     _log_image_scales(filtered_pre_ba_data, cameras_gt, gt_filenames, gt_shapes)
+
+    if save_gt_filtered_preba:
+        if gt_filter_reproj_thresh is None:
+            raise ValueError("--gt_filter_reproj_thresh is required when --save_gt_filtered_preba is set.")
+        gt_cameras_preba = _map_gt_cameras_to_preba(filtered_pre_ba_data, cameras_gt, gt_filenames)
+        # Update the pre-BA data with the gt cameras
+        new_data = GtsfmData(filtered_pre_ba_data.number_images())
+        new_data._image_info = filtered_pre_ba_data._clone_image_info()
+        for cam_idx in filtered_pre_ba_data.get_valid_camera_indices():
+            camera = gt_cameras_preba[cam_idx]
+            assert camera is not None
+            new_data.add_camera(cam_idx, camera)
+        for track_idx in range(filtered_pre_ba_data.number_tracks()):
+            track = filtered_pre_ba_data.get_track(track_idx)
+            new_data.add_track(track)
+
+        retriangulated_preba = _retriangulate_tracks(new_data)
+        _, valid_track_ids = _filter_tracks_with_cameras(
+            pre_ba_data=retriangulated_preba,
+            cameras_by_idx=gt_cameras_preba,
+            reproj_err_thresh=gt_filter_reproj_thresh,
+        )
+        retriangulated_preba = _copy_data_with_track_ids(retriangulated_preba, valid_track_ids)
+        gt_filtered_dir = Path(pre_ba_dir).parent / gt_filtered_subdir
+        retriangulated_preba.export_as_colmap_text(str(gt_filtered_dir))
+        logger.info("Saved GT-filtered pre-BA model to %s with %d tracks", gt_filtered_dir, len(valid_track_ids))
 
     tracks_2d = _remap_tracks_to_gt(
         filtered_pre_ba_data,
@@ -869,6 +1009,22 @@ def main() -> None:
         action="store_true",
         help="Save the GTSAM factor graph before BA to <output_dir>/metrics/factor_graph.txt.",
     )
+    parser.add_argument(
+        "--save_gt_filtered_preba",
+        action="store_true",
+        help="Save pre-BA tracks filtered by GT reprojection error to a sibling directory.",
+    )
+    parser.add_argument(
+        "--gt_filter_reproj_thresh",
+        type=float,
+        default=None,
+        help="GT reprojection error threshold for filtering pre-BA tracks.",
+    )
+    parser.add_argument(
+        "--gt_filtered_subdir",
+        default="vggt_pre_ba_gt_filtered",
+        help="Output subdir name for GT-filtered pre-BA data.",
+    )
     parser.add_argument("--max_resolution", type=int, default=760, help="Max image short side in pixels.")
     parser.add_argument("--max_frame_lookahead", type=int, default=20, help="Olsson loader frame lookahead.")
 
@@ -910,6 +1066,9 @@ def main() -> None:
             save_track_viz=args.save_track_viz,
             use_preba_intrinsics=args.use_preba_intrinsics,
             factor_graph_output_path=factor_graph_output_path,
+            save_gt_filtered_preba=args.save_gt_filtered_preba,
+            gt_filter_reproj_thresh=args.gt_filter_reproj_thresh,
+            gt_filtered_subdir=args.gt_filtered_subdir,
         )
 
     if args.pre_ba_dir is not None:

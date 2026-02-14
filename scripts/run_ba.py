@@ -35,6 +35,7 @@ from gtsfm.data_association.point3d_initializer import (
 from gtsfm.utils import reprojection as reprojection_utils
 import numpy as np
 import gtsfm.utils.align as align_utils
+import gtsam
 
 
 logger = logger_utils.get_logger()
@@ -265,6 +266,12 @@ def run_bundle_adjustment(
         filtered_pre_ba_data = pre_ba_data
 
     pre_ba_data_optim = filtered_pre_ba_data
+    for cam_idx in pre_ba_data_optim.get_valid_camera_indices():
+        camera = pre_ba_data_optim.get_camera(cam_idx)
+        calib = camera.calibration()
+        f = (calib.fx() + calib.fy()) / 2.0
+        calib = gtsam.Cal3DS2(f, f, 0.0, calib.px(), calib.py(), 0.0, 0.0, 0.0, 0.0)
+        pre_ba_data_optim._cameras[cam_idx] = gtsam.PinholeCameraCal3DS2(camera.pose(), calib)
 
     if per_stage_basins is None:
         per_stage_basins = [0.8, 0.6, 0.4, 0.2]
