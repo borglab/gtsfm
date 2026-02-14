@@ -328,7 +328,7 @@ class ClusterVGGT(ClusterOptimizerBase):
             min_triangulation_angle=self._min_triangulation_angle,
             ba_use_calibration_prior=self._ba_use_calibration_prior,
             ba_use_undistorted_camera_model=self._ba_use_undistorted_camera_model,
-            ba_use_shared_calibration=self._use_shared_calibration,
+            ba_use_shared_calibration=self.use_shared_calibration,
         )
 
         # mode is fixed to "crop", it resizes the width to 518 while maintaining aspect ratio and only if
