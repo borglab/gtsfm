@@ -37,7 +37,7 @@ cluster_optimizer:
     track_vis_thresh: 0.2
     track_conf_thresh: 0.2
     camera_type: PINHOLE
-    drop_outlier_after_camera_merging: false
+    drop_outlier_after_camera_merging: true
     drop_child_if_merging_fail: true
     drop_camera_with_no_track: true
     seed: 42
@@ -47,7 +47,7 @@ cluster_optimizer:
     model_cache_key: null
     store_pre_ba_result: true
     max_reproj_error: 14.0
-    min_triangulation_angle: 10.0
+    min_triangulation_angle: 12.0
     ba_use_calibration_prior: false
     ba_use_undistorted_camera_model: false
     use_shared_calibration: true
