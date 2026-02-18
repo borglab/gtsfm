@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import argparse
 import gc
-import importlib
 import os
 import pickle
 import random
@@ -24,6 +23,7 @@ from typing import Iterable, Sequence
 import hydra
 import numpy as np
 import torch
+import torch.nn.functional as F
 from hydra.utils import instantiate
 
 from gtsfm.common.outputs import prepare_output_paths
@@ -34,9 +34,17 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 THIRDPARTY_VGGT_ROOT = REPO_ROOT / "thirdparty" / "vggt"
 if THIRDPARTY_VGGT_ROOT.exists():
     sys.path.insert(0, str(THIRDPARTY_VGGT_ROOT))
+THIRDPARTY_LIGHTGLUE_ROOT = REPO_ROOT / "thirdparty" / "LightGlue"
+if THIRDPARTY_LIGHTGLUE_ROOT.exists():
+    sys.path.insert(0, str(THIRDPARTY_LIGHTGLUE_ROOT))
 
 from vggt.models.vggt import VGGT
+from vggt.utils.geometry import unproject_depth_map_to_point_map
 from vggt.utils.load_fn import load_and_preprocess_images
+from vggt.utils.pose_enc import pose_encoding_to_extri_intri
+
+_RESNET_MEAN = [0.485, 0.456, 0.406]
+_RESNET_STD = [0.229, 0.224, 0.225]
 
 
 def _parse_args() -> argparse.Namespace:
@@ -183,6 +191,248 @@ def _log_message(log_path: Path, message: str) -> None:
     with open(log_path, "a", encoding="utf-8") as log_file:
         log_file.write(f"{message}\n")
     print(message)
+
+
+def farthest_point_sampling(distance_matrix: torch.Tensor, num_samples: int, most_common_frame_index: int = 0) -> list[int]:
+    distance_matrix = distance_matrix.clamp(min=0)
+    num_frames = distance_matrix.size(0)
+    selected_indices = [most_common_frame_index]
+    check_distances = distance_matrix[selected_indices]
+
+    while len(selected_indices) < num_samples:
+        farthest_point = torch.argmax(check_distances)
+        selected_indices.append(farthest_point.item())
+        check_distances = distance_matrix[farthest_point]
+        check_distances[selected_indices] = 0
+        if len(selected_indices) == num_frames:
+            break
+
+    return selected_indices
+
+
+def generate_rank_by_dino(
+    images: torch.Tensor,
+    query_frame_num: int,
+    image_size: int = 518,
+    model_name: str = "dinov2_vitb14_reg",
+    device: str = "cuda",
+    spatial_similarity: bool = True,
+) -> list[int]:
+    del image_size  # maintained for compatibility with original signature
+    dino_v2_model = torch.hub.load("facebookresearch/dinov2", model_name)
+    dino_v2_model.eval()
+    dino_v2_model = dino_v2_model.to(device)
+
+    resnet_mean = torch.tensor(_RESNET_MEAN, device=device).view(1, 3, 1, 1)
+    resnet_std = torch.tensor(_RESNET_STD, device=device).view(1, 3, 1, 1)
+    images_resnet_norm = (images - resnet_mean) / resnet_std
+
+    with torch.no_grad():
+        frame_feat = dino_v2_model(images_resnet_norm, is_training=True)
+
+    if spatial_similarity:
+        frame_feat = frame_feat["x_norm_patchtokens"]
+        frame_feat_norm = F.normalize(frame_feat, p=2, dim=1)
+        frame_feat_norm = frame_feat_norm.permute(1, 0, 2)
+        similarity_matrix = torch.bmm(frame_feat_norm, frame_feat_norm.transpose(-1, -2)).mean(dim=0)
+    else:
+        frame_feat = frame_feat["x_norm_clstoken"]
+        frame_feat_norm = F.normalize(frame_feat, p=2, dim=1)
+        similarity_matrix = torch.mm(frame_feat_norm, frame_feat_norm.transpose(-1, -2))
+
+    distance_matrix = 100 - similarity_matrix.clone()
+    similarity_matrix.fill_diagonal_(-100)
+    similarity_sum = similarity_matrix.sum(dim=1)
+    most_common_frame_index = torch.argmax(similarity_sum).item()
+    return farthest_point_sampling(distance_matrix, query_frame_num, most_common_frame_index)
+
+
+def calculate_index_mappings(query_index: int, frame_num: int, device: str | torch.device | None = None) -> torch.Tensor:
+    new_order = torch.arange(frame_num)
+    new_order[0] = query_index
+    new_order[query_index] = 0
+    if device is not None:
+        new_order = new_order.to(device)
+    return new_order
+
+
+def switch_tensor_order(tensors: list[torch.Tensor | None], order: torch.Tensor, dim: int = 1) -> list[torch.Tensor | None]:
+    return [torch.index_select(tensor, dim, order) if tensor is not None else None for tensor in tensors]
+
+
+def predict_track(
+    model: VGGT,
+    images: torch.Tensor,
+    query_points: torch.Tensor,
+    dtype: torch.dtype = torch.bfloat16,
+    use_tf32_for_track: bool = True,
+    iters: int = 4,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    with torch.no_grad():
+        with torch.cuda.amp.autocast(dtype=dtype):
+            images = images[None]
+            aggregated_tokens_list, ps_idx = model.aggregator(images)
+            if not use_tf32_for_track:
+                track_list, vis_score, conf_score = model.track_head(
+                    aggregated_tokens_list, images, ps_idx, query_points=query_points, iters=iters
+                )
+
+        if use_tf32_for_track:
+            with torch.cuda.amp.autocast(enabled=False):
+                track_list, vis_score, conf_score = model.track_head(
+                    aggregated_tokens_list, images, ps_idx, query_points=query_points, iters=iters
+                )
+
+    pred_track = track_list[-1]
+    return pred_track.squeeze(0), vis_score.squeeze(0), conf_score.squeeze(0)
+
+
+def initialize_feature_extractors(
+    max_query_num: int, det_thres: float, extractor_method: str = "aliked", device: str = "cuda"
+) -> dict[str, torch.nn.Module]:
+    from lightglue import ALIKED, SIFT, SuperPoint
+
+    extractors = {}
+    methods = extractor_method.lower().split("+")
+
+    for method in methods:
+        method = method.strip()
+        if method == "aliked":
+            extractors["aliked"] = ALIKED(max_num_keypoints=max_query_num, detection_threshold=det_thres).to(device).eval()
+        elif method == "sp":
+            extractors["sp"] = SuperPoint(max_num_keypoints=max_query_num, detection_threshold=det_thres).to(device).eval()
+        elif method == "sift":
+            extractors["sift"] = SIFT(max_num_keypoints=max_query_num).to(device).eval()
+        else:
+            print(f"Warning: Unknown feature extractor '{method}', ignoring.")
+
+    if not extractors:
+        print(f"Warning: No valid extractors found in '{extractor_method}'. Using ALIKED by default.")
+        extractors["aliked"] = ALIKED(max_num_keypoints=max_query_num, detection_threshold=det_thres).to(device).eval()
+
+    return extractors
+
+
+def extract_keypoints(query_image: torch.Tensor, extractors: dict[str, torch.nn.Module], max_query_num: int) -> torch.Tensor:
+    query_points_round = None
+    with torch.no_grad():
+        for extractor in extractors.values():
+            query_points_data = extractor.extract(query_image)
+            extractor_points = query_points_data["keypoints"].round()
+            if query_points_round is not None:
+                query_points_round = torch.cat([query_points_round, extractor_points], dim=1)
+            else:
+                query_points_round = extractor_points
+
+    if query_points_round.shape[1] > max_query_num:
+        random_point_indices = torch.randperm(query_points_round.shape[1])[:max_query_num]
+        query_points_round = query_points_round[:, random_point_indices, :]
+    return query_points_round
+
+
+def run_vggt_tracking(
+    model: VGGT,
+    images: torch.Tensor,
+    image_names: Sequence[str] | None = None,
+    dtype: torch.dtype = torch.bfloat16,
+    max_query_num: int = 2048,
+    det_thres: float = 0.005,
+    query_frame_num: int = 3,
+    extractor_method: str = "aliked+sp+sift",
+    camera_type: str = "SIMPLE_PINHOLE",
+) -> dict:
+    del image_names
+    assert "RADIAL" not in camera_type, "RADIAL camera is not supported yet"
+
+    device = images.device
+    frame_num = images.shape[0]
+
+    with torch.no_grad():
+        with torch.cuda.amp.autocast(dtype=dtype):
+            predictions = model(images)
+
+    with torch.cuda.amp.autocast(dtype=torch.float64):
+        extrinsic, intrinsic = pose_encoding_to_extri_intri(predictions["pose_enc"], images.shape[-2:])
+        pred_extrinsic = extrinsic[0]
+        pred_intrinsic = intrinsic[0]
+        depth_map, depth_conf = predictions["depth"][0], predictions["depth_conf"][0]
+        world_points = unproject_depth_map_to_point_map(depth_map, pred_extrinsic, pred_intrinsic)
+
+    query_frame_indexes = generate_rank_by_dino(
+        images, query_frame_num, image_size=518, model_name="dinov2_vitb14_reg", device=device, spatial_similarity=False
+    )
+    if 0 in query_frame_indexes:
+        query_frame_indexes.remove(0)
+    query_frame_indexes = [0, *query_frame_indexes]
+
+    world_points = torch.from_numpy(world_points).to(device)
+    world_points_conf = depth_conf.to(device)
+    torch.cuda.empty_cache()
+
+    pred_tracks = []
+    pred_vis_scores = []
+    pred_conf_scores = []
+    pred_world_points = []
+    pred_world_points_conf = []
+
+    extractors = initialize_feature_extractors(max_query_num, det_thres, extractor_method, str(device))
+
+    for query_index in query_frame_indexes:
+        query_image = images[query_index]
+        query_points_round = extract_keypoints(query_image, extractors, max_query_num)
+
+        reorder_index = calculate_index_mappings(query_index, frame_num, device=device)
+        reorder_images = switch_tensor_order([images], reorder_index, dim=0)[0]
+        reorder_tracks, reorder_vis_score, reorder_conf_score = predict_track(
+            model, reorder_images, query_points_round, dtype=dtype, use_tf32_for_track=True, iters=4
+        )
+        pred_track, pred_vis, pred_score = switch_tensor_order(
+            [reorder_tracks, reorder_vis_score, reorder_conf_score], reorder_index, dim=0
+        )
+        pred_tracks.append(pred_track)
+        pred_vis_scores.append(pred_vis)
+        pred_conf_scores.append(pred_score)
+
+        query_points_round_long = query_points_round.squeeze(0).long()
+        query_world_points = world_points[query_index][query_points_round_long[:, 1], query_points_round_long[:, 0]]
+        query_world_points_conf = world_points_conf[query_index][query_points_round_long[:, 1], query_points_round_long[:, 0]]
+        pred_world_points.append(query_world_points)
+        pred_world_points_conf.append(query_world_points_conf)
+
+    pred_tracks = torch.cat(pred_tracks, dim=1)
+    pred_vis_scores = torch.cat(pred_vis_scores, dim=1)
+    pred_conf_scores = torch.cat(pred_conf_scores, dim=1)
+    pred_world_points = torch.cat(pred_world_points, dim=0)
+    pred_world_points_conf = torch.cat(pred_world_points_conf, dim=0)
+
+    filtered_flag = pred_world_points_conf > 1.5
+    if filtered_flag.sum() > max_query_num // 2:
+        pred_world_points = pred_world_points[filtered_flag]
+        pred_world_points_conf = pred_world_points_conf[filtered_flag]
+        pred_tracks = pred_tracks[:, filtered_flag]
+        pred_vis_scores = pred_vis_scores[:, filtered_flag]
+        pred_conf_scores = pred_conf_scores[:, filtered_flag]
+
+    torch.cuda.empty_cache()
+    _, _, H, W = images.shape
+    image_size = torch.tensor([W, H], dtype=pred_tracks.dtype, device=device)
+    masks = torch.logical_and(pred_vis_scores > 0.05, pred_conf_scores > 0.2)
+
+    return {
+        "pred_tracks": pred_tracks,
+        "pred_vis_scores": pred_vis_scores,
+        "pred_conf_scores": pred_conf_scores,
+        "pred_world_points": pred_world_points,
+        "pred_world_points_conf": pred_world_points_conf,
+        "pred_extrinsic": pred_extrinsic,
+        "pred_intrinsic": pred_intrinsic,
+        "image_size": image_size,
+        "masks": masks,
+        "device": device,
+        "camera_type": camera_type,
+        "depth_map": depth_map,
+        "depth_conf": depth_conf,
+    }
 
 
 def setup_model(args: argparse.Namespace):
@@ -381,10 +631,6 @@ def run_vggt_reconstruction(
     if next(model.parameters()).device.type != device:
         model.to(device)
 
-    _ensure_ba_module()
-    ba_module = importlib.import_module("ba")
-    run_vggt_tracking = getattr(ba_module, "run_vggt_tracking")
-
     images = load_and_preprocess_images(image_path_list).to(device=device)
     tracking_outputs = run_vggt_tracking(
         model,
@@ -407,24 +653,6 @@ def run_vggt_reconstruction(
         max_reproj_error=12.0,
     )
     return True
-
-
-def _ensure_ba_module() -> None:
-    try:
-        importlib.import_module("ba")
-        return
-    except ModuleNotFoundError:
-        lightglue_root = REPO_ROOT / "thirdparty" / "LightGlue"
-        if lightglue_root.exists():
-            sys.path.insert(0, str(lightglue_root))
-        if THIRDPARTY_VGGT_ROOT.exists():
-            sys.path.insert(0, str(THIRDPARTY_VGGT_ROOT))
-        thirdparty_eval = THIRDPARTY_VGGT_ROOT / "evaluation"
-        if thirdparty_eval.exists():
-            sys.path.insert(0, str(thirdparty_eval))
-            importlib.import_module("ba")
-            return
-        raise
 
 
 def _promote_tracking_writer_outputs(output_dir: Path, log_path: Path) -> None:
@@ -509,7 +737,6 @@ def main() -> None:
 
     model = device = dtype = None
     if not args.use_ba:
-        _ensure_ba_module()
         model, device, dtype = setup_model(args)
 
     if args.use_ba:
