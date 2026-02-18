@@ -77,7 +77,7 @@ cluster_optimizer:
 
     trans_avg_module:
       _target_: gtsfm.averaging.translation.averaging_1dsfm.TranslationAveraging1DSFM
-      robust_ba_mode: "HUBER"
+      robust_measurement_noise: True
       projection_sampling_method: SAMPLE_INPUT_MEASUREMENTS
 
     data_association_module:
