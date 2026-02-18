@@ -20,10 +20,24 @@ import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metric_utils
 from gtsfm.cluster_optimizer import save_metrics_reports
-from gtsfm.evaluation.metrics import GtsfmMetricsGroup
+from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.utils import align, transform
 
 logger = logger_utils.get_logger()
+
+
+def _is_auc_metric_name(metric_name: str) -> bool:
+    return metric_name.startswith("pose_auc_@")
+
+
+def _convert_scalar_auc_metrics_to_percent(metrics: List[GtsfmMetric]) -> List[GtsfmMetric]:
+    converted_metrics: List[GtsfmMetric] = []
+    for metric in metrics:
+        if metric.dim == 0 and _is_auc_metric_name(metric.name) and metric.data is not None:
+            converted_metrics.append(GtsfmMetric(metric.name, float(metric.data) * 100.0))
+        else:
+            converted_metrics.append(metric)
+    return converted_metrics
 
 
 def load_poses(colmap_dirpath: str) -> Dict[str, Pose3]:
@@ -145,7 +159,7 @@ def export_metrics_group_to_csv(metrics_group: GtsfmMetricsGroup, output_path: s
 def _format_pose_auc(metrics_group: GtsfmMetricsGroup) -> str:
     auc_parts = []
     for metric in metrics_group.metrics:
-        if not metric.name.startswith("pose_auc_@"):
+        if not _is_auc_metric_name(metric.name):
             continue
         if metric.data is None:
             continue
@@ -154,7 +168,7 @@ def _format_pose_auc(metrics_group: GtsfmMetricsGroup) -> str:
         except (TypeError, ValueError):
             continue
         suffix = metric.name.replace("pose_auc_", "")
-        auc_parts.append(f"{suffix}={value:.3f}")
+        auc_parts.append(f"{suffix}={value:.2f}%")
     return ", ".join(auc_parts)
 
 
@@ -218,11 +232,11 @@ def compare_poses(baseline_dirpath: str, eval_dirpath: str, output_dirpath: str)
 
     rotation_angular_errors = relative_rotation_error_metric.data
     translation_angular_errors = relative_translation_error_metric.data
-    metrics.extend(
-        metric_utils.compute_pose_auc_metric(
-            rotation_angular_errors, translation_angular_errors, save_dir=output_dirpath
-        )
+    pose_auc_metrics = metric_utils.compute_pose_auc_metric(
+        rotation_angular_errors, translation_angular_errors, save_dir=output_dirpath
     )
+    pose_auc_metrics = _convert_scalar_auc_metrics_to_percent(pose_auc_metrics)
+    metrics.extend(pose_auc_metrics)
 
     ba_pose_metrics = GtsfmMetricsGroup(name="ba_pose_error_metrics", metrics=metrics)
 
