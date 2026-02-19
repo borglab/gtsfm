@@ -454,14 +454,18 @@ def combine_results(
         valid_tracks: list = []
         invalid_track_count = 0
         for track in merged_tracks:
-            seen_camera_idxs = set()
+            cam_to_measurement = {}
             is_valid = True
             for m_idx in range(track.numberMeasurements()):
-                cam_idx, _ = track.measurement(m_idx)
-                if cam_idx in seen_camera_idxs:
+                cam_idx, uv = track.measurement(m_idx)
+                measurement = (float(uv[0]), float(uv[1]))
+                existing_measurement = cam_to_measurement.get(cam_idx)
+                if existing_measurement is None:
+                    cam_to_measurement[cam_idx] = measurement
+                    continue
+                if existing_measurement != measurement:
                     is_valid = False
                     break
-                seen_camera_idxs.add(cam_idx)
             if is_valid:
                 valid_tracks.append(track)
             else:
