@@ -293,6 +293,8 @@ class VggtConfiguration:
     keypoint_extractor: str = "aliked+sp+sift"
     max_reproj_error: float = 14.0
     min_triangulation_angle: float = 10.0
+
+    # Bundle adjustment-specific parameters:
     ba_use_calibration_prior: bool = False
     ba_use_undistorted_camera_model: bool = False
     ba_use_shared_calibration: bool = True
@@ -570,6 +572,13 @@ def _convert_vggt_outputs_to_gtsfm_data(
             track = torch_utils.colored_track_from_point(point_xyz, rgb)
             for global_idx, float_u, float_v in per_track_measurements:
                 track.addMeasurement(global_idx, Point2(float_u, float_v))
+            min_triangulation_angle = config.min_triangulation_angle
+            if min_triangulation_angle > 0.0:
+                import gtsfm.utils.tracks as track_utils  # local import to avoid heavier dependency at module load
+
+                cameras = gtsfm_data.cameras()
+                if track_utils.get_max_triangulation_angle(track, cameras) < min_triangulation_angle:
+                    continue
             gtsfm_data.add_track(track)
         logger.info("num valid tracks after filtering: %d out of %d", gtsfm_data.number_tracks(), len(valid_idx))
 

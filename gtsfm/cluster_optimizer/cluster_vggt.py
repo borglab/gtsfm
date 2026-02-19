@@ -221,6 +221,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         self._keypoint_extractor = keypoint_extractor
         self._camera_type = camera_type
         self._max_reproj_error = max_reproj_error
+        self._min_triangulation_angle = min_triangulation_angle
         self._seed = seed
         self._explicit_scene_dir = Path(scene_dir) if scene_dir is not None else None
         self._use_sparse_attention = use_sparse_attention

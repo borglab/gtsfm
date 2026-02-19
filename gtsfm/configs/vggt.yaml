@@ -7,6 +7,7 @@ loader:
   _target_: gtsfm.loader.Olsson
   dataset_dir: ??? # Required: set to the dataset root on the command line.
   images_dir: null
+  max_resolution: 518 # VGGT recommended max resolution. Non editable. mode is fixed to "crop"
 
 image_pairs_generator:
   _target_: gtsfm.retriever.image_pairs_generator.ImagePairsGenerator
@@ -37,6 +38,7 @@ cluster_optimizer:
     track_vis_thresh: 0.05
     track_conf_thresh: 0.2
     max_reproj_error: 0 # 0.0 means no filtering based on reproj error
+    min_triangulation_angle: 0.0
     camera_type: PINHOLE
     drop_outlier_after_camera_merging: false
     drop_child_if_merging_fail: true
@@ -49,3 +51,4 @@ cluster_optimizer:
     ba_use_calibration_prior: false
     ba_use_undistorted_camera_model: false
     use_shared_calibration: true  # Change to false for unstructured datasets.
+    store_pre_ba_result: true
