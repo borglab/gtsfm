@@ -7,7 +7,6 @@ from typing import Any, Hashable, Optional, Union
 
 import numpy as np
 import torch
-import torch.nn.functional as F
 from dask.delayed import Delayed, delayed
 from gtsam import Pose3
 
