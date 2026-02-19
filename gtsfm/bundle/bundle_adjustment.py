@@ -290,7 +290,7 @@ class BundleAdjustmentOptimizer:
                 )
             )
 
-        if self._use_first_point_prior:
+        if self._use_first_point_prior and initial_data.number_tracks() > 0:
             graph.push_back(
                 PriorFactorPoint3(P(0), initial_data.get_track(0).point3(), Isotropic.Sigma(POINT3_DOF, 0.1))
             )

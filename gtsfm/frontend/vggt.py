@@ -515,9 +515,6 @@ def _convert_vggt_outputs_to_gtsfm_data(
             gtsfm_data.add_track(track)
 
     if tracking_result:
-
-        # track masks according to visibility, reprojection error, etc
-        max_reproj_error = float(config.max_reproj_error)
         track_mask = tracking_result.visibilities > config.track_vis_thresh
 
         confidence_threshold = config.track_conf_thresh
@@ -527,16 +524,10 @@ def _convert_vggt_outputs_to_gtsfm_data(
         if tracking_result.confidences is not None:
             track_mask = np.logical_and(track_mask, tracking_result.confidences > confidence_threshold)
 
-        enforce_reproj_filter = (
-            tracking_result.points_3d is not None and np.isfinite(max_reproj_error) and max_reproj_error > 0.0
-        )
-
         inlier_num = track_mask.sum(0)
         min_measurements = 2
         valid_mask = inlier_num >= min_measurements  # a track is invalid if without two inliers
         valid_idx = np.nonzero(valid_mask)[0]
-
-        logger.info("num points 3d: %d, num valid idx: %d", tracking_result.points_3d.shape[0], len(valid_idx))
 
         for valid_id in valid_idx:
             rgb: np.ndarray
@@ -556,13 +547,6 @@ def _convert_vggt_outputs_to_gtsfm_data(
                 camera = gtsfm_data.get_camera(global_idx)
                 if not _is_point_in_front_of_camera(camera, point_xyz):
                     continue
-                if enforce_reproj_filter:
-                    projected = camera.project(gtsam_point)
-                    proj_u = float(projected[0])
-                    proj_v = float(projected[1])
-                    reproj_err = float(np.hypot(u - proj_u, v - proj_v))
-                    if reproj_err > max_reproj_error:
-                        continue
                 per_track_measurements.append((global_idx, u, v))
 
             if len(per_track_measurements) < min_measurements:
@@ -597,12 +581,13 @@ def _convert_vggt_outputs_to_gtsfm_data(
             logger.warning("Skipping bundle adjustment because VGGT produced no valid tracks.")
         else:
             try:
-                gtsfm_data = gtsfm_data.filter_landmark_measurements(config.max_reproj_error)
-                logger.info(
-                    "num valid tracks after filtering: %d out of %d",
-                    gtsfm_data.number_tracks(),
-                    gtsfm_data_pre_ba.number_tracks(),
-                )
+                if config.max_reproj_error is not None and config.max_reproj_error > 0.0:
+                    gtsfm_data = gtsfm_data.filter_landmark_measurements(config.max_reproj_error)
+                    logger.info(
+                        "🔍 #valid VGGT tracks after reproj error filtering: %d out of %d",
+                        gtsfm_data.number_tracks(),
+                        gtsfm_data_pre_ba.number_tracks(),
+                    )
                 gtsfm_data, should_run_ba = data_utils.remove_cameras_with_no_tracks(gtsfm_data, "node-level BA")
                 if not should_run_ba:
                     return gtsfm_data, gtsfm_data_pre_ba
@@ -612,7 +597,7 @@ def _convert_vggt_outputs_to_gtsfm_data(
                     use_calibration_prior=config.ba_use_calibration_prior,
                 )
                 gtsfm_data_with_ba, _ = optimizer.run_iterative_robust_ba(gtsfm_data, [0.8, 0.5, 0.2])
-                gtsfm_data_with_ba = gtsfm_data_with_ba.filter_landmark_measurements(5.0)
+                gtsfm_data_with_ba = gtsfm_data_with_ba.filter_landmark_measurements(3.0)
                 return gtsfm_data_with_ba, gtsfm_data_pre_ba
             except Exception as exc:
                 logger.warning("⚠️ Failed to run bundle adjustment: %s", exc)
