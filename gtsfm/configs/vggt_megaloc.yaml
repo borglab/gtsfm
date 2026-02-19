@@ -42,7 +42,7 @@ cluster_optimizer:
     camera_type: PINHOLE
     drop_outlier_after_camera_merging: true
     drop_child_if_merging_fail: true
-    drop_camera_with_no_track: true
+    drop_camera_with_no_track: false
     seed: 42
     plot_reprojection_histograms: true
     run_bundle_adjustment_on_leaf: true
