@@ -88,6 +88,10 @@ class TwoViewEstimator(DaskDBModuleBase):
             robust_ba_mode=RobustBAMode.HUBER,
             max_iterations=bundle_adjust_2view_maxiters,
             allow_indeterminate_linear_system=allow_indeterminate_linear_system,
+            use_first_point_prior=True,
+            use_calibration_prior=True,
+            robust_noise_basin=1.345,
+            use_karcher_mean_factor=False,
         )
         self.postgres_params = postgres_params  # save connection parameters for use on remote worker
 
