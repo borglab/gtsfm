@@ -103,7 +103,10 @@ class BundleAdjustmentOptimizer:
             use_first_point_prior (optional): Use first point prior to constrain the scale of the reconstruction.
         """
         self._reproj_error_thresholds = reproj_error_thresholds
-        self._robust_ba_mode = robust_ba_mode
+        if isinstance(robust_ba_mode, str):
+            self._robust_ba_mode = RobustBAMode[robust_ba_mode]
+        else:
+            self._robust_ba_mode = robust_ba_mode
         self._shared_calib = shared_calib
         self._max_iterations = max_iterations
         self._cam_pose3_prior_noise_sigma = cam_pose3_prior_noise_sigma
@@ -117,7 +120,7 @@ class BundleAdjustmentOptimizer:
         self._save_iteration_visualization = save_iteration_visualization
         self._robust_noise_basin = robust_noise_basin
         self._use_karcher_mean_factor = use_karcher_mean_factor
-        self._use_calibration_prior = use_calibration_prior
+
         self._use_first_point_prior = use_first_point_prior
 
     def __map_to_calibration_variable(self, camera_idx: int) -> int:
@@ -469,7 +472,7 @@ class BundleAdjustmentOptimizer:
             cameras_to_model, initial_data, absolute_pose_priors, relative_pose_priors
         )
         optimized_data, result_values, final_error = self.__optimize_and_recover(
-            initial_data, graph, self._ordering_type if not cameras_without_tracks else "COLAMD", verbose
+            initial_data, graph, self._ordering_type if not cameras_without_tracks else "COLAMD"
         )
 
         if self.is_two_view_ba(initial_data):

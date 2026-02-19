@@ -114,12 +114,14 @@ def get_noise_model_for_calibration(
 ) -> gtsam.noiseModel.Diagonal:
     """Get the noise model for the calibration, based on the calibration type.
 
-    Convenience function to only set the focal length and principal point noise, and leave the rest at 1e-5.
+    Convenience function to only set the focal length and principal point noise, and leave the rest at 1e-6.
 
     Args:
         calibration: the calibration object to get the noise model for.
         focal_sigma: the sigma for the focal length.
         pp_sigma: the sigma for the principal point.
+        skew_sigma: the sigma for the skew component of the calibration matrix.
+        dist_sigma: the sigma for the lens distortion parameters.
 
     Returns:
         A Diagonal noise model with the given sigma for the focal length and principal point.

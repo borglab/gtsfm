@@ -560,7 +560,7 @@ def combine_results(
         )
     else:
         # Merge all children into the merged scene.
-        for i, child in enumerate[GtsfmData](valid_child_scenes):
+        for i, child in enumerate(valid_child_scenes):
             merged = _align_and_merge_results(merged, child, drop_if_merging_fails=drop_child_if_merging_fail)
             _log_scene_reprojection_stats(
                 merged, f"Merged with child #{i+1}", plot_histograms=plot_reprojection_histograms
