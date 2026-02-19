@@ -434,15 +434,6 @@ def _convert_vggt_outputs_to_gtsfm_data(
             shape=(int(image_height), int(image_width)),
         )
 
-    dense_points_np = vggt_output.dense_points.to(device="cpu", dtype=torch.float32, non_blocking=True).numpy()
-    depth_conf_np = vggt_output.depth_confidence.to(device="cpu", dtype=torch.float32, non_blocking=True).numpy()
-    gtsfm_data.dense_points = {
-        global_idx: dense_points_np[local_idx] for local_idx, global_idx in enumerate(image_indices)
-    }
-    gtsfm_data.depth_confidence = {
-        global_idx: depth_conf_np[local_idx] for local_idx, global_idx in enumerate(image_indices)
-    }
-
     if tracking_result is None and points_3d.size > 0 and points_rgb is not None:
         for j, xyz in enumerate(points_3d):
             track = torch_utils.colored_track_from_point(xyz, points_rgb[j])
