@@ -451,7 +451,27 @@ def combine_results(
                 original_track_count,
                 len(merged_tracks),
             )
-        merged._tracks = merged_tracks
+        valid_tracks: list = []
+        invalid_track_count = 0
+        for track in merged_tracks:
+            seen_camera_idxs = set()
+            is_valid = True
+            for m_idx in range(track.numberMeasurements()):
+                cam_idx, _ = track.measurement(m_idx)
+                if cam_idx in seen_camera_idxs:
+                    is_valid = False
+                    break
+                seen_camera_idxs.add(cam_idx)
+            if is_valid:
+                valid_tracks.append(track)
+            else:
+                invalid_track_count += 1
+        if invalid_track_count > 0:
+            logger.info(
+                "🧹 Discarding %d invalid tracks with repeated camera observations.",
+                invalid_track_count,
+            )
+        merged._tracks = valid_tracks
 
     if drop_outlier_after_camera_merging and merged is not None and merged.number_tracks() > 0:
         track_errors: list[float] = []
