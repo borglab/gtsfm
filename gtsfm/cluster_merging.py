@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+import math
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Tuple
 
@@ -413,10 +414,10 @@ def combine_results(
     if merge_duplicate_tracks and merged is not None and merged.number_tracks() > 0:
         original_track_count = merged.number_tracks()
         merged_tracks: list = []
-        measurement_to_track: dict[tuple[int, float, float], int] = {}
+        measurement_to_track: dict[tuple[int, int, int], int] = {}
 
-        def _measurement_key(cam_idx: int, uv: np.ndarray) -> tuple[int, float, float]:
-            return cam_idx, round(float(uv[0])), round(float(uv[1]))
+        def _measurement_key(cam_idx: int, uv: np.ndarray) -> tuple[int, int, int]:
+            return cam_idx, math.floor(float(uv[0])), math.floor(float(uv[1]))
 
         for track in merged.tracks():
             measurements = [track.measurement(k) for k in range(track.numberMeasurements())]
