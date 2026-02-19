@@ -763,7 +763,6 @@ class GtsfmData:
 
         return np.array(scene_reproj_errors)
 
-
     def get_scene_reprojection_errors_per_camera(self) -> dict[int, np.ndarray]:
         """Get the reprojection errors for each camera."""
         reproj_errors_per_camera: dict[int, list[float]] = defaultdict(list)
@@ -773,7 +772,6 @@ class GtsfmData:
                 reproj_errors_per_camera[cam_id].append(track_errors[i])
 
         return {cam_id: np.array(errors) for cam_id, errors in reproj_errors_per_camera.items()}
-
 
     def aggregate_metrics(self) -> Mapping[str, Any]:
         """Aggregate metrics about the reprojection errors and 3d track lengths (summary stats).
@@ -892,6 +890,9 @@ class GtsfmData:
         for track in self._tracks:
             errors, _ = reprojection.compute_track_reprojection_errors(self._cameras, track)
             new_track = SfmTrack(track.point3())
+            new_track.r = track.r
+            new_track.g = track.g
+            new_track.b = track.b
             track_cameras = set()
             for k in range(track.numberMeasurements()):
                 if np.isnan(errors[k]) or errors[k] > reproj_err_thresh:

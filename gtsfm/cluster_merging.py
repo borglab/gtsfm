@@ -499,6 +499,17 @@ def combine_results(
         A MergedNodeResult object containing the merged scene and its metrics.
     """
 
+    child_scenes: tuple[Optional[GtsfmData], ...] = tuple[GtsfmData | None, ...](child.scene for child in child_results)
+
+    # Some stats for the merging metrics.
+    parent_camera_set = set(current.get_valid_camera_indices()) if current is not None else set()
+    child_camera_counts: list[int] = []
+    child_camera_overlap_with_parent: list[int] = []
+    for child_scene in child_scenes:
+        child_cam_set = set(child_scene.get_valid_camera_indices()) if child_scene is not None else set()
+        child_camera_counts.append(len(child_cam_set))
+        child_camera_overlap_with_parent.append(len(child_cam_set & parent_camera_set))
+
     def _finalize_result(result_scene: Optional[GtsfmData], pre_ba_scene: Optional[GtsfmData]) -> MergedNodeResult:
         return MergedNodeResult(
             scene=result_scene,
@@ -522,17 +533,6 @@ def combine_results(
 
     if current is None:
         return _finalize_result(None, None)
-
-    child_scenes: tuple[Optional[GtsfmData], ...] = tuple(child.scene for child in child_results)
-
-    # Some stats for the merging metrics.
-    parent_camera_set = set(current.get_valid_camera_indices()) if current is not None else set()
-    child_camera_counts: list[int] = []
-    child_camera_overlap_with_parent: list[int] = []
-    for child_scene in child_scenes:
-        child_cam_set = set(child_scene.get_valid_camera_indices()) if child_scene is not None else set()
-        child_camera_counts.append(len(child_cam_set))
-        child_camera_overlap_with_parent.append(len(child_cam_set & parent_camera_set))
 
     # Log reprojection stats for the current scene and all children.
     _log_scene_reprojection_stats(current, "Current Node", plot_histograms=plot_reprojection_histograms)
