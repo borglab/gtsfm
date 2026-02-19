@@ -200,21 +200,22 @@ class BundleAdjustmentOptimizer:
         self,
         absolute_pose_priors: List[Optional[PosePrior]],
         initial_data: GtsfmData,
-        first_valid_camera_idx: int,
+        cameras_to_model: List[int],
     ) -> NonlinearFactorGraph:
         """Generate prior factors (in the world frame) on pose variables."""
         graph = NonlinearFactorGraph()
 
         # TODO(Ayush): start using absolute prior factors.
-        num_priors_added = 0
 
-        if num_priors_added == 0:
-            # Adding a prior to fix origin as no absolute prior exists.
-            first_camera = initial_data.get_camera(first_valid_camera_idx)
+        if self._use_karcher_mean_factor:
+            camera_keys = [X(i) for i in cameras_to_model]
+            graph.push_back(gtsam.KarcherMeanFactorPose3(camera_keys, 6, 1000))
+        else:
+            first_camera = initial_data.get_camera(cameras_to_model[0])
             assert first_camera is not None, "First camera in initial data is None"
             graph.push_back(
                 PriorFactorPose3(
-                    X(first_valid_camera_idx),
+                    X(cameras_to_model[0]),
                     first_camera.pose(),
                     Isotropic.Sigma(CAM_POSE3_DOF, self._cam_pose3_prior_noise_sigma),
                 )
@@ -279,19 +280,9 @@ class BundleAdjustmentOptimizer:
         )
         graph.push_back(reprojection_graph)
 
-        if self._use_karcher_mean_factor:
-            camera_keys = [X(i) for i in cameras_to_model]
-            graph.push_back(gtsam.KarcherMeanFactorPose3(camera_keys, 6, 1000))
-        else:
-            first_camera = initial_data.get_camera(cameras_to_model[0])
-            assert first_camera is not None, "First camera in initial data is None"
-            graph.push_back(
-                self.__pose_priors(
-                    absolute_pose_priors=[],
-                    initial_data=initial_data,
-                    first_valid_camera_idx=cameras_to_model[0],
-                )
-            )
+        graph.push_back(
+            self.__pose_priors(absolute_pose_priors=[], initial_data=initial_data, cameras_to_model=cameras_to_model)
+        )
 
         if self._use_first_point_prior and initial_data.number_tracks() > 0:
             graph.push_back(
@@ -319,13 +310,6 @@ class BundleAdjustmentOptimizer:
         # Add priors
         graph.push_back(
             self._between_factors(relative_pose_priors=relative_pose_priors, cameras_to_model=cameras_to_model)
-        )
-        graph.push_back(
-            self.__pose_priors(
-                absolute_pose_priors=absolute_pose_priors,
-                initial_data=initial_data,
-                first_valid_camera_idx=cameras_to_model[0],
-            )
         )
 
         return graph, cameras_without_tracks
