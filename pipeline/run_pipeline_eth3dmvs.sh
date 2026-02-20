@@ -2,24 +2,47 @@
 
 set -euo pipefail
 
-if [[ $# -gt 1 ]]; then
-  echo "Usage: $0 [tracker]"
+TRACKER="vggt"
+SINGLE_CLUSTER=0
+
+usage() {
+  echo "Usage: $0 [tracker] [--single_cluster]"
   echo "Example: $0"
   echo "Example: $0 vggsfm"
-  exit 1
-fi
+  echo "Example: $0 vggt --single_cluster"
+}
 
-TRACKER="${1:-vggt}"
-
-if [[ "${TRACKER}" != "vggt" && "${TRACKER}" != "vggsfm" ]]; then
-  echo "Error: tracker must be one of: vggt, vggsfm"
-  exit 1
-fi
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    vggt|vggsfm)
+      TRACKER="$1"
+      shift
+      ;;
+    --single_cluster)
+      SINGLE_CLUSTER=1
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Error: unknown argument '$1'"
+      usage
+      exit 1
+      ;;
+  esac
+done
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 DATASET_ROOT="${REPO_ROOT}/benchmarks/eth3dmvs"
-RESULTS_ROOT_BASE="${REPO_ROOT}/pipeline/results/eth3dmvs"
+PARTITION_MODE_TAG="metis"
+if [[ "${SINGLE_CLUSTER}" -eq 1 ]]; then
+  PARTITION_MODE_TAG="single_cluster"
+fi
+RUN_TAG="${TRACKER}_${PARTITION_MODE_TAG}"
+RESULTS_ROOT_BASE="${REPO_ROOT}/pipeline/results/eth3dmvs_${RUN_TAG}"
 
 if [[ ! -d "${DATASET_ROOT}" ]]; then
   echo "Error: dataset directory not found: ${DATASET_ROOT}"
@@ -138,10 +161,16 @@ run_scene() {
   echo "Baseline (eval): ${eval_baseline_dir}"
 
   # partition
-  python "${REPO_ROOT}/pipeline/1-partition/partition_metis_megaloc.py" \
-    --dataset_dir "${dataset_dir}" \
-    --images_dir "${scene_images_dir}" \
+  partition_cmd=(
+    python "${REPO_ROOT}/pipeline/1-partition/partition_metis_megaloc.py"
+    --dataset_dir "${dataset_dir}"
+    --images_dir "${scene_images_dir}"
     --output_root "${results_root}/1-partition"
+  )
+  if [[ "${SINGLE_CLUSTER}" -eq 1 ]]; then
+    partition_cmd+=(--single_cluster)
+  fi
+  "${partition_cmd[@]}"
 
   # vggt reconstruction + cluster ba
   python "${REPO_ROOT}/pipeline/2-reconstruction/vggt/run_on_cluster.py" \
@@ -274,10 +303,34 @@ if [[ ${#SCENES[@]} -eq 0 ]]; then
 fi
 
 echo "Found ${#SCENES[@]} ETH3D scenes."
+echo "Run tag: ${RUN_TAG}"
+echo "Results root base: ${RESULTS_ROOT_BASE}"
+FAILED_SCENES=()
+SUCCEEDED_COUNT=0
 for scene_path in "${SCENES[@]}"; do
   split="$(basename "$(dirname "${scene_path}")")"
   scene_name="$(basename "${scene_path}")"
-  run_scene "${split}" "${scene_name}"
+
+  # Execute each scene in an isolated shell so a failure does not stop the full dataset run.
+  set +e
+  (
+    set -euo pipefail
+    run_scene "${split}" "${scene_name}"
+  )
+  scene_rc=$?
+  set -e
+
+  if [[ ${scene_rc} -ne 0 ]]; then
+    FAILED_SCENES+=("${split}/${scene_name}")
+    echo "Scene failed (${scene_rc}): ${split}/${scene_name}"
+  else
+    SUCCEEDED_COUNT=$((SUCCEEDED_COUNT + 1))
+    echo "Scene completed: ${split}/${scene_name}"
+  fi
 done
 
-echo "Completed all ETH3D scenes."
+echo "Completed ETH3D scenes: ${SUCCEEDED_COUNT}/${#SCENES[@]} succeeded."
+if [[ ${#FAILED_SCENES[@]} -gt 0 ]]; then
+  echo "Failed scenes (${#FAILED_SCENES[@]}):"
+  printf '  - %s\n' "${FAILED_SCENES[@]}"
+fi
