@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import numpy as np
-from gtsam import Pose3, Rot3
+from gtsam import Pose3, Rot3, Cal3Bundler
 from scipy.spatial.transform import Rotation
 
 from gtsfm.common.image import Image
@@ -133,7 +133,14 @@ class TestColmapLoader(unittest.TestCase):
         """Ensure COLMAP metadata can be loaded from a subdirectory under dataset_dir."""
         dataset_dir = TEST_DATA_ROOT / "set1_lund_door"
         colmap_files_subdir = "colmap_ground_truth"
-        read_scene_data_mock.return_value = ([Pose3()], ["DSC_0001.JPG"], None, np.zeros((0, 3)), np.zeros((0, 3)), [])
+        read_scene_data_mock.return_value = (
+            [Pose3()],
+            ["DSC_0001.JPG"],
+            [Cal3Bundler()],
+            np.zeros((0, 3)),
+            np.zeros((0, 3)),
+            [],
+        )
 
         loader = ColmapLoader(
             dataset_dir=str(dataset_dir),
