@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+import math
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Tuple
 
@@ -475,6 +476,7 @@ def combine_results(
     cameras_gt: Optional[list[Optional[gtsfm_types.CAMERA_TYPE]]] = None,
     run_bundle_adjustment_on_parent: bool = True,
     plot_reprojection_histograms: bool = True,
+    merge_duplicate_tracks: bool = True,
     drop_outlier_after_camera_merging: bool = True,
     drop_camera_with_no_track: bool = True,
     drop_child_if_merging_fail: bool = True,
@@ -570,6 +572,57 @@ def combine_results(
 
     if merged is None:
         return _finalize_result(None, None)
+
+    if merge_duplicate_tracks and merged is not None and merged.number_tracks() > 0:
+        original_track_count = merged.number_tracks()
+        merged_tracks: list = []
+        measurement_to_track: dict[tuple[int, int, int], int] = {}
+
+        def _measurement_key(cam_idx: int, uv: np.ndarray) -> tuple[int, int, int]:
+            return cam_idx, math.floor(float(uv[0])), math.floor(float(uv[1]))
+
+        for track in merged.tracks():
+            measurements = [track.measurement(k) for k in range(track.numberMeasurements())]
+            target_idx = None
+            for cam_idx, uv in measurements:
+                existing_idx = measurement_to_track.get(_measurement_key(cam_idx, uv))
+                if existing_idx is not None:
+                    target_idx = existing_idx
+                    break
+
+            if target_idx is None:
+                merged_tracks.append(track)
+                target_idx = len(merged_tracks) - 1
+            else:
+                base_track = merged_tracks[target_idx]
+                existing_cams = {base_track.measurement(m_idx)[0] for m_idx in range(base_track.numberMeasurements())}
+                for cam_idx, uv in measurements:
+                    if cam_idx in existing_cams:
+                        continue
+                    base_track.addMeasurement(cam_idx, uv)
+                    existing_cams.add(cam_idx)
+
+            base_track = merged_tracks[target_idx]
+            for m_idx in range(base_track.numberMeasurements()):
+                cam_idx, uv = base_track.measurement(m_idx)
+                measurement_to_track[_measurement_key(cam_idx, uv)] = target_idx
+
+        if len(merged_tracks) < original_track_count:
+            logger.info(
+                "🪢 Merged %d duplicate tracks into %d unique tracks after camera alignment.",
+                original_track_count,
+                len(merged_tracks),
+            )
+        valid_tracks: list = []
+        for track in merged_tracks:
+            if track.hasUniqueCameras():
+                valid_tracks.append(track)
+        if len(valid_tracks) < len(merged_tracks):
+            logger.info(
+                "🧹 Discarding %d invalid tracks with repeated camera observations.",
+                len(merged_tracks) - len(valid_tracks),
+            )
+        merged._tracks = valid_tracks
 
     if not run_bundle_adjustment_on_parent:
         if drop_outlier_after_camera_merging:

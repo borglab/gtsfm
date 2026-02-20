@@ -192,6 +192,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         max_reproj_error: float = 8.0,
         min_triangulation_angle: float = 10.0,
         plot_reprojection_histograms: bool = True,
+        merge_duplicate_tracks: bool = True,
         drop_outlier_after_camera_merging: bool = True,
         drop_child_if_merging_fail: bool = True,
         drop_camera_with_no_track: bool = True,
@@ -208,6 +209,7 @@ class ClusterVGGT(ClusterOptimizerBase):
             plot_reprojection_histograms=plot_reprojection_histograms,
             run_bundle_adjustment_on_parent=run_bundle_adjustment_on_parent,
             use_shared_calibration=use_shared_calibration,
+            merge_duplicate_tracks=merge_duplicate_tracks,
         )
         self._weights_path = Path(weights_path) if weights_path is not None else None
         self._conf_threshold = conf_threshold
