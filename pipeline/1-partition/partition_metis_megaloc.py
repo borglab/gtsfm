@@ -19,6 +19,7 @@ from hydra.utils import instantiate
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.outputs import OutputPaths, prepare_output_paths
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
+from gtsfm.graph_partitioner.single_partitioner import SinglePartitioner
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.products.visibility_graph import VisibilityGraph
 from gtsfm.retriever.image_pairs_generator import ImagePairsGenerator
@@ -141,6 +142,11 @@ def _parse_args() -> argparse.Namespace:
         default=":8787",
         help="Dask dashboard address, set to empty string to disable.",
     )
+    parser.add_argument(
+        "--single_cluster",
+        action="store_true",
+        help="Skip METIS and output a single cluster containing all retrieved image pairs.",
+    )
     return parser.parse_args()
 
 
@@ -168,8 +174,12 @@ def main() -> None:
     with Client(cluster) as client:
         visibility_graph = _run_retriever(client, loader, image_pairs_generator, output_paths)
 
-    logger.info("🔥 Running METIS partitioning...")
-    cluster_tree = graph_partitioner.run(visibility_graph)
+    if args.single_cluster:
+        logger.info("🔥 Skipping METIS; creating a single cluster with all retrieved pairs...")
+        cluster_tree = SinglePartitioner().run(visibility_graph)
+    else:
+        logger.info("🔥 Running METIS partitioning...")
+        cluster_tree = graph_partitioner.run(visibility_graph)
     graph_partitioner.log_partition_details(cluster_tree, output_paths)
     _save_visibility_graph(visibility_graph, output_paths)
 
