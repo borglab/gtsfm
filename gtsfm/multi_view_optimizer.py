@@ -126,7 +126,7 @@ class MultiViewOptimizer:
             os.makedirs(debug_output_dir, exist_ok=True)
 
         num_images = len(one_view_data_dict)
-        all_intrinsics = [one_view_data_dict[idx].intrinsics for idx in range(num_images)]
+        all_intrinsics = [one_view_data_dict[idx].intrinsics for idx in one_view_data_dict.keys()]
         if self._run_view_graph_estimator and self.view_graph_estimator is not None:
             (
                 viewgraph_i2Ri1_graph,
@@ -170,7 +170,8 @@ class MultiViewOptimizer:
             viewgraph_estimation_metrics = delayed(GtsfmMetricsGroup("view_graph_estimation_metrics", []))
 
         # Prune the graph to a single connected component.
-        gt_wTi_list = [one_view_data_dict[idx].pose_gt for idx in range(num_images)]
+        gt_wTi = {k: val.pose_gt for k, val in one_view_data_dict.items()}
+        gt_wTi_list = [gt_wTi[i] for i in sorted(list(gt_wTi.keys()))]
         pruned_i2Ri1_graph, pruned_i2Ui1_graph = delayed(graph_utils.prune_to_largest_connected_component, nout=2)(
             viewgraph_i2Ri1_graph, viewgraph_i2Ui1_graph, pose_priors_graph
         )
@@ -200,8 +201,8 @@ class MultiViewOptimizer:
 
         init_cameras_graph = delayed(init_cameras)(wTi_graph, all_intrinsics)
 
-        cameras_gt = [one_view_data_dict[idx].camera_gt for idx in range(num_images)]
-        images: List[Future] = [image_future_map[idx] for idx in range(num_images)]
+        cameras_gt = [one_view_data_dict[idx].camera_gt for idx in sorted(list(one_view_data_dict.keys()))]
+        images: List[Future] = [image_future_map[idx] for idx in sorted(list(one_view_data_dict.keys()))]
         ba_input_graph, data_assoc_metrics_graph = self.data_association_module.create_computation_graph(
             num_images,
             init_cameras_graph,
@@ -227,8 +228,13 @@ class MultiViewOptimizer:
             ba_metrics_graph,
         ]
 
+        # This conversion is OK since the GT poses are expected to be complete.
+        gt_wTi_dict: dict[int, Pose3] = {
+            i: gt_wTi_list[i] for i in range(len(gt_wTi_list)) if gt_wTi_list[i] is not None
+        }
+
         # Align the sparse multi-view estimate before BA to the ground truth pose graph.
-        ba_input_graph = delayed(GtsfmData.align_via_sim3_and_transform)(ba_input_graph, gt_wTi_list)
+        ba_input_graph = delayed(GtsfmData.align_via_sim3_and_transform)(ba_input_graph, gt_wTi_dict)
 
         return ba_input_graph, ba_result_graph, viewgraph_two_view_reports_graph, multiview_optimizer_metrics_graph
 

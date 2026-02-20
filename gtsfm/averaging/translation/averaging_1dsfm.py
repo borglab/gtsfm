@@ -51,7 +51,7 @@ from gtsfm.utils import align, transform
 MAX_PROJECTION_DIRECTIONS = 2000
 OUTLIER_WEIGHT_THRESHOLD = 0.125
 
-NOISE_MODEL_DIMENSION = 3  # chordal distances on Unit3
+NOISE_MODEL_DIMENSION = 2  # chordal distances on Unit3
 NOISE_MODEL_SIGMA = 0.01
 HUBER_LOSS_K = 1.3  # default value from GTSAM
 
@@ -73,7 +73,7 @@ C = symbol_shorthand.A  # for camera translation variables
 L = symbol_shorthand.B  # for track (landmark) translation variables
 
 RelativeDirectionsDict = AnnotatedGraph[Unit3]
-DUMMY_NOISE_MODEL = gtsam.noiseModel.Isotropic.Sigma(3, 1e-2)  # MFAS does not use this.
+DUMMY_NOISE_MODEL = gtsam.noiseModel.Isotropic.Sigma(2, 1e-2)  # MFAS does not use this.
 
 
 class TranslationAveraging1DSFM(TranslationAveragingBase):
@@ -622,8 +622,9 @@ def compute_metrics(
     if not gt_available:
         return GtsfmMetricsGroup("translation_averaging_metrics", ta_metrics)
 
+    gt_wTi_map = {i: gt_wTi for i, gt_wTi in enumerate(gt_wTi_list) if gt_wTi is not None}
     # Get ground truth translation directions for the measurements.
-    _, gt_i2Ui1_dict = metrics_utils.get_all_relative_rotations_translations(gt_wTi_list)
+    _, gt_i2Ui1_dict = metrics_utils.get_all_relative_rotations_translations(gt_wTi_map)
 
     if len(inlier_i1_i2_pairs) > 0:
         threshold_suffix = str(int(MAX_INLIER_MEASUREMENT_ERROR_DEG)) + "_deg"
@@ -641,14 +642,14 @@ def compute_metrics(
             inlier_angular_errors, outlier_angular_errors, MAX_INLIER_MEASUREMENT_ERROR_DEG
         )
 
-        measured_gt_i2Ui1_dict = {}
+        measured_gt_i2Ui1 = {}
         for i1, i2 in set.union(inlier_i1_i2_pairs, outlier_i1_i2_pairs):
-            measured_gt_i2Ui1_dict[(i1, i2)] = gt_i2Ui1_dict[(i1, i2)]
+            measured_gt_i2Ui1[(i1, i2)] = gt_i2Ui1_dict[(i1, i2)]
 
         ta_metrics.extend(
             [
                 metrics_utils.compute_relative_translation_angle_metric(
-                    measured_gt_i2Ui1_dict, gt_wTi_list, prefix="inlier_"
+                    measured_gt_i2Ui1, gt_wTi_map, prefix="inlier_"
                 ),
                 GtsfmMetric("num_inlier_1dsfm_measurements", len(inlier_i1_i2_pairs)),
                 GtsfmMetric("num_outlier_1dsfm_measurements", len(outlier_i1_i2_pairs)),
@@ -660,23 +661,20 @@ def compute_metrics(
         )
 
     # Compute estimated poses after the averaging step and align them to ground truth.
-    wTi_list: List[Optional[Pose3]] = []
-    for wRi, wti in zip(wRi_list, wti_list):
-        if wRi is None or wti is None:
-            wTi_list.append(None)
-        else:
-            wTi_list.append(Pose3(wRi, wti))
-    aSw = align.sim3_from_optional_Pose3s(gt_wTi_list, wTi_list)
-    wTi_aligned_list = transform.optional_Pose3s_with_sim3(aSw, wTi_list)
-    wti_aligned_list = [wTi.translation() if wTi is not None else None for wTi in wTi_aligned_list]
-    gt_wti_list = [gt_wTi.translation() if gt_wTi is not None else None for gt_wTi in gt_wTi_list]
-    _, gt_i2Ui1_dict = metrics_utils.get_all_relative_rotations_translations(gt_wTi_list)
+    wTi = {}
+    for i, (wRi, wti) in enumerate(zip(wRi_list, wti_list)):
+        if wRi is not None and wti is not None:
+            wTi[i] = Pose3(wRi, wti)
+    aSw = align.sim3_from_Pose3_maps_robust(gt_wTi_map, wTi)
+    wTi_aligned = transform.Pose3_map_with_sim3(aSw, wTi)
+    wti_aligned = {i: wTi.translation() for i, wTi in wTi_aligned.items()}
+    gt_wti = {i: gt_wTi.translation() for i, gt_wTi in gt_wTi_map.items()}
 
     ta_metrics.extend(
         [
-            metrics_utils.compute_relative_translation_angle_metric(gt_i2Ui1_dict, wTi_aligned_list),
-            metrics_utils.compute_translation_distance_metric(wti_aligned_list, gt_wti_list),
-            metrics_utils.compute_translation_angle_metric(gt_wTi_list, wTi_aligned_list),
+            metrics_utils.compute_relative_translation_angle_metric(gt_i2Ui1_dict, wTi_aligned),
+            metrics_utils.compute_translation_distance_metric(wti_aligned, gt_wti),
+            metrics_utils.compute_translation_angle_metric(gt_wTi_map, wTi_aligned),
         ]
     )
 

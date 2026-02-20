@@ -155,6 +155,7 @@ data/
 # Data dumped by GTSFM directory
 debug/
 plots/
+**/*result*/
 results/
 result_metrics/
 *.html

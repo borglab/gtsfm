@@ -12,7 +12,7 @@ import dask
 import gtsam  # type: ignore
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import BetweenFactorPose3, NonlinearFactorGraph, PinholeCameraCal3Fisheye, PriorFactorPose3, Values
+from gtsam import BetweenFactorPose3, NonlinearFactorGraph, PriorFactorPoint3, PriorFactorPose3, Values
 from gtsam.noiseModel import Diagonal, Isotropic, Robust, mEstimator  # type: ignore
 from gtsam.symbol_shorthand import K, P, X  # type: ignore
 
@@ -95,9 +95,7 @@ class BundleAdjustmentOptimizer:
     def __map_to_calibration_variable(self, camera_idx: int) -> int:
         return 0 if self._shared_calib else camera_idx
 
-    def __reprojection_factors(
-        self, initial_data: GtsfmData, first_valid_camera_idx: int, is_fisheye_calibration: bool
-    ) -> NonlinearFactorGraph:
+    def __reprojection_factors(self, initial_data: GtsfmData, cameras_to_model: list[int]) -> NonlinearFactorGraph:
         """Generate reprojection factors using the tracks."""
         graph = NonlinearFactorGraph()
 
@@ -107,16 +105,21 @@ class BundleAdjustmentOptimizer:
             measurement_noise = Robust(mEstimator.Huber(1.345), measurement_noise)
 
         # Note: Assumes all calibration types are the same.
-        first_camera = initial_data.get_camera(first_valid_camera_idx)
+        first_camera = initial_data.get_camera(cameras_to_model[0])
         assert first_camera is not None, "First camera in initial data is None"
         sfm_factor_class = gtsfm_types.get_sfm_factor_for_calibration(first_camera.calibration())
+
+        cameras_with_tracks = set()
         for j in range(initial_data.number_tracks()):
             track = initial_data.get_track(j)  # SfmTrack
             # Retrieve the SfmMeasurement objects.
             for m_idx in range(track.numberMeasurements()):
                 # `i` represents the camera index, and `uv` is the 2d measurement
                 i, uv = track.measurement(m_idx)
+                cameras_with_tracks.add(i)
                 # Note use of shorthand symbols `X` and `P`.
+                if i not in cameras_to_model:
+                    continue
                 graph.push_back(
                     sfm_factor_class(
                         uv,
@@ -126,6 +129,9 @@ class BundleAdjustmentOptimizer:
                         K(self.__map_to_calibration_variable(i)),
                     )  # type: ignore
                 )
+
+        if len(cameras_with_tracks) != len(set(cameras_to_model)):
+            raise ValueError(f"Some cameras in the graph have no tracks: {set(cameras_to_model) - cameras_with_tracks}")
 
         return graph
 
@@ -176,9 +182,7 @@ class BundleAdjustmentOptimizer:
 
         return graph
 
-    def __calibration_priors(
-        self, initial_data: GtsfmData, cameras_to_model: List[int], is_fisheye_calibration: bool
-    ) -> NonlinearFactorGraph:
+    def __calibration_priors(self, initial_data: GtsfmData, cameras_to_model: list[int]) -> NonlinearFactorGraph:
         """Generate prior factors on calibration parameters of the cameras."""
         graph = NonlinearFactorGraph()
 
@@ -219,21 +223,38 @@ class BundleAdjustmentOptimizer:
         self, cameras_to_model: List[int], initial_data: GtsfmData
     ) -> NonlinearFactorGraph:
         """Construct the factor graph with just reprojection factors and calibration priors."""
-        is_fisheye_calibration = isinstance(initial_data.get_camera(cameras_to_model[0]), PinholeCameraCal3Fisheye)
 
         graph = NonlinearFactorGraph()
+        if not cameras_to_model:
+            return graph
 
-        # Create a factor graph.
+        # Add reprojection factors between cameras and tracks.
         graph.push_back(
             self.__reprojection_factors(
                 initial_data=initial_data,
-                first_valid_camera_idx=cameras_to_model[0],
-                is_fisheye_calibration=is_fisheye_calibration,
+                cameras_to_model=cameras_to_model,
             )
         )
         if graph.size() == 0:
             raise ValueError("BundleAdjustmentOptimizer: No reprojection factors available.")
-        graph.push_back(self.__calibration_priors(initial_data, cameras_to_model, is_fisheye_calibration))
+
+        # Add prior factor on first camera pose to fix absolute poses.
+        first_camera = initial_data.get_camera(cameras_to_model[0])
+        assert first_camera is not None, "First camera in initial data is None"
+        graph.push_back(
+            PriorFactorPose3(
+                X(cameras_to_model[0]),
+                first_camera.pose(),
+                Isotropic.Sigma(CAM_POSE3_DOF, self._cam_pose3_prior_noise_sigma),
+            )
+        )
+
+        # Add prior factor on the position of the first landmark to fix the scale.
+        if initial_data.number_tracks() > 0:
+            graph.push_back(
+                PriorFactorPoint3(P(0), initial_data.get_track(0).point3(), Isotropic.Sigma(POINT3_DOF, 0.1))
+            )
+        graph.push_back(self.__calibration_priors(initial_data, cameras_to_model))
 
         return graph
 
@@ -276,8 +297,8 @@ class BundleAdjustmentOptimizer:
 
         if self._max_iterations:
             params.setMaxIterations(self._max_iterations)
-        lm = gtsam.LevenbergMarquardtOptimizer(graph, initial_values, params)
 
+        lm = gtsam.LevenbergMarquardtOptimizer(graph, initial_values, params)
         result_values = lm.optimize()
 
         elapsed_time = time.time() - start_time
@@ -511,16 +532,17 @@ class BundleAdjustmentOptimizer:
         """
         ba_metrics = GtsfmMetricsGroup(name=METRICS_GROUP, metrics=unfiltered_data.get_metrics(suffix="_unfiltered"))
 
-        poses_gt = [cam.pose() if cam is not None else None for cam in cameras_gt]
-
-        valid_poses_gt_count = len(poses_gt) - poses_gt.count(None)
-        if valid_poses_gt_count == 0:
+        input_image_idxs = list(unfiltered_data._image_info.keys())
+        poses_gt = {
+            i: cameras_gt[i].pose() for i in input_image_idxs if i < len(cameras_gt) and cameras_gt[i] is not None
+        }
+        if not poses_gt:
             return ba_metrics
 
         # Align the sparse multi-view estimate after BA to the ground truth pose graph.
         aligned_filtered_data = filtered_data.align_via_sim3_and_transform(poses_gt)
         ba_pose_error_metrics = metrics_utils.compute_ba_pose_metrics(
-            gt_wTi_list=poses_gt, computed_wTi_list=aligned_filtered_data.get_camera_poses(), save_dir=save_dir
+            gt_wTi=poses_gt, computed_wTi=aligned_filtered_data.get_camera_poses(), save_dir=save_dir
         )
         ba_metrics.extend(metrics_group=ba_pose_error_metrics)
 

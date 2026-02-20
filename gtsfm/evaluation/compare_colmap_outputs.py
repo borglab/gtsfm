@@ -1,13 +1,17 @@
 """Script to compare two reconstructions in Colmap's output format.
 
-Authors: Ayush Baid
+Authors: Ayush Baid, Xinan Zhang
 """
 
 import argparse
+import csv
+import json
 import os
+import textwrap
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
+import matplotlib.pyplot as plt
 import pycolmap
 from gtsam import Point3, Pose3, Rot3, Similarity3
 from scipy.spatial.transform import Rotation
@@ -53,7 +57,108 @@ def align_with_colmap(
     return aSb, aligned_dict
 
 
-def compare_poses(baseline_dirpath: str, eval_dirpath: str, output_dirpath: str) -> None:
+def plot_camera_centers(
+    baseline_wTi_list: List[Pose3],
+    current_wTi_list: List[Pose3],
+    output_dirpath: str,
+    title: Optional[str] = None,
+) -> None:
+    """Save a 3D scatter plot of baseline and current camera centers."""
+    baseline_centers = np.stack([pose.translation() for pose in baseline_wTi_list])
+    current_centers_list = [pose.translation() for pose in current_wTi_list]
+    current_centers = np.stack(current_centers_list) if current_centers_list else np.empty((0, 3))
+
+    fig = plt.figure(figsize=(7, 7))
+    ax = fig.add_subplot(111, projection="3d")
+    if baseline_centers.size:
+        center = baseline_centers.mean(axis=0)
+        mean_radius = np.linalg.norm(baseline_centers - center, axis=1).mean()
+        arrow_len = max(mean_radius * 0.15, 1e-3)
+    else:
+        arrow_len = 1.0
+
+    for pose in baseline_wTi_list:
+        origin = pose.transformFrom(Point3(0.0, 0.0, 0.0))
+        tip = pose.transformFrom(Point3(0.0, 0.0, arrow_len))
+        direction = tip - origin
+        ax.quiver(
+            origin[0], origin[1], origin[2],
+            direction[0], direction[1], direction[2],
+            color="tab:blue", linewidth=0.5, arrow_length_ratio=0.2, alpha=0.6
+        )
+    for pose in current_wTi_list:
+        origin = pose.transformFrom(Point3(0.0, 0.0, 0.0))
+        tip = pose.transformFrom(Point3(0.0, 0.0, arrow_len))
+        direction = tip - origin
+        ax.quiver(
+            origin[0], origin[1], origin[2],
+            direction[0], direction[1], direction[2],
+            color="tab:orange", linewidth=0.5, arrow_length_ratio=0.2, alpha=0.6
+        )
+
+    ax.scatter(
+        baseline_centers[:, 0],
+        baseline_centers[:, 1],
+        baseline_centers[:, 2],
+        s=10,
+        c="tab:blue",
+        label="baseline",
+    )
+    if current_centers.size:
+        ax.scatter(
+            current_centers[:, 0],
+            current_centers[:, 1],
+            current_centers[:, 2],
+            s=10,
+            c="tab:orange",
+            label="current",
+        )
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+    ax.set_zlabel("z")
+    ax.legend(loc="best")
+    wrapped = "\n".join(textwrap.wrap(title, width=80)) if title else ""
+    if wrapped:
+        fig.suptitle(wrapped, fontsize=9, y=0.98)
+    fig.tight_layout(rect=[0, 0, 1, 0.92])
+    fig.savefig(os.path.join(output_dirpath, "camera_centers.png"), dpi=300)
+    plt.close(fig)
+
+
+def export_metrics_group_to_csv(metrics_group: GtsfmMetricsGroup, output_path: str) -> None:
+    """Export a metrics group to a CSV file."""
+    rows: List[Dict[str, str]] = []
+    for metric in metrics_group.metrics:
+        if metric.dim == 0:
+            value = "" if metric.data is None else f"{float(metric.data):.6f}"
+            rows.append({"metric_name": metric.name, "value": value})
+        else:
+            summary_json = json.dumps(metric.summary, sort_keys=True)
+            rows.append({"metric_name": metric.name, "value": summary_json})
+
+    with open(output_path, "w", newline="") as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=["metric_name", "value"])
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def _format_pose_auc(metrics_group: GtsfmMetricsGroup) -> str:
+    auc_parts = []
+    for metric in metrics_group.metrics:
+        if not metric.name.startswith("pose_auc_@"):
+            continue
+        if metric.data is None:
+            continue
+        try:
+            value = float(metric.data)
+        except (TypeError, ValueError):
+            continue
+        suffix = metric.name.replace("pose_auc_", "")
+        auc_parts.append(f"{suffix}={value:.3f}")
+    return ", ".join(auc_parts)
+
+
+def compare_poses(baseline_dirpath: str, eval_dirpath: str, output_dirpath: str) -> GtsfmMetricsGroup:
     """Compare the pose metrics between two reconstructions (Colmap format).
 
     Args:
@@ -89,24 +194,25 @@ def compare_poses(baseline_dirpath: str, eval_dirpath: str, output_dirpath: str)
         current_wTi_list.append(current_wTi_dict.get(fname))
 
     if not args.use_pycolmap_alignment:
-        aSb = align.sim3_from_optional_Pose3s(baseline_wTi_list, current_wTi_list)
+        aSb = align.sim3_from_Pose3_maps_robust(baseline_wTi_dict, current_wTi_dict)
         current_wTi_list = transform.optional_Pose3s_with_sim3(aSb, current_wTi_list)
+        current_wTi_dict = {fname: aSb.transformFrom(pose) for fname, pose in current_wTi_dict.items()}
 
-    i2Ri1_dict_gt, i2Ui1_dict_gt = metric_utils.get_all_relative_rotations_translations(baseline_wTi_list)
+    i2Ri1_dict_gt, i2Ui1_dict_gt = metric_utils.get_all_relative_rotations_translations(baseline_wTi_dict)
 
-    wRi_aligned_list, wti_aligned_list = metric_utils.get_rotations_translations_from_poses(current_wTi_list)
-    baseline_wRi_list, baseline_wti_list = metric_utils.get_rotations_translations_from_poses(baseline_wTi_list)
+    wRi_aligned_dict, wti_aligned_dict = metric_utils.get_rotations_translations_from_poses(current_wTi_dict)
+    baseline_wRi_dict, baseline_wti_dict = metric_utils.get_rotations_translations_from_poses(baseline_wTi_dict)
 
     metrics = []
-    metrics.append(metric_utils.compute_rotation_angle_metric(wRi_aligned_list, baseline_wRi_list))
-    metrics.append(metric_utils.compute_translation_distance_metric(wti_aligned_list, baseline_wti_list))
-    metrics.append(metric_utils.compute_translation_angle_metric(baseline_wTi_list, current_wTi_list))
+    metrics.append(metric_utils.compute_rotation_angle_metric(wRi_aligned_dict, baseline_wRi_dict))
+    metrics.append(metric_utils.compute_translation_distance_metric(wti_aligned_dict, baseline_wti_dict))
+    metrics.append(metric_utils.compute_translation_angle_metric(baseline_wTi_dict, current_wTi_dict))
     relative_rotation_error_metric = metric_utils.compute_relative_rotation_angle_metric(
-        i2Ri1_dict_gt, current_wTi_list, store_full_data=True
+        i2Ri1_dict_gt, current_wTi_dict, store_full_data=True
     )
     metrics.append(relative_rotation_error_metric)
     relative_translation_error_metric = metric_utils.compute_relative_translation_angle_metric(
-        i2Ui1_dict_gt, current_wTi_list, store_full_data=True
+        i2Ui1_dict_gt, current_wTi_dict, store_full_data=True
     )
     metrics.append(relative_translation_error_metric)
 
@@ -120,7 +226,14 @@ def compare_poses(baseline_dirpath: str, eval_dirpath: str, output_dirpath: str)
 
     ba_pose_metrics = GtsfmMetricsGroup(name="ba_pose_error_metrics", metrics=metrics)
 
+    auc_text = _format_pose_auc(ba_pose_metrics)
+    title = eval_dirpath
+    if auc_text:
+        title = f"{title}\nPose AUC: {auc_text}"
+    plot_camera_centers(baseline_wTi_list, list(current_wTi_dict.values()), output_dirpath, title=title)
+
     save_metrics_reports([ba_pose_metrics], metrics_path=output_dirpath)
+    return ba_pose_metrics
 
 
 if __name__ == "__main__":
@@ -145,4 +258,5 @@ if __name__ == "__main__":
 
     os.makedirs(args.output, exist_ok=True)
 
-    compare_poses(args.baseline, args.current, args.output)
+    ba_pose_metrics = compare_poses(args.baseline, args.current, args.output)
+    export_metrics_group_to_csv(ba_pose_metrics, os.path.join(args.output, f"{ba_pose_metrics.name}.csv"))

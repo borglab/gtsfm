@@ -65,9 +65,22 @@ class ClusterMVO(ClusterOptimizerBase):
         save_two_view_viz: bool = False,
         pose_angular_error_thresh: float = 3,
         output_worker: Optional[str] = None,
+        drop_child_if_merging_fail: bool = True,
+        drop_camera_with_no_track: bool = True,
+        drop_outlier_after_camera_merging: bool = True,
+        plot_reprojection_histograms: bool = True,
+        run_bundle_adjustment_on_parent: bool = True,
     ) -> None:
         # correspondence_generator is MVO-specific; do not pass it to base class.
-        super().__init__(pose_angular_error_thresh=pose_angular_error_thresh, output_worker=output_worker)
+        super().__init__(
+            pose_angular_error_thresh=pose_angular_error_thresh,
+            output_worker=output_worker,
+            drop_child_if_merging_fail=drop_child_if_merging_fail,
+            drop_camera_with_no_track=drop_camera_with_no_track,
+            drop_outlier_after_camera_merging=drop_outlier_after_camera_merging,
+            plot_reprojection_histograms=plot_reprojection_histograms,
+            run_bundle_adjustment_on_parent=run_bundle_adjustment_on_parent,
+        )
         # assign MVO-only correspondence generator on this instance
         self.correspondence_generator = correspondence_generator
         self.two_view_estimator = two_view_estimator
@@ -462,9 +475,11 @@ def align_estimated_gtsfm_data(
     ba_input: GtsfmData, ba_output: GtsfmData, gt_wTi_list: list[Optional[Pose3]]
 ) -> tuple[GtsfmData, GtsfmData, list[Optional[Pose3]]]:
     """Align estimated data with ground-truth poses and world axes."""
-    w_S_output = ba_output.align_to_poses_via_sim3(gt_wTi_list)
+    # This conversion is OK since the GT poses are expected to be complete.
+    gt_poses_dict: dict[int, Pose3] = {i: gt_wTi_list[i] for i in range(len(gt_wTi_list)) if gt_wTi_list[i] is not None}
+    w_S_output = ba_output.align_to_poses_via_sim3(gt_poses_dict)
     w_ba_output = ba_output.transform_with_sim3(w_S_output)
-    w_S_input = ba_input.align_to_poses_via_sim3(gt_wTi_list)
+    w_S_input = ba_input.align_to_poses_via_sim3(gt_poses_dict)
     w_ba_input = ba_input.transform_with_sim3(w_S_input)
 
     try:
@@ -524,6 +539,7 @@ def get_gtsfm_data_with_gt_cameras_and_est_tracks(
     NOTE: utility to export GT cameras alongside estimated tracks for visualization.
     """
     gt_gtsfm_data = GtsfmData(number_images=len(cameras_gt))
+    # It is okay to use cameras_gt indices, since they are ground truth, and are complete.
     for i, camera in enumerate(cameras_gt):
         if camera is not None:
             gt_gtsfm_data.add_camera(i, camera)
@@ -541,8 +557,7 @@ def save_gtsfm_data(
     results_path: Path,
     cameras_gt: list[Optional[gtsfm_types.CAMERA_TYPE]],
 ) -> None:
-    """Saves the Gtsfm data before and after bundle adjustment.
-    """
+    """Saves the Gtsfm data before and after bundle adjustment."""
     start_time = time.time()
     output_dir = str(results_path)
 

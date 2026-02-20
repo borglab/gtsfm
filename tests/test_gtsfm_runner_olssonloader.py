@@ -31,10 +31,14 @@ def test_gtsfm_runner_olssonloader(dataset_path):
         assert len(sfm_result.get_valid_camera_indices()) == len(runner.scene_optimizer.loader)
     else:
         # compare the camera poses
-        computed_poses = sfm_result.get_camera_poses()
+        computed_poses_dict = sfm_result.get_camera_poses()
+        loader = runner.scene_optimizer.loader
 
-        # get active cameras from largest connected component, may be <len(loader)
-        connected_camera_idxs = sfm_result.get_valid_camera_indices()
-        expected_poses = [runner.scene_optimizer.loader.get_camera_pose(i) for i in connected_camera_idxs]
+        assert isinstance(computed_poses_dict, dict)
+        computed_poses, expected_poses = [], []
+        for idx, pose in computed_poses_dict.items():
+            expected_poses.append(loader.get_camera_pose(idx))
+            computed_poses.append(pose)
+
 
         assert comp_utils.compare_global_poses(computed_poses, expected_poses, trans_err_atol=1.0, trans_err_rtol=0.1)

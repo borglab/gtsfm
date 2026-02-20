@@ -102,7 +102,8 @@ class TestEllipsoidUtils(unittest.TestCase):
             Pose3(walignedTw.rotation(), np.array([np.sqrt(2), 0, 2])),
         ]
 
-        computed_wTi_list = sample_data.get_camera_poses()
+        computed_wTi_list = sample_data.get_camera_poses_list()
+        assert len(computed_wTi_list) == len(expected_wTi_list)
         for wTi_computed, wTi_expected in zip(computed_wTi_list, expected_wTi_list):
             assert wTi_computed.equals(wTi_expected, tol=1e-9)
 
@@ -146,7 +147,7 @@ class TestEllipsoidUtils(unittest.TestCase):
         for point_3d in points_3d:
             sample_data.add_track(SfmTrack(point_3d))
 
-        camera_translations = np.array([pose.translation() for pose in sample_data.get_camera_poses()])
+        camera_translations = np.array([pose.translation() for pose in sample_data.get_camera_poses_list()])
         initial_relative_distances = scipy.spatial.distance.cdist(camera_translations, points_3d, metric="euclidean")
 
         # Apply alignment transformation to sample_data
@@ -158,7 +159,7 @@ class TestEllipsoidUtils(unittest.TestCase):
         num_tracks = sample_data.number_tracks()
         transformed_points_3d = [np.array(sample_data.get_track(i).point3()) for i in range(num_tracks)]
         transformed_points_3d = np.array(transformed_points_3d)
-        transformed_camera_translations = np.array([pose.translation() for pose in sample_data.get_camera_poses()])
+        transformed_camera_translations = np.array([pose.translation() for pose in sample_data.get_camera_poses_list()])
 
         final_relative_distances = scipy.spatial.distance.cdist(
             transformed_camera_translations, transformed_points_3d, metric="euclidean"

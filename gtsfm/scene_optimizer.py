@@ -108,14 +108,13 @@ class SceneOptimizer:
         output_root: str = DEFAULT_OUTPUT_ROOT,
         output_worker: Optional[str] = None,
         plot_reprojection_histograms: bool = True,
+        use_nonlinear_sim3_merging: bool = False,
     ) -> None:
         self.loader = loader
         self.image_pairs_generator = image_pairs_generator
         self.graph_partitioner = graph_partitioner
         self.cluster_optimizer = cluster_optimizer
-        self._run_bundle_adjustment_on_parent = getattr(
-            self.cluster_optimizer, "run_bundle_adjustment_on_parent", True
-        )
+        self._run_bundle_adjustment_on_parent = getattr(self.cluster_optimizer, "run_bundle_adjustment_on_parent", True)
         self._plot_reprojection_histograms = getattr(
             self.cluster_optimizer, "plot_reprojection_histograms", plot_reprojection_histograms
         )
@@ -124,8 +123,8 @@ class SceneOptimizer:
             self.cluster_optimizer, "drop_outlier_after_camera_merging", True
         )
         self._drop_camera_with_no_track = getattr(self.cluster_optimizer, "drop_camera_with_no_track", True)
-        self._drop_child_if_merging_fail = getattr(self.cluster_optimizer, "drop_child_if_merging_fail", False)
-
+        self._drop_child_if_merging_fail = getattr(self.cluster_optimizer, "drop_child_if_merging_fail", True)
+        self._use_nonlinear_sim3_merging = use_nonlinear_sim3_merging
         self.output_root = Path(output_root)
         if output_worker is not None:
             self.cluster_optimizer._output_worker = output_worker
@@ -232,7 +231,7 @@ class SceneOptimizer:
                 # Returns handles to various outputs: reconstruction, metrics, io_barrier etc.
                 handles_tree = context_tree.map(self._schedule_single_cluster)
 
-                # Get the reconstruction handle and run merging to get a tree of merged result handles. 
+                # Get the reconstruction handle and run merging to get a tree of merged result handles.
                 reconstruction_tree = handles_tree.map(lambda handle: handle.reconstruction)
 
                 cameras_gt = self.loader.get_gt_cameras()
@@ -251,6 +250,7 @@ class SceneOptimizer:
                         drop_camera_with_no_track=self._drop_camera_with_no_track,
                         drop_child_if_merging_fail=self._drop_child_if_merging_fail,
                         store_full_data=False,
+                        use_nonlinear_sim3_alignment=self._use_nonlinear_sim3_merging,
                     )
 
                 merged_future_tree = submit_tree_map_with_children(client, reconstruction_tree, merge_fn)
@@ -273,7 +273,7 @@ class SceneOptimizer:
                         base_metrics_groups.extend(metrics_groups)
                         base_metrics_groups.append(merged_result.metrics)
                         root_merge_future = merge_future
-                    elif metrics_groups:
+                    else:
                         merged_result = merge_future.result()
                         metrics_groups.append(merged_result.metrics)
                         save_metrics_reports(metrics_groups, str(handle.output_paths.metrics))
