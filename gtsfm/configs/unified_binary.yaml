@@ -100,10 +100,10 @@ cluster_optimizer:
     bundle_adjustment_module:
       _target_: gtsfm.bundle.bundle_adjustment.BundleAdjustmentOptimizer
       reproj_error_thresholds: [10, 5, 3] # for (multistage) post-optimization filtering
-      robust_measurement_noise: True
+      robust_ba_mode: "HUBER"
       shared_calib: False
       cam_pose3_prior_noise_sigma: 0.1
-      calibration_prior_noise_sigma: 1e-5
+      calibration_prior_focal_sigma: 20.0
       measurement_noise_sigma: 1.0
 
   # enable via CLI --run_mvs

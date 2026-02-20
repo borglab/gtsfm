@@ -124,6 +124,7 @@ class SceneOptimizer:
         )
         self._drop_camera_with_no_track = getattr(self.cluster_optimizer, "drop_camera_with_no_track", True)
         self._drop_child_if_merging_fail = getattr(self.cluster_optimizer, "drop_child_if_merging_fail", True)
+        self._use_shared_calibration = getattr(self.cluster_optimizer, "use_shared_calibration", True)
         self._use_nonlinear_sim3_merging = use_nonlinear_sim3_merging
         self.output_root = Path(output_root)
         if output_worker is not None:
@@ -251,6 +252,7 @@ class SceneOptimizer:
                         drop_child_if_merging_fail=self._drop_child_if_merging_fail,
                         store_full_data=False,
                         use_nonlinear_sim3_alignment=self._use_nonlinear_sim3_merging,
+                        use_shared_calibration=self._use_shared_calibration,
                     )
 
                 merged_future_tree = submit_tree_map_with_children(client, reconstruction_tree, merge_fn)
@@ -272,10 +274,12 @@ class SceneOptimizer:
                         merged_result = merge_future.result()
                         base_metrics_groups.extend(metrics_groups)
                         base_metrics_groups.append(merged_result.metrics)
+                        base_metrics_groups.append(merged_result.pre_ba_metrics)
                         root_merge_future = merge_future
                     else:
                         merged_result = merge_future.result()
                         metrics_groups.append(merged_result.metrics)
+                        metrics_groups.append(merged_result.pre_ba_metrics)
                         save_metrics_reports(metrics_groups, str(handle.output_paths.metrics))
                 if root_merge_future is not None:
                     logger.info("🔥 GTSFM: Running cluster optimization and merging...")

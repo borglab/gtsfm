@@ -7,7 +7,6 @@ from typing import Any, Hashable, Optional, Union
 
 import numpy as np
 import torch
-import torch.nn.functional as F
 from dask.delayed import Delayed, delayed
 from gtsam import Pose3
 
@@ -26,13 +25,6 @@ logger = get_logger()
 
 # Module-level cache to avoid reloading VGGT weights per cluster.
 _VGGT_MODEL_CACHE: dict[Hashable, Any] = {}
-
-
-def _resize_to_square_tensor(image: np.ndarray, target_size: int) -> torch.Tensor:
-    """Resize a HxWx3 numpy image to a square torch tensor normalized to [0,1]."""
-    tensor = torch.from_numpy(image).permute(2, 0, 1).unsqueeze(0).float()
-    tensor = F.interpolate(tensor, size=(target_size, target_size), mode="bilinear", align_corners=False)
-    return (tensor.squeeze(0)) / 255.0
 
 
 def _load_vggt_inputs(loader, indices: list[int], mode: str):
@@ -198,12 +190,15 @@ class ClusterVGGT(ClusterOptimizerBase):
         store_pre_ba_result: bool = False,
         run_bundle_adjustment_on_parent: bool = True,
         max_reproj_error: float = 8.0,
-        min_triangulation_angle: float = 0.0,
+        min_triangulation_angle: float = 10.0,
         plot_reprojection_histograms: bool = True,
         merge_duplicate_tracks: bool = True,
         drop_outlier_after_camera_merging: bool = True,
         drop_child_if_merging_fail: bool = True,
         drop_camera_with_no_track: bool = True,
+        ba_use_calibration_prior: bool = False,
+        ba_use_undistorted_camera_model: bool = False,
+        use_shared_calibration: bool = True,
     ) -> None:
         super().__init__(
             pose_angular_error_thresh=pose_angular_error_thresh,
@@ -213,6 +208,7 @@ class ClusterVGGT(ClusterOptimizerBase):
             drop_outlier_after_camera_merging=drop_outlier_after_camera_merging,
             plot_reprojection_histograms=plot_reprojection_histograms,
             run_bundle_adjustment_on_parent=run_bundle_adjustment_on_parent,
+            use_shared_calibration=use_shared_calibration,
             merge_duplicate_tracks=merge_duplicate_tracks,
         )
         self._weights_path = Path(weights_path) if weights_path is not None else None
@@ -233,6 +229,9 @@ class ClusterVGGT(ClusterOptimizerBase):
         self._dtype = inference_dtype
         self._run_bundle_adjustment_on_leaf = run_bundle_adjustment_on_leaf
         self._store_pre_ba_result = store_pre_ba_result
+        self._min_triangulation_angle = min_triangulation_angle
+        self._ba_use_calibration_prior = ba_use_calibration_prior
+        self._ba_use_undistorted_camera_model = ba_use_undistorted_camera_model
         if fast_dtype is not None:
             if self._dtype is None:
                 self._dtype = fast_dtype
@@ -329,6 +328,9 @@ class ClusterVGGT(ClusterOptimizerBase):
             store_pre_ba_result=self._store_pre_ba_result,
             max_reproj_error=self._max_reproj_error,
             min_triangulation_angle=self._min_triangulation_angle,
+            ba_use_calibration_prior=self._ba_use_calibration_prior,
+            ba_use_undistorted_camera_model=self._ba_use_undistorted_camera_model,
+            ba_use_shared_calibration=self.use_shared_calibration,
         )
 
         # mode is fixed to "crop", it resizes the width to 518 while maintaining aspect ratio and only if

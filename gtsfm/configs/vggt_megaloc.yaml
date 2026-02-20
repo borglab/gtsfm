@@ -29,7 +29,7 @@ cluster_optimizer:
   optimizer:
     _target_: gtsfm.cluster_optimizer.cluster_vggt.ClusterVGGT
     weights_path: null
-    conf_threshold: 5.0
+    conf_threshold: 0.1
     max_num_points: 100000
     tracking: true
     tracking_max_query_pts: 2048
@@ -37,17 +37,20 @@ cluster_optimizer:
     keypoint_extractor: aliked+sp+sift
     track_vis_thresh: 0.05
     track_conf_thresh: 0.2
-    max_reproj_error: 0 # 0.0 means no filtering based on reproj error
-    min_triangulation_angle: 0.0
+    max_reproj_error: 14.0
+    min_triangulation_angle: 10.0
     camera_type: PINHOLE
-    drop_outlier_after_camera_merging: false
+    drop_outlier_after_camera_merging: true
     drop_child_if_merging_fail: true
-    drop_camera_with_no_track: true
+    drop_camera_with_no_track: false
     seed: 42
     plot_reprojection_histograms: true
-    run_bundle_adjustment_on_leaf: false
-    run_bundle_adjustment_on_parent: false
+    run_bundle_adjustment_on_leaf: true
+    run_bundle_adjustment_on_parent: true
     model_cache_key: null
     store_pre_ba_result: true
+    ba_use_calibration_prior: false
+    ba_use_undistorted_camera_model: false
+    use_shared_calibration: true
 
-use_nonlinear_sim3_alignment: false
+use_nonlinear_sim3_merging: true
