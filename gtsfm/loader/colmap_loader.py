@@ -42,6 +42,7 @@ class ColmapLoader(LoaderBase):
         self,
         dataset_dir: str,
         images_dir: Optional[str] = None,
+        colmap_files_subdir: Optional[str] = None,
         use_gt_intrinsics: bool = True,
         use_gt_extrinsics: bool = True,
         max_resolution: int = 760,
@@ -53,6 +54,8 @@ class ColmapLoader(LoaderBase):
             dataset_dir: Path to directory containing COLMAP-exported data, with images.txt
                 and cameras.txt files.
             images_dir: Path to directory containing images files. If None, defaults to {dataset_dir}/images.
+            colmap_files_subdir: Optional subdirectory under dataset_dir where COLMAP files
+                are located (e.g. sparse/0). If None, COLMAP files are read from dataset_dir.
             use_gt_intrinsics: Whether to use ground truth intrinsics. If COLMAP calibration is
                not found on disk, then use_gt_intrinsics will be set to false automatically.
             use_gt_extrinsics: Whether to use ground truth extrinsics.
@@ -64,12 +67,16 @@ class ColmapLoader(LoaderBase):
         super().__init__(max_resolution, input_worker)
         self._dataset_dir = dataset_dir
         self._images_dir = images_dir or os.path.join(dataset_dir, "images")
+        self._colmap_files_subdir = colmap_files_subdir
         self._use_gt_intrinsics = use_gt_intrinsics
         self._use_gt_extrinsics = use_gt_extrinsics
-
-        wTi_list, img_fnames, self._calibrations, _, _, _ = io_utils.read_scene_data_from_colmap_format(
-            self._dataset_dir
+        colmap_data_dir = (
+            os.path.join(self._dataset_dir, self._colmap_files_subdir)
+            if self._colmap_files_subdir is not None
+            else self._dataset_dir
         )
+
+        wTi_list, img_fnames, self._calibrations, _, _, _ = io_utils.read_scene_data_from_colmap_format(colmap_data_dir)
         # TODO in future PR: if img_fnames is None, default to using everything inside image directory
 
         if self._calibrations is None:

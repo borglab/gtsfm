@@ -127,6 +127,23 @@ class TestColmapLoader(unittest.TestCase):
         self.assertTrue(self.loader.is_valid_pair(i1, i2))
         base_is_valid_pair_mock.assert_called_once_with(i1, i2)
 
+    @patch("pathlib.Path.exists", return_value=True)
+    @patch("gtsfm.loader.colmap_loader.io_utils.read_scene_data_from_colmap_format")
+    def test_colmap_files_subdir(self, read_scene_data_mock: MagicMock, _: MagicMock) -> None:
+        """Ensure COLMAP metadata can be loaded from a subdirectory under dataset_dir."""
+        dataset_dir = TEST_DATA_ROOT / "set1_lund_door"
+        colmap_files_subdir = "colmap_ground_truth"
+        read_scene_data_mock.return_value = ([Pose3()], ["DSC_0001.JPG"], None, np.zeros((0, 3)), np.zeros((0, 3)), [])
+
+        loader = ColmapLoader(
+            dataset_dir=str(dataset_dir),
+            colmap_files_subdir=colmap_files_subdir,
+        )
+
+        expected_colmap_dir = str(dataset_dir / colmap_files_subdir)
+        read_scene_data_mock.assert_called_once_with(expected_colmap_dir)
+        assert loader._images_dir == str(dataset_dir / "images")
+
 
 # TODO in future: instantiate an object while providing bad paths
 if __name__ == "__main__":
