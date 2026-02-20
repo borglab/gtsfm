@@ -509,7 +509,6 @@ def _convert_vggt_outputs_to_gtsfm_data(
             gtsfm_data.add_track(track)
 
     if tracking_result:
-
         # track masks according to visibility, reprojection error, etc
         max_reproj_error = float(config.max_reproj_error)
         track_mask = tracking_result.visibilities > config.track_vis_thresh

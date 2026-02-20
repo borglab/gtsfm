@@ -43,6 +43,7 @@ cluster_optimizer:
     drop_outlier_after_camera_merging: false
     drop_child_if_merging_fail: true
     drop_camera_with_no_track: true
+    merge_duplicate_tracks: false
     seed: 42
     plot_reprojection_histograms: true
     run_bundle_adjustment_on_leaf: false
