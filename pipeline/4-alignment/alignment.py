@@ -167,16 +167,27 @@ def _parse_colmap_image_names(images_txt: Path) -> set[str]:
     names: set[str] = set()
     if not images_txt.exists():
         return names
-    lines = [line.strip() for line in images_txt.read_text().splitlines() if line.strip()]
+
+    # Preserve empty lines. COLMAP text models use two lines per image, and images with no
+    # observations legitimately have an empty second line.
+    lines = images_txt.read_text().splitlines()
     i = 0
     while i < len(lines):
-        if lines[i].startswith("#"):
+        line = lines[i].strip()
+        if not line or line.startswith("#"):
             i += 1
             continue
-        parts = lines[i].split()
+        parts = line.split()
         if len(parts) >= 10:
-            names.add(parts[9])
-        i += 2
+            try:
+                int(parts[0])  # IMAGE_ID
+                int(parts[8])  # CAMERA_ID
+                names.add(parts[9])  # NAME
+                i += 2
+                continue
+            except ValueError:
+                pass
+        i += 1
     return names
 
 
