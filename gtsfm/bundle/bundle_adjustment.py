@@ -271,7 +271,7 @@ class BundleAdjustmentOptimizer:
 
         graph = NonlinearFactorGraph()
         if not cameras_to_model:
-            return graph
+            return graph, {}
 
         reprojection_graph, cameras_without_tracks = self.__reprojection_factors(
             initial_data=initial_data,
