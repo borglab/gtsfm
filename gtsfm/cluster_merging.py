@@ -50,7 +50,7 @@ def _create_unary_measurements(scene: GtsfmData) -> list[UnaryMeasurementPose3]:
         if camera is None:
             continue
         noise_model = gtsam.noiseModel.Diagonal.Sigmas(
-            np.array([1e-2, 1e-2, 1e-2, 1e-1, 1e-1, 1e-1]) / np.sqrt(num_good_measurements[i])
+            np.array([1e-2, 1e-2, 1e-2, 1e-1, 1e-1, 1e-1]) / np.sqrt(num_good_measurements.get(i, 0) + 1e-6)
         )
         unary_measurement = UnaryMeasurementPose3(i, camera, noise_model)
         unary_measurements.append(unary_measurement)

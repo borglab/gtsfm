@@ -24,8 +24,11 @@ class _SubTreeInfo:
 class MetisPartitioner(GraphPartitionerBase):
     """Graph partitioner that leverages METIS ordering and the symbolic Bayes tree."""
 
-    def __init__(self) -> None:
+    def __init__(self, min_cameras_to_partition: int | None = None) -> None:
         super().__init__(process_name="MetisPartitioner")
+        if min_cameras_to_partition is not None and min_cameras_to_partition < 1:
+            raise ValueError("min_cameras_to_partition must be >= 1 when provided.")
+        self._min_cameras_to_partition = min_cameras_to_partition
 
     def _extract_largest_component_subgraph(self, graph: VisibilityGraph) -> VisibilityGraph:
         nodes_in_largest = set(get_nodes_in_largest_connected_component(graph))
@@ -95,6 +98,11 @@ class MetisPartitioner(GraphPartitionerBase):
         # Calculate its keys, edges, and the edges unique to it.
         subtree_keys = keys | set.union(*(result.keys for result in child_results))
         subtree_edges = current_edges | descendant_edges
+
+        # Collapse small subtrees into leaves.
+        if self._min_cameras_to_partition is not None and len(subtree_keys) < self._min_cameras_to_partition:
+            collapsed_cluster = ClusterTree(value=sorted_edges(subtree_edges), children=())
+            return _SubTreeInfo(cluster=collapsed_cluster, keys=subtree_keys, edges=subtree_edges)
 
         # --- Aggressive Pruning Logic ---
         if len(child_results) == 1:
