@@ -51,9 +51,11 @@ class ColmapLoader(LoaderBase):
         """Initializes to load from a specified dataset directory on disk.
 
         Args:
-            dataset_dir: Path to directory containing COLMAP-exported data, with images.txt
-                and cameras.txt files.
-            images_dir: Path to directory containing images files. If None, defaults to {dataset_dir}/images.
+            dataset_dir: Path to the dataset root directory. COLMAP-exported text files
+                (images.txt, cameras.txt) are expected either directly under this directory
+                or under ``colmap_files_subdir`` if provided.
+            images_dir: Path to directory containing image files. If None, defaults to
+                {dataset_dir}/images.
             colmap_files_subdir: Optional subdirectory under dataset_dir where COLMAP files
                 are located (e.g. sparse/0). If None, COLMAP files are read from dataset_dir.
             use_gt_intrinsics: Whether to use ground truth intrinsics. If COLMAP calibration is
