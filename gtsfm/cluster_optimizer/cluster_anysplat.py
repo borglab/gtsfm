@@ -244,8 +244,10 @@ class ClusterAnySplat(ClusterOptimizerBase):
             intrinsics_pixels[..., 0, :] *= width
             intrinsics_pixels[..., 1, :] *= height
             # TODO(akshay-krishnan): Add support for pinhole camera model.
+            # TODO(akshay-krishnan): Fix crop coords.
+            crop_coords = np.array([0, 0, width, height])
             camera = torch_utils.camera_from_matrices(
-                extrinsic, intrinsics_pixels, wTc_flag=True, use_cal3_bundler=True
+                extrinsic, intrinsics_pixels, crop_coords=crop_coords, wTc_flag=True, use_cal3_bundler=True
             )
             gtsfm_data.add_camera(global_idx, camera)  # type: ignore
             gtsfm_data.set_image_info(

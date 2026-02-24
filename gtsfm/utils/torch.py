@@ -38,33 +38,41 @@ def pose_from_extrinsic_wTc(matrix: np.ndarray) -> Pose3:
     return Pose3(Rot3(wRc), Point3(*t))
 
 
-def cal3_s2_from_intrinsic(matrix: np.ndarray) -> gtsam.Cal3_S2:
+def cal3_s2_from_intrinsic(matrix: np.ndarray, crop_coords) -> gtsam.Cal3_S2:
     """Map a 3x3 intrinsic matrix to a Cal3_S2."""
     fx = float(matrix[0, 0])
     fy = float(matrix[1, 1])
     cx = float(matrix[0, 2])
     cy = float(matrix[1, 2])
+    cx = cx + float(crop_coords[0])
+    cy = cy + float(crop_coords[1])
     return gtsam.Cal3_S2(fx, fy, 0.0, cx, cy)
 
 
-def cal3_bundler_from_intrinsic(matrix: np.ndarray) -> gtsam.Cal3Bundler:
+def cal3_bundler_from_intrinsic(matrix: np.ndarray, crop_coords) -> gtsam.Cal3Bundler:
     """Map a 3x3 intrinsic matrix to a Cal3Bundler."""
     fx = float(matrix[0, 0])
     fy = float(matrix[1, 1])
     f = (fx + fy) / 2.0
     cx = float(matrix[0, 2])
     cy = float(matrix[1, 2])
+    cx = cx + float(crop_coords[0])
+    cy = cy + float(crop_coords[1])
     return gtsam.Cal3Bundler(f, 0.0, 0.0, cx, cy)
 
 
 def camera_from_matrices(
-    extrinsic: np.ndarray, intrinsic: np.ndarray, wTc_flag: bool = False, use_cal3_bundler: bool = False
+    extrinsic: np.ndarray,
+    intrinsic: np.ndarray,
+    wTc_flag: bool = False,
+    use_cal3_bundler: bool = False,
+    crop_coords: Optional[np.ndarray] = None,
 ) -> gtsfm_types.CAMERA_TYPE:
     """Instantiate a Pinhole camera from raw extrinsic/intrinsic matrices."""
     if use_cal3_bundler:
-        calibration = cal3_bundler_from_intrinsic(intrinsic)
+        calibration = cal3_bundler_from_intrinsic(intrinsic, crop_coords)
     else:
-        calibration = cal3_s2_from_intrinsic(intrinsic)
+        calibration = cal3_s2_from_intrinsic(intrinsic, crop_coords)
     if wTc_flag is True:
         pose = pose_from_extrinsic_wTc(extrinsic)
     else:

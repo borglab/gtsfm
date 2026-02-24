@@ -23,7 +23,6 @@ from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.utils import data_utils
 from gtsfm.utils import logger as logger_utils
 from gtsfm.utils import torch as torch_utils
-from gtsfm.densify import mvs_utils
 
 PathLike = Union[str, Path]
 
@@ -179,6 +178,8 @@ def load_image_batch_vggt_loader(loader, indices: List[int], mode="crop"):
     to_tensor = TF.ToTensor()
     target_size = 518
 
+    coords = []
+
     # First process all images and collect their shapes
     for idx in indices:
         # Open image
@@ -206,13 +207,19 @@ def load_image_batch_vggt_loader(loader, indices: List[int], mode="crop"):
         img = img.resize((new_width, new_height), PILImage.Resampling.BICUBIC)
         img = to_tensor(img)  # Convert to tensor (0, 1)
 
+        # left, top, bottom, right of grid with respect to original image, scaled full width, scaled full height
+        coord = np.array([0.0, 0.0, float(new_width), float(new_height), float(new_width), float(new_height)])
+
         # Center crop height if it's larger than 518 (only in crop mode)
         if mode == "crop" and new_height > target_size:
             start_y = (new_height - target_size) // 2
             img = img[:, start_y : start_y + target_size, :]
+            coord[1] = start_y
+            coord[3] = start_y + target_size
 
         # For pad mode, pad to make a square of target_size x target_size
-        if mode == "pad":
+        elif mode == "pad":
+            # TODO: what if h padding is negative?
             h_padding = target_size - img.shape[1]
             w_padding = target_size - img.shape[2]
 
@@ -222,6 +229,17 @@ def load_image_batch_vggt_loader(loader, indices: List[int], mode="crop"):
                 pad_left = w_padding // 2
                 pad_right = w_padding - pad_left
 
+                pad_left = max(0, pad_left)
+                pad_right = max(0, pad_right)
+                pad_top = max(0, pad_top)
+                pad_bottom = max(0, pad_bottom)
+
+                # Save the shape before padding.
+                coord[0] = -pad_left
+                coord[1] = -pad_top
+                coord[2] = pad_right + img.shape[2]
+                coord[3] = pad_bottom + img.shape[1]
+
                 # Pad with white (value=1.0)
                 img = torch.nn.functional.pad(
                     img, (pad_left, pad_right, pad_top, pad_bottom), mode="constant", value=1.0
@@ -229,6 +247,7 @@ def load_image_batch_vggt_loader(loader, indices: List[int], mode="crop"):
 
         shapes.add((img.shape[1], img.shape[2]))
         images.append(img)
+        coords.append(coord)
 
     # Check if we have different shapes
     # In theory our model can also work well with different shapes
@@ -240,7 +259,8 @@ def load_image_batch_vggt_loader(loader, indices: List[int], mode="crop"):
 
         # Pad images if necessary
         padded_images = []
-        for img in images:
+        padded_coords = []
+        for img, coord in zip(images, coords):
             h_padding = max_height - img.shape[1]
             w_padding = max_width - img.shape[2]
 
@@ -253,19 +273,24 @@ def load_image_batch_vggt_loader(loader, indices: List[int], mode="crop"):
                 img = torch.nn.functional.pad(
                     img, (pad_left, pad_right, pad_top, pad_bottom), mode="constant", value=1.0
                 )
+                coord[0] = coord[0] - pad_left
+                coord[1] = coord[1] - pad_top
+                coord[2] = coord[2] + pad_right
+                coord[3] = coord[3] + pad_bottom
+
+            padded_coords.append(coord)
             padded_images.append(img)
         images = padded_images
+        coords = padded_coords
 
     images = torch.stack(images)  # concatenate images
-
+    coords = np.array(coords)
     # Ensure correct shape when single image
     if len(indices) == 1:
         # Verify shape is (1, C, H, W)
         if images.dim() == 3:
             images = images.unsqueeze(0)
 
-    height, width = images.shape[-2], images.shape[-1]
-    coords = np.tile([0.0, 0.0, float(width), float(height), float(width), float(height)], (len(indices), 1))
     original_coords_tensor = torch.from_numpy(coords).float()
 
     return images, original_coords_tensor
@@ -502,7 +527,10 @@ def _convert_vggt_outputs_to_gtsfm_data(
         scaled_intrinsic = intrinsic_np[local_idx]
 
         camera = torch_utils.camera_from_matrices(
-            extrinsic_np[local_idx], scaled_intrinsic, use_cal3_bundler=not config.ba_use_undistorted_camera_model
+            extrinsic_np[local_idx],
+            scaled_intrinsic,
+            use_cal3_bundler=not config.ba_use_undistorted_camera_model,
+            crop_coords=original_coords_np[local_idx],
         )
         gtsfm_data.add_camera(global_idx, camera)  # type: ignore[arg-type]
         gtsfm_data.set_image_info(
@@ -510,11 +538,6 @@ def _convert_vggt_outputs_to_gtsfm_data(
             name=image_names_str[local_idx] if image_names_str is not None else None,
             shape=(int(image_height), int(image_width)),
         )
-
-    if tracking_result is None and points_3d.size > 0 and points_rgb is not None:
-        for j, xyz in enumerate(points_3d):
-            track = torch_utils.colored_track_from_point(xyz, points_rgb[j])
-            gtsfm_data.add_track(track)
 
     if tracking_result:
         # track masks according to visibility, reprojection error, etc
@@ -541,33 +564,22 @@ def _convert_vggt_outputs_to_gtsfm_data(
             else:
                 rgb = np.zeros(3, dtype=np.uint8)
             point_xyz = tracking_result.points_3d[valid_id]
-            gtsam_point = Point3(float(point_xyz[0]), float(point_xyz[1]), float(point_xyz[2]))
             per_track_measurements: list[tuple[int, float, float]] = []
             frame_idx = np.where(track_mask[:, valid_id])[0]
             for local_id in frame_idx:
                 global_idx = image_indices[local_id]
                 u, v = tracking_result.tracks[local_id, valid_id]
+
+                # Add crop/pad offsets to the track
+                u = u + original_coords_np[local_id, 0]
+                v = v + original_coords_np[local_id, 1]
+
                 camera = gtsfm_data.get_camera(global_idx)
                 if not _is_point_in_front_of_camera(camera, point_xyz):
                     continue
                 per_track_measurements.append((global_idx, u, v))
 
             if len(per_track_measurements) < min_measurements:
-                continue
-
-            max_triangulation_angle = 0.0
-            for i in range(len(frame_idx)):
-                for j in range(i + 1, len(frame_idx)):
-                    global_idx_i = image_indices[frame_idx[i]]
-                    global_idx_j = image_indices[frame_idx[j]]
-                    camera_i = gtsfm_data.get_camera(global_idx_i)
-                    camera_j = gtsfm_data.get_camera(global_idx_j)
-                    triangulation_angle = mvs_utils.calculate_triangulation_angle_in_degrees(
-                        camera_i, camera_j, gtsam_point
-                    )
-                    max_triangulation_angle = max(max_triangulation_angle, triangulation_angle)
-
-            if max_triangulation_angle < config.min_triangulation_angle:
                 continue
 
             track = torch_utils.colored_track_from_point(point_xyz, rgb)
@@ -606,7 +618,8 @@ def _convert_vggt_outputs_to_gtsfm_data(
                     shared_calib=config.ba_use_shared_calibration,
                     use_calibration_prior=config.ba_use_calibration_prior,
                 )
-                gtsfm_data_with_ba, _ = optimizer.run_iterative_robust_ba(gtsfm_data, [0.8, 0.5, 0.2])
+                gtsfm_data_with_ba, _ = optimizer.run_simple_ba(gtsfm_data)
+                # gtsfm_data_with_ba, _ = optimizer.run_iterative_robust_ba(gtsfm_data, [0.8, 0.5, 0.2])
                 gtsfm_data_with_ba = gtsfm_data_with_ba.filter_landmark_measurements(3.0)
                 return gtsfm_data_with_ba, gtsfm_data_pre_ba
             except Exception as exc:
