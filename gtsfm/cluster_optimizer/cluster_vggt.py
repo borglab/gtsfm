@@ -123,6 +123,31 @@ def _get_pose_metrics(
     )
 
 
+def _get_intrinsics_metrics(
+    result_data: GtsfmData,
+    cameras_gt: list[Optional[gtsfm_types.CAMERA_TYPE]],
+) -> GtsfmMetricsGroup:
+    """Compute intrinsics metrics for a VGGT result against ground truth cameras."""
+    image_idxs = list(result_data._image_info.keys())
+    gt_cameras: dict[int, gtsfm_types.CAMERA_TYPE] = {}
+    computed_cameras: dict[int, gtsfm_types.CAMERA_TYPE] = {}
+    for i in image_idxs:
+        if i >= len(cameras_gt):
+            continue
+        gt_cam = cameras_gt[i]
+        est_cam = result_data.get_camera(i)
+        if gt_cam is not None and est_cam is not None:
+            gt_cameras[i] = gt_cam
+            computed_cameras[i] = est_cam
+    if len(gt_cameras) == 0:
+        return GtsfmMetricsGroup(name="intrinsics_metrics", metrics=[])
+    return metrics_utils.compute_intrinsics_metrics(
+        gt_cameras=gt_cameras,
+        computed_cameras=computed_cameras,
+        store_full_data=True,
+    )
+
+
 def _aggregate_vggt_metrics(
     result: GtsfmData,
     cameras_gt: Optional[list[Optional[gtsfm_types.CAMERA_TYPE]]] = None,
@@ -140,6 +165,7 @@ def _aggregate_vggt_metrics(
         )
         if cameras_gt is not None:
             metrics_group.extend(_get_pose_metrics(scene, cameras_gt, save_dir=save_dir))
+            metrics_group.extend(_get_intrinsics_metrics(scene, cameras_gt))
         return metrics_group
 
     metrics_groups = [_build_metrics_group(result, "cluster_vggt_metrics")]
