@@ -529,8 +529,8 @@ def _convert_vggt_outputs_to_gtsfm_data(
         camera = torch_utils.camera_from_matrices(
             extrinsic_np[local_idx],
             scaled_intrinsic,
-            use_cal3_bundler=not config.ba_use_undistorted_camera_model,
             crop_coords=original_coords_np[local_idx],
+            use_cal3_bundler=not config.ba_use_undistorted_camera_model,
         )
         gtsfm_data.add_camera(global_idx, camera)  # type: ignore[arg-type]
         gtsfm_data.set_image_info(
