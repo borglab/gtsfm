@@ -234,15 +234,16 @@ def load_image_batch_vggt_loader(loader, indices: List[int], mode="crop"):
                 pad_top = max(0, pad_top)
                 pad_bottom = max(0, pad_bottom)
 
-                # Pad with white (value=1.0)
-                img = torch.nn.functional.pad(
-                    img, (pad_left, pad_right, pad_top, pad_bottom), mode="constant", value=1.0
-                )
-
+                # Save the shape before padding.
                 coord[0] = -pad_left
                 coord[1] = -pad_top
                 coord[2] = pad_right + img.shape[2]
                 coord[3] = pad_bottom + img.shape[1]
+
+                # Pad with white (value=1.0)
+                img = torch.nn.functional.pad(
+                    img, (pad_left, pad_right, pad_top, pad_bottom), mode="constant", value=1.0
+                )
 
         shapes.add((img.shape[1], img.shape[2]))
         images.append(img)
@@ -617,7 +618,8 @@ def _convert_vggt_outputs_to_gtsfm_data(
                     shared_calib=config.ba_use_shared_calibration,
                     use_calibration_prior=config.ba_use_calibration_prior,
                 )
-                gtsfm_data_with_ba, _ = optimizer.run_iterative_robust_ba(gtsfm_data, [0.8, 0.5, 0.2])
+                gtsfm_data_with_ba, _ = optimizer.run_simple_ba(gtsfm_data)
+                # gtsfm_data_with_ba, _ = optimizer.run_iterative_robust_ba(gtsfm_data, [0.8, 0.5, 0.2])
                 gtsfm_data_with_ba = gtsfm_data_with_ba.filter_landmark_measurements(3.0)
                 return gtsfm_data_with_ba, gtsfm_data_pre_ba
             except Exception as exc:
