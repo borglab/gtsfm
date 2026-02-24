@@ -33,10 +33,10 @@ cd path/to/gtsfm
 rm -rf .venv
 
 # Install on Linux for CPU only and macOS
-uv sync --python 3.10
+uv sync --python 3.12
 
 # Install on Linux with CUDA GPU
-uv sync --python 3.10 --extra complete
+uv sync --python 3.12 --extra complete
 ```
 ##  Install torch-scatter (platform-specific)
 For NVIDIA drivers 550+ (which support CUDA 12.8), 
