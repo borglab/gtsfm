@@ -207,7 +207,7 @@ def load_image_batch_vggt_loader(loader, indices: List[int], mode="crop"):
         img = img.resize((new_width, new_height), PILImage.Resampling.BICUBIC)
         img = to_tensor(img)  # Convert to tensor (0, 1)
 
-        # top_left, bottom_right, new width, new height of grid with respect to original image
+        # left, top, bottom, right of grid with respect to original image, scaled full width, scaled full height
         coord = np.array([0.0, 0.0, float(new_width), float(new_height), float(new_width), float(new_height)])
 
         # Center crop height if it's larger than 518 (only in crop mode)
