@@ -24,11 +24,16 @@ class _SubTreeInfo:
 class MetisPartitioner(GraphPartitionerBase):
     """Graph partitioner that leverages METIS ordering and the symbolic Bayes tree."""
 
-    def __init__(self, min_cameras_to_partition: int | None = None) -> None:
+    def __init__(self, min_cameras_to_partition: int | None = None, max_cameras: int | None = None) -> None:
         super().__init__(process_name="MetisPartitioner")
         if min_cameras_to_partition is not None and min_cameras_to_partition < 1:
             raise ValueError("min_cameras_to_partition must be >= 1 when provided.")
+        if max_cameras is not None and max_cameras < 1:
+            raise ValueError("max_cameras must be >= 1 when provided.")
+        if max_cameras is not None and min_cameras_to_partition is not None and max_cameras < min_cameras_to_partition:
+            raise ValueError("max_cameras must be >= min_cameras_to_partition when provided.")
         self._min_cameras_to_partition = min_cameras_to_partition
+        self._max_cameras = max_cameras
 
     def _extract_largest_component_subgraph(self, graph: VisibilityGraph) -> VisibilityGraph:
         nodes_in_largest = set(get_nodes_in_largest_connected_component(graph))
@@ -69,6 +74,97 @@ class MetisPartitioner(GraphPartitionerBase):
             sfg.push_factor(i, j)
         return sfg
 
+    @staticmethod
+    def _min_key(keys: set[int]) -> int:
+        return min(keys) if keys else 10**18
+
+    @staticmethod
+    def _count_cross_edges(keys_a: set[int], keys_b: set[int], graph: VisibilityGraph) -> int:
+        return sum(1 for i, j in graph if (i in keys_a and j in keys_b) or (i in keys_b and j in keys_a))
+
+    def _are_mergeable(self, keys_a: set[int], keys_b: set[int], graph: VisibilityGraph) -> bool:
+        if len(keys_a & keys_b) > 0:
+            return True
+        return self._count_cross_edges(keys_a, keys_b, graph) > 0
+
+    def _merge_subtrees(self, a: _SubTreeInfo, b: _SubTreeInfo) -> _SubTreeInfo:
+        merged_keys = a.keys | b.keys
+        merged_edges = a.edges | b.edges
+        # Flatten one level when merging siblings to keep tree depth stable.
+        merged_cluster = ClusterTree(
+            value=sorted(set(a.cluster.value) | set(b.cluster.value)),
+            children=a.cluster.children + b.cluster.children,
+        )
+        return _SubTreeInfo(cluster=merged_cluster, keys=merged_keys, edges=merged_edges)
+
+    def _merge_small_children_at_level(
+        self, children: list[_SubTreeInfo], graph: VisibilityGraph
+    ) -> list[_SubTreeInfo]:
+        min_cameras = self._min_cameras_to_partition
+        if min_cameras is None or len(children) < 2:
+            return children
+
+        work = list(children)
+        max_cameras = self._max_cameras
+
+        while True:
+            small_indices = [idx for idx, child in enumerate(work) if len(child.keys) < min_cameras]
+            if not small_indices:
+                break
+
+            # Process the smallest / hardest-to-place child first.
+            target_idx = min(
+                small_indices,
+                key=lambda idx: (len(work[idx].keys), self._min_key(work[idx].keys), idx),
+            )
+            target = work[target_idx]
+
+            candidates: list[int] = []
+            for idx, child in enumerate(work):
+                if idx == target_idx:
+                    continue
+                merged_size = len(target.keys | child.keys)
+                if max_cameras is not None and merged_size > max_cameras:
+                    continue
+                if self._are_mergeable(target.keys, child.keys, graph):
+                    candidates.append(idx)
+
+            if not candidates:
+                break
+
+            # Prefer merging with another small sibling whenever possible.
+            small_candidates = [idx for idx in candidates if len(work[idx].keys) < min_cameras]
+            if small_candidates:
+                candidates = small_candidates
+
+            def candidate_rank(idx: int) -> tuple[int, int, int, int, int, int]:
+                candidate = work[idx]
+                merged_keys = target.keys | candidate.keys
+                merged_size = len(merged_keys)
+                reaches_threshold = 1 if merged_size >= min_cameras else 0
+                overshoot = merged_size - min_cameras if merged_size >= min_cameras else 10**18
+                shared_keys = len(target.keys & candidate.keys)
+                cross_edges = self._count_cross_edges(target.keys, candidate.keys, graph)
+                return (
+                    -reaches_threshold,
+                    overshoot,
+                    -shared_keys,
+                    -cross_edges,
+                    merged_size,
+                    self._min_key(candidate.keys),
+                )
+
+            partner_idx = min(candidates, key=candidate_rank)
+            partner = work[partner_idx]
+            merged = self._merge_subtrees(target, partner)
+
+            i, j = sorted([target_idx, partner_idx], reverse=True)
+            work.pop(i)
+            work.pop(j)
+            work.append(merged)
+
+        return work
+
     def _cluster_from_clique(self, clique: SymbolicBayesTreeClique, graph: VisibilityGraph) -> _SubTreeInfo | None:
         """Recursively build the cluster tree, aggressively pruning single-child nodes."""
         keys, frontals, _ = self._clique_key_sets(clique)
@@ -76,6 +172,7 @@ class MetisPartitioner(GraphPartitionerBase):
 
         # Recursively call on children and filter out any pruned (None) results.
         child_results = [res for res in (self._cluster_from_clique(child, graph) for child in children) if res]
+        child_results = self._merge_small_children_at_level(child_results, graph)
         descendant_edges = set.union(*(result.edges for result in child_results)) if child_results else set()
 
         # Only keep edges that touch at least one frontal variable from this clique.
@@ -100,7 +197,7 @@ class MetisPartitioner(GraphPartitionerBase):
         subtree_edges = current_edges | descendant_edges
 
         # Collapse small subtrees into leaves.
-        if self._min_cameras_to_partition is not None and len(subtree_keys) < self._min_cameras_to_partition:
+        if self._max_cameras is not None and len(subtree_keys) <= self._max_cameras:
             collapsed_cluster = ClusterTree(value=sorted_edges(subtree_edges), children=())
             return _SubTreeInfo(cluster=collapsed_cluster, keys=subtree_keys, edges=subtree_edges)
 
