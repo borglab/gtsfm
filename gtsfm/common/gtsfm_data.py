@@ -45,6 +45,33 @@ class ImageInfo:
     shape: Optional[tuple[int, ...]] = None
 
 
+def get_average_calibration(
+    initial_data: "GtsfmData", camera_indices: Optional[List[int]] = None
+) -> gtsfm_types.CALIBRATION_TYPE:
+    """Get the average calibration from the cameras."""
+    calibration_vectors = []
+    calib_cls = None
+    cam_indices = camera_indices if camera_indices is not None else initial_data.get_valid_camera_indices()
+
+    def to_cal_vector(c: gtsfm_types.CALIBRATION_TYPE) -> np.ndarray:
+        if isinstance(c, gtsam.Cal3Bundler):
+            return np.array([c.fx(), c.k1(), c.k2(), c.px(), c.py()])
+        else:
+            return c.vector()
+
+    for i in cam_indices:
+        camera_cal = initial_data.get_camera(i).calibration()
+        if calib_cls is None:
+            calib_cls = type(camera_cal)
+        calibration_vectors.append(to_cal_vector(camera_cal))
+    average_calibration_vector = np.mean(calibration_vectors, axis=0)
+    if calib_cls == gtsam.Cal3Bundler:
+        # Cal3Bundler expects the parameters in the order: fx, k1, k2, px, py, no vector constructor.
+        return calib_cls(*average_calibration_vector.tolist())  # type: ignore
+    else:
+        return calib_cls(average_calibration_vector)  # type: ignore
+
+
 class GtsfmData:
     """Class containing cameras and tracks, essentially describing the complete 3D scene.
 
@@ -275,10 +302,7 @@ class GtsfmData:
             cal_i = _calibration_for_idx(i)
             result.add_camera(i, camera_class(values.atPose3(X(i)), cal_i))  # type: ignore
 
-        if initial_data is not None:
-            track_indices = list(range(initial_data.number_tracks()))
-        else:
-            track_indices = _symbol_indices(keys_list, "p")
+        track_indices = _symbol_indices(keys_list, "p")
 
         for track_idx in track_indices:
             point = values.atPoint3(P(track_idx))
@@ -492,9 +516,10 @@ class GtsfmData:
             camera = self.get_camera(i)
             assert camera is not None, f"Camera {i} in GtsfmData is None"
             values.insert(X(i), camera.pose())
-            if not shared_calib or loop_idx == 0:
-                calib_symbol = K(0 if shared_calib else i)
-                values.insert(calib_symbol, camera.calibration())
+            if shared_calib and loop_idx == 0:
+                values.insert(K(0), get_average_calibration(self))
+            if not shared_calib:
+                values.insert(K(i), camera.calibration())
 
         for track_idx in range(self.number_tracks()):
             track = self.get_track(track_idx)
@@ -738,6 +763,16 @@ class GtsfmData:
 
         return np.array(scene_reproj_errors)
 
+    def get_scene_reprojection_errors_per_camera(self) -> dict[int, np.ndarray]:
+        """Get the reprojection errors for each camera."""
+        reproj_errors_per_camera: dict[int, list[float]] = defaultdict(list)
+        for track in self._tracks:
+            track_errors, _ = reprojection.compute_track_reprojection_errors(self._cameras, track)
+            for i, (cam_id, _) in enumerate(track.measurements):
+                reproj_errors_per_camera[cam_id].append(track_errors[i])
+
+        return {cam_id: np.array(errors) for cam_id, errors in reproj_errors_per_camera.items()}
+
     def aggregate_metrics(self) -> Mapping[str, Any]:
         """Aggregate metrics about the reprojection errors and 3d track lengths (summary stats).
 
@@ -838,6 +873,42 @@ class GtsfmData:
             filtered_data.add_track(track)
 
         return filtered_data, valid_mask
+
+    def filter_landmark_measurements(self, reproj_err_thresh: float = 5) -> "GtsfmData":
+        """Filters out landmarks with high reprojection error
+
+        Args:
+            reproj_err_thresh: reprojection err threshold for each measurement.
+
+        Returns:
+            New instance, and list of valid flags, one for each track.
+        """
+        # TODO: move this function to utils or GTSAM
+        filtered_data = GtsfmData(self.number_images(), gaussian_splats=self._gaussian_splats)
+        filtered_data._image_info = self._clone_image_info()
+
+        for track in self._tracks:
+            errors, _ = reprojection.compute_track_reprojection_errors(self._cameras, track)
+            new_track = SfmTrack(track.point3())
+            new_track.r = track.r
+            new_track.g = track.g
+            new_track.b = track.b
+            track_cameras = set()
+            for k in range(track.numberMeasurements()):
+                if np.isnan(errors[k]) or errors[k] > reproj_err_thresh:
+                    continue
+                i, uv = track.measurement(k)
+                new_track.addMeasurement(i, uv)
+                track_cameras.add(i)
+            if len(track_cameras) < 2:
+                continue
+            filtered_data.add_track(new_track)
+            for i in track_cameras:
+                camera_i = self.get_camera(i)
+                assert camera_i is not None
+                filtered_data.add_camera(i, camera_i)
+
+        return filtered_data
 
     def align_via_sim3_and_transform(self, aTi: dict[int, Pose3]) -> "GtsfmData":
         """Return a copy of the scene aligned to the supplied reference poses via Sim(3).

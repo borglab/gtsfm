@@ -120,7 +120,7 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
         computed_result, error = self.ba.run_simple_ba(self.test_data)
 
         self.assertEqual(computed_result.number_images(), self.test_data.number_images())
-        self.assertAlmostEqual(error, 2.32, places=2)
+        self.assertAlmostEqual(error, 0.3675, places=2)
 
 
 if __name__ == "__main__":

@@ -131,7 +131,7 @@ cluster_optimizer:
     bundle_adjustment_module:
       _target_: gtsfm.bundle.bundle_adjustment.BundleAdjustmentOptimizer
       reproj_error_thresholds: [10, 5, 3]
-      robust_measurement_noise: True
+      robust_ba_mode: "HUBER"
       shared_calib: False
 
   dense_multiview_optimizer:

@@ -48,7 +48,7 @@ class TestTranslationAveraging1DSFM(unittest.TestCase):
             (0, 2): Unit3(Point3(0, 1, 0)),
             (1, 2): Unit3(Point3(0, 0, 1)),
         }
-        noise_model = gtsam.noiseModel.Isotropic.Sigma(3, 0.1)
+        noise_model = gtsam.noiseModel.Isotropic.Sigma(2, 0.1)
         expected_measurement_idxs = set(
             [(C(i2), C(i1)) for (i1, i2) in w_i2Ui1_dict.keys()]
             + [(C(i2), L(i1)) for (i1, i2) in w_i2Ui1_dict_tracks.keys()]

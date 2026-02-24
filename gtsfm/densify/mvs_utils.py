@@ -2,6 +2,7 @@
 
 Authors: Ren Liu, Ayush Baid
 """
+
 import math
 from typing import Tuple
 
@@ -13,13 +14,14 @@ import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.utils import ellipsoid as ellipsoid_utils
 from gtsfm.utils import geometry_comparisons as geometry_utils
+from gtsfm.common import types as gtsfm_types
 
 # epsilon, added to denominator to prevent division by zero.
 EPS = 1e-12
 
 
 def calculate_triangulation_angle_in_degrees(
-    camera_1: PinholeCameraCal3Bundler, camera_2: PinholeCameraCal3Bundler, point_3d: np.ndarray
+    camera_1: gtsfm_types.CAMERA_TYPE, camera_2: gtsfm_types.CAMERA_TYPE, point_3d: np.ndarray
 ) -> float:
     """Calculates the angle formed at the 3D point by the rays backprojected from 2 cameras.
     In the setup with X (point_3d) and two cameras C1 and C2, the triangulation angle is the angle between rays C1-X

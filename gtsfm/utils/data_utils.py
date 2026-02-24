@@ -23,7 +23,7 @@ def remove_cameras_with_no_tracks(scene: GtsfmData, context: str = "BA") -> tupl
     camera_measurement_map = scene.get_camera_to_measurement_map()
     cameras_with_measurements = set(camera_measurement_map.keys())
     zero_track_cameras = sorted(all_cameras - cameras_with_measurements)
-    
+
     if zero_track_cameras:
         logger.warning("📋 Cameras with zero tracks before %s: %s", context, zero_track_cameras)
         if cameras_with_measurements:

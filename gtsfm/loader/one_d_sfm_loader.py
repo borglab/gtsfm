@@ -37,7 +37,7 @@ class OneDSFMLoader(LoaderBase):
         dataset_dir: str,
         images_dir: Optional[str] = None,
         max_resolution: int = 640,
-        enable_no_exif: bool = False,
+        enable_no_exif: bool = True,
         default_focal_length_factor: float = 1.2,
         input_worker: Optional[str] = None,
     ) -> None:

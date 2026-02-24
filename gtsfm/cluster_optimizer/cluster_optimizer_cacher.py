@@ -49,6 +49,11 @@ class ClusterOptimizerCacher(ClusterOptimizerBase):
             pose_angular_error_thresh=optimizer.pose_angular_error_thresh,
             run_bundle_adjustment_on_leaf=run_bundle_adjustment_on_leaf,
             run_bundle_adjustment_on_parent=getattr(optimizer, "run_bundle_adjustment_on_parent", True),
+            drop_outlier_after_camera_merging=getattr(optimizer, "drop_outlier_after_camera_merging", True),
+            drop_child_if_merging_fail=getattr(optimizer, "drop_child_if_merging_fail", True),
+            drop_camera_with_no_track=getattr(optimizer, "drop_camera_with_no_track", True),
+            plot_reprojection_histograms=getattr(optimizer, "plot_reprojection_histograms", True),
+            use_shared_calibration=getattr(optimizer, "use_shared_calibration", True),
             output_worker=optimizer._output_worker,
         )
         self._optimizer = optimizer

@@ -38,14 +38,18 @@ cluster_optimizer:
     track_vis_thresh: 0.05
     track_conf_thresh: 0.2
     max_reproj_error: 0 # 0.0 means no filtering based on reproj error
+    min_triangulation_angle: 0.0
     camera_type: PINHOLE
     drop_outlier_after_camera_merging: false
     drop_child_if_merging_fail: true
     drop_camera_with_no_track: true
+    merge_duplicate_tracks: false
     seed: 42
     plot_reprojection_histograms: true
     run_bundle_adjustment_on_leaf: false
     run_bundle_adjustment_on_parent: false
     model_cache_key: null
-
-# use_nonlinear_sim3_alignment: false
+    ba_use_calibration_prior: false
+    ba_use_undistorted_camera_model: false
+    use_shared_calibration: true  # Change to false for unstructured datasets.
+    store_pre_ba_result: true

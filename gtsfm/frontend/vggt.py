@@ -9,14 +9,16 @@ from dataclasses import dataclass, field
 from importlib.machinery import ModuleSpec
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Optional, Sequence, Tuple, Union
+from typing import Any, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import torch
 from gtsam import Point2, Point3
+from PIL import Image as PILImage
 from torch.amp import autocast as amp_autocast  # type: ignore
+from torchvision import transforms as TF
 
-from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
+from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer, RobustBAMode
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.utils import data_utils
 from gtsfm.utils import logger as logger_utils
@@ -134,6 +136,166 @@ def _resolve_dtype_argument(arg: Optional[Union[str, torch.dtype]]) -> Optional[
     raise TypeError(f"Unsupported dtype specifier of type {type(arg)!r}: {arg!r}")
 
 
+def load_image_batch_vggt_loader(loader, indices: List[int], mode="crop"):
+    """
+    A quick start function to load and preprocess images for model input.
+    This assumes the images should have the same shape for easier batching,
+    but VGGT model can also work well with different shapes.
+
+    Args:
+        loader: Loader instance providing ``get_image``.
+        indices: List of image indices to load.
+        mode (str, optional): Preprocessing mode, either "crop" or "pad".
+                            - "crop" (default): Sets width to 518px and center crops height if needed.
+                            - "pad": Preserves all pixels by making the largest dimension 518px
+                            and padding the smaller dimension to reach a square shape.
+
+    Returns:
+        torch.Tensor: Batched tensor of preprocessed images with shape (N, 3, H, W)
+
+    Raises:
+        ValueError: If the input list is empty or if mode is invalid
+
+    Notes:
+        - Images with different dimensions will be padded with white (value=1.0)
+        - A warning is printed when images have different shapes
+        - When mode="crop": The function ensures width=518px while maintaining aspect ratio
+        and height is center-cropped if larger than 518px
+        - When mode="pad": The function ensures the largest dimension is 518px while maintaining aspect ratio
+        and the smaller dimension is padded to reach a square shape (518x518)
+        - Dimensions are adjusted to be divisible by 14 for compatibility with model requirements
+    """
+    # Check for empty list
+    if len(indices) == 0:
+        raise ValueError("At least 1 image is required")
+
+    # Validate mode
+    if mode not in ["crop", "pad"]:
+        raise ValueError("Mode must be either 'crop' or 'pad'")
+
+    images = []
+    shapes = set()
+    to_tensor = TF.ToTensor()
+    target_size = 518
+
+    coords = []
+
+    # First process all images and collect their shapes
+    for idx in indices:
+        # Open image
+        img = loader.get_image(idx).value_array
+
+        img = PILImage.fromarray(img)
+
+        width, height = img.size
+
+        if mode == "pad":
+            # Make the largest dimension 518px while maintaining aspect ratio
+            if width >= height:
+                new_width = target_size
+                new_height = round(height * (new_width / width) / 14) * 14  # Make divisible by 14
+            else:
+                new_height = target_size
+                new_width = round(width * (new_height / height) / 14) * 14  # Make divisible by 14
+        else:  # mode == "crop"
+            # Original behavior: set width to 518px
+            new_width = target_size
+            # Calculate height maintaining aspect ratio, divisible by 14
+            new_height = round(height * (new_width / width) / 14) * 14
+
+        # Resize with new dimensions (width, height)
+        img = img.resize((new_width, new_height), PILImage.Resampling.BICUBIC)
+        img = to_tensor(img)  # Convert to tensor (0, 1)
+
+        # left, top, bottom, right of grid with respect to original image, scaled full width, scaled full height
+        coord = np.array([0.0, 0.0, float(new_width), float(new_height), float(new_width), float(new_height)])
+
+        # Center crop height if it's larger than 518 (only in crop mode)
+        if mode == "crop" and new_height > target_size:
+            start_y = (new_height - target_size) // 2
+            img = img[:, start_y : start_y + target_size, :]
+            coord[1] = start_y
+            coord[3] = start_y + target_size
+
+        # For pad mode, pad to make a square of target_size x target_size
+        elif mode == "pad":
+            # TODO: what if h padding is negative?
+            h_padding = target_size - img.shape[1]
+            w_padding = target_size - img.shape[2]
+
+            if h_padding > 0 or w_padding > 0:
+                pad_top = h_padding // 2
+                pad_bottom = h_padding - pad_top
+                pad_left = w_padding // 2
+                pad_right = w_padding - pad_left
+
+                pad_left = max(0, pad_left)
+                pad_right = max(0, pad_right)
+                pad_top = max(0, pad_top)
+                pad_bottom = max(0, pad_bottom)
+
+                # Save the shape before padding.
+                coord[0] = -pad_left
+                coord[1] = -pad_top
+                coord[2] = pad_right + img.shape[2]
+                coord[3] = pad_bottom + img.shape[1]
+
+                # Pad with white (value=1.0)
+                img = torch.nn.functional.pad(
+                    img, (pad_left, pad_right, pad_top, pad_bottom), mode="constant", value=1.0
+                )
+
+        shapes.add((img.shape[1], img.shape[2]))
+        images.append(img)
+        coords.append(coord)
+
+    # Check if we have different shapes
+    # In theory our model can also work well with different shapes
+    if len(shapes) > 1:
+        logger.warning("Found images with different shapes: %s", shapes)
+        # Find maximum dimensions
+        max_height = max(shape[0] for shape in shapes)
+        max_width = max(shape[1] for shape in shapes)
+
+        # Pad images if necessary
+        padded_images = []
+        padded_coords = []
+        for img, coord in zip(images, coords):
+            h_padding = max_height - img.shape[1]
+            w_padding = max_width - img.shape[2]
+
+            if h_padding > 0 or w_padding > 0:
+                pad_top = h_padding // 2
+                pad_bottom = h_padding - pad_top
+                pad_left = w_padding // 2
+                pad_right = w_padding - pad_left
+
+                img = torch.nn.functional.pad(
+                    img, (pad_left, pad_right, pad_top, pad_bottom), mode="constant", value=1.0
+                )
+                coord[0] = coord[0] - pad_left
+                coord[1] = coord[1] - pad_top
+                coord[2] = coord[2] + pad_right
+                coord[3] = coord[3] + pad_bottom
+
+            padded_coords.append(coord)
+            padded_images.append(img)
+        images = padded_images
+        coords = padded_coords
+
+    images = torch.stack(images)  # concatenate images
+    coords = np.array(coords)
+    # Ensure correct shape when single image
+    if len(indices) == 1:
+        # Verify shape is (1, C, H, W)
+        if images.dim() == 3:
+            images = images.unsqueeze(0)
+
+    original_coords_tensor = torch.from_numpy(coords).float()
+
+    return images, original_coords_tensor
+
+
 @dataclass
 class VggtConfiguration:
     """Configuration for the high-level VGGT reconstruction pipeline."""
@@ -154,7 +316,13 @@ class VggtConfiguration:
     track_vis_thresh: float = 0.05
     track_conf_thresh: float = 0.2
     keypoint_extractor: str = "aliked+sp+sift"
-    max_reproj_error: float = 8.0
+    max_reproj_error: float = 14.0
+    min_triangulation_angle: float = 10.0
+
+    # Bundle adjustment-specific parameters:
+    ba_use_calibration_prior: bool = False
+    ba_use_undistorted_camera_model: bool = False
+    ba_use_shared_calibration: bool = True
 
 
 @dataclass
@@ -358,7 +526,12 @@ def _convert_vggt_outputs_to_gtsfm_data(
 
         scaled_intrinsic = intrinsic_np[local_idx]
 
-        camera = torch_utils.camera_from_matrices(extrinsic_np[local_idx], scaled_intrinsic)
+        camera = torch_utils.camera_from_matrices(
+            extrinsic_np[local_idx],
+            scaled_intrinsic,
+            use_cal3_bundler=not config.ba_use_undistorted_camera_model,
+            crop_coords=original_coords_np[local_idx],
+        )
         gtsfm_data.add_camera(global_idx, camera)  # type: ignore[arg-type]
         gtsfm_data.set_image_info(
             global_idx,
@@ -366,36 +539,21 @@ def _convert_vggt_outputs_to_gtsfm_data(
             shape=(int(image_height), int(image_width)),
         )
 
-    if tracking_result is None and points_3d.size > 0 and points_rgb is not None:
-        for j, xyz in enumerate(points_3d):
-            track = torch_utils.colored_track_from_point(xyz, points_rgb[j])
-            gtsfm_data.add_track(track)
-
     if tracking_result:
-
         # track masks according to visibility, reprojection error, etc
         track_mask = tracking_result.visibilities > config.track_vis_thresh
-        inlier_num = track_mask.sum(0)
 
-        valid_mask = inlier_num >= 2  # a track is invalid if without two inliers
-        confidence_threshold = config.confidence_threshold
+        confidence_threshold = config.track_conf_thresh
         confidence_threshold = min(
-            confidence_threshold, np.mean(tracking_result.confidences) + np.std(tracking_result.confidences)
+            confidence_threshold, np.mean(tracking_result.confidences) - np.std(tracking_result.confidences)
         )
         if tracking_result.confidences is not None:
-            valid_mask = np.logical_and(valid_mask, tracking_result.confidences > confidence_threshold)
+            track_mask = np.logical_and(track_mask, tracking_result.confidences > confidence_threshold)
+
+        inlier_num = track_mask.sum(0)
+        min_measurements = 2
+        valid_mask = inlier_num >= min_measurements  # a track is invalid if without two inliers
         valid_idx = np.nonzero(valid_mask)[0]
-
-        max_reproj_error = float(config.max_reproj_error)
-        track_mask = tracking_result.visibilities > config.track_vis_thresh
-        if tracking_result.confidences is not None:
-            track_mask = np.logical_and(track_mask, tracking_result.confidences > config.track_conf_thresh)
-
-        enforce_reproj_filter = (
-            tracking_result.points_3d is not None and np.isfinite(max_reproj_error) and max_reproj_error > 0.0
-        )
-
-        logger.info("num points 3d: %d, num valid idx: %d", tracking_result.points_3d.shape[0], len(valid_idx))
 
         for valid_id in valid_idx:
             rgb: np.ndarray
@@ -406,33 +564,36 @@ def _convert_vggt_outputs_to_gtsfm_data(
             else:
                 rgb = np.zeros(3, dtype=np.uint8)
             point_xyz = tracking_result.points_3d[valid_id]
-            gtsam_point = Point3(float(point_xyz[0]), float(point_xyz[1]), float(point_xyz[2]))
             per_track_measurements: list[tuple[int, float, float]] = []
-            max_error_for_track = 0.0
             frame_idx = np.where(track_mask[:, valid_id])[0]
             for local_id in frame_idx:
                 global_idx = image_indices[local_id]
                 u, v = tracking_result.tracks[local_id, valid_id]
+
+                # Add crop/pad offsets to the track
+                u = u + original_coords_np[local_id, 0]
+                v = v + original_coords_np[local_id, 1]
+
                 camera = gtsfm_data.get_camera(global_idx)
                 if not _is_point_in_front_of_camera(camera, point_xyz):
                     continue
-                float_u = float(u)
-                float_v = float(v)
-                if enforce_reproj_filter:
-                    projected = camera.project(gtsam_point)
-                    proj_u = float(projected[0])
-                    proj_v = float(projected[1])
-                    reproj_err = float(np.hypot(float_u - proj_u, float_v - proj_v))
-                    max_error_for_track = max(max_error_for_track, reproj_err)
-                per_track_measurements.append((global_idx, float_u, float_v))
+                per_track_measurements.append((global_idx, u, v))
 
-            # if len(per_track_measurements) < min_measurements:
-            #     continue
+            if len(per_track_measurements) < min_measurements:
+                continue
 
             track = torch_utils.colored_track_from_point(point_xyz, rgb)
             for global_idx, float_u, float_v in per_track_measurements:
                 track.addMeasurement(global_idx, Point2(float_u, float_v))
+            min_triangulation_angle = config.min_triangulation_angle
+            if min_triangulation_angle > 0.0:
+                import gtsfm.utils.tracks as track_utils  # local import to avoid heavier dependency at module load
+
+                cameras = gtsfm_data.cameras()
+                if track_utils.get_max_triangulation_angle(track, cameras) < min_triangulation_angle:
+                    continue
             gtsfm_data.add_track(track)
+        logger.info("num valid tracks after filtering: %d out of %d", gtsfm_data.number_tracks(), len(valid_idx))
 
     gtsfm_data_pre_ba: GtsfmData | None = None
     if config.run_bundle_adjustment_on_leaf:
@@ -442,11 +603,24 @@ def _convert_vggt_outputs_to_gtsfm_data(
             logger.warning("Skipping bundle adjustment because VGGT produced no valid tracks.")
         else:
             try:
+                if config.max_reproj_error is not None and config.max_reproj_error > 0.0:
+                    gtsfm_data = gtsfm_data.filter_landmark_measurements(config.max_reproj_error)
+                    logger.info(
+                        "🔍 #valid VGGT tracks after reproj error filtering: %d out of %d",
+                        gtsfm_data.number_tracks(),
+                        gtsfm_data_pre_ba.number_tracks(),
+                    )
                 gtsfm_data, should_run_ba = data_utils.remove_cameras_with_no_tracks(gtsfm_data, "node-level BA")
                 if not should_run_ba:
                     return gtsfm_data, gtsfm_data_pre_ba
-                optimizer = BundleAdjustmentOptimizer(robust_measurement_noise=False, calibration_prior_noise_sigma=10)
-                gtsfm_data_with_ba, _ = optimizer.run_simple_ba(gtsfm_data, verbose=False)
+                optimizer = BundleAdjustmentOptimizer(
+                    robust_ba_mode=RobustBAMode.GMC,
+                    shared_calib=config.ba_use_shared_calibration,
+                    use_calibration_prior=config.ba_use_calibration_prior,
+                )
+                gtsfm_data_with_ba, _ = optimizer.run_simple_ba(gtsfm_data)
+                # gtsfm_data_with_ba, _ = optimizer.run_iterative_robust_ba(gtsfm_data, [0.8, 0.5, 0.2])
+                gtsfm_data_with_ba = gtsfm_data_with_ba.filter_landmark_measurements(3.0)
                 return gtsfm_data_with_ba, gtsfm_data_pre_ba
             except Exception as exc:
                 logger.warning("⚠️ Failed to run bundle adjustment: %s", exc)
@@ -528,19 +702,19 @@ def run_VGGT(
     if depth_confidence.ndim == 4 and depth_confidence.shape[-1] == 1:
         depth_confidence = depth_confidence.squeeze(-1)
 
-    depth_map_fp32 = depth_map.squeeze(0).to(dtype=torch.float32)
-    extrinsic_fp32 = extrinsic.squeeze(0).to(dtype=torch.float32)
-    intrinsic_fp32 = intrinsic.squeeze(0).to(dtype=torch.float32)
-    dense_points_np = unproject_depth_map_to_point_map(depth_map_fp32, extrinsic_fp32, intrinsic_fp32)
+    depth_map = depth_map.squeeze(0).to(dtype=torch.float32)
+    extrinsic = extrinsic.squeeze(0).to(dtype=torch.float32)
+    intrinsic = intrinsic.squeeze(0).to(dtype=torch.float32)
+    dense_points_np = unproject_depth_map_to_point_map(depth_map, extrinsic, intrinsic)
     dense_points = torch.from_numpy(dense_points_np).to(device=resolved_device, dtype=torch.float32)
 
     return VggtOutput(
         device=resolved_device,
         dtype=resolved_dtype,
         images=images,
-        extrinsic=extrinsic.squeeze(0),
-        intrinsic=intrinsic.squeeze(0),
-        depth_map=depth_map.squeeze(0),
+        extrinsic=extrinsic,
+        intrinsic=intrinsic,
+        depth_map=depth_map,
         depth_confidence=depth_confidence,
         dense_points=dense_points,
     )
@@ -861,6 +1035,7 @@ __all__ = [
     "VGGT_SUBMODULE_PATH",
     "LIGHTGLUE_SUBMODULE_PATH",
     "default_dtype",
+    "load_image_batch_vggt_loader",
     "load_and_preprocess_images_square",
     "resolve_weights_path",
     "load_model",

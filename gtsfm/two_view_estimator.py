@@ -21,6 +21,7 @@ import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metric_utils
 from gtsfm.bundle.two_view_ba import TwoViewBundleAdjustment
+from gtsfm.bundle.bundle_adjustment import RobustBAMode
 from gtsfm.common.dask_db_module_base import DaskDBModuleBase
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.keypoints import Keypoints
@@ -84,9 +85,17 @@ class TwoViewEstimator(DaskDBModuleBase):
         self._allow_indeterminate_linear_system = allow_indeterminate_linear_system
         self._ba_optimizer = TwoViewBundleAdjustment(
             reproj_error_thresholds=ba_reproj_error_thresholds,
-            robust_measurement_noise=True,
+            robust_ba_mode=RobustBAMode.HUBER,
             max_iterations=bundle_adjust_2view_maxiters,
             allow_indeterminate_linear_system=allow_indeterminate_linear_system,
+            use_first_point_prior=True,
+            use_calibration_prior=True,
+            robust_noise_basin=1.345,
+            use_karcher_mean_factor=False,
+            calibration_prior_focal_sigma=1e-5,
+            calibration_prior_dist_sigma=1e-5,
+            cam_pose3_prior_noise_sigma=0.1,
+            measurement_noise_sigma=1.0,
         )
         self.postgres_params = postgres_params  # save connection parameters for use on remote worker
 

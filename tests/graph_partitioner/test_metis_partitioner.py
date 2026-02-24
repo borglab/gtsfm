@@ -3,6 +3,7 @@
 import csv
 import unittest
 from pathlib import Path
+from typing import cast
 
 from gtsam import SymbolicBayesTreeClique  # type: ignore
 
@@ -154,6 +155,23 @@ class TestMetisPartitioner(unittest.TestCase):
                     msg=(f"Edge {edge} already owned by leaf {owner}, but also present in leaf {leaf_idx}"),
                 )
                 leaf_owners[edge] = leaf_idx
+
+    def test_min_cameras_collapse_small_subtrees(self) -> None:
+        min_cameras = 6
+        partitioner = MetisPartitioner(min_cameras_to_partition=min_cameras)
+        cluster_tree = partitioner.run(self.chain_edges)
+        self.assertIsNotNone(cluster_tree)
+        assert cluster_tree is not None
+
+        # By construction, any internal node must keep at least min_cameras keys.
+        for node in PreOrderIter(cluster_tree):
+            cluster_node = cast(ClusterTree, node)
+            if not cluster_node.is_leaf():
+                self.assertGreaterEqual(
+                    len(cluster_node.all_keys()),
+                    min_cameras,
+                    msg=f"Internal node has fewer than {min_cameras} cameras: {sorted(cluster_node.all_keys())}",
+                )
 
 
 if __name__ == "__main__":
