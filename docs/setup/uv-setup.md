@@ -54,7 +54,7 @@ If you have multiple GPUs on the same machine and want to use Dask for distribut
 
 ```bash
 # Multiple GPUs per node (e.g., 4x or 8x A100)
-uv sync --python 3.10 --extra complete --extra multi-gpu
+uv sync --python 3.12 --extra complete --extra multi-gpu
 ```
 
 This adds `dask-cuda` for GPU-aware distributed scheduling.
