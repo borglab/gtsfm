@@ -2,26 +2,26 @@
 
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass
-import math
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Tuple
 
-import gtsam
 import numpy as np
 from dask.distributed import Client, Future
-from gtsam import Similarity3, Pose3, UnaryMeasurementPose3, TrajectoryAlignerSim3
 
-import gtsfm.utils.logger as logger_utils
+import gtsam
 import gtsfm.common.types as gtsfm_types
+import gtsfm.utils.logger as logger_utils
+import gtsfm.utils.metrics as metrics_utils
+from gtsam import Pose3, Similarity3, TrajectoryAlignerSim3, UnaryMeasurementPose3
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer, RobustBAMode
 from gtsfm.cluster_optimizer.cluster_anysplat import save_splats
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.utils import align as align_utils
 from gtsfm.utils import data_utils
-import gtsfm.utils.metrics as metrics_utils
 from gtsfm.utils.reprojection import compute_track_reprojection_errors
 from gtsfm.utils.splat import GaussiansProtocol, merge_gaussian_splats
 from gtsfm.utils.transform import transform_gaussian_splats
@@ -565,7 +565,7 @@ def combine_results(
         for i, child in enumerate(valid_child_scenes):
             merged = _align_and_merge_results(merged, child, drop_if_merging_fails=drop_child_if_merging_fail)
             _log_scene_reprojection_stats(
-                merged, f"Merged with child #{i+1}", plot_histograms=plot_reprojection_histograms
+                merged, f"Merged with child #{i + 1}", plot_histograms=plot_reprojection_histograms
             )
 
     _propagate_scene_metadata(merged, metadata_source)
