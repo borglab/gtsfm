@@ -538,16 +538,22 @@ def compute_intrinsics_metrics(
             k2_errors.append(abs(est_cal.k2() - gt_cal.k2()))
 
     metrics = [
-        GtsfmMetric("focal_length_error_px", np.array(focal_abs_errors, dtype=np.float32),
-                     store_full_data=store_full_data),
-        GtsfmMetric("focal_length_error_pct", np.array(focal_pct_errors, dtype=np.float32),
-                     store_full_data=store_full_data),
+        GtsfmMetric(
+            "focal_length_error_px", np.array(focal_abs_errors, dtype=np.float32),
+            store_full_data=store_full_data,
+        ),
+        GtsfmMetric(
+            "focal_length_error_pct", np.array(focal_pct_errors, dtype=np.float32),
+            store_full_data=store_full_data,
+        ),
     ]
     if len(k1_errors) > 0:
-        metrics.append(GtsfmMetric("k1_error", np.array(k1_errors, dtype=np.float32),
-                                    store_full_data=store_full_data))
-        metrics.append(GtsfmMetric("k2_error", np.array(k2_errors, dtype=np.float32),
-                                    store_full_data=store_full_data))
+        metrics.append(
+            GtsfmMetric("k1_error", np.array(k1_errors, dtype=np.float32), store_full_data=store_full_data)
+        )
+        metrics.append(
+            GtsfmMetric("k2_error", np.array(k2_errors, dtype=np.float32), store_full_data=store_full_data)
+        )
     return GtsfmMetricsGroup(name="intrinsics_metrics", metrics=metrics)
 
 
