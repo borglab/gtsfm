@@ -78,7 +78,7 @@ class BundleAdjustmentOptimizer:
         use_karcher_mean_factor: bool = True,
         use_calibration_prior: bool = True,
         use_first_point_prior: bool = False,
-        use_gnc: bool = True,
+        use_gnc: bool = False,
         gnc_loss: RobustBAMode | str = RobustBAMode.GMC,
     ) -> None:
         """Initializes the parameters for bundle adjustment module.

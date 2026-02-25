@@ -126,7 +126,7 @@ class SceneOptimizer:
         self._drop_camera_with_no_track = getattr(self.cluster_optimizer, "drop_camera_with_no_track", True)
         self._drop_child_if_merging_fail = getattr(self.cluster_optimizer, "drop_child_if_merging_fail", True)
         self._use_shared_calibration = getattr(self.cluster_optimizer, "use_shared_calibration", True)
-        self._use_gnc = getattr(self.cluster_optimizer, "use_gnc", True)
+        self._use_gnc = getattr(self.cluster_optimizer, "use_gnc", False)
         self._gnc_loss = getattr(self.cluster_optimizer, "gnc_loss", "GMC")
         self._use_nonlinear_sim3_merging = use_nonlinear_sim3_merging
         self._config_snapshot = None

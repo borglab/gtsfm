@@ -200,7 +200,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         ba_use_calibration_prior: bool = False,
         ba_use_undistorted_camera_model: bool = False,
         use_shared_calibration: bool = True,
-        use_gnc: bool = True,
+        use_gnc: bool = False,
         gnc_loss: str = "GMC",
     ) -> None:
         super().__init__(
@@ -213,9 +213,9 @@ class ClusterVGGT(ClusterOptimizerBase):
             run_bundle_adjustment_on_parent=run_bundle_adjustment_on_parent,
             use_shared_calibration=use_shared_calibration,
             merge_duplicate_tracks=merge_duplicate_tracks,
+            use_gnc=use_gnc,
+            gnc_loss=gnc_loss,
         )
-        self.use_gnc = use_gnc
-        self.gnc_loss = gnc_loss
         self._weights_path = Path(weights_path) if weights_path is not None else None
         self._conf_threshold = conf_threshold
         self._max_points_for_colmap = max_num_points
@@ -238,6 +238,8 @@ class ClusterVGGT(ClusterOptimizerBase):
         self._min_triangulation_angle = min_triangulation_angle
         self._ba_use_calibration_prior = ba_use_calibration_prior
         self._ba_use_undistorted_camera_model = ba_use_undistorted_camera_model
+        self._use_gnc = use_gnc
+        self._gnc_loss = gnc_loss
         if fast_dtype is not None:
             if self._dtype is None:
                 self._dtype = fast_dtype
@@ -338,8 +340,8 @@ class ClusterVGGT(ClusterOptimizerBase):
             ba_use_calibration_prior=self._ba_use_calibration_prior,
             ba_use_undistorted_camera_model=self._ba_use_undistorted_camera_model,
             ba_use_shared_calibration=self.use_shared_calibration,
-            use_gnc=self.use_gnc,
-            gnc_loss=self.gnc_loss,
+            use_gnc=self._use_gnc,
+            gnc_loss=self._gnc_loss,
         )
 
         # mode is fixed to "crop", it resizes the width to 518 while maintaining aspect ratio and only if

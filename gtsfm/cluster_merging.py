@@ -483,7 +483,7 @@ def combine_results(
     store_full_data: bool = False,
     use_nonlinear_sim3_alignment: bool = False,
     use_shared_calibration: bool = True,
-    use_gnc: bool = True,
+    use_gnc: bool = False,
     gnc_loss: RobustBAMode | str = RobustBAMode.GMC,
 ) -> MergedNodeResult:
     """Run the merging and parent BA pipeline using already-transformed children.

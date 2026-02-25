@@ -323,7 +323,7 @@ class VggtConfiguration:
     ba_use_calibration_prior: bool = False
     ba_use_undistorted_camera_model: bool = False
     ba_use_shared_calibration: bool = True
-    use_gnc: bool = True
+    use_gnc: bool = False
     gnc_loss: str = "GMC"
 
 
