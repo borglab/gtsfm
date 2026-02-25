@@ -483,6 +483,8 @@ def combine_results(
     store_full_data: bool = False,
     use_nonlinear_sim3_alignment: bool = False,
     use_shared_calibration: bool = True,
+    use_gnc: bool = False,
+    gnc_loss: RobustBAMode | str = RobustBAMode.GMC,
 ) -> MergedNodeResult:
     """Run the merging and parent BA pipeline using already-transformed children.
 
@@ -496,6 +498,8 @@ def combine_results(
         drop_camera_with_no_track: Whether to drop cameras with no tracks.
         drop_child_if_merging_fail: Whether to drop child scenes if merging fails.
         store_full_data: Whether to store full data for the merging metrics.
+        use_gnc: Use the GNC optimizer for bundle adjustment.
+        gnc_loss: GNC loss to use. Defaults to GMC.
 
     Returns:
         A MergedNodeResult object containing the merged scene and its metrics.
@@ -644,6 +648,8 @@ def combine_results(
             use_calibration_prior=True,
             shared_calib=use_shared_calibration,
             robust_noise_basin=0.5,
+            use_gnc=use_gnc,
+            gnc_loss=gnc_loss,
         )
         merged_with_ba, _ = optimizer.run_simple_ba(merged)
         _propagate_scene_metadata(merged_with_ba, merged)

@@ -7,7 +7,7 @@ loader:
   _target_: gtsfm.loader.Olsson
   dataset_dir: ??? # Required: set to the dataset root on the command line.
   images_dir: null
-  max_resolution: 518 # VGGT recommended max resolution. Non editable. mode is fixed to "crop"
+  max_resolution: 518 # VGGT recommended max resolution. Non editable. mode can be set in cluster optimizer config.
 
 image_pairs_generator:
   _target_: gtsfm.retriever.image_pairs_generator.ImagePairsGenerator
@@ -28,11 +28,12 @@ cluster_optimizer:
   _target_: gtsfm.cluster_optimizer.Cacher
   optimizer:
     _target_: gtsfm.cluster_optimizer.cluster_vggt.ClusterVGGT
+    input_mode: crop
     weights_path: null
     conf_threshold: 0.1
     max_num_points: 100000
     tracking: true
-    tracking_max_query_pts: 2048
+    tracking_max_query_pts: 512
     tracking_query_frame_num: 3
     keypoint_extractor: aliked+sp+sift
     track_vis_thresh: 0.05
@@ -52,5 +53,7 @@ cluster_optimizer:
     ba_use_calibration_prior: false
     ba_use_undistorted_camera_model: false
     use_shared_calibration: true
+    use_gnc: true
+    gnc_loss: GMC
 
 use_nonlinear_sim3_merging: true
