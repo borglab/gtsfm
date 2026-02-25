@@ -198,7 +198,7 @@ class GtsfmRunner:
                 retriever_cfg = hydra.compose(retriever_config_name)
                 logger.info(f"🔄 Applying Retriever Override: {retriever_config_name}")
                 scene_optimizer.image_pairs_generator._retriever = instantiate(retriever_cfg.retriever)
-                OmegaConf.update(main_cfg, "image_pairs_generator.retriever", retriever_cfg.retriever, merge=True)
+                OmegaConf.update(main_cfg, "image_pairs_generator.retriever", retriever_cfg.retriever, merge=False)
 
         # Override global descriptor.
         if (global_descriptor_config_name := self.parsed_args.global_descriptor_config_name) is not None:
@@ -212,7 +212,7 @@ class GtsfmRunner:
                     main_cfg,
                     "image_pairs_generator.global_descriptor",
                     global_descriptor_cfg.global_descriptor,
-                    merge=True
+                    merge=False,
                 )
 
         # Set retriever specific params if specified with CLI.
@@ -225,7 +225,7 @@ class GtsfmRunner:
                     main_cfg,
                     "image_pairs_generator.retriever.max_frame_lookahead",
                     self.parsed_args.max_frame_lookahead,
-                    merge=True
+                    merge=False,
                 )
             except Exception as e:
                 logger.warning(f"⚠️ Failed to set max_frame_lookahead: {e}")
@@ -234,10 +234,7 @@ class GtsfmRunner:
                 retriever.set_num_matched(self.parsed_args.num_matched)
                 logger.info(f"🔄 Setting num_matched: {self.parsed_args.num_matched}")
                 OmegaConf.update(
-                    main_cfg,
-                    "image_pairs_generator.retriever.num_matched",
-                    self.parsed_args.num_matched,
-                    merge=True
+                    main_cfg, "image_pairs_generator.retriever.num_matched", self.parsed_args.num_matched, merge=False
                 )
             except Exception as e:
                 logger.warning(f"⚠️ Failed to set num_matched: {e}")
@@ -266,7 +263,7 @@ class GtsfmRunner:
                     main_cfg,
                     "cluster_optimizer.correspondence_generator",
                     correspondence_cfg.CorrespondenceGenerator,
-                    merge=True
+                    merge=False,
                 )
 
         # Override verifier.
@@ -279,14 +276,14 @@ class GtsfmRunner:
                     main_cfg,
                     "cluster_optimizer.two_view_estimator.two_view_estimator_obj.verifier",
                     verifier_cfg.verifier,
-                    merge=True
+                    merge=False,
                 )
 
         # Configure Multiview-specific toggles based on CLI flags.
         if not self.parsed_args.run_mvs:
             multiview_optimizer.dense_multiview_optimizer = None
             logger.info("🔄 Disabled Multiview dense MVS optimizer via CLI flag --run_mvs=False")
-            OmegaConf.update(main_cfg, "cluster_optimizer.dense_multiview_optimizer", None, merge=True)
+            OmegaConf.update(main_cfg, "cluster_optimizer.dense_multiview_optimizer", None, merge=False)
 
         # Override gaussian splatting
         if self.parsed_args.run_gs:
@@ -301,7 +298,7 @@ class GtsfmRunner:
                         main_cfg,
                         "cluster_optimizer.gaussian_splatting_optimizer",
                         gs_cfg.gaussian_splatting_optimizer,
-                        merge=True
+                        merge=False,
                     )
         else:
             multiview_optimizer.gaussian_splatting_optimizer = None
