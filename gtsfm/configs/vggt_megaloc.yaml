@@ -18,11 +18,14 @@ image_pairs_generator:
   retriever:
     _target_: gtsfm.retriever.Similarity
     num_matched: 15
-    min_score: 0.4
+    min_score: 0.5
   batch_size: 16
 
 graph_partitioner:
   _target_: gtsfm.graph_partitioner.Metis
+  min_cameras_to_partition: 12
+  max_cameras: 40
+  split_oversized_nodes: true
 
 cluster_optimizer:
   _target_: gtsfm.cluster_optimizer.Cacher
@@ -32,7 +35,7 @@ cluster_optimizer:
     conf_threshold: 0.1
     max_num_points: 100000
     tracking: true
-    tracking_max_query_pts: 2048
+    tracking_max_query_pts: 512
     tracking_query_frame_num: 3
     keypoint_extractor: aliked+sp+sift
     track_vis_thresh: 0.05
@@ -51,6 +54,6 @@ cluster_optimizer:
     store_pre_ba_result: true
     ba_use_calibration_prior: false
     ba_use_undistorted_camera_model: false
-    use_shared_calibration: true
+    use_shared_calibration: false
 
 use_nonlinear_sim3_merging: true

@@ -5,13 +5,18 @@ Authors: Frank Dellaert"""
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import ceil
+from typing import cast
 
+import gtsfm.utils.logger as logger_utils
 from gtsam import Ordering, SymbolicBayesTree, SymbolicBayesTreeClique, SymbolicFactorGraph  # type: ignore
 
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.products.cluster_tree import ClusterTree
-from gtsfm.products.visibility_graph import VisibilityGraph, valid_visibility_graph_or_raise
+from gtsfm.products.visibility_graph import VisibilityGraph, valid_visibility_graph_or_raise, visibility_graph_keys
 from gtsfm.utils.graph import get_nodes_in_largest_connected_component
+
+logger = logger_utils.get_logger()
 
 
 @dataclass(frozen=True)
@@ -24,16 +29,30 @@ class _SubTreeInfo:
 class MetisPartitioner(GraphPartitionerBase):
     """Graph partitioner that leverages METIS ordering and the symbolic Bayes tree."""
 
-    def __init__(self, min_cameras_to_partition: int | None = None, max_cameras: int | None = None) -> None:
+    def __init__(
+        self,
+        min_cameras_to_partition: int | None = None,
+        max_cameras: int | None = None,
+        min_child_overlap_for_split: int = 2,
+        min_parent_overlap_for_split: int = 2,
+        split_oversized_nodes: bool = False,
+    ) -> None:
         super().__init__(process_name="MetisPartitioner")
         if min_cameras_to_partition is not None and min_cameras_to_partition < 1:
             raise ValueError("min_cameras_to_partition must be >= 1 when provided.")
         if max_cameras is not None and max_cameras < 1:
             raise ValueError("max_cameras must be >= 1 when provided.")
+        if min_child_overlap_for_split < 1:
+            raise ValueError("min_child_overlap_for_split must be >= 1.")
+        if min_parent_overlap_for_split < 1:
+            raise ValueError("min_parent_overlap_for_split must be >= 1.")
         if max_cameras is not None and min_cameras_to_partition is not None and max_cameras < min_cameras_to_partition:
             raise ValueError("max_cameras must be >= min_cameras_to_partition when provided.")
         self._min_cameras_to_partition = min_cameras_to_partition
         self._max_cameras = max_cameras
+        self._min_child_overlap_for_split = min_child_overlap_for_split
+        self._min_parent_overlap_for_split = min_parent_overlap_for_split
+        self._split_oversized_nodes = split_oversized_nodes
 
     def _extract_largest_component_subgraph(self, graph: VisibilityGraph) -> VisibilityGraph:
         nodes_in_largest = set(get_nodes_in_largest_connected_component(graph))
@@ -60,7 +79,19 @@ class MetisPartitioner(GraphPartitionerBase):
                 )
 
         root_result = self._cluster_from_clique(roots[0], graph)
-        return root_result.cluster if root_result else None
+        if root_result is None:
+            return None
+        logger.info(
+            "MetisPartitioner: initial root cameras=%d, split_oversized_nodes=%s, max_cameras=%s",
+            len(root_result.keys),
+            self._split_oversized_nodes,
+            self._max_cameras,
+        )
+        if not self._split_oversized_nodes:
+            return root_result.cluster
+        split_root = self._split_oversized_tree(root_result.cluster, graph)
+        logger.info("MetisPartitioner: post-split root cameras=%d", len(split_root.all_keys()))
+        return split_root
 
     def symbolic_bayes_tree(self, graph: VisibilityGraph) -> SymbolicBayesTree:
         """Helper to build the Bayes tree from the visibility graph."""
@@ -165,6 +196,313 @@ class MetisPartitioner(GraphPartitionerBase):
 
         return work
 
+    @staticmethod
+    def _local_keys(node: ClusterTree) -> set[int]:
+        return set(visibility_graph_keys(node.value))
+
+    @staticmethod
+    def _partition_local_keys(keys: list[int], num_bins: int) -> list[set[int]]:
+        """Deterministically split sorted keys into balanced contiguous bins."""
+        n = len(keys)
+        base = n // num_bins
+        rem = n % num_bins
+        bins: list[set[int]] = []
+        start = 0
+        for idx in range(num_bins):
+            size = base + (1 if idx < rem else 0)
+            bins.append(set(keys[start : start + size]))
+            start += size
+        return bins
+
+    def _ensure_parent_overlap(self, bin_keys: list[set[int]], parent_local_keys: set[int] | None) -> bool:
+        if parent_local_keys is None or len(parent_local_keys) == 0 or self._max_cameras is None:
+            return True
+        for keys in bin_keys:
+            overlap = len(keys & parent_local_keys)
+            if overlap >= self._min_parent_overlap_for_split:
+                continue
+            need = self._min_parent_overlap_for_split - overlap
+            candidates = sorted((parent_local_keys - keys))
+            if len(candidates) < need or len(keys) + need > self._max_cameras:
+                return False
+            keys.update(candidates[:need])
+        return True
+
+    def _attempt_split_node(
+        self, node: ClusterTree, graph: VisibilityGraph, parent_local_keys: set[int] | None, is_root: bool
+    ) -> list[ClusterTree] | None:
+        """Attempt local-key-based splitting with minimum number of split nodes."""
+        if self._max_cameras is None:
+            return None
+
+        local_keys = sorted(self._local_keys(node))
+        if len(local_keys) <= self._max_cameras:
+            return None
+
+        children = [cast(ClusterTree, c) for c in node.children]
+        child_keysets = [set(child.all_keys()) for child in children]
+        child_keys_by_id = {id(child): child_keysets[idx] for idx, child in enumerate(children)}
+
+        k_min = max(2, ceil(len(local_keys) / self._max_cameras))
+        k_max = len(local_keys)
+
+        logger.info(
+            "MetisPartitioner: attempting split on node with local_cameras=%d, children=%d, k_min=%d",
+            len(local_keys),
+            len(children),
+            k_min,
+        )
+
+        for k in range(k_min, k_max + 1):
+            bin_keys = self._partition_local_keys(local_keys, k)
+            if not self._ensure_parent_overlap(bin_keys, parent_local_keys if not is_root else None):
+                continue
+
+            assigned_children: list[list[ClusterTree]] = [[] for _ in range(k)]
+            # Hardest children first (fewest overlaps) gives a deterministic, stronger feasibility check.
+            child_order = sorted(
+                range(len(children)),
+                key=lambda idx: (
+                    max(len(child_keysets[idx] & b) for b in bin_keys),
+                    len(child_keysets[idx]),
+                    self._min_key(child_keysets[idx]),
+                    idx,
+                ),
+            )
+            feasible = True
+            for child_idx in child_order:
+                child = children[child_idx]
+                child_keys = child_keysets[child_idx]
+                overlaps = [len(child_keys & keys) for keys in bin_keys]
+                candidate_bins = [
+                    idx for idx, overlap in enumerate(overlaps) if overlap >= self._min_child_overlap_for_split
+                ]
+                if not candidate_bins:
+                    # Allow overlapping split bins by adding child keys, while respecting max_cameras.
+                    augmentation_options: list[tuple[int, int, int, list[int]]] = []
+                    for idx, keys in enumerate(bin_keys):
+                        missing = self._min_child_overlap_for_split - overlaps[idx]
+                        if missing <= 0:
+                            continue
+                        available = sorted((child_keys - keys))
+                        if len(available) < missing:
+                            continue
+                        if len(keys) + missing > self._max_cameras:
+                            continue
+                        augmentation_options.append((missing, len(keys), idx, available[:missing]))
+                    if not augmentation_options:
+                        feasible = False
+                        break
+                    _, _, chosen_idx, to_add = min(augmentation_options, key=lambda item: (item[0], item[1], item[2]))
+                    bin_keys[chosen_idx].update(to_add)
+                    overlaps[chosen_idx] = len(child_keys & bin_keys[chosen_idx])
+                    candidate_bins = [chosen_idx]
+
+                best_idx = max(
+                    candidate_bins,
+                    key=lambda idx: (
+                        overlaps[idx],
+                        self._count_cross_edges(child_keys, bin_keys[idx], graph),
+                        -len(bin_keys[idx]),
+                        -idx,
+                    ),
+                )
+                if len(child_keys & bin_keys[best_idx]) < self._min_child_overlap_for_split:
+                    feasible = False
+                    break
+                assigned_children[best_idx].append(child)
+
+            if not feasible:
+                continue
+
+            # Assign local edges to bins; bins may overlap.
+            bin_edges: list[list[tuple[int, int]]] = [[] for _ in range(k)]
+            separator_edges: list[tuple[int, int]] = []
+            for i, j in sorted(set(node.value)):
+                both = [idx for idx, keys in enumerate(bin_keys) if i in keys and j in keys]
+                if both:
+                    best_idx = min(both, key=lambda idx: (len(bin_edges[idx]), idx))
+                    bin_edges[best_idx].append((i, j))
+                    continue
+
+                one = [idx for idx, keys in enumerate(bin_keys) if i in keys or j in keys]
+                extended = False
+                for idx in one:
+                    keys = bin_keys[idx]
+                    add_keys = []
+                    if i not in keys:
+                        add_keys.append(i)
+                    if j not in keys:
+                        add_keys.append(j)
+                    if len(keys) + len(add_keys) <= self._max_cameras:
+                        keys.update(add_keys)
+                        bin_edges[idx].append((i, j))
+                        extended = True
+                        break
+                if extended:
+                    continue
+                # Keep separator edges at root if necessary; otherwise split is invalid.
+                if not is_root:
+                    feasible = False
+                    break
+                separator_edges.append((i, j))
+
+            if not feasible:
+                continue
+
+            # Build split nodes with final local-key checks.
+            split_nodes: list[ClusterTree] = []
+            for idx in range(k):
+                if len(bin_edges[idx]) == 0 and len(assigned_children[idx]) == 0:
+                    continue
+                split_node = ClusterTree(value=sorted(set(bin_edges[idx])), children=tuple(assigned_children[idx]))
+                split_local_keys = self._local_keys(split_node)
+                if len(split_local_keys) > self._max_cameras:
+                    feasible = False
+                    break
+                if not is_root and parent_local_keys is not None:
+                    if len(split_local_keys & parent_local_keys) < self._min_parent_overlap_for_split:
+                        feasible = False
+                        break
+                for child in assigned_children[idx]:
+                    child_keys = child_keys_by_id[id(child)]
+                    if len(child_keys & split_local_keys) < self._min_child_overlap_for_split:
+                        feasible = False
+                        break
+                if not feasible:
+                    break
+                split_nodes.append(split_node)
+
+            if not feasible or len(split_nodes) < 2:
+                continue
+
+            logger.info(
+                "MetisPartitioner: split accepted with k=%d (local sizes=%s, separator_edges=%d)",
+                len(split_nodes),
+                [len(self._local_keys(split_node)) for split_node in split_nodes],
+                len(separator_edges),
+            )
+            if is_root:
+                return [ClusterTree(value=sorted(set(separator_edges)), children=tuple(split_nodes))]
+            return split_nodes
+
+        logger.info("MetisPartitioner: no feasible split satisfies overlap constraints, keeping node unchanged")
+        return None
+
+    @staticmethod
+    def _graph_adjacency(graph: VisibilityGraph) -> dict[int, set[int]]:
+        adjacency: dict[int, set[int]] = {}
+        for i, j in graph:
+            adjacency.setdefault(i, set()).add(j)
+            adjacency.setdefault(j, set()).add(i)
+        return adjacency
+
+    @staticmethod
+    def _canonical_edge(i: int, j: int) -> tuple[int, int]:
+        return (i, j) if i < j else (j, i)
+
+    def _augment_child_local_overlap(
+        self,
+        child: ClusterTree,
+        parent_local_keys: set[int],
+        adjacency: dict[int, set[int]],
+    ) -> ClusterTree:
+        """Augment child local keys to satisfy minimum overlap with parent local keys."""
+        if self._min_child_overlap_for_split <= 0 or len(parent_local_keys) == 0:
+            return child
+
+        child_local = self._local_keys(child)
+        overlap = child_local & parent_local_keys
+        required = self._min_child_overlap_for_split
+        if len(overlap) >= required:
+            return child
+
+        needed = required - len(overlap)
+        candidates = sorted(
+            list(parent_local_keys - child_local),
+            key=lambda cam: (
+                -sum(1 for nbr in adjacency.get(cam, set()) if nbr in parent_local_keys),
+                cam,
+            ),
+        )
+        if not candidates:
+            return child
+
+        existing_edges = set(child.value)
+        extra_edges: set[tuple[int, int]] = set()
+        for cam in candidates:
+            if needed <= 0:
+                break
+            # Prefer connecting to existing child local keys, then parent local keys.
+            anchor = None
+            neighbors = adjacency.get(cam, set())
+            child_anchors = sorted(child_local & neighbors)
+            if child_anchors:
+                anchor = child_anchors[0]
+            else:
+                parent_anchors = sorted(parent_local_keys & neighbors)
+                if parent_anchors:
+                    anchor = parent_anchors[0]
+                elif child_local:
+                    anchor = min(child_local)
+                else:
+                    parent_fallback = sorted(parent_local_keys - {cam})
+                    anchor = parent_fallback[0] if parent_fallback else None
+
+            if anchor is None or anchor == cam:
+                continue
+            edge = self._canonical_edge(cam, anchor)
+            extra_edges.add(edge)
+            child_local.update([cam, anchor])
+            needed -= 1
+
+        if not extra_edges:
+            return child
+
+        return ClusterTree(value=sorted(existing_edges | extra_edges), children=child.children)
+
+    def _preprocess_min_child_overlap(self, node: ClusterTree, adjacency: dict[int, set[int]]) -> ClusterTree:
+        """Top-down pass to increase child local overlap with parent local keys."""
+        parent_local = self._local_keys(node)
+        updated_children: list[ClusterTree] = []
+        for raw_child in node.children:
+            child = cast(ClusterTree, raw_child)
+            augmented_child = self._augment_child_local_overlap(child, parent_local, adjacency)
+            updated_children.append(self._preprocess_min_child_overlap(augmented_child, adjacency))
+        return ClusterTree(value=list(node.value), children=tuple(updated_children))
+
+    def _split_node_recursive(
+        self, node: ClusterTree, graph: VisibilityGraph, parent_local_keys: set[int] | None, is_root: bool
+    ) -> list[ClusterTree]:
+        """Top-down splitter: split current node first, then recurse into children."""
+        rebuilt = ClusterTree(value=list(node.value), children=tuple(cast(ClusterTree, c) for c in node.children))
+        split_nodes = self._attempt_split_node(rebuilt, graph, parent_local_keys, is_root)
+        current_nodes = split_nodes if split_nodes is not None else [rebuilt]
+
+        refined_nodes: list[ClusterTree] = []
+        for current in current_nodes:
+            next_parent_local_keys = self._local_keys(current)
+            refined_children: list[ClusterTree] = []
+            for child in current.children:
+                child_cluster = cast(ClusterTree, child)
+                refined_children.extend(
+                    self._split_node_recursive(
+                        child_cluster,
+                        graph=graph,
+                        parent_local_keys=next_parent_local_keys,
+                        is_root=False,
+                    )
+                )
+            refined_nodes.append(ClusterTree(value=list(current.value), children=tuple(refined_children)))
+        return refined_nodes
+
+    def _split_oversized_tree(self, root: ClusterTree, graph: VisibilityGraph) -> ClusterTree:
+        """Split oversized nodes after initial METIS tree construction."""
+        adjacency = self._graph_adjacency(graph)
+        preprocessed = self._preprocess_min_child_overlap(root, adjacency=adjacency)
+        split_roots = self._split_node_recursive(preprocessed, graph=graph, parent_local_keys=None, is_root=True)
+        return split_roots[0]
+
     def _cluster_from_clique(self, clique: SymbolicBayesTreeClique, graph: VisibilityGraph) -> _SubTreeInfo | None:
         """Recursively build the cluster tree, aggressively pruning single-child nodes."""
         keys, frontals, _ = self._clique_key_sets(clique)
@@ -196,7 +534,7 @@ class MetisPartitioner(GraphPartitionerBase):
         subtree_keys = keys | set.union(*(result.keys for result in child_results))
         subtree_edges = current_edges | descendant_edges
 
-        # Collapse small subtrees into leaves.
+        # Collapse subtrees that fit within max_cameras into leaves.
         if self._max_cameras is not None and len(subtree_keys) <= self._max_cameras:
             collapsed_cluster = ClusterTree(value=sorted_edges(subtree_edges), children=())
             return _SubTreeInfo(cluster=collapsed_cluster, keys=subtree_keys, edges=subtree_edges)
