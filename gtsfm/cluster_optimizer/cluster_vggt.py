@@ -8,11 +8,11 @@ from typing import Any, Hashable, Optional, Union
 import numpy as np
 import torch
 from dask.delayed import Delayed, delayed
-from gtsam import Pose3
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.frontend.vggt as vggt
 import gtsfm.utils.metrics as metrics_utils
+from gtsam import Pose3
 from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterComputationGraph, ClusterContext, ClusterOptimizerBase
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
@@ -199,6 +199,8 @@ class ClusterVGGT(ClusterOptimizerBase):
         ba_use_calibration_prior: bool = False,
         ba_use_undistorted_camera_model: bool = False,
         use_shared_calibration: bool = True,
+        use_gnc: bool = True,
+        gnc_loss: str = "GM",
     ) -> None:
         super().__init__(
             pose_angular_error_thresh=pose_angular_error_thresh,
@@ -232,6 +234,8 @@ class ClusterVGGT(ClusterOptimizerBase):
         self._min_triangulation_angle = min_triangulation_angle
         self._ba_use_calibration_prior = ba_use_calibration_prior
         self._ba_use_undistorted_camera_model = ba_use_undistorted_camera_model
+        self._use_gnc = use_gnc
+        self._gnc_loss = gnc_loss
         if fast_dtype is not None:
             if self._dtype is None:
                 self._dtype = fast_dtype
@@ -331,6 +335,8 @@ class ClusterVGGT(ClusterOptimizerBase):
             ba_use_calibration_prior=self._ba_use_calibration_prior,
             ba_use_undistorted_camera_model=self._ba_use_undistorted_camera_model,
             ba_use_shared_calibration=self.use_shared_calibration,
+            use_gnc=self._use_gnc,
+            gnc_loss=self._gnc_loss,
         )
 
         # mode is fixed to "crop", it resizes the width to 518 while maintaining aspect ratio and only if
