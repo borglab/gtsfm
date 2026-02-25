@@ -505,9 +505,10 @@ def compute_intrinsics_metrics(
     computed_cameras: dict[int, CAMERA_TYPE],
     store_full_data: bool = False,
 ) -> GtsfmMetricsGroup:
-    """Compute focal length percentage error per camera w.r.t. ground truth.
+    """Compute intrinsics error metrics per camera w.r.t. ground truth.
 
-    Focal length is in pixels and does not require Sim3 alignment.
+    Reports focal length percentage error and, when the calibration model supports it,
+    raw absolute errors for radial distortion parameters (k1, k2).
 
     Args:
         gt_cameras: Ground truth cameras keyed by image index.
@@ -515,26 +516,38 @@ def compute_intrinsics_metrics(
         store_full_data: Whether to store the full array of per-camera errors.
 
     Returns:
-        A GtsfmMetricsGroup containing the focal length percentage error distribution.
+        A GtsfmMetricsGroup with focal length and (optionally) distortion error distributions.
     """
     common_indices = sorted(set(gt_cameras.keys()) & set(computed_cameras.keys()))
     if len(common_indices) == 0:
         return GtsfmMetricsGroup(name="intrinsics_metrics", metrics=[])
 
     focal_pct_errors = []
+    focal_abs_errors = []
+    k1_errors = []
+    k2_errors = []
     for i in common_indices:
-        gt_f = gt_cameras[i].calibration().fx()
-        est_f = computed_cameras[i].calibration().fx()
+        gt_cal = gt_cameras[i].calibration()
+        est_cal = computed_cameras[i].calibration()
+        gt_f = gt_cal.fx()
         if gt_f > 0:
-            focal_pct_errors.append(abs(est_f - gt_f) / gt_f * 100.0)
+            focal_abs_errors.append(abs(est_cal.fx() - gt_f))
+            focal_pct_errors.append(abs(est_cal.fx() - gt_f) / gt_f * 100.0)
+        if hasattr(gt_cal, "k1") and hasattr(est_cal, "k1"):
+            k1_errors.append(abs(est_cal.k1() - gt_cal.k1()))
+            k2_errors.append(abs(est_cal.k2() - gt_cal.k2()))
 
     metrics = [
-        GtsfmMetric(
-            "focal_length_error_pct",
-            np.array(focal_pct_errors, dtype=np.float32),
-            store_full_data=store_full_data,
-        )
+        GtsfmMetric("focal_length_error_px", np.array(focal_abs_errors, dtype=np.float32),
+                     store_full_data=store_full_data),
+        GtsfmMetric("focal_length_error_pct", np.array(focal_pct_errors, dtype=np.float32),
+                     store_full_data=store_full_data),
     ]
+    if len(k1_errors) > 0:
+        metrics.append(GtsfmMetric("k1_error", np.array(k1_errors, dtype=np.float32),
+                                    store_full_data=store_full_data))
+        metrics.append(GtsfmMetric("k2_error", np.array(k2_errors, dtype=np.float32),
+                                    store_full_data=store_full_data))
     return GtsfmMetricsGroup(name="intrinsics_metrics", metrics=metrics)
 
 
