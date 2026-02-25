@@ -47,6 +47,7 @@ class RobustBAMode(Enum):
     NONE = "NONE"
     HUBER = "HUBER"
     GMC = "GMC"
+    TLS = "TLS"
 
 
 class BundleAdjustmentOptimizer:
@@ -78,7 +79,7 @@ class BundleAdjustmentOptimizer:
         use_calibration_prior: bool = True,
         use_first_point_prior: bool = False,
         use_gnc: bool = True,
-        gnc_loss: str = "GM",
+        gnc_loss: RobustBAMode | str = RobustBAMode.GMC,
     ) -> None:
         """Initializes the parameters for bundle adjustment module.
 
@@ -103,8 +104,8 @@ class BundleAdjustmentOptimizer:
             use_karcher_mean_factor (optional): Use Karcher mean factor to constrain the camera poses.
             use_calibration_prior (optional): Use calibration prior to constrain the camera intrinsics.
             use_first_point_prior (optional): Use first point prior to constrain the scale of the reconstruction.
-            use_gnc (optional): Use the GNC (Graduated Non Convexity) optimizer for bundle adjustment.
-            gnc_loss (optional): Loss type for GNC optimization, currently only supported loss types are GMC and TLS.
+            use_gnc (optional): Use the GNC optimizer for bundle adjustment.
+            gnc_loss (optional): GNC loss to use. Defaults to GMC.
         """
         self._reproj_error_thresholds = reproj_error_thresholds
         if isinstance(robust_ba_mode, str):
@@ -127,7 +128,10 @@ class BundleAdjustmentOptimizer:
 
         self._use_first_point_prior = use_first_point_prior
         self._use_gnc = use_gnc
-        self._gnc_loss = gnc_loss
+        if isinstance(gnc_loss, str):
+            self._gnc_loss = RobustBAMode[gnc_loss]
+        else:
+            self._gnc_loss = gnc_loss
 
     def __map_to_calibration_variable(self, camera_idx: int) -> int:
         return 0 if self._shared_calib else camera_idx
@@ -326,27 +330,25 @@ class BundleAdjustmentOptimizer:
         """Optimize the factor graph, optionally capturing per-iteration values."""
         start_time = time.time()
 
+        params = gtsam.LevenbergMarquardtParams()
+        params.setVerbosityLM("ERROR" if not self._print_summary else "SUMMARY")
+        params.setOrderingType(ordering_type)
+        if self._max_iterations:
+            params.setMaxIterations(self._max_iterations)
+
         if not self._use_gnc:
-            params = gtsam.LevenbergMarquardtParams()
-            params.setVerbosityLM("ERROR" if not self._print_summary else "SUMMARY")
-            params.setOrderingType(ordering_type)
-            if self._max_iterations:
-                params.setMaxIterations(self._max_iterations)
-
             lm = gtsam.LevenbergMarquardtOptimizer(graph, initial_values, params)
-
         else:
-            gnc_params = gtsam.GncLMParams()
-            if self._gnc_loss == "GM":
+            gnc_params = gtsam.GncLMParams(params)
+            if self._gnc_loss == RobustBAMode.GMC:
                 gnc_params.setLossType(gtsam.GncLossType.GM)
-            elif self._gnc_loss == "TLS":
+            elif self._gnc_loss == RobustBAMode.TLS:
                 gnc_params.setLossType(gtsam.GncLossType.TLS)
             else:
-                raise ValueError(f"Unsupported GNC loss type: {self._gnc_loss}")
-            if self._max_iterations:
-                gnc_params.setMaxIterations(self._max_iterations)
+                raise ValueError(f"Unsupported GNC loss type: {self._gnc_loss}.")
             gnc_params.setVerbosityGNC(gtsam.GncLMParams.Verbosity.SUMMARY)
             gnc_params.setAllowNonNoiseModelFactors(True)
+            gnc_params.setRelativeCostTol(1e-3)
             lm = gtsam.GncLMOptimizer(graph, initial_values, gnc_params)
 
         # gnc does not support getAbsoluteErrorTol and getRelativeErrorTol params
