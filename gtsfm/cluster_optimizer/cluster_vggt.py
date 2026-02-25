@@ -172,6 +172,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         track_vis_thresh: float = 0.05,
         track_conf_thresh: float = 0.2,
         keypoint_extractor: str = "aliked+sp+sift",
+        input_mode: str = "crop",
         camera_type: str = "PINHOLE",
         seed: int = 42,
         scene_dir: Optional[str] = None,
@@ -200,7 +201,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         ba_use_undistorted_camera_model: bool = False,
         use_shared_calibration: bool = True,
         use_gnc: bool = True,
-        gnc_loss: str = "GM",
+        gnc_loss: str = "GMC",
     ) -> None:
         super().__init__(
             pose_angular_error_thresh=pose_angular_error_thresh,
@@ -213,6 +214,8 @@ class ClusterVGGT(ClusterOptimizerBase):
             use_shared_calibration=use_shared_calibration,
             merge_duplicate_tracks=merge_duplicate_tracks,
         )
+        self.use_gnc = use_gnc
+        self.gnc_loss = gnc_loss
         self._weights_path = Path(weights_path) if weights_path is not None else None
         self._conf_threshold = conf_threshold
         self._max_points_for_colmap = max_num_points
@@ -222,6 +225,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         self._track_vis_thresh = track_vis_thresh
         self._track_conf_thresh = track_conf_thresh
         self._keypoint_extractor = keypoint_extractor
+        self._input_mode = input_mode
         self._camera_type = camera_type
         self._max_reproj_error = max_reproj_error
         self._min_triangulation_angle = min_triangulation_angle
@@ -234,8 +238,6 @@ class ClusterVGGT(ClusterOptimizerBase):
         self._min_triangulation_angle = min_triangulation_angle
         self._ba_use_calibration_prior = ba_use_calibration_prior
         self._ba_use_undistorted_camera_model = ba_use_undistorted_camera_model
-        self._use_gnc = use_gnc
-        self._gnc_loss = gnc_loss
         if fast_dtype is not None:
             if self._dtype is None:
                 self._dtype = fast_dtype
@@ -284,6 +286,7 @@ class ClusterVGGT(ClusterOptimizerBase):
             f"weights_path={self._weights_path}",
             f"camera_type={self._camera_type}",
             f"dtype={self._dtype}",
+            f"input_mode={self._input_mode}",
             f"use_sparse_attention={self._use_sparse_attention}",
             f"run_bundle_adjustment_on_leaf={self._run_bundle_adjustment_on_leaf}",
         ]
@@ -335,14 +338,14 @@ class ClusterVGGT(ClusterOptimizerBase):
             ba_use_calibration_prior=self._ba_use_calibration_prior,
             ba_use_undistorted_camera_model=self._ba_use_undistorted_camera_model,
             ba_use_shared_calibration=self.use_shared_calibration,
-            use_gnc=self._use_gnc,
-            gnc_loss=self._gnc_loss,
+            use_gnc=self.use_gnc,
+            gnc_loss=self.gnc_loss,
         )
 
         # mode is fixed to "crop", it resizes the width to 518 while maintaining aspect ratio and only if
         # height is > 518 then crops
         image_batch_graph, original_coords_graph = delayed(_load_vggt_inputs, nout=2)(
-            context.loader, global_indices, mode="crop"
+            context.loader, global_indices, mode=self._input_mode
         )
 
         reconstruction_graph = delayed(_run_vggt_pipeline)(

@@ -11,6 +11,7 @@ from typing import Optional, TypeVar, cast
 import matplotlib
 from dask.delayed import delayed
 from dask.distributed import Client, Future, performance_report
+from omegaconf import OmegaConf
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm import cluster_merging
@@ -125,7 +126,10 @@ class SceneOptimizer:
         self._drop_camera_with_no_track = getattr(self.cluster_optimizer, "drop_camera_with_no_track", True)
         self._drop_child_if_merging_fail = getattr(self.cluster_optimizer, "drop_child_if_merging_fail", True)
         self._use_shared_calibration = getattr(self.cluster_optimizer, "use_shared_calibration", True)
+        self._use_gnc = getattr(self.cluster_optimizer, "use_gnc", True)
+        self._gnc_loss = getattr(self.cluster_optimizer, "gnc_loss", "GMC")
         self._use_nonlinear_sim3_merging = use_nonlinear_sim3_merging
+        self._config_snapshot = None
         self.output_root = Path(output_root)
         if output_worker is not None:
             self.cluster_optimizer._output_worker = output_worker
@@ -188,6 +192,11 @@ class SceneOptimizer:
         # Process Graph Generation: Visualize the process graph, which is a flow of data across GTSFM's modules.
         process_graph_generator = ProcessGraphGenerator()
         base_output_paths = prepare_output_paths(self.output_root, None)
+        config_snapshot = self._config_snapshot
+        if config_snapshot is not None:
+            config_path = base_output_paths.results / "config.yaml"
+            OmegaConf.save(config=config_snapshot, f=str(config_path))
+            logger.info("📦 Saved final config snapshot to %s", config_path)
         process_graph_generator.save_graph(str(base_output_paths.plots / "process_graph_output.svg"))
 
         logger.info("🔥 GTSFM: Running image pair retrieval...")
@@ -253,6 +262,8 @@ class SceneOptimizer:
                         store_full_data=False,
                         use_nonlinear_sim3_alignment=self._use_nonlinear_sim3_merging,
                         use_shared_calibration=self._use_shared_calibration,
+                        use_gnc=self._use_gnc,
+                        gnc_loss=self._gnc_loss,
                     )
 
                 merged_future_tree = submit_tree_map_with_children(client, reconstruction_tree, merge_fn)

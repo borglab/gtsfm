@@ -324,7 +324,7 @@ class VggtConfiguration:
     ba_use_undistorted_camera_model: bool = False
     ba_use_shared_calibration: bool = True
     use_gnc: bool = True
-    gnc_loss: str = "GM"
+    gnc_loss: str = "GMC"
 
 
 @dataclass
