@@ -7,7 +7,7 @@ from typing import cast
 
 from gtsam import SymbolicBayesTreeClique  # type: ignore
 
-from gtsfm.graph_partitioner.metis_partitioner import MetisPartitioner
+from gtsfm.graph_partitioner.metis_partitioner import MetisPartitioner, _SubTreeInfo
 from gtsfm.products.cluster_tree import ClusterTree
 from gtsfm.products.visibility_graph import visibility_graph_keys
 from gtsfm.utils.tree import PreOrderIter
@@ -172,6 +172,54 @@ class TestMetisPartitioner(unittest.TestCase):
                     min_cameras,
                     msg=f"Internal node has fewer than {min_cameras} cameras: {sorted(cluster_node.all_keys())}",
                 )
+
+    def _make_subtree_info(self, keys: set[int], edges: set[tuple[int, int]]) -> _SubTreeInfo:
+        return _SubTreeInfo(cluster=ClusterTree(value=sorted(edges), children=()), keys=keys, edges=edges)
+
+    def test_small_only_sibling_merging_preferred(self) -> None:
+        partitioner = MetisPartitioner(min_cameras_to_partition=4, max_cameras=6)
+        # One "big" sibling (5 cams) and three small siblings (2 cams each).
+        children = [
+            self._make_subtree_info({0, 1, 2, 3, 4}, {(0, 1)}),
+            self._make_subtree_info({5, 6}, {(5, 6)}),
+            self._make_subtree_info({7, 8}, {(7, 8)}),
+            self._make_subtree_info({9, 10}, {(9, 10)}),
+        ]
+        # Make small nodes mutually mergeable, and also allow big+small merge.
+        graph = [(5, 7), (7, 9), (4, 5)]
+
+        merged_children = partitioner._merge_small_children_at_level(children, graph)
+        merged_sizes = sorted(len(child.keys) for child in merged_children)
+        # Prefer 2+2+2 => 6 over 5+2 => 7.
+        self.assertEqual(merged_sizes, [5, 6])
+
+    def test_max_cameras_blocks_merge(self) -> None:
+        partitioner = MetisPartitioner(min_cameras_to_partition=6, max_cameras=6)
+        children = [
+            self._make_subtree_info({0, 1, 2, 3}, {(0, 1)}),
+            self._make_subtree_info({4, 5, 6}, {(4, 5)}),
+        ]
+        graph = [(3, 4)]  # mergeable by cross-edge
+
+        merged_children = partitioner._merge_small_children_at_level(children, graph)
+        merged_sizes = sorted(len(child.keys) for child in merged_children)
+        # 4+3=7 exceeds max_cameras=6, so siblings stay separate.
+        self.assertEqual(merged_sizes, [3, 4])
+
+    def test_split_oversized_root_respects_max_cameras(self) -> None:
+        partitioner = MetisPartitioner(max_cameras=5)
+        c1 = ClusterTree(value=[(0, 1), (1, 2)], children=())
+        c2 = ClusterTree(value=[(2, 3), (3, 4)], children=())
+        c3 = ClusterTree(value=[(4, 5)], children=())
+        root = ClusterTree(value=[], children=(c1, c2, c3))
+        graph = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
+
+        split_root = partitioner._split_oversized_tree(root, graph)
+        # Root should split into at least two child groups.
+        self.assertGreaterEqual(len(split_root.children), 2)
+        for child in split_root.children:
+            child_cluster = cast(ClusterTree, child)
+            self.assertLessEqual(len(child_cluster.all_keys()), 5)
 
 
 if __name__ == "__main__":
