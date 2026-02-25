@@ -350,7 +350,7 @@ class BundleAdjustmentOptimizer:
             lm = gtsam.GncLMOptimizer(graph, initial_values, gnc_params)
 
         # gnc does not support getAbsoluteErrorTol and getRelativeErrorTol params
-        if not self._save_iteration_visualization:
+        if not self._save_iteration_visualization or self._use_gnc:
             result_values = lm.optimize()
             values_trace = None
         else:
