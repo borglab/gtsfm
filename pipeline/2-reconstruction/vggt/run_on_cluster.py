@@ -15,8 +15,10 @@ import gc
 import os
 import pickle
 import random
+import sqlite3
 import shutil
 import sys
+import tempfile
 from pathlib import Path
 from typing import Iterable, Sequence
 
@@ -25,6 +27,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from hydra.utils import instantiate
+from PIL import Image
 
 from gtsfm.common.outputs import prepare_output_paths
 from gtsfm.products.visibility_graph import visibility_graph_keys
@@ -87,9 +90,9 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--ba_tracker",
         type=str,
-        choices=["vggt", "vggsfm"],
+        choices=["vggt", "vggsfm", "colmap"],
         default="vggt",
-        help="Tracker used for BA (vggt or vggsfm).",
+        help="Tracker/backend selection (vggt, vggsfm, or colmap). In non-BA mode, colmap runs COLMAP feature tracking.",
     )
     parser.add_argument("--img_load_resolution", type=int, default=1024, help="Square load resolution for VGGT input.")
     parser.add_argument("--vggt_fixed_resolution", type=int, default=518, help="VGGT internal inference resolution.")
@@ -113,6 +116,12 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--conf_thres_value", type=float, default=5.0, help="Confidence threshold value for depth filtering."
+    )
+    parser.add_argument(
+        "--max_reproj_error",
+        type=float,
+        default=12.0,
+        help="Maximum reprojection error (pixels) when filtering track observations for export.",
     )
     parser.add_argument(
         "--save_tracking_outputs",
@@ -330,6 +339,215 @@ def extract_keypoints(query_image: torch.Tensor, extractors: dict[str, torch.nn.
     return query_points_round
 
 
+def _run_vggt_geometry(model: VGGT, images: torch.Tensor, dtype: torch.dtype) -> dict[str, torch.Tensor]:
+    with torch.no_grad():
+        with torch.cuda.amp.autocast(dtype=dtype):
+            predictions = model(images)
+
+    with torch.cuda.amp.autocast(dtype=torch.float64):
+        extrinsic, intrinsic = pose_encoding_to_extri_intri(predictions["pose_enc"], images.shape[-2:])
+        pred_extrinsic = extrinsic[0]
+        pred_intrinsic = intrinsic[0]
+        depth_map = predictions["depth"][0]
+        depth_conf = predictions["depth_conf"][0]
+        world_points = unproject_depth_map_to_point_map(depth_map, pred_extrinsic, pred_intrinsic)
+
+    return {
+        "pred_extrinsic": pred_extrinsic,
+        "pred_intrinsic": pred_intrinsic,
+        "depth_map": depth_map,
+        "depth_conf": depth_conf,
+        "world_points": torch.from_numpy(world_points).to(images.device),
+    }
+
+
+def _decode_colmap_pair_id(pair_id: int) -> tuple[int, int]:
+    pair_id_scale = 2147483647
+    image_id2 = pair_id % pair_id_scale
+    image_id1 = (pair_id - image_id2) // pair_id_scale
+    return int(image_id1), int(image_id2)
+
+
+def _load_colmap_db_tracks(database_path: str) -> tuple[dict[int, np.ndarray], list[tuple[int, int, np.ndarray]]]:
+    connection = sqlite3.connect(database_path)
+    try:
+        keypoints_by_image: dict[int, np.ndarray] = {}
+        for image_id, rows, cols, data in connection.execute("SELECT image_id, rows, cols, data FROM keypoints"):
+            if data is None or rows == 0:
+                continue
+            keypoints = np.frombuffer(data, dtype=np.float32).reshape(rows, cols)[:, :2]
+            keypoints_by_image[int(image_id)] = keypoints
+
+        pair_matches: list[tuple[int, int, np.ndarray]] = []
+        if any(True for _ in connection.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='two_view_geometries'")):
+            query = "SELECT pair_id, rows, cols, data FROM two_view_geometries"
+        else:
+            query = "SELECT pair_id, rows, cols, data FROM matches"
+        for pair_id, rows, cols, data in connection.execute(query):
+            if data is None or rows == 0:
+                continue
+            matches = np.frombuffer(data, dtype=np.uint32).reshape(rows, cols)[:, :2]
+            image_id1, image_id2 = _decode_colmap_pair_id(int(pair_id))
+            pair_matches.append((image_id1, image_id2, matches))
+    finally:
+        connection.close()
+    return keypoints_by_image, pair_matches
+
+
+def run_colmap_tracking(
+    model: VGGT,
+    images: torch.Tensor,
+    image_names: Sequence[str],
+    dtype: torch.dtype = torch.bfloat16,
+    camera_type: str = "SIMPLE_PINHOLE",
+) -> dict:
+    if len(image_names) != images.shape[0]:
+        raise ValueError("image_names/images length mismatch for COLMAP tracking.")
+    assert "RADIAL" not in camera_type, "RADIAL camera is not supported yet"
+
+    try:
+        import pycolmap
+    except ModuleNotFoundError as exc:
+        raise ModuleNotFoundError("pycolmap is required for colmap tracker mode.") from exc
+
+    device = images.device
+    frame_num = images.shape[0]
+    geometry = _run_vggt_geometry(model, images, dtype)
+    pred_extrinsic = geometry["pred_extrinsic"]
+    pred_intrinsic = geometry["pred_intrinsic"]
+    depth_map = geometry["depth_map"]
+    depth_conf = geometry["depth_conf"]
+    world_points = geometry["world_points"]
+
+    with tempfile.TemporaryDirectory(prefix="vggt_colmap_") as tmp_dir:
+        temp_root = Path(tmp_dir)
+        images_dir = temp_root / "images"
+        images_dir.mkdir(parents=True, exist_ok=True)
+        database_path = temp_root / "database.db"
+
+        alias_to_idx: dict[str, int] = {}
+        images_np = (images.detach().cpu().numpy() * 255.0).clip(0, 255).astype(np.uint8).transpose(0, 2, 3, 1)
+        for idx in range(frame_num):
+            alias_name = f"{idx:06d}.png"
+            alias_to_idx[alias_name] = idx
+            Image.fromarray(images_np[idx]).save(images_dir / alias_name)
+
+        pycolmap.extract_features(str(database_path), str(images_dir))
+        pycolmap.match_exhaustive(str(database_path))
+
+        keypoints_by_image, pair_matches = _load_colmap_db_tracks(str(database_path))
+        connection = sqlite3.connect(str(database_path))
+        try:
+            image_id_to_idx: dict[int, int] = {}
+            for image_id, name in connection.execute("SELECT image_id, name FROM images"):
+                if name in alias_to_idx:
+                    image_id_to_idx[int(image_id)] = alias_to_idx[name]
+        finally:
+            connection.close()
+
+    parent: dict[tuple[int, int], tuple[int, int]] = {}
+
+    def _find(node: tuple[int, int]) -> tuple[int, int]:
+        if node not in parent:
+            parent[node] = node
+        while parent[node] != node:
+            parent[node] = parent[parent[node]]
+            node = parent[node]
+        return node
+
+    def _union(a: tuple[int, int], b: tuple[int, int]) -> None:
+        root_a, root_b = _find(a), _find(b)
+        if root_a != root_b:
+            parent[root_b] = root_a
+
+    for image_id1, image_id2, matches in pair_matches:
+        if image_id1 not in image_id_to_idx or image_id2 not in image_id_to_idx:
+            continue
+        for kp1, kp2 in matches:
+            _union((image_id1, int(kp1)), (image_id2, int(kp2)))
+
+    components: dict[tuple[int, int], list[tuple[int, int]]] = {}
+    for node in parent:
+        root = _find(node)
+        components.setdefault(root, []).append(node)
+
+    tracks_list: list[list[tuple[int, float, float]]] = []
+    points3d_list: list[torch.Tensor] = []
+    conf_list: list[torch.Tensor] = []
+
+    for nodes in components.values():
+        frame_obs: dict[int, tuple[float, float]] = {}
+        for image_id, kp_idx in nodes:
+            frame_idx = image_id_to_idx.get(image_id)
+            if frame_idx is None:
+                continue
+            keypoints = keypoints_by_image.get(image_id)
+            if keypoints is None or kp_idx >= keypoints.shape[0]:
+                continue
+            if frame_idx in frame_obs:
+                continue
+            xy = keypoints[kp_idx]
+            frame_obs[frame_idx] = (float(xy[0]), float(xy[1]))
+        if len(frame_obs) < 2:
+            continue
+
+        obs = sorted((fidx, xy[0], xy[1]) for fidx, xy in frame_obs.items())
+        seed_frame, seed_x, seed_y = obs[0]
+        sx = int(np.clip(round(seed_x), 0, world_points.shape[2] - 1))
+        sy = int(np.clip(round(seed_y), 0, world_points.shape[1] - 1))
+        points3d_list.append(world_points[seed_frame, sy, sx])
+        conf_list.append(depth_conf[seed_frame, sy, sx])
+        tracks_list.append(obs)
+
+    num_tracks = len(tracks_list)
+    pred_tracks = torch.zeros((frame_num, num_tracks, 2), dtype=torch.float32, device=device)
+    pred_vis_scores = torch.zeros((frame_num, num_tracks), dtype=torch.float32, device=device)
+    pred_conf_scores = torch.zeros((frame_num, num_tracks), dtype=torch.float32, device=device)
+    masks = torch.zeros((frame_num, num_tracks), dtype=torch.bool, device=device)
+
+    for tidx, obs in enumerate(tracks_list):
+        for frame_idx, x, y in obs:
+            pred_tracks[frame_idx, tidx, 0] = float(x)
+            pred_tracks[frame_idx, tidx, 1] = float(y)
+            pred_vis_scores[frame_idx, tidx] = 1.0
+            pred_conf_scores[frame_idx, tidx] = 1.0
+            masks[frame_idx, tidx] = True
+
+    if points3d_list:
+        pred_world_points = torch.stack(points3d_list, dim=0).to(device=device, dtype=torch.float32)
+        pred_world_points_conf = torch.stack(conf_list, dim=0).to(device=device, dtype=torch.float32)
+    else:
+        pred_world_points = torch.zeros((0, 3), dtype=torch.float32, device=device)
+        pred_world_points_conf = torch.zeros((0,), dtype=torch.float32, device=device)
+
+    filtered_flag = pred_world_points_conf > 1.5
+    if filtered_flag.sum() > 0:
+        pred_world_points = pred_world_points[filtered_flag]
+        pred_world_points_conf = pred_world_points_conf[filtered_flag]
+        pred_tracks = pred_tracks[:, filtered_flag]
+        pred_vis_scores = pred_vis_scores[:, filtered_flag]
+        pred_conf_scores = pred_conf_scores[:, filtered_flag]
+        masks = masks[:, filtered_flag]
+
+    _, _, H, W = images.shape
+    image_size = torch.tensor([W, H], dtype=torch.float32, device=device)
+    return {
+        "pred_tracks": pred_tracks,
+        "pred_vis_scores": pred_vis_scores,
+        "pred_conf_scores": pred_conf_scores,
+        "pred_world_points": pred_world_points,
+        "pred_world_points_conf": pred_world_points_conf,
+        "pred_extrinsic": pred_extrinsic,
+        "pred_intrinsic": pred_intrinsic,
+        "image_size": image_size,
+        "masks": masks,
+        "device": device,
+        "camera_type": camera_type,
+        "depth_map": depth_map,
+        "depth_conf": depth_conf,
+    }
+
+
 def run_vggt_tracking(
     model: VGGT,
     images: torch.Tensor,
@@ -347,16 +565,12 @@ def run_vggt_tracking(
     device = images.device
     frame_num = images.shape[0]
 
-    with torch.no_grad():
-        with torch.cuda.amp.autocast(dtype=dtype):
-            predictions = model(images)
-
-    with torch.cuda.amp.autocast(dtype=torch.float64):
-        extrinsic, intrinsic = pose_encoding_to_extri_intri(predictions["pose_enc"], images.shape[-2:])
-        pred_extrinsic = extrinsic[0]
-        pred_intrinsic = intrinsic[0]
-        depth_map, depth_conf = predictions["depth"][0], predictions["depth_conf"][0]
-        world_points = unproject_depth_map_to_point_map(depth_map, pred_extrinsic, pred_intrinsic)
+    geometry = _run_vggt_geometry(model, images, dtype)
+    pred_extrinsic = geometry["pred_extrinsic"]
+    pred_intrinsic = geometry["pred_intrinsic"]
+    depth_map = geometry["depth_map"]
+    depth_conf = geometry["depth_conf"]
+    world_points = geometry["world_points"]
 
     query_frame_indexes = generate_rank_by_dino(
         images, query_frame_num, image_size=518, model_name="dinov2_vitb14_reg", device=device, spatial_similarity=False
@@ -365,7 +579,6 @@ def run_vggt_tracking(
         query_frame_indexes.remove(0)
     query_frame_indexes = [0, *query_frame_indexes]
 
-    world_points = torch.from_numpy(world_points).to(device)
     world_points_conf = depth_conf.to(device)
     torch.cuda.empty_cache()
 
@@ -623,6 +836,7 @@ def run_vggt_reconstruction(
     image_path_list: Sequence[str],
     output_dir: str,
     image_name_list: Sequence[str] | None = None,
+    tracker_backend: str = "vggt",
 ) -> bool:
     if len(image_path_list) == 0:
         raise ValueError("No images provided to VGGT.")
@@ -632,15 +846,23 @@ def run_vggt_reconstruction(
         model.to(device)
 
     images = load_and_preprocess_images(image_path_list).to(device=device)
-    tracking_outputs = run_vggt_tracking(
-        model,
-        images,
-        image_names=list(image_name_list),
-        dtype=dtype,
-        max_query_num=args.tracking_max_query_pts,
-        query_frame_num=args.tracking_query_frame_num,
-        extractor_method=args.tracking_keypoint_extractor,
-    )
+    if tracker_backend == "colmap":
+        tracking_outputs = run_colmap_tracking(
+            model,
+            images,
+            image_names=list(image_name_list),
+            dtype=dtype,
+        )
+    else:
+        tracking_outputs = run_vggt_tracking(
+            model,
+            images,
+            image_names=list(image_name_list),
+            dtype=dtype,
+            max_query_num=args.tracking_max_query_pts,
+            query_frame_num=args.tracking_query_frame_num,
+            extractor_method=args.tracking_keypoint_extractor,
+        )
 
     os.makedirs(output_dir, exist_ok=True)
     _export_tracking_to_colmap_text(
@@ -650,7 +872,7 @@ def run_vggt_reconstruction(
         images_tensor=images,
         shared_camera=False,
         min_track_length=2,
-        max_reproj_error=12.0,
+        max_reproj_error=args.max_reproj_error,
     )
     return True
 
@@ -699,6 +921,18 @@ def _run_ba_on_saved_reconstruction(input_dir: Path, ba_output_dir: Path, log_pa
     return True
 
 
+def _get_tracker_output_subdir(args: argparse.Namespace) -> str:
+    if not args.use_ba:
+        return "colmap" if args.ba_tracker == "colmap" else "vggt"
+    return args.ba_tracker
+
+
+def _get_tracking_backend(args: argparse.Namespace) -> str:
+    if args.ba_tracker == "colmap":
+        return "colmap"
+    return "vggt"
+
+
 def _cleanup_after_cluster() -> None:
     gc.collect()
     try:
@@ -738,11 +972,15 @@ def main() -> None:
     model = device = dtype = None
     if not args.use_ba:
         model, device, dtype = setup_model(args)
+        _log_message(log_path, f"Reconstruction mode: tracker={_get_tracking_backend(args)}")
 
     if args.use_ba:
         _log_message(
             log_path,
-            f"BA mode: reading reconstructions from {output_root} and writing optimized models to {ba_output_root}.",
+            (
+                f"BA mode (tracker={args.ba_tracker}): reading reconstructions from {output_root} "
+                f"and writing optimized models to {ba_output_root}."
+            ),
         )
 
     for path, visibility_graph, is_leaf in _iter_clusters_with_paths(cluster_tree):
@@ -755,10 +993,11 @@ def main() -> None:
             continue
 
         output_paths = prepare_output_paths(output_root, path)
-        output_dir = output_paths.results / "vggt"
+        tracker_output_subdir = _get_tracker_output_subdir(args)
+        output_dir = output_paths.results / tracker_output_subdir
         if args.use_ba:
             ba_output_paths = prepare_output_paths(ba_output_root, path)
-            ba_output_dir = ba_output_paths.results / "vggt"
+            ba_output_dir = ba_output_paths.results / tracker_output_subdir
         else:
             ba_output_dir = None
 
@@ -793,6 +1032,7 @@ def main() -> None:
                 cluster_image_paths,
                 str(run_output_dir),
                 image_name_list=cluster_image_names,
+                tracker_backend=_get_tracking_backend(args),
             )
             _promote_tracking_writer_outputs(run_output_dir, log_path)
         except Exception as exc:
