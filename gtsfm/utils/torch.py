@@ -64,9 +64,9 @@ def cal3_bundler_from_intrinsic(matrix: np.ndarray, crop_coords) -> gtsam.Cal3Bu
 def camera_from_matrices(
     extrinsic: np.ndarray,
     intrinsic: np.ndarray,
+    crop_coords: np.ndarray,
     wTc_flag: bool = False,
     use_cal3_bundler: bool = False,
-    crop_coords: Optional[np.ndarray] = None,
 ) -> gtsfm_types.CAMERA_TYPE:
     """Instantiate a Pinhole camera from raw extrinsic/intrinsic matrices."""
     if use_cal3_bundler:
