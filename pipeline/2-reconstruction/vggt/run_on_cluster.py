@@ -88,6 +88,61 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility.")
     parser.add_argument("--use_ba", action="store_true", default=False, help="Use BA for reconstruction.")
     parser.add_argument(
+        "--ba_loss",
+        type=str,
+        choices=["TRIVIAL", "SOFT_L1", "CAUCHY", "HUBER"],
+        default="CAUCHY",
+        help="Robust loss type for pycolmap BA.",
+    )
+    parser.add_argument(
+        "--robust_ba",
+        action="store_true",
+        default=False,
+        help="Enable robust BA loss settings.",
+    )
+    parser.add_argument(
+        "--no_robust_ba",
+        action="store_false",
+        dest="robust_ba",
+        help="Disable robust BA loss settings and use non-robust BA loss.",
+    )
+    parser.add_argument(
+        "--ba_loss_scale",
+        type=float,
+        default=2.0,
+        help="Robust loss scale for pycolmap BA.",
+    )
+    parser.add_argument(
+        "--ba_refine_intrinsics",
+        action="store_true",
+        default=False,
+        help="Allow BA to refine intrinsics (focal/principal point/extra params).",
+    )
+    parser.add_argument(
+        "--ba_use_gt_calibration",
+        action="store_true",
+        default=False,
+        help="Use ground-truth camera calibration from benchmark COLMAP model as BA initialization.",
+    )
+    parser.add_argument(
+        "--ba_gt_calibration_dir",
+        type=str,
+        default=None,
+        help="Directory containing benchmark COLMAP text model (cameras.txt/images.txt/points3D.txt).",
+    )
+    parser.add_argument(
+        "--ba_use_gt_pose",
+        action="store_true",
+        default=False,
+        help="Use ground-truth camera poses from benchmark COLMAP model as BA initialization.",
+    )
+    parser.add_argument(
+        "--ba_gt_pose_dir",
+        type=str,
+        default=None,
+        help="Directory containing benchmark COLMAP text model (images.txt required) for GT pose initialization.",
+    )
+    parser.add_argument(
         "--ba_tracker",
         type=str,
         choices=["vggt", "vggsfm", "colmap"],
@@ -122,6 +177,19 @@ def _parse_args() -> argparse.Namespace:
         type=float,
         default=12.0,
         help="Maximum reprojection error (pixels) when filtering track observations for export.",
+    )
+    parser.add_argument(
+        "--point_source",
+        type=str,
+        choices=["depth", "triangulation"],
+        default="depth",
+        help="3D point source: VGGT depth sampling or triangulation from 2D correspondences + VGGT poses.",
+    )
+    parser.add_argument(
+        "--triangulation_min_views",
+        type=int,
+        default=2,
+        help="Minimum number of observations required to triangulate a track.",
     )
     parser.add_argument(
         "--save_tracking_outputs",
@@ -400,6 +468,7 @@ def run_colmap_tracking(
     image_names: Sequence[str],
     dtype: torch.dtype = torch.bfloat16,
     camera_type: str = "SIMPLE_PINHOLE",
+    apply_depth_filter: bool = True,
 ) -> dict:
     if len(image_names) != images.shape[0]:
         raise ValueError("image_names/images length mismatch for COLMAP tracking.")
@@ -520,14 +589,15 @@ def run_colmap_tracking(
         pred_world_points = torch.zeros((0, 3), dtype=torch.float32, device=device)
         pred_world_points_conf = torch.zeros((0,), dtype=torch.float32, device=device)
 
-    filtered_flag = pred_world_points_conf > 1.5
-    if filtered_flag.sum() > 0:
-        pred_world_points = pred_world_points[filtered_flag]
-        pred_world_points_conf = pred_world_points_conf[filtered_flag]
-        pred_tracks = pred_tracks[:, filtered_flag]
-        pred_vis_scores = pred_vis_scores[:, filtered_flag]
-        pred_conf_scores = pred_conf_scores[:, filtered_flag]
-        masks = masks[:, filtered_flag]
+    if apply_depth_filter:
+        filtered_flag = pred_world_points_conf > 1.5
+        if filtered_flag.sum() > 0:
+            pred_world_points = pred_world_points[filtered_flag]
+            pred_world_points_conf = pred_world_points_conf[filtered_flag]
+            pred_tracks = pred_tracks[:, filtered_flag]
+            pred_vis_scores = pred_vis_scores[:, filtered_flag]
+            pred_conf_scores = pred_conf_scores[:, filtered_flag]
+            masks = masks[:, filtered_flag]
 
     _, _, H, W = images.shape
     image_size = torch.tensor([W, H], dtype=torch.float32, device=device)
@@ -558,6 +628,7 @@ def run_vggt_tracking(
     query_frame_num: int = 3,
     extractor_method: str = "aliked+sp+sift",
     camera_type: str = "SIMPLE_PINHOLE",
+    apply_depth_filter: bool = True,
 ) -> dict:
     del image_names
     assert "RADIAL" not in camera_type, "RADIAL camera is not supported yet"
@@ -618,13 +689,14 @@ def run_vggt_tracking(
     pred_world_points = torch.cat(pred_world_points, dim=0)
     pred_world_points_conf = torch.cat(pred_world_points_conf, dim=0)
 
-    filtered_flag = pred_world_points_conf > 1.5
-    if filtered_flag.sum() > max_query_num // 2:
-        pred_world_points = pred_world_points[filtered_flag]
-        pred_world_points_conf = pred_world_points_conf[filtered_flag]
-        pred_tracks = pred_tracks[:, filtered_flag]
-        pred_vis_scores = pred_vis_scores[:, filtered_flag]
-        pred_conf_scores = pred_conf_scores[:, filtered_flag]
+    if apply_depth_filter:
+        filtered_flag = pred_world_points_conf > 1.5
+        if filtered_flag.sum() > max_query_num // 2:
+            pred_world_points = pred_world_points[filtered_flag]
+            pred_world_points_conf = pred_world_points_conf[filtered_flag]
+            pred_tracks = pred_tracks[:, filtered_flag]
+            pred_vis_scores = pred_vis_scores[:, filtered_flag]
+            pred_conf_scores = pred_conf_scores[:, filtered_flag]
 
     torch.cuda.empty_cache()
     _, _, H, W = images.shape
@@ -710,6 +782,87 @@ def _project_points(
     normalized = np.stack([x, y, ones], axis=-1)
     pixels = np.einsum("sij,snj->sni", intrinsics, normalized)[:, :, :2]
     return pixels, z
+
+
+def _triangulate_track_point(
+    observations: np.ndarray, projection_matrices: np.ndarray
+) -> np.ndarray | None:
+    rows = []
+    for (x, y), proj in zip(observations, projection_matrices):
+        rows.append(x * proj[2, :] - proj[0, :])
+        rows.append(y * proj[2, :] - proj[1, :])
+    A = np.asarray(rows, dtype=np.float64)
+    if A.shape[0] < 4:
+        return None
+    _, _, vt = np.linalg.svd(A, full_matrices=False)
+    homog = vt[-1]
+    if abs(float(homog[3])) < 1e-12:
+        return None
+    return (homog[:3] / homog[3]).astype(np.float32)
+
+
+def _replace_points_with_triangulation(
+    tracking_outputs: dict,
+    min_views: int,
+    max_reproj_error: float,
+) -> dict:
+    tracks = tracking_outputs["pred_tracks"].detach().cpu().numpy()
+    masks = tracking_outputs["masks"].detach().cpu().numpy().astype(bool)
+    intrinsics = tracking_outputs["pred_intrinsic"].detach().cpu().numpy()
+    extrinsics = tracking_outputs["pred_extrinsic"].detach().cpu().numpy()
+
+    num_frames, num_tracks, _ = tracks.shape
+    if num_tracks == 0:
+        return tracking_outputs
+
+    projection_matrices = np.matmul(intrinsics, extrinsics[:, :3, :])
+    triangulated_points: list[np.ndarray] = []
+    valid_track_indices: list[int] = []
+
+    for track_idx in range(num_tracks):
+        obs_mask = masks[:, track_idx]
+        obs_indices = np.where(obs_mask)[0]
+        if obs_indices.size < min_views:
+            continue
+
+        observations = tracks[obs_indices, track_idx, :]
+        point3d = _triangulate_track_point(observations, projection_matrices[obs_indices])
+        if point3d is None:
+            continue
+
+        point3d_batch = point3d.reshape(1, 3)
+        projected_xy, projected_z = _project_points(point3d_batch, extrinsics[obs_indices], intrinsics[obs_indices])
+        reproj_err = np.linalg.norm(projected_xy[:, 0, :] - observations, axis=1)
+        if np.count_nonzero(np.logical_and(projected_z[:, 0] > 0, reproj_err < max_reproj_error)) < min_views:
+            continue
+
+        triangulated_points.append(point3d)
+        valid_track_indices.append(track_idx)
+
+    if not valid_track_indices:
+        device = tracking_outputs["pred_tracks"].device
+        tracking_outputs["pred_tracks"] = tracking_outputs["pred_tracks"][:, :0]
+        tracking_outputs["pred_vis_scores"] = tracking_outputs["pred_vis_scores"][:, :0]
+        tracking_outputs["pred_conf_scores"] = tracking_outputs["pred_conf_scores"][:, :0]
+        tracking_outputs["masks"] = tracking_outputs["masks"][:, :0]
+        tracking_outputs["pred_world_points"] = torch.zeros((0, 3), dtype=torch.float32, device=device)
+        tracking_outputs["pred_world_points_conf"] = torch.zeros((0,), dtype=torch.float32, device=device)
+        return tracking_outputs
+
+    keep_idx = torch.tensor(valid_track_indices, dtype=torch.long, device=tracking_outputs["pred_tracks"].device)
+    tracking_outputs["pred_tracks"] = tracking_outputs["pred_tracks"].index_select(1, keep_idx)
+    tracking_outputs["pred_vis_scores"] = tracking_outputs["pred_vis_scores"].index_select(1, keep_idx)
+    tracking_outputs["pred_conf_scores"] = tracking_outputs["pred_conf_scores"].index_select(1, keep_idx)
+    tracking_outputs["masks"] = tracking_outputs["masks"].index_select(1, keep_idx)
+    tracking_outputs["pred_world_points"] = torch.tensor(
+        np.asarray(triangulated_points, dtype=np.float32),
+        dtype=torch.float32,
+        device=tracking_outputs["pred_tracks"].device,
+    )
+    tracking_outputs["pred_world_points_conf"] = torch.ones(
+        (len(valid_track_indices),), dtype=torch.float32, device=tracking_outputs["pred_tracks"].device
+    )
+    return tracking_outputs
 
 
 def _export_tracking_to_colmap_text(
@@ -846,12 +999,14 @@ def run_vggt_reconstruction(
         model.to(device)
 
     images = load_and_preprocess_images(image_path_list).to(device=device)
+    use_depth_points = args.point_source == "depth"
     if tracker_backend == "colmap":
         tracking_outputs = run_colmap_tracking(
             model,
             images,
             image_names=list(image_name_list),
             dtype=dtype,
+            apply_depth_filter=use_depth_points,
         )
     else:
         tracking_outputs = run_vggt_tracking(
@@ -862,6 +1017,14 @@ def run_vggt_reconstruction(
             max_query_num=args.tracking_max_query_pts,
             query_frame_num=args.tracking_query_frame_num,
             extractor_method=args.tracking_keypoint_extractor,
+            apply_depth_filter=use_depth_points,
+        )
+
+    if args.point_source == "triangulation":
+        tracking_outputs = _replace_points_with_triangulation(
+            tracking_outputs=tracking_outputs,
+            min_views=args.triangulation_min_views,
+            max_reproj_error=args.max_reproj_error,
         )
 
     os.makedirs(output_dir, exist_ok=True)
@@ -891,7 +1054,275 @@ def _promote_tracking_writer_outputs(output_dir: Path, log_path: Path) -> None:
     _log_message(log_path, f"Promoted tracking writer outputs to {output_dir}.")
 
 
-def _run_ba_on_saved_reconstruction(input_dir: Path, ba_output_dir: Path, log_path: Path, skip_existing: bool) -> bool:
+def _parse_colmap_cameras_txt(path: Path) -> dict[int, tuple[str, int, int, list[float]]]:
+    cameras: dict[int, tuple[str, int, int, list[float]]] = {}
+    with open(path, "r", encoding="utf-8") as f:
+        for raw_line in f:
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split()
+            if len(parts) < 5:
+                continue
+            camera_id = int(parts[0])
+            model = parts[1]
+            width = int(parts[2])
+            height = int(parts[3])
+            params = [float(v) for v in parts[4:]]
+            cameras[camera_id] = (model, width, height, params)
+    return cameras
+
+
+def _parse_colmap_images_name_to_camera(path: Path) -> dict[str, int]:
+    name_to_camera: dict[str, int] = {}
+    with open(path, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+
+    non_comment_idx = 0
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if non_comment_idx % 2 == 0:
+            parts = line.split()
+            if len(parts) >= 10:
+                camera_id = int(parts[8])
+                image_name = " ".join(parts[9:])
+                name_to_camera[image_name] = camera_id
+        non_comment_idx += 1
+    return name_to_camera
+
+
+def _parse_colmap_images_pose(path: Path) -> dict[str, tuple[float, float, float, float, float, float, float]]:
+    name_to_pose: dict[str, tuple[float, float, float, float, float, float, float]] = {}
+    with open(path, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+
+    non_comment_idx = 0
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if non_comment_idx % 2 == 0:
+            parts = line.split()
+            if len(parts) >= 10:
+                image_name = " ".join(parts[9:])
+                pose = tuple(float(v) for v in parts[1:8])
+                name_to_pose[image_name] = pose
+        non_comment_idx += 1
+    return name_to_pose
+
+
+def _apply_gt_pose_to_input_model(input_dir: Path, gt_pose_dir: Path, log_path: Path) -> Path:
+    required = ("cameras.txt", "images.txt", "points3D.txt")
+    missing_input = [name for name in required if not (input_dir / name).exists()]
+    if missing_input:
+        _log_message(log_path, f"GT pose override skipped: missing {missing_input} in {input_dir}.")
+        return input_dir
+    if not (gt_pose_dir / "images.txt").exists():
+        _log_message(log_path, f"GT pose override skipped: missing images.txt in {gt_pose_dir}.")
+        return input_dir
+
+    gt_name_to_pose = _parse_colmap_images_pose(gt_pose_dir / "images.txt")
+    gt_basename_to_pose: dict[str, tuple[float, float, float, float, float, float, float]] = {}
+    for name, pose in gt_name_to_pose.items():
+        base = os.path.basename(name)
+        if base not in gt_basename_to_pose:
+            gt_basename_to_pose[base] = pose
+
+    with open(input_dir / "images.txt", "r", encoding="utf-8") as f:
+        lines = f.readlines()
+
+    out_lines: list[str] = []
+    updated_count = 0
+    non_comment_idx = 0
+    for raw_line in lines:
+        line = raw_line.rstrip("\n")
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            out_lines.append(raw_line)
+            continue
+
+        if non_comment_idx % 2 == 0:
+            parts = stripped.split()
+            if len(parts) >= 10:
+                image_name = " ".join(parts[9:])
+                pose = gt_name_to_pose.get(image_name)
+                if pose is None:
+                    pose = gt_basename_to_pose.get(os.path.basename(image_name))
+                if pose is not None:
+                    parts[1:8] = [str(v) for v in pose]
+                    raw_line = " ".join(parts) + "\n"
+                    updated_count += 1
+        out_lines.append(raw_line)
+        non_comment_idx += 1
+
+    if updated_count == 0:
+        _log_message(log_path, f"GT pose override found no matching images between {input_dir} and {gt_pose_dir}.")
+        return input_dir
+
+    temp_dir = Path(tempfile.mkdtemp(prefix="ba_gt_pose_"))
+    shutil.copy2(input_dir / "cameras.txt", temp_dir / "cameras.txt")
+    shutil.copy2(input_dir / "points3D.txt", temp_dir / "points3D.txt")
+    with open(temp_dir / "images.txt", "w", encoding="utf-8") as f:
+        f.writelines(out_lines)
+    _log_message(log_path, f"Applied GT poses to {updated_count} images using {gt_pose_dir}. Camera intrinsics untouched.")
+    return temp_dir
+
+
+def _write_colmap_cameras_txt(path: Path, cameras: dict[int, tuple[str, int, int, list[float]]]) -> None:
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("# Camera list with one line of data per camera:\n")
+        f.write("#   CAMERA_ID, MODEL, WIDTH, HEIGHT, PARAMS[]\n")
+        f.write(f"# Number of cameras: {len(cameras)}\n")
+        for camera_id in sorted(cameras):
+            model, width, height, params = cameras[camera_id]
+            f.write(f"{camera_id} {model} {width} {height} {' '.join(map(str, params))}\n")
+
+
+def _extract_intrinsics(model: str, params: list[float]) -> tuple[float, float, float, float]:
+    if model == "SIMPLE_PINHOLE":
+        f, cx, cy = params[:3]
+        return float(f), float(f), float(cx), float(cy)
+    if model == "PINHOLE":
+        fx, fy, cx, cy = params[:4]
+        return float(fx), float(fy), float(cx), float(cy)
+    if model in {"SIMPLE_RADIAL", "SIMPLE_RADIAL_FISHEYE"}:
+        f, cx, cy = params[:3]
+        return float(f), float(f), float(cx), float(cy)
+    if len(params) >= 4:
+        fx, fy, cx, cy = params[:4]
+        return float(fx), float(fy), float(cx), float(cy)
+    raise ValueError(f"Unsupported camera model/params for intrinsic extraction: {model}, params={params}")
+
+
+def _convert_scaled_intrinsics(
+    src_model: str,
+    src_params: list[float],
+    src_width: int,
+    src_height: int,
+    dst_model: str,
+    dst_params: list[float],
+    dst_width: int,
+    dst_height: int,
+) -> list[float]:
+    fx, fy, cx, cy = _extract_intrinsics(src_model, src_params)
+    sx = float(dst_width) / float(max(src_width, 1))
+    sy = float(dst_height) / float(max(src_height, 1))
+    fx *= sx
+    fy *= sy
+    cx *= sx
+    cy *= sy
+
+    out_params = list(dst_params)
+    if dst_model == "SIMPLE_PINHOLE":
+        f = 0.5 * (fx + fy)
+        if len(out_params) < 3:
+            out_params = [0.0, 0.0, 0.0]
+        out_params[0], out_params[1], out_params[2] = float(f), float(cx), float(cy)
+        return out_params
+    if dst_model in {"PINHOLE", "OPENCV", "FULL_OPENCV", "OPENCV_FISHEYE"}:
+        if len(out_params) < 4:
+            out_params = [0.0, 0.0, 0.0, 0.0]
+        out_params[0], out_params[1], out_params[2], out_params[3] = float(fx), float(fy), float(cx), float(cy)
+        return out_params
+    if dst_model in {"SIMPLE_RADIAL", "SIMPLE_RADIAL_FISHEYE"}:
+        f = 0.5 * (fx + fy)
+        if len(out_params) < 3:
+            out_params = [0.0, 0.0, 0.0]
+        out_params[0], out_params[1], out_params[2] = float(f), float(cx), float(cy)
+        return out_params
+    raise ValueError(f"Unsupported target camera model for calibration override: {dst_model}")
+
+
+def _apply_gt_calibration_to_input_model(input_dir: Path, gt_calibration_dir: Path, log_path: Path) -> Path:
+    required = ("cameras.txt", "images.txt", "points3D.txt")
+    missing_input = [name for name in required if not (input_dir / name).exists()]
+    if missing_input:
+        _log_message(log_path, f"GT calibration override skipped: missing {missing_input} in {input_dir}.")
+        return input_dir
+
+    missing_gt = [name for name in ("cameras.txt", "images.txt") if not (gt_calibration_dir / name).exists()]
+    if missing_gt:
+        _log_message(log_path, f"GT calibration override skipped: missing {missing_gt} in {gt_calibration_dir}.")
+        return input_dir
+
+    input_cameras = _parse_colmap_cameras_txt(input_dir / "cameras.txt")
+    input_name_to_cam = _parse_colmap_images_name_to_camera(input_dir / "images.txt")
+    gt_cameras = _parse_colmap_cameras_txt(gt_calibration_dir / "cameras.txt")
+    gt_name_to_cam = _parse_colmap_images_name_to_camera(gt_calibration_dir / "images.txt")
+
+    gt_basename_to_cam: dict[str, int] = {}
+    for name, cam_id in gt_name_to_cam.items():
+        base = os.path.basename(name)
+        if base not in gt_basename_to_cam:
+            gt_basename_to_cam[base] = cam_id
+
+    camera_to_image_names: dict[int, list[str]] = {}
+    for image_name, camera_id in input_name_to_cam.items():
+        camera_to_image_names.setdefault(camera_id, []).append(image_name)
+
+    updated_cameras = dict(input_cameras)
+    updated_count = 0
+    for camera_id, (dst_model, dst_w, dst_h, dst_params) in input_cameras.items():
+        image_names = camera_to_image_names.get(camera_id, [])
+        gt_cam_id = None
+        for image_name in image_names:
+            if image_name in gt_name_to_cam:
+                gt_cam_id = gt_name_to_cam[image_name]
+                break
+            base = os.path.basename(image_name)
+            if base in gt_basename_to_cam:
+                gt_cam_id = gt_basename_to_cam[base]
+                break
+        if gt_cam_id is None or gt_cam_id not in gt_cameras:
+            continue
+
+        src_model, src_w, src_h, src_params = gt_cameras[gt_cam_id]
+        try:
+            new_params = _convert_scaled_intrinsics(
+                src_model=src_model,
+                src_params=src_params,
+                src_width=src_w,
+                src_height=src_h,
+                dst_model=dst_model,
+                dst_params=dst_params,
+                dst_width=dst_w,
+                dst_height=dst_h,
+            )
+        except ValueError as exc:
+            _log_message(log_path, f"GT calibration override skipped for camera {camera_id}: {exc}")
+            continue
+
+        updated_cameras[camera_id] = (dst_model, dst_w, dst_h, new_params)
+        updated_count += 1
+
+    if updated_count == 0:
+        _log_message(log_path, f"GT calibration override found no matching cameras between {input_dir} and {gt_calibration_dir}.")
+        return input_dir
+
+    temp_dir = Path(tempfile.mkdtemp(prefix="ba_gt_calibration_"))
+    shutil.copy2(input_dir / "images.txt", temp_dir / "images.txt")
+    shutil.copy2(input_dir / "points3D.txt", temp_dir / "points3D.txt")
+    _write_colmap_cameras_txt(temp_dir / "cameras.txt", updated_cameras)
+    _log_message(log_path, f"Applied GT calibration to {updated_count} cameras using {gt_calibration_dir}.")
+    return temp_dir
+
+
+def _run_ba_on_saved_reconstruction(
+    input_dir: Path,
+    ba_output_dir: Path,
+    log_path: Path,
+    skip_existing: bool,
+    robust_ba: bool,
+    ba_loss: str,
+    ba_loss_scale: float,
+    ba_refine_intrinsics: bool,
+    ba_use_gt_calibration: bool,
+    ba_gt_calibration_dir: str | None,
+    ba_use_gt_pose: bool,
+    ba_gt_pose_dir: str | None,
+) -> bool:
     if skip_existing and (ba_output_dir / "cameras.txt").exists():
         _log_message(log_path, f"Skipping BA: output already exists at {ba_output_dir}.")
         return True
@@ -907,18 +1338,63 @@ def _run_ba_on_saved_reconstruction(input_dir: Path, ba_output_dir: Path, log_pa
     except ModuleNotFoundError as exc:
         raise ModuleNotFoundError("pycolmap is required for BA mode.") from exc
 
-    reconstruction = pycolmap.Reconstruction(str(input_dir))
-    if reconstruction.num_images() == 0:
-        _log_message(log_path, f"Skipping BA: empty reconstruction at {input_dir}.")
-        return False
+    ba_input_dir = input_dir
+    temp_ba_input_dirs: list[Path] = []
+    if ba_use_gt_calibration:
+        if ba_gt_calibration_dir is None:
+            _log_message(log_path, "GT calibration requested but --ba_gt_calibration_dir is not set; using original calibration.")
+        else:
+            ba_input_dir = _apply_gt_calibration_to_input_model(input_dir, Path(ba_gt_calibration_dir), log_path)
+            if ba_input_dir != input_dir:
+                temp_ba_input_dirs.append(ba_input_dir)
 
-    ba_options = pycolmap.BundleAdjustmentOptions()
-    pycolmap.bundle_adjustment(reconstruction, ba_options)
+    if ba_use_gt_pose:
+        if ba_gt_pose_dir is None:
+            _log_message(log_path, "GT pose requested but --ba_gt_pose_dir is not set; using original poses.")
+        else:
+            prev_input_dir = ba_input_dir
+            ba_input_dir = _apply_gt_pose_to_input_model(ba_input_dir, Path(ba_gt_pose_dir), log_path)
+            if ba_input_dir != prev_input_dir:
+                temp_ba_input_dirs.append(ba_input_dir)
 
-    ba_output_dir.mkdir(parents=True, exist_ok=True)
-    reconstruction.write_text(str(ba_output_dir))
-    _log_message(log_path, f"Saved BA reconstruction to {ba_output_dir}.")
-    return True
+    try:
+        reconstruction = pycolmap.Reconstruction(str(ba_input_dir))
+        if reconstruction.num_images() == 0:
+            _log_message(log_path, f"Skipping BA: empty reconstruction at {input_dir}.")
+            return False
+
+        ba_options = pycolmap.BundleAdjustmentOptions()
+        if hasattr(ba_options, "loss_function_type"):
+            selected_loss = ba_loss if robust_ba else "TRIVIAL"
+            if hasattr(pycolmap, "LossFunctionType") and hasattr(pycolmap.LossFunctionType, selected_loss):
+                ba_options.loss_function_type = getattr(pycolmap.LossFunctionType, selected_loss)
+            else:
+                ba_options.loss_function_type = selected_loss
+        if robust_ba and hasattr(ba_options, "loss_function_scale"):
+            ba_options.loss_function_scale = float(ba_loss_scale)
+
+        for attr_name in ("refine_focal_length", "refine_principal_point", "refine_extra_params"):
+            if hasattr(ba_options, attr_name):
+                setattr(ba_options, attr_name, bool(ba_refine_intrinsics))
+
+        if hasattr(ba_options, "solver_options"):
+            solver_options = ba_options.solver_options
+            if hasattr(solver_options, "max_num_iterations"):
+                solver_options.max_num_iterations = 50
+            if hasattr(solver_options, "function_tolerance"):
+                solver_options.function_tolerance = 1e-6
+            if hasattr(solver_options, "gradient_tolerance"):
+                solver_options.gradient_tolerance = 1e-10
+
+        pycolmap.bundle_adjustment(reconstruction, ba_options)
+
+        ba_output_dir.mkdir(parents=True, exist_ok=True)
+        reconstruction.write_text(str(ba_output_dir))
+        _log_message(log_path, f"Saved BA reconstruction to {ba_output_dir}.")
+        return True
+    finally:
+        for temp_dir in temp_ba_input_dirs:
+            shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 def _get_tracker_output_subdir(args: argparse.Namespace) -> str:
@@ -950,6 +1426,12 @@ def main() -> None:
     if not args.use_ba:
         # Force tracker execution for every non-BA cluster run.
         args.save_tracking_outputs = True
+    else:
+        default_gt_dir = Path(args.dataset_dir) / "dslr_calibration_undistorted"
+        if args.ba_use_gt_calibration and args.ba_gt_calibration_dir is None and default_gt_dir.exists():
+            args.ba_gt_calibration_dir = str(default_gt_dir)
+        if args.ba_use_gt_pose and args.ba_gt_pose_dir is None and default_gt_dir.exists():
+            args.ba_gt_pose_dir = str(default_gt_dir)
 
     cluster_tree = _load_cluster_tree(args.cluster_tree_path)
     if cluster_tree is None:
@@ -972,7 +1454,10 @@ def main() -> None:
     model = device = dtype = None
     if not args.use_ba:
         model, device, dtype = setup_model(args)
-        _log_message(log_path, f"Reconstruction mode: tracker={_get_tracking_backend(args)}")
+        _log_message(
+            log_path,
+            f"Reconstruction mode: tracker={_get_tracking_backend(args)}, point_source={args.point_source}",
+        )
 
     if args.use_ba:
         _log_message(
@@ -1003,8 +1488,30 @@ def main() -> None:
 
         try:
             if args.use_ba:
-                _log_message(log_path, f"Running BA for {path}: {output_dir} -> {ba_output_dir}")
-                _run_ba_on_saved_reconstruction(output_dir, ba_output_dir, log_path, args.skip_existing)
+                _log_message(
+                    log_path,
+                    (
+                        f"Running BA for {path}: {output_dir} -> {ba_output_dir} "
+                        f"(robust_ba={args.robust_ba}, loss={args.ba_loss}, scale={args.ba_loss_scale}, "
+                        f"refine_intrinsics={args.ba_refine_intrinsics}, "
+                        f"use_gt_calibration={args.ba_use_gt_calibration}, "
+                        f"use_gt_pose={args.ba_use_gt_pose})"
+                    ),
+                )
+                _run_ba_on_saved_reconstruction(
+                    output_dir,
+                    ba_output_dir,
+                    log_path,
+                    args.skip_existing,
+                    args.robust_ba,
+                    args.ba_loss,
+                    args.ba_loss_scale,
+                    args.ba_refine_intrinsics,
+                    args.ba_use_gt_calibration,
+                    args.ba_gt_calibration_dir,
+                    args.ba_use_gt_pose,
+                    args.ba_gt_pose_dir,
+                )
                 continue
 
             if max(image_indices) >= len(image_names):
