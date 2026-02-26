@@ -26,6 +26,32 @@ from gtsfm.utils import align
 logger = logger_utils.get_logger()
 
 
+def _is_auc_metric_name(metric_name: str) -> bool:
+    return (
+        metric_name.startswith("pose_auc_@")
+        or metric_name.startswith("rotation_auc_@")
+        or metric_name.startswith("translation_auc_@")
+    )
+
+
+def _convert_scalar_auc_metrics_to_percent(metrics: List[GtsfmMetric]) -> List[GtsfmMetric]:
+    converted_metrics: List[GtsfmMetric] = []
+    for metric in metrics:
+        if metric.dim == 0 and _is_auc_metric_name(metric.name) and metric.data is not None:
+            converted_metrics.append(GtsfmMetric(metric.name, float(metric.data) * 100.0))
+        else:
+            converted_metrics.append(metric)
+    return converted_metrics
+
+
+def _build_short_cluster_plot_filename(recon_dir: Path, root: Path) -> str:
+    """Build filename as '<cluster>__<recon_name>_camera_centers.png'."""
+    del root  # not needed after simplifying naming policy
+    cluster_name = recon_dir.parent.name or "cluster"
+    recon_name = recon_dir.name or "recon"
+    return f"{cluster_name}__{recon_name}_camera_centers.png"
+
+
 def _read_images_txt_with_names(images_txt: Path) -> Dict[str, Pose3]:
     """Read poses from COLMAP images.txt keyed by image NAME."""
     if not images_txt.exists():
@@ -200,7 +226,7 @@ def _compute_pose_metrics(baseline_list: List[Pose3], current_aligned_list: List
         rotation_auc_values = metric_utils.pose_auc(rotation_angular_errors, thresholds_deg)
         metrics.extend(
             [
-                GtsfmMetric(f"rotation_auc_@{threshold}_deg", auc)
+                GtsfmMetric(f"rotation_auc_@{threshold}_deg", float(auc) * 100.0)
                 for threshold, auc in zip(thresholds_deg, rotation_auc_values)
             ]
         )
@@ -209,15 +235,15 @@ def _compute_pose_metrics(baseline_list: List[Pose3], current_aligned_list: List
         translation_auc_values = metric_utils.pose_auc(translation_angular_errors, thresholds_deg)
         metrics.extend(
             [
-                GtsfmMetric(f"translation_auc_@{threshold}_deg", auc)
+                GtsfmMetric(f"translation_auc_@{threshold}_deg", float(auc) * 100.0)
                 for threshold, auc in zip(thresholds_deg, translation_auc_values)
             ]
         )
-    metrics.extend(
-        metric_utils.compute_pose_auc_metric(
-            relative_rotation_error_metric.data, relative_translation_error_metric.data, thresholds_deg=thresholds_deg
-        )
+    pose_auc_metrics = metric_utils.compute_pose_auc_metric(
+        relative_rotation_error_metric.data, relative_translation_error_metric.data, thresholds_deg=thresholds_deg
     )
+    pose_auc_metrics = _convert_scalar_auc_metrics_to_percent(pose_auc_metrics)
+    metrics.extend(pose_auc_metrics)
 
     return GtsfmMetricsGroup(name="ba_pose_error_metrics", metrics=metrics)
 
@@ -440,14 +466,14 @@ def _plot_pose_auc_boxplot(auc_values_by_label: Dict[str, List[float]], output_p
     ax = fig.add_subplot(111)
     ax.boxplot(data, vert=True, patch_artist=True)
     ax.set_title(title)
-    ax.set_ylabel("AUC")
+    ax.set_ylabel("AUC (%)")
     ax.set_xticks(range(1, len(labels) + 1))
     ax.set_xticklabels(labels, rotation=30, ha="right")
     stats_lines = []
     for label, values in zip(labels, data):
         mean_val = float(np.mean(values))
         median_val = float(np.median(values))
-        stats_lines.append(f"{label}: mean={mean_val:.3f}, med={median_val:.3f}")
+        stats_lines.append(f"{label}: mean={mean_val:.2f}%, med={median_val:.2f}%")
     if stats_lines:
         ax.text(
             0.02,
@@ -488,7 +514,7 @@ def _plot_pose_auc_vs_input_images(
 
     ax.set_title("Pose AUC vs input images (all clusters)")
     ax.set_xlabel("input images (current count)")
-    ax.set_ylabel("AUC")
+    ax.set_ylabel("AUC (%)")
     ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.5)
     ax.legend(loc="best", fontsize=8)
     fig.tight_layout()
@@ -596,7 +622,7 @@ def _format_auc(metrics_group: GtsfmMetricsGroup, prefix: str) -> str:
         except (TypeError, ValueError):
             continue
         suffix = metric.name.replace(f"{prefix}_", "")
-        auc_parts.append(f"{suffix}={value:.3f}")
+        auc_parts.append(f"{suffix}={value:.2f}%")
     return ", ".join(auc_parts)
 
 
@@ -827,8 +853,7 @@ def main() -> None:
         else:
             _print_metrics(str(recon_dir), metrics_group)
         if fig_output_dir is not None:
-            safe_name = str(recon_dir).replace(os.sep, "__")
-            plot_path = fig_output_dir / f"{safe_name}_camera_centers.png"
+            plot_path = fig_output_dir / _build_short_cluster_plot_filename(recon_dir, root)
             pose_auc_text = _format_auc(metrics_group, "pose_auc")
             rotation_auc_text = _format_auc(metrics_group, "rotation_auc")
             translation_auc_text = _format_auc(metrics_group, "translation_auc")
