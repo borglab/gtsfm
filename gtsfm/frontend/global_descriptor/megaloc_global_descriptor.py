@@ -44,8 +44,13 @@ class MegaLocGlobalDescriptor(GlobalDescriptorBase):
             ]
         )
 
-        # Transform 2: Convert to float32 and normalize to [0, 1]
-        batch_transform = transforms.Lambda(lambda x: x.type(torch.float32) / 255.0)
+        # Transform 2: Convert to float32, normalize to [0, 1], then apply ImageNet normalization
+        batch_transform = transforms.Compose(
+            [
+                transforms.Lambda(lambda x: x.type(torch.float32) / 255.0),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            ]
+        )
 
         return resize_transform, batch_transform
 
