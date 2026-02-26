@@ -28,7 +28,7 @@ jobs:
       
       - name: Install project dependencies
         run: |
-          uv sync --locked --python 3.10 --all-groups
+          uv sync --locked --python 3.12 --all-groups
           uv pip install torch-scatter --find-links https://data.pyg.org/whl/torch-2.7.0+cu128.html
       
       - name: Environment setup
@@ -102,7 +102,7 @@ jobs:
       
       - name: Install project dependencies
         run: |
-          uv sync --locked --python 3.10
+          uv sync --locked --python 3.12
           uv pip install torch-scatter --find-links https://data.pyg.org/whl/torch-2.7.0+cu128.html
       
       - name: Environment setup

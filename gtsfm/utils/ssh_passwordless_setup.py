@@ -103,7 +103,7 @@ def setup_passwordless_ssh(cluster_config_path, username):
 
     # Setup keys on each machine
     for source_machine in machines:
-        logger.info(f"\n{'='*50}")
+        logger.info(f"\n{'=' * 50}")
         logger.info(f"Setting up SSH keys on: {source_machine}")
         logger.info("=" * 50)
 
@@ -139,7 +139,7 @@ def setup_passwordless_ssh(cluster_config_path, username):
                 logger.warning(f"  ✗ Failed to copy key from {source_machine} to {target_machine}")
 
     # Test all connections
-    logger.info(f"\n{'='*50}")
+    logger.info(f"\n{'=' * 50}")
     logger.info("Testing passwordless SSH connections...")
     logger.info("=" * 50)
 

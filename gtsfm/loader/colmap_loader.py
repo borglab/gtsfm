@@ -7,10 +7,9 @@ import os
 from pathlib import Path
 from typing import List, Optional
 
-from gtsam import Cal3Bundler, Pose3  # type:ignore
-
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
+from gtsam import Cal3Bundler, Pose3  # type:ignore
 from gtsfm.common.image import Image
 from gtsfm.loader.loader_base import LoaderBase
 
@@ -155,7 +154,7 @@ class ColmapLoader(LoaderBase):
             Intrinsics for the given camera.
         """
         if index < 0 or index >= len(self):
-            raise IndexError(f"Image index {index} is invalid. Valid indices are in [0,{len(self)-1}].")
+            raise IndexError(f"Image index {index} is invalid. Valid indices are in [0,{len(self) - 1}].")
 
         if not self._use_gt_intrinsics:
             # get intrinsics from exif
@@ -175,7 +174,7 @@ class ColmapLoader(LoaderBase):
             The camera pose w_T_index.
         """
         if index < 0 or index >= len(self):
-            raise IndexError(f"Image index {index} is invalid. Valid indices are in [0,{len(self)-1}].")
+            raise IndexError(f"Image index {index} is invalid. Valid indices are in [0,{len(self) - 1}].")
 
         if not self._use_gt_extrinsics:
             return None

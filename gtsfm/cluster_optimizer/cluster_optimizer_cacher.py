@@ -54,6 +54,8 @@ class ClusterOptimizerCacher(ClusterOptimizerBase):
             drop_camera_with_no_track=getattr(optimizer, "drop_camera_with_no_track", True),
             plot_reprojection_histograms=getattr(optimizer, "plot_reprojection_histograms", True),
             use_shared_calibration=getattr(optimizer, "use_shared_calibration", True),
+            use_gnc=getattr(optimizer, "use_gnc", False),
+            gnc_loss=getattr(optimizer, "gnc_loss", "GMC"),
             output_worker=optimizer._output_worker,
         )
         self._optimizer = optimizer
@@ -95,6 +97,8 @@ class ClusterOptimizerCacher(ClusterOptimizerBase):
             pose_angular_error_thresh=self._optimizer.pose_angular_error_thresh,
             run_bundle_adjustment_on_leaf=run_bundle_adjustment_on_leaf,
             run_bundle_adjustment_on_parent=getattr(self._optimizer, "run_bundle_adjustment_on_parent", True),
+            use_gnc=getattr(self._optimizer, "use_gnc", False),
+            gnc_loss=getattr(self._optimizer, "gnc_loss", "GMC"),
             output_worker=self._optimizer._output_worker,
         )
 

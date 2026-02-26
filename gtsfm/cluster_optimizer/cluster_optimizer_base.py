@@ -106,6 +106,8 @@ class ClusterOptimizerBase(GTSFMProcess):
         use_shared_calibration: bool = True,
         output_worker: None | str = None,
         merge_duplicate_tracks: bool = True,
+        use_gnc: bool = False,
+        gnc_loss: str = "GMC",
     ) -> None:
         self.drop_child_if_merging_fail = drop_child_if_merging_fail
         self.drop_camera_with_no_track = drop_camera_with_no_track
@@ -117,6 +119,8 @@ class ClusterOptimizerBase(GTSFMProcess):
         self._pose_angular_error_thresh = pose_angular_error_thresh
         self._output_worker = output_worker
         self.merge_duplicate_tracks = merge_duplicate_tracks
+        self.use_gnc = use_gnc
+        self.gnc_loss = gnc_loss
 
     @property
     def pose_angular_error_thresh(self) -> float:

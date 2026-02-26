@@ -10,19 +10,19 @@ from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
 import dask
-import gtsam  # type: ignore
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import BetweenFactorPose3, NonlinearFactorGraph, PriorFactorPoint3, PriorFactorPose3, Values
 from gtsam.noiseModel import Diagonal, Isotropic, Robust, mEstimator  # type: ignore
 from gtsam.symbol_shorthand import K, P, X  # type: ignore
 
+import gtsam  # type: ignore
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.tracks as track_utils
-from gtsfm.common.gtsfm_data import GtsfmData
+from gtsam import BetweenFactorPose3, NonlinearFactorGraph, PriorFactorPoint3, PriorFactorPose3, Values
 from gtsfm.common import gtsfm_data
+from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
@@ -47,6 +47,7 @@ class RobustBAMode(Enum):
     NONE = "NONE"
     HUBER = "HUBER"
     GMC = "GMC"
+    TLS = "TLS"
 
 
 class BundleAdjustmentOptimizer:
@@ -77,6 +78,8 @@ class BundleAdjustmentOptimizer:
         use_karcher_mean_factor: bool = True,
         use_calibration_prior: bool = True,
         use_first_point_prior: bool = False,
+        use_gnc: bool = False,
+        gnc_loss: RobustBAMode | str = RobustBAMode.GMC,
     ) -> None:
         """Initializes the parameters for bundle adjustment module.
 
@@ -101,6 +104,8 @@ class BundleAdjustmentOptimizer:
             use_karcher_mean_factor (optional): Use Karcher mean factor to constrain the camera poses.
             use_calibration_prior (optional): Use calibration prior to constrain the camera intrinsics.
             use_first_point_prior (optional): Use first point prior to constrain the scale of the reconstruction.
+            use_gnc (optional): Use the GNC optimizer for bundle adjustment.
+            gnc_loss (optional): GNC loss to use. Defaults to GMC.
         """
         self._reproj_error_thresholds = reproj_error_thresholds
         if isinstance(robust_ba_mode, str):
@@ -122,6 +127,11 @@ class BundleAdjustmentOptimizer:
         self._use_karcher_mean_factor = use_karcher_mean_factor
 
         self._use_first_point_prior = use_first_point_prior
+        self._use_gnc = use_gnc
+        if isinstance(gnc_loss, str):
+            self._gnc_loss = RobustBAMode[gnc_loss]
+        else:
+            self._gnc_loss = gnc_loss
 
     def __map_to_calibration_variable(self, camera_idx: int) -> int:
         return 0 if self._shared_calib else camera_idx
@@ -326,9 +336,23 @@ class BundleAdjustmentOptimizer:
         if self._max_iterations:
             params.setMaxIterations(self._max_iterations)
 
-        lm = gtsam.LevenbergMarquardtOptimizer(graph, initial_values, params)
+        if not self._use_gnc:
+            lm = gtsam.LevenbergMarquardtOptimizer(graph, initial_values, params)
+        else:
+            gnc_params = gtsam.GncLMParams(params)
+            if self._gnc_loss == RobustBAMode.GMC:
+                gnc_params.setLossType(gtsam.GncLossType.GM)
+            elif self._gnc_loss == RobustBAMode.TLS:
+                gnc_params.setLossType(gtsam.GncLossType.TLS)
+            else:
+                raise ValueError(f"Unsupported GNC loss type: {self._gnc_loss}.")
+            gnc_params.setVerbosityGNC(gtsam.GncLMParams.Verbosity.SUMMARY)
+            gnc_params.setAllowNonNoiseModelFactors(True)
+            gnc_params.setRelativeCostTol(1e-3)
+            lm = gtsam.GncLMOptimizer(graph, initial_values, gnc_params)
 
-        if not self._save_iteration_visualization:
+        # gnc does not support getAbsoluteErrorTol and getRelativeErrorTol params
+        if not self._save_iteration_visualization or self._use_gnc:
             result_values = lm.optimize()
             values_trace = None
         else:

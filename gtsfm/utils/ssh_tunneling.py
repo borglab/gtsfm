@@ -164,7 +164,7 @@ class SSHTunnelManager:
             for i in range(max_wait):
                 time.sleep(1)
                 if not self.check_port_in_use(port):
-                    logger.info(f"Port {port} successfully freed after {i+1} seconds")
+                    logger.info(f"Port {port} successfully freed after {i + 1} seconds")
                     return True
 
             # If still in use, try SIGKILL
@@ -309,9 +309,9 @@ class SSHTunnelManager:
         max_retries = 10
         for i in range(max_retries):
             if self.check_port_in_use(scheduler_port):
-                logger.info(f"Scheduler health check passed on attempt {i+1}")
+                logger.info(f"Scheduler health check passed on attempt {i + 1}")
                 break
-            logger.info(f"Waiting for scheduler to start... attempt {i+1}/{max_retries}")
+            logger.info(f"Waiting for scheduler to start... attempt {i + 1}/{max_retries}")
             time.sleep(2)
         else:
             raise RuntimeError("Scheduler failed to start properly")

@@ -2,26 +2,26 @@
 
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass
-import math
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Tuple
 
-import gtsam
 import numpy as np
 from dask.distributed import Client, Future
-from gtsam import Similarity3, Pose3, UnaryMeasurementPose3, TrajectoryAlignerSim3
 
-import gtsfm.utils.logger as logger_utils
+import gtsam
 import gtsfm.common.types as gtsfm_types
+import gtsfm.utils.logger as logger_utils
+import gtsfm.utils.metrics as metrics_utils
+from gtsam import Pose3, Similarity3, TrajectoryAlignerSim3, UnaryMeasurementPose3
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer, RobustBAMode
 from gtsfm.cluster_optimizer.cluster_anysplat import save_splats
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.utils import align as align_utils
 from gtsfm.utils import data_utils
-import gtsfm.utils.metrics as metrics_utils
 from gtsfm.utils.reprojection import compute_track_reprojection_errors
 from gtsfm.utils.splat import GaussiansProtocol, merge_gaussian_splats
 from gtsfm.utils.transform import transform_gaussian_splats
@@ -483,6 +483,8 @@ def combine_results(
     store_full_data: bool = False,
     use_nonlinear_sim3_alignment: bool = False,
     use_shared_calibration: bool = True,
+    use_gnc: bool = False,
+    gnc_loss: RobustBAMode | str = RobustBAMode.GMC,
 ) -> MergedNodeResult:
     """Run the merging and parent BA pipeline using already-transformed children.
 
@@ -496,6 +498,8 @@ def combine_results(
         drop_camera_with_no_track: Whether to drop cameras with no tracks.
         drop_child_if_merging_fail: Whether to drop child scenes if merging fails.
         store_full_data: Whether to store full data for the merging metrics.
+        use_gnc: Use the GNC optimizer for bundle adjustment.
+        gnc_loss: GNC loss to use. Defaults to GMC.
 
     Returns:
         A MergedNodeResult object containing the merged scene and its metrics.
@@ -565,7 +569,7 @@ def combine_results(
         for i, child in enumerate(valid_child_scenes):
             merged = _align_and_merge_results(merged, child, drop_if_merging_fails=drop_child_if_merging_fail)
             _log_scene_reprojection_stats(
-                merged, f"Merged with child #{i+1}", plot_histograms=plot_reprojection_histograms
+                merged, f"Merged with child #{i + 1}", plot_histograms=plot_reprojection_histograms
             )
 
     _propagate_scene_metadata(merged, metadata_source)
@@ -644,6 +648,8 @@ def combine_results(
             use_calibration_prior=True,
             shared_calib=use_shared_calibration,
             robust_noise_basin=0.5,
+            use_gnc=use_gnc,
+            gnc_loss=gnc_loss,
         )
         merged_with_ba, _ = optimizer.run_simple_ba(merged)
         _propagate_scene_metadata(merged_with_ba, merged)

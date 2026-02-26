@@ -3,7 +3,7 @@ channels:
   - conda-forge
 dependencies:
   # python essentials
-  - python=3.10
+  - python=3.12
   - pip
   - python-dotenv
   # formatting and dev environment
@@ -56,7 +56,7 @@ dependencies:
       - pydegensac
       - colour
       - trimesh[easy]
-      - gtsam-develop==4.3a1.dev202602040056
+      - gtsam-develop==4.3a1.dev202602231527
       - pydot
       - roma
       - tqdm
