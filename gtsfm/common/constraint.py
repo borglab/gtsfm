@@ -3,7 +3,7 @@
 Author: Frank Dellaert
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List
 
 import gtsam
@@ -20,9 +20,9 @@ class Constraint:
 
     a: int
     b: int
-    aTb: gtsam.Pose3 = gtsam.Pose3()
-    cov: np.ndarray = np.eye(6)
-    counts: np.ndarray = np.zeros((5, 5))
+    aTb: gtsam.Pose3 = field(default_factory=gtsam.Pose3)
+    cov: np.ndarray = field(default_factory=lambda: np.eye(6))
+    counts: np.ndarray = field(default_factory=lambda: np.zeros((5, 5)))
 
     def equals(self, other, tol) -> bool:
         """Check equality up to tolerance."""

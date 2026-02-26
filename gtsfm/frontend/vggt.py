@@ -13,11 +13,11 @@ from typing import Any, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import torch
-from gtsam import Point2, Point3
 from PIL import Image as PILImage
 from torch.amp import autocast as amp_autocast  # type: ignore
 from torchvision import transforms as TF
 
+from gtsam import Point2, Point3
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer, RobustBAMode
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.utils import data_utils
@@ -323,6 +323,8 @@ class VggtConfiguration:
     ba_use_calibration_prior: bool = False
     ba_use_undistorted_camera_model: bool = False
     ba_use_shared_calibration: bool = True
+    use_gnc: bool = False
+    gnc_loss: str = "GMC"
 
 
 @dataclass
@@ -617,9 +619,10 @@ def _convert_vggt_outputs_to_gtsfm_data(
                     robust_ba_mode=RobustBAMode.GMC,
                     shared_calib=config.ba_use_shared_calibration,
                     use_calibration_prior=config.ba_use_calibration_prior,
+                    use_gnc=config.use_gnc,
+                    gnc_loss=config.gnc_loss,
                 )
                 gtsfm_data_with_ba, _ = optimizer.run_simple_ba(gtsfm_data)
-                # gtsfm_data_with_ba, _ = optimizer.run_iterative_robust_ba(gtsfm_data, [0.8, 0.5, 0.2])
                 gtsfm_data_with_ba = gtsfm_data_with_ba.filter_landmark_measurements(3.0)
                 return gtsfm_data_with_ba, gtsfm_data_pre_ba
             except Exception as exc:

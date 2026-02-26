@@ -33,10 +33,10 @@ cd path/to/gtsfm
 rm -rf .venv
 
 # Install on Linux for CPU only and macOS
-uv sync --python 3.10
+uv sync --python 3.12
 
 # Install on Linux with CUDA GPU
-uv sync --python 3.10 --extra complete
+uv sync --python 3.12 --extra complete
 ```
 ##  Install torch-scatter (platform-specific)
 For NVIDIA drivers 550+ (which support CUDA 12.8), 
@@ -54,7 +54,7 @@ If you have multiple GPUs on the same machine and want to use Dask for distribut
 
 ```bash
 # Multiple GPUs per node (e.g., 4x or 8x A100)
-uv sync --python 3.10 --extra complete --extra multi-gpu
+uv sync --python 3.12 --extra complete --extra multi-gpu
 ```
 
 This adds `dask-cuda` for GPU-aware distributed scheduling.

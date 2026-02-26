@@ -2,7 +2,7 @@
 # INSTALLATION INSTRUCTIONS
 # ============================================================================
 # Installation (two steps):
-#   1. uv sync --python 3.10
+#   1. uv sync --python 3.12
 #   2. uv pip install torch-scatter --find-links https://data.pyg.org/whl/torch-2.7.0+cu128.html
 #
 # System packages also required:
@@ -18,7 +18,7 @@ name = "gtsfm"
 version = "0.2.0"
 description = "Georgia Tech Structure from Motion - End-to-end SfM pipeline based on GTSAM"
 readme = "README.md"
-requires-python = ">=3.10,<3.11"
+requires-python = ">=3.12,<3.13"
 license = {text = "BSD-3-Clause"}
 keywords = ["computer-vision", "structure-from-motion", "sfm", "3d-reconstruction"]
 
@@ -76,7 +76,7 @@ dependencies = [
     "pydegensac",
     "colour",
     "trimesh[easy]",
-    "gtsam-develop==4.3a1.dev202602040056",
+    "gtsam-develop==4.3a1.dev202602231527",
     "pydot",
     
     # Dust3r/Mast3r
@@ -199,7 +199,7 @@ package = true
 # ============================================================================
 [tool.black]
 line-length = 120
-target-version = ['py310', 'py311']
+target-version = ['py311', 'py312']
 skip-string-normalization = false
 
 # ============================================================================
@@ -228,7 +228,7 @@ ignore = ["E201", "E202", "E203", "E231", "W291", "W293", "E303", "W391", "E402"
 # MyPy Configuration (Type Checking)
 # ============================================================================
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false
