@@ -5,5 +5,5 @@ images_dir: null # Optional - path to images directory (defaults to {dataset_dir
 use_gt_intrinsics: true # Whether to use ground truth intrinsics from COLMAP
 use_gt_extrinsics: true # Whether to use ground truth extrinsics from COLMAP
 max_resolution: 760
-default_focal_length_factor: 1.2 # default focal length factor when COLMAP reports zero focal length
+default_focal_length_factor: null # set to e.g. 1.2 to substitute default_focal_length_factor * max(w,h) when COLMAP reports zero focal length
 input_worker: null # optional input worker specification
