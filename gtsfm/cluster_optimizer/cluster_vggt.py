@@ -348,7 +348,7 @@ class ClusterVGGT(ClusterOptimizerBase):
             ba_use_shared_calibration=self.use_shared_calibration,
             use_gnc=self._use_gnc,
             gnc_loss=self._gnc_loss,
-            min_track_length=self._min_track_length,
+            min_track_length=self.min_track_length,
         )
 
         # mode is fixed to "crop", it resizes the width to 518 while maintaining aspect ratio and only if
