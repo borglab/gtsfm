@@ -530,8 +530,8 @@ def compute_intrinsics_metrics(
         gt_cal = gt_cameras[i].calibration()
         est_cal = computed_cameras[i].calibration()
         gt_f = gt_cal.fx()
+        focal_abs_errors.append(abs(est_cal.fx() - gt_f))
         if gt_f > 0:
-            focal_abs_errors.append(abs(est_cal.fx() - gt_f))
             focal_pct_errors.append(abs(est_cal.fx() - gt_f) / gt_f * 100.0)
         if hasattr(gt_cal, "k1") and hasattr(est_cal, "k1"):
             k1_errors.append(abs(est_cal.k1() - gt_cal.k1()))

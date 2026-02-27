@@ -46,7 +46,7 @@ class ColmapLoader(LoaderBase):
         use_gt_intrinsics: bool = True,
         use_gt_extrinsics: bool = True,
         max_resolution: int = 760,
-        default_focal_length_factor: float = 1.2,
+        default_focal_length_factor: Optional[float] = None,
         input_worker: Optional[str] = None,
     ) -> None:
         """Initializes to load from a specified dataset directory on disk.
@@ -66,9 +66,9 @@ class ColmapLoader(LoaderBase):
                the smaller of the height/width of the image. e.g. for 1080p (1920 x 1080),
                max_resolution would be 1080. If the image resolution max(height, width) is
                greater than the max_resolution, it will be downsampled to match the max_resolution.
-            default_focal_length_factor: Focal length is initialized to
-               default_focal_length_factor * max(width, height) when COLMAP reports a zero
-               focal length. Matches the default used by COLMAP's ImageReaderOptions.
+            default_focal_length_factor: When set, focal length is initialized to
+               default_focal_length_factor * max(width, height) if COLMAP reports a zero
+               focal length. When None (default), zero focal lengths are passed through as-is.
         """
         super().__init__(max_resolution, input_worker)
         self._dataset_dir = dataset_dir
@@ -166,14 +166,11 @@ class ColmapLoader(LoaderBase):
             raise IndexError(f"Image index {index} is invalid. Valid indices are in [0,{len(self)-1}].")
 
         if not self._use_gt_intrinsics:
-            # get intrinsics from exif, with default focal length fallback
-            intrinsics = io_utils.load_image(self._image_paths[index]).get_intrinsics(
-                default_focal_length_factor=self._default_focal_length_factor
-            )
+            # get intrinsics from exif
+            intrinsics = io_utils.load_image(self._image_paths[index]).get_intrinsics_from_exif()
         else:
             intrinsics = self._calibrations[index]
-            # If COLMAP reported a zero focal length, substitute a default based on image dimensions.
-            if intrinsics.fx() <= 0:
+            if self._default_focal_length_factor is not None and intrinsics.fx() <= 0:
                 intrinsics = io_utils.load_image(self._image_paths[index]).get_intrinsics(
                     default_focal_length_factor=self._default_focal_length_factor
                 )
