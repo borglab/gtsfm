@@ -874,7 +874,7 @@ class GtsfmData:
 
         return filtered_data, valid_mask
 
-    def filter_landmark_measurements(self, reproj_err_thresh: float = 5) -> "GtsfmData":
+    def filter_landmark_measurements(self, reproj_err_thresh: float = 5, min_track_length: int = 2) -> "GtsfmData":
         """Filters out landmarks with high reprojection error
 
         Args:
@@ -900,7 +900,7 @@ class GtsfmData:
                 i, uv = track.measurement(k)
                 new_track.addMeasurement(i, uv)
                 track_cameras.add(i)
-            if len(track_cameras) < 2:
+            if len(track_cameras) < min_track_length:
                 continue
             filtered_data.add_track(new_track)
             for i in track_cameras:

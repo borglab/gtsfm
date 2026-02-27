@@ -316,7 +316,8 @@ class VggtConfiguration:
     track_vis_thresh: float = 0.05
     track_conf_thresh: float = 0.2
     keypoint_extractor: str = "aliked+sp+sift"
-    max_reproj_error: float = 14.0
+    vggt_max_reproj_error: float = 14.0
+    post_ba_max_reproj_error: float = 3.0
     min_triangulation_angle: float = 10.0
 
     # Bundle adjustment-specific parameters:
@@ -605,16 +606,13 @@ def _convert_vggt_outputs_to_gtsfm_data(
             logger.warning("Skipping bundle adjustment because VGGT produced no valid tracks.")
         else:
             try:
-                if config.max_reproj_error is not None and config.max_reproj_error > 0.0:
-                    gtsfm_data = gtsfm_data.filter_landmark_measurements(config.max_reproj_error)
+                if config.vggt_max_reproj_error is not None and config.vggt_max_reproj_error > 0.0:
+                    gtsfm_data = gtsfm_data.filter_landmark_measurements(config.vggt_max_reproj_error)
                     logger.info(
                         "🔍 #valid VGGT tracks after reproj error filtering: %d out of %d",
                         gtsfm_data.number_tracks(),
                         gtsfm_data_pre_ba.number_tracks(),
                     )
-                gtsfm_data, should_run_ba = data_utils.remove_cameras_with_no_tracks(gtsfm_data, "node-level BA")
-                if not should_run_ba:
-                    return gtsfm_data, gtsfm_data_pre_ba
                 optimizer = BundleAdjustmentOptimizer(
                     robust_ba_mode=RobustBAMode.GMC,
                     shared_calib=config.ba_use_shared_calibration,
@@ -623,7 +621,7 @@ def _convert_vggt_outputs_to_gtsfm_data(
                     gnc_loss=config.gnc_loss,
                 )
                 gtsfm_data_with_ba, _ = optimizer.run_simple_ba(gtsfm_data)
-                gtsfm_data_with_ba = gtsfm_data_with_ba.filter_landmark_measurements(3.0)
+                gtsfm_data_with_ba = gtsfm_data_with_ba.filter_landmark_measurements(config.post_ba_max_reproj_error)
                 return gtsfm_data_with_ba, gtsfm_data_pre_ba
             except Exception as exc:
                 logger.warning("⚠️ Failed to run bundle adjustment: %s", exc)
