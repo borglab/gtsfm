@@ -910,6 +910,33 @@ class GtsfmData:
 
         return filtered_data
 
+    def filter_tracks_by_id(self, track_ids: list[int]) -> "GtsfmData":
+        """Filters out landmarks based on track ids.
+
+        Args:
+            track_ids: list of track ids to remove.
+
+        Returns:
+            New instance without the tracks with the specified ids.
+        """
+        filtered_data = GtsfmData(self.number_images(), gaussian_splats=self._gaussian_splats)
+        filtered_data._image_info = self._clone_image_info()
+
+        for idxtrack, track in enumerate(self._tracks):
+            if idxtrack in track_ids:
+                continue
+            filtered_data.add_track(track)
+            track_cameras = set()
+            for k in range(track.numberMeasurements()):
+                i, _ = track.measurement(k)
+                track_cameras.add(i)
+            for i in track_cameras:
+                camera_i = self.get_camera(i)
+                assert camera_i is not None
+                filtered_data.add_camera(i, camera_i)
+
+        return filtered_data
+
     def align_via_sim3_and_transform(self, aTi: dict[int, Pose3]) -> "GtsfmData":
         """Return a copy of the scene aligned to the supplied reference poses via Sim(3).
 

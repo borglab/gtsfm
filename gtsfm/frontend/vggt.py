@@ -13,11 +13,11 @@ from typing import Any, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import torch
+from gtsam import Point2, Point3
 from PIL import Image as PILImage
 from torch.amp import autocast as amp_autocast  # type: ignore
 from torchvision import transforms as TF
 
-from gtsam import Point2, Point3
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer, RobustBAMode
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.utils import data_utils
@@ -628,8 +628,10 @@ def _convert_vggt_outputs_to_gtsfm_data(
                     use_gnc=config.use_gnc,
                     gnc_loss=config.gnc_loss,
                 )
-                gtsfm_data_with_ba, _ = optimizer.run_simple_ba(gtsfm_data)
+                gtsfm_data_with_ba, _, weights = optimizer.run_simple_ba(gtsfm_data)
                 gtsfm_data_with_ba = gtsfm_data_with_ba.filter_landmark_measurements(config.post_ba_max_reproj_error)
+                if weights is not None and config.use_gnc:
+                    gtsfm_data_with_ba = gtsfm_data_with_ba.filter_tracks_by_id(np.where(weights == 0.0)[0].tolist())
                 return gtsfm_data_with_ba, gtsfm_data_pre_ba
             except Exception as exc:
                 logger.warning("⚠️ Failed to run bundle adjustment: %s", exc)

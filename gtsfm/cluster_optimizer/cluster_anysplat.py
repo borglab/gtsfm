@@ -383,7 +383,7 @@ class ClusterAnySplat(ClusterOptimizerBase):
             else:
                 try:
                     # TODO(akshay-krishnan): Configure this to be same as VGGT's bundle adjustment optimizer.
-                    post_ba_gtsfm_data, _ = BundleAdjustmentOptimizer().run_simple_ba(gtsfm_data)
+                    post_ba_gtsfm_data, _, weights = BundleAdjustmentOptimizer().run_simple_ba(gtsfm_data)
                     for idx in post_ba_gtsfm_data.get_valid_camera_indices():
                         info = gtsfm_data.get_image_info(idx)
                         post_ba_gtsfm_data.set_image_info(idx, name=info.name, shape=info.shape)

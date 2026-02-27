@@ -8,14 +8,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Tuple
 
+import gtsam
 import numpy as np
 from dask.distributed import Client, Future
+from gtsam import Pose3, Similarity3, TrajectoryAlignerSim3, UnaryMeasurementPose3
 
-import gtsam
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
-from gtsam import Pose3, Similarity3, TrajectoryAlignerSim3, UnaryMeasurementPose3
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer, RobustBAMode
 from gtsfm.cluster_optimizer.cluster_anysplat import save_splats
 from gtsfm.common.gtsfm_data import GtsfmData
@@ -653,13 +653,15 @@ def combine_results(
             use_gnc=use_gnc,
             gnc_loss=gnc_loss,
         )
-        merged_with_ba, _ = optimizer.run_simple_ba(merged)
+        merged_with_ba, _, weights = optimizer.run_simple_ba(merged)
         _propagate_scene_metadata(merged_with_ba, merged)
         _log_scene_reprojection_stats(
             merged_with_ba,
             "merged result (with ba)",
             plot_histograms=plot_reprojection_histograms,
         )
+        if weights is not None and use_gnc:
+            merged_with_ba = merged_with_ba.filter_tracks_by_id(np.where(weights == 0.0)[0].tolist())
         if drop_outlier_after_camera_merging:
             merged_with_ba = _drop_outlier_tracks(merged_with_ba)
 
