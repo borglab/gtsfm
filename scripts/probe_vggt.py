@@ -154,6 +154,13 @@ def run_probe(args: argparse.Namespace) -> None:
     for idx, name in zip(image_indices, image_names):
         print(f"  [{idx}] {name}")
 
+    # --- Validate resolution (must be divisible by VGGT patch size of 14) ----
+    if args.max_resolution % 14 != 0:
+        raise ValueError(
+            f"--max_resolution={args.max_resolution} is not divisible by 14 "
+            f"(VGGT patch size). Use 518 (default) or another multiple of 14."
+        )
+
     # --- Seed everything for reproducibility --------------------------------
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -185,6 +192,7 @@ def run_probe(args: argparse.Namespace) -> None:
     config = VggtConfiguration(
         seed=args.seed,
         confidence_threshold=args.confidence_threshold,
+        max_num_points=args.max_num_points,
         tracking=args.tracking,
         max_query_pts=args.max_query_pts,
         query_frame_num=args.query_frame_num,
@@ -308,14 +316,20 @@ def parse_args() -> argparse.Namespace:
     vggt_group.add_argument(
         "--max_resolution",
         type=int,
-        default=1024,
-        help="Resolution for loading images before VGGT preprocessing (default: 1024).",
+        default=518,
+        help="Square resolution for VGGT input. Must be divisible by 14 (default: 518).",
     )
     vggt_group.add_argument(
         "--confidence_threshold",
         type=float,
         default=5.0,
         help="Depth confidence threshold for dense point filtering.",
+    )
+    vggt_group.add_argument(
+        "--max_num_points",
+        type=int,
+        default=100000,
+        help="Max dense points to keep after confidence filtering (default: 100000).",
     )
     vggt_group.add_argument(
         "--tracking",
