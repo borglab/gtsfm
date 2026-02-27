@@ -483,6 +483,7 @@ def combine_results(
     drop_child_if_merging_fail: bool = True,
     store_full_data: bool = False,
     use_nonlinear_sim3_alignment: bool = False,
+    min_track_length: int = 2,
     use_shared_calibration: bool = True,
     use_gnc: bool = False,
     gnc_loss: RobustBAMode | str = RobustBAMode.GMC,
@@ -662,7 +663,7 @@ def combine_results(
         if drop_outlier_after_camera_merging:
             merged_with_ba = _drop_outlier_tracks(merged_with_ba)
 
-        merged_with_ba = merged_with_ba.filter_landmark_measurements(post_ba_max_reproj_error)
+        merged_with_ba = merged_with_ba.filter_landmark_measurements(post_ba_max_reproj_error, min_track_length)
         _log_scene_reprojection_stats(
             merged_with_ba,
             "merged result (with ba + outlier filtering)",
