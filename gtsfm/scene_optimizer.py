@@ -123,12 +123,14 @@ class SceneOptimizer:
         self._drop_outlier_after_camera_merging = getattr(
             self.cluster_optimizer, "drop_outlier_after_camera_merging", True
         )
+        self._post_ba_max_reproj_error = getattr(self.cluster_optimizer, "post_ba_max_reproj_error", 3.0)
         self._drop_camera_with_no_track = getattr(self.cluster_optimizer, "drop_camera_with_no_track", True)
         self._drop_child_if_merging_fail = getattr(self.cluster_optimizer, "drop_child_if_merging_fail", True)
         self._use_shared_calibration = getattr(self.cluster_optimizer, "use_shared_calibration", True)
         self._use_gnc = getattr(self.cluster_optimizer, "use_gnc", False)
         self._gnc_loss = getattr(self.cluster_optimizer, "gnc_loss", "GMC")
         self._use_nonlinear_sim3_merging = use_nonlinear_sim3_merging
+        self._min_track_length = getattr(self.cluster_optimizer, "min_track_length", 2)
         self._config_snapshot = None
         self.output_root = Path(output_root)
         if output_worker is not None:
@@ -253,6 +255,7 @@ class SceneOptimizer:
                         cast(Optional[GtsfmData], reconstruction),
                         child_results,
                         cameras_gt=cameras_gt,
+                        post_ba_max_reproj_error=self._post_ba_max_reproj_error,
                         run_bundle_adjustment_on_parent=self._run_bundle_adjustment_on_parent,
                         plot_reprojection_histograms=self._plot_reprojection_histograms,
                         merge_duplicate_tracks=self._merge_duplicate_tracks,
@@ -264,6 +267,7 @@ class SceneOptimizer:
                         use_shared_calibration=self._use_shared_calibration,
                         use_gnc=self._use_gnc,
                         gnc_loss=self._gnc_loss,
+                        min_track_length=self._min_track_length,
                     )
 
                 merged_future_tree = submit_tree_map_with_children(client, reconstruction_tree, merge_fn)

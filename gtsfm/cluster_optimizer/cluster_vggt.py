@@ -190,7 +190,8 @@ class ClusterVGGT(ClusterOptimizerBase):
         run_bundle_adjustment_on_leaf: bool = False,
         store_pre_ba_result: bool = False,
         run_bundle_adjustment_on_parent: bool = True,
-        max_reproj_error: float = 8.0,
+        vggt_max_reproj_error: float = 8.0,
+        post_ba_max_reproj_error: float = 3.0,
         min_triangulation_angle: float = 10.0,
         plot_reprojection_histograms: bool = True,
         merge_duplicate_tracks: bool = True,
@@ -202,6 +203,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         use_shared_calibration: bool = True,
         use_gnc: bool = False,
         gnc_loss: str = "GMC",
+        min_track_length: int = 2,
     ) -> None:
         super().__init__(
             pose_angular_error_thresh=pose_angular_error_thresh,
@@ -215,6 +217,8 @@ class ClusterVGGT(ClusterOptimizerBase):
             merge_duplicate_tracks=merge_duplicate_tracks,
             use_gnc=use_gnc,
             gnc_loss=gnc_loss,
+            post_ba_max_reproj_error=post_ba_max_reproj_error,
+            min_track_length=min_track_length,
         )
         self._weights_path = Path(weights_path) if weights_path is not None else None
         self._conf_threshold = conf_threshold
@@ -227,7 +231,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         self._keypoint_extractor = keypoint_extractor
         self._input_mode = input_mode
         self._camera_type = camera_type
-        self._max_reproj_error = max_reproj_error
+        self._vggt_max_reproj_error = vggt_max_reproj_error
         self._min_triangulation_angle = min_triangulation_angle
         self._seed = seed
         self._explicit_scene_dir = Path(scene_dir) if scene_dir is not None else None
@@ -335,13 +339,16 @@ class ClusterVGGT(ClusterOptimizerBase):
             use_sparse_attention=self._use_sparse_attention,
             run_bundle_adjustment_on_leaf=self._run_bundle_adjustment_on_leaf,
             store_pre_ba_result=self._store_pre_ba_result,
-            max_reproj_error=self._max_reproj_error,
+            vggt_max_reproj_error=self._vggt_max_reproj_error,
+            post_ba_max_reproj_error=self.post_ba_max_reproj_error,
+            drop_camera_with_no_track=self.drop_camera_with_no_track,
             min_triangulation_angle=self._min_triangulation_angle,
             ba_use_calibration_prior=self._ba_use_calibration_prior,
             ba_use_undistorted_camera_model=self._ba_use_undistorted_camera_model,
             ba_use_shared_calibration=self.use_shared_calibration,
             use_gnc=self._use_gnc,
             gnc_loss=self._gnc_loss,
+            min_track_length=self._min_track_length,
         )
 
         # mode is fixed to "crop", it resizes the width to 518 while maintaining aspect ratio and only if
