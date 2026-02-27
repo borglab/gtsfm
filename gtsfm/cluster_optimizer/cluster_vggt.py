@@ -203,6 +203,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         use_shared_calibration: bool = True,
         use_gnc: bool = False,
         gnc_loss: str = "GMC",
+        min_track_length: int = 2,
     ) -> None:
         super().__init__(
             pose_angular_error_thresh=pose_angular_error_thresh,
@@ -217,6 +218,7 @@ class ClusterVGGT(ClusterOptimizerBase):
             use_gnc=use_gnc,
             gnc_loss=gnc_loss,
             post_ba_max_reproj_error=post_ba_max_reproj_error,
+            min_track_length=min_track_length,
         )
         self._weights_path = Path(weights_path) if weights_path is not None else None
         self._conf_threshold = conf_threshold
@@ -346,6 +348,7 @@ class ClusterVGGT(ClusterOptimizerBase):
             ba_use_shared_calibration=self.use_shared_calibration,
             use_gnc=self._use_gnc,
             gnc_loss=self._gnc_loss,
+            min_track_length=self._min_track_length,
         )
 
         # mode is fixed to "crop", it resizes the width to 518 while maintaining aspect ratio and only if

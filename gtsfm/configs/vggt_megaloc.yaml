@@ -41,6 +41,7 @@ cluster_optimizer:
     post_ba_max_reproj_error: 3.0
     vggt_max_reproj_error: 14.0
     min_triangulation_angle: 10.0
+    min_track_length: 3
     camera_type: PINHOLE
     drop_outlier_after_camera_merging: true
     drop_child_if_merging_fail: true

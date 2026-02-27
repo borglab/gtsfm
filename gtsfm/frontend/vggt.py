@@ -320,6 +320,7 @@ class VggtConfiguration:
     post_ba_max_reproj_error: float = 3.0
     min_triangulation_angle: float = 10.0
     drop_camera_with_no_track: bool = False
+    min_track_length: int = 2
 
     # Bundle adjustment-specific parameters:
     ba_use_calibration_prior: bool = False
@@ -608,7 +609,9 @@ def _convert_vggt_outputs_to_gtsfm_data(
         else:
             try:
                 if config.vggt_max_reproj_error is not None and config.vggt_max_reproj_error > 0.0:
-                    gtsfm_data = gtsfm_data.filter_landmark_measurements(config.vggt_max_reproj_error)
+                    gtsfm_data = gtsfm_data.filter_landmark_measurements(
+                        config.vggt_max_reproj_error, config.min_track_length
+                    )
                     logger.info(
                         "🔍 #valid VGGT tracks after reproj error filtering: %d out of %d",
                         gtsfm_data.number_tracks(),

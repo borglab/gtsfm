@@ -130,6 +130,7 @@ class SceneOptimizer:
         self._use_gnc = getattr(self.cluster_optimizer, "use_gnc", False)
         self._gnc_loss = getattr(self.cluster_optimizer, "gnc_loss", "GMC")
         self._use_nonlinear_sim3_merging = use_nonlinear_sim3_merging
+        self._min_track_length = getattr(self.cluster_optimizer, "min_track_length", 2)
         self._config_snapshot = None
         self.output_root = Path(output_root)
         if output_worker is not None:
@@ -266,6 +267,7 @@ class SceneOptimizer:
                         use_shared_calibration=self._use_shared_calibration,
                         use_gnc=self._use_gnc,
                         gnc_loss=self._gnc_loss,
+                        min_track_length=self._min_track_length,
                     )
 
                 merged_future_tree = submit_tree_map_with_children(client, reconstruction_tree, merge_fn)
