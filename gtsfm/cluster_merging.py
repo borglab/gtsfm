@@ -285,7 +285,7 @@ def _get_pose_metrics(
 
     aligned_result_data = result_data.align_via_sim3_and_transform(poses_gt)
     return metrics_utils.compute_ba_pose_metrics(
-        gt_wTi=poses_gt, computed_wTi=aligned_result_data.get_camera_poses(), save_dir=save_dir, store_full_data=True
+        gt_wTi=poses_gt, computed_wTi=aligned_result_data.get_camera_poses(), save_dir=save_dir, store_full_data=False
     )
 
 
@@ -474,6 +474,7 @@ def combine_results(
     child_results: tuple[MergedNodeResult, ...],
     *,
     cameras_gt: Optional[list[Optional[gtsfm_types.CAMERA_TYPE]]] = None,
+    post_ba_max_reproj_error: float = 3.0,
     run_bundle_adjustment_on_parent: bool = True,
     plot_reprojection_histograms: bool = True,
     merge_duplicate_tracks: bool = True,
@@ -660,12 +661,13 @@ def combine_results(
         )
         if drop_outlier_after_camera_merging:
             merged_with_ba = _drop_outlier_tracks(merged_with_ba)
-            _log_scene_reprojection_stats(
-                merged_with_ba,
-                "merged result (with ba + outlier filtering)",
-                plot_histograms=plot_reprojection_histograms,
-            )
 
+        merged_with_ba = merged_with_ba.filter_landmark_measurements(post_ba_max_reproj_error)
+        _log_scene_reprojection_stats(
+            merged_with_ba,
+            "merged result (with ba + outlier filtering)",
+            plot_histograms=plot_reprojection_histograms,
+        )
         # TODO: the order here is different from the merging order above, we should fix this.
         if merged.has_gaussian_splats():
             logger.info("🫱🏻‍🫲🏽 Merging Gaussians")

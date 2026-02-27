@@ -37,7 +37,7 @@ cluster_optimizer:
     keypoint_extractor: aliked+sp+sift
     track_vis_thresh: 0.05
     track_conf_thresh: 0.2
-    max_reproj_error: 0 # 0.0 means no filtering based on reproj error
+    vggt_max_reproj_error: 0 # 0.0 means no filtering based on reproj error
     min_triangulation_angle: 0.0
     camera_type: PINHOLE
     drop_outlier_after_camera_merging: false

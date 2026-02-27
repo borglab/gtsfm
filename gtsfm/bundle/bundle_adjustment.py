@@ -424,6 +424,9 @@ class BundleAdjustmentOptimizer:
         graph, cameras_without_tracks = self.__construct_simple_factor_graph(
             cameras_to_model, initial_data, robust_noise_basin
         )
+        if len(cameras_without_tracks) == len(initial_data.cameras()):
+            logger.warning("Skipping bundle adjustment because all cameras are without tracks.")
+            return initial_data, 0.0
         optimized_data, _, final_error = self.__optimize_and_recover(
             initial_data,
             graph,
