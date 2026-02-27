@@ -319,6 +319,7 @@ class VggtConfiguration:
     vggt_max_reproj_error: float = 14.0
     post_ba_max_reproj_error: float = 3.0
     min_triangulation_angle: float = 10.0
+    drop_camera_with_no_track: bool = False
 
     # Bundle adjustment-specific parameters:
     ba_use_calibration_prior: bool = False
@@ -613,6 +614,10 @@ def _convert_vggt_outputs_to_gtsfm_data(
                         gtsfm_data.number_tracks(),
                         gtsfm_data_pre_ba.number_tracks(),
                     )
+                if config.drop_camera_with_no_track:
+                    gtsfm_data, should_run_ba = data_utils.remove_cameras_with_no_tracks(gtsfm_data, "node-level BA")
+                    if not should_run_ba:
+                        return gtsfm_data, gtsfm_data_pre_ba
                 optimizer = BundleAdjustmentOptimizer(
                     robust_ba_mode=RobustBAMode.GMC,
                     shared_calib=config.ba_use_shared_calibration,

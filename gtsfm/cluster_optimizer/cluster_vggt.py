@@ -339,6 +339,7 @@ class ClusterVGGT(ClusterOptimizerBase):
             store_pre_ba_result=self._store_pre_ba_result,
             vggt_max_reproj_error=self._vggt_max_reproj_error,
             post_ba_max_reproj_error=self.post_ba_max_reproj_error,
+            drop_camera_with_no_track=self.drop_camera_with_no_track,
             min_triangulation_angle=self._min_triangulation_angle,
             ba_use_calibration_prior=self._ba_use_calibration_prior,
             ba_use_undistorted_camera_model=self._ba_use_undistorted_camera_model,
