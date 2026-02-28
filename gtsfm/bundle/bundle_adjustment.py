@@ -10,17 +10,18 @@ from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
 import dask
+import gtsam  # type: ignore
 import numpy as np
 from dask.delayed import Delayed
+from gtsam import BetweenFactorPose3, NonlinearFactorGraph, PriorFactorPoint3, PriorFactorPose3, Values
 from gtsam.noiseModel import Diagonal, Isotropic, Robust, mEstimator  # type: ignore
 from gtsam.symbol_shorthand import K, P, X  # type: ignore
+from numpy.typing import NDArray
 
-import gtsam  # type: ignore
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.tracks as track_utils
-from gtsam import BetweenFactorPose3, NonlinearFactorGraph, PriorFactorPoint3, PriorFactorPose3, Values
 from gtsfm.common import gtsfm_data
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.pose_prior import PosePrior
@@ -326,7 +327,7 @@ class BundleAdjustmentOptimizer:
 
     def __optimize_factor_graph(
         self, graph: NonlinearFactorGraph, initial_values: Values, ordering_type: str
-    ) -> Tuple[Values, Optional[List[Values]]]:
+    ) -> Tuple[Values, Optional[List[Values]], Optional[NDArray[np.float64]]]:
         """Optimize the factor graph, optionally capturing per-iteration values."""
         start_time = time.time()
 
@@ -384,8 +385,10 @@ class BundleAdjustmentOptimizer:
 
         elapsed_time = time.time() - start_time
         logger.info(f"🚀 Factor graph optimization completed in {elapsed_time:.2f} seconds.")
-
-        return result_values, values_trace
+        if self._use_gnc:
+            weights = lm.getWeights()
+            return result_values, values_trace, weights
+        return result_values, values_trace, None
 
     def get_two_view_ba_pose_graph_keys(self, initial_data: GtsfmData):
         """Retrieves GTSAM keys for camera poses in a 2-view BA problem."""
@@ -398,17 +401,17 @@ class BundleAdjustmentOptimizer:
 
     def __optimize_and_recover(
         self, initial_data: GtsfmData, graph: NonlinearFactorGraph, ordering_type: str
-    ) -> Tuple[GtsfmData, Values, float]:
+    ) -> Tuple[GtsfmData, Values, float, Optional[NDArray[np.float64]]]:
         """Optimize the graph, report errors, and convert `Values` back to `GtsfmData`."""
         initial_values = initial_data.to_values(shared_calib=self._shared_calib)
-        result_values, _ = self.__optimize_factor_graph(graph, initial_values, ordering_type)
+        result_values, _, weights = self.__optimize_factor_graph(graph, initial_values, ordering_type)
         final_error = graph.error(result_values)
         optimized_data = GtsfmData.from_values(result_values, initial_data, self._shared_calib)
-        return optimized_data, result_values, final_error
+        return optimized_data, result_values, final_error, weights
 
     def run_simple_ba(
         self, initial_data: GtsfmData, robust_noise_basin: float | None = None
-    ) -> Tuple[GtsfmData, float]:
+    ) -> Tuple[GtsfmData, float, Optional[NDArray[np.float64]]]:
         """Runs bundle adjustment and optionally filters the resulting tracks by reprojection error.
 
         Args:
@@ -426,23 +429,22 @@ class BundleAdjustmentOptimizer:
         )
         if len(cameras_without_tracks) == len(initial_data.cameras()):
             logger.warning("Skipping bundle adjustment because all cameras are without tracks.")
-            return initial_data, 0.0
-        optimized_data, _, final_error = self.__optimize_and_recover(
-            initial_data,
-            graph,
-            self._ordering_type if not cameras_without_tracks else "COLAMD",
+            return initial_data, 0.0, None
+        optimized_data, _, final_error, weights = self.__optimize_and_recover(
+            initial_data, graph, self._ordering_type if not cameras_without_tracks else "COLAMD"
         )
-        return optimized_data, final_error
+        return optimized_data, final_error, weights
 
     def run_iterative_robust_ba(
         self, initial_data: GtsfmData, robust_noise_basins: List[float]
-    ) -> Tuple[GtsfmData, float]:
+    ) -> Tuple[GtsfmData, float, Optional[NDArray[np.float64]]]:
         """Runs iterative robust bundle adjustment, using different robust noise basins for each iteration."""
         optimized_data = initial_data
         final_error = float("nan")
+        weights = None
         for robust_noise_basin in robust_noise_basins:
-            optimized_data, final_error = self.run_simple_ba(optimized_data, robust_noise_basin)
-        return optimized_data, final_error
+            optimized_data, final_error, weights = self.run_simple_ba(optimized_data, robust_noise_basin)
+        return optimized_data, final_error, weights
 
     def run_ba_stage_with_filtering(
         self,
@@ -451,7 +453,7 @@ class BundleAdjustmentOptimizer:
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         reproj_error_thresh: Optional[float],
         verbose: bool = True,
-    ) -> Tuple[GtsfmData, GtsfmData, List[bool], float]:
+    ) -> Tuple[GtsfmData, GtsfmData, List[bool], float, Optional[NDArray[np.float64]]]:
         """Runs bundle adjustment and optionally filters the resulting tracks by reprojection error.
 
         Args:
@@ -467,6 +469,7 @@ class BundleAdjustmentOptimizer:
             Valid mask as a list of booleans, indicating for each input track whether it was below the re-projection
                 threshold.
             Final error value of the optimization problem.
+            Weights of the factors if Gnc optimization is used, else None.
         """
         logger.info(
             "Input: %d tracks on %d cameras", initial_data.number_tracks(), len(initial_data.get_valid_camera_indices())
@@ -482,7 +485,7 @@ class BundleAdjustmentOptimizer:
         graph, cameras_without_tracks = self.__construct_factor_graph(
             cameras_to_model, initial_data, absolute_pose_priors, relative_pose_priors
         )
-        optimized_data, result_values, final_error = self.__optimize_and_recover(
+        optimized_data, result_values, final_error, weights = self.__optimize_and_recover(
             initial_data, graph, self._ordering_type if not cameras_without_tracks else "COLAMD"
         )
 
@@ -499,7 +502,7 @@ class BundleAdjustmentOptimizer:
                     logger.error(
                         "BA result discarded due to Indeterminate Linear System (ILS) when computing marginals."
                     )
-                    return None, None, None, None
+                    return None, None, None, None, None
 
         # Convert the `Values` results to a `GtsfmData` instance.
         # Filter landmarks by reprojection error.
@@ -513,8 +516,7 @@ class BundleAdjustmentOptimizer:
         else:
             valid_mask = [True] * optimized_data.number_tracks()
             filtered_result = optimized_data
-
-        return optimized_data, filtered_result, valid_mask, final_error
+        return optimized_data, filtered_result, valid_mask, final_error, weights
 
     def run_ba(
         self,
@@ -540,7 +542,7 @@ class BundleAdjustmentOptimizer:
         num_ba_steps = len(self._reproj_error_thresholds)
         for step, reproj_error_thresh in enumerate(self._reproj_error_thresholds):
             # Use intermediate result as initial condition for next step.
-            (optimized_data, filtered_result, valid_mask, final_error) = self.run_ba_stage_with_filtering(
+            (optimized_data, filtered_result, valid_mask, final_error, weights) = self.run_ba_stage_with_filtering(
                 initial_data,
                 absolute_pose_priors,
                 relative_pose_priors,
@@ -588,7 +590,7 @@ class BundleAdjustmentOptimizer:
 
         for step, reproj_error_thresh in enumerate(self._reproj_error_thresholds):
             step_start_time = time.time()
-            (optimized_data, filtered_result, valid_mask, final_error) = self.run_ba_stage_with_filtering(
+            (optimized_data, filtered_result, valid_mask, final_error, weights) = self.run_ba_stage_with_filtering(
                 initial_data=initial_data,
                 absolute_pose_priors=absolute_pose_priors,
                 relative_pose_priors=relative_pose_priors,

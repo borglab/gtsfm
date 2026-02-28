@@ -13,11 +13,11 @@ from typing import Any, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import torch
+from gtsam import Point2, Point3
 from PIL import Image as PILImage
 from torch.amp import autocast as amp_autocast  # type: ignore
 from torchvision import transforms as TF
 
-from gtsam import Point2, Point3
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer, RobustBAMode
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.utils import data_utils
@@ -328,6 +328,7 @@ class VggtConfiguration:
     ba_use_shared_calibration: bool = True
     use_gnc: bool = False
     gnc_loss: str = "GMC"
+    factor_weight_outlier_threshold: float = 1e-8
 
 
 @dataclass
@@ -628,8 +629,17 @@ def _convert_vggt_outputs_to_gtsfm_data(
                     use_gnc=config.use_gnc,
                     gnc_loss=config.gnc_loss,
                 )
-                gtsfm_data_with_ba, _ = optimizer.run_simple_ba(gtsfm_data)
+                gtsfm_data_with_ba, _, weights = optimizer.run_simple_ba(gtsfm_data)
                 gtsfm_data_with_ba = gtsfm_data_with_ba.filter_landmark_measurements(config.post_ba_max_reproj_error)
+                if weights is not None and config.use_gnc:
+                    outlier_factor_ids = np.where(weights <= config.factor_weight_outlier_threshold)[0]
+                    num_tracks_before_gnc_filtering = gtsfm_data_with_ba.number_tracks()
+                    gtsfm_data_with_ba = gtsfm_data_with_ba.filter_tracks_by_factor_id(outlier_factor_ids)
+                    logger.info(
+                        "🔍 valid VGGT tracks after gnc weight filtering: %d out of %d",
+                        gtsfm_data_with_ba.number_tracks(),
+                        num_tracks_before_gnc_filtering,
+                    )
                 return gtsfm_data_with_ba, gtsfm_data_pre_ba
             except Exception as exc:
                 logger.warning("⚠️ Failed to run bundle adjustment: %s", exc)

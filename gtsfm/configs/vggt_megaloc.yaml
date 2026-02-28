@@ -57,5 +57,6 @@ cluster_optimizer:
     use_shared_calibration: true
     use_gnc: true
     gnc_loss: GMC
+    factor_weight_outlier_threshold: 1e-8
 
 use_nonlinear_sim3_merging: true

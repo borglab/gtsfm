@@ -117,7 +117,7 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
 
     def test_run_simple_ba(self):
         """Test run_simple_ba on simple scene."""
-        computed_result, error = self.ba.run_simple_ba(self.test_data)
+        computed_result, error, weights = self.ba.run_simple_ba(self.test_data)
 
         self.assertEqual(computed_result.number_images(), self.test_data.number_images())
         self.assertAlmostEqual(error, 0.3675, places=2)
