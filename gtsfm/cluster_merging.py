@@ -487,6 +487,7 @@ def combine_results(
     use_shared_calibration: bool = True,
     use_gnc: bool = False,
     gnc_loss: RobustBAMode | str = RobustBAMode.GMC,
+    keep_all_cameras_in_merging: bool,
 ) -> MergedNodeResult:
     """Run the merging and parent BA pipeline using already-transformed children.
 
@@ -502,6 +503,7 @@ def combine_results(
         store_full_data: Whether to store full data for the merging metrics.
         use_gnc: Use the GNC optimizer for bundle adjustment.
         gnc_loss: GNC loss to use. Defaults to GMC.
+        keep_all_cameras_in_merging: Keep all cameras after post-BA track filtering, even if they have no tracks.
 
     Returns:
         A MergedNodeResult object containing the merged scene and its metrics.
@@ -662,8 +664,17 @@ def combine_results(
         )
         if drop_outlier_after_camera_merging:
             merged_with_ba = _drop_outlier_tracks(merged_with_ba)
+        _log_scene_reprojection_stats(
+            merged_with_ba,
+            "merged result (drop_outlier_after_camera_merging)",
+            plot_histograms=plot_reprojection_histograms,
+        )
 
-        merged_with_ba = merged_with_ba.filter_landmark_measurements(post_ba_max_reproj_error, min_track_length)
+        merged_with_ba = merged_with_ba.filter_landmark_measurements(
+            post_ba_max_reproj_error,
+            min_track_length,
+            keep_all_cameras_in_merging=keep_all_cameras_in_merging,
+        )
         _log_scene_reprojection_stats(
             merged_with_ba,
             "merged result (with ba + outlier filtering)",

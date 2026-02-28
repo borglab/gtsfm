@@ -874,14 +874,16 @@ class GtsfmData:
 
         return filtered_data, valid_mask
 
-    def filter_landmark_measurements(self, reproj_err_thresh: float = 5, min_track_length: int = 2) -> "GtsfmData":
+    def filter_landmark_measurements(
+        self, reproj_err_thresh: float = 5, min_track_length: int = 2, keep_all_cameras_in_merging: bool = True
+    ) -> "GtsfmData":
         """Filters out landmarks with high reprojection error
 
         Args:
             reproj_err_thresh: reprojection err threshold for each measurement.
 
         Returns:
-            New instance, and list of valid flags, one for each track.
+            New instance with filtered measurements/tracks.
         """
         # TODO: move this function to utils or GTSAM
         filtered_data = GtsfmData(self.number_images(), gaussian_splats=self._gaussian_splats)
@@ -907,6 +909,26 @@ class GtsfmData:
                 camera_i = self.get_camera(i)
                 assert camera_i is not None
                 filtered_data.add_camera(i, camera_i)
+        logger.info(
+                    "Filtered_data now has %d cameras after adding cameres from tracks",
+                    len(filtered_data.get_valid_camera_indices()),
+                )
+        if keep_all_cameras_in_merging:
+            # Reinsert any cameras that were dropped only because all their measurements were filtered out.
+            candidate_camera_indices = sorted(set(self.get_all_image_ids()) | set(self.cameras().keys()))
+            logger.info(f"len(candidate_camera_indices): {len(candidate_camera_indices)}")
+            for i in candidate_camera_indices:
+                if filtered_data.get_camera(i) is not None:
+                    continue
+                camera_i = self.get_camera(i)
+                if camera_i is None:
+                    continue
+                filtered_data.add_camera(i, camera_i)
+                logger.info(
+                    "Re-added camera %d due to keep_all_cameras_in_merging=True. filtered_data now has %d cameras.",
+                    i,
+                    len(filtered_data.get_valid_camera_indices()),
+                )
 
         return filtered_data
 
