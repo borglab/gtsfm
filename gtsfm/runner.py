@@ -4,7 +4,7 @@ import argparse
 import logging
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, cast, Optional
 
 import hydra
 from dask import config as dask_config
