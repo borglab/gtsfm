@@ -14,6 +14,7 @@ import gtsam  # type: ignore
 import numpy as np
 from gtsam import Pose3, SfmTrack, Similarity3, Values
 from gtsam.symbol_shorthand import K, P, X  # type: ignore
+from numpy.typing import NDArray
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.graph as graph_utils
@@ -902,19 +903,20 @@ class GtsfmData:
                 track_cameras.add(i)
             if len(track_cameras) < min_track_length:
                 continue
-            filtered_data.add_track(new_track)
             for i in track_cameras:
                 camera_i = self.get_camera(i)
                 assert camera_i is not None
                 filtered_data.add_camera(i, camera_i)
+            filtered_data.add_track(new_track)
 
         return filtered_data
 
-    def filter_tracks_by_id(self, track_ids: list[int]) -> "GtsfmData":
+    def filter_tracks_by_factor_id(self, factor_ids: NDArray[np.intp], min_track_length: int = 2) -> "GtsfmData":
         """Filters out landmarks based on track ids.
 
         Args:
-            track_ids: list of track ids to remove.
+            factor_ids: list of factor ids to remove.
+            min_track_length: minimum number of measurements for a track to be retained.
 
         Returns:
             New instance without the tracks with the specified ids.
@@ -922,19 +924,26 @@ class GtsfmData:
         filtered_data = GtsfmData(self.number_images(), gaussian_splats=self._gaussian_splats)
         filtered_data._image_info = self._clone_image_info()
 
-        for idxtrack, track in enumerate(self._tracks):
-            if idxtrack in track_ids:
-                continue
-            filtered_data.add_track(track)
+        # the reprojection_id works right now because in run_simple_ba(), we add reprojection error factors first
+        reprojection_id = 0
+        for track in self._tracks:
+            new_track = SfmTrack(track.point3(), track.r, track.g, track.b)
             track_cameras = set()
-            for k in range(track.numberMeasurements()):
-                i, _ = track.measurement(k)
+            for m_idx in range(track.numberMeasurements()):
+                if reprojection_id in factor_ids:
+                    reprojection_id += 1
+                    continue
+                reprojection_id += 1
+                i, uv = track.measurement(m_idx)
+                new_track.addMeasurement(i, uv)
                 track_cameras.add(i)
+            if len(track_cameras) < min_track_length:
+                continue
             for i in track_cameras:
                 camera_i = self.get_camera(i)
                 assert camera_i is not None
                 filtered_data.add_camera(i, camera_i)
-
+            filtered_data.add_track(new_track)
         return filtered_data
 
     def align_via_sim3_and_transform(self, aTi: dict[int, Pose3]) -> "GtsfmData":

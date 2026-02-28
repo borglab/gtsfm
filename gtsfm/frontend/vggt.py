@@ -328,6 +328,7 @@ class VggtConfiguration:
     ba_use_shared_calibration: bool = True
     use_gnc: bool = False
     gnc_loss: str = "GMC"
+    factor_weight_outlier_threshold: float = 1e-8
 
 
 @dataclass
@@ -631,7 +632,14 @@ def _convert_vggt_outputs_to_gtsfm_data(
                 gtsfm_data_with_ba, _, weights = optimizer.run_simple_ba(gtsfm_data)
                 gtsfm_data_with_ba = gtsfm_data_with_ba.filter_landmark_measurements(config.post_ba_max_reproj_error)
                 if weights is not None and config.use_gnc:
-                    gtsfm_data_with_ba = gtsfm_data_with_ba.filter_tracks_by_id(np.where(weights == 0.0)[0].tolist())
+                    outlier_factor_ids = np.where(weights <= config.factor_weight_outlier_threshold)[0]
+                    num_tracks_before_gnc_filtering = gtsfm_data_with_ba.number_tracks()
+                    gtsfm_data_with_ba = gtsfm_data_with_ba.filter_tracks_by_factor_id(outlier_factor_ids)
+                    logger.info(
+                        "🔍 valid VGGT tracks after gnc weight filtering: %d out of %d",
+                        gtsfm_data_with_ba.number_tracks(),
+                        num_tracks_before_gnc_filtering,
+                    )
                 return gtsfm_data_with_ba, gtsfm_data_pre_ba
             except Exception as exc:
                 logger.warning("⚠️ Failed to run bundle adjustment: %s", exc)

@@ -660,8 +660,6 @@ def combine_results(
             "merged result (with ba)",
             plot_histograms=plot_reprojection_histograms,
         )
-        if weights is not None and use_gnc:
-            merged_with_ba = merged_with_ba.filter_tracks_by_id(np.where(weights == 0.0)[0].tolist())
         if drop_outlier_after_camera_merging:
             merged_with_ba = _drop_outlier_tracks(merged_with_ba)
 

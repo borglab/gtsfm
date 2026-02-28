@@ -16,6 +16,7 @@ from dask.delayed import Delayed
 from gtsam import BetweenFactorPose3, NonlinearFactorGraph, PriorFactorPoint3, PriorFactorPose3, Values
 from gtsam.noiseModel import Diagonal, Isotropic, Robust, mEstimator  # type: ignore
 from gtsam.symbol_shorthand import K, P, X  # type: ignore
+from numpy.typing import NDArray
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.logger as logger_utils
@@ -326,7 +327,7 @@ class BundleAdjustmentOptimizer:
 
     def __optimize_factor_graph(
         self, graph: NonlinearFactorGraph, initial_values: Values, ordering_type: str
-    ) -> Tuple[Values, Optional[List[Values]], Optional[List[float]]]:
+    ) -> Tuple[Values, Optional[List[Values]], Optional[NDArray[np.float64]]]:
         """Optimize the factor graph, optionally capturing per-iteration values."""
         start_time = time.time()
 
@@ -400,7 +401,7 @@ class BundleAdjustmentOptimizer:
 
     def __optimize_and_recover(
         self, initial_data: GtsfmData, graph: NonlinearFactorGraph, ordering_type: str
-    ) -> Tuple[GtsfmData, Values, float, Optional[List[float]]]:
+    ) -> Tuple[GtsfmData, Values, float, Optional[NDArray[np.float64]]]:
         """Optimize the graph, report errors, and convert `Values` back to `GtsfmData`."""
         initial_values = initial_data.to_values(shared_calib=self._shared_calib)
         result_values, _, weights = self.__optimize_factor_graph(graph, initial_values, ordering_type)
@@ -410,7 +411,7 @@ class BundleAdjustmentOptimizer:
 
     def run_simple_ba(
         self, initial_data: GtsfmData, robust_noise_basin: float | None = None
-    ) -> Tuple[GtsfmData, float, Optional[List[float]]]:
+    ) -> Tuple[GtsfmData, float, Optional[NDArray[np.float64]]]:
         """Runs bundle adjustment and optionally filters the resulting tracks by reprojection error.
 
         Args:
@@ -436,7 +437,7 @@ class BundleAdjustmentOptimizer:
 
     def run_iterative_robust_ba(
         self, initial_data: GtsfmData, robust_noise_basins: List[float]
-    ) -> Tuple[GtsfmData, float, Optional[List[float]]]:
+    ) -> Tuple[GtsfmData, float, Optional[NDArray[np.float64]]]:
         """Runs iterative robust bundle adjustment, using different robust noise basins for each iteration."""
         optimized_data = initial_data
         final_error = float("nan")
@@ -452,7 +453,7 @@ class BundleAdjustmentOptimizer:
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         reproj_error_thresh: Optional[float],
         verbose: bool = True,
-    ) -> Tuple[GtsfmData, GtsfmData, List[bool], float, Optional[List[float]]]:
+    ) -> Tuple[GtsfmData, GtsfmData, List[bool], float, Optional[NDArray[np.float64]]]:
         """Runs bundle adjustment and optionally filters the resulting tracks by reprojection error.
 
         Args:
