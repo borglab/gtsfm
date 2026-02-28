@@ -204,6 +204,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         use_gnc: bool = False,
         gnc_loss: str = "GMC",
         min_track_length: int = 2,
+        keep_all_cameras_in_merging: bool = False,
     ) -> None:
         super().__init__(
             pose_angular_error_thresh=pose_angular_error_thresh,
@@ -219,6 +220,7 @@ class ClusterVGGT(ClusterOptimizerBase):
             gnc_loss=gnc_loss,
             post_ba_max_reproj_error=post_ba_max_reproj_error,
             min_track_length=min_track_length,
+            keep_all_cameras_in_merging=keep_all_cameras_in_merging,
         )
         self._weights_path = Path(weights_path) if weights_path is not None else None
         self._conf_threshold = conf_threshold

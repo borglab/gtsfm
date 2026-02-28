@@ -56,6 +56,7 @@ class ClusterOptimizerCacher(ClusterOptimizerBase):
             use_shared_calibration=getattr(optimizer, "use_shared_calibration", True),
             use_gnc=getattr(optimizer, "use_gnc", False),
             gnc_loss=getattr(optimizer, "gnc_loss", "GMC"),
+            keep_all_cameras_in_merging=getattr(optimizer, "keep_all_cameras_in_merging", False),
             output_worker=optimizer._output_worker,
         )
         self._optimizer = optimizer
@@ -99,6 +100,7 @@ class ClusterOptimizerCacher(ClusterOptimizerBase):
             run_bundle_adjustment_on_parent=getattr(self._optimizer, "run_bundle_adjustment_on_parent", True),
             use_gnc=getattr(self._optimizer, "use_gnc", False),
             gnc_loss=getattr(self._optimizer, "gnc_loss", "GMC"),
+            keep_all_cameras_in_merging=getattr(self._optimizer, "keep_all_cameras_in_merging", False),
             output_worker=self._optimizer._output_worker,
         )
 

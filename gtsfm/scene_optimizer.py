@@ -131,6 +131,7 @@ class SceneOptimizer:
         self._gnc_loss = getattr(self.cluster_optimizer, "gnc_loss", "GMC")
         self._use_nonlinear_sim3_merging = use_nonlinear_sim3_merging
         self._min_track_length = getattr(self.cluster_optimizer, "min_track_length", 2)
+        self._keep_all_cameras_in_merging = getattr(self.cluster_optimizer, "keep_all_cameras_in_merging", False)
         self._config_snapshot = None
         self.output_root = Path(output_root)
         if output_worker is not None:
@@ -268,6 +269,7 @@ class SceneOptimizer:
                         use_gnc=self._use_gnc,
                         gnc_loss=self._gnc_loss,
                         min_track_length=self._min_track_length,
+                        keep_all_cameras_in_merging=self._keep_all_cameras_in_merging,
                     )
 
                 merged_future_tree = submit_tree_map_with_children(client, reconstruction_tree, merge_fn)
