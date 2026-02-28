@@ -910,9 +910,9 @@ class GtsfmData:
                 assert camera_i is not None
                 filtered_data.add_camera(i, camera_i)
         logger.info(
-                    "Filtered_data now has %d cameras after adding cameres from tracks",
-                    len(filtered_data.get_valid_camera_indices()),
-                )
+            "Filtered_data now has %d cameras after adding cameres from tracks",
+            len(filtered_data.get_valid_camera_indices()),
+        )
         if keep_all_cameras_in_merging:
             # Reinsert any cameras that were dropped only because all their measurements were filtered out.
             candidate_camera_indices = sorted(set(self.get_all_image_ids()) | set(self.cameras().keys()))
