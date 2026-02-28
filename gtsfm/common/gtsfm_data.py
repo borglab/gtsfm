@@ -915,9 +915,9 @@ class GtsfmData:
         )
         if keep_all_cameras_in_merging:
             # Reinsert any cameras that were dropped only because all their measurements were filtered out.
-            candidate_camera_indices = sorted(set(self.get_all_image_ids()) | set(self.cameras().keys()))
-            logger.info(f"len(candidate_camera_indices): {len(candidate_camera_indices)}")
-            for i in candidate_camera_indices:
+            missing_cameras = set(self.cameras().keys()) - set(filtered_data.cameras().keys())
+            logger.info(f"len(missing_cameras): {len(missing_cameras)}")
+            for i in missing_cameras:
                 if filtered_data.get_camera(i) is not None:
                     continue
                 camera_i = self.get_camera(i)
