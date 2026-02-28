@@ -18,11 +18,14 @@ image_pairs_generator:
   retriever:
     _target_: gtsfm.retriever.Similarity
     num_matched: 15
-    min_score: 0.4
+    min_score: 0.5
   batch_size: 16
 
 graph_partitioner:
   _target_: gtsfm.graph_partitioner.Metis
+  min_cameras_to_partition: 12
+  max_cameras: 40
+  split_oversized_nodes: true
 
 cluster_optimizer:
   _target_: gtsfm.cluster_optimizer.Cacher

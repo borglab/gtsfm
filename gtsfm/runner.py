@@ -4,7 +4,7 @@ import argparse
 import logging
 import os
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast, Optional
 
 import hydra
 from dask import config as dask_config
@@ -15,7 +15,6 @@ from omegaconf import OmegaConf
 import gtsfm.utils.logger as logger_utils
 from gtsfm.cluster_optimizer import Multiview
 from gtsfm.loader.configuration import add_loader_args, build_loader_overrides
-from gtsfm.scene_optimizer import SceneOptimizer
 from gtsfm.utils.configuration import log_full_configuration
 
 dask_config.set({"distributed.scheduler.worker-ttl": None})
@@ -23,6 +22,9 @@ dask_config.set({"distributed.scheduler.worker-ttl": None})
 logger = logger_utils.get_logger()
 
 DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent.parent
+
+if TYPE_CHECKING:
+    from gtsfm.scene_optimizer import SceneOptimizer
 
 
 class GtsfmRunner:
@@ -37,8 +39,10 @@ class GtsfmRunner:
         if log_level is not None:
             logger.setLevel(log_level)
 
-        logger.info("🌟 GTSFM: Constructing SceneOptimizer...")
-        self.scene_optimizer: SceneOptimizer = self._construct_scene_optimizer()
+        # Build the Dask client before importing/constructing SceneOptimizer to reduce
+        # chances of creating CUDA contexts in the parent process before workers spawn.
+        self.scene_optimizer: Optional["SceneOptimizer"] = None
+        self._io_worker: Optional[str] = None
 
     def construct_argparser(self) -> argparse.ArgumentParser:
         parser = argparse.ArgumentParser(description="GTSFM Runner")
@@ -162,11 +166,13 @@ class GtsfmRunner:
 
         return parser
 
-    def _construct_scene_optimizer(self) -> SceneOptimizer:
+    def _construct_scene_optimizer(self) -> "SceneOptimizer":
         """Construct scene optimizer.
 
         All configs are relative to the gtsfm module.
         """
+        from gtsfm.scene_optimizer import SceneOptimizer
+
         logger.info(f"📁 Config File: {self.parsed_args.config_name}")
         with hydra.initialize_config_module(config_module="gtsfm.configs", version_base=None):
             overrides = ["+output_root=" + str(self.parsed_args.output_root)]
@@ -249,7 +255,7 @@ class GtsfmRunner:
 
         return scene_optimizer
 
-    def _set_mvo_overwrites(self, scene_optimizer: SceneOptimizer, main_cfg) -> None:
+    def _set_mvo_overwrites(self, scene_optimizer: "SceneOptimizer", main_cfg) -> None:
         """Set MVO-specific overwrites based on CLI flags."""
         multiview_optimizer = cast(Multiview, scene_optimizer.cluster_optimizer)
 
@@ -412,18 +418,17 @@ class GtsfmRunner:
             # Case 2 or 3: Distributed multi-GPU machines
             cluster, config = self.setup_ssh_cluster_with_retries()
             client = Client(cluster)
-            client.forward_logging()
 
             workers = dict(config)["workers"]
             unique_hosts = set(w["host"] for w in workers)
 
             if len(unique_hosts) > 1:
-                io_worker = list(client.scheduler_info()["workers"].keys())[0]
-                self.scene_optimizer.loader._input_worker = io_worker
-                self.scene_optimizer.cluster_optimizer._output_worker = io_worker
+                self._io_worker = list(client.scheduler_info()["workers"].keys())[0]
             else:
                 logger.info("🖥️  Single-machine multi-GPU cluster")
                 logger.info("   All workers can access data locally")
+
+            client.forward_logging()
         else:
             # Case 1: Single Local Machine
             local_cluster_kwargs = {
@@ -444,6 +449,13 @@ class GtsfmRunner:
         """Just create the client and call scene optimizer."""
         logger.info("🌟 GTSFM: Creating Dask client...")
         client = self._create_dask_client()
+
+        logger.info("🌟 GTSFM: Constructing SceneOptimizer...")
+        self.scene_optimizer = self._construct_scene_optimizer()
+
+        if self._io_worker is not None:
+            self.scene_optimizer.loader._input_worker = self._io_worker
+            self.scene_optimizer.cluster_optimizer._output_worker = self._io_worker
 
         logger.info("🌟 GTSFM: Starting SceneOptimizer...")
         self.scene_optimizer.run(client)
