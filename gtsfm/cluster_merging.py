@@ -289,6 +289,31 @@ def _get_pose_metrics(
     )
 
 
+def _get_intrinsics_metrics(
+    result_data: GtsfmData,
+    cameras_gt: list[Optional[gtsfm_types.CAMERA_TYPE]],
+) -> GtsfmMetricsGroup:
+    """Compute intrinsics metrics for a merged result against ground truth cameras."""
+    image_idxs = list(result_data._image_info.keys())
+    gt_cameras: dict[int, gtsfm_types.CAMERA_TYPE] = {}
+    computed_cameras: dict[int, gtsfm_types.CAMERA_TYPE] = {}
+    for i in image_idxs:
+        if i >= len(cameras_gt):
+            continue
+        gt_cam = cameras_gt[i]
+        est_cam = result_data.get_camera(i)
+        if gt_cam is not None and est_cam is not None:
+            gt_cameras[i] = gt_cam
+            computed_cameras[i] = est_cam
+    if len(gt_cameras) == 0:
+        return GtsfmMetricsGroup(name="intrinsics_metrics", metrics=[])
+    return metrics_utils.compute_intrinsics_metrics(
+        gt_cameras=gt_cameras,
+        computed_cameras=computed_cameras,
+        store_full_data=True,
+    )
+
+
 def compute_merging_metrics(
     merged_scene: Optional[GtsfmData],
     *,
@@ -341,6 +366,7 @@ def compute_merging_metrics(
             save_dir=pose_save_dir,
         )
         merging_metrics.extend(ba_pose_error_metrics)
+        merging_metrics.extend(_get_intrinsics_metrics(merged_scene, cameras_gt))
     return merging_metrics
 
 
