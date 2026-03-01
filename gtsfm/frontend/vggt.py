@@ -16,6 +16,7 @@ import torch
 from PIL import Image as PILImage
 from torch.amp import autocast as amp_autocast  # type: ignore
 from torchvision import transforms as TF
+import torch.nn.functional as F
 
 from gtsam import Point2, Point3
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer, RobustBAMode
@@ -27,6 +28,13 @@ from gtsfm.utils import torch as torch_utils
 PathLike = Union[str, Path]
 
 logger = logger_utils.get_logger()
+
+_IMAGENET_MEAN = [0.485, 0.456, 0.406]
+_IMAGENET_STD = [0.229, 0.224, 0.225]
+
+# Per-worker cache for DINOv2 model to avoid reloading per cluster/task.
+_DINO_V2_MODEL_CACHE: dict[tuple[str, str], Any] = {}
+
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 THIRDPARTY_ROOT = REPO_ROOT / "thirdparty"
@@ -515,6 +523,7 @@ def _convert_vggt_outputs_to_gtsfm_data(
     points_3d: np.ndarray,
     points_rgb: np.ndarray,
     tracking_result: VGGTTrackingResult | None = None,
+    cluster_label: Optional[str] = None,
 ) -> tuple[GtsfmData, GtsfmData | None]:
     """Convert raw VGGT predictions into ``GtsfmData``."""
 
@@ -612,8 +621,10 @@ def _convert_vggt_outputs_to_gtsfm_data(
                     gtsfm_data = gtsfm_data.filter_landmark_measurements(
                         config.vggt_max_reproj_error, config.min_track_length
                     )
+                    cluster_prefix = f"[{cluster_label}] " if cluster_label else ""
                     logger.info(
-                        "🔍 #valid VGGT tracks after reproj error filtering: %d out of %d",
+                        "%s🔍 #valid VGGT tracks after reproj error filtering: %d out of %d",
+                        cluster_prefix,
                         gtsfm_data.number_tracks(),
                         gtsfm_data_pre_ba.number_tracks(),
                     )
@@ -630,6 +641,12 @@ def _convert_vggt_outputs_to_gtsfm_data(
                 )
                 gtsfm_data_with_ba, _ = optimizer.run_simple_ba(gtsfm_data)
                 gtsfm_data_with_ba = gtsfm_data_with_ba.filter_landmark_measurements(config.post_ba_max_reproj_error)
+                logger.info(
+                    "%s🔍 #valid VGGT tracks after BA: %d out of %d",
+                    f"[{cluster_label}] " if cluster_label else "",
+                    gtsfm_data_with_ba.number_tracks(),
+                    gtsfm_data.number_tracks(),
+                )
                 return gtsfm_data_with_ba, gtsfm_data_pre_ba
             except Exception as exc:
                 logger.warning("⚠️ Failed to run bundle adjustment: %s", exc)
@@ -702,7 +719,7 @@ def run_VGGT(
         with autocast_ctx:
             batched = images.unsqueeze(0)  # make into (training) batch of 1
             tokens, ps_idx = model.aggregator(batched)  # transformer backbone
-        with torch.cuda.amp.autocast(dtype=torch.float32):
+        with torch.amp.autocast("cuda", dtype=torch.float32):
             pose_enc = model.camera_head(tokens)[-1]
             extrinsic, intrinsic = pose_encoding_to_extri_intri(pose_enc, batched.shape[-2:])
             depth_map, depth_conf = model.depth_head(tokens, batched, ps_idx)
@@ -775,6 +792,81 @@ def _import_vggsfm_utils():
     return _vggsfm_utils
 
 
+def generate_rank_by_dino(
+    images, query_frame_num, image_size=336, model_name="dinov2_vitb14_reg", device="cuda", spatial_similarity=False
+):
+    """
+    Generate a ranking of frames using DINO ViT features.
+
+    Args:
+        images: Tensor of shape (S, 3, H, W) with values in range [0, 1]
+        query_frame_num: Number of frames to select
+        image_size: Size to resize images to before processing
+        model_name: Name of the DINO model to use
+        device: Device to run the model on
+        spatial_similarity: Whether to use spatial token similarity or CLS token similarity
+
+    Returns:
+        List of frame indices ranked by their representativeness
+    """
+    vggsfm_utils = _import_vggsfm_utils()
+
+    # Resize images to the target size
+    images = F.interpolate(images, (image_size, image_size), mode="bilinear", align_corners=False)
+
+    # Load or reuse cached DINO model (per-worker cache, same pattern as VGGT in cluster_vggt)
+    device_str = str(device)
+    cache_key = (model_name, device_str)
+    if cache_key in _DINO_V2_MODEL_CACHE:
+        dino_v2_model = _DINO_V2_MODEL_CACHE[cache_key]
+    else:
+        logger.info("⏳ Loading DINOv2 model (%s)...", model_name)
+        dino_v2_model = torch.hub.load("facebookresearch/dinov2", model_name)
+        dino_v2_model.eval()
+        dino_v2_model = dino_v2_model.to(device)
+        _DINO_V2_MODEL_CACHE[cache_key] = dino_v2_model
+        logger.info("✅ DINOv2 model loaded successfully.")
+
+    # Normalize images using ResNet normalization
+    imagenet_mean = torch.tensor(_IMAGENET_MEAN, device=device).view(1, 3, 1, 1)
+    imagenet_std = torch.tensor(_IMAGENET_STD, device=device).view(1, 3, 1, 1)
+    images_imagenet_norm = (images - imagenet_mean) / imagenet_std
+
+    with torch.no_grad():
+        frame_feat = dino_v2_model(images_imagenet_norm, is_training=True)
+
+    # Process features based on similarity type
+    if spatial_similarity:
+        frame_feat = frame_feat["x_norm_patchtokens"]
+        frame_feat_norm = F.normalize(frame_feat, p=2, dim=1)
+
+        # Compute the similarity matrix
+        frame_feat_norm = frame_feat_norm.permute(1, 0, 2)
+        similarity_matrix = torch.bmm(frame_feat_norm, frame_feat_norm.transpose(-1, -2))
+        similarity_matrix = similarity_matrix.mean(dim=0)
+    else:
+        frame_feat = frame_feat["x_norm_clstoken"]
+        frame_feat_norm = F.normalize(frame_feat, p=2, dim=1)
+        similarity_matrix = torch.mm(frame_feat_norm, frame_feat_norm.transpose(-1, -2))
+
+    distance_matrix = 100 - similarity_matrix.clone()
+
+    # Ignore self-pairing
+    similarity_matrix.fill_diagonal_(-100)
+    similarity_sum = similarity_matrix.sum(dim=1)
+
+    # Find the most common frame
+    most_common_frame_index = torch.argmax(similarity_sum).item()
+
+    # Conduct FPS sampling starting from the most common frame
+    fps_idx = vggsfm_utils.farthest_point_sampling(distance_matrix, query_frame_num, most_common_frame_index)
+
+    # Clean up intermediate tensors (model is cached for reuse)
+    del frame_feat, frame_feat_norm, similarity_matrix, distance_matrix
+
+    return fps_idx
+
+
 def _run_vggt_head_tracking(
     vggt_output: VggtOutput,
     *,
@@ -798,7 +890,7 @@ def _run_vggt_head_tracking(
         images = images.to(device=device, dtype=torch.float32, non_blocking=True)
 
     frame_num = images.shape[0]
-    query_frame_indexes = vggsfm_utils.generate_rank_by_dino(
+    query_frame_indexes = generate_rank_by_dino(
         images,
         query_frame_num=cfg.query_frame_num,
         image_size=518,
@@ -955,6 +1047,7 @@ def run_reconstruction(
     config: Optional[VggtConfiguration] = None,
     model: Optional[VGGT] = None,
     weights_path: PathLike | None = None,
+    cluster_label: Optional[str] = None,
 ) -> VggtReconstruction:
     """Run VGGT on a batch of images and convert outputs to ``GtsfmData``.
 
@@ -967,6 +1060,7 @@ def run_reconstruction(
         config: Optional :class:`VggtConfiguration`.
         model: Optional pre-loaded VGGT model. If ``None``, the model is loaded from ``weights_path``.
         weights_path: Optional path to VGGT checkpoint. Ignored if ``model`` is provided.
+        cluster_label: Optional cluster name (e.g. ``C_1``, ``C_2_1``) for log messages.
 
     Returns:
         :class:`VggtReconstruction` containing the reconstructed ``GtsfmData`` and point cloud.
@@ -1006,6 +1100,7 @@ def run_reconstruction(
         points_3d=points_3d,
         points_rgb=points_rgb,
         tracking_result=tracking_result,
+        cluster_label=cluster_label,
     )
 
     if vggt_output.device.type == "cuda":

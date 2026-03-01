@@ -113,6 +113,10 @@ class SceneOptimizer:
         bridge_min_similarity: float = 0.0,
         bridge_top_k: int = 10,
         bridge_min_component_size: int = 3,
+        merging_pre_ba_max_reproj_error: float = 14.0,
+        merging_pre_ba_min_track_length: int = 2,
+        merging_ba_use_calibration_prior: bool = False,
+        merging_use_gnc: bool = False,
     ) -> None:
         self.loader = loader
         self.image_pairs_generator = image_pairs_generator
@@ -130,7 +134,6 @@ class SceneOptimizer:
         self._drop_camera_with_no_track = getattr(self.cluster_optimizer, "drop_camera_with_no_track", True)
         self._drop_child_if_merging_fail = getattr(self.cluster_optimizer, "drop_child_if_merging_fail", True)
         self._use_shared_calibration = getattr(self.cluster_optimizer, "use_shared_calibration", True)
-        self._use_gnc = getattr(self.cluster_optimizer, "use_gnc", False)
         self._gnc_loss = getattr(self.cluster_optimizer, "gnc_loss", "GMC")
         self._use_nonlinear_sim3_merging = use_nonlinear_sim3_merging
         self._min_track_length = getattr(self.cluster_optimizer, "min_track_length", 2)
@@ -138,6 +141,10 @@ class SceneOptimizer:
         self._bridge_min_similarity = bridge_min_similarity
         self._bridge_top_k = bridge_top_k
         self._bridge_min_component_size = bridge_min_component_size
+        self._merging_pre_ba_max_reproj_error = merging_pre_ba_max_reproj_error
+        self._merging_pre_ba_min_track_length = merging_pre_ba_min_track_length
+        self._merging_ba_use_calibration_prior = merging_ba_use_calibration_prior
+        self._merging_use_gnc = merging_use_gnc
         self._config_snapshot = None
         self.output_root = Path(output_root)
         if output_worker is not None:
@@ -296,10 +303,13 @@ class SceneOptimizer:
                         store_full_data=False,
                         use_nonlinear_sim3_alignment=self._use_nonlinear_sim3_merging,
                         use_shared_calibration=self._use_shared_calibration,
-                        use_gnc=self._use_gnc,
+                        use_gnc=self._merging_use_gnc,
                         gnc_loss=self._gnc_loss,
                         min_track_length=self._min_track_length,
                         keep_all_cameras_in_merging=self._keep_all_cameras_in_merging,
+                        pre_ba_max_reproj_error=self._merging_pre_ba_max_reproj_error,
+                        pre_ba_min_track_length=self._merging_pre_ba_min_track_length,
+                        ba_use_calibration_prior=self._merging_ba_use_calibration_prior,
                     )
 
                 merged_future_tree = submit_tree_map_with_children(client, reconstruction_tree, merge_fn)

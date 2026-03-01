@@ -74,6 +74,8 @@ def _run_vggt_pipeline(
     cached_model = _resolve_vggt_model(model_cache_key, loader_kwargs)
     if cached_model is not None:
         kwargs = {**kwargs, "model": cached_model}
+    if cluster_label is not None:
+        kwargs["cluster_label"] = cluster_label
     return vggt.run_reconstruction(image_batch, **kwargs)
 
 
