@@ -215,10 +215,10 @@ class LoaderBase(GTSFMProcess):
         """
 
         if intrinsics_full_res.fx() <= 0:
-            raise RuntimeError("Focal length must be positive.")
+            return intrinsics_full_res
 
         if intrinsics_full_res.px() <= 0 or intrinsics_full_res.py() <= 0:
-            raise RuntimeError("Principal point must have positive coordinates.")
+            return intrinsics_full_res
 
         img_full_res = self.get_image_full_res(image_index)
         # no downsampling may be required, in which case scale_u and scale_v will be 1.0

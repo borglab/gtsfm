@@ -77,7 +77,7 @@ class SimilarityRetriever(RetrieverBase):
             raise ValueError("Global descriptors need to be provided")
         sim = self.compute_similarity_matrix(global_descriptors)
         # Stash a CPU copy so downstream code can decide how to persist diagnostics.
-        self._latest_similarity_matrix = sim.detach().cpu()
+        self._latest_similarity_matrix = sim.detach().cpu().clone()
         return self.compute_pairs_from_similarity_matrix(
             sim=sim, image_fnames=image_fnames, plots_output_dir=plots_output_dir
         )

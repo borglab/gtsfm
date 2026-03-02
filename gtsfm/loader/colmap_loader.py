@@ -45,6 +45,7 @@ class ColmapLoader(LoaderBase):
         use_gt_intrinsics: bool = True,
         use_gt_extrinsics: bool = True,
         max_resolution: int = 760,
+        default_focal_length_factor: Optional[float] = None,
         input_worker: Optional[str] = None,
     ) -> None:
         """Initializes to load from a specified dataset directory on disk.
@@ -64,6 +65,9 @@ class ColmapLoader(LoaderBase):
                the smaller of the height/width of the image. e.g. for 1080p (1920 x 1080),
                max_resolution would be 1080. If the image resolution max(height, width) is
                greater than the max_resolution, it will be downsampled to match the max_resolution.
+            default_focal_length_factor: When set, focal length is initialized to
+               default_focal_length_factor * max(width, height) if COLMAP reports a zero
+               focal length. When None (default), zero focal lengths are passed through as-is.
         """
         super().__init__(max_resolution, input_worker)
         self._dataset_dir = dataset_dir
@@ -71,37 +75,41 @@ class ColmapLoader(LoaderBase):
         self._colmap_files_subdir = colmap_files_subdir
         self._use_gt_intrinsics = use_gt_intrinsics
         self._use_gt_extrinsics = use_gt_extrinsics
+        self._default_focal_length_factor = default_focal_length_factor
         colmap_data_dir = (
             os.path.join(self._dataset_dir, self._colmap_files_subdir)
             if self._colmap_files_subdir is not None
             else self._dataset_dir
         )
 
-        wTi_list, img_fnames, self._calibrations, _, _, _ = io_utils.read_scene_data_from_colmap_format(colmap_data_dir)
+        wTi_list, img_fnames, calibrations, _, _, _ = io_utils.read_scene_data_from_colmap_format(colmap_data_dir)
         # TODO in future PR: if img_fnames is None, default to using everything inside image directory
 
-        if self._calibrations is None:
+        if calibrations is None:
             self._use_gt_intrinsics = False
 
-        if self._calibrations is not None and len(self._calibrations) == 1:
+        if calibrations is not None and len(calibrations) == 1:
             # shared calibration!
-            self._calibrations = self._calibrations * len(img_fnames)
+            calibrations = calibrations * len(img_fnames)
 
         # Preserve COLMAP ordering of images.
 
         self._img_fnames = []
         self._image_paths = []
         self._wTi_list = []
+        self._calibrations = []
 
         # If one of the images is not found on disk, the assigned image indices will be re-ordered on disk
         # to skip the missing image.
-        for img_fname, wTi in zip(img_fnames, wTi_list):
+        for i, (img_fname, wTi) in enumerate(zip(img_fnames, wTi_list)):
             img_fpath = os.path.join(self._images_dir, img_fname)
             if not Path(img_fpath).exists():
                 continue
             self._img_fnames.append(img_fname)
             self._image_paths.append(img_fpath)
             self._wTi_list.append(wTi)
+            if calibrations is not None:
+                self._calibrations.append(calibrations[i])
 
         self._num_imgs = len(self._image_paths)
         logger.info("Colmap image loader found and loaded %d images", self._num_imgs)
@@ -161,6 +169,10 @@ class ColmapLoader(LoaderBase):
             intrinsics = io_utils.load_image(self._image_paths[index]).get_intrinsics_from_exif()
         else:
             intrinsics = self._calibrations[index]
+            if self._default_focal_length_factor is not None and intrinsics.fx() <= 0:
+                intrinsics = io_utils.load_image(self._image_paths[index]).get_intrinsics(
+                    default_focal_length_factor=self._default_focal_length_factor
+                )
 
         return intrinsics
 

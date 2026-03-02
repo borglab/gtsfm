@@ -874,14 +874,16 @@ class GtsfmData:
 
         return filtered_data, valid_mask
 
-    def filter_landmark_measurements(self, reproj_err_thresh: float = 5) -> "GtsfmData":
+    def filter_landmark_measurements(
+        self, reproj_err_thresh: float = 5, min_track_length: int = 2, retain_cameras_without_tracks: bool = True
+    ) -> "GtsfmData":
         """Filters out landmarks with high reprojection error
 
         Args:
             reproj_err_thresh: reprojection err threshold for each measurement.
 
         Returns:
-            New instance, and list of valid flags, one for each track.
+            New instance with filtered measurements/tracks.
         """
         # TODO: move this function to utils or GTSAM
         filtered_data = GtsfmData(self.number_images(), gaussian_splats=self._gaussian_splats)
@@ -900,12 +902,25 @@ class GtsfmData:
                 i, uv = track.measurement(k)
                 new_track.addMeasurement(i, uv)
                 track_cameras.add(i)
-            if len(track_cameras) < 2:
+            if len(track_cameras) < min_track_length:
                 continue
-            filtered_data.add_track(new_track)
             for i in track_cameras:
                 camera_i = self.get_camera(i)
                 assert camera_i is not None
+                filtered_data.add_camera(i, camera_i)
+            filtered_data.add_track(new_track)
+        logger.info(
+            "Filtered_data now has %d cameras after adding cameres from tracks",
+            len(filtered_data.get_valid_camera_indices()),
+        )
+        if retain_cameras_without_tracks:
+            # Reinsert any cameras that were dropped only because all their measurements were filtered out.
+            missing_cameras = set(self.cameras().keys()) - set(filtered_data.cameras().keys())
+            logger.info("Cameras without tracks: count=%d, ids=%s", len(missing_cameras), sorted(missing_cameras))
+            for i in missing_cameras:
+                camera_i = self.get_camera(i)
+                if camera_i is None:
+                    continue
                 filtered_data.add_camera(i, camera_i)
 
         return filtered_data

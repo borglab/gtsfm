@@ -6,6 +6,8 @@ Authors: John Lambert
 import unittest
 from pathlib import Path
 
+import torch
+
 from gtsfm.frontend.global_descriptor import NetVLAD
 from gtsfm.loader.colmap_loader import ColmapLoader
 from gtsfm.loader.olsson_loader import OlssonLoader
@@ -66,6 +68,24 @@ class TestSimilarityRetriever(unittest.TestCase):
         # closest image is most similar for the Door dataset.
         expected_pairs = [(0, 1), (0, 2), (1, 2), (1, 4), (2, 3), (2, 4), (3, 4), (3, 5), (4, 5)]
         self.assertEqual(pairs, expected_pairs)
+
+    def test_cached_similarity_matrix_not_corrupted(self) -> None:
+        """Verify that the cached similarity matrix is not corrupted by the pair extraction step."""
+        loader = OlssonLoader(dataset_dir=str(DOOR_DATA_ROOT), max_resolution=400)
+        retriever = SimilarityRetriever(num_matched=2)
+        resize_transform, batch_transform = self.global_descriptor.get_preprocessing_transforms()
+
+        descriptors = []
+        for idx in range(6):
+            batch_tensor = loader.load_image_batch([idx], resize_transform, batch_transform)
+            descriptors.extend(self.global_descriptor.describe_batch(batch_tensor))
+
+        retriever.get_image_pairs(descriptors, loader.image_filenames()[:6], plots_output_dir=None)
+
+        cached = retriever._latest_similarity_matrix
+        self.assertIsNotNone(cached)
+        num_inf = torch.isinf(cached).sum().item()
+        self.assertEqual(num_inf, 0, f"Found {num_inf} inf values in the cached similarity matrix")
 
 
 if __name__ == "__main__":
