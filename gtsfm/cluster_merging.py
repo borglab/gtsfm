@@ -162,7 +162,10 @@ def _select_overlapping_track_point_correspondences(
 
 
 def merge_scenes_with_sim3_nonlinear(
-    parent_scene: GtsfmData, children_scenes: list[GtsfmData], max_track_correspondences_for_sim3: int = 100
+    parent_scene: GtsfmData,
+    children_scenes: list[GtsfmData],
+    max_track_correspondences_for_sim3: int = 150,
+    scale_and_average_focal_length_in_merging: bool = False,
 ) -> GtsfmData:
     if len(children_scenes) == 0:
         return parent_scene
@@ -184,16 +187,19 @@ def merge_scenes_with_sim3_nonlinear(
 
     aTi_measurements = _create_unary_measurements(parent_scene)
     bTi_measurements = [_create_unary_measurements(child_scene) for child_scene in valid_child_scenes]
-    overlapping_points = [
-        _select_overlapping_track_point_correspondences(
-            parent_scene,
-            child_scene,
-            max_correspondences=max_track_correspondences_for_sim3,
-            preferred_min_track_length=3,
-            preferred_max_reproj_error_px=1.5,
-        )
-        for child_scene in valid_child_scenes
-    ]
+    if max_track_correspondences_for_sim3 > 0:
+        overlapping_points = [
+            _select_overlapping_track_point_correspondences(
+                parent_scene,
+                child_scene,
+                max_correspondences=max_track_correspondences_for_sim3,
+                preferred_min_track_length=3,
+                preferred_max_reproj_error_px=1.5,
+            )
+            for child_scene in valid_child_scenes
+        ]
+    else:
+        overlapping_points = [[] for _ in valid_child_scenes]
     for child_idx, overlap_points in enumerate(overlapping_points):
         logger.info(
             "Using %d parent-child point correspondences for child %d Sim3 alignment.", len(overlap_points), child_idx
@@ -219,22 +225,29 @@ def merge_scenes_with_sim3_nonlinear(
 
     merged = parent_scene
     for i, aTi in opt_aTi.items():
-        # Get the updated intrinsics by averaging intrinsics of all candidates.
-        valid_calibrations = []
-        valid_focal_scale_factors = []
-        for child_idx, child_scene in enumerate(valid_child_scenes):
-            if i in child_scene.get_valid_camera_indices():
-                valid_calibrations.append(child_scene.get_camera(i).calibration())  # type: ignore
-                valid_focal_scale_factors.append(opt_aSb_list[child_idx].scale())
-        valid_calibrations.append(parent_scene.get_camera(i).calibration())  # type: ignore
-        valid_focal_scale_factors.append(1.0)
-        avg_calibration = get_average_calibration(valid_calibrations, valid_focal_scale_factors)
-        new_camera = gtsfm_types.create_camera(aTi, avg_calibration)
+        # Optionally scale-and-average intrinsics using child candidates in parent frame.
+        if scale_and_average_focal_length_in_merging:
+            valid_calibrations = []
+            valid_focal_scale_factors = []
+            for child_idx, child_scene in enumerate(valid_child_scenes):
+                if i in child_scene.get_valid_camera_indices():
+                    valid_calibrations.append(child_scene.get_camera(i).calibration())  # type: ignore
+                    valid_focal_scale_factors.append(opt_aSb_list[child_idx].scale())
+            valid_calibrations.append(parent_scene.get_camera(i).calibration())  # type: ignore
+            valid_focal_scale_factors.append(1.0)
+            updated_calibration = get_average_calibration(valid_calibrations, valid_focal_scale_factors)
+        else:
+            updated_calibration = parent_scene.get_camera(i).calibration()  # type: ignore
+        new_camera = gtsfm_types.create_camera(aTi, updated_calibration)
         merged.update_camera(i, new_camera)
 
     for i, child_scene in enumerate(valid_child_scenes):
         opt_aSb = opt_aSb_list[i]
-        merged = merged.merged_with(child_scene, opt_aSb, scale_focal_length=True)  # type: ignore
+        merged = merged.merged_with(
+            child_scene,
+            opt_aSb,
+            scale_focal_length=scale_and_average_focal_length_in_merging,
+        )  # type: ignore
     return merged
 
 
@@ -639,7 +652,12 @@ def _drop_outlier_tracks(scene: GtsfmData) -> GtsfmData:
     return scene
 
 
-def _align_and_merge_results(result1: GtsfmData, result2: GtsfmData, drop_if_merging_fails: bool = True) -> GtsfmData:
+def _align_and_merge_results(
+    result1: GtsfmData,
+    result2: GtsfmData,
+    drop_if_merging_fails: bool = True,
+    scale_focal_length_in_merging: bool = False,
+) -> GtsfmData:
     """Align result2 to result1 and merge it with result1.
 
     Args:
@@ -659,7 +677,7 @@ def _align_and_merge_results(result1: GtsfmData, result2: GtsfmData, drop_if_mer
         else:
             _1S2 = Similarity3()
     try:
-        merged = result1.merged_with(result2, _1S2, scale_focal_length=True)
+        merged = result1.merged_with(result2, _1S2, scale_focal_length=scale_focal_length_in_merging)
         return merged
     except Exception as exc:
         logger.warning("⚠️ Failed to merge results: %s", exc)
@@ -688,7 +706,8 @@ def combine_results(
     pre_ba_max_reproj_error: float = 14.0,
     pre_ba_min_track_length: int = 2,
     ba_use_calibration_prior: bool = False,
-    max_track_correspondences_for_sim3: int = 100,
+    max_track_correspondences_for_sim3: int = 150,
+    scale_and_average_focal_length_in_merging: bool = False,
 ) -> MergedNodeResult:
     """Run the merging and parent BA pipeline using already-transformed children.
 
@@ -706,6 +725,8 @@ def combine_results(
         gnc_loss: GNC loss to use. Defaults to GMC.
         keep_all_cameras_in_merging: Keep all cameras after post-BA track filtering, even if they have no tracks.
         max_track_correspondences_for_sim3: Max parent-child 3D correspondences used per child in nonlinear Sim3 alignment.
+        scale_and_average_focal_length_in_merging: Whether to scale child focal lengths by Sim3 and average/propagate
+            intrinsics during camera merging.
 
     Returns:
         A MergedNodeResult object containing the merged scene and its metrics.
@@ -770,6 +791,7 @@ def combine_results(
             merged,
             valid_child_scenes,
             max_track_correspondences_for_sim3=max_track_correspondences_for_sim3,
+            scale_and_average_focal_length_in_merging=scale_and_average_focal_length_in_merging,
         )
         _log_scene_reprojection_stats(
             merged, "Merged with children (nonlinear alignment)", plot_histograms=plot_reprojection_histograms
@@ -777,7 +799,12 @@ def combine_results(
     else:
         # Merge all children into the merged scene.
         for i, child in enumerate(valid_child_scenes):
-            merged = _align_and_merge_results(merged, child, drop_if_merging_fails=drop_child_if_merging_fail)
+            merged = _align_and_merge_results(
+                merged,
+                child,
+                drop_if_merging_fails=drop_child_if_merging_fail,
+                scale_focal_length_in_merging=scale_and_average_focal_length_in_merging,
+            )
             _log_scene_reprojection_stats(
                 merged, f"Merged with child #{i + 1}", plot_histograms=plot_reprojection_histograms
             )

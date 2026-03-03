@@ -48,7 +48,7 @@ def _load_vggt_inputs(
             image_batch.shape[0],
         )
         return image_batch, original_coords
-    
+
     target_root = Path(output_root) / "processed_images"
     target_root.mkdir(parents=True, exist_ok=True)
     batch_uint8 = (
@@ -251,6 +251,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         tracking: bool = False,
         tracking_max_query_pts: int = 2048,
         tracking_query_frame_num: int = 3,
+        tracking_use_all_frames_forward_only: bool = False,
         track_vis_thresh: float = 0.05,
         track_conf_thresh: float = 0.2,
         keypoint_extractor: str = "aliked+sp+sift",
@@ -312,6 +313,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         self._tracking = tracking
         self._tracking_max_query_pts = tracking_max_query_pts
         self._tracking_query_frame_num = tracking_query_frame_num
+        self._tracking_use_all_frames_forward_only = tracking_use_all_frames_forward_only
         self._track_vis_thresh = track_vis_thresh
         self._track_conf_thresh = track_conf_thresh
         self._keypoint_extractor = keypoint_extractor
@@ -420,6 +422,7 @@ class ClusterVGGT(ClusterOptimizerBase):
             tracking=self._tracking,
             max_query_pts=self._tracking_max_query_pts,
             query_frame_num=self._tracking_query_frame_num,
+            use_all_frames_forward_only=self._tracking_use_all_frames_forward_only,
             track_vis_thresh=self._track_vis_thresh,
             track_conf_thresh=self._track_conf_thresh,
             keypoint_extractor=self._keypoint_extractor,

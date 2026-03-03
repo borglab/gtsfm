@@ -71,8 +71,8 @@ def tracks_with_sim3(aSb: Similarity3, tracks_b: Sequence[SfmTrack]) -> list[Sfm
     return [track_with_sim3(aSb, track_b) for track_b in tracks_b]
 
 
-def scale_focal_length(calibration: CALIBRATION_TYPE, scale_factor: float) -> CALIBRATION_TYPE:
-    """Scales the calibration by the scale factor."""
+def scale_calibration_focals_only(calibration: CALIBRATION_TYPE, scale_factor: float) -> CALIBRATION_TYPE:
+    """Scales the calibration focal length by the scale factor."""
     if isinstance(calibration, Cal3Bundler):
         return Cal3Bundler(
             calibration.fx() * scale_factor, calibration.k1(), calibration.k2(), calibration.px(), calibration.py()
@@ -102,7 +102,7 @@ def camera_map_with_sim3(
             continue
         new_pose = aSb.transformFrom(camera_b.pose())
         if scale_focal_length:
-            new_calib = scale_focal_length(camera_b.calibration(), aSb.scale())
+            new_calib = scale_calibration_focals_only(camera_b.calibration(), aSb.scale())
         else:
             new_calib = camera_b.calibration()
         cameras_a[i] = create_camera(new_pose, new_calib)
