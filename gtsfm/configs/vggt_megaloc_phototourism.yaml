@@ -36,6 +36,8 @@ cluster_optimizer:
     weights_path: null
     conf_threshold: 0.1
     max_num_points: 100000
+    dense_points_head: point
+    intrinsics_source: reprojection
     tracking: true
     tracking_max_query_pts: 512
     tracking_query_frame_num: 3
