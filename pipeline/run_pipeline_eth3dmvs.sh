@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 
 set -euo pipefail
-
+export HF_HOME=/nethome/xzhang979/nvme/cache
 TRACKER="vggt"
+RECONSTRUCTION_METHOD="vggt_cluster"
 POINT_SOURCE="depth"
 TRIANGULATION_MIN_VIEWS=2
 BA_USE_GT_CALIBRATION=0
@@ -10,9 +11,10 @@ BA_GT_CALIBRATION_DIR=""
 SINGLE_CLUSTER=0
 
 usage() {
-  echo "Usage: $0 [tracker] [--point_source {depth|triangulation}] [--triangulation_min_views N] [--ba_use_gt_calibration] [--ba_gt_calibration_dir DIR] [--single_cluster]"
+  echo "Usage: $0 [tracker] [--reconstruction_method {vggt_cluster|pi3}] [--point_source {depth|triangulation}] [--triangulation_min_views N] [--ba_use_gt_calibration] [--ba_gt_calibration_dir DIR] [--single_cluster]"
   echo "Example: $0"
   echo "Example: $0 vggsfm"
+  echo "Example: $0 --reconstruction_method pi3"
   echo "Example: $0 colmap --point_source triangulation --triangulation_min_views 3"
   echo "Example: $0 colmap --ba_use_gt_calibration"
   echo "Example: $0 vggt --single_cluster"
@@ -33,6 +35,20 @@ while [[ $# -gt 0 ]]; do
       POINT_SOURCE="$2"
       if [[ "${POINT_SOURCE}" != "depth" && "${POINT_SOURCE}" != "triangulation" ]]; then
         echo "Error: --point_source must be one of: depth, triangulation"
+        usage
+        exit 1
+      fi
+      shift 2
+      ;;
+    --reconstruction_method)
+      if [[ $# -lt 2 ]]; then
+        echo "Error: --reconstruction_method requires a value"
+        usage
+        exit 1
+      fi
+      RECONSTRUCTION_METHOD="$2"
+      if [[ "${RECONSTRUCTION_METHOD}" != "vggt_cluster" && "${RECONSTRUCTION_METHOD}" != "pi3" ]]; then
+        echo "Error: --reconstruction_method must be one of: vggt_cluster, pi3"
         usage
         exit 1
       fi
@@ -88,7 +104,11 @@ PARTITION_MODE_TAG="metis"
 if [[ "${SINGLE_CLUSTER}" -eq 1 ]]; then
   PARTITION_MODE_TAG="single_cluster"
 fi
-RUN_TAG="${TRACKER}_${POINT_SOURCE}_${PARTITION_MODE_TAG}"
+if [[ "${RECONSTRUCTION_METHOD}" == "pi3" ]]; then
+  RUN_TAG="pi3_${PARTITION_MODE_TAG}"
+else
+  RUN_TAG="${TRACKER}_${POINT_SOURCE}_${PARTITION_MODE_TAG}"
+fi
 RESULTS_ROOT_BASE="${REPO_ROOT}/pipeline/results/eth3dmvs_${RUN_TAG}"
 
 if [[ ! -d "${DATASET_ROOT}" ]]; then
@@ -163,7 +183,15 @@ run_scene() {
   local scene_images_dir
   local baseline_dir
   local eval_baseline_dir
+  local recon_run_name="vggt_cluster_run"
+  local recon_model_name="${TRACKER}"
   local aligned_original_model_dir="${TRACKER}_original"
+  if [[ "${RECONSTRUCTION_METHOD}" == "pi3" ]]; then
+    recon_run_name="pi3_run"
+    recon_model_name="pi3"
+    aligned_original_model_dir="pi3_original"
+  fi
+  local recon_output_root="${results_root}/2-reconstruction/${recon_run_name}"
   local ba_run_name="vggt_cluster_run"
   if [[ "${BA_USE_GT_CALIBRATION}" -eq 1 ]]; then
     ba_run_name="${ba_run_name}__gtcalib-on"
@@ -226,55 +254,70 @@ run_scene() {
   fi
   "${partition_cmd[@]}"
 
-  # vggt reconstruction + cluster ba
-  python "${REPO_ROOT}/pipeline/2-reconstruction/vggt/run_on_cluster.py" \
-    --cluster_tree_path "${cluster_tree_path}" \
-    --dataset_dir "${dataset_dir}" \
-    --images_root "${scene_images_dir}" \
-    --output_root "${results_root}/2-reconstruction/vggt_cluster_run" \
-    --ba_tracker "${TRACKER}" \
-    --point_source "${POINT_SOURCE}" \
-    --triangulation_min_views "${TRIANGULATION_MIN_VIEWS}"
-
-  python "${REPO_ROOT}/pipeline/utils/check_tracks.py" \
-    --recon_root "${results_root}/2-reconstruction/vggt_cluster_run/results" \
-    --images_root "${dataset_dir}" \
-    --model_name "${TRACKER}"
-
-  ba_cmd=(
-    python "${REPO_ROOT}/pipeline/2-reconstruction/vggt/run_on_cluster.py"
-    --cluster_tree_path "${cluster_tree_path}"
-    --dataset_dir "${dataset_dir}"
-    --images_root "${scene_images_dir}"
-    --output_root "${results_root}/2-reconstruction/vggt_cluster_run"
-    --ba_tracker "${TRACKER}"
-    --use_ba
-    --ba_output_root "${results_root}/3-cluster_ba/${ba_run_name}"
-  )
-  if [[ "${BA_USE_GT_CALIBRATION}" -eq 1 ]]; then
-    ba_cmd+=(--ba_use_gt_calibration)
-    if [[ -n "${BA_GT_CALIBRATION_DIR}" ]]; then
-      ba_cmd+=(--ba_gt_calibration_dir "${BA_GT_CALIBRATION_DIR}")
-    fi
+  # reconstruction
+  if [[ "${RECONSTRUCTION_METHOD}" == "pi3" ]]; then
+    python "${REPO_ROOT}/pipeline/2-reconstruction/Pi3/run_on_cluster.py" \
+      --cluster_tree_path "${cluster_tree_path}" \
+      --dataset_dir "${dataset_dir}" \
+      --images_root "${scene_images_dir}" \
+      --output_root "${recon_output_root}" \
+      --model_name "${recon_model_name}"
+  else
+    python "${REPO_ROOT}/pipeline/2-reconstruction/vggt/run_on_cluster.py" \
+      --cluster_tree_path "${cluster_tree_path}" \
+      --dataset_dir "${dataset_dir}" \
+      --images_root "${scene_images_dir}" \
+      --output_root "${recon_output_root}" \
+      --ba_tracker "${TRACKER}" \
+      --point_source "${POINT_SOURCE}" \
+      --triangulation_min_views "${TRIANGULATION_MIN_VIEWS}"
   fi
-  "${ba_cmd[@]}"
 
   python "${REPO_ROOT}/pipeline/utils/check_tracks.py" \
-    --recon_root "${results_root}/3-cluster_ba/${ba_run_name}/results" \
+    --recon_root "${recon_output_root}/results" \
     --images_root "${dataset_dir}" \
-    --model_name "${TRACKER}"
+    --model_name "${recon_model_name}"
+
+  if [[ "${RECONSTRUCTION_METHOD}" != "pi3" ]]; then
+    ba_cmd=(
+      python "${REPO_ROOT}/pipeline/2-reconstruction/vggt/run_on_cluster.py"
+      --cluster_tree_path "${cluster_tree_path}"
+      --dataset_dir "${dataset_dir}"
+      --images_root "${scene_images_dir}"
+      --output_root "${recon_output_root}"
+      --ba_tracker "${TRACKER}"
+      --use_ba
+      --ba_output_root "${results_root}/3-cluster_ba/${ba_run_name}"
+    )
+    if [[ "${BA_USE_GT_CALIBRATION}" -eq 1 ]]; then
+      ba_cmd+=(--ba_use_gt_calibration)
+      if [[ -n "${BA_GT_CALIBRATION_DIR}" ]]; then
+        ba_cmd+=(--ba_gt_calibration_dir "${BA_GT_CALIBRATION_DIR}")
+      fi
+    fi
+    "${ba_cmd[@]}"
+  fi
+
+  if [[ "${RECONSTRUCTION_METHOD}" != "pi3" ]]; then
+    python "${REPO_ROOT}/pipeline/utils/check_tracks.py" \
+      --recon_root "${results_root}/3-cluster_ba/${ba_run_name}/results" \
+      --images_root "${dataset_dir}" \
+      --model_name "${TRACKER}"
+  fi
 
   python "${REPO_ROOT}/gtsfm/evaluation/compare_colmap_outputs_by_cluster.py" \
     --baseline "${eval_baseline_dir}" \
-    --root "${results_root}/2-reconstruction/vggt_cluster_run" \
-    --recon_name "${TRACKER}" \
-    --csv_output "${results_root}/2-reconstruction/vggt_cluster_run/${TRACKER}_eval/cluster_pose_metrics.csv"
+    --root "${recon_output_root}" \
+    --recon_name "${recon_model_name}" \
+    --csv_output "${recon_output_root}/${recon_model_name}_eval/cluster_pose_metrics.csv"
 
-  python "${REPO_ROOT}/gtsfm/evaluation/compare_colmap_outputs_by_cluster.py" \
-    --baseline "${eval_baseline_dir}" \
-    --root "${results_root}/3-cluster_ba/${ba_run_name}" \
-    --recon_name "${TRACKER}" \
-    --csv_output "${results_root}/3-cluster_ba/${ba_run_name}/${TRACKER}_ba_eval/cluster_pose_metrics.csv"
+  if [[ "${RECONSTRUCTION_METHOD}" != "pi3" ]]; then
+    python "${REPO_ROOT}/gtsfm/evaluation/compare_colmap_outputs_by_cluster.py" \
+      --baseline "${eval_baseline_dir}" \
+      --root "${results_root}/3-cluster_ba/${ba_run_name}" \
+      --recon_name "${TRACKER}" \
+      --csv_output "${results_root}/3-cluster_ba/${ba_run_name}/${TRACKER}_ba_eval/cluster_pose_metrics.csv"
+  fi
 
   eval_reconstruction() {
     local current_model_dir="$1"
@@ -312,8 +355,8 @@ run_scene() {
   # case 1
   python "${REPO_ROOT}/pipeline/4-alignment/alignment.py" \
     --cluster_tree_path "${cluster_tree_path}" \
-    --input_root "${results_root}/2-reconstruction/vggt_cluster_run" \
-    --input_model_name "${TRACKER}" \
+    --input_root "${recon_output_root}" \
+    --input_model_name "${recon_model_name}" \
     --output_root "${results_root}/4-alignment"
 
   eval_reconstruction \
@@ -321,23 +364,25 @@ run_scene() {
     "${results_root}/4-alignment/results" \
     "${results_root}/4-alignment/results/${aligned_original_model_dir}"
 
-  # case 2
-  python "${REPO_ROOT}/pipeline/4-alignment/alignment.py" \
-    --cluster_tree_path "${cluster_tree_path}" \
-    --input_root "${results_root}/3-cluster_ba/${ba_run_name}" \
-    --input_model_name "${TRACKER}" \
-    --output_root "${results_root}/4-alignment-clusterba"
+  if [[ "${RECONSTRUCTION_METHOD}" != "pi3" ]]; then
+    # case 2
+    python "${REPO_ROOT}/pipeline/4-alignment/alignment.py" \
+      --cluster_tree_path "${cluster_tree_path}" \
+      --input_root "${results_root}/3-cluster_ba/${ba_run_name}" \
+      --input_model_name "${TRACKER}" \
+      --output_root "${results_root}/4-alignment-clusterba"
 
-  eval_reconstruction \
-    "${results_root}/4-alignment-clusterba/results/merged_pre_ba" \
-    "${results_root}/4-alignment-clusterba/results" \
-    "${results_root}/4-alignment-clusterba/results/${aligned_original_model_dir}"
+    eval_reconstruction \
+      "${results_root}/4-alignment-clusterba/results/merged_pre_ba" \
+      "${results_root}/4-alignment-clusterba/results" \
+      "${results_root}/4-alignment-clusterba/results/${aligned_original_model_dir}"
+  fi
 
   # case 3
   python "${REPO_ROOT}/pipeline/4-alignment/alignment.py" \
     --cluster_tree_path "${cluster_tree_path}" \
-    --input_root "${results_root}/2-reconstruction/vggt_cluster_run" \
-    --input_model_name "${TRACKER}" \
+    --input_root "${recon_output_root}" \
+    --input_model_name "${recon_model_name}" \
     --output_root "${results_root}/5-global_ba" \
     --run_colmap_ba \
     --convert_ba_to_txt
@@ -347,19 +392,21 @@ run_scene() {
     "${results_root}/5-global_ba/results" \
     "${results_root}/5-global_ba/results/${aligned_original_model_dir}"
 
-  # case 4
-  python "${REPO_ROOT}/pipeline/4-alignment/alignment.py" \
-    --cluster_tree_path "${cluster_tree_path}" \
-    --input_root "${results_root}/3-cluster_ba/${ba_run_name}" \
-    --output_root "${results_root}/5-global_ba-cluster_ba" \
-    --input_model_name "${TRACKER}" \
-    --run_colmap_ba \
-    --convert_ba_to_txt
+  if [[ "${RECONSTRUCTION_METHOD}" != "pi3" ]]; then
+    # case 4
+    python "${REPO_ROOT}/pipeline/4-alignment/alignment.py" \
+      --cluster_tree_path "${cluster_tree_path}" \
+      --input_root "${results_root}/3-cluster_ba/${ba_run_name}" \
+      --output_root "${results_root}/5-global_ba-cluster_ba" \
+      --input_model_name "${TRACKER}" \
+      --run_colmap_ba \
+      --convert_ba_to_txt
 
-  eval_reconstruction \
-    "${results_root}/5-global_ba-cluster_ba/results/merged_colmap_ba_txt" \
-    "${results_root}/5-global_ba-cluster_ba/results" \
-    "${results_root}/5-global_ba-cluster_ba/results/${aligned_original_model_dir}"
+    eval_reconstruction \
+      "${results_root}/5-global_ba-cluster_ba/results/merged_colmap_ba_txt" \
+      "${results_root}/5-global_ba-cluster_ba/results" \
+      "${results_root}/5-global_ba-cluster_ba/results/${aligned_original_model_dir}"
+  fi
 }
 
 mapfile -t SCENES < <(find "${DATASET_ROOT}" -mindepth 2 -maxdepth 2 -type d | sort)
@@ -372,6 +419,7 @@ fi
 echo "Found ${#SCENES[@]} ETH3D scenes."
 echo "Run tag: ${RUN_TAG}"
 echo "Results root base: ${RESULTS_ROOT_BASE}"
+echo "Reconstruction method: ${RECONSTRUCTION_METHOD}"
 echo "Tracker: ${TRACKER}"
 echo "Point source: ${POINT_SOURCE} (triangulation_min_views=${TRIANGULATION_MIN_VIEWS})"
 echo "BA use GT calibration: ${BA_USE_GT_CALIBRATION} (dir=${BA_GT_CALIBRATION_DIR:-auto})"

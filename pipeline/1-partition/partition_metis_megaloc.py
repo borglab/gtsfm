@@ -109,7 +109,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--config_name",
         type=str,
-        default="vggt",
+        default="vggt_megaloc_phototourism",
         help="Config in gtsfm/configs to load (default: vggt).",
     )
     parser.add_argument(
