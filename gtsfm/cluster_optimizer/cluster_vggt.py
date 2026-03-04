@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Hashable, Optional, Union
+from typing import Any, Hashable, Literal, Optional, Union
 
 import numpy as np
 import torch
@@ -248,6 +248,8 @@ class ClusterVGGT(ClusterOptimizerBase):
         weights_path: Optional[str] = None,
         conf_threshold: float = 5.0,
         max_num_points: int = 100000,
+        dense_points_head: Literal["depth", "point"] = "depth",
+        intrinsics_source: Literal["pose", "reprojection"] = "pose",
         tracking: bool = False,
         tracking_max_query_pts: int = 2048,
         tracking_query_frame_num: int = 3,
@@ -309,6 +311,8 @@ class ClusterVGGT(ClusterOptimizerBase):
         self._weights_path = Path(weights_path) if weights_path is not None else None
         self._conf_threshold = conf_threshold
         self._max_points_for_colmap = max_num_points
+        self._dense_points_head = dense_points_head
+        self._intrinsics_source = intrinsics_source
         self._tracking = tracking
         self._tracking_max_query_pts = tracking_max_query_pts
         self._tracking_query_frame_num = tracking_query_frame_num
@@ -417,6 +421,8 @@ class ClusterVGGT(ClusterOptimizerBase):
         config = VggtConfiguration(
             confidence_threshold=self._conf_threshold,
             max_num_points=self._max_points_for_colmap,
+            dense_points_head=self._dense_points_head,
+            intrinsics_source=self._intrinsics_source,
             tracking=self._tracking,
             max_query_pts=self._tracking_max_query_pts,
             query_frame_num=self._tracking_query_frame_num,
