@@ -545,20 +545,52 @@ def _convert_vggt_outputs_to_gtsfm_data(
         )
 
     if tracking_result:
-        # track masks according to visibility, reprojection error, etc
+        total_tracks = tracking_result.visibilities.shape[1]
+        logger.info("Track filtering: starting with %d raw tracks", total_tracks)
+
+        # --- Filter 1: visibility threshold ---
         track_mask = tracking_result.visibilities > config.track_vis_thresh
-
-        confidence_threshold = config.track_conf_thresh
-        confidence_threshold = min(
-            confidence_threshold, np.mean(tracking_result.confidences) - np.std(tracking_result.confidences)
+        vis_pass_per_track = track_mask.sum(0)
+        tracks_with_any_vis = int((vis_pass_per_track > 0).sum())
+        logger.info(
+            "  [1] Visibility filter (thresh=%.3f): %d / %d tracks have at least 1 visible frame",
+            config.track_vis_thresh, tracks_with_any_vis, total_tracks,
         )
-        if tracking_result.confidences is not None:
-            track_mask = np.logical_and(track_mask, tracking_result.confidences > confidence_threshold)
 
+        # --- Filter 2: confidence threshold ---
+        confidence_threshold = config.track_conf_thresh
+        if tracking_result.confidences is not None:
+            adaptive_thresh = np.mean(tracking_result.confidences) - np.std(tracking_result.confidences)
+            confidence_threshold = min(confidence_threshold, adaptive_thresh)
+            logger.info(
+                "  [2] Confidence filter: configured=%.3f, adaptive(mean-std)=%.3f, using=%.3f",
+                config.track_conf_thresh, adaptive_thresh, confidence_threshold,
+            )
+            pre_conf_count = int(track_mask.any(axis=0).sum())
+            track_mask = np.logical_and(track_mask, tracking_result.confidences > confidence_threshold)
+            post_conf_count = int(track_mask.any(axis=0).sum())
+            logger.info(
+                "  [2] Confidence filter: %d -> %d tracks (dropped %d)",
+                pre_conf_count, post_conf_count, pre_conf_count - post_conf_count,
+            )
+        else:
+            logger.info("  [2] Confidence filter: skipped (no confidence scores available)")
+
+        # --- Filter 3: minimum measurement count ---
         inlier_num = track_mask.sum(0)
         min_measurements = 2
         valid_mask = inlier_num >= min_measurements  # a track is invalid if without two inliers
         valid_idx = np.nonzero(valid_mask)[0]
+        logger.info(
+            "  [3] Min measurements filter (>=%d): %d / %d tracks pass",
+            min_measurements, len(valid_idx), total_tracks,
+        )
+
+        # --- Filter 4 & 5: cheirality + min-measurements per track, triangulation angle ---
+        num_behind_camera = 0
+        num_too_few_after_cheirality = 0
+        num_small_angle = 0
+        num_accepted = 0
 
         for valid_id in valid_idx:
             rgb: np.ndarray
@@ -581,10 +613,12 @@ def _convert_vggt_outputs_to_gtsfm_data(
 
                 camera = gtsfm_data.get_camera(global_idx)
                 if not _is_point_in_front_of_camera(camera, point_xyz):
+                    num_behind_camera += 1
                     continue
                 per_track_measurements.append((global_idx, u, v))
 
             if len(per_track_measurements) < min_measurements:
+                num_too_few_after_cheirality += 1
                 continue
 
             track = torch_utils.colored_track_from_point(point_xyz, rgb)
@@ -596,9 +630,27 @@ def _convert_vggt_outputs_to_gtsfm_data(
 
                 cameras = gtsfm_data.cameras()
                 if track_utils.get_max_triangulation_angle(track, cameras) < min_triangulation_angle:
+                    num_small_angle += 1
                     continue
             gtsfm_data.add_track(track)
-        logger.info("num valid tracks after filtering: %d out of %d", gtsfm_data.number_tracks(), len(valid_idx))
+            num_accepted += 1
+
+        logger.info(
+            "  [4] Cheirality filter: %d total measurements rejected (point behind camera)", num_behind_camera,
+        )
+        logger.info(
+            "  [5] Post-cheirality min measurements: %d tracks dropped (<%d measurements remain)",
+            num_too_few_after_cheirality, min_measurements,
+        )
+        if config.min_triangulation_angle > 0.0:
+            logger.info(
+                "  [6] Triangulation angle filter (min=%.2f deg): %d tracks dropped",
+                config.min_triangulation_angle, num_small_angle,
+            )
+        logger.info(
+            "Track filtering summary: %d / %d raw tracks accepted into reconstruction",
+            num_accepted, total_tracks,
+        )
 
     gtsfm_data_pre_ba: GtsfmData | None = None
     if config.run_bundle_adjustment_on_leaf:
