@@ -163,7 +163,7 @@ class TestVGGTTrackSelection(unittest.TestCase):
             ),
         ]
 
-        selected = vggt._select_track_ids_for_ba_coverage(candidates, min_num_tracks=0)
+        selected = vggt._select_track_ids_for_ba_coverage(candidates)
 
         self.assertEqual(selected, {0, 2})
 
@@ -180,7 +180,7 @@ class TestVGGTTrackSelection(unittest.TestCase):
             ),
         ]
 
-        selected = vggt._select_track_ids_for_ba_coverage(candidates, min_num_tracks=0)
+        selected = vggt._select_track_ids_for_ba_coverage(candidates)
 
         # Track 1 wins over track 0 on tie-breaker (higher mean reprojection error), then track 2 adds a new patch.
         self.assertEqual(selected, {1, 2})
@@ -207,30 +207,10 @@ class TestVGGTTrackSelection(unittest.TestCase):
             ),
         ]
 
-        selected = vggt._select_track_ids_for_ba_coverage(candidates, min_num_tracks=0)
+        selected = vggt._select_track_ids_for_ba_coverage(candidates)
 
         self.assertEqual(selected, {0, 1})
 
-    def test_fills_with_top_ranked_tracks_until_minimum(self) -> None:
-        candidates = [
-            vggt._TrackSelectionCandidate(
-                track_id=0, track_length=5, mean_reprojection_error=2.0, patches_by_image={0: (0, 0)}
-            ),
-            vggt._TrackSelectionCandidate(
-                track_id=1, track_length=4, mean_reprojection_error=1.0, patches_by_image={0: (0, 0)}
-            ),
-            vggt._TrackSelectionCandidate(
-                track_id=2, track_length=3, mean_reprojection_error=0.5, patches_by_image={0: (0, 1)}
-            ),
-            vggt._TrackSelectionCandidate(
-                track_id=3, track_length=2, mean_reprojection_error=0.2, patches_by_image={0: (0, 1)}
-            ),
-        ]
-
-        selected = vggt._select_track_ids_for_ba_coverage(candidates, min_num_tracks=3)
-
-        # Coverage pass picks {0,2}, fill pass adds next best remaining track {1}.
-        self.assertEqual(selected, {0, 1, 2})
 
 
 class TestVGGT(unittest.TestCase):

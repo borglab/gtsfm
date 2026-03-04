@@ -331,7 +331,6 @@ class VggtConfiguration:
     drop_camera_with_no_track: bool = False
     min_track_length: int = 2
     ba_track_patch_grid_size: int = 8
-    ba_min_tracks_per_image: int = 25
 
     # Bundle adjustment-specific parameters:
     ba_use_calibration_prior: bool = False
@@ -377,19 +376,13 @@ def _compute_image_patch(
     if patch_grid_size <= 1:
         return (0, 0)
 
-    width = max(float(image_width), 1.0)
-    height = max(float(image_height), 1.0)
-    col = int(np.floor(np.clip(u, 0.0, width - 1e-6) / width * patch_grid_size))
-    row = int(np.floor(np.clip(v, 0.0, height - 1e-6) / height * patch_grid_size))
-    col = int(np.clip(col, 0, patch_grid_size - 1))
-    row = int(np.clip(row, 0, patch_grid_size - 1))
+    col = int(np.floor(np.clip(u, 0.0, image_width - 1e-6) / image_width * patch_grid_size))
+    row = int(np.floor(np.clip(v, 0.0, image_height - 1e-6) / image_height * patch_grid_size))
     return (row, col)
 
 
 def _select_track_ids_for_ba_coverage(
     candidates: Sequence[_TrackSelectionCandidate],
-    *,
-    min_num_tracks: int,
 ) -> set[int]:
     """Select tracks to maximize patch coverage using ranking by track geometry quality.
 
@@ -397,7 +390,8 @@ def _select_track_ids_for_ba_coverage(
     1) track length (descending)
     2) mean reprojection error (descending) for equal-length tracks
 
-    A track is selected if it introduces at least one previously uncovered patch in any image.
+    A track is selected if it introduces at least one previously uncovered patch in any image, track length is alteast 3
+    and reprojection error is less than 14px.
     """
     if not candidates:
         return set()
@@ -410,25 +404,18 @@ def _select_track_ids_for_ba_coverage(
 
     selected_track_ids: set[int] = set()
     covered_patches: set[tuple[int, int, int]] = set()
-    for candidate in ordered_candidates:
+    for candidate_track in ordered_candidates:
+        if candidate_track.track_length < 3 or candidate_track.mean_reprojection_error > 14.0:
+            continue
         candidate_patch_keys = {
-            (image_idx, patch_id[0], patch_id[1]) for image_idx, patch_id in candidate.patches_by_image.items()
+            (image_idx, patch_id[0], patch_id[1]) for image_idx, patch_id in candidate_track.patches_by_image.items()
         }
         if not candidate_patch_keys:
             continue
         if candidate_patch_keys.issubset(covered_patches):
             continue
-        selected_track_ids.add(candidate.track_id)
+        selected_track_ids.add(candidate_track.track_id)
         covered_patches.update(candidate_patch_keys)
-
-    # If patch-coverage selection did not reach minimum target, fill with top-ranked remaining tracks.
-    if min_num_tracks > 0 and len(selected_track_ids) < min_num_tracks:
-        for candidate in ordered_candidates:
-            if candidate.track_id in selected_track_ids:
-                continue
-            selected_track_ids.add(candidate.track_id)
-            if len(selected_track_ids) >= min_num_tracks:
-                break
 
     return selected_track_ids
 
@@ -723,9 +710,7 @@ def _convert_vggt_outputs_to_gtsfm_data(
                 )
             )
 
-        selected_track_ids = _select_track_ids_for_ba_coverage(
-            selection_candidates, min_num_tracks=config.ba_min_tracks_per_image
-        )
+        selected_track_ids = _select_track_ids_for_ba_coverage(selection_candidates)
         for track_id, track in candidate_tracks:
             if track_id in selected_track_ids:
                 gtsfm_data.add_track(track)
