@@ -321,6 +321,7 @@ class VggtConfiguration:
     tracking: bool = True
     max_query_pts: int = 2048
     query_frame_num: int = 3
+    use_all_frames_forward_only: bool = False
     track_vis_thresh: float = 0.05
     track_conf_thresh: float = 0.2
     keypoint_extractor: str = "aliked+sp+sift"
@@ -329,6 +330,8 @@ class VggtConfiguration:
     min_triangulation_angle: float = 10.0
     drop_camera_with_no_track: bool = False
     min_track_length: int = 2
+    ba_track_patch_grid_size: int = 8
+    ba_min_tracks_per_image: int = 25
 
     # Bundle adjustment-specific parameters:
     ba_use_calibration_prior: bool = False
@@ -351,6 +354,83 @@ class VggtOutput:  # TODO(Frank): derive from base class shared with AnySplat (i
     depth_map: torch.Tensor
     depth_confidence: torch.Tensor
     dense_points: torch.Tensor
+
+
+@dataclass(frozen=True)
+class _TrackSelectionCandidate:
+    """Track candidate ranked by geometric support and reprojection error."""
+
+    track_id: int
+    track_length: int
+    mean_reprojection_error: float
+    patches_by_image: dict[int, tuple[int, int]]
+
+
+def _compute_image_patch(
+    u: float,
+    v: float,
+    image_width: float,
+    image_height: float,
+    patch_grid_size: int,
+) -> tuple[int, int]:
+    """Map a 2D pixel measurement to an image patch in an ``NxN`` grid."""
+    if patch_grid_size <= 1:
+        return (0, 0)
+
+    width = max(float(image_width), 1.0)
+    height = max(float(image_height), 1.0)
+    col = int(np.floor(np.clip(u, 0.0, width - 1e-6) / width * patch_grid_size))
+    row = int(np.floor(np.clip(v, 0.0, height - 1e-6) / height * patch_grid_size))
+    col = int(np.clip(col, 0, patch_grid_size - 1))
+    row = int(np.clip(row, 0, patch_grid_size - 1))
+    return (row, col)
+
+
+def _select_track_ids_for_ba_coverage(
+    candidates: Sequence[_TrackSelectionCandidate],
+    *,
+    min_num_tracks: int,
+) -> set[int]:
+    """Select tracks to maximize patch coverage using ranking by track geometry quality.
+
+    Tracks are ordered by:
+    1) track length (descending)
+    2) mean reprojection error (descending) for equal-length tracks
+
+    A track is selected if it introduces at least one previously uncovered patch in any image.
+    """
+    if not candidates:
+        return set()
+
+    ordered_candidates = sorted(
+        candidates,
+        key=lambda candidate: (candidate.track_length, candidate.mean_reprojection_error, candidate.track_id),
+        reverse=True,
+    )
+
+    selected_track_ids: set[int] = set()
+    covered_patches: set[tuple[int, int, int]] = set()
+    for candidate in ordered_candidates:
+        candidate_patch_keys = {
+            (image_idx, patch_id[0], patch_id[1]) for image_idx, patch_id in candidate.patches_by_image.items()
+        }
+        if not candidate_patch_keys:
+            continue
+        if candidate_patch_keys.issubset(covered_patches):
+            continue
+        selected_track_ids.add(candidate.track_id)
+        covered_patches.update(candidate_patch_keys)
+
+    # If patch-coverage selection did not reach minimum target, fill with top-ranked remaining tracks.
+    if min_num_tracks > 0 and len(selected_track_ids) < min_num_tracks:
+        for candidate in ordered_candidates:
+            if candidate.track_id in selected_track_ids:
+                continue
+            selected_track_ids.add(candidate.track_id)
+            if len(selected_track_ids) >= min_num_tracks:
+                break
+
+    return selected_track_ids
 
 
 @dataclass
@@ -558,17 +638,22 @@ def _convert_vggt_outputs_to_gtsfm_data(
         # track masks according to visibility, reprojection error, etc
         track_mask = tracking_result.visibilities > config.track_vis_thresh
 
-        confidence_threshold = config.track_conf_thresh
-        confidence_threshold = min(
-            confidence_threshold, np.mean(tracking_result.confidences) - np.std(tracking_result.confidences)
-        )
-        if tracking_result.confidences is not None:
+        if tracking_result.confidences is not None and tracking_result.confidences.size > 0:
+            confidence_threshold = min(
+                config.track_conf_thresh,
+                float(np.mean(tracking_result.confidences) - np.std(tracking_result.confidences)),
+            )
             track_mask = np.logical_and(track_mask, tracking_result.confidences > confidence_threshold)
 
         inlier_num = track_mask.sum(0)
-        min_measurements = 2
-        valid_mask = inlier_num >= min_measurements  # a track is invalid if without two inliers
+        valid_mask = inlier_num >= config.min_track_length  # a track is invalid if without two inliers
         valid_idx = np.nonzero(valid_mask)[0]
+        cameras = gtsfm_data.cameras()
+        import gtsfm.utils.reprojection as reprojection_utils  # local import to avoid heavier dependency at module load
+        from gtsfm.common.sfm_track import SfmMeasurement  # local import to avoid heavier dependency at module load
+
+        candidate_tracks: list[tuple[int, Any]] = []
+        selection_candidates: list[_TrackSelectionCandidate] = []
 
         for valid_id in valid_idx:
             rgb: np.ndarray
@@ -580,6 +665,7 @@ def _convert_vggt_outputs_to_gtsfm_data(
                 rgb = np.zeros(3, dtype=np.uint8)
             point_xyz = tracking_result.points_3d[valid_id]
             per_track_measurements: list[tuple[int, float, float]] = []
+            patches_by_image: dict[int, tuple[int, int]] = {}
             frame_idx = np.where(track_mask[:, valid_id])[0]
             for local_id in frame_idx:
                 global_idx = image_indices[local_id]
@@ -593,9 +679,29 @@ def _convert_vggt_outputs_to_gtsfm_data(
                 if not _is_point_in_front_of_camera(camera, point_xyz):
                     continue
                 per_track_measurements.append((global_idx, u, v))
+                patches_by_image[global_idx] = _compute_image_patch(
+                    u=u,
+                    v=v,
+                    image_width=original_coords_np[local_id, 4],
+                    image_height=original_coords_np[local_id, 5],
+                    patch_grid_size=config.ba_track_patch_grid_size,
+                )
 
-            if len(per_track_measurements) < min_measurements:
+            if len(per_track_measurements) < config.min_track_length:
                 continue
+
+            sfm_measurements = [
+                SfmMeasurement(i=global_idx, uv=np.array([float_u, float_v], dtype=np.float64))
+                for global_idx, float_u, float_v in per_track_measurements
+            ]
+            reproj_errors, _ = reprojection_utils.compute_point_reprojection_errors(
+                cameras, point_xyz, sfm_measurements
+            )
+            valid_reproj_errors = reproj_errors[~np.isnan(reproj_errors)]
+            if valid_reproj_errors.size < config.min_track_length:
+                continue
+            track_length = int(valid_reproj_errors.size)
+            mean_reprojection_error = float(np.mean(valid_reproj_errors))
 
             track = torch_utils.colored_track_from_point(point_xyz, rgb)
             for global_idx, float_u, float_v in per_track_measurements:
@@ -604,11 +710,32 @@ def _convert_vggt_outputs_to_gtsfm_data(
             if min_triangulation_angle > 0.0:
                 import gtsfm.utils.tracks as track_utils  # local import to avoid heavier dependency at module load
 
-                cameras = gtsfm_data.cameras()
                 if track_utils.get_max_triangulation_angle(track, cameras) < min_triangulation_angle:
                     continue
-            gtsfm_data.add_track(track)
-        logger.info("num valid tracks after filtering: %d out of %d", gtsfm_data.number_tracks(), len(valid_idx))
+
+            candidate_tracks.append((valid_id, track))
+            selection_candidates.append(
+                _TrackSelectionCandidate(
+                    track_id=valid_id,
+                    track_length=track_length,
+                    mean_reprojection_error=mean_reprojection_error,
+                    patches_by_image=patches_by_image,
+                )
+            )
+
+        selected_track_ids = _select_track_ids_for_ba_coverage(
+            selection_candidates, min_num_tracks=config.ba_min_tracks_per_image
+        )
+        for track_id, track in candidate_tracks:
+            if track_id in selected_track_ids:
+                gtsfm_data.add_track(track)
+
+        logger.info(
+            "num valid tracks after filtering: %d out of %d (selected %d spatially distributed tracks)",
+            gtsfm_data.number_tracks(),
+            len(valid_idx),
+            len(selected_track_ids),
+        )
 
     gtsfm_data_pre_ba: GtsfmData | None = None
     if config.run_bundle_adjustment_on_leaf:
@@ -619,6 +746,7 @@ def _convert_vggt_outputs_to_gtsfm_data(
         else:
             try:
                 if config.vggt_max_reproj_error is not None and config.vggt_max_reproj_error > 0.0:
+                    num_tracks_before_reproj = gtsfm_data.number_tracks()
                     gtsfm_data = gtsfm_data.filter_landmark_measurements(
                         config.vggt_max_reproj_error, config.min_track_length
                     )
@@ -627,7 +755,7 @@ def _convert_vggt_outputs_to_gtsfm_data(
                         "%s🔍 #valid VGGT tracks after reproj error filtering: %d out of %d",
                         cluster_prefix,
                         gtsfm_data.number_tracks(),
-                        gtsfm_data_pre_ba.number_tracks(),
+                        num_tracks_before_reproj,
                     )
                 if config.drop_camera_with_no_track:
                     gtsfm_data, should_run_ba = data_utils.remove_cameras_with_no_tracks(gtsfm_data, "node-level BA")
