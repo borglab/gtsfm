@@ -5,6 +5,7 @@ Authors: Frank Dellaert"""
 from __future__ import annotations
 
 from dataclasses import dataclass
+import heapq
 from math import ceil
 from typing import cast
 
@@ -55,6 +56,15 @@ class MetisPartitioner(GraphPartitionerBase):
         self._min_parent_overlap_for_split = min_parent_overlap_for_split
         self._split_oversized_nodes = split_oversized_nodes
 
+    @staticmethod
+    def _is_connected(graph: VisibilityGraph) -> bool:
+        """Return True iff all graph nodes belong to one connected component."""
+        if len(graph) == 0:
+            return True
+        all_nodes = set(visibility_graph_keys(graph))
+        largest_cc_nodes = set(get_nodes_in_largest_connected_component(graph))
+        return all_nodes == largest_cc_nodes
+
     def _extract_largest_component_subgraph(self, graph: VisibilityGraph) -> VisibilityGraph:
         nodes_in_largest = set(get_nodes_in_largest_connected_component(graph))
         return [(i, j) for i, j in graph if i in nodes_in_largest and j in nodes_in_largest]
@@ -65,19 +75,17 @@ class MetisPartitioner(GraphPartitionerBase):
             return None
 
         valid_visibility_graph_or_raise(graph)
+        graph = self._extract_largest_component_subgraph(graph)
+
+        if not self._is_connected(graph):
+            raise ValueError("MetisPartitioner: input visibility graph must be connected.")
 
         bayes_tree = self.symbolic_bayes_tree(graph)
         roots: list = bayes_tree.roots()
         if len(roots) == 0:
             return None
         if len(roots) > 1:
-            graph = self._extract_largest_component_subgraph(graph)
-            roots = self.symbolic_bayes_tree(graph).roots()
-
-            if len(roots) > 1:
-                raise ValueError(
-                    "MetisPartitioner: VisibilityGraph is disconnected after largest connected component extraction."
-                )
+            raise ValueError("MetisPartitioner: expected a single Bayes tree root for connected input graph.")
 
         root_result = self._cluster_from_clique(roots[0], graph)
         if root_result is None:
@@ -88,17 +96,31 @@ class MetisPartitioner(GraphPartitionerBase):
             self._split_oversized_nodes,
             self._max_cameras,
         )
+        final_tree = root_result.cluster
         if not self._split_oversized_nodes:
-            return root_result.cluster
-        split_root = self._split_oversized_tree(root_result.cluster, graph)
-        logger.info("MetisPartitioner: post-split root cameras=%d", len(split_root.all_keys()))
-        return split_root
+            logger.info("MetisPartitioner: split pass disabled; enforcing parent-child overlap post-process")
+        else:
+            split_root = self._split_oversized_tree(root_result.cluster, graph)
+            logger.info("MetisPartitioner: post-split root cameras=%d", len(split_root.all_keys()))
+            final_tree = split_root
+
+        # Enforce minimum parent-child overlap even when split pass is skipped.
+        adjacency = partition_utils.graph_adjacency(graph)
+        final_tree = self._enforce_min_parent_overlap_tree(final_tree, adjacency=adjacency)
+        return final_tree
 
     def symbolic_bayes_tree(self, graph: VisibilityGraph) -> SymbolicBayesTree:
         """Helper to build the Bayes tree from the visibility graph."""
+        if not self._is_connected(graph):
+            raise ValueError("MetisPartitioner: input visibility graph must be connected.")
         sfg = self._symbolic_factor_graph(graph)
         ordering = Ordering.MetisSymbolicFactorGraph(sfg)
-        return sfg.eliminateMultifrontal(ordering)
+        symbolic_bayes_tree = sfg.eliminateMultifrontal(ordering)
+        # If number of roots is not 1, raise an error.
+        if len(symbolic_bayes_tree.roots()) != 1:
+            raise ValueError("MetisPartitioner: expected a single Bayes tree root for connected input graph.")
+        # If there is an edge across siblings, raise an error.
+        return symbolic_bayes_tree
 
     def _symbolic_factor_graph(self, graph: VisibilityGraph) -> SymbolicFactorGraph:
         sfg = SymbolicFactorGraph()
@@ -515,6 +537,105 @@ class MetisPartitioner(GraphPartitionerBase):
             updated_children.append(self._preprocess_min_child_overlap(augmented_child, adjacency))
         return ClusterTree(value=list(node.value), children=tuple(updated_children))
 
+    @staticmethod
+    def _find_path_with_sibling_preference(
+        parent_local_keys: set[int],
+        target_child_keys: set[int],
+        sibling_keys: set[int],
+        adjacency: dict[int, set[int]],
+    ) -> list[int] | None:
+        """Find path from parent local keys to target child keys, preferring sibling cameras."""
+        if not parent_local_keys or not target_child_keys:
+            return None
+
+        allowed_no_penalty = parent_local_keys | sibling_keys | target_child_keys
+        pq: list[tuple[int, int, int]] = []
+        best_cost: dict[int, tuple[int, int]] = {}
+        prev: dict[int, int | None] = {}
+
+        for src in sorted(parent_local_keys):
+            heapq.heappush(pq, (0, 0, src))
+            best_cost[src] = (0, 0)
+            prev[src] = None
+
+        while pq:
+            outsider_count, hops, node = heapq.heappop(pq)
+            if best_cost.get(node) != (outsider_count, hops):
+                continue
+            if node in target_child_keys:
+                path: list[int] = []
+                cur: int | None = node
+                while cur is not None:
+                    path.append(cur)
+                    cur = prev[cur]
+                path.reverse()
+                return path
+
+            for nbr in sorted(adjacency.get(node, set())):
+                next_outsider = outsider_count + (0 if nbr in allowed_no_penalty else 1)
+                next_hops = hops + 1
+                next_cost = (next_outsider, next_hops)
+                if nbr not in best_cost or next_cost < best_cost[nbr]:
+                    best_cost[nbr] = next_cost
+                    prev[nbr] = node
+                    heapq.heappush(pq, (next_outsider, next_hops, nbr))
+        return None
+
+    def _enforce_min_parent_overlap_tree(self, node: ClusterTree, adjacency: dict[int, set[int]]) -> ClusterTree:
+        """Bottom-up post-process to enforce minimum overlap between parent local and child subtree keys."""
+        updated_children = [
+            self._enforce_min_parent_overlap_tree(cast(ClusterTree, c), adjacency) for c in node.children
+        ]
+        if not updated_children:
+            return ClusterTree(value=list(node.value), children=())
+
+        parent_edges = set(node.value)
+        parent_local = set(visibility_graph_keys(parent_edges))
+        required = self._min_parent_overlap_for_split
+
+        for child_idx, child in enumerate(updated_children):
+            child_subtree_keys = set(child.all_keys())
+            overlap = len(parent_local & child_subtree_keys)
+            if overlap >= required:
+                continue
+
+            sibling_keys: set[int] = set()
+            for i, sibling in enumerate(updated_children):
+                if i == child_idx:
+                    continue
+                sibling_keys.update(sibling.all_keys())
+
+            needed = required - overlap
+            while needed > 0:
+                target_keys = child_subtree_keys - parent_local
+                if not target_keys:
+                    break
+                path = self._find_path_with_sibling_preference(
+                    parent_local_keys=parent_local,
+                    target_child_keys=target_keys,
+                    sibling_keys=sibling_keys,
+                    adjacency=adjacency,
+                )
+                if path is None or len(path) < 2:
+                    break
+
+                for i, j in zip(path, path[1:]):
+                    parent_edges.add(partition_utils.canonical_edge(i, j))
+                    parent_local.update([i, j])
+
+                if self._max_cameras is not None and len(parent_local) > self._max_cameras:
+                    logger.info(
+                        "MetisPartitioner: parent overlap post-process hit max_cameras; keeping current parent edges"
+                    )
+                    break
+
+                needed = required - len(parent_local & child_subtree_keys)
+
+            if needed > 0:
+                logger.info("MetisPartitioner: unable to fully enforce parent-child overlap for one child")
+
+        return ClusterTree(value=sorted(parent_edges), children=tuple(updated_children))
+
     def _split_node_recursive(
         self, node: ClusterTree, graph: VisibilityGraph, parent_local_keys: set[int] | None, is_root: bool
     ) -> list[ClusterTree]:
@@ -546,6 +667,55 @@ class MetisPartitioner(GraphPartitionerBase):
         preprocessed = self._preprocess_min_child_overlap(root, adjacency=adjacency)
         split_roots = self._split_node_recursive(preprocessed, graph=graph, parent_local_keys=None, is_root=True)
         return split_roots[0]
+
+    def _cluster_from_clique(self, clique: SymbolicBayesTreeClique, graph: VisibilityGraph) -> _SubTreeInfo | None:
+        """Recursively build the cluster tree, aggressively pruning single-child nodes."""
+        keys, frontals, _ = self._clique_key_sets(clique)
+        children = [clique[j] for j in range(clique.nrChildren())]
+
+        # Recursively call on children and filter out any pruned (None) results.
+        child_results = [res for res in (self._cluster_from_clique(child, graph) for child in children) if res]
+        descendant_edges = set.union(*(result.edges for result in child_results)) if child_results else set()
+
+        # Only keep edges that touch at least one frontal variable from this clique.
+        candidate_edges = {
+            (i, j) for i, j in graph if i in keys and j in keys and (i in frontals or j in frontals or not frontals)
+        }
+        current_edges = candidate_edges - descendant_edges
+
+        def sorted_edges(edges: set[tuple[int, int]]) -> list[tuple[int, int]]:
+            return sorted(edges)
+
+        # Case 1: This node is a leaf in the pruned tree (no valid children remaining).
+        if not child_results:
+            if not current_edges:
+                return None  # Prune empty leaf clusters.
+            cluster = ClusterTree(value=sorted_edges(current_edges), children=())
+            return _SubTreeInfo(cluster=cluster, keys=keys, edges=current_edges)
+
+        # This node is an internal node in the pruned tree.
+        # Calculate its keys, edges, and the edges unique to it.
+        subtree_keys = keys | set.union(*(result.keys for result in child_results))
+        subtree_edges = current_edges | descendant_edges
+
+        # --- Aggressive Pruning Logic ---
+        if len(child_results) == 1:
+            # Case 2: Merge with the single child.
+            single_child_result = child_results[0]
+            # Combine this node's edges with its child's edges.
+            merged_cluster = ClusterTree(
+                value=sorted_edges(current_edges) + single_child_result.cluster.value,
+                children=single_child_result.cluster.children,
+            )
+            # Pass up the merged cluster, but with the full key/edge sets for this scope.
+            return _SubTreeInfo(cluster=merged_cluster, keys=subtree_keys, edges=subtree_edges)
+        else:
+            # Case 3: Keep this node as a branching point (>1 child).
+            cluster = ClusterTree(
+                value=sorted_edges(current_edges),
+                children=tuple(result.cluster for result in child_results),
+            )
+            return _SubTreeInfo(cluster=cluster, keys=subtree_keys, edges=subtree_edges)
 
     def _cluster_from_clique(self, clique: SymbolicBayesTreeClique, graph: VisibilityGraph) -> _SubTreeInfo | None:
         """Recursively build the cluster tree, aggressively pruning single-child nodes."""

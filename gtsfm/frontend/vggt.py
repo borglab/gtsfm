@@ -1012,17 +1012,21 @@ def _run_vggt_head_tracking(
         images = images.to(device=device, dtype=torch.float32, non_blocking=True)
 
     frame_num = images.shape[0]
-    query_frame_indexes = generate_rank_by_dino(
-        images,
-        query_frame_num=cfg.query_frame_num,
-        image_size=518,
-        model_name="dinov2_vitb14_reg",
-        device=device,
-        spatial_similarity=False,
-    )
-    if 0 in query_frame_indexes:
-        query_frame_indexes.remove(0)
-    query_frame_indexes = [0, *query_frame_indexes]
+    if cfg.use_all_frames_forward_only:
+        # Use all frames as query frames and process in ascending camera/frame index order.
+        query_frame_indexes = list(range(frame_num))
+    else:
+        query_frame_indexes = generate_rank_by_dino(
+            images,
+            query_frame_num=cfg.query_frame_num,
+            image_size=518,
+            model_name="dinov2_vitb14_reg",
+            device=device,
+            spatial_similarity=False,
+        )
+        if 0 in query_frame_indexes:
+            query_frame_indexes.remove(0)
+        query_frame_indexes = [0, *query_frame_indexes]
 
     extractors = vggsfm_utils.initialize_feature_extractors(
         max_query_num=cfg.max_query_pts,
@@ -1093,6 +1097,14 @@ def _run_vggt_head_tracking(
         conf_scores = conf_scores.squeeze(0)
         reordered = vggsfm_utils.switch_tensor_order([pred_track, vis_scores, conf_scores], reorder_index, dim=0)
         pred_track, pred_vis, pred_conf_score = reordered
+
+        if cfg.use_all_frames_forward_only:
+            # Keep only forward-looking observations (query frame + later frames) to avoid
+            # generating reverse duplicate tracks for frame-pair relations.
+            valid_frames_mask = torch.arange(frame_num, device=device) >= query_index
+            pred_vis = pred_vis * valid_frames_mask[:, None].to(dtype=pred_vis.dtype)
+            if pred_conf_score is not None:
+                pred_conf_score = pred_conf_score * valid_frames_mask[:, None].to(dtype=pred_conf_score.dtype)
 
         pred_tracks.append(pred_track)
         pred_vis_scores.append(pred_vis)
