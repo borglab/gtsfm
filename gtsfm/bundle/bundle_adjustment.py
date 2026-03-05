@@ -224,6 +224,16 @@ class BundleAdjustmentOptimizer:
         if self._use_karcher_mean_factor:
             camera_keys = [X(i) for i in cameras_to_model]
             graph.push_back(gtsam.KarcherMeanFactorPose3(camera_keys, 6, 1000))
+            for camera_idx in cameras_to_model:
+                camera_i = initial_data.get_camera(camera_idx)
+                assert camera_i is not None, f"Camera {camera_idx} in initial data is None"
+                graph.push_back(
+                    PriorFactorPose3(
+                        X(camera_idx),
+                        camera_i.pose(),
+                        Isotropic.Sigma(CAM_POSE3_DOF, self._cam_pose3_prior_noise_sigma),
+                    )
+                )
         else:
             first_camera = initial_data.get_camera(cameras_to_model[0])
             assert first_camera is not None, "First camera in initial data is None"

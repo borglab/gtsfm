@@ -289,6 +289,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         gnc_loss: str = "GMC",
         factor_weight_outlier_threshold: float = 1e-8,
         min_track_length: int = 2,
+        ba_track_patch_grid_size: int = 8,
         keep_all_cameras_in_merging: bool = False,
     ) -> None:
         super().__init__(
@@ -334,6 +335,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         self._use_gnc = use_gnc
         self._gnc_loss = gnc_loss
         self._factor_weight_outlier_threshold = factor_weight_outlier_threshold
+        self._ba_track_patch_grid_size = ba_track_patch_grid_size
         if fast_dtype is not None:
             if self._dtype is None:
                 self._dtype = fast_dtype
@@ -442,6 +444,7 @@ class ClusterVGGT(ClusterOptimizerBase):
             gnc_loss=self._gnc_loss,
             factor_weight_outlier_threshold=self._factor_weight_outlier_threshold,
             min_track_length=self.min_track_length,
+            ba_track_patch_grid_size=self._ba_track_patch_grid_size,
         )
 
         image_batch_graph, original_coords_graph = delayed(_load_vggt_inputs, nout=2)(

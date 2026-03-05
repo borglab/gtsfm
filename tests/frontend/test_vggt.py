@@ -147,6 +147,72 @@ PALACE = TEST_DATA / "palace-fine-arts-281"
 DOOR = TEST_DATA / "set1_lund_door"
 
 
+class TestVGGTTrackSelection(unittest.TestCase):
+    """Unit tests for spatially distributed BA track selection."""
+
+    def test_selects_only_tracks_that_introduce_new_patches(self) -> None:
+        candidates = [
+            vggt._TrackSelectionCandidate(
+                track_id=0, track_length=5, mean_reprojection_error=5.0, patches_by_image={0: (0, 0)}
+            ),
+            vggt._TrackSelectionCandidate(
+                track_id=1, track_length=4, mean_reprojection_error=3.0, patches_by_image={0: (0, 0)}
+            ),
+            vggt._TrackSelectionCandidate(
+                track_id=2, track_length=3, mean_reprojection_error=2.0, patches_by_image={0: (0, 1)}
+            ),
+        ]
+
+        selected = vggt._select_track_ids_for_ba_coverage(candidates)
+
+        self.assertEqual(selected, {0, 2})
+
+    def test_sorts_by_track_length_then_mean_reprojection_descending(self) -> None:
+        candidates = [
+            vggt._TrackSelectionCandidate(
+                track_id=0, track_length=5, mean_reprojection_error=1.0, patches_by_image={0: (0, 0)}
+            ),
+            vggt._TrackSelectionCandidate(
+                track_id=1, track_length=5, mean_reprojection_error=4.0, patches_by_image={0: (0, 0)}
+            ),
+            vggt._TrackSelectionCandidate(
+                track_id=2, track_length=4, mean_reprojection_error=100.0, patches_by_image={0: (0, 1)}
+            ),
+        ]
+
+        selected = vggt._select_track_ids_for_ba_coverage(candidates)
+
+        # Track 1 wins over track 0 on tie-breaker (higher mean reprojection error), then track 2 adds a new patch.
+        self.assertEqual(selected, {1, 2})
+
+    def test_selects_track_if_any_observation_adds_new_patch(self) -> None:
+        candidates = [
+            vggt._TrackSelectionCandidate(
+                track_id=0,
+                track_length=5,
+                mean_reprojection_error=2.0,
+                patches_by_image={0: (0, 0), 1: (0, 0)},
+            ),
+            vggt._TrackSelectionCandidate(
+                track_id=1,
+                track_length=4,
+                mean_reprojection_error=1.0,
+                patches_by_image={0: (0, 0), 1: (0, 1)},
+            ),
+            vggt._TrackSelectionCandidate(
+                track_id=2,
+                track_length=3,
+                mean_reprojection_error=0.5,
+                patches_by_image={0: (0, 0), 1: (0, 1)},
+            ),
+        ]
+
+        selected = vggt._select_track_ids_for_ba_coverage(candidates)
+
+        self.assertEqual(selected, {0, 1})
+
+
+
 class TestVGGT(unittest.TestCase):
 
     def setUp(self) -> None:

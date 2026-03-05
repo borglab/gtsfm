@@ -52,6 +52,7 @@ cluster_optimizer:
     drop_camera_with_no_track: false
     keep_all_cameras_in_merging: false #wether to keep all cameras in merging, otherwise cameras without track can be dropped
     min_track_length: 3
+    ba_track_patch_grid_size: 8
     seed: 42
     plot_reprojection_histograms: true
     run_bundle_adjustment_on_leaf: true
