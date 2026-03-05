@@ -388,7 +388,7 @@ def _select_track_ids_for_ba_coverage(
 
     Tracks are ordered by:
     1) track length (descending)
-    2) mean reprojection error (descending) for equal-length tracks
+    2) mean reprojection error (ascending) for equal-length tracks
 
     A track is selected if it introduces at least one previously uncovered patch in any image, track length is alteast 3
     and reprojection error is less than 14px.
@@ -398,8 +398,7 @@ def _select_track_ids_for_ba_coverage(
 
     ordered_candidates = sorted(
         candidates,
-        key=lambda candidate: (candidate.track_length, candidate.mean_reprojection_error, candidate.track_id),
-        reverse=True,
+        key=lambda candidate: (-candidate.track_length, candidate.mean_reprojection_error, candidate.track_id),
     )
 
     selected_track_ids: set[int] = set()
@@ -716,7 +715,7 @@ def _convert_vggt_outputs_to_gtsfm_data(
                 gtsfm_data.add_track(track)
 
         logger.info(
-            "num valid tracks after filtering: %d out of %d (selected %d spatially distributed tracks)",
+            "num valid tracks after filtering and patching: %d out of %d (selected %d tracks)",
             gtsfm_data.number_tracks(),
             len(valid_idx),
             len(selected_track_ids),
@@ -841,7 +840,7 @@ def run_VGGT(
         with autocast_ctx:
             batched = images.unsqueeze(0)  # make into (training) batch of 1
             tokens, ps_idx = model.aggregator(batched)  # transformer backbone
-        # with torch.amp.autocast("cuda", dtype=torch.float32):
+        with torch.amp.autocast("cuda", dtype=torch.float32):
             pose_enc = model.camera_head(tokens)[-1]
             extrinsic, intrinsic = pose_encoding_to_extri_intri(pose_enc, batched.shape[-2:])
             depth_map, depth_conf = model.depth_head(tokens, batched, ps_idx)
