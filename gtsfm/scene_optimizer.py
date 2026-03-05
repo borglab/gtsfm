@@ -369,7 +369,7 @@ class SceneOptimizer:
 
     def _run_retriever(
         self, client: Client, output_paths: OutputPaths
-    ) -> tuple[GtsfmMetricsGroup, VisibilityGraph, "Optional[torch.Tensor]"]:
+    ) -> tuple[GtsfmMetricsGroup, VisibilityGraph, Optional[object]]:
         # TODO(Frank): refactor to move more of this logic into ImagePairsGenerator
         retriever_start_time = time.time()
         batch_size = self.image_pairs_generator._batch_size
