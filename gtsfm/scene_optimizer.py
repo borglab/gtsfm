@@ -114,6 +114,7 @@ class SceneOptimizer:
         merging_pre_ba_min_track_length: int = 2,
         merging_ba_use_calibration_prior: bool = False,
         merging_use_gnc: bool = False,
+        metric_constructed_only: bool = False,
         max_track_correspondences_for_sim3: int = 150,
         scale_and_average_focal_length_in_merging: bool = False,
     ) -> None:
@@ -141,6 +142,13 @@ class SceneOptimizer:
         self._merging_pre_ba_min_track_length = merging_pre_ba_min_track_length
         self._merging_ba_use_calibration_prior = merging_ba_use_calibration_prior
         self._merging_use_gnc = merging_use_gnc
+        self._metric_constructed_only = metric_constructed_only
+        if hasattr(self.cluster_optimizer, "_metric_constructed_only"):
+            setattr(self.cluster_optimizer, "_metric_constructed_only", metric_constructed_only)
+        elif hasattr(self.cluster_optimizer, "_optimizer") and hasattr(
+            getattr(self.cluster_optimizer, "_optimizer"), "_metric_constructed_only"
+        ):
+            setattr(self.cluster_optimizer._optimizer, "_metric_constructed_only", metric_constructed_only)
         self._max_track_correspondences_for_sim3 = max_track_correspondences_for_sim3
         self._scale_and_average_focal_length_in_merging = scale_and_average_focal_length_in_merging
         self._config_snapshot = None
@@ -284,6 +292,7 @@ class SceneOptimizer:
                         pre_ba_max_reproj_error=self._merging_pre_ba_max_reproj_error,
                         pre_ba_min_track_length=self._merging_pre_ba_min_track_length,
                         ba_use_calibration_prior=self._merging_ba_use_calibration_prior,
+                        metric_constructed_only=self._metric_constructed_only,
                         max_track_correspondences_for_sim3=self._max_track_correspondences_for_sim3,
                         scale_and_average_focal_length_in_merging=self._scale_and_average_focal_length_in_merging,
                     )
