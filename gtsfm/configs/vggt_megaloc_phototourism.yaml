@@ -59,3 +59,7 @@ cluster_optimizer:
     gnc_loss: GMC
 
 use_nonlinear_sim3_merging: true
+
+bridge_min_similarity: 0.0
+bridge_top_k: 10
+bridge_min_component_size: 3
