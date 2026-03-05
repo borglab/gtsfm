@@ -110,16 +110,13 @@ class SceneOptimizer:
         output_worker: Optional[str] = None,
         plot_reprojection_histograms: bool = True,
         use_nonlinear_sim3_merging: bool = False,
-<<<<<<< HEAD
         bridge_min_similarity: float = 0.0,
         bridge_top_k: int = 10,
         bridge_min_component_size: int = 3,
-=======
         merging_pre_ba_max_reproj_error: float = 14.0,
         merging_pre_ba_min_track_length: int = 2,
         merging_ba_use_calibration_prior: bool = False,
         merging_use_gnc: bool = False,
->>>>>>> upstream/master
     ) -> None:
         self.loader = loader
         self.image_pairs_generator = image_pairs_generator
