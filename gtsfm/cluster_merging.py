@@ -8,14 +8,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Tuple
 
+import gtsam
 import numpy as np
 from dask.distributed import Client, Future
+from gtsam import Pose3, Similarity3, TrajectoryAlignerSim3, UnaryMeasurementPose3
 
-import gtsam
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
-from gtsam import Pose3, Similarity3, TrajectoryAlignerSim3, UnaryMeasurementPose3
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer, RobustBAMode
 from gtsfm.cluster_optimizer.cluster_anysplat import save_splats
 from gtsfm.common.gtsfm_data import GtsfmData
@@ -30,6 +30,7 @@ from gtsfm.utils.tree_dask import submit_tree_map
 
 if TYPE_CHECKING:
     from gtsfm.scene_optimizer import ClusterExecutionHandles
+
 
 logger = logger_utils.get_logger()
 
@@ -514,6 +515,9 @@ def combine_results(
     use_gnc: bool = False,
     gnc_loss: RobustBAMode | str = RobustBAMode.GMC,
     keep_all_cameras_in_merging: bool,
+    pre_ba_max_reproj_error: float = 14.0,
+    pre_ba_min_track_length: int = 2,
+    ba_use_calibration_prior: bool = False,
 ) -> MergedNodeResult:
     """Run the merging and parent BA pipeline using already-transformed children.
 
@@ -671,11 +675,13 @@ def combine_results(
     else:
         logger.info("📌 Retaining zero-track cameras before parent BA (drop disabled).")
 
+    if pre_ba_max_reproj_error > 0.0:
+        merged = merged.filter_landmark_measurements(pre_ba_max_reproj_error, pre_ba_min_track_length)
     try:
         optimizer = BundleAdjustmentOptimizer(
             robust_ba_mode=RobustBAMode.HUBER,
             calibration_prior_focal_sigma=10.0,
-            use_calibration_prior=True,
+            use_calibration_prior=ba_use_calibration_prior,
             shared_calib=use_shared_calibration,
             robust_noise_basin=0.5,
             use_gnc=use_gnc,
@@ -699,7 +705,7 @@ def combine_results(
         merged_with_ba = merged_with_ba.filter_landmark_measurements(
             post_ba_max_reproj_error,
             min_track_length,
-            keep_all_cameras_in_merging=keep_all_cameras_in_merging,
+            retain_cameras_without_tracks=keep_all_cameras_in_merging,
         )
         _log_scene_reprojection_stats(
             merged_with_ba,

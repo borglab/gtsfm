@@ -119,12 +119,14 @@ complete = [
 # Requires CUDA-aware hardware and drivers
 multi-gpu = [
     "dask-cuda>=24.8.0 ; sys_platform == 'linux'",
+    "cuda-bindings~=12.0 ; sys_platform == 'linux'",  # keep in sync with multi-gpu
 ]
 
 # All optional features combined (for power users and clusters)
 all = [
     "xformers==0.0.30 ; sys_platform == 'linux'",
     "dask-cuda>=24.8.0 ; sys_platform == 'linux'",
+    "cuda-bindings~=12.0 ; sys_platform == 'linux'",  # keep in sync with multi-gpu
 ]
 
 # ============================================================================

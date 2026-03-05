@@ -32,6 +32,7 @@ cluster_optimizer:
   optimizer:
     _target_: gtsfm.cluster_optimizer.cluster_vggt.ClusterVGGT
     input_mode: crop
+    save_processed_image: true #for debug, save processed images in each subfolder
     weights_path: null
     conf_threshold: 0.1
     max_num_points: 100000
@@ -61,5 +62,10 @@ cluster_optimizer:
     use_shared_calibration: true
     use_gnc: true
     gnc_loss: GMC
+    factor_weight_outlier_threshold: 1e-8
 
 use_nonlinear_sim3_merging: true
+merging_pre_ba_max_reproj_error: 14.0
+merging_pre_ba_min_track_length: 2
+merging_ba_use_calibration_prior: true
+merging_use_gnc: false

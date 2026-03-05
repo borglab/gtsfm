@@ -904,11 +904,11 @@ class GtsfmData:
                 track_cameras.add(i)
             if len(track_cameras) < min_track_length:
                 continue
-            filtered_data.add_track(new_track)
             for i in track_cameras:
                 camera_i = self.get_camera(i)
                 assert camera_i is not None
                 filtered_data.add_camera(i, camera_i)
+            filtered_data.add_track(new_track)
         logger.info(
             "Filtered_data now has %d cameras after adding cameres from tracks",
             len(filtered_data.get_valid_camera_indices()),

@@ -56,7 +56,10 @@ class ClusterOptimizerCacher(ClusterOptimizerBase):
             use_shared_calibration=getattr(optimizer, "use_shared_calibration", True),
             use_gnc=getattr(optimizer, "use_gnc", False),
             gnc_loss=getattr(optimizer, "gnc_loss", "GMC"),
+            post_ba_max_reproj_error=getattr(optimizer, "post_ba_max_reproj_error", 3.0),
+            min_track_length=getattr(optimizer, "min_track_length", 2),
             keep_all_cameras_in_merging=getattr(optimizer, "keep_all_cameras_in_merging", False),
+            merge_duplicate_tracks=getattr(optimizer, "merge_duplicate_tracks", True),
             output_worker=optimizer._output_worker,
         )
         self._optimizer = optimizer
