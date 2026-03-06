@@ -18,7 +18,7 @@ image_pairs_generator:
   retriever:
     _target_: gtsfm.retriever.Similarity
     num_matched: 15
-    min_score: 0.4
+    min_score: 0.45
   batch_size: 16
 
 graph_partitioner:
@@ -45,14 +45,14 @@ cluster_optimizer:
     track_conf_thresh: 0.2
     vggt_max_reproj_error: 14.0
     post_ba_max_reproj_error: 3.0
-    min_triangulation_angle: 1.0
+    min_triangulation_angle: 2.0
     camera_type: PINHOLE
     drop_outlier_after_camera_merging: true
     drop_child_if_merging_fail: true
     drop_camera_with_no_track: false
     keep_all_cameras_in_merging: false #wether to keep all cameras in merging, otherwise cameras without track can be dropped
     min_track_length: 3
-    ba_track_patch_grid_size: 8
+    ba_track_patch_grid_size: 14
     seed: 42
     plot_reprojection_histograms: true
     run_bundle_adjustment_on_leaf: true
