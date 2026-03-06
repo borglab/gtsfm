@@ -447,6 +447,7 @@ def _get_pose_metrics(
     result_data: GtsfmData,
     cameras_gt: list[Optional[gtsfm_types.CAMERA_TYPE]],
     save_dir: Optional[str] = None,
+    metric_constructed_only: bool = False,
 ) -> GtsfmMetricsGroup:
     """Compute pose metrics for a BA result after aligning with ground truth.
 
@@ -469,7 +470,11 @@ def _get_pose_metrics(
 
     aligned_result_data = result_data.align_via_sim3_and_transform(poses_gt)
     return metrics_utils.compute_ba_pose_metrics(
-        gt_wTi=poses_gt, computed_wTi=aligned_result_data.get_camera_poses(), save_dir=save_dir, store_full_data=False
+        gt_wTi=poses_gt,
+        computed_wTi=aligned_result_data.get_camera_poses(),
+        save_dir=save_dir,
+        store_full_data=False,
+        metric_constructed_only=metric_constructed_only,
     )
 
 
@@ -504,6 +509,7 @@ def compute_merging_metrics(
     cameras_gt: Optional[list[Optional[gtsfm_types.CAMERA_TYPE]]] = None,
     save_dir: Optional[str | Path] = None,
     store_full_data: bool = False,
+    metric_constructed_only: bool = False,
     child_camera_counts: list[int] | None = None,
     child_camera_overlap_with_parent: list[int] | None = None,
     suffix: str = "",
@@ -548,6 +554,7 @@ def compute_merging_metrics(
             merged_scene,
             cameras_gt,
             save_dir=pose_save_dir,
+            metric_constructed_only=metric_constructed_only,
         )
         merging_metrics.extend(ba_pose_error_metrics)
         merging_metrics.extend(_get_intrinsics_metrics(merged_scene, cameras_gt))
@@ -708,6 +715,7 @@ def combine_results(
     ba_use_calibration_prior: bool = False,
     max_track_correspondences_for_sim3: int = 150,
     scale_and_average_focal_length_in_merging: bool = False,
+    metric_constructed_only: bool = False,
 ) -> MergedNodeResult:
     """Run the merging and parent BA pipeline using already-transformed children.
 
@@ -753,6 +761,7 @@ def combine_results(
                 store_full_data=store_full_data,
                 child_camera_counts=child_camera_counts,
                 child_camera_overlap_with_parent=child_camera_overlap_with_parent,
+                metric_constructed_only=metric_constructed_only,
             ),
             pre_ba_metrics=compute_merging_metrics(
                 pre_ba_scene,
@@ -761,6 +770,7 @@ def combine_results(
                 child_camera_counts=child_camera_counts,
                 child_camera_overlap_with_parent=child_camera_overlap_with_parent,
                 suffix="_pre_ba",
+                metric_constructed_only=metric_constructed_only,
             ),
         )
 

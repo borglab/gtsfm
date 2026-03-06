@@ -388,7 +388,7 @@ def _select_track_ids_for_ba_coverage(
 
     Tracks are ordered by:
     1) track length (descending)
-    2) mean reprojection error (descending) for equal-length tracks
+    2) mean reprojection error (ascending) for equal-length tracks
 
     A track is selected if it introduces at least one previously uncovered patch in any image, track length is alteast 3
     and reprojection error is less than 14px.
@@ -398,8 +398,7 @@ def _select_track_ids_for_ba_coverage(
 
     ordered_candidates = sorted(
         candidates,
-        key=lambda candidate: (candidate.track_length, candidate.mean_reprojection_error, candidate.track_id),
-        reverse=True,
+        key=lambda candidate: (-candidate.track_length, candidate.mean_reprojection_error, candidate.track_id),
     )
 
     selected_track_ids: set[int] = set()
@@ -716,7 +715,7 @@ def _convert_vggt_outputs_to_gtsfm_data(
                 gtsfm_data.add_track(track)
 
         logger.info(
-            "num valid tracks after filtering: %d out of %d (selected %d spatially distributed tracks)",
+            "num valid tracks after filtering and patching: %d out of %d (selected %d tracks)",
             gtsfm_data.number_tracks(),
             len(valid_idx),
             len(selected_track_ids),
@@ -795,6 +794,13 @@ def run_VGGT(
     cfg = config or VggtConfiguration()
     requested_dtype = _resolve_dtype_argument(cfg.dtype)
     resolved_dtype = requested_dtype or default_dtype(resolved_device)
+    logger.info(
+        "VGGT inference dtype: cfg.dtype=%s requested=%s resolved=%s device=%s",
+        str(cfg.dtype),
+        str(requested_dtype),
+        str(resolved_dtype),
+        str(resolved_device),
+    )
 
     config_model_kwargs = dict(cfg.model_ctor_kwargs) if cfg.model_ctor_kwargs else None
 
@@ -1069,12 +1075,14 @@ def _run_vggt_head_tracking(
         reorder_index = vggsfm_utils.calculate_index_mappings(query_index, frame_num, device=device)
         reorder_images = vggsfm_utils.switch_tensor_order([images], reorder_index, dim=0)[0]
 
+        if device.type == "cuda":
+            autocast_ctx: Any = amp_autocast("cuda", dtype=vggt_output.dtype)
+        else:
+            autocast_ctx = nullcontext()
+
         with torch.no_grad():
-            with amp_autocast("cuda", dtype=vggt_output.dtype):
+            with autocast_ctx:
                 aggregated_tokens_list, ps_idx = model.aggregator(reorder_images[None])
-            if aggregated_tokens_list and aggregated_tokens_list[0].dtype != torch.float32:
-                aggregated_tokens_list = [tokens.float() for tokens in aggregated_tokens_list]
-            with amp_autocast("cuda", dtype=torch.float32):
                 track_list, vis_scores, conf_scores = model.track_head(
                     aggregated_tokens_list,
                     reorder_images[None],

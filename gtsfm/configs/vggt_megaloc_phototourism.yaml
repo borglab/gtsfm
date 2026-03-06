@@ -72,3 +72,4 @@ merging_pre_ba_max_reproj_error: 14.0
 merging_pre_ba_min_track_length: 3
 merging_ba_use_calibration_prior: false
 merging_use_gnc: false
+metric_constructed_only: true

@@ -157,6 +157,7 @@ def _get_pose_metrics(
     result_data: GtsfmData,
     cameras_gt: list[Optional[gtsfm_types.CAMERA_TYPE]],
     save_dir: Optional[str] = None,
+    metric_constructed_only: bool = False,
 ) -> GtsfmMetricsGroup:
     """Compute pose metrics for a VGGT result after aligning with ground truth."""
     image_idxs = list(result_data._image_info.keys())
@@ -176,6 +177,7 @@ def _get_pose_metrics(
         computed_wTi=computed_wTi,
         save_dir=save_dir,
         store_full_data=True,
+        metric_constructed_only=metric_constructed_only,
     )
 
 
@@ -210,6 +212,7 @@ def _aggregate_vggt_metrics(
     pre_ba_result: Optional[GtsfmData] = None,
     *,
     save_dir: Optional[str] = None,
+    metric_constructed_only: bool = False,
 ) -> list[GtsfmMetricsGroup]:
     def _build_metrics_group(scene: GtsfmData, name: str) -> GtsfmMetricsGroup:
         metrics_group = GtsfmMetricsGroup(
@@ -220,7 +223,11 @@ def _aggregate_vggt_metrics(
             ],
         )
         if cameras_gt is not None:
-            metrics_group.extend(_get_pose_metrics(scene, cameras_gt, save_dir=save_dir))
+            metrics_group.extend(
+                _get_pose_metrics(
+                    scene, cameras_gt, save_dir=save_dir, metric_constructed_only=metric_constructed_only
+                )
+            )
             metrics_group.extend(_get_intrinsics_metrics(scene, cameras_gt))
         return metrics_group
 
@@ -291,6 +298,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         min_track_length: int = 2,
         ba_track_patch_grid_size: int = 8,
         keep_all_cameras_in_merging: bool = False,
+        metric_constructed_only: bool = False,
     ) -> None:
         super().__init__(
             pose_angular_error_thresh=pose_angular_error_thresh,
@@ -336,6 +344,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         self._gnc_loss = gnc_loss
         self._factor_weight_outlier_threshold = factor_weight_outlier_threshold
         self._ba_track_patch_grid_size = ba_track_patch_grid_size
+        self._metric_constructed_only = metric_constructed_only
         if fast_dtype is not None:
             if self._dtype is None:
                 self._dtype = fast_dtype
@@ -478,6 +487,7 @@ class ClusterVGGT(ClusterOptimizerBase):
                 cameras_gt=cameras_gt,
                 pre_ba_result=pre_ba_result_graph,
                 save_dir=str(context.output_paths.metrics),
+                metric_constructed_only=self._metric_constructed_only,
             )
         ]
 
