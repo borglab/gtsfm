@@ -58,7 +58,115 @@ def _create_unary_measurements(scene: GtsfmData) -> list[UnaryMeasurementPose3]:
     return unary_measurements
 
 
-def merge_scenes_with_sim3_nonlinear(parent_scene: GtsfmData, children_scenes: list[GtsfmData]) -> GtsfmData:
+def _measurement_key(cam_idx: int, uv: np.ndarray) -> tuple[int, int, int]:
+    return cam_idx, math.floor(float(uv[0])), math.floor(float(uv[1]))
+
+
+def _track_max_reprojection_error(scene: GtsfmData, track: gtsam.SfmTrack) -> float:
+    errors, _ = compute_track_reprojection_errors(scene.cameras(), track)
+    if np.isinf(errors).any():
+        return float("inf")
+    finite_errors = errors[np.isfinite(errors)]
+    return float(np.max(finite_errors))
+
+
+def _select_overlapping_track_point_correspondences(
+    parent_scene: GtsfmData,
+    child_scene: GtsfmData,
+    max_correspondences: int = 100,
+    preferred_min_track_length: int = 3,
+    preferred_max_reproj_error_px: float = 2.0,
+) -> list[tuple[np.ndarray, np.ndarray]]:
+    """Find parent-child overlapping tracks and return selected 3D point correspondences.
+
+    Overlap is established using shared 2D measurements in common cameras (quantized to integer
+    pixel bins). Returned pairs are (parent_point3, child_point3), suitable for bSa estimation.
+    """
+    parent_tracks = parent_scene.tracks()
+    child_tracks = child_scene.tracks()
+    if len(parent_tracks) == 0 or len(child_tracks) == 0:
+        return []
+
+    parent_track_quality: list[tuple[bool, float, int]] = []
+    for track in parent_tracks:
+        max_err = _track_max_reprojection_error(parent_scene, track)
+        track_len = track.numberMeasurements()
+        is_preferred = track_len >= preferred_min_track_length and max_err < preferred_max_reproj_error_px
+        parent_track_quality.append((is_preferred, max_err, track_len))
+
+    child_track_quality: list[tuple[bool, float, int]] = []
+    for track in child_tracks:
+        max_err = _track_max_reprojection_error(child_scene, track)
+        track_len = track.numberMeasurements()
+        is_preferred = track_len >= preferred_min_track_length and max_err < preferred_max_reproj_error_px
+        child_track_quality.append((is_preferred, max_err, track_len))
+
+    parent_meas_to_tracks: dict[tuple[int, int, int], list[int]] = {}
+    for track_idx, track in enumerate(parent_tracks):
+        for m_idx in range(track.numberMeasurements()):
+            cam_idx, uv = track.measurement(m_idx)
+            key = _measurement_key(cam_idx, uv)
+            parent_meas_to_tracks.setdefault(key, []).append(track_idx)
+
+    candidate_pairs: list[tuple[int, int, int]] = []
+    for child_idx, child_track in enumerate(child_tracks):
+        overlap_count_per_parent: dict[int, int] = {}
+        for m_idx in range(child_track.numberMeasurements()):
+            cam_idx, uv = child_track.measurement(m_idx)
+            key = _measurement_key(cam_idx, uv)
+            for parent_idx in parent_meas_to_tracks.get(key, []):
+                overlap_count_per_parent[parent_idx] = overlap_count_per_parent.get(parent_idx, 0) + 1
+        if len(overlap_count_per_parent) == 0:
+            continue
+        best_parent_idx = max(overlap_count_per_parent.items(), key=lambda item: item[1])[0]
+        shared_count = overlap_count_per_parent[best_parent_idx]
+        candidate_pairs.append((best_parent_idx, child_idx, shared_count))
+
+    if len(candidate_pairs) == 0:
+        return []
+
+    candidate_pairs.sort(
+        key=lambda pair: (
+            -pair[2],  # more overlapping measurements first
+            -(parent_track_quality[pair[0]][2] + child_track_quality[pair[1]][2]),  # longer tracks first
+            parent_track_quality[pair[0]][1] + child_track_quality[pair[1]][1],  # smaller max errors first
+        )
+    )
+
+    used_parent_indices: set[int] = set()
+    used_child_indices: set[int] = set()
+    unique_pairs: list[tuple[int, int, int]] = []
+    for parent_idx, child_idx, shared_count in candidate_pairs:
+        if parent_idx in used_parent_indices or child_idx in used_child_indices:
+            continue
+        used_parent_indices.add(parent_idx)
+        used_child_indices.add(child_idx)
+        unique_pairs.append((parent_idx, child_idx, shared_count))
+
+    # Prioritize pairs where both tracks satisfy length and reprojection quality.
+    unique_pairs.sort(
+        key=lambda pair: (
+            0 if (parent_track_quality[pair[0]][0] and child_track_quality[pair[1]][0]) else 1,
+            -pair[2],
+            -(parent_track_quality[pair[0]][2] + child_track_quality[pair[1]][2]),
+            parent_track_quality[pair[0]][1] + child_track_quality[pair[1]][1],
+        )
+    )
+
+    selected_pairs = unique_pairs[:max_correspondences]
+    point_correspondences: list[tuple[np.ndarray, np.ndarray]] = []
+    for parent_idx, child_idx, _ in selected_pairs:
+        point_correspondences.append((parent_tracks[parent_idx].point3(), child_tracks[child_idx].point3()))
+
+    return point_correspondences
+
+
+def merge_scenes_with_sim3_nonlinear(
+    parent_scene: GtsfmData,
+    children_scenes: list[GtsfmData],
+    max_track_correspondences_for_sim3: int = 150,
+    scale_and_average_focal_length_in_merging: bool = False,
+) -> GtsfmData:
     if len(children_scenes) == 0:
         return parent_scene
 
@@ -79,20 +187,95 @@ def merge_scenes_with_sim3_nonlinear(parent_scene: GtsfmData, children_scenes: l
 
     aTi_measurements = _create_unary_measurements(parent_scene)
     bTi_measurements = [_create_unary_measurements(child_scene) for child_scene in valid_child_scenes]
-    aligner = TrajectoryAlignerSim3(aTi_measurements, bTi_measurements)
+    if max_track_correspondences_for_sim3 > 0:
+        overlapping_points = [
+            _select_overlapping_track_point_correspondences(
+                parent_scene,
+                child_scene,
+                max_correspondences=max_track_correspondences_for_sim3,
+                preferred_min_track_length=3,
+                preferred_max_reproj_error_px=1.5,
+            )
+            for child_scene in valid_child_scenes
+        ]
+    else:
+        overlapping_points = [[] for _ in valid_child_scenes]
+    for child_idx, overlap_points in enumerate(overlapping_points):
+        logger.info(
+            "Using %d parent-child point correspondences for child %d Sim3 alignment.", len(overlap_points), child_idx
+        )
+
+    try:
+        # New GTSAM API supports adding parent-child 3D correspondences per child.
+        aligner = TrajectoryAlignerSim3(aTi_measurements, bTi_measurements, [], False, overlapping_points, 1.0)
+    except TypeError:
+        logger.warning(
+            "TrajectoryAlignerSim3 point-correspondence API unavailable, falling back to pose-only alignment."
+        )
+        aligner = TrajectoryAlignerSim3(aTi_measurements, bTi_measurements)
     result = aligner.solve()
 
     opt_aTi = {i: result.atPose3(i) for i in parent_scene.get_valid_camera_indices() if i in result.keys()}
 
-    merged = parent_scene
-    for i, aTi in opt_aTi.items():
-        merged.update_camera_pose(i, aTi)
-
-    for i, child_scene in enumerate(valid_child_scenes):
+    opt_aSb_list = []
+    for i in range(len(valid_child_scenes)):
         opt_bSa = result.atSimilarity3(gtsam.Symbol("S", i).key())
         opt_aSb = opt_bSa.inverse()
-        merged = merged.merged_with(child_scene, opt_aSb)  # type: ignore
+        opt_aSb_list.append(opt_aSb)
+
+    merged = parent_scene
+    for i, aTi in opt_aTi.items():
+        # Optionally scale-and-average intrinsics using child candidates in parent frame.
+        if scale_and_average_focal_length_in_merging:
+            valid_calibrations = []
+            valid_focal_scale_factors = []
+            for child_idx, child_scene in enumerate(valid_child_scenes):
+                if i in child_scene.get_valid_camera_indices():
+                    valid_calibrations.append(child_scene.get_camera(i).calibration())  # type: ignore
+                    valid_focal_scale_factors.append(opt_aSb_list[child_idx].scale())
+            valid_calibrations.append(parent_scene.get_camera(i).calibration())  # type: ignore
+            valid_focal_scale_factors.append(1.0)
+            updated_calibration = get_average_calibration(valid_calibrations, valid_focal_scale_factors)
+        else:
+            updated_calibration = parent_scene.get_camera(i).calibration()  # type: ignore
+        new_camera = gtsfm_types.create_camera(aTi, updated_calibration)
+        merged.update_camera(i, new_camera)
+
+    for i, child_scene in enumerate(valid_child_scenes):
+        opt_aSb = opt_aSb_list[i]
+        merged = merged.merged_with(
+            child_scene,
+            opt_aSb,
+            scale_focal_length=scale_and_average_focal_length_in_merging,
+        )  # type: ignore
     return merged
+
+
+def get_average_calibration(
+    calibrations: list[gtsfm_types.CALIBRATION_TYPE],
+    focal_scale_factors: list[float],
+) -> gtsfm_types.CALIBRATION_TYPE:
+    """Get the average calibration from the cameras."""
+    assert len(calibrations) > 0, "At least one calibration is required to compute the average calibration."
+    calibration_vectors = []
+    calib_cls = type(calibrations[0])
+
+    def to_cal_vector(c: gtsfm_types.CALIBRATION_TYPE, focal_scale_factor: float) -> np.ndarray:
+        if isinstance(c, gtsam.Cal3Bundler):
+            return np.array([c.fx() * focal_scale_factor, c.k1(), c.k2(), c.px(), c.py()])
+        else:
+            calib_vec = c.vector()
+            calib_vec[:2] *= focal_scale_factor
+            return calib_vec  # type: ignore
+
+    for s, calibration in zip(focal_scale_factors, calibrations):
+        calibration_vectors.append(to_cal_vector(calibration, s))
+    average_calibration_vector = np.mean(calibration_vectors, axis=0)
+    if calib_cls == gtsam.Cal3Bundler:
+        # Cal3Bundler expects the parameters in the order: fx, k1, k2, px, py, no vector constructor.
+        return calib_cls(*average_calibration_vector.tolist())  # type: ignore
+    else:
+        return calib_cls(average_calibration_vector)  # type: ignore
 
 
 @dataclass(frozen=True)
@@ -264,6 +447,7 @@ def _get_pose_metrics(
     result_data: GtsfmData,
     cameras_gt: list[Optional[gtsfm_types.CAMERA_TYPE]],
     save_dir: Optional[str] = None,
+    metric_constructed_only: bool = False,
 ) -> GtsfmMetricsGroup:
     """Compute pose metrics for a BA result after aligning with ground truth.
 
@@ -286,7 +470,11 @@ def _get_pose_metrics(
 
     aligned_result_data = result_data.align_via_sim3_and_transform(poses_gt)
     return metrics_utils.compute_ba_pose_metrics(
-        gt_wTi=poses_gt, computed_wTi=aligned_result_data.get_camera_poses(), save_dir=save_dir, store_full_data=False
+        gt_wTi=poses_gt,
+        computed_wTi=aligned_result_data.get_camera_poses(),
+        save_dir=save_dir,
+        store_full_data=False,
+        metric_constructed_only=metric_constructed_only,
     )
 
 
@@ -321,6 +509,7 @@ def compute_merging_metrics(
     cameras_gt: Optional[list[Optional[gtsfm_types.CAMERA_TYPE]]] = None,
     save_dir: Optional[str | Path] = None,
     store_full_data: bool = False,
+    metric_constructed_only: bool = False,
     child_camera_counts: list[int] | None = None,
     child_camera_overlap_with_parent: list[int] | None = None,
     suffix: str = "",
@@ -365,6 +554,7 @@ def compute_merging_metrics(
             merged_scene,
             cameras_gt,
             save_dir=pose_save_dir,
+            metric_constructed_only=metric_constructed_only,
         )
         merging_metrics.extend(ba_pose_error_metrics)
         merging_metrics.extend(_get_intrinsics_metrics(merged_scene, cameras_gt))
@@ -469,7 +659,12 @@ def _drop_outlier_tracks(scene: GtsfmData) -> GtsfmData:
     return scene
 
 
-def _align_and_merge_results(result1: GtsfmData, result2: GtsfmData, drop_if_merging_fails: bool = True) -> GtsfmData:
+def _align_and_merge_results(
+    result1: GtsfmData,
+    result2: GtsfmData,
+    drop_if_merging_fails: bool = True,
+    scale_focal_length_in_merging: bool = False,
+) -> GtsfmData:
     """Align result2 to result1 and merge it with result1.
 
     Args:
@@ -489,7 +684,7 @@ def _align_and_merge_results(result1: GtsfmData, result2: GtsfmData, drop_if_mer
         else:
             _1S2 = Similarity3()
     try:
-        merged = result1.merged_with(result2, _1S2)
+        merged = result1.merged_with(result2, _1S2, scale_focal_length=scale_focal_length_in_merging)
         return merged
     except Exception as exc:
         logger.warning("⚠️ Failed to merge results: %s", exc)
@@ -518,6 +713,9 @@ def combine_results(
     pre_ba_max_reproj_error: float = 14.0,
     pre_ba_min_track_length: int = 2,
     ba_use_calibration_prior: bool = False,
+    max_track_correspondences_for_sim3: int = 150,
+    scale_and_average_focal_length_in_merging: bool = False,
+    metric_constructed_only: bool = False,
 ) -> MergedNodeResult:
     """Run the merging and parent BA pipeline using already-transformed children.
 
@@ -534,6 +732,9 @@ def combine_results(
         use_gnc: Use the GNC optimizer for bundle adjustment.
         gnc_loss: GNC loss to use. Defaults to GMC.
         keep_all_cameras_in_merging: Keep all cameras after post-BA track filtering, even if they have no tracks.
+        max_track_correspondences_for_sim3: Max parent-child 3D correspondences used per child in nonlinear Sim3 alignment.
+        scale_and_average_focal_length_in_merging: Whether to scale child focal lengths by Sim3 and average/propagate
+            intrinsics during camera merging.
 
     Returns:
         A MergedNodeResult object containing the merged scene and its metrics.
@@ -560,6 +761,7 @@ def combine_results(
                 store_full_data=store_full_data,
                 child_camera_counts=child_camera_counts,
                 child_camera_overlap_with_parent=child_camera_overlap_with_parent,
+                metric_constructed_only=metric_constructed_only,
             ),
             pre_ba_metrics=compute_merging_metrics(
                 pre_ba_scene,
@@ -568,6 +770,7 @@ def combine_results(
                 child_camera_counts=child_camera_counts,
                 child_camera_overlap_with_parent=child_camera_overlap_with_parent,
                 suffix="_pre_ba",
+                metric_constructed_only=metric_constructed_only,
             ),
         )
 
@@ -594,14 +797,24 @@ def combine_results(
     _log_scene_reprojection_stats(merged, "Current node", plot_histograms=plot_reprojection_histograms)
 
     if use_nonlinear_sim3_alignment:
-        merged = merge_scenes_with_sim3_nonlinear(merged, valid_child_scenes)
+        merged = merge_scenes_with_sim3_nonlinear(
+            merged,
+            valid_child_scenes,
+            max_track_correspondences_for_sim3=max_track_correspondences_for_sim3,
+            scale_and_average_focal_length_in_merging=scale_and_average_focal_length_in_merging,
+        )
         _log_scene_reprojection_stats(
             merged, "Merged with children (nonlinear alignment)", plot_histograms=plot_reprojection_histograms
         )
     else:
         # Merge all children into the merged scene.
         for i, child in enumerate(valid_child_scenes):
-            merged = _align_and_merge_results(merged, child, drop_if_merging_fails=drop_child_if_merging_fail)
+            merged = _align_and_merge_results(
+                merged,
+                child,
+                drop_if_merging_fails=drop_child_if_merging_fail,
+                scale_focal_length_in_merging=scale_and_average_focal_length_in_merging,
+            )
             _log_scene_reprojection_stats(
                 merged, f"Merged with child #{i + 1}", plot_histograms=plot_reprojection_histograms
             )
@@ -615,9 +828,6 @@ def combine_results(
         original_track_count = merged.number_tracks()
         merged_tracks: list = []
         measurement_to_track: dict[tuple[int, int, int], int] = {}
-
-        def _measurement_key(cam_idx: int, uv: np.ndarray) -> tuple[int, int, int]:
-            return cam_idx, math.floor(float(uv[0])), math.floor(float(uv[1]))
 
         for track in merged.tracks():
             measurements = [track.measurement(k) for k in range(track.numberMeasurements())]
