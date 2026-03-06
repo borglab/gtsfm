@@ -80,12 +80,18 @@ class MetisPartitioner(GraphPartitionerBase):
         if not self._is_connected(graph):
             raise ValueError("MetisPartitioner: input visibility graph must be connected.")
 
+        # Guarantee that we only build a graph on a connected graph
+        graph = self._extract_largest_component_subgraph(graph)
+
         bayes_tree = self.symbolic_bayes_tree(graph)
         roots: list = bayes_tree.roots()
+
         if len(roots) == 0:
             return None
         if len(roots) > 1:
-            raise ValueError("MetisPartitioner: expected a single Bayes tree root for connected input graph.")
+            raise ValueError(
+                "MetisPartitioner: VisibilityGraph is disconnected after largest connected component extraction."
+            )
 
         root_result = self._cluster_from_clique(roots[0], graph)
         if root_result is None:

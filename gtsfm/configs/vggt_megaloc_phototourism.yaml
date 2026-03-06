@@ -68,6 +68,9 @@ cluster_optimizer:
 use_nonlinear_sim3_merging: true
 max_track_correspondences_for_sim3: 150
 scale_and_average_focal_length_in_merging: false
+bridge_min_similarity: 0.0
+bridge_top_k: 10
+bridge_min_component_size: 3
 merging_pre_ba_max_reproj_error: 14.0
 merging_pre_ba_min_track_length: 3
 merging_ba_use_calibration_prior: false
