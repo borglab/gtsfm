@@ -712,6 +712,8 @@ def combine_results(
     keep_all_cameras_in_merging: bool,
     pre_ba_max_reproj_error: float = 14.0,
     pre_ba_min_track_length: int = 2,
+    merging_allow_post_ba_reproj_filtering: bool = True,
+    merging_factor_weight_outlier_threshold: float = 0.0,
     ba_use_calibration_prior: bool = False,
     max_track_correspondences_for_sim3: int = 150,
     scale_and_average_focal_length_in_merging: bool = False,
@@ -732,6 +734,8 @@ def combine_results(
         use_gnc: Use the GNC optimizer for bundle adjustment.
         gnc_loss: GNC loss to use. Defaults to GMC.
         keep_all_cameras_in_merging: Keep all cameras after post-BA track filtering, even if they have no tracks.
+        merging_allow_post_ba_reproj_filtering: Flag to allow track filtering based on reproj error after merging BA
+        merging_factor_weight_outlier_threshold: Weight threshold filtering for factor when using gnc
         max_track_correspondences_for_sim3: Max parent-child 3D correspondences used per child in nonlinear Sim3 alignment.
         scale_and_average_focal_length_in_merging: Whether to scale child focal lengths by Sim3 and average/propagate
             intrinsics during camera merging.
@@ -896,6 +900,7 @@ def combine_results(
             robust_noise_basin=0.5,
             use_gnc=use_gnc,
             gnc_loss=gnc_loss,
+            factor_weight_outlier_threshold=merging_factor_weight_outlier_threshold,
         )
         merged_with_ba, _ = optimizer.run_simple_ba(merged)
         _propagate_scene_metadata(merged_with_ba, merged)
@@ -912,11 +917,12 @@ def combine_results(
             plot_histograms=plot_reprojection_histograms,
         )
 
-        merged_with_ba = merged_with_ba.filter_landmark_measurements(
-            post_ba_max_reproj_error,
-            min_track_length,
-            retain_cameras_without_tracks=keep_all_cameras_in_merging,
-        )
+        if merging_allow_post_ba_reproj_filtering:
+            merged_with_ba = merged_with_ba.filter_landmark_measurements(
+                post_ba_max_reproj_error,
+                min_track_length,
+                retain_cameras_without_tracks=keep_all_cameras_in_merging,
+            )
         _log_scene_reprojection_stats(
             merged_with_ba,
             "merged result (with ba + outlier filtering)",

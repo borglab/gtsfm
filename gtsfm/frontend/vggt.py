@@ -331,6 +331,8 @@ class VggtConfiguration:
     drop_camera_with_no_track: bool = False
     min_track_length: int = 2
     ba_track_patch_grid_size: int = 8
+    enable_ba_track_patching: bool = True
+    allow_post_ba_filtering_on_reproj_error: bool = True
 
     # Bundle adjustment-specific parameters:
     ba_use_calibration_prior: bool = False
@@ -338,7 +340,7 @@ class VggtConfiguration:
     ba_use_shared_calibration: bool = True
     use_gnc: bool = False
     gnc_loss: str = "GMC"
-    factor_weight_outlier_threshold: float = 1e-8
+    factor_weight_outlier_threshold: float = 0.0
 
 
 @dataclass
@@ -383,6 +385,8 @@ def _compute_image_patch(
 
 def _select_track_ids_for_ba_coverage(
     candidates: Sequence[_TrackSelectionCandidate],
+    min_track_length: int,
+    max_reproj_error: float,
 ) -> set[int]:
     """Select tracks to maximize patch coverage using ranking by track geometry quality.
 
@@ -404,7 +408,10 @@ def _select_track_ids_for_ba_coverage(
     selected_track_ids: set[int] = set()
     covered_patches: set[tuple[int, int, int]] = set()
     for candidate_track in ordered_candidates:
-        if candidate_track.track_length < 3 or candidate_track.mean_reprojection_error > 14.0:
+        if (
+            candidate_track.track_length < min_track_length
+            or candidate_track.mean_reprojection_error > max_reproj_error
+        ):
             continue
         candidate_patch_keys = {
             (image_idx, patch_id[0], patch_id[1]) for image_idx, patch_id in candidate_track.patches_by_image.items()
@@ -632,7 +639,7 @@ def _convert_vggt_outputs_to_gtsfm_data(
             track_mask = np.logical_and(track_mask, tracking_result.confidences > confidence_threshold)
 
         inlier_num = track_mask.sum(0)
-        valid_mask = inlier_num >= config.min_track_length  # a track is invalid if without two inliers
+        valid_mask = inlier_num >= config.min_track_length  # a track is invalid if without min_track_len inliers
         valid_idx = np.nonzero(valid_mask)[0]
         cameras = gtsfm_data.cameras()
         import gtsfm.utils.reprojection as reprojection_utils  # local import to avoid heavier dependency at module load
@@ -709,16 +716,21 @@ def _convert_vggt_outputs_to_gtsfm_data(
                 )
             )
 
-        selected_track_ids = _select_track_ids_for_ba_coverage(selection_candidates)
+        if config.enable_ba_track_patching:
+            selected_track_ids = _select_track_ids_for_ba_coverage(
+                selection_candidates, config.min_track_length, config.vggt_max_reproj_error
+            )
+        else:
+            selected_track_ids = {track_id for track_id, _ in candidate_tracks}
         for track_id, track in candidate_tracks:
             if track_id in selected_track_ids:
                 gtsfm_data.add_track(track)
 
         logger.info(
-            "num valid tracks after filtering and patching: %d out of %d (selected %d tracks)",
+            "num valid tracks after filtering%s: %d out of %d",
+            " and patching" if config.enable_ba_track_patching else " (patching disabled)",
             gtsfm_data.number_tracks(),
             len(valid_idx),
-            len(selected_track_ids),
         )
 
     gtsfm_data_pre_ba: GtsfmData | None = None
@@ -754,7 +766,10 @@ def _convert_vggt_outputs_to_gtsfm_data(
                     factor_weight_outlier_threshold=config.factor_weight_outlier_threshold,
                 )
                 gtsfm_data_with_ba, _ = optimizer.run_simple_ba(gtsfm_data)
-                gtsfm_data_with_ba = gtsfm_data_with_ba.filter_landmark_measurements(config.post_ba_max_reproj_error)
+                if config.allow_post_ba_filtering_on_reproj_error:
+                    gtsfm_data_with_ba = gtsfm_data_with_ba.filter_landmark_measurements(
+                        config.post_ba_max_reproj_error
+                    )
                 logger.info(
                     "%s🔍 #valid VGGT tracks after BA: %d out of %d",
                     f"[{cluster_label}] " if cluster_label else "",

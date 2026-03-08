@@ -45,6 +45,7 @@ cluster_optimizer:
     track_conf_thresh: 0.2
     vggt_max_reproj_error: 14.0
     post_ba_max_reproj_error: 3.0
+    allow_post_ba_filtering_on_reproj_error: true
     min_triangulation_angle: 2.0
     camera_type: PINHOLE
     drop_outlier_after_camera_merging: true
@@ -53,6 +54,7 @@ cluster_optimizer:
     keep_all_cameras_in_merging: false #wether to keep all cameras in merging, otherwise cameras without track can be dropped
     min_track_length: 3
     ba_track_patch_grid_size: 14
+    enable_ba_track_patching: true
     seed: 42
     plot_reprojection_histograms: true
     run_bundle_adjustment_on_leaf: true
@@ -64,6 +66,7 @@ cluster_optimizer:
     use_shared_calibration: false
     use_gnc: true
     gnc_loss: TLS
+    factor_weight_outlier_threshold: 0.0 #setting to 0.0 essentially switches off this filtering by gnc weights
 
 use_nonlinear_sim3_merging: true
 max_track_correspondences_for_sim3: 150
@@ -73,6 +76,8 @@ bridge_top_k: 10
 bridge_min_component_size: 3
 merging_pre_ba_max_reproj_error: 14.0
 merging_pre_ba_min_track_length: 3
+merging_allow_post_ba_reproj_filtering: true
 merging_ba_use_calibration_prior: false
 merging_use_gnc: false
+merging_factor_weight_outlier_threshold: 0.0 #setting to 0.0 essentially switches off this filtering by gnc weights
 metric_constructed_only: true

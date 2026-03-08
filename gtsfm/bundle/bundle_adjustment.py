@@ -81,7 +81,7 @@ class BundleAdjustmentOptimizer:
         use_first_point_prior: bool = False,
         use_gnc: bool = False,
         gnc_loss: RobustBAMode | str = RobustBAMode.GMC,
-        factor_weight_outlier_threshold: float = 1e-8,
+        factor_weight_outlier_threshold: float = 0.0,
     ) -> None:
         """Initializes the parameters for bundle adjustment module.
 
@@ -420,7 +420,7 @@ class BundleAdjustmentOptimizer:
         result_values, _, weights = self.__optimize_factor_graph(graph, initial_values, ordering_type)
         final_error = graph.error(result_values)
         optimized_data = GtsfmData.from_values(result_values, initial_data, self._shared_calib)
-        if self._use_gnc and weights is not None:
+        if self._use_gnc and weights is not None and self._factor_weight_outlier_threshold > 0:
             optimized_data = self.__filter_tracks_by_factor_weights(graph, optimized_data, weights)
         return optimized_data, result_values, final_error
 

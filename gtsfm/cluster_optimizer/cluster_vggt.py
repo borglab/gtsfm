@@ -52,14 +52,7 @@ def _load_vggt_inputs(
     target_root = Path(output_root) / "processed_images"
     target_root.mkdir(parents=True, exist_ok=True)
     batch_uint8 = (
-        image_batch.detach()
-        .clamp(0.0, 1.0)
-        .mul(255.0)
-        .add(0.5)
-        .to(torch.uint8)
-        .permute(0, 2, 3, 1)
-        .cpu()
-        .numpy()
+        image_batch.detach().clamp(0.0, 1.0).mul(255.0).add(0.5).to(torch.uint8).permute(0, 2, 3, 1).cpu().numpy()
     )
     for i, image_name in enumerate(image_names):
         relpath = Path(image_name)
@@ -224,9 +217,7 @@ def _aggregate_vggt_metrics(
         )
         if cameras_gt is not None:
             metrics_group.extend(
-                _get_pose_metrics(
-                    scene, cameras_gt, save_dir=save_dir, metric_constructed_only=metric_constructed_only
-                )
+                _get_pose_metrics(scene, cameras_gt, save_dir=save_dir, metric_constructed_only=metric_constructed_only)
             )
             metrics_group.extend(_get_intrinsics_metrics(scene, cameras_gt))
         return metrics_group
@@ -294,9 +285,11 @@ class ClusterVGGT(ClusterOptimizerBase):
         use_shared_calibration: bool = True,
         use_gnc: bool = False,
         gnc_loss: str = "GMC",
-        factor_weight_outlier_threshold: float = 1e-8,
+        factor_weight_outlier_threshold: float = 0.0,
         min_track_length: int = 2,
         ba_track_patch_grid_size: int = 8,
+        enable_ba_track_patching: bool = True,
+        allow_post_ba_filtering_on_reproj_error: bool = True,
         keep_all_cameras_in_merging: bool = False,
         metric_constructed_only: bool = False,
     ) -> None:
@@ -344,6 +337,8 @@ class ClusterVGGT(ClusterOptimizerBase):
         self._gnc_loss = gnc_loss
         self._factor_weight_outlier_threshold = factor_weight_outlier_threshold
         self._ba_track_patch_grid_size = ba_track_patch_grid_size
+        self._enable_ba_track_patching = enable_ba_track_patching
+        self._allow_post_ba_filtering_on_reproj_error = allow_post_ba_filtering_on_reproj_error
         self._metric_constructed_only = metric_constructed_only
         if fast_dtype is not None:
             if self._dtype is None:
@@ -397,6 +392,8 @@ class ClusterVGGT(ClusterOptimizerBase):
             f"save_processed_image={self._save_processed_image}",
             f"use_sparse_attention={self._use_sparse_attention}",
             f"run_bundle_adjustment_on_leaf={self._run_bundle_adjustment_on_leaf}",
+            f"enable_ba_track_patching={self._enable_ba_track_patching}",
+            f"allow_post_ba_filtering_on_reproj_error={self._allow_post_ba_filtering_on_reproj_error}",
         ]
         if self._model_ctor_kwargs:
             components.append(f"model_ctor_kwargs={self._model_ctor_kwargs}")
@@ -454,6 +451,8 @@ class ClusterVGGT(ClusterOptimizerBase):
             factor_weight_outlier_threshold=self._factor_weight_outlier_threshold,
             min_track_length=self.min_track_length,
             ba_track_patch_grid_size=self._ba_track_patch_grid_size,
+            enable_ba_track_patching=self._enable_ba_track_patching,
+            allow_post_ba_filtering_on_reproj_error=self._allow_post_ba_filtering_on_reproj_error,
         )
 
         image_batch_graph, original_coords_graph = delayed(_load_vggt_inputs, nout=2)(
