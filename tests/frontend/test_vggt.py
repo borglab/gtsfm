@@ -163,7 +163,7 @@ class TestVGGTTrackSelection(unittest.TestCase):
             ),
         ]
 
-        selected = vggt._select_track_ids_for_ba_coverage(candidates)
+        selected = vggt._select_track_ids_for_ba_coverage(candidates, min_track_length=3, max_reproj_error=14.0)
 
         self.assertEqual(selected, {0, 2})
 
@@ -176,14 +176,14 @@ class TestVGGTTrackSelection(unittest.TestCase):
                 track_id=1, track_length=5, mean_reprojection_error=4.0, patches_by_image={0: (0, 0)}
             ),
             vggt._TrackSelectionCandidate(
-                track_id=2, track_length=4, mean_reprojection_error=100.0, patches_by_image={0: (0, 1)}
+                track_id=2, track_length=4, mean_reprojection_error=3.0, patches_by_image={0: (0, 1)}
             ),
         ]
 
-        selected = vggt._select_track_ids_for_ba_coverage(candidates)
+        selected = vggt._select_track_ids_for_ba_coverage(candidates, min_track_length=3, max_reproj_error=14.0)
 
-        # Track 1 wins over track 0 on tie-breaker (higher mean reprojection error), then track 2 adds a new patch.
-        self.assertEqual(selected, {1, 2})
+        # Track 0 wins over track 1 on tie-breaker (lower mean reprojection error), then track 2 adds a new patch.
+        self.assertEqual(selected, {0, 2})
 
     def test_selects_track_if_any_observation_adds_new_patch(self) -> None:
         candidates = [
@@ -207,10 +207,9 @@ class TestVGGTTrackSelection(unittest.TestCase):
             ),
         ]
 
-        selected = vggt._select_track_ids_for_ba_coverage(candidates)
+        selected = vggt._select_track_ids_for_ba_coverage(candidates, min_track_length=3, max_reproj_error=14.0)
 
         self.assertEqual(selected, {0, 1})
-
 
 
 class TestVGGT(unittest.TestCase):
