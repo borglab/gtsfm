@@ -736,7 +736,7 @@ def combine_results(
         keep_all_cameras_in_merging: Keep all cameras after post-BA track filtering, even if they have no tracks.
         merging_allow_post_ba_reproj_filtering: Flag to allow track filtering based on reproj error after merging BA
         merging_factor_weight_outlier_threshold: Weight threshold filtering for factor when using gnc
-        max_track_correspondences_for_sim3: Max parent-child 3D correspondences used per child in nonlinear Sim3 alignment.
+        max_track_correspondences_for_sim3: Max parent-child 3D correspondences per child in nonlinear Sim3 alignment.
         scale_and_average_focal_length_in_merging: Whether to scale child focal lengths by Sim3 and average/propagate
             intrinsics during camera merging.
 
