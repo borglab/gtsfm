@@ -62,6 +62,7 @@ cluster_optimizer:
     model_cache_key: null
     store_pre_ba_result: true
     ba_use_calibration_prior: false
+    ba_use_pose_prior: true
     ba_use_undistorted_camera_model: false
     use_shared_calibration: false
     use_gnc: true
@@ -78,6 +79,7 @@ merging_pre_ba_max_reproj_error: 14.0
 merging_pre_ba_min_track_length: 3
 merging_allow_post_ba_reproj_filtering: true
 merging_ba_use_calibration_prior: false
+merging_ba_use_pose_prior: true
 merging_use_gnc: false
 merging_factor_weight_outlier_threshold: 0.0 #setting to 0.0 essentially switches off this filtering by gnc weights
 metric_constructed_only: true

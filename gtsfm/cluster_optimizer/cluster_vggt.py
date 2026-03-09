@@ -281,6 +281,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         drop_child_if_merging_fail: bool = True,
         drop_camera_with_no_track: bool = True,
         ba_use_calibration_prior: bool = False,
+        ba_use_pose_prior: bool = False,
         ba_use_undistorted_camera_model: bool = False,
         use_shared_calibration: bool = True,
         use_gnc: bool = False,
@@ -332,6 +333,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         self._store_pre_ba_result = store_pre_ba_result
         self._min_triangulation_angle = min_triangulation_angle
         self._ba_use_calibration_prior = ba_use_calibration_prior
+        self._ba_use_pose_prior = ba_use_pose_prior
         self._ba_use_undistorted_camera_model = ba_use_undistorted_camera_model
         self._use_gnc = use_gnc
         self._gnc_loss = gnc_loss
@@ -444,6 +446,7 @@ class ClusterVGGT(ClusterOptimizerBase):
             drop_camera_with_no_track=self.drop_camera_with_no_track,
             min_triangulation_angle=self._min_triangulation_angle,
             ba_use_calibration_prior=self._ba_use_calibration_prior,
+            ba_use_pose_prior=self._ba_use_pose_prior,
             ba_use_undistorted_camera_model=self._ba_use_undistorted_camera_model,
             ba_use_shared_calibration=self.use_shared_calibration,
             use_gnc=self._use_gnc,

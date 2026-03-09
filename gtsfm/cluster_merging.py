@@ -715,6 +715,7 @@ def combine_results(
     merging_allow_post_ba_reproj_filtering: bool = True,
     merging_factor_weight_outlier_threshold: float = 0.0,
     ba_use_calibration_prior: bool = False,
+    merging_ba_use_pose_prior: bool = False,
     max_track_correspondences_for_sim3: int = 150,
     scale_and_average_focal_length_in_merging: bool = False,
     metric_constructed_only: bool = False,
@@ -736,6 +737,7 @@ def combine_results(
         keep_all_cameras_in_merging: Keep all cameras after post-BA track filtering, even if they have no tracks.
         merging_allow_post_ba_reproj_filtering: Flag to allow track filtering based on reproj error after merging BA
         merging_factor_weight_outlier_threshold: Weight threshold filtering for factor when using gnc
+        merging_ba_use_pose_prior: Whether to add pose priors in merging BA.
         max_track_correspondences_for_sim3: Max parent-child 3D correspondences per child in nonlinear Sim3 alignment.
         scale_and_average_focal_length_in_merging: Whether to scale child focal lengths by Sim3 and average/propagate
             intrinsics during camera merging.
@@ -896,6 +898,7 @@ def combine_results(
             robust_ba_mode=RobustBAMode.HUBER,
             calibration_prior_focal_sigma=10.0,
             use_calibration_prior=ba_use_calibration_prior,
+            use_pose_prior=merging_ba_use_pose_prior,
             shared_calib=use_shared_calibration,
             robust_noise_basin=0.5,
             use_gnc=use_gnc,

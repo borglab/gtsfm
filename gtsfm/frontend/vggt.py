@@ -336,6 +336,7 @@ class VggtConfiguration:
 
     # Bundle adjustment-specific parameters:
     ba_use_calibration_prior: bool = False
+    ba_use_pose_prior: bool = False
     ba_use_undistorted_camera_model: bool = False
     ba_use_shared_calibration: bool = True
     use_gnc: bool = False
@@ -761,6 +762,7 @@ def _convert_vggt_outputs_to_gtsfm_data(
                     robust_ba_mode=RobustBAMode.GMC,
                     shared_calib=config.ba_use_shared_calibration,
                     use_calibration_prior=config.ba_use_calibration_prior,
+                    use_pose_prior=config.ba_use_pose_prior,
                     use_gnc=config.use_gnc,
                     gnc_loss=config.gnc_loss,
                     factor_weight_outlier_threshold=config.factor_weight_outlier_threshold,

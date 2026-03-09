@@ -117,6 +117,7 @@ class SceneOptimizer:
         merging_pre_ba_min_track_length: int = 2,
         merging_allow_post_ba_reproj_filtering: bool = True,
         merging_ba_use_calibration_prior: bool = False,
+        merging_ba_use_pose_prior: bool = False,
         merging_use_gnc: bool = False,
         merging_factor_weight_outlier_threshold: float = 0.0,
         metric_constructed_only: bool = False,
@@ -151,6 +152,7 @@ class SceneOptimizer:
         self._merging_allow_post_ba_reproj_filtering = merging_allow_post_ba_reproj_filtering
         self._merging_factor_weight_outlier_threshold = merging_factor_weight_outlier_threshold
         self._merging_ba_use_calibration_prior = merging_ba_use_calibration_prior
+        self._merging_ba_use_pose_prior = merging_ba_use_pose_prior
         self._merging_use_gnc = merging_use_gnc
         self._metric_constructed_only = metric_constructed_only
         if hasattr(self.cluster_optimizer, "_metric_constructed_only"):
@@ -327,6 +329,7 @@ class SceneOptimizer:
                         merging_allow_post_ba_reproj_filtering=self._merging_allow_post_ba_reproj_filtering,
                         merging_factor_weight_outlier_threshold=self._merging_factor_weight_outlier_threshold,
                         ba_use_calibration_prior=self._merging_ba_use_calibration_prior,
+                        merging_ba_use_pose_prior=self._merging_ba_use_pose_prior,
                         metric_constructed_only=self._metric_constructed_only,
                         max_track_correspondences_for_sim3=self._max_track_correspondences_for_sim3,
                         scale_and_average_focal_length_in_merging=self._scale_and_average_focal_length_in_merging,
