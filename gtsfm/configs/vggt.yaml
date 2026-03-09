@@ -34,6 +34,7 @@ cluster_optimizer:
     tracking: true
     tracking_max_query_pts: 2048
     tracking_query_frame_num: 3
+    tracking_use_all_frames_forward_only: false
     keypoint_extractor: aliked+sp+sift
     track_vis_thresh: 0.05
     track_conf_thresh: 0.2

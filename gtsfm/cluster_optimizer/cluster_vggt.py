@@ -48,18 +48,11 @@ def _load_vggt_inputs(
             image_batch.shape[0],
         )
         return image_batch, original_coords
-    
+
     target_root = Path(output_root) / "processed_images"
     target_root.mkdir(parents=True, exist_ok=True)
     batch_uint8 = (
-        image_batch.detach()
-        .clamp(0.0, 1.0)
-        .mul(255.0)
-        .add(0.5)
-        .to(torch.uint8)
-        .permute(0, 2, 3, 1)
-        .cpu()
-        .numpy()
+        image_batch.detach().clamp(0.0, 1.0).mul(255.0).add(0.5).to(torch.uint8).permute(0, 2, 3, 1).cpu().numpy()
     )
     for i, image_name in enumerate(image_names):
         relpath = Path(image_name)
@@ -157,6 +150,7 @@ def _get_pose_metrics(
     result_data: GtsfmData,
     cameras_gt: list[Optional[gtsfm_types.CAMERA_TYPE]],
     save_dir: Optional[str] = None,
+    metric_constructed_only: bool = False,
 ) -> GtsfmMetricsGroup:
     """Compute pose metrics for a VGGT result after aligning with ground truth."""
     image_idxs = list(result_data._image_info.keys())
@@ -176,6 +170,7 @@ def _get_pose_metrics(
         computed_wTi=computed_wTi,
         save_dir=save_dir,
         store_full_data=True,
+        metric_constructed_only=metric_constructed_only,
     )
 
 
@@ -210,6 +205,7 @@ def _aggregate_vggt_metrics(
     pre_ba_result: Optional[GtsfmData] = None,
     *,
     save_dir: Optional[str] = None,
+    metric_constructed_only: bool = False,
 ) -> list[GtsfmMetricsGroup]:
     def _build_metrics_group(scene: GtsfmData, name: str) -> GtsfmMetricsGroup:
         metrics_group = GtsfmMetricsGroup(
@@ -220,7 +216,9 @@ def _aggregate_vggt_metrics(
             ],
         )
         if cameras_gt is not None:
-            metrics_group.extend(_get_pose_metrics(scene, cameras_gt, save_dir=save_dir))
+            metrics_group.extend(
+                _get_pose_metrics(scene, cameras_gt, save_dir=save_dir, metric_constructed_only=metric_constructed_only)
+            )
             metrics_group.extend(_get_intrinsics_metrics(scene, cameras_gt))
         return metrics_group
 
@@ -251,6 +249,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         tracking: bool = False,
         tracking_max_query_pts: int = 2048,
         tracking_query_frame_num: int = 3,
+        tracking_use_all_frames_forward_only: bool = False,
         track_vis_thresh: float = 0.05,
         track_conf_thresh: float = 0.2,
         keypoint_extractor: str = "aliked+sp+sift",
@@ -282,13 +281,18 @@ class ClusterVGGT(ClusterOptimizerBase):
         drop_child_if_merging_fail: bool = True,
         drop_camera_with_no_track: bool = True,
         ba_use_calibration_prior: bool = False,
+        ba_use_pose_prior: bool = False,
         ba_use_undistorted_camera_model: bool = False,
         use_shared_calibration: bool = True,
         use_gnc: bool = False,
         gnc_loss: str = "GMC",
-        factor_weight_outlier_threshold: float = 1e-8,
+        factor_weight_outlier_threshold: float = 0.0,
         min_track_length: int = 2,
+        ba_track_patch_grid_size: int = 8,
+        enable_ba_track_patching: bool = True,
+        allow_post_ba_filtering_on_reproj_error: bool = True,
         keep_all_cameras_in_merging: bool = False,
+        metric_constructed_only: bool = False,
     ) -> None:
         super().__init__(
             pose_angular_error_thresh=pose_angular_error_thresh,
@@ -312,6 +316,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         self._tracking = tracking
         self._tracking_max_query_pts = tracking_max_query_pts
         self._tracking_query_frame_num = tracking_query_frame_num
+        self._tracking_use_all_frames_forward_only = tracking_use_all_frames_forward_only
         self._track_vis_thresh = track_vis_thresh
         self._track_conf_thresh = track_conf_thresh
         self._keypoint_extractor = keypoint_extractor
@@ -328,10 +333,15 @@ class ClusterVGGT(ClusterOptimizerBase):
         self._store_pre_ba_result = store_pre_ba_result
         self._min_triangulation_angle = min_triangulation_angle
         self._ba_use_calibration_prior = ba_use_calibration_prior
+        self._ba_use_pose_prior = ba_use_pose_prior
         self._ba_use_undistorted_camera_model = ba_use_undistorted_camera_model
         self._use_gnc = use_gnc
         self._gnc_loss = gnc_loss
         self._factor_weight_outlier_threshold = factor_weight_outlier_threshold
+        self._ba_track_patch_grid_size = ba_track_patch_grid_size
+        self._enable_ba_track_patching = enable_ba_track_patching
+        self._allow_post_ba_filtering_on_reproj_error = allow_post_ba_filtering_on_reproj_error
+        self._metric_constructed_only = metric_constructed_only
         if fast_dtype is not None:
             if self._dtype is None:
                 self._dtype = fast_dtype
@@ -384,6 +394,8 @@ class ClusterVGGT(ClusterOptimizerBase):
             f"save_processed_image={self._save_processed_image}",
             f"use_sparse_attention={self._use_sparse_attention}",
             f"run_bundle_adjustment_on_leaf={self._run_bundle_adjustment_on_leaf}",
+            f"enable_ba_track_patching={self._enable_ba_track_patching}",
+            f"allow_post_ba_filtering_on_reproj_error={self._allow_post_ba_filtering_on_reproj_error}",
         ]
         if self._model_ctor_kwargs:
             components.append(f"model_ctor_kwargs={self._model_ctor_kwargs}")
@@ -420,6 +432,7 @@ class ClusterVGGT(ClusterOptimizerBase):
             tracking=self._tracking,
             max_query_pts=self._tracking_max_query_pts,
             query_frame_num=self._tracking_query_frame_num,
+            use_all_frames_forward_only=self._tracking_use_all_frames_forward_only,
             track_vis_thresh=self._track_vis_thresh,
             track_conf_thresh=self._track_conf_thresh,
             keypoint_extractor=self._keypoint_extractor,
@@ -433,12 +446,16 @@ class ClusterVGGT(ClusterOptimizerBase):
             drop_camera_with_no_track=self.drop_camera_with_no_track,
             min_triangulation_angle=self._min_triangulation_angle,
             ba_use_calibration_prior=self._ba_use_calibration_prior,
+            ba_use_pose_prior=self._ba_use_pose_prior,
             ba_use_undistorted_camera_model=self._ba_use_undistorted_camera_model,
             ba_use_shared_calibration=self.use_shared_calibration,
             use_gnc=self._use_gnc,
             gnc_loss=self._gnc_loss,
             factor_weight_outlier_threshold=self._factor_weight_outlier_threshold,
             min_track_length=self.min_track_length,
+            ba_track_patch_grid_size=self._ba_track_patch_grid_size,
+            enable_ba_track_patching=self._enable_ba_track_patching,
+            allow_post_ba_filtering_on_reproj_error=self._allow_post_ba_filtering_on_reproj_error,
         )
 
         image_batch_graph, original_coords_graph = delayed(_load_vggt_inputs, nout=2)(
@@ -472,6 +489,7 @@ class ClusterVGGT(ClusterOptimizerBase):
                 cameras_gt=cameras_gt,
                 pre_ba_result=pre_ba_result_graph,
                 save_dir=str(context.output_paths.metrics),
+                metric_constructed_only=self._metric_constructed_only,
             )
         ]
 

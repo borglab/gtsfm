@@ -18,7 +18,7 @@ image_pairs_generator:
   retriever:
     _target_: gtsfm.retriever.Similarity
     num_matched: 15
-    min_score: 0.5
+    min_score: 0.45
   batch_size: 16
 
 graph_partitioner:
@@ -32,25 +32,29 @@ cluster_optimizer:
   optimizer:
     _target_: gtsfm.cluster_optimizer.cluster_vggt.ClusterVGGT
     input_mode: crop
-    save_processed_image: true #for debug, save processed images in each subfolder
+    save_processed_image: false #for debug, save processed images in each subfolder
     weights_path: null
     conf_threshold: 0.1
     max_num_points: 100000
     tracking: true
     tracking_max_query_pts: 512
     tracking_query_frame_num: 3
+    tracking_use_all_frames_forward_only: true
     keypoint_extractor: aliked+sp+sift
     track_vis_thresh: 0.05
     track_conf_thresh: 0.2
     vggt_max_reproj_error: 14.0
     post_ba_max_reproj_error: 3.0
-    min_triangulation_angle: 10.0
+    allow_post_ba_filtering_on_reproj_error: true
+    min_triangulation_angle: 2.0
     camera_type: PINHOLE
     drop_outlier_after_camera_merging: true
     drop_child_if_merging_fail: true
     drop_camera_with_no_track: false
     keep_all_cameras_in_merging: false #wether to keep all cameras in merging, otherwise cameras without track can be dropped
-    min_track_length: 2
+    min_track_length: 3
+    ba_track_patch_grid_size: 14
+    enable_ba_track_patching: true
     seed: 42
     plot_reprojection_histograms: true
     run_bundle_adjustment_on_leaf: true
@@ -58,17 +62,24 @@ cluster_optimizer:
     model_cache_key: null
     store_pre_ba_result: true
     ba_use_calibration_prior: false
+    ba_use_pose_prior: true
     ba_use_undistorted_camera_model: false
     use_shared_calibration: false
     use_gnc: true
     gnc_loss: TLS
+    factor_weight_outlier_threshold: 0.0 #setting to 0.0 essentially switches off this filtering by gnc weights
 
 use_nonlinear_sim3_merging: true
-
+max_track_correspondences_for_sim3: 150
+scale_and_average_focal_length_in_merging: false
 bridge_min_similarity: 0.0
 bridge_top_k: 10
 bridge_min_component_size: 3
 merging_pre_ba_max_reproj_error: 14.0
-merging_pre_ba_min_track_length: 2
+merging_pre_ba_min_track_length: 3
+merging_allow_post_ba_reproj_filtering: true
 merging_ba_use_calibration_prior: false
+merging_ba_use_pose_prior: true
 merging_use_gnc: false
+merging_factor_weight_outlier_threshold: 0.0 #setting to 0.0 essentially switches off this filtering by gnc weights
+metric_constructed_only: true

@@ -77,11 +77,12 @@ class BundleAdjustmentOptimizer:
         save_iteration_visualization: bool = False,
         robust_noise_basin: float = 1.345,
         use_karcher_mean_factor: bool = True,
+        use_pose_prior: bool = False,
         use_calibration_prior: bool = True,
         use_first_point_prior: bool = False,
         use_gnc: bool = False,
         gnc_loss: RobustBAMode | str = RobustBAMode.GMC,
-        factor_weight_outlier_threshold: float = 1e-8,
+        factor_weight_outlier_threshold: float = 0.0,
     ) -> None:
         """Initializes the parameters for bundle adjustment module.
 
@@ -104,6 +105,7 @@ class BundleAdjustmentOptimizer:
             save_iteration_visualization (optional): Save a Plotly animation showing optimization progress.
             robust_noise_basin (optional): Basin to use for the robust noise model.
             use_karcher_mean_factor (optional): Use Karcher mean factor to constrain the camera poses.
+            use_pose_prior (optional): Use pose prior to constrain the camera poses. (only used if we use karcher mean)
             use_calibration_prior (optional): Use calibration prior to constrain the camera intrinsics.
             use_first_point_prior (optional): Use first point prior to constrain the scale of the reconstruction.
             use_gnc (optional): Use the GNC optimizer for bundle adjustment.
@@ -128,6 +130,7 @@ class BundleAdjustmentOptimizer:
         self._save_iteration_visualization = save_iteration_visualization
         self._robust_noise_basin = robust_noise_basin
         self._use_karcher_mean_factor = use_karcher_mean_factor
+        self._use_pose_prior = use_pose_prior
 
         self._use_first_point_prior = use_first_point_prior
         self._use_gnc = use_gnc
@@ -224,6 +227,17 @@ class BundleAdjustmentOptimizer:
         if self._use_karcher_mean_factor:
             camera_keys = [X(i) for i in cameras_to_model]
             graph.push_back(gtsam.KarcherMeanFactorPose3(camera_keys, 6, 1000))
+            if self._use_pose_prior:
+                for camera_idx in cameras_to_model:
+                    camera_i = initial_data.get_camera(camera_idx)
+                    assert camera_i is not None, f"Camera {camera_idx} in initial data is None"
+                    graph.push_back(
+                        PriorFactorPose3(
+                            X(camera_idx),
+                            camera_i.pose(),
+                            Isotropic.Sigma(CAM_POSE3_DOF, self._cam_pose3_prior_noise_sigma),
+                        )
+                    )
         else:
             first_camera = initial_data.get_camera(cameras_to_model[0])
             assert first_camera is not None, "First camera in initial data is None"
@@ -410,7 +424,7 @@ class BundleAdjustmentOptimizer:
         result_values, _, weights = self.__optimize_factor_graph(graph, initial_values, ordering_type)
         final_error = graph.error(result_values)
         optimized_data = GtsfmData.from_values(result_values, initial_data, self._shared_calib)
-        if self._use_gnc and weights is not None:
+        if self._use_gnc and weights is not None and self._factor_weight_outlier_threshold > 0:
             optimized_data = self.__filter_tracks_by_factor_weights(graph, optimized_data, weights)
         return optimized_data, result_values, final_error
 

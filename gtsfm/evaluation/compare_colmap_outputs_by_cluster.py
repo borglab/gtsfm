@@ -760,7 +760,11 @@ def main() -> None:
             rng=rng,
             cluster_label=str(recon_dir),
         )
-        metrics_group = _compute_pose_metrics(baseline_list, current_aligned_list)
+        try:
+            metrics_group = _compute_pose_metrics(baseline_list, current_aligned_list)
+        except Exception as exc:
+            logger.warning("Skipping %s due to metric failure: %s", recon_dir, exc)
+            continue
         _summarize_pose_errors(baseline_list, current_aligned_list, str(recon_dir))
         intrinsics_deltas: Dict[str, List[float]] = {
             "delta_fx_norm": [],
@@ -804,12 +808,13 @@ def main() -> None:
                     intrinsics_deltas["delta_cx_norm"].append(abs(base["cx"] - curr_cx) / abs(base["cx"]))
                 if base["cy"] != 0:
                     intrinsics_deltas["delta_cy_norm"].append(abs(base["cy"] - curr_cy) / abs(base["cy"]))
-            base_fovx = 2.0 * np.degrees(np.arctan(base_w / (2.0 * base["fx"])))
-            base_fovy = 2.0 * np.degrees(np.arctan(base_h / (2.0 * base["fy"])))
-            curr_fovx = 2.0 * np.degrees(np.arctan(base_w / (2.0 * curr_fx)))
-            curr_fovy = 2.0 * np.degrees(np.arctan(base_h / (2.0 * curr_fy)))
-            fov_deltas["delta_fovx_deg"].append(abs(base_fovx - curr_fovx))
-            fov_deltas["delta_fovy_deg"].append(abs(base_fovy - curr_fovy))
+            if base["fx"] != 0 and curr_fx != 0 and base["fy"] != 0 and curr_fy != 0:
+                base_fovx = 2.0 * np.degrees(np.arctan(base_w / (2.0 * base["fx"])))
+                base_fovy = 2.0 * np.degrees(np.arctan(base_h / (2.0 * base["fy"])))
+                curr_fovx = 2.0 * np.degrees(np.arctan(base_w / (2.0 * curr_fx)))
+                curr_fovy = 2.0 * np.degrees(np.arctan(base_h / (2.0 * curr_fy)))
+                fov_deltas["delta_fovx_deg"].append(abs(base_fovx - curr_fovx))
+                fov_deltas["delta_fovy_deg"].append(abs(base_fovy - curr_fovy))
         for key, values in intrinsics_deltas.items():
             all_intrinsics_deltas[key].extend(values)
         for key, values in fov_deltas.items():

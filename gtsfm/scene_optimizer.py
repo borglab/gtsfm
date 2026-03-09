@@ -115,8 +115,14 @@ class SceneOptimizer:
         bridge_min_component_size: int = 3,
         merging_pre_ba_max_reproj_error: float = 14.0,
         merging_pre_ba_min_track_length: int = 2,
+        merging_allow_post_ba_reproj_filtering: bool = True,
         merging_ba_use_calibration_prior: bool = False,
+        merging_ba_use_pose_prior: bool = False,
         merging_use_gnc: bool = False,
+        merging_factor_weight_outlier_threshold: float = 0.0,
+        metric_constructed_only: bool = False,
+        max_track_correspondences_for_sim3: int = 150,
+        scale_and_average_focal_length_in_merging: bool = False,
     ) -> None:
         self.loader = loader
         self.image_pairs_generator = image_pairs_generator
@@ -143,8 +149,20 @@ class SceneOptimizer:
         self._bridge_min_component_size = bridge_min_component_size
         self._merging_pre_ba_max_reproj_error = merging_pre_ba_max_reproj_error
         self._merging_pre_ba_min_track_length = merging_pre_ba_min_track_length
+        self._merging_allow_post_ba_reproj_filtering = merging_allow_post_ba_reproj_filtering
+        self._merging_factor_weight_outlier_threshold = merging_factor_weight_outlier_threshold
         self._merging_ba_use_calibration_prior = merging_ba_use_calibration_prior
+        self._merging_ba_use_pose_prior = merging_ba_use_pose_prior
         self._merging_use_gnc = merging_use_gnc
+        self._metric_constructed_only = metric_constructed_only
+        if hasattr(self.cluster_optimizer, "_metric_constructed_only"):
+            setattr(self.cluster_optimizer, "_metric_constructed_only", metric_constructed_only)
+        elif hasattr(self.cluster_optimizer, "_optimizer") and hasattr(
+            getattr(self.cluster_optimizer, "_optimizer"), "_metric_constructed_only"
+        ):
+            setattr(self.cluster_optimizer._optimizer, "_metric_constructed_only", metric_constructed_only)
+        self._max_track_correspondences_for_sim3 = max_track_correspondences_for_sim3
+        self._scale_and_average_focal_length_in_merging = scale_and_average_focal_length_in_merging
         self._config_snapshot = None
         self.output_root = Path(output_root)
         if output_worker is not None:
@@ -233,8 +251,7 @@ class SceneOptimizer:
             )
             if bridge_result.bridge_edges:
                 logger.info(
-                    "🌉 Bridge reconnection: added %d edges, components %d -> %d "
-                    "(reconnected %d, unreachable %d)",
+                    "🌉 Bridge reconnection: added %d edges, components %d -> %d " "(reconnected %d, unreachable %d)",
                     len(bridge_result.bridge_edges),
                     bridge_result.num_components_before,
                     bridge_result.num_components_after,
@@ -309,7 +326,13 @@ class SceneOptimizer:
                         keep_all_cameras_in_merging=self._keep_all_cameras_in_merging,
                         pre_ba_max_reproj_error=self._merging_pre_ba_max_reproj_error,
                         pre_ba_min_track_length=self._merging_pre_ba_min_track_length,
+                        merging_allow_post_ba_reproj_filtering=self._merging_allow_post_ba_reproj_filtering,
+                        merging_factor_weight_outlier_threshold=self._merging_factor_weight_outlier_threshold,
                         ba_use_calibration_prior=self._merging_ba_use_calibration_prior,
+                        merging_ba_use_pose_prior=self._merging_ba_use_pose_prior,
+                        metric_constructed_only=self._metric_constructed_only,
+                        max_track_correspondences_for_sim3=self._max_track_correspondences_for_sim3,
+                        scale_and_average_focal_length_in_merging=self._scale_and_average_focal_length_in_merging,
                     )
 
                 merged_future_tree = submit_tree_map_with_children(client, reconstruction_tree, merge_fn)
