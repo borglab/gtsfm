@@ -92,12 +92,15 @@ class TestMetisPartitioner(unittest.TestCase):
         self.assertEqual(len(leaves), 1)
         self.assertEqual(leaves[0].value, single_edge)
 
-    def test_disconnected_graph_raises(self) -> None:
+    def test_disconnected_graph_keeps_largest_component(self) -> None:
         partitioner = MetisPartitioner()
-        # Disconnected Graph with two connected components
         disconnected_edges = [(0, 1), (2, 3), (3, 4)]
-        with self.assertRaises(ValueError):
-            partitioner.run(disconnected_edges)
+
+        cluster_tree = partitioner.run(disconnected_edges)
+
+        self.assertIsNotNone(cluster_tree)
+        assert cluster_tree is not None
+        self.assertEqual(set(cluster_tree.all_edges()), {(2, 3), (3, 4)})
 
     def test_duplicate_edges_are_handled(self) -> None:
         partitioner = MetisPartitioner()
