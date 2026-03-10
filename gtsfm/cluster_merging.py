@@ -904,6 +904,7 @@ def combine_results(
             use_gnc=use_gnc,
             gnc_loss=gnc_loss,
             factor_weight_outlier_threshold=merging_factor_weight_outlier_threshold,
+            min_track_length=min_track_length,
         )
         merged_with_ba, _ = optimizer.run_simple_ba(merged)
         _propagate_scene_metadata(merged_with_ba, merged)

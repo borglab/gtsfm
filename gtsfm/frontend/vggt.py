@@ -766,6 +766,7 @@ def _convert_vggt_outputs_to_gtsfm_data(
                     use_gnc=config.use_gnc,
                     gnc_loss=config.gnc_loss,
                     factor_weight_outlier_threshold=config.factor_weight_outlier_threshold,
+                    min_track_length=config.min_track_length,
                 )
                 gtsfm_data_with_ba, _ = optimizer.run_simple_ba(gtsfm_data)
                 if config.allow_post_ba_filtering_on_reproj_error:
