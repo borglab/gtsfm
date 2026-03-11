@@ -17,6 +17,7 @@ from typing import Dict, Iterable, List, Optional, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 from gtsam import Pose3, Rot3
+from thirdparty.colmap.scripts.python import read_write_model
 
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metric_utils
@@ -145,6 +146,203 @@ def _find_cluster_recon_dirs(root: Path, recon_name: str) -> Iterable[Path]:
             yield Path(dirpath)
 
 
+def _image_candidates(image_name: str, root_dirs: List[str]) -> List[str]:
+    """Generate common candidate paths for an image under a list of root directories."""
+    base_name = os.path.basename(image_name)
+    candidates: List[str] = []
+    for root_dir in root_dirs:
+        if root_dir == "":
+            continue
+        candidates.extend(
+            [
+                os.path.join(root_dir, image_name),
+                os.path.join(root_dir, base_name),
+                os.path.join(root_dir, "images", image_name),
+                os.path.join(root_dir, "images", base_name),
+            ]
+        )
+    return list(dict.fromkeys([path for path in candidates if path]))
+
+
+def _find_image_path(image_name: str, root_dirs: List[str]) -> Optional[str]:
+    """Find an image file path from candidate roots."""
+    if os.path.isabs(image_name) and os.path.exists(image_name):
+        return image_name
+    for path in _image_candidates(image_name, root_dirs):
+        if os.path.exists(path):
+            return path
+    return None
+
+
+def _find_images_file_in_reconstruction(model_dir: Path | str) -> Optional[str]:
+    """Find COLMAP images.txt or images.bin under a reconstruction directory."""
+    model_root = str(model_dir)
+    candidates = [model_root, os.path.join(model_root, "0")]
+    for base in candidates:
+        for fname in ("images.txt", "images.bin"):
+            candidate = os.path.join(base, fname)
+            if os.path.isfile(candidate):
+                return candidate
+    for root, _dirs, files in os.walk(model_root):
+        if "images.txt" in files:
+            return os.path.join(root, "images.txt")
+        if "images.bin" in files:
+            return os.path.join(root, "images.bin")
+    return None
+
+
+def _get_current_image_measurement_counts(current_recon_dir: Path) -> Dict[str, int]:
+    """Read number of 2D observations per image from the current reconstruction."""
+    images_file = _find_images_file_in_reconstruction(current_recon_dir)
+    if images_file is None:
+        logger.warning("No images.txt/images.bin found in %s; cannot read measurement counts.", current_recon_dir)
+        return {}
+    try:
+        if images_file.endswith(".bin"):
+            images = read_write_model.read_images_binary(images_file)
+        else:
+            images = read_write_model.read_images_text(images_file)
+    except Exception as e:
+        logger.warning("Failed to read %s (%s): %s", images_file, type(e).__name__, str(e))
+        return {}
+    counts = {img.name: len(img.xys) for _, img in images.items()}
+    logger.info("Loaded %d images with measurement counts from %s.", len(counts), images_file)
+    return counts
+
+
+def _get_measurement_count_for_image(
+    image_name: str, image_measurement_counts: Optional[Dict[str, int]]
+) -> Optional[int]:
+    """Get per-image measurement count by matching full name or basename."""
+    if image_measurement_counts is None:
+        return None
+    base_name = os.path.basename(image_name)
+    return image_measurement_counts.get(image_name, image_measurement_counts.get(base_name))
+
+
+def _save_image_with_error_overlay(
+    src_path: str, dst_path: str, error: float, metric_name: str, num_measurements: Optional[object] = None
+) -> None:
+    """Save an image copy with error text and number of measurements overlaid."""
+    image = plt.imread(src_path)
+    fig = plt.figure(figsize=(12, 8))
+    ax = fig.add_subplot(1, 1, 1)
+    ax.imshow(image)
+    ax.axis("off")
+    measurement_text = "N/A" if num_measurements is None else str(num_measurements)
+    ax.text(
+        0.02,
+        0.02,
+        f"{metric_name}: {float(error):.4f}\nnum_measurements: {measurement_text}",
+        color="yellow",
+        fontsize=14,
+        weight="bold",
+        transform=ax.transAxes,
+        bbox=dict(facecolor="black", alpha=0.6, edgecolor="none", pad=3.0),
+    )
+    fig.savefig(dst_path, dpi=200, bbox_inches="tight", pad_inches=0)
+    plt.close(fig)
+
+
+def _plot_error_vs_measurements(
+    metric: metric_utils.GtsfmMetric,
+    image_names: List[str],
+    image_measurement_counts: Optional[Dict[str, int]],
+    output_dirpath: Path,
+) -> None:
+    """Save a scatter plot of metric error versus per-image measurement count."""
+    if metric.data is None:
+        logger.warning("Skipping error-vs-measurements plot for metric `%s`: no full data.", metric.name)
+        return
+
+    errors = np.asarray(metric.data, dtype=np.float32)
+    if errors.size != len(image_names):
+        logger.warning(
+            "Skipping error-vs-measurements plot for metric `%s`: mismatch between errors (%d) and image names (%d).",
+            metric.name,
+            int(errors.size),
+            len(image_names),
+        )
+        return
+
+    valid_mask = np.isfinite(errors)
+    if not np.any(valid_mask):
+        logger.warning("Skipping error-vs-measurements plot for metric `%s`: no finite errors.", metric.name)
+        return
+
+    valid_names = np.array(image_names, dtype=object)[valid_mask]
+    valid_errors = errors[valid_mask]
+    counts = []
+    for name in valid_names:
+        count = _get_measurement_count_for_image(str(name), image_measurement_counts)
+        counts.append(np.nan if count is None else float(count))
+
+    counts_np = np.asarray(counts, dtype=np.float32)
+    valid_count_mask = np.isfinite(counts_np)
+    if not np.any(valid_count_mask):
+        logger.warning("Skipping error-vs-measurements plot for metric `%s`: no numeric measurement counts.", metric.name)
+        return
+
+    output_dirpath.mkdir(parents=True, exist_ok=True)
+    fig = plt.figure(figsize=(7, 6))
+    ax = fig.add_subplot(1, 1, 1)
+    ax.scatter(counts_np[valid_count_mask], valid_errors[valid_count_mask], s=12, alpha=0.55)
+    ax.set_title(f"{metric.name}: error vs num_measurements")
+    ax.set_xlabel("num_measurements")
+    ax.set_ylabel(metric.name)
+    ax.grid(alpha=0.3, linestyle="--")
+    fig.tight_layout()
+    fig.savefig(str(output_dirpath / f"{output_dirpath.name}_error_vs_measurements.png"), dpi=250)
+    plt.close(fig)
+
+
+def _export_ranked_images(
+    metric: metric_utils.GtsfmMetric,
+    image_names: List[str],
+    image_roots: List[str],
+    output_dirpath: Path,
+    metric_folder: str,
+    image_measurement_counts: Optional[Dict[str, int]] = None,
+) -> None:
+    """Export images sorted by metric value in descending error order."""
+    if metric.data is None:
+        logger.warning("Skipping image export for metric `%s`: no full data.", metric.name)
+        return
+
+    errors = np.asarray(metric.data, dtype=np.float32)
+    if errors.size != len(image_names):
+        logger.warning(
+            "Skipping image export for metric `%s`: mismatch between errors (%d) and image names (%d).",
+            metric.name,
+            int(errors.size),
+            len(image_names),
+        )
+        return
+
+    valid = np.isfinite(errors)
+    valid_errors = errors[valid]
+    sorted_indices = np.argsort(valid_errors)[::-1]
+    valid_names = np.array(image_names, dtype=object)[valid]
+
+    metric_output_dir = output_dirpath / metric_folder
+    metric_output_dir.mkdir(parents=True, exist_ok=True)
+
+    for rank, sorted_idx in enumerate(sorted_indices):
+        image_name = str(valid_names[sorted_idx])
+        src = _find_image_path(image_name, image_roots)
+        if src is None:
+            logger.warning("Could not find image file for %s.", image_name)
+            continue
+        dst = str(metric_output_dir / f"{rank}_{os.path.basename(image_name)}")
+        num_measurements = "N/A"
+        if image_measurement_counts is not None:
+            count_value = _get_measurement_count_for_image(image_name, image_measurement_counts)
+            if count_value is not None:
+                num_measurements = count_value
+        error = float(valid_errors[sorted_idx])
+        _save_image_with_error_overlay(src, dst, error, metric.name, num_measurements=num_measurements)
+
+
 def _build_pose_lists(
     baseline_poses: Dict[str, Pose3],
     current_poses: Dict[str, Pose3],
@@ -183,8 +381,8 @@ def _compute_pose_metrics(baseline_list: List[Pose3], current_aligned_list: List
     baseline_wRi_dict, baseline_wti_dict = metric_utils.get_rotations_translations_from_poses(baseline_dict)
 
     metrics = []
-    metrics.append(metric_utils.compute_rotation_angle_metric(wRi_aligned_dict, baseline_wRi_dict))
-    metrics.append(metric_utils.compute_translation_distance_metric(wti_aligned_dict, baseline_wti_dict))
+    metrics.append(metric_utils.compute_rotation_angle_metric(wRi_aligned_dict, baseline_wRi_dict, store_full_data=True))
+    metrics.append(metric_utils.compute_translation_distance_metric(wti_aligned_dict, baseline_wti_dict, store_full_data=True))
     metrics.append(metric_utils.compute_translation_angle_metric(baseline_dict, current_dict))
     relative_rotation_error_metric = metric_utils.compute_relative_rotation_angle_metric(
         i2Ri1_dict_gt, current_dict, store_full_data=True
@@ -766,6 +964,22 @@ def main() -> None:
             logger.warning("Skipping %s due to metric failure: %s", recon_dir, exc)
             continue
         _summarize_pose_errors(baseline_list, current_aligned_list, str(recon_dir))
+        current_image_measurement_counts = _get_current_image_measurement_counts(recon_dir)
+        if current_image_measurement_counts:
+            valid_count_values = [
+                _get_measurement_count_for_image(name, current_image_measurement_counts)
+                for name in common_names
+                if _get_measurement_count_for_image(name, current_image_measurement_counts) is not None
+            ]
+            if valid_count_values:
+                logger.info(
+                    "Current reconstruction measurement stats for %s: n=%d, min=%d, max=%d, mean=%.2f",
+                    recon_dir,
+                    len(valid_count_values),
+                    int(min(valid_count_values)),
+                    int(max(valid_count_values)),
+                    float(np.mean(valid_count_values)),
+                )
         intrinsics_deltas: Dict[str, List[float]] = {
             "delta_fx_norm": [],
             "delta_fy_norm": [],
@@ -833,6 +1047,7 @@ def main() -> None:
             _print_metrics(str(recon_dir), metrics_group)
         if fig_output_dir is not None:
             safe_name = str(recon_dir).replace(os.sep, "__")
+            cluster_fig_dir = fig_output_dir / safe_name
             plot_path = fig_output_dir / f"{safe_name}_camera_centers.png"
             pose_auc_text = _format_auc(metrics_group, "pose_auc")
             rotation_auc_text = _format_auc(metrics_group, "rotation_auc")
@@ -846,6 +1061,42 @@ def main() -> None:
                 title_lines.append(f"Translation AUC: {translation_auc_text}")
             title = "\n".join(title_lines)
             _plot_camera_centers(baseline_list, current_aligned_list, plot_path, title)
+            image_roots = [
+                args.baseline,
+                str(recon_dir),
+                str(Path(args.baseline).parent / "images"),
+                str(recon_dir / "images"),
+            ]
+            rotation_angle_metric = metrics_group.metrics[0]
+            translation_distance_metric = metrics_group.metrics[1]
+            _export_ranked_images(
+                rotation_angle_metric,
+                common_names,
+                image_roots,
+                cluster_fig_dir,
+                "rotation_angle_metric",
+                image_measurement_counts=current_image_measurement_counts,
+            )
+            _plot_error_vs_measurements(
+                rotation_angle_metric,
+                common_names,
+                current_image_measurement_counts,
+                cluster_fig_dir / "rotation_angle_metric",
+            )
+            _export_ranked_images(
+                translation_distance_metric,
+                common_names,
+                image_roots,
+                cluster_fig_dir,
+                "translation_distance_metric",
+                image_measurement_counts=current_image_measurement_counts,
+            )
+            _plot_error_vs_measurements(
+                translation_distance_metric,
+                common_names,
+                current_image_measurement_counts,
+                cluster_fig_dir / "translation_distance_metric",
+            )
         # Intrinsics stats are annotated in the plot; no terminal logging.
         for metric in metrics_group.metrics:
             if metric.name.startswith("pose_auc_@") and metric.data is not None:
