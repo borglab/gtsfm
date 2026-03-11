@@ -83,6 +83,7 @@ class BundleAdjustmentOptimizer:
         use_gnc: bool = False,
         gnc_loss: RobustBAMode | str = RobustBAMode.GMC,
         factor_weight_outlier_threshold: float = 0.0,
+        min_track_length: int = 2,
     ) -> None:
         """Initializes the parameters for bundle adjustment module.
 
@@ -111,6 +112,7 @@ class BundleAdjustmentOptimizer:
             use_gnc (optional): Use the GNC optimizer for bundle adjustment.
             gnc_loss (optional): GNC loss to use. Defaults to GMC.
             factor_weight_outlier_threshold (optional): Threshold weight for a reprojection factor to be kept.
+            min_track_length: min number of measurements required to keep a track after weight filtering.
         """
         self._reproj_error_thresholds = reproj_error_thresholds
         if isinstance(robust_ba_mode, str):
@@ -131,7 +133,6 @@ class BundleAdjustmentOptimizer:
         self._robust_noise_basin = robust_noise_basin
         self._use_karcher_mean_factor = use_karcher_mean_factor
         self._use_pose_prior = use_pose_prior
-
         self._use_first_point_prior = use_first_point_prior
         self._use_gnc = use_gnc
         if isinstance(gnc_loss, str):
@@ -139,6 +140,7 @@ class BundleAdjustmentOptimizer:
         else:
             self._gnc_loss = gnc_loss
         self._factor_weight_outlier_threshold = factor_weight_outlier_threshold
+        self._min_track_length = min_track_length
 
     def __map_to_calibration_variable(self, camera_idx: int) -> int:
         return 0 if self._shared_calib else camera_idx
@@ -450,6 +452,9 @@ class BundleAdjustmentOptimizer:
                 track_id = int(gtsam.symbolIndex(track_key))
                 cams_to_remove_per_track[track_id].add(camera_id)
 
+        if not cams_to_remove_per_track:
+            return optimized_data
+
         for track_id, camera_ids in cams_to_remove_per_track.items():
             track = optimized_data.get_track(track_id)
             new_measurements = []
@@ -458,9 +463,27 @@ class BundleAdjustmentOptimizer:
                 if cam_id not in camera_ids:
                     new_measurements.append(track.measurement(m_idx))
             track.measurements = new_measurements
-        if cams_to_remove_per_track:
+
+        length_filtered_tracks = [
+            track for track in optimized_data.get_tracks() if track.numberMeasurements() >= self._min_track_length
+        ]
+        if len(length_filtered_tracks) == optimized_data.number_tracks():
             optimized_data._camera_to_measurement_map = None
-        return optimized_data
+            return optimized_data
+
+        image_info = {
+            image_id: optimized_data.get_image_info(image_id) for image_id in optimized_data.get_all_image_ids()
+        }
+
+        filtered_data = GtsfmData.from_cameras_and_tracks(
+            cameras=optimized_data.cameras(),
+            tracks=length_filtered_tracks,
+            number_images=optimized_data.number_images(),
+            image_info=image_info,
+            gaussian_splats=optimized_data.get_gaussian_splats(),
+        )
+
+        return filtered_data
 
     def run_simple_ba(
         self, initial_data: GtsfmData, robust_noise_basin: float | None = None
