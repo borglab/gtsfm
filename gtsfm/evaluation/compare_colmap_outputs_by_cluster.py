@@ -280,7 +280,9 @@ def _plot_error_vs_measurements(
     counts_np = np.asarray(counts, dtype=np.float32)
     valid_count_mask = np.isfinite(counts_np)
     if not np.any(valid_count_mask):
-        logger.warning("Skipping error-vs-measurements plot for metric `%s`: no numeric measurement counts.", metric.name)
+        logger.warning(
+            "Skipping error-vs-measurements plot for metric `%s`: no numeric measurement counts.", metric.name
+        )
         return
 
     output_dirpath.mkdir(parents=True, exist_ok=True)
@@ -381,8 +383,12 @@ def _compute_pose_metrics(baseline_list: List[Pose3], current_aligned_list: List
     baseline_wRi_dict, baseline_wti_dict = metric_utils.get_rotations_translations_from_poses(baseline_dict)
 
     metrics = []
-    metrics.append(metric_utils.compute_rotation_angle_metric(wRi_aligned_dict, baseline_wRi_dict, store_full_data=True))
-    metrics.append(metric_utils.compute_translation_distance_metric(wti_aligned_dict, baseline_wti_dict, store_full_data=True))
+    metrics.append(
+        metric_utils.compute_rotation_angle_metric(wRi_aligned_dict, baseline_wRi_dict, store_full_data=True)
+    )
+    metrics.append(
+        metric_utils.compute_translation_distance_metric(wti_aligned_dict, baseline_wti_dict, store_full_data=True)
+    )
     metrics.append(metric_utils.compute_translation_angle_metric(baseline_dict, current_dict))
     relative_rotation_error_metric = metric_utils.compute_relative_rotation_angle_metric(
         i2Ri1_dict_gt, current_dict, store_full_data=True

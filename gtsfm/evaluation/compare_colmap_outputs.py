@@ -7,7 +7,6 @@ import argparse
 import csv
 import json
 import os
-import shutil
 import textwrap
 from typing import Dict, List, Optional, Tuple
 
@@ -159,7 +158,12 @@ def _find_image_path(image_name: str, root_dirs: List[str]) -> Optional[str]:
 
 def _find_images_file_in_reconstruction(model_dir: str) -> Optional[str]:
     """Find COLMAP images.txt or images.bin under a reconstruction directory."""
-    candidates = [model_dir, os.path.join(model_dir, "sparse"), os.path.join(model_dir, "sparse/0"), os.path.join(model_dir, "0")]
+    candidates = [
+        model_dir,
+        os.path.join(model_dir, "sparse"),
+        os.path.join(model_dir, "sparse/0"),
+        os.path.join(model_dir, "0"),
+    ]
     for base in candidates:
         for fname in ("images.txt", "images.bin"):
             candidate = os.path.join(base, fname)
@@ -265,7 +269,9 @@ def _plot_error_vs_measurements(
     counts_np = np.asarray(counts, dtype=np.float32)
     valid_count_mask = np.isfinite(counts_np)
     if not np.any(valid_count_mask):
-        logger.warning("Skipping error-vs-measurements plot for metric `%s`: no numeric measurement counts.", metric.name)
+        logger.warning(
+            "Skipping error-vs-measurements plot for metric `%s`: no numeric measurement counts.", metric.name
+        )
         return
 
     metric_output_dir = os.path.join(output_dirpath, metric_folder)
@@ -424,8 +430,12 @@ def compare_poses(baseline_dirpath: str, eval_dirpath: str, output_dirpath: str)
     baseline_wRi_dict, baseline_wti_dict = metric_utils.get_rotations_translations_from_poses(baseline_wTi_dict)
 
     metrics = []
-    metrics.append(metric_utils.compute_rotation_angle_metric(wRi_aligned_dict, baseline_wRi_dict, store_full_data=True))
-    metrics.append(metric_utils.compute_translation_distance_metric(wti_aligned_dict, baseline_wti_dict, store_full_data=True))
+    metrics.append(
+        metric_utils.compute_rotation_angle_metric(wRi_aligned_dict, baseline_wRi_dict, store_full_data=True)
+    )
+    metrics.append(
+        metric_utils.compute_translation_distance_metric(wti_aligned_dict, baseline_wti_dict, store_full_data=True)
+    )
     metrics.append(metric_utils.compute_translation_angle_metric(baseline_wTi_dict, current_wTi_dict))
     relative_rotation_error_metric = metric_utils.compute_relative_rotation_angle_metric(
         i2Ri1_dict_gt, current_wTi_dict, store_full_data=True
@@ -454,7 +464,12 @@ def compare_poses(baseline_dirpath: str, eval_dirpath: str, output_dirpath: str)
 
     save_metrics_reports([ba_pose_metrics], metrics_path=output_dirpath)
 
-    image_roots = [baseline_dirpath, eval_dirpath, os.path.join(baseline_dirpath, "images"), os.path.join(eval_dirpath, "images")]
+    image_roots = [
+        baseline_dirpath,
+        eval_dirpath,
+        os.path.join(baseline_dirpath, "images"),
+        os.path.join(eval_dirpath, "images"),
+    ]
     if args.image_root is not None:
         image_roots.insert(0, args.image_root)
     image_roots = list(dict.fromkeys([root for root in image_roots if root]))
