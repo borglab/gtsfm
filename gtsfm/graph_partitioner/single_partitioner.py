@@ -20,8 +20,16 @@ class SinglePartitioner(GraphPartitionerBase):
     a baseline implementation that maintains the original workflow.
     """
 
-    def __init__(self):
-        """Initialize the partitioner."""
+    def __init__(self, **kwargs: object) -> None:
+        """Initialize the partitioner.
+
+        This partitioner intentionally ignores all kwargs so it can be used
+        with configs that include fields shared with other partitioners
+        (e.g. ``min_cameras_to_partition``).
+        """
+        if kwargs:
+            ignored_keys = ", ".join(sorted(kwargs.keys()))
+            logger.warning("SinglePartitioner: ignoring extra init kwargs: %s", ignored_keys)
         super().__init__(process_name="SinglePartitioner")
 
     def run(self, graph: VisibilityGraph) -> ClusterTree | None:
