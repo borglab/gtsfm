@@ -1,0 +1,76 @@
+# Ablation: GT COLMAP/GLOMAP covisibility graph -> Metis Partitioner.
+# Based on vggt_megaloc_phototourism.yaml but replaces MegaLoc retriever with GT covisibility.
+
+# @package _global_
+_target_: gtsfm.scene_optimizer.SceneOptimizer
+
+loader:
+  _target_: gtsfm.loader.Olsson
+  dataset_dir: ??? # Required: set to the dataset root on the command line.
+  images_dir: null
+  max_resolution: 518 # VGGT recommended max resolution. Non editable. mode can be set in cluster optimizer config.
+
+image_pairs_generator:
+  _target_: gtsfm.retriever.image_pairs_generator.ImagePairsGenerator
+  global_descriptor: null  # No descriptor needed for GT covisibility
+  retriever:
+    _target_: gtsfm.retriever.ColmapCovisibility
+    colmap_data_dir: ???  # Path to COLMAP/GLOMAP sparse model dir (e.g. benchmarks/Gendarmenmarkt/sparse_glomap/0)
+    min_shared_points: 15
+  batch_size: 1
+
+graph_partitioner:
+  _target_: gtsfm.graph_partitioner.Metis
+  min_cameras_to_partition: 12
+  max_cameras: 40
+  split_oversized_nodes: true
+
+cluster_optimizer:
+  _target_: gtsfm.cluster_optimizer.Cacher
+  optimizer:
+    _target_: gtsfm.cluster_optimizer.cluster_vggt.ClusterVGGT
+    input_mode: crop
+    save_processed_image: false #for debug, save processed images in each subfolder
+    weights_path: null
+    conf_threshold: 0.1
+    max_num_points: 100000
+    tracking: true
+    tracking_max_query_pts: 512
+    tracking_query_frame_num: 3
+    tracking_use_all_frames_forward_only: true
+    keypoint_extractor: aliked+sp+sift
+    track_vis_thresh: 0.05
+    track_conf_thresh: 0.2
+    vggt_max_reproj_error: 14.0
+    post_ba_max_reproj_error: 3.0
+    min_triangulation_angle: 2.0
+    camera_type: PINHOLE
+    drop_outlier_after_camera_merging: true
+    drop_child_if_merging_fail: true
+    drop_camera_with_no_track: false
+    keep_all_cameras_in_merging: false #wether to keep all cameras in merging, otherwise cameras without track can be dropped
+    min_track_length: 3
+    ba_track_patch_grid_size: 14
+    seed: 42
+    plot_reprojection_histograms: true
+    run_bundle_adjustment_on_leaf: true
+    run_bundle_adjustment_on_parent: true
+    model_cache_key: null
+    store_pre_ba_result: true
+    ba_use_calibration_prior: false
+    ba_use_undistorted_camera_model: false
+    use_shared_calibration: false
+    use_gnc: true
+    gnc_loss: TLS
+
+use_nonlinear_sim3_merging: true
+max_track_correspondences_for_sim3: 150
+scale_and_average_focal_length_in_merging: false
+bridge_min_similarity: 0.0
+bridge_top_k: 10
+bridge_min_component_size: 3
+merging_pre_ba_max_reproj_error: 14.0
+merging_pre_ba_min_track_length: 3
+merging_ba_use_calibration_prior: false
+merging_use_gnc: false
+metric_constructed_only: true
