@@ -411,12 +411,14 @@ def compute_pose_auc_metric(
     translation_angular_errors: Union[Sequence[float], np.ndarray],
     thresholds_deg: Sequence[float] = (1.0, 2.5, 5.0, 10.0, 20.0),
     save_dir: Optional[str] = None,
+    metric_name_prefix: str = "pose_auc",
 ) -> List[GtsfmMetric]:
     """Computes "Pose AUC" metric from rotation & translation angular errors.
 
     Args:
         rotation_angular_errors: N rotation angular errors, in degrees.
         translation_angular_errors: N translation angular errors, in degrees.
+        metric_name_prefix: Prefix for output metric names.
 
     Returns:
         One GtsfmMetric for each angular error threshold.
@@ -436,7 +438,7 @@ def compute_pose_auc_metric(
     AUCs = pose_auc(pose_errors, thresholds_deg, save_dir=save_dir)
     metrics = []
     for threshold, auc in zip(thresholds_deg, AUCs):
-        metrics.append(GtsfmMetric(f"pose_auc_@{threshold}_deg", auc))
+        metrics.append(GtsfmMetric(f"{metric_name_prefix}_@{threshold}_deg", auc))
     return metrics
 
 
@@ -445,6 +447,7 @@ def compute_ba_pose_metrics(
     computed_wTi: dict[int, Optional[Pose3]],
     save_dir: Optional[str] = None,
     store_full_data: bool = False,
+    metric_constructed_only: bool = False,
 ) -> GtsfmMetricsGroup:
     """Compute pose errors w.r.t. GT for the bundle adjustment result.
 
@@ -455,6 +458,7 @@ def compute_ba_pose_metrics(
         computed_wTi: Dict of computed poses keyed by camera id.
         save_dir: Directory to save the metrics plots.
         store_full_data: Whether to store full data.
+        metric_constructed_only: Whether pose AUC should only consider reconstructed image pairs.
 
     Returns:
         A group of metrics that describe errors associated with a bundle adjustment result (w.r.t. GT).
@@ -496,6 +500,22 @@ def compute_ba_pose_metrics(
     )
 
     metrics.extend(compute_pose_auc_metric(rotation_angular_errors, translation_angular_errors, save_dir=save_dir))
+    if metric_constructed_only:
+        # Compute pose AUC using only constructed image pairs (exclude missing poses).
+        constructed_rotation_angular_errors = get_relative_rotation_angles(
+            i2Ri1_gt_opt, computed_wTi_opt, include_none=False
+        )
+        constructed_translation_angular_errors = get_relative_translation_angles(
+            i2Ui1_gt_opt, computed_wTi_opt, include_none=False
+        )
+        metrics.extend(
+            compute_pose_auc_metric(
+                constructed_rotation_angular_errors,
+                constructed_translation_angular_errors,
+                save_dir=save_dir,
+                metric_name_prefix="pose_auc_constructed_only",
+            )
+        )
 
     return GtsfmMetricsGroup(name="ba_pose_error_metrics", metrics=metrics)
 

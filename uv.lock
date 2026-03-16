@@ -779,16 +779,16 @@ wheels = [
 
 [[package]]
 name = "gtsam-develop"
-version = "4.3a1.dev202602231527"
+version = "4.3a1.dev202603090403"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy" },
     { name = "pytest" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/fc/8a/7d73cbf195abff4f03428c56e052d14efd7ce864851294bbfbeaac7bb8a9/gtsam_develop-4.3a1.dev202602231527-cp312-cp312-macosx_10_15_universal2.whl", hash = "sha256:78aa312e546b77ac25ce7d0486b582107130e7720dc18c9544b53d56656369c1", size = 37815563, upload-time = "2026-02-23T16:43:13.858Z" },
-    { url = "https://files.pythonhosted.org/packages/d8/dc/88147943531c6f52855030b74e3aeb654a3880b1a3ffe2ecc69c7a6770ee/gtsam_develop-4.3a1.dev202602231527-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:f45227aaf3635dbf5a6cd2961cad300d58108ced9c0a861c0e97b007afcd0a0a", size = 27583913, upload-time = "2026-02-23T16:43:17.143Z" },
-    { url = "https://files.pythonhosted.org/packages/7c/50/2e3470475b5b19642542e113211e0f7f1d873e483115e2747b7d56cbb8e7/gtsam_develop-4.3a1.dev202602231527-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:da6d558a69440d232770baf07a2af4b196e27b95458099780f035aec9c368ba4", size = 29041455, upload-time = "2026-02-23T16:43:21.487Z" },
+    { url = "https://files.pythonhosted.org/packages/17/6d/2b643109654d967bdfff721b4d68d4dd606050ad8b0986ba9733bb80c712/gtsam_develop-4.3a1.dev202603090403-cp312-cp312-macosx_10_15_universal2.whl", hash = "sha256:796db0c4e43532555471ed942d3bc2a086d796203c9ddc3265ee0952053b97f2", size = 40361647, upload-time = "2026-03-09T04:46:49.76Z" },
+    { url = "https://files.pythonhosted.org/packages/95/57/e23378236435385a749f7929a9ed43a14bf848a13a479f3525be55401891/gtsam_develop-4.3a1.dev202603090403-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:54cb9fac1d794ec65e19763895704fa74dfd992c06f65d068ae1b06f799578c5", size = 28581917, upload-time = "2026-03-09T04:46:52.522Z" },
+    { url = "https://files.pythonhosted.org/packages/8d/77/5cff4bca2c936bedc8bc576db0b5dce2750b4e7831257beb32909eea5ef1/gtsam_develop-4.3a1.dev202603090403-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:79bcbc23889b7dc289b62938bb96da8d6d93728824b9a83636bc993d4bec131d", size = 29907408, upload-time = "2026-03-09T04:46:55.76Z" },
 ]
 
 [[package]]
@@ -905,7 +905,7 @@ requires-dist = [
     { name = "etils", specifier = "==1.7.0" },
     { name = "flask", specifier = ">=3.0,<4.0" },
     { name = "gsplat", specifier = "==1.5.3" },
-    { name = "gtsam-develop", specifier = "==4.3a1.dev202602231527" },
+    { name = "gtsam-develop", specifier = "==4.3a1.dev202603090403" },
     { name = "h5py" },
     { name = "huggingface-hub", extras = ["torch"], specifier = "==0.34.4" },
     { name = "hydra-core" },
@@ -1770,7 +1770,7 @@ name = "nvidia-cudnn-cu12"
 version = "9.7.1.26"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-cublas-cu12", marker = "sys_platform == 'linux'" },
+    { name = "nvidia-cublas-cu12", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (platform_python_implementation != 'CPython' and sys_platform == 'linux')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/25/dc/dc825c4b1c83b538e207e34f48f86063c88deaa35d46c651c7c181364ba2/nvidia_cudnn_cu12-9.7.1.26-py3-none-manylinux_2_27_x86_64.whl", hash = "sha256:6d011159a158f3cfc47bf851aea79e31bcff60d530b70ef70474c84cac484d07", size = 726851421, upload-time = "2025-02-06T22:18:29.812Z" },
@@ -1781,7 +1781,7 @@ name = "nvidia-cufft-cu12"
 version = "11.3.3.41"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-nvjitlink-cu12", marker = "sys_platform == 'linux'" },
+    { name = "nvidia-nvjitlink-cu12", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (platform_python_implementation != 'CPython' and sys_platform == 'linux')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ac/26/b53c493c38dccb1f1a42e1a21dc12cba2a77fbe36c652f7726d9ec4aba28/nvidia_cufft_cu12-11.3.3.41-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:da650080ab79fcdf7a4b06aa1b460e99860646b176a43f6208099bdc17836b6a", size = 193118795, upload-time = "2025-01-23T17:56:30.536Z" },
@@ -1808,9 +1808,9 @@ name = "nvidia-cusolver-cu12"
 version = "11.7.2.55"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-cublas-cu12", marker = "sys_platform == 'linux'" },
-    { name = "nvidia-cusparse-cu12", marker = "sys_platform == 'linux'" },
-    { name = "nvidia-nvjitlink-cu12", marker = "sys_platform == 'linux'" },
+    { name = "nvidia-cublas-cu12", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (platform_python_implementation != 'CPython' and sys_platform == 'linux')" },
+    { name = "nvidia-cusparse-cu12", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (platform_python_implementation != 'CPython' and sys_platform == 'linux')" },
+    { name = "nvidia-nvjitlink-cu12", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (platform_python_implementation != 'CPython' and sys_platform == 'linux')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c2/08/953675873a136d96bb12f93b49ba045d1107bc94d2551c52b12fa6c7dec3/nvidia_cusolver_cu12-11.7.2.55-py3-none-manylinux_2_27_x86_64.whl", hash = "sha256:4d1354102f1e922cee9db51920dba9e2559877cf6ff5ad03a00d853adafb191b", size = 260373342, upload-time = "2025-01-23T17:58:56.406Z" },
@@ -1821,7 +1821,7 @@ name = "nvidia-cusparse-cu12"
 version = "12.5.7.53"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-nvjitlink-cu12", marker = "sys_platform == 'linux'" },
+    { name = "nvidia-nvjitlink-cu12", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (platform_python_implementation != 'CPython' and sys_platform == 'linux')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c2/ab/31e8149c66213b846c082a3b41b1365b831f41191f9f40c6ddbc8a7d550e/nvidia_cusparse_cu12-12.5.7.53-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:3c1b61eb8c85257ea07e9354606b26397612627fdcd327bfd91ccf6155e7c86d", size = 292064180, upload-time = "2025-01-23T18:00:23.233Z" },

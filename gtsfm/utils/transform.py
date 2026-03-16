@@ -10,9 +10,9 @@ from typing import Mapping, Optional, Sequence
 
 import numpy as np
 import torch
-from gtsam import Point3, Pose3, Rot3, SfmTrack, Similarity3  # type: ignore
+from gtsam import Cal3Bundler, Point3, Pose3, Rot3, SfmTrack, Similarity3  # type: ignore
 
-from gtsfm.common.types import CAMERA_TYPE, create_camera
+from gtsfm.common.types import CAMERA_TYPE, CALIBRATION_TYPE, create_camera
 from gtsfm.utils.splat import GaussiansProtocol, build_covariance_from_scales_quaternion
 
 
@@ -71,8 +71,20 @@ def tracks_with_sim3(aSb: Similarity3, tracks_b: Sequence[SfmTrack]) -> list[Sfm
     return [track_with_sim3(aSb, track_b) for track_b in tracks_b]
 
 
+def scale_calibration_focals_only(calibration: CALIBRATION_TYPE, scale_factor: float) -> CALIBRATION_TYPE:
+    """Scales the calibration focal length by the scale factor."""
+    if isinstance(calibration, Cal3Bundler):
+        return Cal3Bundler(
+            calibration.fx() * scale_factor, calibration.k1(), calibration.k2(), calibration.px(), calibration.py()
+        )
+    else:
+        calib_vec = calibration.vector()
+        calib_vec[:2] *= scale_factor
+        return type(calibration)(calib_vec)
+
+
 def camera_map_with_sim3(
-    aSb: Similarity3, cameras_b: Mapping[int, CAMERA_TYPE | None]
+    aSb: Similarity3, cameras_b: Mapping[int, CAMERA_TYPE | None], scale_focal_length: bool = False
 ) -> dict[int, CAMERA_TYPE | None]:
     """Transport a camera dictionary from frame ``b`` to frame ``a`` using a Sim(3) transform.
 
@@ -89,7 +101,11 @@ def camera_map_with_sim3(
             cameras_a[i] = None
             continue
         new_pose = aSb.transformFrom(camera_b.pose())
-        cameras_a[i] = create_camera(new_pose, camera_b.calibration())
+        if scale_focal_length:
+            new_calib = scale_calibration_focals_only(camera_b.calibration(), aSb.scale())
+        else:
+            new_calib = camera_b.calibration()
+        cameras_a[i] = create_camera(new_pose, new_calib)
     return cameras_a
 
 
