@@ -11,7 +11,7 @@ else
 fi
 
 if [ "$#" -eq 0 ]; then
-  exec "${PYTHON_CMD[@]}" gtsfm/runner.py --help
+  exec "${PYTHON_CMD[@]}" -m gtsfm.runner --help
 else
-  exec "${PYTHON_CMD[@]}" gtsfm/runner.py "$@"
+  exec "${PYTHON_CMD[@]}" -m gtsfm.runner "$@"
 fi
