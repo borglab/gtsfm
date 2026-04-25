@@ -46,7 +46,7 @@ dependencies = [
     "numpy==2.2.6",
     "open3d",
     "pandas==2.3.3",
-    "pillow>=9.0.0",
+    "pillow>=12.2.0",
     "scikit-learn",
     "scipy",
     "seaborn",
