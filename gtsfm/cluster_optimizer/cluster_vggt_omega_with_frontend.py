@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any, Hashable, NamedTuple, Optional
 
 import gtsam
@@ -333,7 +332,6 @@ class ClusterVGGTOmegaWithFrontend(ClusterMVO):
             return None
 
         global_indices = tuple(int(idx) for idx in keys)
-        image_filenames = context.loader.image_filenames()
 
         # Traditional frontend.
         frontend_graphs = self._build_frontend_graphs(context)

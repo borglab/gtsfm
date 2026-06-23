@@ -213,7 +213,7 @@ def resolve_weights_path(weights_path: PathLike | None = None) -> Path:
     checkpoint = Path(weights_path) if weights_path is not None else DEFAULT_WEIGHTS_PATH
     if not checkpoint.exists():
         raise FileNotFoundError(
-            f"VGGT Omega checkpoint not found at {checkpoint}. Download weights via `scripts/download_model_weights.sh`."
+            f"VGGT Omega weights not found at {checkpoint}. Download weights via `scripts/download_model_weights.sh`."
         )
     return checkpoint
 
