@@ -66,13 +66,57 @@ button {
   position: relative;
   z-index: 10;
   display: flex;
-  flex: 0 0 420px;
-  min-width: 360px;
+  flex: 0 0 var(--sidebar-width, 420px);
+  min-width: 320px;
   flex-direction: column;
   overflow: hidden;
   background: var(--paper);
   border-right: 1px solid #292b2d;
   transition: flex-basis 180ms ease, min-width 180ms ease;
+}
+
+#sidebar.sidebar-resizing {
+  transition: none;
+}
+
+.sidebar-resize-handle {
+  position: absolute;
+  z-index: 20;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 9px;
+  touch-action: none;
+  cursor: col-resize;
+  outline: 0;
+}
+
+.sidebar-resize-handle::after {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--accent);
+  content: "";
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.sidebar-resize-handle:hover::after,
+.sidebar-resize-handle:focus-visible::after,
+.sidebar-resizing .sidebar-resize-handle::after {
+  opacity: 1;
+}
+
+.sidebar-collapsed .sidebar-resize-handle {
+  display: none;
+}
+
+body.sidebar-is-resizing,
+body.sidebar-is-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
 }
 
 #sidebar.sidebar-collapsed {
@@ -167,8 +211,7 @@ button {
   backdrop-filter: blur(8px);
 }
 
-.sidebar-collapsed + #main-content #sceneStats,
-.sidebar-collapsed + #main-content .run-status-bar {
+.sidebar-collapsed + #main-content #sceneStats {
   left: 103px;
 }
 
@@ -996,6 +1039,41 @@ input[type="checkbox"] {
   white-space: pre-wrap;
 }
 
+.modal-deployment .modal-log-preview-heading {
+  display: flex;
+  margin-top: 1px;
+  padding: 0 1px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-log-preview-heading > span {
+  color: var(--ink-faint);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 6px;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+}
+
+.modal-log-preview-heading button {
+  display: inline-flex;
+  min-height: 22px;
+  padding: 0 5px;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 7px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.modal-log-preview-heading button:hover {
+  background: #deded7;
+  color: var(--ink);
+}
+
 .modal-log-backdrop {
   position: fixed;
   z-index: 80;
@@ -1091,6 +1169,82 @@ input[type="checkbox"] {
 
 .remote-message:empty {
   display: none;
+}
+
+.modal-workspace-status {
+  display: grid;
+  min-height: 50px;
+  margin: 0 0 10px;
+  padding: 9px 10px;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line-dark);
+  background: #eeeeea;
+}
+
+.modal-workspace-status > span {
+  display: grid;
+  width: 23px;
+  height: 23px;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  color: var(--ink-soft);
+}
+
+.modal-workspace-status > div {
+  display: grid;
+  gap: 2px;
+}
+
+.modal-workspace-status strong {
+  color: var(--ink);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.modal-workspace-status small {
+  color: var(--ink-soft);
+  font-size: 8px;
+  line-height: 1.45;
+}
+
+.modal-workspace-status.working {
+  border-color: #d8bd85;
+  background: #f8f2e7;
+}
+
+.modal-workspace-status.working > span {
+  color: #8d681e;
+}
+
+.modal-workspace-status.found {
+  border-color: #aebbc2;
+  background: #eef2f3;
+}
+
+.modal-workspace-status.found > span {
+  color: #536d79;
+}
+
+.modal-workspace-status.ready {
+  border-color: #9ac5af;
+  background: #edf5f0;
+}
+
+.modal-workspace-status.ready > span {
+  color: var(--success);
+}
+
+.modal-workspace-status.attention {
+  border-color: #d4a3a3;
+  background: #faf0ef;
+}
+
+.modal-workspace-status.attention > span,
+.modal-workspace-status.attention strong {
+  color: var(--danger);
 }
 
 .field-help {
@@ -2151,9 +2305,10 @@ input[type="checkbox"] {
 .run-status-bar {
   position: absolute;
   z-index: 8;
-  top: 18px;
   right: 18px;
-  left: 18px;
+  bottom: 68px;
+  left: auto;
+  width: min(720px, calc(100% - 36px));
   display: grid;
   min-height: 61px;
   grid-template-columns: 1.2fr 1fr auto;
@@ -2164,12 +2319,34 @@ input[type="checkbox"] {
   border: 1px solid #373a3c;
   background: rgba(19, 21, 23, 0.94);
   color: #ecece7;
+  cursor: grab;
 }
 
 .status-copy {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.status-drag-handle {
+  min-width: 0;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.status-metrics,
+.run-progress-track {
+  touch-action: none;
+  user-select: none;
+}
+
+.run-status-bar.is-dragging .status-drag-handle {
+  cursor: grabbing;
+}
+
+.run-status-bar.is-dragging {
+  cursor: grabbing;
 }
 
 .status-copy > div {
@@ -2658,6 +2835,81 @@ input[type="checkbox"] {
 
 /* Logs and loading */
 
+.pipeline-wait-overlay {
+  position: absolute;
+  z-index: 4;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 96px 28px 76px;
+  background: rgba(5, 6, 7, 0.42);
+  color: #ecece7;
+  pointer-events: none;
+  animation: pipeline-viewport-dim 2.6s ease-in-out infinite;
+}
+
+.pipeline-wait-content {
+  display: grid;
+  width: min(560px, calc(100% - 48px));
+  justify-items: center;
+  gap: 11px;
+  text-align: center;
+}
+
+.pipeline-wait-content > span {
+  color: #858a89;
+  font: 650 8px/1.2 "SFMono-Regular", Consolas, monospace;
+  letter-spacing: 0.14em;
+}
+
+.pipeline-wait-content strong {
+  max-width: 100%;
+  color: #f0f0eb;
+  font-size: clamp(15px, 2vw, 22px);
+  font-weight: 500;
+  line-height: 1.35;
+  text-wrap: balance;
+}
+
+.pipeline-wait-content small {
+  color: #858a89;
+  font-size: 10px;
+}
+
+.pipeline-wait-dots {
+  display: flex;
+  height: 6px;
+  align-items: center;
+  gap: 5px;
+}
+
+.pipeline-wait-dots i {
+  display: block;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pipeline-dot 1.35s ease-in-out infinite;
+}
+
+.pipeline-wait-dots i:nth-child(2) {
+  animation-delay: 160ms;
+}
+
+.pipeline-wait-dots i:nth-child(3) {
+  animation-delay: 320ms;
+}
+
+@keyframes pipeline-viewport-dim {
+  50% { background-color: rgba(5, 6, 7, 0.57); }
+}
+
+@keyframes pipeline-dot {
+  0%, 70%, 100% { opacity: 0.22; transform: translateY(0); }
+  35% { opacity: 1; transform: translateY(-2px); }
+}
+
 .hardware-warning {
   position: fixed;
   z-index: 30;
@@ -2797,40 +3049,79 @@ input[type="checkbox"] {
 
 .log-resize-handle {
   position: absolute;
-  z-index: 2;
-  top: -1px;
-  left: -1px;
+  z-index: 4;
   width: 18px;
   height: 18px;
   border: 0;
   padding: 0;
   background: transparent;
-  cursor: nwse-resize;
   touch-action: none;
 }
 
-.log-resize-handle::before,
-.log-resize-handle::after {
+.log-resize-handle::before {
   position: absolute;
-  top: 3px;
-  left: 3px;
-  background: #737879;
+  width: 8px;
+  height: 8px;
+  border-color: #737879;
+  border-style: solid;
+  border-width: 0;
   content: "";
 }
 
-.log-resize-handle::before {
-  width: 9px;
-  height: 1px;
+.log-resize-handle.nw {
+  top: -1px;
+  left: -1px;
+  cursor: nwse-resize;
 }
 
-.log-resize-handle::after {
-  width: 1px;
-  height: 9px;
+.log-resize-handle.nw::before {
+  top: 4px;
+  left: 4px;
+  border-top-width: 1px;
+  border-left-width: 1px;
 }
 
-.log-resize-handle:hover::before,
-.log-resize-handle:hover::after {
-  background: var(--accent);
+.log-resize-handle.ne {
+  top: -1px;
+  right: -1px;
+  cursor: nesw-resize;
+}
+
+.log-resize-handle.ne::before {
+  top: 4px;
+  right: 4px;
+  border-top-width: 1px;
+  border-right-width: 1px;
+}
+
+.log-resize-handle.sw {
+  bottom: -1px;
+  left: -1px;
+  cursor: nesw-resize;
+}
+
+.log-resize-handle.sw::before {
+  bottom: 4px;
+  left: 4px;
+  border-bottom-width: 1px;
+  border-left-width: 1px;
+}
+
+.log-resize-handle.se {
+  right: -1px;
+  bottom: -1px;
+  cursor: nwse-resize;
+}
+
+.log-resize-handle.se::before {
+  right: 4px;
+  bottom: 4px;
+  border-right-width: 1px;
+  border-bottom-width: 1px;
+}
+
+.log-resize-handle:hover::before {
+  border-color: var(--accent);
 }
 
 .log-header {
@@ -2895,7 +3186,9 @@ input[type="checkbox"] {
   margin: 0;
   padding: 11px;
   color: #adb1af;
-  font: 9px/1.6 "SFMono-Regular", Consolas, monospace;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: var(--log-font-size, 9px);
+  line-height: 1.6;
   cursor: text;
   user-select: text;
   white-space: pre-wrap;
@@ -2950,7 +3243,7 @@ input[type="checkbox"] {
 
 @media (max-width: 900px) {
   #sidebar {
-    flex-basis: 380px;
+    flex-basis: var(--sidebar-width, 380px);
   }
 
   .status-metrics {
@@ -2985,6 +3278,10 @@ input[type="checkbox"] {
     height: 0;
     overflow: visible;
     background: transparent;
+  }
+
+  .sidebar-resize-handle {
+    display: none;
   }
 
   .sidebar-collapsed .studio-header {
