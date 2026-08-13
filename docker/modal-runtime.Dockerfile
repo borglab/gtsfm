@@ -50,10 +50,9 @@ RUN uv sync \
         --no-install-project \
     && python -c "import fastapi, gsplat, gtsam, spz, torch; print(torch.__version__)"
 
-ENV HF_HOME=/workspace/cache/huggingface \
-    TORCH_HOME=/workspace/cache/torch \
-    TORCH_EXTENSIONS_DIR=/workspace/cache/torch-extensions \
-    XDG_CACHE_HOME=/workspace/cache \
-    PYTHONPATH=/root
+# Volume-backed cache locations are assigned by visualization/modal_app.py at
+# container startup. They must not be present while Modal extends this image,
+# because build tools can otherwise populate the future Volume mount target.
+ENV PYTHONPATH=/root
 
 WORKDIR /root
