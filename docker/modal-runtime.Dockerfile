@@ -28,7 +28,9 @@ RUN apt-get update \
         libglib2.0-0 \
         libgomp1 \
         libx11-6 \
+        libzstd-dev \
         ninja-build \
+        zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
 RUN curl -LsSf https://astral.sh/uv/${UV_VERSION}/install.sh | sh \
