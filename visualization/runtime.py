@@ -464,10 +464,30 @@ def install_optional_setup(check_id: str, results_root: Path) -> dict[str, Any]:
     return {"item": item, "setup": status}
 
 
+_CATALOG_YAML_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+\.yaml$")
+
+
+def _yaml_catalog_paths(folder: Path) -> list[Path]:
+    """Return canonical catalog YAMLs, excluding cloud/conflict copies.
+
+    macOS cloud storage can create numbered copies such as ``vggt 2.yaml``.
+    Those files are not GTSFM configurations and may be dataless placeholders,
+    so attempting to read them can block the configuration endpoint indefinitely.
+    """
+
+    if not folder.exists():
+        return []
+    return sorted(
+        path
+        for path in folder.glob("*.yaml")
+        if not path.name.startswith("_") and _CATALOG_YAML_NAME_PATTERN.fullmatch(path.name)
+    )
+
+
 def _yaml_stem_options(folder: Path) -> list[str]:
     if not folder.exists():
         return []
-    return sorted(path.stem for path in folder.glob("*.yaml") if not path.name.startswith("_"))
+    return [path.stem for path in _yaml_catalog_paths(folder)]
 
 
 def _display_name(value: str) -> str:
@@ -509,7 +529,7 @@ def configuration_schema() -> dict[str, Any]:
         )
     loader_options: dict[str, list[dict[str, Any]]] = {}
     standard_loader_fields = {"_target_", "dataset_dir", "images_dir", "max_resolution", "input_worker"}
-    for loader_path in sorted((CONFIG_ROOT / "loader").glob("*.yaml")):
+    for loader_path in _yaml_catalog_paths(CONFIG_ROOT / "loader"):
         data = yaml.safe_load(loader_path.read_text(encoding="utf-8")) or {}
         options: list[dict[str, Any]] = []
         for name, value in data.items():

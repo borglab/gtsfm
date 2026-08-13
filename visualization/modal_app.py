@@ -54,7 +54,20 @@ RUNTIME_ENV = {
 }
 
 if RUNTIME_IMAGE:
-    image = modal.Image.from_registry(RUNTIME_IMAGE).entrypoint([]).env(RUNTIME_ENV)
+    image = (
+        modal.Image.from_registry(
+            RUNTIME_IMAGE,
+            setup_dockerfile_commands=[
+                # uv-created virtual environments intentionally omit pip, but
+                # Modal's legacy registry-image builder requires ``python -m
+                # pip`` while installing its runtime dependencies.
+                "RUN uv pip install --python /opt/gtsfm-venv/bin/python pip",
+            ],
+        )
+        .entrypoint([])
+        .env(RUNTIME_ENV)
+        .workdir("/root")
+    )
 else:
     image = (
         modal.Image.from_registry("nvidia/cuda:12.8.1-devel-ubuntu22.04", add_python="3.12")

@@ -186,7 +186,8 @@ async def _discover_modal_endpoint(token_id: str, token_secret: str) -> dict[str
                 candidates.append((score, url, app_name or "gtsfm", function_name or "web"))
         if not candidates:
             raise ValueError(
-                "No deployed GTSFM web app was found in this Modal workspace. Deploy the GTSFM Modal app first, then try again."
+                "No deployed GTSFM web app was found in this Modal workspace. "
+                "Deploy the GTSFM Modal app first, then try again."
             )
         _, endpoint, app_name, function_name = max(candidates, key=lambda item: item[0])
         return {"endpoint": endpoint, "app_name": app_name, "function_name": function_name}

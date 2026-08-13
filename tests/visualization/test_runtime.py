@@ -66,6 +66,14 @@ def test_configuration_schema_defaults_to_vggt() -> None:
     assert argoverse_options["log_id"]["required"] is True
 
 
+def test_yaml_catalog_ignores_cloud_duplicate_artifacts(tmp_path: Path) -> None:
+    (tmp_path / "vggt.yaml").write_text("model: canonical\n", encoding="utf-8")
+    (tmp_path / "vggt 2.yaml").write_text("model: duplicate\n", encoding="utf-8")
+    (tmp_path / "_base.yaml").write_text("model: base\n", encoding="utf-8")
+
+    assert runtime._yaml_stem_options(tmp_path) == ["vggt"]
+
+
 def test_detect_hardware_always_reports_cpu() -> None:
     hardware = runtime.detect_hardware()
 
