@@ -36,21 +36,16 @@ RUN curl -LsSf https://astral.sh/uv/${UV_VERSION}/install.sh | sh \
     && uv venv --python ${PYTHON_VERSION} /opt/gtsfm-venv
 
 ENV VIRTUAL_ENV=/opt/gtsfm-venv \
+    UV_PROJECT_ENVIRONMENT=/opt/gtsfm-venv \
     PATH=/opt/gtsfm-venv/bin:/root/.local/bin:${PATH}
 
 WORKDIR /opt/gtsfm-runtime
 COPY pyproject.toml uv.lock ./
 
-RUN uv export \
+RUN uv sync \
         --frozen \
         --no-dev \
-        --no-emit-project \
-        --no-header \
-        --output-file /tmp/gtsfm-runtime-requirements.txt \
-    && uv pip install \
-        --python /opt/gtsfm-venv/bin/python \
-        --requirements /tmp/gtsfm-runtime-requirements.txt \
-    && rm /tmp/gtsfm-runtime-requirements.txt \
+        --no-install-project \
     && python -c "import fastapi, gsplat, gtsam, spz, torch; print(torch.__version__)"
 
 ENV HF_HOME=/workspace/cache/huggingface \
