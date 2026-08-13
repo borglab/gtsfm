@@ -5,6 +5,7 @@ Author: Kevin Fu
 """
 
 import os
+import shutil
 import tempfile
 import unittest
 
@@ -15,6 +16,7 @@ from tests.ui.test_gtsfm_process import FakeImageLoader, FakeOutputGTSFM  # noqa
 
 
 class TestProcessGraphGenerator(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("dot"), "Graphviz 'dot' is not installed")
     def test_save_graph(self):
         """Ensure ProcessGraphGenerator saves graph as png/svg files without crashing."""
 

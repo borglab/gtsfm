@@ -58,6 +58,8 @@ cluster_optimizer:
     weights_path: null
     seed: 42
     model_cache_key: null
+    # Populated by --run_gs when iterative Gaussian optimization is selected.
+    gaussian_splatting_optimizer: null
 
 # --- Merging options ---
 merging_options:

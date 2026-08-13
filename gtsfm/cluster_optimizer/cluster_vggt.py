@@ -66,9 +66,7 @@ def _run_cluster_ba(
 
     if pre_ba_max_reproj_error > 0.0:
         num_tracks_before = gtsfm_data.number_tracks()
-        gtsfm_data = gtsfm_data.filter_landmark_measurements(
-            pre_ba_max_reproj_error, min_track_length
-        )
+        gtsfm_data = gtsfm_data.filter_landmark_measurements(pre_ba_max_reproj_error, min_track_length)
         cluster_prefix = f"[{cluster_label}] " if cluster_label else ""
         logger.info(
             "%s🔍 #valid tracks after pre-BA reproj error filtering: %d out of %d",
@@ -86,9 +84,7 @@ def _run_cluster_ba(
         optimizer = ba_options.to_optimizer(min_track_length=min_track_length)
         gtsfm_data_with_ba, _ = optimizer.run_simple_ba(gtsfm_data)
 
-        gtsfm_data_with_ba = gtsfm_data_with_ba.filter_landmark_measurements(
-            post_ba_max_reproj_error
-        )
+        gtsfm_data_with_ba = gtsfm_data_with_ba.filter_landmark_measurements(post_ba_max_reproj_error)
 
         logger.info(
             "%s🔍 #valid tracks after BA: %d out of %d",
@@ -327,6 +323,7 @@ def _aggregate_vggt_metrics(
     metric_constructed_only: bool = False,
 ) -> list[GtsfmMetricsGroup]:
     """Aggregate VGGT metrics into groups for both pre- and post-BA results."""
+
     def _build_metrics_group(scene: GtsfmData, name: str) -> GtsfmMetricsGroup:
         metrics_group = GtsfmMetricsGroup(
             name,
@@ -379,6 +376,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         seed: int = 42,
         model_cache_key: Hashable | bool | None = None,
         metric_constructed_only: bool = False,
+        gaussian_splatting_optimizer: Optional[Any] = None,
         # --- Base class params (output routing) ---
         output_worker: Optional[str] = None,
     ) -> None:
@@ -389,6 +387,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         self._save_processed_image = save_processed_image
         self._seed = seed
         self._metric_constructed_only = metric_constructed_only
+        self.gaussian_splatting_optimizer = gaussian_splatting_optimizer
 
         # --- Geometry transformer ---
         self.geometry_transformer = geometry_transformer or VggtGeometryTransformer()
@@ -413,11 +412,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         if model_cache_key is False:
             self._model_cache_key: Hashable | None = None
         elif model_cache_key is None:
-            kwargs_key = (
-                tuple(sorted((k, repr(v)) for k, v in model_kwargs.items()))
-                if model_kwargs
-                else None
-            )
+            kwargs_key = tuple(sorted((k, repr(v)) for k, v in model_kwargs.items())) if model_kwargs else None
             self._model_cache_key = ("default_vggt_loader", self._weights_path, kwargs_key)
         else:
             self._model_cache_key = model_cache_key
@@ -523,8 +518,25 @@ class ClusterVGGT(ClusterOptimizerBase):
                 )
             )
 
+        if self.gaussian_splatting_optimizer is not None:
+            import gtsfm.splat.rendering as gtsfm_rendering
+
+            images_graph = context.get_delayed_image_map()
+            splats_graph, cfg_graph = self.gaussian_splatting_optimizer.create_computation_graph(
+                images_graph, ba_result_graph
+            )
+            with self._output_annotation():
+                io_tasks.append(delayed(gtsfm_rendering.save_splats)(context.output_paths.results, splats_graph))
+                io_tasks.append(
+                    delayed(gtsfm_rendering.generate_interpolated_video)(
+                        images_graph,
+                        ba_result_graph,
+                        cfg_graph,
+                        splats_graph,
+                        str(context.output_paths.results / "interpolated_video.mp4"),
+                    )
+                )
+
         return ClusterComputationGraph(
-            io_tasks=tuple(io_tasks),
-            metric_tasks=tuple(metrics_tasks),
-            sfm_result=ba_result_graph
+            io_tasks=tuple(io_tasks), metric_tasks=tuple(metrics_tasks), sfm_result=ba_result_graph
         )

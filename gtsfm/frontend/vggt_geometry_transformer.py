@@ -271,13 +271,16 @@ def default_dtype(device: torch.device) -> torch.dtype:
 
 
 def resolve_weights_path(weights_path: PathLike | None = None) -> Path:
-    """Return a concrete path to the VGGT checkpoint, validating that it exists."""
+    """Return a VGGT checkpoint, downloading the default on first use."""
     checkpoint = Path(weights_path) if weights_path is not None else DEFAULT_WEIGHTS_PATH
-    if not checkpoint.exists():
-        raise FileNotFoundError(
-            f"VGGT checkpoint not found at {checkpoint}. Download weights via `scripts/download_model_weights.sh`."
-        )
-    return checkpoint
+    if checkpoint.exists():
+        return checkpoint
+    if weights_path is None:
+        from huggingface_hub import hf_hub_download
+
+        logger.info("⬇️ Downloading VGGT weights on first use...")
+        return Path(hf_hub_download(repo_id="facebook/VGGT-1B", filename="model.pt"))
+    raise FileNotFoundError(f"VGGT checkpoint not found at {checkpoint}.")
 
 
 def load_model(

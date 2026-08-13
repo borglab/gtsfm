@@ -5,7 +5,7 @@ class ColmapViewer {
     this.canvas = canvas;
     this.engine = new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true });
     this.scene = new BABYLON.Scene(this.engine);
-    this.scene.clearColor = new BABYLON.Color4(0.85, 0.85, 0.85, 1.0);
+    this.scene.clearColor = new BABYLON.Color4(0.055, 0.063, 0.071, 1.0);
 
     this.camera = new BABYLON.ArcRotateCamera(
       "cam",
@@ -20,26 +20,40 @@ class ColmapViewer {
     this.camera.minZ = 0.01;    // Near clipping plane
     this.camera.maxZ = 10000;   // Far clipping plane
 
-    // Z-up for interaction
-    this.camera.upVector = new BABYLON.Vector3(0, 0, -1);
+    // The parser converts reconstruction coordinates to Babylon's Y-up frame.
+    this.camera.upVector = new BABYLON.Vector3(0, 1, 0);
+    this.camera.setPosition(new BABYLON.Vector3(10, 8, -12));
+    this.camera.setTarget(BABYLON.Vector3.Zero());
+    this.camera.rebuildAnglesAndRadius?.();
 
 
     // Inputs & limits tuned to avoid “locked” feeling
-    this.camera.angularSensibilityX = 1000;
-    this.camera.angularSensibilityY = 1000;
+    this.camera.angularSensibilityX = 1500;
+    this.camera.angularSensibilityY = 1500;
     this.camera.panningSensibility = 1000;
-    this.camera.wheelPrecision = 40;
+    this.camera.wheelPrecision = 90;
+    this.camera.pinchPrecision = 120;
+    this.camera.useNaturalPinchZoom = true;
     this.camera.lowerRadiusLimit = 0.1;
     this.camera.upperRadiusLimit = 10000;
-    this.camera.lowerBetaLimit = 0.001;
-    this.camera.upperBetaLimit = Math.TWO_PI - 0.001;
+    this.camera.lowerBetaLimit = 0.05;
+    this.camera.upperBetaLimit = Math.PI - 0.05;
 
     this.light = new BABYLON.HemisphericLight("H", new BABYLON.Vector3(0, 1, 0), this.scene);
     this.light.intensity = 0.85;
 
+    this.groundY = 0;
+    this.showGround = true;
+    this.groundAvailable = true;
+    this.groundGrid = null;
+    this.groundAxes = null;
+    this.idleGround = this._createIdleGround();
+    this._setIdleGroundVisible(true);
+
     this.pcs = null;
     this.pointsMesh = null;
     this.frustumGroup = new BABYLON.TransformNode("frusta", this.scene);
+    this.cameraLineMeshes = [];
     this.cameras = [];
 
     this.splatsUrl = null;
@@ -68,9 +82,89 @@ class ColmapViewer {
     this.parsedCacheLimit = 4;
     this._busyState = null;
     this._busyListeners = new Set();
+    this.overlayTheme = "dark";
+    this.setOverlayTheme(this.overlayTheme);
 
     this.engine.runRenderLoop(() => this.scene.render());
     window.addEventListener("resize", () => this.engine.resize());
+  }
+
+  _createIdleGround() {
+    const root = new BABYLON.TransformNode("idle-ground", this.scene);
+
+    const gridLines = [];
+    for (let value = -5; value <= 5; value += 1) {
+      gridLines.push([
+        new BABYLON.Vector3(value, 0.01, -5),
+        new BABYLON.Vector3(value, 0.01, 5),
+      ]);
+      gridLines.push([
+        new BABYLON.Vector3(-5, 0.01, value),
+        new BABYLON.Vector3(5, 0.01, value),
+      ]);
+    }
+    const grid = BABYLON.MeshBuilder.CreateLineSystem("idle-grid", { lines: gridLines }, this.scene);
+    grid.parent = root;
+    grid.color = new BABYLON.Color3(0.19, 0.205, 0.21);
+    grid.alpha = 0.72;
+    grid.isPickable = false;
+    this.groundGrid = grid;
+
+    const axes = BABYLON.MeshBuilder.CreateLineSystem(
+      "idle-axes",
+      {
+        lines: [
+          [new BABYLON.Vector3(-5, 0.015, 0), new BABYLON.Vector3(5, 0.015, 0)],
+          [new BABYLON.Vector3(0, 0.015, -5), new BABYLON.Vector3(0, 0.015, 5)],
+        ],
+      },
+      this.scene
+    );
+    axes.parent = root;
+    axes.color = new BABYLON.Color3(0.36, 0.38, 0.38);
+    axes.alpha = 0.9;
+    axes.isPickable = false;
+    this.groundAxes = axes;
+    return root;
+  }
+
+  _setIdleGroundVisible(visible) {
+    this.groundAvailable = !!visible;
+    const effectiveVisibility = this.groundAvailable && this.showGround;
+    this.idleGround?.setEnabled(effectiveVisibility);
+    this.camera.lowerRadiusLimit = effectiveVisibility ? 3.5 : 0.1;
+    this.camera.upperRadiusLimit = effectiveVisibility ? 50 : 10000;
+  }
+
+  setGroundVisible(value) {
+    this.showGround = !!value;
+    this._setIdleGroundVisible(this.groundAvailable);
+    return this.showGround;
+  }
+
+  toggleGroundVisible() {
+    return this.setGroundVisible(!this.showGround);
+  }
+
+  isGroundVisible() {
+    return this.showGround;
+  }
+
+  setOverlayTheme(theme) {
+    this.overlayTheme = theme;
+    const lightBackground = theme === "light-gray" || theme === "white";
+    const cameraColor = lightBackground
+      ? new BABYLON.Color3(0.08, 0.09, 0.1)
+      : new BABYLON.Color3(0.96, 0.97, 0.98);
+    const gridColor = lightBackground
+      ? new BABYLON.Color3(0.56, 0.57, 0.57)
+      : new BABYLON.Color3(0.19, 0.205, 0.21);
+    const axesColor = lightBackground
+      ? new BABYLON.Color3(0.31, 0.32, 0.32)
+      : new BABYLON.Color3(0.36, 0.38, 0.38);
+    if (this.groundGrid) this.groundGrid.color = gridColor;
+    if (this.groundAxes) this.groundAxes.color = axesColor;
+    for (const mesh of this.cameraLineMeshes ?? []) mesh.color = cameraColor.clone();
   }
 
   setPointSize(px) {
@@ -78,9 +172,24 @@ class ColmapViewer {
     if (this.pointsMesh?.material) this.pointsMesh.material.pointSize = this.ptSize;
   }
 
+  setGroundY(value) {
+    const next = Number(value);
+    if (!Number.isFinite(next)) return this.groundY;
+    this.groundY = Math.max(-5, Math.min(5, next));
+    if (this.idleGround) this.idleGround.position.y = this.groundY;
+    return this.groundY;
+  }
+
   setShowCams(v) {
     this.showCams = v;
     this.frustumGroup.setEnabled(!!v);
+    this._syncCameraVisuals();
+  }
+
+  _syncCameraVisuals() {
+    for (let index = 0; index < this.cameraLineMeshes.length; index += 1) {
+      this.cameraLineMeshes[index].setEnabled(this.showCams && index !== this.camIndex);
+    }
   }
 
   setStatsElements(statsEls) {
@@ -272,6 +381,7 @@ class ColmapViewer {
     const busyToken = this._beginBusy("scene");
     try {
       await this._clear();
+      this._setIdleGroundVisible(true);
       this.mode = "scene";
       this.splatsUrl = splatsUrl;
       this._applyHudMode();
@@ -342,6 +452,7 @@ class ColmapViewer {
     const busyToken = this._beginBusy("splat");
     try {
       await this._clear();
+      this._setIdleGroundVisible(true);
       this.mode = "splat";
       this.splatsUrl = splatsUrl;
       this.currentImageName = label;
@@ -409,6 +520,7 @@ class ColmapViewer {
 
     if (this.frustumGroup) {
       for (const ch of this.frustumGroup.getChildren()) ch.dispose();
+      this.cameraLineMeshes = [];
       this.frustumGroup.setEnabled(false);
       this.frustumGroup.setEnabled(true);
     }
@@ -1096,8 +1208,7 @@ class ColmapViewer {
 
   _createFrusta(cams) {
     const size = this._sceneExtent();
-    const frustumScale = 0.01 * size;   // 1% of scene extent
-    const pivotDiam = 0.002 * size;   // 0.2% sphere
+    const frustumScale = 0.012 * size;
 
     for (const c of cams) {
       const node = new BABYLON.TransformNode("camNode", this.scene);
@@ -1105,45 +1216,66 @@ class ColmapViewer {
       node.rotationQuaternion = BABYLON.Quaternion.FromRotationMatrix(c.R);
       node.parent = this.frustumGroup;
 
-      const frustum = this._frustumLinesLocal(frustumScale);
-      frustum.parent = node;
-      frustum.renderingGroupId = 1; // draw after points
-      // If still hard to see, try:
-      frustum.alwaysSelectAsActiveMesh = true;
-      const m = new BABYLON.StandardMaterial("fmat", this.scene);
-      m.emissiveColor = new BABYLON.Color3(0, 0.5, 0);
-      frustum.material = m;
-
-      const pivot = BABYLON.MeshBuilder.CreateSphere("camPivot", { diameter: pivotDiam }, this.scene);
-      const pivotMat = new BABYLON.StandardMaterial("camPivotMat", this.scene);
-      pivotMat.emissiveColor = new BABYLON.Color3(0, 0, 0.5);
-      pivotMat.disableLighting = true;
-      pivot.material = pivotMat;
-      pivot.isPickable = false;
-      pivot.parent = node;
+      const cameraLines = this._cameraLinesLocal(frustumScale);
+      cameraLines.parent = node;
+      cameraLines.renderingGroupId = 1;
+      cameraLines.alwaysSelectAsActiveMesh = true;
+      this.cameraLineMeshes.push(cameraLines);
     }
+    this.setOverlayTheme(this.overlayTheme);
     this.setShowCams(this.showCams);
   }
 
-  _frustumLinesLocal(scale) {
-    const origin = BABYLON.Vector3.Zero();
-    const corners = [
+  _cameraLinesLocal(scale) {
+    const aperture = new BABYLON.Vector3(0, 0, 0.08 * scale);
+    const imageCorners = [
       new BABYLON.Vector3(-0.4, -0.3, 1),
       new BABYLON.Vector3(0.4, -0.3, 1),
       new BABYLON.Vector3(0.4, 0.3, 1),
       new BABYLON.Vector3(-0.4, 0.3, 1),
     ].map(v => v.scale(scale));
 
+    const bodyFront = [
+      new BABYLON.Vector3(-0.22, -0.16, 0.05),
+      new BABYLON.Vector3(0.22, -0.16, 0.05),
+      new BABYLON.Vector3(0.22, 0.16, 0.05),
+      new BABYLON.Vector3(-0.22, 0.16, 0.05),
+    ].map(v => v.scale(scale));
+    const bodyBack = [
+      new BABYLON.Vector3(-0.22, -0.16, -0.25),
+      new BABYLON.Vector3(0.22, -0.16, -0.25),
+      new BABYLON.Vector3(0.22, 0.16, -0.25),
+      new BABYLON.Vector3(-0.22, 0.16, -0.25),
+    ].map(v => v.scale(scale));
+    const loop = corners => [
+      [corners[0], corners[1]],
+      [corners[1], corners[2]],
+      [corners[2], corners[3]],
+      [corners[3], corners[0]],
+    ];
     const lines = [
-      [origin, corners[0]], [origin, corners[1]], [origin, corners[2]], [origin, corners[3]],
-      [corners[0], corners[1]], [corners[1], corners[2]], [corners[2], corners[3]], [corners[3], corners[0]],
+      [aperture, imageCorners[0]], [aperture, imageCorners[1]],
+      [aperture, imageCorners[2]], [aperture, imageCorners[3]],
+      ...loop(imageCorners),
+      ...loop(bodyFront),
+      ...loop(bodyBack),
+      [bodyFront[0], bodyBack[0]], [bodyFront[1], bodyBack[1]],
+      [bodyFront[2], bodyBack[2]], [bodyFront[3], bodyBack[3]],
+      [
+        new BABYLON.Vector3(-0.11, 0.16, -0.25).scale(scale),
+        new BABYLON.Vector3(0, 0.27, -0.25).scale(scale),
+        new BABYLON.Vector3(0.11, 0.16, -0.25).scale(scale),
+      ],
     ];
 
-    const frustum = BABYLON.MeshBuilder.CreateLineSystem("frustumLines", { lines }, this.scene);
-    frustum.color = new BABYLON.Color3(1, 0.45, 0.25);
-    frustum.isPickable = false;
-    frustum.renderingGroupId = 1; // draw after points (optional)
-    return frustum;
+    const cameraLines = BABYLON.MeshBuilder.CreateLineSystem("camera-wireframe", { lines }, this.scene);
+    cameraLines.color = new BABYLON.Color3(0.96, 0.97, 0.98);
+    cameraLines.alpha = 0.95;
+    cameraLines.isPickable = false;
+    cameraLines.renderingGroupId = 2;
+    cameraLines.material.disableDepthWrite = true;
+    cameraLines.material.disableDepthTest = true;
+    return cameraLines;
   }
 
   // ------------------- camera framing -------------------
@@ -1159,6 +1291,7 @@ class ColmapViewer {
       // recompute alpha/beta/radius from pos/target so orbit feels natural
       this.camera.rebuildAnglesAndRadius?.();
       this._updateCurrentImageName();
+      this._syncCameraVisuals();
     } else if (this.pointsMesh) {
       // simple fit by radius if no cameras
       const bb = this.pointsMesh.getBoundingInfo().boundingBox;
@@ -1182,6 +1315,7 @@ class ColmapViewer {
     const R = this.cameras[this.camIndex].R;
     const upWorld = BABYLON.Vector3.TransformCoordinates(new BABYLON.Vector3(0, 1, 0), R);
     this.camera.upVector = upWorld;
+    this._syncCameraVisuals();
     this._updateCurrentImageName();
     this._renderStats();
   }
@@ -1209,6 +1343,8 @@ async function boot() {
   const filterEl = document.getElementById("filter");
   const canvas = document.getElementById("renderCanvas");
   const viewer = new ColmapViewer(canvas);
+  window.gtsfmViewer = viewer;
+  window.dispatchEvent(new CustomEvent("gtsfm-viewer-ready", { detail: viewer }));
   const statsRoot = document.getElementById("sceneStats");
   viewer.setStatsElements({
     root: statsRoot,
@@ -1256,6 +1392,7 @@ async function boot() {
   });
 
   let allItems = [];
+  const collapsedDirectories = new Set();
 
   try {
     const data = await fetch("/api/scenes").then(r => r.ok ? r.json() : Promise.reject(`Fetch failed: ${r.statusText}`));
@@ -1300,7 +1437,14 @@ async function boot() {
     return tree;
   };
 
-  const renderTree = (node) => {
+  const escapeHtml = (value) => String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+
+  const renderTree = (node, parentParts = [], forceExpanded = false) => {
     let html = '<ul>';
     const sortedKeys = Object.keys(node).sort();
     for (const key of sortedKeys) {
@@ -1309,15 +1453,31 @@ async function boot() {
       if (child.__isLeaf) {
         const item = child.__item;
         const finalFolderName = item.rel_path.split('/').pop() || item.label;
+        const exportControls = item.splat_rel_path ? `
+              <div class="result-splat-download" data-export-path="${encodeURIComponent(item.splat_rel_path)}">
+                <select aria-label="Splat download format"><option value="ply">.PLY</option><option value="spz">.SPZ</option></select>
+                <a href="/api/splats/export?path=${encodeURIComponent(item.splat_rel_path)}&format=ply" download>Download</a>
+              </div>` : "";
         html += `
           <li>
             <div class="item" data-idx="${item.originalIndex}" data-kind="${item.kind || "scene"}">
-              <div>${finalFolderName}</div>
-              <small>${item.rel_path}</small>
+              <div>${escapeHtml(finalFolderName)}</div>
+              <small>${escapeHtml(item.rel_path)}</small>
+              ${exportControls}
             </div>
           </li>`;
       } else {
-        html += `<li><div class="directory-node">${key}</div>${renderTree(child)}</li>`;
+        const directoryParts = [...parentParts, key];
+        const directoryPath = directoryParts.join("/");
+        const isCollapsed = !forceExpanded && collapsedDirectories.has(directoryPath);
+        html += `
+          <li class="directory-branch${isCollapsed ? " is-collapsed" : ""}">
+            <button class="directory-node" type="button" data-directory="${encodeURIComponent(directoryPath)}" aria-expanded="${!isCollapsed}">
+              <span class="directory-chevron" aria-hidden="true"></span>
+              <span>${escapeHtml(key)}</span>
+            </button>
+            ${renderTree(child, directoryParts, forceExpanded)}
+          </li>`;
       }
     }
     return html + '</ul>';
@@ -1331,8 +1491,29 @@ async function boot() {
       return;
     }
     const sceneTree = buildTree(filtered);
-    listEl.innerHTML = renderTree(sceneTree);
+    listEl.innerHTML = renderTree(sceneTree, [], Boolean(needle));
+    listEl.querySelectorAll(".directory-node").forEach(button => {
+      button.addEventListener("click", () => {
+        const directoryPath = decodeURIComponent(button.dataset.directory || "");
+        const branch = button.closest(".directory-branch");
+        const shouldCollapse = !branch.classList.contains("is-collapsed");
+        branch.classList.toggle("is-collapsed", shouldCollapse);
+        button.setAttribute("aria-expanded", String(!shouldCollapse));
+        if (shouldCollapse) collapsedDirectories.add(directoryPath);
+        else collapsedDirectories.delete(directoryPath);
+      });
+    });
     listEl.querySelectorAll(".item").forEach(el => {
+      const exportControls = el.querySelector(".result-splat-download");
+      if (exportControls) {
+        exportControls.addEventListener("click", (event) => event.stopPropagation());
+        const formatSelect = exportControls.querySelector("select");
+        const downloadLink = exportControls.querySelector("a");
+        formatSelect?.addEventListener("change", () => {
+          const path = exportControls.dataset.exportPath;
+          downloadLink.href = `/api/splats/export?path=${path}&format=${encodeURIComponent(formatSelect.value)}`;
+        });
+      }
       el.onclick = async () => {
         if (viewer.isBusy()) return;
         listEl.querySelectorAll(".item").forEach(n => n.classList.remove("active"));
@@ -1354,7 +1535,8 @@ async function boot() {
   // Default search term
   filterEl.value = "";
   renderList(filterEl.value);
-  if (allItems.length > 0 && !filterEl.value) {
+  const initialView = new URLSearchParams(window.location.search).get("view");
+  if (allItems.length > 0 && !filterEl.value && initialView === "results") {
     const candidates = Array.from(listEl.querySelectorAll(".item"));
     const preferred = candidates.find((el) => (el.dataset.kind ?? "scene") !== "splat");
     (preferred ?? candidates[0])?.click();
@@ -1364,18 +1546,38 @@ async function boot() {
   document.getElementById("toggleCams").addEventListener("change", (e) => viewer.setShowCams(e.target.checked));
   document.getElementById("ptSize").addEventListener("input", (e) => viewer.setPointSize(parseInt(e.target.value, 10)));
 
-  const bgButton = document.getElementById("toggleBg");
-  const bgColors = [
-    new BABYLON.Color4(0.98, 0.98, 0.98, 1.0),
-    new BABYLON.Color4(0.85, 0.85, 0.85, 1.0),
-    new BABYLON.Color4(0.2, 0.2, 0.22, 1.0),
-    new BABYLON.Color4(0.04, 0.05, 0.06, 1.0),
-  ];
-  // Match the constructor’s light gray default (index 1)
-  let currentBgIndex = 1;
-  bgButton.addEventListener("click", () => {
-    currentBgIndex = (currentBgIndex + 1) % bgColors.length;
-    viewer.scene.clearColor = bgColors[currentBgIndex];
+  const groundY = document.getElementById("groundY");
+  const groundYValue = document.getElementById("groundYValue");
+  groundY.addEventListener("input", (event) => {
+    const value = viewer.setGroundY(event.target.value);
+    groundYValue.value = value.toFixed(1);
+  });
+
+  const groundToggle = document.getElementById("toggleGround");
+  if (groundToggle) {
+    const syncGroundButton = () => {
+      const visible = viewer.isGroundVisible();
+      groundToggle.textContent = visible ? "Hide plane" : "Show plane";
+      groundToggle.classList.toggle("is-active", visible);
+      groundToggle.setAttribute("aria-pressed", String(visible));
+    };
+    groundToggle.addEventListener("click", () => {
+      viewer.toggleGroundVisible();
+      syncGroundButton();
+    });
+    syncGroundButton();
+  }
+
+  const backgroundSelect = document.getElementById("backgroundSelect");
+  const backgroundColors = {
+    dark: new BABYLON.Color4(0.055, 0.063, 0.071, 1.0),
+    graphite: new BABYLON.Color4(0.10, 0.11, 0.12, 1.0),
+    "light-gray": new BABYLON.Color4(0.85, 0.85, 0.83, 1.0),
+    white: new BABYLON.Color4(0.98, 0.98, 0.96, 1.0),
+  };
+  backgroundSelect.addEventListener("change", (event) => {
+    viewer.scene.clearColor = backgroundColors[event.target.value] ?? backgroundColors.dark;
+    viewer.setOverlayTheme(event.target.value);
   });
 
   const prevBtn = document.getElementById("prevCamBtn");

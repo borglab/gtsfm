@@ -415,6 +415,17 @@ else:
                     splats, optimizers, self.strategy_state, step, info, packed=self.cfg.packed
                 )
 
+                if step == 0 or (step + 1) % 10 == 0 or (step + 1) == max_steps:
+                    from gtsfm.splat.live import publish_training_update
+
+                    publish_training_update(
+                        splats,
+                        step=step,
+                        max_steps=max_steps,
+                        loss=float(loss.detach().item()),
+                        force_preview=(step + 1) == max_steps,
+                    )
+
             return splats
 
         def splatify(self, images_graph: Mapping[int, Image], sfm_result_graph: GtsfmData):
