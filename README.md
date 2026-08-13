@@ -67,9 +67,17 @@ To submit work to a remote GPU machine, start its workspace with an API key:
 GTSFM_API_KEY=your-secret gtsfm run --host 0.0.0.0 --no-browser
 ```
 
-Choose **Remote VM** in the workspace, then select an API or SSH connection. Modal is the first hosted API option: enter its token ID and token secret separately, or paste the full `modal token set --token-id … --token-secret …` command into either field and the workspace will split it automatically. If the account does not already have a GTSFM deployment, click **Set up & deploy Modal workspace**. GTSFM first pulls the versioned `ghcr.io/borglab/gtsfm-modal-runtime` image, then deploys the protected `gtsfm-studio` web app and persistent `gtsfm-studio-data` volume, discovers its URL, and verifies the selected GPU. If the prebuilt image is unavailable, setup automatically falls back to building the dependency image in Modal.
+Choose **Remote VM** in the workspace, then select an API or SSH connection. Modal is the first hosted API option: enter its token ID and token secret separately, or paste the full `modal token set --token-id … --token-secret …` command into either field and the workspace will split it automatically. If the account does not already have a GTSFM deployment, click **Set up & deploy Modal workspace**. GTSFM pulls the configured prebuilt Docker Hub runtime, then deploys the protected `gtsfm-studio` web app and persistent `gtsfm-studio-data` volume, discovers its URL, and verifies the selected GPU. If no prebuilt image is configured, setup builds the dependency image in Modal.
 
-The prebuilt runtime contains the stable CUDA and Python dependency layers but no repository source or model weights. It is published by [the Modal runtime image workflow](.github/workflows/modal-runtime-image.yml) whenever runtime dependencies change on `master`, and for release tags. Normal GTSFM and UI changes are mounted after the image layer and therefore do not reinstall PyTorch, CUDA libraries, or `spz`. After its first publication, a Borglab package administrator must make `gtsfm-modal-runtime` public in GitHub Packages so Modal can pull it anonymously. To test a different runtime image, start the local workspace with `GTSFM_MODAL_RUNTIME_IMAGE=registry/image:tag gtsfm run`; set the variable to an empty string to force Modal's source-build fallback.
+The prebuilt runtime contains the stable CUDA and Python dependency layers but no repository source or model weights. Normal GTSFM and UI changes are mounted after the image layer and therefore do not reinstall PyTorch, CUDA libraries, or `spz`. Publish it manually to a public Docker Hub repository using Modal's fast-pull eStargz format:
+
+```bash
+docker login
+./docker/publish-modal-runtime.sh su071301/gtsfm-modal-runtime firstclass
+GTSFM_MODAL_RUNTIME_IMAGE=docker.io/su071301/gtsfm-modal-runtime:firstclass gtsfm run
+```
+
+The first command prompts for a Docker Hub username and access token. The publisher builds `linux/amd64`, pushes directly to Docker Hub, and does not require GitHub Actions. Set `GTSFM_MODAL_RUNTIME_IMAGE` to an empty string to force Modal's source-build fallback.
 
 GTSFM sample datasets are downloaded directly by the remote workspace. User-selected folders are archived and streamed to the protected workspace before the job starts. Live preview splats and the final `.ply` result are mirrored back to the local viewer. Modal account credentials and the derived workspace API key are kept in memory and are not included in public job state. Lambda Cloud, RunPod, Vast.ai, and AWS EC2 are listed as coming soon.
 
