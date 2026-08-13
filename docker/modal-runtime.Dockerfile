@@ -33,8 +33,10 @@ RUN apt-get update \
 
 RUN curl -LsSf https://astral.sh/uv/${UV_VERSION}/install.sh | sh \
     && uv python install ${PYTHON_VERSION} \
-    && ln -sf "$(uv python find ${PYTHON_VERSION})" /usr/local/bin/python \
-    && ln -sf "$(uv python find ${PYTHON_VERSION})" /usr/local/bin/python3
+    && uv venv --python ${PYTHON_VERSION} /opt/gtsfm-venv
+
+ENV VIRTUAL_ENV=/opt/gtsfm-venv \
+    PATH=/opt/gtsfm-venv/bin:/root/.local/bin:${PATH}
 
 WORKDIR /opt/gtsfm-runtime
 COPY pyproject.toml uv.lock ./
@@ -46,7 +48,7 @@ RUN uv export \
         --no-header \
         --output-file /tmp/gtsfm-runtime-requirements.txt \
     && uv pip install \
-        --python /usr/local/bin/python \
+        --python /opt/gtsfm-venv/bin/python \
         --requirements /tmp/gtsfm-runtime-requirements.txt \
     && rm /tmp/gtsfm-runtime-requirements.txt \
     && python -c "import fastapi, gsplat, gtsam, spz, torch; print(torch.__version__)"
