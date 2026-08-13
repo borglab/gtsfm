@@ -2,36 +2,40 @@
 
 from __future__ import annotations
 
-import importlib.util
 import http.client
+import importlib.util
 import json
 import os
 import platform
 import re
 import shutil
 import signal
+import ssl
 import subprocess
 import sys
 import tarfile
 import tempfile
 import threading
 import time
-import uuid
 import urllib.error
 import urllib.request
-from functools import lru_cache
-from urllib.parse import urljoin, urlparse
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Mapping
+from urllib.parse import urljoin, urlparse
 
-import gtsfm
+import certifi
 import yaml
 
+import gtsfm
 
 PACKAGE_ROOT = Path(gtsfm.__file__).resolve().parent
 CONFIG_ROOT = PACKAGE_ROOT / "configs"
+_SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
+_REMOTE_REQUEST_TIMEOUT_SECONDS = 10 * 60
 _RUN_NAME_PATTERN = re.compile(r"[^A-Za-z0-9._-]+")
 _OPTIONAL_SUBMODULES = {
     "submodule-anysplat": {
@@ -787,6 +791,8 @@ class ManagedJob:
     pid: int | None = None
     remote: dict[str, Any] | None = None
     remote_api_key: str | None = field(default=None, repr=False, compare=False)
+    remote_cancel_requested: bool = field(default=False, repr=False, compare=False)
+    remote_cancel_dispatched: bool = field(default=False, repr=False, compare=False)
     process: subprocess.Popen[str] | None = field(default=None, repr=False, compare=False)
 
     def public(self) -> dict[str, Any]:
@@ -829,8 +835,12 @@ class JobManager:
         with self._lock:
             return self._jobs.get(job_id)
 
-    def start(self, spec: Mapping[str, Any]) -> dict[str, Any]:
-        job_id = uuid.uuid4().hex[:12]
+    def start(self, spec: Mapping[str, Any], *, job_id: str | None = None) -> dict[str, Any]:
+        """Start a pipeline, optionally using a caller-provided durable job ID."""
+
+        job_id = job_id or uuid.uuid4().hex[:12]
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", job_id):
+            raise ValueError("Job ID contains unsupported characters")
         name = _normalise_run_name(spec.get("name"))
         run_root = self.results_root / "runs" / f"{name}-{job_id}"
         # Keep transient previews outside the results tree discovered by the viewer.
@@ -902,7 +912,10 @@ class JobManager:
             method="POST" if payload is not None else "GET",
             headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
         )
-        with urllib.request.urlopen(request, timeout=120) as response:
+        # Allocating a Modal GPU and loading the CUDA runtime can take more than
+        # two minutes on the first request. Keep the socket open through that
+        # cold start instead of launching a second competing verification.
+        with urllib.request.urlopen(request, timeout=_REMOTE_REQUEST_TIMEOUT_SECONDS, context=_SSL_CONTEXT) as response:
             result = json.loads(response.read().decode("utf-8"))
         if not isinstance(result, dict):
             raise ValueError("Remote workspace returned an invalid response")
@@ -914,7 +927,10 @@ class JobManager:
         destination.parent.mkdir(parents=True, exist_ok=True)
         temporary = destination.with_suffix(f"{destination.suffix}.part")
         try:
-            with urllib.request.urlopen(request, timeout=300) as response, temporary.open("wb") as output:
+            with (
+                urllib.request.urlopen(request, timeout=300, context=_SSL_CONTEXT) as response,
+                temporary.open("wb") as output,
+            ):
                 shutil.copyfileobj(response, output)
             temporary.replace(destination)
         finally:
@@ -951,7 +967,7 @@ class JobManager:
             parsed = urlparse(endpoint)
             if parsed.scheme == "https":
                 connection: http.client.HTTPConnection = http.client.HTTPSConnection(
-                    parsed.hostname, parsed.port or 443, timeout=3600
+                    parsed.hostname, parsed.port or 443, timeout=3600, context=_SSL_CONTEXT
                 )
             elif parsed.scheme == "http":
                 connection = http.client.HTTPConnection(parsed.hostname, parsed.port or 80, timeout=3600)
@@ -1024,6 +1040,9 @@ class JobManager:
             with self._lock:
                 if job.status == "cancelled":
                     return
+                job.status = "running"
+                job.updated_at = _utc_now()
+                job.log_tail.append("Starting the remote GPU workspace; the first run may take several minutes…")
             remote_spec["execution_target"] = "local"
             created = self._remote_json(f"{endpoint}/api/jobs", job.remote_api_key, payload=remote_spec)
             remote_id = str(created["id"])
@@ -1035,11 +1054,13 @@ class JobManager:
                         "workspace_url": f"{endpoint}/?view=results",
                     }
                 )
+                if cancelled:
+                    job.log_tail.append("Modal accepted the job. Sending the pending cancellation request…")
                 if not cancelled:
                     job.status = str(created.get("status", "queued"))
                 job.updated_at = _utc_now()
             if cancelled:
-                self._remote_json(f"{endpoint}/api/jobs/{remote_id}/cancel", job.remote_api_key, payload={})
+                self._dispatch_remote_cancel(job, background=False)
                 return
             preview_version: object = None
             remote_status = str(created.get("status", "queued"))
@@ -1049,6 +1070,11 @@ class JobManager:
                 remote_status = str(state.get("status", "running"))
                 try:
                     live = self._remote_json(f"{endpoint}/api/jobs/{remote_id}/live", job.remote_api_key)
+                    live_path = Path(job.live_root) / "status.json"
+                    live_path.parent.mkdir(parents=True, exist_ok=True)
+                    live_temporary = live_path.with_suffix(".json.tmp")
+                    live_temporary.write_text(json.dumps(live), encoding="utf-8")
+                    live_temporary.replace(live_path)
                     next_version = live.get("preview_version")
                     preview_url = str(live.get("preview_url") or "")
                     if preview_url and next_version != preview_version:
@@ -1171,27 +1197,82 @@ class JobManager:
 
         threading.Thread(target=force_kill, daemon=True, name="gtsfm-job-cancel").start()
 
+    def _dispatch_remote_cancel(self, job: ManagedJob, *, background: bool) -> bool:
+        """Send one cancellation request to the remote workspace once its job ID exists."""
+
+        with self._lock:
+            remote = job.remote
+            remote_id = str(remote.get("job_id") or "") if remote else ""
+            if (
+                not job.remote_cancel_requested
+                or job.remote_cancel_dispatched
+                or not remote
+                or not remote_id
+                or not job.remote_api_key
+            ):
+                return False
+            job.remote_cancel_dispatched = True
+            remote["cancel_status"] = "requested"
+            endpoint = str(remote["endpoint"])
+            api_key = job.remote_api_key
+
+        def send_cancel() -> None:
+            try:
+                self._remote_json(f"{endpoint}/api/jobs/{remote_id}/cancel", api_key, payload={})
+            except (urllib.error.URLError, ValueError, TimeoutError) as exc:
+                with self._lock:
+                    if job.remote is not None:
+                        job.remote["cancel_status"] = "failed"
+                    job.log_tail.append(f"Unable to confirm Modal cancellation: {exc}")
+                    del job.log_tail[:-250]
+                    job.updated_at = _utc_now()
+            else:
+                with self._lock:
+                    if job.remote is not None:
+                        job.remote["cancel_status"] = "confirmed"
+                    job.log_tail.append("Modal job cancellation confirmed.")
+                    del job.log_tail[:-250]
+                    job.updated_at = _utc_now()
+
+        if background:
+            threading.Thread(
+                target=send_cancel,
+                daemon=True,
+                name=f"gtsfm-remote-cancel-{job.id}",
+            ).start()
+        else:
+            send_cancel()
+        return True
+
     def cancel(self, job_id: str) -> dict[str, Any]:
         with self._lock:
             job = self._jobs.get(job_id)
             if job is None:
                 raise KeyError(job_id)
-            if job.status not in {"queued", "running"}:
+            if job.status not in {"queued", "running", "cancelled"}:
                 return job.public()
-            job.status = "cancelled"
-            job.updated_at = _utc_now()
+            if job.status != "cancelled":
+                job.status = "cancelled"
+                job.updated_at = _utc_now()
+                job.log_tail.append("Cancellation requested.")
             process = job.process
+            if job.remote is not None:
+                job.remote_cancel_requested = True
+                if job.remote.get("job_id"):
+                    job.remote["cancel_status"] = "requested"
+                else:
+                    job.remote["cancel_status"] = "waiting_for_remote_job"
+                    job.log_tail.append(
+                        "Waiting for Modal to accept the starting job; it will be cancelled immediately afterward."
+                    )
+            del job.log_tail[:-250]
         if process is not None and process.poll() is None:
             self._terminate_process(process)
-        elif job.remote and job.remote.get("job_id") and job.remote_api_key:
-            try:
-                self._remote_json(
-                    f"{job.remote['endpoint']}/api/jobs/{job.remote['job_id']}/cancel",
-                    job.remote_api_key,
-                    payload={},
-                )
-            except (urllib.error.URLError, ValueError):
-                pass
+        elif job.remote is not None:
+            # Do not make the browser wait on a network round-trip. If Modal is
+            # still cold-starting, _run_remote dispatches this as soon as the
+            # upstream job ID becomes available.
+            self._dispatch_remote_cancel(job, background=True)
         return job.public()
 
     def live_root(self, job_id: str) -> Path:

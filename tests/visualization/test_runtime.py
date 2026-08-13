@@ -1,10 +1,10 @@
 """Tests for the installable browser workspace runtime."""
 
-from io import BytesIO
 import json
-from pathlib import Path
 import tarfile
 import threading
+from io import BytesIO
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -13,10 +13,9 @@ from fastapi.testclient import TestClient
 from PIL import Image
 
 from visualization import app as app_runtime
-from visualization import modal_deployment
-from visualization import runtime
-from visualization.app import create_app
+from visualization import modal_deployment, runtime
 from visualization import samples as sample_runtime
+from visualization.app import create_app
 
 
 def _cuda_hardware() -> dict:
@@ -239,6 +238,9 @@ def test_completed_job_exposes_splat_download(tmp_path: Path) -> None:
 
     jobs = client.get("/api/jobs").json()["items"]
     assert jobs[0]["has_final_splat"] is True
+    live = client.get("/api/jobs/finished-job/live")
+    assert live.status_code == 200
+    assert live.json()["final_url"].endswith("/runs/finished/gaussian_splats.ply")
     response = client.get("/api/jobs/finished-job/splat", params={"format": "spz"})
     assert response.status_code == 200
     assert response.content.startswith(b"NGSP")
@@ -275,6 +277,10 @@ def test_live_job_exposes_dask_worker_status(tmp_path: Path) -> None:
         live_root=str(live_root),
         spec={},
         command=[],
+        log_tail=[
+            "2026-08-13 17:00:00 [runner.py] INFO: 🌟 GTSFM: Starting SceneOptimizer...",
+            "2026-08-13 17:00:01 [scene_optimizer.py] INFO: 🔥 GTSFM: Partitioning the view graph...",
+        ],
     )
 
     response = TestClient(app).get("/api/jobs/running-job/live")
@@ -282,6 +288,7 @@ def test_live_job_exposes_dask_worker_status(tmp_path: Path) -> None:
     assert response.status_code == 200
     assert response.json()["dask"]["workers"] == 2
     assert response.json()["dask"]["running_tasks"] == 3
+    assert response.json()["message"] == "🔥 GTSFM: Partitioning the view graph..."
 
 
 def test_workspace_rejects_invalid_splat_exports(tmp_path: Path) -> None:
@@ -306,6 +313,23 @@ def test_workspace_prepares_local_github_sample(tmp_path: Path) -> None:
 
 def test_sample_downloader_uses_certifi_ca_bundle() -> None:
     assert sample_runtime._SSL_CONTEXT.get_ca_certs()
+
+
+def test_remote_workspace_requests_use_certifi_ca_bundle(monkeypatch: pytest.MonkeyPatch) -> None:
+    observed: dict[str, object] = {}
+
+    def fake_urlopen(_request: object, **kwargs: object) -> BytesIO:
+        observed.update(kwargs)
+        return BytesIO(b'{"status": "ready"}')
+
+    monkeypatch.setattr(runtime.urllib.request, "urlopen", fake_urlopen)
+
+    result = runtime.JobManager._remote_json("https://workspace.example/api/hardware", "secret")
+
+    assert result == {"status": "ready"}
+    assert observed["context"] is runtime._SSL_CONTEXT
+    assert observed["timeout"] == runtime._REMOTE_REQUEST_TIMEOUT_SECONDS
+    assert runtime._SSL_CONTEXT.get_ca_certs()
 
 
 def test_workspace_rejects_unknown_github_sample(tmp_path: Path) -> None:
@@ -559,6 +583,7 @@ def test_job_cancel_terminates_local_process(tmp_path: Path, monkeypatch: pytest
 
 
 def test_job_cancel_forwards_to_remote_vm(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(threading.Thread, "start", lambda thread: thread.run())
     manager = runtime.JobManager(tmp_path)
     job = runtime.ManagedJob(
         id="remote-job",
@@ -585,6 +610,60 @@ def test_job_cancel_forwards_to_remote_vm(tmp_path: Path, monkeypatch: pytest.Mo
 
     assert cancelled["status"] == "cancelled"
     assert calls == [("https://gpu.example.test/api/jobs/upstream-job/cancel", "secret", {})]
+    assert job.remote == {
+        "endpoint": "https://gpu.example.test",
+        "job_id": "upstream-job",
+        "cancel_status": "confirmed",
+    }
+    assert job.log_tail[-1] == "Modal job cancellation confirmed."
+
+
+def test_job_cancel_during_modal_start_forwards_after_remote_accepts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manager = runtime.JobManager(tmp_path)
+    job = runtime.ManagedJob(
+        id="starting-remote-job",
+        name="remote",
+        status="running",
+        created_at="now",
+        updated_at="now",
+        output_root=str(tmp_path / "output"),
+        live_root=str(tmp_path / "live"),
+        spec={"splat_implementation": "none"},
+        command=[],
+        remote={"endpoint": "https://gpu.example.test"},
+        remote_api_key="secret",
+    )
+    manager._jobs[job.id] = job
+    calls: list[tuple[str, object]] = []
+
+    def fake_remote_json(
+        endpoint: str, _api_key: str, *, payload: dict[str, object] | None = None
+    ) -> dict[str, object]:
+        calls.append((endpoint, payload))
+        if endpoint.endswith("/api/jobs"):
+            # Reproduce the user clicking Cancel while the POST is waiting for
+            # Modal's cold-started container to accept the job.
+            manager.cancel(job.id)
+            return {"id": "upstream-job", "status": "queued"}
+        return {"id": "upstream-job", "status": "cancelled"}
+
+    monkeypatch.setattr(manager, "_remote_json", fake_remote_json)
+
+    manager._run_remote(job)
+
+    assert job.status == "cancelled"
+    assert calls == [
+        ("https://gpu.example.test/api/jobs", {"splat_implementation": "none", "execution_target": "local"}),
+        ("https://gpu.example.test/api/jobs/upstream-job/cancel", {}),
+    ]
+    assert job.remote == {
+        "endpoint": "https://gpu.example.test",
+        "job_id": "upstream-job",
+        "workspace_url": "https://gpu.example.test/?view=results",
+        "cancel_status": "confirmed",
+    }
 
 
 def test_remote_job_keeps_modal_and_ssh_credentials_private(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -629,7 +708,7 @@ def test_remote_job_transfers_local_dataset_before_submit(tmp_path: Path, monkey
 
     def fake_upload(_endpoint: str, _api_key: str, directory: Path, _runtime_root: Path) -> dict[str, object]:
         assert directory == dataset
-        return {"path": "/workspace/results/.gtsfm/uploads/remote-dataset"}
+        return {"path": "/mnt/gtsfm-studio/results/.gtsfm/uploads/remote-dataset"}
 
     def fake_remote_json(url: str, _api_key: str, *, payload: dict[str, object] | None = None) -> dict[str, object]:
         if url.endswith("/api/jobs"):
@@ -659,9 +738,10 @@ def test_remote_job_transfers_local_dataset_before_submit(tmp_path: Path, monkey
 
     manager._run_remote(managed)
 
-    assert posted["dataset_dir"] == "/workspace/results/.gtsfm/uploads/remote-dataset"
+    assert posted["dataset_dir"] == "/mnt/gtsfm-studio/results/.gtsfm/uploads/remote-dataset"
     assert posted["execution_target"] == "local"
     assert managed.status == "completed"
+    assert json.loads((Path(managed.live_root) / "status.json").read_text(encoding="utf-8")) == {}
 
 
 def test_remote_sample_is_downloaded_by_remote_workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -696,11 +776,11 @@ def test_remote_sample_is_downloaded_by_remote_workspace(tmp_path: Path, monkeyp
     assert response.json()["spec"]["sample_id"] == "lund-door"
 
 
-def test_modal_remote_api_key_is_stable_and_scoped() -> None:
-    first = modal_deployment.modal_remote_api_key("ak-one", "as-secret")
+def test_modal_workspace_api_key_is_stable_and_scoped() -> None:
+    first = modal_deployment.modal_workspace_api_key("ak-one", "as-secret")
 
-    assert first == modal_deployment.modal_remote_api_key("ak-one", "as-secret")
-    assert first != modal_deployment.modal_remote_api_key("ak-two", "as-secret")
+    assert first == modal_deployment.modal_workspace_api_key("ak-one", "as-secret")
+    assert first != modal_deployment.modal_workspace_api_key("ak-two", "as-secret")
     assert "as-secret" not in first
 
 
@@ -762,3 +842,37 @@ def test_fastapi_exposes_openapi_and_job_websocket(tmp_path: Path) -> None:
 
     with client.websocket_connect("/api/events/jobs") as websocket:
         assert websocket.receive_json() == {"items": []}
+
+
+def test_fastapi_uses_injected_hardware_provider_and_serves_favicon(tmp_path: Path) -> None:
+    hardware = {
+        "summary": "Remote GPU configured without allocation",
+        "devices": [{"id": "cuda:0", "supports_gaussian_splatting": True}],
+        "accelerator_count": 1,
+        "platform": {},
+    }
+    client = TestClient(create_app(tmp_path, hardware_provider=lambda: hardware))
+
+    assert client.get("/api/hardware").json() == hardware
+    favicon = client.get("/favicon.ico")
+    assert favicon.status_code == 200
+    assert favicon.headers["content-type"] == "image/png"
+
+
+def test_job_manager_accepts_safe_caller_provided_job_id(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(threading.Thread, "start", lambda _thread: None)
+    manager = runtime.JobManager(tmp_path)
+    spec = {
+        "name": "durable-id",
+        "dataset_dir": str(tmp_path),
+        "loader": "olsson",
+        "config_name": "vggt",
+        "splat_implementation": "none",
+        "hardware": "cpu",
+    }
+
+    job = manager.start(spec, job_id="modal_job-123")
+
+    assert job["id"] == "modal_job-123"
+    with pytest.raises(ValueError, match="unsupported characters"):
+        manager.start(spec, job_id="../../unsafe")
