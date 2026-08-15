@@ -31,6 +31,7 @@ import certifi
 import yaml
 
 import gtsfm
+from visualization.datasets import detect_dataset_format, resolve_relative_loader_paths
 
 PACKAGE_ROOT = Path(gtsfm.__file__).resolve().parent
 CONFIG_ROOT = PACKAGE_ROOT / "configs"
@@ -639,10 +640,21 @@ def build_runner_args(spec: Mapping[str, Any], output_root: Path) -> tuple[list[
     capabilities = {item["id"]: item["capabilities"] for item in schema["models"]}.get(config_name, {})
     if splat_implementation == "gsplat" and not capabilities.get("iterative_splat"):
         raise ValueError(f"The {config_name} model does not support iterative Gaussian splatting")
-    loader = _validate_choice(spec.get("loader"), schema["loaders"], "loader")
     dataset_dir = Path(str(spec.get("dataset_dir") or "")).expanduser().resolve()
     if not dataset_dir.is_dir():
         raise ValueError(f"Dataset directory does not exist: {dataset_dir}")
+    requested_loader = str(spec.get("loader") or "auto")
+    format_detection = detect_dataset_format(dataset_dir)
+    automatic_loader = requested_loader == "auto"
+    if automatic_loader:
+        dataset_subdir = str(format_detection.get("dataset_subdir") or "").strip()
+        if dataset_subdir:
+            dataset_dir = (dataset_dir / dataset_subdir).resolve()
+            if not dataset_dir.is_dir():
+                raise ValueError(f"Detected dataset subdirectory does not exist: {dataset_dir}")
+        loader = _validate_choice(format_detection["loader"], schema["loaders"], "detected loader")
+    else:
+        loader = _validate_choice(requested_loader, schema["loaders"], "loader")
 
     args = [
         "--config_name",
@@ -661,7 +673,12 @@ def build_runner_args(spec: Mapping[str, Any], output_root: Path) -> tuple[list[
         str(spec.get("worker_memory_limit") or "32GB"),
     ]
 
-    images_dir = str(spec.get("images_dir") or "").strip()
+    detected_options = dict(format_detection.get("loader_options") or {}) if automatic_loader else {}
+    detected_images_dir = str(format_detection.get("images_dir") or "").strip() if automatic_loader else ""
+    detected_options, detected_images_dir = resolve_relative_loader_paths(
+        dataset_dir, detected_options, detected_images_dir or None
+    )
+    images_dir = str(spec.get("images_dir") or detected_images_dir or "").strip()
     if images_dir:
         resolved_images = Path(images_dir).expanduser().resolve()
         if not resolved_images.is_dir():
@@ -685,6 +702,8 @@ def build_runner_args(spec: Mapping[str, Any], output_root: Path) -> tuple[list[
     loader_option_values = spec.get("loader_options") or {}
     if not isinstance(loader_option_values, Mapping):
         raise ValueError("Loader options must be an object")
+    loader_option_values = {**detected_options, **loader_option_values}
+    loader_option_values, _ = resolve_relative_loader_paths(dataset_dir, loader_option_values, None)
     unknown_loader_options = set(loader_option_values) - set(loader_option_schema)
     if unknown_loader_options:
         raise ValueError(f"Unknown options for the {loader} loader: {', '.join(sorted(unknown_loader_options))}")

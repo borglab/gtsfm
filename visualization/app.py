@@ -29,6 +29,7 @@ from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, ConfigDict
 from starlette.websockets import WebSocketDisconnect
 
+from visualization.datasets import IMAGE_SUFFIXES, detect_dataset_format
 from visualization.modal_deployment import (ModalDeploymentManager,
                                             modal_workspace_api_key)
 from visualization.runtime import (JobManager, configuration_schema,
@@ -41,7 +42,6 @@ PACKAGE_ROOT = Path(__file__).resolve().parent
 STATIC_ROOT = PACKAGE_ROOT / "static"
 TEMPLATE_ROOT = PACKAGE_ROOT / "templates"
 SPLAT_EXPORT_FORMATS = {"ply", "spz"}
-IMAGE_SUFFIXES = {".avif", ".bmp", ".heic", ".heif", ".jpeg", ".jpg", ".png", ".tif", ".tiff", ".webp"}
 _LOG_LEVEL_MESSAGE = re.compile(r"\b(?:DEBUG|INFO|WARNING|ERROR|CRITICAL):\s*(.+)$")
 _PIPELINE_STATUS_MARKERS = (
     "gtsfm:",
@@ -531,6 +531,7 @@ def create_app(
             "file_count": file_count,
             "bytes": total_bytes,
             "analysis": analyze_image_dataset(dataset_root),
+            "format_detection": detect_dataset_format(dataset_root),
         }
 
     @app.post("/api/uploads/archive", dependencies=[Depends(require_api_key)])
@@ -560,6 +561,7 @@ def create_app(
             "file_count": file_count,
             "bytes": total_bytes,
             "analysis": analyze_image_dataset(upload_root),
+            "format_detection": detect_dataset_format(upload_root),
         }
 
     @app.post("/api/remote/inspect")
