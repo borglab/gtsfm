@@ -70,8 +70,7 @@ def _collect_dask_stats(client: Client) -> dict[str, object]:
     running_tasks = task_counts["executing"] + task_counts["processing"]
     completed_tasks = task_counts["memory"]
     pending_tasks = sum(
-        task_counts[state]
-        for state in ("ready", "waiting", "queued", "no-worker", "constrained", "fetch", "flight")
+        task_counts[state] for state in ("ready", "waiting", "queued", "no-worker", "constrained", "fetch", "flight")
     )
     return {
         "workers": len(workers),
@@ -231,6 +230,12 @@ class GtsfmRunner:
             type=int,
             default=None,
             help="Override the Gaussian Splatting training iteration count.",
+        )
+        parser.add_argument(
+            "--gaussian_splatting_override",
+            action="append",
+            default=[],
+            help="Typed Hydra override for the selected Gaussian splatting preset. May be repeated.",
         )
 
         # Logging and output configuration
@@ -429,12 +434,20 @@ class GtsfmRunner:
                 with hydra.initialize_config_module(
                     config_module="gtsfm.configs.gaussian_splatting", version_base=None
                 ):
-                    gs_cfg = hydra.compose(gs_config_name)
+                    gs_cfg = hydra.compose(
+                        gs_config_name,
+                        overrides=list(self.parsed_args.gaussian_splatting_override or []),
+                    )
                     logger.info(f"🔄 Applying Gaussian Splatting Override: " f"{gs_config_name}")
-                    target_optimizer.gaussian_splatting_optimizer = instantiate(gs_cfg.gaussian_splatting_optimizer)
                     if self.parsed_args.gs_max_steps is not None:
-                        target_optimizer.gaussian_splatting_optimizer.cfg.max_steps = self.parsed_args.gs_max_steps
+                        OmegaConf.update(
+                            gs_cfg,
+                            "gaussian_splatting_optimizer.cfg.max_steps",
+                            self.parsed_args.gs_max_steps,
+                            merge=False,
+                        )
                         logger.info("🔄 Setting Gaussian Splatting max steps: %d", self.parsed_args.gs_max_steps)
+                    target_optimizer.gaussian_splatting_optimizer = instantiate(gs_cfg.gaussian_splatting_optimizer)
                     OmegaConf.update(
                         main_cfg,
                         snapshot_path,

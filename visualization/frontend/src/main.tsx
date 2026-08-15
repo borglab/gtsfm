@@ -112,6 +112,25 @@ interface ConfigurationSchema {
   splat_implementations: Choice[];
 }
 
+type HydraOverrideMap = Record<string, string>;
+
+interface HydraFieldDescriptor {
+  key: string;
+  label: string;
+  type: "boolean" | "integer" | "number" | "string";
+  defaultValue: boolean | number | string;
+  group: string;
+  help: string;
+  min?: number;
+  max?: number;
+  step?: number;
+}
+
+interface HydraParameterSchema {
+  model: { preset: string; fields: HydraFieldDescriptor[] };
+  gaussian: { preset: string; fields: HydraFieldDescriptor[] };
+}
+
 interface HardwareDevice extends Choice {
   kind: "cpu" | "cuda" | "nvidia" | "rocm" | "mps" | string;
   details: string;
@@ -453,6 +472,153 @@ const BOOTSTRAP_SCHEMA: ConfigurationSchema = {
     { id: "anysplat", label: "AnySplat", description: "Generate splats with the feed-forward AnySplat model.", live: false },
   ],
 };
+
+function HydraFieldControl({ descriptor, value, onChange }: { descriptor: HydraFieldDescriptor; value?: string; onChange: (value: string) => void }) {
+  const inherited = value === undefined || value === "";
+  return <div className={`hydra-field ${inherited ? "inherited" : "overridden"}`}>
+    <div className="hydra-field-heading"><span>{descriptor.label}</span>{!inherited && <button type="button" onClick={() => onChange("")} title={`Reset ${descriptor.label}`}>Reset</button>}</div>
+    {descriptor.type === "boolean"
+      ? <select value={value ?? ""} onChange={(event) => onChange(event.target.value)} aria-label={descriptor.label}>
+        <option value="">Preset default · {descriptor.defaultValue ? "On" : "Off"}</option>
+        <option value="true">On</option><option value="false">Off</option>
+      </select>
+      : <input type={descriptor.type === "string" ? "text" : "number"} value={value ?? ""} min={descriptor.min} max={descriptor.max} step={descriptor.type === "string" ? undefined : descriptor.step ?? (descriptor.type === "integer" ? 1 : "any")} placeholder={`Preset default · ${descriptor.defaultValue}`} onChange={(event) => onChange(event.target.value)} aria-label={descriptor.label} />}
+    <small>{descriptor.help}</small>
+    <code>{descriptor.key}</code>
+  </div>;
+}
+
+function HydraFieldGroups({ fields, values, onChange }: { fields: HydraFieldDescriptor[]; values: HydraOverrideMap; onChange: (key: string, value: string) => void }) {
+  const groups = fields.reduce<Record<string, HydraFieldDescriptor[]>>((result, field) => {
+    (result[field.group] ??= []).push(field);
+    return result;
+  }, {});
+  return <>{Object.entries(groups).map(([title, groupFields]) => <HydraFieldGroup key={title} title={title} fields={groupFields} values={values} onChange={onChange} />)}</>;
+}
+
+interface ParsedJsonConfiguration {
+  model: HydraOverrideMap;
+  gaussian: HydraOverrideMap;
+  expert: string[];
+}
+
+const jsonValueForOverride = (field: HydraFieldDescriptor, value?: string): boolean | number | string | null => {
+  if (value === undefined || value === "") return null;
+  if (field.type === "boolean") return value === "true";
+  if (field.type === "integer" || field.type === "number") return Number(value);
+  return value;
+};
+
+function configurationJsonTemplate(parameters: HydraParameterSchema, model: HydraOverrideMap, gaussian: HydraOverrideMap, expert: string): string {
+  return JSON.stringify({
+    model: Object.fromEntries(parameters.model.fields.map((field) => [field.key, jsonValueForOverride(field, model[field.key])])),
+    gaussian: Object.fromEntries(parameters.gaussian.fields.map((field) => [field.key, jsonValueForOverride(field, gaussian[field.key])])),
+    expert: expert.split("\n").map((line) => line.trim()).filter(Boolean),
+  }, null, 2);
+}
+
+function flattenJsonConfiguration(value: unknown, prefix = "", output: Record<string, unknown> = {}): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error((prefix || "Configuration") + " must be a JSON object.");
+  for (const [key, child] of Object.entries(value)) {
+    const path = prefix ? prefix + "." + key : key;
+    if (child !== null && typeof child === "object" && !Array.isArray(child)) flattenJsonConfiguration(child, path, output);
+    else output[path] = child;
+  }
+  return output;
+}
+
+function parseJsonConfiguration(value: string, parameters: HydraParameterSchema): ParsedJsonConfiguration {
+  const parsed: unknown = JSON.parse(value);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("The pasted configuration must be a JSON object.");
+  const root = parsed as Record<string, unknown>;
+  const hasSections = ["model", "gaussian", "expert", "hydra_overrides", "gaussian_splatting_overrides", "advanced_overrides"].some((key) => key in root);
+  const modelSource = root.model ?? root.hydra_overrides ?? (hasSections ? {} : root);
+  const gaussianSource = root.gaussian ?? root.gaussian_splatting_overrides ?? {};
+  const expertSource = root.expert ?? root.advanced_overrides ?? [];
+  const readSection = (source: unknown, fields: HydraFieldDescriptor[], section: string): HydraOverrideMap => {
+    const descriptors = new Map(fields.map((field) => [field.key, field]));
+    const result: HydraOverrideMap = {};
+    const unknown: string[] = [];
+    for (const [rawKey, rawValue] of Object.entries(flattenJsonConfiguration(source))) {
+      const key = section === "Gaussian" ? rawKey.replace(/^gaussian_splatting_optimizer\.cfg\./, "") : rawKey;
+      const descriptor = descriptors.get(key);
+      if (!descriptor) { unknown.push(rawKey); continue; }
+      if (rawValue === null) continue;
+      const valid = descriptor.type === "boolean"
+        ? typeof rawValue === "boolean"
+        : descriptor.type === "integer"
+          ? typeof rawValue === "number" && Number.isInteger(rawValue)
+          : descriptor.type === "number"
+            ? typeof rawValue === "number" && Number.isFinite(rawValue)
+            : typeof rawValue === "string";
+      if (!valid) throw new Error(section + " setting “" + rawKey + "” must be a " + descriptor.type + " value.");
+      result[key] = String(rawValue);
+    }
+    if (unknown.length) throw new Error("Unknown " + section.toLowerCase() + " setting" + (unknown.length === 1 ? "" : "s") + ": " + unknown.slice(0, 4).join(", ") + (unknown.length > 4 ? "…" : ""));
+    return result;
+  };
+  if (!Array.isArray(expertSource) || !expertSource.every((entry) => typeof entry === "string")) {
+    throw new Error("Expert overrides must be a JSON array of Hydra key=value strings.");
+  }
+  const invalidExpert = expertSource.find((entry) => !entry.includes("=") || entry.startsWith("--") || entry.includes("\0"));
+  if (invalidExpert) throw new Error("Expert override “" + invalidExpert + "” must use Hydra key=value syntax.");
+  return {
+    model: readSection(modelSource, parameters.model.fields, "Model"),
+    gaussian: readSection(gaussianSource, parameters.gaussian.fields, "Gaussian"),
+    expert: expertSource.map((entry) => entry.trim()).filter(Boolean),
+  };
+}
+
+function ConfigurationJsonDialog({ parameters, model, gaussian, expert, onApply, onClose }: {
+  parameters: HydraParameterSchema;
+  model: HydraOverrideMap;
+  gaussian: HydraOverrideMap;
+  expert: string;
+  onApply: (configuration: ParsedJsonConfiguration) => void;
+  onClose: () => void;
+}) {
+  const template = useMemo(() => configurationJsonTemplate(parameters, model, gaussian, expert), [parameters, model, gaussian, expert]);
+  const [value, setValue] = useState(template);
+  const [error, setError] = useState("");
+  const [copied, setCopied] = useState(false);
+  const copyReset = useRef<number | null>(null);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+  useEffect(() => () => { if (copyReset.current !== null) window.clearTimeout(copyReset.current); }, []);
+
+  const copyTemplate = async () => {
+    if (!await copyTextToClipboard(value)) return;
+    setCopied(true);
+    if (copyReset.current !== null) window.clearTimeout(copyReset.current);
+    copyReset.current = window.setTimeout(() => setCopied(false), 1000);
+  };
+  const apply = () => {
+    try {
+      onApply(parseJsonConfiguration(value, parameters));
+      onClose();
+    } catch (reason) {
+      setError(reason instanceof SyntaxError ? "Invalid JSON: " + reason.message : errorMessage(reason));
+    }
+  };
+
+  return createPortal(<div className="configuration-json-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    <section className="configuration-json-dialog" role="dialog" aria-modal="true" aria-labelledby="configuration-json-title">
+      <header><div><span>HYDRA CONFIGURATION</span><strong id="configuration-json-title">Paste JSON configuration</strong></div><button type="button" onClick={onClose} aria-label="Close JSON configuration"><X size={15}/></button></header>
+      <p>The template lists every safe setting for the selected presets. Leave a value as <code>null</code> to inherit the preset default. Nested objects and flat dotted Hydra keys are both accepted.</p>
+      <textarea value={value} onChange={(event) => { setValue(event.target.value); setError(""); }} spellCheck={false} aria-label="JSON configuration" />
+      {error && <div className="configuration-json-error"><CircleAlert size={13}/><span>{error}</span></div>}
+      <footer><button type="button" onClick={() => { setValue(template); setError(""); }}>Reset template</button><span/><button type="button" onClick={copyTemplate}>{copied ? <Check size={12}/> : <Copy size={12}/>} {copied ? "Copied!" : "Copy"}</button><button className="primary" type="button" onClick={apply}>Apply configuration</button></footer>
+    </section>
+  </div>, document.body);
+}
+
+function HydraFieldGroup({ title, fields, values, onChange }: { title: string; fields: HydraFieldDescriptor[]; values: HydraOverrideMap; onChange: (key: string, value: string) => void }) {
+  return <section className="hydra-group"><header><strong>{title}</strong><small>{fields.filter((field) => values[field.key]).length} changed</small></header><div className="hydra-grid">{fields.map((field) => <HydraFieldControl key={field.key} descriptor={field} value={values[field.key]} onChange={(value) => onChange(field.key, value)} />)}</div></section>;
+}
 
 interface ModalCredentials {
   tokenId: string;
@@ -914,7 +1080,15 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
   const [modalWorkspaceIssue, setModalWorkspaceIssue] = useState(false);
   const [modalDeployment, setModalDeployment] = useState<ModalDeployment | null>(null);
   const [modalLogExpanded, setModalLogExpanded] = useState(false);
+  const [configurationAdvanced, setConfigurationAdvanced] = useState(false);
   const [advanced, setAdvanced] = useState(false);
+  const [modelHydraOverrides, setModelHydraOverrides] = useState<HydraOverrideMap>({});
+  const [splatHydraOverrides, setSplatHydraOverrides] = useState<HydraOverrideMap>({});
+  const [hydraParameters, setHydraParameters] = useState<HydraParameterSchema | null>(null);
+  const [hydraParametersLoading, setHydraParametersLoading] = useState(true);
+  const [hydraParametersError, setHydraParametersError] = useState("");
+  const [hydraParametersRevision, setHydraParametersRevision] = useState(0);
+  const [jsonConfigurationOpen, setJsonConfigurationOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [datasetFolder, setDatasetFolder] = useState<UploadedFolder | null>(null);
@@ -926,6 +1100,18 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
   const automaticModalEndpoint = useRef("");
   const set = <K extends keyof RunFormState>(key: K, value: RunFormState[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
+  const updateHydraOverride = (
+    setter: Dispatch<SetStateAction<HydraOverrideMap>>,
+    key: string,
+    value: string,
+  ) => setter((current) => {
+    if (!value) {
+      const next = { ...current };
+      delete next[key];
+      return next;
+    }
+    return { ...current, [key]: value };
+  });
 
   useEffect(() => {
     if (!hardware) return;
@@ -936,6 +1122,35 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
       splat_implementation: current.execution_target === "local" && !splatDevice ? "none" : current.splat_implementation,
     }));
   }, [hardware]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const query = new URLSearchParams({
+      config_name: form.config_name,
+      loader: form.loader,
+      gaussian_splatting_config_name: form.gaussian_splatting_config_name,
+      splat_implementation: form.splat_implementation,
+    });
+    setHydraParametersLoading(true);
+    setHydraParametersError("");
+    void getJson<HydraParameterSchema>(`/api/configuration/parameters?${query}`, { signal: controller.signal })
+      .then((parameters) => {
+        setHydraParameters(parameters);
+        const modelKeys = new Set(parameters.model.fields.map((field) => field.key));
+        const gaussianKeys = new Set(parameters.gaussian.fields.map((field) => field.key));
+        setModelHydraOverrides((current) => Object.fromEntries(Object.entries(current).filter(([key]) => modelKeys.has(key))));
+        setSplatHydraOverrides((current) => Object.fromEntries(Object.entries(current).filter(([key]) => gaussianKeys.has(key))));
+      })
+      .catch((reason) => {
+        if (reason instanceof DOMException && reason.name === "AbortError") return;
+        setHydraParameters(null);
+        setHydraParametersError(errorMessage(reason));
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setHydraParametersLoading(false);
+      });
+    return () => controller.abort();
+  }, [form.config_name, form.loader, form.gaussian_splatting_config_name, form.splat_implementation, hydraParametersRevision]);
 
   useEffect(() => {
     if (remotePromptKey < 1) return;
@@ -1099,6 +1314,10 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
   useEffect(() => {
     if (form.splat_implementation === "gsplat" && model && !capabilities.iterative_splat) set("splat_implementation", "none");
   }, [form.splat_implementation, model, capabilities.iterative_splat]);
+
+  useEffect(() => {
+    if (form.share_intrinsics && model && !capabilities.share_intrinsics) set("share_intrinsics", false);
+  }, [form.share_intrinsics, model, capabilities.share_intrinsics]);
 
   async function inspectRemote(endpoint: string, apiKey: string) {
     const payload = await getJson<RemoteWorkspace>("/api/remote/inspect", { method: "POST", headers: { "Content-Type": "application/json" },
@@ -1276,8 +1495,13 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
       if (form.execution_target === "remote" && form.remote_provider === "modal" && !remote?.verified) {
         throw new Error("The Modal workspace must pass its health check before a reconstruction can start.");
       }
+      const expertOverrides = form.advanced_overrides.split("\n");
       const payload = { ...form,
-        loader: formatAutomatic ? "auto" : form.loader, api_key: form.execution_target === "remote" ? modalBearerToken(form) : "", loader_options: loaderOptions,
+        loader: formatAutomatic ? "auto" : form.loader,
+        hydra_overrides: modelHydraOverrides,
+        advanced_overrides: expertOverrides.map((line) => line.trim()).filter(Boolean),
+        gaussian_splatting_overrides: splatHydraOverrides,
+        api_key: form.execution_target === "remote" ? modalBearerToken(form) : "", loader_options: loaderOptions,
         hardware: form.execution_target === "remote" ? form.remote_hardware : form.hardware,
         max_resolution: form.max_resolution ? Number(form.max_resolution) : null,
         num_workers: Number(form.num_workers), threads_per_worker: Number(form.threads_per_worker),
@@ -1378,17 +1602,60 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
       <LoaderOptions descriptors={schema.loader_options[form.loader] ?? []} values={loaderOptions} setValues={setLoaderOptions} />
     </Section>
     <Section number="02" title="Models" subtitle="VGGT is the default reconstruction model">
-      <SelectField label="Reconstruction model" value={form.config_name} options={modelCatalog} onChange={(value) => set("config_name", value)} />
+      <SelectField label="Reconstruction model" value={form.config_name} options={modelCatalog} onChange={(value) => { set("config_name", value); setModelHydraOverrides({}); }} />
       <SelectField label="Splat implementation" value={form.splat_implementation} options={splatOptions} onChange={(value) => set("splat_implementation", value)} />
       <p className="field-help">{splatMeta?.description}</p>
       {form.splat_implementation === "gsplat" && <div className="nested-options">
-        <SelectField label="Optimizer preset" value={form.gaussian_splatting_config_name} options={remote?.configuration?.gaussian_splatting_models ?? schema.gaussian_splatting_models} onChange={(value) => set("gaussian_splatting_config_name", value)} />
-        <div className="form-grid">
-          <TextField label="Training steps" type="number" min="1" step="1" value={form.gs_max_steps} onChange={(value) => set("gs_max_steps", value)} />
-          <TextField label="Preview every" type="number" min="10" step="10" value={form.live_preview_interval} onChange={(value) => set("live_preview_interval", value)} />
-        </div>
+        <SelectField label="Optimizer preset" value={form.gaussian_splatting_config_name} options={remote?.configuration?.gaussian_splatting_models ?? schema.gaussian_splatting_models} onChange={(value) => { set("gaussian_splatting_config_name", value); setSplatHydraOverrides({}); }} />
       </div>}
-      <Toggle id="runMvs" checked={form.run_mvs} disabled={!capabilities.mvs} onCheckedChange={(value) => set("run_mvs", value)}>Also run dense MVS</Toggle>
+      <Collapsible.Root className="advanced-options configuration-advanced" open={configurationAdvanced} onOpenChange={setConfigurationAdvanced}>
+        <Collapsible.Trigger className="advanced-trigger"><span><SlidersHorizontal size={13} /><span className="advanced-trigger-copy">Advanced Configuration<small>{Object.keys(modelHydraOverrides).length + Object.keys(splatHydraOverrides).length} Hydra overrides</small></span></span><ChevronDown size={14} /></Collapsible.Trigger>
+        <Collapsible.Content className="advanced-content">
+          <p className="configuration-intro">Tune reconstruction and splat optimization without editing YAML. Empty fields inherit the selected preset.</p>
+          <div className="configuration-json-action">
+            <button type="button" onClick={() => setJsonConfigurationOpen(true)} disabled={!hydraParameters || hydraParametersLoading}>{"{ }"} Paste JSON configuration</button>
+            <small>Import a preset-aware JSON object instead of filling fields individually.</small>
+          </div>
+          {form.splat_implementation === "gsplat" && <>
+            <div className="form-grid configuration-core-fields">
+              <TextField label="Training steps" type="number" min="1" step="1" value={form.gs_max_steps} onChange={(value) => set("gs_max_steps", value)} />
+              <TextField label="Preview every" type="number" min="10" step="10" value={form.live_preview_interval} onChange={(value) => set("live_preview_interval", value)} />
+            </div>
+          </>}
+          <div className="form-grid">
+            <TextField label="Maximum image resolution" type="number" min="1" value={form.max_resolution} onChange={(value) => set("max_resolution", value)} placeholder="Model default" />
+            <SelectField label="Graph partitioner" value={form.graph_partitioner} options={schema.graph_partitioners} empty="Model default" onChange={(value) => set("graph_partitioner", value)} />
+            <SelectField label="Global descriptor" value={form.global_descriptor_config_name} options={schema.global_descriptors} empty="Model default" onChange={(value) => set("global_descriptor_config_name", value)} />
+            <SelectField label="Image retriever" value={form.retriever_config_name} options={schema.retrievers} empty="Model default" onChange={(value) => set("retriever_config_name", value)} />
+            <SelectField label="Correspondence" value={form.correspondence_generator_config_name} options={schema.correspondence_generators} empty="Model default" onChange={(value) => set("correspondence_generator_config_name", value)} />
+            <SelectField label="Verifier" value={form.verifier_config_name} options={schema.verifiers} empty="Model default" onChange={(value) => set("verifier_config_name", value)} />
+            <TextField label="Frame lookahead" type="number" min="0" value={form.max_frame_lookahead} onChange={(value) => set("max_frame_lookahead", value)} placeholder="Model default" />
+            <TextField label="Matches per image" type="number" min="0" value={form.num_matched} onChange={(value) => set("num_matched", value)} placeholder="Model default" />
+          </div>
+          {capabilities.share_intrinsics && <Toggle id="shareIntrinsics" checked={form.share_intrinsics} onCheckedChange={(value) => set("share_intrinsics", value)}>Share camera intrinsics</Toggle>}
+          {hydraParametersLoading && <p className="configuration-unavailable"><RefreshCw className="spin" size={10} /> Loading the selected presets in the background…</p>}
+          {hydraParametersError && <p className="configuration-unavailable configuration-error">Could not load preset controls. {hydraParametersError} <button type="button" onClick={() => setHydraParametersRevision((value) => value + 1)}>Retry</button></p>}
+          {hydraParameters && <>
+            {hydraParameters.model.fields.length
+              ? <HydraFieldGroups fields={hydraParameters.model.fields} values={modelHydraOverrides} onChange={(key, value) => updateHydraOverride(setModelHydraOverrides, key, value)} />
+              : <p className="configuration-unavailable">The selected reconstruction preset has no additional safe scalar settings.</p>}
+            {form.splat_implementation === "gsplat" && <HydraFieldGroups fields={hydraParameters.gaussian.fields} values={splatHydraOverrides} onChange={(key, value) => updateHydraOverride(setSplatHydraOverrides, key, value)} />}
+          </>}
+          <Field label="Expert Hydra overrides" optional><textarea rows={4} value={form.advanced_overrides} onChange={(event) => set("advanced_overrides", event.target.value)} placeholder="One key=value override per line" /></Field>
+        </Collapsible.Content>
+      </Collapsible.Root>
+      {jsonConfigurationOpen && hydraParameters && <ConfigurationJsonDialog
+        parameters={hydraParameters}
+        model={modelHydraOverrides}
+        gaussian={splatHydraOverrides}
+        expert={form.advanced_overrides}
+        onApply={(configuration) => {
+          setModelHydraOverrides(configuration.model);
+          setSplatHydraOverrides(configuration.gaussian);
+          set("advanced_overrides", configuration.expert.join("\n"));
+        }}
+        onClose={() => setJsonConfigurationOpen(false)}
+      />}
     </Section>
     <Section number="03" title="Compute" subtitle="Run here or on a remote VM">
       <div className="segmented" id="computeTarget" role="group" aria-label="Execution target">
@@ -1446,7 +1713,7 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
       </div>}
     </Section>
     <Collapsible.Root className="advanced-options" open={advanced} onOpenChange={setAdvanced}>
-      <Collapsible.Trigger className="advanced-trigger"><span><SlidersHorizontal size={13} /><span className="advanced-trigger-copy">Advanced settings<small>{machineProfile.label}</small></span></span><ChevronDown size={14} /></Collapsible.Trigger>
+      <Collapsible.Trigger className="advanced-trigger"><span><Cpu size={13} /><span className="advanced-trigger-copy">Machine settings<small>{machineProfile.label}</small></span></span><ChevronDown size={14} /></Collapsible.Trigger>
       <Collapsible.Content className="advanced-content">
         <div className="machine-profile-summary">
           <div><span>MACHINE PROFILE</span><strong>{machineProfile.label}</strong></div>
@@ -1454,22 +1721,11 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
           <div className="machine-profile-specs"><span>{machineProfile.workers} worker{machineProfile.workers === 1 ? "" : "s"}</span><span>{machineProfile.threadsPerWorker} thread{machineProfile.threadsPerWorker === 1 ? "" : "s"} / worker</span><span>{machineProfile.memoryPerWorkerGiB} GB / worker</span></div>
         </div>
         <div className="form-grid">
-          <TextField label="Max resolution" type="number" min="1" value={form.max_resolution} onChange={(value) => set("max_resolution", value)} placeholder="Model default" />
           <TextField label="Workers" type="number" min="1" value={form.num_workers} onChange={(value) => set("num_workers", value)} disabled={!machineProfile.allowWorkers} title={!machineProfile.allowWorkers ? "Fixed for the selected single-GPU machine" : undefined} />
           <TextField label="Threads / worker" type="number" min="1" value={form.threads_per_worker} onChange={(value) => set("threads_per_worker", value)} disabled={!machineProfile.allowThreads} />
           <TextField label="Memory / worker" value={form.worker_memory_limit} onChange={(value) => set("worker_memory_limit", value)} disabled={!machineProfile.allowMemory} />
         </div>
         {!machineProfile.allowWorkers && <p className="advanced-machine-note">Worker count is locked because the selected machine exposes one GPU. Choose a CPU machine to distribute work across multiple workers.</p>}
-        <SelectField label="Graph partitioner" value={form.graph_partitioner} options={schema.graph_partitioners} empty="Model default" onChange={(value) => set("graph_partitioner", value)} />
-        <div className="form-grid">
-          <SelectField label="Global descriptor" value={form.global_descriptor_config_name} options={schema.global_descriptors} empty="Model default" onChange={(value) => set("global_descriptor_config_name", value)} />
-          <SelectField label="Image retriever" value={form.retriever_config_name} options={schema.retrievers} empty="Model default" onChange={(value) => set("retriever_config_name", value)} />
-          <SelectField label="Correspondence" value={form.correspondence_generator_config_name} options={schema.correspondence_generators} empty="Model default" onChange={(value) => set("correspondence_generator_config_name", value)} />
-          <SelectField label="Verifier" value={form.verifier_config_name} options={schema.verifiers} empty="Model default" onChange={(value) => set("verifier_config_name", value)} />
-          <TextField label="Frame lookahead" type="number" min="0" value={form.max_frame_lookahead} onChange={(value) => set("max_frame_lookahead", value)} placeholder="Model default" />
-          <TextField label="Matches / image" type="number" min="0" value={form.num_matched} onChange={(value) => set("num_matched", value)} placeholder="Model default" />
-        </div>
-        <Toggle id="shareIntrinsics" checked={form.share_intrinsics} disabled={!capabilities.share_intrinsics} onCheckedChange={(value) => set("share_intrinsics", value)}>Share camera intrinsics</Toggle>
         <div className="form-grid">
           <SelectField label="Log level" value={form.log} options={schema.log_levels} onChange={(value) => set("log", value)} />
           <TextField label="Dashboard port" value={form.dashboard_port} onChange={(value) => set("dashboard_port", value)} placeholder=":8787" disabled={!machineProfile.allowLocalRuntime} />
@@ -1478,7 +1734,6 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
           <TextField label="Cluster config" value={form.cluster_config} onChange={(value) => set("cluster_config", value)} placeholder="Optional YAML path" disabled={!machineProfile.allowLocalRuntime} />
           <TextField label="Cluster retries" type="number" min="0" value={form.num_retry_cluster_connection} onChange={(value) => set("num_retry_cluster_connection", value)} placeholder="3" disabled={!machineProfile.allowLocalRuntime} />
         </div>
-        <Field label="Hydra overrides"><textarea rows={4} value={form.advanced_overrides} onChange={(event) => set("advanced_overrides", event.target.value)} /></Field>
       </Collapsible.Content>
     </Collapsible.Root>
     <div className="form-error" role="alert">{error}</div>
