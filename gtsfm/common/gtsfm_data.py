@@ -940,20 +940,32 @@ class GtsfmData:
         return filtered_data, valid_mask
 
     def filter_landmark_measurements(
-        self, reproj_err_thresh: float = 5, min_track_length: int = 2, retain_cameras_without_tracks: bool = True
-    ) -> "GtsfmData":
+        self,
+        reproj_err_thresh: float = 5,
+        min_track_length: int = 2,
+        retain_cameras_without_tracks: bool = True,
+        return_valid_mask: bool = False,
+    ) -> Union["GtsfmData", Tuple["GtsfmData", List[bool]]]:
         """Filters out landmarks with high reprojection error
+
+        Unlike `filter_landmarks` (which drops a whole track if ANY measurement exceeds the
+        threshold), this trims the offending measurements per-track and keeps the track as long
+        as `min_track_length` measurements survive.
 
         Args:
             reproj_err_thresh: reprojection err threshold for each measurement.
+            min_track_length: minimum surviving measurements to keep a track.
+            retain_cameras_without_tracks: keep cameras even if all their measurements were filtered.
+            return_valid_mask: if True, also return a per-input-track bool list of which tracks survived.
 
         Returns:
-            New instance with filtered measurements/tracks.
+            New instance with filtered measurements/tracks (and the survival mask if requested).
         """
         # TODO: move this function to utils or GTSAM
         filtered_data = GtsfmData(self.number_images(), gaussian_splats=self._gaussian_splats)
         filtered_data._image_info = self._clone_image_info()
 
+        valid_mask: List[bool] = []
         for track in self._tracks:
             errors, _ = reprojection.compute_track_reprojection_errors(self._cameras, track)
             new_track = SfmTrack(track.point3())
@@ -967,7 +979,10 @@ class GtsfmData:
                 i, uv = track.measurement(k)
                 new_track.addMeasurement(i, uv)
                 track_cameras.add(i)
-            if len(track_cameras) < min_track_length:
+            # A track survives iff it retains >= min_track_length measurements below threshold.
+            survived = len(track_cameras) >= min_track_length
+            valid_mask.append(survived)
+            if not survived:
                 continue
             for i in track_cameras:
                 camera_i = self.get_camera(i)
@@ -989,6 +1004,8 @@ class GtsfmData:
                 filtered_data.add_camera(i, camera_i)
 
         filtered_data._pose_covariances = self._clone_pose_covariances(indices=filtered_data.get_valid_camera_indices())
+        if return_valid_mask:
+            return filtered_data, valid_mask
         return filtered_data
 
     def align_via_sim3_and_transform(self, aTi: dict[int, Pose3]) -> "GtsfmData":

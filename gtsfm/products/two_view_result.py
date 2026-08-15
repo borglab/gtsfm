@@ -39,6 +39,8 @@ class TwoViewResult:
     post_isp_report: Optional[TwoViewEstimationReport]
     relative_pose_prior: Optional[PosePrior] = None
     putative_corr_idxs: Optional[np.ndarray] = None
+    i2Fi1: Optional[np.ndarray] = None  # verifier's native fundamental matrix (or None)
+    config: Optional[int] = None  # two-view-geometry config (CALIBRATED=2/UNCALIBRATED=3/PLANAR=4/...) or None
 
     def valid(self) -> bool:
         """Check if both i2Ri1 and i2Ui1 are not None."""

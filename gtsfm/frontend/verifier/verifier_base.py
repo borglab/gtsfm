@@ -60,8 +60,8 @@ class VerifierBase(GTSFMProcess):
         self._min_matches = (
             NUM_MATCHES_REQ_E_MATRIX if self._use_intrinsics_in_verification else NUM_MATCHES_REQ_F_MATRIX
         )
-        # represents i2Ri1=None, i2Ui1=None, v_corr_idxs is an empty array, and inlier_ratio_est_model is 0.0
-        self._failure_result = (None, None, np.array([], dtype=np.uint64), 0.0)
+        # i2Ri1=None, i2Ui1=None, empty v_corr_idxs, inlier_ratio=0.0, i2Fi1=None
+        self._failure_result = (None, None, np.array([], dtype=np.uint64), 0.0, None, None)
 
     @abc.abstractmethod
     def verify(
@@ -71,7 +71,7 @@ class VerifierBase(GTSFMProcess):
         match_indices: np.ndarray,
         camera_intrinsics_i1: CALIBRATION_TYPE,
         camera_intrinsics_i2: CALIBRATION_TYPE,
-    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray, float]:
+    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray, float, Optional[np.ndarray], Optional[int]]:
         """Performs verification of correspondences between two images to recover the relative pose and indices of
         verified correspondences.
 
@@ -87,4 +87,7 @@ class VerifierBase(GTSFMProcess):
             Estimated unit translation i2Ui1, or None if it cannot be estimated.
             Indices of verified correspondences, of shape (N, 2) with N <= N3. These are subset of match_indices.
             Inlier ratio of w.r.t. the estimated model, i.e. the #final RANSAC inliers/ #putatives.
+            Focal-independent fundamental matrix i2Fi1 (3x3), or None if not estimated. Subclasses that do not
+                compute it return None.
+            Two-view configuration type `config` (int enum, e.g. planar/uncalibrated), or None if not classified.
         """

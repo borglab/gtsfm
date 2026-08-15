@@ -393,7 +393,7 @@ class TwoViewEstimator(DaskDBModuleBase):
         start_time = time.time()
 
         # verification on putative correspondences to obtain relative pose and verified correspondences
-        (pre_ba_i2Ri1, pre_ba_i2Ui1, pre_ba_v_corr_idxs, pre_ba_inlier_ratio_wrt_estimate) = self._verifier.verify(
+        (pre_ba_i2Ri1, pre_ba_i2Ui1, pre_ba_v_corr_idxs, pre_ba_inlier_ratio_wrt_estimate, pre_ba_i2Fi1, pre_ba_config) = self._verifier.verify(
             keypoints_i1,
             keypoints_i2,
             putative_corr_idxs,
@@ -412,6 +412,10 @@ class TwoViewEstimator(DaskDBModuleBase):
             gt_camera_i2=gt_camera_i2,
             gt_scene_mesh=gt_scene_mesh,
         )
+
+        # Note: Track quality filtering (epipole + cheirality + angle) is now done as a separate
+        # F-matrix re-scoring pass in multi_view_optimizer.py, using intrinsic-independent F-matrix
+        # Sampson error. This is more robust than the E-matrix based filtering that was here before.
 
         # Optionally, do two-view bundle adjustment
         if self._bundle_adjust_2view and len(pre_ba_v_corr_idxs) >= self.processor._min_num_inliers_est_model:
@@ -483,6 +487,8 @@ class TwoViewEstimator(DaskDBModuleBase):
             post_isp_report=post_isp_report,
             putative_corr_idxs=putative_corr_idxs,
             relative_pose_prior=i2Ti1_prior,
+            i2Fi1=pre_ba_i2Fi1,
+            config=pre_ba_config,
         )
 
     def store_computation_results(

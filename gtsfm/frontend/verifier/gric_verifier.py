@@ -81,7 +81,7 @@ class GricVerifier(VerifierBase):
         )
 
         # for failure, i2Ri1 = None, and i2Ui1 = None, and no verified correspondences, and inlier_ratio_est_model = 0
-        self._failure_result = (None, None, np.array([], dtype=np.uint64), 0.0)
+        self._failure_result = (None, None, np.array([], dtype=np.uint64), 0.0, None, None)
 
     def __estimate_two_view_geometry(
         self,
@@ -121,7 +121,7 @@ class GricVerifier(VerifierBase):
         match_indices: np.ndarray,
         camera_intrinsics_i1: CALIBRATION_TYPE,
         camera_intrinsics_i2: CALIBRATION_TYPE,
-    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray, float]:
+    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray, float, Optional[np.ndarray], Optional[int]]:
         """Performs verification of correspondences between two images to recover the relative pose and indices of
         verified correspondences.
 
@@ -164,4 +164,6 @@ class GricVerifier(VerifierBase):
         i2Ri1 = Rot3(qw, qx, qy, qz)
         i2Ui1 = Unit3(i2Ui1)
 
-        return i2Ri1, i2Ui1, v_corr_idxs, inlier_ratio_est_model
+        # i2Fi1 and config are returned as None: GRIC is retained only for interface
+        # conformance (the pipeline uses PoseLibVerifier). No fundamental matrix is plumbed.
+        return i2Ri1, i2Ui1, v_corr_idxs, inlier_ratio_est_model, None, None

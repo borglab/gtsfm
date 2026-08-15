@@ -44,6 +44,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         two_view_rotation_sigma: float = _DEFAULT_TWO_VIEW_ROTATION_SIGMA,
         weight_by_inliers: bool = True,
         use_chordal_init: bool = True,
+        chordal_only: bool = False,
     ) -> None:
         """Initializes module.
 
@@ -53,6 +54,12 @@ class ShonanRotationAveraging(RotationAveragingBase):
             two_view_rotation_sigma: Covariance to use (lower values -> more strictly adhere to input measurements).
             weight_by_inliers: Whether to weight pairwise costs according to an uncertainty equal to the inverse number
                 of inlier correspondences per edge.
+            use_chordal_init: If True, initialize Shonan with chordal init (deterministic). If False, random init.
+            chordal_only: If True, SKIP Shonan's SDP iteration entirely. Build chordal init, then refine with a
+                robust LM solve using Geman-McClure (GLOMAP's `weight_type = GEMAN_MCCLURE`,
+                `irls_loss_parameter_sigma = 5.0` deg, `max_num_irls_iterations = 100`, see
+                colmap/src/colmap/estimators/rotation_averaging.h). Use when Shonan hangs on hard graphs (e.g.
+                Pantheon's repetitive colonnade causes rank escalation). Default False (use Shonan).
         """
         super().__init__()
         self._two_view_rotation_sigma = two_view_rotation_sigma
@@ -60,6 +67,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         self._p_max = 64
         self._weight_by_inliers = weight_by_inliers
         self._use_chordal_init = use_chordal_init
+        self._chordal_only = chordal_only
 
     def __get_shonan_params(self) -> ShonanAveragingParameters3:
         lm_params = LevenbergMarquardtParams.CeresDefaults()
@@ -139,6 +147,9 @@ class ShonanRotationAveraging(RotationAveragingBase):
                 not be computed (either underconstrained system or ill-constrained system).
         """
 
+        if self._chordal_only:
+            return self._run_chordal_only(measurements, num_connected_nodes)
+
         logger.info(
             "Running Shonan with %d constraints on %d nodes",
             len(measurements),
@@ -165,6 +176,67 @@ class ShonanRotationAveraging(RotationAveragingBase):
             if result.exists(i):
                 wRi_list_consecutive[i] = result.atRot3(i)
 
+        return wRi_list_consecutive
+
+    def _run_chordal_only(
+        self, measurements: gtsam.BinaryMeasurementsRot3, num_connected_nodes: int
+    ) -> List[Optional[Rot3]]:
+        """GLOMAP-style RA fallback: chordal init + Geman-McClure robust LM refinement.
+
+        Skips Shonan's SDP iteration entirely. Used when Shonan hangs on hard graphs (Pantheon-class).
+        Settings mirror GLOMAP's defaults from colmap/src/colmap/estimators/rotation_averaging.h:
+          * weight_type = GEMAN_MCCLURE
+          * irls_loss_parameter_sigma = 5.0 deg
+          * max_num_irls_iterations = 100
+          * irls_step_convergence_threshold = 0.001
+        """
+        logger.info(
+            "Chordal-only RA (Shonan skipped): %d constraints on %d nodes — "
+            "chordal init → Geman-McClure LM refinement",
+            len(measurements), num_connected_nodes,
+        )
+        # No relative-rotation constraints survive (e.g. every edge was filtered out): there is nothing
+        # to initialize or anchor, so return all-None rather than crashing in chordal init / the prior.
+        if len(measurements) == 0:
+            logger.warning("Chordal-only RA: no measurements to optimize; returning all-None orientations.")
+            return [None] * num_connected_nodes
+
+        # Step 1: chordal init. Returns gtsam.Values containing Rot3 (orientations only).
+        initial = self.chordal_initialize(measurements)
+
+        # Step 2: build a robust Rot3-only factor graph for refinement. Geman-McClure
+        # m-estimator on an isotropic base noise (sigma = 5° in radians) — matches GLOMAP's
+        # irls_loss_parameter_sigma.
+        sigma_rad = float(np.deg2rad(5.0))
+        base_noise = gtsam.noiseModel.Isotropic.Sigma(ROT3_DOF, sigma_rad)
+        gm = gtsam.noiseModel.mEstimator.GemanMcClure.Create(1.0)
+        robust_noise = gtsam.noiseModel.Robust.Create(gm, base_noise)
+
+        graph = gtsam.NonlinearFactorGraph()
+        anchor_key = None
+        for m in measurements:
+            if anchor_key is None:
+                anchor_key = m.key1()
+            graph.add(gtsam.BetweenFactorRot3(m.key1(), m.key2(), m.measured(), robust_noise))
+        # Anchor the gauge with a tight prior on the first node.
+        anchor_noise = gtsam.noiseModel.Isotropic.Sigma(ROT3_DOF, 1e-6)
+        graph.add(gtsam.PriorFactorRot3(anchor_key, Rot3(), anchor_noise))
+
+        # Step 3: LM with iteration cap matching GLOMAP's max_num_irls_iterations.
+        lm_params = gtsam.LevenbergMarquardtParams.CeresDefaults()
+        lm_params.setMaxIterations(100)
+        lm_params.setRelativeErrorTol(1e-3)  # GLOMAP's irls_step_convergence_threshold
+        try:
+            optimizer = gtsam.LevenbergMarquardtOptimizer(graph, initial, lm_params)
+            result = optimizer.optimize()
+        except RuntimeError as e:
+            logger.warning("Chordal-only LM refinement failed (%s); returning chordal init only.", e)
+            result = initial
+
+        wRi_list_consecutive: list[None | Rot3] = [None] * num_connected_nodes
+        for i in range(num_connected_nodes):
+            if result.exists(i):
+                wRi_list_consecutive[i] = result.atRot3(i)
         return wRi_list_consecutive
 
     def _nodes_with_edges(

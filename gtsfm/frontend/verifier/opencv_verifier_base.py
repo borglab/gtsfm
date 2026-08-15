@@ -41,7 +41,7 @@ class OpencvVerifierBase(VerifierBase):
         )
 
         # for failure, i2Ri1 = None, and i2Ui1 = None, and no verified correspondences, and inlier_ratio_est_model = 0
-        self._failure_result = (None, None, np.array([], dtype=np.uint64), 0.0)
+        self._failure_result = (None, None, np.array([], dtype=np.uint64), 0.0, None, None)
 
     def verify(
         self,
@@ -50,7 +50,7 @@ class OpencvVerifierBase(VerifierBase):
         match_indices: np.ndarray,
         camera_intrinsics_i1: CALIBRATION_TYPE,
         camera_intrinsics_i2: CALIBRATION_TYPE,
-    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray, float]:
+    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray, float, Optional[np.ndarray], Optional[int]]:
         """Performs verification of correspondences between two images to recover the relative pose and indices of
         verified correspondences.
 
@@ -70,6 +70,7 @@ class OpencvVerifierBase(VerifierBase):
         if match_indices.shape[0] < self._min_matches:
             return self._failure_result
 
+        i2Fi1 = None  # native fundamental matrix (set in the F-estimation branch)
         if self._use_intrinsics_in_verification:
             uv_norm_i1 = feature_utils.normalize_coordinates(keypoints_i1.coordinates, camera_intrinsics_i1)
             uv_norm_i2 = feature_utils.normalize_coordinates(keypoints_i2.coordinates, camera_intrinsics_i2)
@@ -107,7 +108,7 @@ class OpencvVerifierBase(VerifierBase):
             camera_intrinsics_i1,
             camera_intrinsics_i2,
         )
-        return i2Ri1, i2Ui1, v_corr_idxs, inlier_ratio_est_model
+        return i2Ri1, i2Ui1, v_corr_idxs, inlier_ratio_est_model, i2Fi1, None
 
     @abc.abstractmethod
     def estimate_E(

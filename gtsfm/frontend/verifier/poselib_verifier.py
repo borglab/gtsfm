@@ -25,6 +25,12 @@ from gtsfm.frontend.verifier.verifier_base import VerifierBase
 logger = logger_utils.get_logger()
 
 
+# pycolmap two-view ConfigurationType values we emit (see gric_verifier.ConfigurationType).
+_UNCALIBRATED_CONFIG = 3  # F-model -> plumbed to the closed-form Fetzer
+_PLANAR_CONFIG = 6  # PLANAR_OR_PANORAMIC -> excluded from Fetzer (degenerate F)
+_MAX_H_INLIER_RATIO = 0.8  # COLMAP EstimateTwoViewGeometry model selection threshold
+
+
 class PoseLibVerifier(VerifierBase):
     """Verifier using PoseLib's estimate_relative_pose with 5-point solver + LO-RANSAC + local BA.
 
@@ -36,10 +42,17 @@ class PoseLibVerifier(VerifierBase):
         estimation_threshold_px: float = 2.0,
         max_iterations: int = 100000,
         confidence: float = 0.999999,
+        estimate_calibration_geometry: bool = False,
     ) -> None:
         super().__init__(use_intrinsics_in_verification=True, estimation_threshold_px=estimation_threshold_px)
         self._max_iterations = max_iterations
         self._confidence = confidence
+        # When True, also estimate F (for Fetzer) + config (planar gate) directly from PoseLib.
+        self._estimate_calibration_geometry = estimate_calibration_geometry
+
+    def __repr__(self) -> str:
+        # Only extend the repr when the flag is on, so other configs' two-view caches stay valid.
+        return super().__repr__() + ("_calibgeom" if self._estimate_calibration_geometry else "")
 
     def _cal3bundler_to_poselib_camera(self, K: CALIBRATION_TYPE, width: int, height: int) -> poselib.Camera:
         """Convert GTSAM calibration to PoseLib Camera."""
@@ -83,7 +96,7 @@ class PoseLibVerifier(VerifierBase):
         match_indices: np.ndarray,
         camera_intrinsics_i1: CALIBRATION_TYPE,
         camera_intrinsics_i2: CALIBRATION_TYPE,
-    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray, float]:
+    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray, float, Optional[np.ndarray], Optional[int]]:
         """Estimate relative pose using PoseLib's 5-point solver with LO-RANSAC."""
         if match_indices.shape[0] < self._min_matches:
             return self._failure_result
@@ -139,4 +152,38 @@ class PoseLibVerifier(VerifierBase):
         v_corr_idxs = match_indices[inlier_idxs]
         inlier_ratio = float(inlier_mask.sum()) / len(inlier_mask)
 
-        return i2Ri1, i2Ui1, v_corr_idxs, inlier_ratio
+        if not self._estimate_calibration_geometry:
+            return i2Ri1, i2Ui1, v_corr_idxs, inlier_ratio, None, None
+
+        # Focal-INDEPENDENT F (for the closed-form Fetzer) + planar/uncalibrated config, both from
+        # PoseLib. F is estimated directly from the 2D correspondences (NOT K2^-T E K1^-1 from the
+        # calibrated essential, which would be focal-dependent -> circular Fetzer residual).
+        i2Fi1, config = self._estimate_fundamental_and_config(pts1, pts2)
+        return i2Ri1, i2Ui1, v_corr_idxs, inlier_ratio, i2Fi1, config
+
+    def _estimate_fundamental_and_config(
+        self, pts1: np.ndarray, pts2: np.ndarray
+    ) -> Tuple[Optional[np.ndarray], Optional[int]]:
+        """PoseLib estimate_fundamental (focal-independent F) + H/F-inlier-ratio config classification.
+
+        Mirrors COLMAP's EstimateTwoViewGeometry model selection: PLANAR if the homography explains
+        nearly as many correspondences as the fundamental matrix (n_H > 0.8 * n_F), else UNCALIBRATED.
+        Returns (None, None) on failure so the pair is kept as an edge but excluded from Fetzer.
+        """
+        thr = self._estimation_threshold_px
+        try:
+            F, f_info = poselib.estimate_fundamental(pts1, pts2, {"max_epipolar_error": thr}, {})
+        except Exception as e:  # pragma: no cover - defensive
+            logger.debug("PoseLib estimate_fundamental failed: %s", e)
+            return None, None
+        F = np.asarray(F, dtype=np.float64)
+        if F.shape != (3, 3) or not np.all(np.isfinite(F)) or np.allclose(F, 0.0):
+            return None, None
+        n_F = int(f_info.get("num_inliers", 0))
+        try:
+            _, h_info = poselib.estimate_homography(pts1, pts2, {"max_reproj_error": thr}, {})
+            n_H = int(h_info.get("num_inliers", 0))
+        except Exception:  # pragma: no cover - defensive
+            n_H = 0
+        config = _PLANAR_CONFIG if n_H > _MAX_H_INLIER_RATIO * max(n_F, 1) else _UNCALIBRATED_CONFIG
+        return F, config

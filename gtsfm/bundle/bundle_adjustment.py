@@ -821,7 +821,13 @@ class BundleAdjustmentOptimizer:
         if reproj_error_thresh is not None:
             if verbose:
                 logger.info("[Result] Number of tracks before filtering: %d", optimized_data.number_tracks())
-            filtered_result, postfilter_valid_mask = optimized_data.filter_landmarks(reproj_error_thresh)
+            # Per-MEASUREMENT trim (keep long tracks by dropping only the offending observations,
+            # instead of deleting the whole track when any one measurement exceeds the threshold).
+            filtered_result, postfilter_valid_mask = optimized_data.filter_landmark_measurements(
+                reproj_err_thresh=reproj_error_thresh,
+                min_track_length=self._min_track_length,
+                return_valid_mask=True,
+            )
             if verbose:
                 logger.info("[Result] Number of tracks after filtering: %d", filtered_result.number_tracks())
 
