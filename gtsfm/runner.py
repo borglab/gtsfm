@@ -115,6 +115,28 @@ def _publish_dask_stats(client: Client, stop: threading.Event, path: Path) -> No
         stop.wait(1.0)
 
 
+def _shutdown_dask_client(client: Client) -> None:
+    """Release a Dask cluster without letting teardown mask the pipeline result.
+
+    Distributed can time out while joining a worker that it has already
+    terminated. At that point reconstruction is over and raising the teardown
+    timeout would incorrectly mark a successful run as failed (or hide the
+    original pipeline exception). Make one short best-effort close after a
+    failed graceful shutdown and report cleanup problems as warnings only.
+    """
+
+    try:
+        client.shutdown()
+        return
+    except Exception as exc:  # cleanup must not replace the pipeline outcome
+        logger.warning("Dask shutdown did not finish cleanly; forcing the client closed: %s", exc)
+
+    try:
+        client.close(timeout=2)
+    except Exception as exc:  # the containing process will release remaining children
+        logger.warning("Dask client force-close did not finish before process exit: %s", exc)
+
+
 class GtsfmRunner:
     def __init__(self, override_args=None) -> None:
         argparser: argparse.ArgumentParser = self.construct_argparser()
@@ -590,7 +612,7 @@ class GtsfmRunner:
             if stats_thread is not None:
                 stats_thread.join(timeout=2)
             logger.info("🌟 GTSFM: Shutting down Dask client...")
-            client.shutdown()
+            _shutdown_dask_client(client)
 
 
 if __name__ == "__main__":
