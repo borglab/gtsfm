@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import hashlib
 import hmac
 import json
 import os
@@ -40,7 +39,7 @@ from visualization.samples import SampleDownloadError, prepare_sample, sample_ca
 PACKAGE_ROOT = Path(__file__).resolve().parent
 STATIC_ROOT = PACKAGE_ROOT / "static"
 TEMPLATE_ROOT = PACKAGE_ROOT / "templates"
-SPLAT_EXPORT_FORMATS = {"ply", "spz"}
+SPLAT_EXPORT_FORMATS = {"ply"}
 IMAGE_SUFFIXES = {".avif", ".bmp", ".heic", ".heif", ".jpeg", ".jpg", ".png", ".tif", ".tiff", ".webp"}
 
 
@@ -270,8 +269,8 @@ def _download_filename(value: str) -> str:
     return safe.strip("-._") or "gaussian-splats"
 
 
-def _export_splat(source: Path, export_root: Path, export_format: str, name: str) -> FileResponse:
-    """Return a PLY directly or convert it to a cached SPZ export."""
+def _export_splat(source: Path, export_format: str, name: str) -> FileResponse:
+    """Return a saved Gaussian-splat PLY."""
 
     normalized_format = export_format.lower().lstrip(".")
     if normalized_format not in SPLAT_EXPORT_FORMATS:
@@ -279,36 +278,8 @@ def _export_splat(source: Path, export_root: Path, export_format: str, name: str
     if not source.is_file() or source.suffix.lower() != ".ply":
         raise HTTPException(status_code=404, detail="Gaussian splat PLY was not found")
 
-    filename = f"{_download_filename(name)}.{normalized_format}"
-    if normalized_format == "ply":
-        return FileResponse(source, media_type="application/octet-stream", filename=filename)
-
-    source_stat = source.stat()
-    cache_key = hashlib.sha256(
-        f"{source.resolve()}:{source_stat.st_mtime_ns}:{source_stat.st_size}".encode("utf-8")
-    ).hexdigest()[:20]
-    export_root.mkdir(parents=True, exist_ok=True)
-    destination = export_root / f"{cache_key}.spz"
-    if not destination.exists():
-        temporary = export_root / f".{cache_key}-{uuid.uuid4().hex}.spz"
-        try:
-            import spz
-
-            unpack_options = spz.UnpackOptions()
-            unpack_options.to_coord = spz.CoordinateSystem.RUB
-            cloud = spz.load_splat_from_ply(str(source), unpack_options)
-            if cloud.num_points <= 0:
-                raise ValueError("The PLY contains no Gaussian splats")
-            pack_options = spz.PackOptions()
-            pack_options.from_coord = spz.CoordinateSystem.RUB
-            if not spz.save_spz(cloud, pack_options, str(temporary)):
-                raise ValueError("The SPZ encoder did not produce an export")
-            temporary.replace(destination)
-        except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
-            temporary.unlink(missing_ok=True)
-            raise HTTPException(status_code=500, detail=f"Unable to create SPZ export: {exc}") from exc
-
-    return FileResponse(destination, media_type="application/octet-stream", filename=filename)
+    filename = f"{_download_filename(name)}.ply"
+    return FileResponse(source, media_type="application/octet-stream", filename=filename)
 
 
 def _live_state(manager: JobManager, resolved_base: Path, job_id: str) -> dict[str, object]:
@@ -409,7 +380,7 @@ def create_app(base_dir: Path | str = "results") -> FastAPI:
             source.relative_to(resolved_base)
         except ValueError as exc:
             raise HTTPException(status_code=403, detail="Splat path is outside the results workspace") from exc
-        return _export_splat(source, manager.runtime_root / "exports", format, source.parent.name)
+        return _export_splat(source, format, source.parent.name)
 
     @app.get("/api/configuration")
     def get_configuration() -> dict[str, Any]:
@@ -602,7 +573,7 @@ def create_app(base_dir: Path | str = "results") -> FastAPI:
         final_files = sorted(Path(job.output_root).rglob("gaussian_splats.ply"))
         if not final_files:
             raise HTTPException(status_code=404, detail="This run has no Gaussian splat result")
-        return _export_splat(final_files[0], manager.runtime_root / "exports", format, job.name)
+        return _export_splat(final_files[0], format, job.name)
 
     @app.get("/api/jobs/{job_id}", dependencies=[Depends(require_api_key)])
     def get_job(job_id: str) -> dict[str, Any]:

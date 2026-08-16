@@ -49,7 +49,7 @@ RUN uv export \
         --python /usr/local/bin/python \
         --requirements /tmp/gtsfm-runtime-requirements.txt \
     && rm /tmp/gtsfm-runtime-requirements.txt \
-    && python -c "import fastapi, gsplat, gtsam, spz, torch; print(torch.__version__)"
+    && python -c "import fastapi, gsplat, gtsam, torch; print(torch.__version__)"
 
 ENV HF_HOME=/workspace/cache/huggingface \
     TORCH_HOME=/workspace/cache/torch \
