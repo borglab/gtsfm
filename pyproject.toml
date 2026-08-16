@@ -106,7 +106,6 @@ dependencies = [
     "e3nn",
     "colorspacious",
     "plyfile",
-    "spz>=1.1.0",
     "imageio==2.37.0",
     "imageio-ffmpeg",
     "visu3d==1.5.3",
@@ -161,7 +160,6 @@ dev = [
 # Dependency Sources
 # ============================================================================
 [tool.uv.sources]
-spz = { git = "https://github.com/nianticlabs/spz.git", tag = "v3.0.0" }
 gtsam-develop = [
     { url = "https://files.pythonhosted.org/packages/d3/f0/ef174952c8ee654536b7e03d82196a8b35f2ffc00755e125a2b1fbe113c7/gtsam_develop-4.3a1.dev202604240153-cp312-cp312-macosx_10_15_universal2.whl", marker = "sys_platform == 'darwin'" },
     { url = "https://files.pythonhosted.org/packages/d0/e7/902fe4fb7d8f97801047298eec75c3f65900c288462d06398358b3799b3a/gtsam_develop-4.3a1.dev202604240153-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },

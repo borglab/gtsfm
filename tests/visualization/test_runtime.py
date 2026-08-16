@@ -6,9 +6,7 @@ import threading
 from io import BytesIO
 from pathlib import Path
 
-import numpy as np
 import pytest
-import spz
 from fastapi.testclient import TestClient
 from PIL import Image
 
@@ -40,17 +38,36 @@ def _cuda_hardware() -> dict:
 
 
 def _write_test_splat(path: Path) -> None:
-    """Write one valid Gaussian using the same official SPZ library as exports."""
+    """Write one valid Gaussian-splat PLY without an external encoder."""
 
-    cloud = spz.GaussianCloud()
-    cloud.positions = np.array([0.0, 0.0, 0.0], dtype=np.float32)
-    cloud.scales = np.array([0.0, 0.0, 0.0], dtype=np.float32)
-    cloud.rotations = np.array([0.0, 0.0, 0.0, 1.0], dtype=np.float32)
-    cloud.alphas = np.array([0.0], dtype=np.float32)
-    cloud.colors = np.array([0.0, 0.0, 0.0], dtype=np.float32)
-    cloud.sh_degree = 0
     path.parent.mkdir(parents=True, exist_ok=True)
-    assert spz.save_splat_to_ply(cloud, spz.PackOptions(), str(path))
+    path.write_text(
+        "\n".join(
+            [
+                "ply",
+                "format ascii 1.0",
+                "element vertex 1",
+                "property float x",
+                "property float y",
+                "property float z",
+                "property float f_dc_0",
+                "property float f_dc_1",
+                "property float f_dc_2",
+                "property float opacity",
+                "property float scale_0",
+                "property float scale_1",
+                "property float scale_2",
+                "property float rot_0",
+                "property float rot_1",
+                "property float rot_2",
+                "property float rot_3",
+                "end_header",
+                "0 0 0 0 0 0 0 0 0 0 1 0 0 0",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
 
 
 def test_configuration_schema_defaults_to_vggt() -> None:
@@ -196,7 +213,7 @@ def test_workspace_api_and_scene_discovery(tmp_path: Path) -> None:
     assert samples["lund-door"]["source_url"].startswith("https://github.com/borglab/gtsfm/")
 
 
-def test_workspace_exports_saved_splat_as_ply_and_spz(tmp_path: Path) -> None:
+def test_workspace_exports_saved_splat_as_ply(tmp_path: Path) -> None:
     source = tmp_path / "example" / "gaussian_splats.ply"
     _write_test_splat(source)
     client = TestClient(create_app(tmp_path))
@@ -205,17 +222,6 @@ def test_workspace_exports_saved_splat_as_ply_and_spz(tmp_path: Path) -> None:
     assert ply_response.status_code == 200
     assert '.ply"' in ply_response.headers["content-disposition"]
     assert ply_response.content.startswith(b"ply\n")
-
-    spz_response = client.get("/api/splats/export", params={"path": "example/gaussian_splats.ply", "format": "spz"})
-    assert spz_response.status_code == 200
-    assert '.spz"' in spz_response.headers["content-disposition"]
-    assert spz_response.content.startswith(b"NGSP")
-    exported = tmp_path / "exported.spz"
-    exported.write_bytes(spz_response.content)
-    assert spz.load_spz(str(exported), spz.UnpackOptions()).num_points == 1
-
-    cached_response = client.get("/api/splats/export", params={"path": "example/gaussian_splats.ply", "format": "spz"})
-    assert cached_response.content == spz_response.content
 
 
 def test_completed_job_exposes_splat_download(tmp_path: Path) -> None:
@@ -241,9 +247,9 @@ def test_completed_job_exposes_splat_download(tmp_path: Path) -> None:
     live = client.get("/api/jobs/finished-job/live")
     assert live.status_code == 200
     assert live.json()["final_url"].endswith("/runs/finished/gaussian_splats.ply")
-    response = client.get("/api/jobs/finished-job/splat", params={"format": "spz"})
+    response = client.get("/api/jobs/finished-job/splat", params={"format": "ply"})
     assert response.status_code == 200
-    assert response.content.startswith(b"NGSP")
+    assert response.content.startswith(b"ply\n")
 
 
 def test_live_job_exposes_dask_worker_status(tmp_path: Path) -> None:
@@ -298,6 +304,8 @@ def test_workspace_rejects_invalid_splat_exports(tmp_path: Path) -> None:
 
     unsupported = client.get("/api/splats/export", params={"path": source.name, "format": "obj"})
     assert unsupported.status_code == 400
+    removed_spz = client.get("/api/splats/export", params={"path": source.name, "format": "spz"})
+    assert removed_spz.status_code == 400
     traversal = client.get("/api/splats/export", params={"path": "../gaussian_splats.ply", "format": "ply"})
     assert traversal.status_code == 403
 

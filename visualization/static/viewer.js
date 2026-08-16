@@ -1418,7 +1418,7 @@ async function boot() {
         const finalFolderName = item.rel_path.split('/').pop() || item.label;
         const exportControls = item.splat_rel_path ? `
               <div class="result-splat-download" data-export-path="${encodeURIComponent(item.splat_rel_path)}">
-                <select aria-label="Splat download format"><option value="ply">.PLY</option><option value="spz">.SPZ</option></select>
+                <span class="splat-format-label">.PLY</span>
                 <a href="/api/splats/export?path=${encodeURIComponent(item.splat_rel_path)}&format=ply" download>Download</a>
               </div>` : "";
         html += `
@@ -1470,12 +1470,6 @@ async function boot() {
       const exportControls = el.querySelector(".result-splat-download");
       if (exportControls) {
         exportControls.addEventListener("click", (event) => event.stopPropagation());
-        const formatSelect = exportControls.querySelector("select");
-        const downloadLink = exportControls.querySelector("a");
-        formatSelect?.addEventListener("change", () => {
-          const path = exportControls.dataset.exportPath;
-          downloadLink.href = `/api/splats/export?path=${path}&format=${encodeURIComponent(formatSelect.value)}`;
-        });
       }
       el.onclick = async () => {
         if (viewer.isBusy()) return;
