@@ -42,8 +42,7 @@ EXCLUDES = [
 
 RUNTIME_ENV = {
     # Modal's Python layer can leave CC/CXX pointing at clang even though the
-    # source-build image installs GCC. Native dependencies such as spz need an
-    # explicit compiler selection.
+    # The source-build image uses an explicit compiler selection for native dependencies.
     "CC": "/usr/bin/gcc",
     "CXX": "/usr/bin/g++",
     "HF_HOME": "/workspace/cache/huggingface",

@@ -256,7 +256,6 @@ def setup_status(results_root: Path) -> dict[str, Any]:
         "gtsam": "GTSAM",
         "torch": "PyTorch",
         "fastapi": "FastAPI",
-        "spz": "SPZ exporter",
     }
     missing_modules = [label for module, label in required_modules.items() if importlib.util.find_spec(module) is None]
     add_check(

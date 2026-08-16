@@ -35,7 +35,7 @@ uv tool install .
 gtsfm run
 ```
 
-You can use `pip install .` instead of `uv tool install .` inside a Python 3.12 environment. The browser opens automatically and provides dataset, model, splat implementation, hardware, and advanced configuration controls. Input can be supplied by dragging in your own folder or selecting a curated GTSFM GitHub sample; sample scenes automatically apply the matching loader and recommended settings and are cached after their first download. The workspace also manages runs, shows logs, visualizes iterative Gaussian optimization, and opens final reconstructions in the built-in 3D viewer. Completed splats can be downloaded as the original `.ply` or as a compressed `.spz` file from either Activity or Results.
+You can use `pip install .` instead of `uv tool install .` inside a Python 3.12 environment. The browser opens automatically and provides dataset, model, splat implementation, hardware, and advanced configuration controls. Input can be supplied by dragging in your own folder or selecting a curated GTSFM GitHub sample; sample scenes automatically apply the matching loader and recommended settings and are cached after their first download. The workspace also manages runs, shows logs, visualizes iterative Gaussian optimization, and opens final reconstructions in the built-in 3D viewer. Completed splats can be downloaded as `.ply` files from either Activity or Results.
 
 The equivalent terminal workflow remains available:
 
@@ -69,7 +69,7 @@ GTSFM_API_KEY=your-secret gtsfm run --host 0.0.0.0 --no-browser
 
 Choose **Remote VM** in the workspace, then select an API or SSH connection. Modal is the first hosted API option: enter its token ID and token secret separately, or paste the full `modal token set --token-id … --token-secret …` command into either field and the workspace will split it automatically. If the account does not already have a GTSFM deployment, click **Set up & deploy Modal workspace**. GTSFM pulls the configured prebuilt Docker Hub runtime, then deploys the protected `gtsfm-studio` web app and persistent `gtsfm-studio-data` volume, discovers its URL, and verifies the selected GPU. If no prebuilt image is configured, setup builds the dependency image in Modal.
 
-The prebuilt runtime contains the stable CUDA and Python dependency layers but no repository source or model weights. Normal GTSFM and UI changes are mounted after the image layer and therefore do not reinstall PyTorch, CUDA libraries, or `spz`. Publish it manually to a public Docker Hub repository using Modal's fast-pull eStargz format:
+The prebuilt runtime contains the stable CUDA and Python dependency layers but no repository source or model weights. Normal GTSFM and UI changes are mounted after the image layer and therefore do not reinstall PyTorch or CUDA libraries. Publish it manually to a public Docker Hub repository using Modal's fast-pull eStargz format:
 
 ```bash
 docker login
