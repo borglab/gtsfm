@@ -2003,15 +2003,16 @@ input[type="checkbox"] {
   margin-top: 7px;
 }
 
-.result-splat-download select {
+.result-splat-download .splat-format-label {
+  display: grid;
   width: 61px;
   min-height: 27px;
+  place-items: center;
   border: 1px solid var(--line-dark);
   border-right: 0;
   border-radius: 2px 0 0 2px;
-  padding: 4px 20px 4px 7px !important;
+  padding: 4px 7px;
   background-color: var(--paper-raised);
-  background-position: calc(100% - 11px) 11px, calc(100% - 7px) 11px !important;
   color: var(--ink);
   font: 8px "SFMono-Regular", Consolas, monospace;
 }
@@ -2029,7 +2030,6 @@ input[type="checkbox"] {
   text-decoration: none;
 }
 
-.result-splat-download select:hover,
 .result-splat-download a:hover {
   border-color: var(--ink);
 }
@@ -2456,16 +2456,16 @@ input[type="checkbox"] {
   min-height: 31px;
 }
 
-.splat-download select {
+.splat-download .splat-format-label {
+  display: grid;
   width: 62px;
   min-height: 31px;
+  place-items: center;
   border: 1px solid #484c4e;
   border-right: 0;
   border-radius: 2px 0 0 2px;
-  padding: 5px 21px 5px 7px !important;
-  outline: none;
+  padding: 5px 7px;
   background-color: transparent;
-  background-position: calc(100% - 11px) 13px, calc(100% - 7px) 13px !important;
   color: #d1d2cd;
   font-family: "SFMono-Regular", Consolas, monospace;
   font-size: 8px;
@@ -2486,8 +2486,6 @@ input[type="checkbox"] {
   text-decoration: none;
 }
 
-.splat-download select:hover,
-.splat-download select:focus,
 .splat-download a:hover {
   border-color: #707476;
   color: #fff;
@@ -2498,11 +2496,10 @@ input[type="checkbox"] {
   min-height: 27px;
 }
 
-.splat-download.compact select {
+.splat-download.compact .splat-format-label {
   min-height: 27px;
   border-color: var(--line-dark);
   background-color: var(--paper-raised);
-  background-position: calc(100% - 11px) 11px, calc(100% - 7px) 11px !important;
   color: var(--ink);
 }
 

@@ -1489,13 +1489,10 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
 const statusLabel = (status: JobStatus): string => ({ queued: "Queued", running: "Running", completed: "Completed", failed: "Failed", cancelled: "Cancelled" })[status];
 
 function SplatDownload({ jobId, compact = false }: { jobId: string; compact?: boolean }) {
-  const [format, setFormat] = useState("ply");
-  const href = `/api/jobs/${encodeURIComponent(jobId)}/splat?format=${encodeURIComponent(format)}`;
+  const href = `/api/jobs/${encodeURIComponent(jobId)}/splat?format=ply`;
   return <div className={`splat-download ${compact ? "compact" : ""}`}>
-    <select value={format} onChange={(event) => setFormat(event.target.value)} aria-label="Splat download format">
-      <option value="ply">.PLY</option><option value="spz">.SPZ</option>
-    </select>
-    <a href={href} download title={`Download ${format.toUpperCase()} splat`}><Download size={12}/>{!compact && <span>Download</span>}</a>
+    <span className="splat-format-label">.PLY</span>
+    <a href={href} download title="Download PLY splat"><Download size={12}/>{!compact && <span>Download</span>}</a>
   </div>;
 }
 
