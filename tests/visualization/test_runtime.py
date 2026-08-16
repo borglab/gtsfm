@@ -340,6 +340,29 @@ def test_remote_workspace_requests_use_certifi_ca_bundle(monkeypatch: pytest.Mon
     assert runtime._SSL_CONTEXT.get_ca_certs()
 
 
+def test_remote_workspace_retries_truncated_status_response(monkeypatch: pytest.MonkeyPatch) -> None:
+    responses: list[BytesIO] = [BytesIO(), BytesIO(b'{"status": "ready"}')]
+    attempts = 0
+
+    def fake_urlopen(_request: object, **_kwargs: object) -> BytesIO:
+        nonlocal attempts
+        response = responses[attempts]
+        attempts += 1
+        if attempts == 1:
+            response.read = lambda: (_ for _ in ()).throw(  # type: ignore[method-assign]
+                runtime.http.client.IncompleteRead(b"", 12)
+            )
+        return response
+
+    monkeypatch.setattr(runtime.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(runtime.time, "sleep", lambda _seconds: None)
+
+    result = runtime.JobManager._remote_json("https://workspace.example/api/jobs/example", "secret")
+
+    assert result == {"status": "ready"}
+    assert attempts == 2
+
+
 def test_workspace_rejects_unknown_github_sample(tmp_path: Path) -> None:
     response = TestClient(create_app(tmp_path)).post("/api/samples/not-a-sample/prepare")
 

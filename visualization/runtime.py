@@ -36,6 +36,7 @@ PACKAGE_ROOT = Path(gtsfm.__file__).resolve().parent
 CONFIG_ROOT = PACKAGE_ROOT / "configs"
 _SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
 _REMOTE_REQUEST_TIMEOUT_SECONDS = 10 * 60
+_REMOTE_READ_RETRIES = 3
 _RUN_NAME_PATTERN = re.compile(r"[^A-Za-z0-9._-]+")
 _OPTIONAL_SUBMODULES = {
     "submodule-anysplat": {
@@ -914,8 +915,21 @@ class JobManager:
         # Allocating a Modal GPU and loading the CUDA runtime can take more than
         # two minutes on the first request. Keep the socket open through that
         # cold start instead of launching a second competing verification.
-        with urllib.request.urlopen(request, timeout=_REMOTE_REQUEST_TIMEOUT_SECONDS, context=_SSL_CONTEXT) as response:
-            result = json.loads(response.read().decode("utf-8"))
+        # Status reads are safe to retry when Modal closes a response before
+        # all Content-Length bytes arrive. Never automatically replay a POST:
+        # the remote operation may have succeeded even if its response broke.
+        attempts = _REMOTE_READ_RETRIES if payload is None else 1
+        for attempt in range(attempts):
+            try:
+                with urllib.request.urlopen(
+                    request, timeout=_REMOTE_REQUEST_TIMEOUT_SECONDS, context=_SSL_CONTEXT
+                ) as response:
+                    result = json.loads(response.read().decode("utf-8"))
+                break
+            except (http.client.IncompleteRead, http.client.RemoteDisconnected, ConnectionError, TimeoutError):
+                if attempt + 1 >= attempts:
+                    raise
+                time.sleep(0.25 * (2**attempt))
         if not isinstance(result, dict):
             raise ValueError("Remote workspace returned an invalid response")
         return result
@@ -1065,7 +1079,21 @@ class JobManager:
             remote_status = str(created.get("status", "queued"))
             while remote_status in {"queued", "running"}:
                 time.sleep(1)
-                state = self._remote_json(f"{endpoint}/api/jobs/{remote_id}", job.remote_api_key)
+                try:
+                    state = self._remote_json(f"{endpoint}/api/jobs/{remote_id}", job.remote_api_key)
+                except (http.client.IncompleteRead, http.client.RemoteDisconnected, ConnectionError, TimeoutError):
+                    # A Modal proxy/container transition can truncate one
+                    # response. The GPU call is still alive, so retain the
+                    # last known state and reconnect on the next poll.
+                    with self._lock:
+                        if job.status == "cancelled":
+                            break
+                        reconnecting = "Remote status connection was interrupted; reconnecting…"
+                        if not job.log_tail or job.log_tail[-1] != reconnecting:
+                            job.log_tail.append(reconnecting)
+                            del job.log_tail[:-250]
+                        job.updated_at = _utc_now()
+                    continue
                 remote_status = str(state.get("status", "running"))
                 try:
                     live = self._remote_json(f"{endpoint}/api/jobs/{remote_id}/live", job.remote_api_key)
@@ -1083,7 +1111,14 @@ class JobManager:
                             Path(job.live_root) / "live_splats.ply",
                         )
                         preview_version = next_version
-                except (ValueError, urllib.error.URLError, TimeoutError):
+                except (
+                    ValueError,
+                    urllib.error.URLError,
+                    http.client.IncompleteRead,
+                    http.client.RemoteDisconnected,
+                    ConnectionError,
+                    TimeoutError,
+                ):
                     pass
                 with self._lock:
                     if job.status == "cancelled":
@@ -1108,7 +1143,14 @@ class JobManager:
                 with self._lock:
                     job.status = remote_status
                     job.updated_at = _utc_now()
-        except (KeyError, ValueError, urllib.error.URLError, TimeoutError) as exc:
+        except (
+            KeyError,
+            ValueError,
+            urllib.error.URLError,
+            http.client.HTTPException,
+            ConnectionError,
+            TimeoutError,
+        ) as exc:
             with self._lock:
                 if job.status != "cancelled":
                     job.status = "failed"
