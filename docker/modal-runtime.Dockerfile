@@ -48,7 +48,7 @@ RUN uv sync \
         --frozen \
         --no-dev \
         --no-install-project \
-    && python -c "import fastapi, gsplat, gtsam, spz, torch; print(torch.__version__)"
+    && python -c "import fastapi, gsplat, gtsam, torch; print(torch.__version__)"
 
 # Volume-backed cache locations are assigned by visualization/modal_app.py at
 # container startup. They must not be present while Modal extends this image,
