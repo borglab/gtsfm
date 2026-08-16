@@ -28,33 +28,31 @@ RUN apt-get update \
         libglib2.0-0 \
         libgomp1 \
         libx11-6 \
+        libzstd-dev \
         ninja-build \
+        zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
 RUN curl -LsSf https://astral.sh/uv/${UV_VERSION}/install.sh | sh \
     && uv python install ${PYTHON_VERSION} \
-    && ln -sf "$(uv python find ${PYTHON_VERSION})" /usr/local/bin/python \
-    && ln -sf "$(uv python find ${PYTHON_VERSION})" /usr/local/bin/python3
+    && uv venv --python ${PYTHON_VERSION} /opt/gtsfm-venv
+
+ENV VIRTUAL_ENV=/opt/gtsfm-venv \
+    UV_PROJECT_ENVIRONMENT=/opt/gtsfm-venv \
+    PATH=/opt/gtsfm-venv/bin:/root/.local/bin:${PATH}
 
 WORKDIR /opt/gtsfm-runtime
 COPY pyproject.toml uv.lock ./
 
-RUN uv export \
+RUN uv sync \
         --frozen \
         --no-dev \
-        --no-emit-project \
-        --no-header \
-        --output-file /tmp/gtsfm-runtime-requirements.txt \
-    && uv pip install \
-        --python /usr/local/bin/python \
-        --requirements /tmp/gtsfm-runtime-requirements.txt \
-    && rm /tmp/gtsfm-runtime-requirements.txt \
+        --no-install-project \
     && python -c "import fastapi, gsplat, gtsam, torch; print(torch.__version__)"
 
-ENV HF_HOME=/workspace/cache/huggingface \
-    TORCH_HOME=/workspace/cache/torch \
-    TORCH_EXTENSIONS_DIR=/workspace/cache/torch-extensions \
-    XDG_CACHE_HOME=/workspace/cache \
-    PYTHONPATH=/root
+# Volume-backed cache locations are assigned by visualization/modal_app.py at
+# container startup. They must not be present while Modal extends this image,
+# because build tools can otherwise populate the future Volume mount target.
+ENV PYTHONPATH=/root
 
 WORKDIR /root

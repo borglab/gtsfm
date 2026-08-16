@@ -28,7 +28,7 @@ SUPPORTED_MODAL_GPUS = {
     "H200",
     "B200",
 }
-DEFAULT_MODAL_RUNTIME_IMAGE = "ghcr.io/borglab/gtsfm-modal-runtime:latest"
+DEFAULT_MODAL_RUNTIME_IMAGE = "docker.io/su071301/gtsfm-modal-runtime:firstclass"
 
 
 def modal_remote_api_key(token_id: str, token_secret: str) -> str:
