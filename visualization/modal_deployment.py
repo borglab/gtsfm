@@ -2,19 +2,18 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from dataclasses import dataclass, field
 import hashlib
 import hmac
 import os
-from pathlib import Path
 import signal
 import subprocess
 import sys
 import threading
-from typing import Any
 import uuid
-
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
 
 SUPPORTED_MODAL_GPUS = {
     "T4",
@@ -31,7 +30,7 @@ SUPPORTED_MODAL_GPUS = {
 DEFAULT_MODAL_RUNTIME_IMAGE = "docker.io/su071301/gtsfm-modal-runtime:firstclass"
 
 
-def modal_remote_api_key(token_id: str, token_secret: str) -> str:
+def modal_workspace_api_key(token_id: str, token_secret: str) -> str:
     """Derive a stable app-specific key without exposing the Modal credentials."""
 
     digest = hmac.new(
@@ -241,7 +240,7 @@ class ModalDeploymentManager:
                 "GTSFM_MODAL_GPU": deployment.gpu,
                 "GTSFM_MODAL_CPU": str(deployment.cpu),
                 "GTSFM_MODAL_MEMORY_MB": str(deployment.memory_mb),
-                "GTSFM_REMOTE_API_KEY": modal_remote_api_key(deployment.token_id, deployment.token_secret),
+                "GTSFM_API_KEY": modal_workspace_api_key(deployment.token_id, deployment.token_secret),
                 "GTSFM_SOURCE_ROOT": str(source_root),
             }
         )
@@ -287,7 +286,7 @@ class ModalDeploymentManager:
                         self._update(
                             deployment,
                             phase="deploying",
-                            stage="Deploying the Modal web workspace",
+                            stage="Deploying the Modal CPU control service",
                         )
                     self._update(deployment, line=line)
             return process.wait()
@@ -350,7 +349,7 @@ class ModalDeploymentManager:
                     self._mark_cancelled(deployment)
                     return
                 deployment.endpoint = discovered["endpoint"]
-                deployment.api_key = modal_remote_api_key(deployment.token_id, deployment.token_secret)
+                deployment.api_key = modal_workspace_api_key(deployment.token_id, deployment.token_secret)
                 deployment.status = "completed"
                 deployment.phase = "ready"
                 deployment.stage = "Ready"

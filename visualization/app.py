@@ -8,16 +8,19 @@ import asyncio
 import hmac
 import json
 import os
+import re
 import shutil
 import tarfile
 import urllib.error
 import uuid
+from collections.abc import Callable
 from pathlib import Path, PurePosixPath
 from typing import Annotated, Any
 from urllib.parse import quote, urlparse
 
 import uvicorn
-from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile, WebSocket
+from fastapi import (Depends, FastAPI, File, Form, Header, HTTPException,
+                     Request, UploadFile, WebSocket)
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -25,22 +28,31 @@ from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, ConfigDict
 from starlette.websockets import WebSocketDisconnect
 
-from visualization.runtime import (
-    JobManager,
-    configuration_schema,
-    detect_hardware,
-    install_optional_setup,
-    setup_status,
-)
-from visualization.modal_deployment import ModalDeploymentManager, modal_remote_api_key
-from visualization.samples import SampleDownloadError, prepare_sample, sample_catalog
-
+from visualization.modal_deployment import (ModalDeploymentManager,
+                                            modal_workspace_api_key)
+from visualization.runtime import (JobManager, configuration_schema,
+                                   detect_hardware, install_optional_setup,
+                                   setup_status)
+from visualization.samples import (SampleDownloadError, prepare_sample,
+                                   sample_catalog)
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
 STATIC_ROOT = PACKAGE_ROOT / "static"
 TEMPLATE_ROOT = PACKAGE_ROOT / "templates"
 SPLAT_EXPORT_FORMATS = {"ply"}
 IMAGE_SUFFIXES = {".avif", ".bmp", ".heic", ".heif", ".jpeg", ".jpg", ".png", ".tif", ".tiff", ".webp"}
+_LOG_LEVEL_MESSAGE = re.compile(r"\b(?:DEBUG|INFO|WARNING|ERROR|CRITICAL):\s*(.+)$")
+_PIPELINE_STATUS_MARKERS = (
+    "gtsfm:",
+    "running vggt",
+    "gaussian",
+    "splat",
+    "partition",
+    "cluster optimization",
+    "bundle adjustment",
+    "image pair retrieval",
+    "sceneoptimizer",
+)
 
 
 class RemoteInspectRequest(BaseModel):
@@ -148,7 +160,9 @@ async def _discover_modal_endpoint(token_id: str, token_secret: str) -> dict[str
     """Find the deployed GTSFM web function in the token's default Modal environment."""
 
     from modal.client import _Client
-    from modal.exception import AuthError, ConnectionError as ModalConnectionError, PermissionDeniedError
+    from modal.exception import AuthError
+    from modal.exception import ConnectionError as ModalConnectionError
+    from modal.exception import PermissionDeniedError
     from modal_proto import api_pb2
 
     client = None
@@ -185,7 +199,8 @@ async def _discover_modal_endpoint(token_id: str, token_secret: str) -> dict[str
                 candidates.append((score, url, app_name or "gtsfm", function_name or "web"))
         if not candidates:
             raise ValueError(
-                "No deployed GTSFM web app was found in this Modal workspace. Deploy the GTSFM Modal app first, then try again."
+                "No deployed GTSFM web app was found in this Modal workspace. "
+                "Deploy the GTSFM Modal app first, then try again."
             )
         _, endpoint, app_name, function_name = max(candidates, key=lambda item: item[0])
         return {"endpoint": endpoint, "app_name": app_name, "function_name": function_name}
@@ -293,6 +308,15 @@ def _live_state(manager: JobManager, resolved_base: Path, job_id: str) -> dict[s
         "stage": "pipeline",
         "progress": None,
     }
+    for raw_line in reversed(job.log_tail):
+        match = _LOG_LEVEL_MESSAGE.search(raw_line)
+        message = (match.group(1) if match else raw_line).strip()
+        lowered = message.lower()
+        if message and any(marker in lowered for marker in _PIPELINE_STATUS_MARKERS):
+            payload["message"] = message
+            break
+    if "message" not in payload:
+        payload["message"] = "Waiting for the reconstruction pipeline to report its first stage…"
     if status_path.exists():
         try:
             loaded = json.loads(status_path.read_text(encoding="utf-8"))
@@ -328,11 +352,16 @@ def _websocket_authorized(websocket: WebSocket) -> bool:
     return hmac.compare_digest(provided, expected)
 
 
-def create_app(base_dir: Path | str = "results") -> FastAPI:
+def create_app(
+    base_dir: Path | str = "results",
+    *,
+    job_manager: JobManager | None = None,
+    hardware_provider: Callable[[], dict[str, Any]] = detect_hardware,
+) -> FastAPI:
     """Create an isolated FastAPI workspace for ``base_dir``."""
 
     resolved_base = Path(base_dir).expanduser().resolve()
-    manager = JobManager(resolved_base)
+    manager = job_manager or JobManager(resolved_base)
     modal_deployments = ModalDeploymentManager(
         lambda token_id, token_secret: asyncio.run(_discover_modal_endpoint(token_id, token_secret))
     )
@@ -368,6 +397,10 @@ def create_app(base_dir: Path | str = "results") -> FastAPI:
     def index() -> HTMLResponse:
         return HTMLResponse((TEMPLATE_ROOT / "index.html").read_text(encoding="utf-8"))
 
+    @app.get("/favicon.ico", include_in_schema=False)
+    def favicon() -> FileResponse:
+        return FileResponse(STATIC_ROOT / "brand" / "bee-favicon.png", media_type="image/png")
+
     @app.get("/api/scenes")
     def list_scenes() -> dict[str, Any]:
         scenes = find_scenes(resolved_base)
@@ -388,7 +421,7 @@ def create_app(base_dir: Path | str = "results") -> FastAPI:
 
     @app.get("/api/hardware")
     def get_hardware() -> dict[str, Any]:
-        return detect_hardware()
+        return hardware_provider()
 
     @app.get("/api/setup")
     def get_setup_status() -> dict[str, Any]:
@@ -519,7 +552,7 @@ def create_app(base_dir: Path | str = "results") -> FastAPI:
             raise HTTPException(status_code=400, detail="Enter a valid Modal token ID and token secret")
         try:
             discovered = await _discover_modal_endpoint(payload.token_id, payload.token_secret)
-            discovered["api_key"] = modal_remote_api_key(payload.token_id, payload.token_secret)
+            discovered["api_key"] = modal_workspace_api_key(payload.token_id, payload.token_secret)
             return discovered
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc

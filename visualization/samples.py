@@ -124,7 +124,9 @@ def _github_json(source_path: str) -> list[dict[str, Any]]:
 def _download_file(url: str, destination: Path) -> None:
     request = urllib.request.Request(url, headers={"User-Agent": "gtsfm-studio"})
     destination.parent.mkdir(parents=True, exist_ok=True)
-    with urllib.request.urlopen(request, timeout=120, context=_SSL_CONTEXT) as response, destination.open("wb") as output:
+    with urllib.request.urlopen(request, timeout=120, context=_SSL_CONTEXT) as response, destination.open(
+        "wb"
+    ) as output:
         shutil.copyfileobj(response, output)
 
 

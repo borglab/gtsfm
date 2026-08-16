@@ -157,6 +157,7 @@ interface SetupStatus {
 interface RemoteWorkspace {
   configuration: ConfigurationSchema;
   hardware: HardwareCatalog;
+  verified?: boolean;
 }
 
 interface ModalDiscovery {
@@ -230,7 +231,7 @@ function ModalDeploymentDialog({ deployment, onCancel, onClose }: { deployment: 
       <header>
         <div><span>MODAL SETUP &amp; DEPLOYMENT</span><strong id="modal-log-title">{deployment.stage}</strong></div>
         <small>{deployment.gpu}{deployment.cpu ? ` · ${deployment.cpu} CPU` : ""}{deployment.memory_mb ? ` · ${formatBytes(deployment.memory_mb * 1024 * 1024)}` : ""} · {deployment.status}</small>
-        {["queued", "running"].includes(deployment.status) && <button className="modal-dialog-stop" type="button" onClick={onCancel} title="Stop Modal setup"><Square size={11} fill="currentColor"/> Stop</button>}
+        {["queued", "running"].includes(deployment.status) && deployment.phase !== "verifying" && <button className="modal-dialog-stop" type="button" onClick={onCancel} title="Stop Modal setup"><Square size={11} fill="currentColor"/> Stop</button>}
         <button type="button" onClick={copyLogs} title="Copy deployment logs">{copied ? <Check size={13}/> : <Copy size={13}/>} {copied ? "Copied!" : "Copy"}</button>
         <button type="button" onClick={onClose} title="Close deployment logs" aria-label="Close deployment logs"><X size={15}/></button>
       </header>
@@ -242,21 +243,23 @@ function ModalDeploymentDialog({ deployment, onCancel, onClose }: { deployment: 
 const MODAL_WORKSPACE_STEPS = [
   { id: "building", label: "Prepare CUDA image", detail: "Install and cache the GTSFM environment" },
   { id: "deploying", label: "Deploy workspace", detail: "Publish the FastAPI workspace on Modal" },
-  { id: "verifying", label: "Verify connection", detail: "Find the endpoint and check availability" },
+  { id: "verifying", label: "Start & verify workspace", detail: "Cold-start the GPU and confirm the workspace API is healthy" },
 ] as const;
 
 function ModalDeploymentProgress({ deployment, onCancel, onExpand }: { deployment: ModalDeployment; onCancel: () => void; onExpand: () => void }) {
-  const currentPhase = deployment.phase === "ready" ? "verifying" : deployment.phase ?? "building";
+  const ready = deployment.phase === "ready";
+  const verifying = deployment.phase === "verifying";
+  const currentPhase = ready ? "verifying" : deployment.phase ?? "building";
   const currentIndex = Math.max(0, MODAL_WORKSPACE_STEPS.findIndex((step) => step.id === currentPhase));
   const imageDetail = deployment.image_source === "prebuilt"
     ? "Pull the versioned GTSFM runtime; no package installation"
     : "Install and cache the GTSFM environment";
   return <section className={`modal-deployment ${deployment.status}`} aria-label="Modal workspace progress">
-    <div className="modal-deployment-heading"><span>{deployment.status === "completed" ? <Check size={12}/> : deployment.status === "failed" ? <CircleAlert size={12}/> : deployment.status === "cancelled" ? <Minus size={12}/> : <RefreshCw size={12}/>}<strong>{deployment.stage}</strong></span><span className="modal-deployment-actions"><small>{deployment.image_source === "prebuilt" ? "PREBUILT" : "SOURCE"} · {deployment.gpu}</small>{["queued", "running"].includes(deployment.status) && <button className="modal-stop-action" type="button" onClick={onCancel} title="Stop Modal setup"><Square size={9} fill="currentColor"/> Stop</button>}<button type="button" onClick={onExpand} title="Expand setup logs" aria-label="Expand setup logs"><Maximize2 size={12}/></button></span></div>
+    <div className="modal-deployment-heading"><span>{ready ? <Check size={12}/> : deployment.status === "failed" ? <CircleAlert size={12}/> : deployment.status === "cancelled" ? <Minus size={12}/> : <RefreshCw size={12}/>}<strong>{deployment.stage}</strong></span><span className="modal-deployment-actions"><small>{deployment.image_source === "prebuilt" ? "PREBUILT" : "SOURCE"} · {deployment.gpu}</small>{["queued", "running"].includes(deployment.status) && !verifying && <button className="modal-stop-action" type="button" onClick={onCancel} title="Stop Modal setup"><Square size={9} fill="currentColor"/> Stop</button>}<button type="button" onClick={onExpand} title="View all setup logs" aria-label="View all setup logs"><Maximize2 size={12}/></button></span></div>
     <ol className="modal-deployment-steps">
       {MODAL_WORKSPACE_STEPS.map((step, index) => {
-        const complete = deployment.status === "completed" || index < currentIndex;
-        const active = deployment.status !== "completed" && index === currentIndex;
+        const complete = ready || index < currentIndex;
+        const active = !ready && index === currentIndex;
         const failed = active && deployment.status === "failed";
         const cancelled = active && deployment.status === "cancelled";
         return <li key={step.id} data-state={failed ? "failed" : cancelled ? "cancelled" : complete ? "complete" : active ? "active" : "pending"}>
@@ -265,8 +268,25 @@ function ModalDeploymentProgress({ deployment, onCancel, onExpand }: { deploymen
         </li>;
       })}
     </ol>
-    {deployment.log_tail.length > 0 && <pre>{deployment.log_tail.slice(-4).join("\n")}</pre>}
+    <div className="modal-log-preview-heading"><span>LIVE SETUP LOGS</span><button type="button" onClick={onExpand}><Maximize2 size={10}/> View all logs</button></div>
+    <pre>{deployment.log_tail.slice(-6).join("\n") || "Waiting for Modal setup output…"}</pre>
   </section>;
+}
+
+type ModalWorkspaceReadiness = "idle" | "found" | "working" | "ready" | "attention";
+
+function ModalWorkspaceStatus({ state, detail }: { state: ModalWorkspaceReadiness; detail: string }) {
+  const title = {
+    idle: "Workspace setup required",
+    found: "Modal workspace found",
+    working: "Preparing Modal workspace",
+    ready: "Modal workspace ready",
+    attention: "Workspace needs attention",
+  }[state];
+  return <div className={`modal-workspace-status ${state}`} role="status" aria-live="polite">
+    <span aria-hidden="true">{state === "working" ? <RefreshCw className="spin" size={13}/> : state === "ready" ? <Check size={13}/> : state === "attention" ? <CircleAlert size={13}/> : <Server size={13}/>}</span>
+    <div><strong>{title}</strong><small>{detail}</small></div>
+  </div>;
 }
 
 interface JobEvent {
@@ -295,6 +315,7 @@ interface JobsResponse {
 interface LiveState {
   progress?: number;
   stage?: string;
+  message?: string;
   step?: number;
   max_steps?: number;
   loss?: number;
@@ -364,7 +385,7 @@ interface FolderFile {
 
 interface ViewerApi {
   isBusy(): boolean;
-  loadSplatsFile(input: { splatsUrl: string; label: string }): Promise<void>;
+  loadSplatsFile(input: { splatsUrl: string; label: string }): Promise<boolean | void>;
 }
 
 declare global {
@@ -877,6 +898,7 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
   const [modalDiscovering, setModalDiscovering] = useState(false);
   const [remoteChecking, setRemoteChecking] = useState(false);
   const [modalDeploying, setModalDeploying] = useState(false);
+  const [modalWorkspaceIssue, setModalWorkspaceIssue] = useState(false);
   const [modalDeployment, setModalDeployment] = useState<ModalDeployment | null>(null);
   const [modalLogExpanded, setModalLogExpanded] = useState(false);
   const [advanced, setAdvanced] = useState(false);
@@ -951,12 +973,38 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
     { id: "aws", label: "AWS EC2 — Coming Soon!", status: "coming-soon" },
   ];
 
+  const useDeployedModalWorkspace = (gpu: string) => {
+    const gpuInfo = MODAL_GPU_PRICING.find((item) => item.id === gpu);
+    const workspace: RemoteWorkspace = {
+      configuration: schema,
+      verified: false,
+      hardware: {
+        summary: `Modal ${gpu} workspace`,
+        devices: [{
+          id: "cuda:0",
+          kind: "cuda",
+          label: `Modal ${gpu}`,
+          details: "NVIDIA CUDA GPU · starts with the first reconstruction",
+          memory: gpuInfo ? `${gpuInfo.memoryGiB} GB` : undefined,
+          supports_gaussian_splatting: true,
+        }],
+      },
+    };
+    setRemote(workspace);
+    set("remote_hardware", "cuda:0");
+    return workspace;
+  };
+
   useEffect(() => {
     if (!modalGpuRecommendation) return;
-    setForm((current) => current.modal_gpu === modalGpuRecommendation.gpu.id
-      ? current
-      : { ...current, modal_gpu: modalGpuRecommendation.gpu.id });
-  }, [modalGpuRecommendation?.gpu.id, modalRecommendationKey]);
+    if (form.modal_gpu === modalGpuRecommendation.gpu.id) return;
+    set("modal_gpu", modalGpuRecommendation.gpu.id);
+    if (form.remote_endpoint) {
+      setRemote(null);
+      setModalWorkspaceIssue(true);
+      setRemoteMessage("The dataset changed the recommended VM. Update the Modal workspace to apply it, then verify readiness.");
+    }
+  }, [modalGpuRecommendation?.gpu.id, modalRecommendationKey, form.modal_gpu, form.remote_endpoint]);
 
   useEffect(() => {
     setForm((current) => ({
@@ -975,7 +1023,13 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
   }, [form.execution_target, selectedSample, preparedSample?.path]);
 
   const updateModalCredential = (field: "modal_token_id" | "modal_token_secret", value: string) => {
+    modalDiscoverySequence.current += 1;
+    setModalDiscovering(false);
+    setRemoteChecking(false);
     const parsed = parseModalTokenCommand(value);
+    setRemote(null);
+    setModalWorkspaceIssue(false);
+    setRemoteMessage("");
     if (parsed) {
       setForm((current) => ({ ...current, modal_token_id: parsed.tokenId, modal_token_secret: parsed.tokenSecret, modal_api_key: "" }));
       setModalTokenMessage("Token command parsed. Both fields are filled.");
@@ -983,6 +1037,13 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
     }
     setForm((current) => ({ ...current, [field]: value, modal_api_key: "" }));
     setModalTokenMessage("");
+  };
+
+  const updateModalGpu = (value: string) => {
+    set("modal_gpu", value);
+    setRemote(null);
+    setModalWorkspaceIssue(Boolean(form.remote_endpoint));
+    setRemoteMessage("VM selection changed. Update the Modal workspace to apply it, then verify readiness.");
   };
 
   useEffect(() => {
@@ -1006,9 +1067,14 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
           return { ...current, remote_endpoint: discovered.endpoint, modal_api_key: discovered.api_key };
         });
         automaticModalEndpoint.current = discovered.endpoint;
-        setRemoteMessage(`Found ${discovered.app_name} · ${discovered.function_name}. Endpoint filled automatically.`);
+        useDeployedModalWorkspace(form.modal_gpu);
+        setModalWorkspaceIssue(false);
+        setRemoteMessage(`Found ${discovered.app_name} · ${discovered.function_name}. Update it to this GTSFM version, or verify the existing workspace.`);
       } catch (reason) {
-        if (sequence === modalDiscoverySequence.current) setRemoteMessage(errorMessage(reason));
+        if (sequence === modalDiscoverySequence.current) {
+          setModalWorkspaceIssue(true);
+          setRemoteMessage(errorMessage(reason));
+        }
       } finally {
         if (sequence === modalDiscoverySequence.current) setModalDiscovering(false);
       }
@@ -1020,14 +1086,14 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
     if (form.splat_implementation === "gsplat" && model && !capabilities.iterative_splat) set("splat_implementation", "none");
   }, [form.splat_implementation, model, capabilities.iterative_splat]);
 
-  const inspectRemote = async (endpoint: string, apiKey: string) => {
+  async function inspectRemote(endpoint: string, apiKey: string) {
     const payload = await getJson<RemoteWorkspace>("/api/remote/inspect", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ endpoint, api_key: apiKey, remote_provider: form.remote_provider }) });
-    setRemote(payload);
+    setRemote({ ...payload, verified: true });
     const gsDevice = payload.hardware.devices.find((item) => item.supports_gaussian_splatting);
     set("remote_hardware", gsDevice?.id ?? payload.hardware.devices[0]?.id ?? "");
     return payload;
-  };
+  }
 
   const connectRemote = async () => {
     if (form.remote_connection !== "api") {
@@ -1039,12 +1105,16 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
       return;
     }
     setRemoteChecking(true);
-    setRemoteMessage("Connecting…");
+    setModalWorkspaceIssue(false);
+    setRemote((current) => current ? { ...current, verified: false } : null);
+    setRemoteMessage("Checking the lightweight Modal control service…");
     try {
       const payload = await inspectRemote(form.remote_endpoint, modalBearerToken(form));
-      setRemoteMessage(`${payload.hardware.summary}. Modal connection is healthy and workspace options are up to date.`);
+      setModalWorkspaceIssue(false);
+      setRemoteMessage(`${payload.hardware.summary}. The control service is ready; the GPU stays off until you run a reconstruction.`);
     } catch (reason) {
-      setRemoteMessage(errorMessage(reason));
+      setModalWorkspaceIssue(true);
+      setRemoteMessage(`Workspace check failed. Update the Modal workspace before running. ${errorMessage(reason)}`);
     } finally {
       setRemoteChecking(false);
     }
@@ -1057,6 +1127,7 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
     }
     modalDiscoverySequence.current += 1;
     setModalDeploying(true);
+    setModalWorkspaceIssue(false);
     setRemote(null);
     setRemoteMessage("");
     try {
@@ -1084,11 +1155,48 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
       if (deployment.status === "failed") throw new Error(deployment.error || "Modal deployment failed");
       automaticModalEndpoint.current = deployment.endpoint;
       setForm((current) => ({ ...current, remote_endpoint: deployment.endpoint, modal_api_key: deployment.api_key }));
-      setRemoteMessage("Workspace deployed. Loading its GPU and pipeline catalog…");
-      const payload = await inspectRemote(deployment.endpoint, deployment.api_key);
-      setRemoteMessage(`${payload.hardware.summary}. Modal workspace is ready.`);
+      useDeployedModalWorkspace(deployment.gpu);
+      setModalDeployment({
+        ...deployment,
+        status: "running",
+        phase: "verifying",
+        stage: "Starting and verifying the Modal workspace",
+        log_tail: [...deployment.log_tail, `Registered endpoint ${deployment.endpoint}`, "Checking the CPU control service; the GPU remains off until a run starts…"],
+      });
+      setRemoteChecking(true);
+      try {
+        await inspectRemote(deployment.endpoint, deployment.api_key);
+      } catch (reason) {
+        const message = `Deployment finished, but the workspace health check failed: ${errorMessage(reason)}`;
+        setRemote((current) => current ? { ...current, verified: false } : null);
+        setModalWorkspaceIssue(true);
+        setModalDeployment({
+          ...deployment,
+          status: "failed",
+          phase: "verifying",
+          stage: "Modal workspace needs an update",
+          error: message,
+          log_tail: [...deployment.log_tail, `Registered endpoint ${deployment.endpoint}`, message],
+        });
+        throw new Error(message);
+      } finally {
+        setRemoteChecking(false);
+      }
+      setModalDeployment({
+        ...deployment,
+        phase: "ready",
+        stage: "Modal workspace ready",
+        log_tail: [
+          ...deployment.log_tail,
+          `Registered endpoint ${deployment.endpoint}`,
+          "Workspace health check passed. The Modal GPU is ready.",
+        ],
+      });
+      setModalWorkspaceIssue(false);
+      setRemoteMessage(`Modal ${deployment.gpu} workspace passed its health check and is ready to run.`);
     } catch (reason) {
       const message = errorMessage(reason);
+      setModalWorkspaceIssue(true);
       setRemoteMessage(/Request failed \(404\)/.test(message)
         ? "This GTSFM server was started before Modal deployment support was installed. Stop it with Ctrl-C, run `gtsfm run` again, then click Deploy."
         : message);
@@ -1142,6 +1250,9 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
       if (form.execution_target === "remote" && form.remote_connection === "ssh") {
         throw new Error("SSH execution is not available yet. Choose API to run on Modal.");
       }
+      if (form.execution_target === "remote" && form.remote_provider === "modal" && !remote?.verified) {
+        throw new Error("The Modal workspace must pass its health check before a reconstruction can start.");
+      }
       const payload = { ...form, api_key: form.execution_target === "remote" ? modalBearerToken(form) : "", loader_options: loaderOptions,
         hardware: form.execution_target === "remote" ? form.remote_hardware : form.hardware,
         max_resolution: form.max_resolution ? Number(form.max_resolution) : null,
@@ -1154,6 +1265,33 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
       onStarted(job); onTabChange("activity");
     } catch (reason) { setError(errorMessage(reason)); } finally { setBusy(false); }
   };
+
+  const modalWorkspaceSelected = form.execution_target === "remote" && form.remote_connection === "api" && form.remote_provider === "modal";
+  const modalWorkspaceState: ModalWorkspaceReadiness = remote?.verified
+    ? "ready"
+    : modalDeploying || modalDiscovering || remoteChecking
+      ? "working"
+      : modalWorkspaceIssue
+        ? "attention"
+        : form.remote_endpoint
+          ? "found"
+        : "idle";
+  const modalWorkspaceDetail = remoteMessage || {
+    idle: "Enter Modal credentials, then deploy or discover a workspace.",
+    found: "Choose Update to apply this GTSFM version, or verify the existing deployment.",
+    working: "Preparing the lightweight control service. The GPU starts only when a reconstruction runs.",
+    ready: "Health checks passed. Reconstruction can start.",
+    attention: "Update or verify this workspace before starting a run.",
+  }[modalWorkspaceState];
+  const modalActionLabel = modalDeploying
+    ? modalDeployment?.phase === "verifying" ? "Starting & verifying Modal workspace…" : "Setting up Modal workspace…"
+    : modalDiscovering
+      ? "Finding Modal workspace…"
+      : remoteChecking
+        ? "Starting & verifying Modal workspace…"
+        : modalWorkspaceSelected && !remote?.verified
+          ? "Prepare Modal workspace first"
+          : "Run reconstruction";
 
   return <form id="runForm" onSubmit={submit}>
     <div className="panel-intro"><span>NEW RECONSTRUCTION</span>
@@ -1219,9 +1357,9 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
           <SelectField label="Service" value={form.remote_provider} options={remoteProviders} onChange={(value) => { set("remote_provider", value); setRemote(null); }} />
           {form.remote_provider === "modal" && <div className="provider-panel">
             <div className="provider-heading"><span className="provider-mark">M</span><div><strong>Modal</strong><small>Connect with your Modal account token</small></div><span className="provider-status">AVAILABLE</span></div>
-            <SelectField label="Modal VM GPU" value={form.modal_gpu} options={modalGpuOptions} onChange={(value) => set("modal_gpu", value)} />
+            <SelectField label="Modal VM GPU" value={form.modal_gpu} options={modalGpuOptions} onChange={updateModalGpu} />
             <ModalGpuRecommendationCard recommendation={modalGpuRecommendation} selectedGpu={form.modal_gpu} onApply={() => {
-              if (modalGpuRecommendation) set("modal_gpu", modalGpuRecommendation.gpu.id);
+              if (modalGpuRecommendation) updateModalGpu(modalGpuRecommendation.gpu.id);
             }}/>
             <ModalCostEstimate form={form} analysis={datasetAnalysis} fallbackImageCount={selectedSample?.image_count ?? 0}/>
             <p className="field-help modal-command-help">Enter the two values separately, or paste the complete <code>modal token set --token-id … --token-secret …</code> command into either field.</p>
@@ -1230,12 +1368,17 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
               <TextField label="Token secret" type="password" value={form.modal_token_secret} onChange={(value) => updateModalCredential("modal_token_secret", value)} autoComplete="new-password" spellCheck={false} placeholder="as-…" />
             </div>
             {modalTokenMessage && <div className="credential-success"><Check size={12} /> {modalTokenMessage}</div>}
-            <TextField label="GTSFM endpoint" type="url" value={form.remote_endpoint} onChange={(value) => set("remote_endpoint", value)} placeholder={modalDiscovering ? "Discovering your Modal endpoint…" : "Filled after credentials are verified"} />
+            <TextField label="GTSFM endpoint" type="url" value={form.remote_endpoint} onChange={(value) => {
+              set("remote_endpoint", value);
+              setRemote(null);
+              setModalWorkspaceIssue(false);
+              setRemoteMessage("Endpoint changed. Start and verify this workspace before running.");
+            }} placeholder={modalDiscovering ? "Discovering your Modal endpoint…" : "Filled after credentials are verified"} />
             <button className="modal-deploy-action full-width" type="button" onClick={deployModal} disabled={modalDiscovering || modalDeploying || !form.modal_token_id || !form.modal_token_secret}><Server size={13} /> {modalDeploying ? "Setup in progress…" : form.remote_endpoint ? "Update Modal workspace" : "Set up & deploy Modal workspace"}</button>
             {modalDeployment && <ModalDeploymentProgress deployment={modalDeployment} onCancel={stopModalDeployment} onExpand={() => setModalLogExpanded(true)}/>} 
             {modalDeployment && modalLogExpanded && <ModalDeploymentDialog deployment={modalDeployment} onCancel={stopModalDeployment} onClose={() => setModalLogExpanded(false)}/>} 
-            {form.remote_endpoint && form.modal_api_key && <button className="secondary-action full-width" type="button" onClick={() => connectRemote()} disabled={modalDiscovering || modalDeploying || remoteChecking}><MonitorCog className={remoteChecking ? "spin" : ""} size={13} /> {remoteChecking ? "Checking Modal connection…" : remote ? "Refresh Modal connection" : "Check Modal connection"}</button>}
-            <div className="field-help remote-message">{remoteMessage}</div>
+            {form.remote_endpoint && form.modal_api_key && <button className="secondary-action full-width" type="button" onClick={() => connectRemote()} disabled={modalDiscovering || modalDeploying || remoteChecking}>{remoteChecking ? <RefreshCw className="spin" size={13}/> : remote?.verified ? <Check size={13}/> : <MonitorCog size={13}/>} {remoteChecking ? "Starting & checking workspace…" : remote?.verified ? "Modal workspace ready" : "Start & verify workspace"}</button>}
+            <ModalWorkspaceStatus state={modalWorkspaceState} detail={modalWorkspaceDetail}/>
             {remote && <SelectField label="Remote hardware" value={form.remote_hardware} options={remote.hardware.devices} onChange={(value) => set("remote_hardware", value)} />}
           </div>}
         </> : <div className="provider-panel">
@@ -1291,7 +1434,7 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
       </Collapsible.Content>
     </Collapsible.Root>
     <div className="form-error" role="alert">{error}</div>
-    <button className="primary-action" type="submit" disabled={busy || sampleBusy || modalDeploying || (inputMode === "sample" && !preparedSample) || (form.execution_target === "remote" && (!form.remote_endpoint || !form.modal_api_key || !remote))}><span>{busy ? "Starting…" : sampleBusy ? "Preparing sample…" : modalDeploying ? "Finish workspace setup first" : "Run reconstruction"}</span>{busy || sampleBusy || modalDeploying ? <RefreshCw className="spin" size={14} /> : <Play size={14} fill="currentColor" />}</button>
+    <button className="primary-action" type="submit" disabled={busy || sampleBusy || modalDeploying || modalDiscovering || remoteChecking || (inputMode === "sample" && !preparedSample) || (form.execution_target === "remote" && (!form.remote_endpoint || !form.modal_api_key || !remote?.verified))}><span>{busy ? "Starting…" : sampleBusy ? "Preparing sample…" : modalActionLabel}</span>{busy || sampleBusy || modalDeploying || modalDiscovering || remoteChecking ? <RefreshCw className="spin" size={14} /> : <Play size={14} fill="currentColor" />}</button>
   </form>;
 }
 
@@ -1319,7 +1462,7 @@ function ActivityPanel({ jobs, activeId, onSelect, onCancel, onRefresh }: Activi
       <div className="job-card-top"><strong>{job.name}</strong><span className={`job-status ${job.status}`}>{statusLabel(job.status)}</span></div>
       <small>{displayName(job.spec.config_name || "GTSFM")} · {displayName(job.spec.splat_implementation || "no_splats")}</small>
       {job.error && <p className="job-error">{job.error}</p>}
-      <div className="job-actions"><button className="text-button" onClick={() => onSelect(job.id)}>Inspect</button>
+      <div className="job-actions"><button className="text-button" onClick={() => onSelect(job.id)}>{job.has_final_splat ? "View splat" : ["queued", "running"].includes(job.status) ? "View progress" : "View details"}</button>
         {["queued", "running"].includes(job.status) && <button className="text-button danger" onClick={() => onCancel(job.id)}><Square size={9} fill="currentColor"/> Stop</button>}
         {job.status === "completed" && !job.remote && <a className="text-button" href="/?view=results">View results</a>}
         {job.remote?.workspace_url && <a className="text-button" href={job.remote.workspace_url} target="_blank" rel="noreferrer">Remote results ↗</a>}
@@ -1344,13 +1487,93 @@ interface StatusBarProps {
   onClose: () => void;
 }
 
+interface StatusBarPosition {
+  left: number;
+  top: number;
+  width: number;
+}
+
 function StatusBar({ job, live, logsOpen, setLogsOpen, visible, onCancel, onClose }: StatusBarProps) {
+  const barRef = useRef<HTMLDivElement>(null);
+  const dragStart = useRef<{
+    pointerX: number;
+    pointerY: number;
+    left: number;
+    top: number;
+    width: number;
+    maxLeft: number;
+    maxTop: number;
+  } | null>(null);
+  const [position, setPosition] = useState<StatusBarPosition | null>(null);
+  const [dragging, setDragging] = useState(false);
+
+  useEffect(() => {
+    const bar = barRef.current;
+    const container = bar?.parentElement;
+    if (!bar || !container || typeof ResizeObserver === "undefined") return;
+    const keepInBounds = () => setPosition((current) => {
+      if (!current) return null;
+      const containerRect = container.getBoundingClientRect();
+      const width = Math.min(current.width, containerRect.width);
+      const height = bar.getBoundingClientRect().height;
+      return {
+        left: Math.max(0, Math.min(containerRect.width - width, current.left)),
+        top: Math.max(0, Math.min(containerRect.height - height, current.top)),
+        width,
+      };
+    });
+    const observer = new ResizeObserver(keepInBounds);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
+
+  const beginDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    if ((event.target as HTMLElement).closest("button, a, input, select")) return;
+    const bar = barRef.current;
+    const container = bar?.parentElement;
+    if (!bar || !container || event.button !== 0) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const barRect = bar.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    const start = {
+      pointerX: event.clientX,
+      pointerY: event.clientY,
+      left: barRect.left - containerRect.left,
+      top: barRect.top - containerRect.top,
+      width: barRect.width,
+      maxLeft: Math.max(0, containerRect.width - barRect.width),
+      maxTop: Math.max(0, containerRect.height - barRect.height),
+    };
+    dragStart.current = start;
+    setPosition({ left: start.left, top: start.top, width: start.width });
+    setDragging(true);
+  };
+
+  const moveDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    const start = dragStart.current;
+    if (!start) return;
+    setPosition({
+      left: Math.max(0, Math.min(start.maxLeft, start.left + event.clientX - start.pointerX)),
+      top: Math.max(0, Math.min(start.maxTop, start.top + event.clientY - start.pointerY)),
+      width: start.width,
+    });
+  };
+
+  const finishDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragStart.current) return;
+    dragStart.current = null;
+    setDragging(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+
   if (!job || !visible) return null;
   const progress = typeof live?.progress === "number" && Number.isFinite(live.progress) ? live.progress : job.status === "completed" ? 1 : 0;
   const loss = typeof live?.loss === "number" && Number.isFinite(live.loss) ? `loss ${live.loss.toFixed(4)}` : "";
   const splatCount = typeof live?.splat_count === "number" && Number.isFinite(live.splat_count) ? `${live.splat_count.toLocaleString()} splats` : "";
-  return <div className="run-status-bar" data-status={job.status}>
-    <div className="status-copy"><span className="status-dot"/><div><strong>{job.name} · {statusLabel(job.status)}</strong><small>{job.error || (live?.stage === "gaussian_splatting" ? "Optimizing Gaussian splats" : "Running reconstruction pipeline")}</small></div></div>
+  const style = position ? { left: position.left, top: position.top, width: position.width, right: "auto", bottom: "auto" } : undefined;
+  return <div ref={barRef} className={`run-status-bar ${dragging ? "is-dragging" : ""}`} data-status={job.status} style={style} title="Drag to move run status" onPointerDown={beginDrag} onPointerMove={moveDrag} onPointerUp={finishDrag} onPointerCancel={finishDrag}>
+    <div className="status-copy status-drag-handle" onDoubleClick={() => setPosition(null)}><span className="status-dot"/><div><strong>{job.name} · {statusLabel(job.status)}</strong><small>{job.error || (live?.stage === "gaussian_splatting" ? "Optimizing Gaussian splats" : "Running reconstruction pipeline")}</small></div></div>
     <div className="status-metrics"><span>{live?.max_steps ? `${Number(live.step).toLocaleString()} / ${Number(live.max_steps).toLocaleString()} steps` : ""}</span><span>{loss}</span><span>{splatCount}</span></div>
     <div className="status-actions">{job.has_final_splat && <SplatDownload jobId={job.id} />}{["queued", "running"].includes(job.status) && <button className="secondary-action stop-process" type="button" onClick={() => onCancel(job.id)}><Square size={10} fill="currentColor"/> Stop</button>}<button className="secondary-action" onClick={() => setLogsOpen(!logsOpen)}><Terminal size={13}/> Logs</button><button className="status-close" type="button" title="Close run status" aria-label="Close run status" onClick={onClose}><X size={15}/></button></div>
     <Progress.Root className="run-progress-track" value={progress * 100}><Progress.Indicator className="run-progress-fill" style={{ transform: `translateX(-${100 - progress * 100}%)` }} /></Progress.Root>
@@ -1377,6 +1600,8 @@ interface LogPanelGeometry {
   width: number;
   height: number;
 }
+
+type LogResizeCorner = "nw" | "ne" | "sw" | "se";
 
 function LogPanel({ open, lines, onClose }: { open: boolean; lines: string[]; onClose: () => void }) {
   const panelRef = useRef<HTMLDivElement>(null);
@@ -1430,7 +1655,7 @@ function LogPanel({ open, lines, onClose }: { open: boolean; lines: string[]; on
     window.addEventListener("pointercancel", finish, { once: true });
   };
 
-  const beginResize = (event: React.PointerEvent<HTMLButtonElement>) => {
+  const beginResize = (corner: LogResizeCorner) => (event: React.PointerEvent<HTMLButtonElement>) => {
     const panel = panelRef.current;
     const container = panel?.parentElement;
     if (!panel || !container) return;
@@ -1446,13 +1671,27 @@ function LogPanel({ open, lines, onClose }: { open: boolean; lines: string[]; on
       top: panelRect.top - containerRect.top,
       right: panelRect.right - containerRect.left,
       bottom: panelRect.bottom - containerRect.top,
+      containerWidth: containerRect.width,
+      containerHeight: containerRect.height,
     };
     setGeometry({ left: start.left, top: start.top, width: panelRect.width, height: panelRect.height });
 
     const move = (moveEvent: PointerEvent) => {
-      const left = Math.max(0, Math.min(start.right - 300, start.left + moveEvent.clientX - start.pointerX));
-      const top = Math.max(0, Math.min(start.bottom - 150, start.top + moveEvent.clientY - start.pointerY));
-      setGeometry({ left, top, width: start.right - left, height: start.bottom - top });
+      const dx = moveEvent.clientX - start.pointerX;
+      const dy = moveEvent.clientY - start.pointerY;
+      const left = corner.includes("w")
+        ? Math.max(0, Math.min(start.right - 300, start.left + dx))
+        : start.left;
+      const right = corner.includes("e")
+        ? Math.min(start.containerWidth, Math.max(start.left + 300, start.right + dx))
+        : start.right;
+      const top = corner.includes("n")
+        ? Math.max(0, Math.min(start.bottom - 150, start.top + dy))
+        : start.top;
+      const bottom = corner.includes("s")
+        ? Math.min(start.containerHeight, Math.max(start.top + 150, start.bottom + dy))
+        : start.bottom;
+      setGeometry({ left, top, width: right - left, height: bottom - top });
     };
     const finish = () => {
       window.removeEventListener("pointermove", move);
@@ -1465,9 +1704,20 @@ function LogPanel({ open, lines, onClose }: { open: boolean; lines: string[]; on
   };
 
   if (!open) return null;
-  const style = geometry ? { left: geometry.left, top: geometry.top, width: geometry.width, height: geometry.height, right: "auto", bottom: "auto" } : undefined;
+  const logFontSize = geometry
+    ? Math.max(8, Math.min(16, 9 + (geometry.width - 420) / 140 + (geometry.height - 240) / 120))
+    : 9;
+  const style = geometry ? ({
+    left: geometry.left,
+    top: geometry.top,
+    width: geometry.width,
+    height: geometry.height,
+    right: "auto",
+    bottom: "auto",
+    "--log-font-size": `${logFontSize}px`,
+  } as React.CSSProperties) : undefined;
   return <div ref={panelRef} className="log-drawer" role="dialog" aria-label="Run logs" style={style}>
-    <button className="log-resize-handle" type="button" title="Resize logs" aria-label="Resize logs from top left" onPointerDown={beginResize} />
+    {(["nw", "ne", "sw", "se"] as LogResizeCorner[]).map((corner) => <button key={corner} className={`log-resize-handle ${corner}`} type="button" title="Resize logs" aria-label={`Resize logs from ${corner}`} onPointerDown={beginResize(corner)} />)}
     <div className="log-header" onPointerDown={beginDrag}><strong><Terminal size={12}/> Run logs</strong><div className="log-header-actions"><button className="log-copy" type="button" title="Copy all logs" aria-label="Copy all logs" onClick={copyLogs}>{copied ? <Check size={12}/> : <Copy size={12}/>}<span>{copied ? "Copied!" : "Copy"}</span></button><button type="button" title="Minimize logs" aria-label="Minimize logs" onClick={onClose}><Minus size={15}/></button><button type="button" title="Close logs" aria-label="Close logs" onClick={onClose}><X size={14}/></button></div></div>
     <pre id="runLogs">{lines.join("\n")}</pre>
   </div>;
@@ -1544,9 +1794,26 @@ function DaskStats({ job, live }: { job: Job; live: LiveState | null }) {
   </section>;
 }
 
+function pipelineStatusMessage(job: Job, live: LiveState | null): string {
+  if (live?.stage === "gaussian_splatting") {
+    const step = Number(live.step || 0);
+    const maxSteps = Number(live.max_steps || 0);
+    return maxSteps > 0
+      ? `GTSFM: Optimizing Gaussian splats · ${step.toLocaleString()} / ${maxSteps.toLocaleString()} steps`
+      : "GTSFM: Initializing Gaussian optimization…";
+  }
+  if (live?.message) return live.message;
+  if (job.status === "queued") return job.remote ? "Waiting for the Modal GPU worker…" : "Waiting for the reconstruction worker…";
+  const latestStatus = [...(job.log_tail || [])].reverse().find((line) => /GTSFM|partition|VGGT|Gaussian|splat/i.test(line));
+  return latestStatus?.replace(/^.*?\b(?:DEBUG|INFO|WARNING|ERROR|CRITICAL):\s*/, "") || "GTSFM: Preparing the reconstruction pipeline…";
+}
+
 function Viewer({ activeJob, live, logsOpen, setLogsOpen, statusBarOpen, setStatusBarOpen, onCancelJob, setup, setupRefreshing, onRefreshSetup, onSetupChange }: ViewerProps) {
   const closeStatus = () => { setStatusBarOpen(false); setLogsOpen(false); };
-  const showDaskStats = Boolean(activeJob && !activeJob.remote && ["queued", "running"].includes(activeJob.status));
+  const showDaskStats = Boolean(activeJob && ["queued", "running"].includes(activeJob.status));
+  const expectsSplats = Boolean(activeJob && (activeJob.spec.splat_implementation || "none") !== "none");
+  const visualizationAvailable = Boolean(live?.preview_url || live?.final_url || activeJob?.has_final_splat);
+  const showPipelineWait = Boolean(activeJob && expectsSplats && ["queued", "running"].includes(activeJob.status) && !visualizationAvailable);
   return <main id="main-content"><StatusBar job={activeJob} live={live} logsOpen={logsOpen} setLogsOpen={setLogsOpen} visible={statusBarOpen} onCancel={onCancelJob} onClose={closeStatus} />
     <SetupPanel setup={setup} refreshing={setupRefreshing} onRefresh={onRefreshSetup} onSetupChange={onSetupChange} hasActiveJob={Boolean(activeJob && statusBarOpen)} />
     <div id="sceneStats" className={showDaskStats ? "dask-active" : undefined}><div className="stat-group" data-mode="scene"><div className="stat-pair"><span className="label">Cameras</span><span className="value" id="statCameras">0</span></div><div className="stat-pair"><span className="label">Points</span><span className="value" id="statPoints">0</span></div><div className="stat-wide"><span className="label">Image</span><span className="value" id="statImageName">—</span></div></div><div className="stat-group" data-mode="splat"><div className="stat-pair"><span className="label">Splats</span><span className="value" id="statSplats">0</span></div></div>{showDaskStats && activeJob && <DaskStats job={activeJob} live={live}/>}</div>
@@ -1554,6 +1821,7 @@ function Viewer({ activeJob, live, logsOpen, setLogsOpen, statusBarOpen, setStat
     <div id="hud"><label className="background-control">BG <select id="backgroundSelect" defaultValue="dark" aria-label="Viewer background"><option value="dark">Dark</option><option value="graphite">Graphite</option><option value="light-gray">Light gray</option><option value="white">White</option></select></label><button id="prevCamBtn" className="hud-scene-only" title="Previous camera"><ChevronLeft size={14}/></button><button id="nextCamBtn" className="hud-scene-only" title="Next camera"><ChevronRight size={14}/></button><button id="toggleStats">Hide stats</button><label className="hud-scene-only"><input type="checkbox" id="toggleCams" defaultChecked/> Cameras</label><label className="hud-scene-only">Point size <input type="range" id="ptSize" min="1" max="10" defaultValue="2"/></label><button id="toggleGround" type="button" aria-pressed="true">Hide plane</button><label className="plane-height-control">Plane Y <input type="range" id="groundY" min="-5" max="5" step="0.1" defaultValue="0" aria-label="Plane vertical position"/><output id="groundYValue" htmlFor="groundY">0.0</output></label></div>
     <a className="viewport-github" href="https://github.com/borglab/gtsfm" target="_blank" rel="noreferrer" title="Open GTSFM on GitHub" aria-label="Open GTSFM GitHub repository"><Github size={16}/></a>
     <LogPanel open={logsOpen} lines={activeJob?.log_tail || []} onClose={() => setLogsOpen(false)} />
+    {showPipelineWait && activeJob && <div className="pipeline-wait-overlay" role="status" aria-live="polite"><div className="pipeline-wait-content"><span>RECONSTRUCTION IN PROGRESS</span><strong>{pipelineStatusMessage(activeJob, live)}</strong><div className="pipeline-wait-dots" aria-hidden="true"><i/><i/><i/></div><small>The first live Gaussian preview will appear here automatically.</small></div></div>}
     <div id="loadingOverlay" className="loading-overlay" role="status"><div className="loading-box"><span id="loadingMessage">Loading…</span><div className="loading-progress-track"><div className="loading-progress-fill" id="loadingProgress"/></div></div></div>
   </main>;
 }
@@ -1604,8 +1872,29 @@ function HardwareWarning({ hardware, onClose, onUseRemote }: { hardware: Hardwar
   </section>;
 }
 
+const SIDEBAR_WIDTH_KEY = "gtsfm-studio-sidebar-width";
+const SIDEBAR_MIN_WIDTH = 320;
+const SIDEBAR_MAX_WIDTH = 760;
+
+function constrainSidebarWidth(width: number): number {
+  const viewerRoom = Math.max(SIDEBAR_MIN_WIDTH, window.innerWidth - 360);
+  return Math.round(Math.min(SIDEBAR_MAX_WIDTH, viewerRoom, Math.max(SIDEBAR_MIN_WIDTH, width)));
+}
+
+function storedSidebarWidth(): number {
+  try {
+    const saved = Number(window.localStorage.getItem(SIDEBAR_WIDTH_KEY));
+    return constrainSidebarWidth(Number.isFinite(saved) && saved > 0 ? saved : 420);
+  } catch {
+    return 420;
+  }
+}
+
 function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(storedSidebarWidth);
+  const [sidebarResizing, setSidebarResizing] = useState(false);
+  const sidebarResizeStart = useRef<{ pointerX: number; width: number } | null>(null);
   const [tab, setTab] = useState(new URLSearchParams(location.search).get("view") === "results" ? "results" : "run");
   const [schema, setSchema] = useState<ConfigurationSchema>(BOOTSTRAP_SCHEMA);
   const [schemaLoading, setSchemaLoading] = useState(true);
@@ -1622,8 +1911,51 @@ function App() {
   const [statusBarOpen, setStatusBarOpen] = useState(true);
   const [hardwareWarningDismissed, setHardwareWarningDismissed] = useState(false);
   const [remotePromptKey, setRemotePromptKey] = useState(0);
+  const [viewerLoadRequest, setViewerLoadRequest] = useState(0);
   const previewVersion = useRef<string | number | null>(null);
   const finalLoaded = useRef<string | null>(null);
+
+  const finishSidebarResize = useCallback(() => {
+    sidebarResizeStart.current = null;
+    setSidebarResizing(false);
+    document.body.classList.remove("sidebar-is-resizing");
+  }, []);
+
+  const startSidebarResize = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (sidebarCollapsed || event.button !== 0) return;
+    event.preventDefault();
+    sidebarResizeStart.current = { pointerX: event.clientX, width: sidebarWidth };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setSidebarResizing(true);
+    document.body.classList.add("sidebar-is-resizing");
+  };
+
+  const moveSidebarResize = (event: React.PointerEvent<HTMLDivElement>) => {
+    const start = sidebarResizeStart.current;
+    if (!start) return;
+    setSidebarWidth(constrainSidebarWidth(start.width + event.clientX - start.pointerX));
+  };
+
+  const resizeSidebarWithKeyboard = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+      event.preventDefault();
+      const direction = event.key === "ArrowRight" ? 1 : -1;
+      setSidebarWidth((current) => constrainSidebarWidth(current + direction * (event.shiftKey ? 40 : 10)));
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      setSidebarWidth(420);
+    }
+  };
+
+  useEffect(() => () => document.body.classList.remove("sidebar-is-resizing"), []);
+  useEffect(() => {
+    try { window.localStorage.setItem(SIDEBAR_WIDTH_KEY, String(sidebarWidth)); } catch { /* storage is optional */ }
+  }, [sidebarWidth]);
+  useEffect(() => {
+    const keepSidebarOnScreen = () => setSidebarWidth((current) => constrainSidebarWidth(current));
+    window.addEventListener("resize", keepSidebarOnScreen);
+    return () => window.removeEventListener("resize", keepSidebarOnScreen);
+  }, []);
 
   const refreshJobs = useCallback(async () => {
     try { const payload = await getJson<JobsResponse>("/api/jobs"); setJobs(payload.items || []); setActiveId((current) => current || payload.items?.find((job) => ["queued", "running"].includes(job.status))?.id || null); } catch (reason) { console.warn("Unable to refresh jobs", reason); }
@@ -1679,37 +2011,69 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!activeJob || activeJob.remote) { setLive(null); return; }
+    if (!activeJob) { setLive(null); return; }
+    setLive(null);
     const socket = new WebSocket(websocketUrl(`/api/events/jobs/${encodeURIComponent(activeJob.id)}`));
-    socket.onmessage = async (event) => {
+    socket.onmessage = (event) => {
       const payload = JSON.parse(event.data) as JobEvent;
       setJobs((current) => current.map((job) => job.id === payload.job.id ? payload.job : job));
       setLive(payload.live);
-      const viewer = window.gtsfmViewer;
-      if (payload.live.preview_url && payload.live.preview_version !== previewVersion.current && viewer && !viewer.isBusy()) {
-        previewVersion.current = payload.live.preview_version ?? null;
-        await viewer.loadSplatsFile({ splatsUrl: payload.live.preview_url, label: `${payload.job.name} · live` });
-      }
-      if (payload.job.status === "completed" && payload.live.final_url && finalLoaded.current !== payload.job.id && viewer && !viewer.isBusy()) {
-        finalLoaded.current = payload.job.id;
-        await viewer.loadSplatsFile({ splatsUrl: payload.live.final_url, label: `${payload.job.name} · final` });
-      }
     };
     return () => socket.close();
   }, [activeJob?.id]);
+
+  useEffect(() => {
+    if (!activeJob || !live) return;
+    const finalKey = activeJob.status === "completed" && live.final_url ? `${activeJob.id}:${live.final_url}` : null;
+    const previewKey = live.preview_url ? `${activeJob.id}:${String(live.preview_version ?? live.preview_url)}` : null;
+    const desired = finalKey
+      ? { kind: "final" as const, key: finalKey, url: live.final_url as string, label: `${activeJob.name} · final` }
+      : previewKey
+        ? { kind: "preview" as const, key: previewKey, url: live.preview_url as string, label: `${activeJob.name} · live` }
+        : null;
+    if (!desired) return;
+    if (desired.kind === "final" && finalLoaded.current === desired.key) return;
+    if (desired.kind === "preview" && previewVersion.current === desired.key) return;
+
+    let cancelled = false;
+    let retry: number | null = null;
+    let loadFailures = 0;
+    const tryLoad = async () => {
+      if (cancelled) return;
+      const viewer = window.gtsfmViewer;
+      if (!viewer || viewer.isBusy()) {
+        retry = window.setTimeout(() => { void tryLoad(); }, 250);
+        return;
+      }
+      const loaded = await viewer.loadSplatsFile({ splatsUrl: desired.url, label: desired.label });
+      if (cancelled) return;
+      if (loaded === false) {
+        loadFailures += 1;
+        if (loadFailures < 3) retry = window.setTimeout(() => { void tryLoad(); }, 1200);
+        return;
+      }
+      if (desired.kind === "final") finalLoaded.current = desired.key;
+      else previewVersion.current = desired.key;
+    };
+    void tryLoad();
+    return () => {
+      cancelled = true;
+      if (retry !== null) window.clearTimeout(retry);
+    };
+  }, [activeJob?.id, activeJob?.status, live?.final_url, live?.preview_url, live?.preview_version, viewerLoadRequest]);
 
   const cancelJob = async (id: string) => { await fetch(`/api/jobs/${encodeURIComponent(id)}/cancel`, { method: "POST" }); await refreshJobs(); };
   const activeCount = jobs.filter((job) => ["queued", "running"].includes(job.status)).length;
   const hasNvidiaSplatSupport = hardware?.devices.some((device) => device.supports_gaussian_splatting && (!device.status || device.status === "available")) ?? false;
   const showHardwareWarning = Boolean(hardware && !hasNvidiaSplatSupport && !hardwareWarningDismissed);
   const useRemoteVm = () => { setHardwareWarningDismissed(true); setTab("run"); setRemotePromptKey((current) => current + 1); };
-  return <div className="app-shell">{showHardwareWarning && hardware && <HardwareWarning hardware={hardware} onClose={() => setHardwareWarningDismissed(true)} onUseRemote={useRemoteVm}/>}<aside id="sidebar" className={sidebarCollapsed ? "sidebar-collapsed" : ""}><Brand collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed((current) => !current)} />
+  return <div className="app-shell">{showHardwareWarning && hardware && <HardwareWarning hardware={hardware} onClose={() => setHardwareWarningDismissed(true)} onUseRemote={useRemoteVm}/>}<aside id="sidebar" className={`${sidebarCollapsed ? "sidebar-collapsed" : ""} ${sidebarResizing ? "sidebar-resizing" : ""}`} style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}><Brand collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed((current) => !current)} />
     <Tabs.Root className="workspace-tabs" value={tab} onValueChange={setTab}>
       <Tabs.List className="studio-tabs" aria-label="Workspace sections"><Tabs.Trigger className="studio-tab" value="run"><Play size={12}/> New run</Tabs.Trigger><Tabs.Trigger className="studio-tab" value="activity"><Activity size={12}/> Activity {activeCount > 0 && <span id="activeJobCount">{activeCount}</span>}</Tabs.Trigger><Tabs.Trigger className="studio-tab" value="results"><Box size={12}/> Results</Tabs.Trigger></Tabs.List>
       <Tabs.Content className="studio-panel" value="run" forceMount><RunForm schema={schema} hardware={hardware} samples={samples} samplesLoading={samplesLoading} onStarted={(job) => { setStatusBarOpen(true); setActiveId(job.id); refreshJobs(); }} onTabChange={setTab} remotePromptKey={remotePromptKey} schemaLoading={schemaLoading} schemaError={schemaError} onRetrySchema={loadSchema}/></Tabs.Content>
-      <Tabs.Content className="studio-panel" value="activity" forceMount><ActivityPanel jobs={jobs} activeId={activeId} onSelect={(id) => { setStatusBarOpen(true); setActiveId(id); previewVersion.current = null; finalLoaded.current = null; }} onCancel={cancelJob} onRefresh={refreshJobs}/></Tabs.Content>
+      <Tabs.Content className="studio-panel" value="activity" forceMount><ActivityPanel jobs={jobs} activeId={activeId} onSelect={(id) => { setStatusBarOpen(true); setActiveId(id); previewVersion.current = null; finalLoaded.current = null; setViewerLoadRequest((current) => current + 1); }} onCancel={cancelJob} onRefresh={refreshJobs}/></Tabs.Content>
       <Tabs.Content className="studio-panel" value="results" forceMount><ResultsPanel /></Tabs.Content>
-    </Tabs.Root></aside><Viewer activeJob={activeJob} live={live} logsOpen={logsOpen} setLogsOpen={setLogsOpen} statusBarOpen={statusBarOpen} setStatusBarOpen={setStatusBarOpen} onCancelJob={cancelJob} setup={setup} setupRefreshing={setupRefreshing} onRefreshSetup={refreshSetup} onSetupChange={setSetup}/></div>;
+    </Tabs.Root><div className="sidebar-resize-handle" role="separator" aria-label="Resize side panel" aria-orientation="vertical" aria-valuemin={SIDEBAR_MIN_WIDTH} aria-valuemax={SIDEBAR_MAX_WIDTH} aria-valuenow={sidebarWidth} tabIndex={sidebarCollapsed ? -1 : 0} title="Drag to resize side panel" onPointerDown={startSidebarResize} onPointerMove={moveSidebarResize} onPointerUp={finishSidebarResize} onPointerCancel={finishSidebarResize} onDoubleClick={() => setSidebarWidth(constrainSidebarWidth(420))} onKeyDown={resizeSidebarWithKeyboard}/></aside><Viewer activeJob={activeJob} live={live} logsOpen={logsOpen} setLogsOpen={setLogsOpen} statusBarOpen={statusBarOpen} setStatusBarOpen={setStatusBarOpen} onCancelJob={cancelJob} setup={setup} setupRefreshing={setupRefreshing} onRefreshSetup={refreshSetup} onSetupChange={setSetup}/></div>;
 }
 
 const root = document.getElementById("root");
