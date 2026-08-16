@@ -468,16 +468,16 @@ class ColmapViewer {
           console.warn("Failed to load gaussian splats:", err);
           this._renderStats();
         }
-        return;
+        return false;
       }
 
       if (this._activeSplatsToken !== token) {
-        return;
+        return false;
       }
 
       if (!this.splatsMesh) {
         this._renderStats();
-        return;
+        return false;
       }
 
       this.pointsCount = 0;
@@ -495,6 +495,7 @@ class ColmapViewer {
       ) || 1.0;
       this.camera.radius = size * 1.6;
       this.camera.rebuildAnglesAndRadius?.();
+      return true;
     } finally {
       this._endBusy(busyToken);
     }
@@ -620,12 +621,6 @@ class ColmapViewer {
 
   _clearSplats() {
     if (this.splatsMesh) {
-      try {
-        this.splatsMesh.thinInstanceSetBuffer("matrix", null);
-        this.splatsMesh.thinInstanceSetBuffer("color", null);
-      } catch (err) {
-        console.warn("Unable to clear splat thin instances:", err);
-      }
       this.splatsMesh.dispose();
       this.splatsMesh = null;
     }
@@ -652,23 +647,30 @@ class ColmapViewer {
     updateLoading({ active: true, message: "Loading splat file…", progress: 0 });
 
     const promise = (async () => {
-      const buffer = await this._fetchResource(this.splatsUrl, "arrayBuffer", { cache: "no-store" });
+      const buffer = await this._fetchResource(this.splatsUrl, "arrayBuffer", {
+        cache: "no-store",
+        cacheResult: false,
+      });
       if (!isTokenActive()) return;
 
-      const splats = this._parseSplatsPly(buffer);
-      if (!splats.length) {
-        if (isTokenActive()) {
-          throw new Error("Parsed gaussian splats contained no points.");
-        }
-        return;
+      if (typeof BABYLON.GaussianSplattingMesh !== "function") {
+        throw new Error("This browser build does not include the Gaussian splat renderer.");
       }
 
-      updateLoading({ message: "Rendering splats…", progress: 0.15 });
-      await this._createSplatsMesh(splats, token);
+      updateLoading({ message: "Converting Gaussian splats…", progress: 0.15 });
+      const converted = await BABYLON.GaussianSplattingMesh.ConvertPLYWithSHToSplatAsync(buffer);
+      if (!isTokenActive()) return;
+
+      if (!converted?.buffer?.byteLength) {
+        throw new Error("The Gaussian splat file contained no renderable data.");
+      }
+
+      updateLoading({ message: "Preparing Gaussian renderer…", progress: 0.7 });
+      await this._createSplatsMesh(converted, token);
 
       if (!isTokenActive()) return;
 
-      this.splatsPointCount = splats.length;
+      this.splatsPointCount = this.splatsMesh?.getTotalVertices?.() ?? 0;
       this._renderStats();
       updateLoading({ progress: 1 });
     })();
@@ -685,96 +687,38 @@ class ColmapViewer {
     }
   }
 
-  async _createSplatsMesh(splats, token = null) {
+  async _createSplatsMesh(converted, token = null) {
     const isTokenActive = () => !token || (this._activeSplatsToken === token && this.mode === "splat");
     if (!isTokenActive()) return;
 
-    const base = BABYLON.MeshBuilder.CreateSphere(
-      "splatBase",
-      { diameter: 2, segments: 6 },
-      this.scene
+    // Babylon rasterizes the full anisotropic covariance in screen space, sorts
+    // translucent splats by depth, and evaluates any spherical-harmonic color
+    // coefficients included in the PLY. This is intentionally not a polygonal
+    // ellipsoid approximation.
+    const mesh = new BABYLON.GaussianSplattingMesh(
+      `gaussian-splats-${Date.now()}`,
+      null,
+      this.scene,
+      false
     );
-    base.isVisible = true;
-    base.isPickable = false;
-    base.alwaysSelectAsActiveMesh = true;
-    base.thinInstanceEnablePicking = false;
+    mesh.isPickable = false;
+    mesh.scaling.y = -1;
 
-    const material = new BABYLON.StandardMaterial("splatsMaterial", this.scene);
-    material.disableLighting = true;
-    material.emissiveColor = new BABYLON.Color3(1, 1, 1);
-    material.backFaceCulling = false;
-    material.alphaMode = BABYLON.Constants.ALPHA_COMBINE;
-    material.transparencyMode = BABYLON.Material.MATERIAL_ALPHABLEND;
-    material.zWrite = false;
-    material.useInstancedBuffers = true;
-    if ("useInstancingColor" in material) {
-      material.useInstancingColor = true;
+    try {
+      await mesh.updateDataAsync(converted.buffer, converted.sh ?? undefined);
+    } catch (err) {
+      mesh.dispose();
+      throw err;
     }
-    base.material = material;
 
-    const bailIfStale = () => {
-      if (isTokenActive()) return false;
-      material.dispose();
-      base.dispose();
-      return true;
-    };
-
-    const matrixBuffer = new Float32Array(splats.length * 16);
-    const colorBuffer = new Float32Array(splats.length * 4);
-    const tmpScale = new BABYLON.Vector3();
-    const tmpQuat = new BABYLON.Quaternion();
-    const tmpPos = new BABYLON.Vector3();
-    const tmpMatrix = new BABYLON.Matrix();
-    const MIN_SCALE = 0.01;
-
-    for (let i = 0; i < splats.length; i++) {
-      const s = splats[i];
-      const scale = s.scale ?? [0, 0, 0];
-      const rot = s.rotation ?? [0, 0, 0, 1];
-      const opacity = Number.isFinite(s.opacity) ? Math.min(1, Math.max(0, s.opacity)) : 1.0;
-
-      const sx = Number.isFinite(scale[0]) ? Math.max(MIN_SCALE, Math.exp(scale[0])) : 1;
-      const sy = Number.isFinite(scale[1]) ? Math.max(MIN_SCALE, Math.exp(scale[1])) : 1;
-      const sz = Number.isFinite(scale[2]) ? Math.max(MIN_SCALE, Math.exp(scale[2])) : 1;
-      tmpScale.set(sx, sy, sz);
-
-      const qx = Number.isFinite(rot[0]) ? rot[0] : 0;
-      const qy = Number.isFinite(rot[1]) ? rot[1] : 0;
-      const qz = Number.isFinite(rot[2]) ? rot[2] : 0;
-      const qw = Number.isFinite(rot[3]) ? rot[3] : 1;
-      tmpQuat.set(qx, qy, qz, qw);
-      tmpQuat.normalize();
-      tmpPos.set(s.x, s.y, s.z);
-
-      BABYLON.Matrix.ComposeToRef(tmpScale, tmpQuat, tmpPos, tmpMatrix);
-      tmpMatrix.copyToArray(matrixBuffer, i * 16);
-
-      colorBuffer[i * 4 + 0] = s.r;
-      colorBuffer[i * 4 + 1] = s.g;
-      colorBuffer[i * 4 + 2] = s.b;
-      colorBuffer[i * 4 + 3] = opacity;
-
-      if (splats.length > 1000 && i % 2000 === 0) {
-        if (bailIfStale()) return;
-        if (isTokenActive()) this._updateLoadingProgress(i / splats.length);
-        await this._yieldFrame();
-        if (bailIfStale()) return;
-      }
+    if (!isTokenActive()) {
+      mesh.dispose();
+      return;
     }
-    if (bailIfStale()) return;
-    if (isTokenActive()) this._updateLoadingProgress(0.98);
 
-    base.thinInstanceSetBuffer("matrix", matrixBuffer, 16);
-    base.thinInstanceSetBuffer("color", colorBuffer, 4);
-    base.thinInstanceRefreshBoundingInfo();
-    base.setEnabled(true);
-    if (bailIfStale()) return;
-    if (isTokenActive()) this._updateLoadingProgress(1.0);
-    if (splats.length > 1000) {
-      await this._yieldFrame();
-      if (bailIfStale()) return;
-    }
-    this.splatsMesh = base;
+    mesh.computeWorldMatrix(true);
+    mesh.refreshBoundingInfo();
+    this.splatsMesh = mesh;
     this._splatsMeshToken = token ?? null;
   }
 
@@ -926,7 +870,7 @@ class ColmapViewer {
       const { r, g, b } = this._plyColorFromComponents(components);
 
       const opacityRaw = idx.opacity >= 0 ? parseFloat(parts[idx.opacity]) : 1.0;
-      const opacity = Number.isFinite(opacityRaw) ? Math.min(1, Math.max(0, opacityRaw)) : 1.0;
+      const opacity = this._plyOpacity(opacityRaw, idx);
       const scale0 = idx.scale0 >= 0 ? parseFloat(parts[idx.scale0]) : 0;
       const scale1 = idx.scale1 >= 0 ? parseFloat(parts[idx.scale1]) : 0;
       const scale2 = idx.scale2 >= 0 ? parseFloat(parts[idx.scale2]) : 0;
@@ -944,7 +888,7 @@ class ColmapViewer {
         b,
         opacity,
         scale: [scale0, scale1, scale2],
-        rotation: [rot0, rot1, rot2, rot3],
+        rotation: this._plyRotation(rot0, rot1, rot2, rot3, idx),
       });
       if (points.length >= totalVertices) break;
     }
@@ -1009,7 +953,7 @@ class ColmapViewer {
       }
       if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) continue;
       const { r, g, b } = this._plyColorFromComponents({ red, green, blue, fdc0, fdc1, fdc2 });
-      const alpha = Number.isFinite(opacity) ? Math.min(1, Math.max(0, opacity)) : 1.0;
+      const alpha = this._plyOpacity(opacity, idx);
       points.push({
         x,
         y: -y,
@@ -1019,7 +963,7 @@ class ColmapViewer {
         b,
         opacity: alpha,
         scale: [scale0, scale1, scale2],
-        rotation: [rot0, rot1, rot2, rot3 || 1],
+        rotation: this._plyRotation(rot0, rot1, rot2, rot3, idx),
       });
     }
     return this._plyDownsample(points);
@@ -1046,6 +990,23 @@ class ColmapViewer {
       rot2: find("rot_2"),
       rot3: find("rot_3"),
     };
+  }
+
+  _plyOpacity(value, indexMap) {
+    if (!Number.isFinite(value)) return 1.0;
+    const isGaussianPly = indexMap.fdc0 >= 0 && indexMap.scale0 >= 0 && indexMap.rot0 >= 0;
+    if (isGaussianPly) {
+      // Gsplat and the original 3DGS PLY format store opacity as a logit.
+      return 1 / (1 + Math.exp(-value));
+    }
+    return Math.min(1, Math.max(0, value));
+  }
+
+  _plyRotation(rot0, rot1, rot2, rot3, indexMap) {
+    const hasGaussianRotation = indexMap.rot0 >= 0 && indexMap.rot1 >= 0 && indexMap.rot2 >= 0 && indexMap.rot3 >= 0;
+    if (!hasGaussianRotation) return [0, 0, 0, 1];
+    // Gsplat writes quaternions as w, x, y, z; Babylon consumes x, y, z, w.
+    return [rot1, rot2, rot3, rot0];
   }
 
   _plyColorFromComponents(components) {
@@ -1159,25 +1120,27 @@ class ColmapViewer {
     if (!url) {
       return kind === "arrayBuffer" ? new ArrayBuffer(0) : "";
     }
+    const { cacheResult = true, ...requestInit } = fetchOpts;
     const key = `${kind}:${url}`;
-    if (this.resourceCache.has(key)) {
+    if (cacheResult && this.resourceCache.has(key)) {
       const cached = this.resourceCache.get(key);
       if (kind === "arrayBuffer") {
         return cached.slice(0);
       }
       return cached;
     }
-    const response = await fetch(url, fetchOpts);
+    const response = await fetch(url, requestInit);
     if (!response.ok) {
       throw new Error(`Failed to load ${url}`);
     }
     if (kind === "arrayBuffer") {
       const buffer = await response.arrayBuffer();
+      if (!cacheResult) return buffer;
       this._rememberResource(key, buffer);
       return buffer.slice(0);
     }
     const text = await response.text();
-    this._rememberResource(key, text);
+    if (cacheResult) this._rememberResource(key, text);
     return text;
   }
 
