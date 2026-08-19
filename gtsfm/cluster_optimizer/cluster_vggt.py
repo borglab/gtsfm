@@ -13,9 +13,10 @@ from PIL import Image as PILImage
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.metrics as metrics_utils
-from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptions
+from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptions, multi_view_retriangulate_from_2d_tracks
 from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterComputationGraph, ClusterContext, ClusterOptimizerBase
 from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.frontend.multi_view_tracker import MultiViewTracker
 from gtsfm.frontend.vggt_geometry_transformer import (
@@ -50,10 +51,19 @@ def _run_cluster_ba(
     drop_camera_with_no_track: bool = False,
     min_track_length: int = 2,
     cluster_label: Optional[str] = None,
+    tracks_2d: Optional[list[SfmTrack2d]] = None,
+    use_multi_view_retriangulation: bool = False,
 ) -> tuple[GtsfmData, GtsfmData]:
     """Run cluster-level BA on a GtsfmData result.
 
     This is a module-level function so it can be used with ``dask.delayed``.
+
+    Args:
+        tracks_2d: (optional) Union-find 2D tracks. Required when
+            ``use_multi_view_retriangulation=True``.
+        use_multi_view_retriangulation: When True, after the initial BA, re-triangulate
+            ``tracks_2d`` against the post-BA cameras (recovers tracks dropped earlier
+            in the pipeline) and run a second BA on the augmented track set.
 
     Returns:
         Tuple of (post_ba_result, pre_ba_result).
@@ -89,6 +99,20 @@ def _run_cluster_ba(
         gtsfm_data_with_ba = gtsfm_data_with_ba.filter_landmark_measurements(
             post_ba_max_reproj_error
         )
+
+        # Optional retri stage: re-triangulate union-find tracks against the post-BA
+        # cameras and run another BA on the augmented set. Recovers tracks dropped
+        # earlier in the pipeline; mirrors the retri stage in
+        # BundleAdjustmentOptimizer._run_ba_and_evaluate.
+        if use_multi_view_retriangulation and tracks_2d is not None:
+            retri_data = multi_view_retriangulate_from_2d_tracks(
+                gtsfm_data_with_ba, tracks_2d, min_track_length=min_track_length,
+            )
+            if retri_data.number_tracks() > 0:
+                gtsfm_data_with_ba, _ = optimizer.run_simple_ba(retri_data)
+                gtsfm_data_with_ba = gtsfm_data_with_ba.filter_landmark_measurements(
+                    post_ba_max_reproj_error
+                )
 
         logger.info(
             "%s🔍 #valid tracks after BA: %d out of %d",

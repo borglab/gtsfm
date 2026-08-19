@@ -183,8 +183,8 @@ class MultiViewOptimizer:
 
         # View graph calibration: refine focal lengths from F-matrices
         if self._run_view_graph_calibration:
-            all_intrinsics, edges_to_remove = delayed(view_graph_calibration.calibrate_view_graph, nout=2)(
-                viewgraph_v_corr_idxs_graph, keypoints_graph, all_intrinsics, num_images
+            all_intrinsics, edges_to_remove = delayed(_calibrate_view_graph_from_lists, nout=2)(
+                viewgraph_v_corr_idxs_graph, keypoints_graph, all_intrinsics
             )
             # Remove edges with high calibration error
             viewgraph_i2Ri1_graph, viewgraph_i2Ui1_graph, viewgraph_v_corr_idxs_graph = delayed(_filter_edges, nout=3)(
@@ -334,6 +334,22 @@ def _sync_two_view_reports_after_calibration(
         )
 
     return synced_reports
+
+
+def _calibrate_view_graph_from_lists(
+    v_corr_idxs_dict,
+    keypoints_list: list[Keypoints],
+    intrinsics_list: list[gtsfm_types.CALIBRATION_TYPE],
+    **kwargs,
+):
+    """List-interface wrapper around calibrate_view_graph for use in multi_view_optimizer."""
+    kp_dict = {i: kp for i, kp in enumerate(keypoints_list)}
+    intr_dict = {i: cal for i, cal in enumerate(intrinsics_list)}
+    refined_dict, edges_to_remove = view_graph_calibration.calibrate_view_graph(
+        v_corr_idxs_dict, kp_dict, intr_dict, **kwargs
+    )
+    refined_list = [refined_dict.get(i, intrinsics_list[i]) for i in range(len(intrinsics_list))]
+    return refined_list, edges_to_remove
 
 
 def reestimate_relative_poses(

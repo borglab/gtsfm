@@ -169,6 +169,10 @@ class BundleAdjustmentOptions:
     min_tracks_per_camera: int = 15
     compute_pose_covariances: bool = False
     optimizer_relative_cost_tol: float = 1e-5
+    use_multi_view_retriangulation: bool = False
+    mv_retri_min_track_length: int = 3
+    mv_retri_reproj_error_thresh: float = 10.0
+    mv_retri_max_num_hypotheses: int = 100
 
     def to_optimizer(self, **overrides) -> "BundleAdjustmentOptimizer":
         """Construct a :class:`BundleAdjustmentOptimizer` from these options.
@@ -195,6 +199,10 @@ class BundleAdjustmentOptions:
             min_tracks_per_camera=self.min_tracks_per_camera,
             compute_pose_covariances=self.compute_pose_covariances,
             optimizer_relative_cost_tol=self.optimizer_relative_cost_tol,
+            use_multi_view_retriangulation=self.use_multi_view_retriangulation,
+            mv_retri_min_track_length=self.mv_retri_min_track_length,
+            mv_retri_reproj_error_thresh=self.mv_retri_reproj_error_thresh,
+            mv_retri_max_num_hypotheses=self.mv_retri_max_num_hypotheses,
         )
         kwargs.update(overrides)
         return BundleAdjustmentOptimizer(**kwargs)
@@ -238,13 +246,6 @@ class BundleAdjustmentOptimizer:
         min_tracks_per_camera: int = 15,
         compute_pose_covariances: bool = False,
         optimizer_relative_cost_tol: float = 1e-5,
-        # ── Optional post-BA multi-view retriangulation (opt-in) ──
-        # When `use_multi_view_retriangulation=True`: after the existing BA loop
-        # converges, re-triangulate the union-find 2D tracks against the post-BA
-        # cameras (recovers tracks dropped between union-find and BA's filter
-        # passes) and run a final BA on the augmented set. Requires `tracks_2d` to
-        # be passed to `create_computation_graph` / `_run_ba_and_evaluate`. The
-        # final BA reuses the existing `reproj_error_thresholds[-1]` for filtering.
         use_multi_view_retriangulation: bool = False,
         mv_retri_min_track_length: int = 3,
         mv_retri_reproj_error_thresh: float = 10.0,
@@ -952,12 +953,6 @@ class BundleAdjustmentOptimizer:
         )
         total_time = time.time() - start_time
 
-        # ── Optional post-BA multi-view retriangulation stage ──
-        # Re-triangulate union-find tracks against the post-BA cameras (recovers
-        # tracks dropped between union-find and BA's filter passes), then run a
-        # final BA on the augmented set. The final BA reuses the existing tightest
-        # `reproj_error_thresholds[-1]` for inline filtering — same mechanism as
-        # the upstream BA loop.
         if self._use_multi_view_retriangulation:
             if tracks_2d is None:
                 logger.warning(
@@ -984,10 +979,6 @@ class BundleAdjustmentOptimizer:
                     min_track_length=self._mv_retri_min_track_length,
                 )
                 if retri_data.number_tracks() > 0:
-                    # Final BA on the retri'd track set. No inline filter — pose AUC
-                    # is set by BA's converged cameras and is independent of any
-                    # downstream track filtering. Callers can filter the returned
-                    # GtsfmData themselves if they want.
                     (optimized_data, filtered_result, valid_mask, _) = self.run_ba_stage_with_filtering(
                         initial_data=retri_data,
                         absolute_pose_priors=absolute_pose_priors,
