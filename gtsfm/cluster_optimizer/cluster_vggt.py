@@ -13,9 +13,10 @@ from PIL import Image as PILImage
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.metrics as metrics_utils
-from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptions
+from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptions, multi_view_retriangulate_from_2d_tracks
 from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterComputationGraph, ClusterContext, ClusterOptimizerBase
 from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.frontend.multi_view_tracker import MultiViewTracker
 from gtsfm.frontend.vggt_geometry_transformer import (
@@ -50,10 +51,20 @@ def _run_cluster_ba(
     drop_camera_with_no_track: bool = False,
     min_track_length: int = 2,
     cluster_label: Optional[str] = None,
+    tracks_2d: Optional[list[SfmTrack2d]] = None,
+    use_multi_view_retriangulation: bool = False,
+    run_bundle_adjustment: bool = True,
 ) -> tuple[GtsfmData, GtsfmData]:
     """Run cluster-level BA on a GtsfmData result.
 
     This is a module-level function so it can be used with ``dask.delayed``.
+
+    Args:
+        tracks_2d: (optional) Union-find 2D tracks. Required when
+            ``use_multi_view_retriangulation=True``.
+        use_multi_view_retriangulation: When True, after the initial BA, re-triangulate
+            ``tracks_2d`` against the post-BA cameras (recovers tracks dropped earlier
+            in the pipeline) and run a second BA on the augmented track set.
 
     Returns:
         Tuple of (post_ba_result, pre_ba_result).
@@ -82,6 +93,21 @@ def _run_cluster_ba(
         if not should_run_ba:
             return gtsfm_data, pre_ba_data
 
+    if not run_bundle_adjustment:
+        # ToL census (2026-07-06): per-cluster BA degraded 7/8 GT-gradeable clusters (median 2.90->4.34m
+        # vs GT) — the ~4px pose/Fetzer-K reprojection inconsistency gets resolved by moving the FREE
+        # poses instead of the pinned focals. Raw VGGT poses + global-Fetzer K are kept verbatim
+        # (bit-identical intrinsics per camera across clusters, which is what the Sim3 merges need);
+        # the pose-pinned merge BA downstream does the structure polishing safely. The 3px post-BA
+        # filter is NOT applied here: unpolished structure sits at ~4px and the merge pre-filter (14px)
+        # is the gate that admits it.
+        logger.info(
+            "%s🛑 Per-cluster BA disabled: keeping raw geometry (%d tracks after pre-BA filter).",
+            f"[{cluster_label}] " if cluster_label else "",
+            gtsfm_data.number_tracks(),
+        )
+        return gtsfm_data, pre_ba_data
+
     try:
         optimizer = ba_options.to_optimizer(min_track_length=min_track_length)
         gtsfm_data_with_ba, _ = optimizer.run_simple_ba(gtsfm_data)
@@ -89,6 +115,20 @@ def _run_cluster_ba(
         gtsfm_data_with_ba = gtsfm_data_with_ba.filter_landmark_measurements(
             post_ba_max_reproj_error
         )
+
+        # Optional retri stage: re-triangulate union-find tracks against the post-BA
+        # cameras and run another BA on the augmented set. Recovers tracks dropped
+        # earlier in the pipeline; mirrors the retri stage in
+        # BundleAdjustmentOptimizer._run_ba_and_evaluate.
+        if use_multi_view_retriangulation and tracks_2d is not None:
+            retri_data = multi_view_retriangulate_from_2d_tracks(
+                gtsfm_data_with_ba, tracks_2d, min_track_length=min_track_length,
+            )
+            if retri_data.number_tracks() > 0:
+                gtsfm_data_with_ba, _ = optimizer.run_simple_ba(retri_data)
+                gtsfm_data_with_ba = gtsfm_data_with_ba.filter_landmark_measurements(
+                    post_ba_max_reproj_error
+                )
 
         logger.info(
             "%s🔍 #valid tracks after BA: %d out of %d",
@@ -112,12 +152,22 @@ def _load_vggt_inputs(
     indices: list[int],
     mode: str,
     *,
+    transformer=None,
     save_processed_image: bool = False,
     output_root: Optional[str] = None,
     image_names: Optional[tuple[str, ...]] = None,
 ):
-    """Load and preprocess a batch of images for VGGT."""
-    image_batch, original_coords = load_image_batch_vggt_loader(loader, indices, mode=mode)
+    """Load and preprocess a batch of images for the geometry model.
+
+    Preprocessing follows the geometry transformer: VGGT and VGGT-Omega differ in resolution / patch
+    alignment / cropping, and the per-pixel depth lookup downstream indexes the model's depth map using
+    `original_coords` from here — so the loader must match the model. `transformer=None` keeps the legacy
+    VGGT loader (back-compat).
+    """
+    if transformer is not None:
+        image_batch, original_coords = transformer.load_image_batch(loader, indices, mode=mode)
+    else:
+        image_batch, original_coords = load_image_batch_vggt_loader(loader, indices, mode=mode)
     if not save_processed_image or output_root is None or image_names is None:
         return image_batch, original_coords
     if len(image_names) != image_batch.shape[0]:
@@ -463,6 +513,7 @@ class ClusterVGGT(ClusterOptimizerBase):
             context.loader,
             global_indices,
             mode=self._input_mode,
+            transformer=self.geometry_transformer,
             save_processed_image=self._save_processed_image,
             output_root=str(context.output_paths.results),
             image_names=image_names,

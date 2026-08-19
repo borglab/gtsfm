@@ -370,15 +370,18 @@ class LoaderBase(GTSFMProcess):
             Dictionary mapping image index -> Future resolving to `Image`.
         """
         workers = [self._input_worker] if self._input_worker else None
-        future_map: Dict[int, Future] = {}
-        for idx in range(len(self)):
-            future_map[idx] = client.submit(
-                self.get_image,
-                idx,
-                workers=workers,
-                key=f"loader-get-image-{idx}",
-            )
-        return future_map
+        indices = list(range(len(self)))
+        # Bulk-submit in a single update-graph message via client.map. A per-index client.submit loop
+        # over thousands of images starves the client event loop between submits (it cannot drain the
+        # scheduler's key-in-memory replies), which closes the client<->scheduler comm mid-submission
+        # on large scenes (e.g. St Peter's ~2500 imgs).
+        futures = client.map(
+            self.get_image,
+            indices,
+            key=[f"loader-get-image-{idx}" for idx in indices],
+            workers=workers,
+        )
+        return {idx: future for idx, future in zip(indices, futures)}
 
     def get_key_images_as_delayed_map(self, keys: List[int]) -> Dict[int, Delayed]:
         """Creates a computation graph to fetch images, using the provided keys as identifiers."""

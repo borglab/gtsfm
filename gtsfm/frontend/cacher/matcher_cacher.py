@@ -20,7 +20,7 @@ from gtsfm.frontend.matcher.matcher_base import MatcherBase
 
 logger = logger_utils.get_logger()
 
-CACHE_ROOT_PATH = Path(__file__).resolve().parent.parent.parent.parent / "cache"
+CACHE_ROOT_PATH = cache_utils.get_cache_root()  # honors GTSFM_CACHE_ROOT env var
 NUM_KEYPOINTS_TO_SAMPLE_FOR_HASH = 10
 
 

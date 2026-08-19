@@ -1,0 +1,231 @@
+# VGGT-OMEGA-with-frontend configuration (VERIFIED-VIEWGRAPH pipeline; A/B treatment arm).
+# Identical to vggt_sift_frontend_megaloc_phototourism_verified.yaml EXCEPT the geometry model is
+# VGGT-Omega instead of vanilla VGGT. This is a controlled A/B: the SIFT frontend, verified-graph
+# partition, global Fetzer focals, correspondence reuse, and post-merge retriangulation+recovery are
+# all unchanged — only the per-cluster pose/depth predictor changes (vggt -> vggt-omega). It runs
+# omega geometry through OUR verified optimizer (ClusterVGGTWithFrontend, via the injected
+# geometry_transformer), NOT Harneet's ClusterVGGTOmegaWithFrontend (which lacks the verified
+# features). Requires the thirdparty/vggt-omega submodule + gated weights (cc-by-nc-4.0); see
+# scripts/download_model_weights.sh --hf_token <token>. CUDA-only.
+
+# @package _global_
+_target_: gtsfm.scene_optimizer.SceneOptimizer
+
+loader:
+  _target_: gtsfm.loader.Olsson
+  dataset_dir: ??? # Required: set to the dataset root on the command line.
+  images_dir: null
+  max_resolution: 518 # VGGT recommended max resolution.
+
+image_pairs_generator:
+  _target_: gtsfm.retriever.image_pairs_generator.ImagePairsGenerator
+  global_descriptor:
+    _target_: gtsfm.frontend.cacher.global_descriptor_cacher.GlobalDescriptorCacher
+    global_descriptor_obj:
+      _target_: gtsfm.frontend.global_descriptor.MegaLoc
+  retriever:
+    _target_: gtsfm.retriever.Similarity
+    num_matched: 120  # K is the lever (validated live 2026-07-05: the mis-seated block at K=60 seats at K=120
+    min_score: 0.15   # — its bridge edges rank 60-300; ~52k pairs vs 114k at 200/0.10, same structural win)
+  batch_size: 16
+
+graph_partitioner:
+  _target_: gtsfm.graph_partitioner.Metis
+  min_cameras_to_partition: 30
+  max_cameras: 70
+  split_oversized_nodes: true
+
+cluster_optimizer:
+  _target_: gtsfm.cluster_optimizer.Cacher
+  optimizer:
+    _target_: gtsfm.cluster_optimizer.VggtWithFrontend
+
+    correspondence_generator:
+      _target_: gtsfm.frontend.correspondence_generator.det_desc_correspondence_generator.DetDescCorrespondenceGenerator
+      detector_descriptor:
+        _target_: gtsfm.frontend.cacher.detector_descriptor_cacher.DetectorDescriptorCacher
+        detector_descriptor_obj:
+          _target_: gtsfm.frontend.detector_descriptor.colmap_sift.ColmapSIFTDetectorDescriptor
+          max_keypoints: 8192
+
+      matcher:
+        _target_: gtsfm.frontend.cacher.matcher_cacher.MatcherCacher
+        matcher_obj:
+          _target_: gtsfm.frontend.matcher.twoway_matcher.TwoWayMatcher
+          ratio_test_threshold: 0.8
+
+    two_view_estimator:
+      _target_: gtsfm.two_view_estimator_cacher.TwoViewEstimatorCacher
+      two_view_estimator_obj:
+        _target_: gtsfm.two_view_estimator.TwoViewEstimator
+        bundle_adjust_2view: True
+        eval_threshold_px: 4 # in px
+        ba_reproj_error_thresholds: [0.5]
+        bundle_adjust_2view_maxiters: 100
+
+        verifier:
+          # PoseLib 5-point + LO-RANSAC + 2-view bundle (gp-glomap-parity peak verifier).
+          _target_: gtsfm.frontend.verifier.poselib_verifier.PoseLibVerifier
+          estimation_threshold_px: 2
+
+        triangulation_options:
+          _target_: gtsfm.data_association.point3d_initializer.TriangulationOptions
+          reproj_error_threshold: 100.0
+          mode:
+            _target_: gtsfm.data_association.point3d_initializer.TriangulationSamplingMode
+            value: NO_RANSAC
+
+        inlier_support_processor:
+          _target_: gtsfm.two_view_estimator.InlierSupportProcessor
+          min_num_inliers_est_model: 30
+          min_inlier_ratio_est_model: 0.15
+
+    # --- THE ONLY GEOMETRY CHANGE vs the VGGT verified config: swap the predictor to VGGT-Omega. ---
+    # VggtOmegaGeometryTransformer has no `config` block (the optimizer guards the missing attr) and
+    # self-loads its model when the optimizer passes model=None (see model_cache_key below).
+    geometry_transformer:
+      _target_: gtsfm.frontend.vggt_omega_geometry_transformer.VggtOmegaGeometryTransformer
+
+    ba_options:
+      _target_: gtsfm.bundle.bundle_adjustment.BundleAdjustmentOptions
+      shared_calib: false
+      # Anchor each focal at its (global-)Fetzer value so the per-cluster BA optimizes POSES, not focals.
+      # Without this, each cluster's BA drifts the same camera's focal differently (focal/depth ambiguity),
+      # so parent and child versions of a separator camera diverge -> noisier Sim3 merge. Pinned tighter
+      # (5px) than the merge BA (10px) since focals should stay at Fetzer upstream.
+      use_calibration_prior: true
+      calibration_prior_focal_sigma: 5.0
+      use_gnc: true
+      gnc_loss: TLS
+      factor_weight_outlier_threshold: 1e-6
+
+    pre_ba_max_reproj_error: 14.0
+    post_ba_max_reproj_error: 3.0
+    drop_camera_with_no_track: false
+    min_track_length: 3
+    # PER-CLUSTER BA back ON (2026-07-06 live A/B): the BA-off arm regressed — lost bridge, new
+    # floaters, flipped cameras. The census (BA degraded 7/8 clusters' survivor accuracy) was real
+    # but had SURVIVOR BIAS: cluster BA + its 3px post-filter is also the pipeline's main early
+    # CULLING stage (flipped/garbage VGGT cameras lose their tracks there and die; without it they
+    # ride to the final model as floaters/flips, and merge BAs exclude rather than fix low-track
+    # cams). Keep BA for its culling; the accuracy damage it caused shrinks with EXIF K (the ~4px
+    # inconsistency it mis-attributed to poses was largely Fetzer focal error). BA-off remains a
+    # research direction pending a replacement culling stage (post-cluster consistency filter).
+    run_per_cluster_ba: true
+    input_mode: crop
+    seed: 42
+    # false => our optimizer's VGGT loader is bypassed and predict() is called with model=None, so the
+    # OMEGA transformer self-loads (and worker-caches) its own model. With null it would build a
+    # ("default_vggt_loader", ...) key and load VANILLA VGGT — silently the wrong model. Must be false.
+    model_cache_key: false
+    # Refine VGGT predicted intrinsics via scipy Fetzer focal optimization on the verified F-matrices.
+    use_view_graph_calibration: true
+    # Estimate focals with a single GLOBAL Fetzer over the full verified view graph (never falls back to
+    # VGGT focals like the per-cluster path does). Takes precedence over use_view_graph_calibration.
+    use_global_view_graph_calibration: true
+    # EXIF PASSTHROUGH (ToL gold audit, 2026-07-06): loader/EXIF focals are 1.91% median error vs
+    # 1DSfM GT (unbiased), while the scipy Fetzer values are 5.26% (−4% systematic bias; 56% of
+    # verified edges are Fetzer-degenerate and poison the ungated joint solve). The 1DSfM reference
+    # used EXIF too. Frozen-K coherence is unchanged — clusters get bit-identical EXIF K per camera.
+    # No-EXIF cams keep the loader default (large error, small population); gated-Fetzer Class-B
+    # rescue is post-deadline work. Flip to "fetzer" to A/B the old behavior.
+    calibration_source: exif
+    # Re-triangulate union-find 2D tracks against post-BA cameras and run another BA.
+    use_multi_view_retriangulation: false
+    # Per-cluster 3D init: true = VGGT(-Omega) POSES + SIFT tracks TRIANGULATED against them (geometric,
+    # multi-view-consistent structure). The depth-lift path (false) married each verified track to a single
+    # monocular depth guess; when that guess reprojected >14px the pre-BA filter deleted the point AND the
+    # verified constraint with it — the ToL audit measured 87-98% of per-cluster structure destroyed this
+    # way (26 tracks/cam at merge nodes vs >=51 healthy; 41/117 Sim3 merges left with 0 correspondences).
+    # Triangulated points pass the reproj filters by construction, so the verified viewgraph's constraints
+    # actually reach the merges. Same cost as depth-lift (one BA per cluster; triangulation is seconds).
+    use_triangulated_structure: true
+    # Reuse the global verified correspondences (computed once over the full verified view graph) to build
+    # each cluster's 2D tracks, instead of re-running the per-cluster correspondence generation + two-view
+    # estimation. Pure speedup: per-edge v_corr is identical. Requires use_verified_pipeline.
+    reuse_global_correspondences: true
+
+# --- Merging options ---
+merging_options:
+  _target_: gtsfm.cluster_merging.MergingOptions
+  run_bundle_adjustment: true
+  # Post-merge retri BA freedom (defaults preserve current behavior). retri_free_ba drops the
+  # calib/pose priors in the FINAL full-scene solve (GLOMAP-style; BM replay: AUC@10 0.48->0.79);
+  # retri_iterations alternates retriangulation with that BA. Override per-run for IMC campaigns.
+  retri_free_ba: false
+  retri_iterations: 1
+  merge_duplicate_tracks: true
+  drop_child_if_merging_fail: true
+  drop_outlier_after_camera_merging: true
+  drop_camera_with_no_track: false
+  keep_all_cameras: false
+  # Prior-backed annex export (see the colmapdb config): off here to keep phototourism runs byte-stable;
+  # enable per-run with merging_options.export_trackless_annex=true.
+  export_trackless_annex: false
+  plot_reprojection_histograms: true
+  use_nonlinear_sim3_alignment: true
+  max_track_correspondences_for_sim3: 150
+  scale_and_average_focal_length: false
+  pre_ba_max_reproj_error: 14.0
+  pre_ba_min_track_length: 3
+  post_ba_max_reproj_error: 3.0
+  min_track_length: 3
+  allow_post_ba_reproj_filtering: true
+  metric_constructed_only: true
+  # Sim3 scale band REMOVED (defaults to [0, inf); Roman Forum audit 2026-07-07): VGGT cluster
+  # scale is arbitrary per batch, so the old [0.25, 4] band executed lawful seats (~1,200 cams).
+  # Diverged seats are caught by the structureless guards + merge BA + reproj filters instead.
+  # Trackless-camera recovery is OFF: the Tower of London metrics audit showed it injects more damage than
+  # it recovers — 55 of 79 injected cameras failed to re-triangulate (0 retri tracks despite touching
+  # 2000-4800 global tracks each => their merged poses were wrong) and their bad poses leaked into the
+  # output as floaters; only 24/79 recovered. With a healthy retrieval/partition (num_matched=60,
+  # max_cameras=150) cameras keep their tracks, so there is little left to recover. Flip back to true only
+  # if a scene shows a large genuinely-trackless camera drop.
+  recover_trackless_cameras_in_retriangulation: false
+  ba_options:
+    _target_: gtsfm.bundle.bundle_adjustment.BundleAdjustmentOptions
+    shared_calib: false
+    # Anchor focals at their (good) per-cluster-BA / Fetzer values so the merge + post-merge-retri BA
+    # optimize POSES, not focals. Without this the free-focal BA distorts good focals (0.9-2.4% -> up to
+    # 100% err vs GLOMAP) to absorb Sim3 pose error, inflating reproj and dropping cameras at the 3px filter.
+    use_calibration_prior: true
+    # Back to 10 (2026-07-06): σ=2 was part of the regressed BA-off arm (less room for the pinned
+    # merge BA to polish -> structure loss at the 3px filters -> bridge child starved+dropped).
+    # σ=10 is the proven golden-run value. Revisit tightening only with a merge-survival guard.
+    calibration_prior_focal_sigma: 10.0
+    use_pose_prior_all_cameras: true
+    use_gnc: false
+    gnc_loss: TLS
+    factor_weight_outlier_threshold: 1e-6
+
+# --- Bridge params ---
+bridge_min_similarity: 0.0
+bridge_top_k: 10
+bridge_min_component_size: 3
+
+# --- Verified-viewgraph pipeline (A/B treatment): verified-graph partition + post-merge retriangulation+BA ---
+use_verified_pipeline: true
+
+# Gid anchoring RE-ENABLED (2026-07): _track_gid now MAJORITY-VOTES a track's identity over ALL its
+# measurements instead of returning the first index hit, so a single pixel-bin collision can no longer
+# mint phantom parent<->child correspondences (offline replay saw zero-overlap children arrive with
+# "150 matches"). With honest anchor counts the MERGE_GUARDs act on real evidence; offline replay of
+# the instrumented ToL drop: strays 54->30, aligned inliers 230->289.
+enable_gid_merge_anchoring: false  # peak-structure legacy merge for this A/B (majority-vote fix stays in code)
+# Retri stays OFF; the boundary-recovery stage below is the post-merge structure/camera recovery path.
+run_post_merge_retriangulation: false
+# Post-root-merge boundary recovery (offline-validated exp5 recipe): DLT-triangulate boundary global
+# tracks (>=3 posed views, <3px mean reproj) against the merged cameras, RANSAC-DLT resect unposed
+# cameras (min 10 inliers @4px) against the cluster-3D ∪ fresh-3D UNION (an island camera had 508
+# anchors in cluster-3D vs 95 fresh-only — the union is what makes resection work), iterate, then one
+# BA with the merge ba_options. Requires enable_gid_merge_anchoring (reads merged 3D by global id).
+enable_boundary_recovery: false  # off for this experiment; re-enable after retrieval A/B
+# Export an angle-filtered copy of the final merged scene (merged_anglefiltered/) dropping tracks
+# whose max pairwise triangulation angle is under this (COLMAP's default cutoff). Validated on the
+# 120/0.15 ToL drop: killed 16% of tracks — almost entirely the low-parallax fuzz/spray that passes
+# the 3px reproj filter with unconstrained depth. Output-side only; merged/ is still written unfiltered.
+min_triangulation_angle_deg: 1.5
+# One drag-and-drop output: results/final_reconstruction = post-retri scene, angle-filtered,
+# colorized from the source images, annex cameras included as posed-only frustums (when the
+# annex flag is on). Output-side only.
+export_final_reconstruction: true

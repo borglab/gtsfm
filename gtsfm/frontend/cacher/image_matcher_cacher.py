@@ -17,7 +17,7 @@ from gtsfm.frontend.matcher.image_matcher_base import ImageMatcherBase
 
 logger = logger_utils.get_logger()
 
-CACHE_ROOT_PATH = Path(__file__).resolve().parent.parent.parent.parent / "cache"
+CACHE_ROOT_PATH = cache_utils.get_cache_root()  # honors GTSFM_CACHE_ROOT env var
 
 
 class ImageMatcherCacher(ImageMatcherBase):

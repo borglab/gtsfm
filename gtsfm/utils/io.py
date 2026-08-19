@@ -450,11 +450,25 @@ def read_from_bz2_file(file_path: Path) -> Optional[Any]:
 
 
 def write_to_bz2_file(data: Any, file_path: Path) -> None:
-    """Writes data using pickle to a compressed file."""
+    """Writes data using pickle to a compressed file, ATOMICALLY (tmp + rename).
+
+    Cache entries are written by many workers — and with shared caches, by many nodes — so a
+    direct write leaves torn/truncated files when a writer dies mid-write or two writers race
+    (observed in production caches: truncated .pbz2 entries). Writing to a unique tmp file and
+    os.replace-ing guarantees readers only ever see complete entries; same-key racers harmlessly
+    overwrite each other with identical content (keys are content hashes).
+    """
     file_path.parent.mkdir(exist_ok=True, parents=True)
-    pickle.dump(data, BZ2File(file_path, "wb"))
-    if not file_path.exists():
-        logger.debug("Cache file could not be written!")
+    tmp_path = file_path.with_name(file_path.name + f".tmp.{os.getpid()}")
+    try:
+        pickle.dump(data, BZ2File(tmp_path, "wb"))
+        os.replace(tmp_path, file_path)
+    except Exception:
+        logger.exception("Cache file could not be written!")
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 def save_point_cloud_as_ply(save_fpath: str, points: np.ndarray, rgb: Optional[np.ndarray] = None) -> None:

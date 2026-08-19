@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from gtsfm.products.one_view_data import OneViewData
 
 # Keep cache location consistent with other cachers.
-CACHE_ROOT_PATH = Path(__file__).resolve().parent.parent.parent / "cache"
+CACHE_ROOT_PATH = cache_utils.get_cache_root()  # honors GTSFM_CACHE_ROOT env var
 
 logger = logger_utils.get_logger()
 

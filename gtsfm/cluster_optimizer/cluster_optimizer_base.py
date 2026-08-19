@@ -49,6 +49,19 @@ class ClusterContext:
     cluster_path: tuple[int, ...]
     label: str
     visibility_graph: VisibilityGraph
+    # Global Fetzer focals (cam idx -> calibration), computed once over the full verified view graph.
+    # Used by ClusterVGGTWithFrontend when use_global_view_graph_calibration is set, in place of the
+    # per-cluster calibration (which falls back to VGGT focals for cameras with few in-cluster F-edges).
+    global_refined_intrinsics: dict | None = None
+    # Global frontend products from the verified two-view pass, reused per cluster instead of re-running
+    # the per-cluster correspondence generation. v_corr keyed by image-pair; keypoints indexed by image.
+    # Used by ClusterVGGTWithFrontend when reuse_global_correspondences is set. See ClusterContext plumbing.
+    global_v_corr_idxs_dict: dict | None = None
+    global_keypoints: list | None = None
+    # Per-cluster slice of the packed (camera, pixel) -> global-track-id index (sorted int64 keys, int32
+    # gids). Attached to this cluster's reconstruction as a sidecar so merges can match tracks by GLOBAL
+    # identity across clusters that share no cameras. None disables ID-matching (non-verified pipelines).
+    measurement_gid_index: tuple | None = None
 
     @property
     def is_root(self) -> bool:

@@ -8,6 +8,7 @@ References:
 Authors: Ayush Baid
 """
 
+import os
 import sqlite3
 from typing import Dict, List, Tuple
 
@@ -28,15 +29,24 @@ logger = logger_utils.get_logger()
 class ColmapCorrespondenceGenerator(CorrespondenceGeneratorBase):
     """Load correspondences from Colmap DB."""
 
+    # The matches read from `two_view_geometries` are already geometrically verified, so the verified
+    # pipeline can use them directly and skip its Dask two-view estimation + gather.
+    produces_verified_correspondences: bool = True
+
     def __init__(self, database_path: str) -> None:
         """Initialize the correspondence generator with the Colmap DB.
 
         Args:
             database_path: path of the Colmap DB.
         """
-        self._pycolmap_db = pycolmap.Database(database_path)
+        self._database_path = database_path
+        self._open_db()
+
+    def _open_db(self) -> None:
+        """Open the pycolmap db handle and load all keypoints (on construction and after unpickle)."""
+        self._pycolmap_db = pycolmap.Database(self._database_path)
         # Note(Ayush): using SQLite3 to load keypoints because PyColmap does not expose bindings.
-        raw_db = sqlite3.connect(database_path)
+        raw_db = sqlite3.connect(self._database_path)
         self._keypoints_dict: Dict[int, np.ndarray] = {
             image_id: np.frombuffer(data, dtype=np.float32).reshape(rows, -1)
             for image_id, rows, data in raw_db.execute("SELECT image_id, rows, data FROM keypoints")
@@ -50,6 +60,38 @@ class ColmapCorrespondenceGenerator(CorrespondenceGeneratorBase):
             self._pycolmap_db.num_verified_image_pairs,
         )
 
+    def __getstate__(self) -> dict:
+        """Drop the unpicklable pycolmap.Database (and the large, re-derivable keypoints cache) so this
+        generator can be embedded in a Dask task graph. The colmap-db frontend runs in the MAIN process
+        (reuse_global_correspondences), so a worker copy never touches the db; _ensure_db re-opens it
+        lazily if a method is ever actually called on a worker."""
+        state = self.__dict__.copy()
+        state["_pycolmap_db"] = None
+        state["_keypoints_dict"] = None
+        state["_image_by_basename"] = None
+        return state
+
+    def _ensure_db(self) -> None:
+        """Re-open the db if this instance was unpickled (e.g. shipped to a Dask worker) with no handle."""
+        if getattr(self, "_pycolmap_db", None) is None:
+            self._open_db()
+
+    def _image_by_name(self, file_name: str) -> "pycolmap.Image":
+        """DB image lookup tolerating path-prefixed db names (mirrors ColmapDBRetriever).
+
+        DBs built with --image_path above the images dir store names like
+        'Scene/images/x.jpg' while loaders serve basenames; exact read_image()
+        then yields an invalid image_id (uint32 -1) that crashes pycolmap reads.
+        """
+        if getattr(self, "_image_by_basename", None) is None:
+            self._image_by_basename = {
+                os.path.basename(img.name): img for img in self._pycolmap_db.read_all_images()
+            }
+        img = self._image_by_basename.get(os.path.basename(file_name))
+        if img is None:
+            raise ValueError(f"Image {file_name!r} not found in COLMAP database (by basename).")
+        return img
+
     def _read_keypoints(self, image: Image) -> Keypoints:
         """
         Read keypoints from a pycolmap.Image object.
@@ -60,7 +102,7 @@ class ColmapCorrespondenceGenerator(CorrespondenceGeneratorBase):
         Returns:
             Keypoints: Keypoints with their coordinates, scales, and responses.
         """
-        pycolmap_image = self._pycolmap_db.read_image(image.file_name)
+        pycolmap_image = self._image_by_name(image.file_name)
         image_id = pycolmap_image.image_id
 
         if image_id not in self._keypoints_dict:
@@ -96,7 +138,7 @@ class ColmapCorrespondenceGenerator(CorrespondenceGeneratorBase):
         if len(file_names) != len(images):
             raise ValueError("All images should be associated with a file name for ColmapCorrespondenceGenerator.")
 
-        pycolmap_images = [self._pycolmap_db.read_image(file_name) for file_name in file_names]
+        pycolmap_images = [self._image_by_name(file_name) for file_name in file_names]
 
         keypoints: List[Keypoints] = [self._read_keypoints(image) for image in images]
         gtsfm_id_to_pycolmap_id: List[int] = [image.image_id for image in pycolmap_images]
@@ -114,8 +156,9 @@ class ColmapCorrespondenceGenerator(CorrespondenceGeneratorBase):
 
             two_view_geometry = self._pycolmap_db.read_two_view_geometry(colmap_i1, colmap_i2)
 
-            # Only read matches if we have an essential or a fundamental matrix
-            if two_view_geometry.config != 2 and two_view_geometry.config != 3:
+            # Accept E (2), F (3), and homography-type (4-6) verifications — matches the
+            # ColmapDBRetriever's admission so same-graph runs consume GLOMAP's full diet.
+            if two_view_geometry.config not in (2, 3, 4, 5, 6):
                 continue
 
             # Note(Ayush): the matches we are loading are actually post verification
@@ -137,6 +180,7 @@ class ColmapCorrespondenceGenerator(CorrespondenceGeneratorBase):
             List of keypoints, one entry for each input images.
             Putative correspondence as indices of keypoints, for pairs of images.
         """
+        self._ensure_db()  # re-open the db if this generator was unpickled onto a worker
         # Note: we will end up reading verified correspondences from the colmap DB.
         images_actual = client.gather(images)
 

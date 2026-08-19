@@ -16,23 +16,50 @@ class ColmapViewer {
       this.scene
     );
     this.scene.activeCamera = this.camera;
-    this.camera.attachControl(canvas, true);
     this.camera.minZ = 0.01;    // Near clipping plane
     this.camera.maxZ = 10000;   // Far clipping plane
+    // Default Babylon Y-up. Instead of the old Z-up upVector + per-axis Y-flip hack (which left orbit
+    // fighting a mismatched up — the "hard gimbal lock"), a per-scene rotation maps the data's true up
+    // to +Y (see _computeUpAlignment) and is baked into every position at load. ArcRotate's up then
+    // matches the scene, so orbit feels natural.
 
-    // Z-up for interaction
-    this.camera.upVector = new BABYLON.Vector3(0, 0, -1);
-
-
-    // Inputs & limits tuned to avoid “locked” feeling
-    this.camera.angularSensibilityX = 1000;
-    this.camera.angularSensibilityY = 1000;
-    this.camera.panningSensibility = 1000;
-    this.camera.wheelPrecision = 40;
-    this.camera.lowerRadiusLimit = 0.1;
+    // Snappy feel (mirrors pipeline-viz). Lower sensibility = faster per-pixel; lower inertia = less drift.
+    this.camera.angularSensibilityX = 600;
+    this.camera.angularSensibilityY = 600;
+    this.camera.panningSensibility = 200;
+    this.camera.wheelPrecision = 8;
+    this.camera.inertia = 0.5;
+    this.camera.panningInertia = 0.5;
+    this.camera.lowerRadiusLimit = 0.001;
     this.camera.upperRadiusLimit = 10000;
-    this.camera.lowerBetaLimit = 0.001;
-    this.camera.upperBetaLimit = Math.TWO_PI - 0.001;
+    // Clamp beta OFF the poles (JS has no Math.TWO_PI; the old NaN limit let the camera flip through the
+    // poles). Keeping beta in (0, π) means orbit never crosses the up-axis singularity.
+    this.camera.lowerBetaLimit = 0.05;
+    this.camera.upperBetaLimit = Math.PI - 0.05;
+    // Exploration: zoom toward the cursor (not scene center) and support trackpad pinch.
+    this.camera.zoomToMouseLocation = true;
+    this.camera.useNaturalPinchZoom = true;
+
+    // Clean, trackpad-friendly inputs: clear Babylon's defaults (their multi-touch twist misbehaves on
+    // macOS trackpads), then add only orbit/pan (pointers), wheel zoom, and arrow-key orbit. Order matters:
+    // clear() detaches, addX() registers, attachControl() binds DOM events.
+    this.camera.inputs.clear();
+    this.camera.inputs.addPointers();
+    this.camera.inputs.addMouseWheel();
+    this.camera.inputs.addKeyboard();
+    this.camera.keysUp = [38];
+    this.camera.keysDown = [40];
+    this.camera.keysLeft = [37];
+    this.camera.keysRight = [39];
+    this.camera.attachControl(canvas, true);
+    canvas.tabIndex = 0;
+    canvas.style.outline = "none";
+    canvas.addEventListener("mouseenter", () => canvas.focus());
+
+    // Per-scene up-alignment (data → Y-up) + saved framing for the R key.
+    this.sceneRotation = null;
+    this.savedView = null;
+    this._cleanView = false; // H toggles this to hide all overlays for screenshots
 
     this.light = new BABYLON.HemisphericLight("H", new BABYLON.Vector3(0, 1, 0), this.scene);
     this.light.intensity = 0.85;
@@ -71,6 +98,28 @@ class ColmapViewer {
 
     this.engine.runRenderLoop(() => this.scene.render());
     window.addEventListener("resize", () => this.engine.resize());
+
+    // Camera hotkeys: R = reset framing, F = flip front/back, T = flip top/bottom,
+    // H = hide/show all UI (clean screenshot). Ignored while typing in a form field.
+    window.addEventListener("keydown", (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const tag = (e.target && e.target.tagName) || "";
+      if (tag === "INPUT" || tag === "TEXTAREA" || (e.target && e.target.isContentEditable)) return;
+      switch ((e.key || "").toLowerCase()) {
+        case "r":
+          if (this.savedView) {
+            const v = this.savedView;
+            this.camera.setTarget(new BABYLON.Vector3(v.center[0], v.center[1], v.center[2]));
+            this.camera.alpha = v.alpha; this.camera.beta = v.beta; this.camera.radius = v.radius;
+          }
+          break;
+        case "f": this.camera.alpha += Math.PI; break;
+        case "t": this.camera.beta = Math.PI - this.camera.beta; break;
+        case "h": this._toggleCleanView(); break;
+        default: return;
+      }
+      e.preventDefault();
+    });
   }
 
   setPointSize(px) {
@@ -189,7 +238,14 @@ class ColmapViewer {
 
   _applyStatsVisibility() {
     if (!this.statsRoot) return;
-    this.statsRoot.style.display = this.statsVisible ? "" : "none";
+    this.statsRoot.style.display = (this._cleanView || !this.statsVisible) ? "none" : "";
+  }
+
+  _toggleCleanView() {
+    // Hide ALL overlays (stats card + control bar) for an unobstructed money shot; press H again to restore.
+    this._cleanView = !this._cleanView;
+    this._applyStatsVisibility();
+    this._applyHudMode();
   }
 
   _applyStatsMode() {
@@ -205,6 +261,7 @@ class ColmapViewer {
     if (!this.hudRoot) return;
     this.hudRoot.classList.remove("hud-hidden");
     this.hudRoot.classList.toggle("hud-splat-mode", this.mode === "splat");
+    this.hudRoot.style.display = this._cleanView ? "none" : "";
   }
 
   _renderStats() {
@@ -293,18 +350,34 @@ class ColmapViewer {
         this._setLoadingState({ message: "Parsing points…", progress: 0.35 });
       }
 
-      const points = cachedPoints ?? this._parsePoints(pointsText ?? "");
+      let points = cachedPoints ?? await this._parsePoints(pointsText ?? "");
       if (needPoints && pointsUrl) {
         this._rememberParsed(this.parsedPointsCache, pointsUrl, points, this.parsedCacheLimit);
       }
 
       if (imagesUrl) {
-        this.cameras = cachedCameras ?? (imagesText ? this._parseCams(imagesText) : []);
+        this.cameras = cachedCameras ?? (imagesText ? await this._parseCams(imagesText) : []);
         if (needCameras) {
           this._rememberParsed(this.parsedCamsCache, imagesUrl, this.cameras, this.parsedCacheLimit);
         }
       } else {
         this.cameras = [];
+      }
+
+      // Compute the per-scene up-alignment (data → +Y) from cameras + landmarks, then bake it into every
+      // point position and camera center so ArcRotate's up matches the scene. Must run BEFORE building
+      // meshes; the parsers left everything in the raw data frame.
+      this._computeSceneOrientation(points, this.cameras);
+      // Build a NEW transformed array (do NOT mutate `points` — it may be the cached raw array, which
+      // would double-transform on a cache hit). Camera centers come from dataCenter, which is never
+      // mutated, so re-applying on a cache hit is idempotent.
+      points = points.map((p) => {
+        const r = this._applySceneRotation(p.x, p.y, p.z);
+        return { x: r[0], y: r[1], z: r[2], r: p.r, g: p.g, b: p.b };
+      });
+      for (const c of this.cameras) {
+        const r = this._applySceneRotation(c.dataCenter[0], c.dataCenter[1], c.dataCenter[2]);
+        c.center = new BABYLON.Vector3(r[0], r[1], r[2]);
       }
       console.log('first camera center:', this.cameras[0]?.center);
       console.log('scene extent:', this._sceneExtent());
@@ -330,7 +403,7 @@ class ColmapViewer {
       this._updateCurrentImageName();
       this._renderStats();
 
-      this._autoFrame();
+      this._autoFrame(points);
       this._setLoadingState({ progress: 1 });
     } finally {
       this._setLoadingState({ active: false });
@@ -417,53 +490,181 @@ class ColmapViewer {
 
   // ------------------- parsing -------------------
 
-  _parsePoints(text) {
+  async _parsePoints(text) {
     const pts = [];
-    for (const line of text.split("\n")) {
-      if (!line || line[0] === "#") continue;
-      const s = line.trim().split(/\s+/);
-      if (s.length >= 7) {
-        // flip Y for Babylon’s Y-up RH frame
-        pts.push({
-          x: parseFloat(s[1]), y: -parseFloat(s[2]), z: parseFloat(s[3]),
-          r: parseInt(s[4]) / 255, g: parseInt(s[5]) / 255, b: parseInt(s[6]) / 255
-        });
+    const lines = text.split("\n");
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (line && line[0] !== "#") {
+        const s = line.trim().split(/\s+/);
+        if (s.length >= 7) {
+          // Raw data frame; the per-scene up-alignment rotation is applied after parse.
+          pts.push({
+            x: parseFloat(s[1]), y: parseFloat(s[2]), z: parseFloat(s[3]),
+            r: parseInt(s[4]) / 255, g: parseInt(s[5]) / 255, b: parseInt(s[6]) / 255
+          });
+        }
       }
+      // Yield to the browser every ~65k lines so parsing a large cloud never freezes the UI.
+      if ((i & 0xFFFF) === 0xFFFF) await new Promise(r => setTimeout(r));
     }
     return pts;
   }
 
-  _parseCams(text) {
+  async _parseCams(text) {
     const cams = [];
     const lines = text.split("\n");
     for (let i = 0; i < lines.length; i++) {
       const line = (lines[i] || "").trim();
-      if (!line || line.startsWith("#")) continue;
+      if (!line || line.startsWith("#")) {
+        if ((i & 0xFFFF) === 0xFFFF) await new Promise(r => setTimeout(r));
+        continue;
+      }
       const s = line.split(/\s+/);
       if (s.length >= 10) {
         const qw = parseFloat(s[1]), qx = parseFloat(s[2]), qy = parseFloat(s[3]), qz = parseFloat(s[4]);
         const tx = parseFloat(s[5]), ty = parseFloat(s[6]), tz = parseFloat(s[7]);
 
-        const qwc = new BABYLON.Quaternion(qx, qy, qz, qw);
-        const Rwc = new BABYLON.Matrix(); qwc.toRotationMatrix(Rwc);
-        const Rcw = Rwc.transpose();
-
-        const t = new BABYLON.Vector3(tx, ty, tz);
-        const centerWorld = BABYLON.Vector3.TransformCoordinates(t.scale(-1), Rcw);
-
-        // Flip into viewer coords (Y flip)
-        const flip = BABYLON.Matrix.Scaling(1, -1, 1);
-        const center = new BABYLON.Vector3(centerWorld.x, -centerWorld.y, centerWorld.z);
-        const Rcam = flip.multiply(Rcw).multiply(flip);
-
+        // Quaternion → 3x3 rotation R = cam_from_world (COLMAP convention), kept as a plain array.
+        const xx = qx*qx, yy = qy*qy, zz = qz*qz;
+        const xy = qx*qy, xz = qx*qz, yz = qy*qz;
+        const wx = qw*qx, wy = qw*qy, wz = qw*qz;
+        const R = [
+          [1 - 2*(yy + zz),   2*(xy - wz),     2*(xz + wy)],
+          [2*(xy + wz),       1 - 2*(xx + zz), 2*(yz - wx)],
+          [2*(xz - wy),       2*(yz + wx),     1 - 2*(xx + yy)],
+        ];
+        // Camera center in DATA coords = -R^T · t (scene up-alignment applied later, after we know it).
+        const dataCenter = [
+          -(R[0][0]*tx + R[1][0]*ty + R[2][0]*tz),
+          -(R[0][1]*tx + R[1][1]*ty + R[2][1]*tz),
+          -(R[0][2]*tx + R[1][2]*ty + R[2][2]*tz),
+        ];
         const name = s.length > 9 ? s.slice(9).join(" ") : "";
-        cams.push({ center, R: Rcam, name });
+        cams.push({ dataCenter, R, name, center: null });
 
         // Skip 2D measurements line if present
         if (i + 1 < lines.length && /^\d/.test((lines[i + 1] || "").trim())) i++;
       }
+      if ((i & 0xFFFF) === 0xFFFF) await new Promise(r => setTimeout(r));
     }
     return cams;
+  }
+
+  // ------------------- scene up-alignment (ported from pipeline-viz) -------------------
+
+  _applySceneRotation(x, y, z) {
+    const R = this.sceneRotation;
+    if (!R) return [x, y, z];
+    return [
+      R[0][0] * x + R[0][1] * y + R[0][2] * z,
+      R[1][0] * x + R[1][1] * y + R[1][2] * z,
+      R[2][0] * x + R[2][1] * y + R[2][2] * z,
+    ];
+  }
+
+  _sampleXYZ(points, cap = 20000) {
+    // Sample points (data or transformed frame) into [x,y,z] arrays for robust stats.
+    const out = [];
+    if (!points || !points.length) return out;
+    const step = Math.max(1, Math.floor(points.length / cap));
+    for (let i = 0; i < points.length; i += step) out.push([points[i].x, points[i].y, points[i].z]);
+    return out;
+  }
+
+  _computeSceneOrientation(points, cams) {
+    // Compute (and store) the 3x3 rotation mapping the data's "up" to Babylon +Y. MUST run while points
+    // + cams are still in the raw data frame (before _applySceneRotation is baked in).
+    const camPositions = cams.map((c) => c.dataCenter);
+    const camRotations = cams.map((c) => c.R);
+    const landmarks = this._sampleXYZ(points);
+    this.sceneRotation = this._computeUpAlignment(camPositions, camRotations, landmarks);
+  }
+
+  _computeUpAlignment(camPositions, camRotations, landmarks) {
+    let sceneUp = null;
+    // 1) Average camera image-up in world = -row1(cam_from_world); use if cameras agree.
+    if (camRotations && camRotations.length > 0) {
+      let sx = 0, sy = 0, sz = 0;
+      for (const R of camRotations) { sx += -R[1][0]; sy += -R[1][1]; sz += -R[1][2]; }
+      const n = camRotations.length; sx /= n; sy /= n; sz /= n;
+      const mag = Math.hypot(sx, sy, sz);
+      if (mag > 0.5) sceneUp = [sx / mag, sy / mag, sz / mag];
+    }
+    // 2) Fallback: world axis of least variance over all positions.
+    if (!sceneUp) {
+      const all = landmarks && landmarks.length > 0 ? camPositions.concat(landmarks) : camPositions;
+      if (all.length < 3) return null;
+      let mx = 0, my = 0, mz = 0;
+      for (const [x, y, z] of all) { mx += x; my += y; mz += z; }
+      mx /= all.length; my /= all.length; mz /= all.length;
+      let cxx = 0, cyy = 0, czz = 0;
+      for (const [x, y, z] of all) {
+        const dx = x - mx, dy = y - my, dz = z - mz;
+        cxx += dx * dx; cyy += dy * dy; czz += dz * dz;
+      }
+      if (czz <= cxx && czz <= cyy) sceneUp = [0, 0, 1];
+      else if (cyy <= cxx) sceneUp = [0, 1, 0];
+      else sceneUp = [1, 0, 0];
+    }
+    // 3) Flip so landmarks sit ABOVE cameras under the proposed up.
+    if (landmarks && landmarks.length > 0 && camPositions.length > 0) {
+      let lcx = 0, lcy = 0, lcz = 0; for (const [x, y, z] of landmarks) { lcx += x; lcy += y; lcz += z; }
+      lcx /= landmarks.length; lcy /= landmarks.length; lcz /= landmarks.length;
+      let ccx = 0, ccy = 0, ccz = 0; for (const [x, y, z] of camPositions) { ccx += x; ccy += y; ccz += z; }
+      ccx /= camPositions.length; ccy /= camPositions.length; ccz /= camPositions.length;
+      const dot = (lcx - ccx) * sceneUp[0] + (lcy - ccy) * sceneUp[1] + (lcz - ccz) * sceneUp[2];
+      if (dot < 0) sceneUp = sceneUp.map((v) => -v);
+    }
+    // Build orthonormal basis [right, up, fwd] with up = sceneUp → maps sceneUp to +Y.
+    let ref = [1, 0, 0];
+    if (Math.abs(ref[0] * sceneUp[0] + ref[1] * sceneUp[1] + ref[2] * sceneUp[2]) > 0.95) ref = [0, 1, 0];
+    const xa = [
+      sceneUp[1] * ref[2] - sceneUp[2] * ref[1],
+      sceneUp[2] * ref[0] - sceneUp[0] * ref[2],
+      sceneUp[0] * ref[1] - sceneUp[1] * ref[0],
+    ];
+    const xn = Math.hypot(...xa); for (let i = 0; i < 3; i++) xa[i] /= (xn + 1e-12);
+    const za = [
+      sceneUp[1] * xa[2] - sceneUp[2] * xa[1],
+      sceneUp[2] * xa[0] - sceneUp[0] * xa[2],
+      sceneUp[0] * xa[1] - sceneUp[1] * xa[0],
+    ];
+    return [
+      [xa[0], xa[1], xa[2]],
+      [sceneUp[0], sceneUp[1], sceneUp[2]],
+      [za[0], za[1], za[2]],
+    ];
+  }
+
+  _computeViewSetup(pts) {
+    // Robust framing: median center + 90th-percentile radius (x1.05). pts are [x,y,z] in Babylon frame.
+    if (!pts || pts.length === 0) return null;
+    const xs = pts.map((p) => p[0]).sort((a, b) => a - b);
+    const ys = pts.map((p) => p[1]).sort((a, b) => a - b);
+    const zs = pts.map((p) => p[2]).sort((a, b) => a - b);
+    const mid = (arr) => arr[Math.floor(arr.length / 2)];
+    const center = [mid(xs), mid(ys), mid(zs)];
+    const dists = pts
+      .map((p) => Math.hypot(p[0] - center[0], p[1] - center[1], p[2] - center[2]))
+      .sort((a, b) => a - b);
+    const range = (dists[Math.floor(dists.length * 0.9)] || 1.0) * 1.05;
+    return { center, range };
+  }
+
+  _computeAutoCameraAngles(pts, camPos) {
+    // Initial azimuth on the photographer side (camera cluster), 30° above horizontal.
+    if (!camPos || camPos.length === 0 || !pts || pts.length < 3) {
+      return { alpha: -Math.PI / 2, beta: Math.PI / 3 };
+    }
+    let pmx = 0, pmz = 0; for (const p of pts) { pmx += p[0]; pmz += p[2]; }
+    pmx /= pts.length; pmz /= pts.length;
+    let cmx = 0, cmz = 0; for (const c of camPos) { cmx += c[0]; cmz += c[2]; }
+    cmx /= camPos.length; cmz /= camPos.length;
+    const vx = cmx - pmx, vz = cmz - pmz;
+    const norm = Math.hypot(vx, vz);
+    const alpha = norm > 1e-6 ? Math.atan2(vz, vx) : -Math.PI / 2;
+    return { alpha, beta: Math.PI / 3 };
   }
 
   // ------------------- geometry -------------------
@@ -482,6 +683,7 @@ class ColmapViewer {
   }
 
   async _createPCS(points) {
+    this._computeRobustBounds(points); // set robust center/radius before frustum sizing
     const pcs = new BABYLON.PointsCloudSystem(
       "pcs",
       { capacity: points.length, useColor: true },
@@ -1087,80 +1289,137 @@ class ColmapViewer {
     }
   }
 
+  _computeRobustBounds(points) {
+    // Robust scene center + radius from the parsed points: median center + 95th-percentile distance.
+    // Used to size frustums/camera dots and to reject out-of-range cameras, so a few stray points
+    // (common in messy higher-level merges) can't blow everything up. Computed from the points array
+    // (always available) rather than mesh vertex data (which a PointsCloudSystem may keep GPU-only).
+    const n = points.length;
+    if (!n) { this._robustCenter = new BABYLON.Vector3(0, 0, 0); this._robustRadius = 1.0; return; }
+    const step = Math.max(1, Math.floor(n / 20000)); // ~20k samples is plenty for robust stats
+    const xs = [], ys = [], zs = [];
+    for (let i = 0; i < n; i += step) { xs.push(points[i].x); ys.push(points[i].y); zs.push(points[i].z); }
+    const median = (a) => { a.sort((p, q) => p - q); return a[a.length >> 1]; };
+    const cx = median(xs), cy = median(ys), cz = median(zs);
+    const dists = [];
+    for (let i = 0; i < n; i += step) {
+      const dx = points[i].x - cx, dy = points[i].y - cy, dz = points[i].z - cz;
+      dists.push(Math.sqrt(dx * dx + dy * dy + dz * dz));
+    }
+    dists.sort((p, q) => p - q);
+    const p95 = dists[Math.min(dists.length - 1, Math.floor(dists.length * 0.95))] || 1.0;
+    this._robustCenter = new BABYLON.Vector3(cx, cy, cz);
+    this._robustRadius = p95 || 1.0;
+  }
+
   _sceneExtent() {
+    // Robust extent = 2 x 95th-percentile radius (set by _computeRobustBounds at point-cloud build).
+    // Falls back to the raw bounding box only if robust bounds haven't been computed yet.
+    if (this._robustRadius) return 2 * this._robustRadius;
     if (!this.pointsMesh) return 1.0;
     const bb = this.pointsMesh.getBoundingInfo().boundingBox;
-    const size = bb.maximumWorld.subtract(bb.minimumWorld);
-    return Math.max(size.x, size.y, size.z) || 1.0;
+    const s = bb.maximumWorld.subtract(bb.minimumWorld);
+    return Math.max(s.x, s.y, s.z) || 1.0;
   }
 
   _createFrusta(cams) {
-    const size = this._sceneExtent();
-    const frustumScale = 0.01 * size;   // 1% of scene extent
-    const pivotDiam = 0.002 * size;   // 0.2% sphere
+    // One merged LineSystem for ALL camera frustums (previously 2 meshes per camera — a LineSystem
+    // + a Sphere — so ~1600 objects on an 800-camera scene). Camera-center dots become thin instances
+    // of a single sphere. Result: 2 meshes total regardless of camera count. Placement is identical to
+    // the old per-camera TransformNode (world = Compose(scale=1, rotation=R, translation=center)).
+    const size = this._sceneExtent(); // robust extent; also stashes _robustCenter/_robustRadius
+    const scale = 0.006 * size;      // compact frustum (~0.6% of scene extent) for paper figures
+    const pivotDiam = 0.0015 * size; // small camera-center dot
 
+    // Local frustum corners (camera looks down +Z), scaled — plain [x,y,z] arrays.
+    const cornersLocal = [
+      [-0.4, -0.3, 1], [0.4, -0.3, 1], [0.4, 0.3, 1], [-0.4, 0.3, 1],
+    ].map(([x, y, z]) => [x * scale, y * scale, z * scale]);
+
+    // Reject cameras with non-finite or wildly-out-of-range centers. Higher-level merges can place
+    // degenerate/unaligned cameras at garbage poses; drawing their frustums fills the screen with
+    // random lines. Anything past 12x the robust scene radius from the robust center is dropped.
+    const rc = this._robustCenter || new BABYLON.Vector3(0, 0, 0);
+    const rr = this._robustRadius || 0;
+    const lines = [];
+    const centers = [];
+    let skipped = 0;
     for (const c of cams) {
-      const node = new BABYLON.TransformNode("camNode", this.scene);
-      node.position.copyFrom(c.center);
-      node.rotationQuaternion = BABYLON.Quaternion.FromRotationMatrix(c.R);
-      node.parent = this.frustumGroup;
-
-      const frustum = this._frustumLinesLocal(frustumScale);
-      frustum.parent = node;
-      frustum.renderingGroupId = 1; // draw after points
-      // If still hard to see, try:
-      frustum.alwaysSelectAsActiveMesh = true;
-      const m = new BABYLON.StandardMaterial("fmat", this.scene);
-      m.emissiveColor = new BABYLON.Color3(0, 0.5, 0);
-      frustum.material = m;
-
-      const pivot = BABYLON.MeshBuilder.CreateSphere("camPivot", { diameter: pivotDiam }, this.scene);
-      const pivotMat = new BABYLON.StandardMaterial("camPivotMat", this.scene);
-      pivotMat.emissiveColor = new BABYLON.Color3(0, 0, 0.5);
-      pivotMat.disableLighting = true;
-      pivot.material = pivotMat;
-      pivot.isPickable = false;
-      pivot.parent = node;
+      const apex = c.center;
+      if (!isFinite(apex.x) || !isFinite(apex.y) || !isFinite(apex.z) ||
+          (rr > 0 && BABYLON.Vector3.Distance(apex, rc) > 12 * rr)) {
+        skipped++;
+        continue;
+      }
+      centers.push(apex);
+      const R = c.R; // 3x3 cam_from_world (data frame)
+      const corners = cornersLocal.map(([lx, ly, lz]) => {
+        // world_from_cam · localOffset = R^T · local, then scene rotation → Babylon frame.
+        const wx = R[0][0] * lx + R[1][0] * ly + R[2][0] * lz;
+        const wy = R[0][1] * lx + R[1][1] * ly + R[2][1] * lz;
+        const wz = R[0][2] * lx + R[1][2] * ly + R[2][2] * lz;
+        const b = this._applySceneRotation(wx, wy, wz);
+        return new BABYLON.Vector3(apex.x + b[0], apex.y + b[1], apex.z + b[2]);
+      });
+      lines.push([apex, corners[0]], [apex, corners[1]], [apex, corners[2]], [apex, corners[3]]);
+      lines.push([corners[0], corners[1]], [corners[1], corners[2]], [corners[2], corners[3]], [corners[3], corners[0]]);
     }
+    if (skipped) console.warn(`[viz] hid ${skipped} camera(s) with out-of-range poses (likely bad merge)`);
+
+    if (lines.length) {
+      const frusta = BABYLON.MeshBuilder.CreateLineSystem("frustumLines", { lines }, this.scene);
+      frusta.color = new BABYLON.Color3(0.1, 0.1, 0.1); // near-black wireframe (1DSfM / Snavely look)
+      frusta.isPickable = false;
+      frusta.renderingGroupId = 1; // draw after points
+      frusta.parent = this.frustumGroup;
+    }
+
+    // Camera-center dots: one base sphere + a thin instance per camera (1 mesh for all).
+    if (centers.length) {
+      const base = BABYLON.MeshBuilder.CreateSphere("camPivotBase", { diameter: pivotDiam, segments: 6 }, this.scene);
+      const pivotMat = new BABYLON.StandardMaterial("camPivotMat", this.scene);
+      pivotMat.emissiveColor = new BABYLON.Color3(0.1, 0.1, 0.1); // match the dark frustums
+      pivotMat.disableLighting = true;
+      base.material = pivotMat;
+      base.isPickable = false;
+      base.renderingGroupId = 1;
+      base.parent = this.frustumGroup;
+      const matrices = new Float32Array(centers.length * 16);
+      const m = new BABYLON.Matrix();
+      for (let i = 0; i < centers.length; i++) {
+        BABYLON.Matrix.TranslationToRef(centers[i].x, centers[i].y, centers[i].z, m);
+        m.copyToArray(matrices, i * 16);
+      }
+      base.thinInstanceSetBuffer("matrix", matrices, 16);
+    }
+
     this.setShowCams(this.showCams);
-  }
-
-  _frustumLinesLocal(scale) {
-    const origin = BABYLON.Vector3.Zero();
-    const corners = [
-      new BABYLON.Vector3(-0.4, -0.3, 1),
-      new BABYLON.Vector3(0.4, -0.3, 1),
-      new BABYLON.Vector3(0.4, 0.3, 1),
-      new BABYLON.Vector3(-0.4, 0.3, 1),
-    ].map(v => v.scale(scale));
-
-    const lines = [
-      [origin, corners[0]], [origin, corners[1]], [origin, corners[2]], [origin, corners[3]],
-      [corners[0], corners[1]], [corners[1], corners[2]], [corners[2], corners[3]], [corners[3], corners[0]],
-    ];
-
-    const frustum = BABYLON.MeshBuilder.CreateLineSystem("frustumLines", { lines }, this.scene);
-    frustum.color = new BABYLON.Color3(1, 0.45, 0.25);
-    frustum.isPickable = false;
-    frustum.renderingGroupId = 1; // draw after points (optional)
-    return frustum;
   }
 
   // ------------------- camera framing -------------------
 
-  _autoFrame() {
-    // look-at: sampled centroid if we have it
+  _autoFrame(points) {
+    // Robust framing: median center + 90th-percentile range, camera placed on the photographer side at
+    // 30° elevation. Saves the view for the R (reset) key. Falls back to a bbox fit if no points.
+    const pts = this._sampleXYZ(points);
+    const setup = this._computeViewSetup(pts);
+    if (setup) {
+      const camPos = this.cameras.map((c) => [c.center.x, c.center.y, c.center.z]);
+      const angles = this._computeAutoCameraAngles(pts, camPos);
+      this.sceneCenter = new BABYLON.Vector3(setup.center[0], setup.center[1], setup.center[2]);
+      this.camera.setTarget(this.sceneCenter.clone());
+      this.camera.radius = setup.range * 2.5;
+      this.camera.alpha = angles.alpha;
+      this.camera.beta = angles.beta;
+      this.savedView = {
+        center: setup.center.slice(), alpha: angles.alpha, beta: angles.beta, radius: setup.range * 2.5,
+      };
+      this._updateCurrentImageName();
+      return;
+    }
     const center = this.sceneCenter || new BABYLON.Vector3(0, 0, 0);
     this.camera.setTarget(center);
-
-    if (this.cameras.length > 0) {
-      const pos = this.cameras[this.camIndex].center;
-      this.camera.setPosition(pos);
-      // recompute alpha/beta/radius from pos/target so orbit feels natural
-      this.camera.rebuildAnglesAndRadius?.();
-      this._updateCurrentImageName();
-    } else if (this.pointsMesh) {
-      // simple fit by radius if no cameras
+    if (this.pointsMesh) {
       const bb = this.pointsMesh.getBoundingInfo().boundingBox;
       const size = Math.max(
         bb.maximumWorld.x - bb.minimumWorld.x,
@@ -1179,9 +1438,8 @@ class ColmapViewer {
     this.camera.setTarget(center);
     this.camera.setPosition(pos);
     this.camera.rebuildAnglesAndRadius?.();
-    const R = this.cameras[this.camIndex].R;
-    const upWorld = BABYLON.Vector3.TransformCoordinates(new BABYLON.Vector3(0, 1, 0), R);
-    this.camera.upVector = upWorld;
+    // (Removed: slamming camera.upVector to the selected camera's up caused a disorienting
+    //  orientation snap on every fly-to. Keeping the global up makes orbit stay consistent.)
     this._updateCurrentImageName();
     this._renderStats();
   }

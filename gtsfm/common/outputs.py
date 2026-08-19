@@ -43,7 +43,15 @@ def prepare_output_paths(root: Path, cluster_path: Optional[Sequence[int]] = Non
     cluster_dir = root / "results"
     if cluster_path:
         for depth in range(len(cluster_path)):
-            cluster_dir = cluster_dir / cluster_label(cluster_path[: depth + 1])
+            prefix = cluster_path[: depth + 1]
+            # Shallow levels keep the classic accumulated label (existing drops/tooling
+            # unchanged). Deep levels switch to a short depth+index component: the accumulated
+            # label repeats the whole prefix at EVERY level, so total path length grows
+            # quadratically with depth — a 63-deep tree (Alamo) blows past PATH_MAX while
+            # merely creating output dirs. Short components are sibling-unique (same parent,
+            # same depth, distinct last index), keeping the nesting unambiguous.
+            component = cluster_label(prefix) if len(prefix) <= 8 else f"C{len(prefix)}_{prefix[-1]}"
+            cluster_dir = cluster_dir / component
 
     # For plotting
     output_paths = OutputPaths(

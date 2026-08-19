@@ -1,0 +1,142 @@
+/* GTSFM Pipeline Visualizer — Snavely-2010-inspired aesthetic.
+   Clean white backdrop, dark wireframes (rendered in viewer.js), crisp sans-serif HUD,
+   minimal chrome. The point cloud and frustums carry the visual weight; the UI fades back. */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  width: 100%;
+  background: #f6f6f3;            /* warm off-white, like a Snavely 2010 paper figure */
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Helvetica Neue", Arial, sans-serif;
+  color: #1a1a1a;
+  overflow: hidden;
+}
+
+#renderCanvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  outline: none;
+  touch-action: none;
+}
+
+/* Snavely-style overlay card. Positioned individually below. */
+.card {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 6px;
+  padding: 12px 16px;
+  min-width: 200px;
+  font-size: 11px;
+  line-height: 1.6;
+  letter-spacing: 0.02em;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+#statsCard { top: 18px; left: 18px; }
+#helpCard  { top: 18px; right: 18px; min-width: 160px; opacity: 0.85; }
+.card-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 18px;
+}
+.card-row .label {
+  text-transform: uppercase;
+  font-size: 9px;
+  font-weight: 600;
+  color: #888;
+  letter-spacing: 0.08em;
+}
+.card-row span:not(.label) {
+  font-weight: 600;
+  color: #1a1a1a;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Bottom control bar — minimal, centered, only what's needed */
+#controlBar {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  /* Never wider than the viewport: long run paths used to size runSelect (and thus the whole
+     centered bar) past both screen edges, hiding the right-side sliders. */
+  max-width: calc(100vw - 32px);
+  box-sizing: border-box;
+  flex-wrap: wrap;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 24px;
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  backdrop-filter: blur(4px);
+}
+#runSelect, #modeSelect {
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 12px;
+  color: #1a1a1a;
+  font-weight: 500;
+  outline: none;
+  cursor: pointer;
+}
+#runSelect { min-width: 200px; max-width: 340px; text-overflow: ellipsis; }
+#modeSelect { min-width: 180px; }
+#frustumSize {
+  width: 100px;
+  cursor: pointer;
+  accent-color: #1a1a1a;
+}
+#playBtn {
+  border: none;
+  background: #1a1a1a;
+  color: white;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#playBtn:hover { background: #333; }
+#timeline {
+  width: 320px;
+  cursor: pointer;
+  accent-color: #1a1a1a;
+}
+#stageIdx {
+  font-variant-numeric: tabular-nums;
+  color: #666;
+  min-width: 56px;
+  text-align: right;
+}
+.divider {
+  width: 1px;
+  height: 18px;
+  background: rgba(0,0,0,0.12);
+}
+.ctrl-label {
+  text-transform: uppercase;
+  font-size: 9px;
+  font-weight: 600;
+  color: #888;
+  letter-spacing: 0.08em;
+}
+#pointSize {
+  width: 100px;
+  cursor: pointer;
+  accent-color: #1a1a1a;
+}

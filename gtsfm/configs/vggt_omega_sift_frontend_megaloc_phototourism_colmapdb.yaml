@@ -1,0 +1,164 @@
+# VGGT-OMEGA + VERIFIED pipeline, fed by an OFFLINE COLMAP database (paper-scale scenes).
+# Identical to vggt_omega_sift_frontend_megaloc_phototourism_verified.yaml EXCEPT the frontend: instead of
+# GTSFM's Dask SIFT detection/matching/verification (which OOMs on 1000+-image scenes), the verified
+# keypoints + matches are read straight from a COLMAP database.db built offline with GPU SIFT + matching.
+#   - retriever  -> ColmapDB: the db's geometrically-verified pairs ARE the view graph.
+#   - correspondence_generator -> ColmapCorrespondenceGenerator: db keypoints + inlier matches.
+#   - scene_optimizer detects `produces_verified_correspondences` and SKIPS the Dask two-view pass + the
+#     all-results gather entirely (reads the db in the main process) — no worker OOM.
+# Everything downstream (verified-graph partition, global Fetzer, per-cluster omega, merge, retri) is
+# unchanged. db path defaults to <loader.dataset_dir>/database.db; override the two database_path keys to
+# point elsewhere. Build the db with scripts/build_colmap_db.sh.
+
+# @package _global_
+_target_: gtsfm.scene_optimizer.SceneOptimizer
+
+loader:
+  _target_: gtsfm.loader.Olsson
+  dataset_dir: ??? # Required: set to the dataset root on the command line (must contain database.db + images).
+  images_dir: null
+  max_resolution: 518 # VGGT recommended max resolution.
+
+image_pairs_generator:
+  _target_: gtsfm.retriever.image_pairs_generator.ImagePairsGenerator
+  # No global descriptor needed — pairs come from the COLMAP db, not MegaLoc similarity.
+  global_descriptor: null
+  retriever:
+    _target_: gtsfm.retriever.ColmapDB
+    database_path: ${loader.dataset_dir}/database.db
+  batch_size: 16
+
+graph_partitioner:
+  _target_: gtsfm.graph_partitioner.Metis
+  min_cameras_to_partition: 30
+  max_cameras: 70
+  split_oversized_nodes: true
+
+cluster_optimizer:
+  _target_: gtsfm.cluster_optimizer.Cacher
+  optimizer:
+    _target_: gtsfm.cluster_optimizer.VggtWithFrontend
+
+    # COLMAP-DB frontend: reads keypoints + ALREADY-VERIFIED inlier matches from the database (rescaled to
+    # the loader resolution). Marked produces_verified_correspondences=True, so the verified pipeline reads
+    # it directly and skips the Dask two-view estimation + gather.
+    correspondence_generator:
+      _target_: gtsfm.frontend.correspondence_generator.colmap_correspondence_generator.ColmapCorrespondenceGenerator
+      database_path: ${loader.dataset_dir}/database.db
+
+    # Unused on the db path (the bypass skips two-view estimation; clusters reuse global correspondences),
+    # but kept so the optimizer instantiates with a valid verifier.
+    two_view_estimator:
+      _target_: gtsfm.two_view_estimator_cacher.TwoViewEstimatorCacher
+      two_view_estimator_obj:
+        _target_: gtsfm.two_view_estimator.TwoViewEstimator
+        bundle_adjust_2view: True
+        eval_threshold_px: 4
+        ba_reproj_error_thresholds: [0.5]
+        bundle_adjust_2view_maxiters: 100
+        verifier:
+          _target_: gtsfm.frontend.verifier.poselib_verifier.PoseLibVerifier
+          estimation_threshold_px: 2
+        triangulation_options:
+          _target_: gtsfm.data_association.point3d_initializer.TriangulationOptions
+          reproj_error_threshold: 100.0
+          mode:
+            _target_: gtsfm.data_association.point3d_initializer.TriangulationSamplingMode
+            value: NO_RANSAC
+        inlier_support_processor:
+          _target_: gtsfm.two_view_estimator.InlierSupportProcessor
+          min_num_inliers_est_model: 30
+          min_inlier_ratio_est_model: 0.15
+
+    # --- VGGT-Omega geometry (peak). Same as the omega verified config. ---
+    geometry_transformer:
+      _target_: gtsfm.frontend.vggt_omega_geometry_transformer.VggtOmegaGeometryTransformer
+
+    ba_options:
+      _target_: gtsfm.bundle.bundle_adjustment.BundleAdjustmentOptions
+      shared_calib: false
+      use_calibration_prior: true
+      calibration_prior_focal_sigma: 5.0
+      use_gnc: true
+      gnc_loss: TLS
+      factor_weight_outlier_threshold: 1e-6
+
+    pre_ba_max_reproj_error: 14.0
+    post_ba_max_reproj_error: 3.0
+    drop_camera_with_no_track: false
+    min_track_length: 3
+    # Golden 1DSfM cluster stage: BA on (EXIF-pinned focals + GNC above), poses free.
+    run_per_cluster_ba: true
+    input_mode: crop
+    seed: 42
+    model_cache_key: false  # forces the omega transformer to self-load (never the vanilla VGGT loader)
+    use_view_graph_calibration: true
+    use_global_view_graph_calibration: true
+    # EXIF passthrough (ToL gold audit 2026-07-06): EXIF ~1.9% vs Fetzer ~5.3% median focal error
+    # on 1DSfM. NOTE: the class default is "fetzer" — this key must stay explicit.
+    calibration_source: exif
+    use_multi_view_retriangulation: false
+    # Triangulated structure (NOT depth-lift): the ToL audit measured 87-98% of per-cluster
+    # structure destroyed by the depth-lift path. Must match the verified config.
+    use_triangulated_structure: true
+    # Reuse the global (db) verified correspondences per cluster — required so clusters don't re-run a
+    # frontend. The colmap-db path makes this the only consumer of the correspondences.
+    reuse_global_correspondences: true
+
+# --- Merging options (identical to the omega verified config) ---
+merging_options:
+  _target_: gtsfm.cluster_merging.MergingOptions
+  run_bundle_adjustment: true
+  # Post-merge retri BA freedom (defaults preserve current behavior); override per-run,
+  # e.g. merging_options.retri_free_ba=true for the golden free finale.
+  retri_free_ba: false
+  retri_iterations: 1
+  merge_duplicate_tracks: true
+  drop_child_if_merging_fail: true
+  drop_outlier_after_camera_merging: true
+  drop_camera_with_no_track: false
+  keep_all_cameras: false
+  # Prior-backed retention: carry every filter-dropped camera up OUTSIDE the scenes (re-seated by its
+  # subtree's Sim3, never entering a merge/dedup/BA) and export as results/annex_posed_only — poses
+  # only, zero tracks. Zero effect on the core solve. Do NOT confuse with keep_all_cameras, which
+  # re-admits stale cameras into the merges and measurably poisons the core (ToL: 1.18m -> 18.35m).
+  export_trackless_annex: true
+  plot_reprojection_histograms: true
+  use_nonlinear_sim3_alignment: true
+  max_track_correspondences_for_sim3: 150
+  scale_and_average_focal_length: false
+  pre_ba_max_reproj_error: 14.0
+  pre_ba_min_track_length: 3
+  post_ba_max_reproj_error: 3.0
+  min_track_length: 3
+  allow_post_ba_reproj_filtering: true
+  metric_constructed_only: true
+  # OFF per the ToL metrics audit: recovery injected more floaters than it recovered
+  # (55/79 injected cameras failed to re-triangulate). Matches the verified config.
+  recover_trackless_cameras_in_retriangulation: false
+  ba_options:
+    _target_: gtsfm.bundle.bundle_adjustment.BundleAdjustmentOptions
+    shared_calib: false
+    use_calibration_prior: true
+    calibration_prior_focal_sigma: 10.0
+    use_pose_prior_all_cameras: true
+    use_gnc: false
+    gnc_loss: TLS
+    factor_weight_outlier_threshold: 1e-6
+
+# --- Bridge params ---
+bridge_min_similarity: 0.0
+bridge_top_k: 10
+bridge_min_component_size: 3
+
+# --- Verified-viewgraph pipeline ---
+use_verified_pipeline: true
+
+# Tail flags in lockstep with the verified config (2026-07-14 sync).
+enable_gid_merge_anchoring: false
+run_post_merge_retriangulation: false
+enable_boundary_recovery: false
+min_triangulation_angle_deg: 1.5
+# One drag-and-drop output: results/final_reconstruction = post-retri scene, angle-filtered,
+# colorized from the source images, annex cameras included as posed-only frustums.
+export_final_reconstruction: true

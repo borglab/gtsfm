@@ -41,7 +41,12 @@ class ColmapSIFTDetectorDescriptor(DetectorDescriptorBase):
 
         # Create pycolmap object every time as the object is not pickle-able.
         # Note: cannot use SiftGPU as wheels are not built with CUDA support.
-        options = pycolmap.SiftExtractionOptions(max_num_features=self.max_keypoints)
+        # num_threads=1: this runs once per image under Dask worker-level parallelism, so the parallelism
+        # comes from running many images concurrently across workers -- NOT from each SIFT grabbing every
+        # core. The pycolmap default (num_threads=-1) makes every worker's extractor spawn ncores threads,
+        # so N workers oversubscribe the box by ~N x and thrash to a standstill (looks like a hang). Images
+        # are downscaled to the loader's max_resolution, so single-threaded extraction is fast regardless.
+        options = pycolmap.SiftExtractionOptions(max_num_features=self.max_keypoints, num_threads=1)
         sift_obj = pycolmap.Sift(options)
 
         # Extract features.

@@ -1,0 +1,404 @@
+"""Cluster optimizer that combines a traditional MVO frontend with VGGT-Omega geometry + BA."""
+
+from __future__ import annotations
+
+from typing import Any, Hashable, NamedTuple, Optional
+
+import gtsam
+import numpy as np
+import torch
+from dask.delayed import delayed
+from gtsam import Point2, Point3, SfmTrack
+
+import gtsfm.common.types as gtsfm_types
+from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptions
+from gtsfm.cluster_optimizer.cluster_mvo import ClusterMVO
+from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterComputationGraph, ClusterContext
+from gtsfm.cluster_optimizer.cluster_vggt import (
+    _aggregate_vggt_metrics,
+    _run_cluster_ba,
+    _save_pre_ba_reconstruction_as_text,
+    _save_reconstruction_as_text,
+)
+from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm.common.sfm_track import SfmTrack2d
+from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
+from gtsfm.frontend.vggt_omega_geometry_transformer import (
+    VggtOmegaGeometryTransformer,
+    load_image_batch_vggt_omega_loader,
+    load_model,
+)
+from gtsfm.multi_view_optimizer import get_2d_tracks
+from gtsfm.products.visibility_graph import visibility_graph_keys
+from gtsfm.two_view_estimator import TwoViewEstimator
+from gtsfm.ui.gtsfm_process import UiMetadata
+from gtsfm.utils import torch as torch_utils
+from gtsfm.utils.logger import get_logger
+
+logger = get_logger()
+
+# Module-level cache to avoid reloading VGGT weights per cluster.
+_VGGT_OMEGA_MODEL_CACHE: dict[Hashable, Any] = {}
+
+
+class VggtOmegaGeometryResult(NamedTuple):
+    """Outputs of VGGT geometry prediction needed for downstream processing."""
+
+    cameras: dict[int, gtsfm_types.CAMERA_TYPE]
+    dense_points: np.ndarray  # (N, H, W, 3) world-space 3D points per pixel
+    depth_confidence: np.ndarray  # (N, H, W) per-pixel depth confidence scores
+    original_coords: np.ndarray  # (N, 6) VGGT crop/pad metadata
+
+
+def _extract_v_corr_idxs(two_view_results) -> dict:
+    """Pull verified correspondence index arrays out of two-view results."""
+    return {ij: result.v_corr_idxs for ij, result in two_view_results.items()}
+
+
+def _get_image_shapes(loader, image_indices: tuple[int, ...]) -> dict[int, tuple[int, int]]:
+    """Return original (height, width) for each requested image index."""
+    return {idx: loader.get_image(idx).value_array.shape[:2] for idx in image_indices}
+
+
+def _resolve_vggt_omega_model(cache_key: Hashable | None) -> Any | None:
+    """Fetch (or lazily load) a VGGT Omega model for the current worker."""
+    if cache_key is None:
+        return None
+    if cache_key in _VGGT_OMEGA_MODEL_CACHE:
+        return _VGGT_OMEGA_MODEL_CACHE[cache_key]
+    logger.info("⏳ Loading VGGT Omega model weights...")
+    model = load_model(torch.device("cuda"))
+    _VGGT_OMEGA_MODEL_CACHE[cache_key] = model
+    logger.info("✅ VGGT Omega model weights loaded successfully.")
+    return model
+
+
+def _run_vggt_omega_geometry(
+    image_batch: torch.Tensor,
+    original_coords: torch.Tensor,
+    *,
+    transformer: VggtOmegaGeometryTransformer,
+    image_indices: tuple[int, ...],
+    seed: int = 42,
+    model_cache_key: Hashable | None = None,
+    cluster_label: Optional[str] = None,
+) -> VggtOmegaGeometryResult:
+    """Run VGGT Omega geometry prediction, returning cameras and dense 3D points."""
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+    if cluster_label:
+        logger.info("🔵 Running VGGT geometry on %s with %d images.", cluster_label, image_batch.shape[0])
+
+    cached_model = _resolve_vggt_omega_model(model_cache_key)
+    geo_output = transformer.predict(image_batch, model=cached_model)
+
+    original_coords_np = original_coords.to(torch.float32).cpu().numpy()
+    cameras = {
+        global_idx: torch_utils.camera_from_matrices(
+            geo_output.extrinsic[local_idx].to(torch.float32).cpu().numpy(),
+            geo_output.intrinsic[local_idx].to(torch.float32).cpu().numpy(),
+            crop_coords=original_coords_np[local_idx],
+            use_cal3ds2=True,
+        )
+        for local_idx, global_idx in enumerate(image_indices)
+    }
+
+    result = VggtOmegaGeometryResult(
+        cameras=cameras,
+        dense_points=geo_output.dense_points.to(torch.float32).cpu().numpy(),
+        depth_confidence=geo_output.depth_confidence.to(torch.float32).cpu().numpy(),
+        original_coords=original_coords_np,
+    )
+
+    if geo_output.device.type == "cuda":
+        del geo_output
+        torch.cuda.empty_cache()
+
+    return result
+
+
+def _scale_camera_intrinsics(
+    camera: gtsfm_types.CAMERA_TYPE, scale_x: float, scale_y: float
+) -> gtsfm_types.CAMERA_TYPE:
+    """Return a copy of camera with intrinsics uniformly scaled, pose unchanged."""
+    pose = camera.pose()
+    cal = camera.calibration()
+    if isinstance(cal, gtsam.Cal3DS2):
+        return gtsam.PinholeCameraCal3DS2(
+            pose,
+            gtsam.Cal3DS2(
+                cal.fx() * scale_x,
+                cal.fy() * scale_y,
+                0.0,
+                cal.px() * scale_x,
+                cal.py() * scale_y,
+                cal.k1(),
+                cal.k2(),
+                cal.p1(),
+                cal.p2(),
+            ),
+        )
+    if isinstance(cal, gtsam.Cal3_S2):
+        return gtsam.PinholeCameraCal3_S2(
+            pose,
+            gtsam.Cal3_S2(cal.fx() * scale_x, cal.fy() * scale_y, 0.0, cal.px() * scale_x, cal.py() * scale_y),
+        )
+    raise ValueError(f"Unsupported calibration type: {type(cal)}")
+
+
+def _build_gtsfm_data_from_vggt_omega_depth(
+    vggt_omega_result: VggtOmegaGeometryResult,
+    tracks_2d: list[SfmTrack2d],
+    image_shapes: dict[int, tuple[int, int]],
+    image_indices: tuple[int, ...],
+    num_images: int,
+    min_track_length: int = 2,
+) -> GtsfmData:
+    """Build GtsfmData using VGGT Omega cameras (rescaled to original resolution) and frontend 2D tracks.
+
+    VGGT Omega camera intrinsics are scaled from VGGT pixel space to original image resolution so
+    that the frontend keypoints (in original coords) can be used directly as BA measurements.
+    VGGT Omega pixel coordinates are used only to look up per-pixel depth values for 3D initialisation.
+
+    Args:
+        vggt_omega_result: Cameras, dense 3D points, and crop metadata from VGGT.
+        tracks_2d: 2D feature tracks from the frontend (in original image coordinates).
+        image_shapes: Original (height, width) per global image index.
+        image_indices: Ordered global image indices corresponding to the N VGGT frames.
+        num_images: Total number of images in the scene.
+        min_track_length: Minimum observations per track; shorter tracks are dropped.
+
+    Returns:
+        GtsfmData with intrinsics-rescaled VGGT cameras and depth-initialised tracks whose
+        2D measurements are in the original keypoint coordinate system.
+    """
+    cameras = vggt_omega_result.cameras
+    dense_points = vggt_omega_result.dense_points  # (N, H_vggt, W_vggt, 3)
+    depth_confidence = vggt_omega_result.depth_confidence  # (N, H_vggt, W_vggt)
+    original_coords = vggt_omega_result.original_coords  # (N, 6): [left, top, right, bottom, sw, sh]
+
+    _, H_vggt, W_vggt = dense_points.shape[:3]
+    global_to_local = {gidx: lidx for lidx, gidx in enumerate(image_indices)}
+
+    # Register cameras with intrinsics rescaled to original image resolution.
+    gtsfm_data = GtsfmData(number_images=num_images)
+    for global_idx, camera in cameras.items():
+        if global_idx in image_shapes and global_idx in global_to_local:
+            orig_H, orig_W = image_shapes[global_idx]
+            local_idx = global_to_local[global_idx]
+            scaled_W = float(original_coords[local_idx, 4])
+            scaled_H = float(original_coords[local_idx, 5])
+            camera = _scale_camera_intrinsics(camera, scale_x=orig_W / scaled_W, scale_y=orig_H / scaled_H)
+        gtsfm_data.add_camera(global_idx, camera)
+
+    for track_2d in tracks_2d:
+        if track_2d.number_measurements() < min_track_length:
+            continue
+
+        points_3d: list[np.ndarray] = []
+        confidences: list[float] = []
+        valid_measurements: list[tuple[int, np.ndarray]] = []
+
+        for m in track_2d.measurements:
+            global_idx = m.i
+            if global_idx not in global_to_local or global_idx not in image_shapes:
+                continue
+
+            local_idx = global_to_local[global_idx]
+            orig_H, orig_W = image_shapes[global_idx]
+
+            # Map frontend keypoints into VGGT Omega dense-map coordinates using the actual
+            # per-axis resized image dimensions plus the crop/pad offsets recorded in
+            # original_coords for this image.
+            left, top = original_coords[local_idx, 0], original_coords[local_idx, 1]
+            scaled_W, scaled_H = original_coords[local_idx, 4], original_coords[local_idx, 5]
+            u_scale = scaled_W / orig_W if orig_W > 0 else 0.0
+            v_scale = scaled_H / orig_H if orig_H > 0 else 0.0
+            u_c = int(round(m.uv[0] * u_scale - left))
+            v_c = int(round(m.uv[1] * v_scale - top))
+            if not (0.0 <= u_c < W_vggt and 0.0 <= v_c < H_vggt):
+                continue
+
+            pt3d = dense_points[local_idx, v_c, u_c]
+            conf = float(depth_confidence[local_idx, v_c, u_c])
+            if np.isfinite(pt3d).all() and np.isfinite(conf):
+                points_3d.append(pt3d)
+                confidences.append(conf)
+                valid_measurements.append((global_idx, m.uv))  # original keypoint coords
+
+        if len(points_3d) < min_track_length:
+            continue
+
+        weights = np.array(confidences)
+        weights /= weights.sum()
+        point_3d_mean = np.average(points_3d, axis=0, weights=weights)
+        sfm_track = SfmTrack(Point3(*point_3d_mean.astype(float)))
+        for gidx, uv in valid_measurements:
+            if gidx in cameras:
+                sfm_track.addMeasurement(gidx, Point2(*uv.astype(float)))
+
+        if sfm_track.numberMeasurements() >= min_track_length:
+            gtsfm_data.add_track(sfm_track)
+
+    logger.info("Built GtsfmData with %d cameras and %d tracks.", len(cameras), gtsfm_data.number_tracks())
+    return gtsfm_data
+
+
+def _load_vggt_omega_inputs(
+    loader,
+    indices: list[int],
+):
+    """Load and preprocess a batch of images for VGGT Omega."""
+    image_batch, original_coords = load_image_batch_vggt_omega_loader(loader, indices)
+    return image_batch, original_coords
+
+
+class ClusterVGGTOmegaWithFrontend(ClusterMVO):
+    """Cluster optimizer that combines a traditional MVO frontend with VGGT poses.
+
+    Camera poses come from VGGT Omega geometry prediction. 2D feature tracks come from the
+    frontend (correspondence generation + two-view estimation). Each track's 3D point is
+    initialised from VGGT Omega's dense depth map rather than via triangulation, then refined
+    by cluster-level bundle adjustment.
+    """
+
+    def __init__(
+        self,
+        correspondence_generator: CorrespondenceGeneratorBase,
+        two_view_estimator: TwoViewEstimator,
+        geometry_transformer: VggtOmegaGeometryTransformer | None = None,
+        ba_options: BundleAdjustmentOptions | None = None,
+        # Cluster BA params
+        pre_ba_max_reproj_error: float = 14.0,
+        post_ba_max_reproj_error: float = 3.0,
+        drop_camera_with_no_track: bool = False,
+        min_track_length: int = 2,
+        # VGGT model loading
+        seed: int = 42,
+        model_cache_key: Hashable | bool | None = None,
+        metric_constructed_only: bool = False,
+        # Frontend params
+        save_two_view_viz: bool = False,
+        pose_angular_error_thresh: float = 3,
+        output_worker: Optional[str] = None,
+    ) -> None:
+        super().__init__(
+            correspondence_generator=correspondence_generator,
+            two_view_estimator=two_view_estimator,
+            multiview_optimizer=None,  # VGGT Omega depth replaces triangulation + MVO
+            save_two_view_viz=save_two_view_viz,
+            pose_angular_error_thresh=pose_angular_error_thresh,
+            output_worker=output_worker,
+        )
+        self.geometry_transformer = geometry_transformer or VggtOmegaGeometryTransformer()
+        self.ba_options = ba_options or BundleAdjustmentOptions()
+        self._pre_ba_max_reproj_error = pre_ba_max_reproj_error
+        self._post_ba_max_reproj_error = post_ba_max_reproj_error
+        self._drop_camera_with_no_track = drop_camera_with_no_track
+        self._min_track_length = min_track_length
+        self._metric_constructed_only = metric_constructed_only
+        self._seed = seed
+
+        if model_cache_key is False:
+            self._model_cache_key: Hashable | None = None
+        elif model_cache_key is None:
+            self._model_cache_key = "default_vggt_omega_loader"
+        else:
+            self._model_cache_key = model_cache_key
+
+    def __repr__(self) -> str:
+        components = [
+            f"correspondence_generator={self.correspondence_generator}",
+            f"two_view_estimator={self.two_view_estimator}",
+            f"ba_options={self.ba_options}",
+        ]
+        return "ClusterVGGTOmegaWithFrontend(\n  " + ",\n  ".join(components) + "\n)"
+
+    @staticmethod
+    def get_ui_metadata() -> UiMetadata:
+        return UiMetadata(
+            display_name="VGGT Omega + Frontend",
+            input_products=("Key Images",),
+            output_products=("VGGT Omega Reconstruction",),
+            parent_plate="Cluster Optimizer",
+        )
+
+    def create_computation_graph(self, context: ClusterContext) -> ClusterComputationGraph | None:
+        keys = sorted(visibility_graph_keys(context.visibility_graph))
+        if not keys:
+            return None
+
+        global_indices = tuple(int(idx) for idx in keys)
+
+        # Traditional frontend.
+        frontend_graphs = self._build_frontend_graphs(context)
+        io_tasks, metrics = self._build_frontend_output_graphs(context, frontend_graphs)
+
+        # VGGT Omega geometry prediction → cameras + dense 3D points.
+        image_batch_graph, original_coords_graph = delayed(_load_vggt_omega_inputs, nout=2)(
+            context.loader,
+            global_indices,
+        )
+        vggt_omega_result_graph = delayed(_run_vggt_omega_geometry)(
+            image_batch_graph,
+            original_coords_graph,
+            transformer=self.geometry_transformer,
+            image_indices=global_indices,
+            seed=self._seed,
+            model_cache_key=self._model_cache_key,
+            cluster_label=context.label,
+        )
+
+        # 3. 2D tracks from frontend correspondences.
+        v_corr_idxs_graph = delayed(_extract_v_corr_idxs)(frontend_graphs.two_view_results)
+        tracks_2d_graph = delayed(get_2d_tracks)(v_corr_idxs_graph, frontend_graphs.padded_keypoints)
+
+        # 4. Original image shapes (needed to map frontend pixel coords → VGGT Omega pixel coords).
+        image_shapes_graph = delayed(_get_image_shapes)(context.loader, global_indices)
+
+        # 5. Build GtsfmData: lift 2D tracks to 3D using VGGT depth map.
+        ba_input_graph = delayed(_build_gtsfm_data_from_vggt_omega_depth)(
+            vggt_omega_result_graph,
+            tracks_2d_graph,
+            image_shapes=image_shapes_graph,
+            image_indices=global_indices,
+            num_images=context.num_images,
+            min_track_length=self._min_track_length,
+        )
+
+        # 6. Cluster-level BA.
+        ba_result_graph, pre_ba_result_graph = delayed(_run_cluster_ba, nout=2)(
+            ba_input_graph,
+            ba_options=self.ba_options,
+            pre_ba_max_reproj_error=self._pre_ba_max_reproj_error,
+            post_ba_max_reproj_error=self._post_ba_max_reproj_error,
+            drop_camera_with_no_track=self._drop_camera_with_no_track,
+            min_track_length=self._min_track_length,
+            cluster_label=context.label,
+        )
+
+        # 7. Metrics + I/O.
+        cameras_gt = [context.one_view_data_dict[idx].camera_gt for idx in range(context.num_images)]
+        metrics.append(
+            delayed(_aggregate_vggt_metrics)(
+                ba_result_graph,
+                cameras_gt=cameras_gt,
+                pre_ba_result=pre_ba_result_graph,
+                save_dir=str(context.output_paths.metrics),
+                metric_constructed_only=self._metric_constructed_only,
+            )
+        )
+        with self._output_annotation():
+            io_tasks.append(delayed(_save_reconstruction_as_text)(ba_result_graph, context.output_paths.results))
+            io_tasks.append(
+                delayed(_save_pre_ba_reconstruction_as_text)(pre_ba_result_graph, context.output_paths.results)
+            )
+
+        return ClusterComputationGraph(
+            io_tasks=tuple(io_tasks),
+            metric_tasks=tuple(metrics),
+            sfm_result=ba_result_graph,
+        )

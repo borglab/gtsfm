@@ -23,7 +23,7 @@ NUM_KEYPOINTS_TO_SAMPLE_FOR_HASH = 10
 # Number of first K correspondence indices from image pair to use to create cache key.
 NUM_CORRESPONDENCES_TO_SAMPLE_FOR_HASH = 10
 
-CACHE_ROOT_PATH = Path(__file__).resolve().parent.parent / "cache"
+CACHE_ROOT_PATH = cache_utils.get_cache_root()  # honors GTSFM_CACHE_ROOT env var
 
 logger = logger_utils.get_logger()
 
