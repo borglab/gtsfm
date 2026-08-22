@@ -13,3 +13,6 @@
 [submodule "thirdparty/FastVGGT"]
 	path = thirdparty/FastVGGT
 	url = https://github.com/mystorm16/FastVGGT.git
+[submodule "thirdparty/vggt-omega"]
+	path = thirdparty/vggt-omega
+	url = https://github.com/facebookresearch/vggt-omega.git

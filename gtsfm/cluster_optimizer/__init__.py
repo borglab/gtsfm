@@ -13,6 +13,7 @@ __all__ = [
     "Anysplat",
     "Cacher",
     "VggtWithFrontend",
+    "VggtOmegaWithFrontend",
     "logger",
     "save_metrics_reports",
 ]
@@ -20,11 +21,12 @@ __all__ = [
 # Provide symbols to type checkers/IDEs without incurring runtime imports.
 if TYPE_CHECKING:
     from .cluster_anysplat import ClusterAnySplat as Anysplat
+    from .cluster_fast_vggt import ClusterFastVGGT as FastVggt
     from .cluster_mvo import ClusterMVO as Multiview
     from .cluster_optimizer_base import ClusterOptimizerBase as Base
     from .cluster_optimizer_cacher import ClusterOptimizerCacher as Cacher
     from .cluster_vggt import ClusterVGGT as Vggt
-    from .cluster_fast_vggt import ClusterFastVGGT as FastVggt
+    from .cluster_vggt_omega_with_frontend import ClusterVGGTOmegaWithFrontend as VggtOmegaWithFrontend
     from .cluster_vggt_with_frontend import ClusterVGGTWithFrontend as VggtWithFrontend
 
 # Short name → (module, class) for lazy attribute access.
@@ -36,6 +38,10 @@ _MOD_MAP = {
     "Anysplat": ("gtsfm.cluster_optimizer.cluster_anysplat", "ClusterAnySplat"),
     "Cacher": ("gtsfm.cluster_optimizer.cluster_optimizer_cacher", "ClusterOptimizerCacher"),
     "VggtWithFrontend": ("gtsfm.cluster_optimizer.cluster_vggt_with_frontend", "ClusterVGGTWithFrontend"),
+    "VggtOmegaWithFrontend": (
+        "gtsfm.cluster_optimizer.cluster_vggt_omega_with_frontend",
+        "ClusterVGGTOmegaWithFrontend",
+    ),
 }
 
 
