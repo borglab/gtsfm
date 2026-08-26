@@ -58,6 +58,11 @@ class ClusterMVO(ClusterOptimizerBase):
         correspondence_generator: CorrespondenceGeneratorBase,
         two_view_estimator: TwoViewEstimator,
         multiview_optimizer: MultiViewOptimizer,
+        drop_outlier_after_camera_merging: bool | None = None,
+        drop_child_if_merging_fail: bool | None = None,
+        drop_camera_with_no_track: bool | None = None,
+        plot_reprojection_histograms: bool | None = None,
+        run_bundle_adjustment_on_parent: bool | None = None,
         dense_multiview_optimizer: Optional[MVSBase] = None,
         gaussian_splatting_optimizer: Optional[Any] = None,
         save_gtsfm_data: bool = True,
@@ -68,6 +73,15 @@ class ClusterMVO(ClusterOptimizerBase):
     ) -> None:
         super().__init__(output_worker=output_worker)
         self._pose_angular_error_thresh = pose_angular_error_thresh
+        # These legacy cluster-merging options are still present in several Hydra configs,
+        # but the leaf-only MVO optimizer does not consume them directly.
+        _ = (
+            drop_outlier_after_camera_merging,
+            drop_child_if_merging_fail,
+            drop_camera_with_no_track,
+            plot_reprojection_histograms,
+            run_bundle_adjustment_on_parent,
+        )
         # assign MVO-only correspondence generator on this instance
         self.correspondence_generator = correspondence_generator
         self.two_view_estimator = two_view_estimator

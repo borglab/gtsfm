@@ -113,11 +113,11 @@ cluster_optimizer:
       calibration_prior_focal_sigma: 20.0
       measurement_noise_sigma: 1.0
 
-  # comment out to not run
-  dense_multiview_optimizer:
-    _target_: gtsfm.densify.mvs_patchmatchnet.MVSPatchmatchNet
+  # # comment out to not run
+  # dense_multiview_optimizer:
+  #   _target_: gtsfm.densify.mvs_patchmatchnet.MVSPatchmatchNet
 
-  gaussian_splatting_optimizer:
-    _target_: gtsfm.splat.gaussian_splatting.GaussianSplatting
-    cfg:
-      _target_: gtsfm.splat.gaussian_splatting.Config
+  # gaussian_splatting_optimizer:
+  #   _target_: gtsfm.splat.gaussian_splatting.GaussianSplatting
+  #   cfg:
+  #     _target_: gtsfm.splat.gaussian_splatting.Config
