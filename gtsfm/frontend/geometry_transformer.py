@@ -64,3 +64,23 @@ class GeometryTransformer(abc.ABC):
         Returns:
             A :class:`GeometryTransformerOutput` containing poses, depths, points, etc.
         """
+
+    def load_image_batch(self, loader, indices, mode: str = "crop"):
+        """Load + preprocess a batch of images for this geometry model.
+
+        Image preprocessing (resolution, patch alignment, cropping) is model-specific, and the
+        per-pixel depth lookup downstream indexes the model's depth map using the ``original_coords``
+        returned here — so the loader MUST match the resolution the model outputs. The default is the
+        VGGT loader; models with different preprocessing (e.g. VGGT-Omega) override this.
+
+        Args:
+            loader: GTSFM loader providing ``get_image``.
+            indices: image indices to load.
+            mode: preprocessing mode (VGGT: ``crop``/``pad``). Implementations may ignore it.
+
+        Returns:
+            ``(image_batch, original_coords)`` — the padded image tensor and (N, 6) crop/pad metadata.
+        """
+        from gtsfm.frontend.vggt_geometry_transformer import load_image_batch_vggt_loader
+
+        return load_image_batch_vggt_loader(loader, indices, mode=mode)
