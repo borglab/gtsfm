@@ -92,9 +92,29 @@ class Mast3rCorrespondenceGenerator(CorrespondenceGeneratorBase):
         pairwise_correspondences: Dict[Tuple[int, int], Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]] = (
             client.gather(pairwise_correspondence_futures)
         )
-        logger.info(
-            "Mast3r computed correspondences for %d edges, aggregating them...", len(pairwise_correspondence_futures)
-        )
+        return self._aggregate(pairwise_correspondences)
+
+    def generate_correspondences_inline(
+        self,
+        images: List[Image],
+        visibility_graph: VisibilityGraph,
+    ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
+        """Inline (no-Dask) variant of ``generate_correspondences``: run MASt3R on each pair in a plain loop."""
+        logger.info("⏳ Loading MASt3R model weights...")
+        model = AsymmetricMASt3R.from_pretrained(_MODEL_PATH).eval()
+
+        pairwise_correspondences = {
+            (i1, i2): Mast3rCorrespondenceGenerator.apply_mast3r(model, images[i1], images[i2])
+            for i1, i2 in visibility_graph
+        }
+        return self._aggregate(pairwise_correspondences)
+
+    def _aggregate(
+        self, pairwise_correspondences: Dict[Tuple[int, int], Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]]
+    ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
+        """Merge per-pair MASt3R matches into per-image keypoints (de-duplicated by feature-grid index) and
+        per-pair correspondence indices into those keypoints."""
+        logger.info("Mast3r computed correspondences for %d edges, aggregating them...", len(pairwise_correspondences))
 
         keypoints_for_image = {}
         indices_for_image = {}

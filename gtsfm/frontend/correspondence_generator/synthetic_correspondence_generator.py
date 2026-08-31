@@ -16,6 +16,7 @@ from gtsam import Pose3
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.logger as logger_utils
 import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
+from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
 from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_base import KeypointAggregatorBase
@@ -48,24 +49,17 @@ class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
             KeypointAggregatorDedup() if deduplicate else KeypointAggregatorUnique()
         )
 
-    def generate_correspondences(
-        self,
-        client: Client,
-        images: List[Future],
-        visibility_graph: VisibilityGraph,
-        num_sampled_3d_points: int = 5000,
-    ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
-        """Apply the correspondence generator to generate putative correspondences (in parallel).
+    def _prepare_scene(self, num_sampled_3d_points: int) -> Tuple[TanksAndTemplesLoader, str, np.ndarray, int, int]:
+        """Load the scene, sample 3d points from its mesh once, and save the mesh to disk (it does not pickle).
 
         Args:
-            client: Dask client, used to execute the front-end as futures.
-            images: List of all images, as futures.
-            visibility_graph: The visibility graph defining which image pairs to process.
             num_sampled_3d_points: Number of 3d points to sample from the mesh surface and to project.
 
         Returns:
-            List of keypoints, with one entry for each input image.
-            Putative correspondences as indices of keypoints (N,2), for pairs of images (i1,i2).
+            Tanks & Temples loader for the scene.
+            Path to the saved Open3d mesh.
+            Sampled 3d points, of shape (N,3).
+            Image height and width, in pixels.
         """
         dataset_dir = self._dataset_root
         scene_name = self._scene_name
@@ -96,10 +90,33 @@ class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
         open3d_mesh_path = tempfile.NamedTemporaryFile(suffix=".obj").name
         open3d.io.write_triangle_mesh(filename=open3d_mesh_path, mesh=mesh)
 
-        loader_future = client.scatter(loader, broadcast=False)
-
         # TODO(johnwlambert): Remove assumption that image pair shares the same image shape.
         image_height_px, image_width_px, _ = loader.get_image(0).shape
+        return loader, open3d_mesh_path, sampled_points, image_height_px, image_width_px
+
+    def generate_correspondences(
+        self,
+        client: Client,
+        images: List[Future],
+        visibility_graph: VisibilityGraph,
+        num_sampled_3d_points: int = 5000,
+    ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
+        """Apply the correspondence generator to generate putative correspondences (in parallel).
+
+        Args:
+            client: Dask client, used to execute the front-end as futures.
+            images: List of all images, as futures.
+            visibility_graph: The visibility graph defining which image pairs to process.
+            num_sampled_3d_points: Number of 3d points to sample from the mesh surface and to project.
+
+        Returns:
+            List of keypoints, with one entry for each input image.
+            Putative correspondences as indices of keypoints (N,2), for pairs of images (i1,i2).
+        """
+        loader, open3d_mesh_path, sampled_points, image_height_px, image_width_px = self._prepare_scene(
+            num_sampled_3d_points
+        )
+        loader_future = client.scatter(loader, broadcast=False)
 
         def apply_synthetic_corr_generator(loader_: LoaderBase, **kwargs) -> Tuple[Keypoints, Keypoints]:
             return generate_synthetic_correspondences_for_image_pair(
@@ -124,6 +141,33 @@ class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
 
         keypoints_list, putative_corr_idxs_dict = self._aggregator.aggregate(keypoints_dict=pairwise_correspondences)
         return keypoints_list, putative_corr_idxs_dict
+
+    def generate_correspondences_inline(
+        self,
+        images: List[Image],
+        visibility_graph: VisibilityGraph,
+        num_sampled_3d_points: int = 5000,
+    ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
+        """Inline (no-Dask) variant of ``generate_correspondences``.
+
+        The synthetic correspondences are projected from the scene's GT cameras and mesh, so ``images`` is
+        only accepted to satisfy the interface (indices refer to the loader).
+        """
+        loader, open3d_mesh_path, sampled_points, image_height_px, image_width_px = self._prepare_scene(
+            num_sampled_3d_points
+        )
+        pairwise_correspondences = {
+            (i1, i2): generate_synthetic_correspondences_for_image_pair(
+                camera_i1=loader.get_camera(index=i1),
+                camera_i2=loader.get_camera(index=i2),
+                open3d_mesh_fpath=open3d_mesh_path,
+                points=sampled_points,
+                image_height_px=image_height_px,
+                image_width_px=image_width_px,
+            )
+            for i1, i2 in visibility_graph
+        }
+        return self._aggregator.aggregate(keypoints_dict=pairwise_correspondences)
 
 
 def generate_synthetic_correspondences_for_image_pair(

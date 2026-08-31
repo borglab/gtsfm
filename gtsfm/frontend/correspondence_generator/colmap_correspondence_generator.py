@@ -123,6 +123,25 @@ class ColmapCorrespondenceGenerator(CorrespondenceGeneratorBase):
 
         return corr_idxs
 
+    def generate_correspondences_inline(
+        self, images: List[Image], visibility_graph: VisibilityGraph
+    ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
+        """Read keypoints and matches for the given images from the Colmap DB.
+
+        Note: the matches read from the DB are already geometrically verified.
+
+        Args:
+            images: List of all images.
+            visibility_graph: The visibility graph defining which image pairs to process.
+
+        Returns:
+            List of keypoints, one entry for each input images.
+            Correspondences as indices of keypoints, for pairs of images.
+        """
+        gtsfm_id_to_pycolmap_id, keypoints = self._read_image_ids_and_keypoints(images)
+        corr_idxs = self._read_matches(visibility_graph, gtsfm_id_to_pycolmap_id)
+        return keypoints, corr_idxs
+
     def generate_correspondences(
         self, client: Client, images: List[Future], visibility_graph: VisibilityGraph
     ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
@@ -137,10 +156,4 @@ class ColmapCorrespondenceGenerator(CorrespondenceGeneratorBase):
             List of keypoints, one entry for each input images.
             Putative correspondence as indices of keypoints, for pairs of images.
         """
-        # Note: we will end up reading verified correspondences from the colmap DB.
-        images_actual = client.gather(images)
-
-        gtsfm_id_to_pycolmap_id, keypoints = self._read_image_ids_and_keypoints(images_actual)
-        corr_idxs = self._read_matches(visibility_graph, gtsfm_id_to_pycolmap_id)
-
-        return keypoints, corr_idxs
+        return self.generate_correspondences_inline(client.gather(images), visibility_graph)

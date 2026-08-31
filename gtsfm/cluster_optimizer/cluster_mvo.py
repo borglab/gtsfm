@@ -6,11 +6,10 @@ import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping, Optional, cast
+from typing import Any, Mapping, Optional
 
 import numpy as np
 from dask.delayed import Delayed, delayed
-from dask.distributed import Future, worker_client
 from gtsam import Pose3, Similarity3  # type: ignore
 
 import gtsfm.common.types as gtsfm_types
@@ -33,7 +32,7 @@ from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.products.one_view_data import OneViewData
 from gtsfm.products.two_view_result import TwoViewResult
 from gtsfm.products.visibility_graph import AnnotatedGraph, VisibilityGraph
-from gtsfm.two_view_estimator import TwoViewEstimator, create_two_view_estimator_futures
+from gtsfm.two_view_estimator import TwoViewEstimator, create_two_view_results_inline
 from gtsfm.ui.gtsfm_process import UiMetadata
 from gtsfm.utils import transform
 
@@ -114,22 +113,25 @@ class ClusterMVO(ClusterOptimizerBase):
     def _run_correspondence_generator(
         correspondence_generator: CorrespondenceGeneratorBase,
         visibility_graph: VisibilityGraph,
-        image_future_keys: list[str],
+        images: list[Image],
     ) -> tuple[list[Keypoints], AnnotatedGraph[np.ndarray], float]:
-        """Execute correspondence generation inside a worker task."""
+        """Run correspondence generation inline (no nested Dask submission).
+
+        ``images`` arrives materialized as a normal Dask dependency (``images[i]`` is image ``i``).
+        Detection + matching run in plain loops over the cache-backed primitives — no ``worker_client()``,
+        so the entire frontend working set is never held resident on one worker at once.
+        """
 
         logger.info("🔵 Running correspondence generation for %d pairs.", len(visibility_graph))
 
         if len(visibility_graph) == 0:
             return [], {}, 0.0
 
-        with worker_client() as nested_client:
-            image_futures = [Future(key=key, client=nested_client) for key in image_future_keys]
-            start_time = time.time()
-            keypoints_list, putative_corr_idxs_dict = correspondence_generator.generate_correspondences(
-                nested_client, image_futures, visibility_graph
-            )
-            duration_sec = time.time() - start_time
+        start_time = time.time()
+        keypoints_list, putative_corr_idxs_dict = correspondence_generator.generate_correspondences_inline(
+            images, visibility_graph
+        )
+        duration_sec = time.time() - start_time
 
         return keypoints_list, putative_corr_idxs_dict, duration_sec
 
@@ -142,24 +144,20 @@ class ClusterMVO(ClusterOptimizerBase):
         gt_scene_mesh: Optional[Any],
         one_view_data_dict: dict[int, OneViewData],
     ) -> tuple[AnnotatedGraph[TwoViewResult], float]:
-        """Execute two-view estimation inside a worker task."""
+        """Run two-view estimation inline (no nested Dask submission)."""
         logger.info("🔵 Running two-view estimation for %d pairs.", len(putative_corr_idxs_dict))
 
-        with worker_client() as nested_client:
-            start_time = time.time()
-            two_view_result_futures = create_two_view_estimator_futures(
-                client=nested_client,
-                two_view_estimator=two_view_estimator,
-                keypoints_list=keypoints_list,
-                putative_corr_idxs_dict=putative_corr_idxs_dict,
-                relative_pose_priors=relative_pose_priors,
-                gt_scene_mesh=gt_scene_mesh,
-                one_view_data_dict=one_view_data_dict,
-            )
-            gathered_tve_futures = nested_client.gather(two_view_result_futures)
-            duration_sec = time.time() - start_time
+        start_time = time.time()
+        all_two_view_results = create_two_view_results_inline(
+            two_view_estimator=two_view_estimator,
+            keypoints_list=keypoints_list,
+            putative_corr_idxs_dict=putative_corr_idxs_dict,
+            relative_pose_priors=relative_pose_priors,
+            gt_scene_mesh=gt_scene_mesh,
+            one_view_data_dict=one_view_data_dict,
+        )
+        duration_sec = time.time() - start_time
 
-        all_two_view_results = cast(AnnotatedGraph[TwoViewResult], gathered_tve_futures)
         valid_two_view_results = {edge: result for edge, result in all_two_view_results.items() if result.valid()}
 
         n_total = len(all_two_view_results)
@@ -202,14 +200,16 @@ class ClusterMVO(ClusterOptimizerBase):
         """Create delayed nodes for the full front-end pipeline."""
 
         visibility_edges = list(context.visibility_graph)
-        image_future_keys = [context.image_future_map[idx].key for idx in range(context.num_images)]
+        # Pass the image futures directly as task inputs; Dask materializes them as a normal dependency
+        # (no nested gather), so the correspondence task receives concrete images[i] in index order.
+        image_futures = [context.image_future_map[idx] for idx in range(context.num_images)]
 
         keypoints_graph, putative_corr_idxs_graph, correspondence_duration_graph = delayed(
             ClusterMVO._run_correspondence_generator, nout=3
         )(
             self.correspondence_generator,
             visibility_edges,
-            image_future_keys,
+            image_futures,
         )
 
         padded_keypoints_graph = delayed(_pad_keypoints_list)(keypoints_graph, context.num_images)

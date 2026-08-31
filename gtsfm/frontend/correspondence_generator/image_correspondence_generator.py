@@ -87,6 +87,17 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
         keypoints_list, putative_corr_idxs_dict = self._aggregator.aggregate(keypoints_dict=pairwise_correspondences)
         return keypoints_list, putative_corr_idxs_dict
 
+    def generate_correspondences_inline(
+        self,
+        images: List[Image],
+        visibility_graph: VisibilityGraph,
+    ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
+        """Inline (no-Dask) variant of ``generate_correspondences``: match each pair in a plain loop."""
+        pairwise_correspondences = {
+            (i1, i2): self._matcher.match(image_i1=images[i1], image_i2=images[i2]) for i1, i2 in visibility_graph
+        }
+        return self._aggregator.aggregate(keypoints_dict=pairwise_correspondences)
+
     def generate_correspondences_and_estimate_two_view(
         self,
         client: Client,
