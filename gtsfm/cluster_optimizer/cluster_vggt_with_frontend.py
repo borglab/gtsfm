@@ -53,6 +53,11 @@ def _extract_v_corr_idxs(two_view_results) -> dict:
     return {ij: result.v_corr_idxs for ij, result in two_view_results.items()}
 
 
+def _identity(x):
+    """Wrap an eager value as a single delayed node (so it is embedded once, not per consumer)."""
+    return x
+
+
 def _get_image_shapes(loader, image_indices: tuple[int, ...]) -> dict[int, tuple[int, int]]:
     """Return original (height, width) for each requested image index."""
     return {idx: loader.get_image(idx).value_array.shape[:2] for idx in image_indices}
@@ -355,9 +360,35 @@ class ClusterVGGTWithFrontend(ClusterMVO):
         image_filenames = context.loader.image_filenames()
         image_names = tuple(str(image_filenames[idx]) for idx in keys)
 
-        # Traditional frontend.
-        frontend_graphs = self._build_frontend_graphs(context)
-        io_tasks, metrics = self._build_frontend_output_graphs(context, frontend_graphs)
+        # This cluster's 2D tracks. When the context carries the globally-verified correspondences,
+        # subset them to this cluster's edges and build the tracks EAGERLY in the main process — the
+        # per-cluster frontend would recompute the identical per-edge result (same edges, same two-view
+        # estimator), serially and redundantly across overlapping clusters. Without them (optimizer used
+        # standalone), run the traditional per-cluster frontend.
+        if context.global_v_corr_idxs_dict is not None and context.global_keypoints is not None:
+            cluster_v_corr = {
+                ij: context.global_v_corr_idxs_dict[ij]
+                for ij in context.visibility_graph
+                if ij in context.global_v_corr_idxs_dict
+            }
+            tracks_2d = get_2d_tracks(cluster_v_corr, context.global_keypoints)
+            logger.info(
+                "♻️  [%s] Reusing global correspondences: %d/%d cluster edges → %d tracks (frontend skipped).",
+                context.label,
+                len(cluster_v_corr),
+                len(context.visibility_graph),
+                len(tracks_2d),
+            )
+            v_corr_idxs_graph = delayed(_identity)(cluster_v_corr)
+            tracks_2d_graph = delayed(_identity)(tracks_2d)
+            padded_keypoints_graph = delayed(_identity)(context.global_keypoints)
+            io_tasks, metrics = [], []
+        else:
+            frontend_graphs = self._build_frontend_graphs(context)
+            io_tasks, metrics = self._build_frontend_output_graphs(context, frontend_graphs)
+            v_corr_idxs_graph = delayed(_extract_v_corr_idxs)(frontend_graphs.two_view_results)
+            tracks_2d_graph = delayed(get_2d_tracks)(v_corr_idxs_graph, frontend_graphs.padded_keypoints)
+            padded_keypoints_graph = frontend_graphs.padded_keypoints
 
         # VGGT geometry prediction → cameras + dense 3D points.
         image_batch_graph, original_coords_graph = delayed(_load_vggt_inputs, nout=2)(
@@ -379,26 +410,22 @@ class ClusterVGGTWithFrontend(ClusterMVO):
             cluster_label=context.label,
         )
 
-        # 3. 2D tracks from frontend correspondences.
-        v_corr_idxs_graph = delayed(_extract_v_corr_idxs)(frontend_graphs.two_view_results)
-        tracks_2d_graph = delayed(get_2d_tracks)(v_corr_idxs_graph, frontend_graphs.padded_keypoints)
-
-        # 4. Original image shapes (needed to map frontend pixel coords → VGGT pixel coords).
+        # Original image shapes (needed to map frontend pixel coords → VGGT pixel coords).
         image_shapes_graph = delayed(_get_image_shapes)(context.loader, global_indices)
 
-        # 4b. Optional: refine VGGT's predicted intrinsics via Fetzer joint
+        # Optional: refine VGGT's predicted intrinsics via Fetzer joint
         # optimization over the frontend's F-matrices (keeps VGGT's predicted poses).
         refined_intrinsics_graph = None
         if self._use_view_graph_calibration:
             refined_intrinsics_graph = delayed(_refine_vggt_intrinsics_via_view_graph)(
                 vggt_result_graph,
                 v_corr_idxs_graph,
-                frontend_graphs.padded_keypoints,
+                padded_keypoints_graph,
                 image_shapes_graph,
                 global_indices,
             )
 
-        # 5. Build GtsfmData: lift 2D tracks to 3D using VGGT depth map.
+        # Build GtsfmData: lift 2D tracks to 3D using VGGT depth map.
         ba_input_graph = delayed(_build_gtsfm_data_from_vggt_depth)(
             vggt_result_graph,
             tracks_2d_graph,
@@ -409,7 +436,7 @@ class ClusterVGGTWithFrontend(ClusterMVO):
             refined_intrinsics=refined_intrinsics_graph,
         )
 
-        # 6. Cluster-level BA.
+        # Cluster-level BA.
         ba_result_graph, pre_ba_result_graph = delayed(_run_cluster_ba, nout=2)(
             ba_input_graph,
             ba_options=self.ba_options,
@@ -422,7 +449,7 @@ class ClusterVGGTWithFrontend(ClusterMVO):
             use_multi_view_retriangulation=self._use_multi_view_retriangulation,
         )
 
-        # 7. Metrics + I/O.
+        # Metrics + I/O.
         cameras_gt = [context.one_view_data_dict[idx].camera_gt for idx in range(context.num_images)]
         metrics.append(
             delayed(_aggregate_vggt_metrics)(
