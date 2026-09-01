@@ -17,7 +17,16 @@ from gtsfm.cluster_optimizer import Multiview
 from gtsfm.loader.configuration import add_loader_args, build_loader_overrides
 from gtsfm.utils.configuration import log_full_configuration
 
-dask_config.set({"distributed.scheduler.worker-ttl": None})
+dask_config.set(
+    {
+        "distributed.scheduler.worker-ttl": None,
+        # Tolerate long event-loop stalls (bulk image loads, the in-process global frontend) without
+        # tearing down the client<->scheduler/worker comms. With the 30s defaults these comms close
+        # mid-run on large single-node scenes, surfacing as CommClosedError / "lost dependencies".
+        "distributed.comm.timeouts.connect": "300s",
+        "distributed.comm.timeouts.tcp": "300s",
+    }
+)
 
 logger = logger_utils.get_logger()
 

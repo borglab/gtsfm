@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Optional, TypeVar, cast
 
 import matplotlib
+import numpy as np
 from dask.delayed import delayed
 from dask.distributed import Client, Future, performance_report
 from omegaconf import OmegaConf
@@ -17,17 +18,23 @@ import gtsfm.utils.logger as logger_utils
 from gtsfm import cluster_merging
 from gtsfm.cluster_merging import MergingOptions
 from gtsfm.cluster_optimizer import Base, save_metrics_reports
+from gtsfm.cluster_optimizer.cluster_mvo import ClusterMVO, _pad_keypoints_list
 from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterContext
 from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.outputs import OutputPaths, cluster_label, prepare_output_paths
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.evaluation.retrieval_metrics import save_retrieval_two_view_metrics
+from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.graph_partitioner.single_partitioner import SinglePartitioner
 from gtsfm.loader.loader_base import LoaderBase
-from gtsfm.products.visibility_graph import VisibilityGraph
+from gtsfm.products.one_view_data import OneViewData
+from gtsfm.products.visibility_graph import AnnotatedGraph, VisibilityGraph, visibility_graph_keys
 from gtsfm.retriever.image_pairs_generator import ImagePairsGenerator
+from gtsfm.two_view_estimator import TwoViewEstimator, create_v_corr_idxs_futures, create_v_corr_idxs_inline
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
+from gtsfm.utils.graph import get_nodes_in_largest_connected_component
 from gtsfm.utils.tree import PreOrderIter
 from gtsfm.utils.tree_dask import submit_tree_map_with_children
 
@@ -95,6 +102,81 @@ def _collect_metric_results(*results: object) -> list[GtsfmMetricsGroup]:
 def _finalize_io_tasks(*_args: object) -> None:
     """Barrier task used to depend on all I/O side effects."""
     return None
+
+
+def verify_visibility_graph(
+    client: Client,
+    correspondence_generator: CorrespondenceGeneratorBase,
+    two_view_estimator: TwoViewEstimator,
+    loader: LoaderBase,
+    image_future_map: dict[int, Future],
+    one_view_data_dict: dict[int, OneViewData],
+    visibility_graph: VisibilityGraph,
+) -> tuple[list[Keypoints], AnnotatedGraph[np.ndarray]]:
+    """Run the frontend once over the retrieval graph, returning keypoints + verified correspondences.
+
+    Correspondence generation and two-view estimation run over ALL retrieval edges; an edge survives iff
+    its ``TwoViewResult.valid()``. Only the verified correspondence indices are kept (each heavy
+    ``TwoViewResult`` is dropped the moment it is reduced), and every ``run_2view`` call warms the
+    two-view cache, so per-cluster frontends that run afterwards are cache hits.
+
+    Dispatches on pool size: with multiple workers the frontend fans out across the pool and only the
+    lean per-chunk ``v_corr_idxs`` sub-dicts are gathered; with at most one worker everything runs inline
+    in this process, leaving no scheduler<->worker comm surface for a multi-hour run to trip over.
+
+    Args:
+        client: Dask client.
+        correspondence_generator: Frontend correspondence generator (detection + matching).
+        two_view_estimator: Two-view estimator applied to every pair.
+        loader: Dataset loader (pose priors, GT mesh, image count).
+        image_future_map: Scattered images, keyed by image index.
+        one_view_data_dict: Per-image intrinsics / GT data.
+        visibility_graph: Retrieval graph to verify.
+
+    Returns:
+        keypoints_list: Per-image keypoints, padded to ``len(loader)``.
+        v_corr_idxs_dict: Verified correspondence indices for every surviving edge.
+    """
+    num_images = len(loader)
+    image_futures = [image_future_map[idx] for idx in range(num_images)]
+    relative_pose_priors = loader.get_relative_pose_priors(list(visibility_graph)) or {}
+    gt_scene_mesh = loader.get_gt_scene_trimesh()
+    try:
+        num_workers = len(client.scheduler_info()["workers"])
+    except Exception:
+        num_workers = 1
+
+    if num_workers <= 1:
+        logger.info("🔵 [frontend] 1 worker → running the global frontend inline (in-process).")
+        images = client.gather(image_futures)
+        keypoints_list, putative_corr_idxs_dict, _ = ClusterMVO._run_correspondence_generator(
+            correspondence_generator, list(visibility_graph), images
+        )
+        padded_keypoints_list = _pad_keypoints_list(keypoints_list, num_images)
+        v_corr_idxs_dict = create_v_corr_idxs_inline(
+            two_view_estimator,
+            padded_keypoints_list,
+            putative_corr_idxs_dict,
+            relative_pose_priors,
+            gt_scene_mesh,
+            one_view_data_dict,
+        )
+    else:
+        logger.info("🔵 [frontend] %d workers → running the global frontend in parallel.", num_workers)
+        keypoints_list, putative_corr_idxs_dict = correspondence_generator.generate_correspondences(
+            client, image_futures, list(visibility_graph)
+        )
+        padded_keypoints_list = _pad_keypoints_list(keypoints_list, num_images)
+        v_corr_idxs_dict = create_v_corr_idxs_futures(
+            client,
+            two_view_estimator,
+            padded_keypoints_list,
+            putative_corr_idxs_dict,
+            relative_pose_priors,
+            gt_scene_mesh,
+            one_view_data_dict,
+        )
+    return padded_keypoints_list, v_corr_idxs_dict
 
 
 class SceneOptimizer:
@@ -208,6 +290,41 @@ class SceneOptimizer:
         retriever_metrics, visibility_graph, similarity_matrix = self._run_retriever(client, base_output_paths)
         base_metrics_groups.append(retriever_metrics)
         image_future_map = self.loader.get_image_futures(client)
+        one_view_data_dict = self.loader.get_one_view_data_dict()
+
+        # Global two-view verification: run the frontend ONCE over the full retrieval graph and keep only
+        # the edges where a two-view model was verified. Everything downstream — partitioning, per-cluster
+        # reconstruction, merging — consumes the VERIFIED graph, so clusters are never carved along
+        # similarity edges that have no verifiable geometry. Optimizers without a two-view frontend
+        # (pure feedforward, e.g. ClusterVGGT / AnySplat) cannot verify and keep the retrieval graph.
+        padded_keypoints_list: Optional[list[Keypoints]] = None
+        v_corr_idxs_dict: Optional[AnnotatedGraph[np.ndarray]] = None
+        correspondence_generator = getattr(self.cluster_optimizer, "correspondence_generator", None)
+        two_view_estimator = getattr(self.cluster_optimizer, "two_view_estimator", None)
+        if correspondence_generator is not None and two_view_estimator is not None:
+            retrieval_edge_count = len(visibility_graph)
+            logger.info("🔎 GTSFM: Global two-view verification over %d retrieval edges...", retrieval_edge_count)
+            padded_keypoints_list, v_corr_idxs_dict = verify_visibility_graph(
+                client,
+                correspondence_generator,
+                two_view_estimator,
+                self.loader,
+                image_future_map,
+                one_view_data_dict,
+                visibility_graph,
+            )
+            verified_graph = sorted(v_corr_idxs_dict.keys())
+            all_nodes = visibility_graph_keys(verified_graph)
+            largest_cc = set(get_nodes_in_largest_connected_component(verified_graph)) if verified_graph else set()
+            logger.info(
+                "🔎 Verified graph: %d/%d edges; nodes=%d, largest_cc=%d, dropped_by_partition=%d",
+                len(verified_graph),
+                retrieval_edge_count,
+                len(all_nodes),
+                len(largest_cc),
+                len(all_nodes) - len(largest_cc),
+            )
+            visibility_graph = verified_graph
 
         # Bridge reconnection: add cross-component edges to reconnect island components.
         if similarity_matrix is not None and self._bridge_min_similarity > 0:
@@ -240,7 +357,6 @@ class SceneOptimizer:
         save_retrieval_two_view_metrics(base_output_paths)
 
         logger.info("🔥 GTSFM: Scheduling cluster optimizations...")
-        one_view_data_dict = self.loader.get_one_view_data_dict()
         merged_scene: Optional[cluster_merging.MergedNodeSummary] = None
 
         with performance_report(filename="dask_reports/scene-optimizer.html"):
@@ -261,6 +377,8 @@ class SceneOptimizer:
                         cluster_path=path,
                         label=cluster_label(path),
                         visibility_graph=visibility_graph,
+                        global_v_corr_idxs_dict=v_corr_idxs_dict,
+                        global_keypoints=padded_keypoints_list,
                     )
 
                 context_tree = cluster_tree.map_with_path(to_context)
