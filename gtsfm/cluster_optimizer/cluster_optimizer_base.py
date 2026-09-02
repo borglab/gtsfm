@@ -55,6 +55,11 @@ class ClusterContext:
     # per-cluster frontend (identical per-edge result). None: the optimizer runs its own frontend.
     global_v_corr_idxs_dict: dict | None = None
     global_keypoints: list | None = None
+    # Measured intrinsics (EXIF / dataset calibration) passed through verbatim, keyed by image index.
+    # Cluster builds PIN these in place of the geometry model's predicted focals; cameras absent from
+    # the dict (loader could only guess a focal) fall back to the model prediction. None or empty: no
+    # passthrough.
+    global_refined_intrinsics: dict | None = None
 
     @property
     def is_root(self) -> bool:

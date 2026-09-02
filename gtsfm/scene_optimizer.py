@@ -21,6 +21,7 @@ from gtsfm.cluster_optimizer import Base, save_metrics_reports
 from gtsfm.cluster_optimizer.cluster_mvo import ClusterMVO, _pad_keypoints_list
 from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterContext
 from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm.common.types import CALIBRATION_TYPE
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.outputs import OutputPaths, cluster_label, prepare_output_paths
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
@@ -102,6 +103,30 @@ def _collect_metric_results(*results: object) -> list[GtsfmMetricsGroup]:
 def _finalize_io_tasks(*_args: object) -> None:
     """Barrier task used to depend on all I/O side effects."""
     return None
+
+
+def exif_intrinsics_passthrough(one_view_data_dict: dict[int, OneViewData]) -> dict[int, CALIBRATION_TYPE]:
+    """Collect the cameras whose intrinsics were MEASURED (EXIF / dataset calibration), for pinning.
+
+    Cluster builds pin these verbatim in place of the geometry model's predicted focals, so every
+    cluster sharing a camera anchors the SAME calibration — separator cameras stay consistent across
+    parent/child BAs instead of drifting apart through the focal/depth ambiguity. Cameras whose loader
+    could only GUESS a focal (default-focal heuristic; roughly 19-40% of 1DSfM phototourism images
+    carry no usable EXIF, and the guess is ~17% off on average) are EXCLUDED: pinning a wrong focal is
+    far worse than keeping the model's predicted focal, so those cameras fall back to the model
+    prediction in the cluster builds.
+
+    Args:
+        one_view_data_dict: Per-image data from the loader.
+
+    Returns:
+        Measured intrinsics keyed by image index (possibly empty).
+    """
+    return {
+        idx: ovd.intrinsics
+        for idx, ovd in one_view_data_dict.items()
+        if ovd.intrinsics is not None and ovd.intrinsics_from_exif
+    }
 
 
 def verify_visibility_graph(
@@ -292,6 +317,16 @@ class SceneOptimizer:
         image_future_map = self.loader.get_image_futures(client)
         one_view_data_dict = self.loader.get_one_view_data_dict()
 
+        # Measured-intrinsics passthrough: hand every EXIF-/calibration-backed camera its intrinsics
+        # verbatim via ClusterContext; cluster builds pin them in place of model-predicted focals.
+        global_refined_intrinsics = exif_intrinsics_passthrough(one_view_data_dict)
+        logger.info(
+            "🔭 Calibration: measured (EXIF/dataset) intrinsics for %d/%d cameras; the rest keep "
+            "model-predicted focals.",
+            len(global_refined_intrinsics),
+            len(one_view_data_dict),
+        )
+
         # Global two-view verification: run the frontend ONCE over the full retrieval graph and keep only
         # the edges where a two-view model was verified. Everything downstream — partitioning, per-cluster
         # reconstruction, merging — consumes the VERIFIED graph, so clusters are never carved along
@@ -379,6 +414,7 @@ class SceneOptimizer:
                         visibility_graph=visibility_graph,
                         global_v_corr_idxs_dict=v_corr_idxs_dict,
                         global_keypoints=padded_keypoints_list,
+                        global_refined_intrinsics=global_refined_intrinsics or None,
                     )
 
                 context_tree = cluster_tree.map_with_path(to_context)
