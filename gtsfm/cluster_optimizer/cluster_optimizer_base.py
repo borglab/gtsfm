@@ -49,6 +49,17 @@ class ClusterContext:
     cluster_path: tuple[int, ...]
     label: str
     visibility_graph: VisibilityGraph
+    # Global frontend products from the verified two-view pass over the full retrieval graph: verified
+    # correspondence indices keyed by image pair, and per-image keypoints (padded to num_images). When
+    # present, ClusterVGGTWithFrontend builds its tracks from these instead of re-running the
+    # per-cluster frontend (identical per-edge result). None: the optimizer runs its own frontend.
+    global_v_corr_idxs_dict: dict | None = None
+    global_keypoints: list | None = None
+    # Measured intrinsics (EXIF / dataset calibration) passed through verbatim, keyed by image index.
+    # Cluster builds PIN these in place of the geometry model's predicted focals; cameras absent from
+    # the dict (loader could only guess a focal) fall back to the model prediction. None or empty: no
+    # passthrough.
+    global_refined_intrinsics: dict | None = None
 
     @property
     def is_root(self) -> bool:

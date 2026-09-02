@@ -22,3 +22,8 @@ class OneViewData:
     absolute_pose_prior: Optional[PosePrior]
     camera_gt: Optional[gtsfm_types.CAMERA_TYPE]
     pose_gt: Optional[Pose3]
+    # Whether `intrinsics` was MEASURED (EXIF metadata or a dataset calibration) rather than guessed.
+    # False when the loader substituted the default-focal heuristic (focal = factor * max(H, W)) for a
+    # camera with no usable metadata. Measured intrinsics may be pinned during reconstruction; a guess
+    # must never be.
+    intrinsics_from_exif: bool = True

@@ -43,14 +43,19 @@ class VggtGeometryResult(NamedTuple):
     """Outputs of VGGT geometry prediction needed for downstream processing."""
 
     cameras: dict[int, gtsfm_types.CAMERA_TYPE]
-    dense_points: np.ndarray       # (N, H, W, 3) world-space 3D points per pixel
-    depth_confidence: np.ndarray   # (N, H, W) per-pixel depth confidence scores
-    original_coords: np.ndarray    # (N, 6) VGGT crop/pad metadata
+    dense_points: np.ndarray  # (N, H, W, 3) world-space 3D points per pixel
+    depth_confidence: np.ndarray  # (N, H, W) per-pixel depth confidence scores
+    original_coords: np.ndarray  # (N, 6) VGGT crop/pad metadata
 
 
 def _extract_v_corr_idxs(two_view_results) -> dict:
     """Pull verified correspondence index arrays out of two-view results."""
     return {ij: result.v_corr_idxs for ij, result in two_view_results.items()}
+
+
+def _identity(x):
+    """Wrap an eager value as a single delayed node (so it is embedded once, not per consumer)."""
+    return x
 
 
 def _get_image_shapes(loader, image_indices: tuple[int, ...]) -> dict[int, tuple[int, int]]:
@@ -107,9 +112,7 @@ def _run_vggt_geometry(
     return result
 
 
-def _scale_camera_intrinsics(
-    camera: gtsfm_types.CAMERA_TYPE, scale: float
-) -> gtsfm_types.CAMERA_TYPE:
+def _scale_camera_intrinsics(camera: gtsfm_types.CAMERA_TYPE, scale: float) -> gtsfm_types.CAMERA_TYPE:
     """Return a copy of camera with intrinsics uniformly scaled, pose unchanged."""
     pose = camera.pose()
     cal = camera.calibration()
@@ -154,7 +157,7 @@ def _build_gtsfm_data_from_vggt_depth(
         2D measurements are in the original keypoint coordinate system.
     """
     cameras = vggt_result.cameras
-    dense_points = vggt_result.dense_points        # (N, H_vggt, W_vggt, 3)
+    dense_points = vggt_result.dense_points  # (N, H_vggt, W_vggt, 3)
     depth_confidence = vggt_result.depth_confidence  # (N, H_vggt, W_vggt)
     original_coords = vggt_result.original_coords  # (N, 6): [left, top, right, bottom, sw, sh]
 
@@ -162,12 +165,13 @@ def _build_gtsfm_data_from_vggt_depth(
     global_to_local = {gidx: lidx for lidx, gidx in enumerate(image_indices)}
 
     # Register cameras with intrinsics in original image resolution. If
-    # `refined_intrinsics` is supplied (from view-graph calibration), use those
-    # directly; otherwise rescale VGGT's predicted intrinsics from VGGT pixel space.
+    # `refined_intrinsics` is supplied (measured passthrough / view-graph calibration), use those
+    # directly; cameras ABSENT from it fall back to rescaling the model's predicted intrinsics from
+    # VGGT pixel space, same as when no refinement is supplied at all.
     gtsfm_data = GtsfmData(number_images=num_images)
     for global_idx, camera in cameras.items():
         if global_idx in image_shapes and global_idx in global_to_local:
-            if refined_intrinsics is not None:
+            if refined_intrinsics is not None and global_idx in refined_intrinsics:
                 camera = type(camera)(camera.pose(), refined_intrinsics[global_idx])
             else:
                 _, orig_W = image_shapes[global_idx]
@@ -355,9 +359,35 @@ class ClusterVGGTWithFrontend(ClusterMVO):
         image_filenames = context.loader.image_filenames()
         image_names = tuple(str(image_filenames[idx]) for idx in keys)
 
-        # Traditional frontend.
-        frontend_graphs = self._build_frontend_graphs(context)
-        io_tasks, metrics = self._build_frontend_output_graphs(context, frontend_graphs)
+        # This cluster's 2D tracks. When the context carries the globally-verified correspondences,
+        # subset them to this cluster's edges and build the tracks EAGERLY in the main process — the
+        # per-cluster frontend would recompute the identical per-edge result (same edges, same two-view
+        # estimator), serially and redundantly across overlapping clusters. Without them (optimizer used
+        # standalone), run the traditional per-cluster frontend.
+        if context.global_v_corr_idxs_dict is not None and context.global_keypoints is not None:
+            cluster_v_corr = {
+                ij: context.global_v_corr_idxs_dict[ij]
+                for ij in context.visibility_graph
+                if ij in context.global_v_corr_idxs_dict
+            }
+            tracks_2d = get_2d_tracks(cluster_v_corr, context.global_keypoints)
+            logger.info(
+                "♻️  [%s] Reusing global correspondences: %d/%d cluster edges → %d tracks (frontend skipped).",
+                context.label,
+                len(cluster_v_corr),
+                len(context.visibility_graph),
+                len(tracks_2d),
+            )
+            v_corr_idxs_graph = delayed(_identity)(cluster_v_corr)
+            tracks_2d_graph = delayed(_identity)(tracks_2d)
+            padded_keypoints_graph = delayed(_identity)(context.global_keypoints)
+            io_tasks, metrics = [], []
+        else:
+            frontend_graphs = self._build_frontend_graphs(context)
+            io_tasks, metrics = self._build_frontend_output_graphs(context, frontend_graphs)
+            v_corr_idxs_graph = delayed(_extract_v_corr_idxs)(frontend_graphs.two_view_results)
+            tracks_2d_graph = delayed(get_2d_tracks)(v_corr_idxs_graph, frontend_graphs.padded_keypoints)
+            padded_keypoints_graph = frontend_graphs.padded_keypoints
 
         # VGGT geometry prediction → cameras + dense 3D points.
         image_batch_graph, original_coords_graph = delayed(_load_vggt_inputs, nout=2)(
@@ -379,26 +409,33 @@ class ClusterVGGTWithFrontend(ClusterMVO):
             cluster_label=context.label,
         )
 
-        # 3. 2D tracks from frontend correspondences.
-        v_corr_idxs_graph = delayed(_extract_v_corr_idxs)(frontend_graphs.two_view_results)
-        tracks_2d_graph = delayed(get_2d_tracks)(v_corr_idxs_graph, frontend_graphs.padded_keypoints)
-
-        # 4. Original image shapes (needed to map frontend pixel coords → VGGT pixel coords).
+        # Original image shapes (needed to map frontend pixel coords → VGGT pixel coords).
         image_shapes_graph = delayed(_get_image_shapes)(context.loader, global_indices)
 
-        # 4b. Optional: refine VGGT's predicted intrinsics via Fetzer joint
-        # optimization over the frontend's F-matrices (keeps VGGT's predicted poses).
+        # Intrinsics for the BA cameras (VGGT's poses are always kept). Per-camera preference:
+        #   1. Measured intrinsics (EXIF / dataset calibration) passed through ClusterContext — pinned
+        #      verbatim, so every cluster sharing a camera anchors the SAME calibration.
+        #   2. Per-cluster Fetzer refinement of the model focals over this cluster's F-matrices
+        #      (use_view_graph_calibration; keeps VGGT's predicted poses).
+        #   3. The geometry model's predicted focal, rescaled to original resolution — also the
+        #      fallback for cameras ABSENT from 1 (loaders that could only guess a focal).
         refined_intrinsics_graph = None
-        if self._use_view_graph_calibration:
+        if context.global_refined_intrinsics is not None:
+            refined_intrinsics_graph = {
+                idx: context.global_refined_intrinsics[idx]
+                for idx in global_indices
+                if idx in context.global_refined_intrinsics
+            }
+        elif self._use_view_graph_calibration:
             refined_intrinsics_graph = delayed(_refine_vggt_intrinsics_via_view_graph)(
                 vggt_result_graph,
                 v_corr_idxs_graph,
-                frontend_graphs.padded_keypoints,
+                padded_keypoints_graph,
                 image_shapes_graph,
                 global_indices,
             )
 
-        # 5. Build GtsfmData: lift 2D tracks to 3D using VGGT depth map.
+        # Build GtsfmData: lift 2D tracks to 3D using VGGT depth map.
         ba_input_graph = delayed(_build_gtsfm_data_from_vggt_depth)(
             vggt_result_graph,
             tracks_2d_graph,
@@ -409,7 +446,7 @@ class ClusterVGGTWithFrontend(ClusterMVO):
             refined_intrinsics=refined_intrinsics_graph,
         )
 
-        # 6. Cluster-level BA.
+        # Cluster-level BA.
         ba_result_graph, pre_ba_result_graph = delayed(_run_cluster_ba, nout=2)(
             ba_input_graph,
             ba_options=self.ba_options,
@@ -422,7 +459,7 @@ class ClusterVGGTWithFrontend(ClusterMVO):
             use_multi_view_retriangulation=self._use_multi_view_retriangulation,
         )
 
-        # 7. Metrics + I/O.
+        # Metrics + I/O.
         cameras_gt = [context.one_view_data_dict[idx].camera_gt for idx in range(context.num_images)]
         metrics.append(
             delayed(_aggregate_vggt_metrics)(
