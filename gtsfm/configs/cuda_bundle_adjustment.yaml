@@ -1,0 +1,31 @@
+# CUDA Bundle Adjustment Configuration
+#
+# Enables GPU-accelerated Levenberg-Marquardt bundle adjustment via GTSAM's general
+# CUDA Sparse LM optimizer (PR #2761).
+#
+# Requirements:
+#   - GTSAM built from source with GTSAM_ENABLE_CUDA=ON (and optionally GTSAM_ENABLE_CUDSS=ON).
+#
+# Usage:
+#   Include or override in GTSfM pipeline configs or via CLI:
+#   ./run --config_name unified.yaml bundle_adjustment_module.use_cuda=True bundle_adjustment_module.cuda_linear_solver=PCG
+
+bundle_adjustment_module:
+  _target_: gtsfm.bundle.bundle_adjustment.BundleAdjustmentOptimizer
+  # CUDA optimization settings
+  use_cuda: True
+  cuda_linear_solver: "PCG"  # "PCG" (matrix-free) or "CUDSS" (sparse direct Cholesky)
+  cuda_pcg_max_iterations: 250
+  cuda_pcg_relative_tolerance: 1e-6
+  cuda_pcg_warm_start: False
+  cuda_fallback_on_unsupported: True
+  cuda_collect_timing: False
+
+  # Standard bundle adjustment settings
+  reproj_error_thresholds: [10, 5, 3]
+  robust_ba_mode: "HUBER"
+  shared_calib: False
+  cam_pose3_prior_noise_sigma: 0.1
+  calibration_prior_focal_sigma: 20.0
+  measurement_noise_sigma: 1.0
+
