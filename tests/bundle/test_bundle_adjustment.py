@@ -254,6 +254,7 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
         self.assertTrue(ba._cuda_fallback_on_unsupported)
         self.assertTrue(ba._cuda_collect_timing)
         self.assertIsNone(ba._last_cuda_result)
+        self.assertIsNone(ba._last_optimization_duration_sec)
 
     def test_cuda_fallback_when_gtsam_cuda_absent(self):
         """Ensure smooth CPU fallback when gtsam.cuda is absent and fallback is enabled."""

@@ -355,6 +355,7 @@ class BundleAdjustmentOptimizer:
         self._cuda_fallback_on_unsupported = cuda_fallback_on_unsupported
         self._cuda_collect_timing = cuda_collect_timing
         self._last_cuda_result: Optional[Any] = None
+        self._last_optimization_duration_sec: Optional[float] = None
 
         # Post-BA multi-view retriangulation (opt-in). See `__init__` docstring above.
         self._use_multi_view_retriangulation = use_multi_view_retriangulation
@@ -647,6 +648,7 @@ class BundleAdjustmentOptimizer:
             values_trace = None
 
         elapsed_time = time.time() - start_time
+        self._last_optimization_duration_sec = elapsed_time
         logger.info(f"🚀 Factor graph optimization completed in {elapsed_time:.2f} seconds.")
         return result_values, values_trace, None
 
@@ -655,6 +657,7 @@ class BundleAdjustmentOptimizer:
     ) -> Tuple[Values, Optional[List[Values]], Optional[NDArray[np.float64]]]:
         """Optimize the factor graph, optionally capturing per-iteration values."""
         start_time = time.time()
+        self._last_optimization_duration_sec = None
 
         if self._use_cuda:
             if self._use_gnc:
@@ -742,6 +745,7 @@ class BundleAdjustmentOptimizer:
             result_values = lm.values()
 
         elapsed_time = time.time() - start_time
+        self._last_optimization_duration_sec = elapsed_time
         logger.info(f"🚀 Factor graph optimization completed in {elapsed_time:.2f} seconds.")
         if self._use_gnc:
             weights = lm.getWeights()

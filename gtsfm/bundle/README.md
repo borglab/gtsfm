@@ -41,3 +41,25 @@ Or override on the CLI:
 ```bash
 ./run --config_name unified.yaml bundle_adjustment_module.use_cuda=True bundle_adjustment_module.cuda_linear_solver=PCG
 ```
+
+Prefer grouping CUDA knobs via `BundleAdjustmentOptions` (and follow-up dataclass grouping for runner YAMLs) so main Hydra configs do not grow a long list of flat CUDA fields.
+
+#### Timing (Gerrard Hall)
+CPU vs CUDA Sparse LM timing can be measured on the Gerrard Hall COLMAP sparse model (~100 cameras, ~43k tracks):
+
+```bash
+bash .github/scripts/download_single_benchmark.sh gerrard-hall-100 wget
+uv run pytest tests/bundle/test_cuda_ba_timing.py -m "slow and cuda" -s --no-cov
+```
+
+Representative local result on an RTX 3080 (PCG backend, reprojection-only graph, `max_iterations=50`):
+
+| Backend | Optimize time | Notes |
+|---|---|---|
+| CPU LM | ~99 s | GTSAM `LevenbergMarquardtOptimizer` |
+| CUDA Sparse LM | ~13 s | `gtsam.cuda.SparseLevenbergMarquardtOptimizer`, Device backend |
+| Speedup | ~7.7× | Final objective within ~0.2% |
+
+The pytest times the optimizer step (`_last_optimization_duration_sec`) after one CUDA warmup.
+
+CI unit jobs skip this test (`-m "not slow"`). It also auto-skips when `gtsam.cuda` or the Gerrard Hall dataset is unavailable.
