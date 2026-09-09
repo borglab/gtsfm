@@ -242,6 +242,11 @@ disallow_untyped_defs = false
 testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 addopts = "-v --cov=gtsfm --cov-report=html --cov-report=term"
+markers = [
+    "slow: long-running tests skipped by default CI unit jobs (deselect with '-m \"not slow\"')",
+    "cuda: tests that require gtsam.cuda / a CUDA-capable GPU",
+    "integration: end-to-end pipeline integration tests",
+]
 
 # ============================================================================
 # Coverage Configuration (Test Coverage)

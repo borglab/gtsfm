@@ -8,7 +8,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import dask
 import gtsam  # type: ignore
@@ -169,6 +169,15 @@ class BundleAdjustmentOptions:
     min_tracks_per_camera: int = 15
     compute_pose_covariances: bool = False
     optimizer_relative_cost_tol: float = 1e-5
+    # ── CUDA optimization options (GTSAM PR #2761) ──
+    use_cuda: bool = False
+    cuda_linear_solver: str = "PCG"
+    cuda_pcg_max_iterations: Optional[int] = None
+    cuda_pcg_relative_tolerance: Optional[float] = None
+    cuda_pcg_warm_start: bool = False
+    cuda_pcg_convergence_check_interval: Optional[int] = None
+    cuda_fallback_on_unsupported: bool = True
+    cuda_collect_timing: bool = False
 
     def to_optimizer(self, **overrides) -> "BundleAdjustmentOptimizer":
         """Construct a :class:`BundleAdjustmentOptimizer` from these options.
@@ -195,6 +204,14 @@ class BundleAdjustmentOptions:
             min_tracks_per_camera=self.min_tracks_per_camera,
             compute_pose_covariances=self.compute_pose_covariances,
             optimizer_relative_cost_tol=self.optimizer_relative_cost_tol,
+            use_cuda=self.use_cuda,
+            cuda_linear_solver=self.cuda_linear_solver,
+            cuda_pcg_max_iterations=self.cuda_pcg_max_iterations,
+            cuda_pcg_relative_tolerance=self.cuda_pcg_relative_tolerance,
+            cuda_pcg_warm_start=self.cuda_pcg_warm_start,
+            cuda_pcg_convergence_check_interval=self.cuda_pcg_convergence_check_interval,
+            cuda_fallback_on_unsupported=self.cuda_fallback_on_unsupported,
+            cuda_collect_timing=self.cuda_collect_timing,
         )
         kwargs.update(overrides)
         return BundleAdjustmentOptimizer(**kwargs)
@@ -238,6 +255,14 @@ class BundleAdjustmentOptimizer:
         min_tracks_per_camera: int = 15,
         compute_pose_covariances: bool = False,
         optimizer_relative_cost_tol: float = 1e-5,
+        use_cuda: bool = False,
+        cuda_linear_solver: str = "PCG",
+        cuda_pcg_max_iterations: Optional[int] = None,
+        cuda_pcg_relative_tolerance: Optional[float] = None,
+        cuda_pcg_warm_start: bool = False,
+        cuda_pcg_convergence_check_interval: Optional[int] = None,
+        cuda_fallback_on_unsupported: bool = True,
+        cuda_collect_timing: bool = False,
         # ── Optional post-BA multi-view retriangulation (opt-in) ──
         # When `use_multi_view_retriangulation=True`: after the existing BA loop
         # converges, re-triangulate the union-find 2D tracks against the post-BA
@@ -279,6 +304,15 @@ class BundleAdjustmentOptimizer:
             factor_weight_outlier_threshold (optional): Threshold weight for a reprojection factor to be kept.
             min_track_length: min number of measurements required to keep a track after weight filtering.
             compute_pose_covariances: If true, compute marginal covariance for all camera pose variables and return it.
+            use_cuda (optional): Use GTSAM's general CUDA Sparse Levenberg-Marquardt optimizer (PR #2761).
+            cuda_linear_solver (optional): CUDA linear solver backend ("PCG" or "CUDSS"). Defaults to "PCG".
+            cuda_pcg_max_iterations (optional): Max iterations for CUDA PCG solver.
+            cuda_pcg_relative_tolerance (optional): Relative tolerance for CUDA PCG solver.
+            cuda_pcg_warm_start (optional): Warm-start CUDA PCG solver.
+            cuda_pcg_convergence_check_interval (optional): Convergence check interval for CUDA PCG solver.
+            cuda_fallback_on_unsupported (optional): Fall back to CPU LM if CUDA runtime or factor structure is
+                unsupported. Defaults to True.
+            cuda_collect_timing (optional): Collect CUDA kernel timing statistics. Defaults to False.
         """
         self._reproj_error_thresholds = reproj_error_thresholds
         if isinstance(robust_ba_mode, str):
@@ -312,6 +346,16 @@ class BundleAdjustmentOptimizer:
         self._min_tracks_per_camera = min_tracks_per_camera
         self._compute_pose_covariances = compute_pose_covariances
         self._optimizer_relative_cost_tol = optimizer_relative_cost_tol
+        self._use_cuda = use_cuda
+        self._cuda_linear_solver = cuda_linear_solver
+        self._cuda_pcg_max_iterations = cuda_pcg_max_iterations
+        self._cuda_pcg_relative_tolerance = cuda_pcg_relative_tolerance
+        self._cuda_pcg_warm_start = cuda_pcg_warm_start
+        self._cuda_pcg_convergence_check_interval = cuda_pcg_convergence_check_interval
+        self._cuda_fallback_on_unsupported = cuda_fallback_on_unsupported
+        self._cuda_collect_timing = cuda_collect_timing
+        self._last_cuda_result: Optional[Any] = None
+        self._last_optimization_duration_sec: Optional[float] = None
 
         # Post-BA multi-view retriangulation (opt-in). See `__init__` docstring above.
         self._use_multi_view_retriangulation = use_multi_view_retriangulation
@@ -521,11 +565,129 @@ class BundleAdjustmentOptimizer:
 
         return graph
 
+    def __optimize_factor_graph_cuda(
+        self,
+        cuda: Any,
+        graph: NonlinearFactorGraph,
+        initial_values: Values,
+        ordering_type: str,
+        start_time: float,
+    ) -> Tuple[Values, Optional[List[Values]], Optional[NDArray[np.float64]]]:
+        """Optimize the factor graph using GTSAM's general CUDA Sparse LM optimizer (PR #2761)."""
+        linear = cuda.LinearSolverOptions()
+        solver_backend = self._cuda_linear_solver.upper()
+        if solver_backend == "PCG":
+            linear.backend = cuda.LinearSolverType.Pcg
+        elif solver_backend == "CUDSS":
+            linear.backend = cuda.LinearSolverType.Cudss
+        else:
+            raise ValueError(
+                f"Unsupported CUDA linear solver type: '{self._cuda_linear_solver}'. Expected 'PCG' or 'CUDSS'."
+            )
+
+        pcg = cuda.PcgOptions()
+        if self._cuda_pcg_max_iterations is not None:
+            pcg.maxIterations = self._cuda_pcg_max_iterations
+        if self._cuda_pcg_relative_tolerance is not None:
+            pcg.relativeTolerance = self._cuda_pcg_relative_tolerance
+        pcg.warmStart = self._cuda_pcg_warm_start
+        if self._cuda_pcg_convergence_check_interval is not None:
+            pcg.convergenceCheckInterval = self._cuda_pcg_convergence_check_interval
+
+        params = cuda.SparseLevenbergMarquardtParams()
+        params.linear = linear
+        params.pcg = pcg
+        params.fallbackOnUnsupported = self._cuda_fallback_on_unsupported
+        params.collectTiming = self._cuda_collect_timing
+        params.setVerbosityLM("ERROR" if not self._print_summary else "SUMMARY")
+        params.setOrderingType(ordering_type)
+        if self._max_iterations:
+            params.setMaxIterations(self._max_iterations)
+        if self._optimizer_relative_cost_tol is not None:
+            params.setRelativeErrorTol(self._optimizer_relative_cost_tol)
+
+        optimizer = cuda.SparseLevenbergMarquardtOptimizer(graph, initial_values, params)
+        result_values = optimizer.optimize()
+        diagnostics = optimizer.result()
+        self._last_cuda_result = diagnostics
+
+        backend_val = getattr(diagnostics, "backend", "Unknown")
+        termination_val = getattr(diagnostics, "termination", "Unknown")
+        iterations = getattr(diagnostics, "iterations", 0)
+        initial_error = getattr(diagnostics, "initialError", float("nan"))
+        final_error = getattr(diagnostics, "finalError", float("nan"))
+
+        logger.info(
+            "🚀 CUDA Sparse LM completed: backend=%s, termination=%s, iterations=%d, initial error=%.4f, final error=%.4f",
+            backend_val,
+            termination_val,
+            iterations,
+            initial_error,
+            final_error,
+        )
+
+        is_cpu_fallback = False
+        if hasattr(cuda, "SparseLevenbergMarquardtBackend") and hasattr(cuda.SparseLevenbergMarquardtBackend, "CpuFallback"):
+            is_cpu_fallback = (backend_val == cuda.SparseLevenbergMarquardtBackend.CpuFallback)
+        elif "CpuFallback" in str(backend_val):
+            is_cpu_fallback = True
+
+        if is_cpu_fallback:
+            fallback_reason = getattr(diagnostics, "fallbackReason", "Unknown")
+            fallback_detail = getattr(diagnostics, "fallbackDetail", "")
+            logger.warning(
+                "CUDA Sparse LM fell back to CPU execution: reason=%s, detail=%s",
+                fallback_reason,
+                fallback_detail,
+            )
+
+        if self._save_iteration_visualization:
+            logger.info("Iterative visualization trace is not supported by batch CUDA Sparse LM; recording endpoints.")
+            values_trace = [initial_values, result_values]
+        else:
+            values_trace = None
+
+        elapsed_time = time.time() - start_time
+        self._last_optimization_duration_sec = elapsed_time
+        logger.info(f"🚀 Factor graph optimization completed in {elapsed_time:.2f} seconds.")
+        return result_values, values_trace, None
+
     def __optimize_factor_graph(
         self, graph: NonlinearFactorGraph, initial_values: Values, ordering_type: str
     ) -> Tuple[Values, Optional[List[Values]], Optional[NDArray[np.float64]]]:
         """Optimize the factor graph, optionally capturing per-iteration values."""
         start_time = time.time()
+        self._last_optimization_duration_sec = None
+
+        if self._use_cuda:
+            if self._use_gnc:
+                if not self._cuda_fallback_on_unsupported:
+                    raise ValueError(
+                        "GNC bundle adjustment is not supported by the CUDA Sparse LM optimizer. "
+                        "Set use_cuda=False or allow cuda_fallback_on_unsupported=True."
+                    )
+                logger.warning(
+                    "GNC optimization currently does not support CUDA Sparse LM; falling back to CPU GNC LM."
+                )
+            else:
+                cuda = getattr(gtsam, "cuda", None)
+                if cuda is None:
+                    if not self._cuda_fallback_on_unsupported:
+                        raise RuntimeError(
+                            "use_cuda=True was requested, but GTSAM was not built with CUDA support "
+                            "(gtsam.cuda is missing)."
+                        )
+                    logger.warning(
+                        "gtsam.cuda is not available; falling back to CPU LevenbergMarquardtOptimizer."
+                    )
+                else:
+                    return self.__optimize_factor_graph_cuda(
+                        cuda=cuda,
+                        graph=graph,
+                        initial_values=initial_values,
+                        ordering_type=ordering_type,
+                        start_time=start_time,
+                    )
 
         params = gtsam.LevenbergMarquardtParams()
         params.setVerbosityLM("ERROR" if not self._print_summary else "SUMMARY")
@@ -583,6 +745,7 @@ class BundleAdjustmentOptimizer:
             result_values = lm.values()
 
         elapsed_time = time.time() - start_time
+        self._last_optimization_duration_sec = elapsed_time
         logger.info(f"🚀 Factor graph optimization completed in {elapsed_time:.2f} seconds.")
         if self._use_gnc:
             weights = lm.getWeights()
