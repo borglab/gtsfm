@@ -66,7 +66,9 @@ def _run_cluster_ba(
 
     if pre_ba_max_reproj_error > 0.0:
         num_tracks_before = gtsfm_data.number_tracks()
-        gtsfm_data = gtsfm_data.filter_landmark_measurements(pre_ba_max_reproj_error, min_track_length)
+        gtsfm_data = gtsfm_data.filter_landmark_measurements(
+            pre_ba_max_reproj_error, min_track_length
+        )
         cluster_prefix = f"[{cluster_label}] " if cluster_label else ""
         logger.info(
             "%s🔍 #valid tracks after pre-BA reproj error filtering: %d out of %d",
