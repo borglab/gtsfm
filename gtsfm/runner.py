@@ -1,10 +1,15 @@
 """Base class for runner that executes SfM."""
 
 import argparse
+import json
 import logging
 import os
+import tempfile
+import threading
+import time
+from collections import Counter
 from pathlib import Path
-from typing import TYPE_CHECKING, cast, Optional
+from typing import TYPE_CHECKING, Any, Optional, cast
 
 import hydra
 from dask import config as dask_config
@@ -25,6 +30,89 @@ DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent.parent
 
 if TYPE_CHECKING:
     from gtsfm.scene_optimizer import SceneOptimizer
+
+
+def _scheduler_task_counts(dask_scheduler: Any) -> dict[str, int]:
+    """Return authoritative current task states from the Dask scheduler."""
+
+    return dict(Counter(task.state for task in dask_scheduler.tasks.values()))
+
+
+def _collect_dask_stats(client: Client) -> dict[str, object]:
+    """Collect a compact, browser-friendly snapshot from Dask worker heartbeats."""
+
+    scheduler = client.scheduler_info()
+    workers = list(scheduler.get("workers", {}).values())
+    task_counts: Counter[str] = Counter()
+    memory_bytes = 0
+    memory_limit_bytes = 0
+    cpu_percent = 0.0
+    threads = 0
+
+    for worker in workers:
+        metrics = worker.get("metrics", {})
+        for state, count in metrics.get("task_counts", {}).items():
+            task_counts[str(state)] += int(count)
+        memory_bytes += int(metrics.get("memory", 0) or 0)
+        memory_limit_bytes += int(worker.get("memory_limit", 0) or 0)
+        cpu_percent += float(metrics.get("cpu", 0) or 0)
+        threads += int(worker.get("nthreads", 0) or 0)
+
+    # Worker heartbeat counts can lag behind short tasks. Ask the scheduler for
+    # its current state so the UI responds as soon as a task starts or finishes.
+    try:
+        scheduler_task_counts = Counter(client.run_on_scheduler(_scheduler_task_counts))
+        if scheduler_task_counts:
+            task_counts = scheduler_task_counts
+    except Exception as exc:
+        logger.debug("Unable to inspect current Dask scheduler tasks: %s", exc)
+
+    running_tasks = task_counts["executing"] + task_counts["processing"]
+    completed_tasks = task_counts["memory"]
+    pending_tasks = sum(
+        task_counts[state]
+        for state in ("ready", "waiting", "queued", "no-worker", "constrained", "fetch", "flight")
+    )
+    return {
+        "workers": len(workers),
+        "threads": threads,
+        "running_tasks": running_tasks,
+        "completed_tasks": completed_tasks,
+        "pending_tasks": pending_tasks,
+        "failed_tasks": task_counts["error"] + task_counts["erred"],
+        "memory_bytes": memory_bytes,
+        "memory_limit_bytes": memory_limit_bytes,
+        "cpu_percent": cpu_percent,
+        "dashboard_url": client.dashboard_link,
+        "updated_at": time.time(),
+    }
+
+
+def _write_dask_stats(path: Path, payload: dict[str, object]) -> None:
+    """Atomically publish a Dask snapshot without exposing a partial JSON file."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as file:
+            json.dump(payload, file)
+        os.replace(temporary_name, path)
+    finally:
+        try:
+            os.unlink(temporary_name)
+        except FileNotFoundError:
+            pass
+
+
+def _publish_dask_stats(client: Client, stop: threading.Event, path: Path) -> None:
+    """Publish Dask status once per second while a Studio-managed run is active."""
+
+    while not stop.is_set():
+        try:
+            _write_dask_stats(path, _collect_dask_stats(client))
+        except Exception as exc:  # observability must never interrupt reconstruction
+            logger.debug("Unable to publish Dask workspace stats: %s", exc)
+        stop.wait(1.0)
 
 
 class GtsfmRunner:
@@ -115,6 +203,12 @@ class GtsfmRunner:
             type=str,
             default="base_gs",
             help="Override flag for your own gaussian splatting implementation.",
+        )
+        parser.add_argument(
+            "--gs_max_steps",
+            type=int,
+            default=None,
+            help="Override the Gaussian Splatting training iteration count.",
         )
 
         # Logging and output configuration
@@ -251,6 +345,8 @@ class GtsfmRunner:
         if cluster_optimizer_is_multiview:
             self._set_mvo_overwrites(scene_optimizer, main_cfg)
 
+        self._set_gaussian_splatting_overwrite(scene_optimizer, main_cfg)
+
         scene_optimizer._config_snapshot = main_cfg
 
         return scene_optimizer
@@ -291,24 +387,42 @@ class GtsfmRunner:
             logger.info("🔄 Disabled Multiview dense MVS optimizer via CLI flag --run_mvs=False")
             OmegaConf.update(main_cfg, "cluster_optimizer.dense_multiview_optimizer", None, merge=False)
 
-        # Override gaussian splatting
+    def _set_gaussian_splatting_overwrite(self, scene_optimizer: "SceneOptimizer", main_cfg) -> None:
+        """Attach the selected optimizer to any reconstruction backend that supports splatting."""
+
+        cluster_optimizer = scene_optimizer.cluster_optimizer
+        target_optimizer = getattr(cluster_optimizer, "_optimizer", cluster_optimizer)
+        snapshot_path = (
+            "cluster_optimizer.optimizer.gaussian_splatting_optimizer"
+            if target_optimizer is not cluster_optimizer
+            else "cluster_optimizer.gaussian_splatting_optimizer"
+        )
         if self.parsed_args.run_gs:
+            if not hasattr(target_optimizer, "gaussian_splatting_optimizer"):
+                raise ValueError(
+                    f"The selected reconstruction model ({type(target_optimizer).__name__}) does not support "
+                    "iterative Gaussian splatting. Choose VGGT or a multiview configuration."
+                )
             if (gs_config_name := self.parsed_args.gaussian_splatting_config_name) is not None:
                 with hydra.initialize_config_module(
                     config_module="gtsfm.configs.gaussian_splatting", version_base=None
                 ):
                     gs_cfg = hydra.compose(gs_config_name)
                     logger.info(f"🔄 Applying Gaussian Splatting Override: " f"{gs_config_name}")
-                    multiview_optimizer.gaussian_splatting_optimizer = instantiate(gs_cfg.gaussian_splatting_optimizer)
+                    target_optimizer.gaussian_splatting_optimizer = instantiate(gs_cfg.gaussian_splatting_optimizer)
+                    if self.parsed_args.gs_max_steps is not None:
+                        target_optimizer.gaussian_splatting_optimizer.cfg.max_steps = self.parsed_args.gs_max_steps
+                        logger.info("🔄 Setting Gaussian Splatting max steps: %d", self.parsed_args.gs_max_steps)
                     OmegaConf.update(
                         main_cfg,
-                        "cluster_optimizer.gaussian_splatting_optimizer",
+                        snapshot_path,
                         gs_cfg.gaussian_splatting_optimizer,
                         merge=False,
                     )
         else:
-            multiview_optimizer.gaussian_splatting_optimizer = None
-            logger.info("🔄 Disabled Multiview Gaussian Splatting optimizer via CLI flag --run_gs=False")
+            if hasattr(target_optimizer, "gaussian_splatting_optimizer"):
+                target_optimizer.gaussian_splatting_optimizer = None
+                logger.info("🔄 Disabled Gaussian Splatting optimizer via CLI flag --run_gs=False")
 
     def setup_ssh_cluster_with_retries(self):
         """Sets up SSH Cluster allowing multiple retries upon connection failures."""
@@ -449,20 +563,33 @@ class GtsfmRunner:
         """Just create the client and call scene optimizer."""
         logger.info("🌟 GTSFM: Creating Dask client...")
         client = self._create_dask_client()
+        stats_stop = threading.Event()
+        stats_thread: threading.Thread | None = None
+        live_dir = os.environ.get("GTSFM_LIVE_DIR")
+        if live_dir:
+            stats_thread = threading.Thread(
+                target=_publish_dask_stats,
+                args=(client, stats_stop, Path(live_dir) / "dask.json"),
+                daemon=True,
+                name="gtsfm-dask-stats",
+            )
+            stats_thread.start()
 
-        logger.info("🌟 GTSFM: Constructing SceneOptimizer...")
-        self.scene_optimizer = self._construct_scene_optimizer()
+        try:
+            logger.info("🌟 GTSFM: Constructing SceneOptimizer...")
+            self.scene_optimizer = self._construct_scene_optimizer()
 
-        if self._io_worker is not None:
-            self.scene_optimizer.loader._input_worker = self._io_worker
-            self.scene_optimizer.cluster_optimizer._output_worker = self._io_worker
+            if self._io_worker is not None:
+                self.scene_optimizer.loader._input_worker = self._io_worker
+                self.scene_optimizer.cluster_optimizer._output_worker = self._io_worker
 
-        logger.info("🌟 GTSFM: Starting SceneOptimizer...")
-        self.scene_optimizer.run(client)
-
-        # Shutdown the Dask client
-        logger.info("🌟 GTSFM: Shutting down Dask client...")
-        if client is not None:
+            logger.info("🌟 GTSFM: Starting SceneOptimizer...")
+            self.scene_optimizer.run(client)
+        finally:
+            stats_stop.set()
+            if stats_thread is not None:
+                stats_thread.join(timeout=2)
+            logger.info("🌟 GTSFM: Shutting down Dask client...")
             client.shutdown()
 
 
