@@ -27,7 +27,6 @@ SOURCE_ROOT = (
 GPU = os.environ.get("GTSFM_MODAL_GPU", "L40S")
 MODAL_CPU = float(os.environ.get("GTSFM_MODAL_CPU", "8"))
 MODAL_MEMORY_MB = int(os.environ.get("GTSFM_MODAL_MEMORY_MB", "65536"))
-RUNTIME_IMAGE = os.environ.get("GTSFM_MODAL_RUNTIME_IMAGE", "").strip()
 # One derived bearer key protects the workspace API. The local deploy process
 # uses it to create a Modal Secret, which injects the same GTSFM_API_KEY into
 # the remote container. Modal account credentials are never mounted here.
@@ -60,8 +59,8 @@ SOURCE_EXCLUDES = [
 THIRDPARTY_EXCLUDES = [*SOURCE_EXCLUDES, "**/assets/**"]
 
 RUNTIME_ENV = {
-    # Modal's Python layer can leave CC/CXX pointing at clang even though the
-    # The source-build image uses an explicit compiler selection for native dependencies.
+    # Select GCC explicitly for native dependencies because Modal's Python layer
+    # can leave CC/CXX pointing at clang.
     "CC": "/usr/bin/gcc",
     "CXX": "/usr/bin/g++",
     "PYTHONPATH": "/root",
@@ -69,45 +68,23 @@ RUNTIME_ENV = {
     "GTSFM_MODAL_CPU": str(MODAL_CPU),
     "GTSFM_MODAL_MEMORY_MB": str(MODAL_MEMORY_MB),
 }
-if RUNTIME_IMAGE:
-    # Preserve the image choice when Modal imports this definition again in
-    # the remote container. Otherwise it would incorrectly enter the slower
-    # source-build definition because local deployment variables are absent.
-    RUNTIME_ENV["GTSFM_MODAL_RUNTIME_IMAGE"] = RUNTIME_IMAGE
-
-if RUNTIME_IMAGE:
-    gpu_image = (
-        modal.Image.from_registry(
-            RUNTIME_IMAGE,
-            setup_dockerfile_commands=[
-                # uv-created virtual environments intentionally omit pip, but
-                # Modal's legacy registry-image builder requires ``python -m
-                # pip`` while installing its runtime dependencies.
-                "RUN uv pip install --python /opt/gtsfm-venv/bin/python pip",
-            ],
-        )
-        .entrypoint([])
-        .env(RUNTIME_ENV)
-        .workdir("/root")
+gpu_image = (
+    modal.Image.from_registry("nvidia/cuda:12.8.1-devel-ubuntu22.04", add_python="3.12")
+    .entrypoint([])
+    .apt_install(
+        "build-essential",
+        "git",
+        "graphviz",
+        "libegl1",
+        "libgl1",
+        "libglib2.0-0",
+        "libgomp1",
+        "libx11-6",
+        "ninja-build",
     )
-else:
-    gpu_image = (
-        modal.Image.from_registry("nvidia/cuda:12.8.1-devel-ubuntu22.04", add_python="3.12")
-        .entrypoint([])
-        .apt_install(
-            "build-essential",
-            "git",
-            "graphviz",
-            "libegl1",
-            "libgl1",
-            "libglib2.0-0",
-            "libgomp1",
-            "libx11-6",
-            "ninja-build",
-        )
-        .env(RUNTIME_ENV)
-        .uv_sync(str(SOURCE_ROOT), groups=[], frozen=True, extra_options="--no-default-groups")
-    )
+    .env(RUNTIME_ENV)
+    .uv_sync(str(SOURCE_ROOT), groups=[], frozen=True, extra_options="--no-default-groups")
+)
 
 gpu_image = (
     gpu_image.add_local_dir(SOURCE_ROOT / "gtsfm", "/root/gtsfm", ignore=SOURCE_EXCLUDES)
