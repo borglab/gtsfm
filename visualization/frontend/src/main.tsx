@@ -174,8 +174,6 @@ interface ModalDeployment {
   status: "queued" | "running" | "cancelling" | "cancelled" | "completed" | "failed";
   stage: string;
   phase?: "queued" | "building" | "deploying" | "verifying" | "ready" | "cancelled";
-  image_source?: "prebuilt" | "source";
-  runtime_image?: string;
   log_tail: string[];
   endpoint: string;
   api_key: string;
@@ -248,11 +246,8 @@ const MODAL_WORKSPACE_STEPS = [
 function ModalDeploymentProgress({ deployment, onCancel, onExpand }: { deployment: ModalDeployment; onCancel: () => void; onExpand: () => void }) {
   const currentPhase = deployment.phase === "ready" ? "verifying" : deployment.phase ?? "building";
   const currentIndex = Math.max(0, MODAL_WORKSPACE_STEPS.findIndex((step) => step.id === currentPhase));
-  const imageDetail = deployment.image_source === "prebuilt"
-    ? "Pull the versioned GTSFM runtime; no package installation"
-    : "Install and cache the GTSFM environment";
   return <section className={`modal-deployment ${deployment.status}`} aria-label="Modal workspace progress">
-    <div className="modal-deployment-heading"><span>{deployment.status === "completed" ? <Check size={12}/> : deployment.status === "failed" ? <CircleAlert size={12}/> : deployment.status === "cancelled" ? <Minus size={12}/> : <RefreshCw size={12}/>}<strong>{deployment.stage}</strong></span><span className="modal-deployment-actions"><small>{deployment.image_source === "prebuilt" ? "PREBUILT" : "SOURCE"} · {deployment.gpu}</small>{["queued", "running"].includes(deployment.status) && <button className="modal-stop-action" type="button" onClick={onCancel} title="Stop Modal setup"><Square size={9} fill="currentColor"/> Stop</button>}<button type="button" onClick={onExpand} title="Expand setup logs" aria-label="Expand setup logs"><Maximize2 size={12}/></button></span></div>
+    <div className="modal-deployment-heading"><span>{deployment.status === "completed" ? <Check size={12}/> : deployment.status === "failed" ? <CircleAlert size={12}/> : deployment.status === "cancelled" ? <Minus size={12}/> : <RefreshCw size={12}/>}<strong>{deployment.stage}</strong></span><span className="modal-deployment-actions"><small>{deployment.gpu}</small>{["queued", "running"].includes(deployment.status) && <button className="modal-stop-action" type="button" onClick={onCancel} title="Stop Modal setup"><Square size={9} fill="currentColor"/> Stop</button>}<button type="button" onClick={onExpand} title="Expand setup logs" aria-label="Expand setup logs"><Maximize2 size={12}/></button></span></div>
     <ol className="modal-deployment-steps">
       {MODAL_WORKSPACE_STEPS.map((step, index) => {
         const complete = deployment.status === "completed" || index < currentIndex;
@@ -261,7 +256,7 @@ function ModalDeploymentProgress({ deployment, onCancel, onExpand }: { deploymen
         const cancelled = active && deployment.status === "cancelled";
         return <li key={step.id} data-state={failed ? "failed" : cancelled ? "cancelled" : complete ? "complete" : active ? "active" : "pending"}>
           <span className="modal-step-mark">{complete ? <Check size={10}/> : failed ? <X size={10}/> : cancelled ? <Minus size={10}/> : index + 1}</span>
-          <div><strong>{step.label}</strong><small>{step.id === "building" ? imageDetail : step.detail}</small></div>
+          <div><strong>{step.label}</strong><small>{step.detail}</small></div>
         </li>;
       })}
     </ol>
