@@ -16,7 +16,6 @@ SOURCE_ROOT = Path(os.environ.get("GTSFM_SOURCE_ROOT", Path.cwd())).expanduser()
 GPU = os.environ.get("GTSFM_MODAL_GPU", "L40S")
 MODAL_CPU = float(os.environ.get("GTSFM_MODAL_CPU", "8"))
 MODAL_MEMORY_MB = int(os.environ.get("GTSFM_MODAL_MEMORY_MB", "65536"))
-RUNTIME_IMAGE = os.environ.get("GTSFM_MODAL_RUNTIME_IMAGE", "").strip()
 REMOTE_API_KEY = os.environ.get("GTSFM_REMOTE_API_KEY", "")
 if not (SOURCE_ROOT / "pyproject.toml").is_file():
     raise RuntimeError("GTSFM_SOURCE_ROOT must point to a GTSFM source checkout")
@@ -52,26 +51,23 @@ RUNTIME_ENV = {
     "PYTHONPATH": "/root",
 }
 
-if RUNTIME_IMAGE:
-    image = modal.Image.from_registry(RUNTIME_IMAGE).entrypoint([]).env(RUNTIME_ENV)
-else:
-    image = (
-        modal.Image.from_registry("nvidia/cuda:12.8.1-devel-ubuntu22.04", add_python="3.12")
-        .entrypoint([])
-        .apt_install(
-            "build-essential",
-            "git",
-            "graphviz",
-            "libegl1",
-            "libgl1",
-            "libglib2.0-0",
-            "libgomp1",
-            "libx11-6",
-            "ninja-build",
-        )
-        .env(RUNTIME_ENV)
-        .uv_sync(str(SOURCE_ROOT), groups=[], frozen=True, extra_options="--no-default-groups")
+image = (
+    modal.Image.from_registry("nvidia/cuda:12.8.1-devel-ubuntu22.04", add_python="3.12")
+    .entrypoint([])
+    .apt_install(
+        "build-essential",
+        "git",
+        "graphviz",
+        "libegl1",
+        "libgl1",
+        "libglib2.0-0",
+        "libgomp1",
+        "libx11-6",
+        "ninja-build",
     )
+    .env(RUNTIME_ENV)
+    .uv_sync(str(SOURCE_ROOT), groups=[], frozen=True, extra_options="--no-default-groups")
+)
 
 image = (
     image.add_local_dir(SOURCE_ROOT / "gtsfm", "/root/gtsfm", ignore=EXCLUDES)
