@@ -392,7 +392,7 @@ class GtsfmRunner:
 
         cluster_optimizer = scene_optimizer.cluster_optimizer
         target_optimizer = getattr(cluster_optimizer, "_optimizer", cluster_optimizer)
-        snapshot_path = (
+        gs_optimizer_config_path = (
             "cluster_optimizer.optimizer.gaussian_splatting_optimizer"
             if target_optimizer is not cluster_optimizer
             else "cluster_optimizer.gaussian_splatting_optimizer"
@@ -415,7 +415,7 @@ class GtsfmRunner:
                         logger.info("🔄 Setting Gaussian Splatting max steps: %d", self.parsed_args.gs_max_steps)
                     OmegaConf.update(
                         main_cfg,
-                        snapshot_path,
+                        gs_optimizer_config_path,
                         gs_cfg.gaussian_splatting_optimizer,
                         merge=False,
                     )
