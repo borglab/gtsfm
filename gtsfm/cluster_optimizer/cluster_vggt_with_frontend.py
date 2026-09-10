@@ -17,6 +17,7 @@ from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterComputationGra
 from gtsfm.cluster_optimizer.cluster_vggt import (
     _aggregate_vggt_metrics,
     _load_vggt_inputs,
+    _model_loading_plan,
     _resolve_vggt_model,
     _run_cluster_ba,
     _save_pre_ba_reconstruction_as_text,
@@ -270,26 +271,18 @@ class ClusterVGGTWithFrontend(ClusterMVO):
         self._seed = seed
 
         self._weights_path = Path(weights_path) if weights_path is not None else None
-        self._loader_kwargs: dict[str, Any] = {}
-        if self._weights_path is not None:
-            self._loader_kwargs["weights_path"] = self._weights_path
-        model_kwargs = self.geometry_transformer.config.model_ctor_kwargs
-        if model_kwargs:
-            self._loader_kwargs["model_kwargs"] = model_kwargs
-
-        if model_cache_key is False:
-            self._model_cache_key: Hashable | None = None
-        elif model_cache_key is None:
-            kwargs_key = tuple(sorted((k, repr(v)) for k, v in model_kwargs.items())) if model_kwargs else None
-            self._model_cache_key = ("default_vggt_loader", self._weights_path, kwargs_key)
-        else:
-            self._model_cache_key = model_cache_key
+        self._loader_kwargs, self._model_cache_key = _model_loading_plan(
+            self.geometry_transformer, self._weights_path, model_cache_key
+        )
 
     def __repr__(self) -> str:
         components = [
             f"correspondence_generator={self.correspondence_generator}",
             f"two_view_estimator={self.two_view_estimator}",
-            f"geometry_transformer={self.geometry_transformer.config}",
+            # Transformers without a `config` (e.g. VggtOmegaGeometryTransformer) contribute their class
+            # name to the cache key instead — stable across runs and distinct from any VGGT config repr.
+            f"geometry_transformer="
+            f"{getattr(self.geometry_transformer, 'config', None) or type(self.geometry_transformer).__name__}",
             f"ba_options={self.ba_options}",
         ]
         return "ClusterVGGTWithFrontend(\n  " + ",\n  ".join(components) + "\n)"
@@ -321,6 +314,7 @@ class ClusterVGGTWithFrontend(ClusterMVO):
             context.loader,
             global_indices,
             mode=self._input_mode,
+            transformer=self.geometry_transformer,
             output_root=str(context.output_paths.results),
             image_names=image_names,
         )

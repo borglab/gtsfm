@@ -112,12 +112,22 @@ def _load_vggt_inputs(
     indices: list[int],
     mode: str,
     *,
+    transformer=None,
     save_processed_image: bool = False,
     output_root: Optional[str] = None,
     image_names: Optional[tuple[str, ...]] = None,
 ):
-    """Load and preprocess a batch of images for VGGT."""
-    image_batch, original_coords = load_image_batch_vggt_loader(loader, indices, mode=mode)
+    """Load and preprocess a batch of images for the geometry model.
+
+    Preprocessing follows the geometry transformer: VGGT and VGGT-Omega differ in resolution, patch
+    alignment and cropping, and the per-pixel depth lookup downstream indexes the model's depth map via
+    the ``original_coords`` returned here — so the loader must match the model. ``transformer=None``
+    keeps the legacy VGGT loader.
+    """
+    if transformer is not None:
+        image_batch, original_coords = transformer.load_image_batch(loader, indices, mode=mode)
+    else:
+        image_batch, original_coords = load_image_batch_vggt_loader(loader, indices, mode=mode)
     if not save_processed_image or output_root is None or image_names is None:
         return image_batch, original_coords
     if len(image_names) != image_batch.shape[0]:
@@ -156,6 +166,39 @@ def _load_vggt_inputs(
         comments="",
     )
     return image_batch, original_coords
+
+
+def _model_loading_plan(
+    transformer: Any, weights_path: Optional[Path], model_cache_key: Hashable | bool | None
+) -> tuple[dict[str, Any], Hashable | None]:
+    """Decide how a cluster optimizer's geometry model is loaded on workers.
+
+    Transformers that expose a ``config`` (the VGGT family) are loaded through the shared VGGT loader
+    and cached under a key derived from the weights path and model kwargs. Transformers without a
+    ``config`` (e.g. VGGT-Omega) manage their own model inside ``predict``: they get no loader kwargs
+    and NO shared cache key — a cache key would make ``_resolve_vggt_model`` hand them a cached *VGGT*
+    model.
+
+    Returns:
+        ``(loader_kwargs, cache_key)`` to store on the optimizer.
+    """
+    config = getattr(transformer, "config", None)
+    if config is None:
+        return {}, None
+
+    loader_kwargs: dict[str, Any] = {}
+    if weights_path is not None:
+        loader_kwargs["weights_path"] = weights_path
+    model_kwargs = config.model_ctor_kwargs
+    if model_kwargs:
+        loader_kwargs["model_kwargs"] = model_kwargs
+
+    if model_cache_key is False:
+        return loader_kwargs, None
+    if model_cache_key is None:
+        kwargs_key = tuple(sorted((k, repr(v)) for k, v in model_kwargs.items())) if model_kwargs else None
+        return loader_kwargs, ("default_vggt_loader", weights_path, kwargs_key)
+    return loader_kwargs, model_cache_key
 
 
 def _resolve_vggt_model(cache_key: Hashable | None, loader_kwargs: dict[str, Any] | None) -> Any | None:
@@ -403,28 +446,14 @@ class ClusterVGGT(ClusterOptimizerBase):
         self._drop_camera_with_no_track = drop_camera_with_no_track
 
         # --- Model caching ---
-        self._loader_kwargs: dict[str, Any] = {}
-        if self._weights_path is not None:
-            self._loader_kwargs["weights_path"] = self._weights_path
-        model_kwargs = self.geometry_transformer.config.model_ctor_kwargs
-        if model_kwargs:
-            self._loader_kwargs["model_kwargs"] = model_kwargs
-
-        if model_cache_key is False:
-            self._model_cache_key: Hashable | None = None
-        elif model_cache_key is None:
-            kwargs_key = (
-                tuple(sorted((k, repr(v)) for k, v in model_kwargs.items()))
-                if model_kwargs
-                else None
-            )
-            self._model_cache_key = ("default_vggt_loader", self._weights_path, kwargs_key)
-        else:
-            self._model_cache_key = model_cache_key
+        self._loader_kwargs, self._model_cache_key = _model_loading_plan(
+            self.geometry_transformer, self._weights_path, model_cache_key
+        )
 
     def __repr__(self) -> str:
         components = [
-            f"geometry_transformer={self.geometry_transformer.config}",
+            f"geometry_transformer="
+            f"{getattr(self.geometry_transformer, 'config', None) or type(self.geometry_transformer).__name__}",
             f"tracker={self.tracker.config}",
             f"ba_options={self.ba_options}",
             f"weights_path={self._weights_path}",
@@ -463,6 +492,7 @@ class ClusterVGGT(ClusterOptimizerBase):
             context.loader,
             global_indices,
             mode=self._input_mode,
+            transformer=self.geometry_transformer,
             save_processed_image=self._save_processed_image,
             output_root=str(context.output_paths.results),
             image_names=image_names,
