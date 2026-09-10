@@ -21,7 +21,6 @@ import time
 import urllib.error
 import urllib.request
 import uuid
-
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from functools import lru_cache
@@ -30,7 +29,9 @@ from typing import Any, Mapping
 from urllib.parse import urljoin, urlparse
 
 import certifi
+import hydra
 import yaml
+from omegaconf import OmegaConf
 
 import gtsfm
 from visualization.datasets import resolve_relative_loader_paths
@@ -772,10 +773,7 @@ def _editable_hydra_leaves(value: object, prefix: str = "") -> list[dict[str, An
 
 def _composed_model_configuration(config_name: str, loader: str, overrides: list[str] | None = None) -> dict[str, Any]:
     """Compose a root preset exactly as the runner does, without importing Hydra at startup."""
-
-    import hydra
-    from omegaconf import OmegaConf
-
+    
     compose_overrides = ["+output_root=/tmp", f"+loader@loader={loader}", "loader.dataset_dir=/tmp"]
     compose_overrides.extend(overrides or [])
     with _HYDRA_CONFIGURATION_LOCK:
