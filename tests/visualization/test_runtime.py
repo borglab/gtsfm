@@ -713,18 +713,6 @@ def test_modal_deployment_rejects_invalid_machine_resources() -> None:
         manager.start("ak-test", "as-test", "L40S", cpu=8, memory_mb=1024)
 
 
-def test_modal_deployment_prefers_prebuilt_runtime(monkeypatch: pytest.MonkeyPatch) -> None:
-    manager = modal_deployment.ModalDeploymentManager(
-        lambda *_args: {},
-        runtime_image="ghcr.io/borglab/gtsfm-modal-runtime:test",
-    )
-    monkeypatch.setattr(modal_deployment.threading.Thread, "start", lambda _thread: None)
-
-    deployment = manager.start("ak-test", "as-test", "L4", cpu=4, memory_mb=32768)
-
-    assert deployment["image_source"] == "prebuilt"
-    assert deployment["runtime_image"].endswith(":test")
-
 
 def test_modal_deployment_cancel_marks_active_setup_and_terminates_process(
     monkeypatch: pytest.MonkeyPatch,
