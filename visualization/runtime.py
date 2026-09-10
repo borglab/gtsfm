@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import http.client
 import importlib.util
 import json
@@ -20,6 +21,8 @@ import time
 import urllib.error
 import urllib.request
 import uuid
+import hydra
+from omegaconf import OmegaConf
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from functools import lru_cache
@@ -39,6 +42,7 @@ _SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
 _REMOTE_REQUEST_TIMEOUT_SECONDS = 10 * 60
 _REMOTE_READ_RETRIES = 3
 _RUN_NAME_PATTERN = re.compile(r"[^A-Za-z0-9._-]+")
+_HYDRA_CONFIGURATION_LOCK = threading.RLock()
 _OPTIONAL_SUBMODULES = {
     "submodule-anysplat": {
         "directory": "AnySplat",
@@ -611,6 +615,218 @@ def configuration_schema() -> dict[str, Any]:
     }
 
 
+_HIDDEN_HYDRA_SEGMENTS = {
+    "_target_",
+    "_recursive_",
+    "_convert_",
+    "api_key",
+    "cache_key",
+    "dataset_dir",
+    "images_dir",
+    "input_worker",
+    "output_root",
+    "password",
+    "secret",
+    "token",
+}
+_DEDICATED_HYDRA_FIELDS = {"max_frame_lookahead", "num_matched", "shared_calib"}
+
+
+def _hidden_hydra_segment(segment: str) -> bool:
+    lowered = segment.lower()
+    return (
+        segment.startswith("_")
+        or lowered in _HIDDEN_HYDRA_SEGMENTS
+        or lowered in _DEDICATED_HYDRA_FIELDS
+        or lowered.endswith(("_path", "_dir", "_root", "_secret", "_token", "_password", "_api_key"))
+    )
+
+
+def _hydra_field_group(path: str) -> str:
+    """Assign a stable user-facing section to an editable Hydra leaf."""
+
+    lowered = path.lower()
+    groups = (
+        ("geometry_transformer", "Geometry"),
+        ("tracker", "Tracking"),
+        ("global_descriptor", "Global descriptor"),
+        ("retriever", "Image retrieval"),
+        ("image_pairs_generator", "Image pairing"),
+        ("correspondence", "Feature matching"),
+        ("verifier", "Verification"),
+        ("bundle_adjustment", "Bundle adjustment"),
+        ("ba_options", "Bundle adjustment"),
+        ("merging", "Scene merging"),
+        ("graph_partitioner", "Graph partitioning"),
+        ("cluster_optimizer", "Cluster optimization"),
+    )
+    return next((label for marker, label in groups if marker in lowered), "Pipeline")
+
+
+def _gaussian_field_group(name: str) -> str:
+    if name.endswith("_lr"):
+        return "Learning rates"
+    if name.startswith("init_"):
+        return "Initialization"
+    if any(marker in name for marker in ("densify", "cull", "split", "refine", "warmup", "reset", "absgrad")):
+        return "Densification and pruning"
+    if name in {"batch_size", "num_downscales", "resolution_schedule", "ssim_lambda"}:
+        return "Training"
+    return "Rendering and export"
+
+
+def _safe_config_default(node: ast.expr) -> object:
+    """Evaluate the scalar arithmetic used by Config defaults without importing torch."""
+
+    try:
+        return ast.literal_eval(node)
+    except (ValueError, TypeError):
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
+            value = _safe_config_default(node.operand)
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                return value if isinstance(node.op, ast.UAdd) else -value
+        if isinstance(node, ast.BinOp):
+            left = _safe_config_default(node.left)
+            right = _safe_config_default(node.right)
+            if all(isinstance(value, (int, float)) and not isinstance(value, bool) for value in (left, right)):
+                if isinstance(node.op, ast.Add):
+                    return left + right
+                if isinstance(node.op, ast.Sub):
+                    return left - right
+                if isinstance(node.op, ast.Mult):
+                    return left * right
+                if isinstance(node.op, ast.Div):
+                    return left / right
+        raise ValueError("Unsupported Gaussian Config default")
+
+
+@lru_cache(maxsize=1)
+def _gaussian_dataclass_defaults() -> dict[str, object]:
+    """Read Config defaults from source so schema discovery never imports the GPU stack."""
+
+    source_path = PACKAGE_ROOT / "splat" / "gaussian_splatting.py"
+    tree = ast.parse(source_path.read_text(encoding="utf-8"), filename=str(source_path))
+    config_class = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "Config")
+    defaults: dict[str, object] = {}
+    for statement in config_class.body:
+        if (
+            not isinstance(statement, ast.AnnAssign)
+            or not isinstance(statement.target, ast.Name)
+            or statement.value is None
+        ):
+            continue
+        try:
+            value = _safe_config_default(statement.value)
+        except ValueError:
+            continue
+        if isinstance(value, (bool, int, float, str)):
+            defaults[statement.target.id] = value
+    return defaults
+
+
+def _hydra_field_descriptor(path: str, default: object, group: str) -> dict[str, Any]:
+    if isinstance(default, bool):
+        field_type = "boolean"
+    elif isinstance(default, int):
+        field_type = "integer"
+    elif isinstance(default, float):
+        field_type = "number"
+    else:
+        field_type = "string"
+    descriptor: dict[str, Any] = {
+        "key": path,
+        "label": _display_name(path.rsplit(".", 1)[-1]),
+        "type": field_type,
+        "defaultValue": default,
+        "group": group,
+        "help": f"Inherited from the selected preset. Hydra key: {path}",
+    }
+    if field_type == "integer":
+        descriptor["step"] = 1
+    elif field_type == "number":
+        descriptor["step"] = "any"
+    return descriptor
+
+
+def _editable_hydra_leaves(value: object, prefix: str = "") -> list[dict[str, Any]]:
+    """Flatten safe scalar values while hiding Hydra constructors and runtime paths."""
+
+    if not isinstance(value, Mapping):
+        return []
+    fields: list[dict[str, Any]] = []
+    for name, child in value.items():
+        segment = str(name)
+        path = f"{prefix}.{segment}" if prefix else segment
+        if _hidden_hydra_segment(segment):
+            continue
+        # Loader paths and Gaussian attachment are managed by dedicated controls.
+        if path == "loader" or path.startswith("loader.") or "gaussian_splatting_optimizer" in path:
+            continue
+        if isinstance(child, Mapping):
+            fields.extend(_editable_hydra_leaves(child, path))
+        elif isinstance(child, (bool, int, float, str)) and child != "???":
+            fields.append(_hydra_field_descriptor(path, child, _hydra_field_group(path)))
+    return fields
+
+
+def _composed_model_configuration(config_name: str, loader: str, overrides: list[str] | None = None) -> dict[str, Any]:
+    """Compose a root preset exactly as the runner does, without importing Hydra at startup."""
+    
+    compose_overrides = ["+output_root=/tmp", f"+loader@loader={loader}", "loader.dataset_dir=/tmp"]
+    compose_overrides.extend(overrides or [])
+    with _HYDRA_CONFIGURATION_LOCK:
+        with hydra.initialize_config_module(config_module="gtsfm.configs", version_base=None):
+            config = hydra.compose(config_name=config_name, overrides=compose_overrides)
+    return dict(OmegaConf.to_container(config, resolve=False) or {})
+
+
+@lru_cache(maxsize=128)
+def configuration_parameter_schema(
+    config_name: str,
+    loader: str,
+    gaussian_splatting_config_name: str = "base_gs",
+    include_gaussian: bool = True,
+) -> dict[str, Any]:
+    """Return typed editable leaves for the currently selected Hydra presets."""
+
+    catalog = configuration_schema()
+    _validate_choice(config_name, [item["id"] for item in catalog["models"]], "model")
+    _validate_choice(loader, catalog["loaders"], "loader")
+    _validate_choice(
+        gaussian_splatting_config_name,
+        catalog["gaussian_splatting_models"],
+        "Gaussian splatting model",
+    )
+
+    model_fields = _editable_hydra_leaves(_composed_model_configuration(config_name, loader))
+    gaussian_fields: list[dict[str, Any]] = []
+    if include_gaussian:
+        gaussian_config = (
+            yaml.safe_load(
+                (CONFIG_ROOT / "gaussian_splatting" / f"{gaussian_splatting_config_name}.yaml").read_text(
+                    encoding="utf-8"
+                )
+            )
+            or {}
+        )
+        yaml_defaults = (gaussian_config.get("gaussian_splatting_optimizer") or {}).get("cfg") or {}
+        defaults = dict(_gaussian_dataclass_defaults())
+        defaults.update({name: value for name, value in yaml_defaults.items() if name != "_target_"})
+        gaussian_fields = [
+            _hydra_field_descriptor(name, default, _gaussian_field_group(name))
+            for name, default in defaults.items()
+            if name != "max_steps" and isinstance(default, (bool, int, float, str))
+        ]
+
+    return {
+        "model": {"preset": config_name, "fields": model_fields},
+        "gaussian": {
+            "preset": gaussian_splatting_config_name,
+            "fields": gaussian_fields,
+        },
+    }
+
+
 def _normalise_run_name(value: object) -> str:
     name = _RUN_NAME_PATTERN.sub("-", str(value or "run").strip()).strip("-._")
     return name[:64] or "run"
@@ -621,6 +837,46 @@ def _validate_choice(value: object, allowed: list[str], field_name: str) -> str:
     if text not in allowed:
         raise ValueError(f"Unknown {field_name}: {text}")
     return text
+
+
+def _encode_hydra_scalar(value: object, default: object, field_name: str) -> str:
+    """Validate a UI value against its preset type and encode one Hydra scalar."""
+
+    try:
+        if isinstance(default, bool):
+            if isinstance(value, bool):
+                parsed: object = value
+            elif str(value).lower() in {"true", "false"}:
+                parsed = str(value).lower() == "true"
+            else:
+                raise ValueError
+            return "true" if parsed else "false"
+        if isinstance(default, int) and not isinstance(default, bool):
+            return str(int(value))
+        if isinstance(default, float):
+            return str(float(value))
+        if isinstance(default, str):
+            return json.dumps(str(value))
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"Invalid value for Hydra setting {field_name}: {value}") from exc
+    raise ValueError(f"Hydra setting {field_name} is not an editable scalar")
+
+
+def _validate_advanced_hydra_overrides(config_name: str, loader: str, overrides: list[str]) -> None:
+    """Reject unsafe or invalid expert expressions before the runner sees them."""
+
+    for expression in overrides:
+        if expression.startswith("--") or "\x00" in expression or "=" not in expression:
+            raise ValueError("Advanced overrides must use one Hydra key=value expression per line")
+        key = expression.split("=", 1)[0].lstrip("+~")
+        segments = re.split(r"[.@/]", key)
+        if any(_hidden_hydra_segment(segment) for segment in segments):
+            raise ValueError(f"Advanced override is not editable from the Studio: {key}")
+    try:
+        _composed_model_configuration(config_name, loader, overrides)
+    except Exception as exc:
+        detail = str(exc).splitlines()[0]
+        raise ValueError(f"Invalid Hydra override: {detail}") from exc
 
 
 def build_runner_args(spec: Mapping[str, Any], output_root: Path) -> tuple[list[str], dict[str, str]]:
@@ -752,28 +1008,85 @@ def build_runner_args(spec: Mapping[str, Any], output_root: Path) -> tuple[list[
         if not capabilities.get("mvs"):
             raise ValueError(f"The {config_name} model does not support the dense MVS stage")
         args.append("--run_mvs")
+
+    parameter_schema = configuration_parameter_schema(
+        config_name,
+        loader,
+        str(spec.get("gaussian_splatting_config_name") or "base_gs"),
+        splat_implementation == "gsplat",
+    )
+    model_overrides = spec.get("hydra_overrides") or {}
+    if not isinstance(model_overrides, Mapping):
+        raise ValueError("Hydra overrides must be an object")
+    model_defaults = {
+        descriptor["key"]: descriptor["defaultValue"] for descriptor in parameter_schema["model"]["fields"]
+    }
+    unknown_model_overrides = set(model_overrides) - set(model_defaults)
+    if unknown_model_overrides:
+        raise ValueError("Unknown or protected Hydra settings: " + ", ".join(sorted(unknown_model_overrides)))
+    typed_model_overrides: list[str] = []
+    for name, value in model_overrides.items():
+        if value in (None, ""):
+            continue
+        typed_model_overrides.append(f"{name}={_encode_hydra_scalar(value, model_defaults[name], name)}")
+
     if splat_implementation == "gsplat":
+        gaussian_config_name = _validate_choice(
+            spec.get("gaussian_splatting_config_name") or "base_gs",
+            schema["gaussian_splatting_models"],
+            "Gaussian splatting model",
+        )
         args.extend(
             [
                 "--run_gs",
                 "--gaussian_splatting_config_name",
-                _validate_choice(
-                    spec.get("gaussian_splatting_config_name") or "base_gs",
-                    schema["gaussian_splatting_models"],
-                    "Gaussian splatting model",
-                ),
+                gaussian_config_name,
                 "--gs_max_steps",
                 str(max(1, int(spec.get("gs_max_steps", 7000)))),
             ]
         )
+        gaussian_overrides = spec.get("gaussian_splatting_overrides") or {}
+        if not isinstance(gaussian_overrides, Mapping):
+            raise ValueError("Gaussian splatting overrides must be an object")
+        gaussian_config = (
+            yaml.safe_load(
+                (CONFIG_ROOT / "gaussian_splatting" / f"{gaussian_config_name}.yaml").read_text(encoding="utf-8")
+            )
+            or {}
+        )
+        gaussian_yaml_defaults = (gaussian_config.get("gaussian_splatting_optimizer") or {}).get("cfg") or {}
+        # Presets intentionally omit values already supplied by the optimizer
+        # dataclass. Include both sources in the typed UI allowlist; Hydra needs
+        # a leading '+' only for a dataclass default absent from this YAML.
+        gaussian_defaults = dict(_gaussian_dataclass_defaults())
+        gaussian_defaults.update({name: value for name, value in gaussian_yaml_defaults.items() if name != "_target_"})
+        editable_defaults = {
+            name: default
+            for name, default in gaussian_defaults.items()
+            if name != "_target_" and isinstance(default, (bool, int, float, str))
+        }
+        unknown_gaussian_overrides = set(gaussian_overrides) - set(editable_defaults)
+        if unknown_gaussian_overrides:
+            raise ValueError("Unknown Gaussian splatting settings: " + ", ".join(sorted(unknown_gaussian_overrides)))
+        for name, value in gaussian_overrides.items():
+            if value in (None, ""):
+                continue
+            encoded = _encode_hydra_scalar(value, editable_defaults[name], name)
+            prefix = "" if name in gaussian_yaml_defaults else "+"
+            args.extend(
+                [
+                    "--gaussian_splatting_override",
+                    f"{prefix}gaussian_splatting_optimizer.cfg.{name}={encoded}",
+                ]
+            )
 
     advanced_overrides = spec.get("advanced_overrides") or []
     if isinstance(advanced_overrides, str):
         advanced_overrides = [line.strip() for line in advanced_overrides.splitlines() if line.strip()]
     if not isinstance(advanced_overrides, list) or not all(isinstance(item, str) for item in advanced_overrides):
         raise ValueError("Advanced overrides must be one Hydra key=value expression per line")
-    if any(item.startswith("--") or "\x00" in item for item in advanced_overrides):
-        raise ValueError("Advanced overrides must use Hydra key=value syntax, not command-line flags")
+    _validate_advanced_hydra_overrides(config_name, loader, [*typed_model_overrides, *advanced_overrides])
+    args.extend(typed_model_overrides)
     args.extend(advanced_overrides)
 
     hardware = str(spec.get("hardware") or "cpu")
