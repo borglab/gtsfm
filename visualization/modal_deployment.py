@@ -28,8 +28,6 @@ SUPPORTED_MODAL_GPUS = {
     "H200",
     "B200",
 }
-DEFAULT_MODAL_RUNTIME_IMAGE = "ghcr.io/borglab/gtsfm-modal-runtime:latest"
-
 
 def modal_remote_api_key(token_id: str, token_secret: str) -> str:
     """Derive a stable app-specific key without exposing the Modal credentials."""
@@ -70,8 +68,6 @@ class ModalDeployment:
     status: str = "queued"
     stage: str = "Waiting to deploy"
     phase: str = "queued"
-    image_source: str = "source"
-    runtime_image: str = ""
     log_tail: list[str] = field(default_factory=list)
     endpoint: str = ""
     api_key: str = ""
@@ -90,8 +86,6 @@ class ModalDeployment:
             "status": self.status,
             "stage": self.stage,
             "phase": self.phase,
-            "image_source": self.image_source,
-            "runtime_image": self.runtime_image,
             "log_tail": list(self.log_tail),
             "endpoint": self.endpoint,
             "api_key": self.api_key if self.status == "completed" else "",
@@ -104,15 +98,9 @@ class ModalDeploymentManager:
 
     def __init__(
         self,
-        discover: Callable[[str, str], dict[str, str]],
-        runtime_image: str | None = None,
+        discover: Callable[[str, str], dict[str, str]]
     ) -> None:
         self._discover = discover
-        self._runtime_image = (
-            os.environ.get("GTSFM_MODAL_RUNTIME_IMAGE", DEFAULT_MODAL_RUNTIME_IMAGE)
-            if runtime_image is None
-            else runtime_image
-        ).strip()
         self._deployments: dict[str, ModalDeployment] = {}
         self._lock = threading.RLock()
 
@@ -139,8 +127,6 @@ class ModalDeploymentManager:
             gpu=gpu,
             cpu=cpu,
             memory_mb=memory_mb,
-            image_source="prebuilt" if self._runtime_image else "source",
-            runtime_image=self._runtime_image,
             token_id=token_id,
             token_secret=token_secret,
         )
@@ -245,8 +231,7 @@ class ModalDeploymentManager:
                 "GTSFM_SOURCE_ROOT": str(source_root),
             }
         )
-        if deployment.runtime_image:
-            env["GTSFM_MODAL_RUNTIME_IMAGE"] = deployment.runtime_image
+        
         command = [
             sys.executable,
             "-m",
@@ -299,38 +284,12 @@ class ModalDeploymentManager:
                     return
                 deployment.status = "running"
                 deployment.phase = "building"
-                deployment.stage = (
-                    "Preparing the prebuilt CUDA runtime"
-                    if deployment.runtime_image
-                    else "Building the CUDA workspace image"
-                )
+                deployment.stage = "Building the CUDA workspace image"
             return_code = run_command()
+            
             if deployment.cancel_requested:
                 self._mark_cancelled(deployment)
                 return
-            unavailable_output = "\n".join(deployment.log_tail).lower()
-            prebuilt_unavailable = deployment.runtime_image and any(
-                marker in unavailable_output
-                for marker in (
-                    "manifest unknown",
-                    "manifest not found",
-                    "failed to pull",
-                    "no matching manifest",
-                    "not found: ghcr.io",
-                )
-            )
-            if return_code != 0 and prebuilt_unavailable:
-                self._update(
-                    deployment,
-                    phase="building",
-                    stage="Prebuilt runtime unavailable; building from source",
-                    line="Prebuilt GTSFM runtime is not published yet. Falling back to the cached source build.",
-                )
-                with self._lock:
-                    deployment.image_source = "source"
-                    deployment.runtime_image = ""
-                env.pop("GTSFM_MODAL_RUNTIME_IMAGE", None)
-                return_code = run_command()
             if deployment.cancel_requested:
                 self._mark_cancelled(deployment)
                 return
