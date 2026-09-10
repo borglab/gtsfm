@@ -286,10 +286,7 @@ class ModalDeploymentManager:
                 deployment.phase = "building"
                 deployment.stage = "Building the CUDA workspace image"
             return_code = run_command()
-            
-            if deployment.cancel_requested:
-                self._mark_cancelled(deployment)
-                return
+
             if deployment.cancel_requested:
                 self._mark_cancelled(deployment)
                 return
