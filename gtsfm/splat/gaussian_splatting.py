@@ -16,6 +16,7 @@ from torch import Tensor
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
+from gtsfm.splat.live import publish_training_update
 
 logger = logger_utils.get_logger()
 
@@ -416,8 +417,6 @@ else:
                 )
 
                 if step == 0 or (step + 1) % 10 == 0 or (step + 1) == max_steps:
-                    from gtsfm.splat.live import publish_training_update
-
                     publish_training_update(
                         splats,
                         step=step,
