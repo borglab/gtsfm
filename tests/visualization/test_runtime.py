@@ -712,6 +712,7 @@ def test_modal_deployment_rejects_invalid_machine_resources() -> None:
     with pytest.raises(ValueError, match="memory allocation"):
         manager.start("ak-test", "as-test", "L40S", cpu=8, memory_mb=1024)
 
+
 def test_modal_deployment_cancel_marks_active_setup_and_terminates_process(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
