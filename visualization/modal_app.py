@@ -122,6 +122,7 @@ def _build_workspace_images() -> tuple[modal.Image, modal.Image]:
         .pip_install(
             "certifi",
             "fastapi>=0.116,<1.0",
+            "hydra-core==1.3.2",
             "pillow>=9.0.0",
             "python-multipart>=0.0.20,<1.0",
             "pyyaml",
