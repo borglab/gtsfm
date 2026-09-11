@@ -10,7 +10,7 @@ import dask
 import gtsam  # type: ignore
 import numpy as np
 
-from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
+from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer, BundleAdjustmentOptions
 from gtsfm.common.gtsfm_data import GtsfmData
 
 GTSAM_EXAMPLE_FILE = "dubrovnik-3-7-pre"
@@ -199,6 +199,227 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
             )
 
         self.assertEqual(valid_mask, [True, False, False, True])
+
+    def test_bundle_adjustment_options_cuda(self):
+        """Ensure BundleAdjustmentOptions defaults and propagation for CUDA LM."""
+        options = BundleAdjustmentOptions()
+        self.assertFalse(options.use_cuda)
+        self.assertEqual(options.cuda_linear_solver, "PCG")
+        self.assertIsNone(options.cuda_pcg_max_iterations)
+        self.assertIsNone(options.cuda_pcg_relative_tolerance)
+        self.assertFalse(options.cuda_pcg_warm_start)
+        self.assertIsNone(options.cuda_pcg_convergence_check_interval)
+        self.assertTrue(options.cuda_fallback_on_unsupported)
+        self.assertFalse(options.cuda_collect_timing)
+
+        # Custom options
+        custom_options = BundleAdjustmentOptions(
+            use_cuda=True,
+            cuda_linear_solver="CUDSS",
+            cuda_pcg_max_iterations=150,
+            cuda_pcg_relative_tolerance=1e-8,
+            cuda_pcg_warm_start=True,
+            cuda_pcg_convergence_check_interval=5,
+            cuda_fallback_on_unsupported=False,
+            cuda_collect_timing=True,
+        )
+        optimizer = custom_options.to_optimizer(min_tracks_per_camera=0)
+        self.assertTrue(optimizer._use_cuda)
+        self.assertEqual(optimizer._cuda_linear_solver, "CUDSS")
+        self.assertEqual(optimizer._cuda_pcg_max_iterations, 150)
+        self.assertEqual(optimizer._cuda_pcg_relative_tolerance, 1e-8)
+        self.assertTrue(optimizer._cuda_pcg_warm_start)
+        self.assertEqual(optimizer._cuda_pcg_convergence_check_interval, 5)
+        self.assertFalse(optimizer._cuda_fallback_on_unsupported)
+        self.assertTrue(optimizer._cuda_collect_timing)
+
+    def test_bundle_adjustment_optimizer_init_cuda(self):
+        """Ensure BundleAdjustmentOptimizer stores CUDA parameters."""
+        ba = BundleAdjustmentOptimizer(
+            use_cuda=True,
+            cuda_linear_solver="PCG",
+            cuda_pcg_max_iterations=300,
+            cuda_pcg_relative_tolerance=1e-7,
+            cuda_pcg_warm_start=True,
+            cuda_pcg_convergence_check_interval=2,
+            cuda_fallback_on_unsupported=True,
+            cuda_collect_timing=True,
+        )
+        self.assertTrue(ba._use_cuda)
+        self.assertEqual(ba._cuda_linear_solver, "PCG")
+        self.assertEqual(ba._cuda_pcg_max_iterations, 300)
+        self.assertEqual(ba._cuda_pcg_relative_tolerance, 1e-7)
+        self.assertTrue(ba._cuda_pcg_warm_start)
+        self.assertEqual(ba._cuda_pcg_convergence_check_interval, 2)
+        self.assertTrue(ba._cuda_fallback_on_unsupported)
+        self.assertTrue(ba._cuda_collect_timing)
+        self.assertIsNone(ba._last_cuda_result)
+        self.assertIsNone(ba._last_optimization_duration_sec)
+
+    def test_cuda_fallback_when_gtsam_cuda_absent(self):
+        """Ensure smooth CPU fallback when gtsam.cuda is absent and fallback is enabled."""
+        ba = BundleAdjustmentOptimizer(
+            reproj_error_thresholds=[100.0],
+            min_tracks_per_camera=5,
+            use_cuda=True,
+            cuda_fallback_on_unsupported=True,
+        )
+        # Ensure gtsam has no cuda attribute during this call
+        with patch.object(gtsam, "cuda", None, create=True):
+            computed_result, error = ba.run_simple_ba(self.test_data)
+            self.assertEqual(computed_result.number_images(), self.test_data.number_images())
+            self.assertAlmostEqual(error, 0.3675, places=2)
+            self.assertIsNone(ba._last_cuda_result)
+
+    def test_cuda_error_when_gtsam_cuda_absent_and_no_fallback(self):
+        """Ensure RuntimeError is raised when gtsam.cuda is absent and fallback is disabled."""
+        ba = BundleAdjustmentOptimizer(
+            reproj_error_thresholds=[100.0],
+            min_tracks_per_camera=5,
+            use_cuda=True,
+            cuda_fallback_on_unsupported=False,
+        )
+        with patch.object(gtsam, "cuda", None, create=True):
+            with self.assertRaises(RuntimeError) as context:
+                ba.run_simple_ba(self.test_data)
+            self.assertIn("gtsam.cuda is missing", str(context.exception))
+
+    def test_cuda_optimization_mocked_execution(self):
+        """Ensure CUDA Sparse LM is properly configured and called when gtsam.cuda is available."""
+        ba = BundleAdjustmentOptimizer(
+            reproj_error_thresholds=[100.0],
+            min_tracks_per_camera=5,
+            use_cuda=True,
+            cuda_linear_solver="PCG",
+            cuda_pcg_max_iterations=80,
+            cuda_pcg_relative_tolerance=1e-9,
+            cuda_pcg_warm_start=True,
+            cuda_pcg_convergence_check_interval=4,
+            cuda_fallback_on_unsupported=True,
+            cuda_collect_timing=True,
+        )
+
+        mock_cuda = MagicMock()
+        mock_cuda.LinearSolverType.Pcg = "Pcg"
+        mock_cuda.LinearSolverType.Cudss = "Cudss"
+
+        # Mock options and params
+        mock_linear_opts = MagicMock()
+        mock_cuda.LinearSolverOptions.return_value = mock_linear_opts
+
+        mock_pcg_opts = MagicMock()
+        mock_cuda.PcgOptions.return_value = mock_pcg_opts
+
+        mock_params = MagicMock()
+        mock_cuda.SparseLevenbergMarquardtParams.return_value = mock_params
+
+        # Mock result and optimizer
+        mock_result = MagicMock()
+        mock_result.backend = "Device"
+        mock_result.termination = "Converged"
+        mock_result.iterations = 7
+        mock_result.initialError = 50.0
+        mock_result.finalError = 0.5
+
+        # Return dummy values from optimize()
+        mock_values = self.test_data.to_values(shared_calib=False)
+        mock_optimizer = MagicMock()
+        mock_optimizer.optimize.return_value = mock_values
+        mock_optimizer.result.return_value = mock_result
+        mock_cuda.SparseLevenbergMarquardtOptimizer.return_value = mock_optimizer
+
+        with patch.object(gtsam, "cuda", mock_cuda, create=True):
+            computed_result, error = ba.run_simple_ba(self.test_data)
+
+        # Verify options were configured as requested
+        self.assertEqual(mock_linear_opts.backend, "Pcg")
+        self.assertEqual(mock_pcg_opts.maxIterations, 80)
+        self.assertEqual(mock_pcg_opts.relativeTolerance, 1e-9)
+        self.assertTrue(mock_pcg_opts.warmStart)
+        self.assertEqual(mock_pcg_opts.convergenceCheckInterval, 4)
+
+        self.assertEqual(mock_params.linear, mock_linear_opts)
+        self.assertEqual(mock_params.pcg, mock_pcg_opts)
+        self.assertTrue(mock_params.fallbackOnUnsupported)
+        self.assertTrue(mock_params.collectTiming)
+
+        # Verify optimizer was called and result stored
+        mock_optimizer.optimize.assert_called_once()
+        self.assertIs(ba._last_cuda_result, mock_result)
+        self.assertEqual(ba._last_cuda_result.iterations, 7)
+
+    def test_cuda_optimization_cpu_fallback_diagnostic_logged(self):
+        """Ensure CpuFallback diagnostic from CUDA optimizer is reported."""
+        ba = BundleAdjustmentOptimizer(
+            reproj_error_thresholds=[100.0],
+            min_tracks_per_camera=5,
+            use_cuda=True,
+            cuda_linear_solver="CUDSS",
+        )
+
+        mock_cuda = MagicMock()
+        mock_cuda.LinearSolverType.Cudss = "Cudss"
+        mock_cuda.SparseLevenbergMarquardtBackend.CpuFallback = "CpuFallback"
+
+        mock_result = MagicMock()
+        mock_result.backend = mock_cuda.SparseLevenbergMarquardtBackend.CpuFallback
+        mock_result.fallbackReason = "PlanIncompatible"
+        mock_result.fallbackDetail = "Unsupported factor type"
+        mock_result.termination = "MaxIterations"
+        mock_result.iterations = 3
+        mock_result.initialError = 25.0
+        mock_result.finalError = 1.2
+
+        mock_values = self.test_data.to_values(shared_calib=False)
+        mock_optimizer = MagicMock()
+        mock_optimizer.optimize.return_value = mock_values
+        mock_optimizer.result.return_value = mock_result
+        mock_cuda.SparseLevenbergMarquardtOptimizer.return_value = mock_optimizer
+
+        with patch.object(gtsam, "cuda", mock_cuda, create=True):
+            computed_result, error = ba.run_simple_ba(self.test_data)
+
+        self.assertEqual(ba._last_cuda_result.fallbackReason, "PlanIncompatible")
+        self.assertEqual(ba._last_cuda_result.fallbackDetail, "Unsupported factor type")
+
+    def test_cuda_gnc_incompatibility_handling(self):
+        """Ensure GNC with use_cuda logs warning or raises error depending on fallback setting."""
+        # Fallback allowed -> warns and runs CPU GNC
+        ba_fallback = BundleAdjustmentOptimizer(
+            reproj_error_thresholds=[100.0],
+            min_tracks_per_camera=5,
+            use_cuda=True,
+            use_gnc=True,
+            cuda_fallback_on_unsupported=True,
+        )
+        computed_result, error = ba_fallback.run_simple_ba(self.test_data)
+        self.assertIsNotNone(computed_result)
+
+        # Fallback disallowed -> raises ValueError
+        ba_no_fallback = BundleAdjustmentOptimizer(
+            reproj_error_thresholds=[100.0],
+            min_tracks_per_camera=5,
+            use_cuda=True,
+            use_gnc=True,
+            cuda_fallback_on_unsupported=False,
+        )
+        with self.assertRaises(ValueError) as context:
+            ba_no_fallback.run_simple_ba(self.test_data)
+        self.assertIn("GNC bundle adjustment is not supported by the CUDA Sparse LM optimizer", str(context.exception))
+
+    def test_cuda_invalid_solver_backend_raises(self):
+        """Ensure unsupported backend strings raise a ValueError."""
+        ba = BundleAdjustmentOptimizer(
+            reproj_error_thresholds=[100.0],
+            min_tracks_per_camera=5,
+            use_cuda=True,
+            cuda_linear_solver="UNKNOWN_BACKEND",
+        )
+        mock_cuda = MagicMock()
+        with patch.object(gtsam, "cuda", mock_cuda, create=True):
+            with self.assertRaises(ValueError) as context:
+                ba.run_simple_ba(self.test_data)
+            self.assertIn("Unsupported CUDA linear solver type: 'UNKNOWN_BACKEND'", str(context.exception))
 
 
 if __name__ == "__main__":
