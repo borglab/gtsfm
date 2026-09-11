@@ -618,7 +618,8 @@ class BundleAdjustmentOptimizer:
         final_error = getattr(diagnostics, "finalError", float("nan"))
 
         logger.info(
-            "🚀 CUDA Sparse LM completed: backend=%s, termination=%s, iterations=%d, initial error=%.4f, final error=%.4f",
+            "🚀 CUDA Sparse LM completed: backend=%s, termination=%s, iterations=%d, "
+            "initial error=%.4f, final error=%.4f",
             backend_val,
             termination_val,
             iterations,
@@ -627,8 +628,9 @@ class BundleAdjustmentOptimizer:
         )
 
         is_cpu_fallback = False
-        if hasattr(cuda, "SparseLevenbergMarquardtBackend") and hasattr(cuda.SparseLevenbergMarquardtBackend, "CpuFallback"):
-            is_cpu_fallback = (backend_val == cuda.SparseLevenbergMarquardtBackend.CpuFallback)
+        cuda_backend = getattr(cuda, "SparseLevenbergMarquardtBackend", None)
+        if cuda_backend is not None and hasattr(cuda_backend, "CpuFallback"):
+            is_cpu_fallback = backend_val == cuda_backend.CpuFallback
         elif "CpuFallback" in str(backend_val):
             is_cpu_fallback = True
 
