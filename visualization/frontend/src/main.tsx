@@ -1277,7 +1277,7 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
         throw new Error("The Modal workspace must pass its health check before a reconstruction can start.");
       }
       const payload = { ...form,
-        loader: formatAutomatic ? "auto" : form.loader, api_key: form.execution_target === "remote" ? modalBearerToken(form) : "", loader_options: loaderOptions,
+        loader: form.loader, api_key: form.execution_target === "remote" ? modalBearerToken(form) : "", loader_options: loaderOptions,
         hardware: form.execution_target === "remote" ? form.remote_hardware : form.hardware,
         max_resolution: form.max_resolution ? Number(form.max_resolution) : null,
         num_workers: Number(form.num_workers), threads_per_worker: Number(form.threads_per_worker),
@@ -1361,17 +1361,15 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
         </div>}
         <p className="field-help sample-help">Dataset format, VGGT model, resolution, and available loader settings are applied automatically.</p>
       </div>}
-      <SelectField label="Dataset format" value={formatAutomatic ? "auto" : form.loader} options={formatOptions} onChange={(value) => {
-        if (value === "auto") {
-          setFormatAutomatic(true);
-          if (formatDetection) {
-            set("loader", formatDetection.loader);
-            setLoaderOptions(formatDetection.loader_options ?? {});
-          }
-          return;
-        }
-        setFormatAutomatic(false); set("loader", value); setLoaderOptions({});
-      }} />
+      <SelectField
+        label="Dataset format"
+        value={form.loader}
+        options={schema.loaders}
+        onChange={(value) => {
+          set("loader", value);
+          setLoaderOptions({});
+        }}
+      />
       {formatAutomatic && <p className={`field-help format-detection ${formatDetection?.confidence === 0 ? "warning" : ""}`}>
         {formatDetection ? <><strong>{displayName(formatDetection.loader)}</strong> · {formatDetection.reason}</> : "Upload a dataset or choose a GitHub sample and the backend will inspect its directory structure."}
       </p>}
