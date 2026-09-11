@@ -30,6 +30,7 @@ from gtsfm.multi_view_optimizer import get_2d_tracks
 from gtsfm.products.visibility_graph import visibility_graph_keys
 from gtsfm.two_view_estimator import TwoViewEstimator
 from gtsfm.ui.gtsfm_process import UiMetadata
+from gtsfm.view_graph_estimator.view_graph_calibration import calibrate_view_graph
 import gtsam
 
 from gtsfm.utils import torch as torch_utils
@@ -132,6 +133,7 @@ def _build_gtsfm_data_from_vggt_depth(
     image_indices: tuple[int, ...],
     num_images: int,
     min_track_length: int = 2,
+    refined_intrinsics: Optional[dict[int, gtsfm_types.CALIBRATION_TYPE]] = None,
 ) -> GtsfmData:
     """Build GtsfmData using VGGT cameras (rescaled to original resolution) and frontend 2D tracks.
 
@@ -159,14 +161,19 @@ def _build_gtsfm_data_from_vggt_depth(
     _, H_vggt, W_vggt = dense_points.shape[:3]
     global_to_local = {gidx: lidx for lidx, gidx in enumerate(image_indices)}
 
-    # Register cameras with intrinsics rescaled to original image resolution.
+    # Register cameras with intrinsics in original image resolution. If
+    # `refined_intrinsics` is supplied (from view-graph calibration), use those
+    # directly; otherwise rescale VGGT's predicted intrinsics from VGGT pixel space.
     gtsfm_data = GtsfmData(number_images=num_images)
     for global_idx, camera in cameras.items():
         if global_idx in image_shapes and global_idx in global_to_local:
-            _, orig_W = image_shapes[global_idx]
-            local_idx = global_to_local[global_idx]
-            scaled_W = float(original_coords[local_idx, 4])
-            camera = _scale_camera_intrinsics(camera, scale=orig_W / scaled_W)
+            if refined_intrinsics is not None:
+                camera = type(camera)(camera.pose(), refined_intrinsics[global_idx])
+            else:
+                _, orig_W = image_shapes[global_idx]
+                local_idx = global_to_local[global_idx]
+                scaled_W = float(original_coords[local_idx, 4])
+                camera = _scale_camera_intrinsics(camera, scale=orig_W / scaled_W)
         gtsfm_data.add_camera(global_idx, camera)
 
     for track_2d in tracks_2d:
@@ -220,6 +227,38 @@ def _build_gtsfm_data_from_vggt_depth(
     return gtsfm_data
 
 
+def _refine_vggt_intrinsics_via_view_graph(
+    vggt_result: VggtGeometryResult,
+    v_corr_idxs: dict,
+    keypoints_list: list,
+    image_shapes: dict[int, tuple[int, int]],
+    image_indices: tuple[int, ...],
+) -> dict[int, gtsfm_types.CALIBRATION_TYPE]:
+    """Refine focal lengths via Fetzer joint optimization over F-matrix edges.
+
+    Returns intrinsics in ORIGINAL image coordinates (suitable for use with the
+    frontend keypoints). VGGT's predicted intrinsics are rescaled to original
+    image coords first, then handed to `calibrate_view_graph` as the initial
+    estimate. VGGT's predicted poses are unchanged — only intrinsics are refined.
+    """
+    initial_intrinsics: dict[int, gtsfm_types.CALIBRATION_TYPE] = {}
+    for local_idx, global_idx in enumerate(image_indices):
+        if global_idx in vggt_result.cameras and global_idx in image_shapes:
+            _, orig_W = image_shapes[global_idx]
+            scaled_W = float(vggt_result.original_coords[local_idx, 4])
+            scale = orig_W / scaled_W if scaled_W > 0 else 1.0
+            scaled_cam = _scale_camera_intrinsics(vggt_result.cameras[global_idx], scale=scale)
+            initial_intrinsics[global_idx] = scaled_cam.calibration()
+
+    keypoints = {gidx: keypoints_list[gidx] for gidx in image_indices}
+    refined, _edges_to_remove = calibrate_view_graph(
+        v_corr_idxs_dict=v_corr_idxs,
+        keypoints=keypoints,
+        initial_intrinsics=initial_intrinsics,
+    )
+    return refined
+
+
 class ClusterVGGTWithFrontend(ClusterMVO):
     """Cluster optimizer that combines a traditional MVO frontend with VGGT poses.
 
@@ -250,6 +289,8 @@ class ClusterVGGTWithFrontend(ClusterMVO):
         save_two_view_viz: bool = False,
         pose_angular_error_thresh: float = 3,
         output_worker: Optional[str] = None,
+        use_view_graph_calibration: bool = False,
+        use_multi_view_retriangulation: bool = False,
     ) -> None:
         super().__init__(
             correspondence_generator=correspondence_generator,
@@ -268,6 +309,8 @@ class ClusterVGGTWithFrontend(ClusterMVO):
         self._metric_constructed_only = metric_constructed_only
         self._input_mode = input_mode
         self._seed = seed
+        self._use_view_graph_calibration = use_view_graph_calibration
+        self._use_multi_view_retriangulation = use_multi_view_retriangulation
 
         self._weights_path = Path(weights_path) if weights_path is not None else None
         self._loader_kwargs: dict[str, Any] = {}
@@ -343,6 +386,18 @@ class ClusterVGGTWithFrontend(ClusterMVO):
         # 4. Original image shapes (needed to map frontend pixel coords → VGGT pixel coords).
         image_shapes_graph = delayed(_get_image_shapes)(context.loader, global_indices)
 
+        # 4b. Optional: refine VGGT's predicted intrinsics via Fetzer joint
+        # optimization over the frontend's F-matrices (keeps VGGT's predicted poses).
+        refined_intrinsics_graph = None
+        if self._use_view_graph_calibration:
+            refined_intrinsics_graph = delayed(_refine_vggt_intrinsics_via_view_graph)(
+                vggt_result_graph,
+                v_corr_idxs_graph,
+                frontend_graphs.padded_keypoints,
+                image_shapes_graph,
+                global_indices,
+            )
+
         # 5. Build GtsfmData: lift 2D tracks to 3D using VGGT depth map.
         ba_input_graph = delayed(_build_gtsfm_data_from_vggt_depth)(
             vggt_result_graph,
@@ -351,6 +406,7 @@ class ClusterVGGTWithFrontend(ClusterMVO):
             image_indices=global_indices,
             num_images=context.num_images,
             min_track_length=self._min_track_length,
+            refined_intrinsics=refined_intrinsics_graph,
         )
 
         # 6. Cluster-level BA.
@@ -362,6 +418,8 @@ class ClusterVGGTWithFrontend(ClusterMVO):
             drop_camera_with_no_track=self._drop_camera_with_no_track,
             min_track_length=self._min_track_length,
             cluster_label=context.label,
+            tracks_2d=tracks_2d_graph,
+            use_multi_view_retriangulation=self._use_multi_view_retriangulation,
         )
 
         # 7. Metrics + I/O.
