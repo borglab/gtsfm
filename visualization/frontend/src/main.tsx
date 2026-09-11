@@ -1492,7 +1492,7 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
       }
       const expertOverrides = form.advanced_overrides.split("\n");
       const payload = { ...form,
-        loader: formatAutomatic ? "auto" : form.loader,
+        loader: form.loader,
         hydra_overrides: modelHydraOverrides,
         advanced_overrides: expertOverrides.map((line) => line.trim()).filter(Boolean),
         gaussian_splatting_overrides: splatHydraOverrides,
@@ -1580,17 +1580,15 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
         </div>}
         <p className="field-help sample-help">Dataset format, VGGT model, resolution, and available loader settings are applied automatically.</p>
       </div>}
-      <SelectField label="Dataset format" value={formatAutomatic ? "auto" : form.loader} options={formatOptions} onChange={(value) => {
-        if (value === "auto") {
-          setFormatAutomatic(true);
-          if (formatDetection) {
-            set("loader", formatDetection.loader);
-            setLoaderOptions(formatDetection.loader_options ?? {});
-          }
-          return;
-        }
-        setFormatAutomatic(false); set("loader", value); setLoaderOptions({});
-      }} />
+      <SelectField
+        label="Dataset format"
+        value={form.loader}
+        options={schema.loaders}
+        onChange={(value) => {
+          set("loader", value);
+          setLoaderOptions({});
+        }}
+      />
       {formatAutomatic && <p className={`field-help format-detection ${formatDetection?.confidence === 0 ? "warning" : ""}`}>
         {formatDetection ? <><strong>{displayName(formatDetection.loader)}</strong> · {formatDetection.reason}</> : "Upload a dataset or choose a GitHub sample and the backend will inspect its directory structure."}
       </p>}
