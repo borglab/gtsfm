@@ -10,6 +10,7 @@ import platform
 import re
 import shutil
 import signal
+import ssl
 import subprocess
 import sys
 import tarfile
@@ -19,19 +20,21 @@ import time
 import uuid
 import urllib.error
 import urllib.request
-from functools import lru_cache
-from urllib.parse import urljoin, urlparse
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Mapping
+from urllib.parse import urljoin, urlparse
 
-import gtsfm
+import certifi
 import yaml
 
+import gtsfm
 
 PACKAGE_ROOT = Path(gtsfm.__file__).resolve().parent
 CONFIG_ROOT = PACKAGE_ROOT / "configs"
+_SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
 _RUN_NAME_PATTERN = re.compile(r"[^A-Za-z0-9._-]+")
 _OPTIONAL_SUBMODULES = {
     "submodule-anysplat": {
@@ -881,7 +884,7 @@ class JobManager:
             method="POST" if payload is not None else "GET",
             headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
         )
-        with urllib.request.urlopen(request, timeout=120) as response:
+        with urllib.request.urlopen(request, timeout=120, context=_SSL_CONTEXT) as response:
             result = json.loads(response.read().decode("utf-8"))
         if not isinstance(result, dict):
             raise ValueError("Remote workspace returned an invalid response")
@@ -893,7 +896,10 @@ class JobManager:
         destination.parent.mkdir(parents=True, exist_ok=True)
         temporary = destination.with_suffix(f"{destination.suffix}.part")
         try:
-            with urllib.request.urlopen(request, timeout=300) as response, temporary.open("wb") as output:
+            with (
+                urllib.request.urlopen(request, timeout=300, context=_SSL_CONTEXT) as response,
+                temporary.open("wb") as output,
+            ):
                 shutil.copyfileobj(response, output)
             temporary.replace(destination)
         finally:
@@ -930,7 +936,7 @@ class JobManager:
             parsed = urlparse(endpoint)
             if parsed.scheme == "https":
                 connection: http.client.HTTPConnection = http.client.HTTPSConnection(
-                    parsed.hostname, parsed.port or 443, timeout=3600
+                    parsed.hostname, parsed.port or 443, timeout=3600, context=_SSL_CONTEXT
                 )
             elif parsed.scheme == "http":
                 connection = http.client.HTTPConnection(parsed.hostname, parsed.port or 80, timeout=3600)
