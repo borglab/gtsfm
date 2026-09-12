@@ -358,7 +358,6 @@ interface UploadedFolder {
   file_count: number;
   bytes: number;
   analysis: DatasetAnalysis;
-  format_detection: DatasetFormatDetection;
 }
 
 interface DatasetAnalysis {
@@ -368,16 +367,6 @@ interface DatasetAnalysis {
   average_megapixels: number;
   max_width: number;
   max_height: number;
-}
-
-interface DatasetFormatDetection {
-  loader: string;
-  confidence: number;
-  reason: string;
-  dataset_subdir?: string | null;
-  images_dir?: string | null;
-  loader_options: LoaderValues;
-  alternatives: string[];
 }
 
 interface SampleDataset extends Choice {
@@ -1063,8 +1052,6 @@ interface RunFormProps {
 function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabChange, remotePromptKey, schemaLoading, schemaError, onRetrySchema }: RunFormProps) {
   const [form, setForm] = useState<RunFormState>(EMPTY_FORM);
   const [inputMode, setInputMode] = useState<"upload" | "sample">("upload");
-  const [formatAutomatic, setFormatAutomatic] = useState(true);
-  const [formatDetection, setFormatDetection] = useState<DatasetFormatDetection | null>(null);
   const [loaderOptions, setLoaderOptions] = useState<LoaderValues>({});
   const [remote, setRemote] = useState<RemoteWorkspace | null>(null);
   const [remoteMessage, setRemoteMessage] = useState("");
@@ -1169,7 +1156,6 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
   const selectedHardware = hardware?.devices.find((item) => item.id === form.hardware);
   const machineProfile = advancedMachineProfile(form, hardware, selectedHardware);
   const selectedSample = samples.find((item) => item.id === form.sample_id);
-  const formatOptions: Choice[] = [{ id: "auto", label: "Auto-detect · Recommended" }, ...schema.loaders.map((loader) => ({ id: loader, label: displayName(loader) }))];
   const datasetAnalysis = inputMode === "sample"
     ? preparedSample?.analysis
     : imagesFolder?.analysis?.image_count ? imagesFolder.analysis : datasetFolder?.analysis;
@@ -1449,19 +1435,10 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
     setPreparedSample(null);
     setSampleMessage("");
     if (!sample) {
-      setFormatDetection(null);
       setForm((current) => ({ ...current, sample_id: "", dataset_dir: "" }));
       return;
     }
     const recommendations = sample.recommendations;
-    setFormatAutomatic(true);
-    setFormatDetection({
-      loader: recommendations.loader,
-      confidence: 1,
-      reason: "Verified from the sample's upstream GitHub directory structure.",
-      loader_options: recommendations.loader_options ?? {},
-      alternatives: [],
-    });
     setLoaderOptions(recommendations.loader_options ?? {});
     setForm((current) => ({
       ...current,
@@ -1492,7 +1469,7 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
       }
       const expertOverrides = form.advanced_overrides.split("\n");
       const payload = { ...form,
-        loader: formatAutomatic ? "auto" : form.loader,
+        loader: form.loader,
         hydra_overrides: modelHydraOverrides,
         advanced_overrides: expertOverrides.map((line) => line.trim()).filter(Boolean),
         gaussian_splatting_overrides: splatHydraOverrides,
@@ -1546,14 +1523,12 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
       <TextField label="Run name" value={form.name} onChange={(value) => set("name", value)} autoComplete="off" />
       <div className="segmented input-source" role="group" aria-label="Input source">
         <button type="button" className={`target-choice ${inputMode === "upload" ? "active" : ""}`} onClick={() => {
-          setInputMode("upload"); setFormatAutomatic(true); setFormatDetection(datasetFolder?.format_detection ?? null);
-          setLoaderOptions(datasetFolder?.format_detection.loader_options ?? {});
-          setForm((current) => ({ ...current, sample_id: "", dataset_dir: datasetFolder?.path ?? "", images_dir: imagesFolder?.path ?? "", loader: datasetFolder?.format_detection.loader ?? current.loader }));
+          setInputMode("upload"); setLoaderOptions({});
+          setForm((current) => ({ ...current, sample_id: "", dataset_dir: datasetFolder?.path ?? "", images_dir: imagesFolder?.path ?? "" }));
         }}><FolderUp size={13} /> Upload your own</button>
         <button type="button" className={`target-choice ${inputMode === "sample" ? "active" : ""}`} onClick={() => {
-          setInputMode("sample"); setFormatAutomatic(true);
+          setInputMode("sample");
           const recommendations = preparedSample?.sample.recommendations;
-          setFormatDetection(recommendations ? { loader: recommendations.loader, confidence: 1, reason: "Verified from the sample's upstream GitHub directory structure.", loader_options: recommendations.loader_options ?? {}, alternatives: [] } : null);
           setLoaderOptions(recommendations?.loader_options ?? {});
           setForm((current) => ({ ...current, sample_id: preparedSample?.sample.id ?? "", dataset_dir: preparedSample?.path ?? "", images_dir: "", loader: recommendations?.loader ?? current.loader }));
         }}><Database size={13} /> GTSFM samples</button>
@@ -1561,11 +1536,6 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
       {inputMode === "upload" ? <>
         <FolderDropField label="Dataset folder" value={datasetFolder} onError={setError} onUploaded={(folder) => {
           setDatasetFolder(folder); set("dataset_dir", folder?.path ?? "");
-          setFormatDetection(folder?.format_detection ?? null);
-          if (formatAutomatic && folder?.format_detection) {
-            set("loader", folder.format_detection.loader);
-            setLoaderOptions(folder.format_detection.loader_options ?? {});
-          }
           if (folder && form.name === "my-scene") set("name", folder.name.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "my-scene");
         }} />
         <FolderDropField label="Separate images folder" optional value={imagesFolder} onError={setError} onUploaded={(folder) => {
@@ -1580,20 +1550,15 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
         </div>}
         <p className="field-help sample-help">Dataset format, VGGT model, resolution, and available loader settings are applied automatically.</p>
       </div>}
-      <SelectField label="Dataset format" value={formatAutomatic ? "auto" : form.loader} options={formatOptions} onChange={(value) => {
-        if (value === "auto") {
-          setFormatAutomatic(true);
-          if (formatDetection) {
-            set("loader", formatDetection.loader);
-            setLoaderOptions(formatDetection.loader_options ?? {});
-          }
-          return;
-        }
-        setFormatAutomatic(false); set("loader", value); setLoaderOptions({});
-      }} />
-      {formatAutomatic && <p className={`field-help format-detection ${formatDetection?.confidence === 0 ? "warning" : ""}`}>
-        {formatDetection ? <><strong>{displayName(formatDetection.loader)}</strong> · {formatDetection.reason}</> : "Upload a dataset or choose a GitHub sample and the backend will inspect its directory structure."}
-      </p>}
+      <SelectField
+        label="Dataset format"
+        value={form.loader}
+        options={schema.loaders}
+        onChange={(value) => {
+          set("loader", value);
+          setLoaderOptions({});
+        }}
+      />
       <LoaderOptions descriptors={schema.loader_options[form.loader] ?? []} values={loaderOptions} setValues={setLoaderOptions} />
     </Section>
     <Section number="02" title="Models" subtitle="VGGT is the default reconstruction model">

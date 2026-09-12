@@ -27,7 +27,7 @@ from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, ConfigDict
 from starlette.websockets import WebSocketDisconnect
 
-from visualization.datasets import IMAGE_SUFFIXES, detect_dataset_format
+from visualization.datasets import IMAGE_SUFFIXES
 from visualization.modal_deployment import ModalDeploymentManager, modal_workspace_api_key
 from visualization.runtime import (
     JobManager,
@@ -521,7 +521,6 @@ def create_app(
             "file_count": file_count,
             "bytes": total_bytes,
             "analysis": analyze_image_dataset(dataset_root),
-            "format_detection": detect_dataset_format(dataset_root),
         }
 
     @app.post("/api/uploads/archive", dependencies=[Depends(require_api_key)])
@@ -551,7 +550,6 @@ def create_app(
             "file_count": file_count,
             "bytes": total_bytes,
             "analysis": analyze_image_dataset(upload_root),
-            "format_detection": detect_dataset_format(upload_root),
         }
 
     @app.post("/api/remote/inspect")
