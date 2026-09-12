@@ -21,6 +21,7 @@ import time
 import urllib.error
 import urllib.request
 import uuid
+
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from functools import lru_cache
@@ -34,11 +35,13 @@ import yaml
 import gtsfm
 from visualization.datasets import detect_dataset_format, resolve_relative_loader_paths
 
+
 PACKAGE_ROOT = Path(gtsfm.__file__).resolve().parent
 CONFIG_ROOT = PACKAGE_ROOT / "configs"
 _SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
 _REMOTE_REQUEST_TIMEOUT_SECONDS = 10 * 60
 _REMOTE_READ_RETRIES = 3
+
 _RUN_NAME_PATTERN = re.compile(r"[^A-Za-z0-9._-]+")
 _HYDRA_CONFIGURATION_LOCK = threading.RLock()
 _OPTIONAL_SUBMODULES = {
@@ -1263,6 +1266,7 @@ class JobManager:
                 if attempt + 1 >= attempts:
                     raise
                 time.sleep(0.25 * (2**attempt))
+
         if not isinstance(result, dict):
             raise ValueError("Remote workspace returned an invalid response")
         return result
