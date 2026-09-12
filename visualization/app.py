@@ -521,7 +521,6 @@ def create_app(
             "file_count": file_count,
             "bytes": total_bytes,
             "analysis": analyze_image_dataset(dataset_root),
-            "format_detection": detect_dataset_format(dataset_root),
         }
 
     @app.post("/api/uploads/archive", dependencies=[Depends(require_api_key)])
@@ -550,7 +549,7 @@ def create_app(
             "path": str(upload_root),
             "file_count": file_count,
             "bytes": total_bytes,
-            "analysis": analyze_image_dataset(upload_root)
+            "analysis": analyze_image_dataset(upload_root),
         }
 
     @app.post("/api/remote/inspect")

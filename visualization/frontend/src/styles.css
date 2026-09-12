@@ -1258,24 +1258,6 @@ input[type="checkbox"] {
   font-family: "SFMono-Regular", Consolas, monospace;
 }
 
-.format-detection {
-  margin-top: -7px;
-  padding: 8px 9px;
-  border-left: 2px solid var(--success);
-  background: #eef4ef;
-  color: #526159;
-}
-
-.format-detection strong {
-  color: #315843;
-}
-
-.format-detection.warning {
-  border-left-color: #b78d38;
-  background: #f7f3e8;
-  color: #746748;
-}
-
 .mini-heading {
   margin: 1px 0 10px;
   color: var(--ink-soft);
