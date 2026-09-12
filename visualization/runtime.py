@@ -31,7 +31,7 @@ import certifi
 import yaml
 
 import gtsfm
-from visualization.datasets import detect_dataset_format, resolve_relative_loader_paths
+from visualization.datasets import resolve_relative_loader_paths
 
 PACKAGE_ROOT = Path(gtsfm.__file__).resolve().parent
 CONFIG_ROOT = PACKAGE_ROOT / "configs"
@@ -660,7 +660,7 @@ def build_runner_args(spec: Mapping[str, Any], output_root: Path) -> tuple[list[
         "--worker_memory_limit",
         str(spec.get("worker_memory_limit") or "32GB"),
     ]
-    
+
     images_dir = str(spec.get("images_dir") or "").strip()
     if images_dir:
         resolved_images = Path(images_dir).expanduser().resolve()
@@ -685,7 +685,6 @@ def build_runner_args(spec: Mapping[str, Any], output_root: Path) -> tuple[list[
     loader_option_values = spec.get("loader_options") or {}
     if not isinstance(loader_option_values, Mapping):
         raise ValueError("Loader options must be an object")
-    loader_option_values = {**detected_options, **loader_option_values}
     loader_option_values, _ = resolve_relative_loader_paths(dataset_dir, loader_option_values, None)
     unknown_loader_options = set(loader_option_values) - set(loader_option_schema)
     if unknown_loader_options:

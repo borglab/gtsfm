@@ -165,32 +165,6 @@ def test_loader_specific_options_are_validated_and_forwarded(tmp_path: Path, mon
     assert "loader.stride=2" in args
 
 
-def test_build_runner_args_auto_detects_dataset_loader(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    dataset = tmp_path / "dataset"
-    (dataset / "image").mkdir(parents=True)
-    (dataset / "intrinsic").mkdir()
-    (dataset / "pose").mkdir()
-    (dataset / "image" / "000.jpg").write_bytes(b"image")
-    (dataset / "intrinsic" / "000.txt").write_text("intrinsics", encoding="utf-8")
-    (dataset / "pose" / "000.txt").write_text("pose", encoding="utf-8")
-    monkeypatch.setattr(runtime, "detect_hardware", _cuda_hardware)
-
-    args, _ = runtime.build_runner_args(
-        {
-            "config_name": "vggt",
-            "loader": "auto",
-            "dataset_dir": str(dataset),
-            "hardware": "cpu",
-            "splat_implementation": "none",
-        },
-        tmp_path / "output",
-    )
-
-    assert args[args.index("--loader") + 1] == "mobilebrick"
-    assert args[args.index("--images_dir") + 1] == str((dataset / "image").resolve())
-    assert "loader.use_gt_intrinsics=true" in args
-
-
 def test_workspace_api_and_scene_discovery(tmp_path: Path) -> None:
     scene = tmp_path / "example" / "ba_output"
     scene.mkdir(parents=True)
@@ -544,7 +518,6 @@ def test_workspace_imports_dropped_folder(tmp_path: Path) -> None:
     assert response.json()["analysis"]["image_count"] == 1
     assert response.json()["analysis"]["total_megapixels"] == 0.96
     assert response.json()["analysis"]["max_width"] == 1200
-    assert response.json()["format_detection"]["loader"] == "one_d_sfm"
     assert imported.is_dir()
     assert (imported / "images" / "one.jpg").read_bytes() == image_buffer.getvalue()
     assert (imported / "cameras.txt").read_bytes() == b"camera"

@@ -19,8 +19,7 @@ from typing import Annotated, Any
 from urllib.parse import quote, urlparse
 
 import uvicorn
-from fastapi import (Depends, FastAPI, File, Form, Header, HTTPException,
-                     Request, UploadFile, WebSocket)
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile, WebSocket
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -29,13 +28,15 @@ from pydantic import BaseModel, ConfigDict
 from starlette.websockets import WebSocketDisconnect
 
 from visualization.datasets import IMAGE_SUFFIXES
-from visualization.modal_deployment import (ModalDeploymentManager,
-                                            modal_workspace_api_key)
-from visualization.runtime import (JobManager, configuration_schema,
-                                   detect_hardware, install_optional_setup,
-                                   setup_status)
-from visualization.samples import (SampleDownloadError, prepare_sample,
-                                   sample_catalog)
+from visualization.modal_deployment import ModalDeploymentManager, modal_workspace_api_key
+from visualization.runtime import (
+    JobManager,
+    configuration_schema,
+    detect_hardware,
+    install_optional_setup,
+    setup_status,
+)
+from visualization.samples import SampleDownloadError, prepare_sample, sample_catalog
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
 STATIC_ROOT = PACKAGE_ROOT / "static"
@@ -502,7 +503,6 @@ def create_app(
             "file_count": file_count,
             "bytes": total_bytes,
             "analysis": analyze_image_dataset(dataset_root),
-            "format_detection": detect_dataset_format(dataset_root),
         }
 
     @app.post("/api/uploads/archive", dependencies=[Depends(require_api_key)])
@@ -531,7 +531,7 @@ def create_app(
             "path": str(upload_root),
             "file_count": file_count,
             "bytes": total_bytes,
-            "analysis": analyze_image_dataset(upload_root)
+            "analysis": analyze_image_dataset(upload_root),
         }
 
     @app.post("/api/remote/inspect")
