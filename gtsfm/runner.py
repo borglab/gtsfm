@@ -51,7 +51,6 @@ def _shutdown_dask_client(client: Client) -> None:
         logger.warning("Dask client force-close did not finish before process exit: %s", exc)
 
 
-
 class GtsfmRunner:
     def __init__(self, override_args=None) -> None:
         argparser: argparse.ArgumentParser = self.construct_argparser()

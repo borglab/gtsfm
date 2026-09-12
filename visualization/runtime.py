@@ -773,7 +773,7 @@ def _editable_hydra_leaves(value: object, prefix: str = "") -> list[dict[str, An
 
 def _composed_model_configuration(config_name: str, loader: str, overrides: list[str] | None = None) -> dict[str, Any]:
     """Compose a root preset exactly as the runner does, without importing Hydra at startup."""
-    
+
     compose_overrides = ["+output_root=/tmp", f"+loader@loader={loader}", "loader.dataset_dir=/tmp"]
     compose_overrides.extend(overrides or [])
     with _HYDRA_CONFIGURATION_LOCK:
