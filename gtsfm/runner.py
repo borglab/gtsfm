@@ -3,8 +3,9 @@
 import argparse
 import logging
 import os
+import threading
 from pathlib import Path
-from typing import TYPE_CHECKING, cast, Optional
+from typing import TYPE_CHECKING, Optional, cast
 
 import hydra
 from dask import config as dask_config
@@ -16,6 +17,7 @@ import gtsfm.utils.logger as logger_utils
 from gtsfm.cluster_optimizer import Multiview
 from gtsfm.loader.configuration import add_loader_args, build_loader_overrides
 from gtsfm.utils.configuration import log_full_configuration
+from gtsfm.utils.dask_stats import publish as publish_dask_stats
 
 dask_config.set({"distributed.scheduler.worker-ttl": None})
 
@@ -115,6 +117,12 @@ class GtsfmRunner:
             type=str,
             default="base_gs",
             help="Override flag for your own gaussian splatting implementation.",
+        )
+        parser.add_argument(
+            "--gs_max_steps",
+            type=int,
+            default=None,
+            help="Override the Gaussian Splatting training iteration count.",
         )
 
         # Logging and output configuration
@@ -251,6 +259,8 @@ class GtsfmRunner:
         if cluster_optimizer_is_multiview:
             self._set_mvo_overwrites(scene_optimizer, main_cfg)
 
+        self._set_gaussian_splatting_overwrite(scene_optimizer, main_cfg)
+
         scene_optimizer._config_snapshot = main_cfg
 
         return scene_optimizer
@@ -291,24 +301,42 @@ class GtsfmRunner:
             logger.info("🔄 Disabled Multiview dense MVS optimizer via CLI flag --run_mvs=False")
             OmegaConf.update(main_cfg, "cluster_optimizer.dense_multiview_optimizer", None, merge=False)
 
-        # Override gaussian splatting
+    def _set_gaussian_splatting_overwrite(self, scene_optimizer: "SceneOptimizer", main_cfg) -> None:
+        """Attach the selected optimizer to any reconstruction backend that supports splatting."""
+
+        cluster_optimizer = scene_optimizer.cluster_optimizer
+        target_optimizer = getattr(cluster_optimizer, "_optimizer", cluster_optimizer)
+        gs_optimizer_config_path = (
+            "cluster_optimizer.optimizer.gaussian_splatting_optimizer"
+            if target_optimizer is not cluster_optimizer
+            else "cluster_optimizer.gaussian_splatting_optimizer"
+        )
         if self.parsed_args.run_gs:
+            if not hasattr(target_optimizer, "gaussian_splatting_optimizer"):
+                raise ValueError(
+                    f"The selected reconstruction model ({type(target_optimizer).__name__}) does not support "
+                    "iterative Gaussian splatting. Choose VGGT or a multiview configuration."
+                )
             if (gs_config_name := self.parsed_args.gaussian_splatting_config_name) is not None:
                 with hydra.initialize_config_module(
                     config_module="gtsfm.configs.gaussian_splatting", version_base=None
                 ):
                     gs_cfg = hydra.compose(gs_config_name)
                     logger.info(f"🔄 Applying Gaussian Splatting Override: " f"{gs_config_name}")
-                    multiview_optimizer.gaussian_splatting_optimizer = instantiate(gs_cfg.gaussian_splatting_optimizer)
+                    target_optimizer.gaussian_splatting_optimizer = instantiate(gs_cfg.gaussian_splatting_optimizer)
+                    if self.parsed_args.gs_max_steps is not None:
+                        target_optimizer.gaussian_splatting_optimizer.cfg.max_steps = self.parsed_args.gs_max_steps
+                        logger.info("🔄 Setting Gaussian Splatting max steps: %d", self.parsed_args.gs_max_steps)
                     OmegaConf.update(
                         main_cfg,
-                        "cluster_optimizer.gaussian_splatting_optimizer",
+                        gs_optimizer_config_path,
                         gs_cfg.gaussian_splatting_optimizer,
                         merge=False,
                     )
         else:
-            multiview_optimizer.gaussian_splatting_optimizer = None
-            logger.info("🔄 Disabled Multiview Gaussian Splatting optimizer via CLI flag --run_gs=False")
+            if hasattr(target_optimizer, "gaussian_splatting_optimizer"):
+                target_optimizer.gaussian_splatting_optimizer = None
+                logger.info("🔄 Disabled Gaussian Splatting optimizer via CLI flag --run_gs=False")
 
     def setup_ssh_cluster_with_retries(self):
         """Sets up SSH Cluster allowing multiple retries upon connection failures."""
@@ -449,20 +477,33 @@ class GtsfmRunner:
         """Just create the client and call scene optimizer."""
         logger.info("🌟 GTSFM: Creating Dask client...")
         client = self._create_dask_client()
+        stats_stop = threading.Event()
+        stats_thread: threading.Thread | None = None
+        live_dir = os.environ.get("GTSFM_LIVE_DIR")
+        if live_dir:
+            stats_thread = threading.Thread(
+                target=publish_dask_stats,
+                args=(client, stats_stop, Path(live_dir) / "dask.json"),
+                daemon=True,
+                name="gtsfm-dask-stats",
+            )
+            stats_thread.start()
 
-        logger.info("🌟 GTSFM: Constructing SceneOptimizer...")
-        self.scene_optimizer = self._construct_scene_optimizer()
+        try:
+            logger.info("🌟 GTSFM: Constructing SceneOptimizer...")
+            self.scene_optimizer = self._construct_scene_optimizer()
 
-        if self._io_worker is not None:
-            self.scene_optimizer.loader._input_worker = self._io_worker
-            self.scene_optimizer.cluster_optimizer._output_worker = self._io_worker
+            if self._io_worker is not None:
+                self.scene_optimizer.loader._input_worker = self._io_worker
+                self.scene_optimizer.cluster_optimizer._output_worker = self._io_worker
 
-        logger.info("🌟 GTSFM: Starting SceneOptimizer...")
-        self.scene_optimizer.run(client)
-
-        # Shutdown the Dask client
-        logger.info("🌟 GTSFM: Shutting down Dask client...")
-        if client is not None:
+            logger.info("🌟 GTSFM: Starting SceneOptimizer...")
+            self.scene_optimizer.run(client)
+        finally:
+            stats_stop.set()
+            if stats_thread is not None:
+                stats_thread.join(timeout=2)
+            logger.info("🌟 GTSFM: Shutting down Dask client...")
             client.shutdown()
 
 

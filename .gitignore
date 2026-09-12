@@ -164,10 +164,13 @@ result_metrics/
 #React Folders/Files to be Ignored
 #   node_modules and .eslintcache are auto generated when a user runs the 
 #   react app for the first time
+node_modules/
+.pnpm-store/
 */node_modules
 */.pnp
 *.pnp.js
 *.eslintcache
+visualization/static/studio.js.map
 # testing
 */coverage
 # production
