@@ -83,7 +83,7 @@ gpu_image = (
         "ninja-build",
     )
     .env(RUNTIME_ENV)
-    .uv_sync(str(SOURCE_ROOT), groups=[], frozen=True, extra_options="--no-default-groups")
+    .uv_sync(str(SOURCE_ROOT), groups=[], extras=["complete"], frozen=True, extra_options="--no-default-groups")
 )
 
 gpu_image = (
