@@ -31,6 +31,7 @@ import certifi
 import yaml
 
 import gtsfm
+from visualization.datasets import resolve_relative_loader_paths
 
 PACKAGE_ROOT = Path(gtsfm.__file__).resolve().parent
 CONFIG_ROOT = PACKAGE_ROOT / "configs"
@@ -638,10 +639,10 @@ def build_runner_args(spec: Mapping[str, Any], output_root: Path) -> tuple[list[
     capabilities = {item["id"]: item["capabilities"] for item in schema["models"]}.get(config_name, {})
     if splat_implementation == "gsplat" and not capabilities.get("iterative_splat"):
         raise ValueError(f"The {config_name} model does not support iterative Gaussian splatting")
-    loader = _validate_choice(spec.get("loader"), schema["loaders"], "loader")
     dataset_dir = Path(str(spec.get("dataset_dir") or "")).expanduser().resolve()
     if not dataset_dir.is_dir():
         raise ValueError(f"Dataset directory does not exist: {dataset_dir}")
+    loader = _validate_choice(spec.get("loader"), schema["loaders"], "loader")
 
     args = [
         "--config_name",
@@ -684,6 +685,7 @@ def build_runner_args(spec: Mapping[str, Any], output_root: Path) -> tuple[list[
     loader_option_values = spec.get("loader_options") or {}
     if not isinstance(loader_option_values, Mapping):
         raise ValueError("Loader options must be an object")
+    loader_option_values, _ = resolve_relative_loader_paths(dataset_dir, loader_option_values, None)
     unknown_loader_options = set(loader_option_values) - set(loader_option_schema)
     if unknown_loader_options:
         raise ValueError(f"Unknown options for the {loader} loader: {', '.join(sorted(unknown_loader_options))}")

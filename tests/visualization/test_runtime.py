@@ -208,7 +208,18 @@ def test_workspace_api_and_scene_discovery(tmp_path: Path) -> None:
     samples_response = client.get("/api/samples")
     assert samples_response.status_code == 200
     samples = {item["id"]: item for item in samples_response.json()["items"]}
-    assert set(samples) == {"lund-door", "crane-mast", "mobilebrick"}
+    assert set(samples) == {
+        "one-d-sfm",
+        "argoverse",
+        "astrovision-vesta",
+        "lund-door",
+        "crane-mast",
+        "hilti-exp4",
+        "imb-reichstag",
+        "mobilebrick",
+        "tanks-temples-barn",
+    }
+    assert samples["crane-mast"]["image_count"] == 2
     assert samples["crane-mast"]["recommendations"]["loader"] == "colmap"
     assert samples["lund-door"]["source_url"].startswith("https://github.com/borglab/gtsfm/")
 

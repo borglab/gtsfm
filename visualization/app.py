@@ -19,8 +19,7 @@ from typing import Annotated, Any
 from urllib.parse import quote, urlparse
 
 import uvicorn
-from fastapi import (Depends, FastAPI, File, Form, Header, HTTPException,
-                     Request, UploadFile, WebSocket)
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile, WebSocket
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -28,19 +27,21 @@ from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, ConfigDict
 from starlette.websockets import WebSocketDisconnect
 
-from visualization.modal_deployment import (ModalDeploymentManager,
-                                            modal_workspace_api_key)
-from visualization.runtime import (JobManager, configuration_schema,
-                                   detect_hardware, install_optional_setup,
-                                   setup_status)
-from visualization.samples import (SampleDownloadError, prepare_sample,
-                                   sample_catalog)
+from visualization.datasets import IMAGE_SUFFIXES
+from visualization.modal_deployment import ModalDeploymentManager, modal_workspace_api_key
+from visualization.runtime import (
+    JobManager,
+    configuration_schema,
+    detect_hardware,
+    install_optional_setup,
+    setup_status,
+)
+from visualization.samples import SampleDownloadError, prepare_sample, sample_catalog
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
 STATIC_ROOT = PACKAGE_ROOT / "static"
 TEMPLATE_ROOT = PACKAGE_ROOT / "templates"
 SPLAT_EXPORT_FORMATS = {"ply"}
-IMAGE_SUFFIXES = {".avif", ".bmp", ".heic", ".heif", ".jpeg", ".jpg", ".png", ".tif", ".tiff", ".webp"}
 _LOG_LEVEL_MESSAGE = re.compile(r"\b(?:DEBUG|INFO|WARNING|ERROR|CRITICAL):\s*(.+)$")
 _PIPELINE_STATUS_MARKERS = (
     "gtsfm:",

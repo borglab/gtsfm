@@ -1253,7 +1253,8 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
       if (form.execution_target === "remote" && form.remote_provider === "modal" && !remote?.verified) {
         throw new Error("The Modal workspace must pass its health check before a reconstruction can start.");
       }
-      const payload = { ...form, api_key: form.execution_target === "remote" ? modalBearerToken(form) : "", loader_options: loaderOptions,
+      const payload = { ...form,
+        loader: form.loader, api_key: form.execution_target === "remote" ? modalBearerToken(form) : "", loader_options: loaderOptions,
         hardware: form.execution_target === "remote" ? form.remote_hardware : form.hardware,
         max_resolution: form.max_resolution ? Number(form.max_resolution) : null,
         num_workers: Number(form.num_workers), threads_per_worker: Number(form.threads_per_worker),
@@ -1303,10 +1304,14 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
       <TextField label="Run name" value={form.name} onChange={(value) => set("name", value)} autoComplete="off" />
       <div className="segmented input-source" role="group" aria-label="Input source">
         <button type="button" className={`target-choice ${inputMode === "upload" ? "active" : ""}`} onClick={() => {
-          setInputMode("upload"); setForm((current) => ({ ...current, sample_id: "", dataset_dir: datasetFolder?.path ?? "", images_dir: imagesFolder?.path ?? "" }));
+          setInputMode("upload"); setLoaderOptions({});
+          setForm((current) => ({ ...current, sample_id: "", dataset_dir: datasetFolder?.path ?? "", images_dir: imagesFolder?.path ?? "" }));
         }}><FolderUp size={13} /> Upload your own</button>
         <button type="button" className={`target-choice ${inputMode === "sample" ? "active" : ""}`} onClick={() => {
-          setInputMode("sample"); setForm((current) => ({ ...current, sample_id: preparedSample?.sample.id ?? "", dataset_dir: preparedSample?.path ?? "", images_dir: "" }));
+          setInputMode("sample");
+          const recommendations = preparedSample?.sample.recommendations;
+          setLoaderOptions(recommendations?.loader_options ?? {});
+          setForm((current) => ({ ...current, sample_id: preparedSample?.sample.id ?? "", dataset_dir: preparedSample?.path ?? "", images_dir: "", loader: recommendations?.loader ?? current.loader }));
         }}><Database size={13} /> GTSFM samples</button>
       </div>
       {inputMode === "upload" ? <>
@@ -1326,7 +1331,15 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
         </div>}
         <p className="field-help sample-help">Dataset format, VGGT model, resolution, and available loader settings are applied automatically.</p>
       </div>}
-      <SelectField label="Dataset format" value={form.loader} options={schema.loaders} onChange={(value) => { set("loader", value); setLoaderOptions({}); }} />
+      <SelectField
+        label="Dataset format"
+        value={form.loader}
+        options={schema.loaders}
+        onChange={(value) => {
+          set("loader", value);
+          setLoaderOptions({});
+        }}
+      />
       <LoaderOptions descriptors={schema.loader_options[form.loader] ?? []} values={loaderOptions} setValues={setLoaderOptions} />
     </Section>
     <Section number="02" title="Models" subtitle="VGGT is the default reconstruction model">
