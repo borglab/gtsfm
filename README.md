@@ -67,9 +67,7 @@ To submit work to a remote GPU machine, start its workspace with an API key:
 GTSFM_API_KEY=your-secret gtsfm run --host 0.0.0.0 --no-browser
 ```
 
-Choose **Remote VM** in the workspace, then select an API or SSH connection. Modal is the first hosted API option: enter its token ID and token secret separately, or paste the full `modal token set --token-id … --token-secret …` command into either field and the workspace will split it automatically. If the account does not already have a GTSFM deployment, click **Set up & deploy Modal workspace**. Modal builds the environment defined in `visualization/modal_app.py`, deploys the protected workspace and persistent `gtsfm-studio-data` volume, and GTSFM discovers and verifies the endpoint.
-
-The Modal image starts from NVIDIA's CUDA base image, installs system packages, and synchronizes Python dependencies from `pyproject.toml` and `uv.lock`. GTSFM, visualization, and third-party source directories are added after the dependency layers. Modal caches unchanged image layers; a first build or dependency change may take longer. No GTSFM runtime image, Docker publishing workflow, or registry credentials are required. The NVIDIA base image is still pulled from its upstream registry.
+Choose **Remote VM** in the workspace, then select an API or SSH connection. For Modal setup, dependency builds, and caching, see the [visualization README](visualization/README.md#modal-deployment).
 
 GTSFM sample datasets are downloaded directly by the remote workspace. User-selected folders are archived and streamed to the protected workspace before the job starts. Live preview splats and the final `.ply` result are mirrored back to the local viewer. Modal account credentials and the derived workspace API key are kept in memory and are not included in public job state. Lambda Cloud, RunPod, Vast.ai, and AWS EC2 are listed as coming soon.
 
