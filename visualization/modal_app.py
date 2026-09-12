@@ -84,6 +84,10 @@ gpu_image = (
     )
     .env(RUNTIME_ENV)
     .uv_sync(str(SOURCE_ROOT), groups=[], extras=["complete"], frozen=True, extra_options="--no-default-groups")
+    .uv_pip_install(
+        "torch-scatter==2.1.2",
+        find_links="https://data.pyg.org/whl/torch-2.7.0+cu128.html",
+    )
 )
 
 gpu_image = (
