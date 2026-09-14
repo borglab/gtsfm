@@ -12,8 +12,9 @@ from gtsam import Pose3
 from PIL import Image as PILImage
 
 import gtsfm.common.types as gtsfm_types
+import gtsfm.data_association.point3d_initializer as point3d_initializer
 import gtsfm.utils.metrics as metrics_utils
-from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptions, multi_view_retriangulate_from_2d_tracks
+from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptions
 from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterComputationGraph, ClusterContext, ClusterOptimizerBase
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.sfm_track import SfmTrack2d
@@ -105,7 +106,7 @@ def _run_cluster_ba(
         # earlier in the pipeline; mirrors the retri stage in
         # BundleAdjustmentOptimizer._run_ba_and_evaluate.
         if use_multi_view_retriangulation and tracks_2d is not None:
-            retri_data = multi_view_retriangulate_from_2d_tracks(
+            retri_data = point3d_initializer.multi_view_retriangulate_from_2d_tracks(
                 gtsfm_data_with_ba, tracks_2d, min_track_length=min_track_length,
             )
             if retri_data.number_tracks() > 0:
