@@ -121,30 +121,28 @@ def _fetzer_residuals(
 
 def calibrate_view_graph(
     v_corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
-    keypoints_list: List[Keypoints],
-    initial_intrinsics: List[gtsfm_types.CALIBRATION_TYPE],
-    num_images: int,
+    keypoints: Dict[int, Keypoints],
+    initial_intrinsics: Dict[int, gtsfm_types.CALIBRATION_TYPE],
     min_correspondences: int = 30,
     min_focal_ratio: float = 0.5,
     max_focal_ratio: float = 2.0,
     max_edge_error: float = 0.5,
-) -> Tuple[List[gtsfm_types.CALIBRATION_TYPE], set]:
+) -> Tuple[Dict[int, gtsfm_types.CALIBRATION_TYPE], set]:
     """Refine camera focal lengths via joint Fetzer optimization over all F-matrix edges.
 
     Also filters edges with high calibration error (GLOMAP FilterImagePairs).
 
     Args:
         v_corr_idxs_dict: Verified correspondence indices per image pair.
-        keypoints_list: Keypoints for all images.
-        initial_intrinsics: Initial intrinsics (e.g., from EXIF or heuristic).
-        num_images: Total number of images.
+        keypoints: Keypoints keyed by image index.
+        initial_intrinsics: Initial intrinsics keyed by image index.
         min_correspondences: Minimum correspondences to attempt F estimation.
         min_focal_ratio: Minimum allowed ratio of optimized/initial focal length.
         max_focal_ratio: Maximum allowed ratio of optimized/initial focal length.
         max_edge_error: Maximum Fetzer residual norm to keep an edge.
 
     Returns:
-        Refined intrinsics list (same length as initial_intrinsics).
+        Refined intrinsics dict (same keys as initial_intrinsics).
         Set of edge keys (i1, i2) to remove from the view graph.
     """
     # Step 1: Estimate F-matrices and collect optimization edges.
@@ -155,8 +153,8 @@ def calibrate_view_graph(
         if v_corr_idxs.shape[0] < min_correspondences:
             continue
 
-        coords_i1 = keypoints_list[i1].coordinates[v_corr_idxs[:, 0]]
-        coords_i2 = keypoints_list[i2].coordinates[v_corr_idxs[:, 1]]
+        coords_i1 = keypoints[i1].coordinates[v_corr_idxs[:, 0]]
+        coords_i2 = keypoints[i2].coordinates[v_corr_idxs[:, 1]]
 
         F = estimate_fundamental_from_correspondences(coords_i1, coords_i2)
         if F is None:
@@ -212,7 +210,7 @@ def calibrate_view_graph(
     optimized_focals = result.x
 
     # Step 4: Validate and build refined intrinsics.
-    refined = list(initial_intrinsics)
+    refined = dict(initial_intrinsics)
     num_refined = 0
     num_rejected = 0
 

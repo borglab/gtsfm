@@ -38,6 +38,7 @@ class MetisPartitioner(GraphPartitionerBase):
         min_child_overlap_for_split: int = 2,
         min_parent_overlap_for_split: int = 2,
         split_oversized_nodes: bool = False,
+        include_all_edges_in_cluster: bool = False,
     ) -> None:
         super().__init__(process_name="MetisPartitioner")
         if min_cameras_to_partition is not None and min_cameras_to_partition < 1:
@@ -55,6 +56,7 @@ class MetisPartitioner(GraphPartitionerBase):
         self._min_child_overlap_for_split = min_child_overlap_for_split
         self._min_parent_overlap_for_split = min_parent_overlap_for_split
         self._split_oversized_nodes = split_oversized_nodes
+        self._include_all_edges_in_cluster = include_all_edges_in_cluster
 
     @staticmethod
     def _is_connected(graph: VisibilityGraph) -> bool:
@@ -684,11 +686,13 @@ class MetisPartitioner(GraphPartitionerBase):
         child_results = self._merge_small_children_at_level(child_results, graph)
         descendant_edges = set.union(*(result.edges for result in child_results)) if child_results else set()
 
-        # Only keep edges that touch at least one frontal variable from this clique.
-        candidate_edges = {
-            (i, j) for i, j in graph if i in keys and j in keys and (i in frontals or j in frontals or not frontals)
-        }
-        current_edges = candidate_edges - descendant_edges
+        if self._include_all_edges_in_cluster:
+            current_edges = {(i, j) for i, j in graph if i in keys and j in keys}
+        else:
+            candidate_edges = {
+                (i, j) for i, j in graph if i in keys and j in keys and (i in frontals or j in frontals or not frontals)
+            }
+            current_edges = candidate_edges - descendant_edges
 
         def sorted_edges(edges: set[tuple[int, int]]) -> list[tuple[int, int]]:
             return sorted(edges)
