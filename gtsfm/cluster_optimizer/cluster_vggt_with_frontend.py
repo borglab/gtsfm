@@ -30,7 +30,7 @@ from gtsfm.multi_view_optimizer import get_2d_tracks
 from gtsfm.products.visibility_graph import visibility_graph_keys
 from gtsfm.two_view_estimator import TwoViewEstimator
 from gtsfm.ui.gtsfm_process import UiMetadata
-from gtsfm.view_graph_estimator.view_graph_calibration import calibrate_view_graph
+from gtsfm.view_graph_estimator import view_graph_calibration
 import gtsam
 
 from gtsfm.utils import torch as torch_utils
@@ -251,7 +251,7 @@ def _refine_vggt_intrinsics_via_view_graph(
             initial_intrinsics[global_idx] = scaled_cam.calibration()
 
     keypoints = {gidx: keypoints_list[gidx] for gidx in image_indices}
-    refined, _edges_to_remove = calibrate_view_graph(
+    refined, _edges_to_remove = view_graph_calibration.calibrate_view_graph(
         v_corr_idxs_dict=v_corr_idxs,
         keypoints=keypoints,
         initial_intrinsics=initial_intrinsics,
