@@ -115,6 +115,11 @@ complete = [
     "xformers==0.0.30 ; sys_platform == 'linux'",
 ]
 
+# RoMa v2 dense matcher (https://github.com/Parskatt/RoMaV2)
+romav2 = [
+    "romav2>=2.0.1",
+]
+
 # Multi-GPU support (only needed for distributed computing with multiple GPUs per node)
 # Requires CUDA-aware hardware and drivers
 multi-gpu = [
@@ -125,6 +130,7 @@ multi-gpu = [
 # All optional features combined (for power users and clusters)
 all = [
     "xformers==0.0.30 ; sys_platform == 'linux'",
+    "romav2>=2.0.1",
     "dask-cuda>=24.8.0 ; sys_platform == 'linux'",
     "cuda-bindings~=12.0 ; sys_platform == 'linux'",  # keep in sync with multi-gpu
 ]
