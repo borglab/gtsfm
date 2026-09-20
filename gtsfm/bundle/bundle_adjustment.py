@@ -470,15 +470,8 @@ class BundleAdjustmentOptimizer:
 
         return graph
 
-    def __optimize_factor_graph_cuda(
-        self,
-        cuda: Any,
-        graph: NonlinearFactorGraph,
-        initial_values: Values,
-        ordering_type: str,
-        start_time: float,
-    ) -> Tuple[Values, Optional[List[Values]], Optional[NDArray[np.float64]]]:
-        """Optimize the factor graph using GTSAM's general CUDA Sparse LM optimizer (PR #2761)."""
+    def __cuda_sparse_lm_params(self, cuda: Any, ordering_type: str) -> Any:
+        """Build CUDA Sparse LM params from the optimizer's CUDA settings."""
         linear = cuda.LinearSolverOptions()
         solver_backend = self._cuda_linear_solver.upper()
         if solver_backend == "PCG":
@@ -501,12 +494,10 @@ class BundleAdjustmentOptimizer:
             params.setMaxIterations(self._max_iterations)
         if self._optimizer_relative_cost_tol is not None:
             params.setRelativeErrorTol(self._optimizer_relative_cost_tol)
+        return params
 
-        optimizer = cuda.SparseLevenbergMarquardtOptimizer(graph, initial_values, params)
-        result_values = optimizer.optimize()
-        diagnostics = optimizer.result()
-        self._last_cuda_result = diagnostics
-
+    def __log_cuda_sparse_lm_result(self, cuda: Any, diagnostics: Any) -> None:
+        """Log CUDA Sparse LM diagnostics and warn on CPU fallback."""
         backend_val = getattr(diagnostics, "backend", "Unknown")
         termination_val = getattr(diagnostics, "termination", "Unknown")
         iterations = getattr(diagnostics, "iterations", 0)
@@ -539,6 +530,22 @@ class BundleAdjustmentOptimizer:
                 fallback_detail,
             )
 
+    def __optimize_factor_graph_cuda(
+        self,
+        cuda: Any,
+        graph: NonlinearFactorGraph,
+        initial_values: Values,
+        ordering_type: str,
+        start_time: float,
+    ) -> Tuple[Values, Optional[List[Values]], Optional[NDArray[np.float64]]]:
+        """Optimize the factor graph using GTSAM's general CUDA Sparse LM optimizer (PR #2761)."""
+        params = self.__cuda_sparse_lm_params(cuda, ordering_type)
+        optimizer = cuda.SparseLevenbergMarquardtOptimizer(graph, initial_values, params)
+        result_values = optimizer.optimize()
+        diagnostics = optimizer.result()
+        self._last_cuda_result = diagnostics
+        self.__log_cuda_sparse_lm_result(cuda, diagnostics)
+
         if self._save_iteration_visualization:
             logger.info("Iterative visualization trace is not supported by batch CUDA Sparse LM; recording endpoints.")
             values_trace = [initial_values, result_values]
@@ -550,6 +557,62 @@ class BundleAdjustmentOptimizer:
         logger.info(f"🚀 Factor graph optimization completed in {elapsed_time:.2f} seconds.")
         return result_values, values_trace, None
 
+    def __optimize_factor_graph_cuda_gnc(
+        self,
+        cuda: Any,
+        graph: NonlinearFactorGraph,
+        initial_values: Values,
+        ordering_type: str,
+        start_time: float,
+    ) -> Tuple[Values, Optional[List[Values]], Optional[NDArray[np.float64]]]:
+        """Optimize with GNC whose inner solver is CUDA Sparse LM (GTSAM CUDA GNC bindings)."""
+        gnc_params_cls = getattr(cuda, "GncSparseLMParams", None)
+        gnc_optimizer_cls = getattr(cuda, "GncSparseLMOptimizer", None)
+        if gnc_params_cls is None or gnc_optimizer_cls is None:
+            raise RuntimeError(
+                "use_cuda=True with use_gnc=True requires a GTSAM build that exposes "
+                "gtsam.cuda.GncSparseLMParams / GncSparseLMOptimizer."
+            )
+
+        inner = self.__cuda_sparse_lm_params(cuda, ordering_type)
+        gnc_params = gnc_params_cls(inner)
+        if self._gnc_loss == RobustBAMode.GMC:
+            gnc_params.setLossType(gtsam.GncLossType.GM)
+        elif self._gnc_loss == RobustBAMode.TLS:
+            gnc_params.setLossType(gtsam.GncLossType.TLS)
+        else:
+            raise ValueError(f"Unsupported GNC loss type for CUDA Sparse LM: {self._gnc_loss}.")
+        gnc_params.setAllowNonNoiseModelFactors(True)
+        verbosity = (
+            gnc_params_cls.Verbosity.SUMMARY if self._print_summary else gnc_params_cls.Verbosity.SILENT
+        )
+        gnc_params.setVerbosityGNC(verbosity)
+        if self._optimizer_relative_cost_tol is not None:
+            gnc_params.setRelativeCostTol(self._optimizer_relative_cost_tol)
+
+        optimizer = gnc_optimizer_cls(graph, initial_values, gnc_params)
+        result_values = optimizer.optimize()
+        weights = np.asarray(optimizer.getWeights(), dtype=np.float64)
+        self._last_cuda_result = None
+
+        logger.info(
+            "🚀 CUDA GNC Sparse LM completed: factors=%d, mean_weight=%.4f, min_weight=%.4f",
+            len(weights),
+            float(np.mean(weights)) if len(weights) else float("nan"),
+            float(np.min(weights)) if len(weights) else float("nan"),
+        )
+
+        if self._save_iteration_visualization:
+            logger.info("Iterative visualization trace is not supported by CUDA GNC Sparse LM; recording endpoints.")
+            values_trace = [initial_values, result_values]
+        else:
+            values_trace = None
+
+        elapsed_time = time.time() - start_time
+        self._last_optimization_duration_sec = elapsed_time
+        logger.info(f"🚀 Factor graph optimization completed in {elapsed_time:.2f} seconds.")
+        return result_values, values_trace, weights
+
     def __optimize_factor_graph(
         self, graph: NonlinearFactorGraph, initial_values: Values, ordering_type: str
     ) -> Tuple[Values, Optional[List[Values]], Optional[NDArray[np.float64]]]:
@@ -558,34 +621,42 @@ class BundleAdjustmentOptimizer:
         self._last_optimization_duration_sec = None
 
         if self._use_cuda:
-            if self._use_gnc:
+            cuda = getattr(gtsam, "cuda", None)
+            if cuda is None:
                 if not self._cuda_fallback_on_unsupported:
-                    raise ValueError(
-                        "GNC bundle adjustment is not supported by the CUDA Sparse LM optimizer. "
-                        "Set use_cuda=False or allow cuda_fallback_on_unsupported=True."
+                    raise RuntimeError(
+                        "use_cuda=True was requested, but GTSAM was not built with CUDA support "
+                        "(gtsam.cuda is missing)."
                     )
                 logger.warning(
-                    "GNC optimization currently does not support CUDA Sparse LM; falling back to CPU GNC LM."
+                    "gtsam.cuda is not available; falling back to CPU LevenbergMarquardtOptimizer."
                 )
-            else:
-                cuda = getattr(gtsam, "cuda", None)
-                if cuda is None:
-                    if not self._cuda_fallback_on_unsupported:
-                        raise RuntimeError(
-                            "use_cuda=True was requested, but GTSAM was not built with CUDA support "
-                            "(gtsam.cuda is missing)."
-                        )
-                    logger.warning(
-                        "gtsam.cuda is not available; falling back to CPU LevenbergMarquardtOptimizer."
-                    )
-                else:
-                    return self.__optimize_factor_graph_cuda(
+            elif self._use_gnc:
+                has_cuda_gnc = hasattr(cuda, "GncSparseLMOptimizer") and hasattr(cuda, "GncSparseLMParams")
+                if has_cuda_gnc:
+                    return self.__optimize_factor_graph_cuda_gnc(
                         cuda=cuda,
                         graph=graph,
                         initial_values=initial_values,
                         ordering_type=ordering_type,
                         start_time=start_time,
                     )
+                if not self._cuda_fallback_on_unsupported:
+                    raise RuntimeError(
+                        "use_cuda=True with use_gnc=True requires gtsam.cuda.GncSparseLMOptimizer "
+                        "(upgrade to a GTSAM develop build that includes CUDA GNC Python bindings)."
+                    )
+                logger.warning(
+                    "gtsam.cuda.GncSparseLMOptimizer is unavailable; falling back to CPU GNC LM."
+                )
+            else:
+                return self.__optimize_factor_graph_cuda(
+                    cuda=cuda,
+                    graph=graph,
+                    initial_values=initial_values,
+                    ordering_type=ordering_type,
+                    start_time=start_time,
+                )
 
         params = gtsam.LevenbergMarquardtParams()
         params.setVerbosityLM("ERROR" if not self._print_summary else "SUMMARY")
