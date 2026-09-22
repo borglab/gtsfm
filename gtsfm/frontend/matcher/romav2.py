@@ -50,9 +50,10 @@ class RoMaV2Matcher(ImageMatcherBase):
         except ImportError as exc:
             raise ImportError(
                 "RoMa v2 support requires the `romav2` package. Install with:\n"
-                "  pip install 'gtsfm[romav2]'\n"
-                "If that upgrades torch incompatibly, prefer:\n"
-                "  pip install romav2 --no-deps"
+                "  pip install romav2 --no-deps\n"
+                "(Use --no-deps because romav2 declares torchvision>=0.23, which conflicts "
+                "with GTSfM's torch<2.8 / torchvision<0.23 pin; the matcher runs on the "
+                "pinned stack.)"
             ) from exc
 
         self._min_confidence = min_confidence
