@@ -23,6 +23,11 @@ class TestImageCorrespondenceGeneratorInit(unittest.TestCase):
         gen = ImageCorrespondenceGenerator(matcher=MagicMock(), deduplicate=False)
         self.assertIsInstance(gen._aggregator, KeypointAggregatorUnique)
 
+    def test_deduplicate_positional_second_arg(self) -> None:
+        """Preserve legacy positional API: ImageCorrespondenceGenerator(matcher, False)."""
+        gen = ImageCorrespondenceGenerator(MagicMock(), False)
+        self.assertIsInstance(gen._aggregator, KeypointAggregatorUnique)
+
     def test_explicit_aggregator_overrides_deduplicate(self) -> None:
         aggregator = KeypointAggregatorDedup(nms_merge_radius=1e-4)
         gen = ImageCorrespondenceGenerator(matcher=MagicMock(), aggregator=aggregator, deduplicate=False)

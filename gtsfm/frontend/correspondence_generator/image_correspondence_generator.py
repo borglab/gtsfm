@@ -32,15 +32,15 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
     def __init__(
         self,
         matcher: ImageMatcherBase,
-        aggregator: Optional[KeypointAggregatorBase] = None,
         deduplicate: bool = True,
+        aggregator: Optional[KeypointAggregatorBase] = None,
     ) -> None:
         """
         Args:
             matcher: Matcher to use.
-            aggregator: Optional keypoint aggregator. When provided, takes precedence over ``deduplicate``.
             deduplicate: Whether to de-duplicate detections within each image across pairs when ``aggregator``
                 is not supplied. Defaults to True (``KeypointAggregatorDedup``).
+            aggregator: Optional keypoint aggregator. When provided, takes precedence over ``deduplicate``.
         """
         self._matcher = matcher
         if aggregator is not None:
