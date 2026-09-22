@@ -32,7 +32,7 @@ from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.products.one_view_data import OneViewData
 from gtsfm.products.two_view_result import TwoViewResult
 from gtsfm.products.visibility_graph import AnnotatedGraph, VisibilityGraph
-from gtsfm.two_view_estimator import TwoViewEstimator, create_two_view_results_inline
+from gtsfm.two_view_estimator import TwoViewEstimator, create_two_view_results
 from gtsfm.ui.gtsfm_process import UiMetadata
 from gtsfm.utils import transform
 
@@ -115,7 +115,7 @@ class ClusterMVO(ClusterOptimizerBase):
         visibility_graph: VisibilityGraph,
         images: list[Image],
     ) -> tuple[list[Keypoints], AnnotatedGraph[np.ndarray], float]:
-        """Run correspondence generation inline (no nested Dask submission).
+        """Run correspondence generation in the calling task (no nested Dask submission).
 
         ``images`` arrives materialized as a normal Dask dependency (``images[i]`` is image ``i``).
         Detection + matching run in plain loops over the cache-backed primitives — no ``worker_client()``,
@@ -128,7 +128,7 @@ class ClusterMVO(ClusterOptimizerBase):
             return [], {}, 0.0
 
         start_time = time.time()
-        keypoints_list, putative_corr_idxs_dict = correspondence_generator.generate_correspondences_inline(
+        keypoints_list, putative_corr_idxs_dict = correspondence_generator.generate_correspondences(
             images, visibility_graph
         )
         duration_sec = time.time() - start_time
@@ -144,11 +144,11 @@ class ClusterMVO(ClusterOptimizerBase):
         gt_scene_mesh: Optional[Any],
         one_view_data_dict: dict[int, OneViewData],
     ) -> tuple[AnnotatedGraph[TwoViewResult], float]:
-        """Run two-view estimation inline (no nested Dask submission)."""
+        """Run two-view estimation in the calling task (no nested Dask submission)."""
         logger.info("🔵 Running two-view estimation for %d pairs.", len(putative_corr_idxs_dict))
 
         start_time = time.time()
-        all_two_view_results = create_two_view_results_inline(
+        all_two_view_results = create_two_view_results(
             two_view_estimator=two_view_estimator,
             keypoints_list=keypoints_list,
             putative_corr_idxs_dict=putative_corr_idxs_dict,

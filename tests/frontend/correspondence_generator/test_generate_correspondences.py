@@ -1,6 +1,6 @@
-"""Tests that inline (no-Dask) correspondence generation matches the Dask path exactly.
+"""Tests that plain (no-client) correspondence generation matches the futures path exactly.
 
-The per-cluster frontend runs ``generate_correspondences_inline`` inside a Dask task instead of submitting
+The per-cluster frontend runs ``generate_correspondences`` inside a Dask task instead of submitting
 nested tasks through ``worker_client()``. These tests pin the two entry points to the same result for the
 two generator families that run in that frontend, using deterministic stubs whose outputs depend on the
 image shapes (so a shape that is not threaded through correctly shows up as a mismatch).
@@ -65,8 +65,8 @@ def _all_pairs(num_images: int) -> List[Tuple[int, int]]:
     return [(i1, i2) for i1 in range(num_images) for i2 in range(i1 + 1, num_images)]
 
 
-class TestGenerateCorrespondencesInline(unittest.TestCase):
-    """The inline entry point must reproduce the Dask entry point exactly."""
+class TestGenerateCorrespondences(unittest.TestCase):
+    """The plain entry point must reproduce the futures entry point exactly."""
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -92,26 +92,30 @@ class TestGenerateCorrespondencesInline(unittest.TestCase):
         for edge in expected_corr:
             np.testing.assert_array_equal(expected_corr[edge], actual_corr[edge])
 
-    def test_det_desc_inline_matches_dask(self) -> None:
+    def test_det_desc_matches_futures(self) -> None:
         generator = DetDescCorrespondenceGenerator(
             matcher=_StubMatcher(), detector_descriptor=_StubDetectorDescriptor()
         )
         images = _make_images()
         visibility_graph = _all_pairs(len(images))
 
-        expected = generator.generate_correspondences(self.client, self.client.scatter(images), visibility_graph)
-        actual = generator.generate_correspondences_inline(images, visibility_graph)
+        expected = generator.generate_correspondences_futures(
+            self.client, self.client.scatter(images), visibility_graph
+        )
+        actual = generator.generate_correspondences(images, visibility_graph)
 
         self._assert_same(expected, actual)
         self.assertEqual(len(actual[1]), len(visibility_graph))
 
-    def test_image_inline_matches_dask(self) -> None:
+    def test_image_matches_futures(self) -> None:
         generator = ImageCorrespondenceGenerator(matcher=_StubImageMatcher(), deduplicate=True)
         images = _make_images()
         visibility_graph = _all_pairs(len(images))
 
-        expected = generator.generate_correspondences(self.client, self.client.scatter(images), visibility_graph)
-        actual = generator.generate_correspondences_inline(images, visibility_graph)
+        expected = generator.generate_correspondences_futures(
+            self.client, self.client.scatter(images), visibility_graph
+        )
+        actual = generator.generate_correspondences(images, visibility_graph)
 
         self._assert_same(expected, actual)
         self.assertEqual(len(actual[1]), len(visibility_graph))
@@ -121,7 +125,7 @@ class TestGenerateCorrespondencesInline(unittest.TestCase):
             matcher=_StubMatcher(), detector_descriptor=_StubDetectorDescriptor()
         )
         images = _make_images(3)
-        keypoints_list, corr = generator.generate_correspondences_inline(images, [])
+        keypoints_list, corr = generator.generate_correspondences(images, [])
         self.assertEqual(len(keypoints_list), 3)
         self.assertEqual(corr, {})
 

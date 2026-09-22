@@ -26,6 +26,11 @@ from gtsfm.products.visibility_graph import VisibilityGraph
 from gtsfm.two_view_estimator import TwoViewEstimator
 
 
+def _match_image_pair(matcher: ImageMatcherBase, image_i1: Image, image_i2: Image) -> Tuple[Keypoints, Keypoints]:
+    """Per-pair kernel: direct (detector-free) image matching."""
+    return matcher.match(image_i1=image_i1, image_i2=image_i2)
+
+
 class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
     """Pair-wise direct matching of images (e.g. transformer-based)."""
 
@@ -48,7 +53,7 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
            {self._aggregator}
         """
 
-    def generate_correspondences(
+    def generate_correspondences_futures(
         self,
         client: Client,
         images: List[Future],
@@ -66,17 +71,9 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
             Putative correspondence as indices of keypoints, for pairs of images.
         """
 
-        def apply_image_matcher(image_matcher: ImageMatcherBase, **kwargs) -> Tuple[Keypoints, Keypoints]:
-            return image_matcher.match(**kwargs)
-
         image_matcher_future = client.scatter(self._matcher, broadcast=False)
         pairwise_correspondence_futures = {
-            (i1, i2): client.submit(
-                apply_image_matcher,
-                image_matcher_future,
-                image_i1=images[i1],
-                image_i2=images[i2],
-            )
+            (i1, i2): client.submit(_match_image_pair, image_matcher_future, images[i1], images[i2])
             for i1, i2 in visibility_graph
         }
 
@@ -87,14 +84,14 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
         keypoints_list, putative_corr_idxs_dict = self._aggregator.aggregate(keypoints_dict=pairwise_correspondences)
         return keypoints_list, putative_corr_idxs_dict
 
-    def generate_correspondences_inline(
+    def generate_correspondences(
         self,
         images: List[Image],
         visibility_graph: VisibilityGraph,
     ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
-        """Inline (no-Dask) variant of ``generate_correspondences``: match each pair in a plain loop."""
+        """Match each pair in a plain loop in the calling process (no Dask client); same kernel as above."""
         pairwise_correspondences = {
-            (i1, i2): self._matcher.match(image_i1=images[i1], image_i2=images[i2]) for i1, i2 in visibility_graph
+            (i1, i2): _match_image_pair(self._matcher, images[i1], images[i2]) for i1, i2 in visibility_graph
         }
         return self._aggregator.aggregate(keypoints_dict=pairwise_correspondences)
 
@@ -127,21 +124,13 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
             Two view output for visibility graph pairs.
         """
 
-        def apply_image_matcher(image_matcher: ImageMatcherBase, **kwargs) -> Tuple[Keypoints, Keypoints]:
-            return image_matcher.match(**kwargs)
-
         def apply_two_view_estimator(two_view_estimator: TwoViewEstimator, **kwargs) -> TwoViewResult:
             return two_view_estimator.run_2view(**kwargs)
 
         image_matcher_future = client.scatter(self._matcher, broadcast=False)
         two_view_estimator_future = client.scatter(two_view_estimator, broadcast=False)
         pairwise_correspondence_futures = {
-            (i1, i2): client.submit(
-                apply_image_matcher,
-                image_matcher_future,
-                image_i1=images[i1],
-                image_i2=images[i2],
-            )
+            (i1, i2): client.submit(_match_image_pair, image_matcher_future, images[i1], images[i2])
             for i1, i2 in visibility_graph
         }
 

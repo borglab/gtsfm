@@ -94,7 +94,7 @@ class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
         image_height_px, image_width_px, _ = loader.get_image(0).shape
         return loader, open3d_mesh_path, sampled_points, image_height_px, image_width_px
 
-    def generate_correspondences(
+    def generate_correspondences_futures(
         self,
         client: Client,
         images: List[Future],
@@ -142,13 +142,13 @@ class SyntheticCorrespondenceGenerator(CorrespondenceGeneratorBase):
         keypoints_list, putative_corr_idxs_dict = self._aggregator.aggregate(keypoints_dict=pairwise_correspondences)
         return keypoints_list, putative_corr_idxs_dict
 
-    def generate_correspondences_inline(
+    def generate_correspondences(
         self,
         images: List[Image],
         visibility_graph: VisibilityGraph,
         num_sampled_3d_points: int = 5000,
     ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
-        """Inline (no-Dask) variant of ``generate_correspondences``.
+        """Generate the synthetic correspondences in the calling process (no Dask client).
 
         The synthetic correspondences are projected from the scene's GT cameras and mesh, so ``images`` is
         only accepted to satisfy the interface (indices refer to the loader).

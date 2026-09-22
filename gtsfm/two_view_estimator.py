@@ -891,7 +891,34 @@ def create_two_view_estimator_futures(
     return two_view_result_futures
 
 
-def create_two_view_results_inline(
+def _run_2view_for_pair(
+    two_view_estimator: TwoViewEstimator,
+    keypoints_list: List[Keypoints],
+    putative_corr_idxs: np.ndarray,
+    relative_pose_priors: Dict[Tuple[int, int], PosePrior],
+    gt_scene_mesh: Optional[Any],
+    one_view_data_dict: Dict[int, OneViewData],
+    i1: int,
+    i2: int,
+) -> TwoViewResult:
+    """Run two-view estimation for one pair, pulling the per-view inputs from ``one_view_data_dict``."""
+    view1, view2 = one_view_data_dict[i1], one_view_data_dict[i2]
+    return two_view_estimator.run_2view(
+        keypoints_i1=keypoints_list[i1],
+        keypoints_i2=keypoints_list[i2],
+        putative_corr_idxs=putative_corr_idxs,
+        camera_intrinsics_i1=view1.intrinsics,
+        camera_intrinsics_i2=view2.intrinsics,
+        i2Ti1_prior=relative_pose_priors.get((i1, i2)),
+        gt_camera_i1=view1.camera_gt,
+        gt_camera_i2=view2.camera_gt,
+        gt_scene_mesh=gt_scene_mesh,
+        i1=i1,
+        i2=i2,
+    )
+
+
+def create_two_view_results(
     two_view_estimator: TwoViewEstimator,
     keypoints_list: List[Keypoints],
     putative_corr_idxs_dict: AnnotatedGraph[np.ndarray],
@@ -899,32 +926,28 @@ def create_two_view_results_inline(
     gt_scene_mesh: Optional[Any],
     one_view_data_dict: Dict[int, OneViewData],
 ) -> AnnotatedGraph[TwoViewResult]:
-    """Inline (no-Dask) variant of ``create_two_view_estimator_futures``.
+    """Run ``run_2view`` for every pair in the calling process (no Dask client).
 
-    Runs ``run_2view`` for every pair in a plain loop instead of scattering the estimator and submitting a
-    per-pair task to a nested client. Used by the cluster frontend to avoid the ``worker_client()``
-    tasks-launching-tasks pattern. Kwargs mirror ``create_two_view_estimator_futures`` exactly.
+    Counterpart of ``create_two_view_estimator_futures`` for callers that already execute inside a Dask
+    task (the cluster frontend), where submitting further tasks would nest clients. Kwargs mirror the
+    futures variant exactly.
     """
     two_view_results: AnnotatedGraph[TwoViewResult] = {}
     for (i1, i2), putative_corr_idxs in putative_corr_idxs_dict.items():
-        view1, view2 = one_view_data_dict[i1], one_view_data_dict[i2]
-        two_view_results[(i1, i2)] = two_view_estimator.run_2view(
-            keypoints_i1=keypoints_list[i1],
-            keypoints_i2=keypoints_list[i2],
-            putative_corr_idxs=putative_corr_idxs,
-            camera_intrinsics_i1=view1.intrinsics,
-            camera_intrinsics_i2=view2.intrinsics,
-            i2Ti1_prior=relative_pose_priors.get((i1, i2)),
-            gt_camera_i1=view1.camera_gt,
-            gt_camera_i2=view2.camera_gt,
-            gt_scene_mesh=gt_scene_mesh,
-            i1=i1,
-            i2=i2,
+        two_view_results[(i1, i2)] = _run_2view_for_pair(
+            two_view_estimator,
+            keypoints_list,
+            putative_corr_idxs,
+            relative_pose_priors,
+            gt_scene_mesh,
+            one_view_data_dict,
+            i1,
+            i2,
         )
     return two_view_results
 
 
-def create_v_corr_idxs_inline(
+def create_v_corr_idxs(
     two_view_estimator: TwoViewEstimator,
     keypoints_list: List[Keypoints],
     putative_corr_idxs_dict: AnnotatedGraph[np.ndarray],
@@ -932,7 +955,7 @@ def create_v_corr_idxs_inline(
     gt_scene_mesh: Optional[Any],
     one_view_data_dict: Dict[int, OneViewData],
 ) -> AnnotatedGraph[np.ndarray]:
-    """Variant of ``create_two_view_results_inline`` that retains only the ``v_corr_idxs`` of each VALID pair.
+    """Variant of ``create_two_view_results`` that retains only the ``v_corr_idxs`` of each VALID pair.
 
     Each ``TwoViewResult`` (three ``TwoViewEstimationReport``s plus the putative indices) is dropped as soon
     as its verified-correspondence indices are extracted, so memory is bounded by the output rather than by
@@ -944,19 +967,15 @@ def create_v_corr_idxs_inline(
     num_pairs = len(putative_corr_idxs_dict)
     start_time = time.time()
     for p, ((i1, i2), putative_corr_idxs) in enumerate(putative_corr_idxs_dict.items()):
-        view1, view2 = one_view_data_dict[i1], one_view_data_dict[i2]
-        result = two_view_estimator.run_2view(
-            keypoints_i1=keypoints_list[i1],
-            keypoints_i2=keypoints_list[i2],
-            putative_corr_idxs=putative_corr_idxs,
-            camera_intrinsics_i1=view1.intrinsics,
-            camera_intrinsics_i2=view2.intrinsics,
-            i2Ti1_prior=relative_pose_priors.get((i1, i2)),
-            gt_camera_i1=view1.camera_gt,
-            gt_camera_i2=view2.camera_gt,
-            gt_scene_mesh=gt_scene_mesh,
-            i1=i1,
-            i2=i2,
+        result = _run_2view_for_pair(
+            two_view_estimator,
+            keypoints_list,
+            putative_corr_idxs,
+            relative_pose_priors,
+            gt_scene_mesh,
+            one_view_data_dict,
+            i1,
+            i2,
         )
         if result.valid():
             v_corr_idxs_dict[(i1, i2)] = result.v_corr_idxs
@@ -988,9 +1007,9 @@ def create_v_corr_idxs_futures(
     chunk_size: Optional[int] = None,
     broadcast: bool = True,
 ) -> AnnotatedGraph[np.ndarray]:
-    """Parallel variant of ``create_v_corr_idxs_inline`` over the Dask worker pool.
+    """Parallel variant of ``create_v_corr_idxs`` over the Dask worker pool.
 
-    The pairs are split into chunks, each run as one task with ``create_v_corr_idxs_inline`` as its body, so
+    The pairs are split into chunks, each run as one task with ``create_v_corr_idxs`` as its body, so
     a worker only ever returns the small ``{(i1, i2): v_corr_idxs}`` sub-dict of its chunk and the client
     merges those. The shared read-only inputs are scattered ONCE, each as a single blob (a bare
     ``client.scatter`` of a list/dict would explode it into per-element futures), rather than being embedded
@@ -1010,7 +1029,7 @@ def create_v_corr_idxs_futures(
             stage; replicas survive a worker loss. Set ``False`` only when memory-bound on a stable cluster.
 
     Returns:
-        ``{(i1, i2): v_corr_idxs}`` for every VALID pair, identical to ``create_v_corr_idxs_inline``.
+        ``{(i1, i2): v_corr_idxs}`` for every VALID pair, identical to ``create_v_corr_idxs``.
     """
     pairs = list(putative_corr_idxs_dict.keys())
     num_pairs = len(pairs)
@@ -1053,10 +1072,10 @@ def create_v_corr_idxs_futures(
     )
 
     # pure=False: run_2view is side-effecting (cacher/DB writes) and each chunk is distinct — never
-    # memoize/dedupe. Positional args follow create_v_corr_idxs_inline's signature exactly.
+    # memoize/dedupe. Positional args follow create_v_corr_idxs's signature exactly.
     chunk_futures = [
         client.submit(
-            create_v_corr_idxs_inline,
+            create_v_corr_idxs,
             estimator_future,
             keypoints_future,
             chunk,

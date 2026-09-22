@@ -63,7 +63,7 @@ class Mast3rCorrespondenceGenerator(CorrespondenceGeneratorBase):
         super().__init__()
         self.max_correspondences = max_correspondences
 
-    def generate_correspondences(
+    def generate_correspondences_futures(
         self,
         client: Client,
         images: List[Future],
@@ -94,12 +94,15 @@ class Mast3rCorrespondenceGenerator(CorrespondenceGeneratorBase):
         )
         return self._aggregate(pairwise_correspondences)
 
-    def generate_correspondences_inline(
+    def generate_correspondences(
         self,
         images: List[Image],
         visibility_graph: VisibilityGraph,
     ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
-        """Inline (no-Dask) variant of ``generate_correspondences``: run MASt3R on each pair in a plain loop."""
+        """Run MASt3R on each pair in a plain loop in the calling process (no Dask client).
+
+        Same ``apply_mast3r`` kernel and ``_aggregate`` merge as ``generate_correspondences_futures``.
+        """
         logger.info("⏳ Loading MASt3R model weights...")
         model = AsymmetricMASt3R.from_pretrained(_MODEL_PATH).eval()
 

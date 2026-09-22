@@ -18,7 +18,7 @@ class CorrespondenceGeneratorBase:
     """Base class for correspondence generators."""
 
     @abstractmethod
-    def generate_correspondences(
+    def generate_correspondences_futures(
         self,
         client: Client,
         images: List[Future],
@@ -37,15 +37,15 @@ class CorrespondenceGeneratorBase:
         """
 
     @abstractmethod
-    def generate_correspondences_inline(
+    def generate_correspondences(
         self,
         images: List[Image],
         visibility_graph: VisibilityGraph,
     ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
-        """Generate putative correspondences inline, i.e. without submitting Dask tasks.
+        """Generate putative correspondences in the calling process, without submitting Dask tasks.
 
-        Same contract as ``generate_correspondences`` but takes concrete images and runs detection/matching
-        in plain loops in the calling process. This is the entry point for the per-cluster frontend, which
+        Same contract as ``generate_correspondences_futures`` but takes concrete images and runs
+        detection/matching in plain loops. This is the entry point for the per-cluster frontend, which
         already executes inside a Dask task: submitting further tasks from there (``worker_client()``)
         keeps every feature/correspondence future of the cluster resident on one worker during the nested
         gather.

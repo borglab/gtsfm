@@ -123,7 +123,7 @@ class ColmapCorrespondenceGenerator(CorrespondenceGeneratorBase):
 
         return corr_idxs
 
-    def generate_correspondences_inline(
+    def generate_correspondences(
         self, images: List[Image], visibility_graph: VisibilityGraph
     ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
         """Read keypoints and matches for the given images from the Colmap DB.
@@ -142,7 +142,7 @@ class ColmapCorrespondenceGenerator(CorrespondenceGeneratorBase):
         corr_idxs = self._read_matches(visibility_graph, gtsfm_id_to_pycolmap_id)
         return keypoints, corr_idxs
 
-    def generate_correspondences(
+    def generate_correspondences_futures(
         self, client: Client, images: List[Future], visibility_graph: VisibilityGraph
     ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
         """Apply the correspondence generator to generate putative correspondences.
@@ -156,4 +156,4 @@ class ColmapCorrespondenceGenerator(CorrespondenceGeneratorBase):
             List of keypoints, one entry for each input images.
             Putative correspondence as indices of keypoints, for pairs of images.
         """
-        return self.generate_correspondences_inline(client.gather(images), visibility_graph)
+        return self.generate_correspondences(client.gather(images), visibility_graph)

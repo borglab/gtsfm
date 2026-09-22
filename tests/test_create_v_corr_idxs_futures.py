@@ -1,8 +1,8 @@
 """Unit tests for the parallel global two-view frontend (``create_v_corr_idxs_futures``).
 
-The parallel path chunks the pairs and runs ``create_v_corr_idxs_inline`` on each chunk across the Dask
+The parallel path chunks the pairs and runs ``create_v_corr_idxs`` on each chunk across the Dask
 worker pool, scattering the shared read-only inputs once. These tests assert it returns EXACTLY the same
-``{(i1, i2): v_corr_idxs}`` dict as the serial inline reference for any chunking, and that the ``valid()``
+``{(i1, i2): v_corr_idxs}`` dict as the serial reference for any chunking, and that the ``valid()``
 filter is honored. A deterministic stub estimator isolates the orchestration (chunking / scatter-as-blob /
 merge) from real two-view geometry; cross-process worker pickling is exercised separately by end-to-end runs.
 
@@ -15,7 +15,7 @@ import numpy as np
 from dask.distributed import Client, LocalCluster
 
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.two_view_estimator import create_v_corr_idxs_futures, create_v_corr_idxs_inline
+from gtsfm.two_view_estimator import create_v_corr_idxs_futures, create_v_corr_idxs
 
 
 class _StubResult:
@@ -32,7 +32,7 @@ class _StubResult:
 class _StubTwoViewEstimator:
     """Deterministic stand-in for ``TwoViewEstimator.run_2view``.
 
-    ``v_corr_idxs`` is derived from the pair's putative indices plus a per-pair offset, so inline and
+    ``v_corr_idxs`` is derived from the pair's putative indices plus a per-pair offset, so serial and
     parallel results can be compared exactly and a chunk can never be confused for another. Pairs whose
     index sum is odd are marked invalid, exercising the ``valid()`` filter (invalid pairs must be dropped).
     """
@@ -65,7 +65,7 @@ def _make_inputs(num_images: int = 8):
 
 
 class TestCreateVCorrIdxsFutures(unittest.TestCase):
-    """Parallel two-view must equal the serial inline reference for any chunking."""
+    """Parallel two-view must equal the serial reference for any chunking."""
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -84,12 +84,12 @@ class TestCreateVCorrIdxsFutures(unittest.TestCase):
         for edge in expected:
             np.testing.assert_array_equal(expected[edge], actual[edge])
 
-    def test_parallel_matches_inline_default_chunking(self) -> None:
-        """Default chunk sizing must reproduce the inline result exactly."""
+    def test_parallel_matches_serial_default_chunking(self) -> None:
+        """Default chunk sizing must reproduce the serial result exactly."""
         estimator = _StubTwoViewEstimator()
         keypoints_list, putative, priors, one_view = _make_inputs()
 
-        expected = create_v_corr_idxs_inline(
+        expected = create_v_corr_idxs(
             two_view_estimator=estimator,
             keypoints_list=keypoints_list,
             putative_corr_idxs_dict=putative,
@@ -103,12 +103,12 @@ class TestCreateVCorrIdxsFutures(unittest.TestCase):
         self.assertTrue(all((i1 + i2) % 2 == 0 for (i1, i2) in actual))
         self.assertLess(len(actual), len(putative))
 
-    def test_parallel_matches_inline_tiny_chunks(self) -> None:
+    def test_parallel_matches_serial_tiny_chunks(self) -> None:
         """Force many single-pair chunks (chunk_size=1) to stress the chunk/merge boundary."""
         estimator = _StubTwoViewEstimator()
         keypoints_list, putative, priors, one_view = _make_inputs()
 
-        expected = create_v_corr_idxs_inline(
+        expected = create_v_corr_idxs(
             two_view_estimator=estimator,
             keypoints_list=keypoints_list,
             putative_corr_idxs_dict=putative,
@@ -121,12 +121,12 @@ class TestCreateVCorrIdxsFutures(unittest.TestCase):
         )
         self._assert_same(expected, actual)
 
-    def test_single_chunk_matches_inline(self) -> None:
-        """A chunk_size >= num_pairs (one chunk on one worker) must reproduce the inline result."""
+    def test_single_chunk_matches_serial(self) -> None:
+        """A chunk_size >= num_pairs (one chunk on one worker) must reproduce the serial result."""
         estimator = _StubTwoViewEstimator()
         keypoints_list, putative, priors, one_view = _make_inputs()
 
-        expected = create_v_corr_idxs_inline(
+        expected = create_v_corr_idxs(
             two_view_estimator=estimator,
             keypoints_list=keypoints_list,
             putative_corr_idxs_dict=putative,
