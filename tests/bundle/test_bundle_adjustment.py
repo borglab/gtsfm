@@ -205,52 +205,48 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
         options = BundleAdjustmentOptions()
         self.assertFalse(options.use_cuda)
         self.assertEqual(options.cuda_linear_solver, "PCG")
-        self.assertIsNone(options.cuda_pcg_max_iterations)
-        self.assertIsNone(options.cuda_pcg_relative_tolerance)
-        self.assertFalse(options.cuda_pcg_warm_start)
-        self.assertIsNone(options.cuda_pcg_convergence_check_interval)
+        self.assertIsNone(options.cuda_pcg_options)
         self.assertTrue(options.cuda_fallback_on_unsupported)
         self.assertFalse(options.cuda_collect_timing)
+
+        pcg = MagicMock()
+        pcg.maxIterations = 150
+        pcg.relativeTolerance = 1e-8
+        pcg.warmStart = True
+        pcg.convergenceCheckInterval = 5
 
         # Custom options
         custom_options = BundleAdjustmentOptions(
             use_cuda=True,
             cuda_linear_solver="CUDSS",
-            cuda_pcg_max_iterations=150,
-            cuda_pcg_relative_tolerance=1e-8,
-            cuda_pcg_warm_start=True,
-            cuda_pcg_convergence_check_interval=5,
+            cuda_pcg_options=pcg,
             cuda_fallback_on_unsupported=False,
             cuda_collect_timing=True,
         )
         optimizer = custom_options.to_optimizer(min_tracks_per_camera=0)
         self.assertTrue(optimizer._use_cuda)
         self.assertEqual(optimizer._cuda_linear_solver, "CUDSS")
-        self.assertEqual(optimizer._cuda_pcg_max_iterations, 150)
-        self.assertEqual(optimizer._cuda_pcg_relative_tolerance, 1e-8)
-        self.assertTrue(optimizer._cuda_pcg_warm_start)
-        self.assertEqual(optimizer._cuda_pcg_convergence_check_interval, 5)
+        self.assertIs(optimizer._cuda_pcg_options, pcg)
         self.assertFalse(optimizer._cuda_fallback_on_unsupported)
         self.assertTrue(optimizer._cuda_collect_timing)
 
     def test_bundle_adjustment_optimizer_init_cuda(self):
         """Ensure BundleAdjustmentOptimizer stores CUDA parameters."""
+        pcg = MagicMock()
+        pcg.maxIterations = 300
+        pcg.relativeTolerance = 1e-7
+        pcg.warmStart = True
+        pcg.convergenceCheckInterval = 2
         ba = BundleAdjustmentOptimizer(
             use_cuda=True,
             cuda_linear_solver="PCG",
-            cuda_pcg_max_iterations=300,
-            cuda_pcg_relative_tolerance=1e-7,
-            cuda_pcg_warm_start=True,
-            cuda_pcg_convergence_check_interval=2,
+            cuda_pcg_options=pcg,
             cuda_fallback_on_unsupported=True,
             cuda_collect_timing=True,
         )
         self.assertTrue(ba._use_cuda)
         self.assertEqual(ba._cuda_linear_solver, "PCG")
-        self.assertEqual(ba._cuda_pcg_max_iterations, 300)
-        self.assertEqual(ba._cuda_pcg_relative_tolerance, 1e-7)
-        self.assertTrue(ba._cuda_pcg_warm_start)
-        self.assertEqual(ba._cuda_pcg_convergence_check_interval, 2)
+        self.assertIs(ba._cuda_pcg_options, pcg)
         self.assertTrue(ba._cuda_fallback_on_unsupported)
         self.assertTrue(ba._cuda_collect_timing)
         self.assertIsNone(ba._last_cuda_result)
@@ -286,15 +282,17 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
 
     def test_cuda_optimization_mocked_execution(self):
         """Ensure CUDA Sparse LM is properly configured and called when gtsam.cuda is available."""
+        pcg = MagicMock()
+        pcg.maxIterations = 80
+        pcg.relativeTolerance = 1e-9
+        pcg.warmStart = True
+        pcg.convergenceCheckInterval = 4
         ba = BundleAdjustmentOptimizer(
             reproj_error_thresholds=[100.0],
             min_tracks_per_camera=5,
             use_cuda=True,
             cuda_linear_solver="PCG",
-            cuda_pcg_max_iterations=80,
-            cuda_pcg_relative_tolerance=1e-9,
-            cuda_pcg_warm_start=True,
-            cuda_pcg_convergence_check_interval=4,
+            cuda_pcg_options=pcg,
             cuda_fallback_on_unsupported=True,
             cuda_collect_timing=True,
         )
@@ -306,9 +304,6 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
         # Mock options and params
         mock_linear_opts = MagicMock()
         mock_cuda.LinearSolverOptions.return_value = mock_linear_opts
-
-        mock_pcg_opts = MagicMock()
-        mock_cuda.PcgOptions.return_value = mock_pcg_opts
 
         mock_params = MagicMock()
         mock_cuda.SparseLevenbergMarquardtParams.return_value = mock_params
@@ -333,13 +328,10 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
 
         # Verify options were configured as requested
         self.assertEqual(mock_linear_opts.backend, "Pcg")
-        self.assertEqual(mock_pcg_opts.maxIterations, 80)
-        self.assertEqual(mock_pcg_opts.relativeTolerance, 1e-9)
-        self.assertTrue(mock_pcg_opts.warmStart)
-        self.assertEqual(mock_pcg_opts.convergenceCheckInterval, 4)
-
+        # Caller-supplied PcgOptions should be forwarded as-is (no default construction).
+        mock_cuda.PcgOptions.assert_not_called()
         self.assertEqual(mock_params.linear, mock_linear_opts)
-        self.assertEqual(mock_params.pcg, mock_pcg_opts)
+        self.assertEqual(mock_params.pcg, pcg)
         self.assertTrue(mock_params.fallbackOnUnsupported)
         self.assertTrue(mock_params.collectTiming)
 

@@ -172,10 +172,8 @@ class BundleAdjustmentOptions:
     # ── CUDA optimization options (GTSAM PR #2761) ──
     use_cuda: bool = False
     cuda_linear_solver: str = "PCG"
-    cuda_pcg_max_iterations: Optional[int] = None
-    cuda_pcg_relative_tolerance: Optional[float] = None
-    cuda_pcg_warm_start: bool = False
-    cuda_pcg_convergence_check_interval: Optional[int] = None
+    # gtsam.cuda.PcgOptions when set; None uses GTSAM defaults at optimize time.
+    cuda_pcg_options: Optional[Any] = None
     cuda_fallback_on_unsupported: bool = True
     cuda_collect_timing: bool = False
 
@@ -206,10 +204,7 @@ class BundleAdjustmentOptions:
             optimizer_relative_cost_tol=self.optimizer_relative_cost_tol,
             use_cuda=self.use_cuda,
             cuda_linear_solver=self.cuda_linear_solver,
-            cuda_pcg_max_iterations=self.cuda_pcg_max_iterations,
-            cuda_pcg_relative_tolerance=self.cuda_pcg_relative_tolerance,
-            cuda_pcg_warm_start=self.cuda_pcg_warm_start,
-            cuda_pcg_convergence_check_interval=self.cuda_pcg_convergence_check_interval,
+            cuda_pcg_options=self.cuda_pcg_options,
             cuda_fallback_on_unsupported=self.cuda_fallback_on_unsupported,
             cuda_collect_timing=self.cuda_collect_timing,
         )
@@ -257,10 +252,7 @@ class BundleAdjustmentOptimizer:
         optimizer_relative_cost_tol: float = 1e-5,
         use_cuda: bool = False,
         cuda_linear_solver: str = "PCG",
-        cuda_pcg_max_iterations: Optional[int] = None,
-        cuda_pcg_relative_tolerance: Optional[float] = None,
-        cuda_pcg_warm_start: bool = False,
-        cuda_pcg_convergence_check_interval: Optional[int] = None,
+        cuda_pcg_options: Optional[Any] = None,
         cuda_fallback_on_unsupported: bool = True,
         cuda_collect_timing: bool = False,
         # ── Optional post-BA multi-view retriangulation (opt-in) ──
@@ -306,10 +298,7 @@ class BundleAdjustmentOptimizer:
             compute_pose_covariances: If true, compute marginal covariance for all camera pose variables and return it.
             use_cuda (optional): Use GTSAM's general CUDA Sparse Levenberg-Marquardt optimizer (PR #2761).
             cuda_linear_solver (optional): CUDA linear solver backend ("PCG" or "CUDSS"). Defaults to "PCG".
-            cuda_pcg_max_iterations (optional): Max iterations for CUDA PCG solver.
-            cuda_pcg_relative_tolerance (optional): Relative tolerance for CUDA PCG solver.
-            cuda_pcg_warm_start (optional): Warm-start CUDA PCG solver.
-            cuda_pcg_convergence_check_interval (optional): Convergence check interval for CUDA PCG solver.
+            cuda_pcg_options (optional): ``gtsam.cuda.PcgOptions`` instance. Defaults to None (GTSAM defaults).
             cuda_fallback_on_unsupported (optional): Fall back to CPU LM if CUDA runtime or factor structure is
                 unsupported. Defaults to True.
             cuda_collect_timing (optional): Collect CUDA kernel timing statistics. Defaults to False.
@@ -348,10 +337,7 @@ class BundleAdjustmentOptimizer:
         self._optimizer_relative_cost_tol = optimizer_relative_cost_tol
         self._use_cuda = use_cuda
         self._cuda_linear_solver = cuda_linear_solver
-        self._cuda_pcg_max_iterations = cuda_pcg_max_iterations
-        self._cuda_pcg_relative_tolerance = cuda_pcg_relative_tolerance
-        self._cuda_pcg_warm_start = cuda_pcg_warm_start
-        self._cuda_pcg_convergence_check_interval = cuda_pcg_convergence_check_interval
+        self._cuda_pcg_options = cuda_pcg_options
         self._cuda_fallback_on_unsupported = cuda_fallback_on_unsupported
         self._cuda_collect_timing = cuda_collect_timing
         self._last_cuda_result: Optional[Any] = None
@@ -585,18 +571,9 @@ class BundleAdjustmentOptimizer:
                 f"Unsupported CUDA linear solver type: '{self._cuda_linear_solver}'. Expected 'PCG' or 'CUDSS'."
             )
 
-        pcg = cuda.PcgOptions()
-        if self._cuda_pcg_max_iterations is not None:
-            pcg.maxIterations = self._cuda_pcg_max_iterations
-        if self._cuda_pcg_relative_tolerance is not None:
-            pcg.relativeTolerance = self._cuda_pcg_relative_tolerance
-        pcg.warmStart = self._cuda_pcg_warm_start
-        if self._cuda_pcg_convergence_check_interval is not None:
-            pcg.convergenceCheckInterval = self._cuda_pcg_convergence_check_interval
-
         params = cuda.SparseLevenbergMarquardtParams()
         params.linear = linear
-        params.pcg = pcg
+        params.pcg = self._cuda_pcg_options if self._cuda_pcg_options is not None else cuda.PcgOptions()
         params.fallbackOnUnsupported = self._cuda_fallback_on_unsupported
         params.collectTiming = self._cuda_collect_timing
         params.setVerbosityLM("ERROR" if not self._print_summary else "SUMMARY")
