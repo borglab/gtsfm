@@ -20,6 +20,7 @@ from gtsam.symbol_shorthand import K, P, X  # type: ignore
 from numpy.typing import NDArray
 
 import gtsfm.common.types as gtsfm_types
+import gtsfm.data_association.point3d_initializer as point3d_initializer
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.tracks as track_utils
@@ -27,11 +28,6 @@ from gtsfm.common import gtsfm_data
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.sfm_track import SfmTrack2d
-from gtsfm.data_association.point3d_initializer import (
-    Point3dInitializer,
-    TriangulationOptions,
-    TriangulationSamplingMode,
-)
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
 METRICS_GROUP = "bundle_adjustment_metrics"
@@ -56,91 +52,6 @@ class RobustBAMode(Enum):
     HUBER = "HUBER"
     GMC = "GMC"
     TLS = "TLS"
-
-
-def multi_view_retriangulate_from_2d_tracks(
-    gtsfm_data: GtsfmData,
-    tracks_2d: List["SfmTrack2d"],
-    triangulation_options: Optional[TriangulationOptions] = None,
-    min_track_length: int = 3,
-) -> GtsfmData:
-    """Re-triangulate the union-find 2D track set against post-BA cameras.
-
-    Each input track is solved by `Point3dInitializer.triangulate`: RANSAC samples
-    camera pairs, triangulates a candidate 3D point via 2-view DLT, scores by
-    counting inliers (measurements within `reproj_error_threshold`) across the
-    whole track, and picks the best sample. The final 3D point is then computed
-    by a multi-view DLT over the inlier measurements.
-
-    Recovers tracks that were dropped earlier in the pipeline when cameras
-    weren't yet converged — those triangulations can now succeed against the
-    refined cameras.
-
-    2-view tracks are excluded by default (`min_track_length=3`). They are weak
-    (no inlier consensus across views, single-pair baseline) and don't help BA.
-
-    Args:
-        gtsfm_data: Scene with optimized cameras (existing tracks ignored; cameras re-used).
-        tracks_2d: Full 2D track set from `CppDsfTracksEstimator.run()`.
-        triangulation_options: Per-track solve config. Defaults to RANSAC_SAMPLE_UNIFORM,
-            reproj_error_threshold=10 px, max_num_hypotheses=100. For tracks with
-            N measurements there are N*(N-1)/2 possible 2-view samples, so for
-            typical short tracks the cap is rarely binding; set lower if RANSAC
-            wall-time matters on long tracks.
-        min_track_length: Drop tracks with fewer measurements than this.
-
-    Returns:
-        New GtsfmData with same cameras and an augmented track set.
-    """
-    if triangulation_options is None:
-        triangulation_options = TriangulationOptions(
-            reproj_error_threshold=10.0,
-            mode=TriangulationSamplingMode.RANSAC_SAMPLE_UNIFORM,
-            max_num_hypotheses=100,
-        )
-
-    camera_dict = {i: cam for i, cam in gtsfm_data.cameras().items() if cam is not None}
-    initializer = Point3dInitializer(camera_dict, triangulation_options)
-
-    out = GtsfmData(gtsfm_data.number_images())
-    for cam_idx, camera in camera_dict.items():
-        out.add_camera(cam_idx, camera)
-        info = gtsfm_data.get_image_info(cam_idx)
-        out.set_image_info(cam_idx, name=info.name, shape=info.shape)
-
-    n_in = len(tracks_2d)
-    n_kept = 0
-    n_short_input = 0
-    n_no_cams = 0
-    n_short_output = 0
-    n_triangulation_failed = 0
-    for track_2d in tracks_2d:
-        if track_2d.number_measurements() < min_track_length:
-            n_short_input += 1
-            continue
-        valid_measurements = [m for m in track_2d.measurements if m.i in camera_dict]
-        if len(valid_measurements) < min_track_length:
-            n_no_cams += 1
-            continue
-        track_2d_filtered = SfmTrack2d(measurements=valid_measurements)
-
-        new_track, _, _ = initializer.triangulate(track_2d_filtered)
-        if new_track is None:
-            n_triangulation_failed += 1
-            continue
-        if new_track.numberMeasurements() < min_track_length:
-            n_short_output += 1
-            continue
-        out.add_track(new_track)
-        n_kept += 1
-
-    logger.info(
-        "Multi-view retriangulation: %d kept / %d input (min_len=%d): "
-        "%d short_in, %d no_cams, %d tri_failed, %d short_out.",
-        n_kept, n_in, min_track_length, n_short_input, n_no_cams,
-        n_triangulation_failed, n_short_output,
-    )
-    return out
 
 
 @dataclass
@@ -176,6 +87,10 @@ class BundleAdjustmentOptions:
     cuda_pcg_options: Optional[Any] = None
     cuda_fallback_on_unsupported: bool = True
     cuda_collect_timing: bool = False
+    use_multi_view_retriangulation: bool = False
+    mv_retri_min_track_length: int = 3
+    mv_retri_reproj_error_thresh: float = 10.0
+    mv_retri_max_num_hypotheses: int = 100
 
     def to_optimizer(self, **overrides) -> "BundleAdjustmentOptimizer":
         """Construct a :class:`BundleAdjustmentOptimizer` from these options.
@@ -207,6 +122,10 @@ class BundleAdjustmentOptions:
             cuda_pcg_options=self.cuda_pcg_options,
             cuda_fallback_on_unsupported=self.cuda_fallback_on_unsupported,
             cuda_collect_timing=self.cuda_collect_timing,
+            use_multi_view_retriangulation=self.use_multi_view_retriangulation,
+            mv_retri_min_track_length=self.mv_retri_min_track_length,
+            mv_retri_reproj_error_thresh=self.mv_retri_reproj_error_thresh,
+            mv_retri_max_num_hypotheses=self.mv_retri_max_num_hypotheses,
         )
         kwargs.update(overrides)
         return BundleAdjustmentOptimizer(**kwargs)
@@ -1094,12 +1013,6 @@ class BundleAdjustmentOptimizer:
         )
         total_time = time.time() - start_time
 
-        # ── Optional post-BA multi-view retriangulation stage ──
-        # Re-triangulate union-find tracks against the post-BA cameras (recovers
-        # tracks dropped between union-find and BA's filter passes), then run a
-        # final BA on the augmented set. The final BA reuses the existing tightest
-        # `reproj_error_thresholds[-1]` for inline filtering — same mechanism as
-        # the upstream BA loop.
         if self._use_multi_view_retriangulation:
             if tracks_2d is None:
                 logger.warning(
@@ -1108,9 +1021,9 @@ class BundleAdjustmentOptimizer:
                 )
             else:
                 retri_start = time.time()
-                retri_options = TriangulationOptions(
+                retri_options = point3d_initializer.TriangulationOptions(
                     reproj_error_threshold=self._mv_retri_reproj_error_thresh,
-                    mode=TriangulationSamplingMode.RANSAC_SAMPLE_UNIFORM,
+                    mode=point3d_initializer.TriangulationSamplingMode.RANSAC_SAMPLE_UNIFORM,
                     max_num_hypotheses=self._mv_retri_max_num_hypotheses,
                 )
                 logger.info(
@@ -1119,17 +1032,13 @@ class BundleAdjustmentOptimizer:
                     len(tracks_2d), self._mv_retri_min_track_length,
                     self._mv_retri_reproj_error_thresh,
                 )
-                retri_data = multi_view_retriangulate_from_2d_tracks(
+                retri_data = point3d_initializer.multi_view_retriangulate_from_2d_tracks(
                     gtsfm_data=filtered_result,
                     tracks_2d=tracks_2d,
                     triangulation_options=retri_options,
                     min_track_length=self._mv_retri_min_track_length,
                 )
                 if retri_data.number_tracks() > 0:
-                    # Final BA on the retri'd track set. No inline filter — pose AUC
-                    # is set by BA's converged cameras and is independent of any
-                    # downstream track filtering. Callers can filter the returned
-                    # GtsfmData themselves if they want.
                     (optimized_data, filtered_result, valid_mask, _) = self.run_ba_stage_with_filtering(
                         initial_data=retri_data,
                         absolute_pose_priors=absolute_pose_priors,

@@ -162,6 +162,10 @@ class ClusterMVO(ClusterOptimizerBase):
         all_two_view_results = cast(AnnotatedGraph[TwoViewResult], gathered_tve_futures)
         valid_two_view_results = {edge: result for edge, result in all_two_view_results.items() if result.valid()}
 
+        n_total = len(all_two_view_results)
+        n_valid = len(valid_two_view_results)
+        logger.info("Two-view estimation: %d/%d pairs valid, %d rejected.", n_valid, n_total, n_total - n_valid)
+
         if len(valid_two_view_results) == 0:
             logger.warning("🔵 ClusterMVO: Skipping cluster as it has no valid two-view results.")
 
