@@ -38,7 +38,8 @@ class RoMaV2Matcher(ImageMatcherBase):
         """Initialize the matcher.
 
         Args:
-            use_cuda: Prefer CUDA when available. Defaults to True.
+            use_cuda: If True, prefer CUDA when available (otherwise romav2's MPS/CPU fallback).
+                If False, force CPU even on a GPU host. Defaults to True.
             min_confidence: Minimum overlap confidence required for matches. Defaults to 0.1.
             max_keypoints: Maximum number of sampled correspondences. Defaults to 8000.
             setting: RoMa v2 preset (`precise`, `base`, `fast`, `turbo`, or benchmark names).
@@ -64,13 +65,30 @@ class RoMaV2Matcher(ImageMatcherBase):
         # RoMaV2.forward requires highest float32 matmul precision.
         torch.set_float32_matmul_precision("highest")
 
-        if use_cuda and not torch.cuda.is_available():
-            logger.warning("RoMa v2 requested CUDA but no GPU is available; romav2 will use its default device.")
+        # romav2 v2.0.1 picks a process-global device at import time from hardware
+        # availability alone. Override it before constructing RoMaV2 so use_cuda is honored
+        # (weights load + image tensors both follow romav2.device.device).
+        import romav2.device as romav2_device
 
-        logger.info("⏳ Loading RoMa v2 model weights (setting=%s)...", setting)
+        if use_cuda and torch.cuda.is_available():
+            target_device = torch.device("cuda")
+        elif use_cuda:
+            # Keep romav2's non-CUDA fallback (MPS/CPU) but warn that CUDA was requested.
+            target_device = romav2_device.device
+            logger.warning(
+                "RoMa v2 requested CUDA but no GPU is available; using device=%s.",
+                target_device,
+            )
+        else:
+            target_device = torch.device("cpu")
+        romav2_device.device = target_device
+
+        logger.info("⏳ Loading RoMa v2 model weights (setting=%s, device=%s)...", setting, target_device)
         self._matcher = RoMaV2()
+        self._matcher.to(target_device)
         self._matcher.apply_setting(setting)
         self._matcher.eval()
+        self._device = target_device
 
     def match(self, image_i1: Image, image_i2: Image) -> Tuple[Keypoints, Keypoints]:
         """Identify feature matches across two images.
@@ -90,7 +108,7 @@ class RoMaV2Matcher(ImageMatcherBase):
 
         with torch.inference_mode():
             preds = self._matcher.match(im1, im2)
-            matches, overlaps, _, _ = self._matcher.sample(preds, self._max_keypoints)
+            matches, overlaps, _, _ = self._sample_correspondences(preds)
 
         keep = overlaps > self._min_confidence
         matches = matches[keep]
@@ -111,3 +129,29 @@ class RoMaV2Matcher(ImageMatcherBase):
             valid_ind = np.intersect1d(valid_ind, valid_ind_i2)
 
         return keypoints_i1.extract_indices(valid_ind), keypoints_i2.extract_indices(valid_ind)
+
+    def _sample_correspondences(self, preds: dict):
+        """Sample matches from dense RoMa v2 predictions.
+
+        romav2 v2.0.1's ``sample()`` calls ``kde(..., half=True)``, which runs
+        ``torch.cdist`` on float16 tensors. PyTorch's CPU (and often MPS) cdist
+        kernels do not support float16, so we temporarily force ``half=False`` on
+        non-CUDA devices.
+        """
+        import romav2.romav2 as romav2_mod
+
+        if self._device.type == "cuda":
+            return self._matcher.sample(preds, self._max_keypoints)
+
+        original_kde = romav2_mod.kde
+
+        def _float32_kde(x, std: float = 0.1, half: bool = True):
+            del half  # ignore romav2's default; CPU/MPS need float32 cdist
+            return original_kde(x, std=std, half=False)
+
+        romav2_mod.kde = _float32_kde
+        try:
+            return self._matcher.sample(preds, self._max_keypoints)
+        finally:
+            romav2_mod.kde = original_kde
+
