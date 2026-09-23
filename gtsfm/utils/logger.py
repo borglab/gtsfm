@@ -82,11 +82,16 @@ def _log_worker_mapping(adapter):
     try:
         worker = distributed.get_worker()
         worker_address = worker.address
-        # Extract IP and port
-        address_parts = worker_address.split("//")[1]  # Remove "tcp://"
-        ip_port = address_parts.split(":")
-        ip_address = ip_port[0]
-        port = ip_port[1]
+        # tcp://host:port  or  inproc://host/pid/n
+        address_parts = worker_address.split("//", 1)[-1]
+        if worker_address.startswith("inproc://"):
+            ip_address = address_parts.split("/", 1)[0]
+            port = "inproc"
+        else:
+            # host:port (IPv4); for IPv6 brackets this is best-effort
+            ip_port = address_parts.rsplit(":", 1)
+            ip_address = ip_port[0]
+            port = ip_port[1] if len(ip_port) > 1 else "?"
 
         # Extract worker ID from cache
         worker_id = _WORKER_ID_CACHE
@@ -97,8 +102,8 @@ def _log_worker_mapping(adapter):
             f"Worker Mapping: {worker_id} ← TCP {ip_address}:{port}"
         )
 
-    except (ImportError, ValueError, AttributeError):
-        pass  # Not a worker, skip
+    except (ImportError, ValueError, AttributeError, IndexError):
+        pass  # Not a worker / unexpected address form, skip
 
 
 class WorkerAwareAdapter(LoggerAdapter):

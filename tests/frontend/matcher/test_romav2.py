@@ -1,8 +1,6 @@
 """Unit tests for the RoMa v2 image matcher.
 
 These tests skip when the optional ``romav2`` extra is not installed.
-
-Authors: Kusum
 """
 
 from __future__ import annotations
