@@ -8,6 +8,70 @@ from typing import Any, Optional, Union
 
 import torch
 
+from gtsfm.utils import logger as logger_utils
+
+logger = logger_utils.get_logger()
+
+
+@dataclass(frozen=True)
+class ImagePlacement:
+    """Where one preprocessed image sits in its model frame, before batch padding.
+
+    ``left``/``top`` place the LOADER image's origin in the model frame, and ``scaled_w``/``scaled_h``
+    are the loader image's dimensions after the model's resize, so a loader pixel maps into the model
+    frame as::
+
+        u_model = u_loader * scaled_w / loader_w - left
+        v_model = v_loader * scaled_h / loader_h - top
+
+    Each model-specific loader (VGGT, VGGT-Omega) computes its own resize/crop policy and reports the
+    result as one of these; batch padding and the packed ``original_coords`` rows are then derived in
+    exactly one place, :func:`assemble_image_batch`.
+    """
+
+    left: float
+    top: float
+    scaled_w: float
+    scaled_h: float
+
+
+def assemble_image_batch(
+    images: list[torch.Tensor], placements: list[ImagePlacement]
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Pad per-image tensors to a common shape, stack them, and derive ``original_coords``.
+
+    The single source of the ``original_coords`` contract: after centering image ``i`` in the common
+    batch frame (fill value 1.0), its row is::
+
+        [left, top, left + batch_w, top + batch_h, scaled_w, scaled_h]
+
+    with ``left``/``top`` shifted by the applied padding so the :class:`ImagePlacement` mapping formula
+    stays valid in the batch frame.
+    """
+    batch_h = max(image.shape[1] for image in images)
+    batch_w = max(image.shape[2] for image in images)
+    shapes = {(image.shape[1], image.shape[2]) for image in images}
+    if len(shapes) > 1:
+        logger.warning("Found images with different shapes: %s", shapes)
+
+    padded_images: list[torch.Tensor] = []
+    rows: list[list[float]] = []
+    for image, placement in zip(images, placements):
+        pad_left = (batch_w - image.shape[2]) // 2
+        pad_right = batch_w - image.shape[2] - pad_left
+        pad_top = (batch_h - image.shape[1]) // 2
+        pad_bottom = batch_h - image.shape[1] - pad_top
+        if pad_left or pad_right or pad_top or pad_bottom:
+            image = torch.nn.functional.pad(
+                image, (pad_left, pad_right, pad_top, pad_bottom), mode="constant", value=1.0
+            )
+        left = placement.left - pad_left
+        top = placement.top - pad_top
+        rows.append([left, top, left + batch_w, top + batch_h, placement.scaled_w, placement.scaled_h])
+        padded_images.append(image)
+
+    return torch.stack(padded_images), torch.tensor(rows, dtype=torch.float32)
+
 
 @dataclass
 class GeometryTransformerConfig:

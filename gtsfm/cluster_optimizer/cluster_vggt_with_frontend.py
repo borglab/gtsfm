@@ -43,9 +43,9 @@ class VggtGeometryResult(NamedTuple):
     """Outputs of VGGT geometry prediction needed for downstream processing."""
 
     cameras: dict[int, gtsfm_types.CAMERA_TYPE]
-    dense_points: np.ndarray       # (N, H, W, 3) world-space 3D points per pixel
-    depth_confidence: np.ndarray   # (N, H, W) per-pixel depth confidence scores
-    original_coords: np.ndarray    # (N, 6) VGGT crop/pad metadata
+    dense_points: np.ndarray  # (N, H, W, 3) world-space 3D points per pixel
+    depth_confidence: np.ndarray  # (N, H, W) per-pixel depth confidence scores
+    original_coords: np.ndarray  # (N, 6) VGGT crop/pad metadata
 
 
 def _extract_v_corr_idxs(two_view_results) -> dict:
@@ -107,9 +107,7 @@ def _run_vggt_geometry(
     return result
 
 
-def _scale_camera_intrinsics(
-    camera: gtsfm_types.CAMERA_TYPE, scale: float
-) -> gtsfm_types.CAMERA_TYPE:
+def _scale_camera_intrinsics(camera: gtsfm_types.CAMERA_TYPE, scale: float) -> gtsfm_types.CAMERA_TYPE:
     """Return a copy of camera with intrinsics uniformly scaled, pose unchanged."""
     pose = camera.pose()
     cal = camera.calibration()
@@ -153,7 +151,7 @@ def _build_gtsfm_data_from_vggt_depth(
         2D measurements are in the original keypoint coordinate system.
     """
     cameras = vggt_result.cameras
-    dense_points = vggt_result.dense_points        # (N, H_vggt, W_vggt, 3)
+    dense_points = vggt_result.dense_points  # (N, H_vggt, W_vggt, 3)
     depth_confidence = vggt_result.depth_confidence  # (N, H_vggt, W_vggt)
     original_coords = vggt_result.original_coords  # (N, 6): [left, top, right, bottom, sw, sh]
 
@@ -245,7 +243,8 @@ class ClusterVGGTWithFrontend(ClusterMVO):
         weights_path: Optional[str] = None,
         input_mode: str = "crop",
         seed: int = 42,
-        model_cache_key: Hashable | bool | None = None,
+        model_cache_key: Hashable | None = None,
+        use_model_cache: bool = True,
         metric_constructed_only: bool = False,
         # Frontend params
         save_two_view_viz: bool = False,
@@ -272,7 +271,7 @@ class ClusterVGGTWithFrontend(ClusterMVO):
 
         self._weights_path = Path(weights_path) if weights_path is not None else None
         self._loader_kwargs, self._model_cache_key = _model_loading_plan(
-            self.geometry_transformer, self._weights_path, model_cache_key
+            self.geometry_transformer, self._weights_path, model_cache_key, use_model_cache
         )
 
     def __repr__(self) -> str:

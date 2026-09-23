@@ -11,7 +11,12 @@ import torch
 from PIL import Image as PILImage
 from torchvision import transforms as TF
 
-from gtsfm.frontend.geometry_transformer import GeometryTransformer, GeometryTransformerOutput
+from gtsfm.frontend.geometry_transformer import (
+    GeometryTransformer,
+    GeometryTransformerOutput,
+    ImagePlacement,
+    assemble_image_batch,
+)
 from gtsfm.utils import logger as logger_utils
 from gtsfm.utils import torch as torch_utils
 
@@ -124,7 +129,7 @@ def load_image_batch_vggt_omega_loader(
         raise ValueError("image_resolution must be divisible by patch_size")
 
     images: list[torch.Tensor] = []
-    transforms: list[tuple[int, int, int, int, int, int, int, int]] = []
+    placements: list[ImagePlacement] = []
     to_tensor = TF.ToTensor()
 
     for idx in indices:
@@ -167,40 +172,22 @@ def load_image_batch_vggt_omega_loader(
 
         image = image.resize((target_w, target_h), PILImage.Resampling.BICUBIC)
         images.append(to_tensor(image))
-        transforms.append((loader_w, loader_h, crop_x, crop_y, crop_w, crop_h, target_w, target_h))
 
-    batch_h = max(image.shape[1] for image in images)
-    batch_w = max(image.shape[2] for image in images)
-    padded_images: list[torch.Tensor] = []
-    original_coords: list[list[float]] = []
-
-    for image, transform in zip(images, transforms):
-        loader_w, loader_h, crop_x, crop_y, crop_w, crop_h, target_w, target_h = transform
-        pad_left = (batch_w - target_w) // 2
-        pad_right = batch_w - target_w - pad_left
-        pad_top = (batch_h - target_h) // 2
-        pad_bottom = batch_h - target_h - pad_top
-        padded_images.append(
-            torch.nn.functional.pad(
-                image,
-                (pad_left, pad_right, pad_top, pad_bottom),
-                mode="constant",
-                value=1.0,
+        # The frontend maps keypoints via u_omega = u_loader * (scaled_w / loader_w) - left; expressing
+        # the aspect-crop as an ImagePlacement keeps that formula valid (the crop offset folds into
+        # left/top, the crop's resize factor extrapolates to the full loader frame in scaled_w/h).
+        resize_x = target_w / crop_w
+        resize_y = target_h / crop_h
+        placements.append(
+            ImagePlacement(
+                left=crop_x * resize_x,
+                top=crop_y * resize_y,
+                scaled_w=loader_w * resize_x,
+                scaled_h=loader_h * resize_y,
             )
         )
 
-        resize_x = target_w / crop_w
-        resize_y = target_h / crop_h
-        scaled_w = loader_w * resize_x
-        scaled_h = loader_h * resize_y
-
-        # this is because the existing frontend expects u_omega = u_loader * resize_x - left
-        # and natural mapping for this transform is u_omega = (u_loader - crop_x) * resize_x + pad_left
-        left = crop_x * resize_x - pad_left
-        top = crop_y * resize_y - pad_top
-        original_coords.append([left, top, left + batch_w, top + batch_h, scaled_w, scaled_h])
-
-    return torch.stack(padded_images), torch.tensor(original_coords, dtype=torch.float32)
+    return assemble_image_batch(images, placements)
 
 
 # ---------------------------------------------------------------------------
@@ -223,7 +210,10 @@ def load_model(
 ):
     """Load the VGGT Omega model weights on the requested device."""
     if device.type != "cuda":
-        raise RuntimeError("VGGT-Omega requires CUDA.")
+        # Upstream targets CUDA (forward() autocasts to bf16/fp16 on CUDA; elsewhere autocast is a
+        # no-op and the ~1B-parameter model runs in full fp32) — it works, but orders of magnitude
+        # slower. Warn rather than refuse.
+        logger.warning("VGGT-Omega running on %s: expect very slow inference (upstream targets CUDA).", device.type)
     checkpoint = resolve_weights_path(DEFAULT_WEIGHTS_PATH)
     model = VGGTOmega()
     model.load_state_dict(torch.load(checkpoint, map_location="cpu"))
@@ -233,9 +223,10 @@ def load_model(
     return model
 
 
-# Module-level singleton so each Dask worker loads the ~1B VGGT-Omega weights only ONCE. When this
-# transformer is driven by ClusterVGGTWithFrontend with model_cache_key=False, the optimizer passes
-# model=None for every cluster; without this cache that would reload the 1B model per cluster.
+# Module-level singleton so each Dask worker loads the ~1B VGGT-Omega weights only ONCE. Config-less
+# transformers get no entry in the optimizer's shared model cache (see _model_loading_plan), so the
+# optimizer passes model=None for every cluster; without this per-worker cache that would reload the
+# 1B model per cluster.
 _OMEGA_MODEL_CACHE: dict[str, Any] = {}
 
 
