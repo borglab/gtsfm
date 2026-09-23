@@ -36,7 +36,7 @@ class TestMast3rCorrespondenceGenerator(unittest.TestCase):
         image_future_map = self._loader.get_image_futures(self._client)
         image_futures = [image_future_map[i] for i in range(len(self._loader))]
 
-        keypoints, match_indices = corr_gen.generate_correspondences(self._client, image_futures, IMAGE_PAIRS)
+        keypoints, match_indices = corr_gen.generate_correspondences_futures(self._client, image_futures, IMAGE_PAIRS)
 
         self.assertEqual(len(keypoints), 3)  # Corresponds to images 0, 1, 2 used in IMAGE_PAIRS
         self.assertEqual(len(match_indices), len(IMAGE_PAIRS))
