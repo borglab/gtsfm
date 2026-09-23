@@ -389,6 +389,7 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
         del mock_cuda.GncSparseLMOptimizer
         # Make hasattr return False for missing attrs - MagicMock creates attrs on access,
         # so configure spec-like behavior via a simple namespace object instead.
+
         class _CudaWithoutGnc:
             SparseLevenbergMarquardtOptimizer = MagicMock
             SparseLevenbergMarquardtParams = MagicMock
