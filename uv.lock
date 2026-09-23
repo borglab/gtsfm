@@ -958,7 +958,7 @@ requires-dist = [
     { name = "xformers", marker = "sys_platform == 'linux' and extra == 'all'", specifier = "==0.0.30" },
     { name = "xformers", marker = "sys_platform == 'linux' and extra == 'complete'", specifier = "==0.0.30" },
 ]
-provides-extras = ["complete", "multi-gpu", "all"]
+provides-extras = ["complete", "romav2", "multi-gpu", "all"]
 
 [package.metadata.requires-dev]
 dev = [
