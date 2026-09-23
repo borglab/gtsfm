@@ -3,6 +3,7 @@
 Authors: Ayush Baid, John Lambert
 """
 
+import shutil
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -58,6 +59,34 @@ class ClusterExecutionHandles:
 def _identity(value: T) -> T:
     """Return value unchanged. Used to seed futures without extra scheduling."""
     return value
+
+
+def _save_optional_process_graph(filepath: Path) -> bool:
+    """Save the process graph when Graphviz is available.
+
+    The process graph is a diagnostic artifact, not a prerequisite for
+    reconstruction. A missing or unusable Graphviz installation should never
+    prevent the pipeline from running.
+    """
+    if shutil.which("dot") is None:
+        logger.warning(
+            "Graphviz 'dot' is unavailable; skipping optional process graph %s. "
+            "Reconstruction will continue. Install Graphviz to enable this export.",
+            filepath,
+        )
+        return False
+
+    try:
+        ProcessGraphGenerator().save_graph(str(filepath))
+    except OSError as exc:
+        logger.warning(
+            "Could not save optional process graph %s; reconstruction will continue. (%s)",
+            filepath,
+            exc,
+        )
+        return False
+
+    return True
 
 
 def _empty_cluster_handles(context: ClusterContext, edge_count: int) -> ClusterExecutionHandles:
@@ -195,14 +224,13 @@ class SceneOptimizer:
         base_metrics_groups = []
 
         # Process Graph Generation: Visualize the process graph, which is a flow of data across GTSFM's modules.
-        process_graph_generator = ProcessGraphGenerator()
         base_output_paths = prepare_output_paths(self.output_root, None)
         config_snapshot = self._config_snapshot
         if config_snapshot is not None:
             config_path = base_output_paths.results / "config.yaml"
             OmegaConf.save(config=config_snapshot, f=str(config_path))
             logger.info("📦 Saved final config snapshot to %s", config_path)
-        process_graph_generator.save_graph(str(base_output_paths.plots / "process_graph_output.svg"))
+        _save_optional_process_graph(base_output_paths.plots / "process_graph_output.svg")
 
         logger.info("🔥 GTSFM: Running image pair retrieval...")
         retriever_metrics, visibility_graph, similarity_matrix = self._run_retriever(client, base_output_paths)

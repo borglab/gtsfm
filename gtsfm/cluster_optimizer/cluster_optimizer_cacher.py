@@ -153,10 +153,28 @@ class ClusterOptimizerCacher(ClusterOptimizerBase):
         cached_result = self._load_result_from_cache(context)
         if cached_result is not None:
             cached_graph: Delayed = delayed(lambda r: r, pure=False)(cached_result)
-            io_tasks = (
-                delayed(self._save_cached_result_outputs, pure=False)(cached_graph, context.output_paths.results),
-            )
-            return ClusterComputationGraph(io_tasks=io_tasks, metric_tasks=tuple(), sfm_result=cached_graph)
+            io_tasks: list[Delayed] = [
+                delayed(self._save_cached_result_outputs, pure=False)(cached_graph, context.output_paths.results)
+            ]
+            gaussian_optimizer = vars(self._optimizer).get("gaussian_splatting_optimizer")
+            if gaussian_optimizer is not None:
+                import gtsfm.splat.rendering as gtsfm_rendering
+
+                images_graph = context.get_delayed_image_map()
+                splats_graph, cfg_graph = gaussian_optimizer.create_computation_graph(images_graph, cached_graph)
+                io_tasks.extend(
+                    [
+                        delayed(gtsfm_rendering.save_splats)(context.output_paths.results, splats_graph),
+                        delayed(gtsfm_rendering.generate_interpolated_video)(
+                            images_graph,
+                            cached_graph,
+                            cfg_graph,
+                            splats_graph,
+                            str(context.output_paths.results / "interpolated_video.mp4"),
+                        ),
+                    ]
+                )
+            return ClusterComputationGraph(io_tasks=tuple(io_tasks), metric_tasks=tuple(), sfm_result=cached_graph)
 
         computation = self._optimizer.create_computation_graph(context)
         if computation is None or computation.sfm_result is None:

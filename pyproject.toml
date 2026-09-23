@@ -1,9 +1,11 @@
 # ============================================================================
 # INSTALLATION INSTRUCTIONS
 # ============================================================================
-# Installation (two steps):
-#   1. uv sync --python 3.12
-#   2. uv pip install torch-scatter --find-links https://data.pyg.org/whl/torch-2.7.0+cu128.html
+# Installation:
+#   uv tool install .
+#   gtsfm run
+# AnySplat's optional tracking stack additionally needs the platform-specific
+# torch-scatter wheel documented in docs/setup/uv-setup.md.
 #
 # System packages also required:
 #   - Linux:  sudo apt-get install nodejs npm graphviz
@@ -27,6 +29,7 @@ keywords = ["computer-vision", "structure-from-motion", "sfm", "3d-reconstructio
 # ============================================================================
 dependencies = [
     # Python essentials
+    "certifi",
     "python-dotenv",
     
     # Dask and related (for parallel computation)
@@ -42,6 +45,7 @@ dependencies = [
     # Core functionality and APIs
     "hydra-core",
     "matplotlib>=3.5",
+    "modal>=1.0.0",
     "networkx",
     "numpy==2.2.6",
     "open3d",
@@ -91,7 +95,9 @@ dependencies = [
     "gsplat==1.5.3",
     "torchmetrics==1.7.3",
     "tyro==0.9.24",
-    "Flask>=3.0,<4.0",
+    "fastapi>=0.116,<1.0",
+    "python-multipart>=0.0.20,<1.0",
+    "uvicorn[standard]>=0.35,<1.0",
     
     # AnySplat
     "dacite",
@@ -106,6 +112,9 @@ dependencies = [
     "etils==1.7.0",
     "nbformat==5.10.4",
 ]
+
+[project.scripts]
+gtsfm = "gtsfm.cli:main"
 
 # ============================================================================
 # Optional Dependencies (Extras)
@@ -151,6 +160,12 @@ dev = [
 # Dependency Sources
 # ============================================================================
 [tool.uv.sources]
+gtsam-develop = [
+    { url = "https://files.pythonhosted.org/packages/d3/f0/ef174952c8ee654536b7e03d82196a8b35f2ffc00755e125a2b1fbe113c7/gtsam_develop-4.3a1.dev202604240153-cp312-cp312-macosx_10_15_universal2.whl", marker = "sys_platform == 'darwin'" },
+    { url = "https://files.pythonhosted.org/packages/d0/e7/902fe4fb7d8f97801047298eec75c3f65900c288462d06398358b3799b3a/gtsam_develop-4.3a1.dev202604240153-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
+    { url = "https://files.pythonhosted.org/packages/4a/85/afafe81e8fb0ab6ae204c97960f6a6df5476edc4ce20f171d88c6e3070cf/gtsam_develop-4.3a1.dev202604240153-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" },
+]
+
 # PyTorch: Use CUDA 12.8 on Linux (for Blackwell support), CPU on macOS
 torch = [
     { index = "pytorch-cu128", marker = "sys_platform == 'linux'" },
@@ -186,12 +201,48 @@ explicit = true
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.build.targets.wheel]
+packages = ["gtsfm", "visualization", "thirdparty"]
+exclude = [
+    "visualization/frontend/**",
+    "thirdparty/**/.github/**",
+    "thirdparty/**/assets/**",
+    "thirdparty/**/demo/**",
+    "thirdparty/**/demos/**",
+    "thirdparty/**/example/**",
+    "thirdparty/**/examples/**",
+    "thirdparty/**/*.ipynb",
+]
+
+[tool.hatch.build.targets.wheel.force-include]
+"visualization/templates" = "visualization/templates"
+
+[tool.hatch.build.targets.sdist]
+include = ["gtsfm", "visualization", "thirdparty", "tests", "README.md", "LICENSE", "pyproject.toml"]
+exclude = [
+    "visualization/frontend/node_modules/**",
+    "thirdparty/**/.github/**",
+    "thirdparty/**/assets/**",
+    "thirdparty/**/demo/**",
+    "thirdparty/**/demos/**",
+    "thirdparty/**/example/**",
+    "thirdparty/**/examples/**",
+    "thirdparty/**/*.ipynb",
+]
+
 # ============================================================================
 # UV Configuration
 # ============================================================================
 [tool.uv]
 # Default groups to include
 default-groups = ["dev"]
+
+# GTSAM's pinned research wheel is published for CPython 3.12 on macOS and Linux.
+environments = [
+    "python_full_version >= '3.12' and python_full_version < '3.13' and platform_python_implementation == 'CPython' and sys_platform == 'darwin'",
+    "python_full_version >= '3.12' and python_full_version < '3.13' and platform_python_implementation == 'CPython' and sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "python_full_version >= '3.12' and python_full_version < '3.13' and platform_python_implementation == 'CPython' and sys_platform == 'linux' and platform_machine == 'aarch64'",
+]
 
 # Package as editable install (for development)
 package = true
