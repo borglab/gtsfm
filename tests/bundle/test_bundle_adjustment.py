@@ -374,9 +374,8 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
         self.assertEqual(ba._last_cuda_result.fallbackReason, "PlanIncompatible")
         self.assertEqual(ba._last_cuda_result.fallbackDetail, "Unsupported factor type")
 
-    def test_cuda_gnc_incompatibility_handling(self):
-        """Ensure GNC with use_cuda logs warning or raises error depending on fallback setting."""
-        # Fallback allowed -> warns and runs CPU GNC
+    def test_cuda_gnc_falls_back_when_bindings_missing(self):
+        """Without GncSparseLM* bindings, CUDA+GNC falls back to CPU GNC when allowed."""
         ba_fallback = BundleAdjustmentOptimizer(
             reproj_error_thresholds=[100.0],
             min_tracks_per_camera=5,
@@ -384,10 +383,24 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
             use_gnc=True,
             cuda_fallback_on_unsupported=True,
         )
-        computed_result, error = ba_fallback.run_simple_ba(self.test_data)
-        self.assertIsNotNone(computed_result)
+        # CUDA present but GNC Sparse LM bindings absent (older CUDA wheels).
+        mock_cuda = MagicMock()
+        del mock_cuda.GncSparseLMParams
+        del mock_cuda.GncSparseLMOptimizer
+        # Make hasattr return False for missing attrs - MagicMock creates attrs on access,
+        # so configure spec-like behavior via a simple namespace object instead.
 
-        # Fallback disallowed -> raises ValueError
+        class _CudaWithoutGnc:
+            SparseLevenbergMarquardtOptimizer = MagicMock
+            SparseLevenbergMarquardtParams = MagicMock
+            LinearSolverOptions = MagicMock
+            LinearSolverType = MagicMock
+            PcgOptions = MagicMock
+
+        with patch.object(gtsam, "cuda", _CudaWithoutGnc(), create=True):
+            computed_result, error = ba_fallback.run_simple_ba(self.test_data)
+            self.assertIsNotNone(computed_result)
+
         ba_no_fallback = BundleAdjustmentOptimizer(
             reproj_error_thresholds=[100.0],
             min_tracks_per_camera=5,
@@ -395,9 +408,55 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
             use_gnc=True,
             cuda_fallback_on_unsupported=False,
         )
-        with self.assertRaises(ValueError) as context:
-            ba_no_fallback.run_simple_ba(self.test_data)
-        self.assertIn("GNC bundle adjustment is not supported by the CUDA Sparse LM optimizer", str(context.exception))
+        with patch.object(gtsam, "cuda", _CudaWithoutGnc(), create=True):
+            with self.assertRaises(RuntimeError) as context:
+                ba_no_fallback.run_simple_ba(self.test_data)
+            self.assertIn("GncSparseLMOptimizer", str(context.exception))
+
+    def test_cuda_gnc_uses_sparse_lm_bindings_when_available(self):
+        """When GncSparseLM* exists, CUDA+GNC should call that optimizer and return weights."""
+        ba = BundleAdjustmentOptimizer(
+            reproj_error_thresholds=[100.0],
+            min_tracks_per_camera=5,
+            use_cuda=True,
+            use_gnc=True,
+            gnc_loss="GMC",
+            cuda_linear_solver="PCG",
+            cuda_fallback_on_unsupported=False,
+        )
+
+        mock_cuda = MagicMock()
+        mock_cuda.LinearSolverType.Pcg = "Pcg"
+        mock_cuda.LinearSolverType.Cudss = "Cudss"
+        mock_linear_opts = MagicMock()
+        mock_cuda.LinearSolverOptions.return_value = mock_linear_opts
+        mock_pcg_opts = MagicMock()
+        mock_cuda.PcgOptions.return_value = mock_pcg_opts
+        mock_inner_params = MagicMock()
+        mock_cuda.SparseLevenbergMarquardtParams.return_value = mock_inner_params
+
+        mock_gnc_params = MagicMock()
+        mock_gnc_params.Verbosity.SILENT = "SILENT"
+        mock_gnc_params.Verbosity.SUMMARY = "SUMMARY"
+        mock_cuda.GncSparseLMParams = MagicMock(return_value=mock_gnc_params)
+        mock_cuda.GncSparseLMParams.Verbosity = mock_gnc_params.Verbosity
+
+        mock_values = self.test_data.to_values(shared_calib=False)
+        mock_optimizer = MagicMock()
+        mock_optimizer.optimize.return_value = mock_values
+        # One weight per factor; exact count is unknown here, so return a small vector.
+        mock_optimizer.getWeights.return_value = np.array([1.0, 0.2, 1.0, 0.0])
+        mock_cuda.GncSparseLMOptimizer = MagicMock(return_value=mock_optimizer)
+
+        with patch.object(gtsam, "cuda", mock_cuda, create=True):
+            computed_result, error = ba.run_simple_ba(self.test_data)
+
+        mock_cuda.GncSparseLMParams.assert_called_once()
+        mock_cuda.GncSparseLMOptimizer.assert_called_once()
+        mock_optimizer.optimize.assert_called_once()
+        mock_gnc_params.setLossType.assert_called_once_with(gtsam.GncLossType.GM)
+        mock_gnc_params.setAllowNonNoiseModelFactors.assert_called_once_with(True)
+        self.assertEqual(computed_result.number_images(), self.test_data.number_images())
 
     def test_cuda_invalid_solver_backend_raises(self):
         """Ensure unsupported backend strings raise a ValueError."""
