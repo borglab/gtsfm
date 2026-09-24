@@ -154,6 +154,13 @@ class GtsfmRunner:
         )
         parser.add_argument("--threads_per_worker", type=int, default=1, help="Number of threads per each worker.")
         parser.add_argument(
+            "--dask_processes",
+            action=argparse.BooleanOptionalAction,
+            default=True,
+            help="Use process-based LocalCluster workers (default). Pass --no-dask_processes for threads "
+            "(needed for matchers that monkey-patch model classes, e.g. RoMa v2).",
+        )
+        parser.add_argument(
             "--worker_memory_limit", type=str, default="32GB", help="Memory limit per worker, e.g. `16GB`"
         )
         parser.add_argument("--dashboard_port", type=str, default=":8787", help="dask dashboard port number")
@@ -434,6 +441,7 @@ class GtsfmRunner:
             local_cluster_kwargs = {
                 "n_workers": self.parsed_args.num_workers,
                 "threads_per_worker": self.parsed_args.threads_per_worker,
+                "processes": self.parsed_args.dask_processes,
                 "dashboard_address": self.parsed_args.dashboard_port,
             }
             if self.parsed_args.worker_memory_limit is not None:

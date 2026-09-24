@@ -34,17 +34,24 @@ def _match_image_pair(matcher: ImageMatcherBase, image_i1: Image, image_i2: Imag
 class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
     """Pair-wise direct matching of images (e.g. transformer-based)."""
 
-    def __init__(self, matcher: ImageMatcherBase, deduplicate: bool = True) -> None:
+    def __init__(
+        self,
+        matcher: ImageMatcherBase,
+        deduplicate: bool = True,
+        aggregator: Optional[KeypointAggregatorBase] = None,
+    ) -> None:
         """
         Args:
             matcher: Matcher to use.
-            deduplicate: Whether to de-duplicate with a single image the detections received from each image pair.
+            deduplicate: Whether to de-duplicate detections within each image across pairs when ``aggregator``
+                is not supplied. Defaults to True (``KeypointAggregatorDedup``).
+            aggregator: Optional keypoint aggregator. When provided, takes precedence over ``deduplicate``.
         """
         self._matcher = matcher
-
-        self._aggregator: KeypointAggregatorBase = (
-            KeypointAggregatorDedup() if deduplicate else KeypointAggregatorUnique()
-        )
+        if aggregator is not None:
+            self._aggregator = aggregator
+        else:
+            self._aggregator = KeypointAggregatorDedup() if deduplicate else KeypointAggregatorUnique()
 
     def __repr__(self) -> str:
         return f"""
