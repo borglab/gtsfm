@@ -98,6 +98,7 @@ class ClusterOptimizerCacher(ClusterOptimizerBase):
         components = [
             one_view_data.image_fname,
             repr(one_view_data.intrinsics),
+            str(one_view_data.intrinsics_from_exif),
             repr(one_view_data.absolute_pose_prior),
             repr(one_view_data.camera_gt),
             repr(one_view_data.pose_gt),

@@ -115,6 +115,12 @@ class OneDSFMLoader(LoaderBase):
             default_focal_length_factor=self._default_focal_length_factor
         )
 
+    def intrinsics_from_exif(self, index: int) -> bool:
+        """True iff the image carries usable EXIF; otherwise get_camera_intrinsics_full_res guessed."""
+        if index < 0 or index >= len(self):
+            raise IndexError("Image index is invalid")
+        return io_utils.load_image(self._image_paths[index]).get_intrinsics_from_exif() is not None
+
     def get_camera_pose(self, index: int) -> Optional[Pose3]:
         """Get the camera pose (in world coordinates) at the given index.
 
