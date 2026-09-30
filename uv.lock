@@ -778,17 +778,17 @@ wheels = [
 ]
 
 [[package]]
-name = "gtsam-develop"
-version = "4.3.1.dev202609190318"
+name = "gtsam"
+version = "4.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy" },
     { name = "pytest" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/94/f0/aa984cebaf2625f9b72526b5af3b030b7876d7e64651ad48ec14ffca8218/gtsam_develop-4.3.1.dev202609190318-cp312-cp312-macosx_10_15_universal2.whl", hash = "sha256:bfa12b99952e0c6c0f5c9ccd1303c43677ad57d263984dda354757e82239c989", size = 46962130, upload-time = "2026-09-19T04:26:17.461Z" },
-    { url = "https://files.pythonhosted.org/packages/23/2a/a08abda1826a8f65c8682ca5faed0d5aae02e6b8fd6a8ea81d01266f8149/gtsam_develop-4.3.1.dev202609190318-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:f3034ea39c15f11e457040d34ad1a4971a18c84aee44bddf87630cd1c8937f59", size = 33313366, upload-time = "2026-09-19T04:26:20.352Z" },
-    { url = "https://files.pythonhosted.org/packages/48/4d/130b87b1e54099b3bc0d81fecfaa5cc63cb87c45d9141c9ec9713117c52a/gtsam_develop-4.3.1.dev202609190318-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:b1f074ced2eaa14d6eca845b93bba5b4c05733ff789a04add40b7d15ddbaa10c", size = 34584059, upload-time = "2026-09-19T04:26:23.062Z" },
+    { url = "https://files.pythonhosted.org/packages/35/c8/139a044606e650d289e52c09464c0f601e0a200de83051668dfb830b43d3/gtsam-4.3.0-cp312-cp312-macosx_10_15_universal2.whl", hash = "sha256:771a992142368fb5ff58c8684202c2f1d22abfa861b1c158572acbd5b51a8e05", size = 46961345, upload-time = "2026-09-19T01:05:21.776Z" },
+    { url = "https://files.pythonhosted.org/packages/ed/72/1a36023b71f784ed673318783f10db5c568adb78eb4e74350c0b6ff6aff8/gtsam-4.3.0-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:a23c4e604c4e1437c64bf5cc07cd8e8b9cd21d072914a514ba184730d1cae501", size = 33312798, upload-time = "2026-09-19T01:05:24.763Z" },
+    { url = "https://files.pythonhosted.org/packages/0a/2e/2fee779af337321716cadd20dc81c878f6b7431a698faac4bc8984e92a3e/gtsam-4.3.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:b8f227ae3ec96641d511e64fd2d26e2804f4ba94e67d0272fbdaad2b0dca5455", size = 34583489, upload-time = "2026-09-19T01:05:27.546Z" },
 ]
 
 [[package]]
@@ -808,7 +808,7 @@ dependencies = [
     { name = "etils" },
     { name = "flask" },
     { name = "gsplat" },
-    { name = "gtsam-develop" },
+    { name = "gtsam" },
     { name = "h5py" },
     { name = "huggingface-hub", extra = ["torch"] },
     { name = "hydra-core" },
@@ -905,7 +905,7 @@ requires-dist = [
     { name = "etils", specifier = "==1.7.0" },
     { name = "flask", specifier = ">=3.0,<4.0" },
     { name = "gsplat", specifier = "==1.5.3" },
-    { name = "gtsam-develop", specifier = "==4.3.1.dev202609190318" },
+    { name = "gtsam", specifier = "==4.3.0" },
     { name = "h5py" },
     { name = "huggingface-hub", extras = ["torch"], specifier = "==0.34.4" },
     { name = "hydra-core" },
