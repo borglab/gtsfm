@@ -6,10 +6,12 @@ References:
 - https://arxiv.org/abs/2511.15706
 - https://github.com/Parskatt/RoMaV2
 
-Install (not a pip extra: romav2 pins torchvision>=0.23, which conflicts with GTSfM):
-    pip install romav2 --no-deps
+The implementation is the ``thirdparty/RoMaV2`` submodule (``src/romav2``). It is not a pip extra:
+romav2 pins torchvision>=0.23, which conflicts with GTSfM.
 """
 
+import sys
+from pathlib import Path
 from typing import Optional, Tuple
 
 import numpy as np
@@ -19,6 +21,16 @@ import torch
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.matcher.image_matcher_base import ImageMatcherBase
+
+_ROMAV2_SRC = Path(__file__).resolve().parents[3] / "thirdparty" / "RoMaV2" / "src"
+
+
+def prepare_romav2_import() -> None:
+    """Prefer the vendored RoMa v2 checkout over a pip install."""
+    if _ROMAV2_SRC.is_dir():
+        src = str(_ROMAV2_SRC)
+        if src not in sys.path:
+            sys.path.insert(0, src)
 
 
 class RoMaV2Matcher(ImageMatcherBase):
@@ -43,12 +55,13 @@ class RoMaV2Matcher(ImageMatcherBase):
         # Fail at construction when the package is missing. Do not build the network here:
         # RoMaV2() replaces DINOv3.forward on the class, and that replacement does not
         # travel with the matcher when Dask sends it to a worker process.
+        prepare_romav2_import()
         try:
             import romav2  # noqa: F401
         except ImportError as exc:
             raise ImportError(
-                "RoMa v2 support requires the `romav2` package. Install with:\n"
-                "  pip install romav2 --no-deps"
+                "RoMa v2 support requires the thirdparty/RoMaV2 submodule (package romav2). "
+                "Initialize it with: git submodule update --init thirdparty/RoMaV2"
             ) from exc
 
         self._use_cuda = use_cuda
@@ -63,6 +76,7 @@ class RoMaV2Matcher(ImageMatcherBase):
         if self._matcher is not None:
             return
 
+        prepare_romav2_import()
         from romav2 import RoMaV2
         import romav2.device as romav2_device
 

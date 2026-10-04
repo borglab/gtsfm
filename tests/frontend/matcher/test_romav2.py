@@ -1,6 +1,6 @@
 """Unit tests for the RoMa v2 image matcher.
 
-These tests skip when the optional ``romav2`` extra is not installed.
+These tests skip when the ``thirdparty/RoMaV2`` submodule is not checked out.
 """
 
 from __future__ import annotations
@@ -17,6 +17,9 @@ TEST_DATA_PATH = DATA_ROOT_PATH / "set1_lund_door"
 
 
 def _romav2_available() -> bool:
+    from gtsfm.frontend.matcher.romav2 import prepare_romav2_import
+
+    prepare_romav2_import()
     try:
         import romav2  # noqa: F401
 
