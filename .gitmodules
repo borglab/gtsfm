@@ -16,3 +16,6 @@
 [submodule "thirdparty/RoMaV2"]
 	path = thirdparty/RoMaV2
 	url = https://github.com/Parskatt/RoMaV2.git
+[submodule "thirdparty/vggt-omega"]
+	path = thirdparty/vggt-omega
+	url = https://github.com/facebookresearch/vggt-omega.git

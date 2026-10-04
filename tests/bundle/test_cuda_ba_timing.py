@@ -1,4 +1,4 @@
-"""Timing comparisons for CPU vs CUDA Sparse LM bundle adjustment.
+"""Timing comparisons for CPU vs CUDA Sparse LM (and GNC) bundle adjustment.
 
 These tests are intentionally marked ``slow`` so default CI unit tests skip them.
 They are meant to be run on a CUDA-capable machine with benchmark datasets present::
@@ -46,6 +46,11 @@ def _gtsam_cuda_available() -> bool:
     return getattr(gtsam, "cuda", None) is not None
 
 
+def _gtsam_cuda_gnc_available() -> bool:
+    cuda = getattr(gtsam, "cuda", None)
+    return cuda is not None and hasattr(cuda, "GncSparseLMOptimizer") and hasattr(cuda, "GncSparseLMParams")
+
+
 def _require_gerrard_hall() -> Path:
     if not GERRARD_HALL_SPARSE.exists():
         pytest.skip(
@@ -55,9 +60,11 @@ def _require_gerrard_hall() -> Path:
     return GERRARD_HALL_SPARSE
 
 
-def _build_optimizer(*, use_cuda: bool) -> BundleAdjustmentOptimizer:
+def _build_optimizer(*, use_cuda: bool, use_gnc: bool = False) -> BundleAdjustmentOptimizer:
     return BundleAdjustmentOptimizer(
         use_cuda=use_cuda,
+        use_gnc=use_gnc,
+        gnc_loss="GMC",
         cuda_linear_solver="PCG",
         # Fail loudly in timing runs so a silent CPU fallback cannot look like a CUDA win/loss.
         cuda_fallback_on_unsupported=False,
@@ -67,22 +74,28 @@ def _build_optimizer(*, use_cuda: bool) -> BundleAdjustmentOptimizer:
 
 
 def _time_simple_ba(
-    data: GtsfmData, *, use_cuda: bool, warmups: int = 1, trials: int = 1
+    data: GtsfmData,
+    *,
+    use_cuda: bool,
+    use_gnc: bool = False,
+    warmups: int = 1,
+    trials: int = 1,
 ) -> Tuple[float, float, Optional[object]]:
     """Return (mean wall-clock seconds, final error, last CUDA diagnostics)."""
     durations = []
     final_error = float("nan")
     last_cuda_result = None
+    label = ("CUDA" if use_cuda else "CPU") + ("+GNC" if use_gnc else "")
 
     for trial_idx in range(warmups + trials):
-        ba = _build_optimizer(use_cuda=use_cuda)
+        ba = _build_optimizer(use_cuda=use_cuda, use_gnc=use_gnc)
         start = time.perf_counter()
         _, final_error = ba.run_simple_ba(data)
         wall = time.perf_counter() - start
         last_cuda_result = ba._last_cuda_result
         opt_duration = ba._last_optimization_duration_sec
         print(
-            f"{'CUDA' if use_cuda else 'CPU'} "
+            f"{label} "
             f"{'warmup' if trial_idx < warmups else 'trial'} "
             f"wall={wall:.3f}s opt={opt_duration:.3f}s error={final_error:.4f}"
         )
@@ -138,6 +151,48 @@ class TestCudaBundleAdjustmentTiming(unittest.TestCase):
                 speedup,
                 1.0,
                 msg=f"Expected CUDA Sparse LM to beat CPU LM on Gerrard Hall, got {speedup:.2f}x",
+            )
+
+    def test_gerrard_hall_cpu_gnc_vs_cuda_gnc_timing(self):
+        """Compare CPU GNC LM vs CUDA GNC Sparse LM on Gerrard Hall (~100 images)."""
+        if not _gtsam_cuda_gnc_available():
+            self.skipTest(
+                "gtsam.cuda.GncSparseLMOptimizer is unavailable "
+                "(need a GTSAM develop build with CUDA GNC Python bindings)."
+            )
+
+        sparse_dir = _require_gerrard_hall()
+        data = GtsfmData.read_colmap(str(sparse_dir))
+        self.assertGreaterEqual(data.number_images(), 90)
+        self.assertGreater(data.number_tracks(), 1000)
+
+        print(
+            f"\nGerrard Hall GNC timing scene: "
+            f"{data.number_images()} cameras, {data.number_tracks()} tracks"
+        )
+
+        cpu_sec, cpu_error, _ = _time_simple_ba(
+            data, use_cuda=False, use_gnc=True, warmups=0, trials=1
+        )
+        cuda_sec, cuda_error, _ = _time_simple_ba(
+            data, use_cuda=True, use_gnc=True, warmups=1, trials=1
+        )
+
+        speedup = cpu_sec / cuda_sec if cuda_sec > 0 else float("inf")
+        print("\n==== Gerrard Hall GNC BA timing summary ====")
+        print(f"CPU  GNC LM:          {cpu_sec:.3f}s  final_error={cpu_error:.4f}")
+        print(f"CUDA GNC Sparse LM:   {cuda_sec:.3f}s  final_error={cuda_error:.4f}")
+        print(f"Speedup (CPU/CUDA):   {speedup:.2f}x")
+        print("===========================================\n")
+
+        # GNC can change the effective objective via weights; keep a looser error band than plain LM.
+        self.assertLess(abs(cpu_error - cuda_error) / max(abs(cpu_error), 1.0), 0.25)
+        require_speedup = os.environ.get("GTSFM_REQUIRE_CUDA_SPEEDUP", "1") != "0"
+        if require_speedup:
+            self.assertGreater(
+                speedup,
+                1.0,
+                msg=f"Expected CUDA GNC Sparse LM to beat CPU GNC on Gerrard Hall, got {speedup:.2f}x",
             )
 
 

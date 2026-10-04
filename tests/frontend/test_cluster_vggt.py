@@ -61,8 +61,10 @@ class ClusterVGGTCacheTest(unittest.TestCase):
             weights_path=None,
         )
 
-        with mock.patch.object(VggtGeometryTransformer, "predict", fake_predict), \
-             mock.patch.object(MultiViewTracker, "build_gtsfm_data", return_value=GtsfmData(2)):
+        with (
+            mock.patch.object(VggtGeometryTransformer, "predict", fake_predict),
+            mock.patch.object(MultiViewTracker, "build_gtsfm_data", return_value=GtsfmData(2)),
+        ):
             _run_vggt_pipeline(
                 image_batch,
                 seed=0,
@@ -86,7 +88,7 @@ class ClusterVGGTCacheTest(unittest.TestCase):
     def test_cluster_configures_loader_kwargs(self) -> None:
         """ClusterVGGT should derive loader kwargs from the provided weights path."""
 
-        optimizer = ClusterVGGT(weights_path="/tmp/vggt.pt", model_cache_key=False)
+        optimizer = ClusterVGGT(weights_path="/tmp/vggt.pt", use_model_cache=False)
         self.assertEqual(optimizer._loader_kwargs["weights_path"], Path("/tmp/vggt.pt"))
         self.assertIsNone(optimizer._model_cache_key)
 

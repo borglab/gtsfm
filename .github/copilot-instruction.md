@@ -1,6 +1,6 @@
 # Contribution and Coding Guidelines (Summary)
 
-This is a Python-only but GTSAM-heavy project. Any C++ changes are made in GTSAM, and pulled in via gtsam-develop.
+This is a Python-only but GTSAM-heavy project. Any C++ changes are made in GTSAM. Python depends on the stable `gtsam` release (`gtsam==4.3.0`); switch back to `gtsam-develop` only when GTSFM needs an API that is not in that release yet.
 
 - Prefer GTSAM types unless there is a strong reason to use other types.
 - Validate changes by running unit tests with `pytest tests`; CI should pass.
