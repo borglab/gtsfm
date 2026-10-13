@@ -289,7 +289,13 @@ class GtsfmRunner:
         if not self.parsed_args.run_mvs:
             multiview_optimizer.dense_multiview_optimizer = None
             logger.info("🔄 Disabled Multiview dense MVS optimizer via CLI flag --run_mvs=False")
-            OmegaConf.update(main_cfg, "cluster_optimizer.dense_multiview_optimizer", None, merge=False)
+            OmegaConf.update(
+                main_cfg,
+                "cluster_optimizer.dense_multiview_optimizer",
+                None,
+                merge=False,
+                force_add=True,
+            )
 
         # Override gaussian splatting
         if self.parsed_args.run_gs:
@@ -305,6 +311,7 @@ class GtsfmRunner:
                         "cluster_optimizer.gaussian_splatting_optimizer",
                         gs_cfg.gaussian_splatting_optimizer,
                         merge=False,
+                        force_add=True,
                     )
         else:
             multiview_optimizer.gaussian_splatting_optimizer = None
