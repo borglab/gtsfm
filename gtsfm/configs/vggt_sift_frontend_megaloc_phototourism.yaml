@@ -121,11 +121,12 @@ merging_options:
   min_track_length: 3
   allow_post_ba_reproj_filtering: true
   metric_constructed_only: true
+  reconstruct_internal_nodes: false
   ba_options:
     _target_: gtsfm.bundle.bundle_adjustment.BundleAdjustmentOptions
     shared_calib: false
     use_calibration_prior: false
-    use_pose_prior: true
+    use_pose_prior_all_cameras: true
     use_gnc: false
     gnc_loss: TLS
     factor_weight_outlier_threshold: 1e-6
