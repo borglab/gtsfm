@@ -62,7 +62,7 @@ def cal3_bundler_from_intrinsic(matrix: np.ndarray, crop_coords) -> gtsam.Cal3Bu
 
 
 def cal3ds2_from_intrinsic(matrix: np.ndarray, crop_coords) -> gtsam.Cal3_S2:
-    """Map a 3x3 intrinsic matrix to a Cal3_S2."""
+    """Map a 3x3 intrinsic matrix to a Cal3DS2."""
     fx = float(matrix[0, 0])
     fy = float(matrix[1, 1])
     cx = float(matrix[0, 2])

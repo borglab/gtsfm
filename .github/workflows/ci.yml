@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v7
       
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -27,6 +27,8 @@ jobs:
           sudo apt-get install -y nodejs npm graphviz
       
       - name: Install project dependencies
+        env:
+          UV_HTTP_TIMEOUT: "300"
         run: |
           uv sync --locked --python 3.12 --all-groups
           uv pip install torch-scatter --find-links https://data.pyg.org/whl/torch-2.7.0+cu128.html
@@ -78,10 +80,10 @@ jobs:
           ]
 
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v7
       
       - name: Cache frontend
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         env:
           CACHE_NUMBER_FRONTEND: 3
         with:
@@ -101,6 +103,8 @@ jobs:
           sudo apt-get install -y nodejs npm graphviz
       
       - name: Install project dependencies
+        env:
+          UV_HTTP_TIMEOUT: "300"
         run: |
           uv sync --locked --python 3.12
           uv pip install torch-scatter --find-links https://data.pyg.org/whl/torch-2.7.0+cu128.html
@@ -133,7 +137,7 @@ jobs:
             $SHARE_INTRINSICS
 
       - name: Archive dataset metrics, plots, and output data
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: results-${{ matrix.config_dataset_info[0] }}-${{ matrix.config_dataset_info[1] }}-${{ matrix.config_dataset_info[2] }}-${{ matrix.config_dataset_info[3] }}-${{ matrix.config_dataset_info[4] }}-${{ matrix.config_dataset_info[5] }}-${{ matrix.config_dataset_info[6] }}-${{ matrix.config_dataset_info[7] }}.zip
           path: |
