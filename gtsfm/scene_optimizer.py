@@ -34,6 +34,7 @@ from gtsfm.products.visibility_graph import AnnotatedGraph, VisibilityGraph, vis
 from gtsfm.retriever.image_pairs_generator import ImagePairsGenerator
 from gtsfm.two_view_estimator import TwoViewEstimator, create_v_corr_idxs, create_v_corr_idxs_futures
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
+from gtsfm.view_graph_estimator.view_graph_calibration import compute_global_view_graph_intrinsics
 from gtsfm.utils.graph import get_nodes_in_largest_connected_component
 from gtsfm.utils.tree import PreOrderIter, Tree
 from gtsfm.utils.tree_dask import submit_tree_map_with_children
@@ -313,6 +314,7 @@ class SceneOptimizer:
         # (pure feedforward, e.g. ClusterVGGT / AnySplat) cannot verify and keep the retrieval graph.
         padded_keypoints_list: Optional[list[Keypoints]] = None
         v_corr_idxs_dict: Optional[AnnotatedGraph[np.ndarray]] = None
+        global_refined_intrinsics: Optional[dict] = None
         correspondence_generator = getattr(self.cluster_optimizer, "correspondence_generator", None)
         two_view_estimator = getattr(self.cluster_optimizer, "two_view_estimator", None)
         if correspondence_generator is not None and two_view_estimator is not None:
@@ -339,6 +341,19 @@ class SceneOptimizer:
                 len(all_nodes) - len(largest_cc),
             )
             visibility_graph = verified_graph
+
+            # Global Fetzer calibration: estimate every camera's focal ONCE over the full verified
+            # view graph and hand the result to every cluster via ClusterContext — a camera gets the
+            # SAME focal anchor in every cluster that shares it, where the per-cluster calibration
+            # only sees a cluster's own F-edges. Runs in the driver (the solve is sparse).
+            if v_corr_idxs_dict and getattr(self.cluster_optimizer, "uses_global_view_graph_calibration", False):
+                global_refined_intrinsics = compute_global_view_graph_intrinsics(
+                    v_corr_idxs_dict, padded_keypoints_list, one_view_data_dict
+                )
+                logger.info(
+                    "🔭 Global Fetzer calibration: refined %d focals over the full verified view graph.",
+                    len(global_refined_intrinsics),
+                )
 
         # Bridge reconnection: add cross-component edges to reconnect island components.
         if similarity_matrix is not None and self._bridge_min_similarity > 0:
@@ -393,6 +408,7 @@ class SceneOptimizer:
                         visibility_graph=visibility_graph,
                         global_v_corr_idxs_dict=v_corr_idxs_dict,
                         global_keypoints=padded_keypoints_list,
+                        global_refined_intrinsics=global_refined_intrinsics,
                     )
 
                 context_tree = cluster_tree.map_with_path(to_context)

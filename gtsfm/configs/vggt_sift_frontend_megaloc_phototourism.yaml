@@ -87,7 +87,10 @@ cluster_optimizer:
     ba_options:
       _target_: gtsfm.bundle.bundle_adjustment.BundleAdjustmentOptions
       shared_calib: false
-      use_calibration_prior: false
+      # Anchor each focal (5px) so the per-cluster BA optimizes poses, not focals — keeps separator
+      # cameras' focals consistent across the clusters that share them (see the omega config).
+      use_calibration_prior: true
+      calibration_prior_focal_sigma: 5.0
       use_gnc: true
       gnc_loss: TLS
       factor_weight_outlier_threshold: 1e-6
@@ -127,7 +130,10 @@ merging_options:
   ba_options:
     _target_: gtsfm.bundle.bundle_adjustment.BundleAdjustmentOptions
     shared_calib: false
-    use_calibration_prior: false
+    # Focal anchor (10px) for the merge BA; `use_pose_prior` was removed from BundleAdjustmentOptions
+    # (78813fc4) and made this config fail to instantiate — golden runs use priors on ALL cameras.
+    use_calibration_prior: true
+    calibration_prior_focal_sigma: 10.0
     use_pose_prior_all_cameras: true
     use_gnc: false
     gnc_loss: TLS
