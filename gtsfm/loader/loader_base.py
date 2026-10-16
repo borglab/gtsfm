@@ -257,6 +257,20 @@ class LoaderBase(GTSFMProcess):
             raise ValueError(f"Unsupported calibration type {type(intrinsics_full_res)} for rescaling intrinsics.")
         return rescaled_intrinsics
 
+    def intrinsics_from_exif(self, index: int) -> bool:
+        """Whether the intrinsics for `index` are measured (EXIF / dataset calibration) vs guessed.
+
+        Loaders that fall back to the default-focal heuristic for metadata-less images must override
+        this and report False for exactly those images (see OneDSfMLoader).
+
+        Args:
+            index: The index to fetch.
+
+        Returns:
+            True if the intrinsics come from real metadata or a calibration; False for a heuristic guess.
+        """
+        return True
+
     def get_camera_intrinsics(self, index: int) -> Optional[gtsfm_types.CALIBRATION_TYPE]:
         """Get the camera intrinsics at the given index, for a possibly resized image.
 
@@ -558,6 +572,7 @@ class LoaderBase(GTSFMProcess):
             idx: OneViewData(
                 image_fname=image_fnames[idx],
                 intrinsics=intrinsics[idx],
+                intrinsics_from_exif=self.intrinsics_from_exif(idx),
                 absolute_pose_prior=absolute_pose_priors[idx],
                 camera_gt=cameras_gt[idx],
                 pose_gt=gt_wTi_list[idx],

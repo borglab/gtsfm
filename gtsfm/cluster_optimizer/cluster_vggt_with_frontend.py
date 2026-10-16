@@ -166,12 +166,13 @@ def _build_gtsfm_data_from_vggt_depth(
     global_to_local = {gidx: lidx for lidx, gidx in enumerate(image_indices)}
 
     # Register cameras with intrinsics in original image resolution. If
-    # `refined_intrinsics` is supplied (from view-graph calibration), use those
-    # directly; otherwise rescale VGGT's predicted intrinsics from VGGT pixel space.
+    # `refined_intrinsics` is supplied (measured passthrough / view-graph calibration), use those
+    # directly; cameras ABSENT from it fall back to rescaling the model's predicted intrinsics from
+    # VGGT pixel space, same as when no refinement is supplied at all.
     gtsfm_data = GtsfmData(number_images=num_images)
     for global_idx, camera in cameras.items():
         if global_idx in image_shapes and global_idx in global_to_local:
-            if refined_intrinsics is not None:
+            if refined_intrinsics is not None and global_idx in refined_intrinsics:
                 camera = type(camera)(camera.pose(), refined_intrinsics[global_idx])
             else:
                 _, orig_W = image_shapes[global_idx]
@@ -406,10 +407,21 @@ class ClusterVGGTWithFrontend(ClusterMVO):
         # Original image shapes (needed to map frontend pixel coords → VGGT pixel coords).
         image_shapes_graph = delayed(_get_image_shapes)(context.loader, global_indices)
 
-        # Optional: refine VGGT's predicted intrinsics via Fetzer joint
-        # optimization over the frontend's F-matrices (keeps VGGT's predicted poses).
+        # Intrinsics for the BA cameras (VGGT's poses are always kept). Per-camera preference:
+        #   1. Measured intrinsics (EXIF / dataset calibration) passed through ClusterContext — pinned
+        #      verbatim, so every cluster sharing a camera anchors the SAME calibration.
+        #   2. Per-cluster Fetzer refinement of the model focals over this cluster's F-matrices
+        #      (use_view_graph_calibration; keeps VGGT's predicted poses).
+        #   3. The geometry model's predicted focal, rescaled to original resolution — also the
+        #      fallback for cameras ABSENT from 1 (loaders that could only guess a focal).
         refined_intrinsics_graph = None
-        if self._use_view_graph_calibration:
+        if context.global_refined_intrinsics is not None:
+            refined_intrinsics_graph = {
+                idx: context.global_refined_intrinsics[idx]
+                for idx in global_indices
+                if idx in context.global_refined_intrinsics
+            }
+        elif self._use_view_graph_calibration:
             refined_intrinsics_graph = delayed(_refine_vggt_intrinsics_via_view_graph)(
                 vggt_result_graph,
                 v_corr_idxs_graph,
