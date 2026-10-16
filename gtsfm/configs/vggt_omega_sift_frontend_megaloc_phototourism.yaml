@@ -106,11 +106,12 @@ cluster_optimizer:
     input_mode: crop
     seed: 42
     model_cache_key: null
-    # Refine the model-predicted intrinsics via per-cluster Fetzer self-calibration on the verified
-    # F-matrices, giving the focal priors above a measured anchor. (The golden research runs used a
-    # single GLOBAL Fetzer/EXIF solve over the full verified graph for bit-identical focals across
-    # clusters; that arrives in a follow-up PR — per-cluster is the closest in-tree equivalent.)
+    # Fetzer self-calibration anchors for the focal priors above. The GLOBAL solve runs ONCE over
+    # the full verified view graph — every camera gets the same anchor in every cluster that shares
+    # it (the golden-run configuration behind the Brussels paper row). The per-cluster flag remains
+    # as the fallback when the global solve is disabled.
     use_view_graph_calibration: true
+    use_global_view_graph_calibration: true
 
 # --- Merging options ---
 merging_options:

@@ -55,6 +55,10 @@ class ClusterContext:
     # per-cluster frontend (identical per-edge result). None: the optimizer runs its own frontend.
     global_v_corr_idxs_dict: dict | None = None
     global_keypoints: list | None = None
+    # Global focal calibration (camera idx -> calibration), computed once over the full verified view
+    # graph. Clusters pin these in place of per-cluster estimates; cameras absent from the dict fall
+    # back per the optimizer's preference chain. None: no global calibration.
+    global_refined_intrinsics: dict | None = None
 
     @property
     def is_root(self) -> bool:

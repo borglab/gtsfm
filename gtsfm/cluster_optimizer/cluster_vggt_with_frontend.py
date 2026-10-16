@@ -166,12 +166,13 @@ def _build_gtsfm_data_from_vggt_depth(
     global_to_local = {gidx: lidx for lidx, gidx in enumerate(image_indices)}
 
     # Register cameras with intrinsics in original image resolution. If
-    # `refined_intrinsics` is supplied (from view-graph calibration), use those
-    # directly; otherwise rescale VGGT's predicted intrinsics from VGGT pixel space.
+    # `refined_intrinsics` is supplied (global or per-cluster calibration), use those directly;
+    # cameras ABSENT from it fall back to rescaling the model's predicted intrinsics from model
+    # pixel space, same as when no refinement is supplied at all.
     gtsfm_data = GtsfmData(number_images=num_images)
     for global_idx, camera in cameras.items():
         if global_idx in image_shapes and global_idx in global_to_local:
-            if refined_intrinsics is not None:
+            if refined_intrinsics is not None and global_idx in refined_intrinsics:
                 camera = type(camera)(camera.pose(), refined_intrinsics[global_idx])
             else:
                 _, orig_W = image_shapes[global_idx]
@@ -295,6 +296,12 @@ class ClusterVGGTWithFrontend(ClusterMVO):
         pose_angular_error_thresh: float = 3,
         output_worker: Optional[str] = None,
         use_view_graph_calibration: bool = False,
+        # Prefer ONE global Fetzer calibration — computed once over the full verified view graph by
+        # the SceneOptimizer and supplied via ClusterContext.global_refined_intrinsics — over the
+        # per-cluster calibration. Per-cluster Fetzer only sees a cluster's own F-edges and falls
+        # back to the model-predicted focal for thinly-connected cameras; the global solve gives a
+        # camera the SAME anchor in every cluster that shares it. Precedes use_view_graph_calibration.
+        use_global_view_graph_calibration: bool = False,
         use_multi_view_retriangulation: bool = False,
     ) -> None:
         super().__init__(
@@ -315,6 +322,7 @@ class ClusterVGGTWithFrontend(ClusterMVO):
         self._input_mode = input_mode
         self._seed = seed
         self._use_view_graph_calibration = use_view_graph_calibration
+        self._use_global_view_graph_calibration = use_global_view_graph_calibration
         self._use_multi_view_retriangulation = use_multi_view_retriangulation
 
         self._weights_path = Path(weights_path) if weights_path is not None else None
@@ -331,8 +339,16 @@ class ClusterVGGTWithFrontend(ClusterMVO):
             f"geometry_transformer="
             f"{getattr(self.geometry_transformer, 'config', None) or type(self.geometry_transformer).__name__}",
             f"ba_options={self.ba_options}",
+            # Calibration flags change the reconstruction; include them in the repr that seeds the
+            # per-cluster cache key (ClusterOptimizerCacher hashes repr(optimizer)).
+            f"calib=(vgc={self._use_view_graph_calibration},global={self._use_global_view_graph_calibration})",
         ]
         return "ClusterVGGTWithFrontend(\n  " + ",\n  ".join(components) + "\n)"
+
+    @property
+    def uses_global_view_graph_calibration(self) -> bool:
+        """Whether this optimizer expects global focals from the SceneOptimizer via ClusterContext."""
+        return self._use_global_view_graph_calibration
 
     @staticmethod
     def get_ui_metadata() -> UiMetadata:
@@ -406,10 +422,21 @@ class ClusterVGGTWithFrontend(ClusterMVO):
         # Original image shapes (needed to map frontend pixel coords → VGGT pixel coords).
         image_shapes_graph = delayed(_get_image_shapes)(context.loader, global_indices)
 
-        # Optional: refine VGGT's predicted intrinsics via Fetzer joint
-        # optimization over the frontend's F-matrices (keeps VGGT's predicted poses).
+        # Intrinsics for the BA cameras (the model's poses are always kept). Per-camera preference:
+        #   1. GLOBAL Fetzer focals (one solve over the full verified view graph, via ClusterContext)
+        #      — the same anchor for a camera in every cluster that shares it.
+        #   2. Per-cluster Fetzer refinement over this cluster's F-matrices (use_view_graph_calibration;
+        #      keeps the model's predicted poses).
+        #   3. The geometry model's predicted focal, rescaled to original resolution — also the fallback
+        #      for cameras absent from 1 (e.g. no qualifying F-edge anywhere).
         refined_intrinsics_graph = None
-        if self._use_view_graph_calibration:
+        if self._use_global_view_graph_calibration and context.global_refined_intrinsics:
+            refined_intrinsics_graph = {
+                idx: context.global_refined_intrinsics[idx]
+                for idx in global_indices
+                if idx in context.global_refined_intrinsics
+            }
+        elif self._use_view_graph_calibration:
             refined_intrinsics_graph = delayed(_refine_vggt_intrinsics_via_view_graph)(
                 vggt_result_graph,
                 v_corr_idxs_graph,
