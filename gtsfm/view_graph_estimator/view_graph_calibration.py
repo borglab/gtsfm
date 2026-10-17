@@ -261,7 +261,7 @@ def calibrate_view_graph(
     min_focal_ratio: float = 0.5,
     max_focal_ratio: float = 2.0,
     max_edge_error: float = 0.5,
-    use_robust_gates: bool = True,
+    use_robust_gates: bool = False,
 ) -> Tuple[Dict[int, gtsfm_types.CALIBRATION_TYPE], set]:
     """Refine camera focal lengths via joint Fetzer optimization over all F-matrix edges.
 
@@ -280,11 +280,14 @@ def calibrate_view_graph(
         Refined intrinsics dict (same keys as initial_intrinsics).
         Set of edge keys (i1, i2) to remove from the view graph.
     """
-    # Step 1: Estimate F-matrices and collect optimization edges. With use_robust_gates (default),
-    # each edge gets a robust PoseLib F plus two admission gates — planar-config (H/F inliers) and
-    # focal-sanity (interior-minimum sweep). ToL gold A/B: ungated 8-point feeding of planar /
-    # focal-degenerate edges (56% of that graph!) produced a -12.35% systematic focal bias; the
-    # gated recipe cut median error 2.5x and removed the bias on identical inputs.
+    # Step 1: Estimate F-matrices and collect optimization edges. Default is the UNGATED recipe —
+    # every >=min_correspondences edge feeds the solve with a plain 8-point F — which is what the
+    # Brussels golden run used (near-total camera coverage; uncovered cameras keep their initial
+    # focal, and PINNING an unrefined initial downstream is far worse than a noisy refinement).
+    # use_robust_gates=True adds a robust PoseLib F plus planar-config and focal-sanity admission
+    # gates (ToL gold A/B: ungated feeding of that graph's 56% planar/degenerate edges produced a
+    # -12.35% systematic focal bias; gating cut median error 2.5x). Gates shrink COVERAGE, so only
+    # enable them where most cameras keep a gated edge.
     edges = []  # (cam_idx1, cam_idx2, F, pp1, pp2)
     cameras_in_edges = set()
     num_planar = num_sanity = num_ffail = 0
