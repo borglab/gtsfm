@@ -82,3 +82,37 @@ class TestTriangulatedStructureBuild(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestDepthBuildMeasurementSemantics(unittest.TestCase):
+    def test_zero_confidence_measurements_still_constrain_ba(self) -> None:
+        """A keypoint in a zero-confidence depth region must still enter the track as a BA constraint
+        (June-27 golden-run semantics); only confident depths anchor the 3D point."""
+        from gtsfm.cluster_optimizer.cluster_vggt_with_frontend import _build_gtsfm_data_from_vggt_depth
+
+        num_local, H, W = 3, 8, 8
+        cal = Cal3Bundler(100.0, 0.0, 0.0, 4.0, 4.0)
+        cameras = {i: PinholeCameraCal3Bundler(Pose3(), cal) for i in range(3)}
+        original_coords = np.zeros((num_local, 6), dtype=np.float32)
+        original_coords[:, 4] = W
+        original_coords[:, 5] = H
+        dense = np.ones((num_local, H, W, 3), dtype=np.float32) * 5.0
+        conf = np.ones((num_local, H, W), dtype=np.float32)
+        conf[2] = 0.0  # camera 2's entire depth map is zero-confidence
+
+        from gtsfm.common.sfm_track import SfmMeasurement, SfmTrack2d
+
+        track = SfmTrack2d(measurements=[SfmMeasurement(i, np.array([4.0, 4.0], dtype=np.float32)) for i in range(3)])
+        data = _build_gtsfm_data_from_vggt_depth(
+            VggtGeometryResult(
+                cameras=cameras, dense_points=dense, depth_confidence=conf, original_coords=original_coords
+            ),
+            tracks_2d=[track],
+            image_shapes={i: (8, 8) for i in range(3)},
+            image_indices=(0, 1, 2),
+            num_images=3,
+            min_track_length=2,
+        )
+        self.assertEqual(data.number_tracks(), 1)
+        # All three measurements constrain the track — including camera 2's zero-confidence keypoint.
+        self.assertEqual(data.get_track(0).numberMeasurements(), 3)
