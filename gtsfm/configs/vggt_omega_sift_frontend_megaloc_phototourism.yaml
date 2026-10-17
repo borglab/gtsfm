@@ -25,8 +25,9 @@ image_pairs_generator:
   retriever:
     _target_: gtsfm.retriever.Similarity
     # Over-retrieve: the global two-view verification prunes non-geometric edges, so retrieval only
-    # needs recall. K is the lever (validated live: a mis-seated block at K=60 seats at K=120).
-    num_matched: 120
+    # needs recall. 100/0.15 is the value committed the night of the Brussels peak run (June 27),
+    # corroborated by recreating its 14,585 retrieved pairs from the saved similarity matrix.
+    num_matched: 100
     min_score: 0.15
   batch_size: 16
 
@@ -113,10 +114,10 @@ cluster_optimizer:
     # the cluster (cameras without a global focal fall back to the model's prediction instead).
     use_view_graph_calibration: false
     use_global_view_graph_calibration: true
-    # Triangulate each cluster's 3D structure from the SIFT tracks against the model poses instead
-    # of lifting per-pixel model depth: depth-lift loses 87-98% of per-cluster structure at the
-    # pre-BA reprojection filter (ToL audit), starving the Sim3 merges of correspondences.
-    use_triangulated_structure: true
+    # The Brussels peak run (0.7191 AUC@3) used the DEPTH-LIFT build; the post-merge retriangulation
+    # below rebuilds geometric structure once at the end. Flip to true to A/B the per-cluster
+    # triangulated build (later ToL campaigns preferred it).
+    use_triangulated_structure: false
 
 # --- Merging options ---
 merging_options:
@@ -137,6 +138,9 @@ merging_options:
   min_track_length: 3
   allow_post_ba_reproj_filtering: true
   metric_constructed_only: true
+  # Recover good-pose cameras the post-BA track filter dropped by injecting their merged poses into
+  # the post-merge retriangulation (peak run: recovered cam 49, 230 -> 231 cameras).
+  recover_trackless_cameras_in_retriangulation: true
   ba_options:
     _target_: gtsfm.bundle.bundle_adjustment.BundleAdjustmentOptions
     shared_calib: false
