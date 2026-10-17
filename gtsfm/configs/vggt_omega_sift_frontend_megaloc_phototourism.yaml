@@ -108,10 +108,15 @@ cluster_optimizer:
     model_cache_key: null
     # Fetzer self-calibration anchors for the focal priors above. The GLOBAL solve runs ONCE over
     # the full verified view graph — every camera gets the same anchor in every cluster that shares
-    # it (the golden-run configuration behind the Brussels paper row). The per-cluster flag remains
-    # as the fallback when the global solve is disabled.
-    use_view_graph_calibration: true
+    # it (the golden-run configuration behind the Brussels paper row). Per-cluster calibration stays
+    # OFF: a cluster-local Fetzer solve on few edges produces weak focals, and pinning those warps
+    # the cluster (cameras without a global focal fall back to the model's prediction instead).
+    use_view_graph_calibration: false
     use_global_view_graph_calibration: true
+    # Triangulate each cluster's 3D structure from the SIFT tracks against the model poses instead
+    # of lifting per-pixel model depth: depth-lift loses 87-98% of per-cluster structure at the
+    # pre-BA reprojection filter (ToL audit), starving the Sim3 merges of correspondences.
+    use_triangulated_structure: true
 
 # --- Merging options ---
 merging_options:
