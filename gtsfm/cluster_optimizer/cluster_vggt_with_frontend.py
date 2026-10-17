@@ -187,7 +187,14 @@ def _build_gtsfm_data_from_vggt_depth(
 
         points_3d: list[np.ndarray] = []
         confidences: list[float] = []
-        valid_measurements: list[tuple[int, np.ndarray]] = []
+        # Every verified SIFT measurement is a valid BA constraint regardless of whether the model
+        # predicted confident depth at that keypoint; only confident depth anchors the 3D-point init.
+        # The pre-BA reprojection filter then prunes observations whose pose is inconsistent —
+        # keeping cameras whose keypoints fell in zero-confidence regions (low-texture/transient)
+        # but whose pose is sound constrained in the cluster BA, instead of letting them drift as
+        # under-constrained cameras. (This is the June-27 golden-run semantics; constraining only
+        # confident-depth measurements degrades the per-cluster BA.)
+        all_measurements: list[tuple[int, np.ndarray]] = []
 
         for m in track_2d.measurements:
             global_idx = m.i
@@ -207,13 +214,16 @@ def _build_gtsfm_data_from_vggt_depth(
             u_c = int(np.clip(round(m.uv[0] * u_scale - left), 0, W_vggt - 1))
             v_c = int(np.clip(round(m.uv[1] * v_scale - top), 0, H_vggt - 1))
 
+            all_measurements.append((global_idx, m.uv))  # original keypoint coords; always a BA constraint
+
             pt3d = dense_points[local_idx, v_c, u_c]
             conf = float(depth_confidence[local_idx, v_c, u_c])
             if np.isfinite(pt3d).all() and conf > 0.0:
                 points_3d.append(pt3d)
                 confidences.append(conf)
-                valid_measurements.append((global_idx, m.uv))  # original keypoint coords
 
+        # Need at least min_track_length CONFIDENT depths to anchor the 3D point (the total
+        # measurement count, incl. zero-confidence keypoints, is gated separately below).
         if len(points_3d) < min_track_length:
             continue
 
@@ -221,7 +231,7 @@ def _build_gtsfm_data_from_vggt_depth(
         weights /= weights.sum()
         point_3d_mean = np.average(points_3d, axis=0, weights=weights)
         sfm_track = SfmTrack(Point3(*point_3d_mean.astype(float)))
-        for gidx, uv in valid_measurements:
+        for gidx, uv in all_measurements:
             if gidx in cameras:
                 sfm_track.addMeasurement(gidx, Point2(*uv.astype(float)))
 
