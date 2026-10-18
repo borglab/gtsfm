@@ -127,6 +127,9 @@ cluster_optimizer:
     # model-focal arm (Sept recipe: raw model poses + one authoritative focal per camera ride untouched
     # into the pose-pinned merge BAs, which do the polishing).
     run_per_cluster_ba: true
+    # Revert a cluster whose BA walked the cameras (median) further than this % of the cluster
+    # spread from the model initialization — the self-consistent-collapse guard (Brussels C_1_1).
+    cluster_ba_max_position_drift_pct: 15.0
 
 # --- Merging options ---
 merging_options:

@@ -367,6 +367,11 @@ class ClusterVGGTWithFrontend(ClusterMVO):
         # inconsistency through the free poses); structure polishing then happens only in the pose-pinned
         # merge BAs.
         run_per_cluster_ba: bool = True,
+        # Drift gate for the per-cluster BA (0 disables): revert to the pre-BA cluster when the BA
+        # moves the median camera more than this percent of the cluster spread — the collapse
+        # signature keeps tracks (93%) and reprojections while destroying geometry, so only pose
+        # drift catches it (healthy clusters: <=13%; collapsed: 33%).
+        cluster_ba_max_position_drift_pct: float = 0.0,
         use_multi_view_retriangulation: bool = False,
     ) -> None:
         super().__init__(
@@ -390,6 +395,7 @@ class ClusterVGGTWithFrontend(ClusterMVO):
         self._use_global_view_graph_calibration = use_global_view_graph_calibration
         self._use_triangulated_structure = use_triangulated_structure
         self._run_per_cluster_ba = run_per_cluster_ba
+        self._cluster_ba_max_position_drift_pct = cluster_ba_max_position_drift_pct
         self._use_multi_view_retriangulation = use_multi_view_retriangulation
 
         self._weights_path = Path(weights_path) if weights_path is not None else None
@@ -410,7 +416,7 @@ class ClusterVGGTWithFrontend(ClusterMVO):
             # per-cluster cache key (ClusterOptimizerCacher hashes repr(optimizer)).
             f"calib=(vgc={self._use_view_graph_calibration},global={self._use_global_view_graph_calibration})",
             f"tri_structure={self._use_triangulated_structure}",
-            f"clusterba={self._run_per_cluster_ba}",
+            f"clusterba={self._run_per_cluster_ba}/driftgate={self._cluster_ba_max_position_drift_pct}",
         ]
         return "ClusterVGGTWithFrontend(\n  " + ",\n  ".join(components) + "\n)"
 
@@ -543,6 +549,7 @@ class ClusterVGGTWithFrontend(ClusterMVO):
             tracks_2d=tracks_2d_graph,
             use_multi_view_retriangulation=self._use_multi_view_retriangulation,
             run_bundle_adjustment=self._run_per_cluster_ba,
+            max_position_drift_pct=self._cluster_ba_max_position_drift_pct,
         )
 
         # Metrics + I/O.
