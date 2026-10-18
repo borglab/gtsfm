@@ -1395,7 +1395,7 @@ async function boot() {
   const collapsedDirectories = new Set();
 
   try {
-    const data = await fetch("/api/scenes").then(r => r.ok ? r.json() : Promise.reject(`Fetch failed: ${r.statusText}`));
+    const data = await fetch("/api/scenes").then(r => r.ok ? r.json() : Promise.reject(`Fetch failed: ${r.status} ${r.statusText}`.trim()));
     const count = Number.isFinite(data.count) ? data.count : 0;
     const countLabel = count === 0 ? "0" : count.toLocaleString();
     const noun = count === 1 ? "item" : "items";
