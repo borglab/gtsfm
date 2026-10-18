@@ -73,6 +73,10 @@ class MergingOptions:
     # Defaults preserve existing behavior (merge ba_options, single pass).
     retri_free_ba: bool = False
     retri_iterations: int = 1
+    # GNC in the free retri BA. On this scale it is the most expensive solve in the pipeline tail, and
+    # a controlled A/B on Brussels (identical merged input) scored free+GNC 0.6610 vs free-without
+    # 0.6605 @3 — a tie. Default off; flip on for scenes with heavy outlier contamination.
+    retri_free_ba_use_gnc: bool = False
 
 
 def _create_unary_measurements(scene: GtsfmData) -> list[UnaryMeasurementPose3]:

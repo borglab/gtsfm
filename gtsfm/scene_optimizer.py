@@ -175,11 +175,14 @@ def _run_post_merge_retriangulation(
             ba_options,
             use_calibration_prior=False,
             use_pose_prior_all_cameras=False,
-            use_gnc=True,
+            use_gnc=options.retri_free_ba_use_gnc,
             gnc_loss="TLS",
             factor_weight_outlier_threshold=1e-6,
         )
-        logger.info("🔓 Post-merge retri BA running FREE (no calib/pose priors, GNC on).")
+        logger.info(
+            "🔓 Post-merge retri BA running FREE (no calib/pose priors, GNC %s).",
+            "on" if options.retri_free_ba_use_gnc else "off",
+        )
 
     refined = scene
     for retri_iter in range(max(1, options.retri_iterations)):
