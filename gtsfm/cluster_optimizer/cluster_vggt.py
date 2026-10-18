@@ -12,10 +12,12 @@ from gtsam import Pose3
 from PIL import Image as PILImage
 
 import gtsfm.common.types as gtsfm_types
+import gtsfm.data_association.point3d_initializer as point3d_initializer
 import gtsfm.utils.metrics as metrics_utils
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptions
 from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterComputationGraph, ClusterContext, ClusterOptimizerBase
 from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.frontend.multi_view_tracker import MultiViewTracker
 from gtsfm.frontend.vggt_geometry_transformer import (
@@ -50,10 +52,19 @@ def _run_cluster_ba(
     drop_camera_with_no_track: bool = False,
     min_track_length: int = 2,
     cluster_label: Optional[str] = None,
+    tracks_2d: Optional[list[SfmTrack2d]] = None,
+    use_multi_view_retriangulation: bool = False,
 ) -> tuple[GtsfmData, GtsfmData]:
     """Run cluster-level BA on a GtsfmData result.
 
     This is a module-level function so it can be used with ``dask.delayed``.
+
+    Args:
+        tracks_2d: (optional) Union-find 2D tracks. Required when
+            ``use_multi_view_retriangulation=True``.
+        use_multi_view_retriangulation: When True, after the initial BA, re-triangulate
+            ``tracks_2d`` against the post-BA cameras (recovers tracks dropped earlier
+            in the pipeline) and run a second BA on the augmented track set.
 
     Returns:
         Tuple of (post_ba_result, pre_ba_result).
@@ -66,9 +77,7 @@ def _run_cluster_ba(
 
     if pre_ba_max_reproj_error > 0.0:
         num_tracks_before = gtsfm_data.number_tracks()
-        gtsfm_data = gtsfm_data.filter_landmark_measurements(
-            pre_ba_max_reproj_error, min_track_length
-        )
+        gtsfm_data = gtsfm_data.filter_landmark_measurements(pre_ba_max_reproj_error, min_track_length)
         cluster_prefix = f"[{cluster_label}] " if cluster_label else ""
         logger.info(
             "%s🔍 #valid tracks after pre-BA reproj error filtering: %d out of %d",
@@ -87,6 +96,20 @@ def _run_cluster_ba(
         gtsfm_data_with_ba, _ = optimizer.run_simple_ba(gtsfm_data)
 
         gtsfm_data_with_ba = gtsfm_data_with_ba.filter_landmark_measurements(post_ba_max_reproj_error)
+
+        # Optional retri stage: re-triangulate union-find tracks against the post-BA
+        # cameras and run another BA on the augmented set. Recovers tracks dropped
+        # earlier in the pipeline; mirrors the retri stage in
+        # BundleAdjustmentOptimizer._run_ba_and_evaluate.
+        if use_multi_view_retriangulation and tracks_2d is not None:
+            retri_data = point3d_initializer.multi_view_retriangulate_from_2d_tracks(
+                gtsfm_data_with_ba, tracks_2d, min_track_length=min_track_length,
+            )
+            if retri_data.number_tracks() > 0:
+                gtsfm_data_with_ba, _ = optimizer.run_simple_ba(retri_data)
+                gtsfm_data_with_ba = gtsfm_data_with_ba.filter_landmark_measurements(
+                    post_ba_max_reproj_error
+                )
 
         logger.info(
             "%s🔍 #valid tracks after BA: %d out of %d",
@@ -110,12 +133,22 @@ def _load_vggt_inputs(
     indices: list[int],
     mode: str,
     *,
+    transformer=None,
     save_processed_image: bool = False,
     output_root: Optional[str] = None,
     image_names: Optional[tuple[str, ...]] = None,
 ):
-    """Load and preprocess a batch of images for VGGT."""
-    image_batch, original_coords = load_image_batch_vggt_loader(loader, indices, mode=mode)
+    """Load and preprocess a batch of images for the geometry model.
+
+    Preprocessing follows the geometry transformer: VGGT and VGGT-Omega differ in resolution, patch
+    alignment and cropping, and the per-pixel depth lookup downstream indexes the model's depth map via
+    the ``original_coords`` returned here — so the loader must match the model. ``transformer=None``
+    keeps the legacy VGGT loader.
+    """
+    if transformer is not None:
+        image_batch, original_coords = transformer.load_image_batch(loader, indices, mode=mode)
+    else:
+        image_batch, original_coords = load_image_batch_vggt_loader(loader, indices, mode=mode)
     if not save_processed_image or output_root is None or image_names is None:
         return image_batch, original_coords
     if len(image_names) != image_batch.shape[0]:
@@ -154,6 +187,44 @@ def _load_vggt_inputs(
         comments="",
     )
     return image_batch, original_coords
+
+
+def _model_loading_plan(
+    transformer: Any,
+    weights_path: Optional[Path],
+    model_cache_key: Hashable | None,
+    use_model_cache: bool = True,
+) -> tuple[dict[str, Any], Hashable | None]:
+    """Decide how a cluster optimizer's geometry model is loaded on workers.
+
+    Transformers that expose a ``config`` (the VGGT family) are loaded through the shared VGGT loader
+    and cached under a key derived from the weights path and model kwargs. Transformers without a
+    ``config`` (e.g. VGGT-Omega) manage their own model inside ``predict``: they get no loader kwargs
+    and NO shared cache key — a cache key would make ``_resolve_vggt_model`` hand them a cached *VGGT*
+    model.
+
+    Returns:
+        ``(loader_kwargs, cache_key)`` to store on the optimizer.
+    """
+    if isinstance(model_cache_key, bool):
+        raise ValueError("Pass use_model_cache=False to disable model caching (model_cache_key must be a key or None).")
+    config = getattr(transformer, "config", None)
+    if config is None:
+        return {}, None
+
+    loader_kwargs: dict[str, Any] = {}
+    if weights_path is not None:
+        loader_kwargs["weights_path"] = weights_path
+    model_kwargs = config.model_ctor_kwargs
+    if model_kwargs:
+        loader_kwargs["model_kwargs"] = model_kwargs
+
+    if not use_model_cache:
+        return loader_kwargs, None
+    if model_cache_key is None:
+        kwargs_key = tuple(sorted((k, repr(v)) for k, v in model_kwargs.items())) if model_kwargs else None
+        return loader_kwargs, ("default_vggt_loader", weights_path, kwargs_key)
+    return loader_kwargs, model_cache_key
 
 
 def _resolve_vggt_model(cache_key: Hashable | None, loader_kwargs: dict[str, Any] | None) -> Any | None:
@@ -376,7 +447,8 @@ class ClusterVGGT(ClusterOptimizerBase):
         input_mode: str = "crop",
         save_processed_image: bool = False,
         seed: int = 42,
-        model_cache_key: Hashable | bool | None = None,
+        model_cache_key: Hashable | None = None,
+        use_model_cache: bool = True,
         metric_constructed_only: bool = False,
         gaussian_splatting_optimizer: Optional[Any] = None,
         # --- Base class params (output routing) ---
@@ -404,24 +476,14 @@ class ClusterVGGT(ClusterOptimizerBase):
         self._drop_camera_with_no_track = drop_camera_with_no_track
 
         # --- Model caching ---
-        self._loader_kwargs: dict[str, Any] = {}
-        if self._weights_path is not None:
-            self._loader_kwargs["weights_path"] = self._weights_path
-        model_kwargs = self.geometry_transformer.config.model_ctor_kwargs
-        if model_kwargs:
-            self._loader_kwargs["model_kwargs"] = model_kwargs
-
-        if model_cache_key is False:
-            self._model_cache_key: Hashable | None = None
-        elif model_cache_key is None:
-            kwargs_key = tuple(sorted((k, repr(v)) for k, v in model_kwargs.items())) if model_kwargs else None
-            self._model_cache_key = ("default_vggt_loader", self._weights_path, kwargs_key)
-        else:
-            self._model_cache_key = model_cache_key
+        self._loader_kwargs, self._model_cache_key = _model_loading_plan(
+            self.geometry_transformer, self._weights_path, model_cache_key, use_model_cache
+        )
 
     def __repr__(self) -> str:
         components = [
-            f"geometry_transformer={self.geometry_transformer.config}",
+            f"geometry_transformer="
+            f"{getattr(self.geometry_transformer, 'config', None) or type(self.geometry_transformer).__name__}",
             f"tracker={self.tracker.config}",
             f"ba_options={self.ba_options}",
             f"weights_path={self._weights_path}",
@@ -460,6 +522,7 @@ class ClusterVGGT(ClusterOptimizerBase):
             context.loader,
             global_indices,
             mode=self._input_mode,
+            transformer=self.geometry_transformer,
             save_processed_image=self._save_processed_image,
             output_root=str(context.output_paths.results),
             image_names=image_names,

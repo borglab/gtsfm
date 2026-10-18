@@ -38,9 +38,9 @@ jobs:
       PYTHON_VERSION: 3.8
 
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v7
       - name: Cache frontend
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         env:
           # Increase this value to reset cache
           CACHE_NUMBER_FRONTEND: 0
@@ -89,7 +89,7 @@ jobs:
             $MAX_RESOLUTION \
             $SHARE_INTRINSICS
       - name: Archive dataset metrics, plots, and output data (camera poses + points)
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: results-${{ matrix.config_dataset_info[0] }}-${{ matrix.config_dataset_info[1] }}-${{ matrix.config_dataset_info[2] }}-${{ matrix.config_dataset_info[3] }}-${{ matrix.config_dataset_info[4] }}-${{ matrix.config_dataset_info[5] }}-${{ matrix.config_dataset_info[6] }}-${{ matrix.config_dataset_info[7] }}.zip
           path: |

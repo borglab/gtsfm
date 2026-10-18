@@ -18,6 +18,8 @@ from torch.amp import autocast as amp_autocast  # type: ignore
 from torchvision import transforms as TF
 
 from gtsfm.frontend.geometry_transformer import (
+    ImagePlacement,
+    assemble_image_batch,
     GeometryTransformer,
     GeometryTransformerConfig,
     GeometryTransformerOutput,
@@ -163,10 +165,9 @@ def load_image_batch_vggt_loader(loader, indices: List[int], mode="crop"):
         raise ValueError("Mode must be either 'crop' or 'pad'")
 
     images = []
-    shapes = set()
+    placements = []
     to_tensor = TF.ToTensor()
     target_size = 518
-    coords = []
 
     for idx in indices:
         img = loader.get_image(idx).value_array
@@ -186,72 +187,32 @@ def load_image_batch_vggt_loader(loader, indices: List[int], mode="crop"):
 
         img = img.resize((new_width, new_height), PILImage.Resampling.BICUBIC)
         img = to_tensor(img)
-
-        coord = np.array([0.0, 0.0, float(new_width), float(new_height), float(new_width), float(new_height)])
+        left, top = 0.0, 0.0
 
         if mode == "crop" and new_height > target_size:
             start_y = (new_height - target_size) // 2
             img = img[:, start_y : start_y + target_size, :]
-            coord[1] = start_y
-            coord[3] = start_y + target_size
+            top = float(start_y)
         elif mode == "pad":
-            h_padding = target_size - img.shape[1]
-            w_padding = target_size - img.shape[2]
+            # VGGT expects a SQUARE input in pad mode, so each image pads to target_size x target_size
+            # here — not merely to the batch maximum in assemble_image_batch.
+            h_padding = max(0, target_size - img.shape[1])
+            w_padding = max(0, target_size - img.shape[2])
             if h_padding > 0 or w_padding > 0:
                 pad_top = h_padding // 2
-                pad_bottom = h_padding - pad_top
                 pad_left = w_padding // 2
-                pad_right = w_padding - pad_left
-                pad_left = max(0, pad_left)
-                pad_right = max(0, pad_right)
-                pad_top = max(0, pad_top)
-                pad_bottom = max(0, pad_bottom)
-                coord[0] = -pad_left
-                coord[1] = -pad_top
-                coord[2] = pad_right + img.shape[2]
-                coord[3] = pad_bottom + img.shape[1]
                 img = torch.nn.functional.pad(
-                    img, (pad_left, pad_right, pad_top, pad_bottom), mode="constant", value=1.0
+                    img,
+                    (pad_left, w_padding - pad_left, pad_top, h_padding - pad_top),
+                    mode="constant",
+                    value=1.0,
                 )
+                left, top = -float(pad_left), -float(pad_top)
 
-        shapes.add((img.shape[1], img.shape[2]))
         images.append(img)
-        coords.append(coord)
+        placements.append(ImagePlacement(left=left, top=top, scaled_w=float(new_width), scaled_h=float(new_height)))
 
-    if len(shapes) > 1:
-        logger.warning("Found images with different shapes: %s", shapes)
-        max_height = max(shape[0] for shape in shapes)
-        max_width = max(shape[1] for shape in shapes)
-        padded_images = []
-        padded_coords = []
-        for img, coord in zip(images, coords):
-            h_padding = max_height - img.shape[1]
-            w_padding = max_width - img.shape[2]
-            if h_padding > 0 or w_padding > 0:
-                pad_top = h_padding // 2
-                pad_bottom = h_padding - pad_top
-                pad_left = w_padding // 2
-                pad_right = w_padding - pad_left
-                img = torch.nn.functional.pad(
-                    img, (pad_left, pad_right, pad_top, pad_bottom), mode="constant", value=1.0
-                )
-                coord[0] = coord[0] - pad_left
-                coord[1] = coord[1] - pad_top
-                coord[2] = coord[2] + pad_right
-                coord[3] = coord[3] + pad_bottom
-            padded_coords.append(coord)
-            padded_images.append(img)
-        images = padded_images
-        coords = padded_coords
-
-    images = torch.stack(images)
-    coords = np.array(coords)
-    if len(indices) == 1:
-        if images.dim() == 3:
-            images = images.unsqueeze(0)
-
-    original_coords_tensor = torch.from_numpy(coords).float()
-    return images, original_coords_tensor
+    return assemble_image_batch(images, placements)
 
 
 # ---------------------------------------------------------------------------

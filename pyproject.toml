@@ -37,10 +37,10 @@ dependencies = [
     "dask==2025.9.1",
     "distributed==2025.9.1",
     "lz4==4.4.4",
-    "msgpack==1.1.1",  # Note: msgpack-python in conda, msgpack in PyPI
+    "msgpack==1.2.1",  # Note: msgpack-python in conda, msgpack in PyPI
     "bokeh", 
     "toolz==1.1.0",
-    "tornado==6.5.2",
+    "tornado==6.5.8",
     
     # Core functionality and APIs
     "hydra-core",
@@ -50,7 +50,7 @@ dependencies = [
     "numpy==2.2.6",
     "open3d",
     "pandas==2.3.3",
-    "pillow>=9.0.0",
+    "pillow>=12.3.0",
     "scikit-learn",
     "scipy",
     "seaborn",
@@ -80,7 +80,7 @@ dependencies = [
     "pydegensac",
     "colour",
     "trimesh[easy]",
-    "gtsam-develop==4.3a1.dev202604240153",
+    "gtsam==4.3.0",
     "pydot",
     
     # Dust3r/Mast3r
@@ -124,6 +124,11 @@ complete = [
     "xformers==0.0.30 ; sys_platform == 'linux'",
 ]
 
+# RoMa v2 source is the thirdparty/RoMaV2 submodule, not a pip extra.
+# romav2>=2.0.1 requires torchvision>=0.23, which conflicts with GTSfM's
+# torch<2.8 / torchvision<0.23 pin.
+romav2 = []
+
 # Multi-GPU support (only needed for distributed computing with multiple GPUs per node)
 # Requires CUDA-aware hardware and drivers
 multi-gpu = [
@@ -160,12 +165,6 @@ dev = [
 # Dependency Sources
 # ============================================================================
 [tool.uv.sources]
-gtsam-develop = [
-    { url = "https://files.pythonhosted.org/packages/d3/f0/ef174952c8ee654536b7e03d82196a8b35f2ffc00755e125a2b1fbe113c7/gtsam_develop-4.3a1.dev202604240153-cp312-cp312-macosx_10_15_universal2.whl", marker = "sys_platform == 'darwin'" },
-    { url = "https://files.pythonhosted.org/packages/d0/e7/902fe4fb7d8f97801047298eec75c3f65900c288462d06398358b3799b3a/gtsam_develop-4.3a1.dev202604240153-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
-    { url = "https://files.pythonhosted.org/packages/4a/85/afafe81e8fb0ab6ae204c97960f6a6df5476edc4ce20f171d88c6e3070cf/gtsam_develop-4.3a1.dev202604240153-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" },
-]
-
 # PyTorch: Use CUDA 12.8 on Linux (for Blackwell support), CPU on macOS
 torch = [
     { index = "pytorch-cu128", marker = "sys_platform == 'linux'" },
@@ -236,13 +235,6 @@ exclude = [
 [tool.uv]
 # Default groups to include
 default-groups = ["dev"]
-
-# GTSAM's pinned research wheel is published for CPython 3.12 on macOS and Linux.
-environments = [
-    "python_full_version >= '3.12' and python_full_version < '3.13' and platform_python_implementation == 'CPython' and sys_platform == 'darwin'",
-    "python_full_version >= '3.12' and python_full_version < '3.13' and platform_python_implementation == 'CPython' and sys_platform == 'linux' and platform_machine == 'x86_64'",
-    "python_full_version >= '3.12' and python_full_version < '3.13' and platform_python_implementation == 'CPython' and sys_platform == 'linux' and platform_machine == 'aarch64'",
-]
 
 # Package as editable install (for development)
 package = true

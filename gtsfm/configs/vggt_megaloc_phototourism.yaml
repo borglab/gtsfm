@@ -68,7 +68,8 @@ cluster_optimizer:
       _target_: gtsfm.bundle.bundle_adjustment.BundleAdjustmentOptions
       shared_calib: false
       use_calibration_prior: false
-      use_pose_prior: true
+      use_pose_prior_all_cameras: true
+      use_pose_prior_first_camera: false
       use_gnc: true
       gnc_loss: TLS
       factor_weight_outlier_threshold: 0.1
@@ -104,7 +105,8 @@ merging_options:
     _target_: gtsfm.bundle.bundle_adjustment.BundleAdjustmentOptions
     shared_calib: false
     use_calibration_prior: false
-    use_pose_prior: true
+    use_pose_prior_all_cameras: true
+    use_pose_prior_first_camera: false
     use_gnc: false
     gnc_loss: TLS
     factor_weight_outlier_threshold: 0.0
