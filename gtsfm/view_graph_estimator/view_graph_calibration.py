@@ -164,8 +164,27 @@ def _solve_focals(edges, cam_idx_to_var_idx, precomputed, initial_focals, jac_sp
             except Exception as exc:
                 last_exc = exc
         logger.warning("%s solve failed (%s); falling back to scipy.", _SELFCAL_FACTOR_CLS.__name__, last_exc)
+    # The dense solve runs ~n_cams residual sweeps per iteration with no output of its own — on a
+    # few-hundred-camera graph that is MINUTES of silence that reads as a hang. Log heartbeat progress.
+    import time as _time
+
+    _state = {"evals": 0, "t0": _time.time(), "last": _time.time()}
+
+    def _residuals_logged(x, *args):
+        _state["evals"] += 1
+        now = _time.time()
+        if now - _state["last"] >= 15.0:
+            logger.info(
+                "   ... Fetzer solve in progress: %d residual evaluations, %.0fs elapsed "
+                "(dense needs ~n_cameras evals per iteration — this is normal, not a hang).",
+                _state["evals"],
+                now - _state["t0"],
+            )
+            _state["last"] = now
+        return _fetzer_residuals(x, *args)
+
     result = least_squares(
-        _fetzer_residuals,
+        _residuals_logged,
         x0=initial_focals,
         args=(edges, cam_idx_to_var_idx, precomputed),
         jac_sparsity=jac_sparsity,
