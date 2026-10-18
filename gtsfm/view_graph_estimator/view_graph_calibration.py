@@ -164,8 +164,27 @@ def _solve_focals(edges, cam_idx_to_var_idx, precomputed, initial_focals, jac_sp
             except Exception as exc:
                 last_exc = exc
         logger.warning("%s solve failed (%s); falling back to scipy.", _SELFCAL_FACTOR_CLS.__name__, last_exc)
+    # The dense solve runs ~n_cams residual sweeps per iteration with no output of its own — on a
+    # few-hundred-camera graph that is MINUTES of silence that reads as a hang. Log heartbeat progress.
+    import time as _time
+
+    _state = {"evals": 0, "t0": _time.time(), "last": _time.time()}
+
+    def _residuals_logged(x, *args):
+        _state["evals"] += 1
+        now = _time.time()
+        if now - _state["last"] >= 15.0:
+            logger.info(
+                "   ... Fetzer solve in progress: %d residual evaluations, %.0fs elapsed "
+                "(dense needs ~n_cameras evals per iteration — this is normal, not a hang).",
+                _state["evals"],
+                now - _state["t0"],
+            )
+            _state["last"] = now
+        return _fetzer_residuals(x, *args)
+
     result = least_squares(
-        _fetzer_residuals,
+        _residuals_logged,
         x0=initial_focals,
         args=(edges, cam_idx_to_var_idx, precomputed),
         jac_sparsity=jac_sparsity,
@@ -261,7 +280,8 @@ def calibrate_view_graph(
     min_focal_ratio: float = 0.5,
     max_focal_ratio: float = 2.0,
     max_edge_error: float = 0.5,
-    use_robust_gates: bool = True,
+    use_robust_gates: bool = False,
+    use_sparse_jacobian: Optional[bool] = None,
 ) -> Tuple[Dict[int, gtsfm_types.CALIBRATION_TYPE], set]:
     """Refine camera focal lengths via joint Fetzer optimization over all F-matrix edges.
 
@@ -280,11 +300,14 @@ def calibrate_view_graph(
         Refined intrinsics dict (same keys as initial_intrinsics).
         Set of edge keys (i1, i2) to remove from the view graph.
     """
-    # Step 1: Estimate F-matrices and collect optimization edges. With use_robust_gates (default),
-    # each edge gets a robust PoseLib F plus two admission gates — planar-config (H/F inliers) and
-    # focal-sanity (interior-minimum sweep). ToL gold A/B: ungated 8-point feeding of planar /
-    # focal-degenerate edges (56% of that graph!) produced a -12.35% systematic focal bias; the
-    # gated recipe cut median error 2.5x and removed the bias on identical inputs.
+    # Step 1: Estimate F-matrices and collect optimization edges. Default is the UNGATED recipe —
+    # every >=min_correspondences edge feeds the solve with a plain 8-point F — which is what the
+    # Brussels golden run used (near-total camera coverage; uncovered cameras keep their initial
+    # focal, and PINNING an unrefined initial downstream is far worse than a noisy refinement).
+    # use_robust_gates=True adds a robust PoseLib F plus planar-config and focal-sanity admission
+    # gates (ToL gold A/B: ungated feeding of that graph's 56% planar/degenerate edges produced a
+    # -12.35% systematic focal bias; gating cut median error 2.5x). Gates shrink COVERAGE, so only
+    # enable them where most cameras keep a gated edge.
     edges = []  # (cam_idx1, cam_idx2, F, pp1, pp2)
     cameras_in_edges = set()
     num_planar = num_sanity = num_ffail = 0
@@ -364,26 +387,33 @@ def calibrate_view_graph(
         "pp2_stack": np.array([e[4] for e in edges]),  # (n, 2)
     }
 
-    # Jacobian sparsity: each edge's two residual rows depend ONLY on that edge's two camera focals
-    # (idx1, idx2) out of all N cameras — a 99.9%-sparse Jacobian. Without this, least_squares builds a
-    # DENSE numerical Jacobian, perturbing every one of the N focals per iteration (N x batched-SVD),
-    # which hangs at scale (e.g. 2504 cameras x 117k edges). Passing jac_sparsity lets scipy estimate the
-    # numerical Jacobian with graph-colored group perturbations + solve it sparsely -> seconds, not hours.
-    n_edges = len(edges)
-    n_cams = len(initial_focals)
-    sparsity_rows = np.repeat(np.arange(2 * n_edges), 2)  # rows: [2k, 2k, 2k+1, 2k+1] per edge k
-    sparsity_cols = np.empty(4 * n_edges, dtype=int)
-    sparsity_cols[0::4] = precomputed["idx1"]  # residual 2k   depends on focal idx1
-    sparsity_cols[1::4] = precomputed["idx2"]  # residual 2k   depends on focal idx2
-    sparsity_cols[2::4] = precomputed["idx1"]  # residual 2k+1 depends on focal idx1
-    sparsity_cols[3::4] = precomputed["idx2"]  # residual 2k+1 depends on focal idx2
-    jac_sparsity = coo_matrix(
-        (np.ones(4 * n_edges), (sparsity_rows, sparsity_cols)),
-        shape=(2 * n_edges, n_cams),
-    )
+    # Jacobian handling. Each edge's two residual rows depend ONLY on that edge's two camera focals,
+    # so for HUGE solves (e.g. 2504 cameras x 117k edges) a sparse 2-point Jacobian (lsmr trust-region)
+    # is the difference between seconds and a hang. But the sparse path converges along a DIFFERENT
+    # numerical trajectory than the dense-exact default and can under-converge at ordinary scale: on
+    # Brussels it left focals ~7.6% from the dense solve's values (biased toward their inits), and
+    # pinning those against the model-unprojected structure tripled the BA input reprojection error.
+    # The golden runs used the dense path — keep it the default; auto-switch to sparse only for
+    # genuinely large problems (or force via use_sparse_jacobian).
+    if use_sparse_jacobian is None:
+        use_sparse_jacobian = len(edges) > 20000
+    jac_sparsity = None
+    if use_sparse_jacobian:
+        n_edges = len(edges)
+        n_cams = len(initial_focals)
+        sparsity_rows = np.repeat(np.arange(2 * n_edges), 2)  # rows: [2k, 2k, 2k+1, 2k+1] per edge k
+        sparsity_cols = np.empty(4 * n_edges, dtype=int)
+        sparsity_cols[0::4] = precomputed["idx1"]  # residual 2k   depends on focal idx1
+        sparsity_cols[1::4] = precomputed["idx2"]  # residual 2k   depends on focal idx2
+        sparsity_cols[2::4] = precomputed["idx1"]  # residual 2k+1 depends on focal idx1
+        sparsity_cols[3::4] = precomputed["idx2"]  # residual 2k+1 depends on focal idx2
+        jac_sparsity = coo_matrix(
+            (np.ones(4 * n_edges), (sparsity_rows, sparsity_cols)),
+            shape=(2 * n_edges, n_cams),
+        )
 
-    # Step 3: Joint optimization (gtsam SelfCalibrationFactor when the build provides it, else
-    # scipy Cauchy least squares — see _solve_focals).
+    # Joint optimization (gtsam SelfCalibrationFactor when the build provides it and is opted in,
+    # else scipy Cauchy least squares — see _solve_focals).
     optimized_focals, solver_info = _solve_focals(edges, cam_idx_to_var_idx, precomputed, initial_focals, jac_sparsity)
 
     # Step 4: Validate and build refined intrinsics. applied_focals tracks the focal actually used

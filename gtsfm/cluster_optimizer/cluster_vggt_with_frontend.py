@@ -13,6 +13,7 @@ from gtsam import Point2, Point3, SfmTrack
 import gtsfm.common.types as gtsfm_types
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptions
 from gtsfm.cluster_optimizer.cluster_mvo import ClusterMVO
+from gtsfm.data_association.point3d_initializer import multi_view_retriangulate_from_2d_tracks
 from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterComputationGraph, ClusterContext
 from gtsfm.cluster_optimizer.cluster_vggt import (
     _aggregate_vggt_metrics,
@@ -187,7 +188,14 @@ def _build_gtsfm_data_from_vggt_depth(
 
         points_3d: list[np.ndarray] = []
         confidences: list[float] = []
-        valid_measurements: list[tuple[int, np.ndarray]] = []
+        # Every verified SIFT measurement is a valid BA constraint regardless of whether the model
+        # predicted confident depth at that keypoint; only confident depth anchors the 3D-point init.
+        # The pre-BA reprojection filter then prunes observations whose pose is inconsistent —
+        # keeping cameras whose keypoints fell in zero-confidence regions (low-texture/transient)
+        # but whose pose is sound constrained in the cluster BA, instead of letting them drift as
+        # under-constrained cameras. (This is the June-27 golden-run semantics; constraining only
+        # confident-depth measurements degrades the per-cluster BA.)
+        all_measurements: list[tuple[int, np.ndarray]] = []
 
         for m in track_2d.measurements:
             global_idx = m.i
@@ -207,13 +215,16 @@ def _build_gtsfm_data_from_vggt_depth(
             u_c = int(np.clip(round(m.uv[0] * u_scale - left), 0, W_vggt - 1))
             v_c = int(np.clip(round(m.uv[1] * v_scale - top), 0, H_vggt - 1))
 
+            all_measurements.append((global_idx, m.uv))  # original keypoint coords; always a BA constraint
+
             pt3d = dense_points[local_idx, v_c, u_c]
             conf = float(depth_confidence[local_idx, v_c, u_c])
             if np.isfinite(pt3d).all() and conf > 0.0:
                 points_3d.append(pt3d)
                 confidences.append(conf)
-                valid_measurements.append((global_idx, m.uv))  # original keypoint coords
 
+        # Need at least min_track_length CONFIDENT depths to anchor the 3D point (the total
+        # measurement count, incl. zero-confidence keypoints, is gated separately below).
         if len(points_3d) < min_track_length:
             continue
 
@@ -221,7 +232,7 @@ def _build_gtsfm_data_from_vggt_depth(
         weights /= weights.sum()
         point_3d_mean = np.average(points_3d, axis=0, weights=weights)
         sfm_track = SfmTrack(Point3(*point_3d_mean.astype(float)))
-        for gidx, uv in valid_measurements:
+        for gidx, uv in all_measurements:
             if gidx in cameras:
                 sfm_track.addMeasurement(gidx, Point2(*uv.astype(float)))
 
@@ -264,6 +275,51 @@ def _refine_vggt_intrinsics_via_view_graph(
     return refined
 
 
+def _build_gtsfm_data_via_triangulation(
+    vggt_result: VggtGeometryResult,
+    tracks_2d: list[SfmTrack2d],
+    image_shapes: dict[int, tuple[int, int]],
+    image_indices: tuple[int, ...],
+    num_images: int,
+    min_track_length: int = 2,
+    refined_intrinsics: Optional[dict[int, gtsfm_types.CALIBRATION_TYPE]] = None,
+) -> GtsfmData:
+    """Build BA input from the model's POSES + SIFT-triangulated structure (not model depth).
+
+    The geometry model supplies camera poses (and intrinsics, rescaled to original resolution or
+    replaced by the refined focals); the 3D points are triangulated from the SIFT tracks against those
+    cameras via ``multi_view_retriangulate_from_2d_tracks``. Triangulation's geometric (reprojection)
+    filtering yields multi-view-consistent structure: the depth-lift build marries each verified track
+    to a single monocular depth guess, and when that guess reprojects poorly the pre-BA filter deletes
+    the point AND the verified constraint with it — the Tower-of-London audit measured 87-98% of
+    per-cluster structure destroyed that way. Triangulated points pass the reprojection filters by
+    construction, so the verified view graph's constraints actually reach the merges.
+    """
+    global_to_local = {gidx: lidx for lidx, gidx in enumerate(image_indices)}
+
+    cameras_only = GtsfmData(number_images=num_images)
+    for global_idx, camera in vggt_result.cameras.items():
+        if global_idx in image_shapes and global_idx in global_to_local:
+            # Cameras absent from refined_intrinsics keep the model's predicted focal,
+            # rescaled to the original resolution.
+            if refined_intrinsics is not None and global_idx in refined_intrinsics:
+                camera = type(camera)(camera.pose(), refined_intrinsics[global_idx])
+            else:
+                _, orig_W = image_shapes[global_idx]
+                scaled_W = float(vggt_result.original_coords[global_to_local[global_idx], 4])
+                camera = _scale_camera_intrinsics(camera, scale=orig_W / scaled_W)
+        cameras_only.add_camera(global_idx, camera)
+
+    result = multi_view_retriangulate_from_2d_tracks(cameras_only, tracks_2d, min_track_length=min_track_length)
+    logger.info(
+        "Built GtsfmData via triangulation: %d cameras, %d tracks (from %d input 2D tracks).",
+        result.number_images(),
+        result.number_tracks(),
+        len(tracks_2d),
+    )
+    return result
+
+
 class ClusterVGGTWithFrontend(ClusterMVO):
     """Cluster optimizer that combines a traditional MVO frontend with VGGT poses.
 
@@ -302,6 +358,10 @@ class ClusterVGGTWithFrontend(ClusterMVO):
         # back to the model-predicted focal for thinly-connected cameras; the global solve gives a
         # camera the SAME anchor in every cluster that shares it. Precedes use_view_graph_calibration.
         use_global_view_graph_calibration: bool = False,
+        # Build each cluster's BA structure by TRIANGULATING the SIFT tracks against the model's
+        # poses (multi-view-consistent) instead of lifting per-pixel model depth — see
+        # _build_gtsfm_data_via_triangulation for why depth-lift starves the merges of structure.
+        use_triangulated_structure: bool = False,
         use_multi_view_retriangulation: bool = False,
     ) -> None:
         super().__init__(
@@ -323,6 +383,7 @@ class ClusterVGGTWithFrontend(ClusterMVO):
         self._seed = seed
         self._use_view_graph_calibration = use_view_graph_calibration
         self._use_global_view_graph_calibration = use_global_view_graph_calibration
+        self._use_triangulated_structure = use_triangulated_structure
         self._use_multi_view_retriangulation = use_multi_view_retriangulation
 
         self._weights_path = Path(weights_path) if weights_path is not None else None
@@ -342,6 +403,7 @@ class ClusterVGGTWithFrontend(ClusterMVO):
             # Calibration flags change the reconstruction; include them in the repr that seeds the
             # per-cluster cache key (ClusterOptimizerCacher hashes repr(optimizer)).
             f"calib=(vgc={self._use_view_graph_calibration},global={self._use_global_view_graph_calibration})",
+            f"tri_structure={self._use_triangulated_structure}",
         ]
         return "ClusterVGGTWithFrontend(\n  " + ",\n  ".join(components) + "\n)"
 
@@ -445,8 +507,14 @@ class ClusterVGGTWithFrontend(ClusterMVO):
                 global_indices,
             )
 
-        # Build GtsfmData: lift 2D tracks to 3D using VGGT depth map.
-        ba_input_graph = delayed(_build_gtsfm_data_from_vggt_depth)(
+        # Build the BA input. use_triangulated_structure: model poses + SIFT tracks TRIANGULATED
+        # against them (consistent structure). Otherwise: lift the 2D tracks to 3D via model depth.
+        build_ba_input = (
+            _build_gtsfm_data_via_triangulation
+            if self._use_triangulated_structure
+            else _build_gtsfm_data_from_vggt_depth
+        )
+        ba_input_graph = delayed(build_ba_input)(
             vggt_result_graph,
             tracks_2d_graph,
             image_shapes=image_shapes_graph,
