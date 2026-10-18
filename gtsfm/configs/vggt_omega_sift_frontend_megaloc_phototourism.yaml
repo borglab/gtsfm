@@ -53,7 +53,9 @@ cluster_optimizer:
       matcher:
         _target_: gtsfm.frontend.cacher.matcher_cacher.MatcherCacher
         matcher_obj:
-          _target_: gtsfm.frontend.matcher.twoway_matcher.TwoWayMatcher
+          # Torch port of TwoWayMatcher — bit-identical matches (verified pairwise on Brussels),
+          # orders of magnitude faster on GPU nodes; the OpenCV original crawls on 14k+ pairs.
+          _target_: gtsfm.frontend.matcher.torch_twoway_matcher.TorchTwoWayMatcher
           ratio_test_threshold: 0.8
 
     two_view_estimator:
