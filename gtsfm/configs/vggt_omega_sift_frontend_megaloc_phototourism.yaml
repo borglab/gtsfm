@@ -113,6 +113,7 @@ cluster_optimizer:
     # as the fallback when the global solve is disabled.
     use_view_graph_calibration: true
     use_global_view_graph_calibration: true
+    run_per_cluster_ba: true
 
 # --- Merging options ---
 merging_options:

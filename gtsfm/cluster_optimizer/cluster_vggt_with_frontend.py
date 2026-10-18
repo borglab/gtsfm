@@ -312,6 +312,10 @@ class ClusterVGGTWithFrontend(ClusterMVO):
         # back to the model-predicted focal for thinly-connected cameras; the global solve gives a
         # camera the SAME anchor in every cluster that shares it. Precedes use_view_graph_calibration.
         use_global_view_graph_calibration: bool = False,
+        # Run the per-cluster pose+structure BA. OFF keeps the model poses + calibration-chain intrinsics
+        # verbatim; structure polishing then happens in the pose-pinned merge BAs and the final
+        # retriangulation. The validated Brussels recipe runs with this OFF.
+        run_per_cluster_ba: bool = True,
         use_multi_view_retriangulation: bool = False,
     ) -> None:
         super().__init__(
@@ -333,6 +337,7 @@ class ClusterVGGTWithFrontend(ClusterMVO):
         self._seed = seed
         self._use_view_graph_calibration = use_view_graph_calibration
         self._use_global_view_graph_calibration = use_global_view_graph_calibration
+        self._run_per_cluster_ba = run_per_cluster_ba
         self._use_multi_view_retriangulation = use_multi_view_retriangulation
 
         self._weights_path = Path(weights_path) if weights_path is not None else None
@@ -352,6 +357,7 @@ class ClusterVGGTWithFrontend(ClusterMVO):
             # Calibration flags change the reconstruction; include them in the repr that seeds the
             # per-cluster cache key (ClusterOptimizerCacher hashes repr(optimizer)).
             f"calib=(vgc={self._use_view_graph_calibration},global={self._use_global_view_graph_calibration})",
+            f"clusterba={self._run_per_cluster_ba}",
         ]
         return "ClusterVGGTWithFrontend(\n  " + ",\n  ".join(components) + "\n)"
 
@@ -477,6 +483,7 @@ class ClusterVGGTWithFrontend(ClusterMVO):
             cluster_label=context.label,
             tracks_2d=tracks_2d_graph,
             use_multi_view_retriangulation=self._use_multi_view_retriangulation,
+            run_bundle_adjustment=self._run_per_cluster_ba,
         )
 
         # Metrics + I/O.
