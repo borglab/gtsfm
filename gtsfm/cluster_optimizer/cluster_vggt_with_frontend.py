@@ -114,19 +114,28 @@ def _run_vggt_geometry(
     return result
 
 
-def _scale_camera_intrinsics(camera: gtsfm_types.CAMERA_TYPE, scale: float) -> gtsfm_types.CAMERA_TYPE:
-    """Return a copy of camera with intrinsics uniformly scaled, pose unchanged."""
+def _scale_camera_intrinsics(
+    camera: gtsfm_types.CAMERA_TYPE, scale: float, center: Optional[tuple[float, float]] = None
+) -> gtsfm_types.CAMERA_TYPE:
+    """Return a copy of camera with intrinsics uniformly scaled, pose unchanged.
+
+    When ``center`` is given the principal point is pinned there instead of scaling the model's
+    prediction: the model's principal point is its least-constrained output, and on Brussels its
+    ~1.7% off-center predictions bent the whole reconstruction (a global sheet-flex mode worth
+    -0.07 AUC@3; re-centering alone took the lab replay from 0.657 to 0.724).
+    """
     pose = camera.pose()
     cal = camera.calibration()
+    px, py = (center if center is not None else (cal.px() * scale, cal.py() * scale))
     if isinstance(cal, gtsam.Cal3Bundler):
         return gtsam.PinholeCameraCal3Bundler(
             pose,
-            gtsam.Cal3Bundler(cal.fx() * scale, cal.k1(), cal.k2(), cal.px() * scale, cal.py() * scale),
+            gtsam.Cal3Bundler(cal.fx() * scale, cal.k1(), cal.k2(), px, py),
         )
     if isinstance(cal, gtsam.Cal3_S2):
         return gtsam.PinholeCameraCal3_S2(
             pose,
-            gtsam.Cal3_S2(cal.fx() * scale, cal.fy() * scale, 0.0, cal.px() * scale, cal.py() * scale),
+            gtsam.Cal3_S2(cal.fx() * scale, cal.fy() * scale, 0.0, px, py),
         )
     raise ValueError(f"Unsupported calibration type: {type(cal)}")
 
@@ -176,10 +185,12 @@ def _build_gtsfm_data_from_vggt_depth(
             if refined_intrinsics is not None and global_idx in refined_intrinsics:
                 camera = type(camera)(camera.pose(), refined_intrinsics[global_idx])
             else:
-                _, orig_W = image_shapes[global_idx]
+                orig_H, orig_W = image_shapes[global_idx]
                 local_idx = global_to_local[global_idx]
                 scaled_W = float(original_coords[local_idx, 4])
-                camera = _scale_camera_intrinsics(camera, scale=orig_W / scaled_W)
+                camera = _scale_camera_intrinsics(
+                    camera, scale=orig_W / scaled_W, center=(orig_W / 2.0, orig_H / 2.0)
+                )
         gtsfm_data.add_camera(global_idx, camera)
 
     for track_2d in tracks_2d:
@@ -260,10 +271,12 @@ def _refine_vggt_intrinsics_via_view_graph(
     initial_intrinsics: dict[int, gtsfm_types.CALIBRATION_TYPE] = {}
     for local_idx, global_idx in enumerate(image_indices):
         if global_idx in vggt_result.cameras and global_idx in image_shapes:
-            _, orig_W = image_shapes[global_idx]
+            orig_H, orig_W = image_shapes[global_idx]
             scaled_W = float(vggt_result.original_coords[local_idx, 4])
             scale = orig_W / scaled_W if scaled_W > 0 else 1.0
-            scaled_cam = _scale_camera_intrinsics(vggt_result.cameras[global_idx], scale=scale)
+            scaled_cam = _scale_camera_intrinsics(
+                vggt_result.cameras[global_idx], scale=scale, center=(orig_W / 2.0, orig_H / 2.0)
+            )
             initial_intrinsics[global_idx] = scaled_cam.calibration()
 
     keypoints = {gidx: keypoints_list[gidx] for gidx in image_indices}
@@ -305,9 +318,11 @@ def _build_gtsfm_data_via_triangulation(
             if refined_intrinsics is not None and global_idx in refined_intrinsics:
                 camera = type(camera)(camera.pose(), refined_intrinsics[global_idx])
             else:
-                _, orig_W = image_shapes[global_idx]
+                orig_H, orig_W = image_shapes[global_idx]
                 scaled_W = float(vggt_result.original_coords[global_to_local[global_idx], 4])
-                camera = _scale_camera_intrinsics(camera, scale=orig_W / scaled_W)
+                camera = _scale_camera_intrinsics(
+                    camera, scale=orig_W / scaled_W, center=(orig_W / 2.0, orig_H / 2.0)
+                )
         cameras_only.add_camera(global_idx, camera)
 
     result = multi_view_retriangulate_from_2d_tracks(cameras_only, tracks_2d, min_track_length=min_track_length)
