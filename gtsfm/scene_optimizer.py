@@ -3,6 +3,7 @@
 Authors: Ayush Baid, John Lambert
 """
 
+import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -397,6 +398,36 @@ class SceneOptimizer:
             # SAME focal anchor in every cluster that shares it, where the per-cluster calibration
             # only sees a cluster's own F-edges. Runs in the driver (the solve is sparse).
             if v_corr_idxs_dict and getattr(self.cluster_optimizer, "uses_global_view_graph_calibration", False):
+                if os.environ.get("GTSFM_DUMP_FETZER_INPUT"):
+                    # Opt-in replay telemetry: the EXACT calibration input (per-edge verified
+                    # correspondences + keypoint coords + initial intrinsics), so a run's focal solve can
+                    # be replayed and dissected offline without re-running the frontend.
+                    try:
+                        edges = sorted(v_corr_idxs_dict.keys())
+                        corr_counts = np.array([len(v_corr_idxs_dict[e]) for e in edges], dtype=np.int64)
+                        kp_coords = [kps.coordinates.astype(np.float32) for kps in padded_keypoints_list]
+                        cam_indices = sorted(one_view_data_dict.keys())
+                        K_rows = np.array(
+                            [one_view_data_dict[i].intrinsics.K()[(0, 0, 1), (0, 2, 2)] for i in cam_indices],
+                            dtype=np.float64,
+                        )
+                        dump_path = base_output_paths.results / "fetzer_input.npz"
+                        np.savez_compressed(
+                            dump_path,
+                            edge_i=np.array([e[0] for e in edges], dtype=np.int32),
+                            edge_j=np.array([e[1] for e in edges], dtype=np.int32),
+                            corr_counts=corr_counts,
+                            corr_idxs=np.concatenate(
+                                [v_corr_idxs_dict[e].astype(np.int32) for e in edges], axis=0
+                            ) if edges else np.zeros((0, 2), dtype=np.int32),
+                            kp_counts=np.array([len(c) for c in kp_coords], dtype=np.int64),
+                            kp_coords=np.concatenate(kp_coords, axis=0) if kp_coords else np.zeros((0, 2), np.float32),
+                            cam_indices=np.array(cam_indices, dtype=np.int32),
+                            init_f_cx_cy=K_rows,
+                        )
+                        logger.info("💾 Dumped Fetzer calibration input for offline replay -> %s", dump_path)
+                    except Exception as exc:  # pylint: disable=broad-except
+                        logger.warning("Failed to dump fetzer_input.npz (replay telemetry): %s", exc)
                 global_refined_intrinsics = compute_global_view_graph_intrinsics(
                     v_corr_idxs_dict, padded_keypoints_list, one_view_data_dict
                 )
