@@ -109,13 +109,16 @@ cluster_optimizer:
     input_mode: crop
     seed: 42
     model_cache_key: null
-    # Fetzer self-calibration anchors for the focal priors above. The GLOBAL solve runs ONCE over
-    # the full verified view graph — every camera gets the same anchor in every cluster that shares
-    # it (the golden-run configuration behind the Brussels paper row). Per-cluster calibration stays
-    # OFF: a cluster-local Fetzer solve on few edges produces weak focals, and pinning those warps
-    # the cluster (cameras without a global focal fall back to the model's prediction instead).
+    # Calibration authority: with both view-graph calibrations OFF, every camera rides the geometry
+    # model's own predicted focal (rescaled) for BOTH the structure build and the BA focal priors —
+    # coherent by construction. This is the default because the omega predictions match the June-27
+    # peak's Fetzer solution per-camera (±1.4% med; verified on the Brussels replay), while the Fetzer
+    # solve on current verified graphs converges ~4% high regardless of init or Jacobian mode, and
+    # that bias collapses the clusters through the pre-BA reprojection filter. Flip the global flag
+    # back on to A/B the Fetzer-anchored recipe. Per-cluster calibration stays OFF: a cluster-local
+    # Fetzer solve on few edges produces weak focals, and pinning those warps the cluster.
     use_view_graph_calibration: false
-    use_global_view_graph_calibration: true
+    use_global_view_graph_calibration: false
     # The Brussels peak run (0.7191 AUC@3) used the DEPTH-LIFT build; the post-merge retriangulation
     # below rebuilds geometric structure once at the end. Flip to true to A/B the per-cluster
     # triangulated build (later ToL campaigns preferred it).
@@ -147,6 +150,11 @@ merging_options:
   # Recover good-pose cameras the post-BA track filter dropped by injecting their merged poses into
   # the post-merge retriangulation (peak run: recovered cam 49, 230 -> 231 cameras).
   recover_trackless_cameras_in_retriangulation: true
+  # Final retriangulation BA runs FREE (no calib/pose priors, GNC) — the priors that protect the
+  # incremental merges throttle the full-scene solve. The Sept Brussels rerun (0.6691) finished with
+  # this; the model-focal arm needs it to polish the omega-pinned tail.
+  retri_free_ba: true
+  retri_iterations: 1
   ba_options:
     _target_: gtsfm.bundle.bundle_adjustment.BundleAdjustmentOptions
     shared_calib: false
