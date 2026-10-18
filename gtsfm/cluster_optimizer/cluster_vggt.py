@@ -54,6 +54,7 @@ def _run_cluster_ba(
     cluster_label: Optional[str] = None,
     tracks_2d: Optional[list[SfmTrack2d]] = None,
     use_multi_view_retriangulation: bool = False,
+    run_bundle_adjustment: bool = True,
 ) -> tuple[GtsfmData, GtsfmData]:
     """Run cluster-level BA on a GtsfmData result.
 
@@ -90,6 +91,21 @@ def _run_cluster_ba(
         gtsfm_data, should_run_ba = data_utils.remove_cameras_with_no_tracks(gtsfm_data, "cluster-level BA")
         if not should_run_ba:
             return gtsfm_data, pre_ba_data
+
+    if not run_bundle_adjustment:
+        # ToL census (2026-07-06): per-cluster BA degraded 7/8 GT-gradeable clusters (median 2.90->4.34m
+        # vs GT) — the ~4px pose/intrinsics-model reprojection inconsistency gets resolved by moving the
+        # FREE poses instead of the pinned focals. Raw model poses + the calibration-chain intrinsics are
+        # kept verbatim (bit-identical intrinsics per camera across clusters, which is what the Sim3
+        # merges need); the pose-pinned merge BA downstream does the structure polishing safely. The 3px
+        # post-BA filter is NOT applied here: unpolished structure sits at ~4px and the merge pre-filter
+        # (14px) is the gate that admits it.
+        logger.info(
+            "%s🛑 Per-cluster BA disabled: keeping raw geometry (%d tracks after pre-BA filter).",
+            f"[{cluster_label}] " if cluster_label else "",
+            gtsfm_data.number_tracks(),
+        )
+        return gtsfm_data, pre_ba_data
 
     try:
         optimizer = ba_options.to_optimizer(min_track_length=min_track_length)

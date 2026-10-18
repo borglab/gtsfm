@@ -118,6 +118,10 @@ cluster_optimizer:
     # below rebuilds geometric structure once at the end. Flip to true to A/B the per-cluster
     # triangulated build (later ToL campaigns preferred it).
     use_triangulated_structure: false
+    # Per-cluster pose+structure BA. Keep ON for the Fetzer-pinned golden recipe; flip to false for the
+    # model-focal arm (Sept recipe: raw model poses + one authoritative focal per camera ride untouched
+    # into the pose-pinned merge BAs, which do the polishing).
+    run_per_cluster_ba: true
 
 # --- Merging options ---
 merging_options:

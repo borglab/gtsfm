@@ -362,6 +362,11 @@ class ClusterVGGTWithFrontend(ClusterMVO):
         # poses (multi-view-consistent) instead of lifting per-pixel model depth — see
         # _build_gtsfm_data_via_triangulation for why depth-lift starves the merges of structure.
         use_triangulated_structure: bool = False,
+        # Run the per-cluster pose+structure BA. OFF keeps the model poses + calibration-chain intrinsics
+        # verbatim (ToL census: the BA degraded 7/8 clusters vs GT by resolving the ~4px pose/intrinsics
+        # inconsistency through the free poses); structure polishing then happens only in the pose-pinned
+        # merge BAs.
+        run_per_cluster_ba: bool = True,
         use_multi_view_retriangulation: bool = False,
     ) -> None:
         super().__init__(
@@ -384,6 +389,7 @@ class ClusterVGGTWithFrontend(ClusterMVO):
         self._use_view_graph_calibration = use_view_graph_calibration
         self._use_global_view_graph_calibration = use_global_view_graph_calibration
         self._use_triangulated_structure = use_triangulated_structure
+        self._run_per_cluster_ba = run_per_cluster_ba
         self._use_multi_view_retriangulation = use_multi_view_retriangulation
 
         self._weights_path = Path(weights_path) if weights_path is not None else None
@@ -404,6 +410,7 @@ class ClusterVGGTWithFrontend(ClusterMVO):
             # per-cluster cache key (ClusterOptimizerCacher hashes repr(optimizer)).
             f"calib=(vgc={self._use_view_graph_calibration},global={self._use_global_view_graph_calibration})",
             f"tri_structure={self._use_triangulated_structure}",
+            f"clusterba={self._run_per_cluster_ba}",
         ]
         return "ClusterVGGTWithFrontend(\n  " + ",\n  ".join(components) + "\n)"
 
@@ -535,6 +542,7 @@ class ClusterVGGTWithFrontend(ClusterMVO):
             cluster_label=context.label,
             tracks_2d=tracks_2d_graph,
             use_multi_view_retriangulation=self._use_multi_view_retriangulation,
+            run_bundle_adjustment=self._run_per_cluster_ba,
         )
 
         # Metrics + I/O.
