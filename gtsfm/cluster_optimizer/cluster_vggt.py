@@ -54,6 +54,8 @@ def _run_cluster_ba(
     cluster_label: Optional[str] = None,
     tracks_2d: Optional[list[SfmTrack2d]] = None,
     use_multi_view_retriangulation: bool = False,
+    run_bundle_adjustment: bool = True,
+    max_position_drift_pct: float = 0.0,
 ) -> tuple[GtsfmData, GtsfmData]:
     """Run cluster-level BA on a GtsfmData result.
 
@@ -91,9 +93,50 @@ def _run_cluster_ba(
         if not should_run_ba:
             return gtsfm_data, pre_ba_data
 
+    if not run_bundle_adjustment:
+        # ToL census (2026-07-06): per-cluster BA degraded 7/8 GT-gradeable clusters (median 2.90->4.34m
+        # vs GT) — the ~4px pose/intrinsics-model reprojection inconsistency gets resolved by moving the
+        # FREE poses instead of the pinned focals. Raw model poses + the calibration-chain intrinsics are
+        # kept verbatim (bit-identical intrinsics per camera across clusters, which is what the Sim3
+        # merges need); the pose-pinned merge BA downstream does the structure polishing safely. The 3px
+        # post-BA filter is NOT applied here: unpolished structure sits at ~4px and the merge pre-filter
+        # (14px) is the gate that admits it.
+        logger.info(
+            "%s🛑 Per-cluster BA disabled: keeping raw geometry (%d tracks after pre-BA filter).",
+            f"[{cluster_label}] " if cluster_label else "",
+            gtsfm_data.number_tracks(),
+        )
+        return gtsfm_data, pre_ba_data
+
     try:
         optimizer = ba_options.to_optimizer(min_track_length=min_track_length)
         gtsfm_data_with_ba, _ = optimizer.run_simple_ba(gtsfm_data)
+
+        if max_position_drift_pct > 0:
+            # Drift gate: a cluster BA that walks its cameras far from the model initialization has
+            # resolved a structure/intrinsics tension through the poses (Brussels C_1_1: 33% median
+            # drift, 93% track survival, GT error 6.5%->60% — track counts and reprojections look
+            # healthy while the geometry is destroyed). Revert to the pre-BA cluster when the median
+            # camera position moves more than this fraction of the cluster spread.
+            import numpy as _np
+
+            common = [i for i in gtsfm_data.get_valid_camera_indices()
+                      if gtsfm_data_with_ba.get_camera(i) is not None]
+            if len(common) >= 5:
+                pre_c = _np.array([_np.asarray(gtsfm_data.get_camera(i).pose().translation())
+                                   for i in common])
+                spread = float(_np.linalg.norm(pre_c - pre_c.mean(0), axis=1).mean()) or 1.0
+                drift = float(_np.median([
+                    _np.linalg.norm(_np.asarray(gtsfm_data.get_camera(i).pose().translation())
+                                    - _np.asarray(gtsfm_data_with_ba.get_camera(i).pose().translation()))
+                    for i in common])) / spread * 100.0
+                if drift > max_position_drift_pct:
+                    logger.warning(
+                        "%s🛑 Cluster BA drift gate: median position drift %.1f%% of spread exceeds "
+                        "%.1f%% — keeping the pre-BA cluster.",
+                        f"[{cluster_label}] " if cluster_label else "", drift, max_position_drift_pct,
+                    )
+                    return gtsfm_data, pre_ba_data
 
         gtsfm_data_with_ba = gtsfm_data_with_ba.filter_landmark_measurements(post_ba_max_reproj_error)
 

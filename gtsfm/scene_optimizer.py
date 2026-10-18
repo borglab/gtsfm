@@ -3,6 +3,7 @@
 Authors: Ayush Baid, John Lambert
 """
 
+import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -28,7 +29,9 @@ from gtsfm.evaluation.retrieval_metrics import save_retrieval_two_view_metrics
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.graph_partitioner.single_partitioner import SinglePartitioner
+from gtsfm.data_association.point3d_initializer import multi_view_retriangulate_from_2d_tracks
 from gtsfm.loader.loader_base import LoaderBase
+from gtsfm.multi_view_optimizer import get_2d_tracks
 from gtsfm.products.one_view_data import OneViewData
 from gtsfm.products.visibility_graph import AnnotatedGraph, VisibilityGraph, visibility_graph_keys
 from gtsfm.retriever.image_pairs_generator import ImagePairsGenerator
@@ -103,6 +106,88 @@ def _collect_metric_results(*results: object) -> list[GtsfmMetricsGroup]:
 def _finalize_io_tasks(*_args: object) -> None:
     """Barrier task used to depend on all I/O side effects."""
     return None
+
+
+def _run_post_merge_retriangulation(
+    scene: GtsfmData,
+    tracks_2d: list,
+    options: MergingOptions,
+    trackless_cameras: Optional[dict] = None,
+) -> GtsfmData:
+    """Re-triangulate the verified multiview 2D tracks against the merged cameras, then bundle-adjust.
+
+    Builds a fresh sparse structure from the globally-verified correspondences (discarding the merged
+    depth-lifted points), runs BA — which jointly refines structure AND the merged poses — then filters
+    by reprojection error. Designed to run as a single dask task on a worker.
+
+    If ``trackless_cameras`` is provided (good-pose cameras the merge dropped for lack of a track),
+    their merged poses are injected so the geometric retriangulation — which is depth-confidence
+    independent — can re-triangulate their global 2D tracks and recover them. Cameras that still fail
+    to gain a track are excluded from BA and dropped by the final filter.
+    """
+    if trackless_cameras:
+        injected = []
+        for i, cam in trackless_cameras.items():
+            if cam is not None and scene.get_camera(i) is None:
+                scene.add_camera(i, cam)  # local op on this worker's copy of the merged scene
+                injected.append(i)
+        logger.info(
+            "♻️  Post-merge retri: injected %d trackless good-pose camera(s) for geometric recovery: %s",
+            len(injected),
+            sorted(injected),
+        )
+
+    ba_options = options.ba_options
+    if options.retri_free_ba:
+        # Fully-free final solve (GLOMAP-style): the calibration/pose priors that protect the
+        # incremental merges throttle the full-scene BA; dropped here, with GNC for outliers.
+        from dataclasses import replace as _dc_replace
+
+        ba_options = _dc_replace(
+            ba_options,
+            use_calibration_prior=False,
+            use_pose_prior_all_cameras=False,
+            use_gnc=options.retri_free_ba_use_gnc,
+            gnc_loss="TLS",
+            factor_weight_outlier_threshold=1e-6,
+        )
+        logger.info(
+            "🔓 Post-merge retri BA running FREE (no calib/pose priors, GNC %s).",
+            "on" if options.retri_free_ba_use_gnc else "off",
+        )
+
+    refined = scene
+    for retri_iter in range(max(1, options.retri_iterations)):
+        retri = multi_view_retriangulate_from_2d_tracks(refined, tracks_2d)
+        if retri.number_tracks() == 0:
+            logger.warning("Post-merge retriangulation produced no tracks; keeping previous scene.")
+            return refined if retri_iter > 0 else scene
+        optimizer = ba_options.to_optimizer(min_track_length=options.min_track_length)
+        refined, _ = optimizer.run_simple_ba(retri)
+        refined = refined.filter_landmark_measurements(
+            options.post_ba_max_reproj_error,
+            options.min_track_length,
+            # When recovering trackless cameras, force-drop any that still fail to triangulate (decoupled
+            # from keep_all_cameras) so unrecovered cams don't linger as pose-only and skew the AUC denom.
+            retain_cameras_without_tracks=(False if trackless_cameras else options.keep_all_cameras),
+        )
+        logger.info(
+            "🔁 Retri iteration %d/%d: %d tracks after BA + filter.",
+            retri_iter + 1,
+            max(1, options.retri_iterations),
+            refined.number_tracks(),
+        )
+    # Carry the merged scene's full image set (incl. unregistered images) so the retri pose metrics
+    # use the SAME all-images GT denominator as the merged metrics; otherwise the retri "overall" AUC
+    # is computed over only its registered cameras and collapses into "constructed-only".
+    refined._image_info = scene._clone_image_info()
+
+    if trackless_cameras:
+        recovered_set = set(refined.get_valid_camera_indices())
+        for i in sorted(trackless_cameras):
+            logger.info("♻️  Retri recovery [cam %d]: recovered=%s", i, i in recovered_set)
+
+    return refined
 
 
 def verify_visibility_graph(
@@ -300,6 +385,7 @@ class SceneOptimizer:
         # (pure feedforward, e.g. ClusterVGGT / AnySplat) cannot verify and keep the retrieval graph.
         padded_keypoints_list: Optional[list[Keypoints]] = None
         v_corr_idxs_dict: Optional[AnnotatedGraph[np.ndarray]] = None
+        global_tracks_2d: Optional[list] = None
         global_refined_intrinsics: Optional[dict] = None
         correspondence_generator = getattr(self.cluster_optimizer, "correspondence_generator", None)
         two_view_estimator = getattr(self.cluster_optimizer, "two_view_estimator", None)
@@ -328,11 +414,47 @@ class SceneOptimizer:
             )
             visibility_graph = verified_graph
 
+            # Global 2D tracks (one union-find over ALL verified edges): cross-cluster track identity,
+            # consumed by the post-merge retriangulation. Clusters assemble their own per-cluster tracks
+            # from the raw correspondences; this global assembly exists only here.
+            global_tracks_2d = get_2d_tracks(v_corr_idxs_dict, padded_keypoints_list)
+            logger.info("🔎 Built %d global 2D tracks from verified correspondences.", len(global_tracks_2d))
+
             # Global Fetzer calibration: estimate every camera's focal ONCE over the full verified
             # view graph and hand the result to every cluster via ClusterContext — a camera gets the
             # SAME focal anchor in every cluster that shares it, where the per-cluster calibration
             # only sees a cluster's own F-edges. Runs in the driver (the solve is sparse).
             if v_corr_idxs_dict and getattr(self.cluster_optimizer, "uses_global_view_graph_calibration", False):
+                if os.environ.get("GTSFM_DUMP_FETZER_INPUT"):
+                    # Opt-in replay telemetry: the EXACT calibration input (per-edge verified
+                    # correspondences + keypoint coords + initial intrinsics), so a run's focal solve can
+                    # be replayed and dissected offline without re-running the frontend.
+                    try:
+                        edges = sorted(v_corr_idxs_dict.keys())
+                        corr_counts = np.array([len(v_corr_idxs_dict[e]) for e in edges], dtype=np.int64)
+                        kp_coords = [kps.coordinates.astype(np.float32) for kps in padded_keypoints_list]
+                        cam_indices = sorted(one_view_data_dict.keys())
+                        K_rows = np.array(
+                            [one_view_data_dict[i].intrinsics.K()[(0, 0, 1), (0, 2, 2)] for i in cam_indices],
+                            dtype=np.float64,
+                        )
+                        dump_path = base_output_paths.results / "fetzer_input.npz"
+                        np.savez_compressed(
+                            dump_path,
+                            edge_i=np.array([e[0] for e in edges], dtype=np.int32),
+                            edge_j=np.array([e[1] for e in edges], dtype=np.int32),
+                            corr_counts=corr_counts,
+                            corr_idxs=np.concatenate(
+                                [v_corr_idxs_dict[e].astype(np.int32) for e in edges], axis=0
+                            ) if edges else np.zeros((0, 2), dtype=np.int32),
+                            kp_counts=np.array([len(c) for c in kp_coords], dtype=np.int64),
+                            kp_coords=np.concatenate(kp_coords, axis=0) if kp_coords else np.zeros((0, 2), np.float32),
+                            cam_indices=np.array(cam_indices, dtype=np.int32),
+                            init_f_cx_cy=K_rows,
+                        )
+                        logger.info("💾 Dumped Fetzer calibration input for offline replay -> %s", dump_path)
+                    except Exception as exc:  # pylint: disable=broad-except
+                        logger.warning("Failed to dump fetzer_input.npz (replay telemetry): %s", exc)
                 global_refined_intrinsics = compute_global_view_graph_intrinsics(
                     v_corr_idxs_dict, padded_keypoints_list, one_view_data_dict
                 )
@@ -448,6 +570,43 @@ class SceneOptimizer:
                 if root_merge_summary is not None:
                     logger.info("🔥 GTSFM: Running cluster optimization and merging...")
                     merged_scene = root_merge_summary
+
+                # Post-merge retriangulation (structure refinement): rebuild the sparse structure from
+                # the globally-verified tracks against the merged poses, then bundle-adjust with the
+                # merge BA options. Runs whenever the verified pipeline produced global tracks; the
+                # result is written as a separate export alongside the merged scene.
+                if global_tracks_2d:
+                    root_merged_result = merged_future_tree.value.result()
+                    if root_merged_result.scene is not None:
+                        logger.info(
+                            "🔧 GTSFM: Post-merge retriangulation on %d global 2D tracks vs merged poses...",
+                            len(global_tracks_2d),
+                        )
+                        refined: GtsfmData = client.submit(
+                            _run_post_merge_retriangulation,
+                            root_merged_result.scene,
+                            global_tracks_2d,
+                            self._merging_options,
+                            root_merged_result.trackless_cameras,
+                            pure=False,
+                        ).result()
+                        retri_dir = base_output_paths.results / "merged_retriangulated"
+                        retri_dir.mkdir(parents=True, exist_ok=True)
+                        refined.export_as_colmap_text(retri_dir)
+                        logger.info(
+                            "🔧 Retriangulated scene: %d images, %d tracks → %s",
+                            refined.number_images(),
+                            refined.number_tracks(),
+                            retri_dir,
+                        )
+                        base_metrics_groups.append(
+                            cluster_merging.compute_merging_metrics(
+                                refined,
+                                cameras_gt=cameras_gt,
+                                metric_constructed_only=self._merging_options.metric_constructed_only,
+                                suffix="_retriangulated",
+                            )
+                        )
 
         if merged_scene is not None and merged_scene.merge_success:
             logger.info(
