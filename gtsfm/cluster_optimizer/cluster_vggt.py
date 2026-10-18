@@ -450,6 +450,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         model_cache_key: Hashable | None = None,
         use_model_cache: bool = True,
         metric_constructed_only: bool = False,
+        gaussian_splatting_optimizer: Optional[Any] = None,
         # --- Base class params (output routing) ---
         output_worker: Optional[str] = None,
     ) -> None:
@@ -460,6 +461,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         self._save_processed_image = save_processed_image
         self._seed = seed
         self._metric_constructed_only = metric_constructed_only
+        self.gaussian_splatting_optimizer = gaussian_splatting_optimizer
 
         # --- Geometry transformer ---
         self.geometry_transformer = geometry_transformer or VggtGeometryTransformer()
@@ -580,6 +582,25 @@ class ClusterVGGT(ClusterOptimizerBase):
                     context.output_paths.results,
                 )
             )
+
+        if self.gaussian_splatting_optimizer is not None:
+            import gtsfm.splat.rendering as gtsfm_rendering
+
+            images_graph = context.get_delayed_image_map()
+            splats_graph, cfg_graph = self.gaussian_splatting_optimizer.create_computation_graph(
+                images_graph, ba_result_graph
+            )
+            with self._output_annotation():
+                io_tasks.append(delayed(gtsfm_rendering.save_splats)(context.output_paths.results, splats_graph))
+                io_tasks.append(
+                    delayed(gtsfm_rendering.generate_interpolated_video)(
+                        images_graph,
+                        ba_result_graph,
+                        cfg_graph,
+                        splats_graph,
+                        str(context.output_paths.results / "interpolated_video.mp4"),
+                    )
+                )
 
         return ClusterComputationGraph(
             io_tasks=tuple(io_tasks), metric_tasks=tuple(metrics_tasks), sfm_result=ba_result_graph

@@ -16,6 +16,7 @@ from torch import Tensor
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
+from gtsfm.splat.live import publish_training_update
 
 logger = logger_utils.get_logger()
 
@@ -414,6 +415,15 @@ else:
                 self.strategy.step_post_backward(
                     splats, optimizers, self.strategy_state, step, info, packed=self.cfg.packed
                 )
+
+                if step == 0 or (step + 1) % 10 == 0 or (step + 1) == max_steps:
+                    publish_training_update(
+                        splats,
+                        step=step,
+                        max_steps=max_steps,
+                        loss=float(loss.detach().item()),
+                        force_preview=(step + 1) == max_steps,
+                    )
 
             return splats
 
