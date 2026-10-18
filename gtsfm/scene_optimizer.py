@@ -165,19 +165,43 @@ def _run_post_merge_retriangulation(
             sorted(injected),
         )
 
-    retri = multi_view_retriangulate_from_2d_tracks(scene, tracks_2d)
-    if retri.number_tracks() == 0:
-        logger.warning("Post-merge retriangulation produced no tracks; keeping merged scene unchanged.")
-        return scene
-    optimizer = options.ba_options.to_optimizer(min_track_length=options.min_track_length)
-    refined, _ = optimizer.run_simple_ba(retri)
-    refined = refined.filter_landmark_measurements(
-        options.post_ba_max_reproj_error,
-        options.min_track_length,
-        # When recovering trackless cameras, force-drop any that still fail to triangulate (decoupled
-        # from keep_all_cameras) so unrecovered cams don't linger as pose-only and skew the AUC denom.
-        retain_cameras_without_tracks=(False if trackless_cameras else options.keep_all_cameras),
-    )
+    ba_options = options.ba_options
+    if options.retri_free_ba:
+        # Fully-free final solve (GLOMAP-style): the calibration/pose priors that protect the
+        # incremental merges throttle the full-scene BA; dropped here, with GNC for outliers.
+        from dataclasses import replace as _dc_replace
+
+        ba_options = _dc_replace(
+            ba_options,
+            use_calibration_prior=False,
+            use_pose_prior_all_cameras=False,
+            use_gnc=True,
+            gnc_loss="TLS",
+            factor_weight_outlier_threshold=1e-6,
+        )
+        logger.info("🔓 Post-merge retri BA running FREE (no calib/pose priors, GNC on).")
+
+    refined = scene
+    for retri_iter in range(max(1, options.retri_iterations)):
+        retri = multi_view_retriangulate_from_2d_tracks(refined, tracks_2d)
+        if retri.number_tracks() == 0:
+            logger.warning("Post-merge retriangulation produced no tracks; keeping previous scene.")
+            return refined if retri_iter > 0 else scene
+        optimizer = ba_options.to_optimizer(min_track_length=options.min_track_length)
+        refined, _ = optimizer.run_simple_ba(retri)
+        refined = refined.filter_landmark_measurements(
+            options.post_ba_max_reproj_error,
+            options.min_track_length,
+            # When recovering trackless cameras, force-drop any that still fail to triangulate (decoupled
+            # from keep_all_cameras) so unrecovered cams don't linger as pose-only and skew the AUC denom.
+            retain_cameras_without_tracks=(False if trackless_cameras else options.keep_all_cameras),
+        )
+        logger.info(
+            "🔁 Retri iteration %d/%d: %d tracks after BA + filter.",
+            retri_iter + 1,
+            max(1, options.retri_iterations),
+            refined.number_tracks(),
+        )
     # Carry the merged scene's full image set (incl. unregistered images) so the retri pose metrics
     # use the SAME all-images GT denominator as the merged metrics; otherwise the retri "overall" AUC
     # is computed over only its registered cameras and collapses into "constructed-only".

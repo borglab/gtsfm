@@ -109,12 +109,11 @@ cluster_optimizer:
     input_mode: crop
     seed: 42
     model_cache_key: null
-    # Fetzer self-calibration anchors for the focal priors above. The GLOBAL solve runs ONCE over
-    # the full verified view graph — every camera gets the same anchor in every cluster that shares
-    # it (the golden-run configuration behind the Brussels paper row). The per-cluster flag remains
-    # as the fallback when the global solve is disabled.
-    use_view_graph_calibration: true
-    use_global_view_graph_calibration: true
+    # Calibration authority: both view-graph (Fetzer) calibrations off — every camera uses the
+    # geometry model's predicted focal with a centered principal point, for the structure build and
+    # the BA focal priors alike.
+    use_view_graph_calibration: false
+    use_global_view_graph_calibration: false
     run_per_cluster_ba: true
 
 # --- Merging options ---
@@ -139,6 +138,11 @@ merging_options:
   # Recover good-pose cameras the post-BA track filter dropped by injecting their merged poses into
   # the post-merge retriangulation (peak run: recovered cam 49, 230 -> 231 cameras).
   recover_trackless_cameras_in_retriangulation: true
+  # Final retriangulation BA runs FREE (no calib/pose priors, GNC) — the priors that protect the
+  # incremental merges throttle the full-scene solve. The Sept Brussels rerun (0.6691) finished with
+  # this; the model-focal arm needs it to polish the omega-pinned tail.
+  retri_free_ba: true
+  retri_iterations: 1
   ba_options:
     _target_: gtsfm.bundle.bundle_adjustment.BundleAdjustmentOptions
     shared_calib: false
