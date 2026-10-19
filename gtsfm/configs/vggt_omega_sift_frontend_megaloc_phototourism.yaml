@@ -14,7 +14,7 @@ loader:
   _target_: gtsfm.loader.Olsson
   dataset_dir: ??? # Required: set to the dataset root on the command line.
   images_dir: null
-  max_resolution: 518 # Golden-run frontend resolution; omega resizes to 512 internally.
+  max_resolution: 760
 
 image_pairs_generator:
   _target_: gtsfm.retriever.image_pairs_generator.ImagePairsGenerator
@@ -53,8 +53,7 @@ cluster_optimizer:
       matcher:
         _target_: gtsfm.frontend.cacher.matcher_cacher.MatcherCacher
         matcher_obj:
-          # Torch port of TwoWayMatcher — bit-identical matches (verified pairwise on Brussels),
-          # orders of magnitude faster on GPU nodes; the OpenCV original crawls on 14k+ pairs.
+          # Torch port of TwoWayMatcher: identical matches, far faster on GPU nodes.
           _target_: gtsfm.frontend.matcher.torch_twoway_matcher.TorchTwoWayMatcher
           ratio_test_threshold: 0.8
 
@@ -114,7 +113,9 @@ cluster_optimizer:
     # the BA focal priors alike.
     use_view_graph_calibration: false
     use_global_view_graph_calibration: false
-    run_per_cluster_ba: true
+    # The validated Brussels recipe skips the per-cluster BA: raw model poses ride into the
+    # pose-pinned merge BAs and the final free retriangulation, which do the polishing.
+    run_per_cluster_ba: false
 
 # --- Merging options ---
 merging_options:
@@ -135,12 +136,10 @@ merging_options:
   min_track_length: 3
   allow_post_ba_reproj_filtering: true
   metric_constructed_only: true
-  # Recover good-pose cameras the post-BA track filter dropped by injecting their merged poses into
-  # the post-merge retriangulation (peak run: recovered cam 49, 230 -> 231 cameras).
+  # Re-inject good-pose cameras the post-BA track filter dropped into the final retriangulation.
   recover_trackless_cameras_in_retriangulation: true
-  # Final retriangulation BA runs FREE (no calib/pose priors, GNC) — the priors that protect the
-  # incremental merges throttle the full-scene solve. The Sept Brussels rerun (0.6691) finished with
-  # this; the model-focal arm needs it to polish the omega-pinned tail.
+  # The final retriangulation BA runs free (no calibration/pose priors): the priors that protect
+  # the incremental merges throttle the full-scene solve.
   retri_free_ba: true
   retri_iterations: 1
   ba_options:
