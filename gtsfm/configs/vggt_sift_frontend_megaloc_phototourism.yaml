@@ -106,6 +106,8 @@ cluster_optimizer:
     use_view_graph_calibration: false
     # Re-triangulate union-find 2D tracks against post-BA cameras and run another BA.
     use_multi_view_retriangulation: false
+    # Average the per-axis-scaled focals into Cal3Bundler. Off keeps the two focals on a Cal3_S2.
+    use_cal3_bundler: true
 
 # --- Merging options ---
 merging_options:

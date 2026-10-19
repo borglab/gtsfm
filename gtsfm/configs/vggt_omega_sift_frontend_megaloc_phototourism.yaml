@@ -116,6 +116,9 @@ cluster_optimizer:
     # The validated Brussels recipe skips the per-cluster BA: raw model poses ride into the
     # pose-pinned merge BAs and the final free retriangulation, which do the polishing.
     run_per_cluster_ba: false
+    # Geometry cameras stay Cal3_S2 until the per-axis scale. Average the scaled focals into
+    # Cal3Bundler so the BA sees one focal in the original image.
+    use_cal3_bundler: true
 
 # --- Merging options ---
 merging_options:
