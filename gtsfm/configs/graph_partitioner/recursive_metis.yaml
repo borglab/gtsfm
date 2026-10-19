@@ -1,4 +1,4 @@
 # Recursive two-way METIS partitioner.
 _target_: gtsfm.graph_partitioner.RecursiveMetis
-max_cameras: 40
+max_cameras: 70
 overlap_cameras: 5

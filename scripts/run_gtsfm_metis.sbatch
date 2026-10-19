@@ -24,7 +24,7 @@ fi
 INPUT_ROOT_DIR="$1"
 OUTPUT_ROOT_DIR="$2"
 SCENE_NAME="$3"
-CONFIG_NAME="vggt_sift_frontend_megaloc_phototourism"
+CONFIG_NAME="${CONFIG_NAME:-vggt_sift_frontend_megaloc_phototourism}"
 LOADER_NAME="colmap_no_intrinsics"
 COLMAP_FILES_SUBDIR="/coc/flash5/akrishnan86/pt_ground_truth/${SCENE_NAME}/dense/sparse"
 CLUSTER_CFG="cluster_gpu_slurm_${SLURM_JOB_ID}.yaml"

@@ -22,8 +22,6 @@ from gtsfm.frontend.detector_descriptor.detector_descriptor_base import Detector
 
 logger = logger_utils.get_logger()
 
-CACHE_ROOT_PATH = Path(__file__).resolve().parent.parent.parent.parent / "cache"
-
 
 class DetectorDescriptorCacher(DetectorDescriptorBase):
     """Cacher for detector-descriptor output on disk, keyed on the input."""
@@ -47,7 +45,7 @@ class DetectorDescriptorCacher(DetectorDescriptorBase):
 
     def __get_cache_path(self, cache_key: str) -> Path:
         """Gets the file path to the cache bz2 file from the cache key."""
-        return CACHE_ROOT_PATH / "detector_descriptor" / "{}.pbz2".format(cache_key)
+        return cache_utils.cache_root() / "detector_descriptor" / "{}.pbz2".format(cache_key)
 
     def __generate_cache_key(self, image: Image) -> str:
         """Generates the cache key from the input image and underlying detector descriptor."""
