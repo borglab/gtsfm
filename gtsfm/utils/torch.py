@@ -1,5 +1,6 @@
 """Common pytorch utilities."""
 
+import os
 from typing import Optional, Sequence, Union
 
 import gtsam  # type: ignore
@@ -14,6 +15,20 @@ def default_device(device: Optional[Union[str, torch.device]] = None) -> torch.d
     """Resolve a concrete device for PyTorch inference."""
     if device is not None:
         return torch.device(device)
+
+    selected = os.environ.get("GTSFM_SELECTED_DEVICE", "").lower()
+    if selected == "cpu":
+        return torch.device("cpu")
+    if selected == "mps":
+        if not hasattr(torch.backends, "mps") or not torch.backends.mps.is_available():
+            raise RuntimeError("The selected Apple MPS device is not available to PyTorch")
+        return torch.device("mps")
+    if selected.startswith(("cuda", "rocm")):
+        if not torch.cuda.is_available():
+            raise RuntimeError("The selected CUDA/ROCm device is not available to PyTorch")
+        # The workspace narrows CUDA_VISIBLE_DEVICES, so the selected physical
+        # device is intentionally exposed to this process as logical device 0.
+        return torch.device("cuda:0")
 
     # Prefer CUDA if available, then MPS (Mac GPU), then fall back to CPU
     if torch.cuda.is_available():

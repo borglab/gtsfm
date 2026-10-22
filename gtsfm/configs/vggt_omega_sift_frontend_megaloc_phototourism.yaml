@@ -14,7 +14,7 @@ loader:
   _target_: gtsfm.loader.Olsson
   dataset_dir: ??? # Required: set to the dataset root on the command line.
   images_dir: null
-  max_resolution: 518 # Golden-run frontend resolution; omega resizes to 512 internally.
+  max_resolution: 760
 
 image_pairs_generator:
   _target_: gtsfm.retriever.image_pairs_generator.ImagePairsGenerator
@@ -25,8 +25,9 @@ image_pairs_generator:
   retriever:
     _target_: gtsfm.retriever.Similarity
     # Over-retrieve: the global two-view verification prunes non-geometric edges, so retrieval only
-    # needs recall. K is the lever (validated live: a mis-seated block at K=60 seats at K=120).
-    num_matched: 120
+    # needs recall. 100/0.15 is the value committed the night of the Brussels peak run (June 27),
+    # corroborated by recreating its 14,585 retrieved pairs from the saved similarity matrix.
+    num_matched: 100
     min_score: 0.15
   batch_size: 16
 
@@ -52,6 +53,7 @@ cluster_optimizer:
       matcher:
         _target_: gtsfm.frontend.cacher.matcher_cacher.MatcherCacher
         matcher_obj:
+          # Torch port of TwoWayMatcher: identical matches, far faster on GPU nodes.
           _target_: gtsfm.frontend.matcher.torch_twoway_matcher.TorchTwoWayMatcher
           ratio_test_threshold: 0.8
 
@@ -106,12 +108,17 @@ cluster_optimizer:
     input_mode: crop
     seed: 42
     model_cache_key: null
-    # Fetzer self-calibration anchors for the focal priors above. The GLOBAL solve runs ONCE over
-    # the full verified view graph — every camera gets the same anchor in every cluster that shares
-    # it (the golden-run configuration behind the Brussels paper row). The per-cluster flag remains
-    # as the fallback when the global solve is disabled.
-    use_view_graph_calibration: true
-    use_global_view_graph_calibration: true
+    # Calibration authority: both view-graph (Fetzer) calibrations off. Every camera uses the
+    # geometry model's predicted focal. fx and fy are scaled per axis, then averaged into Cal3Bundler
+    # when use_cal3_bundler is set. The principal point is that scaled model point, not the image center.
+    use_view_graph_calibration: false
+    use_global_view_graph_calibration: false
+    # The validated Brussels recipe skips the per-cluster BA: raw model poses ride into the
+    # pose-pinned merge BAs and the final free retriangulation, which do the polishing.
+    run_per_cluster_ba: false
+    # Geometry cameras stay Cal3_S2 until the per-axis scale. Average the scaled focals into
+    # Cal3Bundler so the BA sees one focal in the original image.
+    use_cal3_bundler: true
 
 # --- Merging options ---
 merging_options:
@@ -132,6 +139,12 @@ merging_options:
   min_track_length: 3
   allow_post_ba_reproj_filtering: true
   metric_constructed_only: true
+  # Re-inject good-pose cameras the post-BA track filter dropped into the final retriangulation.
+  recover_trackless_cameras_in_retriangulation: true
+  # The final retriangulation BA runs free (no calibration/pose priors): the priors that protect
+  # the incremental merges throttle the full-scene solve.
+  retri_free_ba: true
+  retri_iterations: 1
   ba_options:
     _target_: gtsfm.bundle.bundle_adjustment.BundleAdjustmentOptions
     shared_calib: false
