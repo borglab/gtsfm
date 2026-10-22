@@ -10,12 +10,13 @@ Authors: Kathirvel Gounder
 import unittest
 
 import numpy as np
-from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3
+from gtsam import Cal3Bundler, Cal3_S2, PinholeCameraCal3Bundler, PinholeCameraCal3_S2, Pose3
 
 from gtsfm.cluster_optimizer.cluster_vggt_with_frontend import (
     ClusterVGGTWithFrontend,
     VggtGeometryResult,
     _build_gtsfm_data_from_vggt_depth,
+    _scale_camera_intrinsics,
 )
 
 
@@ -63,6 +64,58 @@ class TestSparseRefinedIntrinsicsFallback(unittest.TestCase):
         )
         self.assertIn("calib=(vgc=False,global=True)", repr(optimizer))
         self.assertTrue(optimizer.uses_global_view_graph_calibration)
+
+
+class TestAnisotropicIntrinsicScale(unittest.TestCase):
+    def test_principal_point_follows_per_axis_scale(self) -> None:
+        # Resized frame is 40 x 80. The principal point is not its center.
+        cal = Cal3_S2(120.0, 80.0, 0.0, 30.0, 10.0)
+        scaled = _scale_camera_intrinsics(
+            PinholeCameraCal3_S2(Pose3(), cal), scale_x=2.0, scale_y=4.0, use_cal3_bundler=True
+        )
+        out = scaled.calibration()
+
+        self.assertIsInstance(out, Cal3Bundler)
+        self.assertAlmostEqual(out.fx(), (240.0 + 320.0) / 2.0)
+        self.assertAlmostEqual(out.px(), 60.0)
+        self.assertAlmostEqual(out.py(), 40.0)
+
+    def test_depth_build_uses_height_ratio_for_cy(self) -> None:
+        cal = Cal3_S2(100.0, 50.0, 0.0, 10.0, 20.0)
+        original_coords = np.zeros((1, 6), dtype=np.float32)
+        original_coords[0, 4] = 40.0  # scaled_w
+        original_coords[0, 5] = 80.0  # scaled_h
+        vggt_result = VggtGeometryResult(
+            cameras={0: PinholeCameraCal3_S2(Pose3(), cal)},
+            dense_points=np.zeros((1, 8, 8, 3), dtype=np.float32),
+            depth_confidence=np.ones((1, 8, 8), dtype=np.float32),
+            original_coords=original_coords,
+        )
+
+        data = _build_gtsfm_data_from_vggt_depth(
+            vggt_result,
+            tracks_2d=[],
+            image_shapes={0: (80, 80)},  # scale_x = 2, scale_y = 1
+            image_indices=(0,),
+            num_images=1,
+            use_cal3_bundler=True,
+        )
+        out = data.get_camera(0).calibration()
+
+        self.assertAlmostEqual(out.fx(), 125.0)  # (100*2 + 50*1) / 2
+        self.assertAlmostEqual(out.px(), 20.0)
+        self.assertAlmostEqual(out.py(), 20.0)
+
+    def test_default_keeps_separate_focals(self) -> None:
+        cal = Cal3_S2(120.0, 80.0, 0.0, 30.0, 10.0)
+        scaled = _scale_camera_intrinsics(PinholeCameraCal3_S2(Pose3(), cal), scale_x=2.0, scale_y=4.0)
+        out = scaled.calibration()
+
+        self.assertIsInstance(out, Cal3_S2)
+        self.assertAlmostEqual(out.fx(), 240.0)
+        self.assertAlmostEqual(out.fy(), 320.0)
+        self.assertAlmostEqual(out.px(), 60.0)
+        self.assertAlmostEqual(out.py(), 40.0)
 
 
 if __name__ == "__main__":
