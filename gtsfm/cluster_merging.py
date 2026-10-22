@@ -61,16 +61,15 @@ class MergingOptions:
     # merged-frame camera), so the post-merge retriangulation can inject their poses and attempt
     # geometric recovery: retriangulation is depth-confidence independent, so a camera that lost its
     # depth-lifted tracks can regain geometric ones. An unrecovered camera is inert — excluded from the
-    # retri BA and dropped by its final filter — while a recovered one joins the retri BA with its pose
-    # pinned by use_pose_prior_all_cameras.
+    # retri BA and dropped by its final filter. A recovered one joins that BA. Pose pinning follows
+    # ba_options, except retri_free_ba drops use_pose_prior_all_cameras, so the injected pose is free.
     recover_trackless_cameras_in_retriangulation: bool = False
     ba_options: BundleAdjustmentOptions = field(default_factory=BundleAdjustmentOptions)
     # Post-merge retriangulation BA mode. When retri_free_ba is True the retri BA drops the
-    # calibration/pose priors and runs GNC — a fully-free final solve (GLOMAP-style): the priors that
-    # protect the incremental merges throttle the full-scene BA, which otherwise locks in the accuracy
-    # (BM offline replay: full AUC@3 0.232->0.546 on the same merged input). retri_iterations>1 alternates
-    # retriangulation with the free BA (retriangulating against improved poses recovers tri-failed tracks).
-    # Defaults preserve existing behavior (merge ba_options, single pass).
+    # calibration and pose priors: the priors that protect the incremental merges throttle the
+    # full-scene BA. GNC is separate and follows retri_free_ba_use_gnc (default off).
+    # retri_iterations>1 alternates retriangulation with that BA. Defaults preserve existing
+    # behavior (merge ba_options, single pass, GNC off).
     retri_free_ba: bool = False
     retri_iterations: int = 1
     # GNC in the free retri BA. On this scale it is the most expensive solve in the pipeline tail, and

@@ -108,9 +108,9 @@ cluster_optimizer:
     input_mode: crop
     seed: 42
     model_cache_key: null
-    # Calibration authority: both view-graph (Fetzer) calibrations off — every camera uses the
-    # geometry model's predicted focal with a centered principal point, for the structure build and
-    # the BA focal priors alike.
+    # Calibration authority: both view-graph (Fetzer) calibrations off. Every camera uses the
+    # geometry model's predicted focal. fx and fy are scaled per axis, then averaged into Cal3Bundler
+    # when use_cal3_bundler is set. The principal point is that scaled model point, not the image center.
     use_view_graph_calibration: false
     use_global_view_graph_calibration: false
     # The validated Brussels recipe skips the per-cluster BA: raw model poses ride into the

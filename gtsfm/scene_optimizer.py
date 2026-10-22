@@ -167,8 +167,9 @@ def _run_post_merge_retriangulation(
 
     ba_options = options.ba_options
     if options.retri_free_ba:
-        # Fully-free final solve (GLOMAP-style): the calibration/pose priors that protect the
-        # incremental merges throttle the full-scene BA; dropped here, with GNC for outliers.
+        # Fully-free final solve: drop the calibration and pose priors that protect the incremental
+        # merges. GNC follows retri_free_ba_use_gnc and is off unless that flag is set. Injected
+        # trackless-camera poses are free in this solve.
         from dataclasses import replace as _dc_replace
 
         ba_options = _dc_replace(
