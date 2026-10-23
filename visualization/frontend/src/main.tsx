@@ -312,6 +312,9 @@ interface Job {
   id: string;
   name: string;
   status: JobStatus;
+  command?: string[];
+  output_root?: string;
+  return_code?: number | null;
   spec: {
     config_name?: string;
     splat_implementation?: string;
@@ -1834,9 +1837,10 @@ function StatusBar({ job, live, logsOpen, setLogsOpen, visible, onCancel, onClos
   const progress = typeof live?.progress === "number" && Number.isFinite(live.progress) ? live.progress : job.status === "completed" ? 1 : 0;
   const loss = typeof live?.loss === "number" && Number.isFinite(live.loss) ? `loss ${live.loss.toFixed(4)}` : "";
   const splatCount = typeof live?.splat_count === "number" && Number.isFinite(live.splat_count) ? `${live.splat_count.toLocaleString()} splats` : "";
+  const stage = job.status === "completed" ? "Reconstruction complete" : job.status === "failed" ? "Reconstruction failed" : job.status === "cancelled" ? "Reconstruction cancelled" : job.status === "queued" ? "Waiting to start" : live?.stage === "gaussian_splatting" ? "Optimizing Gaussian splats" : "Running reconstruction pipeline";
   const style = position ? { left: position.left, top: position.top, width: position.width, right: "auto", bottom: "auto" } : undefined;
   return <div ref={barRef} className={`run-status-bar ${dragging ? "is-dragging" : ""}`} data-status={job.status} style={style} title="Drag to move run status" onPointerDown={beginDrag} onPointerMove={moveDrag} onPointerUp={finishDrag} onPointerCancel={finishDrag}>
-    <div className="status-copy status-drag-handle" onDoubleClick={() => setPosition(null)}><span className="status-dot"/><div><strong>{job.name} · {statusLabel(job.status)}</strong><small>{job.error || (live?.stage === "gaussian_splatting" ? "Optimizing Gaussian splats" : "Running reconstruction pipeline")}</small></div></div>
+    <div className="status-copy status-drag-handle" onDoubleClick={() => setPosition(null)}><span className="status-dot"/><div><strong>{job.name} · {statusLabel(job.status)}</strong><small>{job.error || stage}</small></div></div>
     <div className="status-metrics"><span>{live?.max_steps ? `${Number(live.step).toLocaleString()} / ${Number(live.max_steps).toLocaleString()} steps` : ""}</span><span>{loss}</span><span>{splatCount}</span></div>
     <div className="status-actions">{job.has_final_splat && <SplatDownload jobId={job.id} />}{["queued", "running"].includes(job.status) && <button className="secondary-action stop-process" type="button" onClick={() => onCancel(job.id)}><Square size={10} fill="currentColor"/> Stop</button>}<button className="secondary-action" onClick={() => setLogsOpen(!logsOpen)}><Terminal size={13}/> Logs</button><button className="status-close" type="button" title="Close run status" aria-label="Close run status" onClick={onClose}><X size={15}/></button></div>
     <Progress.Root className="run-progress-track" value={progress * 100}><Progress.Indicator className="run-progress-fill" style={{ transform: `translateX(-${100 - progress * 100}%)` }} /></Progress.Root>
@@ -1866,20 +1870,29 @@ interface LogPanelGeometry {
 
 type LogResizeCorner = "nw" | "ne" | "sw" | "se";
 
-function LogPanel({ open, lines, onClose }: { open: boolean; lines: string[]; onClose: () => void }) {
+// Preserve argument boundaries when copying a subprocess argv into a POSIX shell.
+function shellCommand(args: string[]): string {
+  return args.map((arg) => /^[A-Za-z0-9_@%+=:,./-]+$/.test(arg) ? arg : `'${arg.replace(/'/g, "'\\''")}'`).join(" ");
+}
+
+function LogPanel({ open, job, onClose }: { open: boolean; job: Job | null; onClose: () => void }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const copyReset = useRef<number | null>(null);
   const [geometry, setGeometry] = useState<LogPanelGeometry | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<"logs" | "command" | null>(null);
+  const lines = job?.log_tail || [];
+  const remoteRequest = job?.command?.[0] === "remote";
+  const command = remoteRequest ? `POST ${job?.command?.[1] || ""}` : shellCommand(job?.command || []);
 
-  const copyLogs = async () => {
-    if (!await copyTextToClipboard(lines.join("\n"))) return;
-    setCopied(true);
+  const copy = async (kind: "logs" | "command") => {
+    if (!await copyTextToClipboard(kind === "command" ? command : lines.join("\n"))) return;
+    setCopied(kind);
     if (copyReset.current !== null) window.clearTimeout(copyReset.current);
-    copyReset.current = window.setTimeout(() => setCopied(false), 1000);
+    copyReset.current = window.setTimeout(() => setCopied(null), 1000);
   };
 
   useEffect(() => () => { if (copyReset.current !== null) window.clearTimeout(copyReset.current); }, []);
+  useEffect(() => { setCopied(null); }, [job?.id]);
 
   const beginDrag = (event: React.PointerEvent<HTMLDivElement>) => {
     if ((event.target as HTMLElement).closest("button")) return;
@@ -1949,10 +1962,10 @@ function LogPanel({ open, lines, onClose }: { open: boolean; lines: string[]; on
         ? Math.min(start.containerWidth, Math.max(start.left + 300, start.right + dx))
         : start.right;
       const top = corner.includes("n")
-        ? Math.max(0, Math.min(start.bottom - 150, start.top + dy))
+        ? Math.max(0, Math.min(start.bottom - 300, start.top + dy))
         : start.top;
       const bottom = corner.includes("s")
-        ? Math.min(start.containerHeight, Math.max(start.top + 150, start.bottom + dy))
+        ? Math.min(start.containerHeight, Math.max(start.top + 300, start.bottom + dy))
         : start.bottom;
       setGeometry({ left, top, width: right - left, height: bottom - top });
     };
@@ -1979,10 +1992,16 @@ function LogPanel({ open, lines, onClose }: { open: boolean; lines: string[]; on
     bottom: "auto",
     "--log-font-size": `${logFontSize}px`,
   } as React.CSSProperties) : undefined;
-  return <div ref={panelRef} className="log-drawer" role="dialog" aria-label="Run logs" style={style}>
+  return <div ref={panelRef} className="log-drawer" role="dialog" aria-label="Run details" style={style}>
     {(["nw", "ne", "sw", "se"] as LogResizeCorner[]).map((corner) => <button key={corner} className={`log-resize-handle ${corner}`} type="button" title="Resize logs" aria-label={`Resize logs from ${corner}`} onPointerDown={beginResize(corner)} />)}
-    <div className="log-header" onPointerDown={beginDrag}><strong><Terminal size={12}/> Run logs</strong><div className="log-header-actions"><button className="log-copy" type="button" title="Copy all logs" aria-label="Copy all logs" onClick={copyLogs}>{copied ? <Check size={12}/> : <Copy size={12}/>}<span>{copied ? "Copied!" : "Copy"}</span></button><button type="button" title="Minimize logs" aria-label="Minimize logs" onClick={onClose}><Minus size={15}/></button><button type="button" title="Close logs" aria-label="Close logs" onClick={onClose}><X size={14}/></button></div></div>
-    <pre id="runLogs">{lines.join("\n")}</pre>
+    <div className="log-header" onPointerDown={beginDrag}><strong><Terminal size={12}/> Run details</strong><div className="log-header-actions"><button type="button" title="Minimize run details" aria-label="Minimize run details" onClick={onClose}><Minus size={15}/></button><button type="button" title="Close run details" aria-label="Close run details" onClick={onClose}><X size={14}/></button></div></div>
+    {job && <div className="run-details-summary"><strong>{job.name}</strong><span className={`job-status ${job.status}`}>{statusLabel(job.status)}</span>{job.return_code != null && <span>Exit code {job.return_code}</span>}{job.output_root && <div className="run-output-path"><span>Output</span><code>{job.output_root}</code></div>}{job.error && <p className="job-error">{job.error}</p>}</div>}
+    <section className="run-command" aria-label={remoteRequest ? "Remote request" : "CLI command"}>
+      <div className="run-detail-heading"><strong>{remoteRequest ? "Remote request" : "CLI command"}</strong><button type="button" disabled={!command} onClick={() => copy("command")} aria-label={remoteRequest ? "Copy remote request" : "Copy command"}>{copied === "command" ? <Check size={12}/> : <Copy size={12}/>} {copied === "command" ? "Copied!" : "Copy"}</button></div>
+      <pre>{command || "No command recorded for this run."}</pre>
+    </section>
+    <div className="run-detail-heading log-section-heading"><strong>Logs</strong><button type="button" onClick={() => copy("logs")} aria-label="Copy logs">{copied === "logs" ? <Check size={12}/> : <Copy size={12}/>} {copied === "logs" ? "Copied!" : "Copy"}</button></div>
+    <pre id="runLogs">{lines.join("\n") || "No log output yet."}</pre>
   </div>;
 }
 
@@ -2083,7 +2102,7 @@ function Viewer({ activeJob, live, logsOpen, setLogsOpen, statusBarOpen, setStat
     <canvas id="renderCanvas"/>
     <div id="hud"><label className="background-control">BG <select id="backgroundSelect" defaultValue="dark" aria-label="Viewer background"><option value="dark">Dark</option><option value="graphite">Graphite</option><option value="light-gray">Light gray</option><option value="white">White</option></select></label><button id="prevCamBtn" className="hud-scene-only" title="Previous camera"><ChevronLeft size={14}/></button><button id="nextCamBtn" className="hud-scene-only" title="Next camera"><ChevronRight size={14}/></button><button id="toggleStats">Hide stats</button><label className="hud-scene-only"><input type="checkbox" id="toggleCams" defaultChecked/> Cameras</label><label className="hud-scene-only">Point size <input type="range" id="ptSize" min="1" max="10" defaultValue="2"/></label><button id="toggleGround" type="button" aria-pressed="true">Hide plane</button><label className="plane-height-control">Plane Y <input type="range" id="groundY" min="-5" max="5" step="0.1" defaultValue="0" aria-label="Plane vertical position"/><output id="groundYValue" htmlFor="groundY">0.0</output></label></div>
     <a className="viewport-github" href="https://github.com/borglab/gtsfm" target="_blank" rel="noreferrer" title="Open GTSFM on GitHub" aria-label="Open GTSFM GitHub repository"><Github size={16}/></a>
-    <LogPanel open={logsOpen} lines={activeJob?.log_tail || []} onClose={() => setLogsOpen(false)} />
+    <LogPanel open={logsOpen} job={activeJob} onClose={() => setLogsOpen(false)} />
     {showPipelineWait && activeJob && <div className="pipeline-wait-overlay" role="status" aria-live="polite"><div className="pipeline-wait-content"><span>RECONSTRUCTION IN PROGRESS</span><strong>{pipelineStatusMessage(activeJob, live)}</strong><div className="pipeline-wait-dots" aria-hidden="true"><i/><i/><i/></div><small>The first live Gaussian preview will appear here automatically.</small></div></div>}
     <div id="loadingOverlay" className="loading-overlay" role="status"><div className="loading-box"><span id="loadingMessage">Loading…</span><div className="loading-progress-track"><div className="loading-progress-fill" id="loadingProgress"/></div></div></div>
   </main>;
@@ -2334,7 +2353,7 @@ function App() {
     <Tabs.Root className="workspace-tabs" value={tab} onValueChange={setTab}>
       <Tabs.List className="studio-tabs" aria-label="Workspace sections"><Tabs.Trigger className="studio-tab" value="run"><Play size={12}/> New run</Tabs.Trigger><Tabs.Trigger className="studio-tab" value="activity"><Activity size={12}/> Activity {activeCount > 0 && <span id="activeJobCount">{activeCount}</span>}</Tabs.Trigger><Tabs.Trigger className="studio-tab" value="results"><Box size={12}/> Results</Tabs.Trigger></Tabs.List>
       <Tabs.Content className="studio-panel" value="run" forceMount><RunForm schema={schema} hardware={hardware} samples={samples} samplesLoading={samplesLoading} onStarted={(job) => { setStatusBarOpen(true); setActiveId(job.id); refreshJobs(); }} onTabChange={setTab} remotePromptKey={remotePromptKey} schemaLoading={schemaLoading} schemaError={schemaError} onRetrySchema={() => { void loadSchema(); void loadSamples(); }}/></Tabs.Content>
-      <Tabs.Content className="studio-panel" value="activity" forceMount><ActivityPanel jobs={jobs} activeId={activeId} onSelect={(id) => { setStatusBarOpen(true); setActiveId(id); previewVersion.current = null; finalLoaded.current = null; setViewerLoadRequest((current) => current + 1); }} onCancel={cancelJob} onRefresh={refreshJobs}/></Tabs.Content>
+      <Tabs.Content className="studio-panel" value="activity" forceMount><ActivityPanel jobs={jobs} activeId={activeId} onSelect={(id) => { setStatusBarOpen(true); setLogsOpen(true); setActiveId(id); previewVersion.current = null; finalLoaded.current = null; setViewerLoadRequest((current) => current + 1); }} onCancel={cancelJob} onRefresh={refreshJobs}/></Tabs.Content>
       <Tabs.Content className="studio-panel" value="results" forceMount><ResultsPanel /></Tabs.Content>
     </Tabs.Root><div className="sidebar-resize-handle" role="separator" aria-label="Resize side panel" aria-orientation="vertical" aria-valuemin={SIDEBAR_MIN_WIDTH} aria-valuemax={SIDEBAR_MAX_WIDTH} aria-valuenow={sidebarWidth} tabIndex={sidebarCollapsed ? -1 : 0} title="Drag to resize side panel" onPointerDown={startSidebarResize} onPointerMove={moveSidebarResize} onPointerUp={finishSidebarResize} onPointerCancel={finishSidebarResize} onDoubleClick={() => setSidebarWidth(constrainSidebarWidth(420))} onKeyDown={resizeSidebarWithKeyboard}/></aside><Viewer activeJob={activeJob} live={live} logsOpen={logsOpen} setLogsOpen={setLogsOpen} statusBarOpen={statusBarOpen} setStatusBarOpen={setStatusBarOpen} onCancelJob={cancelJob} setup={setup} setupRefreshing={setupRefreshing} onRefreshSetup={refreshSetup} onSetupChange={setSetup}/></div>;
 }
