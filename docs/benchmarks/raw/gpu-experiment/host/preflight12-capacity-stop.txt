@@ -1,0 +1,2 @@
+memory.used [MiB], temperature.gpu, utilization.gpu [%]
+201 MiB, 30, 0 %

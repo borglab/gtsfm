@@ -1,0 +1,601 @@
+{
+  "claim": "isolated API persistence, invalid schema rejection, and resolved argv/env equality",
+  "persistence": "VERIFIED",
+  "invalid_config": "NOT VERIFIED",
+  "argv_environment_equivalence": "VERIFIED",
+  "server_pids": [
+    10239,
+    10252,
+    10298
+  ],
+  "persisted_bytes_after_update": "{\n  \"profiles\": {\n    \"independent\": {\n      \"execution_mode\": \"local\",\n      \"host_memory_bytes\": 536870912,\n      \"host_memory_limit\": \"512MiB\",\n      \"name\": \"independent\",\n      \"schema_version\": 1,\n      \"scratch_directory\": \"/private/tmp/verify-this/dask-profiles-independent/config-run-1/scratch\",\n      \"selected_gpus\": [],\n      \"threads_per_worker\": 3,\n      \"workers\": 2\n    }\n  },\n  \"schema_version\": 1\n}\n",
+  "invalid_rejected": {
+    "zero-workers": true,
+    "negative-workers": true,
+    "boolean-workers": false,
+    "fraction-workers": false,
+    "fraction-string-workers": true,
+    "zero-threads": true,
+    "boolean-threads": false,
+    "fraction-threads": false,
+    "zero-memory": true,
+    "negative-memory": true,
+    "bad-memory": true,
+    "bad-mode": true,
+    "unknown-field": false,
+    "future-schema": false,
+    "relative-scratch": true,
+    "malformed-gpu": false,
+    "negative-gpu": false,
+    "duplicate-gpu": false,
+    "gpu-multiple-workers": true
+  },
+  "equivalence": {
+    "manual_args": [
+      "--config_name",
+      "vggt_sift_frontend_megaloc",
+      "--loader",
+      "olsson",
+      "--dataset_dir",
+      "/private/tmp/verify-this/dask-profiles-independent/config-run-1",
+      "--output_root",
+      "/private/tmp/verify-this/dask-profiles-independent/config-run-1/same-output",
+      "--num_workers",
+      "2",
+      "--threads_per_worker",
+      "3",
+      "--worker_memory_limit",
+      "512MiB",
+      "--dask_tmpdir",
+      "/private/tmp/verify-this/dask-profiles-independent/config-run-1/scratch"
+    ],
+    "profile_args": [
+      "--config_name",
+      "vggt_sift_frontend_megaloc",
+      "--loader",
+      "olsson",
+      "--dataset_dir",
+      "/private/tmp/verify-this/dask-profiles-independent/config-run-1",
+      "--output_root",
+      "/private/tmp/verify-this/dask-profiles-independent/config-run-1/same-output",
+      "--num_workers",
+      "2",
+      "--threads_per_worker",
+      "3",
+      "--worker_memory_limit",
+      "512MiB",
+      "--dask_tmpdir",
+      "/private/tmp/verify-this/dask-profiles-independent/config-run-1/scratch"
+    ],
+    "manual_env": {
+      "GTSFM_SELECTED_DEVICE": "cpu",
+      "CUDA_VISIBLE_DEVICES": ""
+    },
+    "profile_env": {
+      "GTSFM_SELECTED_DEVICE": "cpu",
+      "CUDA_VISIBLE_DEVICES": ""
+    },
+    "resolved_profile": {
+      "schema_version": 1,
+      "name": "independent",
+      "execution_mode": "local",
+      "workers": 2,
+      "threads_per_worker": 3,
+      "host_memory_limit": "512MiB",
+      "host_memory_bytes": 536870912,
+      "selected_gpus": [],
+      "scratch_directory": "/private/tmp/verify-this/dask-profiles-independent/config-run-1/scratch"
+    },
+    "equal": true
+  },
+  "http": [
+    {
+      "label": "create",
+      "method": "PUT",
+      "payload": {
+        "workers": 2,
+        "threads_per_worker": 3,
+        "host_memory_limit": "512MiB",
+        "selected_gpus": [],
+        "scratch_directory": "/private/tmp/verify-this/dask-profiles-independent/config-run-1/scratch",
+        "execution_mode": "local"
+      },
+      "status": 200,
+      "body": {
+        "schema_version": 1,
+        "name": "independent",
+        "execution_mode": "local",
+        "workers": 2,
+        "threads_per_worker": 2,
+        "host_memory_limit": "512MiB",
+        "host_memory_bytes": 536870912,
+        "selected_gpus": [],
+        "scratch_directory": "/private/tmp/verify-this/dask-profiles-independent/config-run-1/scratch"
+      }
+    },
+    {
+      "label": "update",
+      "method": "PUT",
+      "payload": {
+        "workers": 2,
+        "threads_per_worker": 3,
+        "host_memory_limit": "512MiB",
+        "selected_gpus": [],
+        "scratch_directory": "/private/tmp/verify-this/dask-profiles-independent/config-run-1/scratch",
+        "execution_mode": "local"
+      },
+      "status": 200,
+      "body": {
+        "schema_version": 1,
+        "name": "independent",
+        "execution_mode": "local",
+        "workers": 2,
+        "threads_per_worker": 3,
+        "host_memory_limit": "512MiB",
+        "host_memory_bytes": 536870912,
+        "selected_gpus": [],
+        "scratch_directory": "/private/tmp/verify-this/dask-profiles-independent/config-run-1/scratch"
+      }
+    },
+    {
+      "label": "fresh-process-read",
+      "method": "GET",
+      "payload": null,
+      "status": 200,
+      "body": {
+        "schema_version": 1,
+        "name": "independent",
+        "execution_mode": "local",
+        "workers": 2,
+        "threads_per_worker": 3,
+        "host_memory_limit": "512MiB",
+        "host_memory_bytes": 536870912,
+        "selected_gpus": [],
+        "scratch_directory": "/private/tmp/verify-this/dask-profiles-independent/config-run-1/scratch"
+      }
+    },
+    {
+      "label": "fresh-process-list",
+      "method": "GET",
+      "payload": null,
+      "status": 200,
+      "body": {
+        "path": "/private/tmp/verify-this/dask-profiles-independent/config-run-1/profiles.json",
+        "items": [
+          {
+            "schema_version": 1,
+            "name": "independent",
+            "execution_mode": "local",
+            "workers": 2,
+            "threads_per_worker": 3,
+            "host_memory_limit": "512MiB",
+            "host_memory_bytes": 536870912,
+            "selected_gpus": [],
+            "scratch_directory": "/private/tmp/verify-this/dask-profiles-independent/config-run-1/scratch"
+          }
+        ]
+      }
+    },
+    {
+      "label": "zero-workers",
+      "method": "PUT",
+      "payload": {
+        "workers": 0,
+        "threads_per_worker": 3,
+        "host_memory_limit": "512MiB",
+        "selected_gpus": [],
+        "scratch_directory": "/private/tmp/verify-this/dask-profiles-independent/config-run-1/scratch",
+        "execution_mode": "local"
+      },
+      "status": 400,
+      "body": {
+        "error": "workers must be between 1 and 256"
+      }
+    },
+    {
+      "label": "negative-workers",
+      "method": "PUT",
+      "payload": {
+        "workers": -1,
+        "threads_per_worker": 3,
+        "host_memory_limit": "512MiB",
+        "selected_gpus": [],
+        "scratch_directory": "/private/tmp/verify-this/dask-profiles-independent/config-run-1/scratch",
+        "execution_mode": "local"
+      },
+      "status": 400,
+      "body": {
+        "error": "workers must be between 1 and 256"
+      }
+    },
+    {
+      "label": "boolean-workers",
+      "method": "PUT",
+      "payload": {
+        "workers": true,
+        "threads_per_worker": 3,
+        "host_memory_limit": "512MiB",
+        "selected_gpus": [],
+        "scratch_directory": "/private/tmp/verify-this/dask-profiles-independent/config-run-1/scratch",
+        "execution_mode": "local"
+      },
+      "status": 200,
+      "body": {
+        "schema_version": 1,
+        "name": "invalid",
+        "execution_mode": "local",
+        "workers": 1,
+        "threads_per_worker": 3,
+        "host_memory_limit": "512MiB",
+        "host_memory_bytes": 536870912,
+        "selected_gpus": [],
+        "scratch_directory": "/private/tmp/verify-this/dask-profiles-independent/config-run-1/scratch"
+      }
+    },
+    {
+      "label": "fraction-workers",
+      "method": "PUT",
+      "payload": {
+        "workers": 1.5,
+        "threads_per_worker": 3,
+        "host_memory_limit": "512MiB",
+        "selected_gpus": [],
+        "scratch_directory": "/private/tmp/verify-this/dask-profiles-independent/config-run-1/scratch",
+        "execution_mode": "local"
+      },
+      "status": 200,
+      "body": {
+        "schema_version": 1,
+        "name": "invalid",
+        "execution_mode": "local",
+        "workers": 1,
+        "threads_per_worker": 3,
+        "host_memory_limit": "512MiB",
+        "host_memory_bytes": 536870912,
+        "selected_gpus": [],
+        "scratch_directory": "/private/tmp/verify-this/dask-profiles-independent/config-run-1/scratch"
+      }
+    },
+    {
+      "label": "fraction-string-workers",
+      "method": "PUT",
+      "payload": {
+        "workers": "1.5",
+        "threads_per_worker": 3,
+        "host_memory_limit": "512MiB",
+        "selected_gpus": [],
+        "scratch_directory": "/private/tmp/verify-this/dask-profiles-independent/config-run-1/scratch",
+        "execution_mode": "local"
+      },
+      "status": 400,
+      "body": {
+        "error": "workers and threads_per_worker must be integers"
+      }
+    },
+    {
+      "label": "zero-threads",
+      "method": "PUT",
+      "payload": {
+        "workers": 2,
+        "threads_per_worker": 0,
+        "host_memory_limit": "512MiB",
+        "selected_gpus": [],
+        "scratch_directory": "/private/tmp/verify-this/dask-profiles-independent/config-run-1/scratch",
+        "execution_mode": "local"
+      },
+      "status": 400,
+      "body": {
+        "error": "threads_per_worker must be between 1 and 256"
+      }
+    },
+    {
+      "label": "boolean-threads",
+      "method": "PUT",
+      "payload": {
+        "workers": 2,
+        "threads_per_worker": true,
+        "host_memory_limit": "512MiB",
+        "selected_gpus": [],
+        "scratch_directory": "/private/tmp/verify-this/dask-profiles-independent/config-run-1/scratch",
+        "execution_mode": "local"
+      },
+      "status": 200,
+      "body": {
+        "schema_version": 1,
+        "name": "invalid",
+        "execution_mode": "local",
+        "workers": 2,
+        "threads_per_worker": 1,
+        "host_memory_limit": "512MiB",
+        "host_memory_bytes": 536870912,
+        "selected_gpus": [],
+        "scratch_directory": "/private/tmp/verify-this/dask-profiles-independent/config-run-1/scratch"
+      }
+    },
+    {
+      "label": "fraction-threads",
+      "method": "PUT",
+      "payload": {
+        "workers": 2,
+        "threads_per_worker": 1.5,
+        "host_memory_limit": "512MiB",
+        "selected_gpus": [],
+        "scratch_directory": "/private/tmp/verify-this/dask-profiles-independent/config-run-1/scratch",
+        "execution_mode": "local"
+      },
+      "status": 200,
+      "body": {
+        "schema_version": 1,
+        "name": "invalid",
+        "execution_mode": "local",
+        "workers": 2,
+        "threads_per_worker": 1,
+        "host_memory_limit": "512MiB",
+        "host_memory_bytes": 536870912,
+        "selected_gpus": [],
+        "scratch_directory": "/private/tmp/verify-this/dask-profiles-independent/config-run-1/scratch"
+      }
+    },
+    {
+      "label": "zero-memory",
+      "method": "PUT",
+      "payload": {
+        "workers": 2,
+        "threads_per_worker": 3,
+        "host_memory_limit": "0GB",
+        "selected_gpus": [],
+        "scratch_directory": "/private/tmp/verify-this/dask-profiles-independent/config-run-1/scratch",
+        "execution_mode": "local"
+      },
+      "status": 400,
+      "body": {
+        "error": "host_memory_limit must be greater than zero"
+      }
+    },
+    {
+      "label": "negative-memory",
+      "method": "PUT",
+      "payload": {
+        "workers": 2,
+        "threads_per_worker": 3,
+        "host_memory_limit": "-1GB",
+        "selected_gpus": [],
+        "scratch_directory": "/private/tmp/verify-this/dask-profiles-independent/config-run-1/scratch",
+        "execution_mode": "local"
+      },
+      "status": 400,
+      "body": {
+        "error": "host_memory_limit must use an explicit unit, for example 32GB"
+      }
+    },
+    {
+      "label": "bad-memory",
+      "method": "PUT",
+      "payload": {
+        "workers": 2,
+        "threads_per_worker": 3,
+        "host_memory_limit": "lots",
+        "selected_gpus": [],
+        "scratch_directory": "/private/tmp/verify-this/dask-profiles-independent/config-run-1/scratch",
+        "execution_mode": "local"
+      },
+      "status": 400,
+      "body": {
+        "error": "host_memory_limit must use an explicit unit, for example 32GB"
+      }
+    },
+    {
+      "label": "bad-mode",
+      "method": "PUT",
+      "payload": {
+        "workers": 2,
+        "threads_per_worker": 3,
+        "host_memory_limit": "512MiB",
+        "selected_gpus": [],
+        "scratch_directory": "/private/tmp/verify-this/dask-profiles-independent/config-run-1/scratch",
+        "execution_mode": "unknown"
+      },
+      "status": 400,
+      "body": {
+        "error": "execution_mode must be local or remote"
+      }
+    },
+    {
+      "label": "unknown-field",
+      "method": "PUT",
+      "payload": {
+        "workers": 2,
+        "threads_per_worker": 3,
+        "host_memory_limit": "512MiB",
+        "selected_gpus": [],
+        "scratch_directory": "/private/tmp/verify-this/dask-profiles-independent/config-run-1/scratch",
+        "execution_mode": "local",
+        "typo_workers": 5
+      },
+      "status": 200,
+      "body": {
+        "schema_version": 1,
+        "name": "invalid",
+        "execution_mode": "local",
+        "workers": 2,
+        "threads_per_worker": 3,
+        "host_memory_limit": "512MiB",
+        "host_memory_bytes": 536870912,
+        "selected_gpus": [],
+        "scratch_directory": "/private/tmp/verify-this/dask-profiles-independent/config-run-1/scratch"
+      }
+    },
+    {
+      "label": "future-schema",
+      "method": "PUT",
+      "payload": {
+        "workers": 2,
+        "threads_per_worker": 3,
+        "host_memory_limit": "512MiB",
+        "selected_gpus": [],
+        "scratch_directory": "/private/tmp/verify-this/dask-profiles-independent/config-run-1/scratch",
+        "execution_mode": "local",
+        "schema_version": 99
+      },
+      "status": 200,
+      "body": {
+        "schema_version": 1,
+        "name": "invalid",
+        "execution_mode": "local",
+        "workers": 2,
+        "threads_per_worker": 3,
+        "host_memory_limit": "512MiB",
+        "host_memory_bytes": 536870912,
+        "selected_gpus": [],
+        "scratch_directory": "/private/tmp/verify-this/dask-profiles-independent/config-run-1/scratch"
+      }
+    },
+    {
+      "label": "relative-scratch",
+      "method": "PUT",
+      "payload": {
+        "workers": 2,
+        "threads_per_worker": 3,
+        "host_memory_limit": "512MiB",
+        "selected_gpus": [],
+        "scratch_directory": "relative",
+        "execution_mode": "local"
+      },
+      "status": 400,
+      "body": {
+        "error": "scratch_directory must be an absolute path"
+      }
+    },
+    {
+      "label": "malformed-gpu",
+      "method": "PUT",
+      "payload": {
+        "workers": 1,
+        "threads_per_worker": 3,
+        "host_memory_limit": "512MiB",
+        "selected_gpus": [
+          "not-a-gpu"
+        ],
+        "scratch_directory": "/private/tmp/verify-this/dask-profiles-independent/config-run-1/scratch",
+        "execution_mode": "local"
+      },
+      "status": 200,
+      "body": {
+        "schema_version": 1,
+        "name": "invalid",
+        "execution_mode": "local",
+        "workers": 1,
+        "threads_per_worker": 3,
+        "host_memory_limit": "512MiB",
+        "host_memory_bytes": 536870912,
+        "selected_gpus": [
+          "not-a-gpu"
+        ],
+        "scratch_directory": "/private/tmp/verify-this/dask-profiles-independent/config-run-1/scratch"
+      }
+    },
+    {
+      "label": "negative-gpu",
+      "method": "PUT",
+      "payload": {
+        "workers": 1,
+        "threads_per_worker": 3,
+        "host_memory_limit": "512MiB",
+        "selected_gpus": [
+          "cuda:-1"
+        ],
+        "scratch_directory": "/private/tmp/verify-this/dask-profiles-independent/config-run-1/scratch",
+        "execution_mode": "local"
+      },
+      "status": 200,
+      "body": {
+        "schema_version": 1,
+        "name": "invalid",
+        "execution_mode": "local",
+        "workers": 1,
+        "threads_per_worker": 3,
+        "host_memory_limit": "512MiB",
+        "host_memory_bytes": 536870912,
+        "selected_gpus": [
+          "cuda:-1"
+        ],
+        "scratch_directory": "/private/tmp/verify-this/dask-profiles-independent/config-run-1/scratch"
+      }
+    },
+    {
+      "label": "duplicate-gpu",
+      "method": "PUT",
+      "payload": {
+        "workers": 1,
+        "threads_per_worker": 3,
+        "host_memory_limit": "512MiB",
+        "selected_gpus": [
+          "cuda:0",
+          "cuda:0"
+        ],
+        "scratch_directory": "/private/tmp/verify-this/dask-profiles-independent/config-run-1/scratch",
+        "execution_mode": "local"
+      },
+      "status": 200,
+      "body": {
+        "schema_version": 1,
+        "name": "invalid",
+        "execution_mode": "local",
+        "workers": 1,
+        "threads_per_worker": 3,
+        "host_memory_limit": "512MiB",
+        "host_memory_bytes": 536870912,
+        "selected_gpus": [
+          "cuda:0"
+        ],
+        "scratch_directory": "/private/tmp/verify-this/dask-profiles-independent/config-run-1/scratch"
+      }
+    },
+    {
+      "label": "gpu-multiple-workers",
+      "method": "PUT",
+      "payload": {
+        "workers": 2,
+        "threads_per_worker": 3,
+        "host_memory_limit": "512MiB",
+        "selected_gpus": [
+          "cuda:0"
+        ],
+        "scratch_directory": "/private/tmp/verify-this/dask-profiles-independent/config-run-1/scratch",
+        "execution_mode": "local"
+      },
+      "status": 400,
+      "body": {
+        "error": "A selected GPU profile must use exactly one worker"
+      }
+    },
+    {
+      "label": "missing-profile",
+      "method": "GET",
+      "payload": null,
+      "status": 404,
+      "body": {
+        "error": "Execution profile not found"
+      }
+    },
+    {
+      "label": "delete",
+      "method": "DELETE",
+      "payload": null,
+      "status": 200,
+      "body": {
+        "deleted": true
+      }
+    },
+    {
+      "label": "fresh-process-after-delete",
+      "method": "GET",
+      "payload": null,
+      "status": 404,
+      "body": {
+        "error": "Execution profile not found"
+      }
+    }
+  ],
+  "scope": "Actual HTTP and argument resolution with real injected temporary storage; no job, GPU, or cleanup proof."
+}

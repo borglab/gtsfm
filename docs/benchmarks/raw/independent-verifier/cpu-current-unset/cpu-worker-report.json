@@ -1,0 +1,197 @@
+{
+  "scope": "Actual CPU LocalCluster plus production dask_stats.collect; not runner propagation, GPU, reconstruction or performance proof",
+  "source_sha256_before": "524f5100c19c5c26f0b389481179f8fbdd1ec1cd4ccb7a6ce00e245c3d3d8046",
+  "source_sha256_after": "524f5100c19c5c26f0b389481179f8fbdd1ec1cd4ccb7a6ce00e245c3d3d8046",
+  "source_stable": true,
+  "cuda_environment_case": "unset",
+  "requested": {
+    "workers": 2,
+    "threads_per_worker": 2,
+    "host_memory_bytes": 536870912,
+    "cuda_visible_devices": "",
+    "dashboard": null
+  },
+  "reports": [
+    {
+      "client_id": 4418916224,
+      "actual": {
+        "tcp://127.0.0.1:52550": {
+          "pid": 33537,
+          "local_directory": "/tmp/verify-this/dask-profiles-independent/cpu-current-unset/cpu-dask-ej_nosgd/dask-scratch-space/worker-ism78079",
+          "nthreads": 2,
+          "memory_limit_bytes": 536870912,
+          "cuda_visible_devices": null,
+          "cuda_visible_devices_is_set": false
+        },
+        "tcp://127.0.0.1:52552": {
+          "pid": 33545,
+          "local_directory": "/tmp/verify-this/dask-profiles-independent/cpu-current-unset/cpu-dask-ej_nosgd/dask-scratch-space/worker-wuszm1tc",
+          "nthreads": 2,
+          "memory_limit_bytes": 536870912,
+          "cuda_visible_devices": null,
+          "cuda_visible_devices_is_set": false
+        }
+      },
+      "report": {
+        "workers": 2,
+        "worker_details": [
+          {
+            "address": "tcp://127.0.0.1:52550",
+            "nthreads": 2,
+            "memory_limit_bytes": 536870912,
+            "pid": 33537,
+            "cuda_visible_devices": null,
+            "local_directory": "/tmp/verify-this/dask-profiles-independent/cpu-current-unset/cpu-dask-ej_nosgd/dask-scratch-space/worker-ism78079",
+            "cuda_available": false,
+            "cuda_device_count": 0,
+            "cuda_device_name": null
+          },
+          {
+            "address": "tcp://127.0.0.1:52552",
+            "nthreads": 2,
+            "memory_limit_bytes": 536870912,
+            "pid": 33545,
+            "cuda_visible_devices": null,
+            "local_directory": "/tmp/verify-this/dask-profiles-independent/cpu-current-unset/cpu-dask-ej_nosgd/dask-scratch-space/worker-wuszm1tc",
+            "cuda_available": false,
+            "cuda_device_count": 0,
+            "cuda_device_name": null
+          }
+        ],
+        "threads": 4,
+        "running_tasks": 0,
+        "completed_tasks": 0,
+        "pending_tasks": 0,
+        "failed_tasks": 0,
+        "memory_bytes": 125648896,
+        "memory_limit_bytes": 1073741824,
+        "cpu_percent": 0.0,
+        "dashboard_url": "http://127.0.0.1:8787/status",
+        "updated_at": 1792872194.257043
+      }
+    },
+    {
+      "client_id": 4429811632,
+      "actual": {
+        "tcp://127.0.0.1:52550": {
+          "pid": 33537,
+          "local_directory": "/tmp/verify-this/dask-profiles-independent/cpu-current-unset/cpu-dask-ej_nosgd/dask-scratch-space/worker-ism78079",
+          "nthreads": 2,
+          "memory_limit_bytes": 536870912,
+          "cuda_visible_devices": null,
+          "cuda_visible_devices_is_set": false
+        },
+        "tcp://127.0.0.1:52552": {
+          "pid": 33545,
+          "local_directory": "/tmp/verify-this/dask-profiles-independent/cpu-current-unset/cpu-dask-ej_nosgd/dask-scratch-space/worker-wuszm1tc",
+          "nthreads": 2,
+          "memory_limit_bytes": 536870912,
+          "cuda_visible_devices": null,
+          "cuda_visible_devices_is_set": false
+        }
+      },
+      "report": {
+        "workers": 2,
+        "worker_details": [
+          {
+            "address": "tcp://127.0.0.1:52550",
+            "nthreads": 2,
+            "memory_limit_bytes": 536870912,
+            "pid": 33537,
+            "cuda_visible_devices": null,
+            "local_directory": "/tmp/verify-this/dask-profiles-independent/cpu-current-unset/cpu-dask-ej_nosgd/dask-scratch-space/worker-ism78079",
+            "cuda_available": false,
+            "cuda_device_count": 0,
+            "cuda_device_name": null
+          },
+          {
+            "address": "tcp://127.0.0.1:52552",
+            "nthreads": 2,
+            "memory_limit_bytes": 536870912,
+            "pid": 33545,
+            "cuda_visible_devices": null,
+            "local_directory": "/tmp/verify-this/dask-profiles-independent/cpu-current-unset/cpu-dask-ej_nosgd/dask-scratch-space/worker-wuszm1tc",
+            "cuda_available": false,
+            "cuda_device_count": 0,
+            "cuda_device_name": null
+          }
+        ],
+        "threads": 4,
+        "running_tasks": 0,
+        "completed_tasks": 0,
+        "pending_tasks": 0,
+        "failed_tasks": 0,
+        "memory_bytes": 125648896,
+        "memory_limit_bytes": 1073741824,
+        "cpu_percent": 0.0,
+        "dashboard_url": "http://127.0.0.1:8787/status",
+        "updated_at": 1792872194.268929
+      }
+    },
+    {
+      "client_id": 4435803216,
+      "actual": {
+        "tcp://127.0.0.1:52550": {
+          "pid": 33537,
+          "local_directory": "/tmp/verify-this/dask-profiles-independent/cpu-current-unset/cpu-dask-ej_nosgd/dask-scratch-space/worker-ism78079",
+          "nthreads": 2,
+          "memory_limit_bytes": 536870912,
+          "cuda_visible_devices": null,
+          "cuda_visible_devices_is_set": false
+        },
+        "tcp://127.0.0.1:52552": {
+          "pid": 33545,
+          "local_directory": "/tmp/verify-this/dask-profiles-independent/cpu-current-unset/cpu-dask-ej_nosgd/dask-scratch-space/worker-wuszm1tc",
+          "nthreads": 2,
+          "memory_limit_bytes": 536870912,
+          "cuda_visible_devices": null,
+          "cuda_visible_devices_is_set": false
+        }
+      },
+      "report": {
+        "workers": 2,
+        "worker_details": [
+          {
+            "address": "tcp://127.0.0.1:52550",
+            "nthreads": 2,
+            "memory_limit_bytes": 536870912,
+            "pid": 33537,
+            "cuda_visible_devices": null,
+            "local_directory": "/tmp/verify-this/dask-profiles-independent/cpu-current-unset/cpu-dask-ej_nosgd/dask-scratch-space/worker-ism78079",
+            "cuda_available": false,
+            "cuda_device_count": 0,
+            "cuda_device_name": null
+          },
+          {
+            "address": "tcp://127.0.0.1:52552",
+            "nthreads": 2,
+            "memory_limit_bytes": 536870912,
+            "pid": 33545,
+            "cuda_visible_devices": null,
+            "local_directory": "/tmp/verify-this/dask-profiles-independent/cpu-current-unset/cpu-dask-ej_nosgd/dask-scratch-space/worker-wuszm1tc",
+            "cuda_available": false,
+            "cuda_device_count": 0,
+            "cuda_device_name": null
+          }
+        ],
+        "threads": 4,
+        "running_tasks": 0,
+        "completed_tasks": 0,
+        "pending_tasks": 0,
+        "failed_tasks": 0,
+        "memory_bytes": 125648896,
+        "memory_limit_bytes": 1073741824,
+        "cpu_percent": 0.0,
+        "dashboard_url": "http://127.0.0.1:8787/status",
+        "updated_at": 1792872194.281038
+      }
+    }
+  ],
+  "worker_pids": [
+    33537,
+    33545
+  ],
+  "remaining_worker_pids_after_close": [],
+  "probe_cache_entries_before_gc": 3,
+  "probe_cache_entries_after_clients_collected": 0
+}

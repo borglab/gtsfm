@@ -1,0 +1,1 @@
+pid, process_name, used_gpu_memory [MiB]

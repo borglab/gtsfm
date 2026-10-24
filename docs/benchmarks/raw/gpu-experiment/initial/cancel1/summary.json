@@ -1,0 +1,975 @@
+{
+  "arm": "cancel",
+  "command": [
+    "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+    "-m",
+    "gtsfm.runner",
+    "--config_name",
+    "vggt_sift_frontend_megaloc",
+    "--loader",
+    "olsson",
+    "--dataset_dir",
+    "/home/jasdeep/gtsfm-profile-gpu-20261024/dataset-first4",
+    "--output_root",
+    "/home/jasdeep/gtsfm-profile-gpu-20261024/results/runs/cancel1-cancel1",
+    "--num_workers",
+    "1",
+    "--threads_per_worker",
+    "2",
+    "--worker_memory_limit",
+    "18GiB",
+    "--max_resolution",
+    "518",
+    "--dashboard_port",
+    "127.0.0.1:0",
+    "--dask_tmpdir",
+    "/home/jasdeep/gtsfm-profile-gpu-20261024/scratch"
+  ],
+  "compute_processes": "pid, process_name, used_gpu_memory [MiB]\n",
+  "ended": 1792871134.444091,
+  "final_gpu": {
+    "memory_used_mib": 201,
+    "temperature_c": 31,
+    "utilization_percent": 0
+  },
+  "observed_pids": {
+    "305109": {
+      "argv": [
+        "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+        "-m",
+        "gtsfm.runner",
+        "--config_name",
+        "vggt_sift_frontend_megaloc",
+        "--loader",
+        "olsson",
+        "--dataset_dir",
+        "/home/jasdeep/gtsfm-profile-gpu-20261024/dataset-first4",
+        "--output_root",
+        "/home/jasdeep/gtsfm-profile-gpu-20261024/results/runs/cancel1-cancel1",
+        "--num_workers",
+        "1",
+        "--threads_per_worker",
+        "2",
+        "--worker_memory_limit",
+        "18GiB",
+        "--max_resolution",
+        "518",
+        "--dashboard_port",
+        "127.0.0.1:0",
+        "--dask_tmpdir",
+        "/home/jasdeep/gtsfm-profile-gpu-20261024/scratch"
+      ],
+      "cpu_percent": 0.0,
+      "cpu_times": {
+        "children_system": 0.0,
+        "children_user": 0.0,
+        "iowait": 0.0,
+        "system": 1.21,
+        "user": 5.27
+      },
+      "created": 1792871112.41,
+      "pid": 305109,
+      "ppid": 305101,
+      "rss": 1373573120,
+      "status": "sleeping"
+    },
+    "305131": {
+      "argv": [
+        "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+        "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+        "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+        "--kind=fork",
+        "--workers=16",
+        "--parent=305109",
+        "--read-fd=13",
+        "--write-fd=16"
+      ],
+      "cpu_percent": 0.0,
+      "cpu_times": {
+        "children_system": 0.0,
+        "children_user": 0.0,
+        "iowait": 0.0,
+        "system": 1.08,
+        "user": 1.87
+      },
+      "created": 1792871116.26,
+      "pid": 305131,
+      "ppid": 305109,
+      "rss": 656519168,
+      "status": "sleeping"
+    },
+    "305142": {
+      "argv": [
+        "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+        "-c",
+        "from multiprocessing.resource_tracker import main;main(32)"
+      ],
+      "cpu_percent": 0.0,
+      "cpu_times": {
+        "children_system": 0.0,
+        "children_user": 0.0,
+        "iowait": 0.0,
+        "system": 0.22,
+        "user": 1.02
+      },
+      "created": 1792871117.45,
+      "pid": 305142,
+      "ppid": 305109,
+      "rss": 489873408,
+      "status": "sleeping"
+    },
+    "305145": {
+      "argv": [
+        "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+        "-c",
+        "from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=33, pipe_handle=39)",
+        "--multiprocessing-fork"
+      ],
+      "cpu_percent": 0.0,
+      "cpu_times": {
+        "children_system": 0.0,
+        "children_user": 0.0,
+        "iowait": 0.0,
+        "system": 2.45,
+        "user": 6.48
+      },
+      "created": 1792871117.45,
+      "pid": 305145,
+      "ppid": 305109,
+      "rss": 1850322944,
+      "status": "sleeping"
+    },
+    "305170": {
+      "argv": [
+        "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+        "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+        "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+        "--kind=fork",
+        "--workers=16",
+        "--parent=305109",
+        "--read-fd=13",
+        "--write-fd=16"
+      ],
+      "cpu_percent": 0.0,
+      "cpu_times": {
+        "children_system": 0.0,
+        "children_user": 0.0,
+        "iowait": 0.0,
+        "system": 0.0,
+        "user": 0.0
+      },
+      "created": 1792871119.01,
+      "pid": 305170,
+      "ppid": 305131,
+      "rss": 385269760,
+      "status": "sleeping"
+    },
+    "305172": {
+      "argv": [
+        "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+        "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+        "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+        "--kind=fork",
+        "--workers=16",
+        "--parent=305109",
+        "--read-fd=13",
+        "--write-fd=16"
+      ],
+      "cpu_percent": 0.0,
+      "cpu_times": {
+        "children_system": 0.0,
+        "children_user": 0.0,
+        "iowait": 0.0,
+        "system": 0.0,
+        "user": 0.0
+      },
+      "created": 1792871119.01,
+      "pid": 305172,
+      "ppid": 305131,
+      "rss": 384937984,
+      "status": "sleeping"
+    },
+    "305174": {
+      "argv": [
+        "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+        "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+        "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+        "--kind=fork",
+        "--workers=16",
+        "--parent=305109",
+        "--read-fd=13",
+        "--write-fd=16"
+      ],
+      "cpu_percent": 0.0,
+      "cpu_times": {
+        "children_system": 0.0,
+        "children_user": 0.0,
+        "iowait": 0.0,
+        "system": 0.0,
+        "user": 0.0
+      },
+      "created": 1792871119.02,
+      "pid": 305174,
+      "ppid": 305131,
+      "rss": 384937984,
+      "status": "sleeping"
+    },
+    "305176": {
+      "argv": [
+        "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+        "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+        "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+        "--kind=fork",
+        "--workers=16",
+        "--parent=305109",
+        "--read-fd=13",
+        "--write-fd=16"
+      ],
+      "cpu_percent": 0.0,
+      "cpu_times": {
+        "children_system": 0.0,
+        "children_user": 0.0,
+        "iowait": 0.0,
+        "system": 0.0,
+        "user": 0.0
+      },
+      "created": 1792871119.02,
+      "pid": 305176,
+      "ppid": 305131,
+      "rss": 384937984,
+      "status": "sleeping"
+    },
+    "305178": {
+      "argv": [
+        "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+        "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+        "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+        "--kind=fork",
+        "--workers=16",
+        "--parent=305109",
+        "--read-fd=13",
+        "--write-fd=16"
+      ],
+      "cpu_percent": 0.0,
+      "cpu_times": {
+        "children_system": 0.0,
+        "children_user": 0.0,
+        "iowait": 0.0,
+        "system": 0.0,
+        "user": 0.0
+      },
+      "created": 1792871119.02,
+      "pid": 305178,
+      "ppid": 305131,
+      "rss": 384937984,
+      "status": "sleeping"
+    },
+    "305180": {
+      "argv": [
+        "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+        "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+        "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+        "--kind=fork",
+        "--workers=16",
+        "--parent=305109",
+        "--read-fd=13",
+        "--write-fd=16"
+      ],
+      "cpu_percent": 0.0,
+      "cpu_times": {
+        "children_system": 0.0,
+        "children_user": 0.0,
+        "iowait": 0.0,
+        "system": 0.0,
+        "user": 0.0
+      },
+      "created": 1792871119.03,
+      "pid": 305180,
+      "ppid": 305131,
+      "rss": 384937984,
+      "status": "sleeping"
+    },
+    "305182": {
+      "argv": [
+        "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+        "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+        "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+        "--kind=fork",
+        "--workers=16",
+        "--parent=305109",
+        "--read-fd=13",
+        "--write-fd=16"
+      ],
+      "cpu_percent": 0.0,
+      "cpu_times": {
+        "children_system": 0.0,
+        "children_user": 0.0,
+        "iowait": 0.0,
+        "system": 0.0,
+        "user": 0.0
+      },
+      "created": 1792871119.03,
+      "pid": 305182,
+      "ppid": 305131,
+      "rss": 384937984,
+      "status": "sleeping"
+    },
+    "305184": {
+      "argv": [
+        "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+        "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+        "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+        "--kind=fork",
+        "--workers=16",
+        "--parent=305109",
+        "--read-fd=13",
+        "--write-fd=16"
+      ],
+      "cpu_percent": 0.0,
+      "cpu_times": {
+        "children_system": 0.0,
+        "children_user": 0.0,
+        "iowait": 0.0,
+        "system": 0.0,
+        "user": 0.0
+      },
+      "created": 1792871119.03,
+      "pid": 305184,
+      "ppid": 305131,
+      "rss": 384937984,
+      "status": "sleeping"
+    },
+    "305186": {
+      "argv": [
+        "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+        "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+        "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+        "--kind=fork",
+        "--workers=16",
+        "--parent=305109",
+        "--read-fd=13",
+        "--write-fd=16"
+      ],
+      "cpu_percent": 0.0,
+      "cpu_times": {
+        "children_system": 0.0,
+        "children_user": 0.0,
+        "iowait": 0.0,
+        "system": 0.0,
+        "user": 0.0
+      },
+      "created": 1792871119.03,
+      "pid": 305186,
+      "ppid": 305131,
+      "rss": 384937984,
+      "status": "sleeping"
+    },
+    "305188": {
+      "argv": [
+        "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+        "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+        "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+        "--kind=fork",
+        "--workers=16",
+        "--parent=305109",
+        "--read-fd=13",
+        "--write-fd=16"
+      ],
+      "cpu_percent": 0.0,
+      "cpu_times": {
+        "children_system": 0.0,
+        "children_user": 0.0,
+        "iowait": 0.0,
+        "system": 0.0,
+        "user": 0.0
+      },
+      "created": 1792871119.04,
+      "pid": 305188,
+      "ppid": 305131,
+      "rss": 384937984,
+      "status": "sleeping"
+    },
+    "305190": {
+      "argv": [
+        "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+        "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+        "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+        "--kind=fork",
+        "--workers=16",
+        "--parent=305109",
+        "--read-fd=13",
+        "--write-fd=16"
+      ],
+      "cpu_percent": 0.0,
+      "cpu_times": {
+        "children_system": 0.0,
+        "children_user": 0.0,
+        "iowait": 0.0,
+        "system": 0.0,
+        "user": 0.0
+      },
+      "created": 1792871119.04,
+      "pid": 305190,
+      "ppid": 305131,
+      "rss": 384937984,
+      "status": "sleeping"
+    },
+    "305192": {
+      "argv": [
+        "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+        "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+        "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+        "--kind=fork",
+        "--workers=16",
+        "--parent=305109",
+        "--read-fd=13",
+        "--write-fd=16"
+      ],
+      "cpu_percent": 0.0,
+      "cpu_times": {
+        "children_system": 0.0,
+        "children_user": 0.0,
+        "iowait": 0.0,
+        "system": 0.0,
+        "user": 0.0
+      },
+      "created": 1792871119.04,
+      "pid": 305192,
+      "ppid": 305131,
+      "rss": 384937984,
+      "status": "sleeping"
+    },
+    "305195": {
+      "argv": [
+        "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+        "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+        "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+        "--kind=fork",
+        "--workers=16",
+        "--parent=305109",
+        "--read-fd=13",
+        "--write-fd=16"
+      ],
+      "cpu_percent": 0.0,
+      "cpu_times": {
+        "children_system": 0.0,
+        "children_user": 0.0,
+        "iowait": 0.0,
+        "system": 0.0,
+        "user": 0.0
+      },
+      "created": 1792871119.05,
+      "pid": 305195,
+      "ppid": 305131,
+      "rss": 384937984,
+      "status": "sleeping"
+    },
+    "305197": {
+      "argv": [
+        "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+        "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+        "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+        "--kind=fork",
+        "--workers=16",
+        "--parent=305109",
+        "--read-fd=13",
+        "--write-fd=16"
+      ],
+      "cpu_percent": 0.0,
+      "cpu_times": {
+        "children_system": 0.0,
+        "children_user": 0.0,
+        "iowait": 0.0,
+        "system": 0.0,
+        "user": 0.0
+      },
+      "created": 1792871119.05,
+      "pid": 305197,
+      "ppid": 305131,
+      "rss": 384937984,
+      "status": "sleeping"
+    },
+    "305199": {
+      "argv": [
+        "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+        "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+        "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+        "--kind=fork",
+        "--workers=16",
+        "--parent=305109",
+        "--read-fd=13",
+        "--write-fd=16"
+      ],
+      "cpu_percent": 0.0,
+      "cpu_times": {
+        "children_system": 0.0,
+        "children_user": 0.0,
+        "iowait": 0.0,
+        "system": 0.0,
+        "user": 0.0
+      },
+      "created": 1792871119.05,
+      "pid": 305199,
+      "ppid": 305131,
+      "rss": 384937984,
+      "status": "sleeping"
+    },
+    "305201": {
+      "argv": [
+        "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+        "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+        "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+        "--kind=fork",
+        "--workers=16",
+        "--parent=305109",
+        "--read-fd=13",
+        "--write-fd=16"
+      ],
+      "cpu_percent": 0.0,
+      "cpu_times": {
+        "children_system": 0.0,
+        "children_user": 0.0,
+        "iowait": 0.0,
+        "system": 0.0,
+        "user": 0.0
+      },
+      "created": 1792871119.05,
+      "pid": 305201,
+      "ppid": 305131,
+      "rss": 384937984,
+      "status": "sleeping"
+    },
+    "305210": {
+      "argv": [
+        "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+        "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+        "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+        "--kind=fork",
+        "--workers=16",
+        "--parent=305145",
+        "--read-fd=14",
+        "--write-fd=17"
+      ],
+      "cpu_percent": 0.0,
+      "cpu_times": {
+        "children_system": 0.0,
+        "children_user": 0.0,
+        "iowait": 0.0,
+        "system": 0.59,
+        "user": 1.72
+      },
+      "created": 1792871121.04,
+      "pid": 305210,
+      "ppid": 305145,
+      "rss": 654200832,
+      "status": "sleeping"
+    },
+    "305248": {
+      "argv": [
+        "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+        "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+        "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+        "--kind=fork",
+        "--workers=16",
+        "--parent=305145",
+        "--read-fd=14",
+        "--write-fd=17"
+      ],
+      "cpu_percent": 0.0,
+      "cpu_times": {
+        "children_system": 0.0,
+        "children_user": 0.0,
+        "iowait": 0.0,
+        "system": 0.0,
+        "user": 0.0
+      },
+      "created": 1792871123.08,
+      "pid": 305248,
+      "ppid": 305210,
+      "rss": 383029248,
+      "status": "sleeping"
+    },
+    "305250": {
+      "argv": [
+        "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+        "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+        "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+        "--kind=fork",
+        "--workers=16",
+        "--parent=305145",
+        "--read-fd=14",
+        "--write-fd=17"
+      ],
+      "cpu_percent": 0.0,
+      "cpu_times": {
+        "children_system": 0.0,
+        "children_user": 0.0,
+        "iowait": 0.0,
+        "system": 0.0,
+        "user": 0.0
+      },
+      "created": 1792871123.08,
+      "pid": 305250,
+      "ppid": 305210,
+      "rss": 382697472,
+      "status": "sleeping"
+    },
+    "305252": {
+      "argv": [
+        "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+        "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+        "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+        "--kind=fork",
+        "--workers=16",
+        "--parent=305145",
+        "--read-fd=14",
+        "--write-fd=17"
+      ],
+      "cpu_percent": 0.0,
+      "cpu_times": {
+        "children_system": 0.0,
+        "children_user": 0.0,
+        "iowait": 0.0,
+        "system": 0.0,
+        "user": 0.0
+      },
+      "created": 1792871123.08,
+      "pid": 305252,
+      "ppid": 305210,
+      "rss": 382697472,
+      "status": "sleeping"
+    },
+    "305254": {
+      "argv": [
+        "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+        "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+        "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+        "--kind=fork",
+        "--workers=16",
+        "--parent=305145",
+        "--read-fd=14",
+        "--write-fd=17"
+      ],
+      "cpu_percent": 0.0,
+      "cpu_times": {
+        "children_system": 0.0,
+        "children_user": 0.0,
+        "iowait": 0.0,
+        "system": 0.0,
+        "user": 0.0
+      },
+      "created": 1792871123.08,
+      "pid": 305254,
+      "ppid": 305210,
+      "rss": 382697472,
+      "status": "sleeping"
+    },
+    "305256": {
+      "argv": [
+        "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+        "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+        "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+        "--kind=fork",
+        "--workers=16",
+        "--parent=305145",
+        "--read-fd=14",
+        "--write-fd=17"
+      ],
+      "cpu_percent": 0.0,
+      "cpu_times": {
+        "children_system": 0.0,
+        "children_user": 0.0,
+        "iowait": 0.0,
+        "system": 0.0,
+        "user": 0.0
+      },
+      "created": 1792871123.09,
+      "pid": 305256,
+      "ppid": 305210,
+      "rss": 382697472,
+      "status": "sleeping"
+    },
+    "305258": {
+      "argv": [
+        "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+        "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+        "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+        "--kind=fork",
+        "--workers=16",
+        "--parent=305145",
+        "--read-fd=14",
+        "--write-fd=17"
+      ],
+      "cpu_percent": 0.0,
+      "cpu_times": {
+        "children_system": 0.0,
+        "children_user": 0.0,
+        "iowait": 0.0,
+        "system": 0.0,
+        "user": 0.0
+      },
+      "created": 1792871123.09,
+      "pid": 305258,
+      "ppid": 305210,
+      "rss": 382697472,
+      "status": "sleeping"
+    },
+    "305260": {
+      "argv": [
+        "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+        "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+        "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+        "--kind=fork",
+        "--workers=16",
+        "--parent=305145",
+        "--read-fd=14",
+        "--write-fd=17"
+      ],
+      "cpu_percent": 0.0,
+      "cpu_times": {
+        "children_system": 0.0,
+        "children_user": 0.0,
+        "iowait": 0.0,
+        "system": 0.0,
+        "user": 0.0
+      },
+      "created": 1792871123.09,
+      "pid": 305260,
+      "ppid": 305210,
+      "rss": 382697472,
+      "status": "sleeping"
+    },
+    "305262": {
+      "argv": [
+        "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+        "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+        "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+        "--kind=fork",
+        "--workers=16",
+        "--parent=305145",
+        "--read-fd=14",
+        "--write-fd=17"
+      ],
+      "cpu_percent": 0.0,
+      "cpu_times": {
+        "children_system": 0.0,
+        "children_user": 0.0,
+        "iowait": 0.0,
+        "system": 0.0,
+        "user": 0.0
+      },
+      "created": 1792871123.1,
+      "pid": 305262,
+      "ppid": 305210,
+      "rss": 382697472,
+      "status": "sleeping"
+    },
+    "305264": {
+      "argv": [
+        "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+        "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+        "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+        "--kind=fork",
+        "--workers=16",
+        "--parent=305145",
+        "--read-fd=14",
+        "--write-fd=17"
+      ],
+      "cpu_percent": 0.0,
+      "cpu_times": {
+        "children_system": 0.0,
+        "children_user": 0.0,
+        "iowait": 0.0,
+        "system": 0.0,
+        "user": 0.0
+      },
+      "created": 1792871123.1,
+      "pid": 305264,
+      "ppid": 305210,
+      "rss": 382697472,
+      "status": "sleeping"
+    },
+    "305266": {
+      "argv": [
+        "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+        "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+        "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+        "--kind=fork",
+        "--workers=16",
+        "--parent=305145",
+        "--read-fd=14",
+        "--write-fd=17"
+      ],
+      "cpu_percent": 0.0,
+      "cpu_times": {
+        "children_system": 0.0,
+        "children_user": 0.0,
+        "iowait": 0.0,
+        "system": 0.0,
+        "user": 0.0
+      },
+      "created": 1792871123.1,
+      "pid": 305266,
+      "ppid": 305210,
+      "rss": 382697472,
+      "status": "sleeping"
+    },
+    "305268": {
+      "argv": [
+        "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+        "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+        "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+        "--kind=fork",
+        "--workers=16",
+        "--parent=305145",
+        "--read-fd=14",
+        "--write-fd=17"
+      ],
+      "cpu_percent": 0.0,
+      "cpu_times": {
+        "children_system": 0.0,
+        "children_user": 0.0,
+        "iowait": 0.0,
+        "system": 0.0,
+        "user": 0.0
+      },
+      "created": 1792871123.11,
+      "pid": 305268,
+      "ppid": 305210,
+      "rss": 382697472,
+      "status": "sleeping"
+    },
+    "305270": {
+      "argv": [
+        "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+        "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+        "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+        "--kind=fork",
+        "--workers=16",
+        "--parent=305145",
+        "--read-fd=14",
+        "--write-fd=17"
+      ],
+      "cpu_percent": 0.0,
+      "cpu_times": {
+        "children_system": 0.0,
+        "children_user": 0.0,
+        "iowait": 0.0,
+        "system": 0.0,
+        "user": 0.0
+      },
+      "created": 1792871123.11,
+      "pid": 305270,
+      "ppid": 305210,
+      "rss": 382697472,
+      "status": "sleeping"
+    },
+    "305272": {
+      "argv": [
+        "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+        "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+        "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+        "--kind=fork",
+        "--workers=16",
+        "--parent=305145",
+        "--read-fd=14",
+        "--write-fd=17"
+      ],
+      "cpu_percent": 0.0,
+      "cpu_times": {
+        "children_system": 0.0,
+        "children_user": 0.0,
+        "iowait": 0.0,
+        "system": 0.0,
+        "user": 0.0
+      },
+      "created": 1792871123.11,
+      "pid": 305272,
+      "ppid": 305210,
+      "rss": 382697472,
+      "status": "sleeping"
+    },
+    "305274": {
+      "argv": [
+        "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+        "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+        "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+        "--kind=fork",
+        "--workers=16",
+        "--parent=305145",
+        "--read-fd=14",
+        "--write-fd=17"
+      ],
+      "cpu_percent": 0.0,
+      "cpu_times": {
+        "children_system": 0.0,
+        "children_user": 0.0,
+        "iowait": 0.0,
+        "system": 0.0,
+        "user": 0.0
+      },
+      "created": 1792871123.11,
+      "pid": 305274,
+      "ppid": 305210,
+      "rss": 382697472,
+      "status": "sleeping"
+    },
+    "305276": {
+      "argv": [
+        "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+        "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+        "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+        "--kind=fork",
+        "--workers=16",
+        "--parent=305145",
+        "--read-fd=14",
+        "--write-fd=17"
+      ],
+      "cpu_percent": 0.0,
+      "cpu_times": {
+        "children_system": 0.0,
+        "children_user": 0.0,
+        "iowait": 0.0,
+        "system": 0.0,
+        "user": 0.0
+      },
+      "created": 1792871123.12,
+      "pid": 305276,
+      "ppid": 305210,
+      "rss": 382697472,
+      "status": "sleeping"
+    },
+    "305278": {
+      "argv": [
+        "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+        "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+        "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+        "--kind=fork",
+        "--workers=16",
+        "--parent=305145",
+        "--read-fd=14",
+        "--write-fd=17"
+      ],
+      "cpu_percent": 0.0,
+      "cpu_times": {
+        "children_system": 0.0,
+        "children_user": 0.0,
+        "iowait": 0.0,
+        "system": 0.0,
+        "user": 0.0
+      },
+      "created": 1792871123.12,
+      "pid": 305278,
+      "ppid": 305210,
+      "rss": 382697472,
+      "status": "sleeping"
+    }
+  },
+  "remaining_processes": [],
+  "return_code": -15,
+  "root_pid": 305109,
+  "started": 1792871110.3789885,
+  "termination_reason": "requested_cancellation_during_active_reconstruction",
+  "trial": "cancel1",
+  "wall_seconds": 17.06510281562805
+}

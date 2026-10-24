@@ -1,0 +1,7 @@
+Running as unit: gtsfm-profile-preflight4.service; invocation ID: 25eafe19baf349edb4bd5f202fcd81e4
+Finished with result: success
+Main processes terminated with: code=exited/status=0
+Service runtime: 18.513s
+CPU time consumed: 22.252s
+Memory peak: 256.0K
+Memory swap peak: 0B

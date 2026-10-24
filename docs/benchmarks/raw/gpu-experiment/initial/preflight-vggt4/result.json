@@ -1,0 +1,20 @@
+{
+  "seconds": 17.68730616569519,
+  "files": [
+    "DSC_0001.JPG",
+    "DSC_0002.JPG",
+    "DSC_0003.JPG",
+    "DSC_0004.JPG"
+  ],
+  "model_class": "<class 'vggt.models.vggt.VGGT'>",
+  "model_module": "/home/jasdeep/gtsfm-profile-gpu-20261024/source/thirdparty/vggt/vggt/models/vggt.py",
+  "shape": [
+    4,
+    3,
+    518,
+    518
+  ],
+  "peak_allocated": 5037005312,
+  "peak_reserved": 9091153920,
+  "output_type": "<class 'gtsfm.frontend.geometry_transformer.GeometryTransformerOutput'>"
+}

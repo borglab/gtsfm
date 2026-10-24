@@ -1,0 +1,11 @@
+{
+  "original_verdict": "INCONCLUSIVE",
+  "error": "Ambiguous duplicate track/observation identity",
+  "tracks": 1509,
+  "distinct_observation_groups": 1431,
+  "duplicate_groups": 77,
+  "extra_tracks_with_same_observations": 78,
+  "within_track_duplicate_observations": 0,
+  "resolution": "Predeclared complete byte equality across all4 models/pairs; retain exact point IDs and all1509 tracks only in that stronger case; generic canonical path remains strict",
+  "tolerances_changed": false
+}

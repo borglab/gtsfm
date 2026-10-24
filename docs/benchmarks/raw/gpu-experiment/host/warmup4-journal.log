@@ -1,0 +1,977 @@
+Oct 24 12:46:04 jas-windows-pc-rtx3080 systemd[11126]: Started gtsfm-profile-warmup4.service - /home/jasdeep/gtsfm_eval/.venv/bin/python /home/jasdeep/gtsfm-profile-gpu-20261024/experiment_dask_profiles_gpu.py --base /home/jasdeep/gtsfm-profile-gpu-20261024 --trial warmup4 --arm manual --dataset /home/jasdeep/gtsfm-profile-gpu-20261024/dataset-first4 --wall-seconds 900.
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]: {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:   "arm": "manual",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:   "command": [
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "-m",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "gtsfm.runner",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "--config_name",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "vggt_sift_frontend_megaloc",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "--loader",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "olsson",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "--dataset_dir",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "/home/jasdeep/gtsfm-profile-gpu-20261024/dataset-first4",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "--output_root",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "/home/jasdeep/gtsfm-profile-gpu-20261024/results/runs/warmup4-warmup4",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "--num_workers",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "1",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "--threads_per_worker",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "2",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "--worker_memory_limit",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "18GiB",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "--max_resolution",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "518",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "--dashboard_port",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "127.0.0.1:0",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "--dask_tmpdir",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "/home/jasdeep/gtsfm-profile-gpu-20261024/scratch"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:   ],
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:   "compute_processes": "pid, process_name, used_gpu_memory [MiB]\n",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:   "ended": 1792871214.8846295,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:   "final_gpu": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "memory_used_mib": 201,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "temperature_c": 31,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "utilization_percent": 0
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:   },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:   "observed_pids": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "305376": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "argv": [
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "-m",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "gtsfm.runner",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--config_name",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "vggt_sift_frontend_megaloc",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--loader",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "olsson",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--dataset_dir",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm-profile-gpu-20261024/dataset-first4",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--output_root",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm-profile-gpu-20261024/results/runs/warmup4-warmup4",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--num_workers",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "1",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--threads_per_worker",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "2",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--worker_memory_limit",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "18GiB",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--max_resolution",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "518",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--dashboard_port",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "127.0.0.1:0",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--dask_tmpdir",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm-profile-gpu-20261024/scratch"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       ],
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_percent": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_times": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_system": 11.31,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_user": 25.36,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "iowait": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "system": 1.54,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "user": 13.34
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "created": 1792871167.52,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "pid": 305376,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "ppid": 305369,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "rss": 1518608384,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "status": "running"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "305398": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "argv": [
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--kind=fork",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--workers=16",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--parent=305376",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--read-fd=13",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--write-fd=16"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       ],
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_percent": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_times": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_system": 0.09,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_user": 0.04,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "iowait": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "system": 0.49,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "user": 2.05
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "created": 1792871170.74,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "pid": 305398,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "ppid": 305376,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "rss": 656601088,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "status": "running"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "305406": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "argv": [
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "-c",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "from multiprocessing.resource_tracker import main;main(32)"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       ],
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_percent": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_times": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_user": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "iowait": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "system": 0.26,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "user": 0.97
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "created": 1792871171.75,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "pid": 305406,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "ppid": 305376,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "rss": 490250240,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "status": "sleeping"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "305409": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "argv": [
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "-c",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=33, pipe_handle=39)",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--multiprocessing-fork"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       ],
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_percent": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_times": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_system": 0.74,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_user": 2.24,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "iowait": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "system": 9.79,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "user": 20.3
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "created": 1792871171.75,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "pid": 305409,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "ppid": 305376,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "rss": 2360283136,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "status": "running"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "305418": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "argv": [
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--kind=fork",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--workers=16",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--parent=305376",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--read-fd=13",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--write-fd=16"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       ],
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_percent": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_times": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_user": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "iowait": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "user": 0.0
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "created": 1792871172.68,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "pid": 305418,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "ppid": 305398,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "rss": 385089536,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "status": "sleeping"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "305420": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "argv": [
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--kind=fork",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--workers=16",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--parent=305376",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--read-fd=13",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--write-fd=16"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       ],
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_percent": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_times": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_user": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "iowait": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "user": 0.0
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "created": 1792871172.69,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "pid": 305420,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "ppid": 305398,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "rss": 384757760,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "status": "sleeping"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "305422": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "argv": [
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--kind=fork",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--workers=16",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--parent=305376",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--read-fd=13",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--write-fd=16"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       ],
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_percent": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_times": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_user": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "iowait": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "user": 0.0
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "created": 1792871172.69,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "pid": 305422,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "ppid": 305398,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "rss": 384757760,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "status": "sleeping"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "305424": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "argv": [
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--kind=fork",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--workers=16",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--parent=305376",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--read-fd=13",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--write-fd=16"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       ],
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_percent": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_times": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_user": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "iowait": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "user": 0.0
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "created": 1792871172.69,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "pid": 305424,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "ppid": 305398,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "rss": 384757760,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "status": "sleeping"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "305426": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "argv": [
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--kind=fork",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--workers=16",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--parent=305376",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--read-fd=13",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--write-fd=16"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       ],
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_percent": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_times": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_user": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "iowait": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "user": 0.0
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "created": 1792871172.7,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "pid": 305426,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "ppid": 305398,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "rss": 384757760,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "status": "sleeping"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "305428": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "argv": [
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--kind=fork",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--workers=16",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--parent=305376",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--read-fd=13",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--write-fd=16"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       ],
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_percent": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_times": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_user": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "iowait": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "user": 0.0
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "created": 1792871172.7,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "pid": 305428,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "ppid": 305398,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "rss": 384761856,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "status": "sleeping"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "305430": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "argv": [
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--kind=fork",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--workers=16",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--parent=305376",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--read-fd=13",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--write-fd=16"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       ],
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_percent": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_times": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_user": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "iowait": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "user": 0.0
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "created": 1792871172.7,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "pid": 305430,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "ppid": 305398,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "rss": 384761856,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "status": "sleeping"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "305432": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "argv": [
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--kind=fork",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--workers=16",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--parent=305376",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--read-fd=13",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--write-fd=16"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       ],
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_percent": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_times": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_user": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "iowait": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "user": 0.0
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "created": 1792871172.71,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "pid": 305432,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "ppid": 305398,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "rss": 384761856,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "status": "sleeping"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "305434": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "argv": [
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--kind=fork",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--workers=16",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--parent=305376",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--read-fd=13",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--write-fd=16"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       ],
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_percent": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_times": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_user": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "iowait": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "user": 0.0
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "created": 1792871172.71,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "pid": 305434,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "ppid": 305398,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "rss": 384761856,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "status": "sleeping"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "305436": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "argv": [
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--kind=fork",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--workers=16",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--parent=305376",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--read-fd=13",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--write-fd=16"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       ],
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_percent": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_times": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_user": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "iowait": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "user": 0.0
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "created": 1792871172.72,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "pid": 305436,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "ppid": 305398,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "rss": 384765952,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "status": "sleeping"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "305438": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "argv": [
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--kind=fork",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--workers=16",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--parent=305376",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--read-fd=13",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--write-fd=16"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       ],
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_percent": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_times": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_user": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "iowait": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "user": 0.0
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "created": 1792871172.72,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "pid": 305438,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "ppid": 305398,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "rss": 384765952,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "status": "sleeping"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "305440": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "argv": [
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--kind=fork",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--workers=16",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--parent=305376",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--read-fd=13",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--write-fd=16"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       ],
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_percent": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_times": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_user": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "iowait": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "user": 0.0
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "created": 1792871172.72,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "pid": 305440,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "ppid": 305398,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "rss": 384765952,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "status": "sleeping"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "305442": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "argv": [
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--kind=fork",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--workers=16",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--parent=305376",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--read-fd=13",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--write-fd=16"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       ],
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_percent": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_times": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_user": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "iowait": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "user": 0.0
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "created": 1792871172.73,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "pid": 305442,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "ppid": 305398,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "rss": 384765952,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "status": "sleeping"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "305444": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "argv": [
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--kind=fork",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--workers=16",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--parent=305376",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--read-fd=13",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--write-fd=16"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       ],
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_percent": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_times": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_user": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "iowait": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "user": 0.0
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "created": 1792871172.73,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "pid": 305444,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "ppid": 305398,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "rss": 384765952,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "status": "sleeping"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "305446": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "argv": [
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--kind=fork",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--workers=16",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--parent=305376",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--read-fd=13",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--write-fd=16"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       ],
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_percent": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_times": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_user": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "iowait": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "user": 0.0
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "created": 1792871172.73,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "pid": 305446,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "ppid": 305398,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "rss": 384765952,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "status": "sleeping"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "305449": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "argv": [
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--kind=fork",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--workers=16",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--parent=305376",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--read-fd=13",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--write-fd=16"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       ],
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_percent": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_times": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_user": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "iowait": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "user": 0.0
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "created": 1792871172.74,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "pid": 305449,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "ppid": 305398,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "rss": 384765952,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "status": "sleeping"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "305474": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "argv": [
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--kind=fork",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--workers=16",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--parent=305409",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--read-fd=14",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--write-fd=17"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       ],
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_percent": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_times": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_system": 0.12,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_user": 0.03,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "iowait": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "system": 0.56,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "user": 1.82
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "created": 1792871175.11,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "pid": 305474,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "ppid": 305409,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "rss": 654266368,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "status": "running"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "305521": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "argv": [
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--kind=fork",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--workers=16",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--parent=305409",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--read-fd=14",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--write-fd=17"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       ],
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_percent": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_times": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_user": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "iowait": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "user": 0.0
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "created": 1792871177.15,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "pid": 305521,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "ppid": 305474,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "rss": 383074304,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "status": "sleeping"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "305523": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "argv": [
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--kind=fork",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--workers=16",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--parent=305409",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--read-fd=14",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--write-fd=17"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       ],
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_percent": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_times": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_user": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "iowait": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "user": 0.0
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "created": 1792871177.16,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "pid": 305523,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "ppid": 305474,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "rss": 382742528,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "status": "sleeping"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "305525": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "argv": [
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--kind=fork",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--workers=16",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--parent=305409",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--read-fd=14",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--write-fd=17"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       ],
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_percent": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_times": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_user": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "iowait": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "user": 0.0
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "created": 1792871177.16,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "pid": 305525,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "ppid": 305474,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "rss": 382742528,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "status": "sleeping"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "305527": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "argv": [
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--kind=fork",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--workers=16",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--parent=305409",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--read-fd=14",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--write-fd=17"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       ],
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_percent": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_times": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_user": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "iowait": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "user": 0.0
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "created": 1792871177.16,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "pid": 305527,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "ppid": 305474,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "rss": 382742528,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "status": "sleeping"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "305529": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "argv": [
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--kind=fork",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--workers=16",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--parent=305409",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--read-fd=14",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--write-fd=17"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       ],
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_percent": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_times": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_user": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "iowait": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "user": 0.0
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "created": 1792871177.17,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "pid": 305529,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "ppid": 305474,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "rss": 382742528,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "status": "sleeping"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "305531": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "argv": [
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--kind=fork",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--workers=16",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--parent=305409",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--read-fd=14",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--write-fd=17"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       ],
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_percent": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_times": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_user": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "iowait": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "user": 0.0
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "created": 1792871177.17,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "pid": 305531,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "ppid": 305474,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "rss": 382742528,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "status": "sleeping"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "305533": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "argv": [
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--kind=fork",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--workers=16",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--parent=305409",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--read-fd=14",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--write-fd=17"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       ],
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_percent": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_times": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_user": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "iowait": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "user": 0.0
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "created": 1792871177.17,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "pid": 305533,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "ppid": 305474,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "rss": 382742528,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "status": "sleeping"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "305535": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "argv": [
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--kind=fork",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--workers=16",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--parent=305409",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--read-fd=14",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--write-fd=17"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       ],
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_percent": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_times": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_user": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "iowait": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "user": 0.0
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "created": 1792871177.18,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "pid": 305535,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "ppid": 305474,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "rss": 382742528,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "status": "sleeping"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "305537": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "argv": [
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--kind=fork",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--workers=16",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--parent=305409",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--read-fd=14",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--write-fd=17"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       ],
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_percent": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_times": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_user": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "iowait": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "user": 0.0
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "created": 1792871177.18,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "pid": 305537,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "ppid": 305474,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "rss": 382742528,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "status": "sleeping"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "305539": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "argv": [
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--kind=fork",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--workers=16",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--parent=305409",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--read-fd=14",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--write-fd=17"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       ],
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_percent": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_times": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_user": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "iowait": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "user": 0.0
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "created": 1792871177.18,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "pid": 305539,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "ppid": 305474,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "rss": 382742528,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "status": "sleeping"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "305541": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "argv": [
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--kind=fork",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--workers=16",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--parent=305409",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--read-fd=14",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--write-fd=17"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       ],
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_percent": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_times": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_user": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "iowait": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "user": 0.0
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "created": 1792871177.19,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "pid": 305541,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "ppid": 305474,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "rss": 382742528,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "status": "sleeping"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "305543": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "argv": [
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--kind=fork",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--workers=16",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--parent=305409",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--read-fd=14",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--write-fd=17"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       ],
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_percent": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_times": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_user": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "iowait": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "user": 0.0
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "created": 1792871177.19,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "pid": 305543,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "ppid": 305474,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "rss": 382746624,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "status": "sleeping"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "305545": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "argv": [
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--kind=fork",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--workers=16",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--parent=305409",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--read-fd=14",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--write-fd=17"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       ],
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_percent": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_times": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_user": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "iowait": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "user": 0.0
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "created": 1792871177.19,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "pid": 305545,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "ppid": 305474,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "rss": 382746624,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "status": "sleeping"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "305547": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "argv": [
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--kind=fork",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--workers=16",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--parent=305409",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--read-fd=14",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--write-fd=17"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       ],
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_percent": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_times": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_user": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "iowait": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "user": 0.0
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "created": 1792871177.19,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "pid": 305547,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "ppid": 305474,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "rss": 382746624,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "status": "sleeping"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "305549": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "argv": [
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--kind=fork",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--workers=16",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--parent=305409",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--read-fd=14",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--write-fd=17"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       ],
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_percent": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_times": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_user": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "iowait": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "user": 0.0
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "created": 1792871177.2,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "pid": 305549,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "ppid": 305474,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "rss": 382750720,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "status": "sleeping"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     "305551": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "argv": [
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--kind=fork",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--workers=16",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--parent=305409",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--read-fd=14",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "--write-fd=17"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       ],
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_percent": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "cpu_times": {
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "children_user": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "iowait": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "system": 0.0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:         "user": 0.0
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "created": 1792871177.2,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "pid": 305551,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "ppid": 305474,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "rss": 382750720,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:       "status": "sleeping"
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:     }
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:   },
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:   "remaining_processes": [],
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:   "return_code": 0,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:   "root_pid": 305376,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:   "started": 1792871165.2780995,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:   "termination_reason": null,
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:   "trial": "warmup4",
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]:   "wall_seconds": 42.60653018951416
+Oct 24 12:46:55 jas-windows-pc-rtx3080 python[305369]: }
+Oct 24 12:46:55 jas-windows-pc-rtx3080 systemd[11126]: gtsfm-profile-warmup4.service: Consumed 56.350s CPU time, 256.0K memory peak, 0B memory swap peak.

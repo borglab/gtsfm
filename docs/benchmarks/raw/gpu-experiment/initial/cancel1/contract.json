@@ -1,0 +1,91 @@
+{
+  "argv": [
+    "--config_name",
+    "vggt_sift_frontend_megaloc",
+    "--loader",
+    "olsson",
+    "--dataset_dir",
+    "/home/jasdeep/gtsfm-profile-gpu-20261024/dataset-first4",
+    "--output_root",
+    "/home/jasdeep/gtsfm-profile-gpu-20261024/results/runs/cancel1-cancel1",
+    "--num_workers",
+    "1",
+    "--threads_per_worker",
+    "2",
+    "--worker_memory_limit",
+    "18GiB",
+    "--max_resolution",
+    "518",
+    "--dashboard_port",
+    "127.0.0.1:0",
+    "--dask_tmpdir",
+    "/home/jasdeep/gtsfm-profile-gpu-20261024/scratch"
+  ],
+  "cache_policy": "Empty source/cache for every trial; warm read-only model weights; no prior pipeline results",
+  "dataset": [
+    {
+      "name": "DSC_0001.JPG",
+      "sha256": "aec675cd743cf248f6e4cfd487e4a12c3138240e562804f9e8f63298b862b8df",
+      "size": 664614
+    },
+    {
+      "name": "DSC_0002.JPG",
+      "sha256": "3aeffc3a61284d9f552b589e25e7263d034a914dd1976441ea4aa010a6bf7beb",
+      "size": 662837
+    },
+    {
+      "name": "DSC_0003.JPG",
+      "sha256": "cb3117a5cf3e12681a1f2bbbeded4431d9810b8caad1a9467e42960498645d32",
+      "size": 660936
+    },
+    {
+      "name": "DSC_0004.JPG",
+      "sha256": "be0b20b54e8783172a1d5f613bac6552d2fe8abcf41fddb8073dd4230d7ef32c",
+      "size": 662684
+    }
+  ],
+  "environment": {
+    "CUDA_VISIBLE_DEVICES": "0",
+    "GTSFM_SELECTED_DEVICE": "cuda:0"
+  },
+  "manual": {
+    "config_name": "vggt_sift_frontend_megaloc",
+    "dashboard_port": "127.0.0.1:0",
+    "dask_tmpdir": "/home/jasdeep/gtsfm-profile-gpu-20261024/scratch",
+    "dataset_dir": "/home/jasdeep/gtsfm-profile-gpu-20261024/dataset-first4",
+    "execution_target": "local",
+    "hardware": "cuda:0",
+    "loader": "olsson",
+    "max_resolution": 518,
+    "name": "cancel1",
+    "num_workers": 1,
+    "splat_implementation": "none",
+    "threads_per_worker": 2,
+    "worker_memory_limit": "18GiB"
+  },
+  "persisted_bytes": "{\n  \"profiles\": {\n    \"rtx3080-fixed\": {\n      \"execution_mode\": \"local\",\n      \"host_memory_bytes\": 19327352832,\n      \"host_memory_limit\": \"18GiB\",\n      \"name\": \"rtx3080-fixed\",\n      \"schema_version\": 1,\n      \"scratch_directory\": \"/home/jasdeep/gtsfm-profile-gpu-20261024/scratch\",\n      \"selected_gpus\": [\n        \"cuda:0\"\n      ],\n      \"threads_per_worker\": 2,\n      \"workers\": 1\n    }\n  },\n  \"schema_version\": 1\n}\n",
+  "profile": {
+    "execution_mode": "local",
+    "host_memory_bytes": 19327352832,
+    "host_memory_limit": "18GiB",
+    "name": "rtx3080-fixed",
+    "schema_version": 1,
+    "scratch_directory": "/home/jasdeep/gtsfm-profile-gpu-20261024/scratch",
+    "selected_gpus": [
+      "cuda:0"
+    ],
+    "threads_per_worker": 2,
+    "workers": 1
+  },
+  "profile_request": {
+    "config_name": "vggt_sift_frontend_megaloc",
+    "dashboard_port": "127.0.0.1:0",
+    "dataset_dir": "/home/jasdeep/gtsfm-profile-gpu-20261024/dataset-first4",
+    "execution_profile": "rtx3080-fixed",
+    "execution_target": "local",
+    "loader": "olsson",
+    "max_resolution": 518,
+    "name": "cancel1",
+    "splat_implementation": "none"
+  }
+}

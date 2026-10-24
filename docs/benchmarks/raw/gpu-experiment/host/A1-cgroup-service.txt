@@ -1,0 +1,7 @@
+ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/gtsfm-profile-A1.service
+MemoryCurrent=6273814528
+MemoryPeak=6610710528
+TasksCurrent=57
+CPUQuotaPerSecUSec=4s
+MemoryMax=25769803776
+ActiveState=active

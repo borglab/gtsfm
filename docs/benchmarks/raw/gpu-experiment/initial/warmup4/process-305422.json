@@ -1,0 +1,39 @@
+{
+  "argv": [
+    "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+    "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py",
+    "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler",
+    "--kind=fork",
+    "--workers=16",
+    "--parent=305376",
+    "--read-fd=13",
+    "--write-fd=16"
+  ],
+  "cpu_percent": 0.0,
+  "cpu_times": {
+    "children_system": 0.0,
+    "children_user": 0.0,
+    "iowait": 0.0,
+    "system": 0.0,
+    "user": 0.0
+  },
+  "created": 1792871169.69,
+  "environment": {
+    "CUDA_MODULE_LOADING": "LAZY",
+    "CUDA_VISIBLE_DEVICES": "0",
+    "DASK_DISTRIBUTED__WORKER__DAEMON": "False",
+    "GPU_EXPERIMENT_EVIDENCE": "/home/jasdeep/gtsfm-profile-gpu-20261024/evidence/warmup4",
+    "GTSFM_LIVE_DIR": "/home/jasdeep/gtsfm-profile-gpu-20261024/evidence/warmup4/live",
+    "GTSFM_LIVE_PREVIEW_INTERVAL": "250",
+    "GTSFM_SELECTED_DEVICE": "cuda:0",
+    "MKL_NUM_THREADS": "2",
+    "OMP_NUM_THREADS": "2",
+    "OPENBLAS_NUM_THREADS": "2",
+    "PYTHONHASHSEED": "42",
+    "PYTHONPATH": "/home/jasdeep/gtsfm-profile-gpu-20261024/source:/home/jasdeep/gtsfm-profile-gpu-20261024/instrumentation:/home/jasdeep/gtsfm-profile-gpu-20261024/source:/usr/lib/python312.zip:/usr/lib/python3.12:/usr/lib/python3.12/lib-dynload:/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages:/home/jasdeep/gtsfm:/tmp/tmpziz7zw5c"
+  },
+  "pid": 305422,
+  "ppid": 305398,
+  "rss": 384757760,
+  "status": "sleeping"
+}

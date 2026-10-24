@@ -1,0 +1,168 @@
+{
+  "bool-workers": {
+    "accepted": true,
+    "result": {
+      "schema_version": 1,
+      "name": "independent",
+      "execution_mode": "local",
+      "workers": 1,
+      "threads_per_worker": 1,
+      "host_memory_limit": "32GB",
+      "host_memory_bytes": 32000000000,
+      "selected_gpus": [],
+      "scratch_directory": ""
+    }
+  },
+  "fraction-workers": {
+    "accepted": true,
+    "result": {
+      "schema_version": 1,
+      "name": "independent",
+      "execution_mode": "local",
+      "workers": 1,
+      "threads_per_worker": 1,
+      "host_memory_limit": "32GB",
+      "host_memory_bytes": 32000000000,
+      "selected_gpus": [],
+      "scratch_directory": ""
+    }
+  },
+  "bool-threads": {
+    "accepted": true,
+    "result": {
+      "schema_version": 1,
+      "name": "independent",
+      "execution_mode": "local",
+      "workers": 1,
+      "threads_per_worker": 1,
+      "host_memory_limit": "32GB",
+      "host_memory_bytes": 32000000000,
+      "selected_gpus": [],
+      "scratch_directory": ""
+    }
+  },
+  "fraction-threads": {
+    "accepted": true,
+    "result": {
+      "schema_version": 1,
+      "name": "independent",
+      "execution_mode": "local",
+      "workers": 1,
+      "threads_per_worker": 1,
+      "host_memory_limit": "32GB",
+      "host_memory_bytes": 32000000000,
+      "selected_gpus": [],
+      "scratch_directory": ""
+    }
+  },
+  "unknown-key": {
+    "accepted": true,
+    "result": {
+      "schema_version": 1,
+      "name": "independent",
+      "execution_mode": "local",
+      "workers": 1,
+      "threads_per_worker": 1,
+      "host_memory_limit": "32GB",
+      "host_memory_bytes": 32000000000,
+      "selected_gpus": [],
+      "scratch_directory": ""
+    }
+  },
+  "future-schema": {
+    "accepted": true,
+    "result": {
+      "schema_version": 1,
+      "name": "independent",
+      "execution_mode": "local",
+      "workers": 1,
+      "threads_per_worker": 1,
+      "host_memory_limit": "32GB",
+      "host_memory_bytes": 32000000000,
+      "selected_gpus": [],
+      "scratch_directory": ""
+    }
+  },
+  "duplicate-gpu": {
+    "accepted": true,
+    "result": {
+      "schema_version": 1,
+      "name": "independent",
+      "execution_mode": "local",
+      "workers": 1,
+      "threads_per_worker": 1,
+      "host_memory_limit": "32GB",
+      "host_memory_bytes": 32000000000,
+      "selected_gpus": [
+        "cuda:0"
+      ],
+      "scratch_directory": ""
+    }
+  },
+  "invalid-gpu": {
+    "accepted": true,
+    "result": {
+      "schema_version": 1,
+      "name": "independent",
+      "execution_mode": "local",
+      "workers": 1,
+      "threads_per_worker": 1,
+      "host_memory_limit": "32GB",
+      "host_memory_bytes": 32000000000,
+      "selected_gpus": [
+        "not-a-gpu"
+      ],
+      "scratch_directory": ""
+    }
+  },
+  "missing-scratch": {
+    "accepted": true,
+    "result": {
+      "schema_version": 1,
+      "name": "independent",
+      "execution_mode": "local",
+      "workers": 1,
+      "threads_per_worker": 1,
+      "host_memory_limit": "32GB",
+      "host_memory_bytes": 32000000000,
+      "selected_gpus": [],
+      "scratch_directory": "/tmp/definitely-no-such-dask-profile-scratch-2460"
+    }
+  },
+  "zero-workers": {
+    "accepted": false,
+    "error": "workers must be between 1 and 256"
+  },
+  "explicit-nondefault-precedence": {
+    "execution_profile": "independent",
+    "num_workers": 4,
+    "threads_per_worker": 7,
+    "worker_memory_limit": "8GB",
+    "dask_tmpdir": "",
+    "hardware": "cpu",
+    "execution_profile_name": "independent",
+    "resolved_execution_profile": {
+      "schema_version": 1,
+      "name": "independent",
+      "execution_mode": "local",
+      "workers": 2,
+      "threads_per_worker": 3,
+      "host_memory_limit": "2GB",
+      "host_memory_bytes": 2000000000,
+      "selected_gpus": [],
+      "scratch_directory": ""
+    }
+  },
+  "corrupt-entry-store-list": [],
+  "corrupt-entry-store-save": {
+    "schema_version": 1,
+    "name": "new",
+    "execution_mode": "local",
+    "workers": 1,
+    "threads_per_worker": 1,
+    "host_memory_limit": "32GB",
+    "host_memory_bytes": 32000000000,
+    "selected_gpus": [],
+    "scratch_directory": ""
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "F1": {
+    "return_code": 0,
+    "wall_seconds": 43.12479901313782,
+    "post_pid_checks": {
+      "306827": {
+        "exists": false
+      },
+      "306853": {
+        "exists": false
+      },
+      "306856": {
+        "exists": false
+      }
+    },
+    "final_gpu": {
+      "memory_used_mib": 201,
+      "temperature_c": 32,
+      "utilization_percent": 0
+    },
+    "termination_reason": null,
+    "hashes": {
+      "cameras.txt": "dcc89f348d073e7c54e835a4f99dbcc448be1f80e086ccc6dec8b5e5faf46282",
+      "images.txt": "6720ea33d1c563c815f91cd3083645ed30260955060d912e0b17fed0bdf78543",
+      "points3D.txt": "def842b8ce19248eed97e5095fd9229ec1115a7ecd1753459e1987319e90dea0"
+    },
+    "pairs_sha256": "72000710af4383c65770877a829aff2247fd4bde8f1a5270586d2e60c3be5802"
+  },
+  "F2": {
+    "return_code": 0,
+    "wall_seconds": 40.46694207191467,
+    "post_pid_checks": {
+      "307066": {
+        "exists": false
+      },
+      "307090": {
+        "exists": false
+      },
+      "307093": {
+        "exists": false
+      }
+    },
+    "final_gpu": {
+      "memory_used_mib": 201,
+      "temperature_c": 32,
+      "utilization_percent": 0
+    },
+    "termination_reason": null,
+    "hashes": {
+      "cameras.txt": "dcc89f348d073e7c54e835a4f99dbcc448be1f80e086ccc6dec8b5e5faf46282",
+      "images.txt": "6720ea33d1c563c815f91cd3083645ed30260955060d912e0b17fed0bdf78543",
+      "points3D.txt": "def842b8ce19248eed97e5095fd9229ec1115a7ecd1753459e1987319e90dea0"
+    },
+    "pairs_sha256": "72000710af4383c65770877a829aff2247fd4bde8f1a5270586d2e60c3be5802"
+  }
+}

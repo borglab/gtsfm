@@ -1,0 +1,10 @@
+{
+  "num_workers": {
+    "accepted": true,
+    "resolved": 2
+  },
+  "threads_per_worker": {
+    "accepted": true,
+    "resolved": 3
+  }
+}

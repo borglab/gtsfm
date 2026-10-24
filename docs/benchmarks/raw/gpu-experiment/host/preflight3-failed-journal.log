@@ -1,0 +1,30 @@
+Oct 24 12:42:37 jas-windows-pc-rtx3080 systemd[11126]: Started gtsfm-profile-preflight3.service - /home/jasdeep/gtsfm_eval/.venv/bin/python /home/jasdeep/gtsfm-profile-gpu-20261024/preflight.py.
+Oct 24 12:42:38 jas-windows-pc-rtx3080 python[304757]: Exception in thread Thread-1 (monitor):
+Oct 24 12:42:38 jas-windows-pc-rtx3080 python[304757]: Traceback (most recent call last):
+Oct 24 12:42:38 jas-windows-pc-rtx3080 python[304757]:   File "/usr/lib/python3.12/threading.py", line 1073, in _bootstrap_inner
+Oct 24 12:42:38 jas-windows-pc-rtx3080 python[304757]:     self.run()
+Oct 24 12:42:38 jas-windows-pc-rtx3080 python[304757]:   File "/usr/lib/python3.12/threading.py", line 1010, in run
+Oct 24 12:42:38 jas-windows-pc-rtx3080 python[304757]:     self._target(*self._args, **self._kwargs)
+Oct 24 12:42:38 jas-windows-pc-rtx3080 python[304757]:   File "/home/jasdeep/gtsfm-profile-gpu-20261024/preflight.py", line 10, in monitor
+Oct 24 12:42:38 jas-windows-pc-rtx3080 python[304757]:     smi=subprocess.check_output(['nvidia-smi','--query-gpu=memory.used,temperature.gpu,utilization.gpu','--format=csv,noheader,nounits'],text=True).strip()
+Oct 24 12:42:38 jas-windows-pc-rtx3080 python[304757]:         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Oct 24 12:42:38 jas-windows-pc-rtx3080 python[304757]:   File "/usr/lib/python3.12/subprocess.py", line 466, in check_output
+Oct 24 12:42:38 jas-windows-pc-rtx3080 python[304757]:     return run(*popenargs, stdout=PIPE, timeout=timeout, check=True,
+Oct 24 12:42:38 jas-windows-pc-rtx3080 python[304757]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Oct 24 12:42:38 jas-windows-pc-rtx3080 python[304757]:   File "/usr/lib/python3.12/subprocess.py", line 548, in run
+Oct 24 12:42:38 jas-windows-pc-rtx3080 python[304757]:     with Popen(*popenargs, **kwargs) as process:
+Oct 24 12:42:38 jas-windows-pc-rtx3080 python[304757]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Oct 24 12:42:38 jas-windows-pc-rtx3080 python[304757]:   File "/usr/lib/python3.12/subprocess.py", line 1026, in __init__
+Oct 24 12:42:38 jas-windows-pc-rtx3080 python[304757]:     self._execute_child(args, executable, preexec_fn, close_fds,
+Oct 24 12:42:38 jas-windows-pc-rtx3080 python[304757]:   File "/usr/lib/python3.12/subprocess.py", line 1955, in _execute_child
+Oct 24 12:42:38 jas-windows-pc-rtx3080 python[304757]:     raise child_exception_type(errno_num, err_msg, err_filename)
+Oct 24 12:42:38 jas-windows-pc-rtx3080 python[304757]: FileNotFoundError: [Errno 2] No such file or directory: 'nvidia-smi'
+Oct 24 12:42:39 jas-windows-pc-rtx3080 python[304757]: 2026-10-24 19:42:39 [jas-windows-pc-rtx3080-main] [vggt_geometry_transformer.py] INFO: 📷 Using vanilla VGGT (FastVGGT submodule not detected).
+Oct 24 12:42:39 jas-windows-pc-rtx3080 python[304757]: Traceback (most recent call last):
+Oct 24 12:42:39 jas-windows-pc-rtx3080 python[304757]:   File "/home/jasdeep/gtsfm-profile-gpu-20261024/preflight.py", line 20, in <module>
+Oct 24 12:42:39 jas-windows-pc-rtx3080 python[304757]:     images=load_image_batch_vggt_loader(files)
+Oct 24 12:42:39 jas-windows-pc-rtx3080 python[304757]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Oct 24 12:42:39 jas-windows-pc-rtx3080 python[304757]: TypeError: load_image_batch_vggt_loader() missing 1 required positional argument: 'indices'
+Oct 24 12:42:39 jas-windows-pc-rtx3080 systemd[11126]: gtsfm-profile-preflight3.service: Main process exited, code=exited, status=1/FAILURE
+Oct 24 12:42:39 jas-windows-pc-rtx3080 systemd[11126]: gtsfm-profile-preflight3.service: Failed with result 'exit-code'.
+Oct 24 12:42:39 jas-windows-pc-rtx3080 systemd[11126]: gtsfm-profile-preflight3.service: Consumed 2.583s CPU time, 256.0K memory peak, 0B memory swap peak.

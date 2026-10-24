@@ -1,0 +1,328 @@
+{
+  "A1": {
+    "arm": "manual",
+    "cgroup_limits": {
+      "cpu.max": "400000 100000",
+      "memory.max": "25769803776"
+    },
+    "final_gpu": {
+      "memory_used_mib": 201,
+      "temperature_c": 30,
+      "utilization_percent": 0
+    },
+    "metrics_files": [
+      "output/results/metrics/cluster_vggt_metrics.json",
+      "output/results/metrics/retriever_metrics.json",
+      "output/results/metrics/merging_metrics_retriangulated.json",
+      "output/results/metrics/merging_metrics.json",
+      "output/results/metrics/total_summary_metrics.json",
+      "output/results/metrics/cluster_vggt_pre_ba_metrics.json",
+      "output/results/metrics/merging_metrics_pre_ba.json"
+    ],
+    "model_sha256": {
+      "cameras.txt": "dcc89f348d073e7c54e835a4f99dbcc448be1f80e086ccc6dec8b5e5faf46282",
+      "images.txt": "6720ea33d1c563c815f91cd3083645ed30260955060d912e0b17fed0bdf78543",
+      "points3D.txt": "def842b8ce19248eed97e5095fd9229ec1115a7ecd1753459e1987319e90dea0"
+    },
+    "pairs_sha256": "72000710af4383c65770877a829aff2247fd4bde8f1a5270586d2e60c3be5802",
+    "peak_cgroup_current_bytes": 21432279040,
+    "peak_gpu_used_mib": 6708,
+    "peak_sum_rss_bytes": 13973086208,
+    "peak_temperature_c": 38,
+    "pipeline_seconds": [
+      "31.3"
+    ],
+    "post_pid_checks": {
+      "305876": {
+        "exists": false
+      },
+      "305907": {
+        "exists": false
+      },
+      "305910": {
+        "exists": false
+      }
+    },
+    "python_hashseed_by_pid": {
+      "305876": "42",
+      "305907": "42",
+      "305910": "6640"
+    },
+    "remaining_processes": [],
+    "return_code": 0,
+    "root_pid": 305876,
+    "torch_peaks_by_pid": {
+      "305876": {
+        "allocated": 8519680,
+        "peak_allocated": 8790528,
+        "peak_reserved": 23068672,
+        "reserved": 23068672
+      },
+      "305910": {
+        "allocated": 4316517376,
+        "peak_allocated": 5044550144,
+        "peak_reserved": 9103736832,
+        "reserved": 5110759424
+      }
+    },
+    "wall_seconds": 47.72479009628296,
+    "workers": {
+      "305910": {
+        "address": "tcp://127.0.0.1:46427",
+        "cuda_available": true,
+        "cuda_device_count": 1,
+        "cuda_device_name": "NVIDIA GeForce RTX 3080",
+        "cuda_visible_devices": "0",
+        "local_directory": "/home/jasdeep/gtsfm-profile-gpu-20261024/scratch/dask-scratch-space/worker-98j8nqqv",
+        "memory_limit_bytes": 19327352832,
+        "nthreads": 2,
+        "pid": 305910
+      }
+    }
+  },
+  "A2": {
+    "arm": "manual",
+    "cgroup_limits": {
+      "cpu.max": "400000 100000",
+      "memory.max": "25769803776"
+    },
+    "final_gpu": {
+      "memory_used_mib": 201,
+      "temperature_c": 32,
+      "utilization_percent": 0
+    },
+    "metrics_files": [
+      "output/results/metrics/cluster_vggt_metrics.json",
+      "output/results/metrics/retriever_metrics.json",
+      "output/results/metrics/merging_metrics_retriangulated.json",
+      "output/results/metrics/merging_metrics.json",
+      "output/results/metrics/total_summary_metrics.json",
+      "output/results/metrics/cluster_vggt_pre_ba_metrics.json",
+      "output/results/metrics/merging_metrics_pre_ba.json"
+    ],
+    "model_sha256": {
+      "cameras.txt": "dcc89f348d073e7c54e835a4f99dbcc448be1f80e086ccc6dec8b5e5faf46282",
+      "images.txt": "6720ea33d1c563c815f91cd3083645ed30260955060d912e0b17fed0bdf78543",
+      "points3D.txt": "def842b8ce19248eed97e5095fd9229ec1115a7ecd1753459e1987319e90dea0"
+    },
+    "pairs_sha256": "72000710af4383c65770877a829aff2247fd4bde8f1a5270586d2e60c3be5802",
+    "peak_cgroup_current_bytes": 12957773824,
+    "peak_gpu_used_mib": 5596,
+    "peak_sum_rss_bytes": 13965430784,
+    "peak_temperature_c": 36,
+    "pipeline_seconds": [
+      "28.8"
+    ],
+    "post_pid_checks": {
+      "306344": {
+        "exists": false
+      },
+      "306371": {
+        "exists": false
+      },
+      "306374": {
+        "exists": false
+      }
+    },
+    "python_hashseed_by_pid": {
+      "306344": "42",
+      "306371": "42",
+      "306374": "6640"
+    },
+    "remaining_processes": [],
+    "return_code": 0,
+    "root_pid": 306344,
+    "torch_peaks_by_pid": {
+      "306344": {
+        "allocated": 8519680,
+        "peak_allocated": 8790528,
+        "peak_reserved": 23068672,
+        "reserved": 23068672
+      },
+      "306374": {
+        "allocated": 3204012032,
+        "peak_allocated": 5044550144,
+        "peak_reserved": 9103736832,
+        "reserved": 5110759424
+      }
+    },
+    "wall_seconds": 43.33191919326782,
+    "workers": {
+      "306374": {
+        "address": "tcp://127.0.0.1:35931",
+        "cuda_available": true,
+        "cuda_device_count": 1,
+        "cuda_device_name": "NVIDIA GeForce RTX 3080",
+        "cuda_visible_devices": "0",
+        "local_directory": "/home/jasdeep/gtsfm-profile-gpu-20261024/scratch/dask-scratch-space/worker-nr2qot7_",
+        "memory_limit_bytes": 19327352832,
+        "nthreads": 2,
+        "pid": 306374
+      }
+    }
+  },
+  "B1": {
+    "arm": "profile",
+    "cgroup_limits": {
+      "cpu.max": "400000 100000",
+      "memory.max": "25769803776"
+    },
+    "final_gpu": {
+      "memory_used_mib": 201,
+      "temperature_c": 31,
+      "utilization_percent": 0
+    },
+    "metrics_files": [
+      "output/execution_profile.json",
+      "output/results/metrics/cluster_vggt_metrics.json",
+      "output/results/metrics/retriever_metrics.json",
+      "output/results/metrics/merging_metrics_retriangulated.json",
+      "output/results/metrics/merging_metrics.json",
+      "output/results/metrics/total_summary_metrics.json",
+      "output/results/metrics/cluster_vggt_pre_ba_metrics.json",
+      "output/results/metrics/merging_metrics_pre_ba.json"
+    ],
+    "model_sha256": {
+      "cameras.txt": "dcc89f348d073e7c54e835a4f99dbcc448be1f80e086ccc6dec8b5e5faf46282",
+      "images.txt": "6720ea33d1c563c815f91cd3083645ed30260955060d912e0b17fed0bdf78543",
+      "points3D.txt": "def842b8ce19248eed97e5095fd9229ec1115a7ecd1753459e1987319e90dea0"
+    },
+    "pairs_sha256": "72000710af4383c65770877a829aff2247fd4bde8f1a5270586d2e60c3be5802",
+    "peak_cgroup_current_bytes": 12965412864,
+    "peak_gpu_used_mib": 5586,
+    "peak_sum_rss_bytes": 13973045248,
+    "peak_temperature_c": 38,
+    "pipeline_seconds": [
+      "28.9"
+    ],
+    "post_pid_checks": {
+      "306109": {
+        "exists": false
+      },
+      "306135": {
+        "exists": false
+      },
+      "306138": {
+        "exists": false
+      }
+    },
+    "python_hashseed_by_pid": {
+      "306109": "42",
+      "306135": "42",
+      "306138": "6640"
+    },
+    "remaining_processes": [],
+    "return_code": 0,
+    "root_pid": 306109,
+    "torch_peaks_by_pid": {
+      "306109": {
+        "allocated": 8519680,
+        "peak_allocated": 8790528,
+        "peak_reserved": 23068672,
+        "reserved": 23068672
+      },
+      "306138": {
+        "allocated": 2644987904,
+        "peak_allocated": 5044550144,
+        "peak_reserved": 9103736832,
+        "reserved": 5110759424
+      }
+    },
+    "wall_seconds": 44.915064334869385,
+    "workers": {
+      "306138": {
+        "address": "tcp://127.0.0.1:38803",
+        "cuda_available": true,
+        "cuda_device_count": 1,
+        "cuda_device_name": "NVIDIA GeForce RTX 3080",
+        "cuda_visible_devices": "0",
+        "local_directory": "/home/jasdeep/gtsfm-profile-gpu-20261024/scratch/dask-scratch-space/worker-f1394hrv",
+        "memory_limit_bytes": 19327352832,
+        "nthreads": 2,
+        "pid": 306138
+      }
+    }
+  },
+  "B2": {
+    "arm": "profile",
+    "cgroup_limits": {
+      "cpu.max": "400000 100000",
+      "memory.max": "25769803776"
+    },
+    "final_gpu": {
+      "memory_used_mib": 201,
+      "temperature_c": 32,
+      "utilization_percent": 0
+    },
+    "metrics_files": [
+      "output/execution_profile.json",
+      "output/results/metrics/cluster_vggt_metrics.json",
+      "output/results/metrics/retriever_metrics.json",
+      "output/results/metrics/merging_metrics_retriangulated.json",
+      "output/results/metrics/merging_metrics.json",
+      "output/results/metrics/total_summary_metrics.json",
+      "output/results/metrics/cluster_vggt_pre_ba_metrics.json",
+      "output/results/metrics/merging_metrics_pre_ba.json"
+    ],
+    "model_sha256": {
+      "cameras.txt": "dcc89f348d073e7c54e835a4f99dbcc448be1f80e086ccc6dec8b5e5faf46282",
+      "images.txt": "6720ea33d1c563c815f91cd3083645ed30260955060d912e0b17fed0bdf78543",
+      "points3D.txt": "def842b8ce19248eed97e5095fd9229ec1115a7ecd1753459e1987319e90dea0"
+    },
+    "pairs_sha256": "72000710af4383c65770877a829aff2247fd4bde8f1a5270586d2e60c3be5802",
+    "peak_cgroup_current_bytes": 12951023616,
+    "peak_gpu_used_mib": 6796,
+    "peak_sum_rss_bytes": 13959643136,
+    "peak_temperature_c": 38,
+    "pipeline_seconds": [
+      "25.1"
+    ],
+    "post_pid_checks": {
+      "306573": {
+        "exists": false
+      },
+      "306600": {
+        "exists": false
+      },
+      "306603": {
+        "exists": false
+      }
+    },
+    "python_hashseed_by_pid": {
+      "306573": "42",
+      "306600": "42",
+      "306603": "6640"
+    },
+    "remaining_processes": [],
+    "return_code": 0,
+    "root_pid": 306573,
+    "torch_peaks_by_pid": {
+      "306573": {
+        "allocated": 8519680,
+        "peak_allocated": 8790528,
+        "peak_reserved": 23068672,
+        "reserved": 23068672
+      },
+      "306603": {
+        "allocated": 5039362560,
+        "peak_allocated": 5044550144,
+        "peak_reserved": 9103736832,
+        "reserved": 5075107840
+      }
+    },
+    "wall_seconds": 43.65325856208801,
+    "workers": {
+      "306603": {
+        "address": "tcp://127.0.0.1:46311",
+        "cuda_available": true,
+        "cuda_device_count": 1,
+        "cuda_device_name": "NVIDIA GeForce RTX 3080",
+        "cuda_visible_devices": "0",
+        "local_directory": "/home/jasdeep/gtsfm-profile-gpu-20261024/scratch/dask-scratch-space/worker-jugpjqvx",
+        "memory_limit_bytes": 19327352832,
+        "nthreads": 2,
+        "pid": 306603
+      }
+    }
+  }
+}

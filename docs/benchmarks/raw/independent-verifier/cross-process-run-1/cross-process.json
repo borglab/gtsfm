@@ -1,0 +1,330 @@
+{
+  "claim": "All successful distinct-name PUTs across two actual Studio server processes sharing one store survive restart",
+  "responses": [
+    {
+      "name": "cross-00",
+      "status": 200,
+      "body": {
+        "schema_version": 1,
+        "name": "cross-00",
+        "execution_mode": "local",
+        "workers": 1,
+        "threads_per_worker": 1,
+        "host_memory_limit": "512MiB",
+        "host_memory_bytes": 536870912,
+        "selected_gpus": [],
+        "scratch_directory": ""
+      },
+      "server": 0
+    },
+    {
+      "name": "cross-01",
+      "status": 200,
+      "body": {
+        "schema_version": 1,
+        "name": "cross-01",
+        "execution_mode": "local",
+        "workers": 1,
+        "threads_per_worker": 1,
+        "host_memory_limit": "512MiB",
+        "host_memory_bytes": 536870912,
+        "selected_gpus": [],
+        "scratch_directory": ""
+      },
+      "server": 1
+    },
+    {
+      "name": "cross-02",
+      "status": 200,
+      "body": {
+        "schema_version": 1,
+        "name": "cross-02",
+        "execution_mode": "local",
+        "workers": 1,
+        "threads_per_worker": 1,
+        "host_memory_limit": "512MiB",
+        "host_memory_bytes": 536870912,
+        "selected_gpus": [],
+        "scratch_directory": ""
+      },
+      "server": 0
+    },
+    {
+      "name": "cross-03",
+      "status": 200,
+      "body": {
+        "schema_version": 1,
+        "name": "cross-03",
+        "execution_mode": "local",
+        "workers": 1,
+        "threads_per_worker": 1,
+        "host_memory_limit": "512MiB",
+        "host_memory_bytes": 536870912,
+        "selected_gpus": [],
+        "scratch_directory": ""
+      },
+      "server": 1
+    },
+    {
+      "name": "cross-04",
+      "status": 200,
+      "body": {
+        "schema_version": 1,
+        "name": "cross-04",
+        "execution_mode": "local",
+        "workers": 1,
+        "threads_per_worker": 1,
+        "host_memory_limit": "512MiB",
+        "host_memory_bytes": 536870912,
+        "selected_gpus": [],
+        "scratch_directory": ""
+      },
+      "server": 0
+    },
+    {
+      "name": "cross-05",
+      "status": 200,
+      "body": {
+        "schema_version": 1,
+        "name": "cross-05",
+        "execution_mode": "local",
+        "workers": 1,
+        "threads_per_worker": 1,
+        "host_memory_limit": "512MiB",
+        "host_memory_bytes": 536870912,
+        "selected_gpus": [],
+        "scratch_directory": ""
+      },
+      "server": 1
+    },
+    {
+      "name": "cross-06",
+      "status": 200,
+      "body": {
+        "schema_version": 1,
+        "name": "cross-06",
+        "execution_mode": "local",
+        "workers": 1,
+        "threads_per_worker": 1,
+        "host_memory_limit": "512MiB",
+        "host_memory_bytes": 536870912,
+        "selected_gpus": [],
+        "scratch_directory": ""
+      },
+      "server": 0
+    },
+    {
+      "name": "cross-07",
+      "status": 200,
+      "body": {
+        "schema_version": 1,
+        "name": "cross-07",
+        "execution_mode": "local",
+        "workers": 1,
+        "threads_per_worker": 1,
+        "host_memory_limit": "512MiB",
+        "host_memory_bytes": 536870912,
+        "selected_gpus": [],
+        "scratch_directory": ""
+      },
+      "server": 1
+    },
+    {
+      "name": "cross-08",
+      "status": 200,
+      "body": {
+        "schema_version": 1,
+        "name": "cross-08",
+        "execution_mode": "local",
+        "workers": 1,
+        "threads_per_worker": 1,
+        "host_memory_limit": "512MiB",
+        "host_memory_bytes": 536870912,
+        "selected_gpus": [],
+        "scratch_directory": ""
+      },
+      "server": 0
+    },
+    {
+      "name": "cross-09",
+      "status": 200,
+      "body": {
+        "schema_version": 1,
+        "name": "cross-09",
+        "execution_mode": "local",
+        "workers": 1,
+        "threads_per_worker": 1,
+        "host_memory_limit": "512MiB",
+        "host_memory_bytes": 536870912,
+        "selected_gpus": [],
+        "scratch_directory": ""
+      },
+      "server": 1
+    },
+    {
+      "name": "cross-10",
+      "status": 200,
+      "body": {
+        "schema_version": 1,
+        "name": "cross-10",
+        "execution_mode": "local",
+        "workers": 1,
+        "threads_per_worker": 1,
+        "host_memory_limit": "512MiB",
+        "host_memory_bytes": 536870912,
+        "selected_gpus": [],
+        "scratch_directory": ""
+      },
+      "server": 0
+    },
+    {
+      "name": "cross-11",
+      "status": 200,
+      "body": {
+        "schema_version": 1,
+        "name": "cross-11",
+        "execution_mode": "local",
+        "workers": 1,
+        "threads_per_worker": 1,
+        "host_memory_limit": "512MiB",
+        "host_memory_bytes": 536870912,
+        "selected_gpus": [],
+        "scratch_directory": ""
+      },
+      "server": 1
+    },
+    {
+      "name": "cross-12",
+      "status": 200,
+      "body": {
+        "schema_version": 1,
+        "name": "cross-12",
+        "execution_mode": "local",
+        "workers": 1,
+        "threads_per_worker": 1,
+        "host_memory_limit": "512MiB",
+        "host_memory_bytes": 536870912,
+        "selected_gpus": [],
+        "scratch_directory": ""
+      },
+      "server": 0
+    },
+    {
+      "name": "cross-13",
+      "status": 200,
+      "body": {
+        "schema_version": 1,
+        "name": "cross-13",
+        "execution_mode": "local",
+        "workers": 1,
+        "threads_per_worker": 1,
+        "host_memory_limit": "512MiB",
+        "host_memory_bytes": 536870912,
+        "selected_gpus": [],
+        "scratch_directory": ""
+      },
+      "server": 1
+    },
+    {
+      "name": "cross-14",
+      "status": 200,
+      "body": {
+        "schema_version": 1,
+        "name": "cross-14",
+        "execution_mode": "local",
+        "workers": 1,
+        "threads_per_worker": 1,
+        "host_memory_limit": "512MiB",
+        "host_memory_bytes": 536870912,
+        "selected_gpus": [],
+        "scratch_directory": ""
+      },
+      "server": 0
+    },
+    {
+      "name": "cross-15",
+      "status": 200,
+      "body": {
+        "schema_version": 1,
+        "name": "cross-15",
+        "execution_mode": "local",
+        "workers": 1,
+        "threads_per_worker": 1,
+        "host_memory_limit": "512MiB",
+        "host_memory_bytes": 536870912,
+        "selected_gpus": [],
+        "scratch_directory": ""
+      },
+      "server": 1
+    }
+  ],
+  "accepted": [
+    "cross-00",
+    "cross-01",
+    "cross-02",
+    "cross-03",
+    "cross-04",
+    "cross-05",
+    "cross-06",
+    "cross-07",
+    "cross-08",
+    "cross-09",
+    "cross-10",
+    "cross-11",
+    "cross-12",
+    "cross-13",
+    "cross-14",
+    "cross-15"
+  ],
+  "missing_immediate": [
+    "cross-00",
+    "cross-02",
+    "cross-03",
+    "cross-06",
+    "cross-08",
+    "cross-10",
+    "cross-13",
+    "cross-15"
+  ],
+  "missing_after_restart": [
+    "cross-00",
+    "cross-02",
+    "cross-03",
+    "cross-06",
+    "cross-08",
+    "cross-10",
+    "cross-13",
+    "cross-15"
+  ],
+  "server_processes": [
+    {
+      "pid": 47552,
+      "returncode": -15
+    },
+    {
+      "pid": 47565,
+      "returncode": -15
+    },
+    {
+      "pid": 47590,
+      "returncode": -15
+    }
+  ],
+  "persisted_bytes": "{\n  \"profiles\": {\n    \"cross-01\": {\n      \"execution_mode\": \"local\",\n      \"host_memory_bytes\": 536870912,\n      \"host_memory_limit\": \"512MiB\",\n      \"name\": \"cross-01\",\n      \"schema_version\": 1,\n      \"scratch_directory\": \"\",\n      \"selected_gpus\": [],\n      \"threads_per_worker\": 1,\n      \"workers\": 1\n    },\n    \"cross-04\": {\n      \"execution_mode\": \"local\",\n      \"host_memory_bytes\": 536870912,\n      \"host_memory_limit\": \"512MiB\",\n      \"name\": \"cross-04\",\n      \"schema_version\": 1,\n      \"scratch_directory\": \"\",\n      \"selected_gpus\": [],\n      \"threads_per_worker\": 1,\n      \"workers\": 1\n    },\n    \"cross-05\": {\n      \"execution_mode\": \"local\",\n      \"host_memory_bytes\": 536870912,\n      \"host_memory_limit\": \"512MiB\",\n      \"name\": \"cross-05\",\n      \"schema_version\": 1,\n      \"scratch_directory\": \"\",\n      \"selected_gpus\": [],\n      \"threads_per_worker\": 1,\n      \"workers\": 1\n    },\n    \"cross-07\": {\n      \"execution_mode\": \"local\",\n      \"host_memory_bytes\": 536870912,\n      \"host_memory_limit\": \"512MiB\",\n      \"name\": \"cross-07\",\n      \"schema_version\": 1,\n      \"scratch_directory\": \"\",\n      \"selected_gpus\": [],\n      \"threads_per_worker\": 1,\n      \"workers\": 1\n    },\n    \"cross-09\": {\n      \"execution_mode\": \"local\",\n      \"host_memory_bytes\": 536870912,\n      \"host_memory_limit\": \"512MiB\",\n      \"name\": \"cross-09\",\n      \"schema_version\": 1,\n      \"scratch_directory\": \"\",\n      \"selected_gpus\": [],\n      \"threads_per_worker\": 1,\n      \"workers\": 1\n    },\n    \"cross-11\": {\n      \"execution_mode\": \"local\",\n      \"host_memory_bytes\": 536870912,\n      \"host_memory_limit\": \"512MiB\",\n      \"name\": \"cross-11\",\n      \"schema_version\": 1,\n      \"scratch_directory\": \"\",\n      \"selected_gpus\": [],\n      \"threads_per_worker\": 1,\n      \"workers\": 1\n    },\n    \"cross-12\": {\n      \"execution_mode\": \"local\",\n      \"host_memory_bytes\": 536870912,\n      \"host_memory_limit\": \"512MiB\",\n      \"name\": \"cross-12\",\n      \"schema_version\": 1,\n      \"scratch_directory\": \"\",\n      \"selected_gpus\": [],\n      \"threads_per_worker\": 1,\n      \"workers\": 1\n    },\n    \"cross-14\": {\n      \"execution_mode\": \"local\",\n      \"host_memory_bytes\": 536870912,\n      \"host_memory_limit\": \"512MiB\",\n      \"name\": \"cross-14\",\n      \"schema_version\": 1,\n      \"scratch_directory\": \"\",\n      \"selected_gpus\": [],\n      \"threads_per_worker\": 1,\n      \"workers\": 1\n    }\n  },\n  \"schema_version\": 1\n}\n",
+  "source_sha256_before": {
+    "visualization/execution_profiles.py": "45a9fc611e1a84500779d8d9c127daaa59b135fc0acfd96d4d890dc4be01acee",
+    "visualization/app.py": "44ff1c0f0b797b8d6cb6ed8219ab802a96084e20d16e6832461451ab78a7367d",
+    "visualization/runtime.py": "f767d0b0e89827ad2a074689ce0c4caa071aa8ebb9ec69a41a0d7cbe99044bb6",
+    "gtsfm/runner.py": "ecf0cbade0aa6cd65ba3014ac83f6e64706b0165b17591cf4634ab6e5d3871cc",
+    "scripts/verify_dask_profiles.py": "1c0f23c3008f4ca3cc5a393228572071ae92d7048e55b000b2d4059b0c95bb38"
+  },
+  "source_sha256_after": {
+    "visualization/execution_profiles.py": "45a9fc611e1a84500779d8d9c127daaa59b135fc0acfd96d4d890dc4be01acee",
+    "visualization/app.py": "44ff1c0f0b797b8d6cb6ed8219ab802a96084e20d16e6832461451ab78a7367d",
+    "visualization/runtime.py": "f767d0b0e89827ad2a074689ce0c4caa071aa8ebb9ec69a41a0d7cbe99044bb6",
+    "gtsfm/runner.py": "ecf0cbade0aa6cd65ba3014ac83f6e64706b0165b17591cf4634ab6e5d3871cc",
+    "scripts/verify_dask_profiles.py": "1c0f23c3008f4ca3cc5a393228572071ae92d7048e55b000b2d4059b0c95bb38"
+  },
+  "source_stable": true,
+  "verdict": "NOT VERIFIED"
+}

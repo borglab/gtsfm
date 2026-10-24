@@ -1,0 +1,7 @@
+Running as unit: gtsfm-profile-warmup4.service; invocation ID: 15782af407244fad89226203fd854a5b
+Finished with result: success
+Main processes terminated with: code=exited/status=0
+Service runtime: 48.882s
+CPU time consumed: 56.350s
+Memory peak: 256.0K
+Memory swap peak: 0B

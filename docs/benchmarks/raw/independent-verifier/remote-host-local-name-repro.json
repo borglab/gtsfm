@@ -1,0 +1,47 @@
+{
+  "source_resolution": {
+    "execution_profile": "remote-test",
+    "execution_target": "remote",
+    "num_workers": 2,
+    "threads_per_worker": 1,
+    "worker_memory_limit": "2GB",
+    "dask_tmpdir": "",
+    "hardware": "cpu",
+    "execution_profile_name": "remote-test",
+    "resolved_execution_profile": {
+      "schema_version": 1,
+      "name": "remote-test",
+      "execution_mode": "remote",
+      "workers": 2,
+      "threads_per_worker": 1,
+      "host_memory_limit": "2GB",
+      "host_memory_bytes": 2000000000,
+      "selected_gpus": [],
+      "scratch_directory": ""
+    }
+  },
+  "forwarded_payload": {
+    "execution_profile": "remote-test",
+    "execution_target": "local",
+    "num_workers": 2,
+    "threads_per_worker": 1,
+    "worker_memory_limit": "2GB",
+    "dask_tmpdir": "",
+    "hardware": "cpu",
+    "execution_profile_name": "remote-test",
+    "resolved_execution_profile": {
+      "schema_version": 1,
+      "name": "remote-test",
+      "execution_mode": "remote",
+      "workers": 2,
+      "threads_per_worker": 1,
+      "host_memory_limit": "2GB",
+      "host_memory_bytes": 2000000000,
+      "selected_gpus": [],
+      "scratch_directory": ""
+    }
+  },
+  "empty_remote_store_error": "Execution profile not found: remote-test",
+  "same_name_remote_store_error": "Execution profile remote-test requires a remote execution target",
+  "scope": "No-network two-store public resolution repro plus current _run_remote source forwarding inspection"
+}

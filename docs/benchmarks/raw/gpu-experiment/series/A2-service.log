@@ -1,0 +1,7 @@
+Running as unit: gtsfm-profile-A2.service; invocation ID: f6d71f99183249fcb1d8ad2c88b34830
+Finished with result: success
+Main processes terminated with: code=exited/status=0
+Service runtime: 46.449s
+CPU time consumed: 48.841s
+Memory peak: 12.0G
+Memory swap peak: 0B

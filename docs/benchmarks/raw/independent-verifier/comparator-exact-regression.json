@@ -1,0 +1,8 @@
+{
+  "changed_export_cannot_pass": true,
+  "changed_export_error": "Ambiguous duplicate track/observation identity",
+  "nonfinite_exact_export_rejected": true,
+  "nonfinite_error": "Nonfinite geometry",
+  "existing_renumbered_Sim3_fixture_still_passes": true,
+  "scope": "Comparator correctness on copied fixtures only; not additional model trials"
+}

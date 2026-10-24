@@ -1,0 +1,26 @@
+{
+    "merging_metrics_pre_ba": {
+        "merge_success": 0.0,
+        "merge_child_count": 0.0,
+        "child_camera_counts": {
+            "summary": {
+                "min": null,
+                "max": null,
+                "median": null,
+                "mean": null,
+                "stddev": null
+            },
+            "full_data": []
+        },
+        "child_camera_overlap_with_parent": {
+            "summary": {
+                "min": null,
+                "max": null,
+                "median": null,
+                "mean": null,
+                "stddev": null
+            },
+            "full_data": []
+        }
+    }
+}

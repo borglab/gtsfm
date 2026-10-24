@@ -1,0 +1,17 @@
+{
+  "profiles": {
+    "broken": null,
+    "fresh": {
+      "execution_mode": "local",
+      "host_memory_bytes": 32000000000,
+      "host_memory_limit": "32GB",
+      "name": "fresh",
+      "schema_version": 1,
+      "scratch_directory": "",
+      "selected_gpus": [],
+      "threads_per_worker": 1,
+      "workers": 1
+    }
+  },
+  "schema_version": 1
+}

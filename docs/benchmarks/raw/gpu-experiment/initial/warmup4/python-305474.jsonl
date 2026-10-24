@@ -1,0 +1,29 @@
+{"time": 1792871173.9049199, "pid": 305474, "kind": "startup", "argv": ["/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py", "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler", "--kind=fork", "--workers=16", "--parent=305409", "--read-fd=14", "--write-fd=17"], "orig_argv": ["/home/jasdeep/gtsfm_eval/.venv/bin/python", "/home/jasdeep/gtsfm_eval/.venv/lib/python3.12/site-packages/torch/_inductor/compile_worker/__main__.py", "--pickler=torch._inductor.compile_worker.subproc_pool.SubprocPickler", "--kind=fork", "--workers=16", "--parent=305409", "--read-fd=14", "--write-fd=17"], "cuda_visible_devices": "0", "selected_device": "cuda:0", "seed": 42}
+{"time": 1792871174.9065778, "pid": 305474, "kind": "torch", "cuda_initialized": true, "allocated": 0, "reserved": 0, "peak_allocated": 0, "peak_reserved": 0, "models": {}}
+{"time": 1792871175.9161477, "pid": 305474, "kind": "torch", "cuda_initialized": true, "allocated": 0, "reserved": 0, "peak_allocated": 0, "peak_reserved": 0, "models": {}}
+{"time": 1792871176.917499, "pid": 305474, "kind": "torch", "cuda_initialized": true, "allocated": 0, "reserved": 0, "peak_allocated": 0, "peak_reserved": 0, "models": {}}
+{"time": 1792871177.9188368, "pid": 305474, "kind": "torch", "cuda_initialized": true, "allocated": 0, "reserved": 0, "peak_allocated": 0, "peak_reserved": 0, "models": {}}
+{"time": 1792871178.9200726, "pid": 305474, "kind": "torch", "cuda_initialized": true, "allocated": 0, "reserved": 0, "peak_allocated": 0, "peak_reserved": 0, "models": {}}
+{"time": 1792871179.9211516, "pid": 305474, "kind": "torch", "cuda_initialized": true, "allocated": 0, "reserved": 0, "peak_allocated": 0, "peak_reserved": 0, "models": {}}
+{"time": 1792871180.9222474, "pid": 305474, "kind": "torch", "cuda_initialized": true, "allocated": 0, "reserved": 0, "peak_allocated": 0, "peak_reserved": 0, "models": {}}
+{"time": 1792871181.9233122, "pid": 305474, "kind": "torch", "cuda_initialized": true, "allocated": 0, "reserved": 0, "peak_allocated": 0, "peak_reserved": 0, "models": {}}
+{"time": 1792871182.9254553, "pid": 305474, "kind": "torch", "cuda_initialized": true, "allocated": 0, "reserved": 0, "peak_allocated": 0, "peak_reserved": 0, "models": {}}
+{"time": 1792871183.9265928, "pid": 305474, "kind": "torch", "cuda_initialized": true, "allocated": 0, "reserved": 0, "peak_allocated": 0, "peak_reserved": 0, "models": {}}
+{"time": 1792871184.927966, "pid": 305474, "kind": "torch", "cuda_initialized": true, "allocated": 0, "reserved": 0, "peak_allocated": 0, "peak_reserved": 0, "models": {}}
+{"time": 1792871185.9291785, "pid": 305474, "kind": "torch", "cuda_initialized": true, "allocated": 0, "reserved": 0, "peak_allocated": 0, "peak_reserved": 0, "models": {}}
+{"time": 1792871186.9304101, "pid": 305474, "kind": "torch", "cuda_initialized": true, "allocated": 0, "reserved": 0, "peak_allocated": 0, "peak_reserved": 0, "models": {}}
+{"time": 1792871187.9315856, "pid": 305474, "kind": "torch", "cuda_initialized": true, "allocated": 0, "reserved": 0, "peak_allocated": 0, "peak_reserved": 0, "models": {}}
+{"time": 1792871188.9328177, "pid": 305474, "kind": "torch", "cuda_initialized": true, "allocated": 0, "reserved": 0, "peak_allocated": 0, "peak_reserved": 0, "models": {}}
+{"time": 1792871189.9339623, "pid": 305474, "kind": "torch", "cuda_initialized": true, "allocated": 0, "reserved": 0, "peak_allocated": 0, "peak_reserved": 0, "models": {}}
+{"time": 1792871190.9352582, "pid": 305474, "kind": "torch", "cuda_initialized": true, "allocated": 0, "reserved": 0, "peak_allocated": 0, "peak_reserved": 0, "models": {}}
+{"time": 1792871191.9371765, "pid": 305474, "kind": "torch", "cuda_initialized": true, "allocated": 0, "reserved": 0, "peak_allocated": 0, "peak_reserved": 0, "models": {}}
+{"time": 1792871195.436145, "pid": 305474, "kind": "torch", "cuda_initialized": true, "allocated": 0, "reserved": 0, "peak_allocated": 0, "peak_reserved": 0, "models": {}}
+{"time": 1792871196.4389057, "pid": 305474, "kind": "torch", "cuda_initialized": true, "allocated": 0, "reserved": 0, "peak_allocated": 0, "peak_reserved": 0, "models": {}}
+{"time": 1792871197.4403028, "pid": 305474, "kind": "torch", "cuda_initialized": true, "allocated": 0, "reserved": 0, "peak_allocated": 0, "peak_reserved": 0, "models": {}}
+{"time": 1792871198.4416652, "pid": 305474, "kind": "torch", "cuda_initialized": true, "allocated": 0, "reserved": 0, "peak_allocated": 0, "peak_reserved": 0, "models": {}}
+{"time": 1792871199.4430242, "pid": 305474, "kind": "torch", "cuda_initialized": true, "allocated": 0, "reserved": 0, "peak_allocated": 0, "peak_reserved": 0, "models": {}}
+{"time": 1792871200.4442828, "pid": 305474, "kind": "torch", "cuda_initialized": true, "allocated": 0, "reserved": 0, "peak_allocated": 0, "peak_reserved": 0, "models": {}}
+{"time": 1792871201.445594, "pid": 305474, "kind": "torch", "cuda_initialized": true, "allocated": 0, "reserved": 0, "peak_allocated": 0, "peak_reserved": 0, "models": {}}
+{"time": 1792871202.4467614, "pid": 305474, "kind": "torch", "cuda_initialized": true, "allocated": 0, "reserved": 0, "peak_allocated": 0, "peak_reserved": 0, "models": {}}
+{"time": 1792871203.447867, "pid": 305474, "kind": "torch", "cuda_initialized": true, "allocated": 0, "reserved": 0, "peak_allocated": 0, "peak_reserved": 0, "models": {}}
+{"time": 1792871203.6620057, "pid": 305474, "kind": "exit"}

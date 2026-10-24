@@ -1,0 +1,139 @@
+Oct 24 12:51:41 jas-windows-pc-rtx3080 systemd[11126]: Started gtsfm-profile-B1.service - /home/jasdeep/gtsfm_eval/.venv/bin/python /home/jasdeep/gtsfm-profile-gpu-20261024/experiment_dask_profiles_gpu.py --base /home/jasdeep/gtsfm-profile-gpu-20261024 --trial B1 --arm profile --dataset /home/jasdeep/gtsfm-profile-gpu-20261024/dataset-first4 --wall-seconds 900.
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]: {
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:   "arm": "profile",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:   "command": [
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:     "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:     "-m",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:     "gtsfm.runner",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:     "--config_name",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:     "vggt_sift_frontend_megaloc",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:     "--loader",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:     "olsson",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:     "--dataset_dir",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:     "/home/jasdeep/gtsfm-profile-gpu-20261024/dataset-first4",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:     "--output_root",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:     "/home/jasdeep/gtsfm-profile-gpu-20261024/results/runs/B1-B1",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:     "--num_workers",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:     "1",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:     "--threads_per_worker",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:     "2",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:     "--worker_memory_limit",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:     "18GiB",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:     "--max_resolution",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:     "518",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:     "--dashboard_port",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:     "127.0.0.1:0",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:     "--dask_tmpdir",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:     "/home/jasdeep/gtsfm-profile-gpu-20261024/scratch"
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:   ],
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:   "compute_processes": "pid, process_name, used_gpu_memory [MiB]\n",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:   "ended": 1792871555.0730503,
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:   "final_gpu": {
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:     "memory_used_mib": 201,
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:     "temperature_c": 31,
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:     "utilization_percent": 0
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:   },
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:   "final_process_snapshot": "    PID    PPID    PGID     SID COMMAND\n      1       0       1       1 /usr/lib/systemd/systemd --system --deserialize=101\n      2       1       0       0 /init\n      3       2       0       0 init-watcher\n      9       2       0       0 plan9 --control-socket 7 --log-level 4 --server-fd 8 --pipe-fd 10 --log-truncate\n    162       1     162     162 /usr/sbin/cron -f -P\n    163       1     163     163 @dbus-daemon --system --address=systemd: --nofork --nopidfile --systemd-activation --syslog-only\n    170       1     170     170 /usr/lib/systemd/systemd-logind\n    172       1     172     172 /usr/sbin/tailscaled --state=/var/lib/tailscale/tailscaled.state --socket=/run/tailscale/tailscaled.sock --port=41641\n    182       1     182     182 /usr/sbin/rsyslogd -n -iNONE\n    190       1     190     190 /sbin/agetty -o -p -- \\u --noclear - linux\n    209       1     209     209 /usr/bin/python3 /usr/share/unattended-upgrades/unattended-upgrade-shutdown --wait-for-signal\n    325       2     325     325 /init\n    326     325     325     325 /init\n    327     326     327     327 /bin/sleep infinity\n    328       2     328     328 /bin/login -f\n    372       1     372     372 /usr/lib/systemd/systemd --user --deserialize=8\n    373     372     372     372 (sd-pam)\n    396     328     396     328 -bash\n   1094       1    1094    1094 /usr/lib/polkit-1/polkitd --no-debug\n  11022       2   11022   11022 /bin/login -f\n  11047       1   11047   11047 /usr/lib/systemd/systemd-journald\n  11126       1   11126   11126 /usr/lib/systemd/systemd --user\n  11128   11126   11126   11126 (sd-pam)\n  11137       1   11137   11137 /usr/lib/systemd/systemd-timesyncd\n  11157   11022   11157   11022 -bash\n  11310       1   11310   11310 /usr/lib/systemd/systemd-udevd\n  34123   11126   34123   34123 /usr/bin/dbus-daemon --session --address=systemd: --nofork --nopidfile --systemd-activation --syslog-only\n  34223       1   34223   34223 /usr/lib/systemd/systemd-resolved\n  34238   11126   34238   34238 /srv/shine/mira-local-20261018/.venv/bin/python -u /srv/shine/mira-local-20261018/run_player.py\n 305816       1  305816  305816 /usr/libexec/wsl-pro-service\n 306092       2  306092  306092 /init\n 306094  306092  306092  306092 /init\n 306098  306094  306098  306098 bash -s\n 306100  306098  306098  306098 systemd-run --user --unit=gtsfm-profile-B1 --wait --collect -p MemoryMax=24G -p MemorySwapMax=0 -p CPUQuota=400% -p RuntimeMaxSec=960 --setenv=PATH=/home/jasdeep/gtsfm_eval/.venv/bin:/usr/local/bin:/usr/bin:/bin:/usr/lib/wsl/lib /home/jasdeep/gtsfm_eval/.venv/bin/python /home/jasdeep/gtsfm-profile-gpu-20261024/experiment_dask_profiles_gpu.py --base /home/jasdeep/gtsfm-profile-gpu-20261024 --trial B1 --arm profile --dataset /home/jasdeep/gtsfm-profile-gpu-20261024/dataset-first4 --wall-seconds 900\n 306101   11126  306101  306101 /home/jasdeep/gtsfm_eval/.venv/bin/python /home/jasdeep/gtsfm-profile-gpu-20261024/experiment_dask_profiles_gpu.py --base /home/jasdeep/gtsfm-profile-gpu-20261024 --trial B1 --arm profile --dataset /home/jasdeep/gtsfm-profile-gpu-20261024/dataset-first4 --wall-seconds 900\n 306305  306101  306101  306101 ps -eo pid,ppid,pgid,sid,args\n",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:   "observed_pids": {
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:     "306109": {
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:       "argv": [
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "-m",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "gtsfm.runner",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "--config_name",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "vggt_sift_frontend_megaloc",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "--loader",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "olsson",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "--dataset_dir",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "/home/jasdeep/gtsfm-profile-gpu-20261024/dataset-first4",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "--output_root",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "/home/jasdeep/gtsfm-profile-gpu-20261024/results/runs/B1-B1",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "--num_workers",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "1",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "--threads_per_worker",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "2",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "--worker_memory_limit",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "18GiB",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "--max_resolution",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "518",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "--dashboard_port",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "127.0.0.1:0",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "--dask_tmpdir",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "/home/jasdeep/gtsfm-profile-gpu-20261024/scratch"
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:       ],
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:       "cpu_percent": 0.0,
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:       "cpu_times": {
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "children_system": 9.76,
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "children_user": 20.36,
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "iowait": 0.0,
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "system": 1.54,
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "user": 13.66
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:       },
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:       "created": 1792871508.95,
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:       "pid": 306109,
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:       "ppid": 306101,
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:       "rss": 1548087296,
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:       "status": "running"
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:     },
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:     "306135": {
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:       "argv": [
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "-c",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "from multiprocessing.resource_tracker import main;main(28)"
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:       ],
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:       "cpu_percent": 0.0,
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:       "cpu_times": {
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "children_system": 0.0,
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "children_user": 0.0,
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "iowait": 0.0,
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "system": 0.26,
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "user": 0.99
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:       },
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:       "created": 1792871513.41,
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:       "pid": 306135,
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:       "ppid": 306109,
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:       "rss": 490401792,
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:       "status": "sleeping"
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:     },
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:     "306138": {
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:       "argv": [
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "-c",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=29, pipe_handle=35)",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "--multiprocessing-fork"
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:       ],
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:       "cpu_percent": 0.0,
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:       "cpu_times": {
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "children_system": 0.0,
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "children_user": 0.0,
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "iowait": 0.0,
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "system": 9.64,
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:         "user": 19.85
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:       },
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:       "created": 1792871513.41,
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:       "pid": 306138,
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:       "ppid": 306109,
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:       "rss": 2372972544,
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:       "status": "running"
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:     }
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:   },
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:   "post_pid_checks": {
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:     "306109": {
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:       "exists": false
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:     },
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:     "306135": {
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:       "exists": false
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:     },
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:     "306138": {
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:       "exists": false
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:     }
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:   },
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:   "remaining_processes": [],
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:   "return_code": 0,
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:   "root_pid": 306109,
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:   "started": 1792871503.1579864,
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:   "termination_reason": null,
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:   "trial": "B1",
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]:   "wall_seconds": 44.915064334869385
+Oct 24 12:52:35 jas-windows-pc-rtx3080 python[306101]: }
+Oct 24 12:52:35 jas-windows-pc-rtx3080 systemd[11126]: gtsfm-profile-B1.service: Consumed 49.638s CPU time, 12.0G memory peak, 0B memory swap peak.

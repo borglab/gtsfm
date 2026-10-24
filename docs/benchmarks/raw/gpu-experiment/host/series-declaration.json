@@ -1,0 +1,106 @@
+{
+  "arms": {
+    "A1": "manual",
+    "A2": "manual",
+    "B1": "profile",
+    "B2": "profile"
+  },
+  "cache": "Each trial starts with empty isolated source/cache; every previous cache retained separately; exact same warm model weights and DINOv2 source; no result caches shared",
+  "commands": {
+    "A1": "/home/jasdeep/gtsfm_eval/.venv/bin/python /home/jasdeep/gtsfm-profile-gpu-20261024/experiment_dask_profiles_gpu.py --base /home/jasdeep/gtsfm-profile-gpu-20261024 --trial A1 --arm manual --dataset /home/jasdeep/gtsfm-profile-gpu-20261024/dataset-first4 --wall-seconds 900",
+    "A2": "/home/jasdeep/gtsfm_eval/.venv/bin/python /home/jasdeep/gtsfm-profile-gpu-20261024/experiment_dask_profiles_gpu.py --base /home/jasdeep/gtsfm-profile-gpu-20261024 --trial A2 --arm manual --dataset /home/jasdeep/gtsfm-profile-gpu-20261024/dataset-first4 --wall-seconds 900",
+    "B1": "/home/jasdeep/gtsfm_eval/.venv/bin/python /home/jasdeep/gtsfm-profile-gpu-20261024/experiment_dask_profiles_gpu.py --base /home/jasdeep/gtsfm-profile-gpu-20261024 --trial B1 --arm profile --dataset /home/jasdeep/gtsfm-profile-gpu-20261024/dataset-first4 --wall-seconds 900",
+    "B2": "/home/jasdeep/gtsfm_eval/.venv/bin/python /home/jasdeep/gtsfm-profile-gpu-20261024/experiment_dask_profiles_gpu.py --base /home/jasdeep/gtsfm-profile-gpu-20261024 --trial B2 --arm profile --dataset /home/jasdeep/gtsfm-profile-gpu-20261024/dataset-first4 --wall-seconds 900"
+  },
+  "dataset": [
+    {
+      "name": "DSC_0001.JPG",
+      "sha256": "aec675cd743cf248f6e4cfd487e4a12c3138240e562804f9e8f63298b862b8df",
+      "size": 664614
+    },
+    {
+      "name": "DSC_0002.JPG",
+      "sha256": "3aeffc3a61284d9f552b589e25e7263d034a914dd1976441ea4aa010a6bf7beb",
+      "size": 662837
+    },
+    {
+      "name": "DSC_0003.JPG",
+      "sha256": "cb3117a5cf3e12681a1f2bbbeded4431d9810b8caad1a9467e42960498645d32",
+      "size": 660936
+    },
+    {
+      "name": "DSC_0004.JPG",
+      "sha256": "be0b20b54e8783172a1d5f613bac6552d2fe8abcf41fddb8073dd4230d7ef32c",
+      "size": 662684
+    }
+  ],
+  "dataset_root": "/home/jasdeep/gtsfm-profile-gpu-20261024/dataset-first4",
+  "declared_utc": "2026-10-24T19:48:15.728656+00:00",
+  "dtype_policy": "Unchanged production default: model loading plan then VggtGeometryTransformer default BF16 on Ampere; actual logs retained",
+  "environment_manifest": "initial/environment-manifest.json",
+  "extra_environment": {
+    "DASK_DISTRIBUTED__WORKER__DAEMON": "False",
+    "MKL_NUM_THREADS": "2",
+    "NUMEXPR_NUM_THREADS": "2",
+    "OMP_NUM_THREADS": "2",
+    "OPENBLAS_NUM_THREADS": "2",
+    "PYTHONHASHSEED": "42",
+    "TORCHINDUCTOR_COMPILE_THREADS": "1"
+  },
+  "final_colmap_stage": "output/results/merged_retriangulated",
+  "frozen_utc": "2026-10-24T19:50:33.776396+00:00",
+  "geometry_seed": 42,
+  "harness_sha256": "313bcda0fcb3dcfd65839f7e5fe2beb6ec1ec406608d78844b0d909590d8fd1d",
+  "input_mode": "crop",
+  "instrumentation": "Isolated sitecustomize captures Hydra configurations, actual imported model source paths, startup env and sampled per-process CUDA allocated/reserved/peaks; same instrumentation all arms",
+  "loader": "olsson",
+  "max_resolution": 518,
+  "metadata_policy": "Copied first four real JPEGs only into isolated subset; no data.mat; loader uses EXIF calibration and no GT extrinsics",
+  "model_weights": {
+    "/home/jasdeep/.cache/torch/hub/checkpoints/megaloc.torch": {
+      "bytes": 914636218,
+      "sha256": "c6d01ea3ff7858175f66e2c25305585f9229aab809a3f248e9e42eb258383242"
+    },
+    "/home/jasdeep/gtsfm-dask-profiles-assets-20261024/weights/model.pt": {
+      "bytes": 5026874952,
+      "sha256": "d15bf50a8615c8225ed48b51ea5cac673d82442ec0309036df555a053253afe0"
+    }
+  },
+  "order": [
+    "A1",
+    "B1",
+    "A2",
+    "B2"
+  ],
+  "pairs": "output/results/plots/similarity_named_pairs.txt",
+  "pipeline": "Actual MegaLoc pretrained retrieval plus SIFT/TwoWayMatcher frontend and actual pinned vanilla VGGT geometry plus GTSAM BA and final retriangulation",
+  "preset": "vggt_sift_frontend_megaloc",
+  "process_seeds": "random, numpy, torch set to42 in each Python startup; PYTHONHASHSEED=42",
+  "profile": {
+    "execution_mode": "local",
+    "host_memory_bytes": 19327352832,
+    "host_memory_limit": "18GiB",
+    "name": "rtx3080-fixed",
+    "schema_version": 1,
+    "scratch_directory": "/home/jasdeep/gtsfm-profile-gpu-20261024/scratch",
+    "selected_gpus": [
+      "cuda:0"
+    ],
+    "threads_per_worker": 2,
+    "workers": 1
+  },
+  "resources": {
+    "harness_wall_seconds": 900,
+    "memory_swap_max": 0,
+    "runtime_max_seconds": 960,
+    "stop_if_gpu_used_mib_at_least": 9700,
+    "stop_if_system_available_bytes_below": 4294967296,
+    "stop_if_temperature_c_at_least": 80,
+    "systemd_cpu_quota": "400%",
+    "systemd_memory_max": "24G"
+  },
+  "source_boundary": "Coordinator accepted current transferred source; all4 use same snapshot; dask_stats SHA256478aa26b464d16e66e3b53f798d8cf7b4a35d4286935a9705fdc904802562f45",
+  "source_manifest_sha256": "362ebc3e92ce628f8ca2c6e953857c2782ff9e1c432955b4fba4e606d83b609d",
+  "status": "Frozen by coordinator explicit reply; declared before A1 outputs",
+  "tolerances": "Unchanged docs/benchmarks/dask_profiles_experiment.md; baseline A1/A2 must pass before equivalence; no speedup assumed"
+}

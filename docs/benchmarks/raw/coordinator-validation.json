@@ -1,0 +1,69 @@
+{
+  "date": "2026-10-24",
+  "reviewer_role": "root coordinator, separate rerun of independent comparison script",
+  "baseline_commit": "3306994e2903a3fc65b01f952e1b5d7bc248cfe4",
+  "checks": {
+    "focused_pytest": {
+      "command": ".venv/bin/python -m pytest -o addopts='' -q tests/visualization/test_execution_profiles.py tests/visualization/test_runtime.py tests/visualization/test_modal_app.py",
+      "exit_code": 0,
+      "passed": 64,
+      "duration_seconds": 1.78,
+      "warnings": [
+        "Existing Starlette/httpx TestClient deprecation"
+      ]
+    },
+    "ci_lint_changed_gtsfm_and_tests": {
+      "interpreter": "/tmp/gtsfm-scalability-venv/bin/python",
+      "exit_code": 0,
+      "max_line_length": 120,
+      "ignore": "E201,E202,E203,E231,W291,W293,E303,W391,E402,W503,E731",
+      "files": [
+        "gtsfm/utils/dask_stats.py",
+        "tests/visualization/test_execution_profiles.py"
+      ]
+    },
+    "frontend": {
+      "cwd": "visualization/frontend",
+      "command": "npm run check && npm run build",
+      "exit_code": 0
+    },
+    "independent_compare_rerun": {
+      "artifact": "coordinator-four-trial-comparison.json",
+      "verdict": "VERIFIED",
+      "exact_export_bytes": true,
+      "baseline_repeatable": true
+    },
+    "frozen_gpu_artifact_manifest": {
+      "artifact": "gpu-experiment/artifact-manifest.json",
+      "entries_verified": 562,
+      "mismatches": []
+    },
+    "telemetry_final_formatting": {
+      "current_sha256": "4b0fa22c14ba3835871f415e414a8a1cefff17c252623c977adca7972f2f11c4",
+      "F2_tested_sha256": "524f5100c19c5c26f0b389481179f8fbdd1ec1cd4ccb7a6ce00e245c3d3d8046",
+      "AST_exact_equal": true
+    }
+  },
+  "retained_setup_failures": [
+    {
+      "stage": "root final test environment selection",
+      "command": "/tmp/gtsfm-scalability-venv/bin/python -m pytest (same focused tests)",
+      "exit_code": 2,
+      "reason": "FastAPI absent in lint/profile-only venv; no test executed",
+      "resolution": "Used existing project .venv; 64 passed; no package installation"
+    },
+    {
+      "stage": "root initial CI lint",
+      "failures": [
+        "dask_stats.py missing one blank line",
+        "test_execution_profiles.py long dictionary line"
+      ],
+      "resolution": "Two formatting-only edits, applicable CI lint passed"
+    }
+  ],
+  "scope": [
+    "Focused tests only; no full repository suite claimed",
+    "Real browser/HTTP persistence checks separate from direct JobManager GPU trials",
+    "No universal speedup, dataset equivalence or ground-truth accuracy claim"
+  ]
+}

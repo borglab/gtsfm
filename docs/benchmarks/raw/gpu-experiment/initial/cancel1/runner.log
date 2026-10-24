@@ -1,0 +1,176 @@
+2026-10-24 19:45:14 [jas-windows-pc-rtx3080-main] [runner.py] INFO: 🌟 GTSFM: Creating Dask client...
+
+🚀 Dask Dashboard available at: http://127.0.0.1:46789/status
+2026-10-24 19:45:19 [jas-windows-pc-rtx3080-main] [runner.py] INFO: 🌟 GTSFM: Constructing SceneOptimizer...
+2026-10-24 19:45:19 [jas-windows-pc-rtx3080-main] [runner.py] INFO: 📁 Config File: vggt_sift_frontend_megaloc
+2026-10-24 19:45:19 [jas-windows-pc-rtx3080-main] [configuration.py] INFO: 🔧==============================================================================🔧
+2026-10-24 19:45:19 [jas-windows-pc-rtx3080-main] [configuration.py] INFO: 🔧 GTSFM COMPLETE CONFIGURATION
+2026-10-24 19:45:19 [jas-windows-pc-rtx3080-main] [configuration.py] INFO: 🔧==============================================================================🔧
+2026-10-24 19:45:19 [jas-windows-pc-rtx3080-main] [configuration.py] INFO: 
+• _target_: gtsfm.scene_optimizer.SceneOptimizer
+2026-10-24 19:45:19 [jas-windows-pc-rtx3080-main] [configuration.py] INFO: 
+🔸 loader = Olsson
+  • dataset_dir: /home/jasdeep/gtsfm-profile-gpu-20261024/dataset-first4
+  • images_dir: None
+  • max_resolution: 518
+  • input_worker: None
+2026-10-24 19:45:19 [jas-windows-pc-rtx3080-main] [configuration.py] INFO: 
+🔸 image_pairs_generator = ImagePairsGenerator
+  🔸 global_descriptor = GlobalDescriptorCacher
+    🔸 global_descriptor_obj = MegaLoc
+  🔸 retriever = Similarity
+    • num_matched: 15
+    • min_score: 0.5
+  • batch_size: 16
+2026-10-24 19:45:19 [jas-windows-pc-rtx3080-main] [configuration.py] INFO: 
+🔸 graph_partitioner = Metis
+  • min_cameras_to_partition: 12
+  • max_cameras: 40
+  • split_oversized_nodes: True
+2026-10-24 19:45:19 [jas-windows-pc-rtx3080-main] [configuration.py] INFO: 
+🔸 cluster_optimizer = Cacher
+  🔸 optimizer = VggtWithFrontend
+    🔸 correspondence_generator = DetDescCorrespondenceGenerator
+      🔸 detector_descriptor = DetectorDescriptorCacher
+        🔸 detector_descriptor_obj = SIFTDetectorDescriptor
+          • max_keypoints: 5000
+      🔸 matcher = MatcherCacher
+        🔸 matcher_obj = TwoWayMatcher
+          • ratio_test_threshold: 0.8
+    🔸 two_view_estimator = TwoViewEstimatorCacher
+      🔸 two_view_estimator_obj = TwoViewEstimator
+        • bundle_adjust_2view: True
+        • eval_threshold_px: 4
+        📋 ba_reproj_error_thresholds: [0.5]
+        • bundle_adjust_2view_maxiters: 100
+        🔸 verifier = Ransac
+          • use_intrinsics_in_verification: True
+          • estimation_threshold_px: 4
+        🔸 triangulation_options = TriangulationOptions
+          • reproj_error_threshold: 100.0
+          🔸 mode = TriangulationSamplingMode
+            • value: NO_RANSAC
+        🔸 inlier_support_processor = InlierSupportProcessor
+          • min_num_inliers_est_model: 15
+          • min_inlier_ratio_est_model: 0.1
+    🔸 geometry_transformer = VggtGeometryTransformer
+      🔸 config = VggtGeometryConfig
+        • confidence_threshold: 0.1
+        • max_num_points: 100000
+        • seed: 42
+    🔸 ba_options = BundleAdjustmentOptions
+      • shared_calib: True
+      • use_calibration_prior: False
+      • use_gnc: True
+      • gnc_loss: GMC
+      • factor_weight_outlier_threshold: 1e-08
+    • pre_ba_max_reproj_error: 14.0
+    • post_ba_max_reproj_error: 3.0
+    • drop_camera_with_no_track: False
+    • min_track_length: 3
+    • input_mode: crop
+    • seed: 42
+    • model_cache_key: None
+    • use_view_graph_calibration: False
+    • use_multi_view_retriangulation: False
+2026-10-24 19:45:19 [jas-windows-pc-rtx3080-main] [configuration.py] INFO: 
+🔸 merging_options = MergingOptions
+  • run_bundle_adjustment: True
+  • merge_duplicate_tracks: True
+  • drop_child_if_merging_fail: True
+  • drop_outlier_after_camera_merging: True
+  • drop_camera_with_no_track: False
+  • keep_all_cameras: True
+  • plot_reprojection_histograms: True
+  • use_nonlinear_sim3_alignment: True
+  • pre_ba_max_reproj_error: 14.0
+  • pre_ba_min_track_length: 2
+  • post_ba_max_reproj_error: 3.0
+  • min_track_length: 3
+  🔸 ba_options = BundleAdjustmentOptions
+    • shared_calib: True
+    • use_calibration_prior: True
+    • use_gnc: False
+2026-10-24 19:45:19 [jas-windows-pc-rtx3080-main] [configuration.py] INFO: 
+• output_root: /home/jasdeep/gtsfm-profile-gpu-20261024/results/runs/cancel1-cancel1
+2026-10-24 19:45:19 [jas-windows-pc-rtx3080-main] [configuration.py] INFO: 🔧==============================================================================🔧
+2026-10-24 19:45:19 [jas-windows-pc-rtx3080-main] [runner.py] INFO: ⏳ Instantiating ..
+2026-10-24 19:45:19 [jas-windows-pc-rtx3080-main] [vggt_geometry_transformer.py] INFO: 📷 Using vanilla VGGT (FastVGGT submodule not detected).
+2026-10-24 19:45:19 [jas-windows-pc-rtx3080-main] [scene_optimizer.py] INFO: Results, plots, and metrics will be saved at /home/jasdeep/gtsfm-profile-gpu-20261024/results/runs/cancel1-cancel1
+2026-10-24 19:45:19 [jas-windows-pc-rtx3080-main] [runner.py] INFO: 🔄 Disabled Gaussian Splatting optimizer via CLI flag --run_gs=False
+2026-10-24 19:45:19 [jas-windows-pc-rtx3080-main] [runner.py] INFO: 🌟 GTSFM: Starting SceneOptimizer...
+2026-10-24 19:45:19 [jas-windows-pc-rtx3080-main] [scene_optimizer.py] INFO: 📦 Saved final config snapshot to /home/jasdeep/gtsfm-profile-gpu-20261024/results/runs/cancel1-cancel1/results/config.yaml
+2026-10-24 19:45:19 [jas-windows-pc-rtx3080-main] [scene_optimizer.py] WARNING: Graphviz 'dot' is unavailable; skipping optional process graph /home/jasdeep/gtsfm-profile-gpu-20261024/results/runs/cancel1-cancel1/results/plots/process_graph_output.svg. Reconstruction will continue. Install Graphviz to enable this export.
+2026-10-24 19:45:19 [jas-windows-pc-rtx3080-main] [scene_optimizer.py] INFO: 🔥 GTSFM: Running image pair retrieval...
+2026-10-24 19:45:19 [jas-windows-pc-rtx3080-main] [image_pairs_generator.py] INFO: 🟩 About to scatter descriptor
+2026-10-24 19:45:20 [jas-windows-pc-rtx3080-main] [image_pairs_generator.py] INFO: 🟩 Scatter completed in 0.1 seconds
+2026-10-24 19:45:20 [jas-windows-pc-rtx3080-main] [image_pairs_generator.py] INFO: ⏳ Computing global descriptors for all images in batches of 16...
+2026-10-24 19:45:20 [jas-windows-pc-rtx3080(47)] [logger.py] INFO: Worker Mapping: jas-windows-pc-rtx3080(47) ← TCP 127.0.0.1:42447
+2026-10-24 19:45:20 [jas-windows-pc-rtx3080(47)] [image_pairs_generator.py] INFO: 🟩 Computing global descriptors for batch of 4 images
+Added DINOv2 to sys.path: /home/jasdeep/.cache/torch/hub/facebookresearch_dinov2_main
+2026-10-24 19:45:20 [jas-windows-pc-rtx3080(47)] [megaloc_global_descriptor.py] INFO: ⏳ Loading MegaLoc model weights...
+Using cache found in /home/jasdeep/.cache/torch/hub/facebookresearch_dinov2_main
+/home/jasdeep/.cache/torch/hub/facebookresearch_dinov2_main/dinov2/layers/swiglu_ffn.py:43: UserWarning: xFormers is available (SwiGLU)
+  warnings.warn("xFormers is available (SwiGLU)")
+/home/jasdeep/.cache/torch/hub/facebookresearch_dinov2_main/dinov2/layers/attention.py:27: UserWarning: xFormers is available (Attention)
+  warnings.warn("xFormers is available (Attention)")
+/home/jasdeep/.cache/torch/hub/facebookresearch_dinov2_main/dinov2/layers/block.py:33: UserWarning: xFormers is available (Block)
+  warnings.warn("xFormers is available (Block)")
+2026-10-24 19:45:21 [jas-windows-pc-rtx3080(47)] [megaloc.py] INFO: Downloading MegaLoc weights from GitHub...
+2026-10-24 19:45:22 [jas-windows-pc-rtx3080(47)] [megaloc.py] INFO: ✓ MegaLoc weights loaded successfully
+2026-10-24 19:45:26 [jas-windows-pc-rtx3080-main] [image_pairs_generator.py] INFO: ⏳ Computing visibility graph...
+2026-10-24 19:45:26 [jas-windows-pc-rtx3080-main] [similarity_retriever.py] INFO: Computing matching block (0/0,0/0)
+2026-10-24 19:45:26 [jas-windows-pc-rtx3080-main] [similarity_retriever.py] INFO: Found 6 pairs from the Similarity Retriever.
+*** Aborted at 1792871126 (unix time) try "date -d @1792871126" if you are using GNU date ***
+*** Aborted at 1792871126 (unix time) try "date -d @1792871126" if you are using GNU date ***
+PC: @     0x7404ebb2a2d2 epoll_wait
+PC: @     0x7285baa98e51 (/usr/lib/x86_64-linux-gnu/libc.so.6+0x98e50)
+*** SIGTERM (@0x3e80004a7cd) received by PID 305145 (TID 0x7404ebdb6140) from PID 305101; stack trace: ***
+*** SIGTERM (@0x3e80004a7cd) received by PID 305109 (TID 0x7285bae00080) from PID 305101; stack trace: ***
+    @     0x7285baaa1fb3 (/usr/lib/x86_64-linux-gnu/libc.so.6+0xa1fb2)
+    @     0x7404ebaa1fb3 (/usr/lib/x86_64-linux-gnu/libc.so.6+0xa1fb2)
+    @     0x72843e6a1a88 (/home/jasdeep/gtsfm/.venv/lib/python3.12/site-packages/pycolmap/_core.cpython-312-x86_64-linux-gnu.so+0x6a1a87)
+    @     0x74036f4a1a88 (/home/jasdeep/gtsfm/.venv/lib/python3.12/site-packages/pycolmap/_core.cpython-312-x86_64-linux-gnu.so+0x6a1a87)
+    @     0x7285baa45330 (/usr/lib/x86_64-linux-gnu/libc.so.6+0x4532f)
+    @     0x7404eba45330 (/usr/lib/x86_64-linux-gnu/libc.so.6+0x4532f)
+    @     0x7285baa98e51 (/usr/lib/x86_64-linux-gnu/libc.so.6+0x98e50)
+    @     0x7404ebb2a2d2 epoll_wait
+    @           0x6d46d7 (/usr/bin/python3.12+0x6d46d6)
+    @           0x5dab8a _PyEval_EvalFrameDefault
+    @           0x54cbb4 (/usr/bin/python3.12+0x54cbb3)
+    @           0x54b1d5 PyObject_Call
+    @           0x64f814 (/usr/bin/python3.12+0x64f813)
+    @           0x548fb5 _PyObject_MakeTpCall
+    @           0x5db2ee _PyEval_EvalFrameDefault
+    @           0x54caed (/usr/bin/python3.12+0x54caec)
+    @           0x5db2ee _PyEval_EvalFrameDefault
+    @           0x5d55eb PyEval_EvalCode
+    @           0x608733 PyRun_StringFlags
+    @           0x6b40de PyRun_SimpleStringFlags
+    @           0x6bcda1 Py_RunMain
+    @           0x6bc7bd Py_BytesMain
+    @     0x7285baaa439e (/usr/lib/x86_64-linux-gnu/libc.so.6+0xa439d)
+    @           0x6103d3 PyThread_acquire_lock_timed
+    @           0x64dafa (/usr/bin/python3.12+0x64daf9)
+    @           0x551418 (/usr/bin/python3.12+0x551417)
+    @           0x5499b5 PyObject_Vectorcall
+    @           0x5d710f _PyEval_EvalFrameDefault
+    @           0x54cbb4 (/usr/bin/python3.12+0x54cbb3)
+    @           0x5499b5 PyObject_Vectorcall
+    @           0x5d710f _PyEval_EvalFrameDefault
+    @           0x5d55eb PyEval_EvalCode
+    @           0x5d33dc (/usr/bin/python3.12+0x5d33db)
+    @           0x581fed (/usr/bin/python3.12+0x581fec)
+    @           0x5499b5 PyObject_Vectorcall
+    @           0x5d710f _PyEval_EvalFrameDefault
+    @           0x6bcf22 (/usr/bin/python3.12+0x6bcf21)
+    @           0x6bcb52 Py_RunMain
+    @           0x6bc7bd Py_BytesMain
+    @     0x7404eba2a1ca (/usr/lib/x86_64-linux-gnu/libc.so.6+0x2a1c9)
+    @     0x7285baa2a1ca (/usr/lib/x86_64-linux-gnu/libc.so.6+0x2a1c9)
+    @     0x7404eba2a28b __libc_start_main
+    @           0x657a05 _start
+    @     0x7285baa2a28b __libc_start_main
+    @           0x657a05 _start
+/usr/lib/python3.12/multiprocessing/resource_tracker.py:254: UserWarning: resource_tracker: There appear to be 6 leaked semaphore objects to clean up at shutdown
+  warnings.warn('resource_tracker: There appear to be %d '

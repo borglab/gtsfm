@@ -1,0 +1,59 @@
+{
+  "success": true,
+  "checks": [
+    "real-ui-created-canonical-backend-profile",
+    "draft-state-visible",
+    "real-ui-updated-canonical-profile",
+    "reload-restored-profile-values",
+    "real-backend-error-displayed-and-saved-state-preserved",
+    "no-browser-page-errors"
+  ],
+  "errors": [],
+  "responses": [
+    {
+      "method": "GET",
+      "status": 200,
+      "url": "http://127.0.0.1:5197/api/execution-profiles",
+      "body": "{\"path\":\"/tmp/gtsfm-profiles-fullstack/profiles.json\",\"items\":[]}"
+    },
+    {
+      "method": "PUT",
+      "status": 200,
+      "url": "http://127.0.0.1:5197/api/execution-profiles/fullstack-cpu",
+      "body": "{\"schema_version\":1,\"name\":\"fullstack-cpu\",\"execution_mode\":\"local\",\"workers\":1,\"threads_per_worker\":2,\"host_memory_limit\":\"512MiB\",\"host_memory_bytes\":536870912,\"selected_gpus\":[],\"scratch_directory\":\"/tmp\"}"
+    },
+    {
+      "method": "PUT",
+      "status": 200,
+      "url": "http://127.0.0.1:5197/api/execution-profiles/fullstack-cpu",
+      "body": "{\"schema_version\":1,\"name\":\"fullstack-cpu\",\"execution_mode\":\"local\",\"workers\":1,\"threads_per_worker\":3,\"host_memory_limit\":\"512MiB\",\"host_memory_bytes\":536870912,\"selected_gpus\":[],\"scratch_directory\":\"/tmp\"}"
+    },
+    {
+      "method": "GET",
+      "status": 200,
+      "url": "http://127.0.0.1:5197/api/execution-profiles",
+      "body": "{\"path\":\"/tmp/gtsfm-profiles-fullstack/profiles.json\",\"items\":[{\"schema_version\":1,\"name\":\"fullstack-cpu\",\"execution_mode\":\"local\",\"workers\":1,\"threads_per_worker\":3,\"host_memory_limit\":\"512MiB\",\"host_memory_bytes\":536870912,\"selected_gpus\":[],\"scratch_directory\":\"/tmp\"}]}"
+    },
+    {
+      "method": "PUT",
+      "status": 400,
+      "url": "http://127.0.0.1:5197/api/execution-profiles/fullstack-cpu",
+      "body": "{\"error\":\"host_memory_limit must use an explicit unit, for example 32GB\"}"
+    }
+  ],
+  "source_before": {
+    "visualization/frontend/src/main.tsx": "cebf23b95297e7cf1f3900121c54ec1568a5c87c6ee6408c3a89adbce0399cfb",
+    "visualization/frontend/src/styles.css": "427801b6d8595ab92f32da9432036f7328ea59ed9a6d6222288e622df15c8aae",
+    "visualization/execution_profiles.py": "45a9fc611e1a84500779d8d9c127daaa59b135fc0acfd96d4d890dc4be01acee",
+    "visualization/app.py": "44ff1c0f0b797b8d6cb6ed8219ab802a96084e20d16e6832461451ab78a7367d",
+    "visualization/runtime.py": "f767d0b0e89827ad2a074689ce0c4caa071aa8ebb9ec69a41a0d7cbe99044bb6"
+  },
+  "source_after": {
+    "visualization/frontend/src/main.tsx": "cebf23b95297e7cf1f3900121c54ec1568a5c87c6ee6408c3a89adbce0399cfb",
+    "visualization/frontend/src/styles.css": "427801b6d8595ab92f32da9432036f7328ea59ed9a6d6222288e622df15c8aae",
+    "visualization/execution_profiles.py": "45a9fc611e1a84500779d8d9c127daaa59b135fc0acfd96d4d890dc4be01acee",
+    "visualization/app.py": "44ff1c0f0b797b8d6cb6ed8219ab802a96084e20d16e6832461451ab78a7367d",
+    "visualization/runtime.py": "f767d0b0e89827ad2a074689ce0c4caa071aa8ebb9ec69a41a0d7cbe99044bb6"
+  },
+  "scope": "Real Chrome + Vite + FastAPI + disposable disk store; no mocked API; no reconstruction or GPU evidence."
+}

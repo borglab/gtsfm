@@ -1,0 +1,2 @@
+{"observed": {"memory_limit_bytes": 1000000000, "threads": 1, "worker_details": [{"address": "tcp://127.0.0.1:37517", "cuda_available": true, "cuda_device_count": 1, "cuda_device_name": "NVIDIA GeForce RTX 3080", "cuda_visible_devices": "", "local_directory": "/tmp/gtsfm-dask-probe-4m3lbd3i/dask-scratch-space/worker-15yy0881", "memory_limit_bytes": 1000000000, "nthreads": 1, "pid": 303756}], "workers": 1}, "requested": {"host_memory_limit": "1GB", "scratch_directory": "/tmp/gtsfm-dask-probe-4m3lbd3i", "threads_per_worker": 1, "workers": 1}}
+
