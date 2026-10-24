@@ -5,8 +5,6 @@ GTSFM Studio v0.0.2 Patch Notes
 - Added setup checks for dependencies and optional components.
 - Added preset-aware Hydra controls that update with the selected model, plus JSON configuration import with a generated template and validation.
 
-![GTSFM Studio Patch Demo](assets/gtsfm_studio_v0.0.2_hydra_config_patch.gif)
-
 | Interface control | Resulting mapping | Relationship |
 |---|---|---|
 | Reconstruction model | `--config_name vggt` → `hydra.compose(config_name="vggt")` | Direct preset selection |
