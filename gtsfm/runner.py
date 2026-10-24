@@ -19,20 +19,26 @@ from gtsfm.loader.configuration import add_loader_args, build_loader_overrides
 from gtsfm.utils.configuration import log_full_configuration
 from gtsfm.utils.dask_stats import publish as publish_dask_stats
 
-dask_config.set(
-    {
-        "distributed.scheduler.worker-ttl": None,
+# Register GTSFM's longer communication defaults without overriding an
+# explicit DASK_CONFIG/YAML/environment value loaded by Dask at startup.
+_dask_project_defaults = {
+    "distributed": {
+        "scheduler": {"worker-ttl": None},
         # Tolerate long event-loop stalls (bulk image loads, the in-process global frontend) without
         # tearing down the client<->scheduler/worker comms. With the 30s defaults these comms close
         # mid-run on large single-node scenes, surfacing as CommClosedError / "lost dependencies".
-        "distributed.comm.timeouts.connect": "300s",
-        "distributed.comm.timeouts.tcp": "300s",
+        "comm": {"timeouts": {"connect": "300s", "tcp": "300s"}},
     }
-)
+}
+# Let Dask's native collector reapply YAML/environment values after registering
+# project defaults. This preserves the complete nested configuration tree.
+dask_config.update_defaults(_dask_project_defaults)
+dask_config.update(dask_config.config, dask_config.collect())
 
 logger = logger_utils.get_logger()
 
 DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent.parent
+_LOCAL_CLUSTER_TARGETS = {"distributed.LocalCluster", "dask.distributed.LocalCluster"}
 
 if TYPE_CHECKING:
     from gtsfm.scene_optimizer import SceneOptimizer
@@ -64,6 +70,9 @@ class GtsfmRunner:
     def __init__(self, override_args=None) -> None:
         argparser: argparse.ArgumentParser = self.construct_argparser()
         self.parsed_args, self._hydra_cli_overrides = argparser.parse_known_args(args=override_args)
+        # ``dask_tmpdir`` is a legacy manual-cluster setting. A local Hydra
+        # constructor YAML is authoritative for its worker ``local_directory``
+        # and must not be merged with this form field.
         if self.parsed_args.dask_tmpdir:
             dask_config.set({"temporary_directory": DEFAULT_OUTPUT_ROOT / self.parsed_args.dask_tmpdir})
 
@@ -383,10 +392,58 @@ class GtsfmRunner:
                 target_optimizer.gaussian_splatting_optimizer = None
                 logger.info("🔄 Disabled Gaussian Splatting optimizer via CLI flag --run_gs=False")
 
+    @staticmethod
+    def _cluster_config_path(cluster_config: str) -> Path:
+        """Resolve a legacy config name or an explicit local YAML path."""
+        requested = Path(cluster_config).expanduser()
+        candidates = (
+            [requested]
+            if requested.is_absolute()
+            else [requested, DEFAULT_OUTPUT_ROOT / "gtsfm" / "configs" / requested]
+        )
+        for candidate in candidates:
+            if candidate.is_file():
+                return candidate.resolve()
+        raise ValueError(f"Dask cluster config was not found: {cluster_config}")
+
+    @classmethod
+    def _load_cluster_config(cls, cluster_config: str):
+        """Load one OmegaConf document and reject empty/non-mapping YAML."""
+        path = cls._cluster_config_path(cluster_config)
+        try:
+            config = OmegaConf.load(path)
+        except Exception as exc:
+            raise ValueError(f"Unable to load Dask cluster config {path}: {exc}") from exc
+        if not OmegaConf.is_dict(config):
+            raise ValueError(f"Dask cluster config must be a YAML mapping: {path}")
+        return config
+
+    @classmethod
+    def _cluster_config_target(cls, cluster_config: str | None) -> str:
+        if not str(cluster_config or "").strip():
+            return ""
+        config = cls._load_cluster_config(str(cluster_config))
+        return str(config.get("_target_") or "").strip()
+
+    @classmethod
+    def _cluster_config_is_local(cls, cluster_config: str | None) -> bool:
+        return cls._cluster_config_target(cluster_config) in _LOCAL_CLUSTER_TARGETS
+
     def setup_ssh_cluster_with_retries(self):
         """Sets up SSH Cluster allowing multiple retries upon connection failures."""
-        config = OmegaConf.load(os.path.join("gtsfm", "configs", self.parsed_args.cluster_config))
-        workers = dict(config)["workers"]
+        config = self._load_cluster_config(self.parsed_args.cluster_config)
+        target = str(config.get("_target_") or "").strip()
+        if target:
+            raise ValueError(
+                f"Unsupported Dask cluster target {target!r}; use distributed.LocalCluster for local YAML "
+                "or the legacy workers list for SSH/GPU clusters"
+            )
+        try:
+            workers = list(config["workers"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError("Legacy Dask cluster config must define a non-empty workers list") from exc
+        if not workers:
+            raise ValueError("Legacy Dask cluster config must define a non-empty workers list")
         scheduler = workers[0]
         # Detect GPU cluster configuration
         is_gpu_cluster = any("gpus" in w or "gpu_memory_pool" in w for w in workers)
@@ -488,20 +545,35 @@ class GtsfmRunner:
 
     def _create_dask_client(self):
         if self.parsed_args.cluster_config:
-            # Case 2 or 3: Distributed multi-GPU machines
-            cluster, config = self.setup_ssh_cluster_with_retries()
-            client = Client(cluster)
-
-            workers = dict(config)["workers"]
-            unique_hosts = set(w["host"] for w in workers)
-
-            if len(unique_hosts) > 1:
-                self._io_worker = list(client.scheduler_info()["workers"].keys())[0]
+            config = self._load_cluster_config(self.parsed_args.cluster_config)
+            target = str(config.get("_target_") or "").strip()
+            if target in _LOCAL_CLUSTER_TARGETS:
+                # Hydra owns constructor resolution and Dask owns validation of
+                # constructor kwargs. Do not merge manual form defaults here.
+                cluster = instantiate(config)
+                try:
+                    client = Client(cluster)
+                except Exception:
+                    try:
+                        cluster.close()
+                    except Exception as cleanup_exc:
+                        logger.warning("Unable to clean up failed local Dask cluster: %s", cleanup_exc)
+                    raise
             else:
-                logger.info("🖥️  Single-machine multi-GPU cluster")
-                logger.info("   All workers can access data locally")
+                # Legacy SSH and dask-cuda worker YAML remains unchanged.
+                cluster, config = self.setup_ssh_cluster_with_retries()
+                client = Client(cluster)
 
-            client.forward_logging()
+                workers = list(config["workers"])
+                unique_hosts = {w if isinstance(w, str) else w["host"] for w in workers}
+
+                if len(unique_hosts) > 1:
+                    self._io_worker = list(client.scheduler_info()["workers"].keys())[0]
+                else:
+                    logger.info("🖥️  Single-machine multi-GPU cluster")
+                    logger.info("   All workers can access data locally")
+
+                client.forward_logging()
         else:
             # Case 1: Single Local Machine
             local_cluster_kwargs = {

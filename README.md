@@ -51,6 +51,10 @@ gtsfm viz               # open existing results
 gtsfm run --no-browser  # start the workspace without opening a browser
 ```
 
+For reusable compute settings, the existing **Cluster config (YAML)** field accepts
+a local Dask constructor configuration through Hydra/OmegaConf. Dask runtime policies
+use native Dask YAML and environment settings. See [Dask configuration](docs/setup/dask-configuration.md).
+
 Results open at the first reconstructed camera, with its photo selected in the
 collapsible **Photos** sidebar. Click a thumbnail (or use the camera arrows) to
 move to that camera, and use the enlarge button to inspect a larger photo.
