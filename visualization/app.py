@@ -21,7 +21,7 @@ from urllib.parse import quote, urlparse
 import uvicorn
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile, WebSocket
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, ConfigDict
@@ -29,6 +29,7 @@ from starlette.websockets import WebSocketDisconnect
 
 from visualization.datasets import IMAGE_SUFFIXES
 from visualization.modal_deployment import ModalDeploymentManager, modal_workspace_api_key
+from visualization.photos import ScenePhotos
 from visualization.runtime import (
     JobManager,
     configuration_parameter_schema,
@@ -258,6 +259,7 @@ def find_scenes(base_dir: Path) -> list[dict[str, str | None]]:
                 "rel_path": rel,
                 "points": f"/data/{quote(rel)}/points3D.txt",
                 "images": f"/data/{quote(rel)}/images.txt",
+                "cameras": f"/data/{quote(rel)}/cameras.txt" if (parent / "cameras.txt").is_file() else None,
                 "splats": splats_url,
                 "splat_rel_path": splats_path.relative_to(base_dir).as_posix() if splats_path else None,
             }
@@ -375,11 +377,12 @@ def create_app(
     app.state.gtsfm_jobs = manager
     app.state.modal_deployments = modal_deployments
     app.state.results_dir = resolved_base
+    photos = ScenePhotos(resolved_base)
 
     @app.middleware("http")
     async def add_response_headers(request: Request, call_next):
         response = await call_next(request)
-        response.headers["Cache-Control"] = "no-store"
+        response.headers.setdefault("Cache-Control", "no-store")
         return response
 
     @app.exception_handler(HTTPException)
@@ -407,6 +410,31 @@ def create_app(
     def list_scenes() -> dict[str, Any]:
         scenes = find_scenes(resolved_base)
         return {"base_dir": str(resolved_base), "count": len(scenes), "items": scenes}
+
+    @app.get("/api/photos")
+    def scene_photos(scene: str) -> dict[str, Any]:
+        try:
+            return photos.manifest(scene)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except (ValueError, OSError) as exc:
+            raise HTTPException(status_code=400, detail="Unable to resolve scene photos") from exc
+
+    @app.get("/api/photos/image")
+    def scene_photo(request: Request, scene: str, index: int, size: int = 256) -> Response:
+        if size not in {256, 1600}:
+            raise HTTPException(status_code=422, detail="Photo size must be 256 or 1600")
+        try:
+            path = photos.image_source(scene, index)
+            etag = photos.etag(path, size)
+            headers = {"ETag": etag, "Cache-Control": "private, max-age=3600"}
+            if request.headers.get("if-none-match") == etag:
+                return Response(status_code=304, headers=headers)
+            return Response(photos.resized(path, size, etag), media_type="image/jpeg", headers=headers)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except (ValueError, OSError, Image.DecompressionBombError) as exc:
+            raise HTTPException(status_code=400, detail="Unable to read scene photo") from exc
 
     @app.get("/api/splats/export")
     def export_saved_splat(path: str, format: str = "ply") -> FileResponse:

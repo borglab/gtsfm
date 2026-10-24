@@ -18,6 +18,7 @@ import * as Switch from "@radix-ui/react-switch";
 import * as Tabs from "@radix-ui/react-tabs";
 import { Activity, Box, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, CircleAlert, Copy, Cpu, Database, Download, FolderUp, Github, Maximize2, Minus, MonitorCog, Play, RefreshCw, Server, SlidersHorizontal, Square, Terminal, Wrench, X } from "lucide-react";
 import "./styles.css";
+import { PhotoPanel, type PhotoState } from "./photo-panel";
 
 type JobStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
 type InputValue = string | number;
@@ -402,6 +403,8 @@ interface FolderFile {
 
 interface ViewerApi {
   isBusy(): boolean;
+  getPhotoState(): PhotoState;
+  selectCamera(index: number): void;
   loadSplatsFile(input: { splatsUrl: string; label: string }): Promise<boolean | void>;
 }
 
@@ -2098,16 +2101,16 @@ function Viewer({ activeJob, live, logsOpen, setLogsOpen, statusBarOpen, setStat
   const expectsSplats = Boolean(activeJob && (activeJob.spec.splat_implementation || "none") !== "none");
   const visualizationAvailable = Boolean(live?.preview_url || live?.final_url || activeJob?.has_final_splat);
   const showPipelineWait = Boolean(activeJob && expectsSplats && ["queued", "running"].includes(activeJob.status) && !visualizationAvailable);
-  return <main id="main-content"><StatusBar job={activeJob} live={live} logsOpen={logsOpen} setLogsOpen={setLogsOpen} visible={statusBarOpen} onCancel={onCancelJob} onClose={closeStatus} />
+  return <><main id="main-content"><StatusBar job={activeJob} live={live} logsOpen={logsOpen} setLogsOpen={setLogsOpen} visible={statusBarOpen} onCancel={onCancelJob} onClose={closeStatus} />
     <SetupPanel setup={setup} refreshing={setupRefreshing} onRefresh={onRefreshSetup} onSetupChange={onSetupChange} hasActiveJob={Boolean(activeJob && statusBarOpen)} />
     <div id="sceneStats" className={showDaskStats ? "dask-active" : undefined}><div className="stat-group" data-mode="scene"><div className="stat-pair"><span className="label">Cameras</span><span className="value" id="statCameras">0</span></div><div className="stat-pair"><span className="label">Points</span><span className="value" id="statPoints">0</span></div><div className="stat-wide"><span className="label">Image</span><span className="value" id="statImageName">—</span></div></div><div className="stat-group" data-mode="splat"><div className="stat-pair"><span className="label">Splats</span><span className="value" id="statSplats">0</span></div></div>{showDaskStats && activeJob && <DaskStats job={activeJob} live={live}/>}</div>
     <canvas id="renderCanvas"/>
-    <div id="hud"><label className="background-control">BG <select id="backgroundSelect" defaultValue="dark" aria-label="Viewer background"><option value="dark">Dark</option><option value="graphite">Graphite</option><option value="light-gray">Light gray</option><option value="white">White</option></select></label><button id="prevCamBtn" className="hud-scene-only" title="Previous camera"><ChevronLeft size={14}/></button><button id="nextCamBtn" className="hud-scene-only" title="Next camera"><ChevronRight size={14}/></button><button id="toggleStats">Hide stats</button><label className="hud-scene-only"><input type="checkbox" id="toggleCams" defaultChecked/> Cameras</label><label className="hud-scene-only">Point size <input type="range" id="ptSize" min="1" max="10" defaultValue="2"/></label><button id="toggleGround" type="button" aria-pressed="true">Hide plane</button><label className="plane-height-control">Plane Y <input type="range" id="groundY" min="-5" max="5" step="0.1" defaultValue="0" aria-label="Plane vertical position"/><output id="groundYValue" htmlFor="groundY">0.0</output></label></div>
+    <div id="hud"><label className="background-control">BG <select id="backgroundSelect" defaultValue="dark" aria-label="Viewer background"><option value="dark">Dark</option><option value="graphite">Graphite</option><option value="light-gray">Light gray</option><option value="white">White</option></select></label><button id="overviewBtn" className="hud-scene-only" title="Show the reconstruction and all cameras">Overview</button><button id="prevCamBtn" className="hud-scene-only" title="Previous camera"><ChevronLeft size={14}/></button><button id="nextCamBtn" className="hud-scene-only" title="Next camera"><ChevronRight size={14}/></button><button id="toggleStats">Hide stats</button><label className="hud-scene-only"><input type="checkbox" id="toggleCams" defaultChecked/> Cameras</label><label className="hud-scene-only">Point size <input type="range" id="ptSize" min="1" max="10" defaultValue="2"/></label><button id="toggleGround" type="button" aria-pressed="false">Show plane</button><label className="plane-height-control">Plane Y <input type="range" id="groundY" min="-5" max="5" step="0.1" defaultValue="0" aria-label="Plane vertical position"/><output id="groundYValue" htmlFor="groundY">0.0</output></label></div>
     <a className="viewport-github" href="https://github.com/borglab/gtsfm" target="_blank" rel="noreferrer" title="Open GTSFM on GitHub" aria-label="Open GTSFM GitHub repository"><Github size={16}/></a>
     <LogPanel open={logsOpen} job={activeJob} onClose={() => setLogsOpen(false)} />
     {showPipelineWait && activeJob && <div className="pipeline-wait-overlay" role="status" aria-live="polite"><div className="pipeline-wait-content"><span>RECONSTRUCTION IN PROGRESS</span><strong>{pipelineStatusMessage(activeJob, live)}</strong><div className="pipeline-wait-dots" aria-hidden="true"><i/><i/><i/></div><small>The first live Gaussian preview will appear here automatically.</small></div></div>}
     <div id="loadingOverlay" className="loading-overlay" role="status"><div className="loading-box"><span id="loadingMessage">Loading…</span><div className="loading-progress-track"><div className="loading-progress-fill" id="loadingProgress"/></div></div></div>
-  </main>;
+  </main><PhotoPanel/></>;
 }
 
 function hardwareWarningContent(hardware: HardwareCatalog): { title: string; description: string } {
