@@ -20,7 +20,7 @@ class ColmapViewer {
     this.camera.minZ = 0.01;    // Near clipping plane
     this.camera.maxZ = 10000;   // Far clipping plane
 
-    // The parser converts reconstruction coordinates to Babylon's Y-up frame.
+    // Source Z-up is mapped to Babylon's Y-up, left-handed world frame.
     this.camera.upVector = new BABYLON.Vector3(0, 1, 0);
     this.camera.setPosition(new BABYLON.Vector3(10, 8, -12));
     this.camera.setTarget(BABYLON.Vector3.Zero());
@@ -573,9 +573,9 @@ class ColmapViewer {
       if (!line || line[0] === "#") continue;
       const s = line.trim().split(/\s+/);
       if (s.length >= 7) {
-        // flip Y for Babylon’s Y-up RH frame
+        // Right-handed, Z-up reconstruction -> left-handed, Y-up viewer.
         pts.push({
-          x: parseFloat(s[1]), y: -parseFloat(s[2]), z: parseFloat(s[3]),
+          x: parseFloat(s[1]), y: parseFloat(s[3]), z: parseFloat(s[2]),
           r: parseInt(s[4]) / 255, g: parseInt(s[5]) / 255, b: parseInt(s[6]) / 255
         });
       }
@@ -585,6 +585,8 @@ class ColmapViewer {
 
   _parseCams(text) {
     const cams = [];
+    const worldToViewer = this._worldToViewerMatrix();
+    const localToColmap = BABYLON.Matrix.Scaling(1, -1, 1);
     const lines = text.split("\n");
     for (let i = 0; i < lines.length; i++) {
       const line = (lines[i] || "").trim();
@@ -601,10 +603,10 @@ class ColmapViewer {
         const t = new BABYLON.Vector3(tx, ty, tz);
         const centerWorld = BABYLON.Vector3.TransformCoordinates(t.scale(-1), Rcw);
 
-        // Flip into viewer coords (Y flip)
-        const flip = BABYLON.Matrix.Scaling(1, -1, 1);
-        const center = new BABYLON.Vector3(centerWorld.x, -centerWorld.y, centerWorld.z);
-        const Rcam = flip.multiply(Rcw).multiply(flip);
+        const center = BABYLON.Vector3.TransformCoordinates(centerWorld, worldToViewer);
+        // Babylon composes row-vector transforms left to right: camera-local
+        // Y-up -> COLMAP Y-down, camera -> world, then source Z-up -> viewer Y-up.
+        const Rcam = localToColmap.multiply(Rcw).multiply(worldToViewer);
 
         const name = s.length > 9 ? s.slice(9).join(" ") : "";
         cams.push({ center, R: Rcam, name, cameraId: Number(s[8]) });
@@ -614,6 +616,16 @@ class ColmapViewer {
       }
     }
     return cams;
+  }
+
+  _worldToViewerMatrix() {
+    // (x, y, z) -> (x, z, y). Swapping Y/Z also changes handedness.
+    return BABYLON.Matrix.FromValues(
+      1, 0, 0, 0,
+      0, 0, 1, 0,
+      0, 1, 0, 0,
+      0, 0, 0, 1
+    );
   }
 
   _parseIntrinsics(text) {
@@ -752,7 +764,9 @@ class ColmapViewer {
       false
     );
     mesh.isPickable = false;
-    mesh.scaling.y = -1;
+    // Transform the complete splat frame, including anisotropic covariance.
+    mesh.rotationQuaternion = new BABYLON.Quaternion();
+    this._worldToViewerMatrix().decompose(mesh.scaling, mesh.rotationQuaternion, mesh.position);
 
     try {
       await mesh.updateDataAsync(converted.buffer, converted.sh ?? undefined);
@@ -931,8 +945,8 @@ class ColmapViewer {
 
       points.push({
         x,
-        y: -y,
-        z,
+        y: z,
+        z: y,
         r,
         g,
         b,
@@ -1006,8 +1020,8 @@ class ColmapViewer {
       const alpha = this._plyOpacity(opacity, idx);
       points.push({
         x,
-        y: -y,
-        z,
+        y: z,
+        z: y,
         r,
         g,
         b,

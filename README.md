@@ -56,6 +56,9 @@ collapsible **Photos** sidebar. Click a thumbnail (or use the camera arrows) to
 move to that camera, and use the enlarge button to inspect a larger photo.
 **Overview** frames the reconstruction and its textured camera frustums. The
 ground plane starts hidden and can be enabled with **Show plane**.
+The viewer treats reconstruction Z as up; the ground plane lies in the source
+XY plane, and **Plane Z** adjusts its height. Camera views retain their recorded
+roll so that the reconstructed points stay aligned with each photo.
 
 Photos are resolved from the nearest saved `config.yaml` loader paths, so the
 source dataset must remain available. Older CLI runs with relative dataset paths

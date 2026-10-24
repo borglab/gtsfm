@@ -25,6 +25,75 @@ function fixture() {
 
 function close(a, b, tolerance=1e-5) { assert.ok(Math.abs(a - b) < tolerance, `${a} != ${b}`); }
 
+test('source XY plane is horizontal and positive source Z points up', () => {
+  const points = proto._parsePoints('1 2 3 0 255 0 0\n2 -4 5 0 0 255 0\n3 2 3 7 0 0 255\n');
+  close(points[0].y, 0);
+  close(points[1].y, 0);
+  close(points[2].y, 7);
+  close(points[0].x, 2);
+  close(points[0].z, 3);
+});
+
+test('Z-up conversion preserves photo projection and frustum corners for a rolled camera', () => {
+  const v = fixture();
+  // Independent COLMAP world->camera rotation from a unit quaternion.
+  const [w, x, y, z] = [0.8, 0.2, -0.3, 0.4].map(a => a / Math.sqrt(0.93));
+  const R = [
+    [1-2*(y*y+z*z), 2*(x*y-z*w), 2*(x*z+y*w)],
+    [2*(x*y+z*w), 1-2*(x*x+z*z), 2*(y*z-x*w)],
+    [2*(x*z-y*w), 2*(y*z+x*w), 1-2*(x*x+y*y)],
+  ];
+  const C = [3, 4, 5];
+  const t = R.map(row => -row.reduce((sum, value, i) => sum + value*C[i], 0));
+  const cameraPointToWorld = p => C.map((c, i) => c + R.reduce((sum, row, j) => sum + row[i]*p[j], 0));
+  v.cameras = v._parseCams(`7 ${w} ${x} ${y} ${z} ${t.join(' ')} 1 rolled.jpg\n\n`);
+  const cam = v.cameras[0];
+  cam.intrinsics = { width: 800, height: 600, fx: 400, fy: 400, cx: 400, cy: 300 };
+  v._autoFrame();
+  v.camera.getViewMatrix(true);
+  const world = cameraPointToWorld([1, -0.5, 4]);
+  const point = v._parsePoints(`1 ${world.join(' ')} 255 255 255`)[0];
+  const projected = BABYLON.Vector3.Project(new BABYLON.Vector3(point.x, point.y, point.z),
+    BABYLON.Matrix.Identity(), v.camera.getViewMatrix().multiply(v.camera.getProjectionMatrix(true)),
+    new BABYLON.Viewport(0, 0, 800, 600));
+  close(projected.x, 500, 1e-3);
+  close(projected.y, 250, 1e-3);
+  const corners = v._imageCorners(cam, 2);
+  const expectedCameraCorners = [[-2,-1.5,2], [2,-1.5,2], [2,1.5,2], [-2,1.5,2]];
+  corners.forEach((corner, i) => {
+    const actual = BABYLON.Vector3.TransformCoordinates(corner, cam.R).add(cam.center);
+    const expected = cameraPointToWorld(expectedCameraCorners[i]);
+    close(actual.x, expected[0]); close(actual.y, expected[2]); close(actual.z, expected[1]);
+  });
+  v.engine.dispose();
+});
+
+test('splat mesh transforms positions and anisotropic axes into the same Z-up frame', async () => {
+  const v = fixture();
+  // Use a real Babylon mesh for transforms; GPU splat uploads need a browser.
+  class SplatMesh extends BABYLON.Mesh {
+    constructor(name, url, scene) { super(name, scene); }
+    async updateDataAsync() {}
+  }
+  sandbox.BABYLON = { ...BABYLON, GaussianSplattingMesh: SplatMesh };
+  try {
+    await v._createSplatsMesh({ buffer: new ArrayBuffer(32) });
+    const matrix = v.splatsMesh.getWorldMatrix();
+    const p = BABYLON.Vector3.TransformCoordinates(new BABYLON.Vector3(2, 3, 7), matrix);
+    close(p.x, 2); close(p.y, 7); close(p.z, 3);
+    // Unequal principal axes must rotate with the centers, not stay in the old frame.
+    for (const [axis, expected] of [
+      [[2,0,0], [2,0,0]], [[0,3,0], [0,0,3]], [[0,0,4], [0,4,0]],
+    ]) {
+      const actual = BABYLON.Vector3.TransformNormal(BABYLON.Vector3.FromArray(axis), matrix);
+      actual.asArray().forEach((value, i) => close(value, expected[i]));
+    }
+  } finally {
+    sandbox.BABYLON = BABYLON;
+    v.engine.dispose();
+  }
+});
+
 test('COLMAP parsing retains spaced names, skips empty/negative observations and resolves intrinsics', () => {
   const cameras = proto._parseCams('# header\n7 1 0 0 0 0 0 0 3 first photo.jpg\n\n8 1 0 0 0 0 0 0 4 second.jpg\n-2.0 3.0 -1\n');
   assert.equal(cameras.length, 2);
@@ -43,8 +112,8 @@ test('first camera uses reconstructed position, forward direction, roll and fiel
   v._autoFrame();
   v.camera.getViewMatrix(true);
   close(v.camera.position.x, 3);
-  close(v.camera.position.y, 2);
-  close(v.camera.position.z, -1);
+  close(v.camera.position.y, -1);
+  close(v.camera.position.z, -2);
   const forward = v.camera.getForwardRay().direction;
   close(forward.x, -1);
   close(forward.y, 0);
