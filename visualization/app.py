@@ -31,6 +31,7 @@ from visualization.datasets import IMAGE_SUFFIXES
 from visualization.modal_deployment import ModalDeploymentManager, modal_workspace_api_key
 from visualization.runtime import (
     JobManager,
+    configuration_parameter_schema,
     configuration_schema,
     detect_hardware,
     install_optional_setup,
@@ -419,6 +420,23 @@ def create_app(
     @app.get("/api/configuration")
     def get_configuration() -> dict[str, Any]:
         return configuration_schema()
+
+    @app.get("/api/configuration/parameters")
+    def get_configuration_parameters(
+        config_name: str = "vggt",
+        loader: str = "olsson",
+        gaussian_splatting_config_name: str = "base_gs",
+        splat_implementation: str = "gsplat",
+    ) -> dict[str, Any]:
+        try:
+            return configuration_parameter_schema(
+                config_name,
+                loader,
+                gaussian_splatting_config_name,
+                splat_implementation == "gsplat",
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.get("/api/hardware")
     def get_hardware() -> dict[str, Any]:
