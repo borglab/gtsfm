@@ -1869,6 +1869,113 @@ input[type="checkbox"] {
   margin: -5px 0 13px;
 }
 
+.execution-profile-editor {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.machine-settings-fields {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.execution-profile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.execution-profile-actions button {
+  min-height: 30px;
+  padding: 5px 9px;
+  border: 1px solid var(--line-dark);
+  background: var(--paper-raised);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.execution-profile-actions button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.execution-profile-actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.execution-profile-feedback {
+  margin: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  font-size: 10px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.execution-profile-feedback.error {
+  border-color: #ddb1aa;
+  color: var(--danger);
+  background: #fbefec;
+}
+
+.execution-profile-feedback.ready {
+  border-color: #b7cebe;
+  color: var(--success);
+  background: #edf4ed;
+}
+
+.execution-profile-feedback.warning {
+  border-color: #dfcfaa;
+  color: #806324;
+  background: #f8f3e7;
+}
+
+.execution-comparison {
+  flex-shrink: 0;
+  max-height: 52%;
+  overflow: auto;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--viewport-line);
+  color: #d7d8d3;
+  font-size: 10px;
+}
+
+.execution-comparison table {
+  width: 100%;
+  margin: 7px 0;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.execution-comparison th,
+.execution-comparison td {
+  padding: 4px 7px 4px 0;
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.execution-comparison th {
+  color: #b7bbb6;
+  font-weight: 500;
+}
+
+.execution-comparison p {
+  margin: 5px 0;
+  color: #b7bbb6;
+}
+
+.execution-comparison summary {
+  cursor: pointer;
+}
+
+.execution-comparison .execution-comparison-warning {
+  color: #dfbc76;
+}
+
 .toggle-row {
   display: flex;
   min-height: 31px;

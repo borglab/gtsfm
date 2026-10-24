@@ -35,6 +35,7 @@ import yaml
 
 import gtsfm
 from visualization.datasets import resolve_relative_loader_paths
+from visualization.execution_profiles import ExecutionProfileStore, apply_profile
 
 PACKAGE_ROOT = Path(gtsfm.__file__).resolve().parent
 CONFIG_ROOT = PACKAGE_ROOT / "configs"
@@ -1134,12 +1135,13 @@ class ManagedJob:
 class JobManager:
     """Own subprocesses started by one browser workspace process."""
 
-    def __init__(self, results_root: Path) -> None:
+    def __init__(self, results_root: Path, profile_store: ExecutionProfileStore | None = None) -> None:
         self.results_root = results_root.resolve()
         self.results_root.mkdir(parents=True, exist_ok=True)
         self.runtime_root = self.results_root / ".gtsfm"
         self.runtime_root.mkdir(parents=True, exist_ok=True)
         self._jobs: dict[str, ManagedJob] = {}
+        self.profile_store = profile_store or ExecutionProfileStore()
         self._lock = threading.RLock()
 
     def list(self) -> list[dict[str, Any]]:
@@ -1153,6 +1155,7 @@ class JobManager:
     def start(self, spec: Mapping[str, Any], *, job_id: str | None = None) -> dict[str, Any]:
         """Start a pipeline, optionally using a caller-provided durable job ID."""
 
+        spec, resolved_profile = apply_profile(spec, self.profile_store)
         job_id = job_id or uuid.uuid4().hex[:12]
         if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", job_id):
             raise ValueError("Job ID contains unsupported characters")
@@ -1161,6 +1164,8 @@ class JobManager:
         # Keep transient previews outside the results tree discovered by the viewer.
         live_root = self.runtime_root / "live" / job_id
         public_spec = dict(spec)
+        if resolved_profile is not None:
+            public_spec["resolved_execution_profile"] = resolved_profile
         for secret_field in (
             "api_key",
             "modal_api_key",
@@ -1204,7 +1209,11 @@ class JobManager:
         with self._lock:
             self._jobs[job_id] = job
 
+        run_root.mkdir(parents=True, exist_ok=True)
         live_root.mkdir(parents=True, exist_ok=True)
+        # Keep the exact resolved execution contract beside each run for restart-safe review.
+        contract_path = run_root / "execution_profile.json"
+        contract_path.write_text(json.dumps({"profile": resolved_profile, "spec": public_spec}, indent=2, sort_keys=True, default=str) + "\n", encoding="utf-8")
         if is_remote:
             thread = threading.Thread(target=self._run_remote, args=(job,), daemon=True, name=f"gtsfm-remote-{job_id}")
             thread.start()

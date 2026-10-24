@@ -39,6 +39,7 @@ from visualization.runtime import (
     setup_status,
 )
 from visualization.samples import SampleDownloadError, prepare_sample, sample_catalog
+from visualization.execution_profiles import ExecutionProfileStore
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
 STATIC_ROOT = PACKAGE_ROOT / "static"
@@ -95,6 +96,8 @@ class RunRequest(BaseModel):
     splat_implementation: str = "gsplat"
     execution_target: str = "local"
     hardware: str = "cpu"
+    execution_profile: str = ""
+    execution_profile_name: str = ""
 
 
 def analyze_image_dataset(root: Path) -> dict[str, int | float]:
@@ -360,12 +363,13 @@ def create_app(
     base_dir: Path | str = "results",
     *,
     job_manager: JobManager | None = None,
+    profile_store: ExecutionProfileStore | None = None,
     hardware_provider: Callable[[], dict[str, Any]] = detect_hardware,
 ) -> FastAPI:
     """Create an isolated FastAPI workspace for ``base_dir``."""
 
     resolved_base = Path(base_dir).expanduser().resolve()
-    manager = job_manager or JobManager(resolved_base)
+    manager = job_manager or JobManager(resolved_base, profile_store=profile_store)
     modal_deployments = ModalDeploymentManager(
         lambda token_id, token_secret: asyncio.run(_discover_modal_endpoint(token_id, token_secret))
     )
@@ -376,6 +380,7 @@ def create_app(
     )
     app.state.gtsfm_jobs = manager
     app.state.modal_deployments = modal_deployments
+    app.state.execution_profiles = manager.profile_store
     app.state.results_dir = resolved_base
     photos = ScenePhotos(resolved_base)
 
@@ -465,6 +470,35 @@ def create_app(
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/api/execution-profiles")
+    def list_execution_profiles() -> dict[str, Any]:
+        store: ExecutionProfileStore = app.state.execution_profiles
+        return {"path": str(store.path), "items": store.list()}
+
+    @app.get("/api/execution-profiles/{profile_name}")
+    def get_execution_profile(profile_name: str) -> dict[str, Any]:
+        profile = app.state.execution_profiles.get(profile_name)
+        if profile is None:
+            raise HTTPException(status_code=404, detail="Execution profile not found")
+        return profile
+
+    @app.put("/api/execution-profiles/{profile_name}", dependencies=[Depends(require_api_key)])
+    def save_execution_profile(profile_name: str, payload: dict[str, Any]) -> dict[str, Any]:
+        try:
+            return app.state.execution_profiles.save(payload, name=profile_name)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.delete("/api/execution-profiles/{profile_name}", dependencies=[Depends(require_api_key)])
+    def delete_execution_profile(profile_name: str) -> dict[str, bool]:
+        try:
+            deleted = app.state.execution_profiles.delete(profile_name)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Execution profile not found")
+        return {"deleted": True}
 
     @app.get("/api/hardware")
     def get_hardware() -> dict[str, Any]:

@@ -150,6 +150,32 @@ interface HardwareCatalog {
   };
 }
 
+interface ExecutionProfile {
+  schema_version: number;
+  name: string;
+  execution_mode: "local" | "remote";
+  workers: number;
+  threads_per_worker: number;
+  host_memory_limit: string;
+  host_memory_bytes?: number;
+  selected_gpus: string[];
+  scratch_directory: string;
+}
+
+const EXECUTION_PROFILE_SELECTION_KEY = "gtsfm-studio-execution-profile";
+
+function executionProfileSettings(form: RunFormState) {
+  const device = form.execution_target === "remote" ? form.remote_hardware : form.hardware;
+  return {
+    execution_mode: form.execution_target,
+    workers: Number(form.num_workers),
+    threads_per_worker: Number(form.threads_per_worker),
+    host_memory_limit: form.worker_memory_limit.trim(),
+    selected_gpus: device && device !== "cpu" ? [device] : [],
+    scratch_directory: form.dask_tmpdir.trim(),
+  };
+}
+
 type SetupCheckState = "ready" | "warning" | "error" | "optional";
 
 interface SetupCheck {
@@ -319,6 +345,13 @@ interface Job {
   spec: {
     config_name?: string;
     splat_implementation?: string;
+    execution_profile_name?: string;
+    resolved_execution_profile?: ExecutionProfile;
+    num_workers?: number;
+    threads_per_worker?: number;
+    worker_memory_limit?: string;
+    hardware?: string;
+    dask_tmpdir?: string;
   };
   error?: string;
   remote?: { workspace_url?: string };
@@ -352,6 +385,15 @@ interface LiveState {
     memory_limit_bytes: number;
     cpu_percent: number;
     dashboard_url?: string;
+    updated_at?: number;
+    worker_details?: Array<{
+      address: string;
+      nthreads: number;
+      memory_limit_bytes: number;
+      pid: number | null;
+      cuda_visible_devices: string | null;
+      local_directory?: string | null;
+    }>;
   };
 }
 
@@ -640,7 +682,7 @@ const errorMessage = (reason: unknown): string => reason instanceof Error ? reas
 async function getJson<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, options);
   const payload = await response.json();
-  if (!response.ok) throw new Error(payload.error || `Request failed (${response.status})`);
+  if (!response.ok) throw new Error(payload.error || payload.detail || `Request failed (${response.status})`);
   return payload as T;
 }
 
@@ -678,7 +720,7 @@ interface SelectFieldProps {
 }
 
 function SelectField({ label, value, options, onChange, disabled = false, empty = null, id }: SelectFieldProps) {
-  return <Field label={label}><select id={id} value={value ?? ""} onChange={(event) => onChange(event.target.value)} disabled={disabled}>
+  return <Field label={label}><select id={id} aria-label={label} value={value ?? ""} onChange={(event) => onChange(event.target.value)} disabled={disabled}>
     {empty !== null && <option value="">{empty}</option>}
     {options.map((option) => {
       const item = typeof option === "string" ? { id: option, label: displayName(option) } : option;
@@ -1070,6 +1112,14 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
   const [modalLogExpanded, setModalLogExpanded] = useState(false);
   const [configurationAdvanced, setConfigurationAdvanced] = useState(false);
   const [advanced, setAdvanced] = useState(false);
+  const [executionProfiles, setExecutionProfiles] = useState<ExecutionProfile[]>([]);
+  const [selectedExecutionProfileName, setSelectedExecutionProfileName] = useState("");
+  const [executionProfileName, setExecutionProfileName] = useState("");
+  const [executionProfilesLoading, setExecutionProfilesLoading] = useState(true);
+  const [executionProfileBusy, setExecutionProfileBusy] = useState(false);
+  const [executionProfileError, setExecutionProfileError] = useState("");
+  const [executionProfileMessage, setExecutionProfileMessage] = useState("");
+  const [executionProfilesRevision, setExecutionProfilesRevision] = useState(0);
   const [modelHydraOverrides, setModelHydraOverrides] = useState<HydraOverrideMap>({});
   const [splatHydraOverrides, setSplatHydraOverrides] = useState<HydraOverrideMap>({});
   const [hydraParameters, setHydraParameters] = useState<HydraParameterSchema | null>(null);
@@ -1106,7 +1156,7 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
     const splatDevice = hardware.devices.find((item) => item.supports_gaussian_splatting);
     setForm((current) => ({
       ...current,
-      hardware: splatDevice?.id ?? hardware.devices[0]?.id ?? "cpu",
+      hardware: selectedExecutionProfileName ? current.hardware : splatDevice?.id ?? hardware.devices[0]?.id ?? "cpu",
       splat_implementation: current.execution_target === "local" && !splatDevice ? "none" : current.splat_implementation,
     }));
   }, [hardware]);
@@ -1161,6 +1211,96 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
   const splatMeta = schema.splat_implementations.find((item) => item.id === form.splat_implementation);
   const selectedHardware = hardware?.devices.find((item) => item.id === form.hardware);
   const machineProfile = advancedMachineProfile(form, hardware, selectedHardware);
+  const selectedExecutionProfile = executionProfiles.find((profile) => profile.name === selectedExecutionProfileName);
+  const profileSettings = executionProfileSettings(form);
+  const executionProfileDirty = Boolean(selectedExecutionProfile && (
+    executionProfileName.trim() !== selectedExecutionProfile.name ||
+    form.cluster_config.trim() || form.input_worker.trim() ||
+    Object.entries(profileSettings).some(([key, value]) => JSON.stringify(value) !== JSON.stringify(selectedExecutionProfile[key as keyof ExecutionProfile]))
+  ));
+  const selectExecutionProfile = (name: string, profiles = executionProfiles) => {
+    const profile = profiles.find((item) => item.name === name);
+    if (profile && profile.execution_mode !== "local") {
+      setSelectedExecutionProfileName("");
+      setExecutionProfileName("");
+      setExecutionProfileMessage("");
+      setExecutionProfileError("Saved remote profiles are not supported. Use Manual machine settings for Remote VM / Modal, or choose a local profile.");
+      try { window.localStorage.removeItem(EXECUTION_PROFILE_SELECTION_KEY); } catch { /* Selection persistence is optional. */ }
+      return;
+    }
+    setSelectedExecutionProfileName(profile?.name ?? "");
+    setExecutionProfileName(profile?.name ?? "");
+    setExecutionProfileError("");
+    setExecutionProfileMessage("");
+    try { window.localStorage.setItem(EXECUTION_PROFILE_SELECTION_KEY, profile?.name ?? ""); } catch { /* Selection persistence is optional. */ }
+    if (!profile) return;
+    setForm((current) => ({
+      ...current,
+      execution_target: profile.execution_mode,
+      num_workers: profile.workers,
+      threads_per_worker: profile.threads_per_worker,
+      worker_memory_limit: profile.host_memory_limit,
+      dask_tmpdir: profile.scratch_directory,
+      hardware: profile.selected_gpus[0] ?? "cpu",
+    }));
+  };
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setExecutionProfilesLoading(true);
+    setExecutionProfileError("");
+    void getJson<{ items: ExecutionProfile[] }>("/api/execution-profiles", { signal: controller.signal })
+      .then((payload) => {
+        setExecutionProfiles(payload.items);
+        let savedName = "";
+        try { savedName = window.localStorage.getItem(EXECUTION_PROFILE_SELECTION_KEY) || ""; } catch { /* Selection persistence is optional. */ }
+        if (savedName && executionProfilesRevision === 0) {
+          selectExecutionProfile(savedName, payload.items);
+          if (!payload.items.some((profile) => profile.name === savedName)) {
+            setExecutionProfileError(`Saved profile "${savedName}" is unavailable on this host. Manual settings are active; choose another profile or save a new one.`);
+          }
+        } else if (selectedExecutionProfileName && !payload.items.some((profile) => profile.name === selectedExecutionProfileName)) {
+          selectExecutionProfile("", payload.items);
+          setExecutionProfileError("The selected profile was removed from this host. Manual settings are active.");
+        }
+      })
+      .catch((reason) => {
+        if (!controller.signal.aborted) setExecutionProfileError(`Unable to load saved profiles. ${errorMessage(reason)} Use Refresh profiles to retry.`);
+      })
+      .finally(() => { if (!controller.signal.aborted) setExecutionProfilesLoading(false); });
+    return () => controller.abort();
+  }, [executionProfilesRevision]);
+
+  useEffect(() => {
+    if (form.execution_target !== "remote" || !selectedExecutionProfileName) return;
+    selectExecutionProfile("");
+    setExecutionProfileMessage("Remote VM uses manual machine settings. Saved profiles apply to This machine.");
+  }, [form.execution_target, selectedExecutionProfileName]);
+
+  const saveExecutionProfile = async () => {
+    const name = executionProfileName.trim();
+    setExecutionProfileBusy(true);
+    setExecutionProfileError("");
+    setExecutionProfileMessage("");
+    try {
+      if (form.execution_target !== "local") throw new Error("Saved profiles currently support This machine only. Use Manual settings for Remote VM / Modal.");
+      if (executionProfiles.some((profile) => profile.name === name) && name !== selectedExecutionProfileName) {
+        throw new Error("That profile name already exists. Select it to update its settings, or choose a new name.");
+      }
+      if (!name) throw new Error("Enter a profile name before saving.");
+      if (form.cluster_config.trim() || form.input_worker.trim()) {
+        throw new Error("Clear Cluster config and Input worker to save these host-local Dask settings, or use Manual settings for a custom cluster.");
+      }
+      const saved = await getJson<ExecutionProfile>(`/api/execution-profiles/${encodeURIComponent(name)}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(profileSettings),
+      });
+      const profiles = [...executionProfiles.filter((profile) => profile.name !== saved.name), saved].sort((a, b) => a.name.localeCompare(b.name));
+      setExecutionProfiles(profiles);
+      selectExecutionProfile(saved.name, profiles);
+      setExecutionProfileMessage("Settings validated and saved on this host. Worker execution has not been observed yet.");
+    } catch (reason) { setExecutionProfileError(errorMessage(reason)); }
+    finally { setExecutionProfileBusy(false); }
+  };
   const selectedSample = samples.find((item) => item.id === form.sample_id);
   const datasetAnalysis = inputMode === "sample"
     ? preparedSample?.analysis
@@ -1223,13 +1363,14 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
   }, [modalGpuRecommendation?.gpu.id, modalRecommendationKey, form.modal_gpu, form.remote_endpoint]);
 
   useEffect(() => {
+    if (selectedExecutionProfileName) return;
     setForm((current) => ({
       ...current,
       num_workers: machineProfile.workers,
       threads_per_worker: machineProfile.threadsPerWorker,
       worker_memory_limit: `${machineProfile.memoryPerWorkerGiB}GB`,
     }));
-  }, [machineProfile.key]);
+  }, [machineProfile.key, selectedExecutionProfileName]);
 
   useEffect(() => {
     if (!selectedSample || preparedSample?.path !== "") return;
@@ -1467,6 +1608,7 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault(); setBusy(true); setError("");
     try {
+      if (executionProfileDirty) throw new Error("Save the profile changes or choose Manual / hardware defaults before starting a run.");
       if (form.execution_target === "remote" && form.remote_connection === "ssh") {
         throw new Error("SSH execution is not available yet. Choose API to run on Modal.");
       }
@@ -1475,6 +1617,7 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
       }
       const expertOverrides = form.advanced_overrides.split("\n");
       const payload = { ...form,
+        execution_profile: selectedExecutionProfileName || undefined,
         loader: form.loader,
         hydra_overrides: modelHydraOverrides,
         advanced_overrides: expertOverrides.map((line) => line.trim()).filter(Boolean),
@@ -1625,11 +1768,11 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
     </Section>
     <Section number="03" title="Compute" subtitle="Run here or on a remote VM">
       <div className="segmented" id="computeTarget" role="group" aria-label="Execution target">
-        <button type="button" className={`target-choice ${form.execution_target === "local" ? "active" : ""}`} onClick={() => set("execution_target", "local")}><Cpu size={13} /> This machine</button>
-        <button type="button" className={`target-choice ${form.execution_target === "remote" ? "active" : ""}`} onClick={() => setForm((current) => ({ ...current, execution_target: "remote", splat_implementation: current.splat_implementation === "none" ? schema.defaults.splat_implementation : current.splat_implementation }))}><Server size={13} /> Remote VM</button>
+        <button type="button" disabled={executionProfileBusy} className={`target-choice ${form.execution_target === "local" ? "active" : ""}`} onClick={() => set("execution_target", "local")}><Cpu size={13} /> This machine</button>
+        <button type="button" disabled={executionProfileBusy} className={`target-choice ${form.execution_target === "remote" ? "active" : ""}`} onClick={() => setForm((current) => ({ ...current, execution_target: "remote", splat_implementation: current.splat_implementation === "none" ? schema.defaults.splat_implementation : current.splat_implementation }))}><Server size={13} /> Remote VM</button>
       </div>
       {form.execution_target === "local" ? <>
-        {hardware ? <><SelectField label="Hardware" value={form.hardware} options={hardware.devices} onChange={(value) => set("hardware", value)} /><HardwareCard device={selectedHardware} /></> : <div className="hardware-card detecting"><RefreshCw className="spin" size={13}/><div><strong>Detecting compute devices…</strong><small>You can configure the rest of the run while this finishes.</small></div></div>}
+        {hardware ? <><SelectField label="Hardware" value={form.hardware} options={hardware.devices} disabled={executionProfileBusy} onChange={(value) => set("hardware", value)} /><HardwareCard device={selectedHardware} /></> : <div className="hardware-card detecting"><RefreshCw className="spin" size={13}/><div><strong>Detecting compute devices…</strong><small>You can configure the rest of the run while this finishes.</small></div></div>}
       </> : <div className="nested-options remote-vm-options">
         <SelectField label="Connection method" value={form.remote_connection} options={[
           { id: "api", label: "API" }, { id: "ssh", label: "SSH" },
@@ -1679,12 +1822,31 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
       </div>}
     </Section>
     <Collapsible.Root className="advanced-options" open={advanced} onOpenChange={setAdvanced}>
-      <Collapsible.Trigger className="advanced-trigger"><span><Cpu size={13} /><span className="advanced-trigger-copy">Machine settings<small>{machineProfile.label}</small></span></span><ChevronDown size={14} /></Collapsible.Trigger>
+      <Collapsible.Trigger className="advanced-trigger"><span><Cpu size={13} /><span className="advanced-trigger-copy">Machine settings<small>{selectedExecutionProfileName || machineProfile.label}{executionProfileDirty ? " · unsaved changes" : ""}</small></span></span><ChevronDown size={14} /></Collapsible.Trigger>
       <Collapsible.Content className="advanced-content">
+        <div className="execution-profile-editor">
+          <SelectField label="Execution profile" value={executionProfileDirty ? "__draft__" : selectedExecutionProfileName}
+            options={[...(executionProfileDirty ? [{ id: "__draft__", label: `${selectedExecutionProfileName} · Unsaved draft` }] : []), ...executionProfiles.filter((profile) => profile.execution_mode === "local").map((profile) => ({ id: profile.name, label: profile.name }))]}
+            empty={executionProfilesLoading ? "Loading saved profiles…" : "Manual / hardware defaults"}
+            disabled={executionProfilesLoading || executionProfileBusy} onChange={(name) => { if (name !== "__draft__") selectExecutionProfile(name); }} />
+          <p className="field-help">{form.execution_target === "local" ? "Named Dask settings are saved on this Studio host. Select Manual for a custom cluster." : "Remote VM / Modal uses manual settings. Saved profiles apply to This machine."}</p>
+          <TextField label="Profile name" value={executionProfileName} onChange={setExecutionProfileName}
+            maxLength={64} placeholder="e.g. local-cpu-2-workers" autoComplete="off" spellCheck={false} disabled={executionProfileBusy || form.execution_target !== "local"} />
+          <div className="execution-profile-actions">
+            <button type="button" disabled={executionProfileBusy || executionProfilesLoading || form.execution_target !== "local" || !executionProfileName.trim()} onClick={() => void saveExecutionProfile()}>{executionProfileBusy ? "Validating & saving…" : selectedExecutionProfileName && executionProfileName.trim() === selectedExecutionProfileName ? "Validate & update profile" : "Validate & save profile"}</button>
+            {executionProfileDirty && <button type="button" disabled={executionProfileBusy} onClick={() => selectExecutionProfile(selectedExecutionProfileName)}>Reload saved</button>}
+            <button type="button" disabled={executionProfileBusy || executionProfilesLoading} onClick={() => setExecutionProfilesRevision((current) => current + 1)}>Refresh profiles</button>
+          </div>
+          {executionProfileDirty && <div className="execution-profile-feedback warning" role="status">Unsaved profile changes. Update the profile, save a new name, or choose Manual / hardware defaults before running.</div>}
+          {selectedExecutionProfile && (form.cluster_config.trim() || form.input_worker.trim()) && <p className="field-help">Clear Cluster config and Input worker to use a saved profile, or switch to Manual settings for a custom cluster.</p>}
+          {executionProfileError && <div className="execution-profile-feedback error" role="alert">{executionProfileError}</div>}
+          {executionProfileMessage && !executionProfileDirty && <div className="execution-profile-feedback ready" role="status">{executionProfileMessage}</div>}
+        </div>
+        <fieldset className="machine-settings-fields" disabled={executionProfileBusy}>
         <div className="machine-profile-summary">
-          <div><span>MACHINE PROFILE</span><strong>{machineProfile.label}</strong></div>
-          <p>{machineProfile.description}</p>
-          <div className="machine-profile-specs"><span>{machineProfile.workers} worker{machineProfile.workers === 1 ? "" : "s"}</span><span>{machineProfile.threadsPerWorker} thread{machineProfile.threadsPerWorker === 1 ? "" : "s"} / worker</span><span>{machineProfile.memoryPerWorkerGiB} GB / worker</span></div>
+          <div><span>{executionProfileDirty ? "UNSAVED DASK SETTINGS" : selectedExecutionProfile ? "SAVED DASK PROFILE" : "MACHINE DEFAULTS"}</span><strong>{selectedExecutionProfileName || machineProfile.label}</strong></div>
+          <p>{executionProfileDirty ? "Draft settings are shown below. Save changes or reload the saved profile before running." : selectedExecutionProfile ? `${selectedExecutionProfile.execution_mode === "local" ? "This machine" : "Remote workspace"} · ${selectedExecutionProfile.selected_gpus.join(", ") || "CPU"}. Saved values stay active until you edit or switch profiles.` : machineProfile.description}</p>
+          <div className="machine-profile-specs" aria-label="Requested worker settings"><span>{form.num_workers} worker{Number(form.num_workers) === 1 ? "" : "s"}</span><span>{form.threads_per_worker} thread{Number(form.threads_per_worker) === 1 ? "" : "s"} / worker</span><span>{form.worker_memory_limit} / worker</span></div>
         </div>
         <div className="form-grid">
           <TextField label="Workers" type="number" min="1" value={form.num_workers} onChange={(value) => set("num_workers", value)} disabled={!machineProfile.allowWorkers} title={!machineProfile.allowWorkers ? "Fixed for the selected single-GPU machine" : undefined} />
@@ -1700,10 +1862,11 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
           <TextField label="Cluster config" value={form.cluster_config} onChange={(value) => set("cluster_config", value)} placeholder="Optional YAML path" disabled={!machineProfile.allowLocalRuntime} />
           <TextField label="Cluster retries" type="number" min="0" value={form.num_retry_cluster_connection} onChange={(value) => set("num_retry_cluster_connection", value)} placeholder="3" disabled={!machineProfile.allowLocalRuntime} />
         </div>
+        </fieldset>
       </Collapsible.Content>
     </Collapsible.Root>
     <div className="form-error" role="alert">{error}</div>
-    <button className="primary-action" type="submit" disabled={busy || sampleBusy || modalDeploying || modalDiscovering || remoteChecking || (inputMode === "sample" && !preparedSample) || (form.execution_target === "remote" && (!form.remote_endpoint || !form.modal_api_key || !remote?.verified))}><span>{busy ? "Starting…" : sampleBusy ? "Preparing sample…" : modalActionLabel}</span>{busy || sampleBusy || modalDeploying || modalDiscovering || remoteChecking ? <RefreshCw className="spin" size={14} /> : <Play size={14} fill="currentColor" />}</button>
+    <button className="primary-action" type="submit" disabled={busy || sampleBusy || executionProfileBusy || executionProfileDirty || modalDeploying || modalDiscovering || remoteChecking || (inputMode === "sample" && !preparedSample) || (form.execution_target === "remote" && (!form.remote_endpoint || !form.modal_api_key || !remote?.verified))}><span>{busy ? "Starting…" : sampleBusy ? "Preparing sample…" : modalActionLabel}</span>{busy || sampleBusy || modalDeploying || modalDiscovering || remoteChecking ? <RefreshCw className="spin" size={14} /> : <Play size={14} fill="currentColor" />}</button>
   </form>;
 }
 
@@ -1880,7 +2043,55 @@ function shellCommand(args: string[]): string {
   return args.map((arg) => /^[A-Za-z0-9_@%+=:,./-]+$/.test(arg) ? arg : `'${arg.replace(/'/g, "'\\''")}'`).join(" ");
 }
 
-function LogPanel({ open, job, onClose }: { open: boolean; job: Job | null; onClose: () => void }) {
+function ExecutionComparison({ job, live }: { job: Job; live: LiveState | null }) {
+  const profile = job.spec.resolved_execution_profile;
+  const observed = live?.dask;
+  const workers = profile?.workers ?? job.spec.num_workers;
+  const threads = profile?.threads_per_worker ?? job.spec.threads_per_worker;
+  if (!profile && workers == null) return null;
+  const requestedMemory = profile?.host_memory_bytes && workers
+    ? formatBytes(profile.host_memory_bytes * workers)
+    : `${profile?.host_memory_limit ?? job.spec.worker_memory_limit ?? "Default"} / worker`;
+  const visibilityText = (value: string | null | undefined) => value === null || value === undefined
+    ? "Unset (inherited)"
+    : value === ""
+      ? "Explicitly hidden"
+      : JSON.stringify(value);
+  const visibility = observed?.worker_details?.length
+    ? [...new Set(observed.worker_details.map((worker) => worker.pid == null
+      ? "Not reported"
+      : `CUDA_VISIBLE_DEVICES=${visibilityText(worker.cuda_visible_devices)}`))].join("; ")
+    : "Not reported";
+  const countsDiffer = Boolean(observed && ((workers != null && observed.workers !== workers) || (workers != null && threads != null && observed.threads !== workers * threads)));
+  const memoryLimitsDiffer = Boolean(profile?.host_memory_bytes && observed?.worker_details?.some((worker) => worker.memory_limit_bytes !== profile.host_memory_bytes));
+  const observedScratch = observed?.worker_details?.length
+    ? [...new Set(observed.worker_details.map((worker) => worker.local_directory || "Not reported"))].join("; ")
+    : "Not reported";
+  const rows = [
+    ["Workers", workers ?? "Default", observed?.workers ?? "Not reported"],
+    ["CPU threads (total)", workers != null && threads != null ? workers * threads : "Default", observed?.threads ?? "Not reported"],
+    ["Host RAM limit", requestedMemory, observed ? `${formatBytes(observed.memory_limit_bytes)} total` : "Not reported"],
+    ["Device / visibility", profile ? profile.selected_gpus.join(", ") || "CPU" : job.spec.hardware || "Default", visibility],
+    ["Scratch folder", profile?.scratch_directory || job.spec.dask_tmpdir || "System default", observedScratch],
+  ];
+  return <section className="execution-comparison" aria-label="Requested and observed execution">
+    <strong>Dask execution{profile?.name || job.spec.execution_profile_name ? ` · ${profile?.name || job.spec.execution_profile_name}` : ""}</strong>
+    <table><thead><tr><th scope="col">Setting</th><th scope="col">Requested</th><th scope="col">Last observed</th></tr></thead>
+      <tbody>{rows.map(([label, requested, actual]) => <tr key={label}><th scope="row">{label}</th><td>{requested}</td><td>{actual}</td></tr>)}</tbody>
+    </table>
+    {countsDiffer && <p className="execution-comparison-warning">The last worker or thread count differs from the request. Workers may still be starting; inspect the logs if this persists.</p>}
+    {memoryLimitsDiffer && <p className="execution-comparison-warning">A reported worker RAM limit differs from the requested per-worker limit. Inspect worker details and available host memory.</p>}
+    {Boolean(observed?.worker_details?.length) && <details><summary>Worker details ({observed?.worker_details?.length})</summary>
+      <table><thead><tr><th scope="col">Worker / PID</th><th scope="col">Threads / RAM</th><th scope="col">CUDA visibility</th></tr></thead>
+        <tbody>{observed?.worker_details?.map((worker) => <tr key={worker.address}><th scope="row">{worker.address}<br/>PID {worker.pid ?? "unreported"}<br/>Scratch: {worker.local_directory || "Not reported"}</th><td>{worker.nthreads} threads<br/>{formatBytes(worker.memory_limit_bytes)}</td><td>{worker.pid == null ? "Not reported" : visibilityText(worker.cuda_visible_devices)}</td></tr>)}</tbody>
+      </table>
+    </details>}
+    <p>{observed ? `Last Dask snapshot${observed.updated_at ? ` · ${new Date(observed.updated_at * 1000).toLocaleString()}` : ""}. Worker scratch paths may include Dask-managed subfolders.` : "No worker observation has been reported. Saved settings describe the request, not verified execution."}</p>
+    <p>Host RAM limits do not cap GPU VRAM. CUDA visibility reports the worker environment.</p>
+  </section>;
+}
+
+function LogPanel({ open, job, live, onClose }: { open: boolean; job: Job | null; live: LiveState | null; onClose: () => void }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const copyReset = useRef<number | null>(null);
   const [geometry, setGeometry] = useState<LogPanelGeometry | null>(null);
@@ -2001,6 +2212,7 @@ function LogPanel({ open, job, onClose }: { open: boolean; job: Job | null; onCl
     {(["nw", "ne", "sw", "se"] as LogResizeCorner[]).map((corner) => <button key={corner} className={`log-resize-handle ${corner}`} type="button" title="Resize logs" aria-label={`Resize logs from ${corner}`} onPointerDown={beginResize(corner)} />)}
     <div className="log-header" onPointerDown={beginDrag}><strong><Terminal size={12}/> Run details</strong><div className="log-header-actions"><button type="button" title="Minimize run details" aria-label="Minimize run details" onClick={onClose}><Minus size={15}/></button><button type="button" title="Close run details" aria-label="Close run details" onClick={onClose}><X size={14}/></button></div></div>
     {job && <div className="run-details-summary"><strong>{job.name}</strong><span className={`job-status ${job.status}`}>{statusLabel(job.status)}</span>{job.return_code != null && <span>Exit code {job.return_code}</span>}{job.output_root && <div className="run-output-path"><span>Output</span><code>{job.output_root}</code></div>}{job.error && <p className="job-error">{job.error}</p>}</div>}
+    {job && <ExecutionComparison job={job} live={live} />}
     <section className="run-command" aria-label={remoteRequest ? "Remote request" : "CLI command"}>
       <div className="run-detail-heading"><strong>{remoteRequest ? "Remote request" : "CLI command"}</strong><button type="button" disabled={!command} onClick={() => copy("command")} aria-label={remoteRequest ? "Copy remote request" : "Copy command"}>{copied === "command" ? <Check size={12}/> : <Copy size={12}/>} {copied === "command" ? "Copied!" : "Copy"}</button></div>
       <pre>{command || "No command recorded for this run."}</pre>
@@ -2107,7 +2319,7 @@ function Viewer({ activeJob, live, logsOpen, setLogsOpen, statusBarOpen, setStat
     <canvas id="renderCanvas"/>
     <div id="hud"><label className="background-control">BG <select id="backgroundSelect" defaultValue="dark" aria-label="Viewer background"><option value="dark">Dark</option><option value="graphite">Graphite</option><option value="light-gray">Light gray</option><option value="white">White</option></select></label><button id="overviewBtn" className="hud-scene-only" title="Show the reconstruction and all cameras">Overview</button><button id="prevCamBtn" className="hud-scene-only" title="Previous camera"><ChevronLeft size={14}/></button><button id="nextCamBtn" className="hud-scene-only" title="Next camera"><ChevronRight size={14}/></button><button id="toggleStats">Hide stats</button><label className="hud-scene-only"><input type="checkbox" id="toggleCams" defaultChecked/> Cameras</label><label className="hud-scene-only">Point size <input type="range" id="ptSize" min="1" max="10" defaultValue="2"/></label><button id="toggleGround" type="button" aria-pressed="false">Show plane</button><label className="plane-height-control">Plane Z <input type="range" id="groundY" min="-5" max="5" step="0.1" defaultValue="0" aria-label="Plane height along reconstruction Z"/><output id="groundYValue" htmlFor="groundY">0.0</output></label></div>
     <a className="viewport-github" href="https://github.com/borglab/gtsfm" target="_blank" rel="noreferrer" title="Open GTSFM on GitHub" aria-label="Open GTSFM GitHub repository"><Github size={16}/></a>
-    <LogPanel open={logsOpen} job={activeJob} onClose={() => setLogsOpen(false)} />
+    <LogPanel open={logsOpen} job={activeJob} live={live} onClose={() => setLogsOpen(false)} />
     {showPipelineWait && activeJob && <div className="pipeline-wait-overlay" role="status" aria-live="polite"><div className="pipeline-wait-content"><span>RECONSTRUCTION IN PROGRESS</span><strong>{pipelineStatusMessage(activeJob, live)}</strong><div className="pipeline-wait-dots" aria-hidden="true"><i/><i/><i/></div><small>The first live Gaussian preview will appear here automatically.</small></div></div>}
     <div id="loadingOverlay" className="loading-overlay" role="status"><div className="loading-box"><span id="loadingMessage">Loading…</span><div className="loading-progress-track"><div className="loading-progress-fill" id="loadingProgress"/></div></div></div>
   </main><PhotoPanel/></>;

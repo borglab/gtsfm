@@ -4,6 +4,7 @@ import json
 import os
 import tempfile
 import threading
+import weakref
 import time
 from collections import Counter
 from pathlib import Path
@@ -14,6 +15,34 @@ from dask.distributed import Client
 import gtsfm.utils.logger as logger_utils
 
 logger = logger_utils.get_logger()
+_WORKER_PROBE_CACHE: weakref.WeakKeyDictionary[Client, dict[str, dict[str, object]]] = weakref.WeakKeyDictionary()
+
+
+def _worker_probe(dask_worker: Any = None) -> dict[str, object]:
+    """Return worker-local resource identity for Studio requested/observed checks."""
+    import os
+    result: dict[str, object] = {
+        "pid": os.getpid(),
+        # Preserve the distinction between an unset environment variable and
+        # an explicitly hidden device list (the empty string).
+        "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES"),
+    }
+    try:
+        if dask_worker is None:
+            raise RuntimeError("worker context unavailable")
+        result["local_directory"] = str(dask_worker.local_directory)
+    except Exception:
+        result["local_directory"] = None
+    try:
+        import torch
+        result["cuda_available"] = bool(torch.cuda.is_available())
+        result["cuda_device_count"] = int(torch.cuda.device_count())
+        if result["cuda_available"]:
+            result["cuda_device_name"] = str(torch.cuda.get_device_name(0))
+    except Exception:
+        result["cuda_available"] = False
+        result["cuda_device_count"] = 0
+    return result
 
 
 def _scheduler_task_counts(dask_scheduler: Any) -> dict[str, int]:
@@ -26,7 +55,8 @@ def collect(client: Client) -> dict[str, object]:
     """Collect a compact, browser-friendly snapshot from Dask worker heartbeats."""
 
     scheduler = client.scheduler_info()
-    workers = list(scheduler.get("workers", {}).values())
+    worker_entries = list(scheduler.get("workers", {}).items())
+    workers = [worker for _, worker in worker_entries]
     task_counts: Counter[str] = Counter()
     memory_bytes = 0
     memory_limit_bytes = 0
@@ -56,8 +86,32 @@ def collect(client: Client) -> dict[str, object]:
     pending_tasks = sum(
         task_counts[state] for state in ("ready", "waiting", "queued", "no-worker", "constrained", "fetch", "flight")
     )
+    addresses = {address for address, _ in worker_entries}
+    probe_cache = _WORKER_PROBE_CACHE.setdefault(client, {})
+    missing_addresses = addresses - set(probe_cache)
+    if missing_addresses:
+        try:
+            probe_cache.update(client.run(_worker_probe))
+        except Exception as exc:
+            logger.debug("Unable to probe Dask workers: %s", exc)
+    worker_probes = probe_cache
+    worker_details = []
+    for address, worker in worker_entries:
+        detail = {
+            "address": address,
+            "nthreads": int(worker.get("nthreads", 0) or 0),
+            "memory_limit_bytes": int(worker.get("memory_limit", 0) or 0),
+            "pid": (worker_probes.get(address) or {}).get("pid"),
+            "cuda_visible_devices": (worker_probes.get(address) or {}).get("cuda_visible_devices"),
+            "local_directory": (worker_probes.get(address) or {}).get("local_directory"),
+            "cuda_available": (worker_probes.get(address) or {}).get("cuda_available"),
+            "cuda_device_count": (worker_probes.get(address) or {}).get("cuda_device_count"),
+            "cuda_device_name": (worker_probes.get(address) or {}).get("cuda_device_name"),
+        }
+        worker_details.append(detail)
     return {
         "workers": len(workers),
+        "worker_details": worker_details,
         "threads": threads,
         "running_tasks": running_tasks,
         "completed_tasks": completed_tasks,
