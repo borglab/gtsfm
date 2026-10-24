@@ -1,6 +1,0 @@
-_target_: distributed.LocalCluster
-n_workers: 2
-threads_per_worker: 2
-memory_limit: ${oc.env:NATIVE_TEST_MEMORY}
-dashboard_address: null
-local_directory: "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/hydra-scratch/constructor-scratch"

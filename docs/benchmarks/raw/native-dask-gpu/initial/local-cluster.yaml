@@ -1,6 +1,0 @@
-_target_: distributed.LocalCluster
-n_workers: 1
-threads_per_worker: 2
-memory_limit: 18GiB
-local_directory: /home/jasdeep/gtsfm-native-dask-20261024/scratch
-dashboard_address: 127.0.0.1:0

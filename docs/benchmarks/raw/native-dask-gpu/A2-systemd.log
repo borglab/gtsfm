@@ -1,7 +1,0 @@
-Running as unit: native-dask-a2.service; invocation ID: 9be9579578754c678a3110c581f9f0ae
-Finished with result: success
-Main processes terminated with: code=exited/status=0
-Service runtime: 52.645s
-CPU time consumed: 55.566s
-Memory peak: 256.0K
-Memory swap peak: 0B

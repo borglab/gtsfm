@@ -1,6 +1,0 @@
-Oct 24 12:43:01 jas-windows-pc-rtx3080 systemd[11126]: Started gtsfm-profile-preflight3b.service - /home/jasdeep/gtsfm_eval/.venv/bin/python /home/jasdeep/gtsfm-profile-gpu-20261024/preflight.py.
-Oct 24 12:43:03 jas-windows-pc-rtx3080 python[304799]: 2026-10-24 19:43:03 [jas-windows-pc-rtx3080-main] [vggt_geometry_transformer.py] INFO: 📷 Using vanilla VGGT (FastVGGT submodule not detected).
-Oct 24 12:43:03 jas-windows-pc-rtx3080 python[304799]: VGGT_INPUT torch.Size([3, 3, 518, 518]) <class 'torch.Tensor'>
-Oct 24 12:43:03 jas-windows-pc-rtx3080 python[304799]: 2026-10-24 19:43:03 [jas-windows-pc-rtx3080-main] [vggt_geometry_transformer.py] INFO: VGGT inference dtype: cfg.dtype=None requested=None resolved=torch.bfloat16 device=cuda
-Oct 24 12:43:22 jas-windows-pc-rtx3080 python[304799]: {"seconds": 20.8282310962677, "files": ["DSC_0001.JPG", "DSC_0002.JPG", "DSC_0003.JPG"], "model_class": "<class 'vggt.models.vggt.VGGT'>", "model_module": "/home/jasdeep/gtsfm-profile-gpu-20261024/source/thirdparty/vggt/vggt/models/vggt.py", "shape": [3, 3, 518, 518], "peak_allocated": 5037005312, "peak_reserved": 8111783936, "output_type": "<class 'gtsfm.frontend.geometry_transformer.GeometryTransformerOutput'>"}
-Oct 24 12:43:23 jas-windows-pc-rtx3080 systemd[11126]: gtsfm-profile-preflight3b.service: Consumed 21.968s CPU time, 256.0K memory peak, 0B memory swap peak.

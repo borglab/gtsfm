@@ -1,3 +1,0 @@
-distributed:
-  worker:
-    daemon: false

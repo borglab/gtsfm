@@ -1,1 +1,0 @@
-{"workers": 1, "threads": 2, "running_tasks": 1, "completed_tasks": 10, "pending_tasks": 0, "failed_tasks": 0, "memory_bytes": 2368647168, "memory_limit_bytes": 19327352832, "cpu_percent": 114.5, "dashboard_url": "http://127.0.0.1:42237/status", "updated_at": 1792884494.4962194}

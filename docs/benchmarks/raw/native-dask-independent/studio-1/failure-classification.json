@@ -1,5 +1,0 @@
-{
-  "verdict": "INCONCLUSIVE",
-  "classification": "verifier input error",
-  "reason": "The initial verifier supplied an override absent from the selected sift_front_end preset; production Hydra correctly rejected it. Replaced that test input with an existing composed field, image_pairs_generator.retriever.min_score=0.4; original failure retained."
-}

@@ -1,7 +1,0 @@
-Running as unit: gtsfm-profile-cancel1.service; invocation ID: 209f026f6ff544b19f8b960239594496
-Finished with result: success
-Main processes terminated with: code=exited/status=0
-Service runtime: 23.589s
-CPU time consumed: 25.134s
-Memory peak: 256.0K
-Memory swap peak: 0B

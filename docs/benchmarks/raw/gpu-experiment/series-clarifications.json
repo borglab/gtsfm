@@ -1,9 +1,0 @@
-{
-  "recorded_utc": "2026-10-24T19:51:28.879790+00:00",
-  "changes_to_series_settings": false,
-  "python_hash_seed": "Parent42; Dask nanny pre-spawn default worker6640 observed in diagnostic; exact actual values retained and compared per role across all4. Startup random/NumPy/Torch seeds42; geometry seed42. Do not claim all process hash seeds42.",
-  "timing": "summary ended-started includes fixed7s passive post-run settle; wall_seconds subtracts7s. Uses wallclock, includes launch/poll/copy overhead; not a monotonic exclusive inference timing. Stage timings separate; no speedup claim.",
-  "rss": "RSSsum adds per-process RSS, including shared pages; not unique physical RAM. Measured cgroup memory.current/peak and limit recorded independently.",
-  "cancellation": "JobManager.cancel only; no cleanup sweep performed on successful cancel path. SIGTERM exit and no remaining process/GPU compute activity verified; resource-tracker semaphore warnings retained, no all-IPC cleanup claim.",
-  "full12": "Completed success before requested stop; near full physical use, no CUDA OOM or cutoff claimed. PyTorch peakreserved14856224768 differs from physical GPU samples."
-}

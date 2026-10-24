@@ -1,7 +1,0 @@
-{
-  "declared_utc": "2026-10-24T22:50:15.783824+00:00",
-  "acceptance_sha256": "a1680124900b60256c74250690e6879e20d3ae242a001383f45957a3c4187ee2",
-  "git_head": "012b79c84dbc248213fb4d12e8ea3832bf266dd6",
-  "strict_verifier_sha256": "99d941d94b03087bd5db979dd6978af833f87fd2f2ff4da21e7ac8f6dd99612e",
-  "no_new_gpu_outputs_inspected": true
-}

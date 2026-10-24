@@ -1,8 +1,0 @@
-MainPID=34238
-NRestarts=0
-ExecMainStartTimestamp=Sun 2026-10-18 17:56:19 PDT
-ExecMainStartTimestampMonotonic=342518720020
-ActiveState=active
-SubState=running
-ActiveEnterTimestamp=Sun 2026-10-18 17:56:19 PDT
-InvocationID=ae11c5bf04634658a4b73776e7fcfdbf

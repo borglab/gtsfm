@@ -1,3 +1,0 @@
-Result=success
-LoadState=not-found
-ActiveState=inactive

@@ -1,9 +1,0 @@
-{
-  "scope": "Metadata extraction only, not reconstruction failures",
-  "notes": [
-    "An initial source-manifest extraction script had a bracket syntax error before execution; corrected and retained final verified manifest.",
-    "Final metadata extraction first used system Python, which lacks psutil, and local Python, which lacks PyYAML; both were rerun with the existing remote evaluation interpreter without installing or changing dependencies.",
-    "The actual first VGGT preflight failure is separately retained with full journal and was corrected before successful real inference.",
-    "All four measured trials, full warmup, both final-source treatments and corrected real VGGT preflights completed; no experimental trial failure was replaced silently."
-  ]
-}

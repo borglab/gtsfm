@@ -1,2 +1,0 @@
-name, memory.total [MiB], memory.used [MiB], temperature.gpu, utilization.gpu [%]
-NVIDIA GeForce RTX 3080, 10240 MiB, 201 MiB, 31, 0 %

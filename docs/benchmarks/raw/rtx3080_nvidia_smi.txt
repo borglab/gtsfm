@@ -1,1 +1,0 @@
-0, NVIDIA GeForce RTX 3080, 10240, 317, 0
