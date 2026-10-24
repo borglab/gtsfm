@@ -1730,14 +1730,16 @@ function ActivityPanel({ jobs, activeId, onSelect, onCancel, onRefresh }: Activi
       {job.error && <p className="job-error">{job.error}</p>}
       <div className="job-actions"><button className="text-button" onClick={() => onSelect(job.id)}>{job.has_final_splat ? "View splat" : ["queued", "running"].includes(job.status) ? "View progress" : "View details"}</button>
         {["queued", "running"].includes(job.status) && <button className="text-button danger" onClick={() => onCancel(job.id)}><Square size={9} fill="currentColor"/> Stop</button>}
-        {job.status === "completed" && !job.remote && <a className="text-button" href="/?view=results">View results</a>}
+        {job.status === "completed" && !job.remote && job.output_root && <a className="text-button" href={`/?view=results&run=${encodeURIComponent(job.output_root)}`}>View results</a>}
         {job.remote?.workspace_url && <a className="text-button" href={job.remote.workspace_url} target="_blank" rel="noreferrer">Remote results ↗</a>}
       </div>{job.has_final_splat && <SplatDownload jobId={job.id} compact />}</article>) : <div className="empty-state"><Activity size={20} /><strong>No runs yet</strong><span>Configure your first reconstruction in New run.</span></div>}</div>
   </div>;
 }
 
 function ResultsPanel() {
+  const runRoot = new URLSearchParams(location.search).get("run");
   return <div><div className="panel-title"><div><h3>Reconstructions</h3><p>Open a scene in the 3D viewer</p></div></div>
+    {runRoot && <a className="text-button" href="/?view=results">View all results</a>}
     <div id="info" className="info-summary" role="status"><div className="info-pill" data-role="count">—</div><div className="info-details"><div className="info-title" data-role="title">Loading reconstructions…</div><div className="info-path" data-role="path">Checking workspace…</div></div></div>
     <input type="text" id="filter" placeholder="Filter scenes…" aria-label="Filter scenes" /><div id="sceneList" />
   </div>;
@@ -2112,8 +2114,8 @@ function hardwareWarningContent(hardware: HardwareCatalog): { title: string; des
   const available = hardware.devices.filter((device) => !device.status || device.status === "available");
   const apple = hardware.devices.find((device) => device.kind === "mps");
   if (apple) return {
-    title: "Apple Metal (MPS) is not supported",
-    description: "Apple Silicon and MPS can run reconstruction, but GTSFM Gaussian splatting does not currently support this backend. Use a Remote VM with an NVIDIA GPU to generate splats.",
+    title: "Gaussian splatting is unavailable on this Mac",
+    description: "Reconstruction works on this Mac. Gaussian splatting requires an NVIDIA GPU; Apple Metal (MPS) is not supported for splats.",
   };
 
   const amd = hardware.devices.find((device) => device.kind === "rocm" || /\b(amd|radeon|rocm)\b/i.test(`${device.label} ${device.details}`));
@@ -2140,17 +2142,33 @@ function hardwareWarningContent(hardware: HardwareCatalog): { title: string; des
   };
 }
 
-function HardwareWarning({ hardware, onClose, onUseRemote }: { hardware: HardwareCatalog; onClose: () => void; onUseRemote: () => void }) {
+function HardwareWarning({ hardware, onUseRemote }: { hardware: HardwareCatalog; onUseRemote: () => void }) {
   const content = hardwareWarningContent(hardware);
-  return <section className="hardware-warning" role="alertdialog" aria-labelledby="hardware-warning-title" aria-describedby="hardware-warning-description">
+  const acknowledgmentKey = `gtsfm.hardware-notice.v1:${content.title}`;
+  const [acknowledged, setAcknowledged] = useState(() => {
+    try { return Boolean(localStorage.getItem(acknowledgmentKey)); }
+    catch { return false; }
+  });
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === acknowledgmentKey) setAcknowledged(Boolean(event.newValue));
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [acknowledgmentKey]);
+  const acknowledge = () => {
+    setAcknowledged(true);
+    try { localStorage.setItem(acknowledgmentKey, new Date().toISOString()); }
+    catch { /* Keep the notice dismissed for this session when storage is unavailable. */ }
+  };
+  if (acknowledged) return null;
+  return <section className="hardware-warning" role="note" aria-labelledby="hardware-warning-title" aria-describedby="hardware-warning-description">
     <div className="hardware-warning-icon" aria-hidden="true"><CircleAlert size={18}/></div>
     <div className="hardware-warning-copy">
-      <span>HARDWARE NOTICE</span>
       <strong id="hardware-warning-title">{content.title}</strong>
       <p id="hardware-warning-description">{content.description}</p>
-      <div className="hardware-warning-actions"><button type="button" className="warning-primary" onClick={onUseRemote}><Server size={12}/> Use Remote VM</button><button type="button" onClick={onClose}>Continue without splats</button></div>
+      <div className="hardware-warning-actions"><button type="button" onClick={acknowledge} title="Remember my acknowledgment and don't show this notice again">Got it</button><button type="button" onClick={() => { acknowledge(); onUseRemote(); }}><Server size={12}/> Use Remote VM</button></div>
     </div>
-    <button className="hardware-warning-close" type="button" title="Dismiss hardware warning" aria-label="Dismiss hardware warning" onClick={onClose}><X size={14}/></button>
   </section>;
 }
 
@@ -2191,7 +2209,6 @@ function App() {
   const [live, setLive] = useState<LiveState | null>(null);
   const [logsOpen, setLogsOpen] = useState(false);
   const [statusBarOpen, setStatusBarOpen] = useState(true);
-  const [hardwareWarningDismissed, setHardwareWarningDismissed] = useState(false);
   const [remotePromptKey, setRemotePromptKey] = useState(0);
   const [viewerLoadRequest, setViewerLoadRequest] = useState(0);
   const previewVersion = useRef<string | number | null>(null);
@@ -2347,9 +2364,10 @@ function App() {
   const cancelJob = async (id: string) => { await fetch(`/api/jobs/${encodeURIComponent(id)}/cancel`, { method: "POST" }); await refreshJobs(); };
   const activeCount = jobs.filter((job) => ["queued", "running"].includes(job.status)).length;
   const hasNvidiaSplatSupport = hardware?.devices.some((device) => device.supports_gaussian_splatting && (!device.status || device.status === "available")) ?? false;
-  const showHardwareWarning = Boolean(hardware && !hasNvidiaSplatSupport && !hardwareWarningDismissed);
-  const useRemoteVm = () => { setHardwareWarningDismissed(true); setTab("run"); setRemotePromptKey((current) => current + 1); };
-  return <div className="app-shell">{showHardwareWarning && hardware && <HardwareWarning hardware={hardware} onClose={() => setHardwareWarningDismissed(true)} onUseRemote={useRemoteVm}/>}<aside id="sidebar" className={`${sidebarCollapsed ? "sidebar-collapsed" : ""} ${sidebarResizing ? "sidebar-resizing" : ""}`} style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}><Brand collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed((current) => !current)} />
+  const showHardwareWarning = Boolean(hardware && !hasNvidiaSplatSupport);
+  const useRemoteVm = () => { setTab("run"); setRemotePromptKey((current) => current + 1); };
+  return <div className="app-shell"><aside id="sidebar" className={`${sidebarCollapsed ? "sidebar-collapsed" : ""} ${sidebarResizing ? "sidebar-resizing" : ""}`} style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}><Brand collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed((current) => !current)} />
+    {showHardwareWarning && hardware && <HardwareWarning key={hardwareWarningContent(hardware).title} hardware={hardware} onUseRemote={useRemoteVm}/>}
     <Tabs.Root className="workspace-tabs" value={tab} onValueChange={setTab}>
       <Tabs.List className="studio-tabs" aria-label="Workspace sections"><Tabs.Trigger className="studio-tab" value="run"><Play size={12}/> New run</Tabs.Trigger><Tabs.Trigger className="studio-tab" value="activity"><Activity size={12}/> Activity {activeCount > 0 && <span id="activeJobCount">{activeCount}</span>}</Tabs.Trigger><Tabs.Trigger className="studio-tab" value="results"><Box size={12}/> Results</Tabs.Trigger></Tabs.List>
       <Tabs.Content className="studio-panel" value="run" forceMount><RunForm schema={schema} hardware={hardware} samples={samples} samplesLoading={samplesLoading} onStarted={(job) => { setStatusBarOpen(true); setActiveId(job.id); refreshJobs(); }} onTabChange={setTab} remotePromptKey={remotePromptKey} schemaLoading={schemaLoading} schemaError={schemaError} onRetrySchema={() => { void loadSchema(); void loadSamples(); }}/></Tabs.Content>

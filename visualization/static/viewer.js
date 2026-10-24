@@ -1297,6 +1297,27 @@ class ColmapViewer {
 
 // ------------------- app bootstrap -------------------
 
+function resultsForRun(items, baseDir, runRoot) {
+  const normalize = (path) => path.replaceAll("\\", "/").replace(/\/+$/, "");
+  const base = normalize(baseDir);
+  const root = normalize(runRoot);
+  if (root !== base && !root.startsWith(`${base}/`)) return [];
+  const relativeRoot = root === base ? "" : root.slice(base.length + 1);
+  return items.filter((item) => !relativeRoot || item.rel_path === relativeRoot || item.rel_path.startsWith(`${relativeRoot}/`));
+}
+
+function preferredRunResult(items) {
+  // Prefer the final root reconstruction over per-cluster results and BA diagnostics.
+  const sceneFolders = ["merged_retriangulated", "merged", "ba_output", "vggt", "anysplat"];
+  const rank = (item) => {
+    if (item.kind === "splat") return 0;
+    const parts = item.rel_path.split("/");
+    const stage = sceneFolders.indexOf(parts.at(-1));
+    return stage < 0 ? Infinity : 1 + parts.length * sceneFolders.length + stage;
+  };
+  return items.filter((item) => Number.isFinite(rank(item))).sort((a, b) => rank(a) - rank(b))[0];
+}
+
 async function boot() {
   const info = document.getElementById("info");
   const infoCountEl = info?.querySelector('[data-role="count"]') ?? null;
@@ -1356,21 +1377,24 @@ async function boot() {
 
   let allItems = [];
   const collapsedDirectories = new Set();
+  const searchParams = new URLSearchParams(window.location.search);
+  const requestedRun = searchParams.get("run");
 
   try {
     const data = await fetch("/api/scenes").then(r => r.ok ? r.json() : Promise.reject(`Fetch failed: ${r.status} ${r.statusText}`.trim()));
-    const count = Number.isFinite(data.count) ? data.count : 0;
+    const items = requestedRun ? resultsForRun(data.items, data.base_dir, requestedRun) : data.items;
+    const count = items.length;
     const countLabel = count === 0 ? "0" : count.toLocaleString();
     const noun = count === 1 ? "item" : "items";
-    const title = count === 0 ? "No items found" : `${countLabel} ${noun} ready to explore`;
+    const title = count === 0 ? (requestedRun ? "No results found for this run" : "No items found") : `${countLabel} ${noun} ${requestedRun ? "in this run" : "ready to explore"}`;
     const baseDir = data.base_dir || "—";
     setInfoState({
       count: countLabel,
       title,
-      path: `Base directory: ${baseDir}`,
-      isError: false,
+      path: requestedRun ? `Run directory: ${requestedRun}` : `Base directory: ${baseDir}`,
+      isError: Boolean(requestedRun && count === 0),
     });
-    allItems = data.items.map((item, index) => ({ ...item, originalIndex: index }));
+    allItems = items.map((item, index) => ({ ...item, originalIndex: index }));
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     setInfoState({
@@ -1492,11 +1516,20 @@ async function boot() {
   // Default search term
   filterEl.value = "";
   renderList(filterEl.value);
-  const initialView = new URLSearchParams(window.location.search).get("view");
+  const initialView = searchParams.get("view");
   if (allItems.length > 0 && !filterEl.value && initialView === "results") {
     const candidates = Array.from(listEl.querySelectorAll(".item"));
-    const preferred = candidates.find((el) => (el.dataset.kind ?? "scene") !== "splat");
-    (preferred ?? candidates[0])?.click();
+    if (requestedRun) {
+      const result = preferredRunResult(allItems);
+      if (result) {
+        candidates.find((el) => Number(el.dataset.idx) === result.originalIndex)?.click();
+      } else {
+        setInfoState({ title: "No final reconstruction found for this run", isError: true });
+      }
+    } else {
+      const preferred = candidates.find((el) => (el.dataset.kind ?? "scene") !== "splat");
+      (preferred ?? candidates[0])?.click();
+    }
   }
   filterEl.addEventListener("input", () => renderList(filterEl.value));
 
