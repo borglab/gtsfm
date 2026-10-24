@@ -131,6 +131,55 @@ def test_typed_hydra_overrides_are_validated_for_selected_preset(
         )
 
 
+@pytest.mark.parametrize(
+    "preset",
+    [
+        "fast_vggt",
+        "fastvggt",
+        "vggt",
+        "vggt_barn",
+        "vggt_cater",
+        "vggt_church",
+        "vggt_courthouse",
+        "vggt_dub",
+        "vggt_ig",
+    ],
+)
+def test_fractional_reprojection_threshold_for_vggt_presets(
+    preset: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A disabled float threshold must remain editable without relaxing integer fields."""
+
+    schema = runtime.configuration_parameter_schema(preset, "olsson", "base_gs", False)
+    fields = {field["key"].rsplit(".", 1)[-1]: field for field in schema["model"]["fields"]}
+    threshold = fields["vggt_max_reproj_error"]
+    count = fields["max_query_pts"]
+    assert threshold["type"] == "number"
+    assert threshold["defaultValue"] == 0.0
+    assert threshold["step"] == "any"
+    assert count["type"] == "integer"
+    assert count["step"] == 1
+
+    dataset = tmp_path / "dataset"
+    dataset.mkdir()
+    monkeypatch.setattr(runtime, "detect_hardware", _cuda_hardware)
+    spec = {
+        "config_name": preset,
+        "loader": "olsson",
+        "dataset_dir": str(dataset),
+        "hardware": "cpu",
+        "splat_implementation": "none",
+        "hydra_overrides": {threshold["key"]: "0.5", count["key"]: "17"},
+    }
+    args, _ = runtime.build_runner_args(spec, tmp_path / "output")
+    assert f"{threshold['key']}=0.5" in args
+    assert f"{count['key']}=17" in args
+
+    # Form inputs reach the backend as strings; fractional counts must fail.
+    with pytest.raises(ValueError, match="Invalid value for Hydra setting"):
+        runtime.build_runner_args({**spec, "hydra_overrides": {count["key"]: "2.5"}}, tmp_path / "bad-output")
+
+
 def test_expert_hydra_overrides_are_composed_before_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     dataset = tmp_path / "dataset"
     dataset.mkdir()
