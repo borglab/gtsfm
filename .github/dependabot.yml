@@ -3,21 +3,8 @@
 
 version: 2
 updates:
-
   # Maintain dependencies for GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "daily"
-
-  # Maintain dependencies for npm
-  - package-ecosystem: "npm"
-    directory: "/rtf_vis_tool"
-    schedule:
-      interval: "daily"
-    target-branch: "rtf-dependencies"
-    labels:
-      - "npm dependencies"
-    reviewers:
-      - "stepanyanhayk"
-      - "johnwlambert"
+      interval: "weekly"
