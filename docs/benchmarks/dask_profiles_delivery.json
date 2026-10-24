@@ -2,10 +2,9 @@
   "feature_commit": "c96a4d51486f5bc9545cd7e680df0e6b6cc96fe9",
   "source_and_evidence_commit": "8dafa2ded1a43344f0203e867e640b1292f51516",
   "pdf": "output/pdf/dask-profiles-verification.pdf",
-  "pdf_sha256": "63d6c70b85e359265b5fbd63fec35d580444208a8d0f3a98d7e6d6877b46093d",
-  "source_markdown_sha256": "7c9eb9a227f88171f996fdc73e5be504d8b440fa50762821af266ebaae8a2033",
-  "pdf_pages": 4,
-  "visual_qa": "All four final rendered pages inspected; no clipping, overlap, missing glyphs or broken tables observed.",
+  "pdf_sha256": "a264a5b99524b9787ab13e3bb68429ea3b410eeb881bbb55f88bd8efed1f25fc",
+  "pdf_pages": 1,
+  "visual_qa": "Final one-page PDF rendered at 120 dpi and inspected: no clipping, overlap, missing glyphs or broken arrows. Diagram labels and evidence figures checked.",
   "render_command": "python scripts/render_dask_profiles_paper.py --source-commit 8dafa2ded1a43344f0203e867e640b1292f51516",
   "remote_final_state": "dask_profiles_delivery_gpu.json",
   "worker_accounting": {
@@ -17,5 +16,10 @@
   },
   "validation": "raw/coordinator-validation.json",
   "canonical_claims": "raw/independent-verifier/claims.json",
-  "claim_boundary": "Persisted validated local Dask profiles, exact exported sparse reconstruction on the four-image scene; no universal accuracy, speedup, native-Windows, hard VRAM or full-IPC-cleanup claim."
+  "claim_boundary": "Persisted validated local Dask profiles, exact exported sparse reconstruction on the four-image scene; no universal accuracy, speedup, native-Windows, hard VRAM or full-IPC-cleanup claim.",
+  "pdf_words": 211,
+  "format": "One-page visual brief with pipeline, before/after and matched-run diagrams",
+  "source_brief": "docs/benchmarks/dask_profiles_brief.json",
+  "source_brief_sha256": "9553799e38690ac69cc09dd9e0a8404471b110a6fea45c331fd723a88fbc731f",
+  "detailed_report_markdown_sha256": "7c9eb9a227f88171f996fdc73e5be504d8b440fa50762821af266ebaae8a2033"
 }

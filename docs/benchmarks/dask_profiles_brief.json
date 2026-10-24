@@ -1,0 +1,12 @@
+{
+  "title": "Reusable compute settings for GTSfM",
+  "subtitle": "Save a setup, reload it, and see what workers actually ran.",
+  "context": "GTSfM turns photos into a 3D model. Dask assigns the work to CPU/GPU workers.",
+  "before": "Custom worker, memory and GPU settings lived in the current form. No named setup to reload after restart.",
+  "after": "Save a profile. Reload it, validate it, launch through the existing runner, and compare requested vs. observed settings.",
+  "why": "Makes experiments easier to repeat and configuration mistakes easier to spot.",
+  "finding": "Manual settings and saved profiles produced byte-identical reconstruction exports.",
+  "scope": "Tested on four images with one RTX 3080. Speed, accuracy and larger-scene gains remain unproven.",
+  "evidence_index": "docs/benchmarks/raw/README.md",
+  "detailed_report": "docs/benchmarks/dask_profiles_verification.md"
+}
