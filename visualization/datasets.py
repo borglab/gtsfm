@@ -18,6 +18,8 @@ def resolve_relative_loader_paths(
     for name, value in list(resolved.items()):
         if not isinstance(value, str) or not (name.endswith("_path") or name.endswith("_fpath")):
             continue
+        if value == "":
+            continue
         path = Path(value).expanduser()
         if not path.is_absolute():
             resolved[name] = str((dataset_dir / path).resolve())
