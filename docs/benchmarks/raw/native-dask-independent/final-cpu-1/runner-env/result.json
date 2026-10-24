@@ -1,0 +1,126 @@
+{
+  "case": "runner-env",
+  "pid": 921,
+  "dask": "2025.9.1",
+  "distributed": "2025.9.1",
+  "source_before": {
+    "gtsfm/runner.py": "9a76568399ad840ee8ac51fa79eae297ba51c42c9aec763aa83e91b0e1515701",
+    "gtsfm/configs/cluster_local.yaml": "a496dbd8afcb7d5ac68ba3ef9c846fa11699dc36b720f05b83a44edcc99e4ef9",
+    "gtsfm/utils/dask_stats.py": "191876d9304aa799fbde6da91e8a3d19c71419633b15113c049c483711c6877b",
+    "visualization/runtime.py": "406729f72d5b34765a95aeee0ad963dcb2cef2b1a327941a51bdf71919cfa60e",
+    "visualization/app.py": "4268a152a88886daddf1b23d69e87af225aeae8cbfef6fdc31c1af4dfc155db0",
+    "visualization/execution_profiles.py": null,
+    "visualization/frontend/src/main.tsx": "9e8937dd1a4fcba353a6f8115a2dce827084fc3a798d13a8f71d05416cdf9c0c",
+    "visualization/static/studio.js": "f2e16bb710148207f9de39805cfa95fad0dac051e2b09b20023456c5ff4d2f19",
+    "scripts/verify_native_dask.py": "84e6324c5578225e0359ffb206b493cac34541d89ba729290fd000469e924435"
+  },
+  "env": {
+    "DASK_CONFIG": "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/runner-env/config",
+    "DASK_DISTRIBUTED__WORKER__MEMORY__TARGET": "0.67",
+    "DASK_TEMPORARY_DIRECTORY": "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/runner-env/env-scratch",
+    "DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT": "127s"
+  },
+  "checks": {
+    "pinned_version": true,
+    "standard_parser_units": true,
+    "standard_parser_unlimited": true,
+    "two_distinct_worker_processes": true,
+    "effective_threads_memory": true,
+    "native_target_precedence": true,
+    "native_timeout_precedence": true,
+    "project_defaults_preserved": true,
+    "native_scratch_precedence": true,
+    "explicit_cpu_visibility": true,
+    "actual_task_execution": true,
+    "worker_process_cleanup": true,
+    "source_unchanged_during_probe": true
+  },
+  "workers": {
+    "tcp://127.0.0.1:52260": {
+      "pid": 1026,
+      "nthreads": 2,
+      "memory_limit": 536870912,
+      "memory_target": 0.67,
+      "local_directory": "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/runner-env/env-scratch/dask-scratch-space/worker-94ixw3aw",
+      "cuda_visible_devices": "",
+      "config_target": 0.67,
+      "connect_timeout": "127s",
+      "tcp_timeout": "300s",
+      "worker_ttl": null
+    },
+    "tcp://127.0.0.1:52263": {
+      "pid": 1027,
+      "nthreads": 2,
+      "memory_limit": 536870912,
+      "memory_target": 0.67,
+      "local_directory": "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/runner-env/env-scratch/dask-scratch-space/worker-8d5sj5fb",
+      "cuda_visible_devices": "",
+      "config_target": 0.67,
+      "connect_timeout": "127s",
+      "tcp_timeout": "300s",
+      "worker_ttl": null
+    }
+  },
+  "closed": true,
+  "upstream_source": {
+    "LocalCluster": "740b14829ff19f7540821497442494abf9272a7ecfa7fe4a02ed8c7f4f104523",
+    "parse_memory_limit": "bf42392abb621ad40403b0d6730f6c4d5c9369b2585e531449185f63b454dc89",
+    "dask_config": "f891c52d628511e544af31840763327e6aa1916b91fbcd9602e8f727a1dfb91d"
+  },
+  "standard_memory_parser": {
+    "None": null,
+    "0": null,
+    "512MiB": 536870912,
+    "512 MB": 512000000,
+    "auto": 3435973836,
+    "0.25": 4294967296
+  },
+  "argv": [
+    "--num_workers",
+    "2",
+    "--threads_per_worker",
+    "2",
+    "--worker_memory_limit",
+    "512MiB",
+    "--dashboard_port",
+    ":0"
+  ],
+  "descendant_identities": [
+    [
+      1025,
+      1792884172.919299
+    ],
+    [
+      1026,
+      1792884172.929366
+    ],
+    [
+      1027,
+      1792884172.938352
+    ]
+  ],
+  "scheduler": {
+    "tcp://127.0.0.1:52260": {
+      "nthreads": 2,
+      "memory_limit": 536870912
+    },
+    "tcp://127.0.0.1:52263": {
+      "nthreads": 2,
+      "memory_limit": 536870912
+    }
+  },
+  "task_result": 10,
+  "remaining_worker_pids": [],
+  "source_after": {
+    "gtsfm/runner.py": "9a76568399ad840ee8ac51fa79eae297ba51c42c9aec763aa83e91b0e1515701",
+    "gtsfm/configs/cluster_local.yaml": "a496dbd8afcb7d5ac68ba3ef9c846fa11699dc36b720f05b83a44edcc99e4ef9",
+    "gtsfm/utils/dask_stats.py": "191876d9304aa799fbde6da91e8a3d19c71419633b15113c049c483711c6877b",
+    "visualization/runtime.py": "406729f72d5b34765a95aeee0ad963dcb2cef2b1a327941a51bdf71919cfa60e",
+    "visualization/app.py": "4268a152a88886daddf1b23d69e87af225aeae8cbfef6fdc31c1af4dfc155db0",
+    "visualization/execution_profiles.py": null,
+    "visualization/frontend/src/main.tsx": "9e8937dd1a4fcba353a6f8115a2dce827084fc3a798d13a8f71d05416cdf9c0c",
+    "visualization/static/studio.js": "f2e16bb710148207f9de39805cfa95fad0dac051e2b09b20023456c5ff4d2f19",
+    "scripts/verify_native_dask.py": "84e6324c5578225e0359ffb206b493cac34541d89ba729290fd000469e924435"
+  },
+  "verdict": "VERIFIED"
+}

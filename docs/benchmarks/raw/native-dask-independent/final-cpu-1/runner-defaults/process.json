@@ -1,0 +1,16 @@
+{
+  "case": "runner-defaults",
+  "command": [
+    "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/bin/python",
+    "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/scripts/verify_native_dask.py",
+    "--child",
+    "runner-defaults",
+    "--artifacts",
+    "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/runner-defaults"
+  ],
+  "pid": 754,
+  "returncode": 0,
+  "timed_out": false,
+  "result": "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/runner-defaults/result.json",
+  "remaining_descendants_after_case_exit": []
+}

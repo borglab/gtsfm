@@ -1,0 +1,23 @@
+{
+  "code": "import dask,distributed,json\nc=dask.config\nc.update_defaults({'distributed': {'scheduler': {'worker-ttl':None}, 'comm':{'timeouts':{'connect':'300s','tcp':'300s'}}}})\nc.update(c.config,c.collect())\nprint(json.dumps({k:c.get(k) for k in ['distributed.comm.timeouts.connect','distributed.comm.timeouts.tcp','distributed.scheduler.worker-ttl']}))",
+  "results": [
+    {
+      "env_connect": null,
+      "returncode": 0,
+      "stdout": "{\"distributed.comm.timeouts.connect\": \"300s\", \"distributed.comm.timeouts.tcp\": \"300s\", \"distributed.scheduler.worker-ttl\": null}\n",
+      "stderr": ""
+    },
+    {
+      "env_connect": "30s",
+      "returncode": 0,
+      "stdout": "{\"distributed.comm.timeouts.connect\": \"30s\", \"distributed.comm.timeouts.tcp\": \"300s\", \"distributed.scheduler.worker-ttl\": null}\n",
+      "stderr": ""
+    },
+    {
+      "env_connect": "127s",
+      "returncode": 0,
+      "stdout": "{\"distributed.comm.timeouts.connect\": \"127s\", \"distributed.comm.timeouts.tcp\": \"300s\", \"distributed.scheduler.worker-ttl\": null}\n",
+      "stderr": ""
+    }
+  ]
+}

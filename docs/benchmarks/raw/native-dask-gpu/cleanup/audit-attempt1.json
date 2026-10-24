@@ -1,0 +1,13 @@
+{
+  "status": "FAILED_STRICT_WALL_CLOCK_IDENTITY_CHECK",
+  "phase": "post-series audit, after all four successful reconstructions",
+  "original_exception": "Traceback (most recent call last): File <stdin>, line 6, in <module>; AssertionError",
+  "assertion": "before['mira']['create_time'] == after['mira']['create_time'] and before['mira']['cmdline'] == after['mira']['cmdline']",
+  "before_create_time": 1792396615.71,
+  "after_create_time": 1792396750.71,
+  "mira_pid_before_after": 34238,
+  "mira_ppid_before_after": 11126,
+  "command_unchanged": true,
+  "pre_run_kernel_start_ticks_captured": false,
+  "followup": "Do not silently relax identity: retain wall-clock mismatch and use post-run kernel and systemd observations with explicit caveat. No service or process was changed."
+}

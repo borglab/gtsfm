@@ -1,0 +1,955 @@
+{
+  "reviewed_utc": "2026-10-24T23:31:29.486133+00:00",
+  "claim": "matched current manual/native GPU controls and owned-job cleanup",
+  "verdict": "VERIFIED",
+  "shared_checks": {
+    "packages_identical": true,
+    "model_asset_hashes_identical": true,
+    "dataset_identical": true,
+    "gpu_compute_empty_after": true,
+    "no_own_units_after": true,
+    "strict_comparator_unchanged": true
+  },
+  "trials": {
+    "A1": {
+      "checks": {
+        "source_expected_observed_and_frozen_equal": true,
+        "assets_expected_observed_and_frozen_equal": true,
+        "dataset_before_after_frozen_equal": true,
+        "manifests_equal_before_after": true,
+        "executing_harness_matches_freeze": true,
+        "instrumentation_identical": true,
+        "environment_identical": true,
+        "constructor_file_and_policy_identical": true,
+        "request_differences_only_predeclared": true,
+        "expected_arm_controls": true,
+        "resolved_algorithm_config_identical_except_output_root": true,
+        "one_observed_two_thread_18GiB_worker": true,
+        "worker_device_scratch_policy_match": true,
+        "worker_guard_pass": true,
+        "all_instrumented_processes_seeded42_no_errors": true,
+        "hash_seed_roles_match": true,
+        "actual_cuda_allocation_observed": true,
+        "expected_actual_model_modules": true,
+        "fresh_pipeline_cache_contract": true,
+        "authenticated_http_accepted": true,
+        "job_completed_exit0": true,
+        "all_observed_pids_absent": true,
+        "api_thread_stopped_port_closed": true,
+        "gpu_compute_empty": true,
+        "systemd_exit0_unit_unloaded": true,
+        "cgroup_limits_observed": true,
+        "telemetry_within_declared_cutoffs": true
+      },
+      "verdict": "VERIFIED",
+      "command": [
+        "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+        "-m",
+        "gtsfm.runner",
+        "--config_name",
+        "vggt_sift_frontend_megaloc",
+        "--loader",
+        "olsson",
+        "--dataset_dir",
+        "/home/jasdeep/gtsfm-profile-gpu-20261024/dataset-first4",
+        "--output_root",
+        "/home/jasdeep/gtsfm-native-dask-20261024/results/runs/A1-00cf299d3a50",
+        "--num_workers",
+        "1",
+        "--threads_per_worker",
+        "2",
+        "--worker_memory_limit",
+        "18GiB",
+        "--max_resolution",
+        "518",
+        "--dashboard_port",
+        "127.0.0.1:0",
+        "--dask_tmpdir",
+        "/home/jasdeep/gtsfm-native-dask-20261024/scratch"
+      ],
+      "observed_workers": [
+        {
+          "pid": 313136,
+          "address": "tcp://127.0.0.1:38923",
+          "nthreads": 2,
+          "memory_limit_bytes": 19327352832,
+          "local_directory": "/home/jasdeep/gtsfm-native-dask-20261024/scratch/dask-scratch-space/worker-oo4gk9yl",
+          "cuda_visible_devices": "0",
+          "selected_device": "cuda:0",
+          "config": {
+            "distributed.worker.daemon": false,
+            "distributed.worker.memory.target": 0.6,
+            "distributed.worker.memory.spill": 0.7,
+            "distributed.worker.memory.pause": 0.8,
+            "distributed.worker.memory.terminate": 0.95,
+            "temporary-directory": "/home/jasdeep/gtsfm-native-dask-20261024/scratch",
+            "distributed.comm.timeouts.connect": "300s",
+            "distributed.comm.timeouts.tcp": "300s"
+          }
+        }
+      ],
+      "startup_processes": [
+        {
+          "time": 1792884286.3607602,
+          "pid": 313136,
+          "kind": "startup",
+          "argv": [
+            "-c",
+            "--multiprocessing-fork"
+          ],
+          "orig_argv": [
+            "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+            "-B",
+            "-c",
+            "from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=29, pipe_handle=35)",
+            "--multiprocessing-fork"
+          ],
+          "cuda_visible_devices": "0",
+          "cuda_visible_devices_is_set": true,
+          "selected_device": "cuda:0",
+          "seed": 42
+        },
+        {
+          "time": 1792884286.3624463,
+          "pid": 313133,
+          "kind": "startup",
+          "argv": [
+            "-c"
+          ],
+          "orig_argv": [
+            "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+            "-B",
+            "-c",
+            "from multiprocessing.resource_tracker import main;main(28)"
+          ],
+          "cuda_visible_devices": "0",
+          "cuda_visible_devices_is_set": true,
+          "selected_device": "cuda:0",
+          "seed": 42
+        },
+        {
+          "time": 1792884281.0052698,
+          "pid": 313089,
+          "kind": "startup",
+          "argv": [
+            "-m",
+            "--config_name",
+            "vggt_sift_frontend_megaloc",
+            "--loader",
+            "olsson",
+            "--dataset_dir",
+            "/home/jasdeep/gtsfm-profile-gpu-20261024/dataset-first4",
+            "--output_root",
+            "/home/jasdeep/gtsfm-native-dask-20261024/results/runs/A1-00cf299d3a50",
+            "--num_workers",
+            "1",
+            "--threads_per_worker",
+            "2",
+            "--worker_memory_limit",
+            "18GiB",
+            "--max_resolution",
+            "518",
+            "--dashboard_port",
+            "127.0.0.1:0",
+            "--dask_tmpdir",
+            "/home/jasdeep/gtsfm-native-dask-20261024/scratch"
+          ],
+          "orig_argv": [
+            "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+            "-m",
+            "gtsfm.runner",
+            "--config_name",
+            "vggt_sift_frontend_megaloc",
+            "--loader",
+            "olsson",
+            "--dataset_dir",
+            "/home/jasdeep/gtsfm-profile-gpu-20261024/dataset-first4",
+            "--output_root",
+            "/home/jasdeep/gtsfm-native-dask-20261024/results/runs/A1-00cf299d3a50",
+            "--num_workers",
+            "1",
+            "--threads_per_worker",
+            "2",
+            "--worker_memory_limit",
+            "18GiB",
+            "--max_resolution",
+            "518",
+            "--dashboard_port",
+            "127.0.0.1:0",
+            "--dask_tmpdir",
+            "/home/jasdeep/gtsfm-native-dask-20261024/scratch"
+          ],
+          "cuda_visible_devices": "0",
+          "cuda_visible_devices_is_set": true,
+          "selected_device": "cuda:0",
+          "seed": 42
+        }
+      ],
+      "hash_seed_roles": {
+        "313133": "42",
+        "313089": "42",
+        "313136": "6640"
+      },
+      "model_modules": {
+        "__main__": "/home/jasdeep/gtsfm-native-dask-20261024/source/gtsfm/runner.py",
+        "gtsfm.utils.dask_stats": "/home/jasdeep/gtsfm-native-dask-20261024/source/gtsfm/utils/dask_stats.py",
+        "thirdparty.megaloc.megaloc": "/home/jasdeep/gtsfm-native-dask-20261024/source/thirdparty/megaloc/megaloc.py",
+        "vggt.models.vggt": "/home/jasdeep/gtsfm-native-dask-20261024/source/thirdparty/vggt/vggt/models/vggt.py",
+        "gtsfm.scene_optimizer": "/home/jasdeep/gtsfm-native-dask-20261024/source/gtsfm/scene_optimizer.py"
+      },
+      "resolved_hydra_sha256": "e2b07389c9383ac4c9adc6a147bbae885b8b9ab92b6e0efef63929dab1f26626",
+      "resolved_hydra_difference_allowed_only": {
+        "output_root": "/home/jasdeep/gtsfm-native-dask-20261024/results/runs/A1-00cf299d3a50"
+      },
+      "return_code": 0,
+      "runner_wall_seconds": 38.914365102071315,
+      "peak_gpu_memory_mib": 5596,
+      "peak_gpu_temperature_c": 37,
+      "peak_cgroup_memory_bytes": 14550384640,
+      "remaining_processes": [],
+      "post_pid_checks": {
+        "313089": {
+          "exists": false
+        },
+        "313133": {
+          "exists": false
+        },
+        "313136": {
+          "exists": false
+        }
+      },
+      "pair_count": 6,
+      "artifact_hashes": {
+        "contract.json": "6f5861ed42e787b29350e77544951ab2249e669230dfedebe8d8b1a0a6273352",
+        "manifest-before.json": "3497ae0b9b730e87c269a774259cd8fab870e1026b5d779b33d4e61127bd709d",
+        "manifest-after.json": "3497ae0b9b730e87c269a774259cd8fab870e1026b5d779b33d4e61127bd709d",
+        "summary.json": "e327a6a165de354917a4d1ad21ce32c85a3cc9aeadba388cfd64086a96840a16",
+        "api-server.json": "b4e02392eca70ca247167d0c34bea0086ca85d22ffe39695338622ca95c52de2",
+        "final-job.json": "8434d63ddcb7a24e0caffc59e8f326e1cb05e43841ddc2d913bf2ad0b84d4040",
+        "telemetry.jsonl": "2ae58b837efe2bb81f7878052e5335a81f01552707a90d5dce235fc48ffc2fee"
+      }
+    },
+    "B1": {
+      "checks": {
+        "source_expected_observed_and_frozen_equal": true,
+        "assets_expected_observed_and_frozen_equal": true,
+        "dataset_before_after_frozen_equal": true,
+        "manifests_equal_before_after": true,
+        "executing_harness_matches_freeze": true,
+        "instrumentation_identical": true,
+        "environment_identical": true,
+        "constructor_file_and_policy_identical": true,
+        "request_differences_only_predeclared": true,
+        "expected_arm_controls": true,
+        "resolved_algorithm_config_identical_except_output_root": true,
+        "one_observed_two_thread_18GiB_worker": true,
+        "worker_device_scratch_policy_match": true,
+        "worker_guard_pass": true,
+        "all_instrumented_processes_seeded42_no_errors": true,
+        "hash_seed_roles_match": true,
+        "actual_cuda_allocation_observed": true,
+        "expected_actual_model_modules": true,
+        "fresh_pipeline_cache_contract": true,
+        "authenticated_http_accepted": true,
+        "job_completed_exit0": true,
+        "all_observed_pids_absent": true,
+        "api_thread_stopped_port_closed": true,
+        "gpu_compute_empty": true,
+        "systemd_exit0_unit_unloaded": true,
+        "cgroup_limits_observed": true,
+        "telemetry_within_declared_cutoffs": true
+      },
+      "verdict": "VERIFIED",
+      "command": [
+        "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+        "-m",
+        "gtsfm.runner",
+        "--config_name",
+        "vggt_sift_frontend_megaloc",
+        "--loader",
+        "olsson",
+        "--dataset_dir",
+        "/home/jasdeep/gtsfm-profile-gpu-20261024/dataset-first4",
+        "--output_root",
+        "/home/jasdeep/gtsfm-native-dask-20261024/results/runs/B1-d492f68b4c66",
+        "--num_workers",
+        "3",
+        "--threads_per_worker",
+        "1",
+        "--worker_memory_limit",
+        "4GiB",
+        "--max_resolution",
+        "518",
+        "--cluster_config",
+        "/home/jasdeep/gtsfm-native-dask-20261024/local-cluster.yaml",
+        "--dashboard_port",
+        "127.0.0.1:0",
+        "--dask_tmpdir",
+        "/home/jasdeep/gtsfm-native-dask-20261024/scratch"
+      ],
+      "observed_workers": [
+        {
+          "pid": 313363,
+          "address": "tcp://127.0.0.1:40017",
+          "nthreads": 2,
+          "memory_limit_bytes": 19327352832,
+          "local_directory": "/home/jasdeep/gtsfm-native-dask-20261024/scratch/dask-scratch-space/worker-a96egkxg",
+          "cuda_visible_devices": "0",
+          "selected_device": "cuda:0",
+          "config": {
+            "distributed.worker.daemon": false,
+            "distributed.worker.memory.target": 0.6,
+            "distributed.worker.memory.spill": 0.7,
+            "distributed.worker.memory.pause": 0.8,
+            "distributed.worker.memory.terminate": 0.95,
+            "temporary-directory": "/home/jasdeep/gtsfm-native-dask-20261024/scratch",
+            "distributed.comm.timeouts.connect": "300s",
+            "distributed.comm.timeouts.tcp": "300s"
+          }
+        }
+      ],
+      "startup_processes": [
+        {
+          "time": 1792884341.543109,
+          "pid": 313336,
+          "kind": "startup",
+          "argv": [
+            "-m",
+            "--config_name",
+            "vggt_sift_frontend_megaloc",
+            "--loader",
+            "olsson",
+            "--dataset_dir",
+            "/home/jasdeep/gtsfm-profile-gpu-20261024/dataset-first4",
+            "--output_root",
+            "/home/jasdeep/gtsfm-native-dask-20261024/results/runs/B1-d492f68b4c66",
+            "--num_workers",
+            "3",
+            "--threads_per_worker",
+            "1",
+            "--worker_memory_limit",
+            "4GiB",
+            "--max_resolution",
+            "518",
+            "--cluster_config",
+            "/home/jasdeep/gtsfm-native-dask-20261024/local-cluster.yaml",
+            "--dashboard_port",
+            "127.0.0.1:0",
+            "--dask_tmpdir",
+            "/home/jasdeep/gtsfm-native-dask-20261024/scratch"
+          ],
+          "orig_argv": [
+            "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+            "-m",
+            "gtsfm.runner",
+            "--config_name",
+            "vggt_sift_frontend_megaloc",
+            "--loader",
+            "olsson",
+            "--dataset_dir",
+            "/home/jasdeep/gtsfm-profile-gpu-20261024/dataset-first4",
+            "--output_root",
+            "/home/jasdeep/gtsfm-native-dask-20261024/results/runs/B1-d492f68b4c66",
+            "--num_workers",
+            "3",
+            "--threads_per_worker",
+            "1",
+            "--worker_memory_limit",
+            "4GiB",
+            "--max_resolution",
+            "518",
+            "--cluster_config",
+            "/home/jasdeep/gtsfm-native-dask-20261024/local-cluster.yaml",
+            "--dashboard_port",
+            "127.0.0.1:0",
+            "--dask_tmpdir",
+            "/home/jasdeep/gtsfm-native-dask-20261024/scratch"
+          ],
+          "cuda_visible_devices": "0",
+          "cuda_visible_devices_is_set": true,
+          "selected_device": "cuda:0",
+          "seed": 42
+        },
+        {
+          "time": 1792884345.7359416,
+          "pid": 313360,
+          "kind": "startup",
+          "argv": [
+            "-c"
+          ],
+          "orig_argv": [
+            "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+            "-B",
+            "-c",
+            "from multiprocessing.resource_tracker import main;main(28)"
+          ],
+          "cuda_visible_devices": "0",
+          "cuda_visible_devices_is_set": true,
+          "selected_device": "cuda:0",
+          "seed": 42
+        },
+        {
+          "time": 1792884345.7432306,
+          "pid": 313363,
+          "kind": "startup",
+          "argv": [
+            "-c",
+            "--multiprocessing-fork"
+          ],
+          "orig_argv": [
+            "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+            "-B",
+            "-c",
+            "from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=29, pipe_handle=35)",
+            "--multiprocessing-fork"
+          ],
+          "cuda_visible_devices": "0",
+          "cuda_visible_devices_is_set": true,
+          "selected_device": "cuda:0",
+          "seed": 42
+        }
+      ],
+      "hash_seed_roles": {
+        "313363": "6640",
+        "313336": "42",
+        "313360": "42"
+      },
+      "model_modules": {
+        "__main__": "/home/jasdeep/gtsfm-native-dask-20261024/source/gtsfm/runner.py",
+        "gtsfm.utils.dask_stats": "/home/jasdeep/gtsfm-native-dask-20261024/source/gtsfm/utils/dask_stats.py",
+        "gtsfm.scene_optimizer": "/home/jasdeep/gtsfm-native-dask-20261024/source/gtsfm/scene_optimizer.py",
+        "vggt.models.vggt": "/home/jasdeep/gtsfm-native-dask-20261024/source/thirdparty/vggt/vggt/models/vggt.py",
+        "thirdparty.megaloc.megaloc": "/home/jasdeep/gtsfm-native-dask-20261024/source/thirdparty/megaloc/megaloc.py"
+      },
+      "resolved_hydra_sha256": "fefa041275e0fabd92a09f34597fb9a9045039bf917545d0dcf2469188b8aa7e",
+      "resolved_hydra_difference_allowed_only": {
+        "output_root": "/home/jasdeep/gtsfm-native-dask-20261024/results/runs/B1-d492f68b4c66"
+      },
+      "return_code": 0,
+      "runner_wall_seconds": 37.81278271507472,
+      "peak_gpu_memory_mib": 5606,
+      "peak_gpu_temperature_c": 37,
+      "peak_cgroup_memory_bytes": 13016465408,
+      "remaining_processes": [],
+      "post_pid_checks": {
+        "313336": {
+          "exists": false
+        },
+        "313360": {
+          "exists": false
+        },
+        "313363": {
+          "exists": false
+        }
+      },
+      "pair_count": 6,
+      "artifact_hashes": {
+        "contract.json": "4f44d55dfe80e6a197fc237e533295ed2f8ec6795a073c94ff8582c747e0ad37",
+        "manifest-before.json": "3497ae0b9b730e87c269a774259cd8fab870e1026b5d779b33d4e61127bd709d",
+        "manifest-after.json": "3497ae0b9b730e87c269a774259cd8fab870e1026b5d779b33d4e61127bd709d",
+        "summary.json": "19d66a9af43f0e94068e46dabdcf13a3b9cd6203034cb4b4bb0b8819e3d12e4c",
+        "api-server.json": "cb2dfb5a8a4b37e8af70b6fc18800f2d8779cf79bb94b29232ca7de6ed2078dd",
+        "final-job.json": "9634d1252f7cca82f76043f752110fec16256280576f55a769f1a875b9f42ce4",
+        "telemetry.jsonl": "9b00ee2f84489c96f7440fef9ae4f50f86df231b2867d227712bdaddcef9974a"
+      }
+    },
+    "A2": {
+      "checks": {
+        "source_expected_observed_and_frozen_equal": true,
+        "assets_expected_observed_and_frozen_equal": true,
+        "dataset_before_after_frozen_equal": true,
+        "manifests_equal_before_after": true,
+        "executing_harness_matches_freeze": true,
+        "instrumentation_identical": true,
+        "environment_identical": true,
+        "constructor_file_and_policy_identical": true,
+        "request_differences_only_predeclared": true,
+        "expected_arm_controls": true,
+        "resolved_algorithm_config_identical_except_output_root": true,
+        "one_observed_two_thread_18GiB_worker": true,
+        "worker_device_scratch_policy_match": true,
+        "worker_guard_pass": true,
+        "all_instrumented_processes_seeded42_no_errors": true,
+        "hash_seed_roles_match": true,
+        "actual_cuda_allocation_observed": true,
+        "expected_actual_model_modules": true,
+        "fresh_pipeline_cache_contract": true,
+        "authenticated_http_accepted": true,
+        "job_completed_exit0": true,
+        "all_observed_pids_absent": true,
+        "api_thread_stopped_port_closed": true,
+        "gpu_compute_empty": true,
+        "systemd_exit0_unit_unloaded": true,
+        "cgroup_limits_observed": true,
+        "telemetry_within_declared_cutoffs": true
+      },
+      "verdict": "VERIFIED",
+      "command": [
+        "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+        "-m",
+        "gtsfm.runner",
+        "--config_name",
+        "vggt_sift_frontend_megaloc",
+        "--loader",
+        "olsson",
+        "--dataset_dir",
+        "/home/jasdeep/gtsfm-profile-gpu-20261024/dataset-first4",
+        "--output_root",
+        "/home/jasdeep/gtsfm-native-dask-20261024/results/runs/A2-5c602355a8d5",
+        "--num_workers",
+        "1",
+        "--threads_per_worker",
+        "2",
+        "--worker_memory_limit",
+        "18GiB",
+        "--max_resolution",
+        "518",
+        "--dashboard_port",
+        "127.0.0.1:0",
+        "--dask_tmpdir",
+        "/home/jasdeep/gtsfm-native-dask-20261024/scratch"
+      ],
+      "observed_workers": [
+        {
+          "pid": 313575,
+          "address": "tcp://127.0.0.1:38461",
+          "nthreads": 2,
+          "memory_limit_bytes": 19327352832,
+          "local_directory": "/home/jasdeep/gtsfm-native-dask-20261024/scratch/dask-scratch-space/worker-nv6ucnxu",
+          "cuda_visible_devices": "0",
+          "selected_device": "cuda:0",
+          "config": {
+            "distributed.worker.daemon": false,
+            "distributed.worker.memory.target": 0.6,
+            "distributed.worker.memory.spill": 0.7,
+            "distributed.worker.memory.pause": 0.8,
+            "distributed.worker.memory.terminate": 0.95,
+            "temporary-directory": "/home/jasdeep/gtsfm-native-dask-20261024/scratch",
+            "distributed.comm.timeouts.connect": "300s",
+            "distributed.comm.timeouts.tcp": "300s"
+          }
+        }
+      ],
+      "startup_processes": [
+        {
+          "time": 1792884400.8149707,
+          "pid": 313546,
+          "kind": "startup",
+          "argv": [
+            "-m",
+            "--config_name",
+            "vggt_sift_frontend_megaloc",
+            "--loader",
+            "olsson",
+            "--dataset_dir",
+            "/home/jasdeep/gtsfm-profile-gpu-20261024/dataset-first4",
+            "--output_root",
+            "/home/jasdeep/gtsfm-native-dask-20261024/results/runs/A2-5c602355a8d5",
+            "--num_workers",
+            "1",
+            "--threads_per_worker",
+            "2",
+            "--worker_memory_limit",
+            "18GiB",
+            "--max_resolution",
+            "518",
+            "--dashboard_port",
+            "127.0.0.1:0",
+            "--dask_tmpdir",
+            "/home/jasdeep/gtsfm-native-dask-20261024/scratch"
+          ],
+          "orig_argv": [
+            "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+            "-m",
+            "gtsfm.runner",
+            "--config_name",
+            "vggt_sift_frontend_megaloc",
+            "--loader",
+            "olsson",
+            "--dataset_dir",
+            "/home/jasdeep/gtsfm-profile-gpu-20261024/dataset-first4",
+            "--output_root",
+            "/home/jasdeep/gtsfm-native-dask-20261024/results/runs/A2-5c602355a8d5",
+            "--num_workers",
+            "1",
+            "--threads_per_worker",
+            "2",
+            "--worker_memory_limit",
+            "18GiB",
+            "--max_resolution",
+            "518",
+            "--dashboard_port",
+            "127.0.0.1:0",
+            "--dask_tmpdir",
+            "/home/jasdeep/gtsfm-native-dask-20261024/scratch"
+          ],
+          "cuda_visible_devices": "0",
+          "cuda_visible_devices_is_set": true,
+          "selected_device": "cuda:0",
+          "seed": 42
+        },
+        {
+          "time": 1792884405.2528665,
+          "pid": 313572,
+          "kind": "startup",
+          "argv": [
+            "-c"
+          ],
+          "orig_argv": [
+            "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+            "-B",
+            "-c",
+            "from multiprocessing.resource_tracker import main;main(28)"
+          ],
+          "cuda_visible_devices": "0",
+          "cuda_visible_devices_is_set": true,
+          "selected_device": "cuda:0",
+          "seed": 42
+        },
+        {
+          "time": 1792884405.2541654,
+          "pid": 313575,
+          "kind": "startup",
+          "argv": [
+            "-c",
+            "--multiprocessing-fork"
+          ],
+          "orig_argv": [
+            "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+            "-B",
+            "-c",
+            "from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=29, pipe_handle=35)",
+            "--multiprocessing-fork"
+          ],
+          "cuda_visible_devices": "0",
+          "cuda_visible_devices_is_set": true,
+          "selected_device": "cuda:0",
+          "seed": 42
+        }
+      ],
+      "hash_seed_roles": {
+        "313575": "6640",
+        "313572": "42",
+        "313546": "42"
+      },
+      "model_modules": {
+        "__main__": "/home/jasdeep/gtsfm-native-dask-20261024/source/gtsfm/runner.py",
+        "gtsfm.utils.dask_stats": "/home/jasdeep/gtsfm-native-dask-20261024/source/gtsfm/utils/dask_stats.py",
+        "gtsfm.scene_optimizer": "/home/jasdeep/gtsfm-native-dask-20261024/source/gtsfm/scene_optimizer.py",
+        "vggt.models.vggt": "/home/jasdeep/gtsfm-native-dask-20261024/source/thirdparty/vggt/vggt/models/vggt.py",
+        "thirdparty.megaloc.megaloc": "/home/jasdeep/gtsfm-native-dask-20261024/source/thirdparty/megaloc/megaloc.py"
+      },
+      "resolved_hydra_sha256": "5ca2884ebf370a6bf4861b9b5b64b79792bc687b11e8a670c4636b00acad5261",
+      "resolved_hydra_difference_allowed_only": {
+        "output_root": "/home/jasdeep/gtsfm-native-dask-20261024/results/runs/A2-5c602355a8d5"
+      },
+      "return_code": 0,
+      "runner_wall_seconds": 37.82632429595105,
+      "peak_gpu_memory_mib": 5640,
+      "peak_gpu_temperature_c": 36,
+      "peak_cgroup_memory_bytes": 13005623296,
+      "remaining_processes": [],
+      "post_pid_checks": {
+        "313546": {
+          "exists": false
+        },
+        "313572": {
+          "exists": false
+        },
+        "313575": {
+          "exists": false
+        }
+      },
+      "pair_count": 6,
+      "artifact_hashes": {
+        "contract.json": "c9d95d564f6af063395c3e2a52f0089d4f79123cbea70a7ef3a2b22994df20f4",
+        "manifest-before.json": "3497ae0b9b730e87c269a774259cd8fab870e1026b5d779b33d4e61127bd709d",
+        "manifest-after.json": "3497ae0b9b730e87c269a774259cd8fab870e1026b5d779b33d4e61127bd709d",
+        "summary.json": "2af5150a2bb3669b16f8b9258b55c2c0ffaeb5f9ce030c3b9be238b2a3bc472a",
+        "api-server.json": "0f46a21b50395ee2bde30d97f1ab5b4a7752bc1e105911a5b321fd3dfdaa6b4e",
+        "final-job.json": "275fcb8d676f8ed06059ebf1b93552733a6694e54dfc0f72f5d5193c8ad7bb30",
+        "telemetry.jsonl": "8ad779ebe705721699ff0487b8907b698f9a4d451cd5efc72fbbc410a1a9e77a"
+      }
+    },
+    "B2": {
+      "checks": {
+        "source_expected_observed_and_frozen_equal": true,
+        "assets_expected_observed_and_frozen_equal": true,
+        "dataset_before_after_frozen_equal": true,
+        "manifests_equal_before_after": true,
+        "executing_harness_matches_freeze": true,
+        "instrumentation_identical": true,
+        "environment_identical": true,
+        "constructor_file_and_policy_identical": true,
+        "request_differences_only_predeclared": true,
+        "expected_arm_controls": true,
+        "resolved_algorithm_config_identical_except_output_root": true,
+        "one_observed_two_thread_18GiB_worker": true,
+        "worker_device_scratch_policy_match": true,
+        "worker_guard_pass": true,
+        "all_instrumented_processes_seeded42_no_errors": true,
+        "hash_seed_roles_match": true,
+        "actual_cuda_allocation_observed": true,
+        "expected_actual_model_modules": true,
+        "fresh_pipeline_cache_contract": true,
+        "authenticated_http_accepted": true,
+        "job_completed_exit0": true,
+        "all_observed_pids_absent": true,
+        "api_thread_stopped_port_closed": true,
+        "gpu_compute_empty": true,
+        "systemd_exit0_unit_unloaded": true,
+        "cgroup_limits_observed": true,
+        "telemetry_within_declared_cutoffs": true
+      },
+      "verdict": "VERIFIED",
+      "command": [
+        "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+        "-m",
+        "gtsfm.runner",
+        "--config_name",
+        "vggt_sift_frontend_megaloc",
+        "--loader",
+        "olsson",
+        "--dataset_dir",
+        "/home/jasdeep/gtsfm-profile-gpu-20261024/dataset-first4",
+        "--output_root",
+        "/home/jasdeep/gtsfm-native-dask-20261024/results/runs/B2-00471d150897",
+        "--num_workers",
+        "3",
+        "--threads_per_worker",
+        "1",
+        "--worker_memory_limit",
+        "4GiB",
+        "--max_resolution",
+        "518",
+        "--cluster_config",
+        "/home/jasdeep/gtsfm-native-dask-20261024/local-cluster.yaml",
+        "--dashboard_port",
+        "127.0.0.1:0",
+        "--dask_tmpdir",
+        "/home/jasdeep/gtsfm-native-dask-20261024/scratch"
+      ],
+      "observed_workers": [
+        {
+          "pid": 313788,
+          "address": "tcp://127.0.0.1:43883",
+          "nthreads": 2,
+          "memory_limit_bytes": 19327352832,
+          "local_directory": "/home/jasdeep/gtsfm-native-dask-20261024/scratch/dask-scratch-space/worker-gy8gt58b",
+          "cuda_visible_devices": "0",
+          "selected_device": "cuda:0",
+          "config": {
+            "distributed.worker.daemon": false,
+            "distributed.worker.memory.target": 0.6,
+            "distributed.worker.memory.spill": 0.7,
+            "distributed.worker.memory.pause": 0.8,
+            "distributed.worker.memory.terminate": 0.95,
+            "temporary-directory": "/home/jasdeep/gtsfm-native-dask-20261024/scratch",
+            "distributed.comm.timeouts.connect": "300s",
+            "distributed.comm.timeouts.tcp": "300s"
+          }
+        }
+      ],
+      "startup_processes": [
+        {
+          "time": 1792884460.3530765,
+          "pid": 313785,
+          "kind": "startup",
+          "argv": [
+            "-c"
+          ],
+          "orig_argv": [
+            "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+            "-B",
+            "-c",
+            "from multiprocessing.resource_tracker import main;main(28)"
+          ],
+          "cuda_visible_devices": "0",
+          "cuda_visible_devices_is_set": true,
+          "selected_device": "cuda:0",
+          "seed": 42
+        },
+        {
+          "time": 1792884456.2701573,
+          "pid": 313761,
+          "kind": "startup",
+          "argv": [
+            "-m",
+            "--config_name",
+            "vggt_sift_frontend_megaloc",
+            "--loader",
+            "olsson",
+            "--dataset_dir",
+            "/home/jasdeep/gtsfm-profile-gpu-20261024/dataset-first4",
+            "--output_root",
+            "/home/jasdeep/gtsfm-native-dask-20261024/results/runs/B2-00471d150897",
+            "--num_workers",
+            "3",
+            "--threads_per_worker",
+            "1",
+            "--worker_memory_limit",
+            "4GiB",
+            "--max_resolution",
+            "518",
+            "--cluster_config",
+            "/home/jasdeep/gtsfm-native-dask-20261024/local-cluster.yaml",
+            "--dashboard_port",
+            "127.0.0.1:0",
+            "--dask_tmpdir",
+            "/home/jasdeep/gtsfm-native-dask-20261024/scratch"
+          ],
+          "orig_argv": [
+            "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+            "-m",
+            "gtsfm.runner",
+            "--config_name",
+            "vggt_sift_frontend_megaloc",
+            "--loader",
+            "olsson",
+            "--dataset_dir",
+            "/home/jasdeep/gtsfm-profile-gpu-20261024/dataset-first4",
+            "--output_root",
+            "/home/jasdeep/gtsfm-native-dask-20261024/results/runs/B2-00471d150897",
+            "--num_workers",
+            "3",
+            "--threads_per_worker",
+            "1",
+            "--worker_memory_limit",
+            "4GiB",
+            "--max_resolution",
+            "518",
+            "--cluster_config",
+            "/home/jasdeep/gtsfm-native-dask-20261024/local-cluster.yaml",
+            "--dashboard_port",
+            "127.0.0.1:0",
+            "--dask_tmpdir",
+            "/home/jasdeep/gtsfm-native-dask-20261024/scratch"
+          ],
+          "cuda_visible_devices": "0",
+          "cuda_visible_devices_is_set": true,
+          "selected_device": "cuda:0",
+          "seed": 42
+        },
+        {
+          "time": 1792884460.3689072,
+          "pid": 313788,
+          "kind": "startup",
+          "argv": [
+            "-c",
+            "--multiprocessing-fork"
+          ],
+          "orig_argv": [
+            "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+            "-B",
+            "-c",
+            "from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=29, pipe_handle=35)",
+            "--multiprocessing-fork"
+          ],
+          "cuda_visible_devices": "0",
+          "cuda_visible_devices_is_set": true,
+          "selected_device": "cuda:0",
+          "seed": 42
+        }
+      ],
+      "hash_seed_roles": {
+        "313785": "42",
+        "313788": "6640",
+        "313761": "42"
+      },
+      "model_modules": {
+        "__main__": "/home/jasdeep/gtsfm-native-dask-20261024/source/gtsfm/runner.py",
+        "gtsfm.utils.dask_stats": "/home/jasdeep/gtsfm-native-dask-20261024/source/gtsfm/utils/dask_stats.py",
+        "gtsfm.scene_optimizer": "/home/jasdeep/gtsfm-native-dask-20261024/source/gtsfm/scene_optimizer.py",
+        "vggt.models.vggt": "/home/jasdeep/gtsfm-native-dask-20261024/source/thirdparty/vggt/vggt/models/vggt.py",
+        "thirdparty.megaloc.megaloc": "/home/jasdeep/gtsfm-native-dask-20261024/source/thirdparty/megaloc/megaloc.py"
+      },
+      "resolved_hydra_sha256": "70101a5c32ccd369c7cceb3cfb8b83ae403daa7fc40c74c69f86933bee8768d8",
+      "resolved_hydra_difference_allowed_only": {
+        "output_root": "/home/jasdeep/gtsfm-native-dask-20261024/results/runs/B2-00471d150897"
+      },
+      "return_code": 0,
+      "runner_wall_seconds": 40.05911940603983,
+      "peak_gpu_memory_mib": 5728,
+      "peak_gpu_temperature_c": 36,
+      "peak_cgroup_memory_bytes": 13024415744,
+      "remaining_processes": [],
+      "post_pid_checks": {
+        "313761": {
+          "exists": false
+        },
+        "313785": {
+          "exists": false
+        },
+        "313788": {
+          "exists": false
+        }
+      },
+      "pair_count": 6,
+      "artifact_hashes": {
+        "contract.json": "bfce46bd6758a122717270552c707d02b12ec953a2c2b66e39d885007cd84360",
+        "manifest-before.json": "3497ae0b9b730e87c269a774259cd8fab870e1026b5d779b33d4e61127bd709d",
+        "manifest-after.json": "3497ae0b9b730e87c269a774259cd8fab870e1026b5d779b33d4e61127bd709d",
+        "summary.json": "41d3dd5211a64693aae1949f0ba3d9787d24ed8971fa73fa96d0961259ce4f65",
+        "api-server.json": "a8e4e78832a6cec600c33a6872ac2848e528645e55df4910249caa36d3cb1e57",
+        "final-job.json": "049e083dd43b2ae2b7bc0bbce9738b6fa2d3a6461f1eb91e94589e0d77b130c0",
+        "telemetry.jsonl": "ae93b7e21c9b755bbeae704237f06e939e2eeded5e13b170aafc131d509a359e"
+      }
+    }
+  },
+  "run_order": [
+    "A1",
+    "B1",
+    "A2",
+    "B2"
+  ],
+  "comparator_order": [
+    "A1",
+    "A2",
+    "B1",
+    "B2"
+  ],
+  "source_runner_sha256": "9a76568399ad840ee8ac51fa79eae297ba51c42c9aec763aa83e91b0e1515701",
+  "source_snapshot_git_head": "012b79c84dbc248213fb4d12e8ea3832bf266dd6",
+  "later_local_runtime_commit": "70a55d48 (coordinator-provided; tested file hashes are the identity)",
+  "cache_review": "Harness code creates an empty source/cache before each job and moves it to retained pipeline-cache after completion; all four retained caches are present with no cache-before-trial. Model-weight and torch-hub caches are intentionally warm and pinned.",
+  "unrelated_mira": {
+    "verdict": "INCONCLUSIVE",
+    "before": {
+      "pid": 34238,
+      "cmdline": [
+        "/srv/shine/mira-local-20261018/.venv/bin/python",
+        "-u",
+        "/srv/shine/mira-local-20261018/run_player.py"
+      ],
+      "ppid": 11126,
+      "create_time": 1792396615.71,
+      "status": "sleeping"
+    },
+    "after": {
+      "create_time": 1792396750.71,
+      "ppid": 11126,
+      "cmdline": [
+        "/srv/shine/mira-local-20261018/.venv/bin/python",
+        "-u",
+        "/srv/shine/mira-local-20261018/run_player.py"
+      ],
+      "pid": 34238,
+      "status": "sleeping"
+    },
+    "reason": "Strict epoch equality failed by135s; stable post-run kernel start ticks/boot ID and matching btime/psutil drift explain the timestamp mechanism, but pre-run kernel identity was not captured, so whole-series exact lifecycle identity remains INCONCLUSIVE.",
+    "supplementary_review": "mira-lifecycle-review.json"
+  },
+  "scope": [
+    "Independent review of executor raw evidence; reviewer launched no GPU jobs.",
+    "Complete final sparse exports/pairs checked separately by unchanged strict comparator.",
+    "No speedup, internal tensor bitwise equality, general dataset/scale equivalence or GPU-memory cap claim.",
+    "Observed job PID existence is false after exit, so owned-job cleanup does not rely only on epoch create_time equality."
+  ],
+  "final_cleanup_receipt": {
+    "path": "docs/benchmarks/raw/native-dask-gpu/cleanup/final-cleanup.json",
+    "sha256": "54acfdc0afea64d976f2eb6e25883cce90b8059406e57e8b931934dfb5ec0713",
+    "observed_pid_count": 12,
+    "all_owned_pids_absent": true,
+    "remaining_owned_pids_or_groups": []
+  }
+}

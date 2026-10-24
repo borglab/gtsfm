@@ -1,0 +1,39 @@
+{
+  "utc": "2026-10-24T23:25:17.325492+00:00",
+  "source_hashes": {
+    "gtsfm/runner.py": "9a76568399ad840ee8ac51fa79eae297ba51c42c9aec763aa83e91b0e1515701",
+    "gtsfm/utils/dask_stats.py": "191876d9304aa799fbde6da91e8a3d19c71419633b15113c049c483711c6877b",
+    "gtsfm/configs/cluster_local.yaml": "a496dbd8afcb7d5ac68ba3ef9c846fa11699dc36b720f05b83a44edcc99e4ef9",
+    "visualization/app.py": "4268a152a88886daddf1b23d69e87af225aeae8cbfef6fdc31c1af4dfc155db0",
+    "visualization/runtime.py": "406729f72d5b34765a95aeee0ad963dcb2cef2b1a327941a51bdf71919cfa60e",
+    "visualization/execution_profiles.py": null,
+    "visualization/frontend/src/main.tsx": "9e8937dd1a4fcba353a6f8115a2dce827084fc3a798d13a8f71d05416cdf9c0c",
+    "visualization/static/studio.js": "f2e16bb710148207f9de39805cfa95fad0dac051e2b09b20023456c5ff4d2f19",
+    "scripts/verify_native_dask.py": "84e6324c5578225e0359ffb206b493cac34541d89ba729290fd000469e924435",
+    "scripts/verify_dask_profiles.py": "99d941d94b03087bd5db979dd6978af833f87fd2f2ff4da21e7ac8f6dd99612e"
+  },
+  "profile_parser_scan": {
+    "pattern": "execution[_-]profiles?|ExecutionProfile|_WORKER_PROBE_CACHE|parse_memory_limit",
+    "paths": [
+      "gtsfm/runner.py",
+      "gtsfm/utils/dask_stats.py",
+      "gtsfm/configs/cluster_local.yaml",
+      "visualization/app.py",
+      "visualization/runtime.py",
+      "visualization/frontend/src/main.tsx",
+      "visualization/static/studio.js"
+    ],
+    "returncode": 1,
+    "matches": "",
+    "stderr": ""
+  },
+  "historical_changed_paths": [],
+  "cpu_cases": 14,
+  "cpu_all_verified": true,
+  "cpu_source_stable": true,
+  "cpu_all_exit_zero": true,
+  "cpu_no_timeouts": true,
+  "cpu_no_observed_descendants": true,
+  "documentation_link_exists": false,
+  "scope_caveat": "Legacy --dask_tmpdir remains a programmatic native temporary_directory policy even with constructor YAML; explicit local_directory wins."
+}

@@ -1,0 +1,18 @@
+[
+  {
+    "case": "studio",
+    "command": [
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/bin/python",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/scripts/verify_native_dask.py",
+      "--child",
+      "studio",
+      "--artifacts",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/studio-2/studio"
+    ],
+    "pid": 61660,
+    "returncode": 0,
+    "timed_out": false,
+    "result": "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/studio-2/studio/result.json",
+    "remaining_descendants_after_case_exit": []
+  }
+]

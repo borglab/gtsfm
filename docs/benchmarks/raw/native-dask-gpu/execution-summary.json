@@ -1,0 +1,242 @@
+{
+  "sequence": [
+    "A1",
+    "B1",
+    "A2",
+    "B2"
+  ],
+  "trials": {
+    "A1": {
+      "arm": "manual",
+      "http_status": 202,
+      "guard_passed": true,
+      "workers": [
+        {
+          "pid": 313136,
+          "address": "tcp://127.0.0.1:38923",
+          "nthreads": 2,
+          "memory_limit_bytes": 19327352832,
+          "local_directory": "/home/jasdeep/gtsfm-native-dask-20261024/scratch/dask-scratch-space/worker-oo4gk9yl",
+          "cuda_visible_devices": "0",
+          "selected_device": "cuda:0",
+          "config": {
+            "distributed.worker.daemon": false,
+            "distributed.worker.memory.target": 0.6,
+            "distributed.worker.memory.spill": 0.7,
+            "distributed.worker.memory.pause": 0.8,
+            "distributed.worker.memory.terminate": 0.95,
+            "temporary-directory": "/home/jasdeep/gtsfm-native-dask-20261024/scratch",
+            "distributed.comm.timeouts.connect": "300s",
+            "distributed.comm.timeouts.tcp": "300s"
+          }
+        }
+      ],
+      "models": {
+        "__main__": "/home/jasdeep/gtsfm-native-dask-20261024/source/gtsfm/runner.py",
+        "gtsfm.utils.dask_stats": "/home/jasdeep/gtsfm-native-dask-20261024/source/gtsfm/utils/dask_stats.py",
+        "thirdparty.megaloc.megaloc": "/home/jasdeep/gtsfm-native-dask-20261024/source/thirdparty/megaloc/megaloc.py",
+        "vggt.models.vggt": "/home/jasdeep/gtsfm-native-dask-20261024/source/thirdparty/vggt/vggt/models/vggt.py",
+        "gtsfm.scene_optimizer": "/home/jasdeep/gtsfm-native-dask-20261024/source/gtsfm/scene_optimizer.py"
+      },
+      "runner_observation_seconds": 38.914365102071315,
+      "harness_seconds": 53.52201278298162,
+      "return_code": 0,
+      "source_asset_input_drift": false,
+      "remaining_processes": [],
+      "peak_sampled_gpu_mib": 5596,
+      "peak_sampled_temperature_c": 37,
+      "peak_sampled_tree_rss_bytes": 13961977856,
+      "peak_observed_cgroup_memory_bytes": 14550384640,
+      "min_observed_system_available_bytes": 17994465280,
+      "memory_limits": [
+        "25769803776"
+      ],
+      "cpu_limits": [
+        "400000 100000"
+      ],
+      "export_sha256": {
+        "cameras.txt": "dcc89f348d073e7c54e835a4f99dbcc448be1f80e086ccc6dec8b5e5faf46282",
+        "images.txt": "6720ea33d1c563c815f91cd3083645ed30260955060d912e0b17fed0bdf78543",
+        "points3D.txt": "def842b8ce19248eed97e5095fd9229ec1115a7ecd1753459e1987319e90dea0"
+      },
+      "pairs_sha256": "72000710af4383c65770877a829aff2247fd4bde8f1a5270586d2e60c3be5802"
+    },
+    "B1": {
+      "arm": "native",
+      "http_status": 202,
+      "guard_passed": true,
+      "workers": [
+        {
+          "pid": 313363,
+          "address": "tcp://127.0.0.1:40017",
+          "nthreads": 2,
+          "memory_limit_bytes": 19327352832,
+          "local_directory": "/home/jasdeep/gtsfm-native-dask-20261024/scratch/dask-scratch-space/worker-a96egkxg",
+          "cuda_visible_devices": "0",
+          "selected_device": "cuda:0",
+          "config": {
+            "distributed.worker.daemon": false,
+            "distributed.worker.memory.target": 0.6,
+            "distributed.worker.memory.spill": 0.7,
+            "distributed.worker.memory.pause": 0.8,
+            "distributed.worker.memory.terminate": 0.95,
+            "temporary-directory": "/home/jasdeep/gtsfm-native-dask-20261024/scratch",
+            "distributed.comm.timeouts.connect": "300s",
+            "distributed.comm.timeouts.tcp": "300s"
+          }
+        }
+      ],
+      "models": {
+        "__main__": "/home/jasdeep/gtsfm-native-dask-20261024/source/gtsfm/runner.py",
+        "gtsfm.utils.dask_stats": "/home/jasdeep/gtsfm-native-dask-20261024/source/gtsfm/utils/dask_stats.py",
+        "gtsfm.scene_optimizer": "/home/jasdeep/gtsfm-native-dask-20261024/source/gtsfm/scene_optimizer.py",
+        "vggt.models.vggt": "/home/jasdeep/gtsfm-native-dask-20261024/source/thirdparty/vggt/vggt/models/vggt.py",
+        "thirdparty.megaloc.megaloc": "/home/jasdeep/gtsfm-native-dask-20261024/source/thirdparty/megaloc/megaloc.py"
+      },
+      "runner_observation_seconds": 37.81278271507472,
+      "harness_seconds": 52.28885094297584,
+      "return_code": 0,
+      "source_asset_input_drift": false,
+      "remaining_processes": [],
+      "peak_sampled_gpu_mib": 5606,
+      "peak_sampled_temperature_c": 37,
+      "peak_sampled_tree_rss_bytes": 13969625088,
+      "peak_observed_cgroup_memory_bytes": 13016465408,
+      "min_observed_system_available_bytes": 18058960896,
+      "memory_limits": [
+        "25769803776"
+      ],
+      "cpu_limits": [
+        "400000 100000"
+      ],
+      "export_sha256": {
+        "cameras.txt": "dcc89f348d073e7c54e835a4f99dbcc448be1f80e086ccc6dec8b5e5faf46282",
+        "images.txt": "6720ea33d1c563c815f91cd3083645ed30260955060d912e0b17fed0bdf78543",
+        "points3D.txt": "def842b8ce19248eed97e5095fd9229ec1115a7ecd1753459e1987319e90dea0"
+      },
+      "pairs_sha256": "72000710af4383c65770877a829aff2247fd4bde8f1a5270586d2e60c3be5802"
+    },
+    "A2": {
+      "arm": "manual",
+      "http_status": 202,
+      "guard_passed": true,
+      "workers": [
+        {
+          "pid": 313575,
+          "address": "tcp://127.0.0.1:38461",
+          "nthreads": 2,
+          "memory_limit_bytes": 19327352832,
+          "local_directory": "/home/jasdeep/gtsfm-native-dask-20261024/scratch/dask-scratch-space/worker-nv6ucnxu",
+          "cuda_visible_devices": "0",
+          "selected_device": "cuda:0",
+          "config": {
+            "distributed.worker.daemon": false,
+            "distributed.worker.memory.target": 0.6,
+            "distributed.worker.memory.spill": 0.7,
+            "distributed.worker.memory.pause": 0.8,
+            "distributed.worker.memory.terminate": 0.95,
+            "temporary-directory": "/home/jasdeep/gtsfm-native-dask-20261024/scratch",
+            "distributed.comm.timeouts.connect": "300s",
+            "distributed.comm.timeouts.tcp": "300s"
+          }
+        }
+      ],
+      "models": {
+        "__main__": "/home/jasdeep/gtsfm-native-dask-20261024/source/gtsfm/runner.py",
+        "gtsfm.utils.dask_stats": "/home/jasdeep/gtsfm-native-dask-20261024/source/gtsfm/utils/dask_stats.py",
+        "gtsfm.scene_optimizer": "/home/jasdeep/gtsfm-native-dask-20261024/source/gtsfm/scene_optimizer.py",
+        "vggt.models.vggt": "/home/jasdeep/gtsfm-native-dask-20261024/source/thirdparty/vggt/vggt/models/vggt.py",
+        "thirdparty.megaloc.megaloc": "/home/jasdeep/gtsfm-native-dask-20261024/source/thirdparty/megaloc/megaloc.py"
+      },
+      "runner_observation_seconds": 37.82632429595105,
+      "harness_seconds": 52.2152102739783,
+      "return_code": 0,
+      "source_asset_input_drift": false,
+      "remaining_processes": [],
+      "peak_sampled_gpu_mib": 5640,
+      "peak_sampled_temperature_c": 36,
+      "peak_sampled_tree_rss_bytes": 13962407936,
+      "peak_observed_cgroup_memory_bytes": 13005623296,
+      "min_observed_system_available_bytes": 18060574720,
+      "memory_limits": [
+        "25769803776"
+      ],
+      "cpu_limits": [
+        "400000 100000"
+      ],
+      "export_sha256": {
+        "cameras.txt": "dcc89f348d073e7c54e835a4f99dbcc448be1f80e086ccc6dec8b5e5faf46282",
+        "images.txt": "6720ea33d1c563c815f91cd3083645ed30260955060d912e0b17fed0bdf78543",
+        "points3D.txt": "def842b8ce19248eed97e5095fd9229ec1115a7ecd1753459e1987319e90dea0"
+      },
+      "pairs_sha256": "72000710af4383c65770877a829aff2247fd4bde8f1a5270586d2e60c3be5802"
+    },
+    "B2": {
+      "arm": "native",
+      "http_status": 202,
+      "guard_passed": true,
+      "workers": [
+        {
+          "pid": 313788,
+          "address": "tcp://127.0.0.1:43883",
+          "nthreads": 2,
+          "memory_limit_bytes": 19327352832,
+          "local_directory": "/home/jasdeep/gtsfm-native-dask-20261024/scratch/dask-scratch-space/worker-gy8gt58b",
+          "cuda_visible_devices": "0",
+          "selected_device": "cuda:0",
+          "config": {
+            "distributed.worker.daemon": false,
+            "distributed.worker.memory.target": 0.6,
+            "distributed.worker.memory.spill": 0.7,
+            "distributed.worker.memory.pause": 0.8,
+            "distributed.worker.memory.terminate": 0.95,
+            "temporary-directory": "/home/jasdeep/gtsfm-native-dask-20261024/scratch",
+            "distributed.comm.timeouts.connect": "300s",
+            "distributed.comm.timeouts.tcp": "300s"
+          }
+        }
+      ],
+      "models": {
+        "__main__": "/home/jasdeep/gtsfm-native-dask-20261024/source/gtsfm/runner.py",
+        "gtsfm.utils.dask_stats": "/home/jasdeep/gtsfm-native-dask-20261024/source/gtsfm/utils/dask_stats.py",
+        "gtsfm.scene_optimizer": "/home/jasdeep/gtsfm-native-dask-20261024/source/gtsfm/scene_optimizer.py",
+        "vggt.models.vggt": "/home/jasdeep/gtsfm-native-dask-20261024/source/thirdparty/vggt/vggt/models/vggt.py",
+        "thirdparty.megaloc.megaloc": "/home/jasdeep/gtsfm-native-dask-20261024/source/thirdparty/megaloc/megaloc.py"
+      },
+      "runner_observation_seconds": 40.05911940603983,
+      "harness_seconds": 54.41542275401298,
+      "return_code": 0,
+      "source_asset_input_drift": false,
+      "remaining_processes": [],
+      "peak_sampled_gpu_mib": 5728,
+      "peak_sampled_temperature_c": 36,
+      "peak_sampled_tree_rss_bytes": 13978841088,
+      "peak_observed_cgroup_memory_bytes": 13024415744,
+      "min_observed_system_available_bytes": 18117349376,
+      "memory_limits": [
+        "25769803776"
+      ],
+      "cpu_limits": [
+        "400000 100000"
+      ],
+      "export_sha256": {
+        "cameras.txt": "dcc89f348d073e7c54e835a4f99dbcc448be1f80e086ccc6dec8b5e5faf46282",
+        "images.txt": "6720ea33d1c563c815f91cd3083645ed30260955060d912e0b17fed0bdf78543",
+        "points3D.txt": "def842b8ce19248eed97e5095fd9229ec1115a7ecd1753459e1987319e90dea0"
+      },
+      "pairs_sha256": "72000710af4383c65770877a829aff2247fd4bde8f1a5270586d2e60c3be5802"
+    }
+  },
+  "timing_note": "Monotonic runner observation starts after discovering the managed process and ends on its exit poll; harness time includes verification and cleanup. These four descriptive trials support no speedup claim.",
+  "cgroup_note": "systemd-run completion text reported an implausible 256KiB peak; use the retained live cgroup memory.peak samples and process/GPU telemetry.",
+  "cleanup": "cleanup/final-cleanup.json",
+  "identity_caveat": "Strict psutil MIRA wall-clock creation-time comparison failed as Linux btime shifted. Post-run kernel start ticks stable; original systemd start October18 and NRestarts0; no pre-run kernel ticks available.",
+  "strict_comparison": {
+    "verdict": "VERIFIED",
+    "exact_export_bytes": true,
+    "baseline_repeatable": true,
+    "cameras": 4,
+    "tracks": 1509,
+    "path": "strict-comparison.json"
+  }
+}

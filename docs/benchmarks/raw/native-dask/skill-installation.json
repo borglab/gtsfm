@@ -1,0 +1,53 @@
+{
+  "source": "https://github.com/K-Dense-AI/scientific-agent-skills/tree/593377bb048752abb0152deab9fbb1083a6087df/skills/dask",
+  "commit": "593377bb048752abb0152deab9fbb1083a6087df",
+  "canonical_path": "/Users/jasdeepahluwalia/.agents/skills/dask",
+  "files_verified": [
+    {
+      "path": "SKILL.md",
+      "git_blob_sha": "db2f8e7b31a219cb40ea2af2d56cfa4e4f6b3072",
+      "sha256": "3b563a98f4cb42858bb1cc49832a3fa1ff9483d929af57ebe629473538e5a041"
+    },
+    {
+      "path": "references/arrays.md",
+      "git_blob_sha": "0354b78dcc1c1aa296cc38ab6c84bbdb7d54455d",
+      "sha256": "9505d826de392bd9ac35a00bb082e275156cd746a251fac36bdb987a11a6fcda"
+    },
+    {
+      "path": "references/bags.md",
+      "git_blob_sha": "be4aaffaa5b6a72fc8605dab66d290d3ee6866f6",
+      "sha256": "4668a74485ae2087eb1d6b4bc732641d1e8ee666fba5661243e6a68767d4c17f"
+    },
+    {
+      "path": "references/best-practices.md",
+      "git_blob_sha": "86808abadbd72983e67e309bda26f4b37b4e3510",
+      "sha256": "0d475a1d3ceb341c2bf87b8022fa08e0e3e59fbc516ad00a0c63288ddde597af"
+    },
+    {
+      "path": "references/dataframes.md",
+      "git_blob_sha": "9d200d3242352f2fd1bf345a4ede42ced3e1c4b0",
+      "sha256": "fce72d6db5d694c88110781079b2cabed613422f60523a9c4eae19b2d44797d2"
+    },
+    {
+      "path": "references/futures.md",
+      "git_blob_sha": "8c896496c07596ab4c8d6043e3d0b7f8a55d1f05",
+      "sha256": "6f31c828d7794da2db877fe1f5efe6c8fda11197f1328f66693792bf06368e12"
+    },
+    {
+      "path": "references/review.md",
+      "git_blob_sha": "fdb73cd64389ec09d92b5ce356f427e219f628c6",
+      "sha256": "599658e990675a39e6f3c0eff7198ecc8565e17a0894f1882850f088597d01ed"
+    },
+    {
+      "path": "references/schedulers.md",
+      "git_blob_sha": "1b36a1aaec798c655f3c47a69a99052ca45da04a",
+      "sha256": "ad95a4a2700a74ef8b0cb331f9f622c5dea86987805de8b3316eeba31e839740"
+    }
+  ],
+  "canonical_owner_only": true,
+  "orca_discovery_id": "43753ca13ebcdcf6",
+  "skill_reviewed_dask_version": "2026.8.0",
+  "project_dask_version": "2025.9.1",
+  "dependencies_changed": false,
+  "note": "Project pins and official documentation/current installed APIs take precedence; installation examples do not authorize a Dask upgrade. Codex and Kimi use the shared skills root; other resolved discovery paths point to the same canonical directory."
+}

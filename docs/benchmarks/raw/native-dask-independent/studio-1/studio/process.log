@@ -1,0 +1,74 @@
+/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+  from starlette.testclient import TestClient as TestClient  # noqa
+Traceback (most recent call last):
+  File "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/lib/python3.12/site-packages/hydra/_internal/config_loader_impl.py", line 390, in _apply_overrides_to_config
+    OmegaConf.update(cfg, key, value, merge=True)
+  File "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/lib/python3.12/site-packages/omegaconf/omegaconf.py", line 741, in update
+    root.__setattr__(last_key, value)
+  File "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/lib/python3.12/site-packages/omegaconf/dictconfig.py", line 337, in __setattr__
+    raise e
+  File "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/lib/python3.12/site-packages/omegaconf/dictconfig.py", line 334, in __setattr__
+    self.__set_impl(key, value)
+  File "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/lib/python3.12/site-packages/omegaconf/dictconfig.py", line 318, in __set_impl
+    self._set_item_impl(key, value)
+  File "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/lib/python3.12/site-packages/omegaconf/basecontainer.py", line 549, in _set_item_impl
+    self._validate_set(key, value)
+  File "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/lib/python3.12/site-packages/omegaconf/dictconfig.py", line 180, in _validate_set
+    target = self._get_node(key) if key is not None else self
+             ^^^^^^^^^^^^^^^^^^^
+  File "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/lib/python3.12/site-packages/omegaconf/dictconfig.py", line 475, in _get_node
+    self._validate_get(key)
+  File "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/lib/python3.12/site-packages/omegaconf/dictconfig.py", line 164, in _validate_get
+    self._format_and_raise(
+  File "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/lib/python3.12/site-packages/omegaconf/base.py", line 231, in _format_and_raise
+    format_and_raise(
+  File "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/lib/python3.12/site-packages/omegaconf/_utils.py", line 899, in format_and_raise
+    _raise(ex, cause)
+  File "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/lib/python3.12/site-packages/omegaconf/_utils.py", line 797, in _raise
+    raise ex.with_traceback(sys.exc_info()[2])  # set env var OC_CAUSE=1 for full trace
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+omegaconf.errors.ConfigAttributeError: Key 'use_cuda' is not in struct
+    full_key: cluster_optimizer.multiview_optimizer.bundle_adjustment_module.use_cuda
+    object_type=dict
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/visualization/runtime.py", line 876, in _validate_advanced_hydra_overrides
+    _composed_model_configuration(config_name, loader, overrides)
+  File "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/visualization/runtime.py", line 779, in _composed_model_configuration
+    config = hydra.compose(config_name=config_name, overrides=compose_overrides)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/lib/python3.12/site-packages/hydra/compose.py", line 38, in compose
+    cfg = gh.hydra.compose_config(
+          ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/lib/python3.12/site-packages/hydra/_internal/hydra.py", line 594, in compose_config
+    cfg = self.config_loader.load_configuration(
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/lib/python3.12/site-packages/hydra/_internal/config_loader_impl.py", line 142, in load_configuration
+    return self._load_configuration_impl(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/lib/python3.12/site-packages/hydra/_internal/config_loader_impl.py", line 276, in _load_configuration_impl
+    ConfigLoaderImpl._apply_overrides_to_config(config_overrides, cfg)
+  File "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/lib/python3.12/site-packages/hydra/_internal/config_loader_impl.py", line 392, in _apply_overrides_to_config
+    raise ConfigCompositionException(
+hydra.errors.ConfigCompositionException: Could not override 'cluster_optimizer.multiview_optimizer.bundle_adjustment_module.use_cuda'.
+To append to your config use +cluster_optimizer.multiview_optimizer.bundle_adjustment_module.use_cuda=False
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/scripts/verify_native_dask.py", line 450, in <module>
+    raise SystemExit(child(args.child, args.artifacts) if args.child else run(args.artifacts, args.cases))
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/scripts/verify_native_dask.py", line 198, in child
+    return studio_child(directory)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/scripts/verify_native_dask.py", line 183, in studio_child
+    argv, env = build_runner_args(manual, directory / "manual")
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/visualization/runtime.py", line 1071, in build_runner_args
+    _validate_advanced_hydra_overrides(config_name, loader, [*typed_model_overrides, *advanced_overrides])
+  File "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/visualization/runtime.py", line 879, in _validate_advanced_hydra_overrides
+    raise ValueError(f"Invalid Hydra override: {detail}") from exc
+ValueError: Invalid Hydra override: Could not override 'cluster_optimizer.multiview_optimizer.bundle_adjustment_module.use_cuda'.

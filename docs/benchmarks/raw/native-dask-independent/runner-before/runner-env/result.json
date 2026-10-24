@@ -1,0 +1,103 @@
+{
+  "case": "runner-env",
+  "pid": 36380,
+  "dask": "2025.9.1",
+  "distributed": "2025.9.1",
+  "source_before": {
+    "gtsfm/runner.py": "ecf0cbade0aa6cd65ba3014ac83f6e64706b0165b17591cf4634ab6e5d3871cc",
+    "gtsfm/utils/dask_stats.py": "4b0fa22c14ba3835871f415e414a8a1cefff17c252623c977adca7972f2f11c4",
+    "visualization/runtime.py": "f767d0b0e89827ad2a074689ce0c4caa071aa8ebb9ec69a41a0d7cbe99044bb6",
+    "visualization/app.py": "44ff1c0f0b797b8d6cb6ed8219ab802a96084e20d16e6832461451ab78a7367d",
+    "visualization/execution_profiles.py": "b7623a40098a3fdf60d9b0991bc31428a1018e985c6cd7ba42dc80e7c3b8520a",
+    "visualization/frontend/src/main.tsx": "daf425f445219af18754f429a431a17f59a8c4aa093895cb6a4e88382c64734b",
+    "scripts/verify_native_dask.py": "dd2488e96cc48488bf3cbb2fc91c60fb532ceae7a78ef237bb681e4e9aa99a5f"
+  },
+  "env": {
+    "DASK_CONFIG": "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/runner-before/runner-env/config",
+    "DASK_DISTRIBUTED__WORKER__MEMORY__TARGET": "0.67",
+    "DASK_TEMPORARY_DIRECTORY": "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/runner-before/runner-env/env-scratch",
+    "DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT": "127s"
+  },
+  "checks": {
+    "pinned_version": true,
+    "standard_parser_units": true,
+    "standard_parser_unlimited": true,
+    "two_distinct_worker_processes": true,
+    "effective_threads_memory": true,
+    "native_target_precedence": true,
+    "native_timeout_precedence": false,
+    "native_scratch_precedence": true,
+    "explicit_cpu_visibility": true,
+    "actual_task_execution": true,
+    "worker_process_cleanup": true,
+    "source_unchanged_during_probe": true
+  },
+  "workers": {
+    "tcp://127.0.0.1:64144": {
+      "pid": 36472,
+      "nthreads": 2,
+      "memory_limit": 536870912,
+      "memory_target": 0.67,
+      "local_directory": "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/runner-before/runner-env/env-scratch/dask-scratch-space/worker-zbb3y8gs",
+      "cuda_visible_devices": "",
+      "config_target": 0.67,
+      "connect_timeout": "300s"
+    },
+    "tcp://127.0.0.1:64145": {
+      "pid": 36471,
+      "nthreads": 2,
+      "memory_limit": 536870912,
+      "memory_target": 0.67,
+      "local_directory": "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/runner-before/runner-env/env-scratch/dask-scratch-space/worker-wwixpinf",
+      "cuda_visible_devices": "",
+      "config_target": 0.67,
+      "connect_timeout": "300s"
+    }
+  },
+  "closed": true,
+  "upstream_source": {
+    "LocalCluster": "740b14829ff19f7540821497442494abf9272a7ecfa7fe4a02ed8c7f4f104523",
+    "parse_memory_limit": "bf42392abb621ad40403b0d6730f6c4d5c9369b2585e531449185f63b454dc89",
+    "dask_config": "f891c52d628511e544af31840763327e6aa1916b91fbcd9602e8f727a1dfb91d"
+  },
+  "standard_memory_parser": {
+    "None": null,
+    "0": null,
+    "512MiB": 536870912,
+    "512 MB": 512000000,
+    "auto": 3435973836,
+    "0.25": 4294967296
+  },
+  "argv": [
+    "--num_workers",
+    "2",
+    "--threads_per_worker",
+    "2",
+    "--worker_memory_limit",
+    "512MiB",
+    "--dashboard_port",
+    ":0"
+  ],
+  "scheduler": {
+    "tcp://127.0.0.1:64144": {
+      "nthreads": 2,
+      "memory_limit": 536870912
+    },
+    "tcp://127.0.0.1:64145": {
+      "nthreads": 2,
+      "memory_limit": 536870912
+    }
+  },
+  "task_result": 10,
+  "remaining_worker_pids": [],
+  "source_after": {
+    "gtsfm/runner.py": "ecf0cbade0aa6cd65ba3014ac83f6e64706b0165b17591cf4634ab6e5d3871cc",
+    "gtsfm/utils/dask_stats.py": "4b0fa22c14ba3835871f415e414a8a1cefff17c252623c977adca7972f2f11c4",
+    "visualization/runtime.py": "f767d0b0e89827ad2a074689ce0c4caa071aa8ebb9ec69a41a0d7cbe99044bb6",
+    "visualization/app.py": "44ff1c0f0b797b8d6cb6ed8219ab802a96084e20d16e6832461451ab78a7367d",
+    "visualization/execution_profiles.py": "b7623a40098a3fdf60d9b0991bc31428a1018e985c6cd7ba42dc80e7c3b8520a",
+    "visualization/frontend/src/main.tsx": "daf425f445219af18754f429a431a17f59a8c4aa093895cb6a4e88382c64734b",
+    "scripts/verify_native_dask.py": "dd2488e96cc48488bf3cbb2fc91c60fb532ceae7a78ef237bb681e4e9aa99a5f"
+  },
+  "verdict": "NOT VERIFIED"
+}

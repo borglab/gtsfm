@@ -1,0 +1,2 @@
+{"time": 1792883130.2903788, "pid": 312428, "kind": "startup", "argv": ["-c"], "orig_argv": ["/home/jasdeep/gtsfm_eval/.venv/bin/python", "-c", "from multiprocessing.resource_tracker import main;main(18)"], "cuda_visible_devices": "0", "cuda_visible_devices_is_set": true, "selected_device": null, "seed": 42}
+{"time": 1792883131.1675866, "pid": 312428, "kind": "exit"}

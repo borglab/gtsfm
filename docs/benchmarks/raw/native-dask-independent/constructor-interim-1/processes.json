@@ -1,0 +1,114 @@
+[
+  {
+    "case": "hydra-yaml",
+    "command": [
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/bin/python",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/scripts/verify_native_dask.py",
+      "--child",
+      "hydra-yaml",
+      "--artifacts",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/constructor-interim-1/hydra-yaml"
+    ],
+    "pid": 70993,
+    "returncode": 1,
+    "timed_out": false,
+    "result": "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/constructor-interim-1/hydra-yaml/result.json",
+    "remaining_descendants_after_case_exit": []
+  },
+  {
+    "case": "hydra-env",
+    "command": [
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/bin/python",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/scripts/verify_native_dask.py",
+      "--child",
+      "hydra-env",
+      "--artifacts",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/constructor-interim-1/hydra-env"
+    ],
+    "pid": 71127,
+    "returncode": 1,
+    "timed_out": false,
+    "result": "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/constructor-interim-1/hydra-env/result.json",
+    "remaining_descendants_after_case_exit": []
+  },
+  {
+    "case": "hydra-scratch",
+    "command": [
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/bin/python",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/scripts/verify_native_dask.py",
+      "--child",
+      "hydra-scratch",
+      "--artifacts",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/constructor-interim-1/hydra-scratch"
+    ],
+    "pid": 71272,
+    "returncode": 1,
+    "timed_out": false,
+    "result": "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/constructor-interim-1/hydra-scratch/result.json",
+    "remaining_descendants_after_case_exit": []
+  },
+  {
+    "case": "hydra-zero",
+    "command": [
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/bin/python",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/scripts/verify_native_dask.py",
+      "--child",
+      "hydra-zero",
+      "--artifacts",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/constructor-interim-1/hydra-zero"
+    ],
+    "pid": 71424,
+    "returncode": 1,
+    "timed_out": false,
+    "result": "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/constructor-interim-1/hydra-zero/result.json",
+    "remaining_descendants_after_case_exit": []
+  },
+  {
+    "case": "hydra-client-failure",
+    "command": [
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/bin/python",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/scripts/verify_native_dask.py",
+      "--child",
+      "hydra-client-failure",
+      "--artifacts",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/constructor-interim-1/hydra-client-failure"
+    ],
+    "pid": 71571,
+    "returncode": 0,
+    "timed_out": false,
+    "result": "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/constructor-interim-1/hydra-client-failure/result.json",
+    "remaining_descendants_after_case_exit": []
+  },
+  {
+    "case": "hydra-pipeline-failure",
+    "command": [
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/bin/python",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/scripts/verify_native_dask.py",
+      "--child",
+      "hydra-pipeline-failure",
+      "--artifacts",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/constructor-interim-1/hydra-pipeline-failure"
+    ],
+    "pid": 71704,
+    "returncode": 0,
+    "timed_out": false,
+    "result": "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/constructor-interim-1/hydra-pipeline-failure/result.json",
+    "remaining_descendants_after_case_exit": []
+  },
+  {
+    "case": "legacy",
+    "command": [
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/bin/python",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/scripts/verify_native_dask.py",
+      "--child",
+      "legacy",
+      "--artifacts",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/constructor-interim-1/legacy"
+    ],
+    "pid": 71846,
+    "returncode": 1,
+    "timed_out": false,
+    "result": "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/constructor-interim-1/legacy/result.json",
+    "remaining_descendants_after_case_exit": []
+  }
+]

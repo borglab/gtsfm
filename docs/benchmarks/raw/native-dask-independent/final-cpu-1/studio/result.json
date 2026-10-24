@@ -1,0 +1,148 @@
+{
+  "source_before": {
+    "gtsfm/runner.py": "9a76568399ad840ee8ac51fa79eae297ba51c42c9aec763aa83e91b0e1515701",
+    "gtsfm/configs/cluster_local.yaml": "a496dbd8afcb7d5ac68ba3ef9c846fa11699dc36b720f05b83a44edcc99e4ef9",
+    "gtsfm/utils/dask_stats.py": "191876d9304aa799fbde6da91e8a3d19c71419633b15113c049c483711c6877b",
+    "visualization/runtime.py": "406729f72d5b34765a95aeee0ad963dcb2cef2b1a327941a51bdf71919cfa60e",
+    "visualization/app.py": "4268a152a88886daddf1b23d69e87af225aeae8cbfef6fdc31c1af4dfc155db0",
+    "visualization/execution_profiles.py": null,
+    "visualization/frontend/src/main.tsx": "9e8937dd1a4fcba353a6f8115a2dce827084fc3a798d13a8f71d05416cdf9c0c",
+    "visualization/static/studio.js": "f2e16bb710148207f9de39805cfa95fad0dac051e2b09b20023456c5ff4d2f19",
+    "scripts/verify_native_dask.py": "84e6324c5578225e0359ffb206b493cac34541d89ba729290fd000469e924435"
+  },
+  "checks": {
+    "job_accepted": true,
+    "no_profile_routes": true,
+    "served_bundle_has_no_profile_contract": true,
+    "no_profile_request_schema": true,
+    "existing_cluster_config_reaches_runner": true,
+    "hydra_override_reaches_runner": true,
+    "native_env_inherited": true,
+    "cpu_visibility_preserved": true,
+    "manual_controls_unchanged": true,
+    "no_profile_persistence": true,
+    "source_unchanged_during_probe": true
+  },
+  "scope": "Actual FastAPI/JobManager request routing with dispatch intercepted; no reconstruction proof.",
+  "status": 202,
+  "response": {
+    "id": "1af4b8975bf6",
+    "name": "independent",
+    "status": "queued",
+    "created_at": "2026-10-24T23:23:15.982328+00:00",
+    "updated_at": "2026-10-24T23:23:15.982328+00:00",
+    "output_root": "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/studio/results/runs/independent-1af4b8975bf6",
+    "spec": {
+      "name": "independent",
+      "sample_id": "",
+      "dataset_dir": "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/studio/dataset",
+      "images_dir": "",
+      "loader": "colmap",
+      "config_name": "sift_front_end",
+      "splat_implementation": "none",
+      "execution_target": "local",
+      "hardware": "cpu",
+      "cluster_config": "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/studio/local-cluster.yaml",
+      "num_workers": 1,
+      "threads_per_worker": 1,
+      "worker_memory_limit": "1GiB",
+      "advanced_overrides": [
+        "image_pairs_generator.retriever.min_score=0.4"
+      ]
+    },
+    "command": [
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/bin/python",
+      "-m",
+      "gtsfm.runner",
+      "--config_name",
+      "sift_front_end",
+      "--loader",
+      "colmap",
+      "--dataset_dir",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/studio/dataset",
+      "--output_root",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/studio/results/runs/independent-1af4b8975bf6",
+      "--num_workers",
+      "1",
+      "--threads_per_worker",
+      "1",
+      "--worker_memory_limit",
+      "1GiB",
+      "--cluster_config",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/studio/local-cluster.yaml",
+      "image_pairs_generator.retriever.min_score=0.4"
+    ],
+    "return_code": null,
+    "error": null,
+    "log_tail": [],
+    "pid": null,
+    "remote": null,
+    "has_live_preview": false,
+    "has_final_splat": false
+  },
+  "served_bundle_sha256": "f2e16bb710148207f9de39805cfa95fad0dac051e2b09b20023456c5ff4d2f19",
+  "captured": {
+    "command": [
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/bin/python",
+      "-m",
+      "gtsfm.runner",
+      "--config_name",
+      "sift_front_end",
+      "--loader",
+      "colmap",
+      "--dataset_dir",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/studio/dataset",
+      "--output_root",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/studio/results/runs/independent-1af4b8975bf6",
+      "--num_workers",
+      "1",
+      "--threads_per_worker",
+      "1",
+      "--worker_memory_limit",
+      "1GiB",
+      "--cluster_config",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/studio/local-cluster.yaml",
+      "image_pairs_generator.retriever.min_score=0.4"
+    ],
+    "env": {
+      "DASK_CONFIG": "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/studio/config",
+      "CUDA_VISIBLE_DEVICES": "",
+      "GTSFM_SELECTED_DEVICE": "cpu"
+    }
+  },
+  "manual": {
+    "argv": [
+      "--config_name",
+      "sift_front_end",
+      "--loader",
+      "colmap",
+      "--dataset_dir",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/studio/dataset",
+      "--output_root",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/studio/manual",
+      "--num_workers",
+      "1",
+      "--threads_per_worker",
+      "1",
+      "--worker_memory_limit",
+      "512 MB",
+      "image_pairs_generator.retriever.min_score=0.4"
+    ],
+    "env": {
+      "GTSFM_SELECTED_DEVICE": "cpu",
+      "CUDA_VISIBLE_DEVICES": ""
+    }
+  },
+  "source_after": {
+    "gtsfm/runner.py": "9a76568399ad840ee8ac51fa79eae297ba51c42c9aec763aa83e91b0e1515701",
+    "gtsfm/configs/cluster_local.yaml": "a496dbd8afcb7d5ac68ba3ef9c846fa11699dc36b720f05b83a44edcc99e4ef9",
+    "gtsfm/utils/dask_stats.py": "191876d9304aa799fbde6da91e8a3d19c71419633b15113c049c483711c6877b",
+    "visualization/runtime.py": "406729f72d5b34765a95aeee0ad963dcb2cef2b1a327941a51bdf71919cfa60e",
+    "visualization/app.py": "4268a152a88886daddf1b23d69e87af225aeae8cbfef6fdc31c1af4dfc155db0",
+    "visualization/execution_profiles.py": null,
+    "visualization/frontend/src/main.tsx": "9e8937dd1a4fcba353a6f8115a2dce827084fc3a798d13a8f71d05416cdf9c0c",
+    "visualization/static/studio.js": "f2e16bb710148207f9de39805cfa95fad0dac051e2b09b20023456c5ff4d2f19",
+    "scripts/verify_native_dask.py": "84e6324c5578225e0359ffb206b493cac34541d89ba729290fd000469e924435"
+  },
+  "verdict": "VERIFIED"
+}

@@ -1,0 +1,14 @@
+2026-10-24 23:23:18 [mac.lan-main] [runner.py] INFO: Connecting to the cluster: attempt 1
+2026-10-24 23:23:18 [mac.lan-main] [runner.py] INFO: Using host1.cc.gatech.edu as scheduler
+2026-10-24 23:23:18 [mac.lan-main] [runner.py] INFO: Using 3 workers
+
+🚀 Dask Dashboard available at: stub://routing-only
+2026-10-24 23:23:18 [mac.lan-main] [runner.py] INFO: Connecting to the cluster: attempt 1
+2026-10-24 23:23:18 [mac.lan-main] [runner.py] INFO: Using {'host': 'localhost', 'gpus': 1, 'system_memory': '10GB'} as scheduler
+2026-10-24 23:23:18 [mac.lan-main] [runner.py] INFO: Using 2 workers
+2026-10-24 23:23:18 [mac.lan-main] [runner.py] INFO: 🎮 GPU cluster configuration detected
+2026-10-24 23:23:18 [mac.lan-main] [runner.py] INFO: 🎮 GPU cluster created successfully
+2026-10-24 23:23:18 [mac.lan-main] [runner.py] INFO: 🖥️  Single-machine multi-GPU cluster
+2026-10-24 23:23:18 [mac.lan-main] [runner.py] INFO:    All workers can access data locally
+
+🚀 Dask Dashboard available at: stub://routing-only

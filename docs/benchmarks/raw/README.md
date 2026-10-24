@@ -1,4 +1,36 @@
-# Dask execution profiles: evidence index
+# Dask configuration: evidence index
+
+## Current: native Dask configuration
+
+Read the [native verification report](../native_dask_verification.md) and the
+[configuration guide](../../setup/dask-configuration.md). This replaces the
+custom-profile implementation below with the existing Hydra/OmegaConf constructor
+path and native Dask policies. The new experiment uses new outputs from the
+refactored source; historical results are not its acceptance evidence.
+
+| Evidence | Purpose |
+| --- | --- |
+| [Frozen CPU matrix](native-dask-independent/final-cpu-1/processes.json) | 14 real configuration, lifecycle and request-contract cases |
+| [Independent source audit](native-dask-independent/final-source-audit.json) | Runtime hashes and removal of the bespoke profile system |
+| [Strict GPU comparison](native-dask-independent/gpu-four-trial-comparison.json) | Complete exports and named pairs: exact bytes across all four current runs |
+| [GPU controls review](native-dask-independent/gpu-controls-review.json) | Matched source, models, inputs, resolved algorithms, real workers and owned-job cleanup |
+| [Current GPU package](native-dask-gpu/) | New manual/native matched HTTP-to-GPU trials, source and asset manifests |
+| [Browser checks](native-dask/ui/result.json) | Real Chrome, intercepted requests; separate from actual GPU execution |
+| [Dask skill installation](native-dask/skill-installation.json) | Pinned upstream community skill, one canonical shared owner |
+
+The stable [one-page visual brief](../../../output/pdf/dask-profiles-verification.pdf)
+shows the pipeline, replacement and experiment. [Delivery metadata](../native_dask_delivery.json)
+records its source, checksums and scope. This is a maintainability result with exact
+exported reconstruction on one four-image scene, without a speedup or accuracy claim.
+
+## Historical: custom-profile prototype
+
+The following evidence applies to the superseded implementation at `8dafa2de`.
+Its source, methods and raw checksums are retained for traceability. Reproduce the
+historical `verify_dask_profiles.py config` command at that revision; the unchanged
+`compare` command remains the strict reconstruction comparator for current work.
+The historical PDF is available from revision `012b79c8`; the stable PDF path now
+contains the current brief when rendered.
 
 The main narrative is [the verification report](../dask_profiles_verification.md).
 The [independent protocol and review](../dask_profiles_experiment.md) distinguishes

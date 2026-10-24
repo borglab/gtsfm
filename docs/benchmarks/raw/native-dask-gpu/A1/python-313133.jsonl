@@ -1,0 +1,34 @@
+{"time": 1792884286.3624463, "pid": 313133, "kind": "startup", "argv": ["-c"], "orig_argv": ["/home/jasdeep/gtsfm_eval/.venv/bin/python", "-B", "-c", "from multiprocessing.resource_tracker import main;main(28)"], "cuda_visible_devices": "0", "cuda_visible_devices_is_set": true, "selected_device": "cuda:0", "seed": 42}
+{"time": 1792884287.3632345, "pid": 313133, "kind": "torch", "cuda_initialized": false, "models": {"__main__": null}}
+{"time": 1792884288.3636303, "pid": 313133, "kind": "torch", "cuda_initialized": false, "models": {"__main__": null}}
+{"time": 1792884292.454766, "pid": 313133, "kind": "torch", "cuda_initialized": false, "models": {"__main__": null}}
+{"time": 1792884293.4551983, "pid": 313133, "kind": "torch", "cuda_initialized": false, "models": {"__main__": null}}
+{"time": 1792884294.4557452, "pid": 313133, "kind": "torch", "cuda_initialized": false, "models": {"__main__": null}}
+{"time": 1792884295.4561973, "pid": 313133, "kind": "torch", "cuda_initialized": false, "models": {"__main__": null}}
+{"time": 1792884296.4566648, "pid": 313133, "kind": "torch", "cuda_initialized": false, "models": {"__main__": null}}
+{"time": 1792884297.4571614, "pid": 313133, "kind": "torch", "cuda_initialized": false, "models": {"__main__": null}}
+{"time": 1792884298.4576144, "pid": 313133, "kind": "torch", "cuda_initialized": false, "models": {"__main__": null}}
+{"time": 1792884299.458045, "pid": 313133, "kind": "torch", "cuda_initialized": false, "models": {"__main__": null}}
+{"time": 1792884300.458493, "pid": 313133, "kind": "torch", "cuda_initialized": false, "models": {"__main__": null}}
+{"time": 1792884301.4588737, "pid": 313133, "kind": "torch", "cuda_initialized": false, "models": {"__main__": null}}
+{"time": 1792884302.4593005, "pid": 313133, "kind": "torch", "cuda_initialized": false, "models": {"__main__": null}}
+{"time": 1792884303.4598324, "pid": 313133, "kind": "torch", "cuda_initialized": false, "models": {"__main__": null}}
+{"time": 1792884304.4603474, "pid": 313133, "kind": "torch", "cuda_initialized": false, "models": {"__main__": null}}
+{"time": 1792884305.4608102, "pid": 313133, "kind": "torch", "cuda_initialized": false, "models": {"__main__": null}}
+{"time": 1792884306.4611962, "pid": 313133, "kind": "torch", "cuda_initialized": false, "models": {"__main__": null}}
+{"time": 1792884307.4616094, "pid": 313133, "kind": "torch", "cuda_initialized": false, "models": {"__main__": null}}
+{"time": 1792884308.46205, "pid": 313133, "kind": "torch", "cuda_initialized": false, "models": {"__main__": null}}
+{"time": 1792884309.462537, "pid": 313133, "kind": "torch", "cuda_initialized": false, "models": {"__main__": null}}
+{"time": 1792884310.463023, "pid": 313133, "kind": "torch", "cuda_initialized": false, "models": {"__main__": null}}
+{"time": 1792884311.4635785, "pid": 313133, "kind": "torch", "cuda_initialized": false, "models": {"__main__": null}}
+{"time": 1792884312.4648976, "pid": 313133, "kind": "torch", "cuda_initialized": false, "models": {"__main__": null}}
+{"time": 1792884313.4656904, "pid": 313133, "kind": "torch", "cuda_initialized": false, "models": {"__main__": null}}
+{"time": 1792884314.4663427, "pid": 313133, "kind": "torch", "cuda_initialized": false, "models": {"__main__": null}}
+{"time": 1792884315.466819, "pid": 313133, "kind": "torch", "cuda_initialized": false, "models": {"__main__": null}}
+{"time": 1792884316.467294, "pid": 313133, "kind": "torch", "cuda_initialized": false, "models": {"__main__": null}}
+{"time": 1792884317.4678886, "pid": 313133, "kind": "torch", "cuda_initialized": false, "models": {"__main__": null}}
+{"time": 1792884318.4683578, "pid": 313133, "kind": "torch", "cuda_initialized": false, "models": {"__main__": null}}
+{"time": 1792884319.4689124, "pid": 313133, "kind": "torch", "cuda_initialized": false, "models": {"__main__": null}}
+{"time": 1792884320.4693844, "pid": 313133, "kind": "torch", "cuda_initialized": false, "models": {"__main__": null}}
+{"time": 1792884321.469869, "pid": 313133, "kind": "torch", "cuda_initialized": false, "models": {"__main__": null}}
+{"time": 1792884321.5400317, "pid": 313133, "kind": "exit"}

@@ -1,0 +1,36 @@
+{
+  "reviewed_utc": "2026-10-24T23:32:01.602116+00:00",
+  "strict_before_after_epoch_equality": {
+    "verdict": "NOT VERIFIED",
+    "before": 1792396615.71,
+    "after": 1792396750.71,
+    "difference_seconds": 135,
+    "retained_failure": "docs/benchmarks/raw/native-dask-gpu/cleanup/audit-attempt1.json"
+  },
+  "post_run_kernel_identity": {
+    "verdict": "VERIFIED",
+    "start_ticks": [
+      34251871,
+      34251871
+    ],
+    "boot_id": "e62fc6b3-72b0-40a6-81d0-edcd68ba7c04",
+    "boot_time_shift_seconds": 3,
+    "psutil_create_time_shift_seconds": 3.0,
+    "systemd": {
+      "MainPID": "34238",
+      "NRestarts": "0",
+      "ExecMainStartTimestamp": "Sun 2026-10-18 17:56:19 PDT",
+      "ExecMainStartTimestampMonotonic": "342518720020",
+      "ActiveState": "active",
+      "SubState": "running",
+      "ActiveEnterTimestamp": "Sun 2026-10-18 17:56:19 PDT",
+      "InvocationID": "ae11c5bf04634658a4b73776e7fcfdbf"
+    }
+  },
+  "whole_series_exact_lifecycle_identity": {
+    "verdict": "INCONCLUSIVE",
+    "reason": "No pre-run kernel start ticks or boot ID were captured. Stable post-run kernel identity, same command/PID/PPID, active service and zero reported restarts support continuity but do not recreate the missing pre-run identity measurement."
+  },
+  "interpretation": "Observed post-run psutil epoch drift tracks changing kernel btime with stable process start ticks and boot ID. This supports clock-derived timestamp movement; the original strict audit failure is preserved rather than relabeled a pass.",
+  "owned_jobs": "All observed trial PID existence checks are false, ports closed, API threads stopped, unit lists empty and GPU compute lists empty; those cleanup claims do not depend solely on epoch identity."
+}

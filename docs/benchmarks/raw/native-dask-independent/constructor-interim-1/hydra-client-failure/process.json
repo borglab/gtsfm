@@ -1,0 +1,16 @@
+{
+  "case": "hydra-client-failure",
+  "command": [
+    "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/bin/python",
+    "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/scripts/verify_native_dask.py",
+    "--child",
+    "hydra-client-failure",
+    "--artifacts",
+    "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/constructor-interim-1/hydra-client-failure"
+  ],
+  "pid": 71571,
+  "returncode": 0,
+  "timed_out": false,
+  "result": "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/constructor-interim-1/hydra-client-failure/result.json",
+  "remaining_descendants_after_case_exit": []
+}

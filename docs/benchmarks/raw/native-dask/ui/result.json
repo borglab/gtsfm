@@ -1,0 +1,167 @@
+{
+  "status": "passed",
+  "scope": "Real browser, intercepted local API responses; no jobs or remote requests executed",
+  "requests": [
+    {
+      "path": "/api/configuration/parameters",
+      "method": "GET"
+    },
+    {
+      "path": "/api/configuration",
+      "method": "GET"
+    },
+    {
+      "path": "/api/hardware",
+      "method": "GET"
+    },
+    {
+      "path": "/api/samples",
+      "method": "GET"
+    },
+    {
+      "path": "/api/jobs",
+      "method": "GET"
+    },
+    {
+      "path": "/api/setup",
+      "method": "GET"
+    },
+    {
+      "path": "/api/configuration/parameters",
+      "method": "GET"
+    },
+    {
+      "path": "/api/jobs",
+      "method": "POST"
+    },
+    {
+      "path": "/api/jobs",
+      "method": "POST"
+    },
+    {
+      "path": "/api/configuration/parameters",
+      "method": "GET"
+    }
+  ],
+  "posts": [
+    {
+      "name": "my-scene",
+      "sample_id": "",
+      "dataset_dir": "",
+      "images_dir": "",
+      "loader": "olsson",
+      "config_name": "vggt",
+      "splat_implementation": "none",
+      "gaussian_splatting_config_name": "base_gs",
+      "gs_max_steps": 7000,
+      "live_preview_interval": 250,
+      "run_mvs": false,
+      "execution_target": "local",
+      "hardware": "cpu",
+      "remote_connection": "api",
+      "remote_provider": "modal",
+      "remote_endpoint": "",
+      "modal_api_key": "",
+      "modal_token_id": "",
+      "modal_token_secret": "",
+      "modal_gpu": "L40S",
+      "ssh_host": "",
+      "ssh_port": 22,
+      "ssh_username": "",
+      "ssh_authentication": "agent",
+      "ssh_private_key": "",
+      "ssh_workspace": "",
+      "remote_hardware": "",
+      "max_resolution": null,
+      "num_workers": 3,
+      "threads_per_worker": 2,
+      "worker_memory_limit": "4GB",
+      "graph_partitioner": "",
+      "global_descriptor_config_name": "",
+      "retriever_config_name": "",
+      "correspondence_generator_config_name": "",
+      "verifier_config_name": "",
+      "max_frame_lookahead": null,
+      "num_matched": null,
+      "share_intrinsics": false,
+      "log": "INFO",
+      "dashboard_port": "",
+      "input_worker": "",
+      "dask_tmpdir": "/tmp/native-smoke",
+      "cluster_config": "",
+      "num_retry_cluster_connection": null,
+      "advanced_overrides": [],
+      "hydra_overrides": {},
+      "gaussian_splatting_overrides": {},
+      "api_key": "",
+      "loader_options": {}
+    },
+    {
+      "name": "my-scene",
+      "sample_id": "",
+      "dataset_dir": "",
+      "images_dir": "",
+      "loader": "olsson",
+      "config_name": "vggt",
+      "splat_implementation": "none",
+      "gaussian_splatting_config_name": "base_gs",
+      "gs_max_steps": 7000,
+      "live_preview_interval": 250,
+      "run_mvs": false,
+      "execution_target": "local",
+      "hardware": "cpu",
+      "remote_connection": "api",
+      "remote_provider": "modal",
+      "remote_endpoint": "",
+      "modal_api_key": "",
+      "modal_token_id": "",
+      "modal_token_secret": "",
+      "modal_gpu": "L40S",
+      "ssh_host": "",
+      "ssh_port": 22,
+      "ssh_username": "",
+      "ssh_authentication": "agent",
+      "ssh_private_key": "",
+      "ssh_workspace": "",
+      "remote_hardware": "",
+      "max_resolution": null,
+      "num_workers": 3,
+      "threads_per_worker": 2,
+      "worker_memory_limit": "4GB",
+      "graph_partitioner": "",
+      "global_descriptor_config_name": "",
+      "retriever_config_name": "",
+      "correspondence_generator_config_name": "",
+      "verifier_config_name": "",
+      "max_frame_lookahead": null,
+      "num_matched": null,
+      "share_intrinsics": false,
+      "log": "INFO",
+      "dashboard_port": "",
+      "input_worker": "",
+      "dask_tmpdir": "/tmp/native-smoke",
+      "cluster_config": "/tmp/native-local-cluster.yaml",
+      "num_retry_cluster_connection": null,
+      "advanced_overrides": [],
+      "hydra_overrides": {},
+      "gaussian_splatting_overrides": {},
+      "api_key": "",
+      "loader_options": {}
+    }
+  ],
+  "storageCalls": [
+    {
+      "method": "getItem",
+      "key": "gtsfm-studio-sidebar-width"
+    },
+    {
+      "method": "setItem",
+      "key": "gtsfm-studio-sidebar-width"
+    },
+    {
+      "method": "getItem",
+      "key": "gtsfm.hardware-notice.v1:No supported GPU was detected"
+    }
+  ],
+  "errors": []
+}

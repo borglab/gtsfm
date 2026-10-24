@@ -1,0 +1,55 @@
+{
+  "reviewed_utc": "2026-10-24T23:26:34.674949+00:00",
+  "stage": "preflight only; no reconstruction verdict",
+  "source_manifest_sha256": "284b4e9aeb26d69d80557b11ffd3b86288d07b7f3eed8a4c08cf65e631a90fcd",
+  "overlay_count": 390,
+  "local_overlay_matches_remote_declared": true,
+  "overlay_matches_actual_remote_source_manifest": true,
+  "profile_module_absent": true,
+  "runner_sha256": "9a76568399ad840ee8ac51fa79eae297ba51c42c9aec763aa83e91b0e1515701",
+  "strict_comparator_sha256": "99d941d94b03087bd5db979dd6978af833f87fd2f2ff4da21e7ac8f6dd99612e",
+  "harness_sha256": "871deb3c2068b541f08b499c4a51658714b8b12d3c81fb087f019ff1d71378a2",
+  "dataset": {
+    "images/DSC_0001.JPG": "aec675cd743cf248f6e4cfd487e4a12c3138240e562804f9e8f63298b862b8df",
+    "images/DSC_0002.JPG": "3aeffc3a61284d9f552b589e25e7263d034a914dd1976441ea4aa010a6bf7beb",
+    "images/DSC_0003.JPG": "cb3117a5cf3e12681a1f2bbbeded4431d9810b8caad1a9467e42960498645d32",
+    "images/DSC_0004.JPG": "be0b20b54e8783172a1d5f613bac6552d2fe8abcf41fddb8073dd4230d7ef32c"
+  },
+  "primary_model_hashes": {
+    "/home/jasdeep/.cache/torch/hub/checkpoints/megaloc.torch": "c6d01ea3ff7858175f66e2c25305585f9229aab809a3f248e9e42eb258383242",
+    "/home/jasdeep/gtsfm-dask-profiles-assets-20261024/weights/model.pt": "d15bf50a8615c8225ed48b51ea5cac673d82442ec0309036df555a053253afe0"
+  },
+  "asset_manifest_count": 174,
+  "gpu": "name, driver_version, memory.total [MiB], memory.used [MiB], temperature.gpu\nNVIDIA GeForce RTX 3080, 617.42, 10240 MiB, 201 MiB, 29",
+  "dask_versions": {
+    "dask": "2025.9.1",
+    "distributed": "2025.9.1"
+  },
+  "grant": {
+    "grant_message": "msg_1a2a8118126a",
+    "grant_at": "2026-10-24T23:21:47Z",
+    "task": "task_836c51d0acc2",
+    "dispatch": "ctx_429d6a4a8e87",
+    "expected_hashes": {
+      "gtsfm/runner.py": "9a76568399ad840ee8ac51fa79eae297ba51c42c9aec763aa83e91b0e1515701",
+      "gtsfm/utils/dask_stats.py": "191876d9304aa799fbde6da91e8a3d19c71419633b15113c049c483711c6877b",
+      "visualization/runtime.py": "406729f72d5b34765a95aeee0ad963dcb2cef2b1a327941a51bdf71919cfa60e",
+      "visualization/app.py": "4268a152a88886daddf1b23d69e87af225aeae8cbfef6fdc31c1af4dfc155db0",
+      "scripts/experiment_dask_configuration_gpu.py": "871deb3c2068b541f08b499c4a51658714b8b12d3c81fb087f019ff1d71378a2"
+    },
+    "git_head": "012b79c84dbc248213fb4d12e8ea3832bf266dd6",
+    "overlay_sha256": "51952cfe47fcf09626eb9bc022002c5bd7fa0ef66700a60a3a67d6290b827d21",
+    "overlay_files": 390,
+    "declared_sequence": [
+      "A1 manual",
+      "B1 native",
+      "A2 manual",
+      "B2 native"
+    ],
+    "both_arms": "Authenticated loopback POST /api/jobs; frozen pipeline, seeds, inputs, models, and resource limits"
+  },
+  "limitations": [
+    "Remote source and assets are evidenced by executor manifests, not rehashed remotely by this reviewer.",
+    "Final per-trial before/after manifests, controls, exports and process cleanup must still be inspected."
+  ]
+}

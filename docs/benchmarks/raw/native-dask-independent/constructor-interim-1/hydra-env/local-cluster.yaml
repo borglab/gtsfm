@@ -1,0 +1,5 @@
+_target_: distributed.LocalCluster
+n_workers: 2
+threads_per_worker: 2
+memory_limit: ${oc.env:NATIVE_TEST_MEMORY}
+dashboard_address: null

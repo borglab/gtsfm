@@ -1,0 +1,226 @@
+[
+  {
+    "case": "native-yaml",
+    "command": [
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/bin/python",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/scripts/verify_native_dask.py",
+      "--child",
+      "native-yaml",
+      "--artifacts",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/native-yaml"
+    ],
+    "pid": 398,
+    "returncode": 0,
+    "timed_out": false,
+    "result": "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/native-yaml/result.json",
+    "remaining_descendants_after_case_exit": []
+  },
+  {
+    "case": "native-env",
+    "command": [
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/bin/python",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/scripts/verify_native_dask.py",
+      "--child",
+      "native-env",
+      "--artifacts",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/native-env"
+    ],
+    "pid": 469,
+    "returncode": 0,
+    "timed_out": false,
+    "result": "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/native-env/result.json",
+    "remaining_descendants_after_case_exit": []
+  },
+  {
+    "case": "runner-yaml",
+    "command": [
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/bin/python",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/scripts/verify_native_dask.py",
+      "--child",
+      "runner-yaml",
+      "--artifacts",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/runner-yaml"
+    ],
+    "pid": 524,
+    "returncode": 0,
+    "timed_out": false,
+    "result": "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/runner-yaml/result.json",
+    "remaining_descendants_after_case_exit": []
+  },
+  {
+    "case": "runner-defaults",
+    "command": [
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/bin/python",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/scripts/verify_native_dask.py",
+      "--child",
+      "runner-defaults",
+      "--artifacts",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/runner-defaults"
+    ],
+    "pid": 754,
+    "returncode": 0,
+    "timed_out": false,
+    "result": "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/runner-defaults/result.json",
+    "remaining_descendants_after_case_exit": []
+  },
+  {
+    "case": "runner-env",
+    "command": [
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/bin/python",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/scripts/verify_native_dask.py",
+      "--child",
+      "runner-env",
+      "--artifacts",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/runner-env"
+    ],
+    "pid": 921,
+    "returncode": 0,
+    "timed_out": false,
+    "result": "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/runner-env/result.json",
+    "remaining_descendants_after_case_exit": []
+  },
+  {
+    "case": "runner-env-old-default",
+    "command": [
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/bin/python",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/scripts/verify_native_dask.py",
+      "--child",
+      "runner-env-old-default",
+      "--artifacts",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/runner-env-old-default"
+    ],
+    "pid": 1054,
+    "returncode": 0,
+    "timed_out": false,
+    "result": "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/runner-env-old-default/result.json",
+    "remaining_descendants_after_case_exit": []
+  },
+  {
+    "case": "hydra-yaml",
+    "command": [
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/bin/python",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/scripts/verify_native_dask.py",
+      "--child",
+      "hydra-yaml",
+      "--artifacts",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/hydra-yaml"
+    ],
+    "pid": 1176,
+    "returncode": 0,
+    "timed_out": false,
+    "result": "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/hydra-yaml/result.json",
+    "remaining_descendants_after_case_exit": []
+  },
+  {
+    "case": "hydra-env",
+    "command": [
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/bin/python",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/scripts/verify_native_dask.py",
+      "--child",
+      "hydra-env",
+      "--artifacts",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/hydra-env"
+    ],
+    "pid": 1280,
+    "returncode": 0,
+    "timed_out": false,
+    "result": "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/hydra-env/result.json",
+    "remaining_descendants_after_case_exit": []
+  },
+  {
+    "case": "hydra-scratch",
+    "command": [
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/bin/python",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/scripts/verify_native_dask.py",
+      "--child",
+      "hydra-scratch",
+      "--artifacts",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/hydra-scratch"
+    ],
+    "pid": 1377,
+    "returncode": 0,
+    "timed_out": false,
+    "result": "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/hydra-scratch/result.json",
+    "remaining_descendants_after_case_exit": []
+  },
+  {
+    "case": "hydra-zero",
+    "command": [
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/bin/python",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/scripts/verify_native_dask.py",
+      "--child",
+      "hydra-zero",
+      "--artifacts",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/hydra-zero"
+    ],
+    "pid": 1487,
+    "returncode": 0,
+    "timed_out": false,
+    "result": "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/hydra-zero/result.json",
+    "remaining_descendants_after_case_exit": []
+  },
+  {
+    "case": "hydra-client-failure",
+    "command": [
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/bin/python",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/scripts/verify_native_dask.py",
+      "--child",
+      "hydra-client-failure",
+      "--artifacts",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/hydra-client-failure"
+    ],
+    "pid": 1649,
+    "returncode": 0,
+    "timed_out": false,
+    "result": "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/hydra-client-failure/result.json",
+    "remaining_descendants_after_case_exit": []
+  },
+  {
+    "case": "hydra-pipeline-failure",
+    "command": [
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/bin/python",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/scripts/verify_native_dask.py",
+      "--child",
+      "hydra-pipeline-failure",
+      "--artifacts",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/hydra-pipeline-failure"
+    ],
+    "pid": 1764,
+    "returncode": 0,
+    "timed_out": false,
+    "result": "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/hydra-pipeline-failure/result.json",
+    "remaining_descendants_after_case_exit": []
+  },
+  {
+    "case": "studio",
+    "command": [
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/bin/python",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/scripts/verify_native_dask.py",
+      "--child",
+      "studio",
+      "--artifacts",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/studio"
+    ],
+    "pid": 1898,
+    "returncode": 0,
+    "timed_out": false,
+    "result": "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/studio/result.json",
+    "remaining_descendants_after_case_exit": []
+  },
+  {
+    "case": "legacy",
+    "command": [
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/.venv/bin/python",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/scripts/verify_native_dask.py",
+      "--child",
+      "legacy",
+      "--artifacts",
+      "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/legacy"
+    ],
+    "pid": 1982,
+    "returncode": 0,
+    "timed_out": false,
+    "result": "/Users/jasdeepahluwalia/orca/workspaces/gtsfm/menhaden/docs/benchmarks/raw/native-dask-independent/final-cpu-1/legacy/result.json",
+    "remaining_descendants_after_case_exit": []
+  }
+]

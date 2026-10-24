@@ -1,6 +1,6 @@
 """Render the one-page visual brief; optional authoring dependency: reportlab.
 
-Detailed methods stay in docs/benchmarks/dask_profiles_verification.md.
+Detailed methods stay in docs/benchmarks/native_dask_verification.md.
 Usage: python scripts/render_dask_profiles_paper.py --source-commit COMMIT
 """
 
@@ -74,8 +74,8 @@ def main():
     args = parser.parse_args()
     brief = json.loads(args.input.read_text())
     raw = Path("docs/benchmarks/raw")
-    proof = json.loads((raw / "independent-verifier/gpu-four-trial-comparison.json").read_text())
-    checks = json.loads((raw / "coordinator-validation.json").read_text())
+    proof = json.loads((raw / "native-dask-independent/gpu-four-trial-comparison.json").read_text())
+    checks = json.loads((raw / "native-dask/coordinator-validation.json").read_text())
     assert proof["verdict"] == "VERIFIED" and proof["exact_export_bytes"] and proof["baseline_repeatable"]
     compared = list(proof["comparisons"].values())
     assert all(p["pass"] for p in compared)
@@ -86,7 +86,7 @@ def main():
     tests = checks["checks"]["focused_pytest"]["passed"]
     args.output.parent.mkdir(parents=True, exist_ok=True)
     c = canvas.Canvas(str(args.output), pagesize=(612, 792))
-    c.setTitle("GTSfM - reusable compute settings in one page")
+    c.setTitle("GTSfM - standard Dask configuration in one page")
     c.setAuthor("GTSfM project - AI-assisted engineering brief")
     c.setFillColor(colors.HexColor("#f8fafb"))
     c.rect(0, 0, 612, 792, fill=1, stroke=0)
@@ -97,7 +97,7 @@ def main():
     paragraph(c, "WHERE THIS FITS", 36, 663, 540, 9, TEAL, True)
     for x, title, body, active in [
         (36, "Photos", "Your input images", False),
-        (176, "Studio setup", "NEW: saved profiles + validation", True),
+        (176, "Compute setup", "Standard Dask + existing Hydra", True),
         (316, "Existing SfM", "Dask schedules CPU/GPU workers", False),
         (456, "3D model", "Cameras + sparse points", False),
     ]:
@@ -108,9 +108,9 @@ def main():
 
     box(c, 36, 403, 260, 108)
     box(c, 308, 403, 268, 108, PALE)
-    paragraph(c, "BEFORE: setup lived in the form", 48, 495, 236, 11, INK, True)
+    paragraph(c, "BEFORE: custom profile system", 48, 495, 236, 11, INK, True)
     paragraph(c, brief["before"], 48, 472, 236, 11, max_height=60)
-    paragraph(c, "AFTER: a reusable named profile", 320, 495, 244, 11, TEAL, True)
+    paragraph(c, "AFTER: existing frameworks", 320, 495, 244, 11, TEAL, True)
     paragraph(c, brief["after"], 320, 472, 244, 11, max_height=60)
     paragraph(c, brief["why"], 36, 387, 540, 12, INK, True, 20)
 
@@ -119,7 +119,7 @@ def main():
     box(c, 48, 283, 150, 36)
     box(c, 48, 226, 150, 36, PALE)
     paragraph(c, "Manual settings - 2 runs", 58, 307, 130, 10.2, INK, True)
-    paragraph(c, "Saved profile - 2 runs", 58, 250, 130, 10.2, TEAL, True)
+    paragraph(c, "Native YAML - 2 runs", 58, 250, 130, 10.2, TEAL, True)
     box(c, 228, 226, 105, 93, colors.HexColor("#eef2f5"))
     paragraph(c, "Same RTX 3080", 238, 301, 85, 10.5, INK, True)
     paragraph(c, "Same images and SfM configuration", 238, 271, 85, 10, MUTED, max_height=40)
@@ -132,11 +132,11 @@ def main():
     paragraph(c, f"{camera_count} cameras  |  {track_count:,} tracks", 375, 251, 177, 11, MUTED)
     paragraph(c, brief["finding"], 48, 218, 516, 9.5, MUTED, max_height=16)
 
-    paragraph(c, "THE GAIN: repeatable setup + visible execution", 36, 174, 540, 14, INK, True)
+    paragraph(c, "THE GAIN: less custom infrastructure", 36, 174, 540, 14, INK, True)
     paragraph(c, brief["scope"], 36, 149, 540, 11, MUTED, max_height=32)
     paragraph(
         c,
-        f"Also checked: restart persistence, invalid-setting rejection and {tests} focused tests.",
+        f"Also checked: 14 configuration/lifecycle cases and {tests} focused tests.",
         36,
         110,
         540,
@@ -149,7 +149,7 @@ def main():
     paragraph(c, "Detailed methods and raw results: " + brief["evidence_index"], 36, 58, 540, 8, MUTED)
     paragraph(
         c,
-        "Evidence revision: " + args.source_commit[:8] + "  |  Engineering repeatability result",
+        "Source revision: " + args.source_commit[:8] + "  |  Engineering repeatability result",
         36,
         43,
         540,

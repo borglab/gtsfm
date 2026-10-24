@@ -1,0 +1,40 @@
+{
+  "runtime_commit": "70a55d482e50a723301c4467ef07ae0b0850dc2f",
+  "runtime_runner_sha256": "9a76568399ad840ee8ac51fa79eae297ba51c42c9aec763aa83e91b0e1515701",
+  "pdf": "output/pdf/dask-profiles-verification.pdf",
+  "pdf_sha256": "316cb6103b6ab4ba510190b88668c08a87e217a31d4406870163454b6fe775e7",
+  "pdf_pages": 1,
+  "pdf_words": 195,
+  "visual_qa": "Final one-page PDF rendered and all pages inspected; no clipping, overlaps, missing glyphs or broken arrows. Values derive from independent current comparison and coordinator tests.",
+  "render_command": "python scripts/render_dask_profiles_paper.py --source-commit 70a55d48",
+  "brief": "docs/benchmarks/dask_profiles_brief.json",
+  "brief_sha256": "0dab369a7a4ca2408898b66fa017c7d3f58bf3a0347f8751d9e6be293dc8ffb8",
+  "report": "docs/benchmarks/native_dask_verification.md",
+  "strict_comparison": "raw/native-dask-independent/gpu-four-trial-comparison.json",
+  "controls": "raw/native-dask-independent/gpu-controls-review.json",
+  "cpu_cases": "raw/native-dask-independent/final-cpu-1/processes.json",
+  "coordinator_checks": "raw/native-dask/coordinator-validation.json",
+  "skill_installation": "raw/native-dask/skill-installation.json",
+  "source_provenance": "GPU source is identified by actual frozen file manifests, not remote Git metadata. Runtime70a55d48 contains the exact tested runner9a765683..; oldHEAD012b79c8 records precommit staging only.",
+  "claim_boundary": "Maintenance refactor to native Dask config and existing Hydra constructor loading. Four current4imageRTX3080 runs have byte-identical complete sparse exports and named pairs (4cameras/1509tracks). No speed/accuracy/scale or realSSH/dask-cuda/Modal deployment claim. All owned trial processes/endpoints/units stopped; separate MIRA whole-series exact lifecycle identity inconclusive because baseline kernel ticks were not captured.",
+  "workers": "GPT-6-Astra reviewed backend, UI, configuration, independent comparison and GPU execution. Original selected backend tab retained; final accounting recorded separately.",
+  "report_sha256": "b2170272c17d0d5556f4b7e93975b23a2e1894424f9c5bc86126c357be440f1e",
+  "independent_manifest": "raw/native-dask-independent/manifest.json",
+  "independent_manifest_sha256": "e64decb1acef7d87ea198943770abe80acbbf3adae3b5c3c7360525d6708e197",
+  "gpu_manifest": "raw/native-dask-gpu/artifact-manifest.json",
+  "gpu_manifest_sha256": "d27fc0b6d186d95199216852a556c616fdd20ce1c9d385fb382a122ed24a5208",
+  "worker_accounting": {
+    "tasks": {
+      "backend": "succeeded59focusedtests+read-onlysourceaudit; userselectedterminalretained",
+      "ui": "succeededrealChromeinterceptedAPIandtypecheck/build; terminalreusedGPU",
+      "GPU": "succeeded4actualHTTP/GPUtrials+strictcomparison+cleanup; externalterminalretainedbyOrca",
+      "independent_verifier": "succeeded14CPUmatrix+strictcompare+controls+skill/sourceaudit; terminalreleasedarchivecaptured"
+    },
+    "reclaimable": 0,
+    "six_failed_bootstrap_attempts": "released, no implementation edits",
+    "runtime_counts": {
+      "retained": 3,
+      "released": 7
+    }
+  }
+}

@@ -1,0 +1,2 @@
+{"time": 1792883317.123214, "pid": 312557, "kind": "startup", "argv": ["-c", "--multiprocessing-fork"], "orig_argv": ["/home/jasdeep/gtsfm_eval/.venv/bin/python", "-c", "from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=19, pipe_handle=25)", "--multiprocessing-fork"], "cuda_visible_devices": "0", "cuda_visible_devices_is_set": true, "selected_device": null, "seed": 42}
+{"time": 1792883317.3754807, "pid": 312557, "kind": "exit"}

@@ -1,0 +1,41 @@
+{
+  "argv": [
+    "/home/jasdeep/gtsfm_eval/.venv/bin/python",
+    "-B",
+    "-c",
+    "from multiprocessing.resource_tracker import main;main(28)"
+  ],
+  "cpu_times": {
+    "children_system": 0.0,
+    "children_user": 0.0,
+    "iowait": 0.0,
+    "system": 0.26,
+    "user": 0.9
+  },
+  "created": 1792884458.89,
+  "environment": {
+    "CUDA_MODULE_LOADING": "LAZY",
+    "CUDA_VISIBLE_DEVICES": "0",
+    "DASK_CONFIG": "/home/jasdeep/gtsfm-native-dask-20261024/dask-policy",
+    "DASK_DISTRIBUTED__WORKER__DAEMON": "False",
+    "DASK_PARENT": "313761",
+    "GPU_EXPERIMENT_EVIDENCE": "/home/jasdeep/gtsfm-native-dask-20261024/evidence/B2",
+    "GPU_EXPERIMENT_EXPECTED_SCRATCH": "/home/jasdeep/gtsfm-native-dask-20261024/scratch",
+    "GTSFM_LIVE_DIR": "/home/jasdeep/gtsfm-native-dask-20261024/results/.gtsfm/live/00471d150897",
+    "GTSFM_LIVE_PREVIEW_INTERVAL": "250",
+    "GTSFM_SELECTED_DEVICE": "cuda:0",
+    "MKL_NUM_THREADS": "2",
+    "OMP_NUM_THREADS": "2",
+    "OPENBLAS_NUM_THREADS": "2",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "PYTHONHASHSEED": "42",
+    "PYTHONPATH": "/home/jasdeep/gtsfm-native-dask-20261024/instrumentation:/home/jasdeep/gtsfm-native-dask-20261024/source",
+    "TORCHINDUCTOR_CACHE_DIR": "/tmp/torchinductor_jasdeep",
+    "TORCHINDUCTOR_COMPILE_THREADS": "1"
+  },
+  "pgid": 313761,
+  "pid": 313785,
+  "ppid": 313761,
+  "rss": 489725952,
+  "status": "sleeping"
+}
