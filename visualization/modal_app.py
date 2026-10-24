@@ -17,6 +17,7 @@ import modal
 
 from visualization.runtime import JobManager, ManagedJob, _utc_now
 
+
 def _is_public_workspace_read(request: object) -> bool:
     """Allow the browser viewer to load catalogs and reconstruction files."""
 
@@ -87,6 +88,8 @@ RUNTIME_ENV = {
     "GTSFM_MODAL_CPU": str(MODAL_CPU),
     "GTSFM_MODAL_MEMORY_MB": str(MODAL_MEMORY_MB),
 }
+
+
 def _build_workspace_images() -> tuple[modal.Image, modal.Image]:
     """Build and mount local sources only during deployment."""
 

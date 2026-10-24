@@ -1,7 +1,7 @@
 GTSFM Studio v0.0.2 Patch Notes
 
 - Added gtsfm run, which launches a browser-based workspace for configuring and running reconstructions.
-- Added built-in GTSFM GitHub samples, and automatic dataset-format detection.
+- Added built-in GTSFM GitHub samples with configured dataset loaders.
 - Added setup checks for dependencies and optional components.
 - Added preset-aware Hydra controls that update with the selected model, plus JSON configuration import with a generated template and validation.
 
@@ -13,7 +13,7 @@ GTSFM Studio v0.0.2 Patch Notes
 | Generated Gaussian parameter | `opacity_reg=0.01` → `gaussian_splatting_optimizer.cfg.opacity_reg=0.01` | Semantically one-to-one, but the backend adds the path prefix |
 | Training steps | `gs_max_steps=7000` → `gaussian_splatting_optimizer.cfg.max_steps=7000` | Friendly alias |
 | Share camera intrinsics | Toggle → `cluster_optimizer.multiview_optimizer.bundle_adjustment_module.shared_calib=True` | Friendly alias |
-| Dataset format: Auto | Examines the directory and selects a loader plus loader overrides | Interpreted |
+| Dataset format | Explicit loader selection; curated samples supply recommended loader options | Configured |
 | Expert Hydra overrides | Passed through unchanged after Hydra validates them | Fully one-to-one |
 | JSON configuration | Converted into model, Gaussian, and expert override sections | Interface schema, not a raw Hydra config file |
 | Hardware, Modal VM, preview interval | Process/environment/workspace settings | Not Hydra |

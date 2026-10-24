@@ -11,9 +11,7 @@ import torch
 from gtsfm.splat.live import publish_training_update
 
 
-def test_live_preview_is_bounded_and_reports_full_splat_count(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_live_preview_is_bounded_and_reports_full_splat_count(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, object] = {}
 
     def fake_export_splats(**kwargs: object) -> None:
@@ -43,4 +41,3 @@ def test_live_preview_is_bounded_and_reports_full_splat_count(
     assert status["splat_count"] == 100
     assert status["preview_splat_count"] == 10
     assert status["preview_written"] is True
-

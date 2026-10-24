@@ -28,6 +28,7 @@ SUPPORTED_MODAL_GPUS = {
     "B200",
 }
 
+
 def modal_workspace_api_key(token_id: str, token_secret: str) -> str:
     """Derive a stable app-specific key without exposing the Modal credentials."""
 
@@ -95,10 +96,7 @@ class ModalDeployment:
 class ModalDeploymentManager:
     """Run Modal's image build/deploy command without blocking the workspace API."""
 
-    def __init__(
-        self,
-        discover: Callable[[str, str], dict[str, str]]
-    ) -> None:
+    def __init__(self, discover: Callable[[str, str], dict[str, str]]) -> None:
         self._discover = discover
         self._deployments: dict[str, ModalDeployment] = {}
         self._lock = threading.RLock()
@@ -230,7 +228,7 @@ class ModalDeploymentManager:
                 "GTSFM_SOURCE_ROOT": str(source_root),
             }
         )
-        
+
         command = [
             sys.executable,
             "-m",
