@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build && node scripts/copy-viewer-vendor.mjs",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "test:viewer": "node --test ../../tests/visualization/viewer.test.cjs"
   },
   "dependencies": {
     "@radix-ui/react-collapsible": "^1.1.12",

@@ -20,7 +20,7 @@ class ColmapViewer {
     this.camera.minZ = 0.01;    // Near clipping plane
     this.camera.maxZ = 10000;   // Far clipping plane
 
-    // The parser converts reconstruction coordinates to Babylon's Y-up frame.
+    // Source Z-up is mapped to Babylon's Y-up, left-handed world frame.
     this.camera.upVector = new BABYLON.Vector3(0, 1, 0);
     this.camera.setPosition(new BABYLON.Vector3(10, 8, -12));
     this.camera.setTarget(BABYLON.Vector3.Zero());
@@ -43,7 +43,7 @@ class ColmapViewer {
     this.light.intensity = 0.85;
 
     this.groundY = 0;
-    this.showGround = true;
+    this.showGround = false;
     this.groundAvailable = true;
     this.groundGrid = null;
     this.groundAxes = null;
@@ -55,6 +55,16 @@ class ColmapViewer {
     this.frustumGroup = new BABYLON.TransformNode("frusta", this.scene);
     this.cameraLineMeshes = [];
     this.cameras = [];
+    this.camIndex = 0;
+    this.photoItems = [];
+    this.photoLoading = false;
+    this.photoError = "";
+    this.photoAbort = null;
+    this.photoTextures = new Map();
+    this.photoTextureLimit = 48;
+    this.photoVisibleLimit = 32;
+    this.photoGeneration = 0;
+    this.frustumLines = [];
 
     this.splatsUrl = null;
     this.splatsMesh = null;
@@ -87,6 +97,14 @@ class ColmapViewer {
 
     this.engine.runRenderLoop(() => this.scene.render());
     window.addEventListener("resize", () => this.engine.resize());
+    // Sidebar collapse changes the canvas size without a window resize.
+    this.resizeObserver = new ResizeObserver(() => { this.engine.resize(); this._updateCameraFov(); });
+    this.resizeObserver.observe(canvas);
+    this.photoTimer = window.setInterval(() => this._updatePhotoTextures(), 400);
+    this.scene.onPointerObservable.add((event) => {
+      const index = event.pickInfo?.pickedMesh?.metadata?.cameraIndex;
+      if (event.type === BABYLON.PointerEventTypes.POINTERTAP && Number.isInteger(index)) this.selectCamera(index);
+    });
   }
 
   _createIdleGround() {
@@ -187,9 +205,16 @@ class ColmapViewer {
   }
 
   _syncCameraVisuals() {
-    for (let index = 0; index < this.cameraLineMeshes.length; index += 1) {
-      this.cameraLineMeshes[index].setEnabled(this.showCams && index !== this.camIndex);
+    const selected = this.cameras[this.camIndex];
+    this.hiddenCamera = selected && BABYLON.Vector3.DistanceSquared(this.camera.position, selected.center) < this.frustumDepth ** 2 ? this.camIndex : -1;
+    if (this.frustumLines.length && this.cameraLineMeshes[0]) {
+      // One draw call for all wireframes. Degenerate the active camera's lines
+      // so its own frustum never obscures the photo-aligned view.
+      const lines = this.frustumLines.flatMap((lines, index) => index === this.hiddenCamera
+        ? lines.map(([point]) => [point, point]) : lines);
+      BABYLON.MeshBuilder.CreateLineSystem("camera-wireframes", { lines, instance: this.cameraLineMeshes[0] });
     }
+    this._updatePhotoTextures();
   }
 
   setStatsElements(statsEls) {
@@ -377,7 +402,7 @@ class ColmapViewer {
     await new Promise((resolve) => requestAnimationFrame(() => resolve()));
   }
 
-  async loadScene({ pointsUrl, imagesUrl, splatsUrl = null }) {
+  async loadScene({ pointsUrl, imagesUrl, camerasUrl = null, scenePath = null, splatsUrl = null }) {
     const busyToken = this._beginBusy("scene");
     try {
       await this._clear();
@@ -394,9 +419,10 @@ class ColmapViewer {
       const needPoints = !cachedPoints;
       const needCameras = imagesUrl ? !cachedCameras : false;
 
-      const [pointsText, imagesText] = await Promise.all([
+      const [pointsText, imagesText, intrinsicsText] = await Promise.all([
         needPoints ? this._fetchResource(pointsUrl, "text", fetchOpts) : Promise.resolve(null),
         needCameras ? this._fetchResource(imagesUrl, "text", fetchOpts) : Promise.resolve(null),
+        camerasUrl ? this._fetchResource(camerasUrl, "text").catch(() => "") : Promise.resolve(""),
       ]);
 
       if (needPoints) {
@@ -416,9 +442,9 @@ class ColmapViewer {
       } else {
         this.cameras = [];
       }
-      console.log('first camera center:', this.cameras[0]?.center);
-      console.log('scene extent:', this._sceneExtent());
-      console.log(`Loaded: #points=${points.length}, #cams=${this.cameras.length}`);
+      const intrinsics = this._parseIntrinsics(intrinsicsText);
+      // Do not mutate cached camera records when switching reconstructions.
+      this.cameras = this.cameras.map((camera) => ({ ...camera, intrinsics: intrinsics.get(camera.cameraId) }));
 
       this._setLoadingState({ message: "Building point cloud…", progress: 0.6 });
 
@@ -441,6 +467,7 @@ class ColmapViewer {
       this._renderStats();
 
       this._autoFrame();
+      void this._loadPhotos(scenePath);
       this._setLoadingState({ progress: 1 });
     } finally {
       this._setLoadingState({ active: false });
@@ -502,6 +529,16 @@ class ColmapViewer {
   }
 
   async _clear() {
+    this.photoGeneration += 1;
+    this.photoAbort?.abort();
+    this.photoAbort = null;
+    for (const entry of this.photoTextures.values()) this._disposePhotoTexture(entry);
+    this.photoTextures.clear();
+    this.photoItems = [];
+    this.photoLoading = false;
+    this.photoError = "";
+    this._emitPhotoState();
+    this.frustumLines = [];
     this.mode = "idle";
     this.cameras = [];
     this.pointsCount = 0;
@@ -509,7 +546,7 @@ class ColmapViewer {
     this.currentImageName = "";
     this._applyHudMode();
 
-    if (this.pointsMesh) { this.pointsMesh.dispose(); this.pointsMesh = null; }
+    if (this.pointsMesh) { this.pointsMesh.material?.dispose(); this.pointsMesh.dispose(); this.pointsMesh = null; }
     if (this.pcs) { this.pcs.dispose(); this.pcs = null; }
     this._clearSplats();
     this._activeSplatsToken = null;
@@ -536,9 +573,9 @@ class ColmapViewer {
       if (!line || line[0] === "#") continue;
       const s = line.trim().split(/\s+/);
       if (s.length >= 7) {
-        // flip Y for Babylon’s Y-up RH frame
+        // Right-handed, Z-up reconstruction -> left-handed, Y-up viewer.
         pts.push({
-          x: parseFloat(s[1]), y: -parseFloat(s[2]), z: parseFloat(s[3]),
+          x: parseFloat(s[1]), y: parseFloat(s[3]), z: parseFloat(s[2]),
           r: parseInt(s[4]) / 255, g: parseInt(s[5]) / 255, b: parseInt(s[6]) / 255
         });
       }
@@ -548,6 +585,8 @@ class ColmapViewer {
 
   _parseCams(text) {
     const cams = [];
+    const worldToViewer = this._worldToViewerMatrix();
+    const localToColmap = BABYLON.Matrix.Scaling(1, -1, 1);
     const lines = text.split("\n");
     for (let i = 0; i < lines.length; i++) {
       const line = (lines[i] || "").trim();
@@ -564,19 +603,42 @@ class ColmapViewer {
         const t = new BABYLON.Vector3(tx, ty, tz);
         const centerWorld = BABYLON.Vector3.TransformCoordinates(t.scale(-1), Rcw);
 
-        // Flip into viewer coords (Y flip)
-        const flip = BABYLON.Matrix.Scaling(1, -1, 1);
-        const center = new BABYLON.Vector3(centerWorld.x, -centerWorld.y, centerWorld.z);
-        const Rcam = flip.multiply(Rcw).multiply(flip);
+        const center = BABYLON.Vector3.TransformCoordinates(centerWorld, worldToViewer);
+        // Babylon composes row-vector transforms left to right: camera-local
+        // Y-up -> COLMAP Y-down, camera -> world, then source Z-up -> viewer Y-up.
+        const Rcam = localToColmap.multiply(Rcw).multiply(worldToViewer);
 
         const name = s.length > 9 ? s.slice(9).join(" ") : "";
-        cams.push({ center, R: Rcam, name });
+        cams.push({ center, R: Rcam, name, cameraId: Number(s[8]) });
 
         // Skip 2D measurements line if present
-        if (i + 1 < lines.length && /^\d/.test((lines[i + 1] || "").trim())) i++;
+        if (i + 1 < lines.length && !(lines[i + 1] || "").startsWith("#")) i++;
       }
     }
     return cams;
+  }
+
+  _worldToViewerMatrix() {
+    // (x, y, z) -> (x, z, y). Swapping Y/Z also changes handedness.
+    return BABYLON.Matrix.FromValues(
+      1, 0, 0, 0,
+      0, 0, 1, 0,
+      0, 1, 0, 0,
+      0, 0, 0, 1
+    );
+  }
+
+  _parseIntrinsics(text) {
+    const result = new Map();
+    for (const line of text.split("\n")) {
+      if (!line.trim() || line.startsWith("#")) continue;
+      const [id, model, width, height, ...values] = line.trim().split(/\s+/);
+      const p = values.map(Number);
+      const singleFocal = ["SIMPLE_PINHOLE", "SIMPLE_RADIAL", "RADIAL", "SIMPLE_RADIAL_FISHEYE", "RADIAL_FISHEYE"].includes(model);
+      const k = { width: +width, height: +height, fx: p[0], fy: singleFocal ? p[0] : p[1], cx: p[singleFocal ? 1 : 2], cy: p[singleFocal ? 2 : 3] };
+      if (Object.values(k).every(Number.isFinite) && k.fx > 0 && k.fy > 0 && k.width > 0 && k.height > 0) result.set(+id, k);
+    }
+    return result;
   }
 
   // ------------------- geometry -------------------
@@ -702,7 +764,9 @@ class ColmapViewer {
       false
     );
     mesh.isPickable = false;
-    mesh.scaling.y = -1;
+    // Transform the complete splat frame, including anisotropic covariance.
+    mesh.rotationQuaternion = new BABYLON.Quaternion();
+    this._worldToViewerMatrix().decompose(mesh.scaling, mesh.rotationQuaternion, mesh.position);
 
     try {
       await mesh.updateDataAsync(converted.buffer, converted.sh ?? undefined);
@@ -881,8 +945,8 @@ class ColmapViewer {
 
       points.push({
         x,
-        y: -y,
-        z,
+        y: z,
+        z: y,
         r,
         g,
         b,
@@ -956,8 +1020,8 @@ class ColmapViewer {
       const alpha = this._plyOpacity(opacity, idx);
       points.push({
         x,
-        y: -y,
-        z,
+        y: z,
+        z: y,
         r,
         g,
         b,
@@ -1169,79 +1233,178 @@ class ColmapViewer {
     return Math.max(size.x, size.y, size.z) || 1.0;
   }
 
+  _imageCorners(camera, depth) {
+    const k = camera.intrinsics ?? { width: 4, height: 3, fx: 5, fy: 5, cx: 2, cy: 1.5 };
+    return [[0, 0], [k.width, 0], [k.width, k.height], [0, k.height]].map(([x, y]) =>
+      new BABYLON.Vector3((x - k.cx) / k.fx * depth, -(y - k.cy) / k.fy * depth, depth));
+  }
+
   _createFrusta(cams) {
-    const size = this._sceneExtent();
-    const frustumScale = 0.012 * size;
-
-    for (const c of cams) {
-      const node = new BABYLON.TransformNode("camNode", this.scene);
-      node.position.copyFrom(c.center);
-      node.rotationQuaternion = BABYLON.Quaternion.FromRotationMatrix(c.R);
-      node.parent = this.frustumGroup;
-
-      const cameraLines = this._cameraLinesLocal(frustumScale);
-      cameraLines.parent = node;
-      cameraLines.renderingGroupId = 1;
-      cameraLines.alwaysSelectAsActiveMesh = true;
-      this.cameraLineMeshes.push(cameraLines);
-    }
+    const size = this.pointsMesh ? this._sceneExtent() : cams.reduce((size, camera) => Math.max(size, camera.center.length()), 1);
+    this.frustumDepth = size * 0.04;
+    this.frustumLines = cams.map((camera) => {
+      const corners = this._imageCorners(camera, this.frustumDepth).map(point =>
+        BABYLON.Vector3.TransformNormal(point, camera.R).add(camera.center));
+      return corners.flatMap((point, index) => [[camera.center, point], [point, corners[(index + 1) % 4]]]);
+    });
+    const mesh = BABYLON.MeshBuilder.CreateLineSystem("camera-wireframes", { lines: this.frustumLines.flat(), updatable: true }, this.scene);
+    mesh.parent = this.frustumGroup;
+    mesh.isPickable = false;
+    mesh.alwaysSelectAsActiveMesh = true;
+    mesh.freezeWorldMatrix();
+    this.cameraLineMeshes = [mesh];
     this.setOverlayTheme(this.overlayTheme);
     this.setShowCams(this.showCams);
   }
 
-  _cameraLinesLocal(scale) {
-    const aperture = new BABYLON.Vector3(0, 0, 0.08 * scale);
-    const imageCorners = [
-      new BABYLON.Vector3(-0.4, -0.3, 1),
-      new BABYLON.Vector3(0.4, -0.3, 1),
-      new BABYLON.Vector3(0.4, 0.3, 1),
-      new BABYLON.Vector3(-0.4, 0.3, 1),
-    ].map(v => v.scale(scale));
+  getPhotoState() {
+    return { items: this.photoItems, selected: this.camIndex ?? 0, loading: this.photoLoading, error: this.photoError };
+  }
 
-    const bodyFront = [
-      new BABYLON.Vector3(-0.22, -0.16, 0.05),
-      new BABYLON.Vector3(0.22, -0.16, 0.05),
-      new BABYLON.Vector3(0.22, 0.16, 0.05),
-      new BABYLON.Vector3(-0.22, 0.16, 0.05),
-    ].map(v => v.scale(scale));
-    const bodyBack = [
-      new BABYLON.Vector3(-0.22, -0.16, -0.25),
-      new BABYLON.Vector3(0.22, -0.16, -0.25),
-      new BABYLON.Vector3(0.22, 0.16, -0.25),
-      new BABYLON.Vector3(-0.22, 0.16, -0.25),
-    ].map(v => v.scale(scale));
-    const loop = corners => [
-      [corners[0], corners[1]],
-      [corners[1], corners[2]],
-      [corners[2], corners[3]],
-      [corners[3], corners[0]],
-    ];
-    const lines = [
-      [aperture, imageCorners[0]], [aperture, imageCorners[1]],
-      [aperture, imageCorners[2]], [aperture, imageCorners[3]],
-      ...loop(imageCorners),
-      ...loop(bodyFront),
-      ...loop(bodyBack),
-      [bodyFront[0], bodyBack[0]], [bodyFront[1], bodyBack[1]],
-      [bodyFront[2], bodyBack[2]], [bodyFront[3], bodyBack[3]],
-      [
-        new BABYLON.Vector3(-0.11, 0.16, -0.25).scale(scale),
-        new BABYLON.Vector3(0, 0.27, -0.25).scale(scale),
-        new BABYLON.Vector3(0.11, 0.16, -0.25).scale(scale),
-      ],
-    ];
+  _emitPhotoState() {
+    window.dispatchEvent(new CustomEvent("gtsfm-photo-state", { detail: this.getPhotoState() }));
+  }
 
-    const cameraLines = BABYLON.MeshBuilder.CreateLineSystem("camera-wireframe", { lines }, this.scene);
-    cameraLines.color = new BABYLON.Color3(0.96, 0.97, 0.98);
-    cameraLines.alpha = 0.95;
-    cameraLines.isPickable = false;
-    cameraLines.renderingGroupId = 2;
-    cameraLines.material.disableDepthWrite = true;
-    cameraLines.material.disableDepthTest = true;
-    return cameraLines;
+  async _loadPhotos(scenePath) {
+    this.photoItems = this.cameras.map(camera => ({ name: camera.name, thumbnail: null, preview: null }));
+    this.photoLoading = Boolean(scenePath);
+    this._emitPhotoState();
+    if (!scenePath || !this.cameras.length) return;
+    const controller = new AbortController();
+    this.photoAbort = controller;
+    try {
+      const response = await fetch('/api/photos?' + new URLSearchParams({ scene: scenePath }), { signal: controller.signal });
+      if (!response.ok) throw new Error("Source images could not be located.");
+      const data = await response.json();
+      if (controller.signal.aborted) return;
+      const byName = new Map(data.items.map(item => [item.name, item]));
+      this.photoItems = this.cameras.map(camera => byName.get(camera.name) ?? { name: camera.name, thumbnail: null, preview: null });
+      if (!this.photoItems.some(item => item.thumbnail)) this.photoError = "Source images unavailable. Restore the dataset to its saved location.";
+      this._updatePhotoTextures();
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      this.photoError = "Source images unavailable. The 3D reconstruction is still usable.";
+      console.warn("Unable to load scene photos", error);
+    } finally {
+      if (!controller.signal.aborted) { this.photoLoading = false; this._emitPhotoState(); }
+    }
+  }
+
+  _disposePhotoTexture(entry) {
+    entry.mesh?.dispose();
+    entry.material?.dispose();
+    entry.texture?.dispose();
+  }
+
+  _updatePhotoTextures() {
+    if (!this.photoItems.length || !this.cameras.length || document.hidden) return;
+    const selected = this.cameras[this.camIndex];
+    const hiddenCamera = selected && BABYLON.Vector3.DistanceSquared(this.camera.position, selected.center) < this.frustumDepth ** 2 ? this.camIndex : -1;
+    if (this.hiddenCamera !== hiddenCamera) { this._syncCameraVisuals(); return; }
+    const planes = BABYLON.Frustum.GetPlanes(this.camera.getTransformationMatrix());
+    const candidates = [];
+    if (this.showCams) {
+      for (let index = 0; index < this.cameras.length; index++) {
+        if (!this.photoItems[index]?.thumbnail) continue;
+        const camera = this.cameras[index];
+        const distance = BABYLON.Vector3.DistanceSquared(camera.center, this.camera.position);
+        const radius = this.frustumDepth * 2;
+        // Nearby photo planes must not cover the reconstruction when looking
+        // through one of several closely spaced source cameras.
+        if (distance < radius * radius * 4) continue;
+        if (planes.some(plane => plane.dotCoordinate(camera.center) < -radius)) continue;
+        // Do not fetch textures for frustums smaller than a few screen pixels.
+        const projected = radius * this.engine.getRenderHeight() / Math.max(Math.sqrt(distance), 0.001);
+        if (projected < 3) continue;
+        candidates.push({ index, distance });
+      }
+    }
+    candidates.sort((a, b) => a.distance - b.distance);
+    const wanted = new Set(candidates.slice(0, this.photoVisibleLimit).map(item => item.index));
+    for (const [index, entry] of this.photoTextures) {
+      entry.mesh?.setEnabled(wanted.has(index));
+      if (wanted.has(index)) entry.used = performance.now();
+    }
+    let loading = [...this.photoTextures.values()].filter(entry => entry.loading).length;
+    for (const index of wanted) {
+      if (loading >= 4) break;
+      if (this.photoTextures.has(index)) continue;
+      if (this.photoTextures.size >= this.photoTextureLimit) {
+        const evict = [...this.photoTextures.entries()].filter(([key]) => !wanted.has(key)).sort((a, b) => a[1].used - b[1].used)[0];
+        if (!evict) break;
+        this._disposePhotoTexture(evict[1]);
+        this.photoTextures.delete(evict[0]);
+      }
+      const generation = this.photoGeneration;
+      const entry = { loading: true, used: performance.now(), texture: null, mesh: null, material: null };
+      this.photoTextures.set(index, entry);
+      loading++;
+      entry.texture = new BABYLON.Texture(this.photoItems[index].thumbnail, this.scene, false, true, BABYLON.Texture.TRILINEAR_SAMPLINGMODE, () => queueMicrotask(() => {
+        if (generation !== this.photoGeneration || this.photoTextures.get(index) !== entry) return;
+        entry.loading = false;
+        this._createPhotoPlane(index, entry);
+        this._updatePhotoTextures();
+      }), () => {
+        if (generation !== this.photoGeneration || this.photoTextures.get(index) !== entry) return;
+        entry.loading = false;
+        entry.texture?.dispose();
+        entry.texture = null;
+      });
+    }
+  }
+
+  _createPhotoPlane(index, entry) {
+    const camera = this.cameras[index];
+    const corners = this._imageCorners(camera, this.frustumDepth);
+    const mesh = new BABYLON.Mesh("camera-photo-" + index, this.scene);
+    const data = new BABYLON.VertexData();
+    data.positions = corners.flatMap(point => [point.x, point.y, point.z]);
+    data.indices = [0, 1, 2, 0, 2, 3];
+    data.uvs = [0, 1, 1, 1, 1, 0, 0, 0];
+    data.normals = [0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1];
+    data.applyToMesh(mesh);
+    mesh.position.copyFrom(camera.center);
+    mesh.rotationQuaternion = BABYLON.Quaternion.FromRotationMatrix(camera.R);
+    mesh.parent = this.frustumGroup;
+    mesh.metadata = { cameraIndex: index };
+    const material = new BABYLON.StandardMaterial("photo-material-" + index, this.scene);
+    material.disableLighting = true;
+    material.backFaceCulling = false;
+    // StandardMaterial adds emissiveColor to emissiveTexture; white would
+    // saturate every photo to a blank white rectangle.
+    material.emissiveColor = BABYLON.Color3.Black();
+    material.emissiveTexture = entry.texture;
+    material.diffuseColor = BABYLON.Color3.Black();
+    material.specularColor = BABYLON.Color3.Black();
+    mesh.material = material;
+    material.freeze();
+    mesh.freezeWorldMatrix();
+    entry.mesh = mesh;
+    entry.material = material;
   }
 
   // ------------------- camera framing -------------------
+
+  frameScene() {
+    if (this.isBusy() || !this.cameras.length) return;
+    const bounds = this.pointsMesh?.getBoundingInfo().boundingBox;
+    let min = bounds?.minimumWorld.clone() ?? this.cameras[0].center.clone();
+    let max = bounds?.maximumWorld.clone() ?? min.clone();
+    for (const camera of this.cameras) {
+      min = BABYLON.Vector3.Minimize(min, camera.center);
+      max = BABYLON.Vector3.Maximize(max, camera.center);
+    }
+    const center = min.add(max).scale(0.5);
+    const radius = Math.max(0.1, max.subtract(min).length() * 1.2);
+    this.camera.upVector = new BABYLON.Vector3(0, 1, 0);
+    this.cameraViewMode = "overview";
+    this.camera.fov = 0.8;
+    this.camera.setTarget(center);
+    this.camera.setPosition(center.add(new BABYLON.Vector3(0.4, 0.3, -1).normalize().scale(radius)));
+    this.camera.minZ = radius / 1000;
+    this.camera.rebuildAnglesAndRadius?.();
+    this._syncCameraVisuals();
+  }
 
   _autoFrame() {
     // look-at: sampled centroid if we have it
@@ -1249,12 +1412,7 @@ class ColmapViewer {
     this.camera.setTarget(center);
 
     if (this.cameras.length > 0) {
-      const pos = this.cameras[this.camIndex].center;
-      this.camera.setPosition(pos);
-      // recompute alpha/beta/radius from pos/target so orbit feels natural
-      this.camera.rebuildAnglesAndRadius?.();
-      this._updateCurrentImageName();
-      this._syncCameraVisuals();
+      this._gotoCam(0);
     } else if (this.pointsMesh) {
       // simple fit by radius if no cameras
       const bb = this.pointsMesh.getBoundingInfo().boundingBox;
@@ -1270,17 +1428,36 @@ class ColmapViewer {
   _gotoCam(i) {
     if (!this.cameras.length) return;
     this.camIndex = (i + this.cameras.length) % this.cameras.length;
-    const center = this.sceneCenter || new BABYLON.Vector3(0, 0, 0);
-    const pos = this.cameras[this.camIndex].center;
-    this.camera.setTarget(center);
+    this.cameraViewMode = "photo";
+    const selected = this.cameras[this.camIndex];
+    const pos = selected.center;
+    const forward = BABYLON.Vector3.TransformNormal(new BABYLON.Vector3(0, 0, 1), selected.R).normalize();
+    const up = BABYLON.Vector3.TransformNormal(new BABYLON.Vector3(0, 1, 0), selected.R).normalize();
+    const distance = Math.max(0.1, BABYLON.Vector3.Distance(pos, this.sceneCenter ?? BABYLON.Vector3.Zero()));
+    this.camera.upVector = up;
+    this.camera.setTarget(pos.add(forward.scale(distance)));
     this.camera.setPosition(pos);
     this.camera.rebuildAnglesAndRadius?.();
-    const R = this.cameras[this.camIndex].R;
-    const upWorld = BABYLON.Vector3.TransformCoordinates(new BABYLON.Vector3(0, 1, 0), R);
-    this.camera.upVector = upWorld;
+    this.camera.inertialAlphaOffset = this.camera.inertialBetaOffset = this.camera.inertialRadiusOffset = 0;
+    this.camera.inertialPanningX = this.camera.inertialPanningY = 0;
+    this._updateCameraFov();
+    this.camera.minZ = Math.max(0.0001, distance / 1000);
+    this.camera.maxZ = Math.max(10000, distance * 100);
     this._syncCameraVisuals();
     this._updateCurrentImageName();
     this._renderStats();
+    this._emitPhotoState();
+  }
+
+  selectCamera(index) {
+    if (!this.isBusy() && Number.isInteger(index)) this._gotoCam(index);
+  }
+
+  _updateCameraFov() {
+    if (this.cameraViewMode === "overview") return;
+    const k = this.cameras[this.camIndex]?.intrinsics;
+    const aspect = this.engine.getAspectRatio(this.camera);
+    this.camera.fov = k ? 2 * Math.atan(Math.max(k.height / (2 * k.fy), k.width / (2 * k.fx * aspect))) : 0.8;
   }
 
   nextCam() { this._gotoCam((this.camIndex ?? 0) + 1); }
@@ -1506,7 +1683,7 @@ async function boot() {
         if ((item.kind || "scene") === "splat") {
           await viewer.loadSplatsFile({ splatsUrl: item.splats, label: item.label });
         } else {
-          await viewer.loadScene({ pointsUrl: item.points, imagesUrl: item.images, splatsUrl: item.splats });
+          await viewer.loadScene({ pointsUrl: item.points, imagesUrl: item.images, camerasUrl: item.cameras, scenePath: item.rel_path, splatsUrl: item.splats });
         }
       };
     });
@@ -1571,6 +1748,7 @@ async function boot() {
   });
 
   const prevBtn = document.getElementById("prevCamBtn");
+  document.getElementById("overviewBtn")?.addEventListener("click", () => viewer.frameScene());
   const nextBtn = document.getElementById("nextCamBtn");
   prevBtn?.addEventListener("click", () => viewer.prevCam());
   nextBtn?.addEventListener("click", () => viewer.nextCam());
