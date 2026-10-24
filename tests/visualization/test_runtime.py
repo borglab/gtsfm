@@ -82,6 +82,128 @@ def test_configuration_schema_defaults_to_vggt() -> None:
     assert argoverse_options["log_id"]["required"] is True
 
 
+def test_configuration_parameter_schema_follows_selected_hydra_preset() -> None:
+    vggt = runtime.configuration_parameter_schema("vggt", "olsson", "base_gs", True)
+    barn = runtime.configuration_parameter_schema("vggt_barn", "olsson", "base_gs", True)
+    vggt_keys = {field["key"] for field in vggt["model"]["fields"]}
+    barn_keys = {field["key"] for field in barn["model"]["fields"]}
+    gaussian = {field["key"]: field for field in vggt["gaussian"]["fields"]}
+
+    assert "cluster_optimizer.optimizer.geometry_transformer.config.confidence_threshold" in vggt_keys
+    assert "cluster_optimizer.geometry_transformer.config.confidence_threshold" in barn_keys
+    assert not any("_target_" in key or key.startswith("loader.") for key in vggt_keys)
+    assert gaussian["init_type"]["type"] == "string"
+    assert "max_steps" not in gaussian  # exposed as the prominent Training steps field
+
+
+def test_typed_hydra_overrides_are_validated_for_selected_preset(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dataset = tmp_path / "dataset"
+    dataset.mkdir()
+    monkeypatch.setattr(runtime, "detect_hardware", _cuda_hardware)
+    key = "cluster_optimizer.geometry_transformer.config.confidence_threshold"
+
+    args, _ = runtime.build_runner_args(
+        {
+            "config_name": "vggt_barn",
+            "loader": "olsson",
+            "dataset_dir": str(dataset),
+            "hardware": "cpu",
+            "splat_implementation": "none",
+            "hydra_overrides": {key: "6.5"},
+        },
+        tmp_path / "output",
+    )
+
+    assert f"{key}=6.5" in args
+    with pytest.raises(ValueError, match="Unknown or protected Hydra settings"):
+        runtime.build_runner_args(
+            {
+                "config_name": "vggt_barn",
+                "loader": "olsson",
+                "dataset_dir": str(dataset),
+                "hardware": "cpu",
+                "splat_implementation": "none",
+                "hydra_overrides": {"cluster_optimizer.optimizer.not_in_this_preset": 1},
+            },
+            tmp_path / "bad-output",
+        )
+
+
+@pytest.mark.parametrize(
+    "preset",
+    [
+        "fast_vggt",
+        "fastvggt",
+        "vggt",
+        "vggt_barn",
+        "vggt_cater",
+        "vggt_church",
+        "vggt_courthouse",
+        "vggt_dub",
+        "vggt_ig",
+    ],
+)
+def test_fractional_reprojection_threshold_for_vggt_presets(
+    preset: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A disabled float threshold must remain editable without relaxing integer fields."""
+
+    schema = runtime.configuration_parameter_schema(preset, "olsson", "base_gs", False)
+    fields = {field["key"].rsplit(".", 1)[-1]: field for field in schema["model"]["fields"]}
+    threshold = fields["vggt_max_reproj_error"]
+    count = fields["max_query_pts"]
+    assert threshold["type"] == "number"
+    assert threshold["defaultValue"] == 0.0
+    assert threshold["step"] == "any"
+    assert count["type"] == "integer"
+    assert count["step"] == 1
+
+    dataset = tmp_path / "dataset"
+    dataset.mkdir()
+    monkeypatch.setattr(runtime, "detect_hardware", _cuda_hardware)
+    spec = {
+        "config_name": preset,
+        "loader": "olsson",
+        "dataset_dir": str(dataset),
+        "hardware": "cpu",
+        "splat_implementation": "none",
+        "hydra_overrides": {threshold["key"]: "0.5", count["key"]: "17"},
+    }
+    args, _ = runtime.build_runner_args(spec, tmp_path / "output")
+    assert f"{threshold['key']}=0.5" in args
+    assert f"{count['key']}=17" in args
+
+    # Form inputs reach the backend as strings; fractional counts must fail.
+    with pytest.raises(ValueError, match="Invalid value for Hydra setting"):
+        runtime.build_runner_args({**spec, "hydra_overrides": {count["key"]: "2.5"}}, tmp_path / "bad-output")
+
+
+def test_expert_hydra_overrides_are_composed_before_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    dataset = tmp_path / "dataset"
+    dataset.mkdir()
+    monkeypatch.setattr(runtime, "detect_hardware", _cuda_hardware)
+    spec = {
+        "config_name": "vggt",
+        "loader": "olsson",
+        "dataset_dir": str(dataset),
+        "hardware": "cpu",
+        "splat_implementation": "none",
+    }
+
+    with pytest.raises(ValueError, match="Invalid Hydra override"):
+        runtime.build_runner_args(
+            {**spec, "advanced_overrides": ["cluster_optimizer.misspelled_setting=1"]},
+            tmp_path / "bad-output",
+        )
+    with pytest.raises(ValueError, match="not editable"):
+        runtime.build_runner_args(
+            {**spec, "advanced_overrides": ["cluster_optimizer._target_=unsafe.Class"]},
+            tmp_path / "protected-output",
+        )
+
+
 def test_yaml_catalog_ignores_cloud_duplicate_artifacts(tmp_path: Path) -> None:
     (tmp_path / "vggt.yaml").write_text("model: canonical\n", encoding="utf-8")
     (tmp_path / "vggt 2.yaml").write_text("model: duplicate\n", encoding="utf-8")
@@ -111,6 +233,10 @@ def test_build_runner_args_for_vggt_gsplat(tmp_path: Path, monkeypatch: pytest.M
             "splat_implementation": "gsplat",
             "gaussian_splatting_config_name": "base_gs",
             "gs_max_steps": 123,
+            "gaussian_splatting_overrides": {
+                "antialiased": True,
+                "cull_alpha_thresh": 0.01,
+            },
         },
         tmp_path / "output",
     )
@@ -118,7 +244,33 @@ def test_build_runner_args_for_vggt_gsplat(tmp_path: Path, monkeypatch: pytest.M
     assert args[:2] == ["--config_name", "vggt"]
     assert "--run_gs" in args
     assert args[args.index("--gs_max_steps") + 1] == "123"
+    gaussian_overrides = [
+        args[index + 1] for index, value in enumerate(args) if value == "--gaussian_splatting_override"
+    ]
+    assert gaussian_overrides == [
+        "+gaussian_splatting_optimizer.cfg.antialiased=true",
+        "gaussian_splatting_optimizer.cfg.cull_alpha_thresh=0.01",
+    ]
     assert env["CUDA_VISIBLE_DEVICES"] == "0"
+
+
+def test_build_runner_args_rejects_unknown_gaussian_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    dataset = tmp_path / "dataset"
+    dataset.mkdir()
+    monkeypatch.setattr(runtime, "detect_hardware", _cuda_hardware)
+
+    with pytest.raises(ValueError, match="Unknown Gaussian splatting settings"):
+        runtime.build_runner_args(
+            {
+                "config_name": "vggt",
+                "loader": "olsson",
+                "dataset_dir": str(dataset),
+                "hardware": "cuda:0",
+                "splat_implementation": "gsplat",
+                "gaussian_splatting_overrides": {"_target_": "unsafe"},
+            },
+            tmp_path / "output",
+        )
 
 
 def test_anysplat_selection_uses_anysplat_pipeline(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -185,6 +337,15 @@ def test_workspace_api_and_scene_discovery(tmp_path: Path) -> None:
     schema_response = client.get("/api/configuration")
     assert schema_response.status_code == 200
     assert schema_response.json()["defaults"]["config_name"] == "vggt"
+    parameters_response = client.get(
+        "/api/configuration/parameters",
+        params={"config_name": "vggt_barn", "loader": "olsson", "splat_implementation": "none"},
+    )
+    assert parameters_response.status_code == 200
+    parameters = parameters_response.json()
+    assert parameters["model"]["preset"] == "vggt_barn"
+    assert parameters["model"]["fields"]
+    assert parameters["gaussian"]["fields"] == []
     setup_response = client.get("/api/setup")
     assert setup_response.status_code == 200
     setup = setup_response.json()
@@ -208,7 +369,18 @@ def test_workspace_api_and_scene_discovery(tmp_path: Path) -> None:
     samples_response = client.get("/api/samples")
     assert samples_response.status_code == 200
     samples = {item["id"]: item for item in samples_response.json()["items"]}
-    assert set(samples) == {"lund-door", "crane-mast", "mobilebrick"}
+    assert set(samples) == {
+        "one-d-sfm",
+        "argoverse",
+        "astrovision-vesta",
+        "lund-door",
+        "crane-mast",
+        "hilti-exp4",
+        "imb-reichstag",
+        "mobilebrick",
+        "tanks-temples-barn",
+    }
+    assert samples["crane-mast"]["image_count"] == 2
     assert samples["crane-mast"]["recommendations"]["loader"] == "colmap"
     assert samples["lund-door"]["source_url"].startswith("https://github.com/borglab/gtsfm/")
 

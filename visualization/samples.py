@@ -26,6 +26,50 @@ _SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
 
 SAMPLE_DATASETS: tuple[dict[str, Any], ...] = (
     {
+        "id": "one-d-sfm",
+        "label": "1DSfM Images",
+        "description": "4-image internet-photo scene without reconstruction metadata.",
+        "image_count": 4,
+        "source_path": "tests/data/1dsfm",
+        "recommendations": {
+            "loader": "one_d_sfm",
+            "config_name": "vggt",
+            "max_resolution": 518,
+            "loader_options": {"enable_no_exif": True, "default_focal_length_factor": 1.2},
+        },
+    },
+    {
+        "id": "argoverse",
+        "label": "Argoverse Tracking",
+        "description": "2-frame vehicle log with calibration, poses, and timestamped camera images.",
+        "image_count": 2,
+        "source_path": "tests/data/argoverse/train1",
+        "recommendations": {
+            "loader": "argoverse",
+            "config_name": "vggt",
+            "max_resolution": 518,
+            "loader_options": {
+                "log_id": "273c1883-673a-36bf-b124-88311b1a80be",
+                "stride": 1,
+                "max_num_imgs": 2,
+                "camera_name": "ring_front_center",
+            },
+        },
+    },
+    {
+        "id": "astrovision-vesta",
+        "label": "AstroVision Vesta",
+        "description": "4-image grayscale scene with COLMAP binary geometry and a Vesta mesh.",
+        "image_count": 4,
+        "source_path": "tests/data/astrovision/test_2011212_opnav_022",
+        "recommendations": {
+            "loader": "astrovision",
+            "config_name": "vggt",
+            "max_resolution": 518,
+            "loader_options": {"gt_scene_mesh_path": "vesta_5002.ply", "use_gt_extrinsics": True},
+        },
+    },
+    {
         "id": "lund-door",
         "label": "Lund Door",
         "description": "12-image reference scene with camera metadata and ground truth.",
@@ -41,14 +85,40 @@ SAMPLE_DATASETS: tuple[dict[str, Any], ...] = (
     {
         "id": "crane-mast",
         "label": "Crane Mast",
-        "description": "8-image scene with COLMAP cameras, poses, and sparse points.",
-        "image_count": 8,
+        "description": "2-image scene with COLMAP cameras, poses, and sparse points.",
+        "image_count": 2,
         "source_path": "tests/data/crane_mast_8imgs_colmap_output",
         "recommendations": {
             "loader": "colmap",
             "config_name": "vggt",
             "max_resolution": 518,
             "loader_options": {"use_gt_intrinsics": True, "use_gt_extrinsics": True},
+        },
+    },
+    {
+        "id": "hilti-exp4",
+        "label": "Hilti Exp4",
+        "description": "16 synchronized multi-camera images with calibration and LiDAR priors.",
+        "image_count": 16,
+        "source_path": "tests/data/hilti_exp4_small",
+        "recommendations": {
+            "loader": "hilti",
+            "config_name": "vggt",
+            "max_resolution": 518,
+            "loader_options": {"max_length": 3},
+        },
+    },
+    {
+        "id": "imb-reichstag",
+        "label": "IMB Reichstag",
+        "description": "10-image YFCC scene with HDF5 calibration and visibility-pair metadata.",
+        "image_count": 10,
+        "source_path": "tests/data/imb_reichstag",
+        "recommendations": {
+            "loader": "yfcc_imb",
+            "config_name": "vggt",
+            "max_resolution": 518,
+            "loader_options": {"co_visibility_threshold": 0.1},
         },
     },
     {
@@ -62,6 +132,24 @@ SAMPLE_DATASETS: tuple[dict[str, Any], ...] = (
             "config_name": "vggt",
             "max_resolution": 518,
             "loader_options": {"use_gt_intrinsics": True, "max_frame_lookahead": 5},
+        },
+    },
+    {
+        "id": "tanks-temples-barn",
+        "label": "Tanks and Temples Barn",
+        "description": "3-image Barn scene with Redwood poses, bounds, and alignment metadata.",
+        "image_count": 3,
+        "source_path": "tests/data/tanks_and_temples_barn",
+        "recommendations": {
+            "loader": "tanks_and_temples",
+            "config_name": "vggt",
+            "max_resolution": 518,
+            "loader_options": {
+                "poses_fpath": "Barn_COLMAP_SfM.log",
+                "bounding_polyhedron_json_fpath": "Barn.json",
+                "ply_alignment_fpath": "Barn_trans.txt",
+                "max_num_images": 3,
+            },
         },
     },
 )
