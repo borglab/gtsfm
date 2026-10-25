@@ -1118,6 +1118,7 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
   const [sampleMessage, setSampleMessage] = useState("");
   const modalDiscoverySequence = useRef(0);
   const automaticModalEndpoint = useRef("");
+  const modalGpuChosenByUser = useRef(false);
   const set = <K extends keyof RunFormState>(key: K, value: RunFormState[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
   const updateHydraOverride = (
@@ -1245,7 +1246,7 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
   };
 
   useEffect(() => {
-    if (!modalGpuRecommendation) return;
+    if (!modalGpuRecommendation || modalGpuChosenByUser.current) return;
     if (form.modal_gpu === modalGpuRecommendation.gpu.id) return;
     set("modal_gpu", modalGpuRecommendation.gpu.id);
     if (form.remote_endpoint) {
@@ -1289,6 +1290,7 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
   };
 
   const updateModalGpu = (value: string) => {
+    modalGpuChosenByUser.current = true;
     set("modal_gpu", value);
     setRemote(null);
     setModalWorkspaceIssue(Boolean(form.remote_endpoint));
