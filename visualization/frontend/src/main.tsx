@@ -19,6 +19,7 @@ import * as Tabs from "@radix-ui/react-tabs";
 import { Activity, Box, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, CircleAlert, Copy, Cpu, Database, Download, FolderUp, Github, Maximize2, Minus, MonitorCog, Play, RefreshCw, Server, SlidersHorizontal, Square, Terminal, Wrench, X } from "lucide-react";
 import "./styles.css";
 import { PhotoPanel } from "./photo-panel";
+import { useJobStream } from "./use-job-stream";
 import { ResultsBrowser, type ResultItem } from "./results-browser";
 import { ViewerCanvas, ViewerProvider, useViewerApi } from "./viewer-context";
 import { ViewControls, ViewerToolbar, ViewerLoading, SceneStats } from "./viewer-controls";
@@ -637,9 +638,6 @@ async function getJson<T>(url: string, options?: RequestInit): Promise<T> {
   if (!response.ok) throw new Error(payload.error || `Request failed (${response.status})`);
   return payload as T;
 }
-
-const websocketUrl = (path: string): string =>
-  `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}${path}`;
 
 function Brand({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
   return <header className="studio-header" aria-label="SfM Studio">
@@ -2460,34 +2458,18 @@ function App() {
 
   useEffect(() => { if (activeId) setStatusBarOpen(true); }, [activeId]);
 
-  useEffect(() => {
-    let socket: WebSocket | null = null;
-    let retry: number | null = null;
-    let stopped = false;
-    const connect = () => {
-      socket = new WebSocket(websocketUrl("/api/events/jobs"));
-      socket.onmessage = (event) => {
-        const payload = JSON.parse(event.data) as JobsResponse;
-        setJobs(payload.items || []);
-        setActiveId((current) => current || payload.items?.find((job) => ["queued", "running"].includes(job.status))?.id || null);
-      };
-      socket.onclose = () => { if (!stopped) retry = window.setTimeout(connect, 1000); };
-    };
-    connect();
-    return () => { stopped = true; if (retry !== null) clearTimeout(retry); socket?.close(); };
-  }, []);
-
-  useEffect(() => {
-    if (!activeJob) { setLive(null); return; }
-    setLive(null);
-    const socket = new WebSocket(websocketUrl(`/api/events/jobs/${encodeURIComponent(activeJob.id)}`));
-    socket.onmessage = (event) => {
-      const payload = JSON.parse(event.data) as JobEvent;
-      setJobs((current) => current.map((job) => job.id === payload.job.id ? payload.job : job));
-      setLive(payload.live);
-    };
-    return () => socket.close();
-  }, [activeJob?.id]);
+  const jobsConnection = useJobStream<JobsResponse>("/api/events/jobs", (payload) => {
+    setJobs(payload.items || []);
+    setActiveId((current) => current || payload.items?.find((job) => ["queued", "running"].includes(job.status))?.id || null);
+  });
+  useEffect(() => { setLive(null); }, [activeJob?.id]);
+  const liveConnection = useJobStream<JobEvent>(activeJob ? `/api/events/jobs/${encodeURIComponent(activeJob.id)}` : null, (payload) => {
+    setJobs((current) => current.map((job) => job.id === payload.job.id ? payload.job : job));
+    setLive(payload.live);
+  });
+  const connectionMessage = [jobsConnection, liveConnection].includes("unavailable")
+    ? "Live updates unavailable. Reload Studio to reconnect."
+    : [jobsConnection, liveConnection].includes("reconnecting") ? "Connection interrupted. Reconnecting to live updates…" : "";
 
   useEffect(() => {
     if (!activeJob || !live) return;
@@ -2542,6 +2524,7 @@ function App() {
   const useRemoteVm = () => { setTab("run"); setRemotePromptKey((current) => current + 1); };
   return <div className="app-shell"><aside id="sidebar" className={`${sidebarCollapsed ? "sidebar-collapsed" : ""} ${sidebarResizing ? "sidebar-resizing" : ""}`} style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}><Brand collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed((current) => !current)} />
     {showHardwareWarning && hardware && <HardwareWarning key={hardwareWarningContent(hardware).title} hardware={hardware} onUseRemote={useRemoteVm}/>}
+    {connectionMessage && <p className="connection-notice" role="status">{connectionMessage}</p>}
     <Tabs.Root className="workspace-tabs" value={tab} onValueChange={setTab}>
       <Tabs.List className="studio-tabs" aria-label="Workspace sections"><Tabs.Trigger className="studio-tab" value="run"><Play size={12}/> New run</Tabs.Trigger><Tabs.Trigger className="studio-tab" value="activity"><Activity size={12}/> Activity {activeCount > 0 && <span id="activeJobCount">{activeCount}</span>}</Tabs.Trigger><Tabs.Trigger className="studio-tab" value="results"><Box size={12}/> Results</Tabs.Trigger></Tabs.List>
       <Tabs.Content className="studio-panel" value="run" forceMount><RunForm schema={schema} hardware={hardware} samples={samples} samplesLoading={samplesLoading} onStarted={(job) => { setStatusBarOpen(true); setActiveId(job.id); refreshJobs(); }} onTabChange={setTab} remotePromptKey={remotePromptKey} schemaLoading={schemaLoading} schemaError={schemaError} onRetrySchema={() => { void loadSchema(); void loadSamples(); }}/></Tabs.Content>
