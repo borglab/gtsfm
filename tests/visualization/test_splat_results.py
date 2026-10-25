@@ -89,6 +89,20 @@ def test_empty_splat_files_are_hidden(saved_scene):
     assert items[0]["splat_count"] == 42
 
 
+@pytest.mark.parametrize("filename", ["points3D.txt", "images.txt", "cameras.txt", "gaussian_splats.ply"])
+def test_result_revision_tracks_each_viewer_resource(saved_scene, filename):
+    """Even same-size edits within one second must invalidate browser caches."""
+    root, scene = saved_scene
+    (scene / "gaussian_splats.ply").write_text("ply\nformat ascii 1.0\nelement vertex 42\nend_header\n")
+    path = scene / filename
+    os.utime(path, ns=(1_000_000_001, 1_000_000_001))
+    before = find_scenes(root)[0]["revision"]
+    os.utime(path, ns=(1_000_000_002, 1_000_000_002))
+    after = find_scenes(root)[0]["revision"]
+    assert before != after
+    assert find_scenes(root)[0]["revision"] == after
+
+
 def test_splat_launch_creates_separate_managed_job(saved_scene, monkeypatch):
     root, scene = saved_scene
     monkeypatch.setattr(runtime.JobManager, "_run", lambda *args: None)

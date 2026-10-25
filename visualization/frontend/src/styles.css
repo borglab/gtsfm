@@ -3896,3 +3896,20 @@ input[type="checkbox"] {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* React owns each result action independently, including keyboard focus. */
+#sceneList .result-open {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+#sceneList .result-open:disabled { cursor: wait; opacity: .65; }
+#sceneList .result-open:focus-visible { outline: 2px solid #d2a715; outline-offset: 3px; }
