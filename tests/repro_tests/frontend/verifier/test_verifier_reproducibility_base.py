@@ -34,7 +34,7 @@ class VerifierReproducibilityBase(ReproducibilityTestBase, unittest.TestCase):
         super().setUp()
         self._verifier: VerifierBase = verifier
         detector_descriptor = SIFTDetectorDescriptor()
-        matcher = TwoWayMatcher()
+        matcher = TwoWayMatcher(search_method="brute_force")
         self._image_i1 = io_utils.load_image(str(IMG1_PATH))
         self._image_i2 = io_utils.load_image(str(IMG2_PATH))
         self._keypoints_i1, descriptors_i1 = detector_descriptor.detect_and_describe(self._image_i1)

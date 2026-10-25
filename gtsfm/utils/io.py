@@ -33,7 +33,7 @@ from thirdparty.colmap.scripts.python.read_write_model import Point3D as ColmapP
 logger = logger_utils.get_logger()
 
 
-IMG_EXTENSIONS = ["png", "PNG", "jpg", "JPG"]
+IMG_EXTENSIONS = ["png", "PNG", "jpg", "JPG", "jpeg", "JPEG"]
 
 
 def load_image(img_path: Union[str, Path]) -> Image:
@@ -490,7 +490,7 @@ def read_point_cloud_from_ply(ply_fpath: str) -> Tuple[np.ndarray, np.ndarray]:
 
 
 def get_sorted_image_names_in_dir(dir_path: str) -> List[str]:
-    """Finds all jpg and png images in directory and returns their names in sorted order.
+    """Finds all jpg, jpeg, and png images in directory and returns their names in sorted order.
 
     Args:
         dir_path: Path to directory containing images.
