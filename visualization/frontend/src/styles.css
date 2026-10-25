@@ -251,7 +251,7 @@ body.sidebar-is-resizing * {
   backdrop-filter: blur(8px);
 }
 
-.sidebar-collapsed + #main-content #sceneStats {
+.sidebar-collapsed + #main-content .viewer-top-panels {
   left: 103px;
 }
 
@@ -1327,7 +1327,13 @@ input[type="checkbox"] {
 }
 
 .input-source {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   margin-top: 2px;
+}
+
+.input-source .target-choice {
+  padding: 7px 4px;
+  flex-wrap: wrap;
 }
 
 .sample-picker {
@@ -2103,14 +2109,56 @@ input[type="checkbox"] {
 
 .job-status.failed,
 .job-status.cancelled,
+.job-status.interrupted,
 .job-error {
   color: var(--danger);
 }
 
+.job-history-note,
+.job-created {
+  display: block;
+  margin: 6px 0;
+  color: var(--ink-soft);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.run-history-note {
+  flex-shrink: 0;
+  margin: 8px 14px;
+  color: #adb1af;
+}
+
 .job-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   margin-top: 9px;
+}
+
+.diagnostic-prompt-action,
+.retry-job-action {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.diagnostic-prompt-action .job-error,
+.retry-job-action .job-error {
+  font-size: 11px;
+}
+
+.run-diagnostic-prompt {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 8px 14px;
+  color: #d7d8d3;
+}
+
+.run-diagnostic-prompt .text-button {
+  color: inherit;
 }
 
 .job-card > .splat-download {
@@ -2241,6 +2289,26 @@ input[type="checkbox"] {
   list-style: none;
 }
 
+.item .result-counts {
+  color: var(--ink);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.result-path {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.splat-result-form {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+  border: 1px solid var(--line-dark);
+  border-radius: 8px;
+}
+
 .directory-node {
   display: flex;
   width: 100%;
@@ -2259,6 +2327,11 @@ input[type="checkbox"] {
 
 .directory-node:hover {
   background: #eeeee9;
+}
+
+.directory-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .directory-node:focus-visible {
@@ -2316,6 +2389,16 @@ input[type="checkbox"] {
   font-size: 9px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.item .result-modified,
+.directory-node .result-modified {
+  display: block;
+  color: var(--ink-soft);
+  font-size: 10px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  white-space: normal;
 }
 
 .item .result-splat-download {
@@ -2377,7 +2460,7 @@ input[type="checkbox"] {
 .setup-reopen {
   position: absolute;
   z-index: 9;
-  top: 18px;
+  top: 68px;
   right: 18px;
 }
 
@@ -2714,6 +2797,7 @@ input[type="checkbox"] {
 }
 
 .run-status-bar[data-status="failed"] .status-dot,
+.run-status-bar[data-status="interrupted"] .status-dot,
 .run-status-bar[data-status="cancelled"] .status-dot {
   background: #cb6258;
   animation: none;
@@ -2860,6 +2944,9 @@ input[type="checkbox"] {
   right: 58px;
   bottom: 18px;
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: calc(100% - 76px);
   align-items: center;
   gap: 1px;
   padding: 4px;
@@ -2896,7 +2983,19 @@ input[type="checkbox"] {
   outline-offset: 2px;
 }
 
-#hud button {
+#viewControls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  width: 190px;
+  max-width: 100%;
+  padding: 4px;
+  border: 1px solid #383b3e;
+  background: rgba(19, 21, 23, 0.92);
+}
+
+#hud button,
+#viewControls button {
   display: flex;
   height: 30px;
   align-items: center;
@@ -2914,9 +3013,59 @@ input[type="checkbox"] {
 }
 
 #hud button:hover,
-#hud button.is-active {
+#hud button.is-active,
+#viewControls button:hover,
+#viewControls button.is-active {
   background: #303335;
   color: #fff;
+}
+
+#viewControls button:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+#viewControls .axis-view-controls {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  flex-basis: 100%;
+  border-top: 1px solid #343739;
+}
+
+#alignmentStatus {
+  flex-basis: 100%;
+  padding: 4px;
+  font-size: 10px;
+  color: #d3d4d0;
+}
+
+.viewer-top-panels {
+  position: absolute;
+  z-index: 9;
+  top: 18px;
+  left: 18px;
+  right: 18px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  pointer-events: none;
+}
+
+.viewer-top-panels > #sceneStats,
+.viewer-top-panels > .setup-panel,
+.viewer-top-panels > .setup-reopen,
+.viewer-top-panels > #viewControls {
+  position: static;
+  flex-shrink: 0;
+  max-width: 100%;
+  pointer-events: auto;
+}
+
+.viewer-top-panels > .setup-panel,
+.viewer-top-panels > .setup-reopen {
+  margin-left: auto;
 }
 
 #hud label {
@@ -2978,6 +3127,7 @@ input[type="checkbox"] {
 }
 
 #hud.hud-splat-mode .hud-scene-only,
+#main-content:has(#hud.hud-splat-mode) #viewControls .hud-scene-only,
 .hud-hidden {
   display: none !important;
 }
@@ -2985,7 +3135,7 @@ input[type="checkbox"] {
 #sceneStats {
   position: absolute;
   z-index: 6;
-  top: 18px;
+  top: 68px;
   left: 18px;
   display: grid;
   min-width: 178px;
@@ -3552,7 +3702,7 @@ input[type="checkbox"] {
   padding: 11px;
   color: #adb1af;
   font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: var(--log-font-size, 9px);
+  font-size: 10px;
   line-height: 1.6;
   cursor: text;
   user-select: text;
@@ -3575,6 +3725,19 @@ input[type="checkbox"] {
 .loading-overlay.active {
   opacity: 1;
   pointer-events: auto;
+}
+
+.loading-overlay.compact {
+  inset: auto 12px 72px auto;
+  background: transparent;
+  pointer-events: none;
+}
+
+.loading-overlay.compact .loading-box {
+  min-width: 180px;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 6px;
 }
 
 .loading-box {
