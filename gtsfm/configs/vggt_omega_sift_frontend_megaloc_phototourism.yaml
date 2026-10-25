@@ -1,0 +1,166 @@
+# VGGT-Omega-with-frontend configuration.
+# Identical to vggt_sift_frontend_megaloc_phototourism.yaml except for the geometry model: VGGT-Omega
+# runs through the same ClusterVGGTWithFrontend via the injected geometry_transformer, so the two configs
+# form a controlled A/B of the per-cluster geometry model.
+#
+# VGGT-Omega weights are gated (CC-BY-NC-4.0, non-redistributable) and CUDA-only:
+#   git submodule update --init thirdparty/vggt-omega
+#   bash scripts/download_model_weights.sh --hf_token <token>
+
+# @package _global_
+_target_: gtsfm.scene_optimizer.SceneOptimizer
+
+loader:
+  _target_: gtsfm.loader.Olsson
+  dataset_dir: ??? # Required: set to the dataset root on the command line.
+  images_dir: null
+  max_resolution: 760
+
+image_pairs_generator:
+  _target_: gtsfm.retriever.image_pairs_generator.ImagePairsGenerator
+  global_descriptor:
+    _target_: gtsfm.frontend.cacher.global_descriptor_cacher.GlobalDescriptorCacher
+    global_descriptor_obj:
+      _target_: gtsfm.frontend.global_descriptor.MegaLoc
+  retriever:
+    _target_: gtsfm.retriever.Similarity
+    # Over-retrieve: the global two-view verification prunes non-geometric edges, so retrieval only
+    # needs recall. 100/0.15 is the value committed the night of the Brussels peak run (June 27),
+    # corroborated by recreating its 14,585 retrieved pairs from the saved similarity matrix.
+    num_matched: 100
+    min_score: 0.15
+  batch_size: 16
+
+graph_partitioner:
+  _target_: gtsfm.graph_partitioner.Metis
+  min_cameras_to_partition: 30
+  max_cameras: 70
+  split_oversized_nodes: true
+
+cluster_optimizer:
+  _target_: gtsfm.cluster_optimizer.Cacher
+  optimizer:
+    _target_: gtsfm.cluster_optimizer.VggtWithFrontend
+
+    correspondence_generator:
+      _target_: gtsfm.frontend.correspondence_generator.det_desc_correspondence_generator.DetDescCorrespondenceGenerator
+      detector_descriptor:
+        _target_: gtsfm.frontend.cacher.detector_descriptor_cacher.DetectorDescriptorCacher
+        detector_descriptor_obj:
+          _target_: gtsfm.frontend.detector_descriptor.colmap_sift.ColmapSIFTDetectorDescriptor
+          max_keypoints: 8192
+
+      matcher:
+        _target_: gtsfm.frontend.cacher.matcher_cacher.MatcherCacher
+        matcher_obj:
+          # Torch port of TwoWayMatcher: identical matches, far faster on GPU nodes.
+          _target_: gtsfm.frontend.matcher.torch_twoway_matcher.TorchTwoWayMatcher
+          ratio_test_threshold: 0.8
+
+    two_view_estimator:
+      _target_: gtsfm.two_view_estimator_cacher.TwoViewEstimatorCacher
+      two_view_estimator_obj:
+        _target_: gtsfm.two_view_estimator.TwoViewEstimator
+        bundle_adjust_2view: True
+        eval_threshold_px: 4 # in px
+        ba_reproj_error_thresholds: [0.5]
+        bundle_adjust_2view_maxiters: 100
+
+        verifier:
+          # PoseLib 5-point + LO-RANSAC + 2-view bundle.
+          _target_: gtsfm.frontend.verifier.poselib_verifier.PoseLibVerifier
+          estimation_threshold_px: 2
+
+        triangulation_options:
+          _target_: gtsfm.data_association.point3d_initializer.TriangulationOptions
+          reproj_error_threshold: 100.0
+          mode:
+            _target_: gtsfm.data_association.point3d_initializer.TriangulationSamplingMode
+            value: NO_RANSAC
+
+        inlier_support_processor:
+          _target_: gtsfm.two_view_estimator.InlierSupportProcessor
+          min_num_inliers_est_model: 30
+          min_inlier_ratio_est_model: 0.15
+
+    geometry_transformer:
+      # Omega preprocesses images itself (512px, 16-patch aligned); the optimizer's input_mode is ignored.
+      _target_: gtsfm.frontend.vggt_omega_geometry_transformer.VggtOmegaGeometryTransformer
+
+
+    ba_options:
+      _target_: gtsfm.bundle.bundle_adjustment.BundleAdjustmentOptions
+      shared_calib: false
+      # Anchor each focal at its Fetzer-refined value so the per-cluster BA optimizes POSES, not
+      # focals. Without this, each cluster's BA drifts the same camera's focal differently
+      # (focal/depth ambiguity), so the parent and child copies of a separator camera diverge and
+      # the Sim3 merges get noisier. Pinned tighter (5px) than the merge BA (10px).
+      use_calibration_prior: true
+      calibration_prior_focal_sigma: 5.0
+      use_gnc: true
+      gnc_loss: TLS
+      factor_weight_outlier_threshold: 1e-6
+
+    pre_ba_max_reproj_error: 14.0
+    post_ba_max_reproj_error: 3.0
+    drop_camera_with_no_track: false
+    min_track_length: 3
+    input_mode: crop
+    seed: 42
+    model_cache_key: null
+    # Calibration authority: both view-graph (Fetzer) calibrations off. Every camera uses the
+    # geometry model's predicted focal. fx and fy are scaled per axis, then averaged into Cal3Bundler
+    # when use_cal3_bundler is set. The principal point is that scaled model point, not the image center.
+    use_view_graph_calibration: false
+    use_global_view_graph_calibration: false
+    # The validated Brussels recipe skips the per-cluster BA: raw model poses ride into the
+    # pose-pinned merge BAs and the final free retriangulation, which do the polishing.
+    run_per_cluster_ba: false
+    # Geometry cameras stay Cal3_S2 until the per-axis scale. Average the scaled focals into
+    # Cal3Bundler so the BA sees one focal in the original image.
+    use_cal3_bundler: true
+
+# --- Merging options ---
+merging_options:
+  _target_: gtsfm.cluster_merging.MergingOptions
+  run_bundle_adjustment: true
+  merge_duplicate_tracks: true
+  drop_child_if_merging_fail: true
+  drop_outlier_after_camera_merging: true
+  drop_camera_with_no_track: false
+  keep_all_cameras: false
+  plot_reprojection_histograms: true
+  use_nonlinear_sim3_alignment: true
+  max_track_correspondences_for_sim3: 150
+  scale_and_average_focal_length: false
+  pre_ba_max_reproj_error: 14.0
+  pre_ba_min_track_length: 3
+  post_ba_max_reproj_error: 3.0
+  min_track_length: 3
+  allow_post_ba_reproj_filtering: true
+  metric_constructed_only: true
+  # Re-inject good-pose cameras the post-BA track filter dropped into the final retriangulation.
+  recover_trackless_cameras_in_retriangulation: true
+  # The final retriangulation BA runs free (no calibration/pose priors): the priors that protect
+  # the incremental merges throttle the full-scene solve.
+  retri_free_ba: true
+  retri_iterations: 1
+  ba_options:
+    _target_: gtsfm.bundle.bundle_adjustment.BundleAdjustmentOptions
+    shared_calib: false
+    # Anchor focals at their per-cluster-BA values so the merge BA optimizes POSES, not focals —
+    # a free-focal merge BA distorts good focals to absorb Sim3 pose error, inflating reprojection
+    # and dropping cameras at the 3px filter.
+    use_calibration_prior: true
+    calibration_prior_focal_sigma: 10.0
+    # NOTE: `use_pose_prior` no longer exists on BundleAdjustmentOptions (removed 78813fc4) — the
+    # old key made this config fail to instantiate. The golden runs used priors on ALL cameras.
+    use_pose_prior_all_cameras: true
+    use_gnc: false
+    gnc_loss: TLS
+    factor_weight_outlier_threshold: 1e-6
+
+# --- Bridge params ---
+bridge_min_similarity: 0.0
+bridge_top_k: 10
+bridge_min_component_size: 3

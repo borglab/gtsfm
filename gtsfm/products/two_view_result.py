@@ -29,6 +29,8 @@ class TwoViewResult:
         post_isp_report: Two-view estimation report after inlier support processing (optional).
         relative_pose_prior: Relative pose prior used in optimization (optional).
         putative_corr_idxs: Putative correspondence indices used for estimation (optional).
+        i2Fi1: Focal-independent fundamental matrix from the verifier (optional).
+        config: Two-view configuration code used to gate calibration (optional).
     """
 
     i2Ri1: Optional[Rot3]

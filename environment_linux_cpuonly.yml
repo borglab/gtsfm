@@ -23,7 +23,6 @@ dependencies:
   - msgpack-python=1.1.1
   - python-graphviz
   - toolz =1.1.0
-  - tornado=6.5.2
   # core functionality and APIs
   - hydra-core
   - matplotlib>=3.5
@@ -56,8 +55,10 @@ dependencies:
       - pydegensac
       - colour
       - trimesh[easy]
-      - gtsam-develop==4.3a1.dev202604240153
+      - gtsam==4.3.0
       - pydot
+      - bokeh==3.7.* # Dask 2025.9.1 reporting compatibility; keep in sync with pyproject.toml.
+      - tornado==6.5.9 # Match uv; this version is not available on conda-forge.
       - roma
       - tqdm
       - einops

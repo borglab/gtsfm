@@ -5,7 +5,7 @@ class ColmapViewer {
     this.canvas = canvas;
     this.engine = new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true });
     this.scene = new BABYLON.Scene(this.engine);
-    this.scene.clearColor = new BABYLON.Color4(0.85, 0.85, 0.85, 1.0);
+    this.scene.clearColor = new BABYLON.Color4(0.055, 0.063, 0.071, 1.0);
 
     this.camera = new BABYLON.ArcRotateCamera(
       "cam",
@@ -20,27 +20,51 @@ class ColmapViewer {
     this.camera.minZ = 0.01;    // Near clipping plane
     this.camera.maxZ = 10000;   // Far clipping plane
 
-    // Z-up for interaction
-    this.camera.upVector = new BABYLON.Vector3(0, 0, -1);
+    // Source Z-up is mapped to Babylon's Y-up, left-handed world frame.
+    this.camera.upVector = new BABYLON.Vector3(0, 1, 0);
+    this.camera.setPosition(new BABYLON.Vector3(10, 8, -12));
+    this.camera.setTarget(BABYLON.Vector3.Zero());
+    this.camera.rebuildAnglesAndRadius?.();
 
 
     // Inputs & limits tuned to avoid “locked” feeling
-    this.camera.angularSensibilityX = 1000;
-    this.camera.angularSensibilityY = 1000;
+    this.camera.angularSensibilityX = 1500;
+    this.camera.angularSensibilityY = 1500;
     this.camera.panningSensibility = 1000;
-    this.camera.wheelPrecision = 40;
+    this.camera.wheelPrecision = 90;
+    this.camera.pinchPrecision = 120;
+    this.camera.useNaturalPinchZoom = true;
     this.camera.lowerRadiusLimit = 0.1;
     this.camera.upperRadiusLimit = 10000;
-    this.camera.lowerBetaLimit = 0.001;
-    this.camera.upperBetaLimit = Math.TWO_PI - 0.001;
+    this.camera.lowerBetaLimit = 0.05;
+    this.camera.upperBetaLimit = Math.PI - 0.05;
 
     this.light = new BABYLON.HemisphericLight("H", new BABYLON.Vector3(0, 1, 0), this.scene);
     this.light.intensity = 0.85;
 
+    this.groundY = 0;
+    this.showGround = false;
+    this.groundAvailable = true;
+    this.groundGrid = null;
+    this.groundAxes = null;
+    this.idleGround = this._createIdleGround();
+    this._setIdleGroundVisible(true);
+
     this.pcs = null;
     this.pointsMesh = null;
     this.frustumGroup = new BABYLON.TransformNode("frusta", this.scene);
+    this.cameraLineMeshes = [];
     this.cameras = [];
+    this.camIndex = 0;
+    this.photoItems = [];
+    this.photoLoading = false;
+    this.photoError = "";
+    this.photoAbort = null;
+    this.photoTextures = new Map();
+    this.photoTextureLimit = 48;
+    this.photoVisibleLimit = 32;
+    this.photoGeneration = 0;
+    this.frustumLines = [];
 
     this.splatsUrl = null;
     this.splatsMesh = null;
@@ -68,9 +92,97 @@ class ColmapViewer {
     this.parsedCacheLimit = 4;
     this._busyState = null;
     this._busyListeners = new Set();
+    this.overlayTheme = "dark";
+    this.setOverlayTheme(this.overlayTheme);
 
     this.engine.runRenderLoop(() => this.scene.render());
     window.addEventListener("resize", () => this.engine.resize());
+    // Sidebar collapse changes the canvas size without a window resize.
+    this.resizeObserver = new ResizeObserver(() => { this.engine.resize(); this._updateCameraFov(); });
+    this.resizeObserver.observe(canvas);
+    this.photoTimer = window.setInterval(() => this._updatePhotoTextures(), 400);
+    this.scene.onPointerObservable.add((event) => {
+      const index = event.pickInfo?.pickedMesh?.metadata?.cameraIndex;
+      if (event.type === BABYLON.PointerEventTypes.POINTERTAP && Number.isInteger(index)) this.selectCamera(index);
+    });
+  }
+
+  _createIdleGround() {
+    const root = new BABYLON.TransformNode("idle-ground", this.scene);
+
+    const gridLines = [];
+    for (let value = -5; value <= 5; value += 1) {
+      gridLines.push([
+        new BABYLON.Vector3(value, 0.01, -5),
+        new BABYLON.Vector3(value, 0.01, 5),
+      ]);
+      gridLines.push([
+        new BABYLON.Vector3(-5, 0.01, value),
+        new BABYLON.Vector3(5, 0.01, value),
+      ]);
+    }
+    const grid = BABYLON.MeshBuilder.CreateLineSystem("idle-grid", { lines: gridLines }, this.scene);
+    grid.parent = root;
+    grid.color = new BABYLON.Color3(0.19, 0.205, 0.21);
+    grid.alpha = 0.72;
+    grid.isPickable = false;
+    this.groundGrid = grid;
+
+    const axes = BABYLON.MeshBuilder.CreateLineSystem(
+      "idle-axes",
+      {
+        lines: [
+          [new BABYLON.Vector3(-5, 0.015, 0), new BABYLON.Vector3(5, 0.015, 0)],
+          [new BABYLON.Vector3(0, 0.015, -5), new BABYLON.Vector3(0, 0.015, 5)],
+        ],
+      },
+      this.scene
+    );
+    axes.parent = root;
+    axes.color = new BABYLON.Color3(0.36, 0.38, 0.38);
+    axes.alpha = 0.9;
+    axes.isPickable = false;
+    this.groundAxes = axes;
+    return root;
+  }
+
+  _setIdleGroundVisible(visible) {
+    this.groundAvailable = !!visible;
+    const effectiveVisibility = this.groundAvailable && this.showGround;
+    this.idleGround?.setEnabled(effectiveVisibility);
+    this.camera.lowerRadiusLimit = effectiveVisibility ? 3.5 : 0.1;
+    this.camera.upperRadiusLimit = effectiveVisibility ? 50 : 10000;
+  }
+
+  setGroundVisible(value) {
+    this.showGround = !!value;
+    this._setIdleGroundVisible(this.groundAvailable);
+    return this.showGround;
+  }
+
+  toggleGroundVisible() {
+    return this.setGroundVisible(!this.showGround);
+  }
+
+  isGroundVisible() {
+    return this.showGround;
+  }
+
+  setOverlayTheme(theme) {
+    this.overlayTheme = theme;
+    const lightBackground = theme === "light-gray" || theme === "white";
+    const cameraColor = lightBackground
+      ? new BABYLON.Color3(0.08, 0.09, 0.1)
+      : new BABYLON.Color3(0.96, 0.97, 0.98);
+    const gridColor = lightBackground
+      ? new BABYLON.Color3(0.56, 0.57, 0.57)
+      : new BABYLON.Color3(0.19, 0.205, 0.21);
+    const axesColor = lightBackground
+      ? new BABYLON.Color3(0.31, 0.32, 0.32)
+      : new BABYLON.Color3(0.36, 0.38, 0.38);
+    if (this.groundGrid) this.groundGrid.color = gridColor;
+    if (this.groundAxes) this.groundAxes.color = axesColor;
+    for (const mesh of this.cameraLineMeshes ?? []) mesh.color = cameraColor.clone();
   }
 
   setPointSize(px) {
@@ -78,9 +190,31 @@ class ColmapViewer {
     if (this.pointsMesh?.material) this.pointsMesh.material.pointSize = this.ptSize;
   }
 
+  setGroundY(value) {
+    const next = Number(value);
+    if (!Number.isFinite(next)) return this.groundY;
+    this.groundY = Math.max(-5, Math.min(5, next));
+    if (this.idleGround) this.idleGround.position.y = this.groundY;
+    return this.groundY;
+  }
+
   setShowCams(v) {
     this.showCams = v;
     this.frustumGroup.setEnabled(!!v);
+    this._syncCameraVisuals();
+  }
+
+  _syncCameraVisuals() {
+    const selected = this.cameras[this.camIndex];
+    this.hiddenCamera = selected && BABYLON.Vector3.DistanceSquared(this.camera.position, selected.center) < this.frustumDepth ** 2 ? this.camIndex : -1;
+    if (this.frustumLines.length && this.cameraLineMeshes[0]) {
+      // One draw call for all wireframes. Degenerate the active camera's lines
+      // so its own frustum never obscures the photo-aligned view.
+      const lines = this.frustumLines.flatMap((lines, index) => index === this.hiddenCamera
+        ? lines.map(([point]) => [point, point]) : lines);
+      BABYLON.MeshBuilder.CreateLineSystem("camera-wireframes", { lines, instance: this.cameraLineMeshes[0] });
+    }
+    this._updatePhotoTextures();
   }
 
   setStatsElements(statsEls) {
@@ -268,10 +402,11 @@ class ColmapViewer {
     await new Promise((resolve) => requestAnimationFrame(() => resolve()));
   }
 
-  async loadScene({ pointsUrl, imagesUrl, splatsUrl = null }) {
+  async loadScene({ pointsUrl, imagesUrl, camerasUrl = null, scenePath = null, splatsUrl = null }) {
     const busyToken = this._beginBusy("scene");
     try {
       await this._clear();
+      this._setIdleGroundVisible(true);
       this.mode = "scene";
       this.splatsUrl = splatsUrl;
       this._applyHudMode();
@@ -284,9 +419,10 @@ class ColmapViewer {
       const needPoints = !cachedPoints;
       const needCameras = imagesUrl ? !cachedCameras : false;
 
-      const [pointsText, imagesText] = await Promise.all([
+      const [pointsText, imagesText, intrinsicsText] = await Promise.all([
         needPoints ? this._fetchResource(pointsUrl, "text", fetchOpts) : Promise.resolve(null),
         needCameras ? this._fetchResource(imagesUrl, "text", fetchOpts) : Promise.resolve(null),
+        camerasUrl ? this._fetchResource(camerasUrl, "text").catch(() => "") : Promise.resolve(""),
       ]);
 
       if (needPoints) {
@@ -306,9 +442,9 @@ class ColmapViewer {
       } else {
         this.cameras = [];
       }
-      console.log('first camera center:', this.cameras[0]?.center);
-      console.log('scene extent:', this._sceneExtent());
-      console.log(`Loaded: #points=${points.length}, #cams=${this.cameras.length}`);
+      const intrinsics = this._parseIntrinsics(intrinsicsText);
+      // Do not mutate cached camera records when switching reconstructions.
+      this.cameras = this.cameras.map((camera) => ({ ...camera, intrinsics: intrinsics.get(camera.cameraId) }));
 
       this._setLoadingState({ message: "Building point cloud…", progress: 0.6 });
 
@@ -331,6 +467,7 @@ class ColmapViewer {
       this._renderStats();
 
       this._autoFrame();
+      void this._loadPhotos(scenePath);
       this._setLoadingState({ progress: 1 });
     } finally {
       this._setLoadingState({ active: false });
@@ -342,6 +479,7 @@ class ColmapViewer {
     const busyToken = this._beginBusy("splat");
     try {
       await this._clear();
+      this._setIdleGroundVisible(true);
       this.mode = "splat";
       this.splatsUrl = splatsUrl;
       this.currentImageName = label;
@@ -357,16 +495,16 @@ class ColmapViewer {
           console.warn("Failed to load gaussian splats:", err);
           this._renderStats();
         }
-        return;
+        return false;
       }
 
       if (this._activeSplatsToken !== token) {
-        return;
+        return false;
       }
 
       if (!this.splatsMesh) {
         this._renderStats();
-        return;
+        return false;
       }
 
       this.pointsCount = 0;
@@ -384,12 +522,23 @@ class ColmapViewer {
       ) || 1.0;
       this.camera.radius = size * 1.6;
       this.camera.rebuildAnglesAndRadius?.();
+      return true;
     } finally {
       this._endBusy(busyToken);
     }
   }
 
   async _clear() {
+    this.photoGeneration += 1;
+    this.photoAbort?.abort();
+    this.photoAbort = null;
+    for (const entry of this.photoTextures.values()) this._disposePhotoTexture(entry);
+    this.photoTextures.clear();
+    this.photoItems = [];
+    this.photoLoading = false;
+    this.photoError = "";
+    this._emitPhotoState();
+    this.frustumLines = [];
     this.mode = "idle";
     this.cameras = [];
     this.pointsCount = 0;
@@ -397,7 +546,7 @@ class ColmapViewer {
     this.currentImageName = "";
     this._applyHudMode();
 
-    if (this.pointsMesh) { this.pointsMesh.dispose(); this.pointsMesh = null; }
+    if (this.pointsMesh) { this.pointsMesh.material?.dispose(); this.pointsMesh.dispose(); this.pointsMesh = null; }
     if (this.pcs) { this.pcs.dispose(); this.pcs = null; }
     this._clearSplats();
     this._activeSplatsToken = null;
@@ -409,6 +558,7 @@ class ColmapViewer {
 
     if (this.frustumGroup) {
       for (const ch of this.frustumGroup.getChildren()) ch.dispose();
+      this.cameraLineMeshes = [];
       this.frustumGroup.setEnabled(false);
       this.frustumGroup.setEnabled(true);
     }
@@ -423,9 +573,9 @@ class ColmapViewer {
       if (!line || line[0] === "#") continue;
       const s = line.trim().split(/\s+/);
       if (s.length >= 7) {
-        // flip Y for Babylon’s Y-up RH frame
+        // Right-handed, Z-up reconstruction -> left-handed, Y-up viewer.
         pts.push({
-          x: parseFloat(s[1]), y: -parseFloat(s[2]), z: parseFloat(s[3]),
+          x: parseFloat(s[1]), y: parseFloat(s[3]), z: parseFloat(s[2]),
           r: parseInt(s[4]) / 255, g: parseInt(s[5]) / 255, b: parseInt(s[6]) / 255
         });
       }
@@ -435,6 +585,8 @@ class ColmapViewer {
 
   _parseCams(text) {
     const cams = [];
+    const worldToViewer = this._worldToViewerMatrix();
+    const localToColmap = BABYLON.Matrix.Scaling(1, -1, 1);
     const lines = text.split("\n");
     for (let i = 0; i < lines.length; i++) {
       const line = (lines[i] || "").trim();
@@ -451,19 +603,42 @@ class ColmapViewer {
         const t = new BABYLON.Vector3(tx, ty, tz);
         const centerWorld = BABYLON.Vector3.TransformCoordinates(t.scale(-1), Rcw);
 
-        // Flip into viewer coords (Y flip)
-        const flip = BABYLON.Matrix.Scaling(1, -1, 1);
-        const center = new BABYLON.Vector3(centerWorld.x, -centerWorld.y, centerWorld.z);
-        const Rcam = flip.multiply(Rcw).multiply(flip);
+        const center = BABYLON.Vector3.TransformCoordinates(centerWorld, worldToViewer);
+        // Babylon composes row-vector transforms left to right: camera-local
+        // Y-up -> COLMAP Y-down, camera -> world, then source Z-up -> viewer Y-up.
+        const Rcam = localToColmap.multiply(Rcw).multiply(worldToViewer);
 
         const name = s.length > 9 ? s.slice(9).join(" ") : "";
-        cams.push({ center, R: Rcam, name });
+        cams.push({ center, R: Rcam, name, cameraId: Number(s[8]) });
 
         // Skip 2D measurements line if present
-        if (i + 1 < lines.length && /^\d/.test((lines[i + 1] || "").trim())) i++;
+        if (i + 1 < lines.length && !(lines[i + 1] || "").startsWith("#")) i++;
       }
     }
     return cams;
+  }
+
+  _worldToViewerMatrix() {
+    // (x, y, z) -> (x, z, y). Swapping Y/Z also changes handedness.
+    return BABYLON.Matrix.FromValues(
+      1, 0, 0, 0,
+      0, 0, 1, 0,
+      0, 1, 0, 0,
+      0, 0, 0, 1
+    );
+  }
+
+  _parseIntrinsics(text) {
+    const result = new Map();
+    for (const line of text.split("\n")) {
+      if (!line.trim() || line.startsWith("#")) continue;
+      const [id, model, width, height, ...values] = line.trim().split(/\s+/);
+      const p = values.map(Number);
+      const singleFocal = ["SIMPLE_PINHOLE", "SIMPLE_RADIAL", "RADIAL", "SIMPLE_RADIAL_FISHEYE", "RADIAL_FISHEYE"].includes(model);
+      const k = { width: +width, height: +height, fx: p[0], fy: singleFocal ? p[0] : p[1], cx: p[singleFocal ? 1 : 2], cy: p[singleFocal ? 2 : 3] };
+      if (Object.values(k).every(Number.isFinite) && k.fx > 0 && k.fy > 0 && k.width > 0 && k.height > 0) result.set(+id, k);
+    }
+    return result;
   }
 
   // ------------------- geometry -------------------
@@ -508,12 +683,6 @@ class ColmapViewer {
 
   _clearSplats() {
     if (this.splatsMesh) {
-      try {
-        this.splatsMesh.thinInstanceSetBuffer("matrix", null);
-        this.splatsMesh.thinInstanceSetBuffer("color", null);
-      } catch (err) {
-        console.warn("Unable to clear splat thin instances:", err);
-      }
       this.splatsMesh.dispose();
       this.splatsMesh = null;
     }
@@ -540,23 +709,30 @@ class ColmapViewer {
     updateLoading({ active: true, message: "Loading splat file…", progress: 0 });
 
     const promise = (async () => {
-      const buffer = await this._fetchResource(this.splatsUrl, "arrayBuffer", { cache: "no-store" });
+      const buffer = await this._fetchResource(this.splatsUrl, "arrayBuffer", {
+        cache: "no-store",
+        cacheResult: false,
+      });
       if (!isTokenActive()) return;
 
-      const splats = this._parseSplatsPly(buffer);
-      if (!splats.length) {
-        if (isTokenActive()) {
-          throw new Error("Parsed gaussian splats contained no points.");
-        }
-        return;
+      if (typeof BABYLON.GaussianSplattingMesh !== "function") {
+        throw new Error("This browser build does not include the Gaussian splat renderer.");
       }
 
-      updateLoading({ message: "Rendering splats…", progress: 0.15 });
-      await this._createSplatsMesh(splats, token);
+      updateLoading({ message: "Converting Gaussian splats…", progress: 0.15 });
+      const converted = await BABYLON.GaussianSplattingMesh.ConvertPLYWithSHToSplatAsync(buffer);
+      if (!isTokenActive()) return;
+
+      if (!converted?.buffer?.byteLength) {
+        throw new Error("The Gaussian splat file contained no renderable data.");
+      }
+
+      updateLoading({ message: "Preparing Gaussian renderer…", progress: 0.7 });
+      await this._createSplatsMesh(converted, token);
 
       if (!isTokenActive()) return;
 
-      this.splatsPointCount = splats.length;
+      this.splatsPointCount = this.splatsMesh?.getTotalVertices?.() ?? 0;
       this._renderStats();
       updateLoading({ progress: 1 });
     })();
@@ -573,96 +749,40 @@ class ColmapViewer {
     }
   }
 
-  async _createSplatsMesh(splats, token = null) {
+  async _createSplatsMesh(converted, token = null) {
     const isTokenActive = () => !token || (this._activeSplatsToken === token && this.mode === "splat");
     if (!isTokenActive()) return;
 
-    const base = BABYLON.MeshBuilder.CreateSphere(
-      "splatBase",
-      { diameter: 2, segments: 6 },
-      this.scene
+    // Babylon rasterizes the full anisotropic covariance in screen space, sorts
+    // translucent splats by depth, and evaluates any spherical-harmonic color
+    // coefficients included in the PLY. This is intentionally not a polygonal
+    // ellipsoid approximation.
+    const mesh = new BABYLON.GaussianSplattingMesh(
+      `gaussian-splats-${Date.now()}`,
+      null,
+      this.scene,
+      false
     );
-    base.isVisible = true;
-    base.isPickable = false;
-    base.alwaysSelectAsActiveMesh = true;
-    base.thinInstanceEnablePicking = false;
+    mesh.isPickable = false;
+    // Transform the complete splat frame, including anisotropic covariance.
+    mesh.rotationQuaternion = new BABYLON.Quaternion();
+    this._worldToViewerMatrix().decompose(mesh.scaling, mesh.rotationQuaternion, mesh.position);
 
-    const material = new BABYLON.StandardMaterial("splatsMaterial", this.scene);
-    material.disableLighting = true;
-    material.emissiveColor = new BABYLON.Color3(1, 1, 1);
-    material.backFaceCulling = false;
-    material.alphaMode = BABYLON.Constants.ALPHA_COMBINE;
-    material.transparencyMode = BABYLON.Material.MATERIAL_ALPHABLEND;
-    material.zWrite = false;
-    material.useInstancedBuffers = true;
-    if ("useInstancingColor" in material) {
-      material.useInstancingColor = true;
+    try {
+      await mesh.updateDataAsync(converted.buffer, converted.sh ?? undefined);
+    } catch (err) {
+      mesh.dispose();
+      throw err;
     }
-    base.material = material;
 
-    const bailIfStale = () => {
-      if (isTokenActive()) return false;
-      material.dispose();
-      base.dispose();
-      return true;
-    };
-
-    const matrixBuffer = new Float32Array(splats.length * 16);
-    const colorBuffer = new Float32Array(splats.length * 4);
-    const tmpScale = new BABYLON.Vector3();
-    const tmpQuat = new BABYLON.Quaternion();
-    const tmpPos = new BABYLON.Vector3();
-    const tmpMatrix = new BABYLON.Matrix();
-    const MIN_SCALE = 0.01;
-
-    for (let i = 0; i < splats.length; i++) {
-      const s = splats[i];
-      const scale = s.scale ?? [0, 0, 0];
-      const rot = s.rotation ?? [0, 0, 0, 1];
-      const opacity = Number.isFinite(s.opacity) ? Math.min(1, Math.max(0, s.opacity)) : 1.0;
-
-      const sx = Number.isFinite(scale[0]) ? Math.max(MIN_SCALE, Math.exp(scale[0])) : 1;
-      const sy = Number.isFinite(scale[1]) ? Math.max(MIN_SCALE, Math.exp(scale[1])) : 1;
-      const sz = Number.isFinite(scale[2]) ? Math.max(MIN_SCALE, Math.exp(scale[2])) : 1;
-      tmpScale.set(sx, sy, sz);
-
-      const qx = Number.isFinite(rot[0]) ? rot[0] : 0;
-      const qy = Number.isFinite(rot[1]) ? rot[1] : 0;
-      const qz = Number.isFinite(rot[2]) ? rot[2] : 0;
-      const qw = Number.isFinite(rot[3]) ? rot[3] : 1;
-      tmpQuat.set(qx, qy, qz, qw);
-      tmpQuat.normalize();
-      tmpPos.set(s.x, s.y, s.z);
-
-      BABYLON.Matrix.ComposeToRef(tmpScale, tmpQuat, tmpPos, tmpMatrix);
-      tmpMatrix.copyToArray(matrixBuffer, i * 16);
-
-      colorBuffer[i * 4 + 0] = s.r;
-      colorBuffer[i * 4 + 1] = s.g;
-      colorBuffer[i * 4 + 2] = s.b;
-      colorBuffer[i * 4 + 3] = opacity;
-
-      if (splats.length > 1000 && i % 2000 === 0) {
-        if (bailIfStale()) return;
-        if (isTokenActive()) this._updateLoadingProgress(i / splats.length);
-        await this._yieldFrame();
-        if (bailIfStale()) return;
-      }
+    if (!isTokenActive()) {
+      mesh.dispose();
+      return;
     }
-    if (bailIfStale()) return;
-    if (isTokenActive()) this._updateLoadingProgress(0.98);
 
-    base.thinInstanceSetBuffer("matrix", matrixBuffer, 16);
-    base.thinInstanceSetBuffer("color", colorBuffer, 4);
-    base.thinInstanceRefreshBoundingInfo();
-    base.setEnabled(true);
-    if (bailIfStale()) return;
-    if (isTokenActive()) this._updateLoadingProgress(1.0);
-    if (splats.length > 1000) {
-      await this._yieldFrame();
-      if (bailIfStale()) return;
-    }
-    this.splatsMesh = base;
+    mesh.computeWorldMatrix(true);
+    mesh.refreshBoundingInfo();
+    this.splatsMesh = mesh;
     this._splatsMeshToken = token ?? null;
   }
 
@@ -814,7 +934,7 @@ class ColmapViewer {
       const { r, g, b } = this._plyColorFromComponents(components);
 
       const opacityRaw = idx.opacity >= 0 ? parseFloat(parts[idx.opacity]) : 1.0;
-      const opacity = Number.isFinite(opacityRaw) ? Math.min(1, Math.max(0, opacityRaw)) : 1.0;
+      const opacity = this._plyOpacity(opacityRaw, idx);
       const scale0 = idx.scale0 >= 0 ? parseFloat(parts[idx.scale0]) : 0;
       const scale1 = idx.scale1 >= 0 ? parseFloat(parts[idx.scale1]) : 0;
       const scale2 = idx.scale2 >= 0 ? parseFloat(parts[idx.scale2]) : 0;
@@ -825,14 +945,14 @@ class ColmapViewer {
 
       points.push({
         x,
-        y: -y,
-        z,
+        y: z,
+        z: y,
         r,
         g,
         b,
         opacity,
         scale: [scale0, scale1, scale2],
-        rotation: [rot0, rot1, rot2, rot3],
+        rotation: this._plyRotation(rot0, rot1, rot2, rot3, idx),
       });
       if (points.length >= totalVertices) break;
     }
@@ -897,17 +1017,17 @@ class ColmapViewer {
       }
       if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) continue;
       const { r, g, b } = this._plyColorFromComponents({ red, green, blue, fdc0, fdc1, fdc2 });
-      const alpha = Number.isFinite(opacity) ? Math.min(1, Math.max(0, opacity)) : 1.0;
+      const alpha = this._plyOpacity(opacity, idx);
       points.push({
         x,
-        y: -y,
-        z,
+        y: z,
+        z: y,
         r,
         g,
         b,
         opacity: alpha,
         scale: [scale0, scale1, scale2],
-        rotation: [rot0, rot1, rot2, rot3 || 1],
+        rotation: this._plyRotation(rot0, rot1, rot2, rot3, idx),
       });
     }
     return this._plyDownsample(points);
@@ -934,6 +1054,23 @@ class ColmapViewer {
       rot2: find("rot_2"),
       rot3: find("rot_3"),
     };
+  }
+
+  _plyOpacity(value, indexMap) {
+    if (!Number.isFinite(value)) return 1.0;
+    const isGaussianPly = indexMap.fdc0 >= 0 && indexMap.scale0 >= 0 && indexMap.rot0 >= 0;
+    if (isGaussianPly) {
+      // Gsplat and the original 3DGS PLY format store opacity as a logit.
+      return 1 / (1 + Math.exp(-value));
+    }
+    return Math.min(1, Math.max(0, value));
+  }
+
+  _plyRotation(rot0, rot1, rot2, rot3, indexMap) {
+    const hasGaussianRotation = indexMap.rot0 >= 0 && indexMap.rot1 >= 0 && indexMap.rot2 >= 0 && indexMap.rot3 >= 0;
+    if (!hasGaussianRotation) return [0, 0, 0, 1];
+    // Gsplat writes quaternions as w, x, y, z; Babylon consumes x, y, z, w.
+    return [rot1, rot2, rot3, rot0];
   }
 
   _plyColorFromComponents(components) {
@@ -1047,25 +1184,27 @@ class ColmapViewer {
     if (!url) {
       return kind === "arrayBuffer" ? new ArrayBuffer(0) : "";
     }
+    const { cacheResult = true, ...requestInit } = fetchOpts;
     const key = `${kind}:${url}`;
-    if (this.resourceCache.has(key)) {
+    if (cacheResult && this.resourceCache.has(key)) {
       const cached = this.resourceCache.get(key);
       if (kind === "arrayBuffer") {
         return cached.slice(0);
       }
       return cached;
     }
-    const response = await fetch(url, fetchOpts);
+    const response = await fetch(url, requestInit);
     if (!response.ok) {
       throw new Error(`Failed to load ${url}`);
     }
     if (kind === "arrayBuffer") {
       const buffer = await response.arrayBuffer();
+      if (!cacheResult) return buffer;
       this._rememberResource(key, buffer);
       return buffer.slice(0);
     }
     const text = await response.text();
-    this._rememberResource(key, text);
+    if (cacheResult) this._rememberResource(key, text);
     return text;
   }
 
@@ -1094,59 +1233,178 @@ class ColmapViewer {
     return Math.max(size.x, size.y, size.z) || 1.0;
   }
 
+  _imageCorners(camera, depth) {
+    const k = camera.intrinsics ?? { width: 4, height: 3, fx: 5, fy: 5, cx: 2, cy: 1.5 };
+    return [[0, 0], [k.width, 0], [k.width, k.height], [0, k.height]].map(([x, y]) =>
+      new BABYLON.Vector3((x - k.cx) / k.fx * depth, -(y - k.cy) / k.fy * depth, depth));
+  }
+
   _createFrusta(cams) {
-    const size = this._sceneExtent();
-    const frustumScale = 0.01 * size;   // 1% of scene extent
-    const pivotDiam = 0.002 * size;   // 0.2% sphere
-
-    for (const c of cams) {
-      const node = new BABYLON.TransformNode("camNode", this.scene);
-      node.position.copyFrom(c.center);
-      node.rotationQuaternion = BABYLON.Quaternion.FromRotationMatrix(c.R);
-      node.parent = this.frustumGroup;
-
-      const frustum = this._frustumLinesLocal(frustumScale);
-      frustum.parent = node;
-      frustum.renderingGroupId = 1; // draw after points
-      // If still hard to see, try:
-      frustum.alwaysSelectAsActiveMesh = true;
-      const m = new BABYLON.StandardMaterial("fmat", this.scene);
-      m.emissiveColor = new BABYLON.Color3(0, 0.5, 0);
-      frustum.material = m;
-
-      const pivot = BABYLON.MeshBuilder.CreateSphere("camPivot", { diameter: pivotDiam }, this.scene);
-      const pivotMat = new BABYLON.StandardMaterial("camPivotMat", this.scene);
-      pivotMat.emissiveColor = new BABYLON.Color3(0, 0, 0.5);
-      pivotMat.disableLighting = true;
-      pivot.material = pivotMat;
-      pivot.isPickable = false;
-      pivot.parent = node;
-    }
+    const size = this.pointsMesh ? this._sceneExtent() : cams.reduce((size, camera) => Math.max(size, camera.center.length()), 1);
+    this.frustumDepth = size * 0.04;
+    this.frustumLines = cams.map((camera) => {
+      const corners = this._imageCorners(camera, this.frustumDepth).map(point =>
+        BABYLON.Vector3.TransformNormal(point, camera.R).add(camera.center));
+      return corners.flatMap((point, index) => [[camera.center, point], [point, corners[(index + 1) % 4]]]);
+    });
+    const mesh = BABYLON.MeshBuilder.CreateLineSystem("camera-wireframes", { lines: this.frustumLines.flat(), updatable: true }, this.scene);
+    mesh.parent = this.frustumGroup;
+    mesh.isPickable = false;
+    mesh.alwaysSelectAsActiveMesh = true;
+    mesh.freezeWorldMatrix();
+    this.cameraLineMeshes = [mesh];
+    this.setOverlayTheme(this.overlayTheme);
     this.setShowCams(this.showCams);
   }
 
-  _frustumLinesLocal(scale) {
-    const origin = BABYLON.Vector3.Zero();
-    const corners = [
-      new BABYLON.Vector3(-0.4, -0.3, 1),
-      new BABYLON.Vector3(0.4, -0.3, 1),
-      new BABYLON.Vector3(0.4, 0.3, 1),
-      new BABYLON.Vector3(-0.4, 0.3, 1),
-    ].map(v => v.scale(scale));
+  getPhotoState() {
+    return { items: this.photoItems, selected: this.camIndex ?? 0, loading: this.photoLoading, error: this.photoError };
+  }
 
-    const lines = [
-      [origin, corners[0]], [origin, corners[1]], [origin, corners[2]], [origin, corners[3]],
-      [corners[0], corners[1]], [corners[1], corners[2]], [corners[2], corners[3]], [corners[3], corners[0]],
-    ];
+  _emitPhotoState() {
+    window.dispatchEvent(new CustomEvent("gtsfm-photo-state", { detail: this.getPhotoState() }));
+  }
 
-    const frustum = BABYLON.MeshBuilder.CreateLineSystem("frustumLines", { lines }, this.scene);
-    frustum.color = new BABYLON.Color3(1, 0.45, 0.25);
-    frustum.isPickable = false;
-    frustum.renderingGroupId = 1; // draw after points (optional)
-    return frustum;
+  async _loadPhotos(scenePath) {
+    this.photoItems = this.cameras.map(camera => ({ name: camera.name, thumbnail: null, preview: null }));
+    this.photoLoading = Boolean(scenePath);
+    this._emitPhotoState();
+    if (!scenePath || !this.cameras.length) return;
+    const controller = new AbortController();
+    this.photoAbort = controller;
+    try {
+      const response = await fetch('/api/photos?' + new URLSearchParams({ scene: scenePath }), { signal: controller.signal });
+      if (!response.ok) throw new Error("Source images could not be located.");
+      const data = await response.json();
+      if (controller.signal.aborted) return;
+      const byName = new Map(data.items.map(item => [item.name, item]));
+      this.photoItems = this.cameras.map(camera => byName.get(camera.name) ?? { name: camera.name, thumbnail: null, preview: null });
+      if (!this.photoItems.some(item => item.thumbnail)) this.photoError = "Source images unavailable. Restore the dataset to its saved location.";
+      this._updatePhotoTextures();
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      this.photoError = "Source images unavailable. The 3D reconstruction is still usable.";
+      console.warn("Unable to load scene photos", error);
+    } finally {
+      if (!controller.signal.aborted) { this.photoLoading = false; this._emitPhotoState(); }
+    }
+  }
+
+  _disposePhotoTexture(entry) {
+    entry.mesh?.dispose();
+    entry.material?.dispose();
+    entry.texture?.dispose();
+  }
+
+  _updatePhotoTextures() {
+    if (!this.photoItems.length || !this.cameras.length || document.hidden) return;
+    const selected = this.cameras[this.camIndex];
+    const hiddenCamera = selected && BABYLON.Vector3.DistanceSquared(this.camera.position, selected.center) < this.frustumDepth ** 2 ? this.camIndex : -1;
+    if (this.hiddenCamera !== hiddenCamera) { this._syncCameraVisuals(); return; }
+    const planes = BABYLON.Frustum.GetPlanes(this.camera.getTransformationMatrix());
+    const candidates = [];
+    if (this.showCams) {
+      for (let index = 0; index < this.cameras.length; index++) {
+        if (!this.photoItems[index]?.thumbnail) continue;
+        const camera = this.cameras[index];
+        const distance = BABYLON.Vector3.DistanceSquared(camera.center, this.camera.position);
+        const radius = this.frustumDepth * 2;
+        // Nearby photo planes must not cover the reconstruction when looking
+        // through one of several closely spaced source cameras.
+        if (distance < radius * radius * 4) continue;
+        if (planes.some(plane => plane.dotCoordinate(camera.center) < -radius)) continue;
+        // Do not fetch textures for frustums smaller than a few screen pixels.
+        const projected = radius * this.engine.getRenderHeight() / Math.max(Math.sqrt(distance), 0.001);
+        if (projected < 3) continue;
+        candidates.push({ index, distance });
+      }
+    }
+    candidates.sort((a, b) => a.distance - b.distance);
+    const wanted = new Set(candidates.slice(0, this.photoVisibleLimit).map(item => item.index));
+    for (const [index, entry] of this.photoTextures) {
+      entry.mesh?.setEnabled(wanted.has(index));
+      if (wanted.has(index)) entry.used = performance.now();
+    }
+    let loading = [...this.photoTextures.values()].filter(entry => entry.loading).length;
+    for (const index of wanted) {
+      if (loading >= 4) break;
+      if (this.photoTextures.has(index)) continue;
+      if (this.photoTextures.size >= this.photoTextureLimit) {
+        const evict = [...this.photoTextures.entries()].filter(([key]) => !wanted.has(key)).sort((a, b) => a[1].used - b[1].used)[0];
+        if (!evict) break;
+        this._disposePhotoTexture(evict[1]);
+        this.photoTextures.delete(evict[0]);
+      }
+      const generation = this.photoGeneration;
+      const entry = { loading: true, used: performance.now(), texture: null, mesh: null, material: null };
+      this.photoTextures.set(index, entry);
+      loading++;
+      entry.texture = new BABYLON.Texture(this.photoItems[index].thumbnail, this.scene, false, true, BABYLON.Texture.TRILINEAR_SAMPLINGMODE, () => queueMicrotask(() => {
+        if (generation !== this.photoGeneration || this.photoTextures.get(index) !== entry) return;
+        entry.loading = false;
+        this._createPhotoPlane(index, entry);
+        this._updatePhotoTextures();
+      }), () => {
+        if (generation !== this.photoGeneration || this.photoTextures.get(index) !== entry) return;
+        entry.loading = false;
+        entry.texture?.dispose();
+        entry.texture = null;
+      });
+    }
+  }
+
+  _createPhotoPlane(index, entry) {
+    const camera = this.cameras[index];
+    const corners = this._imageCorners(camera, this.frustumDepth);
+    const mesh = new BABYLON.Mesh("camera-photo-" + index, this.scene);
+    const data = new BABYLON.VertexData();
+    data.positions = corners.flatMap(point => [point.x, point.y, point.z]);
+    data.indices = [0, 1, 2, 0, 2, 3];
+    data.uvs = [0, 1, 1, 1, 1, 0, 0, 0];
+    data.normals = [0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1];
+    data.applyToMesh(mesh);
+    mesh.position.copyFrom(camera.center);
+    mesh.rotationQuaternion = BABYLON.Quaternion.FromRotationMatrix(camera.R);
+    mesh.parent = this.frustumGroup;
+    mesh.metadata = { cameraIndex: index };
+    const material = new BABYLON.StandardMaterial("photo-material-" + index, this.scene);
+    material.disableLighting = true;
+    material.backFaceCulling = false;
+    // StandardMaterial adds emissiveColor to emissiveTexture; white would
+    // saturate every photo to a blank white rectangle.
+    material.emissiveColor = BABYLON.Color3.Black();
+    material.emissiveTexture = entry.texture;
+    material.diffuseColor = BABYLON.Color3.Black();
+    material.specularColor = BABYLON.Color3.Black();
+    mesh.material = material;
+    material.freeze();
+    mesh.freezeWorldMatrix();
+    entry.mesh = mesh;
+    entry.material = material;
   }
 
   // ------------------- camera framing -------------------
+
+  frameScene() {
+    if (this.isBusy() || !this.cameras.length) return;
+    const bounds = this.pointsMesh?.getBoundingInfo().boundingBox;
+    let min = bounds?.minimumWorld.clone() ?? this.cameras[0].center.clone();
+    let max = bounds?.maximumWorld.clone() ?? min.clone();
+    for (const camera of this.cameras) {
+      min = BABYLON.Vector3.Minimize(min, camera.center);
+      max = BABYLON.Vector3.Maximize(max, camera.center);
+    }
+    const center = min.add(max).scale(0.5);
+    const radius = Math.max(0.1, max.subtract(min).length() * 1.2);
+    this.camera.upVector = new BABYLON.Vector3(0, 1, 0);
+    this.cameraViewMode = "overview";
+    this.camera.fov = 0.8;
+    this.camera.setTarget(center);
+    this.camera.setPosition(center.add(new BABYLON.Vector3(0.4, 0.3, -1).normalize().scale(radius)));
+    this.camera.minZ = radius / 1000;
+    this.camera.rebuildAnglesAndRadius?.();
+    this._syncCameraVisuals();
+  }
 
   _autoFrame() {
     // look-at: sampled centroid if we have it
@@ -1154,11 +1412,7 @@ class ColmapViewer {
     this.camera.setTarget(center);
 
     if (this.cameras.length > 0) {
-      const pos = this.cameras[this.camIndex].center;
-      this.camera.setPosition(pos);
-      // recompute alpha/beta/radius from pos/target so orbit feels natural
-      this.camera.rebuildAnglesAndRadius?.();
-      this._updateCurrentImageName();
+      this._gotoCam(0);
     } else if (this.pointsMesh) {
       // simple fit by radius if no cameras
       const bb = this.pointsMesh.getBoundingInfo().boundingBox;
@@ -1174,16 +1428,36 @@ class ColmapViewer {
   _gotoCam(i) {
     if (!this.cameras.length) return;
     this.camIndex = (i + this.cameras.length) % this.cameras.length;
-    const center = this.sceneCenter || new BABYLON.Vector3(0, 0, 0);
-    const pos = this.cameras[this.camIndex].center;
-    this.camera.setTarget(center);
+    this.cameraViewMode = "photo";
+    const selected = this.cameras[this.camIndex];
+    const pos = selected.center;
+    const forward = BABYLON.Vector3.TransformNormal(new BABYLON.Vector3(0, 0, 1), selected.R).normalize();
+    const up = BABYLON.Vector3.TransformNormal(new BABYLON.Vector3(0, 1, 0), selected.R).normalize();
+    const distance = Math.max(0.1, BABYLON.Vector3.Distance(pos, this.sceneCenter ?? BABYLON.Vector3.Zero()));
+    this.camera.upVector = up;
+    this.camera.setTarget(pos.add(forward.scale(distance)));
     this.camera.setPosition(pos);
     this.camera.rebuildAnglesAndRadius?.();
-    const R = this.cameras[this.camIndex].R;
-    const upWorld = BABYLON.Vector3.TransformCoordinates(new BABYLON.Vector3(0, 1, 0), R);
-    this.camera.upVector = upWorld;
+    this.camera.inertialAlphaOffset = this.camera.inertialBetaOffset = this.camera.inertialRadiusOffset = 0;
+    this.camera.inertialPanningX = this.camera.inertialPanningY = 0;
+    this._updateCameraFov();
+    this.camera.minZ = Math.max(0.0001, distance / 1000);
+    this.camera.maxZ = Math.max(10000, distance * 100);
+    this._syncCameraVisuals();
     this._updateCurrentImageName();
     this._renderStats();
+    this._emitPhotoState();
+  }
+
+  selectCamera(index) {
+    if (!this.isBusy() && Number.isInteger(index)) this._gotoCam(index);
+  }
+
+  _updateCameraFov() {
+    if (this.cameraViewMode === "overview") return;
+    const k = this.cameras[this.camIndex]?.intrinsics;
+    const aspect = this.engine.getAspectRatio(this.camera);
+    this.camera.fov = k ? 2 * Math.atan(Math.max(k.height / (2 * k.fy), k.width / (2 * k.fx * aspect))) : 0.8;
   }
 
   nextCam() { this._gotoCam((this.camIndex ?? 0) + 1); }
@@ -1200,6 +1474,27 @@ class ColmapViewer {
 
 // ------------------- app bootstrap -------------------
 
+function resultsForRun(items, baseDir, runRoot) {
+  const normalize = (path) => path.replaceAll("\\", "/").replace(/\/+$/, "");
+  const base = normalize(baseDir);
+  const root = normalize(runRoot);
+  if (root !== base && !root.startsWith(`${base}/`)) return [];
+  const relativeRoot = root === base ? "" : root.slice(base.length + 1);
+  return items.filter((item) => !relativeRoot || item.rel_path === relativeRoot || item.rel_path.startsWith(`${relativeRoot}/`));
+}
+
+function preferredRunResult(items) {
+  // Prefer the final root reconstruction over per-cluster results and BA diagnostics.
+  const sceneFolders = ["merged_retriangulated", "merged", "ba_output", "vggt", "anysplat"];
+  const rank = (item) => {
+    if (item.kind === "splat") return 0;
+    const parts = item.rel_path.split("/");
+    const stage = sceneFolders.indexOf(parts.at(-1));
+    return stage < 0 ? Infinity : 1 + parts.length * sceneFolders.length + stage;
+  };
+  return items.filter((item) => Number.isFinite(rank(item))).sort((a, b) => rank(a) - rank(b))[0];
+}
+
 async function boot() {
   const info = document.getElementById("info");
   const infoCountEl = info?.querySelector('[data-role="count"]') ?? null;
@@ -1209,6 +1504,8 @@ async function boot() {
   const filterEl = document.getElementById("filter");
   const canvas = document.getElementById("renderCanvas");
   const viewer = new ColmapViewer(canvas);
+  window.gtsfmViewer = viewer;
+  window.dispatchEvent(new CustomEvent("gtsfm-viewer-ready", { detail: viewer }));
   const statsRoot = document.getElementById("sceneStats");
   viewer.setStatsElements({
     root: statsRoot,
@@ -1256,21 +1553,25 @@ async function boot() {
   });
 
   let allItems = [];
+  const collapsedDirectories = new Set();
+  const searchParams = new URLSearchParams(window.location.search);
+  const requestedRun = searchParams.get("run");
 
   try {
-    const data = await fetch("/api/scenes").then(r => r.ok ? r.json() : Promise.reject(`Fetch failed: ${r.statusText}`));
-    const count = Number.isFinite(data.count) ? data.count : 0;
+    const data = await fetch("/api/scenes").then(r => r.ok ? r.json() : Promise.reject(`Fetch failed: ${r.status} ${r.statusText}`.trim()));
+    const items = requestedRun ? resultsForRun(data.items, data.base_dir, requestedRun) : data.items;
+    const count = items.length;
     const countLabel = count === 0 ? "0" : count.toLocaleString();
     const noun = count === 1 ? "item" : "items";
-    const title = count === 0 ? "No items found" : `${countLabel} ${noun} ready to explore`;
+    const title = count === 0 ? (requestedRun ? "No results found for this run" : "No items found") : `${countLabel} ${noun} ${requestedRun ? "in this run" : "ready to explore"}`;
     const baseDir = data.base_dir || "—";
     setInfoState({
       count: countLabel,
       title,
-      path: `Base directory: ${baseDir}`,
-      isError: false,
+      path: requestedRun ? `Run directory: ${requestedRun}` : `Base directory: ${baseDir}`,
+      isError: Boolean(requestedRun && count === 0),
     });
-    allItems = data.items.map((item, index) => ({ ...item, originalIndex: index }));
+    allItems = items.map((item, index) => ({ ...item, originalIndex: index }));
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     setInfoState({
@@ -1300,7 +1601,14 @@ async function boot() {
     return tree;
   };
 
-  const renderTree = (node) => {
+  const escapeHtml = (value) => String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+
+  const renderTree = (node, parentParts = [], forceExpanded = false) => {
     let html = '<ul>';
     const sortedKeys = Object.keys(node).sort();
     for (const key of sortedKeys) {
@@ -1309,15 +1617,31 @@ async function boot() {
       if (child.__isLeaf) {
         const item = child.__item;
         const finalFolderName = item.rel_path.split('/').pop() || item.label;
+        const exportControls = item.splat_rel_path ? `
+              <div class="result-splat-download" data-export-path="${encodeURIComponent(item.splat_rel_path)}">
+                <span class="splat-format-label">.PLY</span>
+                <a href="/api/splats/export?path=${encodeURIComponent(item.splat_rel_path)}&format=ply" download>Download</a>
+              </div>` : "";
         html += `
           <li>
             <div class="item" data-idx="${item.originalIndex}" data-kind="${item.kind || "scene"}">
-              <div>${finalFolderName}</div>
-              <small>${item.rel_path}</small>
+              <div>${escapeHtml(finalFolderName)}</div>
+              <small>${escapeHtml(item.rel_path)}</small>
+              ${exportControls}
             </div>
           </li>`;
       } else {
-        html += `<li><div class="directory-node">${key}</div>${renderTree(child)}</li>`;
+        const directoryParts = [...parentParts, key];
+        const directoryPath = directoryParts.join("/");
+        const isCollapsed = !forceExpanded && collapsedDirectories.has(directoryPath);
+        html += `
+          <li class="directory-branch${isCollapsed ? " is-collapsed" : ""}">
+            <button class="directory-node" type="button" data-directory="${encodeURIComponent(directoryPath)}" aria-expanded="${!isCollapsed}">
+              <span class="directory-chevron" aria-hidden="true"></span>
+              <span>${escapeHtml(key)}</span>
+            </button>
+            ${renderTree(child, directoryParts, forceExpanded)}
+          </li>`;
       }
     }
     return html + '</ul>';
@@ -1331,8 +1655,23 @@ async function boot() {
       return;
     }
     const sceneTree = buildTree(filtered);
-    listEl.innerHTML = renderTree(sceneTree);
+    listEl.innerHTML = renderTree(sceneTree, [], Boolean(needle));
+    listEl.querySelectorAll(".directory-node").forEach(button => {
+      button.addEventListener("click", () => {
+        const directoryPath = decodeURIComponent(button.dataset.directory || "");
+        const branch = button.closest(".directory-branch");
+        const shouldCollapse = !branch.classList.contains("is-collapsed");
+        branch.classList.toggle("is-collapsed", shouldCollapse);
+        button.setAttribute("aria-expanded", String(!shouldCollapse));
+        if (shouldCollapse) collapsedDirectories.add(directoryPath);
+        else collapsedDirectories.delete(directoryPath);
+      });
+    });
     listEl.querySelectorAll(".item").forEach(el => {
+      const exportControls = el.querySelector(".result-splat-download");
+      if (exportControls) {
+        exportControls.addEventListener("click", (event) => event.stopPropagation());
+      }
       el.onclick = async () => {
         if (viewer.isBusy()) return;
         listEl.querySelectorAll(".item").forEach(n => n.classList.remove("active"));
@@ -1344,7 +1683,7 @@ async function boot() {
         if ((item.kind || "scene") === "splat") {
           await viewer.loadSplatsFile({ splatsUrl: item.splats, label: item.label });
         } else {
-          await viewer.loadScene({ pointsUrl: item.points, imagesUrl: item.images, splatsUrl: item.splats });
+          await viewer.loadScene({ pointsUrl: item.points, imagesUrl: item.images, camerasUrl: item.cameras, scenePath: item.rel_path, splatsUrl: item.splats });
         }
       };
     });
@@ -1354,31 +1693,62 @@ async function boot() {
   // Default search term
   filterEl.value = "";
   renderList(filterEl.value);
-  if (allItems.length > 0 && !filterEl.value) {
+  const initialView = searchParams.get("view");
+  if (allItems.length > 0 && !filterEl.value && initialView === "results") {
     const candidates = Array.from(listEl.querySelectorAll(".item"));
-    const preferred = candidates.find((el) => (el.dataset.kind ?? "scene") !== "splat");
-    (preferred ?? candidates[0])?.click();
+    if (requestedRun) {
+      const result = preferredRunResult(allItems);
+      if (result) {
+        candidates.find((el) => Number(el.dataset.idx) === result.originalIndex)?.click();
+      } else {
+        setInfoState({ title: "No final reconstruction found for this run", isError: true });
+      }
+    } else {
+      const preferred = candidates.find((el) => (el.dataset.kind ?? "scene") !== "splat");
+      (preferred ?? candidates[0])?.click();
+    }
   }
   filterEl.addEventListener("input", () => renderList(filterEl.value));
 
   document.getElementById("toggleCams").addEventListener("change", (e) => viewer.setShowCams(e.target.checked));
   document.getElementById("ptSize").addEventListener("input", (e) => viewer.setPointSize(parseInt(e.target.value, 10)));
 
-  const bgButton = document.getElementById("toggleBg");
-  const bgColors = [
-    new BABYLON.Color4(0.98, 0.98, 0.98, 1.0),
-    new BABYLON.Color4(0.85, 0.85, 0.85, 1.0),
-    new BABYLON.Color4(0.2, 0.2, 0.22, 1.0),
-    new BABYLON.Color4(0.04, 0.05, 0.06, 1.0),
-  ];
-  // Match the constructor’s light gray default (index 1)
-  let currentBgIndex = 1;
-  bgButton.addEventListener("click", () => {
-    currentBgIndex = (currentBgIndex + 1) % bgColors.length;
-    viewer.scene.clearColor = bgColors[currentBgIndex];
+  const groundY = document.getElementById("groundY");
+  const groundYValue = document.getElementById("groundYValue");
+  groundY.addEventListener("input", (event) => {
+    const value = viewer.setGroundY(event.target.value);
+    groundYValue.value = value.toFixed(1);
+  });
+
+  const groundToggle = document.getElementById("toggleGround");
+  if (groundToggle) {
+    const syncGroundButton = () => {
+      const visible = viewer.isGroundVisible();
+      groundToggle.textContent = visible ? "Hide plane" : "Show plane";
+      groundToggle.classList.toggle("is-active", visible);
+      groundToggle.setAttribute("aria-pressed", String(visible));
+    };
+    groundToggle.addEventListener("click", () => {
+      viewer.toggleGroundVisible();
+      syncGroundButton();
+    });
+    syncGroundButton();
+  }
+
+  const backgroundSelect = document.getElementById("backgroundSelect");
+  const backgroundColors = {
+    dark: new BABYLON.Color4(0.055, 0.063, 0.071, 1.0),
+    graphite: new BABYLON.Color4(0.10, 0.11, 0.12, 1.0),
+    "light-gray": new BABYLON.Color4(0.85, 0.85, 0.83, 1.0),
+    white: new BABYLON.Color4(0.98, 0.98, 0.96, 1.0),
+  };
+  backgroundSelect.addEventListener("change", (event) => {
+    viewer.scene.clearColor = backgroundColors[event.target.value] ?? backgroundColors.dark;
+    viewer.setOverlayTheme(event.target.value);
   });
 
   const prevBtn = document.getElementById("prevCamBtn");
+  document.getElementById("overviewBtn")?.addEventListener("click", () => viewer.frameScene());
   const nextBtn = document.getElementById("nextCamBtn");
   prevBtn?.addEventListener("click", () => viewer.prevCam());
   nextBtn?.addEventListener("click", () => viewer.nextCam());

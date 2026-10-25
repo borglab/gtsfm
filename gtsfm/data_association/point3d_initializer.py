@@ -10,7 +10,7 @@ Authors: Sushmita Warrier, Xiaolong Wu, John Lambert, Travis Driver
 import itertools
 import sys
 from enum import Enum
-from typing import Dict, List, NamedTuple, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, List, NamedTuple, Optional, Tuple
 
 import gtsam  # type: ignore
 import numpy as np
@@ -19,6 +19,9 @@ import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.reprojection as reproj_utils
 from gtsfm.common.sfm_track import SfmTrack2d
+
+if TYPE_CHECKING:
+    from gtsfm.common.gtsfm_data import GtsfmData
 
 NUM_SAMPLES_PER_RANSAC_HYPOTHESIS = 2
 SVD_DLT_RANK_TOL = 1e-9
@@ -391,3 +394,90 @@ def generate_measurement_pairs(track: SfmTrack2d) -> List[Tuple[int, ...]]:
     all_measurement_idxs = range(num_track_measurements)
     measurement_pair_idxs = list(itertools.combinations(all_measurement_idxs, NUM_SAMPLES_PER_RANSAC_HYPOTHESIS))
     return measurement_pair_idxs
+
+
+def multi_view_retriangulate_from_2d_tracks(
+    gtsfm_data: "GtsfmData",
+    tracks_2d: List[SfmTrack2d],
+    triangulation_options: Optional[TriangulationOptions] = None,
+    min_track_length: int = 3,
+) -> "GtsfmData":
+    """Re-triangulate the union-find 2D track set against cameras in ``gtsfm_data``.
+
+    Each input track is solved by `Point3dInitializer.triangulate`: RANSAC samples
+    camera pairs, triangulates a candidate 3D point via 2-view DLT, scores by
+    counting inliers (measurements within `reproj_error_threshold`) across the
+    whole track, and picks the best sample. The final 3D point is then computed
+    by a multi-view DLT over the inlier measurements.
+
+    Recovers tracks that were dropped earlier in the pipeline when cameras
+    weren't yet converged — those triangulations can now succeed against the
+    refined cameras.
+
+    2-view tracks are excluded by default (`min_track_length=3`). They are weak
+    (no inlier consensus across views, single-pair baseline) and don't help BA.
+
+    Args:
+        gtsfm_data: Scene with cameras (existing tracks ignored; cameras re-used).
+        tracks_2d: Full 2D track set from `CppDsfTracksEstimator.run()`.
+        triangulation_options: Per-track solve config. Defaults to RANSAC_SAMPLE_UNIFORM,
+            reproj_error_threshold=10 px, max_num_hypotheses=100. For tracks with
+            N measurements there are N*(N-1)/2 possible 2-view samples, so for
+            typical short tracks the cap is rarely binding; set lower if RANSAC
+            wall-time matters on long tracks.
+        min_track_length: Drop tracks with fewer measurements than this.
+
+    Returns:
+        New GtsfmData with same cameras and an augmented track set.
+    """
+    from gtsfm.common.gtsfm_data import GtsfmData
+
+    if triangulation_options is None:
+        triangulation_options = TriangulationOptions(
+            reproj_error_threshold=10.0,
+            mode=TriangulationSamplingMode.RANSAC_SAMPLE_UNIFORM,
+            max_num_hypotheses=100,
+        )
+
+    camera_dict = {i: cam for i, cam in gtsfm_data.cameras().items() if cam is not None}
+    initializer = Point3dInitializer(camera_dict, triangulation_options)
+
+    out = GtsfmData(gtsfm_data.number_images())
+    for cam_idx, camera in camera_dict.items():
+        out.add_camera(cam_idx, camera)
+        info = gtsfm_data.get_image_info(cam_idx)
+        out.set_image_info(cam_idx, name=info.name, shape=info.shape)
+
+    n_in = len(tracks_2d)
+    n_kept = 0
+    n_short_input = 0
+    n_no_cams = 0
+    n_short_output = 0
+    n_triangulation_failed = 0
+    for track_2d in tracks_2d:
+        if track_2d.number_measurements() < min_track_length:
+            n_short_input += 1
+            continue
+        valid_measurements = [m for m in track_2d.measurements if m.i in camera_dict]
+        if len(valid_measurements) < min_track_length:
+            n_no_cams += 1
+            continue
+        track_2d_filtered = SfmTrack2d(measurements=valid_measurements)
+
+        new_track, _, _ = initializer.triangulate(track_2d_filtered)
+        if new_track is None:
+            n_triangulation_failed += 1
+            continue
+        if new_track.numberMeasurements() < min_track_length:
+            n_short_output += 1
+            continue
+        out.add_track(new_track)
+        n_kept += 1
+
+    logger.info(
+        "Multi-view retriangulation: %d kept / %d input (min_len=%d): "
+        "%d short_in, %d no_cams, %d tri_failed, %d short_out.",
+        n_kept, n_in, min_track_length, n_short_input, n_no_cams,
+        n_triangulation_failed, n_short_output,
+    )
+    return out

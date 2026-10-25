@@ -111,7 +111,7 @@ def view_scene(args: argparse.Namespace) -> None:
 
         synthetic_generator = SyntheticCorrespondenceGenerator(args.data_root, args.scene_name)
         images = [loader.get_image_full_res(index=i) for i in range(i2 + 1)]
-        keypoints_list, corr_idx_dict = synthetic_generator.generate_correspondences(
+        keypoints_list, corr_idx_dict = synthetic_generator.generate_correspondences_futures(
             client=client,
             images=images,
             image_pairs=[[i1, i2]],

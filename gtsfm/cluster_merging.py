@@ -17,7 +17,6 @@ import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptions
-from gtsfm.cluster_optimizer.cluster_anysplat import save_splats
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.utils import align as align_utils
@@ -58,7 +57,25 @@ class MergingOptions:
     min_track_length: int = 2
     allow_post_ba_reproj_filtering: bool = True
     metric_constructed_only: bool = False
+    # Capture good-pose cameras dropped by the post-BA track filter on the node result (camera index ->
+    # merged-frame camera), so the post-merge retriangulation can inject their poses and attempt
+    # geometric recovery: retriangulation is depth-confidence independent, so a camera that lost its
+    # depth-lifted tracks can regain geometric ones. An unrecovered camera is inert — excluded from the
+    # retri BA and dropped by its final filter. A recovered one joins that BA. Pose pinning follows
+    # ba_options, except retri_free_ba drops use_pose_prior_all_cameras, so the injected pose is free.
+    recover_trackless_cameras_in_retriangulation: bool = False
     ba_options: BundleAdjustmentOptions = field(default_factory=BundleAdjustmentOptions)
+    # Post-merge retriangulation BA mode. When retri_free_ba is True the retri BA drops the
+    # calibration and pose priors: the priors that protect the incremental merges throttle the
+    # full-scene BA. GNC is separate and follows retri_free_ba_use_gnc (default off).
+    # retri_iterations>1 alternates retriangulation with that BA. Defaults preserve existing
+    # behavior (merge ba_options, single pass, GNC off).
+    retri_free_ba: bool = False
+    retri_iterations: int = 1
+    # GNC in the free retri BA. On this scale it is the most expensive solve in the pipeline tail, and
+    # a controlled A/B on Brussels (identical merged input) scored free+GNC 0.6610 vs free-without
+    # 0.6605 @3 — a tie. Default off; flip on for scenes with heavy outlier contamination.
+    retri_free_ba_use_gnc: bool = False
 
 
 def _create_unary_measurements(scene: GtsfmData) -> list[UnaryMeasurementPose3]:
@@ -314,6 +331,10 @@ class MergedNodeResult:
     pre_ba_scene: Optional[GtsfmData]
     metrics: GtsfmMetricsGroup
     pre_ba_metrics: GtsfmMetricsGroup
+    # Good-pose cameras dropped by the post-BA track filter at this node, keyed by camera index ->
+    # merged-frame camera. Populated only when recover_trackless_cameras_in_retriangulation is set; the
+    # root node's dict is what the post-merge retriangulation tries to geometrically recover.
+    trackless_cameras: Optional[dict] = None
 
 
 @dataclass(frozen=True)
@@ -595,6 +616,24 @@ def compute_merging_metrics(
     return merging_metrics
 
 
+def _export_gaussian_splats_if_present(scene: GtsfmData, output_dir: Path) -> None:
+    """Write Gaussian splats if this merged scene has them.
+
+    AnySplat is imported here so VGGT/gsplat runs do not need that submodule at startup.
+    """
+    if not scene.has_gaussian_splats():
+        return
+    gaussian_splats = scene.get_gaussian_splats()
+    if not isinstance(gaussian_splats, GaussiansProtocol):
+        return
+    try:
+        from gtsfm.cluster_optimizer.cluster_anysplat import save_splats
+
+        save_splats(scene, output_dir)
+    except Exception as exc:
+        logger.warning("⚠️ Failed to export Gaussian splats: %s", exc)
+
+
 def _run_export_task(payload: Tuple[Optional[Path], Future | MergedNodeResult]) -> None:
     """Persist a merged reconstruction to COLMAP text format.
 
@@ -608,25 +647,13 @@ def _run_export_task(payload: Tuple[Optional[Path], Future | MergedNodeResult]) 
         return
     merged_dir.mkdir(parents=True, exist_ok=True)
     merged_scene.export_as_colmap_text(merged_dir)
-    if merged_scene.has_gaussian_splats():
-        gaussian_splats = merged_scene.get_gaussian_splats()
-        if isinstance(gaussian_splats, GaussiansProtocol):
-            try:
-                save_splats(merged_scene, merged_dir)
-            except Exception as exc:
-                logger.warning("⚠️ Failed to export Gaussian splats: %s", exc)
+    _export_gaussian_splats_if_present(merged_scene, merged_dir)
     pre_ba_merged = merged_result.pre_ba_scene
     if pre_ba_merged is not None:
         pre_ba_dir = merged_dir.parent / "merged_pre_ba"
         pre_ba_dir.mkdir(parents=True, exist_ok=True)
         pre_ba_merged.export_as_colmap_text(pre_ba_dir)
-        if pre_ba_merged.has_gaussian_splats():
-            gaussian_splats = pre_ba_merged.get_gaussian_splats()
-            if isinstance(gaussian_splats, GaussiansProtocol):
-                try:
-                    save_splats(pre_ba_merged, pre_ba_dir)
-                except Exception as exc:
-                    logger.warning("⚠️ Failed to export Gaussian splats: %s", exc)
+        _export_gaussian_splats_if_present(pre_ba_merged, pre_ba_dir)
 
 
 def schedule_exports(
@@ -787,10 +814,15 @@ def combine_results(
         child_camera_counts.append(len(child_cam_set))
         child_camera_overlap_with_parent.append(len(child_cam_set & parent_camera_set))
 
-    def _finalize_result(result_scene: Optional[GtsfmData], pre_ba_scene: Optional[GtsfmData]) -> MergedNodeResult:
+    def _finalize_result(
+        result_scene: Optional[GtsfmData],
+        pre_ba_scene: Optional[GtsfmData],
+        trackless_cameras: Optional[dict] = None,
+    ) -> MergedNodeResult:
         return MergedNodeResult(
             scene=result_scene,
             pre_ba_scene=pre_ba_scene,
+            trackless_cameras=trackless_cameras,
             metrics=compute_merging_metrics(
                 result_scene,
                 cameras_gt=cameras_gt,
@@ -940,12 +972,24 @@ def combine_results(
             plot_histograms=options.plot_reprojection_histograms,
         )
 
+        trackless_cameras: Optional[dict[int, gtsfm_types.CAMERA_TYPE]] = None
         if options.allow_post_ba_reproj_filtering:
+            scene_before_filter = merged_with_ba
+            cams_before_filter = set(scene_before_filter.get_valid_camera_indices())
             merged_with_ba = merged_with_ba.filter_landmark_measurements(
                 options.post_ba_max_reproj_error,
                 options.min_track_length,
                 retain_cameras_without_tracks=options.keep_all_cameras,
             )
+            if options.recover_trackless_cameras_in_retriangulation:
+                # Capture the good-pose cameras the track filter just dropped (e.g. low depth-confidence
+                # cams) with their merged-frame poses, so the post-merge retriangulation can recover them.
+                dropped_ids = cams_before_filter - set(merged_with_ba.get_valid_camera_indices())
+                trackless_cameras = {
+                    i: scene_before_filter.get_camera(i)
+                    for i in dropped_ids
+                    if scene_before_filter.get_camera(i) is not None
+                }
         _log_scene_reprojection_stats(
             merged_with_ba,
             "merged result (with ba + outlier filtering)",
@@ -978,15 +1022,15 @@ def combine_results(
                     except Exception as e:
                         logger.warning("⚠️ Failed to align and merge gaussians: %s", e)
                 merged_with_ba.set_gaussian_splats(merged_gaussians)
-                return _finalize_result(merged_with_ba, merged)
+                return _finalize_result(merged_with_ba, merged, trackless_cameras)
 
             except Exception as alignment_exc:
                 logger.warning("⚠️ Failed to compute pre/post BA Sim(3): %s", alignment_exc)
-                return _finalize_result(merged_with_ba, merged)
+                return _finalize_result(merged_with_ba, merged, trackless_cameras)
 
         else:
             logger.info("✖️ No Gaussians to merge")
-            return _finalize_result(merged_with_ba, merged)
+            return _finalize_result(merged_with_ba, merged, trackless_cameras)
     except Exception as exc:
         logger.warning("⚠️ Failed to run bundle adjustment: %s", exc)
         return _finalize_result(merged, None)

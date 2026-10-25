@@ -97,6 +97,10 @@ cluster_optimizer:
     input_mode: crop
     seed: 42
     model_cache_key: null
+    # Refine VGGT predicted intrinsics via Fetzer joint optimization on F-matrices.
+    use_view_graph_calibration: false
+    # Re-triangulate union-find 2D tracks against post-BA cameras and run another BA.
+    use_multi_view_retriangulation: false
 
 # --- Merging options ---
 merging_options:

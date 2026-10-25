@@ -1,9 +1,11 @@
 # ============================================================================
 # INSTALLATION INSTRUCTIONS
 # ============================================================================
-# Installation (two steps):
-#   1. uv sync --python 3.12
-#   2. uv pip install torch-scatter --find-links https://data.pyg.org/whl/torch-2.7.0+cu128.html
+# Installation:
+#   uv tool install .
+#   gtsfm run
+# AnySplat's optional tracking stack additionally needs the platform-specific
+# torch-scatter wheel documented in docs/setup/uv-setup.md.
 #
 # System packages also required:
 #   - Linux:  sudo apt-get install nodejs npm graphviz
@@ -27,6 +29,7 @@ keywords = ["computer-vision", "structure-from-motion", "sfm", "3d-reconstructio
 # ============================================================================
 dependencies = [
     # Python essentials
+    "certifi",
     "python-dotenv",
     
     # Dask and related (for parallel computation)
@@ -34,25 +37,27 @@ dependencies = [
     "dask==2025.9.1",
     "distributed==2025.9.1",
     "lz4==4.4.4",
-    "msgpack==1.1.1",  # Note: msgpack-python in conda, msgpack in PyPI
-    "bokeh", 
+    "msgpack==1.2.1",  # Note: msgpack-python in conda, msgpack in PyPI
+    "bokeh==3.7.*",  # Dask 2025.9.1 requires the older report templates and server shutdown API.
     "toolz==1.1.0",
-    "tornado==6.5.2",
+    "tornado==6.5.9",
     
     # Core functionality and APIs
     "hydra-core",
     "matplotlib>=3.5",
+    "modal>=1.0.0",
     "networkx",
     "numpy==2.2.6",
     "open3d",
     "pandas==2.3.3",
-    "pillow>=9.0.0",
+    "pillow>=12.3.0",
     "scikit-learn",
     "scipy",
     "seaborn",
     
     # 3rd party algorithms for different modules
     "kornia>=0.7.3",
+    "poselib==2.0.5",
     "pycolmap==3.11.1",
     
     # IO
@@ -76,7 +81,7 @@ dependencies = [
     "pydegensac",
     "colour",
     "trimesh[easy]",
-    "gtsam-develop==4.3a1.dev202604240153",
+    "gtsam==4.3.0",
     "pydot",
     
     # Dust3r/Mast3r
@@ -91,7 +96,9 @@ dependencies = [
     "gsplat==1.5.3",
     "torchmetrics==1.7.3",
     "tyro==0.9.24",
-    "Flask>=3.0,<4.0",
+    "fastapi>=0.116,<1.0",
+    "python-multipart>=0.0.20,<1.0",
+    "uvicorn[standard]>=0.35,<1.0",
     
     # AnySplat
     "dacite",
@@ -107,6 +114,9 @@ dependencies = [
     "nbformat==5.10.4",
 ]
 
+[project.scripts]
+gtsfm = "gtsfm.cli:main"
+
 # ============================================================================
 # Optional Dependencies (Extras)
 # ============================================================================
@@ -114,6 +124,11 @@ dependencies = [
 complete = [
     "xformers==0.0.30 ; sys_platform == 'linux'",
 ]
+
+# RoMa v2 source is the thirdparty/RoMaV2 submodule, not a pip extra.
+# romav2>=2.0.1 requires torchvision>=0.23, which conflicts with GTSfM's
+# torch<2.8 / torchvision<0.23 pin.
+romav2 = []
 
 # Multi-GPU support (only needed for distributed computing with multiple GPUs per node)
 # Requires CUDA-aware hardware and drivers
@@ -185,6 +200,35 @@ explicit = true
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["gtsfm", "visualization", "thirdparty"]
+exclude = [
+    "visualization/frontend/**",
+    "thirdparty/**/.github/**",
+    "thirdparty/**/assets/**",
+    "thirdparty/**/demo/**",
+    "thirdparty/**/demos/**",
+    "thirdparty/**/example/**",
+    "thirdparty/**/examples/**",
+    "thirdparty/**/*.ipynb",
+]
+
+[tool.hatch.build.targets.wheel.force-include]
+"visualization/templates" = "visualization/templates"
+
+[tool.hatch.build.targets.sdist]
+include = ["gtsfm", "visualization", "thirdparty", "tests", "README.md", "LICENSE", "pyproject.toml"]
+exclude = [
+    "visualization/frontend/node_modules/**",
+    "thirdparty/**/.github/**",
+    "thirdparty/**/assets/**",
+    "thirdparty/**/demo/**",
+    "thirdparty/**/demos/**",
+    "thirdparty/**/example/**",
+    "thirdparty/**/examples/**",
+    "thirdparty/**/*.ipynb",
+]
 
 # ============================================================================
 # UV Configuration

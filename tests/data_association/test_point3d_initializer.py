@@ -15,6 +15,8 @@ import numpy as np
 from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Point2, Point3, Pose3, Rot3
 from gtsam.examples import SFMdata
 
+import gtsfm.data_association.point3d_initializer as point3d_initializer
+from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.sfm_track import SfmMeasurement, SfmTrack2d
 from gtsfm.data_association.point3d_initializer import (
     Point3dInitializer,
@@ -305,3 +307,33 @@ class TestPoint3dInitializerUnestimatedCameras(unittest.TestCase):
         track_cameras, track_measurements = self.triangulator.extract_measurements(inlier_track)
         assert track_cameras is None
         assert track_measurements is None
+
+
+class TestMultiViewRetriangulateFrom2dTracks(unittest.TestCase):
+    """Tests for scene-level retriangulation against a camera set."""
+
+    def test_recovers_landmark_from_cameras(self) -> None:
+        scene = GtsfmData(number_images=len(CAMERAS))
+        for i, cam in CAMERAS.items():
+            scene.add_camera(i, cam)
+
+        result = point3d_initializer.multi_view_retriangulate_from_2d_tracks(
+            scene,
+            tracks_2d=[SfmTrack2d(measurements=MEASUREMENTS)],
+            min_track_length=3,
+        )
+        self.assertEqual(result.number_tracks(), 1)
+        np.testing.assert_allclose(result.get_track(0).point3(), LANDMARK_POINT, atol=1e-6)
+
+    def test_drops_tracks_shorter_than_min_length(self) -> None:
+        scene = GtsfmData(number_images=len(CAMERAS))
+        for i, cam in CAMERAS.items():
+            scene.add_camera(i, cam)
+
+        short_track = SfmTrack2d(measurements=MEASUREMENTS[:2])
+        result = point3d_initializer.multi_view_retriangulate_from_2d_tracks(
+            scene,
+            tracks_2d=[short_track],
+            min_track_length=3,
+        )
+        self.assertEqual(result.number_tracks(), 0)

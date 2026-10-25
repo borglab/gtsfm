@@ -8,7 +8,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import dask
 import gtsam  # type: ignore
@@ -20,6 +20,7 @@ from gtsam.symbol_shorthand import K, P, X  # type: ignore
 from numpy.typing import NDArray
 
 import gtsfm.common.types as gtsfm_types
+import gtsfm.data_association.point3d_initializer as point3d_initializer
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.tracks as track_utils
@@ -27,11 +28,6 @@ from gtsfm.common import gtsfm_data
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.sfm_track import SfmTrack2d
-from gtsfm.data_association.point3d_initializer import (
-    Point3dInitializer,
-    TriangulationOptions,
-    TriangulationSamplingMode,
-)
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
 METRICS_GROUP = "bundle_adjustment_metrics"
@@ -58,91 +54,6 @@ class RobustBAMode(Enum):
     TLS = "TLS"
 
 
-def multi_view_retriangulate_from_2d_tracks(
-    gtsfm_data: GtsfmData,
-    tracks_2d: List["SfmTrack2d"],
-    triangulation_options: Optional[TriangulationOptions] = None,
-    min_track_length: int = 3,
-) -> GtsfmData:
-    """Re-triangulate the union-find 2D track set against post-BA cameras.
-
-    Each input track is solved by `Point3dInitializer.triangulate`: RANSAC samples
-    camera pairs, triangulates a candidate 3D point via 2-view DLT, scores by
-    counting inliers (measurements within `reproj_error_threshold`) across the
-    whole track, and picks the best sample. The final 3D point is then computed
-    by a multi-view DLT over the inlier measurements.
-
-    Recovers tracks that were dropped earlier in the pipeline when cameras
-    weren't yet converged — those triangulations can now succeed against the
-    refined cameras.
-
-    2-view tracks are excluded by default (`min_track_length=3`). They are weak
-    (no inlier consensus across views, single-pair baseline) and don't help BA.
-
-    Args:
-        gtsfm_data: Scene with optimized cameras (existing tracks ignored; cameras re-used).
-        tracks_2d: Full 2D track set from `CppDsfTracksEstimator.run()`.
-        triangulation_options: Per-track solve config. Defaults to RANSAC_SAMPLE_UNIFORM,
-            reproj_error_threshold=10 px, max_num_hypotheses=100. For tracks with
-            N measurements there are N*(N-1)/2 possible 2-view samples, so for
-            typical short tracks the cap is rarely binding; set lower if RANSAC
-            wall-time matters on long tracks.
-        min_track_length: Drop tracks with fewer measurements than this.
-
-    Returns:
-        New GtsfmData with same cameras and an augmented track set.
-    """
-    if triangulation_options is None:
-        triangulation_options = TriangulationOptions(
-            reproj_error_threshold=10.0,
-            mode=TriangulationSamplingMode.RANSAC_SAMPLE_UNIFORM,
-            max_num_hypotheses=100,
-        )
-
-    camera_dict = {i: cam for i, cam in gtsfm_data.cameras().items() if cam is not None}
-    initializer = Point3dInitializer(camera_dict, triangulation_options)
-
-    out = GtsfmData(gtsfm_data.number_images())
-    for cam_idx, camera in camera_dict.items():
-        out.add_camera(cam_idx, camera)
-        info = gtsfm_data.get_image_info(cam_idx)
-        out.set_image_info(cam_idx, name=info.name, shape=info.shape)
-
-    n_in = len(tracks_2d)
-    n_kept = 0
-    n_short_input = 0
-    n_no_cams = 0
-    n_short_output = 0
-    n_triangulation_failed = 0
-    for track_2d in tracks_2d:
-        if track_2d.number_measurements() < min_track_length:
-            n_short_input += 1
-            continue
-        valid_measurements = [m for m in track_2d.measurements if m.i in camera_dict]
-        if len(valid_measurements) < min_track_length:
-            n_no_cams += 1
-            continue
-        track_2d_filtered = SfmTrack2d(measurements=valid_measurements)
-
-        new_track, _, _ = initializer.triangulate(track_2d_filtered)
-        if new_track is None:
-            n_triangulation_failed += 1
-            continue
-        if new_track.numberMeasurements() < min_track_length:
-            n_short_output += 1
-            continue
-        out.add_track(new_track)
-        n_kept += 1
-
-    logger.info(
-        "Multi-view retriangulation: %d kept / %d input (min_len=%d): "
-        "%d short_in, %d no_cams, %d tri_failed, %d short_out.",
-        n_kept, n_in, min_track_length, n_short_input, n_no_cams,
-        n_triangulation_failed, n_short_output,
-    )
-    return out
-
-
 @dataclass
 class BundleAdjustmentOptions:
     """Shared configuration for bundle adjustment across leaf BA, merging BA, etc.
@@ -162,6 +73,7 @@ class BundleAdjustmentOptions:
     gnc_loss: Union[RobustBAMode, str] = RobustBAMode.GMC
     factor_weight_outlier_threshold: float = 0.0
     min_track_length: int = 2
+    trim_landmark_measurements: bool = False
     calibration_prior_focal_sigma: float = 20.0
     calibration_prior_dist_sigma: float | Sequence[float] = 0.1
     calibration_prior_pp_sigma: float = 1e-5
@@ -169,6 +81,17 @@ class BundleAdjustmentOptions:
     min_tracks_per_camera: int = 15
     compute_pose_covariances: bool = False
     optimizer_relative_cost_tol: float = 1e-5
+    # ── CUDA optimization options (GTSAM PR #2761) ──
+    use_cuda: bool = False
+    cuda_linear_solver: str = "PCG"
+    # gtsam.cuda.PcgOptions when set; None uses GTSAM defaults at optimize time.
+    cuda_pcg_options: Optional[Any] = None
+    cuda_fallback_on_unsupported: bool = True
+    cuda_collect_timing: bool = False
+    use_multi_view_retriangulation: bool = False
+    mv_retri_min_track_length: int = 3
+    mv_retri_reproj_error_thresh: float = 10.0
+    mv_retri_max_num_hypotheses: int = 100
 
     def to_optimizer(self, **overrides) -> "BundleAdjustmentOptimizer":
         """Construct a :class:`BundleAdjustmentOptimizer` from these options.
@@ -188,6 +111,7 @@ class BundleAdjustmentOptions:
             gnc_loss=self.gnc_loss,
             factor_weight_outlier_threshold=self.factor_weight_outlier_threshold,
             min_track_length=self.min_track_length,
+            trim_landmark_measurements=self.trim_landmark_measurements,
             calibration_prior_focal_sigma=self.calibration_prior_focal_sigma,
             calibration_prior_dist_sigma=self.calibration_prior_dist_sigma,
             calibration_prior_pp_sigma=self.calibration_prior_pp_sigma,
@@ -195,6 +119,15 @@ class BundleAdjustmentOptions:
             min_tracks_per_camera=self.min_tracks_per_camera,
             compute_pose_covariances=self.compute_pose_covariances,
             optimizer_relative_cost_tol=self.optimizer_relative_cost_tol,
+            use_cuda=self.use_cuda,
+            cuda_linear_solver=self.cuda_linear_solver,
+            cuda_pcg_options=self.cuda_pcg_options,
+            cuda_fallback_on_unsupported=self.cuda_fallback_on_unsupported,
+            cuda_collect_timing=self.cuda_collect_timing,
+            use_multi_view_retriangulation=self.use_multi_view_retriangulation,
+            mv_retri_min_track_length=self.mv_retri_min_track_length,
+            mv_retri_reproj_error_thresh=self.mv_retri_reproj_error_thresh,
+            mv_retri_max_num_hypotheses=self.mv_retri_max_num_hypotheses,
         )
         kwargs.update(overrides)
         return BundleAdjustmentOptimizer(**kwargs)
@@ -238,6 +171,11 @@ class BundleAdjustmentOptimizer:
         min_tracks_per_camera: int = 15,
         compute_pose_covariances: bool = False,
         optimizer_relative_cost_tol: float = 1e-5,
+        use_cuda: bool = False,
+        cuda_linear_solver: str = "PCG",
+        cuda_pcg_options: Optional[Any] = None,
+        cuda_fallback_on_unsupported: bool = True,
+        cuda_collect_timing: bool = False,
         # ── Optional post-BA multi-view retriangulation (opt-in) ──
         # When `use_multi_view_retriangulation=True`: after the existing BA loop
         # converges, re-triangulate the union-find 2D tracks against the post-BA
@@ -249,6 +187,7 @@ class BundleAdjustmentOptimizer:
         mv_retri_min_track_length: int = 3,
         mv_retri_reproj_error_thresh: float = 10.0,
         mv_retri_max_num_hypotheses: int = 100,
+        trim_landmark_measurements: bool = False,
     ) -> None:
         """Initializes the parameters for bundle adjustment module.
 
@@ -277,8 +216,15 @@ class BundleAdjustmentOptimizer:
             use_gnc (optional): Use the GNC optimizer for bundle adjustment.
             gnc_loss (optional): GNC loss to use. Defaults to GMC.
             factor_weight_outlier_threshold (optional): Threshold weight for a reprojection factor to be kept.
+            trim_landmark_measurements: Drop individual outlier observations instead of entire tracks.
             min_track_length: min number of measurements required to keep a track after weight filtering.
             compute_pose_covariances: If true, compute marginal covariance for all camera pose variables and return it.
+            use_cuda (optional): Use GTSAM's general CUDA Sparse Levenberg-Marquardt optimizer (PR #2761).
+            cuda_linear_solver (optional): CUDA linear solver backend ("PCG" or "CUDSS"). Defaults to "PCG".
+            cuda_pcg_options (optional): ``gtsam.cuda.PcgOptions`` instance. Defaults to None (GTSAM defaults).
+            cuda_fallback_on_unsupported (optional): Fall back to CPU LM if CUDA runtime or factor structure is
+                unsupported. Defaults to True.
+            cuda_collect_timing (optional): Collect CUDA kernel timing statistics. Defaults to False.
         """
         self._reproj_error_thresholds = reproj_error_thresholds
         if isinstance(robust_ba_mode, str):
@@ -308,10 +254,18 @@ class BundleAdjustmentOptimizer:
         else:
             self._gnc_loss = gnc_loss
         self._factor_weight_outlier_threshold = factor_weight_outlier_threshold
+        self._trim_landmark_measurements = trim_landmark_measurements
         self._min_track_length = min_track_length
         self._min_tracks_per_camera = min_tracks_per_camera
         self._compute_pose_covariances = compute_pose_covariances
         self._optimizer_relative_cost_tol = optimizer_relative_cost_tol
+        self._use_cuda = use_cuda
+        self._cuda_linear_solver = cuda_linear_solver
+        self._cuda_pcg_options = cuda_pcg_options
+        self._cuda_fallback_on_unsupported = cuda_fallback_on_unsupported
+        self._cuda_collect_timing = cuda_collect_timing
+        self._last_cuda_result: Optional[Any] = None
+        self._last_optimization_duration_sec: Optional[float] = None
 
         # Post-BA multi-view retriangulation (opt-in). See `__init__` docstring above.
         self._use_multi_view_retriangulation = use_multi_view_retriangulation
@@ -521,11 +475,187 @@ class BundleAdjustmentOptimizer:
 
         return graph
 
+    def __cuda_sparse_lm_params(self, cuda: Any, ordering_type: str) -> Any:
+        """Build CUDA Sparse LM params from the optimizer's CUDA settings."""
+        linear = cuda.LinearSolverOptions()
+        solver_backend = self._cuda_linear_solver.upper()
+        if solver_backend == "PCG":
+            linear.backend = cuda.LinearSolverType.Pcg
+        elif solver_backend == "CUDSS":
+            linear.backend = cuda.LinearSolverType.Cudss
+        else:
+            raise ValueError(
+                f"Unsupported CUDA linear solver type: '{self._cuda_linear_solver}'. Expected 'PCG' or 'CUDSS'."
+            )
+
+        params = cuda.SparseLevenbergMarquardtParams()
+        params.linear = linear
+        params.pcg = self._cuda_pcg_options if self._cuda_pcg_options is not None else cuda.PcgOptions()
+        params.fallbackOnUnsupported = self._cuda_fallback_on_unsupported
+        params.collectTiming = self._cuda_collect_timing
+        params.setVerbosityLM("ERROR" if not self._print_summary else "SUMMARY")
+        params.setOrderingType(ordering_type)
+        if self._max_iterations:
+            params.setMaxIterations(self._max_iterations)
+        if self._optimizer_relative_cost_tol is not None:
+            params.setRelativeErrorTol(self._optimizer_relative_cost_tol)
+        return params
+
+    def __log_cuda_sparse_lm_result(self, cuda: Any, diagnostics: Any) -> None:
+        """Log CUDA Sparse LM diagnostics and warn on CPU fallback."""
+        backend_val = getattr(diagnostics, "backend", "Unknown")
+        termination_val = getattr(diagnostics, "termination", "Unknown")
+        iterations = getattr(diagnostics, "iterations", 0)
+        initial_error = getattr(diagnostics, "initialError", float("nan"))
+        final_error = getattr(diagnostics, "finalError", float("nan"))
+
+        logger.info(
+            "🚀 CUDA Sparse LM completed: backend=%s, termination=%s, iterations=%d, "
+            "initial error=%.4f, final error=%.4f",
+            backend_val,
+            termination_val,
+            iterations,
+            initial_error,
+            final_error,
+        )
+
+        is_cpu_fallback = False
+        cuda_backend = getattr(cuda, "SparseLevenbergMarquardtBackend", None)
+        if cuda_backend is not None and hasattr(cuda_backend, "CpuFallback"):
+            is_cpu_fallback = backend_val == cuda_backend.CpuFallback
+        elif "CpuFallback" in str(backend_val):
+            is_cpu_fallback = True
+
+        if is_cpu_fallback:
+            fallback_reason = getattr(diagnostics, "fallbackReason", "Unknown")
+            fallback_detail = getattr(diagnostics, "fallbackDetail", "")
+            logger.warning(
+                "CUDA Sparse LM fell back to CPU execution: reason=%s, detail=%s",
+                fallback_reason,
+                fallback_detail,
+            )
+
+    def __optimize_factor_graph_cuda(
+        self,
+        cuda: Any,
+        graph: NonlinearFactorGraph,
+        initial_values: Values,
+        ordering_type: str,
+        start_time: float,
+    ) -> Tuple[Values, Optional[List[Values]], Optional[NDArray[np.float64]]]:
+        """Optimize the factor graph using GTSAM's general CUDA Sparse LM optimizer (PR #2761)."""
+        params = self.__cuda_sparse_lm_params(cuda, ordering_type)
+        optimizer = cuda.SparseLevenbergMarquardtOptimizer(graph, initial_values, params)
+        result_values = optimizer.optimize()
+        diagnostics = optimizer.result()
+        self._last_cuda_result = diagnostics
+        self.__log_cuda_sparse_lm_result(cuda, diagnostics)
+
+        if self._save_iteration_visualization:
+            logger.info("Iterative visualization trace is not supported by batch CUDA Sparse LM; recording endpoints.")
+            values_trace = [initial_values, result_values]
+        else:
+            values_trace = None
+
+        elapsed_time = time.time() - start_time
+        self._last_optimization_duration_sec = elapsed_time
+        logger.info(f"🚀 Factor graph optimization completed in {elapsed_time:.2f} seconds.")
+        return result_values, values_trace, None
+
+    def __optimize_factor_graph_cuda_gnc(
+        self,
+        cuda: Any,
+        graph: NonlinearFactorGraph,
+        initial_values: Values,
+        ordering_type: str,
+        start_time: float,
+    ) -> Tuple[Values, Optional[List[Values]], Optional[NDArray[np.float64]]]:
+        """Optimize with GNC whose inner solver is CUDA Sparse LM (GTSAM CUDA GNC bindings)."""
+        gnc_params_cls = getattr(cuda, "GncSparseLMParams", None)
+        gnc_optimizer_cls = getattr(cuda, "GncSparseLMOptimizer", None)
+        if gnc_params_cls is None or gnc_optimizer_cls is None:
+            raise RuntimeError(
+                "use_cuda=True with use_gnc=True requires a GTSAM build that exposes "
+                "gtsam.cuda.GncSparseLMParams / GncSparseLMOptimizer."
+            )
+
+        inner = self.__cuda_sparse_lm_params(cuda, ordering_type)
+        gnc_params = gnc_params_cls(inner)
+        if self._gnc_loss == RobustBAMode.GMC:
+            gnc_params.setLossType(gtsam.GncLossType.GM)
+        elif self._gnc_loss == RobustBAMode.TLS:
+            gnc_params.setLossType(gtsam.GncLossType.TLS)
+        else:
+            raise ValueError(f"Unsupported GNC loss type for CUDA Sparse LM: {self._gnc_loss}.")
+        gnc_params.setAllowNonNoiseModelFactors(True)
+        verbosity = gnc_params_cls.Verbosity.SUMMARY if self._print_summary else gnc_params_cls.Verbosity.SILENT
+        gnc_params.setVerbosityGNC(verbosity)
+        if self._optimizer_relative_cost_tol is not None:
+            gnc_params.setRelativeCostTol(self._optimizer_relative_cost_tol)
+
+        optimizer = gnc_optimizer_cls(graph, initial_values, gnc_params)
+        result_values = optimizer.optimize()
+        weights = np.asarray(optimizer.getWeights(), dtype=np.float64)
+        self._last_cuda_result = None
+
+        logger.info(
+            "🚀 CUDA GNC Sparse LM completed: factors=%d, mean_weight=%.4f, min_weight=%.4f",
+            len(weights),
+            float(np.mean(weights)) if len(weights) else float("nan"),
+            float(np.min(weights)) if len(weights) else float("nan"),
+        )
+
+        if self._save_iteration_visualization:
+            logger.info("Iterative visualization trace is not supported by CUDA GNC Sparse LM; recording endpoints.")
+            values_trace = [initial_values, result_values]
+        else:
+            values_trace = None
+
+        elapsed_time = time.time() - start_time
+        self._last_optimization_duration_sec = elapsed_time
+        logger.info(f"🚀 Factor graph optimization completed in {elapsed_time:.2f} seconds.")
+        return result_values, values_trace, weights
+
     def __optimize_factor_graph(
         self, graph: NonlinearFactorGraph, initial_values: Values, ordering_type: str
     ) -> Tuple[Values, Optional[List[Values]], Optional[NDArray[np.float64]]]:
         """Optimize the factor graph, optionally capturing per-iteration values."""
         start_time = time.time()
+        self._last_optimization_duration_sec = None
+
+        if self._use_cuda:
+            cuda = getattr(gtsam, "cuda", None)
+            if cuda is None:
+                if not self._cuda_fallback_on_unsupported:
+                    raise RuntimeError(
+                        "use_cuda=True was requested, but GTSAM was not built with CUDA support "
+                        "(gtsam.cuda is missing)."
+                    )
+                logger.warning("gtsam.cuda is not available; falling back to CPU LevenbergMarquardtOptimizer.")
+            elif self._use_gnc:
+                has_cuda_gnc = hasattr(cuda, "GncSparseLMOptimizer") and hasattr(cuda, "GncSparseLMParams")
+                if has_cuda_gnc:
+                    return self.__optimize_factor_graph_cuda_gnc(
+                        cuda=cuda,
+                        graph=graph,
+                        initial_values=initial_values,
+                        ordering_type=ordering_type,
+                        start_time=start_time,
+                    )
+                if not self._cuda_fallback_on_unsupported:
+                    raise RuntimeError(
+                        "use_cuda=True with use_gnc=True requires gtsam.cuda.GncSparseLMOptimizer "
+                        "(upgrade to a GTSAM develop build that includes CUDA GNC Python bindings)."
+                    )
+                logger.warning("gtsam.cuda.GncSparseLMOptimizer is unavailable; falling back to CPU GNC LM.")
+            else:
+                return self.__optimize_factor_graph_cuda(
+                    cuda=cuda,
+                    graph=graph,
+                    initial_values=initial_values,
+                    ordering_type=ordering_type,
+                    start_time=start_time,
+                )
 
         params = gtsam.LevenbergMarquardtParams()
         params.setVerbosityLM("ERROR" if not self._print_summary else "SUMMARY")
@@ -583,6 +713,7 @@ class BundleAdjustmentOptimizer:
             result_values = lm.values()
 
         elapsed_time = time.time() - start_time
+        self._last_optimization_duration_sec = elapsed_time
         logger.info(f"🚀 Factor graph optimization completed in {elapsed_time:.2f} seconds.")
         if self._use_gnc:
             weights = lm.getWeights()
@@ -821,13 +952,14 @@ class BundleAdjustmentOptimizer:
         if reproj_error_thresh is not None:
             if verbose:
                 logger.info("[Result] Number of tracks before filtering: %d", optimized_data.number_tracks())
-            # Per-MEASUREMENT trim (keep long tracks by dropping only the offending observations,
-            # instead of deleting the whole track when any one measurement exceeds the threshold).
-            filtered_result, postfilter_valid_mask = optimized_data.filter_landmark_measurements(
-                reproj_err_thresh=reproj_error_thresh,
-                min_track_length=self._min_track_length,
-                return_valid_mask=True,
-            )
+            if self._trim_landmark_measurements:
+                filtered_result, postfilter_valid_mask = optimized_data.filter_landmark_measurements(
+                    reproj_err_thresh=reproj_error_thresh,
+                    min_track_length=self._min_track_length,
+                    return_valid_mask=True,
+                )
+            else:
+                filtered_result, postfilter_valid_mask = optimized_data.filter_landmarks(reproj_error_thresh)
             if verbose:
                 logger.info("[Result] Number of tracks after filtering: %d", filtered_result.number_tracks())
 
@@ -958,12 +1090,6 @@ class BundleAdjustmentOptimizer:
         )
         total_time = time.time() - start_time
 
-        # ── Optional post-BA multi-view retriangulation stage ──
-        # Re-triangulate union-find tracks against the post-BA cameras (recovers
-        # tracks dropped between union-find and BA's filter passes), then run a
-        # final BA on the augmented set. The final BA reuses the existing tightest
-        # `reproj_error_thresholds[-1]` for inline filtering — same mechanism as
-        # the upstream BA loop.
         if self._use_multi_view_retriangulation:
             if tracks_2d is None:
                 logger.warning(
@@ -972,29 +1098,26 @@ class BundleAdjustmentOptimizer:
                 )
             else:
                 retri_start = time.time()
-                retri_options = TriangulationOptions(
+                retri_options = point3d_initializer.TriangulationOptions(
                     reproj_error_threshold=self._mv_retri_reproj_error_thresh,
-                    mode=TriangulationSamplingMode.RANSAC_SAMPLE_UNIFORM,
+                    mode=point3d_initializer.TriangulationSamplingMode.RANSAC_SAMPLE_UNIFORM,
                     max_num_hypotheses=self._mv_retri_max_num_hypotheses,
                 )
                 logger.info(
                     "[Retri] Multi-view retriangulation on %d 2D tracks "
                     "(min_track_len=%d, reproj_error_thresh=%.1fpx)",
-                    len(tracks_2d), self._mv_retri_min_track_length,
+                    len(tracks_2d),
+                    self._mv_retri_min_track_length,
                     self._mv_retri_reproj_error_thresh,
                 )
-                retri_data = multi_view_retriangulate_from_2d_tracks(
+                retri_data = point3d_initializer.multi_view_retriangulate_from_2d_tracks(
                     gtsfm_data=filtered_result,
                     tracks_2d=tracks_2d,
                     triangulation_options=retri_options,
                     min_track_length=self._mv_retri_min_track_length,
                 )
                 if retri_data.number_tracks() > 0:
-                    # Final BA on the retri'd track set. No inline filter — pose AUC
-                    # is set by BA's converged cameras and is independent of any
-                    # downstream track filtering. Callers can filter the returned
-                    # GtsfmData themselves if they want.
-                    (optimized_data, filtered_result, valid_mask, _) = self.run_ba_stage_with_filtering(
+                    optimized_data, filtered_result, valid_mask, _ = self.run_ba_stage_with_filtering(
                         initial_data=retri_data,
                         absolute_pose_priors=absolute_pose_priors,
                         relative_pose_priors=relative_pose_priors,
@@ -1003,7 +1126,8 @@ class BundleAdjustmentOptimizer:
                     )
                     logger.info(
                         "[Retri] Stage complete: %d tracks, %.1fs",
-                        filtered_result.number_tracks(), time.time() - retri_start,
+                        filtered_result.number_tracks(),
+                        time.time() - retri_start,
                     )
                 step_times.append(time.time() - retri_start)
 

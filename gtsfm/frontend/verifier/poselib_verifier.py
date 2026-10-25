@@ -26,6 +26,7 @@ logger = logger_utils.get_logger()
 
 
 # pycolmap two-view ConfigurationType values we emit (see gric_verifier.ConfigurationType).
+_DEGENERATE_CONFIG = 1
 _UNCALIBRATED_CONFIG = 3  # F-model -> plumbed to the closed-form Fetzer
 _PLANAR_CONFIG = 6  # PLANAR_OR_PANORAMIC -> excluded from Fetzer (degenerate F)
 _MAX_H_INLIER_RATIO = 0.8  # COLMAP EstimateTwoViewGeometry model selection threshold
@@ -168,17 +169,17 @@ class PoseLibVerifier(VerifierBase):
 
         Mirrors COLMAP's EstimateTwoViewGeometry model selection: PLANAR if the homography explains
         nearly as many correspondences as the fundamental matrix (n_H > 0.8 * n_F), else UNCALIBRATED.
-        Returns (None, None) on failure so the pair is kept as an edge but excluded from Fetzer.
+        Returns (None, 1) on failure: retain the pose edge but exclude it from focal calibration.
         """
         thr = self._estimation_threshold_px
         try:
             F, f_info = poselib.estimate_fundamental(pts1, pts2, {"max_epipolar_error": thr}, {})
         except Exception as e:  # pragma: no cover - defensive
             logger.debug("PoseLib estimate_fundamental failed: %s", e)
-            return None, None
+            return None, _DEGENERATE_CONFIG
         F = np.asarray(F, dtype=np.float64)
         if F.shape != (3, 3) or not np.all(np.isfinite(F)) or np.allclose(F, 0.0):
-            return None, None
+            return None, _DEGENERATE_CONFIG
         n_F = int(f_info.get("num_inliers", 0))
         try:
             _, h_info = poselib.estimate_homography(pts1, pts2, {"max_reproj_error": thr}, {})

@@ -112,12 +112,15 @@ cluster_optimizer:
       max_reproj_error: 10.0
 
     run_view_graph_calibration: true
+    rescore_inliers: true
+    run_second_view_graph_estimator: false
 
     bundle_adjustment_module:
       _target_: gtsfm.bundle.bundle_adjustment.BundleAdjustmentOptimizer
       # BA filters tracks after each threshold pass. The filter now trims per-MEASUREMENT
       # (filter_landmark_measurements) instead of deleting whole tracks, so long multi-view
       # tracks survive (matches GLOMAP) rather than being over-pruned.
+      trim_landmark_measurements: true
       reproj_error_thresholds: [3]
       robust_ba_mode: "HUBER"
       shared_calib: False

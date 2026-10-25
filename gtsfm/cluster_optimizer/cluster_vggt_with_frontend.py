@@ -17,6 +17,7 @@ from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterComputationGra
 from gtsfm.cluster_optimizer.cluster_vggt import (
     _aggregate_vggt_metrics,
     _load_vggt_inputs,
+    _model_loading_plan,
     _resolve_vggt_model,
     _run_cluster_ba,
     _save_pre_ba_reconstruction_as_text,
@@ -30,6 +31,7 @@ from gtsfm.multi_view_optimizer import get_2d_tracks
 from gtsfm.products.visibility_graph import visibility_graph_keys
 from gtsfm.two_view_estimator import TwoViewEstimator
 from gtsfm.ui.gtsfm_process import UiMetadata
+from gtsfm.view_graph_estimator import view_graph_calibration
 import gtsam
 
 from gtsfm.utils import torch as torch_utils
@@ -42,14 +44,19 @@ class VggtGeometryResult(NamedTuple):
     """Outputs of VGGT geometry prediction needed for downstream processing."""
 
     cameras: dict[int, gtsfm_types.CAMERA_TYPE]
-    dense_points: np.ndarray       # (N, H, W, 3) world-space 3D points per pixel
-    depth_confidence: np.ndarray   # (N, H, W) per-pixel depth confidence scores
-    original_coords: np.ndarray    # (N, 6) VGGT crop/pad metadata
+    dense_points: np.ndarray  # (N, H, W, 3) world-space 3D points per pixel
+    depth_confidence: np.ndarray  # (N, H, W) per-pixel depth confidence scores
+    original_coords: np.ndarray  # (N, 6) VGGT crop/pad metadata
 
 
 def _extract_v_corr_idxs(two_view_results) -> dict:
     """Pull verified correspondence index arrays out of two-view results."""
     return {ij: result.v_corr_idxs for ij, result in two_view_results.items()}
+
+
+def _identity(x):
+    """Wrap an eager value as a single delayed node (so it is embedded once, not per consumer)."""
+    return x
 
 
 def _get_image_shapes(loader, image_indices: tuple[int, ...]) -> dict[int, tuple[int, int]]:
@@ -87,7 +94,9 @@ def _run_vggt_geometry(
             geo_output.extrinsic[local_idx].to(torch.float32).cpu().numpy(),
             geo_output.intrinsic[local_idx].to(torch.float32).cpu().numpy(),
             crop_coords=original_coords_np[local_idx],
-            use_cal3_bundler=True,
+            # Cal3_S2 keeps fx and fy distinct until _scale_camera_intrinsics. Averaging into
+            # Cal3Bundler happens there, after the per-axis scale, when use_cal3_bundler is set.
+            use_cal3_bundler=False,
         )
         for local_idx, global_idx in enumerate(image_indices)
     }
@@ -107,20 +116,38 @@ def _run_vggt_geometry(
 
 
 def _scale_camera_intrinsics(
-    camera: gtsfm_types.CAMERA_TYPE, scale: float
+    camera: gtsfm_types.CAMERA_TYPE,
+    scale_x: float,
+    scale_y: float,
+    use_cal3_bundler: bool = False,
 ) -> gtsfm_types.CAMERA_TYPE:
-    """Return a copy of camera with intrinsics uniformly scaled, pose unchanged."""
+    """Map resized-frame intrinsics into original-image pixels. Pose is unchanged.
+
+    ``cx`` and ``cy`` already include the ``original_coords`` left/top shift, so they live in the
+    resized frame whose size is ``(scaled_w, scaled_h)``. The two ratios are ``orig_W / scaled_w``
+    and ``orig_H / scaled_h``:
+
+        fx' = fx * scale_x,  cx' = cx * scale_x
+        fy' = fy * scale_y,  cy' = cy * scale_y
+
+    A ``Cal3_S2`` input keeps those separate focals. ``use_cal3_bundler`` averages them afterward
+    into a ``Cal3Bundler``, which is exact when the scaled focals agree. A ``Cal3Bundler`` input
+    has already lost a distinct ``fy`` (``fy()`` aliases ``fx()``).
+    """
     pose = camera.pose()
     cal = camera.calibration()
-    if isinstance(cal, gtsam.Cal3Bundler):
+    fx = float(cal.fx()) * scale_x
+    fy = float(cal.fy()) * scale_y
+    px = float(cal.px()) * scale_x
+    py = float(cal.py()) * scale_y
+    if isinstance(cal, gtsam.Cal3_S2) and not use_cal3_bundler:
+        return gtsam.PinholeCameraCal3_S2(pose, gtsam.Cal3_S2(fx, fy, 0.0, px, py))
+    if isinstance(cal, (gtsam.Cal3Bundler, gtsam.Cal3_S2)):
+        k1 = cal.k1() if isinstance(cal, gtsam.Cal3Bundler) else 0.0
+        k2 = cal.k2() if isinstance(cal, gtsam.Cal3Bundler) else 0.0
         return gtsam.PinholeCameraCal3Bundler(
             pose,
-            gtsam.Cal3Bundler(cal.fx() * scale, cal.k1(), cal.k2(), cal.px() * scale, cal.py() * scale),
-        )
-    if isinstance(cal, gtsam.Cal3_S2):
-        return gtsam.PinholeCameraCal3_S2(
-            pose,
-            gtsam.Cal3_S2(cal.fx() * scale, cal.fy() * scale, 0.0, cal.px() * scale, cal.py() * scale),
+            gtsam.Cal3Bundler((fx + fy) / 2.0, k1, k2, px, py),
         )
     raise ValueError(f"Unsupported calibration type: {type(cal)}")
 
@@ -132,6 +159,8 @@ def _build_gtsfm_data_from_vggt_depth(
     image_indices: tuple[int, ...],
     num_images: int,
     min_track_length: int = 2,
+    refined_intrinsics: Optional[dict[int, gtsfm_types.CALIBRATION_TYPE]] = None,
+    use_cal3_bundler: bool = False,
 ) -> GtsfmData:
     """Build GtsfmData using VGGT cameras (rescaled to original resolution) and frontend 2D tracks.
 
@@ -152,21 +181,30 @@ def _build_gtsfm_data_from_vggt_depth(
         2D measurements are in the original keypoint coordinate system.
     """
     cameras = vggt_result.cameras
-    dense_points = vggt_result.dense_points        # (N, H_vggt, W_vggt, 3)
+    dense_points = vggt_result.dense_points  # (N, H_vggt, W_vggt, 3)
     depth_confidence = vggt_result.depth_confidence  # (N, H_vggt, W_vggt)
     original_coords = vggt_result.original_coords  # (N, 6): [left, top, right, bottom, sw, sh]
 
     _, H_vggt, W_vggt = dense_points.shape[:3]
     global_to_local = {gidx: lidx for lidx, gidx in enumerate(image_indices)}
 
-    # Register cameras with intrinsics rescaled to original image resolution.
+    # Register cameras with intrinsics in original image resolution. If
+    # `refined_intrinsics` is supplied (global or per-cluster calibration), use those directly;
+    # cameras ABSENT from it fall back to rescaling the model's predicted intrinsics from model
+    # pixel space, same as when no refinement is supplied at all.
     gtsfm_data = GtsfmData(number_images=num_images)
     for global_idx, camera in cameras.items():
         if global_idx in image_shapes and global_idx in global_to_local:
-            _, orig_W = image_shapes[global_idx]
-            local_idx = global_to_local[global_idx]
-            scaled_W = float(original_coords[local_idx, 4])
-            camera = _scale_camera_intrinsics(camera, scale=orig_W / scaled_W)
+            if refined_intrinsics is not None and global_idx in refined_intrinsics:
+                camera = gtsfm_types.create_camera(camera.pose(), refined_intrinsics[global_idx])
+            else:
+                orig_H, orig_W = image_shapes[global_idx]
+                local_idx = global_to_local[global_idx]
+                scaled_W = float(original_coords[local_idx, 4])
+                scaled_H = float(original_coords[local_idx, 5])
+                scale_x = orig_W / scaled_W if scaled_W > 0 else 1.0
+                scale_y = orig_H / scaled_H if scaled_H > 0 else 1.0
+                camera = _scale_camera_intrinsics(camera, scale_x, scale_y, use_cal3_bundler=use_cal3_bundler)
         gtsfm_data.add_camera(global_idx, camera)
 
     for track_2d in tracks_2d:
@@ -175,7 +213,14 @@ def _build_gtsfm_data_from_vggt_depth(
 
         points_3d: list[np.ndarray] = []
         confidences: list[float] = []
-        valid_measurements: list[tuple[int, np.ndarray]] = []
+        # Every verified SIFT measurement is a valid BA constraint regardless of whether the model
+        # predicted confident depth at that keypoint; only confident depth anchors the 3D-point init.
+        # The pre-BA reprojection filter then prunes observations whose pose is inconsistent —
+        # keeping cameras whose keypoints fell in zero-confidence regions (low-texture/transient)
+        # but whose pose is sound constrained in the cluster BA, instead of letting them drift as
+        # under-constrained cameras. (This is the June-27 golden-run semantics; constraining only
+        # confident-depth measurements degrades the per-cluster BA.)
+        all_measurements: list[tuple[int, np.ndarray]] = []
 
         for m in track_2d.measurements:
             global_idx = m.i
@@ -195,13 +240,16 @@ def _build_gtsfm_data_from_vggt_depth(
             u_c = int(np.clip(round(m.uv[0] * u_scale - left), 0, W_vggt - 1))
             v_c = int(np.clip(round(m.uv[1] * v_scale - top), 0, H_vggt - 1))
 
+            all_measurements.append((global_idx, m.uv))  # original keypoint coords; always a BA constraint
+
             pt3d = dense_points[local_idx, v_c, u_c]
             conf = float(depth_confidence[local_idx, v_c, u_c])
             if np.isfinite(pt3d).all() and conf > 0.0:
                 points_3d.append(pt3d)
                 confidences.append(conf)
-                valid_measurements.append((global_idx, m.uv))  # original keypoint coords
 
+        # Need at least min_track_length CONFIDENT depths to anchor the 3D point (the total
+        # measurement count, incl. zero-confidence keypoints, is gated separately below).
         if len(points_3d) < min_track_length:
             continue
 
@@ -209,7 +257,7 @@ def _build_gtsfm_data_from_vggt_depth(
         weights /= weights.sum()
         point_3d_mean = np.average(points_3d, axis=0, weights=weights)
         sfm_track = SfmTrack(Point3(*point_3d_mean.astype(float)))
-        for gidx, uv in valid_measurements:
+        for gidx, uv in all_measurements:
             if gidx in cameras:
                 sfm_track.addMeasurement(gidx, Point2(*uv.astype(float)))
 
@@ -218,6 +266,43 @@ def _build_gtsfm_data_from_vggt_depth(
 
     logger.info("Built GtsfmData with %d cameras and %d tracks.", len(cameras), gtsfm_data.number_tracks())
     return gtsfm_data
+
+
+def _refine_vggt_intrinsics_via_view_graph(
+    vggt_result: VggtGeometryResult,
+    v_corr_idxs: dict,
+    keypoints_list: list,
+    image_shapes: dict[int, tuple[int, int]],
+    image_indices: tuple[int, ...],
+    use_cal3_bundler: bool = False,
+) -> dict[int, gtsfm_types.CALIBRATION_TYPE]:
+    """Refine focal lengths via Fetzer joint optimization over F-matrix edges.
+
+    Returns intrinsics in ORIGINAL image coordinates (suitable for use with the
+    frontend keypoints). VGGT's predicted intrinsics are rescaled to original
+    image coords first, then handed to `calibrate_view_graph` as the initial
+    estimate. VGGT's predicted poses are unchanged — only intrinsics are refined.
+    """
+    initial_intrinsics: dict[int, gtsfm_types.CALIBRATION_TYPE] = {}
+    for local_idx, global_idx in enumerate(image_indices):
+        if global_idx in vggt_result.cameras and global_idx in image_shapes:
+            orig_H, orig_W = image_shapes[global_idx]
+            scaled_W = float(vggt_result.original_coords[local_idx, 4])
+            scaled_H = float(vggt_result.original_coords[local_idx, 5])
+            scale_x = orig_W / scaled_W if scaled_W > 0 else 1.0
+            scale_y = orig_H / scaled_H if scaled_H > 0 else 1.0
+            scaled_cam = _scale_camera_intrinsics(
+                vggt_result.cameras[global_idx], scale_x, scale_y, use_cal3_bundler=use_cal3_bundler
+            )
+            initial_intrinsics[global_idx] = scaled_cam.calibration()
+
+    keypoints = {gidx: keypoints_list[gidx] for gidx in image_indices}
+    refined, _edges_to_remove = view_graph_calibration.calibrate_view_graph(
+        v_corr_idxs_dict=v_corr_idxs,
+        keypoints=keypoints,
+        initial_intrinsics=initial_intrinsics,
+    )
+    return refined
 
 
 class ClusterVGGTWithFrontend(ClusterMVO):
@@ -244,12 +329,28 @@ class ClusterVGGTWithFrontend(ClusterMVO):
         weights_path: Optional[str] = None,
         input_mode: str = "crop",
         seed: int = 42,
-        model_cache_key: Hashable | bool | None = None,
+        model_cache_key: Hashable | None = None,
+        use_model_cache: bool = True,
         metric_constructed_only: bool = False,
         # Frontend params
         save_two_view_viz: bool = False,
         pose_angular_error_thresh: float = 3,
         output_worker: Optional[str] = None,
+        use_view_graph_calibration: bool = False,
+        # Prefer ONE global Fetzer calibration — computed once over the full verified view graph by
+        # the SceneOptimizer and supplied via ClusterContext.global_refined_intrinsics — over the
+        # per-cluster calibration. Per-cluster Fetzer only sees a cluster's own F-edges and falls
+        # back to the model-predicted focal for thinly-connected cameras; the global solve gives a
+        # camera the SAME anchor in every cluster that shares it. Precedes use_view_graph_calibration.
+        use_global_view_graph_calibration: bool = False,
+        # Run the per-cluster pose+structure BA. OFF keeps the model poses + calibration-chain intrinsics
+        # verbatim; structure polishing then happens in the pose-pinned merge BAs and the final
+        # retriangulation. The validated Brussels recipe runs with this OFF.
+        run_per_cluster_ba: bool = True,
+        # After the per-axis scale, average fx and fy into a Cal3Bundler. Off leaves the Cal3_S2
+        # from the geometry result, with the two scaled focals still separate.
+        use_cal3_bundler: bool = False,
+        use_multi_view_retriangulation: bool = False,
     ) -> None:
         super().__init__(
             correspondence_generator=correspondence_generator,
@@ -268,31 +369,38 @@ class ClusterVGGTWithFrontend(ClusterMVO):
         self._metric_constructed_only = metric_constructed_only
         self._input_mode = input_mode
         self._seed = seed
+        self._use_view_graph_calibration = use_view_graph_calibration
+        self._use_global_view_graph_calibration = use_global_view_graph_calibration
+        self._run_per_cluster_ba = run_per_cluster_ba
+        self._use_cal3_bundler = use_cal3_bundler
+        self._use_multi_view_retriangulation = use_multi_view_retriangulation
 
         self._weights_path = Path(weights_path) if weights_path is not None else None
-        self._loader_kwargs: dict[str, Any] = {}
-        if self._weights_path is not None:
-            self._loader_kwargs["weights_path"] = self._weights_path
-        model_kwargs = self.geometry_transformer.config.model_ctor_kwargs
-        if model_kwargs:
-            self._loader_kwargs["model_kwargs"] = model_kwargs
-
-        if model_cache_key is False:
-            self._model_cache_key: Hashable | None = None
-        elif model_cache_key is None:
-            kwargs_key = tuple(sorted((k, repr(v)) for k, v in model_kwargs.items())) if model_kwargs else None
-            self._model_cache_key = ("default_vggt_loader", self._weights_path, kwargs_key)
-        else:
-            self._model_cache_key = model_cache_key
+        self._loader_kwargs, self._model_cache_key = _model_loading_plan(
+            self.geometry_transformer, self._weights_path, model_cache_key, use_model_cache
+        )
 
     def __repr__(self) -> str:
         components = [
             f"correspondence_generator={self.correspondence_generator}",
             f"two_view_estimator={self.two_view_estimator}",
-            f"geometry_transformer={self.geometry_transformer.config}",
+            # Transformers without a `config` (e.g. VggtOmegaGeometryTransformer) contribute their class
+            # name to the cache key instead — stable across runs and distinct from any VGGT config repr.
+            f"geometry_transformer="
+            f"{getattr(self.geometry_transformer, 'config', None) or type(self.geometry_transformer).__name__}",
             f"ba_options={self.ba_options}",
+            # Calibration flags change the reconstruction; include them in the repr that seeds the
+            # per-cluster cache key (ClusterOptimizerCacher hashes repr(optimizer)).
+            f"calib=(vgc={self._use_view_graph_calibration},global={self._use_global_view_graph_calibration})",
+            f"clusterba={self._run_per_cluster_ba}",
+            f"bundler={self._use_cal3_bundler}",
         ]
         return "ClusterVGGTWithFrontend(\n  " + ",\n  ".join(components) + "\n)"
+
+    @property
+    def uses_global_view_graph_calibration(self) -> bool:
+        """Whether this optimizer expects global focals from the SceneOptimizer via ClusterContext."""
+        return self._use_global_view_graph_calibration
 
     @staticmethod
     def get_ui_metadata() -> UiMetadata:
@@ -312,15 +420,42 @@ class ClusterVGGTWithFrontend(ClusterMVO):
         image_filenames = context.loader.image_filenames()
         image_names = tuple(str(image_filenames[idx]) for idx in keys)
 
-        # Traditional frontend.
-        frontend_graphs = self._build_frontend_graphs(context)
-        io_tasks, metrics = self._build_frontend_output_graphs(context, frontend_graphs)
+        # This cluster's 2D tracks. When the context carries the globally-verified correspondences,
+        # subset them to this cluster's edges and build the tracks EAGERLY in the main process — the
+        # per-cluster frontend would recompute the identical per-edge result (same edges, same two-view
+        # estimator), serially and redundantly across overlapping clusters. Without them (optimizer used
+        # standalone), run the traditional per-cluster frontend.
+        if context.global_v_corr_idxs_dict is not None and context.global_keypoints is not None:
+            cluster_v_corr = {
+                ij: context.global_v_corr_idxs_dict[ij]
+                for ij in context.visibility_graph
+                if ij in context.global_v_corr_idxs_dict
+            }
+            tracks_2d = get_2d_tracks(cluster_v_corr, context.global_keypoints)
+            logger.info(
+                "♻️  [%s] Reusing global correspondences: %d/%d cluster edges → %d tracks (frontend skipped).",
+                context.label,
+                len(cluster_v_corr),
+                len(context.visibility_graph),
+                len(tracks_2d),
+            )
+            v_corr_idxs_graph = delayed(_identity)(cluster_v_corr)
+            tracks_2d_graph = delayed(_identity)(tracks_2d)
+            padded_keypoints_graph = delayed(_identity)(context.global_keypoints)
+            io_tasks, metrics = [], []
+        else:
+            frontend_graphs = self._build_frontend_graphs(context)
+            io_tasks, metrics = self._build_frontend_output_graphs(context, frontend_graphs)
+            v_corr_idxs_graph = delayed(_extract_v_corr_idxs)(frontend_graphs.two_view_results)
+            tracks_2d_graph = delayed(get_2d_tracks)(v_corr_idxs_graph, frontend_graphs.padded_keypoints)
+            padded_keypoints_graph = frontend_graphs.padded_keypoints
 
         # VGGT geometry prediction → cameras + dense 3D points.
         image_batch_graph, original_coords_graph = delayed(_load_vggt_inputs, nout=2)(
             context.loader,
             global_indices,
             mode=self._input_mode,
+            transformer=self.geometry_transformer,
             output_root=str(context.output_paths.results),
             image_names=image_names,
         )
@@ -336,14 +471,34 @@ class ClusterVGGTWithFrontend(ClusterMVO):
             cluster_label=context.label,
         )
 
-        # 3. 2D tracks from frontend correspondences.
-        v_corr_idxs_graph = delayed(_extract_v_corr_idxs)(frontend_graphs.two_view_results)
-        tracks_2d_graph = delayed(get_2d_tracks)(v_corr_idxs_graph, frontend_graphs.padded_keypoints)
-
-        # 4. Original image shapes (needed to map frontend pixel coords → VGGT pixel coords).
+        # Original image shapes (needed to map frontend pixel coords → VGGT pixel coords).
         image_shapes_graph = delayed(_get_image_shapes)(context.loader, global_indices)
 
-        # 5. Build GtsfmData: lift 2D tracks to 3D using VGGT depth map.
+        # Intrinsics for the BA cameras (the model's poses are always kept). Per-camera preference:
+        #   1. GLOBAL Fetzer focals (one solve over the full verified view graph, via ClusterContext)
+        #      — the same anchor for a camera in every cluster that shares it.
+        #   2. Per-cluster Fetzer refinement over this cluster's F-matrices (use_view_graph_calibration;
+        #      keeps the model's predicted poses).
+        #   3. The geometry model's predicted focal, rescaled to original resolution — also the fallback
+        #      for cameras absent from 1 (e.g. no qualifying F-edge anywhere).
+        refined_intrinsics_graph = None
+        if self._use_global_view_graph_calibration and context.global_refined_intrinsics:
+            refined_intrinsics_graph = {
+                idx: context.global_refined_intrinsics[idx]
+                for idx in global_indices
+                if idx in context.global_refined_intrinsics
+            }
+        elif self._use_view_graph_calibration:
+            refined_intrinsics_graph = delayed(_refine_vggt_intrinsics_via_view_graph)(
+                vggt_result_graph,
+                v_corr_idxs_graph,
+                padded_keypoints_graph,
+                image_shapes_graph,
+                global_indices,
+                use_cal3_bundler=self._use_cal3_bundler,
+            )
+
+        # Build GtsfmData: lift 2D tracks to 3D using VGGT depth map.
         ba_input_graph = delayed(_build_gtsfm_data_from_vggt_depth)(
             vggt_result_graph,
             tracks_2d_graph,
@@ -351,9 +506,11 @@ class ClusterVGGTWithFrontend(ClusterMVO):
             image_indices=global_indices,
             num_images=context.num_images,
             min_track_length=self._min_track_length,
+            refined_intrinsics=refined_intrinsics_graph,
+            use_cal3_bundler=self._use_cal3_bundler,
         )
 
-        # 6. Cluster-level BA.
+        # Cluster-level BA.
         ba_result_graph, pre_ba_result_graph = delayed(_run_cluster_ba, nout=2)(
             ba_input_graph,
             ba_options=self.ba_options,
@@ -362,9 +519,12 @@ class ClusterVGGTWithFrontend(ClusterMVO):
             drop_camera_with_no_track=self._drop_camera_with_no_track,
             min_track_length=self._min_track_length,
             cluster_label=context.label,
+            tracks_2d=tracks_2d_graph,
+            use_multi_view_retriangulation=self._use_multi_view_retriangulation,
+            run_bundle_adjustment=self._run_per_cluster_ba,
         )
 
-        # 7. Metrics + I/O.
+        # Metrics + I/O.
         cameras_gt = [context.one_view_data_dict[idx].camera_gt for idx in range(context.num_images)]
         metrics.append(
             delayed(_aggregate_vggt_metrics)(

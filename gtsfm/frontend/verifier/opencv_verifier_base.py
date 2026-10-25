@@ -101,7 +101,7 @@ class OpencvVerifierBase(VerifierBase):
 
         v_corr_idxs = match_indices[inlier_idxs]
         inlier_ratio_est_model = np.mean(inlier_mask)
-        (i2Ri1, i2Ui1) = verification_utils.recover_relative_pose_from_essential_matrix(
+        i2Ri1, i2Ui1 = verification_utils.recover_relative_pose_from_essential_matrix(
             i2Ei1,
             keypoints_i1.coordinates[v_corr_idxs[:, 0]],
             keypoints_i2.coordinates[v_corr_idxs[:, 1]],

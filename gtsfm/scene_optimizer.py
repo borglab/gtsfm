@@ -3,12 +3,14 @@
 Authors: Ayush Baid, John Lambert
 """
 
+import shutil
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, TypeVar, cast
 
 import matplotlib
+import numpy as np
 from dask.delayed import delayed
 from dask.distributed import Client, Future, performance_report
 from omegaconf import OmegaConf
@@ -17,17 +19,26 @@ import gtsfm.utils.logger as logger_utils
 from gtsfm import cluster_merging
 from gtsfm.cluster_merging import MergingOptions
 from gtsfm.cluster_optimizer import Base, save_metrics_reports
+from gtsfm.cluster_optimizer.cluster_mvo import ClusterMVO, _pad_keypoints_list
 from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterContext
 from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.outputs import OutputPaths, cluster_label, prepare_output_paths
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.evaluation.retrieval_metrics import save_retrieval_two_view_metrics
+from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.graph_partitioner.single_partitioner import SinglePartitioner
+from gtsfm.data_association.point3d_initializer import multi_view_retriangulate_from_2d_tracks
 from gtsfm.loader.loader_base import LoaderBase
-from gtsfm.products.visibility_graph import VisibilityGraph
+from gtsfm.multi_view_optimizer import get_2d_tracks
+from gtsfm.products.one_view_data import OneViewData
+from gtsfm.products.visibility_graph import AnnotatedGraph, VisibilityGraph, visibility_graph_keys
 from gtsfm.retriever.image_pairs_generator import ImagePairsGenerator
+from gtsfm.two_view_estimator import TwoViewEstimator, create_v_corr_idxs, create_v_corr_idxs_futures
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
+from gtsfm.view_graph_estimator.view_graph_calibration import compute_global_view_graph_intrinsics
+from gtsfm.utils.graph import get_nodes_in_largest_connected_component
 from gtsfm.utils.tree import PreOrderIter
 from gtsfm.utils.tree_dask import submit_tree_map_with_children
 
@@ -58,6 +69,34 @@ class ClusterExecutionHandles:
 def _identity(value: T) -> T:
     """Return value unchanged. Used to seed futures without extra scheduling."""
     return value
+
+
+def _save_optional_process_graph(filepath: Path) -> bool:
+    """Save the process graph when Graphviz is available.
+
+    The process graph is a diagnostic artifact, not a prerequisite for
+    reconstruction. A missing or unusable Graphviz installation should never
+    prevent the pipeline from running.
+    """
+    if shutil.which("dot") is None:
+        logger.warning(
+            "Graphviz 'dot' is unavailable; skipping optional process graph %s. "
+            "Reconstruction will continue. Install Graphviz to enable this export.",
+            filepath,
+        )
+        return False
+
+    try:
+        ProcessGraphGenerator().save_graph(str(filepath))
+    except OSError as exc:
+        logger.warning(
+            "Could not save optional process graph %s; reconstruction will continue. (%s)",
+            filepath,
+            exc,
+        )
+        return False
+
+    return True
 
 
 def _empty_cluster_handles(context: ClusterContext, edge_count: int) -> ClusterExecutionHandles:
@@ -95,6 +134,164 @@ def _collect_metric_results(*results: object) -> list[GtsfmMetricsGroup]:
 def _finalize_io_tasks(*_args: object) -> None:
     """Barrier task used to depend on all I/O side effects."""
     return None
+
+
+def _run_post_merge_retriangulation(
+    scene: GtsfmData,
+    tracks_2d: list,
+    options: MergingOptions,
+    trackless_cameras: Optional[dict] = None,
+) -> GtsfmData:
+    """Re-triangulate the verified multiview 2D tracks against the merged cameras, then bundle-adjust.
+
+    Builds a fresh sparse structure from the globally-verified correspondences (discarding the merged
+    depth-lifted points), runs BA — which jointly refines structure AND the merged poses — then filters
+    by reprojection error. Designed to run as a single dask task on a worker.
+
+    If ``trackless_cameras`` is provided (good-pose cameras the merge dropped for lack of a track),
+    their merged poses are injected so the geometric retriangulation — which is depth-confidence
+    independent — can re-triangulate their global 2D tracks and recover them. Cameras that still fail
+    to gain a track are excluded from BA and dropped by the final filter.
+    """
+    if trackless_cameras:
+        injected = []
+        for i, cam in trackless_cameras.items():
+            if cam is not None and scene.get_camera(i) is None:
+                scene.add_camera(i, cam)  # local op on this worker's copy of the merged scene
+                injected.append(i)
+        logger.info(
+            "♻️  Post-merge retri: injected %d trackless good-pose camera(s) for geometric recovery: %s",
+            len(injected),
+            sorted(injected),
+        )
+
+    ba_options = options.ba_options
+    if options.retri_free_ba:
+        # Fully-free final solve: drop the calibration and pose priors that protect the incremental
+        # merges. GNC follows retri_free_ba_use_gnc and is off unless that flag is set. Injected
+        # trackless-camera poses are free in this solve.
+        from dataclasses import replace as _dc_replace
+
+        ba_options = _dc_replace(
+            ba_options,
+            use_calibration_prior=False,
+            use_pose_prior_all_cameras=False,
+            use_gnc=options.retri_free_ba_use_gnc,
+            gnc_loss="TLS",
+            factor_weight_outlier_threshold=1e-6,
+        )
+        logger.info(
+            "🔓 Post-merge retri BA running FREE (no calib/pose priors, GNC %s).",
+            "on" if options.retri_free_ba_use_gnc else "off",
+        )
+
+    refined = scene
+    for retri_iter in range(max(1, options.retri_iterations)):
+        retri = multi_view_retriangulate_from_2d_tracks(refined, tracks_2d)
+        if retri.number_tracks() == 0:
+            logger.warning("Post-merge retriangulation produced no tracks; keeping previous scene.")
+            return refined if retri_iter > 0 else scene
+        optimizer = ba_options.to_optimizer(min_track_length=options.min_track_length)
+        refined, _ = optimizer.run_simple_ba(retri)
+        refined = refined.filter_landmark_measurements(
+            options.post_ba_max_reproj_error,
+            options.min_track_length,
+            # When recovering trackless cameras, force-drop any that still fail to triangulate (decoupled
+            # from keep_all_cameras) so unrecovered cams don't linger as pose-only and skew the AUC denom.
+            retain_cameras_without_tracks=(False if trackless_cameras else options.keep_all_cameras),
+        )
+        logger.info(
+            "🔁 Retri iteration %d/%d: %d tracks after BA + filter.",
+            retri_iter + 1,
+            max(1, options.retri_iterations),
+            refined.number_tracks(),
+        )
+    # Carry the merged scene's full image set (incl. unregistered images) so the retri pose metrics
+    # use the SAME all-images GT denominator as the merged metrics; otherwise the retri "overall" AUC
+    # is computed over only its registered cameras and collapses into "constructed-only".
+    refined._image_info = scene._clone_image_info()
+
+    if trackless_cameras:
+        recovered_set = set(refined.get_valid_camera_indices())
+        for i in sorted(trackless_cameras):
+            logger.info("♻️  Retri recovery [cam %d]: recovered=%s", i, i in recovered_set)
+
+    return refined
+
+
+def verify_visibility_graph(
+    client: Client,
+    correspondence_generator: CorrespondenceGeneratorBase,
+    two_view_estimator: TwoViewEstimator,
+    loader: LoaderBase,
+    image_future_map: dict[int, Future],
+    one_view_data_dict: dict[int, OneViewData],
+    visibility_graph: VisibilityGraph,
+) -> tuple[list[Keypoints], AnnotatedGraph[np.ndarray]]:
+    """Run the frontend once over the retrieval graph, returning keypoints + verified correspondences.
+
+    Correspondence generation and two-view estimation run over ALL retrieval edges; an edge survives iff
+    its ``TwoViewResult.valid()``. Only the verified correspondence indices are kept (each heavy
+    ``TwoViewResult`` is dropped the moment it is reduced), and every ``run_2view`` call warms the
+    two-view cache, so per-cluster frontends that run afterwards are cache hits.
+
+    Dispatches on pool size: with multiple workers the frontend fans out across the pool and only the
+    lean per-chunk ``v_corr_idxs`` sub-dicts are gathered; with at most one worker everything runs inline
+    in this process, leaving no scheduler<->worker comm surface for a multi-hour run to trip over.
+
+    Args:
+        client: Dask client.
+        correspondence_generator: Frontend correspondence generator (detection + matching).
+        two_view_estimator: Two-view estimator applied to every pair.
+        loader: Dataset loader (pose priors, GT mesh, image count).
+        image_future_map: Scattered images, keyed by image index.
+        one_view_data_dict: Per-image intrinsics / GT data.
+        visibility_graph: Retrieval graph to verify.
+
+    Returns:
+        keypoints_list: Per-image keypoints, padded to ``len(loader)``.
+        v_corr_idxs_dict: Verified correspondence indices for every surviving edge.
+    """
+    num_images = len(loader)
+    image_futures = [image_future_map[idx] for idx in range(num_images)]
+    relative_pose_priors = loader.get_relative_pose_priors(list(visibility_graph)) or {}
+    gt_scene_mesh = loader.get_gt_scene_trimesh()
+    try:
+        num_workers = len(client.scheduler_info()["workers"])
+    except Exception:
+        num_workers = 1
+
+    if num_workers <= 1:
+        logger.info("🔵 [frontend] 1 worker → running the global frontend inline (in-process).")
+        images = client.gather(image_futures)
+        keypoints_list, putative_corr_idxs_dict, _ = ClusterMVO._run_correspondence_generator(
+            correspondence_generator, list(visibility_graph), images
+        )
+        padded_keypoints_list = _pad_keypoints_list(keypoints_list, num_images)
+        v_corr_idxs_dict = create_v_corr_idxs(
+            two_view_estimator,
+            padded_keypoints_list,
+            putative_corr_idxs_dict,
+            relative_pose_priors,
+            gt_scene_mesh,
+            one_view_data_dict,
+        )
+    else:
+        logger.info("🔵 [frontend] %d workers → running the global frontend in parallel.", num_workers)
+        keypoints_list, putative_corr_idxs_dict = correspondence_generator.generate_correspondences_futures(
+            client, image_futures, list(visibility_graph)
+        )
+        padded_keypoints_list = _pad_keypoints_list(keypoints_list, num_images)
+        v_corr_idxs_dict = create_v_corr_idxs_futures(
+            client,
+            two_view_estimator,
+            padded_keypoints_list,
+            putative_corr_idxs_dict,
+            relative_pose_priors,
+            gt_scene_mesh,
+            one_view_data_dict,
+        )
+    return padded_keypoints_list, v_corr_idxs_dict
 
 
 class SceneOptimizer:
@@ -195,19 +392,74 @@ class SceneOptimizer:
         base_metrics_groups = []
 
         # Process Graph Generation: Visualize the process graph, which is a flow of data across GTSFM's modules.
-        process_graph_generator = ProcessGraphGenerator()
         base_output_paths = prepare_output_paths(self.output_root, None)
         config_snapshot = self._config_snapshot
         if config_snapshot is not None:
             config_path = base_output_paths.results / "config.yaml"
             OmegaConf.save(config=config_snapshot, f=str(config_path))
             logger.info("📦 Saved final config snapshot to %s", config_path)
-        process_graph_generator.save_graph(str(base_output_paths.plots / "process_graph_output.svg"))
+        _save_optional_process_graph(base_output_paths.plots / "process_graph_output.svg")
 
         logger.info("🔥 GTSFM: Running image pair retrieval...")
         retriever_metrics, visibility_graph, similarity_matrix = self._run_retriever(client, base_output_paths)
         base_metrics_groups.append(retriever_metrics)
         image_future_map = self.loader.get_image_futures(client)
+        one_view_data_dict = self.loader.get_one_view_data_dict()
+
+        # Global two-view verification: run the frontend ONCE over the full retrieval graph and keep only
+        # the edges where a two-view model was verified. Everything downstream — partitioning, per-cluster
+        # reconstruction, merging — consumes the VERIFIED graph, so clusters are never carved along
+        # similarity edges that have no verifiable geometry. Optimizers without a two-view frontend
+        # (pure feedforward, e.g. ClusterVGGT / AnySplat) cannot verify and keep the retrieval graph.
+        padded_keypoints_list: Optional[list[Keypoints]] = None
+        v_corr_idxs_dict: Optional[AnnotatedGraph[np.ndarray]] = None
+        global_tracks_2d: Optional[list] = None
+        global_refined_intrinsics: Optional[dict] = None
+        correspondence_generator = getattr(self.cluster_optimizer, "correspondence_generator", None)
+        two_view_estimator = getattr(self.cluster_optimizer, "two_view_estimator", None)
+        if correspondence_generator is not None and two_view_estimator is not None:
+            retrieval_edge_count = len(visibility_graph)
+            logger.info("🔎 GTSFM: Global two-view verification over %d retrieval edges...", retrieval_edge_count)
+            padded_keypoints_list, v_corr_idxs_dict = verify_visibility_graph(
+                client,
+                correspondence_generator,
+                two_view_estimator,
+                self.loader,
+                image_future_map,
+                one_view_data_dict,
+                visibility_graph,
+            )
+            verified_graph = sorted(v_corr_idxs_dict.keys())
+            all_nodes = visibility_graph_keys(verified_graph)
+            largest_cc = set(get_nodes_in_largest_connected_component(verified_graph)) if verified_graph else set()
+            logger.info(
+                "🔎 Verified graph: %d/%d edges; nodes=%d, largest_cc=%d, dropped_by_partition=%d",
+                len(verified_graph),
+                retrieval_edge_count,
+                len(all_nodes),
+                len(largest_cc),
+                len(all_nodes) - len(largest_cc),
+            )
+            visibility_graph = verified_graph
+
+            # Global 2D tracks (one union-find over ALL verified edges): cross-cluster track identity,
+            # consumed by the post-merge retriangulation. Clusters assemble their own per-cluster tracks
+            # from the raw correspondences; this global assembly exists only here.
+            global_tracks_2d = get_2d_tracks(v_corr_idxs_dict, padded_keypoints_list)
+            logger.info("🔎 Built %d global 2D tracks from verified correspondences.", len(global_tracks_2d))
+
+            # Global Fetzer calibration: estimate every camera's focal ONCE over the full verified
+            # view graph and hand the result to every cluster via ClusterContext — a camera gets the
+            # SAME focal anchor in every cluster that shares it, where the per-cluster calibration
+            # only sees a cluster's own F-edges. Runs in the driver (the solve is sparse).
+            if v_corr_idxs_dict and getattr(self.cluster_optimizer, "uses_global_view_graph_calibration", False):
+                global_refined_intrinsics = compute_global_view_graph_intrinsics(
+                    v_corr_idxs_dict, padded_keypoints_list, one_view_data_dict
+                )
+                logger.info(
+                    "🔭 Global Fetzer calibration: refined %d focals over the full verified view graph.",
+                    len(global_refined_intrinsics),
+                )
 
         # Bridge reconnection: add cross-component edges to reconnect island components.
         if similarity_matrix is not None and self._bridge_min_similarity > 0:
@@ -240,7 +492,6 @@ class SceneOptimizer:
         save_retrieval_two_view_metrics(base_output_paths)
 
         logger.info("🔥 GTSFM: Scheduling cluster optimizations...")
-        one_view_data_dict = self.loader.get_one_view_data_dict()
         merged_scene: Optional[cluster_merging.MergedNodeSummary] = None
 
         with performance_report(filename="dask_reports/scene-optimizer.html"):
@@ -261,6 +512,9 @@ class SceneOptimizer:
                         cluster_path=path,
                         label=cluster_label(path),
                         visibility_graph=visibility_graph,
+                        global_v_corr_idxs_dict=v_corr_idxs_dict,
+                        global_keypoints=padded_keypoints_list,
+                        global_refined_intrinsics=global_refined_intrinsics,
                     )
 
                 context_tree = cluster_tree.map_with_path(to_context)
@@ -314,6 +568,43 @@ class SceneOptimizer:
                 if root_merge_summary is not None:
                     logger.info("🔥 GTSFM: Running cluster optimization and merging...")
                     merged_scene = root_merge_summary
+
+                # Post-merge retriangulation (structure refinement): rebuild the sparse structure from
+                # the globally-verified tracks against the merged poses, then bundle-adjust with the
+                # merge BA options. Runs whenever the verified pipeline produced global tracks; the
+                # result is written as a separate export alongside the merged scene.
+                if global_tracks_2d:
+                    root_merged_result = merged_future_tree.value.result()
+                    if root_merged_result.scene is not None:
+                        logger.info(
+                            "🔧 GTSFM: Post-merge retriangulation on %d global 2D tracks vs merged poses...",
+                            len(global_tracks_2d),
+                        )
+                        refined: GtsfmData = client.submit(
+                            _run_post_merge_retriangulation,
+                            root_merged_result.scene,
+                            global_tracks_2d,
+                            self._merging_options,
+                            root_merged_result.trackless_cameras,
+                            pure=False,
+                        ).result()
+                        retri_dir = base_output_paths.results / "merged_retriangulated"
+                        retri_dir.mkdir(parents=True, exist_ok=True)
+                        refined.export_as_colmap_text(retri_dir)
+                        logger.info(
+                            "🔧 Retriangulated scene: %d images, %d tracks → %s",
+                            refined.number_images(),
+                            refined.number_tracks(),
+                            retri_dir,
+                        )
+                        base_metrics_groups.append(
+                            cluster_merging.compute_merging_metrics(
+                                refined,
+                                cameras_gt=cameras_gt,
+                                metric_constructed_only=self._merging_options.metric_constructed_only,
+                                suffix="_retriangulated",
+                            )
+                        )
 
         if merged_scene is not None and merged_scene.merge_success:
             logger.info(

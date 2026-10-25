@@ -193,7 +193,8 @@ class ShonanRotationAveraging(RotationAveragingBase):
         logger.info(
             "Chordal-only RA (Shonan skipped): %d constraints on %d nodes — "
             "chordal init → Geman-McClure LM refinement",
-            len(measurements), num_connected_nodes,
+            len(measurements),
+            num_connected_nodes,
         )
         # No relative-rotation constraints survive (e.g. every edge was filtered out): there is nothing
         # to initialize or anchor, so return all-None rather than crashing in chordal init / the prior.
@@ -220,7 +221,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
             graph.add(gtsam.BetweenFactorRot3(m.key1(), m.key2(), m.measured(), robust_noise))
         # Anchor the gauge with a tight prior on the first node.
         anchor_noise = gtsam.noiseModel.Isotropic.Sigma(ROT3_DOF, 1e-6)
-        graph.add(gtsam.PriorFactorRot3(anchor_key, Rot3(), anchor_noise))
+        graph.add(gtsam.PriorFactorRot3(anchor_key, initial.atRot3(anchor_key), anchor_noise))
 
         # Step 3: LM with iteration cap matching GLOMAP's max_num_irls_iterations.
         lm_params = gtsam.LevenbergMarquardtParams.CeresDefaults()

@@ -1,8 +1,9 @@
 """View graph calibration: estimate camera focal lengths from fundamental matrices.
 
 Joint optimization of all focal lengths using Fetzer et al. (WACV 2020) residuals.
-For each F-matrix edge, measures how close E = K2^T F K1 is to a valid essential matrix
-(valid E has singular values σ1 = σ2, σ3 = 0).
+GTSAM's SelfCalibrationFactor optimizes closed-form focal residuals. Edge filtering
+separately checks the singular values of E = K2^T F K1 (a valid essential matrix
+has singular values σ1 = σ2, σ3 = 0).
 
 Reference: Fetzer et al., "Stable Intrinsic Auto-Calibration from Fundamental Matrices
 of Devices with Uncorrelated Camera Parameters", WACV 2020.
@@ -14,7 +15,14 @@ from typing import Dict, List, Optional, Tuple
 import cv2
 import gtsam
 import numpy as np
-from gtsam import Cal3Bundler, Cal3DS2, Cal3Fisheye, Cal3_S2
+from gtsam import Cal3_S2, Cal3Bundler, Cal3DS2, Cal3Fisheye
+
+try:
+    import poselib
+
+    _HAS_POSELIB = True
+except ImportError:  # pragma: no cover
+    _HAS_POSELIB = False
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.logger as logger_utils
@@ -22,13 +30,12 @@ from gtsfm.common.keypoints import Keypoints
 
 logger = logger_utils.get_logger()
 
-# Cauchy robust scale for the SelfCalibrationFactor graph. KEEP at 0.01: it is GLOMAP-faithful AND
-# provides stability for the closed-form's unbounded [(f^2-K)/f^2] residual (loosening it
-# lets ill-conditioned wide-FOV cams run to wrong focal extremes and regresses rotation).
+# Robust scale for the closed-form, dimensionless focal residuals.
 CAUCHY_SCALE = 0.01
 # GLOMAP feeds Fetzer only CALIBRATED(2)/UNCALIBRATED(3) pairs; PLANAR/PANORAMIC/
 # DEGENERATE drive the closed-form residual denominators to their poles.
 FETZER_ALLOWED_CONFIGS = frozenset({2, 3})
+_MAX_H_INLIER_RATIO = 0.8
 
 
 def estimate_fundamental_from_correspondences(
@@ -86,13 +93,40 @@ def f_passes_focal_sanity(
     return (not at_band_edge) and bool(residuals[best] <= max_resid)
 
 
+def _estimate_fundamental_robust(
+    coords_i1: np.ndarray, coords_i2: np.ndarray, threshold_px: float = 2.0
+) -> Tuple[Optional[np.ndarray], Optional[str]]:
+    """Robust (LO-RANSAC) F via PoseLib + planar-config gate; falls back to the 8-point estimate
+    when poselib is unavailable. Returns (F, drop_reason) with drop_reason in
+    {None, 'planar', 'f_fail'}; F is None whenever drop_reason is not None."""
+    if not _HAS_POSELIB:
+        F = estimate_fundamental_from_correspondences(coords_i1, coords_i2)
+        return (F, None) if F is not None else (None, "f_fail")
+    try:
+        F, f_info = poselib.estimate_fundamental(coords_i1, coords_i2, {"max_epipolar_error": threshold_px}, {})
+    except Exception:
+        return None, "f_fail"
+    F = np.asarray(F, dtype=np.float64)
+    if F.shape != (3, 3) or not np.all(np.isfinite(F)) or np.allclose(F, 0.0):
+        return None, "f_fail"
+    n_F = int(f_info.get("num_inliers", 0))
+    try:
+        _, h_info = poselib.estimate_homography(coords_i1, coords_i2, {"max_reproj_error": threshold_px}, {})
+        n_H = int(h_info.get("num_inliers", 0))
+    except Exception:
+        n_H = 0
+    if n_H > _MAX_H_INLIER_RATIO * max(n_F, 1):
+        return None, "planar"
+    return F, None
+
+
 def _fetzer_residuals(
     focal_lengths: np.ndarray,
     edges: List[Tuple[int, int, np.ndarray, np.ndarray, np.ndarray]],
     cam_idx_to_var_idx: Dict[int, int],
     precomputed: Optional[Dict] = None,
 ) -> np.ndarray:
-    """Compute Fetzer residuals for all edges (vectorized).
+    """Compute singular-value residuals for edge filtering (not the closed-form factor cost).
 
     For each edge, constructs E = K2^T F K1 from current focal lengths and measures
     deviation from a valid essential matrix via singular value ratios.
@@ -182,32 +216,34 @@ def _refit_focal(old_K: gtsfm_types.CALIBRATION_TYPE, new_focal: float) -> Optio
 
 def calibrate_view_graph(
     v_corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
-    keypoints_list: List[Keypoints],
-    initial_intrinsics: List[gtsfm_types.CALIBRATION_TYPE],
-    num_images: int,
+    keypoints: Dict[int, Keypoints],
+    initial_intrinsics: Dict[int, gtsfm_types.CALIBRATION_TYPE],
     min_correspondences: int = 30,
     min_focal_ratio: float = 0.5,
     max_focal_ratio: float = 2.0,
     max_edge_error: float = 0.5,
+    use_robust_gates: bool = True,
     i2Fi1_dict: Optional[Dict[Tuple[int, int], np.ndarray]] = None,
     config_dict: Optional[Dict[Tuple[int, int], int]] = None,
-) -> Tuple[List[gtsfm_types.CALIBRATION_TYPE], set]:
+) -> Tuple[Dict[int, gtsfm_types.CALIBRATION_TYPE], set]:
     """Refine camera focal lengths via joint Fetzer optimization over all F-matrix edges.
 
     Also filters edges with high calibration error (GLOMAP FilterImagePairs).
 
     Args:
         v_corr_idxs_dict: Verified correspondence indices per image pair.
-        keypoints_list: Keypoints for all images.
-        initial_intrinsics: Initial intrinsics (e.g., from EXIF or heuristic).
-        num_images: Total number of images.
+        keypoints: Keypoints keyed by image index.
+        initial_intrinsics: Initial intrinsics keyed by image index.
         min_correspondences: Minimum correspondences to attempt F estimation.
         min_focal_ratio: Minimum allowed ratio of optimized/initial focal length.
         max_focal_ratio: Maximum allowed ratio of optimized/initial focal length.
-        max_edge_error: Maximum Fetzer residual norm to keep an edge.
+        max_edge_error: Maximum essential-matrix singular-value residual norm to keep an edge.
+        use_robust_gates: Reject planar and focal-degenerate pairs before calibration.
+        i2Fi1_dict: Optional focal-independent fundamental matrices from the verifier.
+        config_dict: Optional two-view configuration codes; non-calibratable pairs are skipped.
 
     Returns:
-        Refined intrinsics list (same length as initial_intrinsics).
+        Refined intrinsics dict (same keys as initial_intrinsics).
         Set of edge keys (i1, i2) to remove from the view graph.
     """
     # Step 1: Collect F-matrices and optimization edges. Prefer the verifier's
@@ -232,11 +268,15 @@ def calibrate_view_graph(
         F = i2Fi1_dict.get((i1, i2)) if i2Fi1_dict is not None else None
         was_plumbed = F is not None
         if F is None:
-            coords_i1 = keypoints_list[i1].coordinates[v_corr_idxs[:, 0]]
-            coords_i2 = keypoints_list[i2].coordinates[v_corr_idxs[:, 1]]
-            F = estimate_fundamental_from_correspondences(coords_i1, coords_i2)
-        if F is None:
+            coords_i1 = keypoints[i1].coordinates[v_corr_idxs[:, 0]]
+            coords_i2 = keypoints[i2].coordinates[v_corr_idxs[:, 1]]
+            if use_robust_gates:
+                F, _ = _estimate_fundamental_robust(coords_i1, coords_i2)
+            else:
+                F = estimate_fundamental_from_correspondences(coords_i1, coords_i2)
+        if F is None or np.shape(F) != (3, 3) or not np.all(np.isfinite(F)) or np.linalg.norm(F) == 0:
             continue
+        F = np.asarray(F, dtype=float) / np.linalg.norm(F)
 
         K1 = initial_intrinsics[i1].K()
         K2 = initial_intrinsics[i2].K()
@@ -246,7 +286,7 @@ def calibrate_view_graph(
         # Robust F-list: drop near-planar/degenerate F's whose implied focal is garbage. They
         # pole/poison the focal calibration (the F is fine; this keeps it OUT of Fetzer only).
         f_init = 0.5 * (K1[0, 0] + K2[0, 0])
-        if not f_passes_focal_sanity(F, pp1, pp2, f_init):
+        if use_robust_gates and not f_passes_focal_sanity(F, pp1, pp2, f_init):
             num_dropped_by_focal_sanity += 1
             continue
 
@@ -258,7 +298,7 @@ def calibrate_view_graph(
 
     if not edges:
         logger.info("View graph calibration: no valid edges, skipping.")
-        return list(initial_intrinsics), set()
+        return dict(initial_intrinsics), set()
 
     # Step 2: Set up optimization variables.
     sorted_cameras = sorted(cameras_in_edges)
@@ -268,9 +308,15 @@ def calibrate_view_graph(
     logger.info(
         "View graph calibration (Fetzer): %d edges (%d plumbed F, %d re-estimated, %d dropped by config, "
         "%d dropped by focal-sanity), %d cameras. Initial focals: min=%.1f, med=%.1f, max=%.1f",
-        len(edges), num_plumbed_F, len(edges) - num_plumbed_F, num_dropped_by_config,
-        num_dropped_by_focal_sanity, len(sorted_cameras),
-        initial_focals.min(), np.median(initial_focals), initial_focals.max(),
+        len(edges),
+        num_plumbed_F,
+        len(edges) - num_plumbed_F,
+        num_dropped_by_config,
+        num_dropped_by_focal_sanity,
+        len(sorted_cameras),
+        initial_focals.min(),
+        np.median(initial_focals),
+        initial_focals.max(),
     )
 
     # Step 3: Joint focal-length optimization — closed-form GTSAM SelfCalibrationFactor graph
@@ -282,9 +328,7 @@ def calibrate_view_graph(
     )
     for cam1, cam2, F, pp1, pp2 in edges:
         graph.add(
-            gtsam.SelfCalibrationFactor(
-                gtsam.symbol("f", cam1), gtsam.symbol("f", cam2), F, pp1, pp2, edge_noise
-            )
+            gtsam.SelfCalibrationFactor(gtsam.symbol("f", cam1), gtsam.symbol("f", cam2), F, pp1, pp2, edge_noise)
         )
     initial_values = gtsam.Values()
     for var_idx, cam in enumerate(sorted_cameras):
@@ -292,18 +336,19 @@ def calibrate_view_graph(
 
     lm_params = gtsam.LevenbergMarquardtParams()
     lm_params.setMaxIterations(200)
+    # Scale damping to the focal Jacobians: identity damping dominates their small
+    # pixel-unit derivatives and can terminate LM near the initial focal lengths.
+    lm_params.setDiagonalDamping(True)
+    lm_params.setAbsoluteErrorTol(1e-12)
+    lm_params.setRelativeErrorTol(1e-8)
     opt = gtsam.LevenbergMarquardtOptimizer(graph, initial_values, lm_params)
     gtsam_result = opt.optimize()
 
-    optimized_focals = np.array(
-        [gtsam_result.atDouble(gtsam.symbol("f", cam)) for cam in sorted_cameras]
-    )
-    solver_info = "graph error %.4f → %.4f" % (
-        graph.error(initial_values), graph.error(gtsam_result)
-    )
+    optimized_focals = np.array([gtsam_result.atDouble(gtsam.symbol("f", cam)) for cam in sorted_cameras])
+    solver_info = "graph error %.4f → %.4f" % (graph.error(initial_values), graph.error(gtsam_result))
 
     # Step 4: Validate and build refined intrinsics.
-    refined = list(initial_intrinsics)
+    refined = dict(initial_intrinsics)
     # Focal actually APPLIED downstream per camera: the optimized focal when accepted (in-band ratio
     # and a recognized calibration model), else the initial focal (rejected/unsupported cams, whose
     # optimized value is discarded). Step 5 scores edges with THIS, not the raw optimized_focals.
@@ -337,7 +382,7 @@ def calibrate_view_graph(
     final_residuals = _fetzer_residuals(applied_focals, edges, cam_idx_to_var_idx)
     edges_to_remove = set()
     for i, (cam1, cam2, F, pp1, pp2) in enumerate(edges):
-        if np.linalg.norm(final_residuals[2 * i:2 * i + 2]) > max_edge_error:
+        if np.linalg.norm(final_residuals[2 * i : 2 * i + 2]) > max_edge_error:
             edges_to_remove.add((cam1, cam2))
 
     logger.info(
@@ -345,10 +390,52 @@ def calibrate_view_graph(
         "Optimized focals: min=%.1f, med=%.1f, max=%.1f. "
         "Filtered %d / %d edges by calibration error (threshold=%.2f). "
         "Solver: %s.",
-        num_refined, num_rejected, num_unsupported, len(sorted_cameras),
-        optimized_focals.min(), np.median(optimized_focals), optimized_focals.max(),
-        len(edges_to_remove), len(edges), max_edge_error,
+        num_refined,
+        num_rejected,
+        num_unsupported,
+        len(sorted_cameras),
+        optimized_focals.min(),
+        np.median(optimized_focals),
+        optimized_focals.max(),
+        len(edges_to_remove),
+        len(edges),
+        max_edge_error,
         solver_info,
     )
 
     return refined, edges_to_remove
+
+
+def compute_global_view_graph_intrinsics(
+    v_corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
+    keypoints_list: List[Keypoints],
+    one_view_data_dict: dict,
+) -> Dict[int, gtsfm_types.CALIBRATION_TYPE]:
+    """Estimate every camera's focal ONCE on the full verified view graph (global Fetzer).
+
+    Unlike the per-cluster calibration -- which only sees a single cluster's edges and falls back to
+    the VGGT-predicted focal for cameras lacking in-cluster F-edges -- this runs over ALL verified
+    correspondences, giving the global estimation strength that pins focals close to GT. Initial focals
+    come from the loader intrinsics (the EXIF-free 1.2*maxdim heuristic) converted to Cal3Bundler; VGGT
+    focals are never used. Cameras with no qualifying F-edge keep the heuristic focal (still not VGGT).
+
+    Returns Cal3Bundler intrinsics (matching the VGGT PinholeCameraCal3Bundler type used downstream),
+    keyed by global camera index, covering every camera in one_view_data_dict.
+    """
+    initial_intrinsics: Dict[int, gtsfm_types.CALIBRATION_TYPE] = {}
+    for idx, one_view_data in one_view_data_dict.items():
+        K = one_view_data.intrinsics.K()
+        initial_intrinsics[idx] = Cal3Bundler(float(K[0, 0]), 0.0, 0.0, float(K[0, 2]), float(K[1, 2]))
+
+    keypoints = {idx: keypoints_list[idx] for idx in range(len(keypoints_list))}
+    refined, _edges_to_remove = calibrate_view_graph(
+        v_corr_idxs_dict=v_corr_idxs_dict,
+        keypoints=keypoints,
+        initial_intrinsics=initial_intrinsics,
+    )
+    # NOTE: cameras Fetzer cannot refine (no qualifying F-edge, or a focal-ratio/calibration-error
+    # rejection) keep their 1.2*maxdim heuristic focal. A median-fill of those was TRIED and REVERTED:
+    # the unrefined cameras skew high-focal (narrow-FOV/telephoto, few correspondences), and for those
+    # the 1.2 heuristic is actually accurate (Brussels cams 12/39/68 true f/maxdim ~1.19-1.23) — filling
+    # them to the dataset median (~1.025) hurt 3 cameras (~14% each) to help 1 (215). Keep the heuristic.
+    return refined

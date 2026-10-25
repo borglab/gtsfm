@@ -164,7 +164,7 @@ class LoRansac(VerifierBase):
             i2Ei1 = verification_utils.fundamental_to_essential_matrix(
                 i2Fi1, camera_intrinsics_i1, camera_intrinsics_i2
             )
-            (i2Ri1, i2Ui1) = verification_utils.recover_relative_pose_from_essential_matrix(
+            i2Ri1, i2Ui1 = verification_utils.recover_relative_pose_from_essential_matrix(
                 i2Ei1=i2Ei1,
                 verified_coordinates_i1=uv_i1[inlier_mask],
                 verified_coordinates_i2=uv_i2[inlier_mask],
