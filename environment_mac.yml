@@ -59,6 +59,8 @@ dependencies:
       - trimesh[easy]
       - gtsam==4.3.0
       - pydot
+      - bokeh==3.7.* # Dask 2025.9.1 reporting compatibility; keep in sync with pyproject.toml.
+      - tornado==6.5.9 # Match uv; this version is not available on conda-forge.
       # dust3r/mast3r
       - roma
       - tqdm
