@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from visualization import job_history, runtime
+from visualization import runtime
 from visualization.app import create_app
 
 _RUN_PROCESS = runtime.JobManager._run
@@ -144,7 +144,9 @@ def test_legacy_logs_recover_history_without_inventing_settings(tmp_path):
     root.mkdir()
     logs = {
         "000000000001": "2026-10-24 10:00:00 INFO: Config File: megaloc_sift_metis\nShutting down Dask client...\n",
-        "000000000002": "2026-10-24 11:00:00 INFO: Config File: vggt\nTraceback (most recent call last):\nRuntimeError: OOM\n",
+        "000000000002": (
+            "2026-10-24 11:00:00 INFO: Config File: vggt\nTraceback (most recent call last):\nRuntimeError: OOM\n"
+        ),
         "000000000003": "2026-10-24 12:00:00 INFO: matching pairs...\n",
     }
     for job_id, text in logs.items():

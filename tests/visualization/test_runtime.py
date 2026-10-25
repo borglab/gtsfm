@@ -539,7 +539,9 @@ def test_retry_checks_auth_status_and_current_input_availability(tmp_path: Path,
     app = create_app(tmp_path)
     client = TestClient(app)
     manager = app.state.gtsfm_jobs
-    queued = manager.start({"execution_target": "remote", "remote_endpoint": "https://gpu.example", "api_key": "secret"})
+    queued = manager.start(
+        {"execution_target": "remote", "remote_endpoint": "https://gpu.example", "api_key": "secret"}
+    )
     monkeypatch.setenv("GTSFM_API_KEY", "workspace-secret")
     assert client.post(f"/api/jobs/{queued['id']}/retry").status_code == 401
     headers = {"Authorization": "Bearer workspace-secret"}
