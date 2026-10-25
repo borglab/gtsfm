@@ -1,0 +1,36 @@
+name: Studio UI
+
+on:
+  pull_request:
+    paths:
+      - "visualization/**"
+      - "tests/visualization/**"
+      - ".github/workflows/studio.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: visualization/frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.18.3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: visualization/frontend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm build
+      - name: Check committed browser assets
+        run: git diff --exit-code -- ../static/studio.js ../static/studio.css
+      - run: pnpm test:viewer
+      - run: pnpm test:browser
