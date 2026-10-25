@@ -1,0 +1,59 @@
+name: gtsfm-v1
+channels:
+  # This environment is identical to the default Linux environment except that
+  # we install a different PyTorch version that works on the cluster.
+  #
+  # for priority order, we prefer pytorch as the highest priority as it supplies
+  # latest stable packages for numerous deep learning based methods. conda-forge
+  # supplies higher versions of packages like opencv compared to the defaults
+  # channel.
+  - pytorch
+  - conda-forge
+  - nvidia
+dependencies:
+  # python essentials
+  - python=3.8
+  - pip
+  # formatting and dev environment
+  - black
+  - coverage
+  - mypy
+  - pylint
+  - pytest
+  - flake8
+  - isort
+  # dask and related
+  - dask # same as dask[complete] pip distribution
+  - asyncssh
+  - python-graphviz
+  # core functionality and APIs
+  - matplotlib==3.4.2
+  - networkx
+  - numpy
+  - nodejs
+  - pandas
+  - pillow>=8.0.1
+  - scikit-learn
+  - scipy
+  - hydra-core
+  # 3rd party algorithms for different modules
+  - pytorch-cuda=11.8
+  - pytorch
+  - torchvision>=0.13.0
+  - kornia
+  # io
+  - h5py
+  - plotly=4.14.3
+  - tabulate
+  - simplejson
+  # testing
+  - parameterized
+  - pip:
+      - open3d
+      - opencv-python>=4.5.4.58
+      - pydegensac
+      - colour
+      - pycolmap>=0.1.0
+      - trimesh[easy]
+      - gtsam==4.2a8
+      - pydot
