@@ -118,7 +118,7 @@ class TanksAndTemplesLoaderTest(unittest.TestCase):
         camera_intrinsics_i1 = self.loader.get_camera_intrinsics_full_res(index=i1)
         camera_intrinsics_i2 = self.loader.get_camera_intrinsics_full_res(index=i2)
 
-        i2Ri1_computed, i2Ui1_computed, verified_indices_computed, _ = verifier.verify(
+        i2Ri1_computed, i2Ui1_computed, verified_indices_computed, _, _, _ = verifier.verify(
             keypoints_i1,
             keypoints_i2,
             match_indices_dict[(i1, i2)],

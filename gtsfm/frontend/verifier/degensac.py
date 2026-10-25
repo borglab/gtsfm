@@ -57,7 +57,7 @@ class Degensac(VerifierBase):
         match_indices: np.ndarray,
         camera_intrinsics_i1: CALIBRATION_TYPE,
         camera_intrinsics_i2: CALIBRATION_TYPE,
-    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray, float]:
+    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray, float, Optional[np.ndarray], Optional[int]]:
         """Performs verification of correspondences between two images to recover the relative pose and indices of
         verified correspondences.
 
@@ -99,4 +99,4 @@ class Degensac(VerifierBase):
             camera_intrinsics_i2,
         )
 
-        return i2Ri1, i2Ui1, v_corr_idxs, inlier_ratio_est_model
+        return i2Ri1, i2Ui1, v_corr_idxs, inlier_ratio_est_model, i2Fi1, None

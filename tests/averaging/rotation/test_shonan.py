@@ -191,5 +191,20 @@ def _create_dummy_correspondences(i2Ri1_dict: Dict[Tuple[int, int], Rot3]) -> Di
     return verified_correspondences
 
 
+class TestChordalRotationAveraging(TestShonanRotationAveraging):
+    """Exercise the chordal fallback with the same pose, prior and indexing contracts as Shonan."""
+
+    def setUp(self) -> None:
+        """Enable chordal initialization followed by robust rotation refinement."""
+        super().setUp()
+        self.obj = ShonanRotationAveraging(chordal_only=True)
+
+    def test_no_measurements(self) -> None:
+        """An empty relative-rotation graph has no orientations to initialize."""
+        import gtsam
+
+        assert self.obj._run_chordal_only(gtsam.BinaryMeasurementsRot3(), 3) == [None] * 3
+
+
 if __name__ == "__main__":
     unittest.main()

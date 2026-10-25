@@ -33,11 +33,11 @@ from gtsfm.products.one_view_data import OneViewData
 from gtsfm.products.two_view_result import TwoViewResult
 from gtsfm.products.visibility_graph import AnnotatedGraph
 from gtsfm.utils import verification as verification_utils
+from gtsfm.view_graph_estimator import view_graph_calibration
 from gtsfm.view_graph_estimator.cycle_consistent_rotation_estimator import (
     CycleConsistentRotationViewGraphEstimator,
     EdgeErrorAggregationCriterion,
 )
-from gtsfm.view_graph_estimator import view_graph_calibration
 from gtsfm.view_graph_estimator.view_graph_estimator_base import ViewGraphEstimatorBase
 
 logger = logging.getLogger(__name__)
@@ -53,6 +53,8 @@ class MultiViewOptimizer:
         AnnotatedGraph[np.ndarray],
         AnnotatedGraph[TwoViewEstimationReport],
         AnnotatedGraph[PosePrior],
+        Dict[Tuple[int, int], np.ndarray],
+        Dict[Tuple[int, int], int],
     ]:
         """Split TwoViewResult objects into the pieces needed by downstream modules."""
 
@@ -61,6 +63,9 @@ class MultiViewOptimizer:
         v_corr_idxs_dict: AnnotatedGraph[np.ndarray] = {}
         two_view_reports: AnnotatedGraph[TwoViewEstimationReport] = {}
         relative_pose_priors: AnnotatedGraph[PosePrior] = {}
+        # Focal-independent F + two-view config per edge (consumed by the closed-form Fetzer calibration).
+        i2Fi1_dict: Dict[Tuple[int, int], np.ndarray] = {}
+        i2_config_dict: Dict[Tuple[int, int], int] = {}
 
         for ij, result in two_view_results.items():
             i2Ri1_dict[ij] = result.i2Ri1
@@ -69,8 +74,20 @@ class MultiViewOptimizer:
             two_view_reports[ij] = result.post_isp_report
             if result.relative_pose_prior is not None:
                 relative_pose_priors[ij] = result.relative_pose_prior
+            if result.i2Fi1 is not None:
+                i2Fi1_dict[ij] = result.i2Fi1
+            if result.config is not None:
+                i2_config_dict[ij] = result.config
 
-        return i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, two_view_reports, relative_pose_priors
+        return (
+            i2Ri1_dict,
+            i2Ui1_dict,
+            v_corr_idxs_dict,
+            two_view_reports,
+            relative_pose_priors,
+            i2Fi1_dict,
+            i2_config_dict,
+        )
 
     def __init__(
         self,
@@ -81,6 +98,8 @@ class MultiViewOptimizer:
         view_graph_estimator: Optional[ViewGraphEstimatorBase] = None,
         global_positioner: Optional[GlobalPositioner] = None,
         run_view_graph_calibration: bool = False,
+        rescore_inliers: bool = False,
+        run_second_view_graph_estimator: bool = True,
     ) -> None:
         self.view_graph_estimator = view_graph_estimator
         self.rot_avg_module = rot_avg_module
@@ -90,7 +109,8 @@ class MultiViewOptimizer:
         self.global_positioner = global_positioner
         self._run_view_graph_estimator: bool = self.view_graph_estimator is not None
         self._run_view_graph_calibration = run_view_graph_calibration
-
+        self._rescore_inliers = rescore_inliers
+        self._run_second_view_graph_estimator = run_second_view_graph_estimator
         self.view_graph_estimator_v2 = CycleConsistentRotationViewGraphEstimator(
             edge_error_aggregation_criterion=EdgeErrorAggregationCriterion.MEDIAN_EDGE_ERROR
         )
@@ -101,6 +121,9 @@ class MultiViewOptimizer:
             ViewGraphEstimator: {self.view_graph_estimator}
             RotationAveraging: {self.rot_avg_module}
             TranslationAveraging: {self.trans_avg_module}
+            ViewGraphCalibration: {self._run_view_graph_calibration}
+            RescoreInliers: {self._rescore_inliers}
+            SecondViewGraphEstimator: {self._run_second_view_graph_estimator}
         """
 
     def create_computation_graph(
@@ -127,9 +150,15 @@ class MultiViewOptimizer:
             List of GtsfmMetricGroups from different modules, wrapped up as Delayed.
         """
 
-        i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, two_view_reports, pose_priors_graph = delayed(
-            MultiViewOptimizer._extract_two_view_components, nout=5
-        )(two_view_results_graph)
+        (
+            i2Ri1_dict,
+            i2Ui1_dict,
+            v_corr_idxs_dict,
+            two_view_reports,
+            pose_priors_graph,
+            i2Fi1_dict,
+            i2_config_dict,
+        ) = delayed(MultiViewOptimizer._extract_two_view_components, nout=7)(two_view_results_graph)
 
         # Create debug directory.
         debug_output_dir = None
@@ -156,24 +185,23 @@ class MultiViewOptimizer:
                 debug_output_dir,
             )
 
-            # Second view graph estimator expects the same TwoViewResult format
-            # Since ViewGraphEstimatorBase now uses the new signature, we pass two_view_results directly
-            second_debug_output_dir = debug_output_dir / "2" if debug_output_dir else None
-            (
-                viewgraph_i2Ri1_graph,
-                viewgraph_i2Ui1_graph,
-                viewgraph_v_corr_idxs_graph,
-                viewgraph_two_view_reports_graph,
-                viewgraph_estimation_metrics,
-            ) = self.view_graph_estimator_v2.create_computation_graph(
-                viewgraph_i2Ri1_graph,
-                viewgraph_i2Ui1_graph,
-                all_intrinsics,
-                viewgraph_v_corr_idxs_graph,
-                keypoints_graph,
-                viewgraph_two_view_reports_graph,
-                second_debug_output_dir,
-            )
+            if self._run_second_view_graph_estimator:
+                second_debug_output_dir = debug_output_dir / "2" if debug_output_dir else None
+                (
+                    viewgraph_i2Ri1_graph,
+                    viewgraph_i2Ui1_graph,
+                    viewgraph_v_corr_idxs_graph,
+                    viewgraph_two_view_reports_graph,
+                    viewgraph_estimation_metrics,
+                ) = self.view_graph_estimator_v2.create_computation_graph(
+                    viewgraph_i2Ri1_graph,
+                    viewgraph_i2Ui1_graph,
+                    all_intrinsics,
+                    viewgraph_v_corr_idxs_graph,
+                    keypoints_graph,
+                    viewgraph_two_view_reports_graph,
+                    second_debug_output_dir,
+                )
         else:
             viewgraph_i2Ri1_graph = i2Ri1_dict
             viewgraph_i2Ui1_graph = i2Ui1_dict
@@ -181,10 +209,32 @@ class MultiViewOptimizer:
             viewgraph_two_view_reports_graph = two_view_reports
             viewgraph_estimation_metrics = delayed(GtsfmMetricsGroup("view_graph_estimation_metrics", []))
 
+        if self._rescore_inliers:
+            # Re-score inliers per two-view config (GLOMAP ScoreError dispatch): planar/panoramic pairs
+            # keep their homography inliers; uncalibrated pairs are scored against the stored focal-
+            # independent F. Then drop weak pairs (GLOMAP FilterInlierNum=30 / FilterInlierRatio=0.25).
+            viewgraph_v_corr_idxs_graph, viewgraph_i2Ri1_graph, viewgraph_i2Ui1_graph = delayed(
+                rescore_inliers_fundamental, nout=3
+            )(
+                viewgraph_i2Ri1_graph,
+                viewgraph_i2Ui1_graph,
+                viewgraph_v_corr_idxs_graph,
+                keypoints_graph,
+                all_intrinsics,
+                min_inlier_count=30,
+                min_inlier_ratio=0.25,
+                config_dict=i2_config_dict,
+                i2Fi1_dict=i2Fi1_dict,
+            )
+
         # View graph calibration: refine focal lengths from F-matrices
         if self._run_view_graph_calibration:
             all_intrinsics, edges_to_remove = delayed(_calibrate_view_graph_from_lists, nout=2)(
-                viewgraph_v_corr_idxs_graph, keypoints_graph, all_intrinsics
+                viewgraph_v_corr_idxs_graph,
+                keypoints_graph,
+                all_intrinsics,
+                i2Fi1_dict=i2Fi1_dict,
+                config_dict=i2_config_dict,
             )
             # Remove edges with high calibration error
             viewgraph_i2Ri1_graph, viewgraph_i2Ui1_graph, viewgraph_v_corr_idxs_graph = delayed(_filter_edges, nout=3)(
@@ -198,6 +248,7 @@ class MultiViewOptimizer:
                 keypoints_graph,
                 all_intrinsics,
             )
+        if self._run_view_graph_calibration or self._rescore_inliers:
             viewgraph_two_view_reports_graph = delayed(_sync_two_view_reports_after_calibration)(
                 viewgraph_two_view_reports_graph,
                 viewgraph_i2Ri1_graph,
@@ -288,6 +339,127 @@ class MultiViewOptimizer:
         ba_input_graph = delayed(GtsfmData.align_via_sim3_and_transform)(ba_input_graph, gt_wTi_dict)
 
         return ba_input_graph, ba_result_graph, viewgraph_two_view_reports_graph, multiview_optimizer_metrics_graph
+
+
+# pycolmap two-view ConfigurationType values (see gric_verifier.ConfigurationType).
+_PLANAR_CONFIGS = frozenset({4, 5, 6})  # PLANAR / PANORAMIC / PLANAR_OR_PANORAMIC
+_UNCALIBRATED_CONFIG = 3
+
+
+def rescore_inliers_fundamental(
+    i2Ri1_dict: Dict[Tuple[int, int], Rot3],
+    i2Ui1_dict: Dict[Tuple[int, int], Unit3],
+    v_corr_idxs_dict: AnnotatedGraph[np.ndarray],
+    keypoints_list: List[Keypoints],
+    intrinsics: List[gtsfm_types.CALIBRATION_TYPE],
+    max_sampson_error_px: float = 4.0,
+    min_inlier_count: int = 0,
+    min_inlier_ratio: float = 0.0,
+    config_dict: Optional[Dict[Tuple[int, int], int]] = None,
+    i2Fi1_dict: Optional[Dict[Tuple[int, int], np.ndarray]] = None,
+) -> Tuple[AnnotatedGraph[np.ndarray], Dict[Tuple[int, int], Rot3], Dict[Tuple[int, int], Unit3]]:
+    """Re-filter each edge's correspondences against a fundamental matrix, then drop weak pairs.
+
+    Mirrors GLOMAP's ScoreError() dispatch — the F we score against depends on the two-view config:
+      - PLANAR / PANORAMIC (config 4-6): keep the verifier's inliers as-is, since these
+        configurations do not uniquely constrain a fundamental matrix.
+      - UNCALIBRATED (config 3): score against the stored, focal-independent F (`i2Fi1_dict`).
+      - CALIBRATED (config 2) or no config: score against an F rebuilt from the relative pose.
+
+    A match survives if its Sampson distance to F is small AND its epipolar orientation ("signum")
+    agrees with the dominant orientation of that edge's inliers — an oriented-epipolar / cheirality
+    test (GC-RANSAC, GLOMAP). Pairs left with fewer than `min_inlier_count` matches, or below
+    `min_inlier_ratio` of their original matches, are dropped (GLOMAP FilterInlierNum / Ratio).
+
+    Returns the rescored correspondences and the rotation/translation dicts with dropped pairs removed.
+    """
+    from gtsam import EssentialMatrix
+
+    max_sampson_sq = max_sampson_error_px**2
+    rescored: Dict[Tuple[int, int], np.ndarray] = {}
+    total_before = total_after = 0
+
+    for (i1, i2), v_corr_idxs in v_corr_idxs_dict.items():
+        i2Ri1, i2Ui1 = i2Ri1_dict.get((i1, i2)), i2Ui1_dict.get((i1, i2))
+        # Nothing to score (no matches or no relative pose): keep as-is, don't count it.
+        if v_corr_idxs.shape[0] == 0 or i2Ri1 is None or i2Ui1 is None:
+            rescored[(i1, i2)] = v_corr_idxs
+            continue
+        total_before += len(v_corr_idxs)
+
+        # Keep degenerate configurations for pose estimation; exclude them from calibration separately.
+        config = config_dict.get((i1, i2)) if config_dict else None
+        if config in _PLANAR_CONFIGS:
+            rescored[(i1, i2)] = v_corr_idxs
+            total_after += len(v_corr_idxs)
+            continue
+
+        # UNCALIBRATED uses the stored focal-independent F; otherwise rebuild it from the relative
+        # pose: F = K2^-T [t]_x R K1^-1.
+        F = i2Fi1_dict.get((i1, i2)) if (config == _UNCALIBRATED_CONFIG and i2Fi1_dict) else None
+        if F is None:
+            K1, K2 = intrinsics[i1].K(), intrinsics[i2].K()
+            F = np.linalg.inv(K2).T @ EssentialMatrix(i2Ri1, i2Ui1).matrix() @ np.linalg.inv(K1)
+        F = np.asarray(F, dtype=float)
+        if F.shape != (3, 3) or not np.all(np.isfinite(F)) or np.linalg.norm(F) == 0:
+            rescored[(i1, i2)] = v_corr_idxs
+            total_after += len(v_corr_idxs)
+            continue
+        F = F / np.linalg.norm(F)
+        # SVD also handles epipoles at infinity (e.g. rectified stereo).
+        _, _, Vt = np.linalg.svd(F)
+        epipole = Vt[-1]
+
+        pts1 = keypoints_list[i1].coordinates[v_corr_idxs[:, 0]]
+        pts2 = keypoints_list[i2].coordinates[v_corr_idxs[:, 1]]
+        pts1_h = np.column_stack([pts1, np.ones(len(pts1))])
+        pts2_h = np.column_stack([pts2, np.ones(len(pts2))])
+
+        # Sampson distance of every match to F's epipolar geometry (vectorized over all matches).
+        Fx1 = pts1_h @ F.T  # F @ x1, per row
+        Ftx2 = pts2_h @ F  # F^T @ x2, per row
+        x2Fx1 = np.einsum("ij,ij->i", pts2_h, Fx1)
+        denom = Fx1[:, 0] ** 2 + Fx1[:, 1] ** 2 + Ftx2[:, 0] ** 2 + Ftx2[:, 1] ** 2 + 1e-12
+        sampson_inlier = (x2Fx1**2 / denom) < max_sampson_sq
+
+        # Oriented-epipolar (cheirality) test: keep matches whose orientation signum matches the
+        # dominant signum among the Sampson inliers.
+        # Compare complete epipolar lines; a single component vanishes for horizontal stereo.
+        signum = np.einsum("ij,ij->i", Ftx2, np.cross(epipole, pts1_h))
+        n_pos = int(((signum > 0) & sampson_inlier).sum())
+        dominant_positive = n_pos > int(sampson_inlier.sum()) - n_pos
+        keep_mask = sampson_inlier & ((signum > 0) == dominant_positive)
+
+        rescored[(i1, i2)] = v_corr_idxs[keep_mask]
+        total_after += int(keep_mask.sum())
+
+    # Drop pairs left too weak after re-scoring (GLOMAP FilterInlierNum + FilterInlierRatio).
+    filtered_corr, filtered_R, filtered_U = {}, {}, {}
+    num_pairs_removed = 0
+    for (i1, i2), corr in rescored.items():
+        original_count = len(v_corr_idxs_dict.get((i1, i2), []))
+        if len(corr) >= min_inlier_count and len(corr) / max(original_count, 1) >= min_inlier_ratio:
+            filtered_corr[(i1, i2)] = corr
+            if (i1, i2) in i2Ri1_dict:
+                filtered_R[(i1, i2)] = i2Ri1_dict[(i1, i2)]
+            if (i1, i2) in i2Ui1_dict:
+                filtered_U[(i1, i2)] = i2Ui1_dict[(i1, i2)]
+        else:
+            num_pairs_removed += 1
+
+    logger.info(
+        "F-matrix inlier re-scoring: %d → %d correspondences across %d edges (%.1f%% kept). "
+        "Removed %d weak pairs (<%d inliers or <%.0f%% ratio), %d pairs remain.",
+        total_before,
+        total_after,
+        len(v_corr_idxs_dict),
+        100.0 * total_after / max(total_before, 1),
+        num_pairs_removed,
+        min_inlier_count,
+        min_inlier_ratio * 100,
+        len(filtered_corr),
+    )
+    return filtered_corr, filtered_R, filtered_U
 
 
 def _filter_edges(
