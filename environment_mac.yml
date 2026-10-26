@@ -35,7 +35,6 @@ dependencies:
   - scipy
   - seaborn
   # 3rd party algorithms for different modules
-  - kornia>=0.7.3
   - pycolmap==3.11.1
   # io
   - h5py
@@ -50,6 +49,7 @@ dependencies:
   - pip:
       - torch==2.5.1
       - torchvision==0.20.1
+      - kornia>=0.7.3 # Resolve alongside pip's PyTorch instead of pulling a second Conda installation.
       - opencv-python>=4.5.4.60
       - pydegensac
       - colour
