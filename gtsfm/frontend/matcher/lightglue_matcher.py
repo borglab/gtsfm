@@ -11,6 +11,7 @@ References:
 Authors: Travis Driver
 """
 
+from threading import Lock
 from typing import Optional, Tuple
 
 import numpy as np
@@ -30,15 +31,30 @@ class LightGlueMatcher(MatcherBase):
         self._use_cuda = use_cuda
         self._features = features
         self._model: Optional[torch.nn.Module] = None  # Lazy loading - only create when needed
+        self._model_lock = Lock()
+
+    def __getstate__(self):
+        """Exclude the process-local lock when sending this matcher to Dask workers."""
+        state = self.__dict__.copy()
+        state.pop("_model_lock", None)
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self._model_lock = Lock()
 
     def _ensure_model_loaded(self):
         """Lazy loading of the LightGlue model to avoid import warnings when using cache."""
-        if self._model is None:
-            from thirdparty.LightGlue.lightglue.lightglue import LightGlue
+        with self._model_lock:
+            if self._model is None:
+                from thirdparty.LightGlue.lightglue.lightglue import LightGlue
 
-            logger = logger_utils.get_logger()
-            logger.info("⏳ Loading LightGlue model weights...")
-            self._model = LightGlue(features=self._features).eval()
+                logger = logger_utils.get_logger()
+                logger.info("⏳ Loading LightGlue model weights...")
+                device = torch.device("cuda" if self._use_cuda and torch.cuda.is_available() else "cpu")
+                # Publish only a fully initialized model. Concurrent pair matches share it read-only;
+                # moving or replacing it during inference can mix CPU and CUDA parameters.
+                self._model = LightGlue(features=self._features).eval().to(device)
 
     def match(
         self,
@@ -72,8 +88,7 @@ class LightGlueMatcher(MatcherBase):
         self._ensure_model_loaded()
         assert self._model is not None, "Model should be loaded by now"
 
-        device = torch.device("cuda" if self._use_cuda and torch.cuda.is_available() else "cpu")
-        self._model.to(device)
+        device = next(self._model.parameters()).device
 
         if keypoints_i1.responses is None or keypoints_i2.responses is None:
             raise ValueError("Responses for keypoints required for LightGlue.")

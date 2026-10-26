@@ -268,6 +268,26 @@ def generate_rank_by_dino(
     return fps_idx
 
 
+def _predict_vggt_tracks(model: Any, images: torch.Tensor, query_points: torch.Tensor):
+    """Run the VGGT track head, releasing backbone tokens before allocating correlations.
+
+    Call under the same no-grad/autocast context as the model's standard track head.
+    All queries are still processed jointly, preserving the tracker's spatial attention.
+    """
+    aggregated_tokens_list, ps_idx = model.aggregator(images)
+    feature_maps = model.track_head.feature_extractor(aggregated_tokens_list, images, ps_idx)
+    del aggregated_tokens_list
+    if images.is_cuda:
+        # Correlation construction and normalization briefly need two full volumes. Release
+        # unused backbone allocations only under memory pressure; larger GPUs keep their cache.
+        b, frames, _, height, width = feature_maps.shape
+        correlation_bytes = b * frames * query_points.shape[1] * height * width * feature_maps.element_size()
+        free_bytes, _ = torch.cuda.mem_get_info(images.device)
+        if free_bytes < 2 * correlation_bytes:
+            torch.cuda.empty_cache()
+    return model.track_head.tracker(query_points=query_points, fmaps=feature_maps, iters=model.track_head.iters)
+
+
 def _run_vggt_head_tracking(
     geo_output: GeometryTransformerOutput,
     *,
@@ -359,13 +379,7 @@ def _run_vggt_head_tracking(
 
         with torch.no_grad():
             with autocast_ctx:
-                aggregated_tokens_list, ps_idx = model.aggregator(reorder_images[None])
-                track_list, vis_scores, conf_scores = model.track_head(
-                    aggregated_tokens_list,
-                    reorder_images[None],
-                    ps_idx,
-                    query_points=query_points,
-                )
+                track_list, vis_scores, conf_scores = _predict_vggt_tracks(model, reorder_images[None], query_points)
 
         pred_track = track_list[-1]
         pred_track = pred_track.squeeze(0)

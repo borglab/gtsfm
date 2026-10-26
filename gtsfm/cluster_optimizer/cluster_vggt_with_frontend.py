@@ -15,6 +15,7 @@ from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptions
 from gtsfm.cluster_optimizer.cluster_mvo import ClusterMVO
 from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterComputationGraph, ClusterContext
 from gtsfm.cluster_optimizer.cluster_vggt import (
+    _VGGT_PIPELINE_LOCK,
     _aggregate_vggt_metrics,
     _load_vggt_inputs,
     _model_loading_plan,
@@ -76,43 +77,49 @@ def _run_vggt_geometry(
     weights_path: Optional[Path] = None,
     cluster_label: Optional[str] = None,
 ) -> VggtGeometryResult:
-    """Run VGGT geometry prediction, returning cameras and dense 3D points."""
-    torch.manual_seed(seed)
-    np.random.seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)
+    """Run geometry exclusively per worker, including model loading and GPU-to-CPU transfer.
 
-    if cluster_label:
-        logger.info("🔵 Running VGGT geometry on %s with %d images.", cluster_label, image_batch.shape[0])
+    Share the VGGT pipeline guard because both paths mutate the same cached models. CPU
+    correspondence generation, image loading, and bundle adjustment remain outside this guard.
+    Separate worker processes retain independent guards and GPU execution.
+    """
+    with _VGGT_PIPELINE_LOCK:
+        torch.manual_seed(seed)
+        np.random.seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(seed)
 
-    cached_model = _resolve_vggt_model(model_cache_key, loader_kwargs)
-    geo_output = transformer.predict(image_batch, model=cached_model, weights_path=weights_path)
+        if cluster_label:
+            logger.info("🔵 Running VGGT geometry on %s with %d images.", cluster_label, image_batch.shape[0])
 
-    original_coords_np = original_coords.to(torch.float32).cpu().numpy()
-    cameras = {
-        global_idx: torch_utils.camera_from_matrices(
-            geo_output.extrinsic[local_idx].to(torch.float32).cpu().numpy(),
-            geo_output.intrinsic[local_idx].to(torch.float32).cpu().numpy(),
-            crop_coords=original_coords_np[local_idx],
-            # Cal3_S2 keeps fx and fy distinct until _scale_camera_intrinsics. Averaging into
-            # Cal3Bundler happens there, after the per-axis scale, when use_cal3_bundler is set.
-            use_cal3_bundler=False,
+        cached_model = _resolve_vggt_model(model_cache_key, loader_kwargs)
+        geo_output = transformer.predict(image_batch, model=cached_model, weights_path=weights_path)
+
+        original_coords_np = original_coords.to(torch.float32).cpu().numpy()
+        cameras = {
+            global_idx: torch_utils.camera_from_matrices(
+                geo_output.extrinsic[local_idx].to(torch.float32).cpu().numpy(),
+                geo_output.intrinsic[local_idx].to(torch.float32).cpu().numpy(),
+                crop_coords=original_coords_np[local_idx],
+                # Cal3_S2 keeps fx and fy distinct until _scale_camera_intrinsics. Averaging into
+                # Cal3Bundler happens there, after the per-axis scale, when use_cal3_bundler is set.
+                use_cal3_bundler=False,
+            )
+            for local_idx, global_idx in enumerate(image_indices)
+        }
+
+        result = VggtGeometryResult(
+            cameras=cameras,
+            dense_points=geo_output.dense_points.to(torch.float32).cpu().numpy(),
+            depth_confidence=geo_output.depth_confidence.to(torch.float32).cpu().numpy(),
+            original_coords=original_coords_np,
         )
-        for local_idx, global_idx in enumerate(image_indices)
-    }
 
-    result = VggtGeometryResult(
-        cameras=cameras,
-        dense_points=geo_output.dense_points.to(torch.float32).cpu().numpy(),
-        depth_confidence=geo_output.depth_confidence.to(torch.float32).cpu().numpy(),
-        original_coords=original_coords_np,
-    )
+        if geo_output.device.type == "cuda":
+            del geo_output
+            torch.cuda.empty_cache()
 
-    if geo_output.device.type == "cuda":
-        del geo_output
-        torch.cuda.empty_cache()
-
-    return result
+        return result
 
 
 def _scale_camera_intrinsics(
@@ -523,6 +530,13 @@ class ClusterVGGTWithFrontend(ClusterMVO):
             use_multi_view_retriangulation=self._use_multi_view_retriangulation,
             run_bundle_adjustment=self._run_per_cluster_ba,
         )
+
+        # SIFT/depth tracks have geometry and observations, but no RGB. Use the same
+        # loader-resolution images as the frontend, after BA/retriangulation has
+        # finished creating tracks. Share the image map between both exports.
+        images_graph = context.get_delayed_image_map()
+        ba_result_graph = delayed(self._annotate_scene_with_images)(ba_result_graph, images_graph)
+        pre_ba_result_graph = delayed(self._annotate_scene_with_images)(pre_ba_result_graph, images_graph)
 
         # Metrics + I/O.
         cameras_gt = [context.one_view_data_dict[idx].camera_gt for idx in range(context.num_images)]

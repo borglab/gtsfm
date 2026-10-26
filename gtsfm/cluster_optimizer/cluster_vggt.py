@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from threading import Lock
 from typing import Any, Hashable, Optional
 
 import numpy as np
@@ -36,6 +37,10 @@ logger = get_logger()
 
 # Module-level cache to avoid reloading VGGT weights per cluster.
 _VGGT_MODEL_CACHE: dict[Hashable, Any] = {}
+# A worker shares both its model cache and GPU across Dask task threads. Protect the
+# entire pipeline: inference/tracking mutate and offload the model after loading it.
+# This lock is process-local, so separate GPU workers still run independently.
+_VGGT_PIPELINE_LOCK = Lock()
 
 
 # ---------------------------------------------------------------------------
@@ -274,62 +279,64 @@ def _run_vggt_pipeline(
 ) -> GtsfmData:
     """Run VGGT geometry prediction + tracking -> GtsfmData (no BA).
 
-    This is a module-level function for use with ``dask.delayed``.
+    This is a module-level function for use with ``dask.delayed``. Only one pipeline may run
+    per worker process: its cached model is mutable and can be offloaded during tracking.
     """
-    torch.manual_seed(seed)
-    np.random.seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed(seed)
-        torch.cuda.manual_seed_all(seed)
+    with _VGGT_PIPELINE_LOCK:
+        torch.manual_seed(seed)
+        np.random.seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed(seed)
+            torch.cuda.manual_seed_all(seed)
 
-    if cluster_label is not None:
-        logger.info("🔵 Running VGGT on %s with %d images.", str(cluster_label).lower(), image_batch.shape[0])
-    elif image_indices:
-        logger.info("🔵 Running VGGT on %d images for partition %s.", image_batch.shape[0], image_indices)
-    else:
-        logger.info("🔵 Running VGGT on %d images.", image_batch.shape[0])
+        if cluster_label is not None:
+            logger.info("🔵 Running VGGT on %s with %d images.", str(cluster_label).lower(), image_batch.shape[0])
+        elif image_indices:
+            logger.info("🔵 Running VGGT on %d images for partition %s.", image_batch.shape[0], image_indices)
+        else:
+            logger.info("🔵 Running VGGT on %d images.", image_batch.shape[0])
 
-    cached_model = _resolve_vggt_model(model_cache_key, loader_kwargs)
+        cached_model = _resolve_vggt_model(model_cache_key, loader_kwargs)
 
-    # Step 1: Geometry prediction.
-    geo_output = transformer.predict(image_batch, model=cached_model, weights_path=weights_path)
+        # Step 1: Geometry prediction.
+        geo_output = transformer.predict(image_batch, model=cached_model, weights_path=weights_path)
 
-    # Step 2: Optional tracking.
-    tracking_result = None
-    if tracker.config.tracking:
-        tracking_result = tracker.run_tracking(
+        # Step 2: Optional tracking.
+        tracking_result = None
+        if tracker.config.tracking:
+            tracking_result = tracker.run_tracking(
+                geo_output,
+                model=cached_model,
+                image_names=image_names,
+                dataset_dir=dataset_dir,
+            )
+            if geo_output.device.type == "cuda":
+                offload_vggt_model(cached_model)
+
+        # Step 3: Extract point cloud.
+        points_3d, points_rgb = high_confidence_pointcloud(
             geo_output,
-            model=cached_model,
-            image_names=image_names,
-            dataset_dir=dataset_dir,
+            confidence_threshold=transformer.config.confidence_threshold,
+            max_num_points=transformer.config.max_num_points,
         )
+
+        # Step 4: Assemble GtsfmData.
+        gtsfm_data = tracker.build_gtsfm_data(
+            geo_output,
+            original_coords,
+            image_indices=image_indices,
+            image_names=image_names,
+            tracking_result=tracking_result,
+            points_3d=points_3d,
+            points_rgb=points_rgb,
+            cluster_label=cluster_label,
+        )
+
         if geo_output.device.type == "cuda":
-            offload_vggt_model(cached_model)
+            del geo_output
+            torch.cuda.empty_cache()
 
-    # Step 3: Extract point cloud.
-    points_3d, points_rgb = high_confidence_pointcloud(
-        geo_output,
-        confidence_threshold=transformer.config.confidence_threshold,
-        max_num_points=transformer.config.max_num_points,
-    )
-
-    # Step 4: Assemble GtsfmData.
-    gtsfm_data = tracker.build_gtsfm_data(
-        geo_output,
-        original_coords,
-        image_indices=image_indices,
-        image_names=image_names,
-        tracking_result=tracking_result,
-        points_3d=points_3d,
-        points_rgb=points_rgb,
-        cluster_label=cluster_label,
-    )
-
-    if geo_output.device.type == "cuda":
-        del geo_output
-        torch.cuda.empty_cache()
-
-    return gtsfm_data
+        return gtsfm_data
 
 
 def _save_reconstruction_as_text(

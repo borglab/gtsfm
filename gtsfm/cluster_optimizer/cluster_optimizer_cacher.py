@@ -153,6 +153,14 @@ class ClusterOptimizerCacher(ClusterOptimizerBase):
         cached_result = self._load_result_from_cache(context)
         if cached_result is not None:
             cached_graph: Delayed = delayed(lambda r: r, pure=False)(cached_result)
+            from gtsfm.cluster_optimizer.cluster_vggt_with_frontend import ClusterVGGTWithFrontend
+
+            if isinstance(self._optimizer, ClusterVGGTWithFrontend):
+                # Older frontend caches contain geometry without RGB/image metadata.
+                # Repair those on the CPU rather than invalidating expensive geometry.
+                cached_graph = delayed(self._optimizer._annotate_scene_with_images)(
+                    cached_graph, context.get_delayed_image_map()
+                )
             io_tasks: list[Delayed] = [
                 delayed(self._save_cached_result_outputs, pure=False)(cached_graph, context.output_paths.results)
             ]

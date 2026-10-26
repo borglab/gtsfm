@@ -35,6 +35,10 @@ cluster_optimizer:
       matcher_obj:
         _target_: gtsfm.frontend.matcher.twoway_matcher.TwoWayMatcher
         ratio_test_threshold: 0.8
+        # Approximate CPU KD-tree search; set search_method: brute_force for exact neighbors.
+        search_method: flann
+        flann_trees: 4
+        flann_checks: 256
   
   two_view_estimator:
     _target_: gtsfm.two_view_estimator_cacher.TwoViewEstimatorCacher

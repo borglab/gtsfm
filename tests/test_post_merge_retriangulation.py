@@ -15,6 +15,7 @@ from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Point3, Pose3, Rot3
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptions
 from gtsfm.cluster_merging import MergingOptions
 from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm.common.image import Image
 from gtsfm.common.sfm_track import SfmMeasurement, SfmTrack2d
 from gtsfm.scene_optimizer import _run_post_merge_retriangulation
 
@@ -49,6 +50,20 @@ def _make_setup(num_points: int = 24):
 
 
 class TestPostMergeRetriangulation(unittest.TestCase):
+    def test_new_tracks_receive_image_colors_after_retriangulation(self) -> None:
+        scene, tracks_2d, cams, options = _make_setup()
+        # Move all observations onto positive image coordinates for color sampling.
+        for idx in scene.get_valid_camera_indices():
+            scene.add_camera(idx, PinholeCameraCal3Bundler(cams[idx].pose(), Cal3Bundler(100, 0, 0, 100, 100)))
+        shifted_tracks = [
+            SfmTrack2d([SfmMeasurement(m.i, m.uv + 100) for m in track.measurements]) for track in tracks_2d
+        ]
+        images = {idx: Image(np.full((200, 200, 3), [25, 125, 225], dtype=np.uint8)) for idx in range(3)}
+        refined = _run_post_merge_retriangulation(scene, shifted_tracks, options, images_by_index=images)
+        self.assertGreater(refined.number_tracks(), 0)
+        for track in refined.tracks():
+            self.assertEqual((track.r, track.g, track.b), (25, 125, 225))
+
     def test_rebuilds_structure_against_merged_cameras(self) -> None:
         scene, tracks_2d, cams, options = _make_setup()
         refined = _run_post_merge_retriangulation(scene, tracks_2d, options, trackless_cameras=None)
