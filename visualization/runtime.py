@@ -6,9 +6,11 @@ import ast
 import http.client
 import importlib.util
 import json
+import logging
 import os
 import platform
 import re
+import shlex
 import shutil
 import signal
 import ssl
@@ -21,9 +23,10 @@ import time
 import urllib.error
 import urllib.request
 import uuid
+from copy import deepcopy
 import hydra
 from omegaconf import OmegaConf
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
@@ -35,6 +38,8 @@ import yaml
 
 import gtsfm
 from visualization.datasets import resolve_relative_loader_paths
+from visualization import job_history
+from visualization.reconstruction import splat_sources
 
 PACKAGE_ROOT = Path(gtsfm.__file__).resolve().parent
 CONFIG_ROOT = PACKAGE_ROOT / "configs"
@@ -508,9 +513,8 @@ def _display_name(value: str) -> str:
     )
 
 
-@lru_cache(maxsize=1)
 def configuration_schema() -> dict[str, Any]:
-    """Describe supported form fields and choices without importing the full runner."""
+    """Read current config choices so newly added presets appear without a server restart."""
 
     root_configs = _yaml_stem_options(CONFIG_ROOT)
     excluded = {"cluster", "cluster_gpu", "local_scheduler_postgres_remote_cluster"}
@@ -1105,6 +1109,9 @@ class ManagedJob:
     log_tail: list[str] = field(default_factory=list)
     pid: int | None = None
     remote: dict[str, Any] | None = None
+    history_note: str | None = None
+    retry_available: bool = True
+    retry_of: str | None = None
     remote_api_key: str | None = field(default=None, repr=False, compare=False)
     remote_cancel_requested: bool = field(default=False, repr=False, compare=False)
     remote_cancel_dispatched: bool = field(default=False, repr=False, compare=False)
@@ -1125,6 +1132,8 @@ class ManagedJob:
             "log_tail": list(self.log_tail),
             "pid": self.pid,
             "remote": self.remote,
+            "history_note": self.history_note,
+            "retry_available": self.retry_available,
         }
         payload["has_live_preview"] = (Path(self.live_root) / "live_splats.ply").exists()
         payload["has_final_splat"] = any(Path(self.output_root).rglob("gaussian_splats.ply"))
@@ -1134,21 +1143,161 @@ class ManagedJob:
 class JobManager:
     """Own subprocesses started by one browser workspace process."""
 
-    def __init__(self, results_root: Path) -> None:
+    def __init__(self, results_root: Path, *, restore_history: bool = True) -> None:
         self.results_root = results_root.resolve()
         self.results_root.mkdir(parents=True, exist_ok=True)
         self.runtime_root = self.results_root / ".gtsfm"
         self.runtime_root.mkdir(parents=True, exist_ok=True)
         self._jobs: dict[str, ManagedJob] = {}
+        self._retry_jobs: dict[str, str] = {}
         self._lock = threading.RLock()
+        self.history_root = self.runtime_root / "jobs"
+        self._last_history_save: dict[str, float] = {}
+        if restore_history:
+            self._restore_history()
+
+    def _save_job(self, job: ManagedJob, *, required: bool = False, throttle: bool = False) -> None:
+        """Persist transitions immediately, with bounded writes for streaming log updates."""
+        with self._lock:
+            now = time.monotonic()
+            if throttle and now - self._last_history_save.get(job.id, -float("inf")) < 2:
+                return
+            record = {
+                item.name: getattr(job, item.name) for item in fields(ManagedJob)
+                if item.name not in {"process", "remote_api_key", "remote_cancel_requested", "remote_cancel_dispatched"}
+            }
+            try:
+                job_history.write_record(self.history_root, record)
+            except OSError:
+                if required:
+                    raise
+                logging.getLogger(__name__).exception("Unable to save Studio history for %s", job.id)
+            self._last_history_save[job.id] = now
+
+    def _restore_history(self) -> None:
+        records = list(job_history.read_records(self.history_root))
+        # An unreadable manifest must not be overwritten by a partial legacy recovery.
+        known_ids = {path.stem for path in self.history_root.glob("*.json")}
+        records.extend(job_history.recover_legacy_runs(self.results_root, known_ids))
+        allowed = {item.name for item in fields(ManagedJob)} - {
+            "process", "remote_api_key", "remote_cancel_requested", "remote_cancel_dispatched"
+        }
+        for record in records:
+            try:
+                job = ManagedJob(**{key: value for key, value in record.items() if key in allowed})
+            except (TypeError, ValueError):
+                logging.getLogger(__name__).warning("Skipping invalid Studio history record")
+                continue
+            _, tail = job_history.log_excerpt(self.runtime_root / f"{job.id}.log")
+            if tail:
+                job.log_tail = tail
+            if job.status in {"queued", "running"}:
+                job.status = "interrupted"
+                job.history_note = "Studio restarted before recording the outcome. This run was not automatically restarted."
+            if job.remote is not None:
+                job.retry_available = False
+                job.history_note = "Remote run history restored. Re-enter remote credentials in New run to launch again."
+            self._jobs[job.id] = job
+            if job.id not in known_ids:
+                self._save_job(job)
+        for job in sorted(self._jobs.values(), key=lambda item: (item.created_at, item.id)):
+            if job.retry_of:
+                self._retry_jobs[job.retry_of] = job.id
 
     def list(self) -> list[dict[str, Any]]:
         with self._lock:
-            return [job.public() for job in sorted(self._jobs.values(), key=lambda item: item.created_at, reverse=True)]
+            return [job.public() for job in sorted(self._jobs.values(), key=lambda item: (item.created_at, item.id), reverse=True)]
 
     def get(self, job_id: str) -> ManagedJob | None:
         with self._lock:
             return self._jobs.get(job_id)
+
+    def diagnostic_prompt(self, job_id: str) -> str:
+        """Collect the recorded command and full log for a failure diagnosis."""
+        job = self.get(job_id)
+        if job is None:
+            raise KeyError(job_id)
+        log_note = ""
+        if job.remote and job.remote.get("job_id"):
+            endpoint = job.remote["endpoint"].rstrip("/")
+            remote_id = job.remote["job_id"]
+            try:
+                result = self._remote_json(
+                    f"{endpoint}/api/jobs/{remote_id}/diagnostic-prompt", job.remote_api_key or ""
+                )
+                return str(result["prompt"])
+            except (
+                KeyError,
+                ValueError,
+                urllib.error.URLError,
+                http.client.HTTPException,
+                ConnectionError,
+                TimeoutError,
+            ):
+                log_note = "The remote diagnostic report is unavailable; only the cached log tail is included."
+
+        log_path = self.runtime_root / f"{job.id}.log"
+        try:
+            logs = log_path.read_text(encoding="utf-8", errors="replace")
+            log_source = f"Log file: {log_path}"
+        except OSError:
+            logs = "\n".join(job.log_tail)
+            log_source = log_note or "No saved log file is available; showing the cached log tail."
+        command = (
+            shlex.join(job.command)
+            if not job.remote
+            else "No local CLI command: this run was sent to a remote workspace."
+        )
+        # Keep command arguments or log lines containing backticks inside the code block.
+        fence = "`" * max(3, max((len(match[0]) + 1 for match in re.finditer(r"`+", command + logs)), default=3))
+        return (
+            "Please examine this failed GTSFM run and diagnose the root cause. "
+            "Use the CLI command and log output below, explain the evidence, and suggest a concrete fix.\n\n"
+            f"Run: {job.name}\nStatus: {job.status}\nExit code: {job.return_code}\n"
+            f"Error: {job.error or 'Not recorded'}\nOutput directory: {job.output_root}\n\n"
+            f"CLI command used:\n{fence}sh\n{command or 'No command recorded.'}\n{fence}\n\n"
+            f"{log_source}\n{fence}text\n{logs or 'No log output was recorded.'}\n{fence}\n"
+        )
+
+    def retry(self, job_id: str) -> dict[str, Any]:
+        """Start a fresh attempt with saved settings, preserving the failed run and its logs."""
+        with self._lock:
+            job = self.get(job_id)
+            if job is None:
+                raise KeyError(job_id)
+            if job.status not in {"failed", "interrupted"}:
+                raise ValueError("Only failed or interrupted runs can be retried")
+            if not job.retry_available:
+                raise ValueError(job.history_note or "The original run settings are unavailable")
+            # Multiple buttons/tabs must not launch duplicate GPU jobs for one retry.
+            previous_retry = self.get(self._retry_jobs.get(job_id, ""))
+            if previous_retry is not None and previous_retry.status in {"queued", "running"}:
+                return previous_retry.public()
+            for attempt in (job, previous_retry):
+                if attempt is None or attempt.status != "interrupted" or not attempt.pid:
+                    continue
+                try:
+                    os.kill(attempt.pid, 0)
+                except ProcessLookupError:
+                    pass
+                except PermissionError as exc:
+                    raise ValueError(
+                        "The previous process may still be running; Retry is unavailable until it stops"
+                    ) from exc
+                else:
+                    raise ValueError(f"The previous process (PID {attempt.pid}) still exists; stop it before retrying")
+            spec = deepcopy(job.spec)
+            spec.setdefault("name", job.name)
+            if job.remote is not None:
+                spec["api_key"] = job.remote_api_key
+            # Rebuild the command using current code/configs, rather than replaying a stale argv.
+            retried = self.start(spec)
+            self._retry_jobs[job_id] = retried["id"]
+            retry_job = self.get(retried["id"])
+            if retry_job is not None:
+                retry_job.retry_of = job_id
+                self._save_job(retry_job)
+            return retried
 
     def start(self, spec: Mapping[str, Any], *, job_id: str | None = None) -> dict[str, Any]:
         """Start a pipeline, optionally using a caller-provided durable job ID."""
@@ -1184,6 +1333,39 @@ class JobManager:
             args: list[str] = []
             device_env: dict[str, str] = {}
             command = ["remote", f"{endpoint}/api/jobs"]
+        elif spec.get("job_type") == "splat":
+            scene, _ = splat_sources(self.results_root, str(spec.get("scene") or ""))
+            preset = str(spec.get("gaussian_splatting_config_name") or "base_gs")
+            if preset not in _yaml_stem_options(CONFIG_ROOT / "gaussian_splatting"):
+                raise ValueError("Unknown Gaussian splatting preset")
+            steps = int(spec.get("gs_max_steps", 7000))
+            if steps < 1:
+                raise ValueError("Training steps must be positive")
+            devices = [
+                device
+                for device in detect_hardware()["devices"]
+                if device.get("supports_gaussian_splatting") and device.get("status", "available") == "available"
+            ]
+            if not devices:
+                raise ValueError("Gaussian splatting requires a CUDA-capable NVIDIA GPU")
+            device = devices[0]["id"]
+            device_env = {"GTSFM_SELECTED_DEVICE": device, "CUDA_VISIBLE_DEVICES": device.split(":", 1)[1]}
+            command = [
+                sys.executable,
+                "-u",
+                "-m",
+                "gtsfm.splat.runner",
+                "--results_root",
+                str(self.results_root),
+                "--scene",
+                scene.relative_to(self.results_root).as_posix(),
+                "--output_root",
+                str(run_root),
+                "--config_name",
+                preset,
+                "--max_steps",
+                str(steps),
+            ]
         else:
             args, device_env = build_runner_args(spec, run_root)
             command = [sys.executable, "-m", "gtsfm.runner", *args]
@@ -1202,6 +1384,7 @@ class JobManager:
             remote_api_key=api_key if is_remote else None,
         )
         with self._lock:
+            self._save_job(job, required=True)
             self._jobs[job_id] = job
 
         live_root.mkdir(parents=True, exist_ok=True)
@@ -1358,6 +1541,7 @@ class JobManager:
                         job.log_tail.append(f"Uploading {field_name.replace('_', ' ')} to the remote workspace…")
                         job.status = "running"
                         job.updated_at = _utc_now()
+                        self._save_job(job)
                     uploaded = self._remote_upload_directory(
                         endpoint,
                         job.remote_api_key,
@@ -1371,6 +1555,7 @@ class JobManager:
                 job.status = "running"
                 job.updated_at = _utc_now()
                 job.log_tail.append("Starting the remote GPU workspace; the first run may take several minutes…")
+                self._save_job(job)
             remote_spec["execution_target"] = "local"
             created = self._remote_json(f"{endpoint}/api/jobs", job.remote_api_key, payload=remote_spec)
             remote_id = str(created["id"])
@@ -1387,6 +1572,7 @@ class JobManager:
                 if not cancelled:
                     job.status = str(created.get("status", "queued"))
                 job.updated_at = _utc_now()
+                self._save_job(job)
             if cancelled:
                 self._dispatch_remote_cancel(job, background=False)
                 return
@@ -1443,6 +1629,7 @@ class JobManager:
                     job.error = state.get("error")
                     job.return_code = state.get("return_code")
                     job.updated_at = _utc_now()
+                    self._save_job(job, throttle=True)
             if job.status != "cancelled" and remote_status == "completed":
                 if str(job.spec.get("splat_implementation") or "none") != "none":
                     self._remote_download(
@@ -1471,6 +1658,8 @@ class JobManager:
                     job.status = "failed"
                     job.error = f"Remote run failed: {exc}"
                     job.updated_at = _utc_now()
+        finally:
+            self._save_job(job)
 
     def _run(self, job: ManagedJob, env: dict[str, str]) -> None:
         log_path = self.runtime_root / f"{job.id}.log"
@@ -1495,6 +1684,7 @@ class JobManager:
                 if not cancelled:
                     job.status = "running"
                 job.updated_at = _utc_now()
+                self._save_job(job)
             if cancelled:
                 self._terminate_process(process)
             with log_path.open("w", encoding="utf-8") as log_file:
@@ -1507,6 +1697,7 @@ class JobManager:
                         job.log_tail.append(text)
                         del job.log_tail[:-250]
                         job.updated_at = _utc_now()
+                        self._save_job(job, throttle=True)
             return_code = process.wait()
             with self._lock:
                 job.return_code = return_code
@@ -1521,6 +1712,8 @@ class JobManager:
                     job.status = "failed"
                     job.error = str(exc)
                     job.updated_at = _utc_now()
+        finally:
+            self._save_job(job)
 
     @staticmethod
     def _terminate_process(process: subprocess.Popen[str]) -> None:
@@ -1589,6 +1782,8 @@ class JobManager:
                     job.log_tail.append("Modal job cancellation confirmed.")
                     del job.log_tail[:-250]
                     job.updated_at = _utc_now()
+            finally:
+                self._save_job(job)
 
         if background:
             threading.Thread(
@@ -1622,6 +1817,7 @@ class JobManager:
                         "Waiting for Modal to accept the starting job; it will be cancelled immediately afterward."
                     )
             del job.log_tail[:-250]
+            self._save_job(job)
         if process is not None and process.poll() is None:
             self._terminate_process(process)
         elif job.remote is not None:

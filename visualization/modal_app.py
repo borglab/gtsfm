@@ -180,7 +180,7 @@ def gtsfm_gpu_job(job_id: str, spec: dict[str, Any]) -> dict[str, Any]:
             "XDG_CACHE_HOME": f"{WORKSPACE_MOUNT}/cache",
         }
     )
-    manager = JobManager(Path(WORKSPACE_MOUNT) / "results")
+    manager = JobManager(Path(WORKSPACE_MOUNT) / "results", restore_history=False)
     gpu_spec = dict(spec)
     gpu_spec["execution_target"] = "local"
     gpu_spec["hardware"] = "cuda:0"
@@ -246,7 +246,7 @@ class ModalGpuJobManager(JobManager):
     """CPU-side job controller that dispatches only pipelines to a GPU Function."""
 
     def __init__(self, results_root: Path) -> None:
-        super().__init__(results_root)
+        super().__init__(results_root, restore_history=False)
         self._calls: dict[str, str] = {}
         self._preview_versions: dict[str, int] = {}
         self._terminal_reloads: set[str] = set()
