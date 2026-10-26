@@ -43,6 +43,32 @@ class _RecentMatchingRate:
         return (completed - start_completed) / elapsed
 
 
+def _log_matching_progress(completed: int, num_pairs: int, elapsed: float, rate: float | None) -> None:
+    """Log matching progress with recent throughput and an estimated time remaining.
+
+    Args:
+        completed: Number of image pairs whose matches have completed.
+        num_pairs: Total number of image pairs to match.
+        elapsed: Seconds elapsed since matching started.
+        rate: Recent throughput in pairs per second, or None while estimating.
+    """
+    rate_label = f"{rate:.2f} pair/s" if rate is not None else "estimating"
+    if completed == num_pairs:
+        eta = "0s"
+    elif rate is None:
+        eta = "estimating"
+    else:
+        eta = f"{(num_pairs - completed) / rate:.0f}s" if rate > 0 else "unknown"
+    logger.info(
+        "🔵 [frontend] matching %d/%d pairs (%.0fs, recent rate %s, ETA %s)",
+        completed,
+        num_pairs,
+        elapsed,
+        rate_label,
+        eta,
+    )
+
+
 def _detect_and_describe(detector_descriptor: DetectorDescriptorBase, image: Image) -> Tuple[Keypoints, np.ndarray]:
     """Per-image kernel: detect keypoints and compute their descriptors."""
     return detector_descriptor.detect_and_describe(image)
@@ -193,23 +219,7 @@ class DetDescCorrespondenceGenerator(CorrespondenceGeneratorBase):
                 now = time.monotonic()
                 if now - last_progress >= MATCHING_PROGRESS_INTERVAL_SECONDS or not pending:
                     completed = len(putative_corr_idxs_dict)
-                    elapsed = now - match_start
-                    rate = recent_rate.update(completed, now)
-                    rate_label = f"{rate:.2f} pair/s" if rate is not None else "estimating"
-                    if not pending:
-                        eta = "0s"
-                    elif rate is None:
-                        eta = "estimating"
-                    else:
-                        eta = f"{(num_pairs - completed) / rate:.0f}s" if rate > 0 else "unknown"
-                    logger.info(
-                        "🔵 [frontend] matching %d/%d pairs (%.0fs, recent rate %s, ETA %s)",
-                        completed,
-                        num_pairs,
-                        elapsed,
-                        rate_label,
-                        eta,
-                    )
+                    _log_matching_progress(completed, num_pairs, now - match_start, recent_rate.update(completed, now))
                     last_progress = now
 
         # Preserve input ordering regardless of which matches finish first.
