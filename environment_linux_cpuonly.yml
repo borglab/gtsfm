@@ -37,6 +37,9 @@ dependencies:
   - seaborn
   # 3rd party algorithms for different modules
   - pycolmap=3.11.1=cpu*
+  # PyCOLMAP's CPU build does not constrain these dependencies to CPU builds.
+  - colmap=3.11.1=cpu*
+  - ceres-solver=*=cpu*
   # io
   - h5py
   - plotly>=5.0
