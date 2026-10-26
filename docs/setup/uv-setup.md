@@ -1,176 +1,128 @@
 # UV Setup Guide
 
-This guide covers installation of GTSfM using UV, a fast Python package manager.
+GTSFM requires Python 3.12.x (`>=3.12,<3.13`). This guide covers installation with uv, followed by browser and terminal usage. For a named Conda environment, see the [Conda setup guide](conda-setup.md); both methods install the same GTSFM CLI and Studio interface.
 
-## Install UV
+## Prerequisites
+
+Install Git and [uv](https://docs.astral.sh/uv/getting-started/installation/). On Linux or macOS, the uv installer is:
 
 ```bash
-curl -LsSf https://astral.sh/uv/install.sh 
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-## Install System Packages
+Follow the installer's instructions to make `uv` available in your shell. uv can download Python 3.12 when needed.
 
-Before setting up the Python environment, install required system packages:
+Graphviz is optional for process-graph export (`sudo apt-get install graphviz` on Ubuntu or `brew install graphviz` on macOS). Node.js and a JavaScript package manager are needed only when developing the Studio frontend; see the [frontend development instructions](../../README.md#run-gtsfm).
 
-### Linux
+## Prepare the checkout
+
+For a new checkout:
+
 ```bash
-sudo apt-get install nodejs npm graphviz
+git clone https://github.com/borglab/gtsfm.git
+cd gtsfm
 ```
 
-### macOS
+For an existing checkout, open a terminal in its repository root. Initialize the submodules before either installation method below:
+
 ```bash
-brew install node graphviz
+git submodule update --init --recursive
 ```
 
-## Basic Installation
+VGGT and other model implementations are bundled from these submodules when GTSFM is built. uv does not fetch the submodules automatically. Run the remaining setup commands from this directory.
 
-Navigate to the GTSfM directory:
+## Install GTSFM
+
+Choose one of the following methods.
+
+### Install the command-line tool
+
+To use GTSFM without a development environment:
 
 ```bash
-cd path/to/gtsfm
+uv tool install --python 3.12 .
+```
 
-# Clean existing environment (if any)
-rm -rf .venv
+This installs the `gtsfm` command in an isolated tool environment. The explicit Python option selects 3.12 for that environment; see [uv's tool Python version documentation](https://docs.astral.sh/uv/concepts/tools/#python-versions). If your shell cannot find `gtsfm`, run `uv tool update-shell` and open a new terminal.
 
-# Install on Linux for CPU only and macOS
+### Set up a development environment
+
+To work on GTSFM's source code:
+
+```bash
 uv sync --python 3.12
+```
 
-# Install on Linux with CUDA GPU
+This creates or updates `.venv`, installs GTSFM in editable mode, and includes the project's development dependencies. Run commands with `uv run` to use this environment, for example `uv run gtsfm hardware`. There is no need to also install the tool.
+
+## Run GTSFM
+
+The examples below use the installed tool. For a development environment, prefix each command with `uv run`.
+
+Check the command and detected hardware:
+
+```bash
+gtsfm --help
+gtsfm hardware
+```
+
+### Open GTSFM Studio
+
+```bash
+gtsfm run
+```
+
+This starts the local server and opens the browser workspace. Use `gtsfm run --no-browser` to start the server without opening a browser.
+
+### Run a reconstruction from the terminal
+
+Choose a configuration and a loader for your dataset, for example:
+
+```bash
+gtsfm execute -- --dataset_dir /path/to/data --config_name vggt --loader olsson
+```
+
+See the [usage guide](../../README.md#usage-guide-running-3d-reconstruction) for reconstruction options and model-weight setup.
+
+## Optional GPU dependencies
+
+The following commands apply to the development environment. The project's uv source configuration selects CUDA 12.8 PyTorch wheels on Linux and CPU wheels on macOS. The `complete` extra adds xformers on Linux; it is not required simply to use a single CUDA GPU:
+
+```bash
 uv sync --python 3.12 --extra complete
 ```
-##  Install torch-scatter (platform-specific)
-For NVIDIA drivers 550+ (which support CUDA 12.8), 
-use cu128 because that's what PyTorch 2.7.0 was compiled with.
-PyTorch brings its own CUDA runtime, system CUDA version doesn't matter.
+
+For Dask CUDA scheduling across multiple GPUs, add the `multi-gpu` extra:
 
 ```bash
-uv pip install torch-scatter --find-links https://data.pyg.org/whl/torch-2.7.0+cu128.html
-
+uv sync --python 3.12 --extra multi-gpu
 ```
 
-## Multi-GPU Installation (For Distributed Computing)
+These extras can be combined. Include the same `--extra` options in subsequent `uv sync` and `uv run` commands when you need those packages.
 
-If you have multiple GPUs on the same machine and want to use Dask for distributed GPU computing:
+### AnySplat tracking dependencies
+
+AnySplat's tracking stack additionally uses `torch-scatter`. Select a wheel matching the PyTorch and CUDA versions in your environment, as described in the [PyG installation guide](https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html#installation-from-wheels).
+
+Inspect those versions:
 
 ```bash
-# Multiple GPUs per node (e.g., 4x or 8x A100)
-uv sync --python 3.12 --extra complete --extra multi-gpu
+uv run python -c "import torch; print(torch.__version__, torch.version.cuda)"
 ```
 
-This adds `dask-cuda` for GPU-aware distributed scheduling.
-
-### When do you need `--extra multi-gpu`?
-- You have multiple GPUs on the same machine
-- You want to use Dask to distribute work across GPUs
-- You're running on a GPU cluster node
-
-### When you DON'T need it:
-- Single GPU workstation
-- Laptop with one GPU
-- CPU-only machines
-- Multiple machines (handled differently)
-
-## Verify Installation
+For PyTorch 2.7.x built with CUDA 12.8, install the matching wheel into `.venv`:
 
 ```bash
-uv run python -c "import gtsfm; import pydegensac; import torch; import torch_scatter; print('✅ Success')"
+uv pip install --python .venv/bin/python torch-scatter \
+  --find-links https://data.pyg.org/whl/torch-2.7.0+cu128.html
 ```
 
-## Quick Test
+This package is installed separately from the project's declared dependencies; a later `uv sync` may remove it. This is required for AnySplat, not for the basic installation checks above.
 
-Test the installation with a sample dataset:
+## Manage development dependencies
 
-```bash
-uv run ./run --dataset_dir tests/data/set1_lund_door \
---config_name unified_binary.yaml \
---loader olsson \
---num_workers 2 graph_partitioner.max_depth=1
-```
+Use `uv add <package>` to add a project dependency, `uv add --dev <package>` for a development dependency, and `uv remove <package>` to remove one. These commands update `pyproject.toml` and `uv.lock`.
 
-Or run a benchmark:
+After manually editing dependency declarations, run `uv lock` to update the lock file, then `uv sync` to update `.venv`. To upgrade a particular dependency within its constraints, use `uv lock --upgrade-package <package>` followed by `uv sync`.
 
-```bash
-uv run .github/scripts/execute_single_benchmark.sh skydio-8 lightglue 15 colmap-loader 760 true
-```
-
-## Managing Packages with UV
-
-### Adding a new package:
-```bash
-uv add <package-name>
-# Example: uv add numpy
-```
-
-### Adding a development dependency:
-```bash
-uv add --dev <package-name>
-# Example: uv add --dev pytest
-```
-
-### Removing a package:
-```bash
-uv remove <package-name>
-# Example: uv remove numpy
-```
-
-### Installing a package without adding to dependencies:
-```bash
-uv pip install <package-name>
-```
-
-## When to Use `uv lock`
-
-The `uv lock` command updates the lock file (`uv.lock`) without installing packages. Use it when:
-
-- **After manually editing `pyproject.toml`:** When you directly modify dependencies in the configuration file
-- **To update dependencies:** When you want to resolve and lock new versions without installing
-- **In CI/CD pipelines:** To ensure reproducible builds by generating a lock file
-- **Before committing changes:** To update the lock file for team members
-
-```bash
-# Update lock file after editing pyproject.toml
-uv lock
-
-# Update lock file and install packages
-uv lock && uv sync
-```
-
-> **Note:** `uv add` and `uv remove` automatically update the lock file, so you typically don't need to run `uv lock` manually after these commands.
-
-## Running Commands with UV
-
-You have two options for running Python commands with UV:
-
-### Option 1: Activate the Virtual Environment 
-
-Activate the virtual environment once per shell session:
-
-**Linux/macOS:**
-```bash
-source .venv/bin/activate
-```
-
-After activation, you can run commands directly without the `uv run` prefix:
-
-```bash
-# Verify installation
-python -c "import gtsfm; import gtsam; print('hello world')"
-
-```
-
-To deactivate the environment:
-```bash
-deactivate
-```
-
-### Option 2: Use `uv run` Prefix
-
-Prefix Python commands with `uv run` (no activation needed):
-
-```bash
-# Verify installation
-uv run python -c "import gtsfm; import gtsam; print('hello world')"
-
-```
-
-
+For an installation confined to `.venv` without changing the project metadata, use `uv pip install --python .venv/bin/python <package>`. Such packages may be removed by a later sync.

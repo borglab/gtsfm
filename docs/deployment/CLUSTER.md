@@ -17,30 +17,22 @@ GTSfM uses the [SSHCluster](https://docs.dask.org/en/stable/deploying-ssh.html#d
         * Repeat the two steps above on all machines.
     - Note machines should be able to ssh into themselves passwordless e.g. host1 should be able to ssh into host1.
     - If the cluster has 5 machines, then `ssh-copy-id` must be run 5*5=25 times.
-4. Clone gtsfm and follow the main readme file to setup the environment on all nodes in the cluster at an identical path
-    - ```bash
-        git clone --recursive https://github.com/borglab/gtsfm.git
-        conda env create -f environment_linux.yml
-        conda activate gtsfm-v1
-         ```
-5. Log into scheduler and cluster machines to set up conda environment initialize in `bashrc
-    - ` nano ~/.bashrc ` or `code ~/.bashrc `
-    - add `conda activate gtsfm-v1` at the end of `# <<< conda initialize <<<`section
-    - add `export PYTHONPATH="/home/username/gtsfm:$PYTHONPATH"` after `conda activate gtsfm-v1`
-    - Place the whole `# <<< conda initialize <<<` before
-    ```
-    # If not running interactively, don't do anything
-    case $- in
-        *i*) ;;
-        *) return;;
-    esac
-    ```
-
-    - After the above set up, when ssh into another machine, the environment would be automatically `gtsfm-v1`
-    - `which python` and `echo $CONDA_PREFIX` should point to the same envs
-    - *Note: When Dask uses SSH to start workers, it runs a non-interactive shell. So it hits the `return` and never reaches the conda initialization or `PYTHONPATH`.*
-    - *`export PYTHONPATH="/home/username/gtsfm:$PYTHONPATH"` This is not a must, unless you encountered an error importing the `gtsfm` module. When you ran `pip install -e .`, it should have created a link file, but that file (`gtsfm.egg-link`) might be missing.*
-    - *`export PATH="$HOME/miniconda3/bin:$PATH"` This line ensures conda's Python is found first.*
+4. Install the same GTSFM revision and dependencies on every node, with the checkout at an identical absolute path. Follow either the [Conda setup guide](../setup/conda-setup.md) or the **development environment** path in the [uv setup guide](../setup/uv-setup.md), including submodule initialization and an editable installation. Use the same installation method across nodes.
+5. Make that environment's Python available to non-interactive SSH sessions on every node. Dask starts workers through these sessions.
+    - For Conda, initialize Conda in the shell startup file and add `conda activate gtsfm-v1` after its initialization block.
+    - For a uv development environment, add `export PATH="/home/username/gtsfm/.venv/bin:$PATH"`, using the actual absolute checkout path.
+    - Place this environment setup before any early return for non-interactive shells, such as:
+      ```bash
+      case $- in
+          *i*) ;;
+          *) return;;
+      esac
+      ```
+    - From another node, verify the selected interpreter and package import:
+      ```bash
+      ssh username@host 'python -c "import sys, gtsfm; print(sys.executable); print(gtsfm.__file__)"'
+      ```
+      The interpreter must belong to the intended Conda environment or `.venv`. An editable installation makes GTSFM importable without a separate `PYTHONPATH` override.
 
 6. Add the host keys to your `known_hosts` file.
     - On  cluster machine, run the following commands in  terminal.
@@ -65,9 +57,9 @@ GTSfM uses the [SSHCluster](https://docs.dask.org/en/stable/deploying-ssh.html#d
 
 9. edit the config file `cluster.yaml`
 
-9. Run gtsfm with `--cluster_config` flag enabled, for example
+9. Run GTSFM using the selected environment (activate Conda, or use `uv run gtsfm` for a uv development environment) with `--cluster_config`, for example
     - ```
-      ./run --loader colmap --dataset_dir /home/username/gtsfm/skydio-32 --config_name sift_front_end.yaml --cluster_config cluster.yaml
+      gtsfm execute -- --loader colmap --dataset_dir /home/username/gtsfm/skydio-32 --config_name sift_front_end.yaml --cluster_config cluster.yaml
       ```
     - Always provide absolute paths for all directories
 
@@ -92,7 +84,7 @@ Or you can take advantage of the vs-code port, in the scheduler machine to check
 - Slurm would automatically set up `CUDA_VISIBLE_DEVICES`
 - Memory settings should be slightly less than allocation per GPU to leave headroom
 
-- check result by `./viz ` on log in node, not on computation node
+- check results with `gtsfm viz` (or `uv run gtsfm viz`) on log in node, not on computation node
 
 ### Cluster Workflow, on `gtsfm/runner.py`
 
