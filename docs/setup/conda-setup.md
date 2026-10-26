@@ -36,7 +36,7 @@ conda activate gtsfm-v1
 
 If you already have a compatible environment, activate it instead. Use `python --version` to check that it runs Python 3.12.x. Keep the environment activated for the commands below, and activate it again in new terminals.
 
-This guide installs dependencies from `pyproject.toml` rather than the separate `environment_*.yml` recipes. Those recipes currently differ from the package metadata: the Linux recipe pins an older PyTorch stack, the CPU recipe references Python 3.10 wheels despite selecting Python 3.12, and the macOS recipe includes CUDA-specific packages.
+This guide installs dependencies from `pyproject.toml` rather than the separate `environment_*.yml` recipes. Those recipes pin PyTorch 2.5.1 and are not identical to the package metadata. The examples below use PyTorch 2.7.1.
 
 ### Select PyTorch
 
