@@ -6,6 +6,25 @@ from pathlib import Path
 from visualization.photos import ScenePhotos
 
 
+def result_revision(paths: list[Path | None]) -> str:
+    """Identify a result's current geometry, metadata, and splats without reading their contents.
+
+    Args:
+        paths: Ordered result files, including optional or missing files.
+
+    Returns:
+        A cache revision that changes when any file's timestamp or size changes.
+    """
+    stamps = []
+    for path in paths:
+        try:
+            stat = path.stat() if path is not None else None
+        except FileNotFoundError:
+            stat = None
+        stamps.append(f"{stat.st_mtime_ns}:{stat.st_size}" if stat is not None else "missing")
+    return "-".join(stamps)
+
+
 @lru_cache(maxsize=512)
 def _point_count(path: Path, modified: int, size: int) -> int:
     del modified, size  # Invalidate cached counts when a result changes.

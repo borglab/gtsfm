@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Image as ImageIcon, Maximize2, X } from "lucide-react";
 
+import { useViewerApi } from "./viewer-context";
+
 export interface ScenePhoto {
   name: string;
   thumbnail: string | null;
@@ -18,6 +20,7 @@ const ROW_HEIGHT = 164;
 const EMPTY: PhotoState = { items: [], selected: 0, loading: false };
 
 export function PhotoPanel() {
+  const { viewer } = useViewerApi();
   const [state, setState] = useState<PhotoState>(EMPTY);
   const [collapsed, setCollapsed] = useState(false);
   const [scrollTop, setScrollTop] = useState(0);
@@ -27,12 +30,11 @@ export function PhotoPanel() {
   const dialog = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
-    const update = (event: Event) => setState((event as CustomEvent<PhotoState>).detail);
-    window.addEventListener("gtsfm-photo-state", update);
-    const initial = window.gtsfmViewer?.getPhotoState();
-    if (initial) setState(initial);
-    return () => window.removeEventListener("gtsfm-photo-state", update);
-  }, []);
+    if (!viewer) { setState(EMPTY); return; }
+    const unsubscribe = viewer.subscribePhotos(setState);
+    setState(viewer.getPhotoState());
+    return unsubscribe;
+  }, [viewer]);
 
   useEffect(() => {
     const element = list.current;
@@ -64,7 +66,7 @@ export function PhotoPanel() {
   // Only the visible rows and two neighbors exist in the DOM, even for large runs.
   const start = Math.max(0, Math.min(state.items.length - 1, Math.floor(scrollTop / ROW_HEIGHT) - 2));
   const end = Math.min(state.items.length, start + Math.ceil(height / ROW_HEIGHT) + 4);
-  const select = (index: number) => window.gtsfmViewer?.selectCamera(index);
+  const select = (index: number) => viewer?.selectCamera(index);
   return <>
     <aside className={`photo-panel${collapsed ? " photo-panel-collapsed" : ""}`} aria-label="Reconstruction photos">
       <header className="photo-panel-header">

@@ -31,7 +31,7 @@ from starlette.websockets import WebSocketDisconnect
 from visualization.datasets import IMAGE_SUFFIXES
 from visualization.modal_deployment import ModalDeploymentManager, modal_workspace_api_key
 from visualization.photos import ScenePhotos
-from visualization.reconstruction import point_count, splat_count
+from visualization.reconstruction import point_count, result_revision, splat_count
 from visualization.runtime import (
     JobManager,
     configuration_parameter_schema,
@@ -357,6 +357,7 @@ def discover_results(base_dir: Path) -> dict[str, Any]:
                 "rel_path": rel,
                 "point_count": count,
                 "modified_at": points_file.stat().st_mtime,
+                "revision": result_revision([points_file, images_file, parent / "cameras.txt", splats_path]),
                 "camera_count": camera_count,
                 "can_splatify": camera_count > 0 and (parent / "cameras.txt").is_file(),
                 "points": f"/data/{quote(rel)}/points3D.txt",
@@ -378,6 +379,7 @@ def discover_results(base_dir: Path) -> dict[str, Any]:
                 "kind": "splat",
                 "splat_count": count,
                 "modified_at": splats_file.stat().st_mtime,
+                "revision": result_revision([splats_file]),
                 "label": rel_splat,
                 "rel_path": rel_splat,
                 "points": None,

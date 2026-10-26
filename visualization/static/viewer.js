@@ -61,6 +61,7 @@ class ColmapViewer {
     this.photoError = "";
     this.photoAbort = null;
     this.photoTextures = new Map();
+    this.photoListeners = new Set();
     this.photoTextureLimit = 48;
     this.photoVisibleLimit = 32;
     this.photoGeneration = 0;
@@ -77,21 +78,18 @@ class ColmapViewer {
     this.ptSize = 2;
     this.showCams = true;
 
-    this.statsRoot = null;
-    this.statsEls = null;
     this.pointsCount = 0;
     this.cameraCount = 0;
     this.currentImageName = "";
     this.statsVisible = true;
-    this.loadingEls = null;
-    this.hudRoot = null;
+    this.loading = { active: false, message: "", progress: 0, compact: false };
+    this.stateListeners = new Set();
     this.resourceCache = new Map();
     this.resourceCacheLimit = 8;
     this.parsedPointsCache = new Map();
     this.parsedCamsCache = new Map();
     this.parsedCacheLimit = 4;
     this._busyState = null;
-    this._busyListeners = new Set();
     this.overlayTheme = "dark";
     this.setOverlayTheme(this.overlayTheme);
     this._restorePreferences();
@@ -99,7 +97,8 @@ class ColmapViewer {
     this.scene.onBeforeRenderObservable.add(() => this._updateCameraClipping());
     this.camera.onAfterCheckInputsObservable.add(() => this._updateOrthographicBounds());
     this.engine.runRenderLoop(() => this.scene.render());
-    window.addEventListener("resize", () => this.engine.resize());
+    this.onResize = () => this.engine.resize();
+    window.addEventListener("resize", this.onResize);
     // Sidebar collapse changes the canvas size without a window resize.
     this.resizeObserver = new ResizeObserver(() => { this.engine.resize(); this._updateCameraFov(); });
     this.resizeObserver.observe(canvas);
@@ -177,9 +176,7 @@ class ColmapViewer {
   setOrthographicProjection(orthographic) {
     this.camera.mode = orthographic ? BABYLON.Camera.ORTHOGRAPHIC_CAMERA : BABYLON.Camera.PERSPECTIVE_CAMERA;
     this._updateOrthographicBounds();
-    const button = document.getElementById?.("orthographicBtn");
-    button?.setAttribute("aria-pressed", String(orthographic));
-    button?.classList.toggle("is-active", orthographic);
+    this._emitState();
   }
 
   setBackground(theme) {
@@ -229,6 +226,7 @@ class ColmapViewer {
   setGroundVisible(value) {
     this.showGround = !!value;
     this._setIdleGroundVisible(this.groundAvailable);
+    this._emitState();
     return this.showGround;
   }
 
@@ -255,11 +253,13 @@ class ColmapViewer {
     if (this.groundGrid) this.groundGrid.color = gridColor;
     if (this.groundAxes) this.groundAxes.color = axesColor;
     for (const mesh of this.cameraLineMeshes ?? []) mesh.color = cameraColor.clone();
+    this._emitState();
   }
 
   setPointSize(px) {
     this.ptSize = Math.max(0.5, Math.min(5, px));
     if (this.pointsMesh?.material) this.pointsMesh.material.pointSize = this.ptSize;
+    this._emitState();
   }
 
   setGroundY(value) {
@@ -267,12 +267,14 @@ class ColmapViewer {
     if (!Number.isFinite(next)) return this.groundY;
     this.groundY = Math.max(-5, Math.min(5, next));
     if (this.idleGround) this.idleGround.position.y = this.groundY;
+    this._emitState();
     return this.groundY;
   }
 
   setShowCams(v) {
     this.showCams = v;
     this.frustumGroup.setEnabled(!!v);
+    this._emitState();
     this._syncCameraVisuals();
   }
 
@@ -289,67 +291,55 @@ class ColmapViewer {
     this._updatePhotoTextures();
   }
 
-  setStatsElements(statsEls) {
-    if (!statsEls) {
-      this.statsRoot = null;
-      this.statsEls = null;
-      return;
-    }
-    const {
-      root,
-      cameraCount,
-      pointCount,
-      imageName,
-      splatCount,
-      sceneGroup,
-      splatGroup,
-    } = statsEls;
-    this.statsRoot = root ?? null;
-    this.statsEls = {
-      cameraCount: cameraCount ?? null,
-      pointCount: pointCount ?? null,
-      imageName: imageName ?? null,
-      splatCount: splatCount ?? null,
-      sceneGroup: sceneGroup ?? null,
-      splatGroup: splatGroup ?? null,
+  onFirstFrame(listener) { this.scene.onAfterRenderObservable.addOnce(listener); }
+
+  // Plain snapshots form the boundary with React; the renderer never mutates UI DOM.
+  getState() {
+    return {
+      busy: this.isBusy(), mode: this.mode, background: this.overlayTheme,
+      orthographic: this.camera.mode === BABYLON.Camera.ORTHOGRAPHIC_CAMERA,
+      showGround: this.showGround, groundY: this.groundY, showCams: this.showCams,
+      pointSize: this.ptSize, statsVisible: this.statsVisible,
+      points: this.pointsCount, cameras: this.cameraCount, splats: this.splatsPointCount,
+      imageName: this.currentImageName, aligned: !!this.alignmentRotation,
+      alignmentMessage: this.alignmentMessage || "", loading: { ...this.loading },
     };
-    this._applyStatsVisibility();
-    this._renderStats();
-    this._setLoadingState({ active: false });
   }
 
-  setHudElement(hudRoot) {
-    this.hudRoot = hudRoot ?? null;
-    this._applyHudMode();
+  subscribe(listener) {
+    this.stateListeners.add(listener);
+    return () => this.stateListeners.delete(listener);
   }
 
-  setLoadingElements(loadingEls) {
-    if (!loadingEls) {
-      this.loadingEls = null;
-      return;
-    }
-    const { overlay, bar, message } = loadingEls;
-    this.loadingEls = {
-      overlay: overlay ?? null,
-      bar: bar ?? null,
-      message: message ?? null,
-    };
-    this._setLoadingState({ active: false, progress: 0 });
+  _emitState() {
+    if (!this.stateListeners?.size || this.stateUpdateQueued || this.disposed) return;
+    this.stateUpdateQueued = true;
+    queueMicrotask(() => {
+      this.stateUpdateQueued = false;
+      if (!this.disposed) for (const listener of this.stateListeners) listener(this.getState());
+    });
+  }
+
+  dispose() {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.stateListeners.clear();
+    this.photoListeners.clear();
+    this._busyState = null;
+    void this._clear();
+    window.removeEventListener("resize", this.onResize);
+    this.resizeObserver.disconnect();
+    window.clearInterval(this.photoTimer);
+    this.resourceCache.clear();
+    this.parsedPointsCache.clear();
+    this.parsedCamsCache.clear();
+    this.engine.stopRenderLoop();
+    this.scene.dispose();
+    this.engine.dispose();
   }
 
   isBusy() {
     return !!this._busyState;
-  }
-
-  onBusyChange(listener) {
-    if (typeof listener !== "function") return () => {};
-    this._busyListeners.add(listener);
-    try {
-      listener(this.isBusy(), this._busyState?.reason ?? null);
-    } catch (err) {
-      console.warn("Busy listener threw on registration:", err);
-    }
-    return () => this._busyListeners.delete(listener);
   }
 
   _beginBusy(reason = null) {
@@ -368,17 +358,7 @@ class ColmapViewer {
     this._notifyBusyChange();
   }
 
-  _notifyBusyChange() {
-    const busy = this.isBusy();
-    const reason = this._busyState?.reason ?? null;
-    for (const listener of this._busyListeners) {
-      try {
-        listener(busy, reason);
-      } catch (err) {
-        console.warn("Busy listener threw:", err);
-      }
-    }
-  }
+  _notifyBusyChange() { this._emitState(); }
 
   setStatsVisible(value) {
     this.statsVisible = !!value;
@@ -393,78 +373,16 @@ class ColmapViewer {
     return this.statsVisible;
   }
 
-  _applyStatsVisibility() {
-    if (!this.statsRoot) return;
-    this.statsRoot.style.display = this.statsVisible ? "" : "none";
-  }
-
-  _applyStatsMode() {
-    if (!this.statsEls) return;
-    const { sceneGroup, splatGroup } = this.statsEls;
-    const showScene = this.mode !== "splat";
-    const showSplats = this.mode === "splat";
-    if (sceneGroup) sceneGroup.style.display = showScene ? "grid" : "none";
-    if (splatGroup) splatGroup.style.display = showSplats ? "grid" : "none";
-  }
-
-  _applyHudMode() {
-    if (!this.hudRoot) return;
-    this.hudRoot.classList.remove("hud-hidden");
-    this.hudRoot.classList.toggle("hud-splat-mode", this.mode === "splat");
-  }
-
-  _renderStats() {
-    if (!this.statsEls) return;
-    this._applyStatsVisibility();
-    this._applyStatsMode();
-
-    const fmt = (value) => (typeof value === "number" && !Number.isNaN(value) ? value.toLocaleString() : "—");
-    const { cameraCount, pointCount, imageName, splatCount } = this.statsEls;
-
-    if (this.mode === "splat") {
-      if (splatCount) {
-        const text = this.splatsPointCount ? fmt(this.splatsPointCount) : "0";
-        splatCount.textContent = text;
-      }
-      return;
-    }
-
-    if (pointCount) {
-      const text = this.pointsCount ? fmt(this.pointsCount) : "0";
-      pointCount.textContent = text;
-    }
-    if (cameraCount) {
-      const text = this.cameraCount ? fmt(this.cameraCount) : "0";
-      cameraCount.textContent = text;
-    }
-    if (imageName) {
-      imageName.textContent = this.currentImageName || "—";
-    }
-    if (splatCount) {
-      const text = this.splatsPointCount ? fmt(this.splatsPointCount) : "0";
-      splatCount.textContent = text;
-    }
-  }
+  _applyStatsVisibility() { this._emitState(); }
+  _applyHudMode() { this._emitState(); }
+  _renderStats() { this._emitState(); }
 
   _setLoadingState({ active = null, message = null, progress = null, compact = false } = {}) {
-    if (!this.loadingEls) return;
-    const { overlay, bar, message: msgEl } = this.loadingEls;
-    if (overlay && active !== null) {
-      if (active) {
-        overlay.classList.toggle("compact", compact);
-        overlay.classList.add("active");
-      } else {
-        overlay.classList.remove("active");
-      }
-    }
-    if (msgEl && message !== null) {
-      msgEl.textContent = message;
-    }
-    if (bar && progress !== null && Number.isFinite(progress)) {
-      const clamped = Math.max(0, Math.min(1, progress));
-      bar.style.width = `${clamped * 100}%`;
-      bar.setAttribute("aria-valuenow", String(Math.round(clamped * 100)));
-    }
+    this.loading = { ...this.loading };
+    if (active !== null) { this.loading.active = active; this.loading.compact = compact; }
+    if (message !== null) this.loading.message = message;
+    if (progress !== null && Number.isFinite(progress)) this.loading.progress = Math.max(0, Math.min(1, progress));
+    this._emitState();
   }
 
   _updateLoadingProgress(progress) {
@@ -476,6 +394,7 @@ class ColmapViewer {
   }
 
   async loadScene({ pointsUrl, imagesUrl, camerasUrl = null, scenePath = null, splatsUrl = null }) {
+    if (this.disposed) return false;
     const busyToken = this._beginBusy("scene");
     await this._clear();
     if (this._busyState?.token !== busyToken) return false;
@@ -603,11 +522,13 @@ class ColmapViewer {
   }
 
   async loadSplatsFile({ splatsUrl, label = "", streamId = null }) {
+    if (this.disposed) return false;
     // Keep a usable preview and the user's viewpoint while the next version downloads.
     const refreshing = !!(streamId && streamId === this._splatStreamId && this.mode === "splat" && this.splatsMesh);
     const busyToken = this._beginBusy("splat");
     try {
       if (!refreshing) await this._clear();
+      if (this.disposed || this._busyState?.token !== busyToken) return false;
       this._splatStreamId = streamId;
       this._setIdleGroundVisible(true);
       this.mode = "splat";
@@ -662,6 +583,7 @@ class ColmapViewer {
   }
 
   async _clear() {
+    this.splatAbort?.abort();
     this._sceneLoadAbort?.abort();
     this._sceneLoadAbort = null;
     this._pointStream = null;
@@ -997,8 +919,12 @@ class ColmapViewer {
 
     updateLoading({ active: true, compact: true, message: "Updating splat view…", progress: 0 });
 
+    this.splatAbort?.abort();
+    const controller = new AbortController();
+    this.splatAbort = controller;
     const promise = (async () => {
       const buffer = await this._fetchResource(this.splatsUrl, "arrayBuffer", {
+        signal: controller.signal,
         cache: "no-store",
         cacheResult: false,
       });
@@ -1591,8 +1517,13 @@ class ColmapViewer {
     return { items: this.photoItems, selected: this.camIndex ?? 0, loading: this.photoLoading, error: this.photoError };
   }
 
+  subscribePhotos(listener) {
+    this.photoListeners.add(listener);
+    return () => this.photoListeners.delete(listener);
+  }
+
   _emitPhotoState() {
-    window.dispatchEvent(new CustomEvent("gtsfm-photo-state", { detail: this.getPhotoState() }));
+    for (const listener of this.photoListeners ?? []) listener(this.getPhotoState());
   }
 
   async _loadPhotos(scenePath) {
@@ -1810,13 +1741,8 @@ class ColmapViewer {
   }
 
   _updateAlignmentControl(message = "") {
-    const button = document.getElementById?.("alignZUpBtn");
-    if (button) {
-      button.textContent = this.alignmentRotation ? "Reset Z-up" : "Align Z-up";
-      button.setAttribute("aria-pressed", String(!!this.alignmentRotation));
-    }
-    const status = document.getElementById?.("alignmentStatus");
-    if (status) { status.textContent = message; status.hidden = !message; }
+    this.alignmentMessage = message;
+    this._emitState();
   }
 
   _robustBounds(points) {
@@ -1955,336 +1881,9 @@ class ColmapViewer {
   }
 }
 
-// ------------------- app bootstrap -------------------
-
-function resultsForRun(items, baseDir, runRoot) {
-  const normalize = (path) => path.replaceAll("\\", "/").replace(/\/+$/, "");
-  const base = normalize(baseDir);
-  const root = normalize(runRoot);
-  if (root !== base && !root.startsWith(`${base}/`)) return [];
-  const relativeRoot = root === base ? "" : root.slice(base.length + 1);
-  return items.filter((item) => !relativeRoot || item.rel_path === relativeRoot || item.rel_path.startsWith(`${relativeRoot}/`));
-}
-
-function preferredRunResult(items) {
-  // Prefer the final root reconstruction over per-cluster results and BA diagnostics.
-  const sceneFolders = ["merged_retriangulated", "merged", "ba_output", "vggt", "anysplat"];
-  const rank = (item) => {
-    if (item.kind === "splat") return 0;
-    const parts = item.rel_path.split("/");
-    const stage = sceneFolders.indexOf(parts.at(-1));
-    return stage < 0 ? Infinity : 1 + parts.length * sceneFolders.length + stage;
-  };
-  return items.filter((item) => Number.isFinite(rank(item))).sort((a, b) => rank(a) - rank(b))[0];
-}
-
-async function boot() {
-  const info = document.getElementById("info");
-  const infoCountEl = info?.querySelector('[data-role="count"]') ?? null;
-  const infoTitleEl = info?.querySelector('[data-role="title"]') ?? null;
-  const infoPathEl = info?.querySelector('[data-role="path"]') ?? null;
-  const listEl = document.getElementById("sceneList");
-  const filterEl = document.getElementById("filter");
-  const canvas = document.getElementById("renderCanvas");
-  const viewer = new ColmapViewer(canvas);
-  viewer.scene.onAfterRenderObservable.addOnce(() => window.dispatchEvent(new Event("gtsfm-first-frame")));
-  window.gtsfmViewer = viewer;
-  window.dispatchEvent(new CustomEvent("gtsfm-viewer-ready", { detail: viewer }));
-  const statsRoot = document.getElementById("sceneStats");
-  viewer.setStatsElements({
-    root: statsRoot,
-    cameraCount: document.getElementById("statCameras"),
-    pointCount: document.getElementById("statPoints"),
-    imageName: document.getElementById("statImageName"),
-    splatCount: document.getElementById("statSplats"),
-    sceneGroup: statsRoot?.querySelector('[data-mode="scene"]') ?? null,
-    splatGroup: statsRoot?.querySelector('[data-mode="splat"]') ?? null,
-  });
-  viewer.setLoadingElements({
-    overlay: document.getElementById("loadingOverlay"),
-    bar: document.getElementById("loadingProgress"),
-    message: document.getElementById("loadingMessage"),
-  });
-  viewer.setHudElement(document.getElementById("hud"));
-
-  const updateInteractionLock = (busy) => {
-    listEl.classList.toggle("is-disabled", !!busy);
-    if (filterEl) filterEl.disabled = !!busy;
-  };
-  viewer.onBusyChange((busy) => updateInteractionLock(busy));
-  updateInteractionLock(viewer.isBusy());
-
-  const setInfoState = ({ count, title, path, isError = false }) => {
-    if (!info) return;
-    info.classList.toggle("info-error", !!isError);
-    if (infoCountEl && typeof count !== "undefined" && count !== null) {
-      infoCountEl.textContent = `${count}`;
-    }
-    if (infoTitleEl && typeof title !== "undefined" && title !== null) {
-      infoTitleEl.textContent = title;
-    }
-    if (infoPathEl && typeof path !== "undefined" && path !== null) {
-      infoPathEl.textContent = path;
-      infoPathEl.title = path;
-    }
-  };
-
-  setInfoState({
-    count: "…",
-    title: "Loading reconstructions",
-    path: "Fetching data from server…",
-    isError: false,
-  });
-
-  let allItems = [];
-  let directoryModifiedAt = {};
-  const collapsedDirectories = new Set();
-  const searchParams = new URLSearchParams(window.location.search);
-  const requestedRun = searchParams.get("run");
-
-  try {
-    const data = await fetch("/api/scenes").then(r => r.ok ? r.json() : Promise.reject(`Fetch failed: ${r.status} ${r.statusText}`.trim()));
-    directoryModifiedAt = data.directory_modified_at || {};
-    const items = requestedRun ? resultsForRun(data.items, data.base_dir, requestedRun) : data.items;
-    const count = items.length;
-    const countLabel = count === 0 ? "0" : count.toLocaleString();
-    const noun = count === 1 ? "item" : "items";
-    const title = count === 0 ? (requestedRun ? "No results found for this run" : "No items found") : `${countLabel} ${noun} ${requestedRun ? "in this run" : "ready to explore"}`;
-    const baseDir = data.base_dir || "—";
-    setInfoState({
-      count: countLabel,
-      title,
-      path: requestedRun ? `Run directory: ${requestedRun}` : `Base directory: ${baseDir}`,
-      isError: Boolean(requestedRun && count === 0),
-    });
-    allItems = items.map((item, index) => ({ ...item, originalIndex: index }));
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    setInfoState({
-      count: "!",
-      title: "Error loading reconstruction data",
-      path: message || "Please check the server logs.",
-      isError: true,
-    });
-    console.error(error);
-    return;
-  }
-
-  const buildTree = (items) => {
-    const tree = {};
-    items.forEach(item => {
-      const parts = item.rel_path.split('/');
-      let cur = tree;
-      parts.forEach((part, i) => {
-        if (!cur[part]) cur[part] = {};
-        const directoryTime = directoryModifiedAt[parts.slice(0, i + 1).join('/')];
-        if (Number.isFinite(directoryTime)) cur[part].__modifiedAt = directoryTime;
-        else if (Number.isFinite(item.modified_at)) {
-          cur[part].__modifiedAt = Math.max(cur[part].__modifiedAt ?? -Infinity, item.modified_at);
-        }
-        if (i === parts.length - 1) {
-          cur[part].__isLeaf = true;
-          cur[part].__item = item;
-        }
-        cur = cur[part];
-      });
-    });
-    return tree;
-  };
-
-  const escapeHtml = (value) => String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-
-  const modificationTime = (seconds) => {
-    const modified = typeof seconds === "number" ? new Date(seconds * 1000) : null;
-    return modified && Number.isFinite(modified.getTime())
-      ? `<time class="result-modified" datetime="${modified.toISOString()}" title="${escapeHtml(modified.toString())}">Modified ${escapeHtml(modified.toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", second: "2-digit" }))}</time>`
-      : '<small class="result-modified">Modification time unavailable</small>';
-  };
-
-  const renderTree = (node, parentParts = [], forceExpanded = false) => {
-    let html = '<ul>';
-    // Show this cluster's reconstructions before descending into child clusters.
-    const sortedKeys = Object.keys(node).filter(key => !key.startsWith('__')).sort((a, b) =>
-      Number(Boolean(node[b].__isLeaf)) - Number(Boolean(node[a].__isLeaf)) ||
-      (node[b].__modifiedAt || 0) - (node[a].__modifiedAt || 0) || (a < b ? -1 : a > b ? 1 : 0)
-    );
-    for (const key of sortedKeys) {
-      if (key.startsWith('__')) continue;
-      const child = node[key];
-      if (child.__isLeaf) {
-        const item = child.__item;
-        const finalFolderName = item.rel_path.split('/').pop() || item.label;
-        const exportControls = item.splat_rel_path ? `
-              <div class="result-splat-download" data-export-path="${encodeURIComponent(item.splat_rel_path)}">
-                <span class="splat-format-label">.PLY</span>
-                <a href="/api/splats/export?path=${encodeURIComponent(item.splat_rel_path)}&format=ply" download>Download</a>
-              </div>` : "";
-        html += `
-          <li>
-            <div class="item" data-idx="${item.originalIndex}" data-kind="${item.kind || "scene"}">
-              <div title="${escapeHtml(item.rel_path)}">${escapeHtml(finalFolderName)}</div>
-              <small class="result-counts">${item.kind === "splat" ? (item.splat_count == null ? "Gaussian splats" : `${Number(item.splat_count).toLocaleString()} splats`) : `${Number(item.point_count || 0).toLocaleString()} points · ${Number(item.camera_count || 0).toLocaleString()} cameras`}</small>
-              ${modificationTime(child.__modifiedAt)}
-              ${item.can_splatify ? '<button type="button" class="text-button result-splatify">Splatify</button>' : ""}
-              ${exportControls}
-            </div>
-          </li>`;
-      } else {
-        const directoryParts = [...parentParts, key];
-        const directoryPath = directoryParts.join("/");
-        const isCollapsed = !forceExpanded && collapsedDirectories.has(directoryPath);
-        html += `
-          <li class="directory-branch${isCollapsed ? " is-collapsed" : ""}">
-            <button class="directory-node" type="button" data-directory="${encodeURIComponent(directoryPath)}" aria-expanded="${!isCollapsed}">
-              <span class="directory-chevron" aria-hidden="true"></span>
-              <span class="directory-label"><span>${escapeHtml(key)}</span>${modificationTime(child.__modifiedAt)}</span>
-            </button>
-            ${renderTree(child, directoryParts, forceExpanded)}
-          </li>`;
-      }
-    }
-    return html + '</ul>';
-  };
-
-  const renderList = (query = "") => {
-    const needle = query.trim().toLowerCase();
-    const filtered = allItems.filter(it => it.label.toLowerCase().includes(needle));
-    if (filtered.length === 0) {
-      listEl.innerHTML = '<div style="padding: 20px; text-align: center; color: #64748b;">No items found.</div>';
-      return;
-    }
-    const sceneTree = buildTree(filtered);
-    listEl.innerHTML = renderTree(sceneTree, [], Boolean(needle));
-    listEl.querySelectorAll(".directory-node").forEach(button => {
-      button.addEventListener("click", () => {
-        const directoryPath = decodeURIComponent(button.dataset.directory || "");
-        const branch = button.closest(".directory-branch");
-        const shouldCollapse = !branch.classList.contains("is-collapsed");
-        branch.classList.toggle("is-collapsed", shouldCollapse);
-        button.setAttribute("aria-expanded", String(!shouldCollapse));
-        if (shouldCollapse) collapsedDirectories.add(directoryPath);
-        else collapsedDirectories.delete(directoryPath);
-      });
-    });
-    listEl.querySelectorAll(".item").forEach(el => {
-      el.querySelector(".result-splatify")?.addEventListener("click", (event) => {
-        event.stopPropagation();
-        const item = allItems.find(it => it.originalIndex === Number(el.dataset.idx));
-        window.dispatchEvent(new CustomEvent("gtsfm-splat-request", { detail: item }));
-      });
-      const exportControls = el.querySelector(".result-splat-download");
-      if (exportControls) {
-        exportControls.addEventListener("click", (event) => event.stopPropagation());
-      }
-      el.onclick = async () => {
-        if (viewer.isBusy()) return;
-        listEl.querySelectorAll(".item").forEach(n => n.classList.remove("active"));
-        el.classList.add("active");
-        const originalIndex = parseInt(el.dataset.idx, 10);
-        const item = allItems.find(it => it.originalIndex === originalIndex);
-        if (!item) return;
-        console.log("Loading scene:", item);
-        if ((item.kind || "scene") === "splat") {
-          await viewer.loadSplatsFile({ splatsUrl: item.splats, label: item.label });
-        } else {
-          await viewer.loadScene({ pointsUrl: item.points, imagesUrl: item.images, camerasUrl: item.cameras, scenePath: item.rel_path, splatsUrl: item.splats });
-        }
-      };
-    });
-  };
-
-
-  // Default search term
-  filterEl.value = "";
-  renderList(filterEl.value);
-  const initialView = searchParams.get("view");
-  if (allItems.length > 0 && !filterEl.value && initialView === "results") {
-    const candidates = Array.from(listEl.querySelectorAll(".item"));
-    if (requestedRun) {
-      const result = preferredRunResult(allItems);
-      if (result) {
-        candidates.find((el) => Number(el.dataset.idx) === result.originalIndex)?.click();
-      } else {
-        setInfoState({ title: "No final reconstruction found for this run", isError: true });
-      }
-    } else {
-      const preferred = candidates.find((el) => (el.dataset.kind ?? "scene") !== "splat");
-      (preferred ?? candidates[0])?.click();
-    }
-  }
-  filterEl.addEventListener("input", () => renderList(filterEl.value));
-
-  document.getElementById("toggleCams").addEventListener("change", (e) => viewer.setShowCams(e.target.checked));
-  document.getElementById("ptSize").addEventListener("input", (e) => viewer.setPointSize(parseInt(e.target.value, 10)));
-
-  const groundY = document.getElementById("groundY");
-  const groundYValue = document.getElementById("groundYValue");
-  groundY.value = String(viewer.groundY);
-  groundYValue.value = viewer.groundY.toFixed(1);
-  groundY.addEventListener("input", (event) => {
-    const value = viewer.setGroundY(event.target.value);
-    groundYValue.value = value.toFixed(1);
-    viewer.savePreferences();
-  });
-
-  const groundToggle = document.getElementById("toggleGround");
-  if (groundToggle) {
-    const syncGroundButton = () => {
-      const visible = viewer.isGroundVisible();
-      groundToggle.textContent = visible ? "Hide plane" : "Show plane";
-      groundToggle.classList.toggle("is-active", visible);
-      groundToggle.setAttribute("aria-pressed", String(visible));
-    };
-    groundToggle.addEventListener("click", () => {
-      viewer.toggleGroundVisible();
-      syncGroundButton();
-      viewer.savePreferences();
-    });
-    syncGroundButton();
-  }
-
-  const backgroundSelect = document.getElementById("backgroundSelect");
-  backgroundSelect.value = viewer.overlayTheme;
-  backgroundSelect.addEventListener("change", (event) => {
-    viewer.setBackground(event.target.value);
-    viewer.savePreferences();
-  });
-
-  const prevBtn = document.getElementById("prevCamBtn");
-  document.getElementById("overviewBtn")?.addEventListener("click", () => viewer.frameScene());
-  document.getElementById("orthographicBtn")?.addEventListener("click", () => {
-    viewer.toggleOrthographicProjection();
-    viewer.savePreferences();
-  });
-  document.querySelectorAll("[data-view-axis]").forEach(button => {
-    button.addEventListener("click", () => viewer.viewFromAxis(button.dataset.viewAxis));
-  });
-  document.getElementById("alignZUpBtn")?.addEventListener("click", () => viewer.alignZUp());
-  const nextBtn = document.getElementById("nextCamBtn");
-  prevBtn?.addEventListener("click", () => viewer.prevCam());
-  nextBtn?.addEventListener("click", () => viewer.nextCam());
-
-  const statsBtn = document.getElementById("toggleStats");
-  if (statsBtn) {
-    const syncStatsButtonLabel = () => {
-      statsBtn.textContent = viewer.isStatsVisible() ? "Hide Stats" : "Show Stats";
-    };
-    statsBtn.addEventListener("click", () => {
-      viewer.toggleStatsVisible();
-      syncStatsButtonLabel();
-    });
-    syncStatsButtonLabel();
-  }
-}
-
+// The inline bootstrap loads Babylon separately, then makes this factory available.
+// React owns the canvas lifetime and every control surrounding it.
 window.addEventListener("gtsfm-start-viewer", () => {
-  void boot().catch(error => {
-    console.error("Unable to start the 3D viewer:", error);
-    window.dispatchEvent(new CustomEvent("gtsfm-startup-error", { detail: error.message }));
-  });
+  window.createGtsfmViewer = (canvas) => new ColmapViewer(canvas);
+  window.dispatchEvent(new Event("gtsfm-engine-ready"));
 }, { once: true });

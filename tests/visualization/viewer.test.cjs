@@ -194,7 +194,7 @@ test('live splat refresh retains the old mesh and viewpoint across slow download
   sandbox.BABYLON = { ...BABYLON, GaussianSplattingMesh: SplatMesh };
   const loading = [];
   Object.assign(v, {
-    mode: 'splat', _splatStreamId: 'job-1', _busyListeners: new Set(),
+    mode: 'splat', _splatStreamId: 'job-1',
     _applyHudMode() {}, _setIdleGroundVisible() {},
     _setLoadingState(state) { loading.push(state); },
     _clear() { assert.fail('A live refresh must not clear the visible scene'); },
@@ -458,7 +458,7 @@ test('incremental point batches use one mesh and retain exact vertices after buf
 
 test('3D points appear before EOF and finish without waiting for camera metadata', async () => {
   const v = fixture();
-  Object.assign(v, {ptSize: 2, _busyListeners: new Set(), resourceCache: new Map(), resourceCacheLimit: 8,
+  Object.assign(v, {ptSize: 2, resourceCache: new Map(), resourceCacheLimit: 8,
     parsedPointsCache: new Map(), parsedCamsCache: new Map(), parsedCacheLimit: 4,
     _yieldFrame: async () => {}, _loadPhotos: async () => { throw Error('Photos should not block structure'); }});
   const first = Array.from({length: 128}, (_, i) => `${i} ${i} 2 3 255 128 0 0`).join('\n') + '\n';

@@ -18,7 +18,11 @@ import * as Switch from "@radix-ui/react-switch";
 import * as Tabs from "@radix-ui/react-tabs";
 import { Activity, Box, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, CircleAlert, Copy, Cpu, Database, Download, FolderUp, Github, Maximize2, Minus, MonitorCog, Play, RefreshCw, Server, SlidersHorizontal, Square, Terminal, Wrench, X } from "lucide-react";
 import "./styles.css";
-import { PhotoPanel, type PhotoState } from "./photo-panel";
+import { PhotoPanel } from "./photo-panel";
+import { useJobStream } from "./use-job-stream";
+import { ResultsBrowser, type ResultItem } from "./results-browser";
+import { ViewerCanvas, ViewerProvider, useViewerApi } from "./viewer-context";
+import { ViewControls, ViewerToolbar, ViewerLoading, SceneStats } from "./viewer-controls";
 
 type JobStatus = "queued" | "running" | "completed" | "failed" | "cancelled" | "interrupted";
 type InputValue = string | number;
@@ -405,19 +409,6 @@ interface FolderFile {
   relativePath: string;
 }
 
-interface ViewerApi {
-  isBusy(): boolean;
-  getPhotoState(): PhotoState;
-  selectCamera(index: number): void;
-  loadSplatsFile(input: { splatsUrl: string; label: string; streamId?: string }): Promise<boolean | void>;
-}
-
-declare global {
-  interface Window {
-    gtsfmViewer?: ViewerApi;
-  }
-}
-
 const EMPTY_FORM: RunFormState = {
   name: "my-scene", sample_id: "", dataset_dir: "", images_dir: "", loader: "olsson", config_name: "vggt",
   splat_implementation: "gsplat", gaussian_splatting_config_name: "base_gs", gs_max_steps: 7000,
@@ -647,9 +638,6 @@ async function getJson<T>(url: string, options?: RequestInit): Promise<T> {
   if (!response.ok) throw new Error(payload.error || `Request failed (${response.status})`);
   return payload as T;
 }
-
-const websocketUrl = (path: string): string =>
-  `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}${path}`;
 
 function Brand({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
   return <header className="studio-header" aria-label="SfM Studio">
@@ -1118,6 +1106,7 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
   const [sampleMessage, setSampleMessage] = useState("");
   const modalDiscoverySequence = useRef(0);
   const automaticModalEndpoint = useRef("");
+  const modalGpuChosenByUser = useRef(false);
   const set = <K extends keyof RunFormState>(key: K, value: RunFormState[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
   const updateHydraOverride = (
@@ -1245,7 +1234,7 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
   };
 
   useEffect(() => {
-    if (!modalGpuRecommendation) return;
+    if (!modalGpuRecommendation || modalGpuChosenByUser.current) return;
     if (form.modal_gpu === modalGpuRecommendation.gpu.id) return;
     set("modal_gpu", modalGpuRecommendation.gpu.id);
     if (form.remote_endpoint) {
@@ -1289,6 +1278,7 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
   };
 
   const updateModalGpu = (value: string) => {
+    modalGpuChosenByUser.current = true;
     set("modal_gpu", value);
     setRemote(null);
     setModalWorkspaceIssue(Boolean(form.remote_endpoint));
@@ -1856,16 +1846,11 @@ function ActivityPanel({ jobs, activeId, onSelect, onCancel, onRefresh, onRetrie
   </div>;
 }
 
-function ResultsPanel({ onStarted }: { onStarted: (job: Job) => void }) {
-  const [scene, setScene] = useState<{ rel_path: string; point_count: number; camera_count: number } | null>(null);
+function ResultsPanel({ onStarted, refreshKey }: { onStarted: (job: Job) => void; refreshKey: string }) {
+  const [scene, setScene] = useState<ResultItem | null>(null);
   const [steps, setSteps] = useState("7000");
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState("");
-  useEffect(() => {
-    const select = (event: Event) => { setScene((event as CustomEvent).detail); setError(""); };
-    window.addEventListener("gtsfm-splat-request", select);
-    return () => window.removeEventListener("gtsfm-splat-request", select);
-  }, []);
   const start = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!scene || starting) return;
@@ -1885,13 +1870,13 @@ function ResultsPanel({ onStarted }: { onStarted: (job: Job) => void }) {
     {scene && <form className="splat-result-form" onSubmit={start}>
       <strong>Splatify this reconstruction</strong>
       <small className="result-path">{scene.rel_path}</small>
-      <p>{scene.point_count.toLocaleString()} points · {scene.camera_count.toLocaleString()} cameras. Train Gaussian splats from the saved cameras and original photos.</p>
+      <p>{(scene.point_count ?? 0).toLocaleString()} points · {(scene.camera_count ?? 0).toLocaleString()} cameras. Train Gaussian splats from the saved cameras and original photos.</p>
       <TextField label="Training steps" type="number" min="1" value={steps} onChange={setSteps} />
       {error && <p className="job-error" role="alert">{error}</p>}
       <div className="job-actions"><button className="primary-action" type="submit" disabled={starting || !Number.isInteger(Number(steps)) || Number(steps) < 1}>{starting ? "Starting…" : "Start splatting"}</button><button className="text-button" type="button" disabled={starting} onClick={() => setScene(null)}>Cancel</button></div>
     </form>}
-    <div id="info" className="info-summary" role="status"><div className="info-pill" data-role="count">—</div><div className="info-details"><div className="info-title" data-role="title">Loading reconstructions…</div><div className="info-path" data-role="path">Checking workspace…</div></div></div>
-    <input type="text" id="filter" placeholder="Filter scenes…" aria-label="Filter scenes" /><div id="sceneList" />
+    <ResultsBrowser refreshKey={refreshKey} onSplatify={(item) => { setScene(item); setError(""); }}/>
+
   </div>;
 }
 
@@ -2250,17 +2235,17 @@ function Viewer({ activeJob, live, logsOpen, setLogsOpen, statusBarOpen, setStat
   const showPipelineWait = Boolean(activeJob && expectsSplats && ["queued", "running"].includes(activeJob.status) && !visualizationAvailable);
   return <><main id="main-content"><StatusBar job={activeJob} live={live} logsOpen={logsOpen} setLogsOpen={setLogsOpen} visible={statusBarOpen} onCancel={onCancelJob} onClose={closeStatus} onRetried={onRetried} />
     <div className="viewer-top-panels">
-    <div id="sceneStats" className={showDaskStats ? "dask-active" : undefined}><div className="stat-group" data-mode="scene"><div className="stat-pair"><span className="label">Cameras</span><span className="value" id="statCameras">0</span></div><div className="stat-pair"><span className="label">Points</span><span className="value" id="statPoints">0</span></div><div className="stat-wide"><span className="label">Image</span><span className="value" id="statImageName">—</span></div></div><div className="stat-group" data-mode="splat"><div className="stat-pair"><span className="label">Splats</span><span className="value" id="statSplats">0</span></div></div>{showDaskStats && activeJob && <DaskStats job={activeJob} live={live}/>}</div>
-    <div id="viewControls" role="group" aria-label="Projection and axis views"><button id="orthographicBtn" type="button" title="Toggle orthographic projection (parallel lines stay parallel)" aria-pressed="false">Orthographic</button><button id="alignZUpBtn" className="hud-scene-only" title="Fit a plane to camera centers and rotate its normal to Z-up" aria-pressed="false">Align Z-up</button><span id="alignmentStatus" className="hud-scene-only" role="status" hidden/><div className="axis-view-controls" role="group" aria-label="Axis views">{["x", "-x", "y", "-y", "z", "-z"].map((axis) => { const label = axis.startsWith("-") ? `−${axis.slice(1).toUpperCase()}` : `+${axis.toUpperCase()}`; return <button key={axis} type="button" data-view-axis={axis} title={`View from ${label} toward the current center`} aria-label={`View from ${label}`}>{label}</button>; })}</div></div>
+    <SceneStats>{showDaskStats && activeJob && <DaskStats job={activeJob} live={live}/>}</SceneStats>
+    <ViewControls/>
     <SetupPanel setup={setup} refreshing={setupRefreshing} onRefresh={onRefreshSetup} onSetupChange={onSetupChange} hasActiveJob={Boolean(activeJob && statusBarOpen)} />
     </div>
-    <canvas id="renderCanvas"/>
+    <ViewerCanvas/>
     <div id="viewer-startup-anchor"/>
-    <div id="hud"><label className="background-control">BG <select id="backgroundSelect" defaultValue="dark" aria-label="Viewer background"><option value="dark">Dark</option><option value="graphite">Graphite</option><option value="light-gray">Light gray</option><option value="white">White</option></select></label><button id="overviewBtn" className="hud-scene-only" title="Frame the main reconstruction and cameras">Overview</button><button id="prevCamBtn" className="hud-scene-only" title="Previous camera"><ChevronLeft size={14}/></button><button id="nextCamBtn" className="hud-scene-only" title="Next camera"><ChevronRight size={14}/></button><button id="toggleStats">Hide stats</button><label className="hud-scene-only"><input type="checkbox" id="toggleCams" defaultChecked/> Cameras</label><label className="hud-scene-only">Point size <input type="range" id="ptSize" min="1" max="10" defaultValue="2"/></label><button id="toggleGround" type="button" aria-pressed="false">Show plane</button><label className="plane-height-control">Plane Z <input type="range" id="groundY" min="-5" max="5" step="0.1" defaultValue="0" aria-label="Plane height along reconstruction Z"/><output id="groundYValue" htmlFor="groundY">0.0</output></label></div>
+    <ViewerToolbar/>
     <a className="viewport-github" href="https://github.com/borglab/gtsfm" target="_blank" rel="noreferrer" title="Open GTSFM on GitHub" aria-label="Open GTSFM GitHub repository"><Github size={16}/></a>
     <LogPanel open={logsOpen} job={activeJob} onClose={() => setLogsOpen(false)} onRetried={onRetried} />
     {showPipelineWait && activeJob && <div className="pipeline-wait-overlay" role="status" aria-live="polite"><div className="pipeline-wait-content"><span>RECONSTRUCTION IN PROGRESS</span><strong>{pipelineStatusMessage(activeJob, live)}</strong><div className="pipeline-wait-dots" aria-hidden="true"><i/><i/><i/></div><small>The first live Gaussian preview will appear here automatically.</small></div></div>}
-    <div id="loadingOverlay" className="loading-overlay" role="status"><div className="loading-box"><span id="loadingMessage">Loading…</span><div className="loading-progress-track"><div className="loading-progress-fill" id="loadingProgress"/></div></div></div>
+    <ViewerLoading/>
   </main><PhotoPanel/></>;
 }
 
@@ -2345,6 +2330,7 @@ function storedSidebarWidth(): number {
 }
 
 function App() {
+  const { viewer } = useViewerApi();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(storedSidebarWidth);
   const [sidebarResizing, setSidebarResizing] = useState(false);
@@ -2472,34 +2458,18 @@ function App() {
 
   useEffect(() => { if (activeId) setStatusBarOpen(true); }, [activeId]);
 
-  useEffect(() => {
-    let socket: WebSocket | null = null;
-    let retry: number | null = null;
-    let stopped = false;
-    const connect = () => {
-      socket = new WebSocket(websocketUrl("/api/events/jobs"));
-      socket.onmessage = (event) => {
-        const payload = JSON.parse(event.data) as JobsResponse;
-        setJobs(payload.items || []);
-        setActiveId((current) => current || payload.items?.find((job) => ["queued", "running"].includes(job.status))?.id || null);
-      };
-      socket.onclose = () => { if (!stopped) retry = window.setTimeout(connect, 1000); };
-    };
-    connect();
-    return () => { stopped = true; if (retry !== null) clearTimeout(retry); socket?.close(); };
-  }, []);
-
-  useEffect(() => {
-    if (!activeJob) { setLive(null); return; }
-    setLive(null);
-    const socket = new WebSocket(websocketUrl(`/api/events/jobs/${encodeURIComponent(activeJob.id)}`));
-    socket.onmessage = (event) => {
-      const payload = JSON.parse(event.data) as JobEvent;
-      setJobs((current) => current.map((job) => job.id === payload.job.id ? payload.job : job));
-      setLive(payload.live);
-    };
-    return () => socket.close();
-  }, [activeJob?.id]);
+  const jobsConnection = useJobStream<JobsResponse>("/api/events/jobs", (payload) => {
+    setJobs(payload.items || []);
+    setActiveId((current) => current || payload.items?.find((job) => ["queued", "running"].includes(job.status))?.id || null);
+  });
+  useEffect(() => { setLive(null); }, [activeJob?.id]);
+  const liveConnection = useJobStream<JobEvent>(activeJob ? `/api/events/jobs/${encodeURIComponent(activeJob.id)}` : null, (payload) => {
+    setJobs((current) => current.map((job) => job.id === payload.job.id ? payload.job : job));
+    setLive(payload.live);
+  });
+  const connectionMessage = [jobsConnection, liveConnection].includes("unavailable")
+    ? "Live updates unavailable. Reload Studio to reconnect."
+    : [jobsConnection, liveConnection].includes("reconnecting") ? "Connection interrupted. Reconnecting to live updates…" : "";
 
   useEffect(() => {
     if (!activeJob || !live) return;
@@ -2519,7 +2489,6 @@ function App() {
     let loadFailures = 0;
     const tryLoad = async () => {
       if (cancelled) return;
-      const viewer = window.gtsfmViewer;
       if (!viewer || viewer.isBusy()) {
         retry = window.setTimeout(() => { void tryLoad(); }, 250);
         return;
@@ -2539,7 +2508,7 @@ function App() {
       cancelled = true;
       if (retry !== null) window.clearTimeout(retry);
     };
-  }, [activeJob?.id, activeJob?.status, live?.final_url, live?.preview_url, live?.preview_version, viewerLoadRequest]);
+  }, [activeJob?.id, activeJob?.status, live?.final_url, live?.preview_url, live?.preview_version, viewerLoadRequest, viewer]);
 
   const onRetried = (job: Job) => {
     setJobs((current) => [job, ...current.filter((item) => item.id !== job.id)]);
@@ -2555,14 +2524,15 @@ function App() {
   const useRemoteVm = () => { setTab("run"); setRemotePromptKey((current) => current + 1); };
   return <div className="app-shell"><aside id="sidebar" className={`${sidebarCollapsed ? "sidebar-collapsed" : ""} ${sidebarResizing ? "sidebar-resizing" : ""}`} style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}><Brand collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed((current) => !current)} />
     {showHardwareWarning && hardware && <HardwareWarning key={hardwareWarningContent(hardware).title} hardware={hardware} onUseRemote={useRemoteVm}/>}
+    {connectionMessage && <p className="connection-notice" role="status">{connectionMessage}</p>}
     <Tabs.Root className="workspace-tabs" value={tab} onValueChange={setTab}>
       <Tabs.List className="studio-tabs" aria-label="Workspace sections"><Tabs.Trigger className="studio-tab" value="run"><Play size={12}/> New run</Tabs.Trigger><Tabs.Trigger className="studio-tab" value="activity"><Activity size={12}/> Activity {activeCount > 0 && <span id="activeJobCount">{activeCount}</span>}</Tabs.Trigger><Tabs.Trigger className="studio-tab" value="results"><Box size={12}/> Results</Tabs.Trigger></Tabs.List>
       <Tabs.Content className="studio-panel" value="run" forceMount><RunForm schema={schema} hardware={hardware} samples={samples} samplesLoading={samplesLoading} onStarted={(job) => { setStatusBarOpen(true); setActiveId(job.id); refreshJobs(); }} onTabChange={setTab} remotePromptKey={remotePromptKey} schemaLoading={schemaLoading} schemaError={schemaError} onRetrySchema={() => { void loadSchema(); void loadSamples(); }}/></Tabs.Content>
       <Tabs.Content className="studio-panel" value="activity" forceMount><ActivityPanel jobs={jobs} activeId={activeId} onSelect={(id) => { setStatusBarOpen(true); setLogsOpen(true); setActiveId(id); previewVersion.current = null; finalLoaded.current = null; setViewerLoadRequest((current) => current + 1); }} onCancel={cancelJob} onRefresh={refreshJobs} onRetried={onRetried}/></Tabs.Content>
-      <Tabs.Content className="studio-panel" value="results" forceMount><ResultsPanel onStarted={(job) => { setStatusBarOpen(true); setActiveId(job.id); void refreshJobs(); setTab("activity"); }} /></Tabs.Content>
+      <Tabs.Content className="studio-panel" value="results" forceMount><ResultsPanel refreshKey={jobs.filter((job) => ["completed", "failed", "cancelled", "interrupted"].includes(job.status)).map((job) => `${job.id}:${job.status}`).join("|")} onStarted={(job) => { setStatusBarOpen(true); setActiveId(job.id); void refreshJobs(); setTab("activity"); }} /></Tabs.Content>
     </Tabs.Root><div className="sidebar-resize-handle" role="separator" aria-label="Resize side panel" aria-orientation="vertical" aria-valuemin={SIDEBAR_MIN_WIDTH} aria-valuemax={SIDEBAR_MAX_WIDTH} aria-valuenow={sidebarWidth} tabIndex={sidebarCollapsed ? -1 : 0} title="Drag to resize side panel" onPointerDown={startSidebarResize} onPointerMove={moveSidebarResize} onPointerUp={finishSidebarResize} onPointerCancel={finishSidebarResize} onLostPointerCapture={finishSidebarResize} onDoubleClick={() => setSidebarWidth(constrainSidebarWidth(420))} onKeyDown={resizeSidebarWithKeyboard}/></aside><Viewer activeJob={activeJob} live={live} logsOpen={logsOpen} setLogsOpen={setLogsOpen} statusBarOpen={statusBarOpen} setStatusBarOpen={setStatusBarOpen} onCancelJob={cancelJob} onRetried={onRetried} setup={setup} setupRefreshing={setupRefreshing} onRefreshSetup={refreshSetup} onSetupChange={setSetup}/></div>;
 }
 
 const root = document.getElementById("root");
 if (!root) throw new Error("GTSFM Studio root element is missing");
-flushSync(() => createRoot(root).render(<App />));
+flushSync(() => createRoot(root).render(<ViewerProvider><App /></ViewerProvider>));
