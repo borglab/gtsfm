@@ -111,6 +111,7 @@ def main() -> None:
     parser.add_argument("--images-dir", type=Path)
     parser.add_argument("--methods", nargs="+", choices=VARIANTS, default=["opencv", "colmap"])
     parser.add_argument("--max-resolution", type=int, default=1296)
+    parser.add_argument("--uncertified-rotation", action="store_true")
     args = parser.parse_args()
     output = args.output_root.resolve()
     output.mkdir(parents=True, exist_ok=True)
@@ -162,6 +163,11 @@ def main() -> None:
         ]
         if args.images_dir is not None:
             command.extend(["--images_dir", str(args.images_dir.resolve())])
+        if args.uncertified_rotation:
+            command.append(
+                "cluster_optimizer.multiview_optimizer.rot_avg_module._target_="
+                "scripts.benchmark_rotation_averaging.UncertifiedRotationAveraging"
+            )
         record = {"command": command, "method": method}
         record_path = output / f"{method}.execution.json"
         record_path.write_text(json.dumps(record, indent=2) + "\n")
