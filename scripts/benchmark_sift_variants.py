@@ -107,6 +107,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset-dir", type=Path, default=repo / "tests/data/set1_lund_door")
     parser.add_argument("--output-root", type=Path, required=True)
+    parser.add_argument("--loader", choices=("olsson", "colmap"), default="olsson")
+    parser.add_argument("--images-dir", type=Path)
     parser.add_argument("--methods", nargs="+", choices=VARIANTS, default=["opencv", "colmap"])
     parser.add_argument("--max-resolution", type=int, default=1296)
     args = parser.parse_args()
@@ -120,6 +122,7 @@ def main() -> None:
     }
     (output / "environment.json").write_text(json.dumps(metadata, indent=2) + "\n")
     env = dict(os.environ, PYTHONPATH=str(repo), OPENBLAS_NUM_THREADS="1", OMP_NUM_THREADS="1")
+    failures = []
     for method in args.methods:
         destination = output / method
         if destination.exists():
@@ -128,7 +131,7 @@ def main() -> None:
             sys.executable,
             str(repo / "gtsfm/runner.py"),
             "--loader",
-            "olsson",
+            args.loader,
             "--dataset_dir",
             str(args.dataset_dir.resolve()),
             "--config_name",
@@ -157,6 +160,8 @@ def main() -> None:
             "cluster_optimizer.dense_multiview_optimizer=null",
             "cluster_optimizer.gaussian_splatting_optimizer=null",
         ]
+        if args.images_dir is not None:
+            command.extend(["--images_dir", str(args.images_dir.resolve())])
         record = {"command": command, "method": method}
         record_path = output / f"{method}.execution.json"
         record_path.write_text(json.dumps(record, indent=2) + "\n")
@@ -167,8 +172,12 @@ def main() -> None:
         record.update(returncode=result.returncode, wall_seconds=time.perf_counter() - start)
         record_path.write_text(json.dumps(record, indent=2) + "\n")
         print(f"Finished {method}: {record}", flush=True)
-        result.check_returncode()
-        summarize(output)
+        if result.returncode:
+            failures.append(method)
+        else:
+            summarize(output)
+    if failures:
+        raise RuntimeError(f"Failed benchmark variants: {', '.join(failures)}; see their execution records and logs")
 
 
 if __name__ == "__main__":

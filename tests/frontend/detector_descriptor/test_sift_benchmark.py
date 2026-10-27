@@ -1,9 +1,12 @@
 """Validate RootSIFT experiment adapters against the existing implementation."""
 
+import json
+import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
+import pytest
 
 from gtsfm.frontend.descriptor.rootsift import RootSIFTDescriptor
 from gtsfm.frontend.descriptor.sift import SIFTDescriptor
@@ -38,3 +41,22 @@ def test_root_variants_preserve_keypoints_and_match_reference() -> None:
         )
         assert len(matches) > 0
         np.testing.assert_array_equal(matches[:, 0], matches[:, 1])
+
+
+def test_benchmark_continues_after_failed_variant(tmp_path: Path) -> None:
+    """A failed reconstruction must not prevent later extractors from being tested."""
+    from scripts.benchmark_sift_variants import main
+
+    args = ["benchmark", "--output-root", str(tmp_path), "--methods", "opencv", "colmap"]
+    outcomes = [subprocess.CompletedProcess([], 1), subprocess.CompletedProcess([], 0)]
+    with (
+        patch("sys.argv", args),
+        patch("subprocess.check_output", return_value="test-commit"),
+        patch("importlib.metadata.version", return_value="test-version"),
+        patch("subprocess.run", side_effect=outcomes) as run,
+    ):
+        with pytest.raises(RuntimeError, match="opencv"):
+            main()
+    assert run.call_count == 2
+    assert json.loads((tmp_path / "opencv.execution.json").read_text())["returncode"] == 1
+    assert json.loads((tmp_path / "colmap.execution.json").read_text())["returncode"] == 0
