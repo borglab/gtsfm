@@ -1,0 +1,353 @@
+{
+  "dataset": "tests/data/set1_lund_door",
+  "status": "Four local Door runs completed; ETH3D not rerun.",
+  "base_commit": "8f21351c6370fbf359a5dcddf0932947ca75bc8b",
+  "raw_output_root": "/tmp/gtsfm-sift-door-comparison",
+  "environment": {
+    "git_commit": "8f21351c6370fbf359a5dcddf0932947ca75bc8b",
+    "python": "3.12.12 (main, Oct  9 2025, 11:07:00) [GCC 12.3.0]",
+    "versions": {
+      "numpy": "2.2.6",
+      "opencv-python": "5.0.0.93",
+      "pycolmap": "3.11.1",
+      "gtsam": "4.3.0",
+      "torch": "2.7.1+cu128",
+      "scipy": "1.18.1",
+      "dask": "2025.9.1",
+      "distributed": "2025.9.1"
+    }
+  },
+  "dataset_sha256": {
+    "data.mat": "9a65580d4f82b7a43ca1b01adf3865a3553d74f536b4a6352df1777c2c771fe5",
+    "images/DSC_0001.JPG": "aec675cd743cf248f6e4cfd487e4a12c3138240e562804f9e8f63298b862b8df",
+    "images/DSC_0002.JPG": "3aeffc3a61284d9f552b589e25e7263d034a914dd1976441ea4aa010a6bf7beb",
+    "images/DSC_0003.JPG": "cb3117a5cf3e12681a1f2bbbeded4431d9810b8caad1a9467e42960498645d32",
+    "images/DSC_0004.JPG": "be0b20b54e8783172a1d5f613bac6552d2fe8abcf41fddb8073dd4230d7ef32c",
+    "images/DSC_0005.JPG": "4ee4f1b87a1401ce59e64e870f4e85b8d1792f4c9bd6f80fecfc1987ba172523",
+    "images/DSC_0006.JPG": "9fdd7dabfafeec7ed0e453a408a7d81e212f23741dfaf40bcf23341e908b4d3d",
+    "images/DSC_0007.JPG": "45cfb814ace39eff31abaf0a20e4b2ba52699f7e9aef3dc816100108bc30f67b",
+    "images/DSC_0008.JPG": "0dbfda09f744dfa557b88ef37cbd60a8b798dda138550e9a1fa0d127dcdbcbd6",
+    "images/DSC_0009.JPG": "4cfe988dd6dd42e704903903e8a2232660c6c534a74bc085de5d8ee90d5b4e03",
+    "images/DSC_0010.JPG": "9230d95d13453858698ead804f6425a63cef27d37fef084cd8c2e79e6d2f7028",
+    "images/DSC_0011.JPG": "8082b61c4f901ef67a2bc1a486dc1a7d67d2325822e758745bace3d8708407da",
+    "images/DSC_0012.JPG": "2220a0684661264fd88d6ea945786e286dca57e59bf415572d10e520811879a0"
+  },
+  "validation": {
+    "pytest_passed": 12,
+    "ci_flake8_passed": true,
+    "all_resolved_configs_equal_except_extractor_and_output": true
+  },
+  "methods": {
+    "opencv": {
+      "label": "OpenCV SIFT",
+      "features": {
+        "image_count": 12,
+        "descriptor_counts_sorted": [
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000
+        ]
+      },
+      "cameras": 12,
+      "tracks": 6981,
+      "ba_auc_percent": {
+        "1.0": 84.68,
+        "2.5": 93.87,
+        "5.0": 96.94,
+        "10.0": 98.47,
+        "20.0": 99.23
+      },
+      "post_merge_auc_percent": {
+        "1.0": 46.65,
+        "2.5": 73.23,
+        "5.0": 86.04,
+        "10.0": 93.02,
+        "20.0": 96.51
+      },
+      "mean_reprojection_error_px": 0.1745205936612707,
+      "retrieval": {
+        "num_input_images": 12.0,
+        "num_retrieved_image_pairs": 65.0,
+        "retriever_duration_sec": 7.512
+      },
+      "execution": {
+        "equivalent_command": [
+          "/home/dellaert/.local/share/uv/tools/gtsfm/bin/python",
+          "/tmp/gtsfm-eth3d-sift/gtsfm/runner.py",
+          "--loader",
+          "olsson",
+          "--dataset_dir",
+          "/tmp/gtsfm-eth3d-sift/tests/data/set1_lund_door",
+          "--config_name",
+          "unified",
+          "--share_intrinsics",
+          "--num_workers",
+          "1",
+          "--threads_per_worker",
+          "1",
+          "--num_matched",
+          "5",
+          "--max_frame_lookahead",
+          "10",
+          "--worker_memory_limit",
+          "16GB",
+          "--output_root",
+          "/tmp/gtsfm-sift-door-comparison/opencv",
+          "--max_resolution",
+          "1296",
+          "cluster_optimizer.correspondence_generator.detector_descriptor.detector_descriptor_obj._target_=gtsfm.frontend.detector_descriptor.sift.SIFTDetectorDescriptor",
+          "cluster_optimizer.correspondence_generator.matcher.matcher_obj._target_=gtsfm.frontend.matcher.twoway_matcher.TwoWayMatcher",
+          "~cluster_optimizer.correspondence_generator.matcher.matcher_obj.features",
+          "+cluster_optimizer.correspondence_generator.matcher.matcher_obj.ratio_test_threshold=0.8",
+          "cluster_optimizer.dense_multiview_optimizer=null",
+          "cluster_optimizer.gaussian_splatting_optimizer=null"
+        ],
+        "note": "OpenCV was launched directly before the reusable benchmark driver was written. The saved config and log are authoritative.",
+        "returncode": 0
+      }
+    },
+    "colmap": {
+      "label": "COLMAP SIFT (default RootSIFT)",
+      "features": {
+        "image_count": 12,
+        "descriptor_counts_sorted": [
+          8173,
+          8306,
+          8312,
+          8342,
+          8354,
+          8366,
+          8418,
+          8422,
+          8441,
+          8442,
+          8446,
+          8550
+        ]
+      },
+      "cameras": 12,
+      "tracks": 11281,
+      "ba_auc_percent": {
+        "1.0": 85.6,
+        "2.5": 94.24,
+        "5.0": 97.12,
+        "10.0": 98.56,
+        "20.0": 99.28
+      },
+      "post_merge_auc_percent": {
+        "1.0": 49.25,
+        "2.5": 75.42,
+        "5.0": 87.55,
+        "10.0": 93.78,
+        "20.0": 96.89
+      },
+      "mean_reprojection_error_px": 0.28494903566120683,
+      "retrieval": {
+        "num_input_images": 12.0,
+        "num_retrieved_image_pairs": 65.0,
+        "retriever_duration_sec": 1.5707
+      },
+      "execution": {
+        "command": [
+          "/home/dellaert/.local/share/uv/tools/gtsfm/bin/python",
+          "/tmp/gtsfm-eth3d-sift/gtsfm/runner.py",
+          "--loader",
+          "olsson",
+          "--dataset_dir",
+          "/tmp/gtsfm-eth3d-sift/tests/data/set1_lund_door",
+          "--config_name",
+          "unified",
+          "--share_intrinsics",
+          "--num_workers",
+          "1",
+          "--threads_per_worker",
+          "1",
+          "--num_matched",
+          "5",
+          "--max_frame_lookahead",
+          "10",
+          "--worker_memory_limit",
+          "16GB",
+          "--output_root",
+          "/tmp/gtsfm-sift-door-comparison/colmap",
+          "--max_resolution",
+          "1296",
+          "cluster_optimizer.correspondence_generator.detector_descriptor.detector_descriptor_obj._target_=gtsfm.frontend.detector_descriptor.colmap_sift.ColmapSIFTDetectorDescriptor",
+          "cluster_optimizer.correspondence_generator.matcher.matcher_obj._target_=gtsfm.frontend.matcher.twoway_matcher.TwoWayMatcher",
+          "~cluster_optimizer.correspondence_generator.matcher.matcher_obj.features",
+          "+cluster_optimizer.correspondence_generator.matcher.matcher_obj.ratio_test_threshold=0.8",
+          "cluster_optimizer.dense_multiview_optimizer=null",
+          "cluster_optimizer.gaussian_splatting_optimizer=null"
+        ],
+        "method": "colmap",
+        "returncode": 0,
+        "wall_seconds": 334.6491037159576
+      }
+    },
+    "rootsift_legacy": {
+      "label": "Ayush standalone RootSIFT",
+      "features": {
+        "image_count": 12,
+        "descriptor_counts_sorted": [
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000
+        ]
+      },
+      "cameras": 12,
+      "tracks": 4380,
+      "ba_auc_percent": {
+        "1.0": 84.57,
+        "2.5": 93.83,
+        "5.0": 96.91,
+        "10.0": 98.46,
+        "20.0": 99.23
+      },
+      "post_merge_auc_percent": {
+        "1.0": 48.84,
+        "2.5": 74.66,
+        "5.0": 86.84,
+        "10.0": 93.42,
+        "20.0": 96.71
+      },
+      "mean_reprojection_error_px": 0.1859980408482694,
+      "retrieval": {
+        "num_input_images": 12.0,
+        "num_retrieved_image_pairs": 65.0,
+        "retriever_duration_sec": 1.5342
+      },
+      "execution": {
+        "command": [
+          "/home/dellaert/.local/share/uv/tools/gtsfm/bin/python",
+          "/tmp/gtsfm-eth3d-sift/gtsfm/runner.py",
+          "--loader",
+          "olsson",
+          "--dataset_dir",
+          "/tmp/gtsfm-eth3d-sift/tests/data/set1_lund_door",
+          "--config_name",
+          "unified",
+          "--share_intrinsics",
+          "--num_workers",
+          "1",
+          "--threads_per_worker",
+          "1",
+          "--num_matched",
+          "5",
+          "--max_frame_lookahead",
+          "10",
+          "--worker_memory_limit",
+          "16GB",
+          "--output_root",
+          "/tmp/gtsfm-sift-door-comparison/rootsift_legacy",
+          "--max_resolution",
+          "1296",
+          "cluster_optimizer.correspondence_generator.detector_descriptor.detector_descriptor_obj._target_=scripts.benchmark_sift_variants.LegacyRootSIFTDetectorDescriptor",
+          "cluster_optimizer.correspondence_generator.matcher.matcher_obj._target_=gtsfm.frontend.matcher.twoway_matcher.TwoWayMatcher",
+          "~cluster_optimizer.correspondence_generator.matcher.matcher_obj.features",
+          "+cluster_optimizer.correspondence_generator.matcher.matcher_obj.ratio_test_threshold=0.8",
+          "cluster_optimizer.dense_multiview_optimizer=null",
+          "cluster_optimizer.gaussian_splatting_optimizer=null"
+        ],
+        "method": "rootsift_legacy",
+        "returncode": 0,
+        "wall_seconds": 113.33307783602504
+      }
+    },
+    "rootsift": {
+      "label": "OpenCV + RootSIFT normalization",
+      "features": {
+        "image_count": 12,
+        "descriptor_counts_sorted": [
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000
+        ]
+      },
+      "cameras": 12,
+      "tracks": 7078,
+      "ba_auc_percent": {
+        "1.0": 84.91,
+        "2.5": 93.96,
+        "5.0": 96.98,
+        "10.0": 98.49,
+        "20.0": 99.25
+      },
+      "post_merge_auc_percent": {
+        "1.0": 47.11,
+        "2.5": 73.42,
+        "5.0": 86.13,
+        "10.0": 93.06,
+        "20.0": 96.53
+      },
+      "mean_reprojection_error_px": 0.17698302066572727,
+      "retrieval": {
+        "num_input_images": 12.0,
+        "num_retrieved_image_pairs": 65.0,
+        "retriever_duration_sec": 1.5951
+      },
+      "execution": {
+        "command": [
+          "/home/dellaert/.local/share/uv/tools/gtsfm/bin/python",
+          "/tmp/gtsfm-eth3d-sift/gtsfm/runner.py",
+          "--loader",
+          "olsson",
+          "--dataset_dir",
+          "/tmp/gtsfm-eth3d-sift/tests/data/set1_lund_door",
+          "--config_name",
+          "unified",
+          "--share_intrinsics",
+          "--num_workers",
+          "1",
+          "--threads_per_worker",
+          "1",
+          "--num_matched",
+          "5",
+          "--max_frame_lookahead",
+          "10",
+          "--worker_memory_limit",
+          "16GB",
+          "--output_root",
+          "/tmp/gtsfm-sift-door-comparison/rootsift",
+          "--max_resolution",
+          "1296",
+          "cluster_optimizer.correspondence_generator.detector_descriptor.detector_descriptor_obj._target_=scripts.benchmark_sift_variants.NormalizedRootSIFTDetectorDescriptor",
+          "cluster_optimizer.correspondence_generator.matcher.matcher_obj._target_=gtsfm.frontend.matcher.twoway_matcher.TwoWayMatcher",
+          "~cluster_optimizer.correspondence_generator.matcher.matcher_obj.features",
+          "+cluster_optimizer.correspondence_generator.matcher.matcher_obj.ratio_test_threshold=0.8",
+          "cluster_optimizer.dense_multiview_optimizer=null",
+          "cluster_optimizer.gaussian_splatting_optimizer=null"
+        ],
+        "method": "rootsift",
+        "returncode": 0,
+        "wall_seconds": 147.33275620400673
+      }
+    }
+  }
+}
