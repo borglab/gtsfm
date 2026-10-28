@@ -123,13 +123,13 @@ def main() -> None:
         "python": sys.version,
         "versions": {package: importlib.metadata.version(package) for package in packages},
     }
-    (output / "environment.json").write_text(json.dumps(metadata, indent=2) + "\n")
+    environment_path = output / "environment.json"
+    if not environment_path.exists():
+        environment_path.write_text(json.dumps(metadata, indent=2) + "\n")
     env = dict(os.environ, PYTHONPATH=str(repo), OPENBLAS_NUM_THREADS="1", OMP_NUM_THREADS="1")
     failures = []
     for method in args.methods:
         destination = output / method
-        if destination.exists():
-            raise FileExistsError(f"Use a fresh output directory: {destination}")
         command = [
             sys.executable,
             str(repo / "gtsfm/runner.py"),
@@ -171,8 +171,14 @@ def main() -> None:
                 "cluster_optimizer.multiview_optimizer.rot_avg_module._target_="
                 "scripts.benchmark_rotation_averaging.UncertifiedRotationAveraging"
             )
-        record = {"command": command, "method": method}
         record_path = output / f"{method}.execution.json"
+        if destination.exists():
+            previous = json.loads(record_path.read_text()) if record_path.exists() else {}
+            if previous.get("returncode") == 0 and previous.get("command") == command:
+                print(f"Reusing completed {method}: {destination}", flush=True)
+                continue
+            raise FileExistsError(f"Use a fresh output directory: {destination}")
+        record = {"command": command, "method": method}
         record_path.write_text(json.dumps(record, indent=2) + "\n")
         print(f"Starting {method}: {output / (method + '.log')}", flush=True)
         start = time.perf_counter()

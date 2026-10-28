@@ -93,3 +93,25 @@ def test_benchmark_forwards_dataset_settings(tmp_path: Path, separate_intrinsics
     assert command[command.index("--max_frame_lookahead") + 1] == "15"
     assert ("--share_intrinsics" in command) != separate_intrinsics
     assert any("UncertifiedRotationAveraging" in argument for argument in command)
+
+
+def test_benchmark_reuses_only_identical_completed_runs(tmp_path: Path) -> None:
+    """Resuming skips identical successful runs and refuses mismatched settings."""
+    from scripts.benchmark_sift_variants import main
+
+    args = ["benchmark", "--output-root", str(tmp_path), "--methods", "opencv"]
+    with (
+        patch("sys.argv", args),
+        patch("subprocess.check_output", return_value="test-commit"),
+        patch("importlib.metadata.version", return_value="test-version"),
+        patch("subprocess.run", return_value=subprocess.CompletedProcess([], 0)) as run,
+    ):
+        main()
+        (tmp_path / "opencv").mkdir()
+        run.reset_mock()
+        main()
+        run.assert_not_called()
+        args.append("--separate-intrinsics")
+        with pytest.raises(FileExistsError):
+            main()
+        run.assert_not_called()
