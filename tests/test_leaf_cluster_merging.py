@@ -2,7 +2,6 @@
 
 import unittest
 
-import gtsam
 import numpy as np
 from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Point2, Point3, Pose3, Rot3, SfmTrack
 
