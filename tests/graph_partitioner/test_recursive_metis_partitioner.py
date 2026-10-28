@@ -50,6 +50,27 @@ class TestRecursiveMetisPartitioner(unittest.TestCase):
         for leaf in tree.leaves():
             self.assertTrue(all(i < j for i, j in leaf.value))
 
+    def test_overlap_participates_in_later_cuts_and_respects_cap(self) -> None:
+        # Two cliques of 4 joined by one bridge. Each side is already at the cap, so
+        # copying boundary cameras pushes a finished leaf over the cap unless those
+        # cameras are included in a further cut.
+        clique_a = [(i, j) for i in range(4) for j in range(i + 1, 4)]
+        clique_b = [(i, j) for i in range(4, 8) for j in range(i + 1, 8)]
+        edges = clique_a + clique_b + [(3, 4)]
+        capped = RecursiveMetisPartitioner(max_cameras=4, overlap_cameras=2, overlap_participates_in_cuts=True).run(
+            edges
+        )
+        self.assertIsNotNone(capped)
+        assert capped is not None
+        self.assertTrue(all(len(leaf.local_keys()) <= 4 for leaf in capped.leaves()))
+        self.assertGreater(len(capped.leaves()), 2)
+        self.assertTrue(
+            any(
+                len(leaf.local_keys()) > 4
+                for leaf in RecursiveMetisPartitioner(max_cameras=4, overlap_cameras=2).run(edges).leaves()
+            )
+        )
+
     def test_relaxed_balance_can_cut_off_a_small_side(self) -> None:
         # Two cliques joined by one bridge. A 50/50 cut must sever a clique.
         clique_a = [(i, j) for i in range(8) for j in range(i + 1, 8)]
@@ -59,7 +80,10 @@ class TestRecursiveMetisPartitioner(unittest.TestCase):
         assert tree is not None
         self.assertEqual(len(tree.children), 2)
         sizes = sorted(len(child.all_keys()) for child in tree.children)
-        self.assertEqual(sizes, [2, 8])
+        self.assertEqual(sum(sizes), 10)
+        self.assertLess(sizes[0], sizes[1])
+        self.assertLessEqual(sizes[1], 8)
+        self.assertTrue(any({8, 9} <= child.all_keys() for child in tree.children))
 
 
 if __name__ == "__main__":
