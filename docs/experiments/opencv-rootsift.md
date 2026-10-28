@@ -46,6 +46,21 @@ includes metric labels, source report hashes, and provenance. Percentages are
 relative changes, not percentage-point differences; color saturates at ±20%.
 Gray cells indicate an unavailable baseline after the old Skydio run failed.
 
+The [standard GTSFM dashboards](opencv-rootsift-standard-dashboards.zip) are also
+available. These run the existing `visualize_benchmark_comparison.py` generator
+unchanged on the original saved HTML reports, with all nine standard metric
+sections. The archive contains two dashboards: replacement versus plain OpenCV
+(all three scenes), and replacement versus standalone RootSIFT (Door and Gerrard
+Hall; Skydio failed and has no final report). In their hover text, "Master" means
+the baseline extractor and "Branch" means OpenCV + RootSIFT.
+
+The standard dashboards preserve the original reported scores, including the
+uncorrected Skydio OpenCV pose-AUC denominator and constructed-camera-only scores.
+Use the custom comparison and tables below for corrected full-reference pose AUC.
+The stock dashboard omits the later post-merge BA section. Its runtime rows are
+not controlled timing comparisons because runs reused caches and shared the host.
+The archive README records these limitations and the source report paths.
+
 This uses the red/green style of `gtsfm/evaluation/visualize_benchmark_comparison.py`,
 but draws from the recorded JSON metrics to preserve the corrected reference-image
 denominators. For ordinary CI artifact comparisons, the existing command is:
