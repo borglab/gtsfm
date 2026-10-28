@@ -37,6 +37,26 @@ replaced with tests for joint extraction. Upright SIFT is outside this change.
 
 ## Recorded comparison
 
+![Relative metric changes for OpenCV RootSIFT versus standalone RootSIFT and plain OpenCV SIFT](opencv-rootsift-comparison.png)
+
+[Download the interactive dashboard](opencv-rootsift-comparison.html.zip) and open
+its HTML file in a browser (internet access is needed for Plotly). Hover over a
+cell for the before/after values. The [plotted data](opencv-rootsift-comparison.json)
+includes metric labels, source report hashes, and provenance. Percentages are
+relative changes, not percentage-point differences; color saturates at ±20%.
+Gray cells indicate an unavailable baseline after the old Skydio run failed.
+
+This uses the red/green style of `gtsfm/evaluation/visualize_benchmark_comparison.py`,
+but draws from the recorded JSON metrics to preserve the corrected reference-image
+denominators. For ordinary CI artifact comparisons, the existing command is:
+
+```bash
+python gtsfm/evaluation/visualize_benchmark_comparison.py \
+  --master_path /path/to/before-artifacts \
+  --branch_path /path/to/after-artifacts \
+  --output_path visual_comparison_dashboard.html
+```
+
 These are existing runs, not benchmarks rerun for this change. The benchmark
 harness and original reports are preserved on `codex/sift-rootsift-comparison`
 at commit `f558a601`; production code in those runs was based on master
