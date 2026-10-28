@@ -60,3 +60,36 @@ def test_benchmark_continues_after_failed_variant(tmp_path: Path) -> None:
     assert run.call_count == 2
     assert json.loads((tmp_path / "opencv.execution.json").read_text())["returncode"] == 1
     assert json.loads((tmp_path / "colmap.execution.json").read_text())["returncode"] == 0
+
+
+@pytest.mark.parametrize("separate_intrinsics", [False, True])
+def test_benchmark_forwards_dataset_settings(tmp_path: Path, separate_intrinsics: bool) -> None:
+    """AstroVision, calibration sharing, lookahead, and bounded rotation reach the runner."""
+    from scripts.benchmark_sift_variants import main
+
+    args = [
+        "benchmark",
+        "--output-root",
+        str(tmp_path),
+        "--methods",
+        "opencv",
+        "--loader",
+        "astrovision",
+        "--max-frame-lookahead",
+        "15",
+        "--uncertified-rotation",
+    ]
+    if separate_intrinsics:
+        args.append("--separate-intrinsics")
+    with (
+        patch("sys.argv", args),
+        patch("subprocess.check_output", return_value="test-commit"),
+        patch("importlib.metadata.version", return_value="test-version"),
+        patch("subprocess.run", return_value=subprocess.CompletedProcess([], 0)) as run,
+    ):
+        main()
+    command = run.call_args.args[0]
+    assert command[command.index("--loader") + 1] == "astrovision"
+    assert command[command.index("--max_frame_lookahead") + 1] == "15"
+    assert ("--share_intrinsics" in command) != separate_intrinsics
+    assert any("UncertifiedRotationAveraging" in argument for argument in command)

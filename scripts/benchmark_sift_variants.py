@@ -107,11 +107,13 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset-dir", type=Path, default=repo / "tests/data/set1_lund_door")
     parser.add_argument("--output-root", type=Path, required=True)
-    parser.add_argument("--loader", choices=("olsson", "colmap"), default="olsson")
+    parser.add_argument("--loader", choices=("olsson", "colmap", "astrovision"), default="olsson")
     parser.add_argument("--images-dir", type=Path)
     parser.add_argument("--methods", nargs="+", choices=VARIANTS, default=["opencv", "colmap"])
     parser.add_argument("--max-resolution", type=int, default=1296)
     parser.add_argument("--uncertified-rotation", action="store_true")
+    parser.add_argument("--separate-intrinsics", action="store_true")
+    parser.add_argument("--max-frame-lookahead", type=int, default=10)
     args = parser.parse_args()
     output = args.output_root.resolve()
     output.mkdir(parents=True, exist_ok=True)
@@ -137,7 +139,6 @@ def main() -> None:
             str(args.dataset_dir.resolve()),
             "--config_name",
             "unified",
-            "--share_intrinsics",
             "--num_workers",
             "1",
             "--threads_per_worker",
@@ -145,9 +146,9 @@ def main() -> None:
             "--num_matched",
             "5",
             "--max_frame_lookahead",
-            "10",
+            str(args.max_frame_lookahead),
             "--worker_memory_limit",
-            "16GB",
+            "10GB",
             "--output_root",
             str(destination),
             "--max_resolution",
@@ -161,6 +162,8 @@ def main() -> None:
             "cluster_optimizer.dense_multiview_optimizer=null",
             "cluster_optimizer.gaussian_splatting_optimizer=null",
         ]
+        if not args.separate_intrinsics:
+            command.append("--share_intrinsics")
         if args.images_dir is not None:
             command.extend(["--images_dir", str(args.images_dir.resolve())])
         if args.uncertified_rotation:
