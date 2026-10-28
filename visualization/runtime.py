@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
-import importlib.util
+import ast
 import http.client
+import importlib.util
 import json
+import logging
 import os
 import platform
 import re
+import shlex
 import shutil
 import signal
 import ssl
@@ -17,10 +20,13 @@ import tarfile
 import tempfile
 import threading
 import time
-import uuid
 import urllib.error
 import urllib.request
-from dataclasses import dataclass, field
+import uuid
+from copy import deepcopy
+import hydra
+from omegaconf import OmegaConf
+from dataclasses import dataclass, field, fields
 from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
@@ -31,11 +37,17 @@ import certifi
 import yaml
 
 import gtsfm
+from visualization.datasets import resolve_relative_loader_paths
+from visualization import job_history
+from visualization.reconstruction import splat_sources
 
 PACKAGE_ROOT = Path(gtsfm.__file__).resolve().parent
 CONFIG_ROOT = PACKAGE_ROOT / "configs"
 _SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
+_REMOTE_REQUEST_TIMEOUT_SECONDS = 10 * 60
+_REMOTE_READ_RETRIES = 3
 _RUN_NAME_PATTERN = re.compile(r"[^A-Za-z0-9._-]+")
+_HYDRA_CONFIGURATION_LOCK = threading.RLock()
 _OPTIONAL_SUBMODULES = {
     "submodule-anysplat": {
         "directory": "AnySplat",
@@ -466,10 +478,30 @@ def install_optional_setup(check_id: str, results_root: Path) -> dict[str, Any]:
     return {"item": item, "setup": status}
 
 
+_CATALOG_YAML_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+\.yaml$")
+
+
+def _yaml_catalog_paths(folder: Path) -> list[Path]:
+    """Return canonical catalog YAMLs, excluding cloud/conflict copies.
+
+    macOS cloud storage can create numbered copies such as ``vggt 2.yaml``.
+    Those files are not GTSFM configurations and may be dataless placeholders,
+    so attempting to read them can block the configuration endpoint indefinitely.
+    """
+
+    if not folder.exists():
+        return []
+    return sorted(
+        path
+        for path in folder.glob("*.yaml")
+        if not path.name.startswith("_") and _CATALOG_YAML_NAME_PATTERN.fullmatch(path.name)
+    )
+
+
 def _yaml_stem_options(folder: Path) -> list[str]:
     if not folder.exists():
         return []
-    return sorted(path.stem for path in folder.glob("*.yaml") if not path.name.startswith("_"))
+    return [path.stem for path in _yaml_catalog_paths(folder)]
 
 
 def _display_name(value: str) -> str:
@@ -481,9 +513,8 @@ def _display_name(value: str) -> str:
     )
 
 
-@lru_cache(maxsize=1)
 def configuration_schema() -> dict[str, Any]:
-    """Describe supported form fields and choices without importing the full runner."""
+    """Read current config choices so newly added presets appear without a server restart."""
 
     root_configs = _yaml_stem_options(CONFIG_ROOT)
     excluded = {"cluster", "cluster_gpu", "local_scheduler_postgres_remote_cluster"}
@@ -511,7 +542,7 @@ def configuration_schema() -> dict[str, Any]:
         )
     loader_options: dict[str, list[dict[str, Any]]] = {}
     standard_loader_fields = {"_target_", "dataset_dir", "images_dir", "max_resolution", "input_worker"}
-    for loader_path in sorted((CONFIG_ROOT / "loader").glob("*.yaml")):
+    for loader_path in _yaml_catalog_paths(CONFIG_ROOT / "loader"):
         data = yaml.safe_load(loader_path.read_text(encoding="utf-8")) or {}
         options: list[dict[str, Any]] = []
         for name, value in data.items():
@@ -588,6 +619,218 @@ def configuration_schema() -> dict[str, Any]:
     }
 
 
+_HIDDEN_HYDRA_SEGMENTS = {
+    "_target_",
+    "_recursive_",
+    "_convert_",
+    "api_key",
+    "cache_key",
+    "dataset_dir",
+    "images_dir",
+    "input_worker",
+    "output_root",
+    "password",
+    "secret",
+    "token",
+}
+_DEDICATED_HYDRA_FIELDS = {"max_frame_lookahead", "num_matched", "shared_calib"}
+
+
+def _hidden_hydra_segment(segment: str) -> bool:
+    lowered = segment.lower()
+    return (
+        segment.startswith("_")
+        or lowered in _HIDDEN_HYDRA_SEGMENTS
+        or lowered in _DEDICATED_HYDRA_FIELDS
+        or lowered.endswith(("_path", "_dir", "_root", "_secret", "_token", "_password", "_api_key"))
+    )
+
+
+def _hydra_field_group(path: str) -> str:
+    """Assign a stable user-facing section to an editable Hydra leaf."""
+
+    lowered = path.lower()
+    groups = (
+        ("geometry_transformer", "Geometry"),
+        ("tracker", "Tracking"),
+        ("global_descriptor", "Global descriptor"),
+        ("retriever", "Image retrieval"),
+        ("image_pairs_generator", "Image pairing"),
+        ("correspondence", "Feature matching"),
+        ("verifier", "Verification"),
+        ("bundle_adjustment", "Bundle adjustment"),
+        ("ba_options", "Bundle adjustment"),
+        ("merging", "Scene merging"),
+        ("graph_partitioner", "Graph partitioning"),
+        ("cluster_optimizer", "Cluster optimization"),
+    )
+    return next((label for marker, label in groups if marker in lowered), "Pipeline")
+
+
+def _gaussian_field_group(name: str) -> str:
+    if name.endswith("_lr"):
+        return "Learning rates"
+    if name.startswith("init_"):
+        return "Initialization"
+    if any(marker in name for marker in ("densify", "cull", "split", "refine", "warmup", "reset", "absgrad")):
+        return "Densification and pruning"
+    if name in {"batch_size", "num_downscales", "resolution_schedule", "ssim_lambda"}:
+        return "Training"
+    return "Rendering and export"
+
+
+def _safe_config_default(node: ast.expr) -> object:
+    """Evaluate the scalar arithmetic used by Config defaults without importing torch."""
+
+    try:
+        return ast.literal_eval(node)
+    except (ValueError, TypeError):
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
+            value = _safe_config_default(node.operand)
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                return value if isinstance(node.op, ast.UAdd) else -value
+        if isinstance(node, ast.BinOp):
+            left = _safe_config_default(node.left)
+            right = _safe_config_default(node.right)
+            if all(isinstance(value, (int, float)) and not isinstance(value, bool) for value in (left, right)):
+                if isinstance(node.op, ast.Add):
+                    return left + right
+                if isinstance(node.op, ast.Sub):
+                    return left - right
+                if isinstance(node.op, ast.Mult):
+                    return left * right
+                if isinstance(node.op, ast.Div):
+                    return left / right
+        raise ValueError("Unsupported Gaussian Config default")
+
+
+@lru_cache(maxsize=1)
+def _gaussian_dataclass_defaults() -> dict[str, object]:
+    """Read Config defaults from source so schema discovery never imports the GPU stack."""
+
+    source_path = PACKAGE_ROOT / "splat" / "gaussian_splatting.py"
+    tree = ast.parse(source_path.read_text(encoding="utf-8"), filename=str(source_path))
+    config_class = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "Config")
+    defaults: dict[str, object] = {}
+    for statement in config_class.body:
+        if (
+            not isinstance(statement, ast.AnnAssign)
+            or not isinstance(statement.target, ast.Name)
+            or statement.value is None
+        ):
+            continue
+        try:
+            value = _safe_config_default(statement.value)
+        except ValueError:
+            continue
+        if isinstance(value, (bool, int, float, str)):
+            defaults[statement.target.id] = value
+    return defaults
+
+
+def _hydra_field_descriptor(path: str, default: object, group: str) -> dict[str, Any]:
+    if isinstance(default, bool):
+        field_type = "boolean"
+    elif isinstance(default, int):
+        field_type = "integer"
+    elif isinstance(default, float):
+        field_type = "number"
+    else:
+        field_type = "string"
+    descriptor: dict[str, Any] = {
+        "key": path,
+        "label": _display_name(path.rsplit(".", 1)[-1]),
+        "type": field_type,
+        "defaultValue": default,
+        "group": group,
+        "help": f"Inherited from the selected preset. Hydra key: {path}",
+    }
+    if field_type == "integer":
+        descriptor["step"] = 1
+    elif field_type == "number":
+        descriptor["step"] = "any"
+    return descriptor
+
+
+def _editable_hydra_leaves(value: object, prefix: str = "") -> list[dict[str, Any]]:
+    """Flatten safe scalar values while hiding Hydra constructors and runtime paths."""
+
+    if not isinstance(value, Mapping):
+        return []
+    fields: list[dict[str, Any]] = []
+    for name, child in value.items():
+        segment = str(name)
+        path = f"{prefix}.{segment}" if prefix else segment
+        if _hidden_hydra_segment(segment):
+            continue
+        # Loader paths and Gaussian attachment are managed by dedicated controls.
+        if path == "loader" or path.startswith("loader.") or "gaussian_splatting_optimizer" in path:
+            continue
+        if isinstance(child, Mapping):
+            fields.extend(_editable_hydra_leaves(child, path))
+        elif isinstance(child, (bool, int, float, str)) and child != "???":
+            fields.append(_hydra_field_descriptor(path, child, _hydra_field_group(path)))
+    return fields
+
+
+def _composed_model_configuration(config_name: str, loader: str, overrides: list[str] | None = None) -> dict[str, Any]:
+    """Compose a root preset exactly as the runner does, without importing Hydra at startup."""
+
+    compose_overrides = ["+output_root=/tmp", f"+loader@loader={loader}", "loader.dataset_dir=/tmp"]
+    compose_overrides.extend(overrides or [])
+    with _HYDRA_CONFIGURATION_LOCK:
+        with hydra.initialize_config_module(config_module="gtsfm.configs", version_base=None):
+            config = hydra.compose(config_name=config_name, overrides=compose_overrides)
+    return dict(OmegaConf.to_container(config, resolve=False) or {})
+
+
+@lru_cache(maxsize=128)
+def configuration_parameter_schema(
+    config_name: str,
+    loader: str,
+    gaussian_splatting_config_name: str = "base_gs",
+    include_gaussian: bool = True,
+) -> dict[str, Any]:
+    """Return typed editable leaves for the currently selected Hydra presets."""
+
+    catalog = configuration_schema()
+    _validate_choice(config_name, [item["id"] for item in catalog["models"]], "model")
+    _validate_choice(loader, catalog["loaders"], "loader")
+    _validate_choice(
+        gaussian_splatting_config_name,
+        catalog["gaussian_splatting_models"],
+        "Gaussian splatting model",
+    )
+
+    model_fields = _editable_hydra_leaves(_composed_model_configuration(config_name, loader))
+    gaussian_fields: list[dict[str, Any]] = []
+    if include_gaussian:
+        gaussian_config = (
+            yaml.safe_load(
+                (CONFIG_ROOT / "gaussian_splatting" / f"{gaussian_splatting_config_name}.yaml").read_text(
+                    encoding="utf-8"
+                )
+            )
+            or {}
+        )
+        yaml_defaults = (gaussian_config.get("gaussian_splatting_optimizer") or {}).get("cfg") or {}
+        defaults = dict(_gaussian_dataclass_defaults())
+        defaults.update({name: value for name, value in yaml_defaults.items() if name != "_target_"})
+        gaussian_fields = [
+            _hydra_field_descriptor(name, default, _gaussian_field_group(name))
+            for name, default in defaults.items()
+            if name != "max_steps" and isinstance(default, (bool, int, float, str))
+        ]
+
+    return {
+        "model": {"preset": config_name, "fields": model_fields},
+        "gaussian": {
+            "preset": gaussian_splatting_config_name,
+            "fields": gaussian_fields,
+        },
+    }
+
+
 def _normalise_run_name(value: object) -> str:
     name = _RUN_NAME_PATTERN.sub("-", str(value or "run").strip()).strip("-._")
     return name[:64] or "run"
@@ -598,6 +841,46 @@ def _validate_choice(value: object, allowed: list[str], field_name: str) -> str:
     if text not in allowed:
         raise ValueError(f"Unknown {field_name}: {text}")
     return text
+
+
+def _encode_hydra_scalar(value: object, default: object, field_name: str) -> str:
+    """Validate a UI value against its preset type and encode one Hydra scalar."""
+
+    try:
+        if isinstance(default, bool):
+            if isinstance(value, bool):
+                parsed: object = value
+            elif str(value).lower() in {"true", "false"}:
+                parsed = str(value).lower() == "true"
+            else:
+                raise ValueError
+            return "true" if parsed else "false"
+        if isinstance(default, int) and not isinstance(default, bool):
+            return str(int(value))
+        if isinstance(default, float):
+            return str(float(value))
+        if isinstance(default, str):
+            return json.dumps(str(value))
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"Invalid value for Hydra setting {field_name}: {value}") from exc
+    raise ValueError(f"Hydra setting {field_name} is not an editable scalar")
+
+
+def _validate_advanced_hydra_overrides(config_name: str, loader: str, overrides: list[str]) -> None:
+    """Reject unsafe or invalid expert expressions before the runner sees them."""
+
+    for expression in overrides:
+        if expression.startswith("--") or "\x00" in expression or "=" not in expression:
+            raise ValueError("Advanced overrides must use one Hydra key=value expression per line")
+        key = expression.split("=", 1)[0].lstrip("+~")
+        segments = re.split(r"[.@/]", key)
+        if any(_hidden_hydra_segment(segment) for segment in segments):
+            raise ValueError(f"Advanced override is not editable from the Studio: {key}")
+    try:
+        _composed_model_configuration(config_name, loader, overrides)
+    except Exception as exc:
+        detail = str(exc).splitlines()[0]
+        raise ValueError(f"Invalid Hydra override: {detail}") from exc
 
 
 def build_runner_args(spec: Mapping[str, Any], output_root: Path) -> tuple[list[str], dict[str, str]]:
@@ -616,10 +899,10 @@ def build_runner_args(spec: Mapping[str, Any], output_root: Path) -> tuple[list[
     capabilities = {item["id"]: item["capabilities"] for item in schema["models"]}.get(config_name, {})
     if splat_implementation == "gsplat" and not capabilities.get("iterative_splat"):
         raise ValueError(f"The {config_name} model does not support iterative Gaussian splatting")
-    loader = _validate_choice(spec.get("loader"), schema["loaders"], "loader")
     dataset_dir = Path(str(spec.get("dataset_dir") or "")).expanduser().resolve()
     if not dataset_dir.is_dir():
         raise ValueError(f"Dataset directory does not exist: {dataset_dir}")
+    loader = _validate_choice(spec.get("loader"), schema["loaders"], "loader")
 
     args = [
         "--config_name",
@@ -662,6 +945,7 @@ def build_runner_args(spec: Mapping[str, Any], output_root: Path) -> tuple[list[
     loader_option_values = spec.get("loader_options") or {}
     if not isinstance(loader_option_values, Mapping):
         raise ValueError("Loader options must be an object")
+    loader_option_values, _ = resolve_relative_loader_paths(dataset_dir, loader_option_values, None)
     unknown_loader_options = set(loader_option_values) - set(loader_option_schema)
     if unknown_loader_options:
         raise ValueError(f"Unknown options for the {loader} loader: {', '.join(sorted(unknown_loader_options))}")
@@ -711,28 +995,85 @@ def build_runner_args(spec: Mapping[str, Any], output_root: Path) -> tuple[list[
         if not capabilities.get("mvs"):
             raise ValueError(f"The {config_name} model does not support the dense MVS stage")
         args.append("--run_mvs")
+
+    parameter_schema = configuration_parameter_schema(
+        config_name,
+        loader,
+        str(spec.get("gaussian_splatting_config_name") or "base_gs"),
+        splat_implementation == "gsplat",
+    )
+    model_overrides = spec.get("hydra_overrides") or {}
+    if not isinstance(model_overrides, Mapping):
+        raise ValueError("Hydra overrides must be an object")
+    model_defaults = {
+        descriptor["key"]: descriptor["defaultValue"] for descriptor in parameter_schema["model"]["fields"]
+    }
+    unknown_model_overrides = set(model_overrides) - set(model_defaults)
+    if unknown_model_overrides:
+        raise ValueError("Unknown or protected Hydra settings: " + ", ".join(sorted(unknown_model_overrides)))
+    typed_model_overrides: list[str] = []
+    for name, value in model_overrides.items():
+        if value in (None, ""):
+            continue
+        typed_model_overrides.append(f"{name}={_encode_hydra_scalar(value, model_defaults[name], name)}")
+
     if splat_implementation == "gsplat":
+        gaussian_config_name = _validate_choice(
+            spec.get("gaussian_splatting_config_name") or "base_gs",
+            schema["gaussian_splatting_models"],
+            "Gaussian splatting model",
+        )
         args.extend(
             [
                 "--run_gs",
                 "--gaussian_splatting_config_name",
-                _validate_choice(
-                    spec.get("gaussian_splatting_config_name") or "base_gs",
-                    schema["gaussian_splatting_models"],
-                    "Gaussian splatting model",
-                ),
+                gaussian_config_name,
                 "--gs_max_steps",
                 str(max(1, int(spec.get("gs_max_steps", 7000)))),
             ]
         )
+        gaussian_overrides = spec.get("gaussian_splatting_overrides") or {}
+        if not isinstance(gaussian_overrides, Mapping):
+            raise ValueError("Gaussian splatting overrides must be an object")
+        gaussian_config = (
+            yaml.safe_load(
+                (CONFIG_ROOT / "gaussian_splatting" / f"{gaussian_config_name}.yaml").read_text(encoding="utf-8")
+            )
+            or {}
+        )
+        gaussian_yaml_defaults = (gaussian_config.get("gaussian_splatting_optimizer") or {}).get("cfg") or {}
+        # Presets intentionally omit values already supplied by the optimizer
+        # dataclass. Include both sources in the typed UI allowlist; Hydra needs
+        # a leading '+' only for a dataclass default absent from this YAML.
+        gaussian_defaults = dict(_gaussian_dataclass_defaults())
+        gaussian_defaults.update({name: value for name, value in gaussian_yaml_defaults.items() if name != "_target_"})
+        editable_defaults = {
+            name: default
+            for name, default in gaussian_defaults.items()
+            if name != "_target_" and isinstance(default, (bool, int, float, str))
+        }
+        unknown_gaussian_overrides = set(gaussian_overrides) - set(editable_defaults)
+        if unknown_gaussian_overrides:
+            raise ValueError("Unknown Gaussian splatting settings: " + ", ".join(sorted(unknown_gaussian_overrides)))
+        for name, value in gaussian_overrides.items():
+            if value in (None, ""):
+                continue
+            encoded = _encode_hydra_scalar(value, editable_defaults[name], name)
+            prefix = "" if name in gaussian_yaml_defaults else "+"
+            args.extend(
+                [
+                    "--gaussian_splatting_override",
+                    f"{prefix}gaussian_splatting_optimizer.cfg.{name}={encoded}",
+                ]
+            )
 
     advanced_overrides = spec.get("advanced_overrides") or []
     if isinstance(advanced_overrides, str):
         advanced_overrides = [line.strip() for line in advanced_overrides.splitlines() if line.strip()]
     if not isinstance(advanced_overrides, list) or not all(isinstance(item, str) for item in advanced_overrides):
         raise ValueError("Advanced overrides must be one Hydra key=value expression per line")
-    if any(item.startswith("--") or "\x00" in item for item in advanced_overrides):
-        raise ValueError("Advanced overrides must use Hydra key=value syntax, not command-line flags")
+    _validate_advanced_hydra_overrides(config_name, loader, [*typed_model_overrides, *advanced_overrides])
+    args.extend(typed_model_overrides)
     args.extend(advanced_overrides)
 
     hardware = str(spec.get("hardware") or "cpu")
@@ -768,7 +1109,12 @@ class ManagedJob:
     log_tail: list[str] = field(default_factory=list)
     pid: int | None = None
     remote: dict[str, Any] | None = None
+    history_note: str | None = None
+    retry_available: bool = True
+    retry_of: str | None = None
     remote_api_key: str | None = field(default=None, repr=False, compare=False)
+    remote_cancel_requested: bool = field(default=False, repr=False, compare=False)
+    remote_cancel_dispatched: bool = field(default=False, repr=False, compare=False)
     process: subprocess.Popen[str] | None = field(default=None, repr=False, compare=False)
 
     def public(self) -> dict[str, Any]:
@@ -786,6 +1132,8 @@ class ManagedJob:
             "log_tail": list(self.log_tail),
             "pid": self.pid,
             "remote": self.remote,
+            "history_note": self.history_note,
+            "retry_available": self.retry_available,
         }
         payload["has_live_preview"] = (Path(self.live_root) / "live_splats.ply").exists()
         payload["has_final_splat"] = any(Path(self.output_root).rglob("gaussian_splats.ply"))
@@ -795,24 +1143,168 @@ class ManagedJob:
 class JobManager:
     """Own subprocesses started by one browser workspace process."""
 
-    def __init__(self, results_root: Path) -> None:
+    def __init__(self, results_root: Path, *, restore_history: bool = True) -> None:
         self.results_root = results_root.resolve()
         self.results_root.mkdir(parents=True, exist_ok=True)
         self.runtime_root = self.results_root / ".gtsfm"
         self.runtime_root.mkdir(parents=True, exist_ok=True)
         self._jobs: dict[str, ManagedJob] = {}
+        self._retry_jobs: dict[str, str] = {}
         self._lock = threading.RLock()
+        self.history_root = self.runtime_root / "jobs"
+        self._last_history_save: dict[str, float] = {}
+        if restore_history:
+            self._restore_history()
+
+    def _save_job(self, job: ManagedJob, *, required: bool = False, throttle: bool = False) -> None:
+        """Persist transitions immediately, with bounded writes for streaming log updates."""
+        with self._lock:
+            now = time.monotonic()
+            if throttle and now - self._last_history_save.get(job.id, -float("inf")) < 2:
+                return
+            record = {
+                item.name: getattr(job, item.name) for item in fields(ManagedJob)
+                if item.name not in {"process", "remote_api_key", "remote_cancel_requested", "remote_cancel_dispatched"}
+            }
+            try:
+                job_history.write_record(self.history_root, record)
+            except OSError:
+                if required:
+                    raise
+                logging.getLogger(__name__).exception("Unable to save Studio history for %s", job.id)
+            self._last_history_save[job.id] = now
+
+    def _restore_history(self) -> None:
+        records = list(job_history.read_records(self.history_root))
+        # An unreadable manifest must not be overwritten by a partial legacy recovery.
+        known_ids = {path.stem for path in self.history_root.glob("*.json")}
+        records.extend(job_history.recover_legacy_runs(self.results_root, known_ids))
+        allowed = {item.name for item in fields(ManagedJob)} - {
+            "process", "remote_api_key", "remote_cancel_requested", "remote_cancel_dispatched"
+        }
+        for record in records:
+            try:
+                job = ManagedJob(**{key: value for key, value in record.items() if key in allowed})
+            except (TypeError, ValueError):
+                logging.getLogger(__name__).warning("Skipping invalid Studio history record")
+                continue
+            _, tail = job_history.log_excerpt(self.runtime_root / f"{job.id}.log")
+            if tail:
+                job.log_tail = tail
+            if job.status in {"queued", "running"}:
+                job.status = "interrupted"
+                job.history_note = "Studio restarted before recording the outcome. This run was not automatically restarted."
+            if job.remote is not None:
+                job.retry_available = False
+                job.history_note = "Remote run history restored. Re-enter remote credentials in New run to launch again."
+            self._jobs[job.id] = job
+            if job.id not in known_ids:
+                self._save_job(job)
+        for job in sorted(self._jobs.values(), key=lambda item: (item.created_at, item.id)):
+            if job.retry_of:
+                self._retry_jobs[job.retry_of] = job.id
 
     def list(self) -> list[dict[str, Any]]:
         with self._lock:
-            return [job.public() for job in sorted(self._jobs.values(), key=lambda item: item.created_at, reverse=True)]
+            return [job.public() for job in sorted(self._jobs.values(), key=lambda item: (item.created_at, item.id), reverse=True)]
 
     def get(self, job_id: str) -> ManagedJob | None:
         with self._lock:
             return self._jobs.get(job_id)
 
-    def start(self, spec: Mapping[str, Any]) -> dict[str, Any]:
-        job_id = uuid.uuid4().hex[:12]
+    def diagnostic_prompt(self, job_id: str) -> str:
+        """Collect the recorded command and full log for a failure diagnosis."""
+        job = self.get(job_id)
+        if job is None:
+            raise KeyError(job_id)
+        log_note = ""
+        if job.remote and job.remote.get("job_id"):
+            endpoint = job.remote["endpoint"].rstrip("/")
+            remote_id = job.remote["job_id"]
+            try:
+                result = self._remote_json(
+                    f"{endpoint}/api/jobs/{remote_id}/diagnostic-prompt", job.remote_api_key or ""
+                )
+                return str(result["prompt"])
+            except (
+                KeyError,
+                ValueError,
+                urllib.error.URLError,
+                http.client.HTTPException,
+                ConnectionError,
+                TimeoutError,
+            ):
+                log_note = "The remote diagnostic report is unavailable; only the cached log tail is included."
+
+        log_path = self.runtime_root / f"{job.id}.log"
+        try:
+            logs = log_path.read_text(encoding="utf-8", errors="replace")
+            log_source = f"Log file: {log_path}"
+        except OSError:
+            logs = "\n".join(job.log_tail)
+            log_source = log_note or "No saved log file is available; showing the cached log tail."
+        command = (
+            shlex.join(job.command)
+            if not job.remote
+            else "No local CLI command: this run was sent to a remote workspace."
+        )
+        # Keep command arguments or log lines containing backticks inside the code block.
+        fence = "`" * max(3, max((len(match[0]) + 1 for match in re.finditer(r"`+", command + logs)), default=3))
+        return (
+            "Please examine this failed GTSFM run and diagnose the root cause. "
+            "Use the CLI command and log output below, explain the evidence, and suggest a concrete fix.\n\n"
+            f"Run: {job.name}\nStatus: {job.status}\nExit code: {job.return_code}\n"
+            f"Error: {job.error or 'Not recorded'}\nOutput directory: {job.output_root}\n\n"
+            f"CLI command used:\n{fence}sh\n{command or 'No command recorded.'}\n{fence}\n\n"
+            f"{log_source}\n{fence}text\n{logs or 'No log output was recorded.'}\n{fence}\n"
+        )
+
+    def retry(self, job_id: str) -> dict[str, Any]:
+        """Start a fresh attempt with saved settings, preserving the failed run and its logs."""
+        with self._lock:
+            job = self.get(job_id)
+            if job is None:
+                raise KeyError(job_id)
+            if job.status not in {"failed", "interrupted"}:
+                raise ValueError("Only failed or interrupted runs can be retried")
+            if not job.retry_available:
+                raise ValueError(job.history_note or "The original run settings are unavailable")
+            # Multiple buttons/tabs must not launch duplicate GPU jobs for one retry.
+            previous_retry = self.get(self._retry_jobs.get(job_id, ""))
+            if previous_retry is not None and previous_retry.status in {"queued", "running"}:
+                return previous_retry.public()
+            for attempt in (job, previous_retry):
+                if attempt is None or attempt.status != "interrupted" or not attempt.pid:
+                    continue
+                try:
+                    os.kill(attempt.pid, 0)
+                except ProcessLookupError:
+                    pass
+                except PermissionError as exc:
+                    raise ValueError(
+                        "The previous process may still be running; Retry is unavailable until it stops"
+                    ) from exc
+                else:
+                    raise ValueError(f"The previous process (PID {attempt.pid}) still exists; stop it before retrying")
+            spec = deepcopy(job.spec)
+            spec.setdefault("name", job.name)
+            if job.remote is not None:
+                spec["api_key"] = job.remote_api_key
+            # Rebuild the command using current code/configs, rather than replaying a stale argv.
+            retried = self.start(spec)
+            self._retry_jobs[job_id] = retried["id"]
+            retry_job = self.get(retried["id"])
+            if retry_job is not None:
+                retry_job.retry_of = job_id
+                self._save_job(retry_job)
+            return retried
+
+    def start(self, spec: Mapping[str, Any], *, job_id: str | None = None) -> dict[str, Any]:
+        """Start a pipeline, optionally using a caller-provided durable job ID."""
+
+        job_id = job_id or uuid.uuid4().hex[:12]
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", job_id):
+            raise ValueError("Job ID contains unsupported characters")
         name = _normalise_run_name(spec.get("name"))
         run_root = self.results_root / "runs" / f"{name}-{job_id}"
         # Keep transient previews outside the results tree discovered by the viewer.
@@ -841,6 +1333,39 @@ class JobManager:
             args: list[str] = []
             device_env: dict[str, str] = {}
             command = ["remote", f"{endpoint}/api/jobs"]
+        elif spec.get("job_type") == "splat":
+            scene, _ = splat_sources(self.results_root, str(spec.get("scene") or ""))
+            preset = str(spec.get("gaussian_splatting_config_name") or "base_gs")
+            if preset not in _yaml_stem_options(CONFIG_ROOT / "gaussian_splatting"):
+                raise ValueError("Unknown Gaussian splatting preset")
+            steps = int(spec.get("gs_max_steps", 7000))
+            if steps < 1:
+                raise ValueError("Training steps must be positive")
+            devices = [
+                device
+                for device in detect_hardware()["devices"]
+                if device.get("supports_gaussian_splatting") and device.get("status", "available") == "available"
+            ]
+            if not devices:
+                raise ValueError("Gaussian splatting requires a CUDA-capable NVIDIA GPU")
+            device = devices[0]["id"]
+            device_env = {"GTSFM_SELECTED_DEVICE": device, "CUDA_VISIBLE_DEVICES": device.split(":", 1)[1]}
+            command = [
+                sys.executable,
+                "-u",
+                "-m",
+                "gtsfm.splat.runner",
+                "--results_root",
+                str(self.results_root),
+                "--scene",
+                scene.relative_to(self.results_root).as_posix(),
+                "--output_root",
+                str(run_root),
+                "--config_name",
+                preset,
+                "--max_steps",
+                str(steps),
+            ]
         else:
             args, device_env = build_runner_args(spec, run_root)
             command = [sys.executable, "-m", "gtsfm.runner", *args]
@@ -859,6 +1384,7 @@ class JobManager:
             remote_api_key=api_key if is_remote else None,
         )
         with self._lock:
+            self._save_job(job, required=True)
             self._jobs[job_id] = job
 
         live_root.mkdir(parents=True, exist_ok=True)
@@ -884,8 +1410,24 @@ class JobManager:
             method="POST" if payload is not None else "GET",
             headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
         )
-        with urllib.request.urlopen(request, timeout=120, context=_SSL_CONTEXT) as response:
-            result = json.loads(response.read().decode("utf-8"))
+        # Allocating a Modal GPU and loading the CUDA runtime can take more than
+        # two minutes on the first request. Keep the socket open through that
+        # cold start instead of launching a second competing verification.
+        # Status reads are safe to retry when Modal closes a response before
+        # all Content-Length bytes arrive. Never automatically replay a POST:
+        # the remote operation may have succeeded even if its response broke.
+        attempts = _REMOTE_READ_RETRIES if payload is None else 1
+        for attempt in range(attempts):
+            try:
+                with urllib.request.urlopen(
+                    request, timeout=_REMOTE_REQUEST_TIMEOUT_SECONDS, context=_SSL_CONTEXT
+                ) as response:
+                    result = json.loads(response.read().decode("utf-8"))
+                break
+            except (http.client.IncompleteRead, http.client.RemoteDisconnected, ConnectionError, TimeoutError):
+                if attempt + 1 >= attempts:
+                    raise
+                time.sleep(0.25 * (2**attempt))
         if not isinstance(result, dict):
             raise ValueError("Remote workspace returned an invalid response")
         return result
@@ -999,6 +1541,7 @@ class JobManager:
                         job.log_tail.append(f"Uploading {field_name.replace('_', ' ')} to the remote workspace…")
                         job.status = "running"
                         job.updated_at = _utc_now()
+                        self._save_job(job)
                     uploaded = self._remote_upload_directory(
                         endpoint,
                         job.remote_api_key,
@@ -1009,6 +1552,10 @@ class JobManager:
             with self._lock:
                 if job.status == "cancelled":
                     return
+                job.status = "running"
+                job.updated_at = _utc_now()
+                job.log_tail.append("Starting the remote GPU workspace; the first run may take several minutes…")
+                self._save_job(job)
             remote_spec["execution_target"] = "local"
             created = self._remote_json(f"{endpoint}/api/jobs", job.remote_api_key, payload=remote_spec)
             remote_id = str(created["id"])
@@ -1020,20 +1567,42 @@ class JobManager:
                         "workspace_url": f"{endpoint}/?view=results",
                     }
                 )
+                if cancelled:
+                    job.log_tail.append("Modal accepted the job. Sending the pending cancellation request…")
                 if not cancelled:
                     job.status = str(created.get("status", "queued"))
                 job.updated_at = _utc_now()
+                self._save_job(job)
             if cancelled:
-                self._remote_json(f"{endpoint}/api/jobs/{remote_id}/cancel", job.remote_api_key, payload={})
+                self._dispatch_remote_cancel(job, background=False)
                 return
             preview_version: object = None
             remote_status = str(created.get("status", "queued"))
             while remote_status in {"queued", "running"}:
                 time.sleep(1)
-                state = self._remote_json(f"{endpoint}/api/jobs/{remote_id}", job.remote_api_key)
+                try:
+                    state = self._remote_json(f"{endpoint}/api/jobs/{remote_id}", job.remote_api_key)
+                except (http.client.IncompleteRead, http.client.RemoteDisconnected, ConnectionError, TimeoutError):
+                    # A Modal proxy/container transition can truncate one
+                    # response. The GPU call is still alive, so retain the
+                    # last known state and reconnect on the next poll.
+                    with self._lock:
+                        if job.status == "cancelled":
+                            break
+                        reconnecting = "Remote status connection was interrupted; reconnecting…"
+                        if not job.log_tail or job.log_tail[-1] != reconnecting:
+                            job.log_tail.append(reconnecting)
+                            del job.log_tail[:-250]
+                        job.updated_at = _utc_now()
+                    continue
                 remote_status = str(state.get("status", "running"))
                 try:
                     live = self._remote_json(f"{endpoint}/api/jobs/{remote_id}/live", job.remote_api_key)
+                    live_path = Path(job.live_root) / "status.json"
+                    live_path.parent.mkdir(parents=True, exist_ok=True)
+                    live_temporary = live_path.with_suffix(".json.tmp")
+                    live_temporary.write_text(json.dumps(live), encoding="utf-8")
+                    live_temporary.replace(live_path)
                     next_version = live.get("preview_version")
                     preview_url = str(live.get("preview_url") or "")
                     if preview_url and next_version != preview_version:
@@ -1043,7 +1612,14 @@ class JobManager:
                             Path(job.live_root) / "live_splats.ply",
                         )
                         preview_version = next_version
-                except (ValueError, urllib.error.URLError, TimeoutError):
+                except (
+                    ValueError,
+                    urllib.error.URLError,
+                    http.client.IncompleteRead,
+                    http.client.RemoteDisconnected,
+                    ConnectionError,
+                    TimeoutError,
+                ):
                     pass
                 with self._lock:
                     if job.status == "cancelled":
@@ -1053,6 +1629,7 @@ class JobManager:
                     job.error = state.get("error")
                     job.return_code = state.get("return_code")
                     job.updated_at = _utc_now()
+                    self._save_job(job, throttle=True)
             if job.status != "cancelled" and remote_status == "completed":
                 if str(job.spec.get("splat_implementation") or "none") != "none":
                     self._remote_download(
@@ -1068,12 +1645,21 @@ class JobManager:
                 with self._lock:
                     job.status = remote_status
                     job.updated_at = _utc_now()
-        except (KeyError, ValueError, urllib.error.URLError, TimeoutError) as exc:
+        except (
+            KeyError,
+            ValueError,
+            urllib.error.URLError,
+            http.client.HTTPException,
+            ConnectionError,
+            TimeoutError,
+        ) as exc:
             with self._lock:
                 if job.status != "cancelled":
                     job.status = "failed"
                     job.error = f"Remote run failed: {exc}"
                     job.updated_at = _utc_now()
+        finally:
+            self._save_job(job)
 
     def _run(self, job: ManagedJob, env: dict[str, str]) -> None:
         log_path = self.runtime_root / f"{job.id}.log"
@@ -1098,6 +1684,7 @@ class JobManager:
                 if not cancelled:
                     job.status = "running"
                 job.updated_at = _utc_now()
+                self._save_job(job)
             if cancelled:
                 self._terminate_process(process)
             with log_path.open("w", encoding="utf-8") as log_file:
@@ -1110,6 +1697,7 @@ class JobManager:
                         job.log_tail.append(text)
                         del job.log_tail[:-250]
                         job.updated_at = _utc_now()
+                        self._save_job(job, throttle=True)
             return_code = process.wait()
             with self._lock:
                 job.return_code = return_code
@@ -1124,6 +1712,8 @@ class JobManager:
                     job.status = "failed"
                     job.error = str(exc)
                     job.updated_at = _utc_now()
+        finally:
+            self._save_job(job)
 
     @staticmethod
     def _terminate_process(process: subprocess.Popen[str]) -> None:
@@ -1156,27 +1746,85 @@ class JobManager:
 
         threading.Thread(target=force_kill, daemon=True, name="gtsfm-job-cancel").start()
 
+    def _dispatch_remote_cancel(self, job: ManagedJob, *, background: bool) -> bool:
+        """Send one cancellation request to the remote workspace once its job ID exists."""
+
+        with self._lock:
+            remote = job.remote
+            remote_id = str(remote.get("job_id") or "") if remote else ""
+            if (
+                not job.remote_cancel_requested
+                or job.remote_cancel_dispatched
+                or not remote
+                or not remote_id
+                or not job.remote_api_key
+            ):
+                return False
+            job.remote_cancel_dispatched = True
+            remote["cancel_status"] = "requested"
+            endpoint = str(remote["endpoint"])
+            api_key = job.remote_api_key
+
+        def send_cancel() -> None:
+            try:
+                self._remote_json(f"{endpoint}/api/jobs/{remote_id}/cancel", api_key, payload={})
+            except (urllib.error.URLError, ValueError, TimeoutError) as exc:
+                with self._lock:
+                    if job.remote is not None:
+                        job.remote["cancel_status"] = "failed"
+                    job.log_tail.append(f"Unable to confirm Modal cancellation: {exc}")
+                    del job.log_tail[:-250]
+                    job.updated_at = _utc_now()
+            else:
+                with self._lock:
+                    if job.remote is not None:
+                        job.remote["cancel_status"] = "confirmed"
+                    job.log_tail.append("Modal job cancellation confirmed.")
+                    del job.log_tail[:-250]
+                    job.updated_at = _utc_now()
+            finally:
+                self._save_job(job)
+
+        if background:
+            threading.Thread(
+                target=send_cancel,
+                daemon=True,
+                name=f"gtsfm-remote-cancel-{job.id}",
+            ).start()
+        else:
+            send_cancel()
+        return True
+
     def cancel(self, job_id: str) -> dict[str, Any]:
         with self._lock:
             job = self._jobs.get(job_id)
             if job is None:
                 raise KeyError(job_id)
-            if job.status not in {"queued", "running"}:
+            if job.status not in {"queued", "running", "cancelled"}:
                 return job.public()
-            job.status = "cancelled"
-            job.updated_at = _utc_now()
+            if job.status != "cancelled":
+                job.status = "cancelled"
+                job.updated_at = _utc_now()
+                job.log_tail.append("Cancellation requested.")
             process = job.process
+            if job.remote is not None:
+                job.remote_cancel_requested = True
+                if job.remote.get("job_id"):
+                    job.remote["cancel_status"] = "requested"
+                else:
+                    job.remote["cancel_status"] = "waiting_for_remote_job"
+                    job.log_tail.append(
+                        "Waiting for Modal to accept the starting job; it will be cancelled immediately afterward."
+                    )
+            del job.log_tail[:-250]
+            self._save_job(job)
         if process is not None and process.poll() is None:
             self._terminate_process(process)
-        elif job.remote and job.remote.get("job_id") and job.remote_api_key:
-            try:
-                self._remote_json(
-                    f"{job.remote['endpoint']}/api/jobs/{job.remote['job_id']}/cancel",
-                    job.remote_api_key,
-                    payload={},
-                )
-            except (urllib.error.URLError, ValueError):
-                pass
+        elif job.remote is not None:
+            # Do not make the browser wait on a network round-trip. If Modal is
+            # still cold-starting, _run_remote dispatches this as soon as the
+            # upstream job ID becomes available.
+            self._dispatch_remote_cancel(job, background=True)
         return job.public()
 
     def live_root(self, job_id: str) -> Path:

@@ -14,7 +14,9 @@ def _sift_like(n, seed):
 
 def _match_both(d1, d2, ratio=0.8):
     kwargs = dict(keypoints_i1=None, keypoints_i2=None, im_shape_i1=(100, 100), im_shape_i2=(100, 100))
-    a = TwoWayMatcher(ratio_test_threshold=ratio).match(descriptors_i1=d1, descriptors_i2=d2, **kwargs)
+    a = TwoWayMatcher(ratio_test_threshold=ratio, search_method="brute_force").match(
+        descriptors_i1=d1, descriptors_i2=d2, **kwargs
+    )
     b = TorchTwoWayMatcher(ratio_test_threshold=ratio).match(descriptors_i1=d1, descriptors_i2=d2, **kwargs)
     return a, b
 

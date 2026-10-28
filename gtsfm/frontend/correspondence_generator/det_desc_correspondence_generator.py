@@ -4,6 +4,9 @@ Authors: John Lambert
 """
 
 import time
+from collections import deque
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+from itertools import islice
 from typing import Dict, List, Tuple
 
 import numpy as np
@@ -18,6 +21,26 @@ from gtsfm.frontend.matcher.matcher_base import MatcherBase
 from gtsfm.products.visibility_graph import VisibilityGraph
 
 logger = logger_utils.get_logger()
+MATCHING_PROGRESS_INTERVAL_SECONDS = 5.0
+
+
+class _RecentMatchingRate:
+    """Estimate throughput over recent progress reports, excluding the initial cache-loading burst."""
+
+    def __init__(self) -> None:
+        self._samples: deque[Tuple[float, int]] = deque()
+
+    def update(self, completed: int, now: float) -> float | None:
+        # The first report establishes a baseline: do not count its startup/cache-hit completions.
+        self._samples.append((now, completed))
+        while len(self._samples) > 1 and self._samples[1][0] <= now - 30.0:
+            self._samples.popleft()
+        start_time, start_completed = self._samples[0]
+        elapsed = now - start_time
+        # Several reporting intervals smooth out batches finishing together across matching threads.
+        if elapsed < 15.0:
+            return None
+        return (completed - start_completed) / elapsed
 
 
 def _detect_and_describe(detector_descriptor: DetectorDescriptorBase, image: Image) -> Tuple[Keypoints, np.ndarray]:
@@ -106,22 +129,27 @@ class DetDescCorrespondenceGenerator(CorrespondenceGeneratorBase):
         self,
         images: List[Image],
         visibility_graph: VisibilityGraph,
+        num_matching_threads: int = 1,
     ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
         """Generate putative correspondences in the calling process (no Dask client).
 
         Same per-image detection and per-pair matching kernels as ``generate_correspondences_futures``,
-        run in plain loops. This is the cluster-frontend entry point (that code already executes inside a
-        Dask task), and peak memory stays bounded to one cluster's features rather than a worker-resident
-        pile of every feature/correspondence future.
+        with sequential detection and a bounded thread pool for matching. This is the cluster-frontend
+        entry point (that code already executes inside a Dask task), and peak memory stays bounded to
+        one cluster's features plus one active match per thread.
 
         Args:
             images: Materialized images indexed by position (``images[i]`` is image ``i``).
             visibility_graph: Image pairs ``(i1, i2)`` to match; indices reference ``images``.
+            num_matching_threads: Concurrent pair matches. Defaults to one to avoid nested parallelism
+                when multiple cluster frontends already execute on Dask workers.
 
         Returns:
             keypoints_list: one ``Keypoints`` per image, in index order.
             putative_corr_idxs_dict: per-pair putative correspondence indices.
         """
+        if num_matching_threads < 1:
+            raise ValueError("num_matching_threads must be at least 1")
         num_images = len(images)
         logger.info("🔵 [frontend] Detecting + describing features on %d images...", num_images)
         det_start = time.time()
@@ -133,24 +161,56 @@ class DetDescCorrespondenceGenerator(CorrespondenceGeneratorBase):
         keypoints_list = [keypoints for keypoints, _ in features]
 
         num_pairs = len(visibility_graph)
-        logger.info("🔵 [frontend] Matching %d pairs...", num_pairs)
-        match_start = time.time()
+        if num_pairs == 0:
+            return keypoints_list, {}
+        num_threads = min(num_matching_threads, num_pairs)
+        logger.info("🔵 [frontend] Matching %d pairs with %d threads...", num_pairs, num_threads)
+        match_start = time.monotonic()
+        last_progress = match_start
+        recent_rate = _RecentMatchingRate()
         putative_corr_idxs_dict: Dict[Tuple[int, int], np.ndarray] = {}
-        for p, (i1, i2) in enumerate(visibility_graph):
-            putative_corr_idxs_dict[(i1, i2)] = _match_features(
-                self._matcher, features[i1], features[i2], images[i1].shape, images[i2].shape
-            )
-            if (p + 1) % 5000 == 0 or (p + 1) == num_pairs:
-                elapsed = time.time() - match_start
-                rate = (p + 1) / elapsed if elapsed > 0 else 0.0
-                eta = (num_pairs - (p + 1)) / rate if rate > 0 else 0.0
-                logger.info(
-                    "🔵 [frontend] matching %d/%d pairs (%.0fs, %.0f pair/s, ETA %.0fs)",
-                    p + 1,
-                    num_pairs,
-                    elapsed,
-                    rate,
-                    eta,
+        pairs = iter(visibility_graph)
+        with ThreadPoolExecutor(max_workers=num_threads, thread_name_prefix="gtsfm-match") as executor:
+
+            def submit_pair(pair: Tuple[int, int]):
+                i1, i2 = pair
+                return executor.submit(
+                    _match_features, self._matcher, features[i1], features[i2], images[i1].shape, images[i2].shape
                 )
 
-        return keypoints_list, putative_corr_idxs_dict
+            # Keep only one pending match per thread, rather than queueing the entire graph.
+            pending = {submit_pair(pair): pair for pair in islice(pairs, num_threads)}
+            while pending:
+                timeout = max(0.0, MATCHING_PROGRESS_INTERVAL_SECONDS - (time.monotonic() - last_progress))
+                done, _ = wait(pending, timeout=timeout, return_when=FIRST_COMPLETED)
+                for future in done:
+                    pair = pending.pop(future)
+                    putative_corr_idxs_dict[pair] = future.result()
+                for _ in done:
+                    pair = next(pairs, None)
+                    if pair is not None:
+                        pending[submit_pair(pair)] = pair
+                now = time.monotonic()
+                if now - last_progress >= MATCHING_PROGRESS_INTERVAL_SECONDS or not pending:
+                    completed = len(putative_corr_idxs_dict)
+                    elapsed = now - match_start
+                    rate = recent_rate.update(completed, now)
+                    rate_label = f"{rate:.2f} pair/s" if rate is not None else "estimating"
+                    if not pending:
+                        eta = "0s"
+                    elif rate is None:
+                        eta = "estimating"
+                    else:
+                        eta = f"{(num_pairs - completed) / rate:.0f}s" if rate > 0 else "unknown"
+                    logger.info(
+                        "🔵 [frontend] matching %d/%d pairs (%.0fs, recent rate %s, ETA %s)",
+                        completed,
+                        num_pairs,
+                        elapsed,
+                        rate_label,
+                        eta,
+                    )
+                    last_progress = now
+
+        # Preserve input ordering regardless of which matches finish first.
+        return keypoints_list, {pair: putative_corr_idxs_dict[pair] for pair in visibility_graph}

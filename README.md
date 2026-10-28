@@ -51,6 +51,28 @@ gtsfm viz               # open existing results
 gtsfm run --no-browser  # start the workspace without opening a browser
 ```
 
+Results open at the first reconstructed camera, with its photo selected in the
+collapsible **Photos** sidebar. Click a thumbnail (or use the camera arrows) to
+move to that camera, and use the enlarge button to inspect a larger photo.
+**Overview** frames the reconstruction and its textured camera frustums. The
+ground plane starts hidden and can be enabled with **Show plane**.
+The viewer treats reconstruction Z as up; the ground plane lies in the source
+XY plane, and **Plane Z** adjusts its height. Camera views retain their recorded
+roll so that the reconstructed points stay aligned with each photo.
+
+Photos are resolved from the nearest saved `config.yaml` loader paths, so the
+source dataset must remain available. Older CLI runs with relative dataset paths
+should be opened from their original working directory. Portable COLMAP exports
+can instead keep an `images` folder alongside the model or in its parent folder.
+Missing photos leave the reconstruction and camera navigation usable.
+
+The photo strip renders only visible rows and their immediate neighbors. The
+viewer uses 256-pixel thumbnails for frustum textures, loads at most four textures
+at once, displays at most 32 visible photo planes, and caches at most 48 textures.
+All wireframes share one draw call; full-size originals are never sent to the
+viewer. Enlarged previews are limited to 1600 pixels, and the server caches up to
+32 MiB of resized JPEGs. Textures are released when changing scenes.
+
 VGGT is the browser's default reconstruction model. Splat generation is an independent choice:
 
 - **Optimized Gaussian splats** uses the iterative `gsplat` implementation and publishes live training previews.

@@ -6,12 +6,130 @@
     <meta name="theme-color" content="#0e1012">
     <title>GTSFM Studio</title>
     <link rel="icon" type="image/png" href="/static/brand/bee-favicon.png">
-    <link rel="stylesheet" href="/static/studio.css">
+    <!-- Critical startup styles must not wait for any external asset. -->
+    <style>
+      html, body { margin: 0; height: 100%; background: #f4f4f0; }
+      #studio-startup { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 24px; box-sizing: border-box; background: #f4f4f0; color: #20211f; font: 14px/1.5 system-ui, sans-serif; }
+      #studio-startup.in-viewer { position: absolute; z-index: 7; background: #0e1012; color: #f4f4f0; }
+      #studio-startup .startup-card { width: min(100%, 360px); text-align: center; }
+      #studio-startup .startup-brand { font-size: 30px; font-weight: 750; letter-spacing: -1px; }
+      #studio-startup .startup-brand span { color: #d2a715; }
+      #studio-startup .startup-caption { margin: 2px 0 28px; font-size: 11px; letter-spacing: 3px; opacity: .65; }
+      #studio-startup .startup-points { position: relative; width: 72px; height: 72px; margin: 0 auto 28px; animation: startup-orbit 12s linear infinite; }
+      #studio-startup .startup-points i { position: absolute; width: 7px; height: 7px; border-radius: 50%; background: #d2a715; animation: startup-pulse 2s ease-in-out infinite alternate; }
+      #studio-startup .startup-points i:nth-child(1) { left: 8px; top: 11px; }
+      #studio-startup .startup-points i:nth-child(2) { left: 49px; top: 4px; animation-delay: -.4s; }
+      #studio-startup .startup-points i:nth-child(3) { left: 31px; top: 30px; animation-delay: -.8s; }
+      #studio-startup .startup-points i:nth-child(4) { left: 61px; top: 45px; animation-delay: -1.2s; }
+      #studio-startup .startup-points i:nth-child(5) { left: 15px; top: 59px; animation-delay: -1.6s; }
+      #studio-startup #startup-phase { font-size: 17px; font-weight: 600; margin: 0 0 10px; }
+      #studio-startup #startup-hint { min-height: 42px; opacity: .7; margin: 0; }
+      #studio-startup #startup-elapsed { display: block; margin-top: 16px; font-size: 12px; opacity: .5; font-variant-numeric: tabular-nums; }
+      #studio-startup button { margin-top: 20px; border: 1px solid currentColor; border-radius: 5px; padding: 9px 20px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+      #studio-startup.failed .startup-points, #studio-startup.failed .startup-points i { animation-play-state: paused; }
+      @keyframes startup-orbit { to { transform: rotate(360deg); } }
+      @keyframes startup-pulse { from { opacity: .3; transform: scale(.6); } to { opacity: 1; transform: scale(1); } }
+      @media (prefers-reduced-motion: reduce) { #studio-startup .startup-points, #studio-startup .startup-points i { animation: none; } }
+    </style>
   </head>
   <body>
     <div id="root"></div>
-    <script src="/static/vendor/babylon.js"></script>
-    <script type="module" src="/static/studio.js"></script>
-    <script src="/static/viewer.js"></script>
+    <section id="studio-startup" aria-label="Studio startup">
+      <div class="startup-card">
+        <div class="startup-brand">GTS<span>fM</span></div>
+        <div class="startup-caption">STUDIO</div>
+        <div class="startup-points" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+        <p id="startup-phase" role="status">Opening your workspace…</p>
+        <p id="startup-hint">Loading the interface and 3D viewer.</p>
+        <span id="startup-elapsed" aria-hidden="true">Connecting…</span>
+        <button id="startup-retry" type="button" hidden>Retry loading</button>
+        <noscript><p>JavaScript is required to open Studio. Enable it and reload this page.</p></noscript>
+      </div>
+    </section>
+    <script>
+      // This small bootstrap is inline so feedback survives slow or failed asset downloads.
+      (() => {
+        const panel = document.getElementById("studio-startup");
+        const phase = document.getElementById("startup-phase");
+        const hint = document.getElementById("startup-hint");
+        const elapsed = document.getElementById("startup-elapsed");
+        const retry = document.getElementById("startup-retry");
+        const start = performance.now();
+        let failed = false, finished = false, interfaceReady = false, engineReady = false;
+        const update = () => {
+          const seconds = Math.floor((performance.now() - start) / 1000);
+          elapsed.textContent = `${seconds}s elapsed`;
+          if (failed) return;
+          hint.textContent = !navigator.onLine ? "Your connection is offline. Reconnect to continue loading."
+            : seconds >= 8 ? "Still loading. On a slow connection this can take a little longer; you can keep this page open."
+            : interfaceReady ? "You can use the sidebar while the 3D viewer loads." : "Loading the interface and 3D viewer.";
+        };
+        const timer = setInterval(update, 1000);
+        const cleanup = () => {
+          clearInterval(timer);
+          window.removeEventListener("online", update);
+          window.removeEventListener("offline", update);
+          window.removeEventListener("error", scriptError);
+        };
+        const fail = (message) => {
+          if (finished || failed) return;
+          failed = true;
+          phase.textContent = "Studio could not finish loading";
+          hint.textContent = message;
+          elapsed.textContent = "Loading stopped";
+          retry.hidden = false;
+          panel.classList.add("failed");
+          cleanup();
+        };
+        const scriptError = (event) => {
+          if (/\/static\/(studio|viewer|vendor\/babylon)\.js/.test(event.filename || "")) {
+            fail("An error occurred while starting Studio. Retry loading; if it persists, check the browser console.");
+          }
+        };
+        retry.onclick = () => window.location.reload();
+        window.addEventListener("online", update);
+        window.addEventListener("offline", update);
+        window.addEventListener("error", scriptError);
+        window.addEventListener("gtsfm-startup-error", () => fail("The 3D viewer could not start. Check that WebGL is enabled in your browser, then retry."), { once: true });
+        window.addEventListener("gtsfm-first-frame", () => {
+          if (failed) return;
+          finished = true;
+          cleanup();
+          panel.remove();
+        }, { once: true });
+        const script = (url, label, module = false) => new Promise((resolve, reject) => {
+          const element = document.createElement("script");
+          element.src = url;
+          element.type = module ? "module" : "text/javascript";
+          element.onload = resolve;
+          element.onerror = () => reject(new Error(`Could not download ${label}. Check your connection and retry.`));
+          document.head.appendChild(element);
+        });
+        const styles = new Promise((resolve, reject) => {
+          const link = document.createElement("link");
+          link.rel = "stylesheet";
+          link.href = "/static/studio.css";
+          // Do not make this stylesheet render-blocking: the inline startup screen stays visible.
+          link.media = "print";
+          link.onload = () => { link.media = "all"; resolve(); };
+          link.onerror = () => reject(new Error("Could not download the interface styles. Check your connection and retry."));
+          document.head.appendChild(link);
+        });
+        const ui = Promise.all([styles, script("/static/studio.js", "the interface", true)]).then(() => {
+          interfaceReady = true;
+          document.getElementById("viewer-startup-anchor").appendChild(panel);
+          panel.classList.add("in-viewer");
+          if (!failed) phase.textContent = engineReady ? "Preparing the 3D view…" : "Loading the 3D viewer…";
+          update();
+        });
+        const engine = script("/static/vendor/babylon.js", "the 3D viewer").then(() => { engineReady = true; });
+        const viewer = script("/static/viewer.js", "the viewer controls");
+        Promise.all([ui, engine, viewer]).then(() => {
+          if (failed) return;
+          phase.textContent = "Preparing the 3D view…";
+          window.dispatchEvent(new Event("gtsfm-start-viewer"));
+        }).catch(error => fail(error.message));
+      })();
+    </script>
   </body>
 </html>

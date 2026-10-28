@@ -30,7 +30,8 @@ class MatcherCacher(MatcherBase):
         super().__init__()
         self._matcher = matcher_obj
         # TODO(ayushbaid): make the obj cache key dependent on the code
-        self._matcher_obj_key = type(self._matcher).__name__
+        cache_key = getattr(self._matcher, "cache_key", None)
+        self._matcher_obj_key = cache_key if isinstance(cache_key, str) else type(self._matcher).__name__
 
     def __repr__(self) -> str:
         return f"""

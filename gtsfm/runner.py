@@ -38,6 +38,28 @@ if TYPE_CHECKING:
     from gtsfm.scene_optimizer import SceneOptimizer
 
 
+def _shutdown_dask_client(client: Client) -> None:
+    """Release a Dask cluster without letting teardown mask the pipeline result.
+
+    Distributed can time out while joining a worker that it has already
+    terminated. At that point reconstruction is over and raising the teardown
+    timeout would incorrectly mark a successful run as failed (or hide the
+    original pipeline exception). Make one short best-effort close after a
+    failed graceful shutdown and report cleanup problems as warnings only.
+    """
+
+    try:
+        client.shutdown()
+        return
+    except Exception as exc:  # cleanup must not replace the pipeline outcome
+        logger.warning("Dask shutdown did not finish cleanly; forcing the client closed: %s", exc)
+
+    try:
+        client.close(timeout=2)
+    except Exception as exc:  # the containing process will release remaining children
+        logger.warning("Dask client force-close did not finish before process exit: %s", exc)
+
+
 class GtsfmRunner:
     def __init__(self, override_args=None) -> None:
         argparser: argparse.ArgumentParser = self.construct_argparser()
@@ -132,6 +154,12 @@ class GtsfmRunner:
             type=int,
             default=None,
             help="Override the Gaussian Splatting training iteration count.",
+        )
+        parser.add_argument(
+            "--gaussian_splatting_override",
+            action="append",
+            default=[],
+            help="Typed Hydra override for the selected Gaussian splatting preset. May be repeated.",
         )
 
         # Logging and output configuration
@@ -330,12 +358,20 @@ class GtsfmRunner:
                 with hydra.initialize_config_module(
                     config_module="gtsfm.configs.gaussian_splatting", version_base=None
                 ):
-                    gs_cfg = hydra.compose(gs_config_name)
+                    gs_cfg = hydra.compose(
+                        gs_config_name,
+                        overrides=list(self.parsed_args.gaussian_splatting_override or []),
+                    )
                     logger.info(f"🔄 Applying Gaussian Splatting Override: " f"{gs_config_name}")
-                    target_optimizer.gaussian_splatting_optimizer = instantiate(gs_cfg.gaussian_splatting_optimizer)
                     if self.parsed_args.gs_max_steps is not None:
-                        target_optimizer.gaussian_splatting_optimizer.cfg.max_steps = self.parsed_args.gs_max_steps
+                        OmegaConf.update(
+                            gs_cfg,
+                            "gaussian_splatting_optimizer.cfg.max_steps",
+                            self.parsed_args.gs_max_steps,
+                            merge=False,
+                        )
                         logger.info("🔄 Setting Gaussian Splatting max steps: %d", self.parsed_args.gs_max_steps)
+                    target_optimizer.gaussian_splatting_optimizer = instantiate(gs_cfg.gaussian_splatting_optimizer)
                     OmegaConf.update(
                         main_cfg,
                         gs_optimizer_config_path,
@@ -513,7 +549,7 @@ class GtsfmRunner:
             if stats_thread is not None:
                 stats_thread.join(timeout=2)
             logger.info("🌟 GTSFM: Shutting down Dask client...")
-            client.shutdown()
+            _shutdown_dask_client(client)
 
 
 if __name__ == "__main__":

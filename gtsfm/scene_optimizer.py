@@ -7,7 +7,7 @@ import shutil
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, TypeVar, cast
+from typing import Mapping, Optional, TypeVar, cast
 
 import matplotlib
 import numpy as np
@@ -22,6 +22,7 @@ from gtsfm.cluster_optimizer import Base, save_metrics_reports
 from gtsfm.cluster_optimizer.cluster_mvo import ClusterMVO, _pad_keypoints_list
 from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterContext
 from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.outputs import OutputPaths, cluster_label, prepare_output_paths
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
@@ -141,6 +142,7 @@ def _run_post_merge_retriangulation(
     tracks_2d: list,
     options: MergingOptions,
     trackless_cameras: Optional[dict] = None,
+    images_by_index: Optional[Mapping[int, Image]] = None,
 ) -> GtsfmData:
     """Re-triangulate the verified multiview 2D tracks against the merged cameras, then bundle-adjust.
 
@@ -216,7 +218,8 @@ def _run_post_merge_retriangulation(
         for i in sorted(trackless_cameras):
             logger.info("♻️  Retri recovery [cam %d]: recovered=%s", i, i in recovered_set)
 
-    return refined
+    # Retriangulation creates new tracks, so their RGB must be sampled again.
+    return refined.clone_with_image_data(images_by_index) if images_by_index is not None else refined
 
 
 def verify_visibility_graph(
@@ -237,7 +240,8 @@ def verify_visibility_graph(
 
     Dispatches on pool size: with multiple workers the frontend fans out across the pool and only the
     lean per-chunk ``v_corr_idxs`` sub-dicts are gathered; with at most one worker everything runs inline
-    in this process, leaving no scheduler<->worker comm surface for a multi-hour run to trip over.
+    in this process, using the worker's configured thread budget for descriptor matching and leaving
+    no scheduler<->worker comm surface for a multi-hour run to trip over.
 
     Args:
         client: Dask client.
@@ -257,15 +261,17 @@ def verify_visibility_graph(
     relative_pose_priors = loader.get_relative_pose_priors(list(visibility_graph)) or {}
     gt_scene_mesh = loader.get_gt_scene_trimesh()
     try:
-        num_workers = len(client.scheduler_info()["workers"])
+        workers = client.scheduler_info()["workers"]
     except Exception:
-        num_workers = 1
+        workers = {}
+    num_workers = len(workers)
 
     if num_workers <= 1:
         logger.info("🔵 [frontend] 1 worker → running the global frontend inline (in-process).")
         images = client.gather(image_futures)
+        num_matching_threads = max(1, int(next(iter(workers.values()), {}).get("nthreads", 1)))
         keypoints_list, putative_corr_idxs_dict, _ = ClusterMVO._run_correspondence_generator(
-            correspondence_generator, list(visibility_graph), images
+            correspondence_generator, list(visibility_graph), images, num_matching_threads=num_matching_threads
         )
         padded_keypoints_list = _pad_keypoints_list(keypoints_list, num_images)
         v_corr_idxs_dict = create_v_corr_idxs(
@@ -600,6 +606,7 @@ class SceneOptimizer:
                             global_tracks_2d,
                             self._merging_options,
                             root_merged_result.trackless_cameras,
+                            images_by_index=image_future_map,
                             pure=False,
                         ).result()
                         retri_dir = base_output_paths.results / "merged_retriangulated"

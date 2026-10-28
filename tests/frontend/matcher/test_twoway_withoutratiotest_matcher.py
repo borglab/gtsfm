@@ -20,7 +20,7 @@ class TestTwoWayWithoutRatioTestMatcher(test_matcher_base.TestMatcherBase):
     def setUp(self):
         super().setUp()
 
-        self.matcher = TwoWayMatcher(ratio_test_threshold=None)
+        self.matcher = TwoWayMatcher(ratio_test_threshold=None, search_method="brute_force")
 
     def test_on_dummy_data(self):
         """Test using dummy 1D descriptors to verify correctness."""

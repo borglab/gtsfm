@@ -32,7 +32,7 @@ Execute GTSFM on benchmark datasets.
 
 Arguments:
     dataset_name         Name of the dataset (e.g., skydio-8, notre-dame-20)
-    config_name          Configuration name (e.g., sift, lightglue)
+    config_name          Configuration name (e.g., sift, lightglue, megaloc, megaloc_gp)
     max_frame_lookahead  Maximum frame lookahead (e.g., 15)
     loader_name          Loader type (olsson-loader, colmap-loader, astrovision)
     max_resolution       Maximum image resolution (e.g., 760, 1024)
@@ -131,15 +131,19 @@ execute_gtsfm() {
         share_intrinsics_arg="--share_intrinsics"
     fi
     
-    if [[ "$config_name" == "megaloc" ]]; then
-        log INFO "Running GTSFM Using MegaLoc + SIFT full pipeline configuration"
+    if [[ "$config_name" == "megaloc" || "$config_name" == "megaloc_gp" ]]; then
+        local pipeline_config="megaloc_sift_frontend"
+        if [[ "$config_name" == "megaloc_gp" ]]; then
+            pipeline_config="megaloc_sift_gp_metis"
+        fi
+        log INFO "Running GTSFM with $pipeline_config"
         
         case "$loader_name" in
             olsson-loader)
                 ./run --num_workers 1 \
                     --loader olsson \
                     --dataset_dir "$DATASET_ROOT" \
-                    --config_name megaloc_sift_frontend \
+                    --config_name "$pipeline_config" \
                     --max_frame_lookahead "$max_frame_lookahead" \
                     --max_resolution "$max_resolution" \
                     $share_intrinsics_arg
@@ -150,7 +154,7 @@ execute_gtsfm() {
                     --loader colmap \
                     --dataset_dir "$DATASET_DIR" \
                     --images_dir "$IMAGES_DIR" \
-                    --config_name megaloc_sift_frontend \
+                    --config_name "$pipeline_config" \
                     --max_frame_lookahead "$max_frame_lookahead" \
                     --max_resolution "$max_resolution" \
                     $share_intrinsics_arg

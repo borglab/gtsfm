@@ -18,8 +18,13 @@ import * as Switch from "@radix-ui/react-switch";
 import * as Tabs from "@radix-ui/react-tabs";
 import { Activity, Box, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, CircleAlert, Copy, Cpu, Database, Download, FolderUp, Github, Maximize2, Minus, MonitorCog, Play, RefreshCw, Server, SlidersHorizontal, Square, Terminal, Wrench, X } from "lucide-react";
 import "./styles.css";
+import { PhotoPanel } from "./photo-panel";
+import { useJobStream } from "./use-job-stream";
+import { ResultsBrowser, type ResultItem } from "./results-browser";
+import { ViewerCanvas, ViewerProvider, useViewerApi } from "./viewer-context";
+import { ViewControls, ViewerToolbar, ViewerLoading, SceneStats } from "./viewer-controls";
 
-type JobStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
+type JobStatus = "queued" | "running" | "completed" | "failed" | "cancelled" | "interrupted";
 type InputValue = string | number;
 type FormValue = string | number | boolean;
 type LoaderValues = Record<string, FormValue>;
@@ -112,6 +117,25 @@ interface ConfigurationSchema {
   splat_implementations: Choice[];
 }
 
+type HydraOverrideMap = Record<string, string>;
+
+interface HydraFieldDescriptor {
+  key: string;
+  label: string;
+  type: "boolean" | "integer" | "number" | "string";
+  defaultValue: boolean | number | string;
+  group: string;
+  help: string;
+  min?: number;
+  max?: number;
+  step?: number;
+}
+
+interface HydraParameterSchema {
+  model: { preset: string; fields: HydraFieldDescriptor[] };
+  gaussian: { preset: string; fields: HydraFieldDescriptor[] };
+}
+
 interface HardwareDevice extends Choice {
   kind: "cpu" | "cuda" | "nvidia" | "rocm" | "mps" | string;
   details: string;
@@ -157,6 +181,7 @@ interface SetupStatus {
 interface RemoteWorkspace {
   configuration: ConfigurationSchema;
   hardware: HardwareCatalog;
+  verified?: boolean;
 }
 
 interface ModalDiscovery {
@@ -228,7 +253,7 @@ function ModalDeploymentDialog({ deployment, onCancel, onClose }: { deployment: 
       <header>
         <div><span>MODAL SETUP &amp; DEPLOYMENT</span><strong id="modal-log-title">{deployment.stage}</strong></div>
         <small>{deployment.gpu}{deployment.cpu ? ` · ${deployment.cpu} CPU` : ""}{deployment.memory_mb ? ` · ${formatBytes(deployment.memory_mb * 1024 * 1024)}` : ""} · {deployment.status}</small>
-        {["queued", "running"].includes(deployment.status) && <button className="modal-dialog-stop" type="button" onClick={onCancel} title="Stop Modal setup"><Square size={11} fill="currentColor"/> Stop</button>}
+        {["queued", "running"].includes(deployment.status) && deployment.phase !== "verifying" && <button className="modal-dialog-stop" type="button" onClick={onCancel} title="Stop Modal setup"><Square size={11} fill="currentColor"/> Stop</button>}
         <button type="button" onClick={copyLogs} title="Copy deployment logs">{copied ? <Check size={13}/> : <Copy size={13}/>} {copied ? "Copied!" : "Copy"}</button>
         <button type="button" onClick={onClose} title="Close deployment logs" aria-label="Close deployment logs"><X size={15}/></button>
       </header>
@@ -240,18 +265,20 @@ function ModalDeploymentDialog({ deployment, onCancel, onClose }: { deployment: 
 const MODAL_WORKSPACE_STEPS = [
   { id: "building", label: "Prepare CUDA image", detail: "Install and cache the GTSFM environment" },
   { id: "deploying", label: "Deploy workspace", detail: "Publish the FastAPI workspace on Modal" },
-  { id: "verifying", label: "Verify connection", detail: "Find the endpoint and check availability" },
+  { id: "verifying", label: "Start & verify workspace", detail: "Cold-start the GPU and confirm the workspace API is healthy" },
 ] as const;
 
 function ModalDeploymentProgress({ deployment, onCancel, onExpand }: { deployment: ModalDeployment; onCancel: () => void; onExpand: () => void }) {
-  const currentPhase = deployment.phase === "ready" ? "verifying" : deployment.phase ?? "building";
+  const ready = deployment.phase === "ready";
+  const verifying = deployment.phase === "verifying";
+  const currentPhase = ready ? "verifying" : deployment.phase ?? "building";
   const currentIndex = Math.max(0, MODAL_WORKSPACE_STEPS.findIndex((step) => step.id === currentPhase));
   return <section className={`modal-deployment ${deployment.status}`} aria-label="Modal workspace progress">
-    <div className="modal-deployment-heading"><span>{deployment.status === "completed" ? <Check size={12}/> : deployment.status === "failed" ? <CircleAlert size={12}/> : deployment.status === "cancelled" ? <Minus size={12}/> : <RefreshCw size={12}/>}<strong>{deployment.stage}</strong></span><span className="modal-deployment-actions"><small>{deployment.gpu}</small>{["queued", "running"].includes(deployment.status) && <button className="modal-stop-action" type="button" onClick={onCancel} title="Stop Modal setup"><Square size={9} fill="currentColor"/> Stop</button>}<button type="button" onClick={onExpand} title="Expand setup logs" aria-label="Expand setup logs"><Maximize2 size={12}/></button></span></div>
+    <div className="modal-deployment-heading"><span>{ready ? <Check size={12}/> : deployment.status === "failed" ? <CircleAlert size={12}/> : deployment.status === "cancelled" ? <Minus size={12}/> : <RefreshCw size={12}/>}<strong>{deployment.stage}</strong></span><span className="modal-deployment-actions"><small>{deployment.gpu}</small>{["queued", "running"].includes(deployment.status) && !verifying && <button className="modal-stop-action" type="button" onClick={onCancel} title="Stop Modal setup"><Square size={9} fill="currentColor"/> Stop</button>}<button type="button" onClick={onExpand} title="View all setup logs" aria-label="View all setup logs"><Maximize2 size={12}/></button></span></div>
     <ol className="modal-deployment-steps">
       {MODAL_WORKSPACE_STEPS.map((step, index) => {
-        const complete = deployment.status === "completed" || index < currentIndex;
-        const active = deployment.status !== "completed" && index === currentIndex;
+        const complete = ready || index < currentIndex;
+        const active = !ready && index === currentIndex;
         const failed = active && deployment.status === "failed";
         const cancelled = active && deployment.status === "cancelled";
         return <li key={step.id} data-state={failed ? "failed" : cancelled ? "cancelled" : complete ? "complete" : active ? "active" : "pending"}>
@@ -260,8 +287,25 @@ function ModalDeploymentProgress({ deployment, onCancel, onExpand }: { deploymen
         </li>;
       })}
     </ol>
-    {deployment.log_tail.length > 0 && <pre>{deployment.log_tail.slice(-4).join("\n")}</pre>}
+    <div className="modal-log-preview-heading"><span>LIVE SETUP LOGS</span><button type="button" onClick={onExpand}><Maximize2 size={10}/> View all logs</button></div>
+    <pre>{deployment.log_tail.slice(-6).join("\n") || "Waiting for Modal setup output…"}</pre>
   </section>;
+}
+
+type ModalWorkspaceReadiness = "idle" | "found" | "working" | "ready" | "attention";
+
+function ModalWorkspaceStatus({ state, detail }: { state: ModalWorkspaceReadiness; detail: string }) {
+  const title = {
+    idle: "Workspace setup required",
+    found: "Modal workspace found",
+    working: "Preparing Modal workspace",
+    ready: "Modal workspace ready",
+    attention: "Workspace needs attention",
+  }[state];
+  return <div className={`modal-workspace-status ${state}`} role="status" aria-live="polite">
+    <span aria-hidden="true">{state === "working" ? <RefreshCw className="spin" size={13}/> : state === "ready" ? <Check size={13}/> : state === "attention" ? <CircleAlert size={13}/> : <Server size={13}/>}</span>
+    <div><strong>{title}</strong><small>{detail}</small></div>
+  </div>;
 }
 
 interface JobEvent {
@@ -270,9 +314,15 @@ interface JobEvent {
 }
 
 interface Job {
+  history_note?: string | null;
+  retry_available?: boolean;
+  created_at?: string;
   id: string;
   name: string;
   status: JobStatus;
+  command?: string[];
+  output_root?: string;
+  return_code?: number | null;
   spec: {
     config_name?: string;
     splat_implementation?: string;
@@ -290,6 +340,7 @@ interface JobsResponse {
 interface LiveState {
   progress?: number;
   stage?: string;
+  message?: string;
   step?: number;
   max_steps?: number;
   loss?: number;
@@ -318,6 +369,7 @@ interface UploadedFolder {
   file_count: number;
   bytes: number;
   analysis: DatasetAnalysis;
+  uploaded_at?: number;
 }
 
 interface DatasetAnalysis {
@@ -355,17 +407,6 @@ interface PreparedSample {
 interface FolderFile {
   file: File;
   relativePath: string;
-}
-
-interface ViewerApi {
-  isBusy(): boolean;
-  loadSplatsFile(input: { splatsUrl: string; label: string }): Promise<void>;
-}
-
-declare global {
-  interface Window {
-    gtsfmViewer?: ViewerApi;
-  }
 }
 
 const EMPTY_FORM: RunFormState = {
@@ -417,6 +458,153 @@ const BOOTSTRAP_SCHEMA: ConfigurationSchema = {
   ],
 };
 
+function HydraFieldControl({ descriptor, value, onChange }: { descriptor: HydraFieldDescriptor; value?: string; onChange: (value: string) => void }) {
+  const inherited = value === undefined || value === "";
+  return <div className={`hydra-field ${inherited ? "inherited" : "overridden"}`}>
+    <div className="hydra-field-heading"><span>{descriptor.label}</span>{!inherited && <button type="button" onClick={() => onChange("")} title={`Reset ${descriptor.label}`}>Reset</button>}</div>
+    {descriptor.type === "boolean"
+      ? <select value={value ?? ""} onChange={(event) => onChange(event.target.value)} aria-label={descriptor.label}>
+        <option value="">Preset default · {descriptor.defaultValue ? "On" : "Off"}</option>
+        <option value="true">On</option><option value="false">Off</option>
+      </select>
+      : <input type={descriptor.type === "string" ? "text" : "number"} value={value ?? ""} min={descriptor.min} max={descriptor.max} step={descriptor.type === "string" ? undefined : descriptor.step ?? (descriptor.type === "integer" ? 1 : "any")} placeholder={`Preset default · ${descriptor.defaultValue}`} onChange={(event) => onChange(event.target.value)} aria-label={descriptor.label} />}
+    <small>{descriptor.help}</small>
+    <code>{descriptor.key}</code>
+  </div>;
+}
+
+function HydraFieldGroups({ fields, values, onChange }: { fields: HydraFieldDescriptor[]; values: HydraOverrideMap; onChange: (key: string, value: string) => void }) {
+  const groups = fields.reduce<Record<string, HydraFieldDescriptor[]>>((result, field) => {
+    (result[field.group] ??= []).push(field);
+    return result;
+  }, {});
+  return <>{Object.entries(groups).map(([title, groupFields]) => <HydraFieldGroup key={title} title={title} fields={groupFields} values={values} onChange={onChange} />)}</>;
+}
+
+interface ParsedJsonConfiguration {
+  model: HydraOverrideMap;
+  gaussian: HydraOverrideMap;
+  expert: string[];
+}
+
+const jsonValueForOverride = (field: HydraFieldDescriptor, value?: string): boolean | number | string | null => {
+  if (value === undefined || value === "") return null;
+  if (field.type === "boolean") return value === "true";
+  if (field.type === "integer" || field.type === "number") return Number(value);
+  return value;
+};
+
+function configurationJsonTemplate(parameters: HydraParameterSchema, model: HydraOverrideMap, gaussian: HydraOverrideMap, expert: string): string {
+  return JSON.stringify({
+    model: Object.fromEntries(parameters.model.fields.map((field) => [field.key, jsonValueForOverride(field, model[field.key])])),
+    gaussian: Object.fromEntries(parameters.gaussian.fields.map((field) => [field.key, jsonValueForOverride(field, gaussian[field.key])])),
+    expert: expert.split("\n").map((line) => line.trim()).filter(Boolean),
+  }, null, 2);
+}
+
+function flattenJsonConfiguration(value: unknown, prefix = "", output: Record<string, unknown> = {}): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error((prefix || "Configuration") + " must be a JSON object.");
+  for (const [key, child] of Object.entries(value)) {
+    const path = prefix ? prefix + "." + key : key;
+    if (child !== null && typeof child === "object" && !Array.isArray(child)) flattenJsonConfiguration(child, path, output);
+    else output[path] = child;
+  }
+  return output;
+}
+
+function parseJsonConfiguration(value: string, parameters: HydraParameterSchema): ParsedJsonConfiguration {
+  const parsed: unknown = JSON.parse(value);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("The pasted configuration must be a JSON object.");
+  const root = parsed as Record<string, unknown>;
+  const hasSections = ["model", "gaussian", "expert", "hydra_overrides", "gaussian_splatting_overrides", "advanced_overrides"].some((key) => key in root);
+  const modelSource = root.model ?? root.hydra_overrides ?? (hasSections ? {} : root);
+  const gaussianSource = root.gaussian ?? root.gaussian_splatting_overrides ?? {};
+  const expertSource = root.expert ?? root.advanced_overrides ?? [];
+  const readSection = (source: unknown, fields: HydraFieldDescriptor[], section: string): HydraOverrideMap => {
+    const descriptors = new Map(fields.map((field) => [field.key, field]));
+    const result: HydraOverrideMap = {};
+    const unknown: string[] = [];
+    for (const [rawKey, rawValue] of Object.entries(flattenJsonConfiguration(source))) {
+      const key = section === "Gaussian" ? rawKey.replace(/^gaussian_splatting_optimizer\.cfg\./, "") : rawKey;
+      const descriptor = descriptors.get(key);
+      if (!descriptor) { unknown.push(rawKey); continue; }
+      if (rawValue === null) continue;
+      const valid = descriptor.type === "boolean"
+        ? typeof rawValue === "boolean"
+        : descriptor.type === "integer"
+          ? typeof rawValue === "number" && Number.isInteger(rawValue)
+          : descriptor.type === "number"
+            ? typeof rawValue === "number" && Number.isFinite(rawValue)
+            : typeof rawValue === "string";
+      if (!valid) throw new Error(section + " setting “" + rawKey + "” must be a " + descriptor.type + " value.");
+      result[key] = String(rawValue);
+    }
+    if (unknown.length) throw new Error("Unknown " + section.toLowerCase() + " setting" + (unknown.length === 1 ? "" : "s") + ": " + unknown.slice(0, 4).join(", ") + (unknown.length > 4 ? "…" : ""));
+    return result;
+  };
+  if (!Array.isArray(expertSource) || !expertSource.every((entry) => typeof entry === "string")) {
+    throw new Error("Expert overrides must be a JSON array of Hydra key=value strings.");
+  }
+  const invalidExpert = expertSource.find((entry) => !entry.includes("=") || entry.startsWith("--") || entry.includes("\0"));
+  if (invalidExpert) throw new Error("Expert override “" + invalidExpert + "” must use Hydra key=value syntax.");
+  return {
+    model: readSection(modelSource, parameters.model.fields, "Model"),
+    gaussian: readSection(gaussianSource, parameters.gaussian.fields, "Gaussian"),
+    expert: expertSource.map((entry) => entry.trim()).filter(Boolean),
+  };
+}
+
+function ConfigurationJsonDialog({ parameters, model, gaussian, expert, onApply, onClose }: {
+  parameters: HydraParameterSchema;
+  model: HydraOverrideMap;
+  gaussian: HydraOverrideMap;
+  expert: string;
+  onApply: (configuration: ParsedJsonConfiguration) => void;
+  onClose: () => void;
+}) {
+  const template = useMemo(() => configurationJsonTemplate(parameters, model, gaussian, expert), [parameters, model, gaussian, expert]);
+  const [value, setValue] = useState(template);
+  const [error, setError] = useState("");
+  const [copied, setCopied] = useState(false);
+  const copyReset = useRef<number | null>(null);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+  useEffect(() => () => { if (copyReset.current !== null) window.clearTimeout(copyReset.current); }, []);
+
+  const copyTemplate = async () => {
+    if (!await copyTextToClipboard(value)) return;
+    setCopied(true);
+    if (copyReset.current !== null) window.clearTimeout(copyReset.current);
+    copyReset.current = window.setTimeout(() => setCopied(false), 1000);
+  };
+  const apply = () => {
+    try {
+      onApply(parseJsonConfiguration(value, parameters));
+      onClose();
+    } catch (reason) {
+      setError(reason instanceof SyntaxError ? "Invalid JSON: " + reason.message : errorMessage(reason));
+    }
+  };
+
+  return createPortal(<div className="configuration-json-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    <section className="configuration-json-dialog" role="dialog" aria-modal="true" aria-labelledby="configuration-json-title">
+      <header><div><span>HYDRA CONFIGURATION</span><strong id="configuration-json-title">Paste JSON configuration</strong></div><button type="button" onClick={onClose} aria-label="Close JSON configuration"><X size={15}/></button></header>
+      <p>The template lists every safe setting for the selected presets. Leave a value as <code>null</code> to inherit the preset default. Nested objects and flat dotted Hydra keys are both accepted.</p>
+      <textarea value={value} onChange={(event) => { setValue(event.target.value); setError(""); }} spellCheck={false} aria-label="JSON configuration" />
+      {error && <div className="configuration-json-error"><CircleAlert size={13}/><span>{error}</span></div>}
+      <footer><button type="button" onClick={() => { setValue(template); setError(""); }}>Reset template</button><span/><button type="button" onClick={copyTemplate}>{copied ? <Check size={12}/> : <Copy size={12}/>} {copied ? "Copied!" : "Copy"}</button><button className="primary" type="button" onClick={apply}>Apply configuration</button></footer>
+    </section>
+  </div>, document.body);
+}
+
+function HydraFieldGroup({ title, fields, values, onChange }: { title: string; fields: HydraFieldDescriptor[]; values: HydraOverrideMap; onChange: (key: string, value: string) => void }) {
+  return <section className="hydra-group"><header><strong>{title}</strong><small>{fields.filter((field) => values[field.key]).length} changed</small></header><div className="hydra-grid">{fields.map((field) => <HydraFieldControl key={field.key} descriptor={field} value={values[field.key]} onChange={(value) => onChange(field.key, value)} />)}</div></section>;
+}
+
 interface ModalCredentials {
   tokenId: string;
   tokenSecret: string;
@@ -450,9 +638,6 @@ async function getJson<T>(url: string, options?: RequestInit): Promise<T> {
   if (!response.ok) throw new Error(payload.error || `Request failed (${response.status})`);
   return payload as T;
 }
-
-const websocketUrl = (path: string): string =>
-  `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}${path}`;
 
 function Brand({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
   return <header className="studio-header" aria-label="SfM Studio">
@@ -605,6 +790,23 @@ interface AdvancedMachineProfile {
   allowThreads: boolean;
   allowMemory: boolean;
   allowLocalRuntime: boolean;
+}
+
+const MACHINE_THREADS_KEY = "gtsfm-studio-machine-threads:";
+
+function storedMachineThreads(profile: AdvancedMachineProfile): number {
+  try {
+    const saved = Number(window.localStorage.getItem(MACHINE_THREADS_KEY + profile.key));
+    if (profile.allowThreads && Number.isSafeInteger(saved) && saved > 0) return saved;
+  } catch { /* storage is optional */ }
+  return profile.threadsPerWorker;
+}
+
+function rememberMachineThreads(profile: AdvancedMachineProfile, value: string): void {
+  const threads = Number(value);
+  if (!profile.allowThreads || !Number.isSafeInteger(threads) || threads < 1) return;
+  try { window.localStorage.setItem(MACHINE_THREADS_KEY + profile.key, String(threads)); }
+  catch { /* storage is optional */ }
 }
 
 const MODAL_VM_RESOURCES: Record<string, { cpu: number; memoryGiB: number }> = {
@@ -864,7 +1066,18 @@ interface RunFormProps {
 
 function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabChange, remotePromptKey, schemaLoading, schemaError, onRetrySchema }: RunFormProps) {
   const [form, setForm] = useState<RunFormState>(EMPTY_FORM);
-  const [inputMode, setInputMode] = useState<"upload" | "sample">("upload");
+  const [inputMode, setInputMode] = useState<"upload" | "sample" | "previous">("upload");
+  const [previousUploads, setPreviousUploads] = useState<UploadedFolder[]>([]);
+  const [uploadsLoading, setUploadsLoading] = useState(false);
+  const [uploadsError, setUploadsError] = useState("");
+  const [previousFolder, setPreviousFolder] = useState<UploadedFolder | null>(null);
+  const [previousImages, setPreviousImages] = useState<UploadedFolder | null>(null);
+  const refreshUploads = async () => {
+    setUploadsLoading(true); setUploadsError("");
+    try { setPreviousUploads((await getJson<{ items: UploadedFolder[] }>("/api/uploads")).items); }
+    catch (reason) { setUploadsError(errorMessage(reason)); }
+    finally { setUploadsLoading(false); }
+  };
   const [loaderOptions, setLoaderOptions] = useState<LoaderValues>({});
   const [remote, setRemote] = useState<RemoteWorkspace | null>(null);
   const [remoteMessage, setRemoteMessage] = useState("");
@@ -872,9 +1085,18 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
   const [modalDiscovering, setModalDiscovering] = useState(false);
   const [remoteChecking, setRemoteChecking] = useState(false);
   const [modalDeploying, setModalDeploying] = useState(false);
+  const [modalWorkspaceIssue, setModalWorkspaceIssue] = useState(false);
   const [modalDeployment, setModalDeployment] = useState<ModalDeployment | null>(null);
   const [modalLogExpanded, setModalLogExpanded] = useState(false);
+  const [configurationAdvanced, setConfigurationAdvanced] = useState(false);
   const [advanced, setAdvanced] = useState(false);
+  const [modelHydraOverrides, setModelHydraOverrides] = useState<HydraOverrideMap>({});
+  const [splatHydraOverrides, setSplatHydraOverrides] = useState<HydraOverrideMap>({});
+  const [hydraParameters, setHydraParameters] = useState<HydraParameterSchema | null>(null);
+  const [hydraParametersLoading, setHydraParametersLoading] = useState(true);
+  const [hydraParametersError, setHydraParametersError] = useState("");
+  const [hydraParametersRevision, setHydraParametersRevision] = useState(0);
+  const [jsonConfigurationOpen, setJsonConfigurationOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [datasetFolder, setDatasetFolder] = useState<UploadedFolder | null>(null);
@@ -884,8 +1106,21 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
   const [sampleMessage, setSampleMessage] = useState("");
   const modalDiscoverySequence = useRef(0);
   const automaticModalEndpoint = useRef("");
+  const modalGpuChosenByUser = useRef(false);
   const set = <K extends keyof RunFormState>(key: K, value: RunFormState[K]) =>
     setForm((current) => ({ ...current, [key]: value }));
+  const updateHydraOverride = (
+    setter: Dispatch<SetStateAction<HydraOverrideMap>>,
+    key: string,
+    value: string,
+  ) => setter((current) => {
+    if (!value) {
+      const next = { ...current };
+      delete next[key];
+      return next;
+    }
+    return { ...current, [key]: value };
+  });
 
   useEffect(() => {
     if (!hardware) return;
@@ -896,6 +1131,35 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
       splat_implementation: current.execution_target === "local" && !splatDevice ? "none" : current.splat_implementation,
     }));
   }, [hardware]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const query = new URLSearchParams({
+      config_name: form.config_name,
+      loader: form.loader,
+      gaussian_splatting_config_name: form.gaussian_splatting_config_name,
+      splat_implementation: form.splat_implementation,
+    });
+    setHydraParametersLoading(true);
+    setHydraParametersError("");
+    void getJson<HydraParameterSchema>(`/api/configuration/parameters?${query}`, { signal: controller.signal })
+      .then((parameters) => {
+        setHydraParameters(parameters);
+        const modelKeys = new Set(parameters.model.fields.map((field) => field.key));
+        const gaussianKeys = new Set(parameters.gaussian.fields.map((field) => field.key));
+        setModelHydraOverrides((current) => Object.fromEntries(Object.entries(current).filter(([key]) => modelKeys.has(key))));
+        setSplatHydraOverrides((current) => Object.fromEntries(Object.entries(current).filter(([key]) => gaussianKeys.has(key))));
+      })
+      .catch((reason) => {
+        if (reason instanceof DOMException && reason.name === "AbortError") return;
+        setHydraParameters(null);
+        setHydraParametersError(errorMessage(reason));
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setHydraParametersLoading(false);
+      });
+    return () => controller.abort();
+  }, [form.config_name, form.loader, form.gaussian_splatting_config_name, form.splat_implementation, hydraParametersRevision]);
 
   useEffect(() => {
     if (remotePromptKey < 1) return;
@@ -921,6 +1185,7 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
   const selectedSample = samples.find((item) => item.id === form.sample_id);
   const datasetAnalysis = inputMode === "sample"
     ? preparedSample?.analysis
+    : inputMode === "previous" ? previousImages?.analysis ?? previousFolder?.analysis
     : imagesFolder?.analysis?.image_count ? imagesFolder.analysis : datasetFolder?.analysis;
   const modalGpuRecommendation = recommendModalGpu(form, datasetAnalysis, selectedSample?.image_count ?? 0);
   const modalRecommendationKey = [
@@ -946,18 +1211,44 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
     { id: "aws", label: "AWS EC2 — Coming Soon!", status: "coming-soon" },
   ];
 
+  const useDeployedModalWorkspace = (gpu: string) => {
+    const gpuInfo = MODAL_GPU_PRICING.find((item) => item.id === gpu);
+    const workspace: RemoteWorkspace = {
+      configuration: schema,
+      verified: false,
+      hardware: {
+        summary: `Modal ${gpu} workspace`,
+        devices: [{
+          id: "cuda:0",
+          kind: "cuda",
+          label: `Modal ${gpu}`,
+          details: "NVIDIA CUDA GPU · starts with the first reconstruction",
+          memory: gpuInfo ? `${gpuInfo.memoryGiB} GB` : undefined,
+          supports_gaussian_splatting: true,
+        }],
+      },
+    };
+    setRemote(workspace);
+    set("remote_hardware", "cuda:0");
+    return workspace;
+  };
+
   useEffect(() => {
-    if (!modalGpuRecommendation) return;
-    setForm((current) => current.modal_gpu === modalGpuRecommendation.gpu.id
-      ? current
-      : { ...current, modal_gpu: modalGpuRecommendation.gpu.id });
-  }, [modalGpuRecommendation?.gpu.id, modalRecommendationKey]);
+    if (!modalGpuRecommendation || modalGpuChosenByUser.current) return;
+    if (form.modal_gpu === modalGpuRecommendation.gpu.id) return;
+    set("modal_gpu", modalGpuRecommendation.gpu.id);
+    if (form.remote_endpoint) {
+      setRemote(null);
+      setModalWorkspaceIssue(true);
+      setRemoteMessage("The dataset changed the recommended VM. Update the Modal workspace to apply it, then verify readiness.");
+    }
+  }, [modalGpuRecommendation?.gpu.id, modalRecommendationKey, form.modal_gpu, form.remote_endpoint]);
 
   useEffect(() => {
     setForm((current) => ({
       ...current,
       num_workers: machineProfile.workers,
-      threads_per_worker: machineProfile.threadsPerWorker,
+      threads_per_worker: storedMachineThreads(machineProfile),
       worker_memory_limit: `${machineProfile.memoryPerWorkerGiB}GB`,
     }));
   }, [machineProfile.key]);
@@ -970,7 +1261,13 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
   }, [form.execution_target, selectedSample, preparedSample?.path]);
 
   const updateModalCredential = (field: "modal_token_id" | "modal_token_secret", value: string) => {
+    modalDiscoverySequence.current += 1;
+    setModalDiscovering(false);
+    setRemoteChecking(false);
     const parsed = parseModalTokenCommand(value);
+    setRemote(null);
+    setModalWorkspaceIssue(false);
+    setRemoteMessage("");
     if (parsed) {
       setForm((current) => ({ ...current, modal_token_id: parsed.tokenId, modal_token_secret: parsed.tokenSecret, modal_api_key: "" }));
       setModalTokenMessage("Token command parsed. Both fields are filled.");
@@ -978,6 +1275,14 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
     }
     setForm((current) => ({ ...current, [field]: value, modal_api_key: "" }));
     setModalTokenMessage("");
+  };
+
+  const updateModalGpu = (value: string) => {
+    modalGpuChosenByUser.current = true;
+    set("modal_gpu", value);
+    setRemote(null);
+    setModalWorkspaceIssue(Boolean(form.remote_endpoint));
+    setRemoteMessage("VM selection changed. Update the Modal workspace to apply it, then verify readiness.");
   };
 
   useEffect(() => {
@@ -1001,9 +1306,14 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
           return { ...current, remote_endpoint: discovered.endpoint, modal_api_key: discovered.api_key };
         });
         automaticModalEndpoint.current = discovered.endpoint;
-        setRemoteMessage(`Found ${discovered.app_name} · ${discovered.function_name}. Endpoint filled automatically.`);
+        useDeployedModalWorkspace(form.modal_gpu);
+        setModalWorkspaceIssue(false);
+        setRemoteMessage(`Found ${discovered.app_name} · ${discovered.function_name}. Update it to this GTSFM version, or verify the existing workspace.`);
       } catch (reason) {
-        if (sequence === modalDiscoverySequence.current) setRemoteMessage(errorMessage(reason));
+        if (sequence === modalDiscoverySequence.current) {
+          setModalWorkspaceIssue(true);
+          setRemoteMessage(errorMessage(reason));
+        }
       } finally {
         if (sequence === modalDiscoverySequence.current) setModalDiscovering(false);
       }
@@ -1015,14 +1325,18 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
     if (form.splat_implementation === "gsplat" && model && !capabilities.iterative_splat) set("splat_implementation", "none");
   }, [form.splat_implementation, model, capabilities.iterative_splat]);
 
-  const inspectRemote = async (endpoint: string, apiKey: string) => {
+  useEffect(() => {
+    if (form.share_intrinsics && model && !capabilities.share_intrinsics) set("share_intrinsics", false);
+  }, [form.share_intrinsics, model, capabilities.share_intrinsics]);
+
+  async function inspectRemote(endpoint: string, apiKey: string) {
     const payload = await getJson<RemoteWorkspace>("/api/remote/inspect", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ endpoint, api_key: apiKey, remote_provider: form.remote_provider }) });
-    setRemote(payload);
+    setRemote({ ...payload, verified: true });
     const gsDevice = payload.hardware.devices.find((item) => item.supports_gaussian_splatting);
     set("remote_hardware", gsDevice?.id ?? payload.hardware.devices[0]?.id ?? "");
     return payload;
-  };
+  }
 
   const connectRemote = async () => {
     if (form.remote_connection !== "api") {
@@ -1034,12 +1348,16 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
       return;
     }
     setRemoteChecking(true);
-    setRemoteMessage("Connecting…");
+    setModalWorkspaceIssue(false);
+    setRemote((current) => current ? { ...current, verified: false } : null);
+    setRemoteMessage("Checking the lightweight Modal control service…");
     try {
       const payload = await inspectRemote(form.remote_endpoint, modalBearerToken(form));
-      setRemoteMessage(`${payload.hardware.summary}. Modal connection is healthy and workspace options are up to date.`);
+      setModalWorkspaceIssue(false);
+      setRemoteMessage(`${payload.hardware.summary}. The control service is ready; the GPU stays off until you run a reconstruction.`);
     } catch (reason) {
-      setRemoteMessage(errorMessage(reason));
+      setModalWorkspaceIssue(true);
+      setRemoteMessage(`Workspace check failed. Update the Modal workspace before running. ${errorMessage(reason)}`);
     } finally {
       setRemoteChecking(false);
     }
@@ -1052,6 +1370,7 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
     }
     modalDiscoverySequence.current += 1;
     setModalDeploying(true);
+    setModalWorkspaceIssue(false);
     setRemote(null);
     setRemoteMessage("");
     try {
@@ -1079,11 +1398,48 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
       if (deployment.status === "failed") throw new Error(deployment.error || "Modal deployment failed");
       automaticModalEndpoint.current = deployment.endpoint;
       setForm((current) => ({ ...current, remote_endpoint: deployment.endpoint, modal_api_key: deployment.api_key }));
-      setRemoteMessage("Workspace deployed. Loading its GPU and pipeline catalog…");
-      const payload = await inspectRemote(deployment.endpoint, deployment.api_key);
-      setRemoteMessage(`${payload.hardware.summary}. Modal workspace is ready.`);
+      useDeployedModalWorkspace(deployment.gpu);
+      setModalDeployment({
+        ...deployment,
+        status: "running",
+        phase: "verifying",
+        stage: "Starting and verifying the Modal workspace",
+        log_tail: [...deployment.log_tail, `Registered endpoint ${deployment.endpoint}`, "Checking the CPU control service; the GPU remains off until a run starts…"],
+      });
+      setRemoteChecking(true);
+      try {
+        await inspectRemote(deployment.endpoint, deployment.api_key);
+      } catch (reason) {
+        const message = `Deployment finished, but the workspace health check failed: ${errorMessage(reason)}`;
+        setRemote((current) => current ? { ...current, verified: false } : null);
+        setModalWorkspaceIssue(true);
+        setModalDeployment({
+          ...deployment,
+          status: "failed",
+          phase: "verifying",
+          stage: "Modal workspace needs an update",
+          error: message,
+          log_tail: [...deployment.log_tail, `Registered endpoint ${deployment.endpoint}`, message],
+        });
+        throw new Error(message);
+      } finally {
+        setRemoteChecking(false);
+      }
+      setModalDeployment({
+        ...deployment,
+        phase: "ready",
+        stage: "Modal workspace ready",
+        log_tail: [
+          ...deployment.log_tail,
+          `Registered endpoint ${deployment.endpoint}`,
+          "Workspace health check passed. The Modal GPU is ready.",
+        ],
+      });
+      setModalWorkspaceIssue(false);
+      setRemoteMessage(`Modal ${deployment.gpu} workspace passed its health check and is ready to run.`);
     } catch (reason) {
       const message = errorMessage(reason);
+      setModalWorkspaceIssue(true);
       setRemoteMessage(/Request failed \(404\)/.test(message)
         ? "This GTSFM server was started before Modal deployment support was installed. Stop it with Ctrl-C, run `gtsfm run` again, then click Deploy."
         : message);
@@ -1137,7 +1493,16 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
       if (form.execution_target === "remote" && form.remote_connection === "ssh") {
         throw new Error("SSH execution is not available yet. Choose API to run on Modal.");
       }
-      const payload = { ...form, api_key: form.execution_target === "remote" ? modalBearerToken(form) : "", loader_options: loaderOptions,
+      if (form.execution_target === "remote" && form.remote_provider === "modal" && !remote?.verified) {
+        throw new Error("The Modal workspace must pass its health check before a reconstruction can start.");
+      }
+      const expertOverrides = form.advanced_overrides.split("\n");
+      const payload = { ...form,
+        loader: form.loader,
+        hydra_overrides: modelHydraOverrides,
+        advanced_overrides: expertOverrides.map((line) => line.trim()).filter(Boolean),
+        gaussian_splatting_overrides: splatHydraOverrides,
+        api_key: form.execution_target === "remote" ? modalBearerToken(form) : "", loader_options: loaderOptions,
         hardware: form.execution_target === "remote" ? form.remote_hardware : form.hardware,
         max_resolution: form.max_resolution ? Number(form.max_resolution) : null,
         num_workers: Number(form.num_workers), threads_per_worker: Number(form.threads_per_worker),
@@ -1150,21 +1515,58 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
     } catch (reason) { setError(errorMessage(reason)); } finally { setBusy(false); }
   };
 
+  const modalWorkspaceSelected = form.execution_target === "remote" && form.remote_connection === "api" && form.remote_provider === "modal";
+  const modalWorkspaceState: ModalWorkspaceReadiness = remote?.verified
+    ? "ready"
+    : modalDeploying || modalDiscovering || remoteChecking
+      ? "working"
+      : modalWorkspaceIssue
+        ? "attention"
+        : form.remote_endpoint
+          ? "found"
+        : "idle";
+  const modalWorkspaceDetail = remoteMessage || {
+    idle: "Enter Modal credentials, then deploy or discover a workspace.",
+    found: "Choose Update to apply this GTSFM version, or verify the existing deployment.",
+    working: "Preparing the lightweight control service. The GPU starts only when a reconstruction runs.",
+    ready: "Health checks passed. Reconstruction can start.",
+    attention: "Update or verify this workspace before starting a run.",
+  }[modalWorkspaceState];
+  const modalActionLabel = modalDeploying
+    ? modalDeployment?.phase === "verifying" ? "Starting & verifying Modal workspace…" : "Setting up Modal workspace…"
+    : modalDiscovering
+      ? "Finding Modal workspace…"
+      : remoteChecking
+        ? "Starting & verifying Modal workspace…"
+        : modalWorkspaceSelected && !remote?.verified
+          ? "Prepare Modal workspace first"
+          : "Run reconstruction";
+
   return <form id="runForm" onSubmit={submit}>
     <div className="panel-intro"><span>NEW RECONSTRUCTION</span>
       {schemaLoading ? <small className="catalog-sync"><RefreshCw className="spin" size={10}/> Syncing workspace options…</small>
-        : schemaError ? <button className="catalog-sync failed" type="button" onClick={onRetrySchema}><CircleAlert size={10}/> Options offline · Retry</button> : null}
+        : schemaError ? <button className="catalog-sync failed" type="button" onClick={onRetrySchema}><CircleAlert size={10}/> Options offline · Retry</button>
+        : <button className="catalog-sync" type="button" onClick={onRetrySchema}><RefreshCw size={10}/> Refresh options</button>}
       <p>Configure the source, pipeline, and compute target.</p>
     </div>
     <Section number="01" title="Input" subtitle="Choose the images to reconstruct">
       <TextField label="Run name" value={form.name} onChange={(value) => set("name", value)} autoComplete="off" />
       <div className="segmented input-source" role="group" aria-label="Input source">
         <button type="button" className={`target-choice ${inputMode === "upload" ? "active" : ""}`} onClick={() => {
-          setInputMode("upload"); setForm((current) => ({ ...current, sample_id: "", dataset_dir: datasetFolder?.path ?? "", images_dir: imagesFolder?.path ?? "" }));
+          setInputMode("upload"); setLoaderOptions({});
+          setForm((current) => ({ ...current, sample_id: "", dataset_dir: datasetFolder?.path ?? "", images_dir: imagesFolder?.path ?? "" }));
         }}><FolderUp size={13} /> Upload your own</button>
         <button type="button" className={`target-choice ${inputMode === "sample" ? "active" : ""}`} onClick={() => {
-          setInputMode("sample"); setForm((current) => ({ ...current, sample_id: preparedSample?.sample.id ?? "", dataset_dir: preparedSample?.path ?? "", images_dir: "" }));
+          setInputMode("sample");
+          const recommendations = preparedSample?.sample.recommendations;
+          setLoaderOptions(recommendations?.loader_options ?? {});
+          setForm((current) => ({ ...current, sample_id: preparedSample?.sample.id ?? "", dataset_dir: preparedSample?.path ?? "", images_dir: "", loader: recommendations?.loader ?? current.loader }));
         }}><Database size={13} /> GTSFM samples</button>
+        <button type="button" className={`target-choice ${inputMode === "previous" ? "active" : ""}`} onClick={() => {
+          setInputMode("previous"); setLoaderOptions({}); setError("");
+          setForm((current) => ({ ...current, sample_id: "", dataset_dir: previousFolder?.path ?? "", images_dir: previousImages?.path ?? "", loader: inputMode === "sample" ? EMPTY_FORM.loader : current.loader }));
+          void refreshUploads();
+        }}><FolderUp size={13} /> Previous uploads</button>
       </div>
       {inputMode === "upload" ? <>
         <FolderDropField label="Dataset folder" value={datasetFolder} onError={setError} onUploaded={(folder) => {
@@ -1174,7 +1576,24 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
         <FolderDropField label="Separate images folder" optional value={imagesFolder} onError={setError} onUploaded={(folder) => {
           setImagesFolder(folder); set("images_dir", folder?.path ?? "");
         }} />
-      </> : <div className="sample-picker">
+      </> : inputMode === "previous" ? <div className="sample-picker">
+        <SelectField label="Previously uploaded folder" value={previousFolder?.id ?? ""}
+          options={previousUploads.map((folder) => ({ id: folder.id, label: `${folder.name} · ${folder.analysis.image_count} image${folder.analysis.image_count === 1 ? "" : "s"} · ${folder.uploaded_at ? new Date(folder.uploaded_at * 1000).toLocaleString() : folder.id}` }))}
+          empty={uploadsLoading ? "Loading previous uploads…" : "Choose an uploaded folder…"} disabled={uploadsLoading}
+          onChange={(id) => {
+            const folder = previousUploads.find((item) => item.id === id) ?? null;
+            setPreviousFolder(folder); setPreviousImages(null); setError("");
+            setForm((current) => ({ ...current, sample_id: "", dataset_dir: folder?.path ?? "", images_dir: "", name: folder?.name ?? current.name }));
+          }} />
+        {previousFolder && <p className="field-help">{previousFolder.file_count.toLocaleString()} file{previousFolder.file_count === 1 ? "" : "s"} · {formatBytes(previousFolder.bytes)} · Ready to reuse</p>}
+        <SelectField label="Separate uploaded images folder (optional)" value={previousImages?.id ?? ""}
+          options={previousUploads.map((folder) => ({ id: folder.id, label: `${folder.name} · ${folder.id}` }))}
+          empty="Use images from the dataset folder" disabled={uploadsLoading}
+          onChange={(id) => { const folder = previousUploads.find((item) => item.id === id) ?? null; setPreviousImages(folder); set("images_dir", folder?.path ?? ""); }} />
+        {!uploadsLoading && !uploadsError && !previousUploads.length && <p className="field-help">No previous uploads yet. Use “Upload your own” to add a folder.</p>}
+        {uploadsError && <p className="job-error" role="alert">{uploadsError}</p>}
+        <button type="button" className="text-button" disabled={uploadsLoading} onClick={() => void refreshUploads()}><RefreshCw size={12} /> Refresh uploads</button>
+      </div> : <div className="sample-picker">
         <SelectField label="Sample scene" value={form.sample_id} options={samples} empty={samplesLoading ? "Loading GTSFM samples…" : "Choose a GTSFM sample…"} onChange={chooseSample} disabled={sampleBusy || samplesLoading} />
         {form.sample_id && <div className={`sample-card ${preparedSample ? "ready" : ""}`}>
           <span className="sample-state">{sampleBusy ? <RefreshCw className="spin" size={14} /> : preparedSample ? <Check size={14} /> : <Database size={14} />}</span>
@@ -1183,21 +1602,72 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
         </div>}
         <p className="field-help sample-help">Dataset format, VGGT model, resolution, and available loader settings are applied automatically.</p>
       </div>}
-      <SelectField label="Dataset format" value={form.loader} options={schema.loaders} onChange={(value) => { set("loader", value); setLoaderOptions({}); }} />
+      <SelectField
+        label="Dataset format"
+        value={form.loader}
+        options={schema.loaders}
+        onChange={(value) => {
+          set("loader", value);
+          setLoaderOptions({});
+        }}
+      />
       <LoaderOptions descriptors={schema.loader_options[form.loader] ?? []} values={loaderOptions} setValues={setLoaderOptions} />
     </Section>
     <Section number="02" title="Models" subtitle="VGGT is the default reconstruction model">
-      <SelectField label="Reconstruction model" value={form.config_name} options={modelCatalog} onChange={(value) => set("config_name", value)} />
+      <SelectField label="Reconstruction model" value={form.config_name} options={modelCatalog} onChange={(value) => { set("config_name", value); setModelHydraOverrides({}); }} />
       <SelectField label="Splat implementation" value={form.splat_implementation} options={splatOptions} onChange={(value) => set("splat_implementation", value)} />
       <p className="field-help">{splatMeta?.description}</p>
       {form.splat_implementation === "gsplat" && <div className="nested-options">
-        <SelectField label="Optimizer preset" value={form.gaussian_splatting_config_name} options={remote?.configuration?.gaussian_splatting_models ?? schema.gaussian_splatting_models} onChange={(value) => set("gaussian_splatting_config_name", value)} />
-        <div className="form-grid">
-          <TextField label="Training steps" type="number" min="1" step="1" value={form.gs_max_steps} onChange={(value) => set("gs_max_steps", value)} />
-          <TextField label="Preview every" type="number" min="10" step="10" value={form.live_preview_interval} onChange={(value) => set("live_preview_interval", value)} />
-        </div>
+        <SelectField label="Optimizer preset" value={form.gaussian_splatting_config_name} options={remote?.configuration?.gaussian_splatting_models ?? schema.gaussian_splatting_models} onChange={(value) => { set("gaussian_splatting_config_name", value); setSplatHydraOverrides({}); }} />
       </div>}
-      <Toggle id="runMvs" checked={form.run_mvs} disabled={!capabilities.mvs} onCheckedChange={(value) => set("run_mvs", value)}>Also run dense MVS</Toggle>
+      <Collapsible.Root className="advanced-options configuration-advanced" open={configurationAdvanced} onOpenChange={setConfigurationAdvanced}>
+        <Collapsible.Trigger className="advanced-trigger"><span><SlidersHorizontal size={13} /><span className="advanced-trigger-copy">Advanced Configuration<small>{Object.keys(modelHydraOverrides).length + Object.keys(splatHydraOverrides).length} Hydra overrides</small></span></span><ChevronDown size={14} /></Collapsible.Trigger>
+        <Collapsible.Content className="advanced-content">
+          <p className="configuration-intro">Tune reconstruction and splat optimization without editing YAML. Empty fields inherit the selected preset.</p>
+          <div className="configuration-json-action">
+            <button type="button" onClick={() => setJsonConfigurationOpen(true)} disabled={!hydraParameters || hydraParametersLoading}>{"{ }"} Paste JSON configuration</button>
+            <small>Import a preset-aware JSON object instead of filling fields individually.</small>
+          </div>
+          {form.splat_implementation === "gsplat" && <>
+            <div className="form-grid configuration-core-fields">
+              <TextField label="Training steps" type="number" min="1" step="1" value={form.gs_max_steps} onChange={(value) => set("gs_max_steps", value)} />
+              <TextField label="Preview every" type="number" min="10" step="10" value={form.live_preview_interval} onChange={(value) => set("live_preview_interval", value)} />
+            </div>
+          </>}
+          <div className="form-grid">
+            <TextField label="Maximum image resolution" type="number" min="1" value={form.max_resolution} onChange={(value) => set("max_resolution", value)} placeholder="Model default" />
+            <SelectField label="Graph partitioner" value={form.graph_partitioner} options={schema.graph_partitioners} empty="Model default" onChange={(value) => set("graph_partitioner", value)} />
+            <SelectField label="Global descriptor" value={form.global_descriptor_config_name} options={schema.global_descriptors} empty="Model default" onChange={(value) => set("global_descriptor_config_name", value)} />
+            <SelectField label="Image retriever" value={form.retriever_config_name} options={schema.retrievers} empty="Model default" onChange={(value) => set("retriever_config_name", value)} />
+            <SelectField label="Correspondence" value={form.correspondence_generator_config_name} options={schema.correspondence_generators} empty="Model default" onChange={(value) => set("correspondence_generator_config_name", value)} />
+            <SelectField label="Verifier" value={form.verifier_config_name} options={schema.verifiers} empty="Model default" onChange={(value) => set("verifier_config_name", value)} />
+            <TextField label="Frame lookahead" type="number" min="0" value={form.max_frame_lookahead} onChange={(value) => set("max_frame_lookahead", value)} placeholder="Model default" />
+            <TextField label="Matches per image" type="number" min="0" value={form.num_matched} onChange={(value) => set("num_matched", value)} placeholder="Model default" />
+          </div>
+          {capabilities.share_intrinsics && <Toggle id="shareIntrinsics" checked={form.share_intrinsics} onCheckedChange={(value) => set("share_intrinsics", value)}>Share camera intrinsics</Toggle>}
+          {hydraParametersLoading && <p className="configuration-unavailable"><RefreshCw className="spin" size={10} /> Loading the selected presets in the background…</p>}
+          {hydraParametersError && <p className="configuration-unavailable configuration-error">Could not load preset controls. {hydraParametersError} <button type="button" onClick={() => setHydraParametersRevision((value) => value + 1)}>Retry</button></p>}
+          {hydraParameters && <>
+            {hydraParameters.model.fields.length
+              ? <HydraFieldGroups fields={hydraParameters.model.fields} values={modelHydraOverrides} onChange={(key, value) => updateHydraOverride(setModelHydraOverrides, key, value)} />
+              : <p className="configuration-unavailable">The selected reconstruction preset has no additional safe scalar settings.</p>}
+            {form.splat_implementation === "gsplat" && <HydraFieldGroups fields={hydraParameters.gaussian.fields} values={splatHydraOverrides} onChange={(key, value) => updateHydraOverride(setSplatHydraOverrides, key, value)} />}
+          </>}
+          <Field label="Expert Hydra overrides" optional><textarea rows={4} value={form.advanced_overrides} onChange={(event) => set("advanced_overrides", event.target.value)} placeholder="One key=value override per line" /></Field>
+        </Collapsible.Content>
+      </Collapsible.Root>
+      {jsonConfigurationOpen && hydraParameters && <ConfigurationJsonDialog
+        parameters={hydraParameters}
+        model={modelHydraOverrides}
+        gaussian={splatHydraOverrides}
+        expert={form.advanced_overrides}
+        onApply={(configuration) => {
+          setModelHydraOverrides(configuration.model);
+          setSplatHydraOverrides(configuration.gaussian);
+          set("advanced_overrides", configuration.expert.join("\n"));
+        }}
+        onClose={() => setJsonConfigurationOpen(false)}
+      />}
     </Section>
     <Section number="03" title="Compute" subtitle="Run here or on a remote VM">
       <div className="segmented" id="computeTarget" role="group" aria-label="Execution target">
@@ -1214,9 +1684,9 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
           <SelectField label="Service" value={form.remote_provider} options={remoteProviders} onChange={(value) => { set("remote_provider", value); setRemote(null); }} />
           {form.remote_provider === "modal" && <div className="provider-panel">
             <div className="provider-heading"><span className="provider-mark">M</span><div><strong>Modal</strong><small>Connect with your Modal account token</small></div><span className="provider-status">AVAILABLE</span></div>
-            <SelectField label="Modal VM GPU" value={form.modal_gpu} options={modalGpuOptions} onChange={(value) => set("modal_gpu", value)} />
+            <SelectField label="Modal VM GPU" value={form.modal_gpu} options={modalGpuOptions} onChange={updateModalGpu} />
             <ModalGpuRecommendationCard recommendation={modalGpuRecommendation} selectedGpu={form.modal_gpu} onApply={() => {
-              if (modalGpuRecommendation) set("modal_gpu", modalGpuRecommendation.gpu.id);
+              if (modalGpuRecommendation) updateModalGpu(modalGpuRecommendation.gpu.id);
             }}/>
             <ModalCostEstimate form={form} analysis={datasetAnalysis} fallbackImageCount={selectedSample?.image_count ?? 0}/>
             <p className="field-help modal-command-help">Enter the two values separately, or paste the complete <code>modal token set --token-id … --token-secret …</code> command into either field.</p>
@@ -1225,12 +1695,17 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
               <TextField label="Token secret" type="password" value={form.modal_token_secret} onChange={(value) => updateModalCredential("modal_token_secret", value)} autoComplete="new-password" spellCheck={false} placeholder="as-…" />
             </div>
             {modalTokenMessage && <div className="credential-success"><Check size={12} /> {modalTokenMessage}</div>}
-            <TextField label="GTSFM endpoint" type="url" value={form.remote_endpoint} onChange={(value) => set("remote_endpoint", value)} placeholder={modalDiscovering ? "Discovering your Modal endpoint…" : "Filled after credentials are verified"} />
+            <TextField label="GTSFM endpoint" type="url" value={form.remote_endpoint} onChange={(value) => {
+              set("remote_endpoint", value);
+              setRemote(null);
+              setModalWorkspaceIssue(false);
+              setRemoteMessage("Endpoint changed. Start and verify this workspace before running.");
+            }} placeholder={modalDiscovering ? "Discovering your Modal endpoint…" : "Filled after credentials are verified"} />
             <button className="modal-deploy-action full-width" type="button" onClick={deployModal} disabled={modalDiscovering || modalDeploying || !form.modal_token_id || !form.modal_token_secret}><Server size={13} /> {modalDeploying ? "Setup in progress…" : form.remote_endpoint ? "Update Modal workspace" : "Set up & deploy Modal workspace"}</button>
             {modalDeployment && <ModalDeploymentProgress deployment={modalDeployment} onCancel={stopModalDeployment} onExpand={() => setModalLogExpanded(true)}/>} 
             {modalDeployment && modalLogExpanded && <ModalDeploymentDialog deployment={modalDeployment} onCancel={stopModalDeployment} onClose={() => setModalLogExpanded(false)}/>} 
-            {form.remote_endpoint && form.modal_api_key && <button className="secondary-action full-width" type="button" onClick={() => connectRemote()} disabled={modalDiscovering || modalDeploying || remoteChecking}><MonitorCog className={remoteChecking ? "spin" : ""} size={13} /> {remoteChecking ? "Checking Modal connection…" : remote ? "Refresh Modal connection" : "Check Modal connection"}</button>}
-            <div className="field-help remote-message">{remoteMessage}</div>
+            {form.remote_endpoint && form.modal_api_key && <button className="secondary-action full-width" type="button" onClick={() => connectRemote()} disabled={modalDiscovering || modalDeploying || remoteChecking}>{remoteChecking ? <RefreshCw className="spin" size={13}/> : remote?.verified ? <Check size={13}/> : <MonitorCog size={13}/>} {remoteChecking ? "Starting & checking workspace…" : remote?.verified ? "Modal workspace ready" : "Start & verify workspace"}</button>}
+            <ModalWorkspaceStatus state={modalWorkspaceState} detail={modalWorkspaceDetail}/>
             {remote && <SelectField label="Remote hardware" value={form.remote_hardware} options={remote.hardware.devices} onChange={(value) => set("remote_hardware", value)} />}
           </div>}
         </> : <div className="provider-panel">
@@ -1250,30 +1725,22 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
       </div>}
     </Section>
     <Collapsible.Root className="advanced-options" open={advanced} onOpenChange={setAdvanced}>
-      <Collapsible.Trigger className="advanced-trigger"><span><SlidersHorizontal size={13} /><span className="advanced-trigger-copy">Advanced settings<small>{machineProfile.label}</small></span></span><ChevronDown size={14} /></Collapsible.Trigger>
+      <Collapsible.Trigger className="advanced-trigger"><span><Cpu size={13} /><span className="advanced-trigger-copy">Machine settings<small>{machineProfile.label}</small></span></span><ChevronDown size={14} /></Collapsible.Trigger>
       <Collapsible.Content className="advanced-content">
         <div className="machine-profile-summary">
           <div><span>MACHINE PROFILE</span><strong>{machineProfile.label}</strong></div>
           <p>{machineProfile.description}</p>
-          <div className="machine-profile-specs"><span>{machineProfile.workers} worker{machineProfile.workers === 1 ? "" : "s"}</span><span>{machineProfile.threadsPerWorker} thread{machineProfile.threadsPerWorker === 1 ? "" : "s"} / worker</span><span>{machineProfile.memoryPerWorkerGiB} GB / worker</span></div>
+          <div className="machine-profile-specs"><span>{machineProfile.workers} worker{machineProfile.workers === 1 ? "" : "s"}</span><span>{form.threads_per_worker} thread{Number(form.threads_per_worker) === 1 ? "" : "s"} / worker</span><span>{machineProfile.memoryPerWorkerGiB} GB / worker</span></div>
         </div>
         <div className="form-grid">
-          <TextField label="Max resolution" type="number" min="1" value={form.max_resolution} onChange={(value) => set("max_resolution", value)} placeholder="Model default" />
           <TextField label="Workers" type="number" min="1" value={form.num_workers} onChange={(value) => set("num_workers", value)} disabled={!machineProfile.allowWorkers} title={!machineProfile.allowWorkers ? "Fixed for the selected single-GPU machine" : undefined} />
-          <TextField label="Threads / worker" type="number" min="1" value={form.threads_per_worker} onChange={(value) => set("threads_per_worker", value)} disabled={!machineProfile.allowThreads} />
+          <TextField label="Threads / worker" type="number" min="1" value={form.threads_per_worker} onChange={(value) => {
+            set("threads_per_worker", value);
+            rememberMachineThreads(machineProfile, value);
+          }} disabled={!machineProfile.allowThreads} />
           <TextField label="Memory / worker" value={form.worker_memory_limit} onChange={(value) => set("worker_memory_limit", value)} disabled={!machineProfile.allowMemory} />
         </div>
         {!machineProfile.allowWorkers && <p className="advanced-machine-note">Worker count is locked because the selected machine exposes one GPU. Choose a CPU machine to distribute work across multiple workers.</p>}
-        <SelectField label="Graph partitioner" value={form.graph_partitioner} options={schema.graph_partitioners} empty="Model default" onChange={(value) => set("graph_partitioner", value)} />
-        <div className="form-grid">
-          <SelectField label="Global descriptor" value={form.global_descriptor_config_name} options={schema.global_descriptors} empty="Model default" onChange={(value) => set("global_descriptor_config_name", value)} />
-          <SelectField label="Image retriever" value={form.retriever_config_name} options={schema.retrievers} empty="Model default" onChange={(value) => set("retriever_config_name", value)} />
-          <SelectField label="Correspondence" value={form.correspondence_generator_config_name} options={schema.correspondence_generators} empty="Model default" onChange={(value) => set("correspondence_generator_config_name", value)} />
-          <SelectField label="Verifier" value={form.verifier_config_name} options={schema.verifiers} empty="Model default" onChange={(value) => set("verifier_config_name", value)} />
-          <TextField label="Frame lookahead" type="number" min="0" value={form.max_frame_lookahead} onChange={(value) => set("max_frame_lookahead", value)} placeholder="Model default" />
-          <TextField label="Matches / image" type="number" min="0" value={form.num_matched} onChange={(value) => set("num_matched", value)} placeholder="Model default" />
-        </div>
-        <Toggle id="shareIntrinsics" checked={form.share_intrinsics} disabled={!capabilities.share_intrinsics} onCheckedChange={(value) => set("share_intrinsics", value)}>Share camera intrinsics</Toggle>
         <div className="form-grid">
           <SelectField label="Log level" value={form.log} options={schema.log_levels} onChange={(value) => set("log", value)} />
           <TextField label="Dashboard port" value={form.dashboard_port} onChange={(value) => set("dashboard_port", value)} placeholder=":8787" disabled={!machineProfile.allowLocalRuntime} />
@@ -1282,15 +1749,15 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
           <TextField label="Cluster config" value={form.cluster_config} onChange={(value) => set("cluster_config", value)} placeholder="Optional YAML path" disabled={!machineProfile.allowLocalRuntime} />
           <TextField label="Cluster retries" type="number" min="0" value={form.num_retry_cluster_connection} onChange={(value) => set("num_retry_cluster_connection", value)} placeholder="3" disabled={!machineProfile.allowLocalRuntime} />
         </div>
-        <Field label="Hydra overrides"><textarea rows={4} value={form.advanced_overrides} onChange={(event) => set("advanced_overrides", event.target.value)} /></Field>
       </Collapsible.Content>
     </Collapsible.Root>
     <div className="form-error" role="alert">{error}</div>
-    <button className="primary-action" type="submit" disabled={busy || sampleBusy || modalDeploying || (inputMode === "sample" && !preparedSample) || (form.execution_target === "remote" && (!form.remote_endpoint || !form.modal_api_key || !remote))}><span>{busy ? "Starting…" : sampleBusy ? "Preparing sample…" : modalDeploying ? "Finish workspace setup first" : "Run reconstruction"}</span>{busy || sampleBusy || modalDeploying ? <RefreshCw className="spin" size={14} /> : <Play size={14} fill="currentColor" />}</button>
+    <button className="primary-action" type="submit" disabled={busy || sampleBusy || modalDeploying || modalDiscovering || remoteChecking || (inputMode === "previous" && (!previousFolder || uploadsLoading)) || (inputMode === "sample" && !preparedSample) || (form.execution_target === "remote" && (!form.remote_endpoint || !form.modal_api_key || !remote?.verified))}><span>{busy ? "Starting…" : sampleBusy ? "Preparing sample…" : modalActionLabel}</span>{busy || sampleBusy || modalDeploying || modalDiscovering || remoteChecking ? <RefreshCw className="spin" size={14} /> : <Play size={14} fill="currentColor" />}</button>
   </form>;
 }
 
-const statusLabel = (status: JobStatus): string => ({ queued: "Queued", running: "Running", completed: "Completed", failed: "Failed", cancelled: "Cancelled" })[status];
+const statusLabel = (status: JobStatus): string => ({ queued: "Queued", running: "Running", completed: "Completed", failed: "Failed", cancelled: "Cancelled", interrupted: "Interrupted" })[status];
+const canRetryJob = (job: Job): boolean => ["failed", "interrupted"].includes(job.status) && job.retry_available !== false;
 
 function SplatDownload({ jobId, compact = false }: { jobId: string; compact?: boolean }) {
   const href = `/api/jobs/${encodeURIComponent(jobId)}/splat?format=ply`;
@@ -1301,6 +1768,7 @@ function SplatDownload({ jobId, compact = false }: { jobId: string; compact?: bo
 }
 
 interface ActivityPanelProps {
+  onRetried: (job: Job) => void;
   jobs: Job[];
   activeId: string | null;
   onSelect: (id: string) => void;
@@ -1308,28 +1776,112 @@ interface ActivityPanelProps {
   onRefresh: () => void;
 }
 
-function ActivityPanel({ jobs, activeId, onSelect, onCancel, onRefresh }: ActivityPanelProps) {
+function CopyDiagnosticPrompt({ jobId }: { jobId: string }) {
+  const [state, setState] = useState<"idle" | "loading" | "copied" | "error">("idle");
+  const [error, setError] = useState("");
+  useEffect(() => {
+    if (state !== "copied") return;
+    const timer = window.setTimeout(() => setState("idle"), 2000);
+    return () => window.clearTimeout(timer);
+  }, [state]);
+
+  const copyPrompt = async () => {
+    setState("loading");
+    setError("");
+    try {
+      const { prompt } = await getJson<{ prompt: string }>(`/api/jobs/${encodeURIComponent(jobId)}/diagnostic-prompt`);
+      if (!await copyTextToClipboard(prompt)) throw new Error("Clipboard access failed. Please try copying again.");
+      setState("copied");
+    } catch (reason) {
+      setError(errorMessage(reason));
+      setState("error");
+    }
+  };
+
+  return <span className="diagnostic-prompt-action">
+    <button className="text-button" type="button" onClick={copyPrompt} disabled={state === "loading"} title="Copy a diagnosis request with the CLI command and full run log">
+      {state === "copied" ? <Check size={12}/> : <Copy size={12}/>}
+      {state === "loading" ? "Preparing prompt…" : state === "copied" ? "Copied!" : "Copy diagnostic prompt"}
+    </button>
+    {error && <span className="job-error" role="alert">{error}</span>}
+  </span>;
+}
+
+function RetryJob({ jobId, onStarted, compact = false }: { jobId: string; onStarted: (job: Job) => void; compact?: boolean }) {
+  const pending = useRef(false);
+  const [starting, setStarting] = useState(false);
+  const [error, setError] = useState("");
+  const retry = async () => {
+    if (pending.current) return;
+    pending.current = true;
+    setStarting(true); setError("");
+    try {
+      const job = await getJson<Job>(`/api/jobs/${encodeURIComponent(jobId)}/retry`, { method: "POST" });
+      onStarted(job);
+    } catch (reason) { setError(errorMessage(reason)); }
+    finally { pending.current = false; setStarting(false); }
+  };
+  return <span className="retry-job-action">
+    <button className={compact ? "secondary-action" : "text-button"} type="button" onClick={retry} disabled={starting} title="Start a new run with these settings and the current code">
+      <RefreshCw size={12} className={starting ? "spin" : undefined}/>{starting ? "Retrying…" : "Retry"}
+    </button>
+    {error && <span className="job-error" role="alert">{error}</span>}
+  </span>;
+}
+
+function ActivityPanel({ jobs, activeId, onSelect, onCancel, onRefresh, onRetried }: ActivityPanelProps) {
   return <div><div className="panel-title"><div><h3>Activity</h3><p>Running and recent jobs</p></div><button className="icon-button" title="Refresh" onClick={onRefresh}><RefreshCw size={14} /></button></div>
     <div className="job-list">{jobs.length ? jobs.map((job) => <article key={job.id} className={`job-card ${job.id === activeId ? "selected" : ""}`}>
       <div className="job-card-top"><strong>{job.name}</strong><span className={`job-status ${job.status}`}>{statusLabel(job.status)}</span></div>
       <small>{displayName(job.spec.config_name || "GTSFM")} · {displayName(job.spec.splat_implementation || "no_splats")}</small>
       {job.error && <p className="job-error">{job.error}</p>}
-      <div className="job-actions"><button className="text-button" onClick={() => onSelect(job.id)}>Inspect</button>
+      {job.history_note && <p className="job-history-note">{job.history_note}</p>}
+      {job.created_at && <time className="job-created" dateTime={job.created_at}>{new Date(job.created_at).toLocaleString()}</time>}
+      {job.status === "failed" && <CopyDiagnosticPrompt key={job.id} jobId={job.id} />}
+      <div className="job-actions">{canRetryJob(job) && <RetryJob jobId={job.id} onStarted={onRetried}/>}<button className="text-button" onClick={() => onSelect(job.id)}>{job.has_final_splat ? "View splat" : ["queued", "running"].includes(job.status) ? "View progress" : "View details"}</button>
         {["queued", "running"].includes(job.status) && <button className="text-button danger" onClick={() => onCancel(job.id)}><Square size={9} fill="currentColor"/> Stop</button>}
-        {job.status === "completed" && !job.remote && <a className="text-button" href="/?view=results">View results</a>}
+        {job.status === "completed" && !job.remote && job.output_root && <a className="text-button" href={`/?view=results&run=${encodeURIComponent(job.output_root)}`}>View results</a>}
         {job.remote?.workspace_url && <a className="text-button" href={job.remote.workspace_url} target="_blank" rel="noreferrer">Remote results ↗</a>}
       </div>{job.has_final_splat && <SplatDownload jobId={job.id} compact />}</article>) : <div className="empty-state"><Activity size={20} /><strong>No runs yet</strong><span>Configure your first reconstruction in New run.</span></div>}</div>
   </div>;
 }
 
-function ResultsPanel() {
+function ResultsPanel({ onStarted, refreshKey }: { onStarted: (job: Job) => void; refreshKey: string }) {
+  const [scene, setScene] = useState<ResultItem | null>(null);
+  const [steps, setSteps] = useState("7000");
+  const [starting, setStarting] = useState(false);
+  const [error, setError] = useState("");
+  const start = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!scene || starting) return;
+    setStarting(true); setError("");
+    try {
+      const job = await getJson<Job>("/api/scenes/splatify", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scene: scene.rel_path, gs_max_steps: Number(steps) }),
+      });
+      setScene(null); onStarted(job);
+    } catch (reason) { setError(errorMessage(reason)); }
+    finally { setStarting(false); }
+  };
+  const runRoot = new URLSearchParams(location.search).get("run");
   return <div><div className="panel-title"><div><h3>Reconstructions</h3><p>Open a scene in the 3D viewer</p></div></div>
-    <div id="info" className="info-summary" role="status"><div className="info-pill" data-role="count">—</div><div className="info-details"><div className="info-title" data-role="title">Loading reconstructions…</div><div className="info-path" data-role="path">Checking workspace…</div></div></div>
-    <input type="text" id="filter" placeholder="Filter scenes…" aria-label="Filter scenes" /><div id="sceneList" />
+    {runRoot && <a className="text-button" href="/?view=results">View all results</a>}
+    {scene && <form className="splat-result-form" onSubmit={start}>
+      <strong>Splatify this reconstruction</strong>
+      <small className="result-path">{scene.rel_path}</small>
+      <p>{(scene.point_count ?? 0).toLocaleString()} points · {(scene.camera_count ?? 0).toLocaleString()} cameras. Train Gaussian splats from the saved cameras and original photos.</p>
+      <TextField label="Training steps" type="number" min="1" value={steps} onChange={setSteps} />
+      {error && <p className="job-error" role="alert">{error}</p>}
+      <div className="job-actions"><button className="primary-action" type="submit" disabled={starting || !Number.isInteger(Number(steps)) || Number(steps) < 1}>{starting ? "Starting…" : "Start splatting"}</button><button className="text-button" type="button" disabled={starting} onClick={() => setScene(null)}>Cancel</button></div>
+    </form>}
+    <ResultsBrowser refreshKey={refreshKey} onSplatify={(item) => { setScene(item); setError(""); }}/>
+
   </div>;
 }
 
 interface StatusBarProps {
+  onRetried: (job: Job) => void;
   job: Job | null;
   live: LiveState | null;
   logsOpen: boolean;
@@ -1339,20 +1891,102 @@ interface StatusBarProps {
   onClose: () => void;
 }
 
-function StatusBar({ job, live, logsOpen, setLogsOpen, visible, onCancel, onClose }: StatusBarProps) {
+interface StatusBarPosition {
+  left: number;
+  top: number;
+  width: number;
+}
+
+function StatusBar({ job, live, logsOpen, setLogsOpen, visible, onCancel, onClose, onRetried }: StatusBarProps) {
+  const barRef = useRef<HTMLDivElement>(null);
+  const dragStart = useRef<{
+    pointerX: number;
+    pointerY: number;
+    left: number;
+    top: number;
+    width: number;
+    maxLeft: number;
+    maxTop: number;
+  } | null>(null);
+  const [position, setPosition] = useState<StatusBarPosition | null>(null);
+  const [dragging, setDragging] = useState(false);
+
+  useEffect(() => {
+    const bar = barRef.current;
+    const container = bar?.parentElement;
+    if (!bar || !container || typeof ResizeObserver === "undefined") return;
+    const keepInBounds = () => setPosition((current) => {
+      if (!current) return null;
+      const containerRect = container.getBoundingClientRect();
+      const width = Math.min(current.width, containerRect.width);
+      const height = bar.getBoundingClientRect().height;
+      return {
+        left: Math.max(0, Math.min(containerRect.width - width, current.left)),
+        top: Math.max(0, Math.min(containerRect.height - height, current.top)),
+        width,
+      };
+    });
+    const observer = new ResizeObserver(keepInBounds);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
+
+  const beginDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    if ((event.target as HTMLElement).closest("button, a, input, select")) return;
+    const bar = barRef.current;
+    const container = bar?.parentElement;
+    if (!bar || !container || event.button !== 0) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const barRect = bar.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    const start = {
+      pointerX: event.clientX,
+      pointerY: event.clientY,
+      left: barRect.left - containerRect.left,
+      top: barRect.top - containerRect.top,
+      width: barRect.width,
+      maxLeft: Math.max(0, containerRect.width - barRect.width),
+      maxTop: Math.max(0, containerRect.height - barRect.height),
+    };
+    dragStart.current = start;
+    setPosition({ left: start.left, top: start.top, width: start.width });
+    setDragging(true);
+  };
+
+  const moveDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    const start = dragStart.current;
+    if (!start) return;
+    setPosition({
+      left: Math.max(0, Math.min(start.maxLeft, start.left + event.clientX - start.pointerX)),
+      top: Math.max(0, Math.min(start.maxTop, start.top + event.clientY - start.pointerY)),
+      width: start.width,
+    });
+  };
+
+  const finishDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragStart.current) return;
+    dragStart.current = null;
+    setDragging(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+
   if (!job || !visible) return null;
   const progress = typeof live?.progress === "number" && Number.isFinite(live.progress) ? live.progress : job.status === "completed" ? 1 : 0;
   const loss = typeof live?.loss === "number" && Number.isFinite(live.loss) ? `loss ${live.loss.toFixed(4)}` : "";
   const splatCount = typeof live?.splat_count === "number" && Number.isFinite(live.splat_count) ? `${live.splat_count.toLocaleString()} splats` : "";
-  return <div className="run-status-bar" data-status={job.status}>
-    <div className="status-copy"><span className="status-dot"/><div><strong>{job.name} · {statusLabel(job.status)}</strong><small>{job.error || (live?.stage === "gaussian_splatting" ? "Optimizing Gaussian splats" : "Running reconstruction pipeline")}</small></div></div>
+  const stage = job.status === "completed" ? "Reconstruction complete" : job.status === "failed" ? "Reconstruction failed" : job.status === "cancelled" ? "Reconstruction cancelled" : job.status === "interrupted" ? "Previous run outcome unconfirmed" : job.status === "queued" ? "Waiting to start" : live?.stage === "gaussian_splatting" ? "Optimizing Gaussian splats" : "Running reconstruction pipeline";
+  const style = position ? { left: position.left, top: position.top, width: position.width, right: "auto", bottom: "auto" } : undefined;
+  return <div ref={barRef} className={`run-status-bar ${dragging ? "is-dragging" : ""}`} data-status={job.status} style={style} title="Drag to move run status" onPointerDown={beginDrag} onPointerMove={moveDrag} onPointerUp={finishDrag} onPointerCancel={finishDrag}>
+    <div className="status-copy status-drag-handle" onDoubleClick={() => setPosition(null)}><span className="status-dot"/><div><strong>{job.name} · {statusLabel(job.status)}</strong><small>{job.error || stage}</small></div></div>
     <div className="status-metrics"><span>{live?.max_steps ? `${Number(live.step).toLocaleString()} / ${Number(live.max_steps).toLocaleString()} steps` : ""}</span><span>{loss}</span><span>{splatCount}</span></div>
-    <div className="status-actions">{job.has_final_splat && <SplatDownload jobId={job.id} />}{["queued", "running"].includes(job.status) && <button className="secondary-action stop-process" type="button" onClick={() => onCancel(job.id)}><Square size={10} fill="currentColor"/> Stop</button>}<button className="secondary-action" onClick={() => setLogsOpen(!logsOpen)}><Terminal size={13}/> Logs</button><button className="status-close" type="button" title="Close run status" aria-label="Close run status" onClick={onClose}><X size={15}/></button></div>
+    <div className="status-actions">{canRetryJob(job) && <RetryJob key={job.id} jobId={job.id} onStarted={onRetried} compact/>}{job.has_final_splat && <SplatDownload jobId={job.id} />}{["queued", "running"].includes(job.status) && <button className="secondary-action stop-process" type="button" onClick={() => onCancel(job.id)}><Square size={10} fill="currentColor"/> Stop</button>}<button className="secondary-action" onClick={() => setLogsOpen(!logsOpen)}><Terminal size={13}/> Logs</button><button className="status-close" type="button" title="Close run status" aria-label="Close run status" onClick={onClose}><X size={15}/></button></div>
     <Progress.Root className="run-progress-track" value={progress * 100}><Progress.Indicator className="run-progress-fill" style={{ transform: `translateX(-${100 - progress * 100}%)` }} /></Progress.Root>
   </div>;
 }
 
 interface ViewerProps {
+  onRetried: (job: Job) => void;
   activeJob: Job | null;
   live: LiveState | null;
   logsOpen: boolean;
@@ -1373,20 +2007,31 @@ interface LogPanelGeometry {
   height: number;
 }
 
-function LogPanel({ open, lines, onClose }: { open: boolean; lines: string[]; onClose: () => void }) {
+type LogResizeCorner = "nw" | "ne" | "sw" | "se";
+
+// Preserve argument boundaries when copying a subprocess argv into a POSIX shell.
+function shellCommand(args: string[]): string {
+  return args.map((arg) => /^[A-Za-z0-9_@%+=:,./-]+$/.test(arg) ? arg : `'${arg.replace(/'/g, "'\\''")}'`).join(" ");
+}
+
+function LogPanel({ open, job, onClose, onRetried }: { open: boolean; job: Job | null; onClose: () => void; onRetried: (job: Job) => void }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const copyReset = useRef<number | null>(null);
   const [geometry, setGeometry] = useState<LogPanelGeometry | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<"logs" | "command" | null>(null);
+  const lines = job?.log_tail || [];
+  const remoteRequest = job?.command?.[0] === "remote";
+  const command = remoteRequest ? `POST ${job?.command?.[1] || ""}` : shellCommand(job?.command || []);
 
-  const copyLogs = async () => {
-    if (!await copyTextToClipboard(lines.join("\n"))) return;
-    setCopied(true);
+  const copy = async (kind: "logs" | "command") => {
+    if (!await copyTextToClipboard(kind === "command" ? command : lines.join("\n"))) return;
+    setCopied(kind);
     if (copyReset.current !== null) window.clearTimeout(copyReset.current);
-    copyReset.current = window.setTimeout(() => setCopied(false), 1000);
+    copyReset.current = window.setTimeout(() => setCopied(null), 1000);
   };
 
   useEffect(() => () => { if (copyReset.current !== null) window.clearTimeout(copyReset.current); }, []);
+  useEffect(() => { setCopied(null); }, [job?.id]);
 
   const beginDrag = (event: React.PointerEvent<HTMLDivElement>) => {
     if ((event.target as HTMLElement).closest("button")) return;
@@ -1425,7 +2070,7 @@ function LogPanel({ open, lines, onClose }: { open: boolean; lines: string[]; on
     window.addEventListener("pointercancel", finish, { once: true });
   };
 
-  const beginResize = (event: React.PointerEvent<HTMLButtonElement>) => {
+  const beginResize = (corner: LogResizeCorner) => (event: React.PointerEvent<HTMLButtonElement>) => {
     const panel = panelRef.current;
     const container = panel?.parentElement;
     if (!panel || !container) return;
@@ -1441,13 +2086,27 @@ function LogPanel({ open, lines, onClose }: { open: boolean; lines: string[]; on
       top: panelRect.top - containerRect.top,
       right: panelRect.right - containerRect.left,
       bottom: panelRect.bottom - containerRect.top,
+      containerWidth: containerRect.width,
+      containerHeight: containerRect.height,
     };
     setGeometry({ left: start.left, top: start.top, width: panelRect.width, height: panelRect.height });
 
     const move = (moveEvent: PointerEvent) => {
-      const left = Math.max(0, Math.min(start.right - 300, start.left + moveEvent.clientX - start.pointerX));
-      const top = Math.max(0, Math.min(start.bottom - 150, start.top + moveEvent.clientY - start.pointerY));
-      setGeometry({ left, top, width: start.right - left, height: start.bottom - top });
+      const dx = moveEvent.clientX - start.pointerX;
+      const dy = moveEvent.clientY - start.pointerY;
+      const left = corner.includes("w")
+        ? Math.max(0, Math.min(start.right - 300, start.left + dx))
+        : start.left;
+      const right = corner.includes("e")
+        ? Math.min(start.containerWidth, Math.max(start.left + 300, start.right + dx))
+        : start.right;
+      const top = corner.includes("n")
+        ? Math.max(0, Math.min(start.bottom - 300, start.top + dy))
+        : start.top;
+      const bottom = corner.includes("s")
+        ? Math.min(start.containerHeight, Math.max(start.top + 300, start.bottom + dy))
+        : start.bottom;
+      setGeometry({ left, top, width: right - left, height: bottom - top });
     };
     const finish = () => {
       window.removeEventListener("pointermove", move);
@@ -1460,11 +2119,26 @@ function LogPanel({ open, lines, onClose }: { open: boolean; lines: string[]; on
   };
 
   if (!open) return null;
-  const style = geometry ? { left: geometry.left, top: geometry.top, width: geometry.width, height: geometry.height, right: "auto", bottom: "auto" } : undefined;
-  return <div ref={panelRef} className="log-drawer" role="dialog" aria-label="Run logs" style={style}>
-    <button className="log-resize-handle" type="button" title="Resize logs" aria-label="Resize logs from top left" onPointerDown={beginResize} />
-    <div className="log-header" onPointerDown={beginDrag}><strong><Terminal size={12}/> Run logs</strong><div className="log-header-actions"><button className="log-copy" type="button" title="Copy all logs" aria-label="Copy all logs" onClick={copyLogs}>{copied ? <Check size={12}/> : <Copy size={12}/>}<span>{copied ? "Copied!" : "Copy"}</span></button><button type="button" title="Minimize logs" aria-label="Minimize logs" onClick={onClose}><Minus size={15}/></button><button type="button" title="Close logs" aria-label="Close logs" onClick={onClose}><X size={14}/></button></div></div>
-    <pre id="runLogs">{lines.join("\n")}</pre>
+  const style = geometry ? ({
+    left: geometry.left,
+    top: geometry.top,
+    width: geometry.width,
+    height: geometry.height,
+    right: "auto",
+    bottom: "auto",
+  } as React.CSSProperties) : undefined;
+  return <div ref={panelRef} className="log-drawer" role="dialog" aria-label="Run details" style={style}>
+    {(["nw", "ne", "sw", "se"] as LogResizeCorner[]).map((corner) => <button key={corner} className={`log-resize-handle ${corner}`} type="button" title="Resize logs" aria-label={`Resize logs from ${corner}`} onPointerDown={beginResize(corner)} />)}
+    <div className="log-header" onPointerDown={beginDrag}><strong><Terminal size={12}/> Run details</strong><div className="log-header-actions"><button type="button" title="Minimize run details" aria-label="Minimize run details" onClick={onClose}><Minus size={15}/></button><button type="button" title="Close run details" aria-label="Close run details" onClick={onClose}><X size={14}/></button></div></div>
+    {job && <div className="run-details-summary"><strong>{job.name}</strong><span className={`job-status ${job.status}`}>{statusLabel(job.status)}</span>{job.return_code != null && <span>Exit code {job.return_code}</span>}{job.output_root && <div className="run-output-path"><span>Output</span><code>{job.output_root}</code></div>}{job.error && <p className="job-error">{job.error}</p>}</div>}
+    {job?.history_note && <p className="job-history-note run-history-note">{job.history_note}</p>}
+    {job && ["failed", "interrupted"].includes(job.status) && <div className="run-diagnostic-prompt">{canRetryJob(job) && <RetryJob key={`retry-${job.id}`} jobId={job.id} onStarted={onRetried}/>}<CopyDiagnosticPrompt key={job.id} jobId={job.id} /></div>}
+    <section className="run-command" aria-label={remoteRequest ? "Remote request" : "CLI command"}>
+      <div className="run-detail-heading"><strong>{remoteRequest ? "Remote request" : "CLI command"}</strong><button type="button" disabled={!command} onClick={() => copy("command")} aria-label={remoteRequest ? "Copy remote request" : "Copy command"}>{copied === "command" ? <Check size={12}/> : <Copy size={12}/>} {copied === "command" ? "Copied!" : "Copy"}</button></div>
+      <pre>{command || "No command recorded for this run."}</pre>
+    </section>
+    <div className="run-detail-heading log-section-heading"><strong>Logs</strong><button type="button" onClick={() => copy("logs")} aria-label="Copy logs">{copied === "logs" ? <Check size={12}/> : <Copy size={12}/>} {copied === "logs" ? "Copied!" : "Copy"}</button></div>
+    <pre id="runLogs">{lines.join("\n") || "No log output yet."}</pre>
   </div>;
 }
 
@@ -1475,7 +2149,7 @@ function SetupPanel({ setup, refreshing, onRefresh, onSetupChange, hasActiveJob 
   onSetupChange: (setup: SetupStatus) => void;
   hasActiveJob: boolean;
 }) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const [closed, setClosed] = useState(false);
   const [installingId, setInstallingId] = useState<string | null>(null);
   const [actionErrors, setActionErrors] = useState<Record<string, string>>({});
@@ -1539,26 +2213,48 @@ function DaskStats({ job, live }: { job: Job; live: LiveState | null }) {
   </section>;
 }
 
-function Viewer({ activeJob, live, logsOpen, setLogsOpen, statusBarOpen, setStatusBarOpen, onCancelJob, setup, setupRefreshing, onRefreshSetup, onSetupChange }: ViewerProps) {
+function pipelineStatusMessage(job: Job, live: LiveState | null): string {
+  if (live?.stage === "gaussian_splatting") {
+    const step = Number(live.step || 0);
+    const maxSteps = Number(live.max_steps || 0);
+    return maxSteps > 0
+      ? `GTSFM: Optimizing Gaussian splats · ${step.toLocaleString()} / ${maxSteps.toLocaleString()} steps`
+      : "GTSFM: Initializing Gaussian optimization…";
+  }
+  if (live?.message) return live.message;
+  if (job.status === "queued") return job.remote ? "Waiting for the Modal GPU worker…" : "Waiting for the reconstruction worker…";
+  const latestStatus = [...(job.log_tail || [])].reverse().find((line) => /GTSFM|partition|VGGT|Gaussian|splat/i.test(line));
+  return latestStatus?.replace(/^.*?\b(?:DEBUG|INFO|WARNING|ERROR|CRITICAL):\s*/, "") || "GTSFM: Preparing the reconstruction pipeline…";
+}
+
+function Viewer({ activeJob, live, logsOpen, setLogsOpen, statusBarOpen, setStatusBarOpen, onCancelJob, onRetried, setup, setupRefreshing, onRefreshSetup, onSetupChange }: ViewerProps) {
   const closeStatus = () => { setStatusBarOpen(false); setLogsOpen(false); };
-  const showDaskStats = Boolean(activeJob && !activeJob.remote && ["queued", "running"].includes(activeJob.status));
-  return <main id="main-content"><StatusBar job={activeJob} live={live} logsOpen={logsOpen} setLogsOpen={setLogsOpen} visible={statusBarOpen} onCancel={onCancelJob} onClose={closeStatus} />
+  const showDaskStats = Boolean(activeJob && ["queued", "running"].includes(activeJob.status));
+  const expectsSplats = Boolean(activeJob && (activeJob.spec.splat_implementation || "none") !== "none");
+  const visualizationAvailable = Boolean(live?.preview_url || live?.final_url || activeJob?.has_final_splat);
+  const showPipelineWait = Boolean(activeJob && expectsSplats && ["queued", "running"].includes(activeJob.status) && !visualizationAvailable);
+  return <><main id="main-content"><StatusBar job={activeJob} live={live} logsOpen={logsOpen} setLogsOpen={setLogsOpen} visible={statusBarOpen} onCancel={onCancelJob} onClose={closeStatus} onRetried={onRetried} />
+    <div className="viewer-top-panels">
+    <SceneStats>{showDaskStats && activeJob && <DaskStats job={activeJob} live={live}/>}</SceneStats>
+    <ViewControls/>
     <SetupPanel setup={setup} refreshing={setupRefreshing} onRefresh={onRefreshSetup} onSetupChange={onSetupChange} hasActiveJob={Boolean(activeJob && statusBarOpen)} />
-    <div id="sceneStats" className={showDaskStats ? "dask-active" : undefined}><div className="stat-group" data-mode="scene"><div className="stat-pair"><span className="label">Cameras</span><span className="value" id="statCameras">0</span></div><div className="stat-pair"><span className="label">Points</span><span className="value" id="statPoints">0</span></div><div className="stat-wide"><span className="label">Image</span><span className="value" id="statImageName">—</span></div></div><div className="stat-group" data-mode="splat"><div className="stat-pair"><span className="label">Splats</span><span className="value" id="statSplats">0</span></div></div>{showDaskStats && activeJob && <DaskStats job={activeJob} live={live}/>}</div>
-    <canvas id="renderCanvas"/>
-    <div id="hud"><label className="background-control">BG <select id="backgroundSelect" defaultValue="dark" aria-label="Viewer background"><option value="dark">Dark</option><option value="graphite">Graphite</option><option value="light-gray">Light gray</option><option value="white">White</option></select></label><button id="prevCamBtn" className="hud-scene-only" title="Previous camera"><ChevronLeft size={14}/></button><button id="nextCamBtn" className="hud-scene-only" title="Next camera"><ChevronRight size={14}/></button><button id="toggleStats">Hide stats</button><label className="hud-scene-only"><input type="checkbox" id="toggleCams" defaultChecked/> Cameras</label><label className="hud-scene-only">Point size <input type="range" id="ptSize" min="1" max="10" defaultValue="2"/></label><button id="toggleGround" type="button" aria-pressed="true">Hide plane</button><label className="plane-height-control">Plane Y <input type="range" id="groundY" min="-5" max="5" step="0.1" defaultValue="0" aria-label="Plane vertical position"/><output id="groundYValue" htmlFor="groundY">0.0</output></label></div>
+    </div>
+    <ViewerCanvas/>
+    <div id="viewer-startup-anchor"/>
+    <ViewerToolbar/>
     <a className="viewport-github" href="https://github.com/borglab/gtsfm" target="_blank" rel="noreferrer" title="Open GTSFM on GitHub" aria-label="Open GTSFM GitHub repository"><Github size={16}/></a>
-    <LogPanel open={logsOpen} lines={activeJob?.log_tail || []} onClose={() => setLogsOpen(false)} />
-    <div id="loadingOverlay" className="loading-overlay" role="status"><div className="loading-box"><span id="loadingMessage">Loading…</span><div className="loading-progress-track"><div className="loading-progress-fill" id="loadingProgress"/></div></div></div>
-  </main>;
+    <LogPanel open={logsOpen} job={activeJob} onClose={() => setLogsOpen(false)} onRetried={onRetried} />
+    {showPipelineWait && activeJob && <div className="pipeline-wait-overlay" role="status" aria-live="polite"><div className="pipeline-wait-content"><span>RECONSTRUCTION IN PROGRESS</span><strong>{pipelineStatusMessage(activeJob, live)}</strong><div className="pipeline-wait-dots" aria-hidden="true"><i/><i/><i/></div><small>The first live Gaussian preview will appear here automatically.</small></div></div>}
+    <ViewerLoading/>
+  </main><PhotoPanel/></>;
 }
 
 function hardwareWarningContent(hardware: HardwareCatalog): { title: string; description: string } {
   const available = hardware.devices.filter((device) => !device.status || device.status === "available");
   const apple = hardware.devices.find((device) => device.kind === "mps");
   if (apple) return {
-    title: "Apple Metal (MPS) is not supported",
-    description: "Apple Silicon and MPS can run reconstruction, but GTSFM Gaussian splatting does not currently support this backend. Use a Remote VM with an NVIDIA GPU to generate splats.",
+    title: "Gaussian splatting is unavailable on this Mac",
+    description: "Reconstruction works on this Mac. Gaussian splatting requires an NVIDIA GPU; Apple Metal (MPS) is not supported for splats.",
   };
 
   const amd = hardware.devices.find((device) => device.kind === "rocm" || /\b(amd|radeon|rocm)\b/i.test(`${device.label} ${device.details}`));
@@ -1585,22 +2281,60 @@ function hardwareWarningContent(hardware: HardwareCatalog): { title: string; des
   };
 }
 
-function HardwareWarning({ hardware, onClose, onUseRemote }: { hardware: HardwareCatalog; onClose: () => void; onUseRemote: () => void }) {
+function HardwareWarning({ hardware, onUseRemote }: { hardware: HardwareCatalog; onUseRemote: () => void }) {
   const content = hardwareWarningContent(hardware);
-  return <section className="hardware-warning" role="alertdialog" aria-labelledby="hardware-warning-title" aria-describedby="hardware-warning-description">
+  const acknowledgmentKey = `gtsfm.hardware-notice.v1:${content.title}`;
+  const [acknowledged, setAcknowledged] = useState(() => {
+    try { return Boolean(localStorage.getItem(acknowledgmentKey)); }
+    catch { return false; }
+  });
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === acknowledgmentKey) setAcknowledged(Boolean(event.newValue));
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [acknowledgmentKey]);
+  const acknowledge = () => {
+    setAcknowledged(true);
+    try { localStorage.setItem(acknowledgmentKey, new Date().toISOString()); }
+    catch { /* Keep the notice dismissed for this session when storage is unavailable. */ }
+  };
+  if (acknowledged) return null;
+  return <section className="hardware-warning" role="note" aria-labelledby="hardware-warning-title" aria-describedby="hardware-warning-description">
     <div className="hardware-warning-icon" aria-hidden="true"><CircleAlert size={18}/></div>
     <div className="hardware-warning-copy">
-      <span>HARDWARE NOTICE</span>
       <strong id="hardware-warning-title">{content.title}</strong>
       <p id="hardware-warning-description">{content.description}</p>
-      <div className="hardware-warning-actions"><button type="button" className="warning-primary" onClick={onUseRemote}><Server size={12}/> Use Remote VM</button><button type="button" onClick={onClose}>Continue without splats</button></div>
+      <div className="hardware-warning-actions"><button type="button" onClick={acknowledge} title="Remember my acknowledgment and don't show this notice again">Got it</button><button type="button" onClick={() => { acknowledge(); onUseRemote(); }}><Server size={12}/> Use Remote VM</button></div>
     </div>
-    <button className="hardware-warning-close" type="button" title="Dismiss hardware warning" aria-label="Dismiss hardware warning" onClick={onClose}><X size={14}/></button>
   </section>;
 }
 
+const SIDEBAR_WIDTH_KEY = "gtsfm-studio-sidebar-width";
+const SIDEBAR_MIN_WIDTH = 320;
+const SIDEBAR_MAX_WIDTH = 760;
+
+function constrainSidebarWidth(width: number): number {
+  const viewerRoom = Math.max(SIDEBAR_MIN_WIDTH, window.innerWidth - 360);
+  return Math.round(Math.min(SIDEBAR_MAX_WIDTH, viewerRoom, Math.max(SIDEBAR_MIN_WIDTH, width)));
+}
+
+function storedSidebarWidth(): number {
+  try {
+    const saved = Number(window.localStorage.getItem(SIDEBAR_WIDTH_KEY));
+    return constrainSidebarWidth(Number.isFinite(saved) && saved > 0 ? saved : 420);
+  } catch {
+    return 420;
+  }
+}
+
 function App() {
+  const { viewer } = useViewerApi();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(storedSidebarWidth);
+  const [sidebarResizing, setSidebarResizing] = useState(false);
+  const sidebarResizeStart = useRef<{ pointerX: number; width: number; pointerId: number; target: HTMLDivElement } | null>(null);
   const [tab, setTab] = useState(new URLSearchParams(location.search).get("view") === "results" ? "results" : "run");
   const [schema, setSchema] = useState<ConfigurationSchema>(BOOTSTRAP_SCHEMA);
   const [schemaLoading, setSchemaLoading] = useState(true);
@@ -1615,10 +2349,69 @@ function App() {
   const [live, setLive] = useState<LiveState | null>(null);
   const [logsOpen, setLogsOpen] = useState(false);
   const [statusBarOpen, setStatusBarOpen] = useState(true);
-  const [hardwareWarningDismissed, setHardwareWarningDismissed] = useState(false);
   const [remotePromptKey, setRemotePromptKey] = useState(0);
+  const [viewerLoadRequest, setViewerLoadRequest] = useState(0);
   const previewVersion = useRef<string | number | null>(null);
   const finalLoaded = useRef<string | null>(null);
+
+  const finishSidebarResize = useCallback(() => {
+    const start = sidebarResizeStart.current;
+    sidebarResizeStart.current = null;
+    setSidebarResizing(false);
+    document.body.classList.remove("sidebar-is-resizing");
+    if (start?.target.hasPointerCapture(start.pointerId)) start.target.releasePointerCapture(start.pointerId);
+  }, []);
+
+  const startSidebarResize = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (sidebarCollapsed || event.button !== 0) return;
+    event.preventDefault();
+    sidebarResizeStart.current = { pointerX: event.clientX, width: sidebarWidth, pointerId: event.pointerId, target: event.currentTarget };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setSidebarResizing(true);
+    document.body.classList.add("sidebar-is-resizing");
+  };
+
+  const moveSidebarResize = (event: React.PointerEvent<HTMLDivElement>) => {
+    const start = sidebarResizeStart.current;
+    if (!start) return;
+    if (event.buttons === 0) { finishSidebarResize(); return; }
+    setSidebarWidth(constrainSidebarWidth(start.width + event.clientX - start.pointerX));
+  };
+
+  const resizeSidebarWithKeyboard = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+      event.preventDefault();
+      const direction = event.key === "ArrowRight" ? 1 : -1;
+      setSidebarWidth((current) => constrainSidebarWidth(current + direction * (event.shiftKey ? 40 : 10)));
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      setSidebarWidth(420);
+    }
+  };
+
+  useEffect(() => () => document.body.classList.remove("sidebar-is-resizing"), []);
+  useEffect(() => {
+    if (!sidebarResizing) return;
+    const visibilityChanged = () => { if (document.hidden) finishSidebarResize(); };
+    window.addEventListener("pointerup", finishSidebarResize, true);
+    window.addEventListener("pointercancel", finishSidebarResize, true);
+    window.addEventListener("blur", finishSidebarResize);
+    document.addEventListener("visibilitychange", visibilityChanged);
+    return () => {
+      window.removeEventListener("pointerup", finishSidebarResize, true);
+      window.removeEventListener("pointercancel", finishSidebarResize, true);
+      window.removeEventListener("blur", finishSidebarResize);
+      document.removeEventListener("visibilitychange", visibilityChanged);
+    };
+  }, [sidebarResizing, finishSidebarResize]);
+  useEffect(() => {
+    try { window.localStorage.setItem(SIDEBAR_WIDTH_KEY, String(sidebarWidth)); } catch { /* storage is optional */ }
+  }, [sidebarWidth]);
+  useEffect(() => {
+    const keepSidebarOnScreen = () => setSidebarWidth((current) => constrainSidebarWidth(current));
+    window.addEventListener("resize", keepSidebarOnScreen);
+    return () => window.removeEventListener("resize", keepSidebarOnScreen);
+  }, []);
 
   const refreshJobs = useCallback(async () => {
     try { const payload = await getJson<JobsResponse>("/api/jobs"); setJobs(payload.items || []); setActiveId((current) => current || payload.items?.find((job) => ["queued", "running"].includes(job.status))?.id || null); } catch (reason) { console.warn("Unable to refresh jobs", reason); }
@@ -1652,61 +2445,94 @@ function App() {
   }, []);
 
   useEffect(() => { void loadSchema(); void loadHardware(); void loadSamples(); void refreshJobs(); }, [loadSchema, loadHardware, loadSamples, refreshJobs]);
+  useEffect(() => {
+    const refresh = () => { if (!document.hidden) void loadSchema(); };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [loadSchema]);
   const activeJob = jobs.find((job) => job.id === activeId) ?? null;
 
   useEffect(() => { if (activeId) setStatusBarOpen(true); }, [activeId]);
 
-  useEffect(() => {
-    let socket: WebSocket | null = null;
-    let retry: number | null = null;
-    let stopped = false;
-    const connect = () => {
-      socket = new WebSocket(websocketUrl("/api/events/jobs"));
-      socket.onmessage = (event) => {
-        const payload = JSON.parse(event.data) as JobsResponse;
-        setJobs(payload.items || []);
-        setActiveId((current) => current || payload.items?.find((job) => ["queued", "running"].includes(job.status))?.id || null);
-      };
-      socket.onclose = () => { if (!stopped) retry = window.setTimeout(connect, 1000); };
-    };
-    connect();
-    return () => { stopped = true; if (retry !== null) clearTimeout(retry); socket?.close(); };
-  }, []);
+  const jobsConnection = useJobStream<JobsResponse>("/api/events/jobs", (payload) => {
+    setJobs(payload.items || []);
+    setActiveId((current) => current || payload.items?.find((job) => ["queued", "running"].includes(job.status))?.id || null);
+  });
+  useEffect(() => { setLive(null); }, [activeJob?.id]);
+  const liveConnection = useJobStream<JobEvent>(activeJob ? `/api/events/jobs/${encodeURIComponent(activeJob.id)}` : null, (payload) => {
+    setJobs((current) => current.map((job) => job.id === payload.job.id ? payload.job : job));
+    setLive(payload.live);
+  });
+  const connectionMessage = [jobsConnection, liveConnection].includes("unavailable")
+    ? "Live updates unavailable. Reload Studio to reconnect."
+    : [jobsConnection, liveConnection].includes("reconnecting") ? "Connection interrupted. Reconnecting to live updates…" : "";
 
   useEffect(() => {
-    if (!activeJob || activeJob.remote) { setLive(null); return; }
-    const socket = new WebSocket(websocketUrl(`/api/events/jobs/${encodeURIComponent(activeJob.id)}`));
-    socket.onmessage = async (event) => {
-      const payload = JSON.parse(event.data) as JobEvent;
-      setJobs((current) => current.map((job) => job.id === payload.job.id ? payload.job : job));
-      setLive(payload.live);
-      const viewer = window.gtsfmViewer;
-      if (payload.live.preview_url && payload.live.preview_version !== previewVersion.current && viewer && !viewer.isBusy()) {
-        previewVersion.current = payload.live.preview_version ?? null;
-        await viewer.loadSplatsFile({ splatsUrl: payload.live.preview_url, label: `${payload.job.name} · live` });
+    if (!activeJob || !live) return;
+    const finalKey = activeJob.status === "completed" && live.final_url ? `${activeJob.id}:${live.final_url}` : null;
+    const previewKey = live.preview_url ? `${activeJob.id}:${String(live.preview_version ?? live.preview_url)}` : null;
+    const desired = finalKey
+      ? { kind: "final" as const, key: finalKey, url: live.final_url as string, label: `${activeJob.name} · final` }
+      : previewKey
+        ? { kind: "preview" as const, key: previewKey, url: live.preview_url as string, label: `${activeJob.name} · live` }
+        : null;
+    if (!desired) return;
+    if (desired.kind === "final" && finalLoaded.current === desired.key) return;
+    if (desired.kind === "preview" && previewVersion.current === desired.key) return;
+
+    let cancelled = false;
+    let retry: number | null = null;
+    let loadFailures = 0;
+    const tryLoad = async () => {
+      if (cancelled) return;
+      if (!viewer || viewer.isBusy()) {
+        retry = window.setTimeout(() => { void tryLoad(); }, 250);
+        return;
       }
-      if (payload.job.status === "completed" && payload.live.final_url && finalLoaded.current !== payload.job.id && viewer && !viewer.isBusy()) {
-        finalLoaded.current = payload.job.id;
-        await viewer.loadSplatsFile({ splatsUrl: payload.live.final_url, label: `${payload.job.name} · final` });
+      const loaded = await viewer.loadSplatsFile({ splatsUrl: desired.url, label: desired.label, streamId: activeJob.id });
+      if (cancelled) return;
+      if (loaded === false) {
+        loadFailures += 1;
+        if (loadFailures < 3) retry = window.setTimeout(() => { void tryLoad(); }, 1200);
+        return;
       }
+      if (desired.kind === "final") finalLoaded.current = desired.key;
+      else previewVersion.current = desired.key;
     };
-    return () => socket.close();
-  }, [activeJob?.id]);
+    void tryLoad();
+    return () => {
+      cancelled = true;
+      if (retry !== null) window.clearTimeout(retry);
+    };
+  }, [activeJob?.id, activeJob?.status, live?.final_url, live?.preview_url, live?.preview_version, viewerLoadRequest, viewer]);
+
+  const onRetried = (job: Job) => {
+    setJobs((current) => [job, ...current.filter((item) => item.id !== job.id)]);
+    setActiveId(job.id);
+    setStatusBarOpen(true); setLogsOpen(true); setTab("activity");
+    void refreshJobs();
+  };
 
   const cancelJob = async (id: string) => { await fetch(`/api/jobs/${encodeURIComponent(id)}/cancel`, { method: "POST" }); await refreshJobs(); };
   const activeCount = jobs.filter((job) => ["queued", "running"].includes(job.status)).length;
   const hasNvidiaSplatSupport = hardware?.devices.some((device) => device.supports_gaussian_splatting && (!device.status || device.status === "available")) ?? false;
-  const showHardwareWarning = Boolean(hardware && !hasNvidiaSplatSupport && !hardwareWarningDismissed);
-  const useRemoteVm = () => { setHardwareWarningDismissed(true); setTab("run"); setRemotePromptKey((current) => current + 1); };
-  return <div className="app-shell">{showHardwareWarning && hardware && <HardwareWarning hardware={hardware} onClose={() => setHardwareWarningDismissed(true)} onUseRemote={useRemoteVm}/>}<aside id="sidebar" className={sidebarCollapsed ? "sidebar-collapsed" : ""}><Brand collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed((current) => !current)} />
+  const showHardwareWarning = Boolean(hardware && !hasNvidiaSplatSupport);
+  const useRemoteVm = () => { setTab("run"); setRemotePromptKey((current) => current + 1); };
+  return <div className="app-shell"><aside id="sidebar" className={`${sidebarCollapsed ? "sidebar-collapsed" : ""} ${sidebarResizing ? "sidebar-resizing" : ""}`} style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}><Brand collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed((current) => !current)} />
+    {showHardwareWarning && hardware && <HardwareWarning key={hardwareWarningContent(hardware).title} hardware={hardware} onUseRemote={useRemoteVm}/>}
+    {connectionMessage && <p className="connection-notice" role="status">{connectionMessage}</p>}
     <Tabs.Root className="workspace-tabs" value={tab} onValueChange={setTab}>
       <Tabs.List className="studio-tabs" aria-label="Workspace sections"><Tabs.Trigger className="studio-tab" value="run"><Play size={12}/> New run</Tabs.Trigger><Tabs.Trigger className="studio-tab" value="activity"><Activity size={12}/> Activity {activeCount > 0 && <span id="activeJobCount">{activeCount}</span>}</Tabs.Trigger><Tabs.Trigger className="studio-tab" value="results"><Box size={12}/> Results</Tabs.Trigger></Tabs.List>
       <Tabs.Content className="studio-panel" value="run" forceMount><RunForm schema={schema} hardware={hardware} samples={samples} samplesLoading={samplesLoading} onStarted={(job) => { setStatusBarOpen(true); setActiveId(job.id); refreshJobs(); }} onTabChange={setTab} remotePromptKey={remotePromptKey} schemaLoading={schemaLoading} schemaError={schemaError} onRetrySchema={() => { void loadSchema(); void loadSamples(); }}/></Tabs.Content>
-      <Tabs.Content className="studio-panel" value="activity" forceMount><ActivityPanel jobs={jobs} activeId={activeId} onSelect={(id) => { setStatusBarOpen(true); setActiveId(id); previewVersion.current = null; finalLoaded.current = null; }} onCancel={cancelJob} onRefresh={refreshJobs}/></Tabs.Content>
-      <Tabs.Content className="studio-panel" value="results" forceMount><ResultsPanel /></Tabs.Content>
-    </Tabs.Root></aside><Viewer activeJob={activeJob} live={live} logsOpen={logsOpen} setLogsOpen={setLogsOpen} statusBarOpen={statusBarOpen} setStatusBarOpen={setStatusBarOpen} onCancelJob={cancelJob} setup={setup} setupRefreshing={setupRefreshing} onRefreshSetup={refreshSetup} onSetupChange={setSetup}/></div>;
+      <Tabs.Content className="studio-panel" value="activity" forceMount><ActivityPanel jobs={jobs} activeId={activeId} onSelect={(id) => { setStatusBarOpen(true); setLogsOpen(true); setActiveId(id); previewVersion.current = null; finalLoaded.current = null; setViewerLoadRequest((current) => current + 1); }} onCancel={cancelJob} onRefresh={refreshJobs} onRetried={onRetried}/></Tabs.Content>
+      <Tabs.Content className="studio-panel" value="results" forceMount><ResultsPanel refreshKey={jobs.filter((job) => ["completed", "failed", "cancelled", "interrupted"].includes(job.status)).map((job) => `${job.id}:${job.status}`).join("|")} onStarted={(job) => { setStatusBarOpen(true); setActiveId(job.id); void refreshJobs(); setTab("activity"); }} /></Tabs.Content>
+    </Tabs.Root><div className="sidebar-resize-handle" role="separator" aria-label="Resize side panel" aria-orientation="vertical" aria-valuemin={SIDEBAR_MIN_WIDTH} aria-valuemax={SIDEBAR_MAX_WIDTH} aria-valuenow={sidebarWidth} tabIndex={sidebarCollapsed ? -1 : 0} title="Drag to resize side panel" onPointerDown={startSidebarResize} onPointerMove={moveSidebarResize} onPointerUp={finishSidebarResize} onPointerCancel={finishSidebarResize} onLostPointerCapture={finishSidebarResize} onDoubleClick={() => setSidebarWidth(constrainSidebarWidth(420))} onKeyDown={resizeSidebarWithKeyboard}/></aside><Viewer activeJob={activeJob} live={live} logsOpen={logsOpen} setLogsOpen={setLogsOpen} statusBarOpen={statusBarOpen} setStatusBarOpen={setStatusBarOpen} onCancelJob={cancelJob} onRetried={onRetried} setup={setup} setupRefreshing={setupRefreshing} onRefreshSetup={refreshSetup} onSetupChange={setSetup}/></div>;
 }
 
 const root = document.getElementById("root");
 if (!root) throw new Error("GTSFM Studio root element is missing");
-flushSync(() => createRoot(root).render(<App />));
+flushSync(() => createRoot(root).render(<ViewerProvider><App /></ViewerProvider>));

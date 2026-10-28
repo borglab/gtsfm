@@ -1,0 +1,9 @@
+# Smaller clusters for Cyber's 16 GB GPU; keep the base preset for larger GPUs.
+# CPU matching still uses the configured threads_per_worker (e.g. 16).
+defaults:
+  - vggt_sift_frontend_megaloc_phototourism
+  - _self_
+
+graph_partitioner:
+  min_cameras_to_partition: 12
+  max_cameras: 20

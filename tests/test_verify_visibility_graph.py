@@ -8,6 +8,7 @@ sum is even).
 Authors: Kathirvel Gounder
 """
 
+import threading
 import unittest
 from typing import List, Tuple
 
@@ -82,18 +83,22 @@ def _make_images(num_images: int) -> List[Image]:
     return [Image(value_array=np.zeros((30 + 5 * i, 45 + 7 * i, 3), dtype=np.uint8)) for i in range(num_images)]
 
 
-def _run_with_workers(n_workers: int, num_images: int = 6):
+def _run_with_workers(n_workers: int, num_images: int = 6, threads_per_worker: int = 1, matcher=None):
     """Run the verification pass on a fresh local cluster with the given worker count."""
     images = _make_images(num_images)
     visibility_graph = [(i1, i2) for i1 in range(num_images) for i2 in range(i1 + 1, num_images)]
     with (
-        LocalCluster(n_workers=n_workers, threads_per_worker=1, processes=False, dashboard_address=":0") as cluster,
+        LocalCluster(
+            n_workers=n_workers, threads_per_worker=threads_per_worker, processes=False, dashboard_address=":0"
+        ) as cluster,
         Client(cluster) as client,
     ):
         image_future_map = dict(enumerate(client.scatter(images)))
         keypoints_list, v_corr_idxs_dict = verify_visibility_graph(
             client,
-            DetDescCorrespondenceGenerator(matcher=_StubMatcher(), detector_descriptor=_StubDetectorDescriptor()),
+            DetDescCorrespondenceGenerator(
+                matcher=matcher or _StubMatcher(), detector_descriptor=_StubDetectorDescriptor()
+            ),
             _StubTwoViewEstimator(),
             _StubLoader(num_images),
             image_future_map,
@@ -104,6 +109,37 @@ def _run_with_workers(n_workers: int, num_images: int = 6):
 
 
 class TestVerifyVisibilityGraph(unittest.TestCase):
+    def test_single_worker_uses_configured_matching_threads(self) -> None:
+        """Observe actual overlapping matches through the scheduler-to-frontend dispatch."""
+
+        class ConcurrentMatcher(_StubMatcher):
+            def __init__(self):
+                self.lock = threading.Lock()
+                self.barrier = threading.Barrier(3)
+                self.calls = 0
+                self.active = 0
+                self.peak_active = 0
+
+            def match(self, *args, **kwargs):
+                with self.lock:
+                    self.calls += 1
+                    first_wave = self.calls <= 3
+                    self.active += 1
+                    self.peak_active = max(self.peak_active, self.active)
+                try:
+                    if first_wave:
+                        self.barrier.wait(timeout=5)
+                    return super().match(*args, **kwargs)
+                finally:
+                    with self.lock:
+                        self.active -= 1
+
+        matcher = ConcurrentMatcher()
+        _, results, pairs = _run_with_workers(n_workers=1, threads_per_worker=3, matcher=matcher)
+        self.assertEqual(matcher.peak_active, 3)
+        self.assertEqual(matcher.calls, len(pairs))
+        self.assertEqual(set(results), {(i, j) for i, j in pairs if (i + j) % 2 == 0})
+
     def test_inline_and_parallel_arms_agree(self) -> None:
         """The 1-worker (inline) and multi-worker (fan-out) arms must produce identical results."""
         keypoints_inline, v_corr_inline, _ = _run_with_workers(n_workers=1)
