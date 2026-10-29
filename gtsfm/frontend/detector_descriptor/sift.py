@@ -9,6 +9,7 @@ References:
 
 Authors: Ayush Baid
 """
+
 from typing import Tuple
 
 import cv2 as cv
@@ -45,6 +46,9 @@ class SIFTDetectorDescriptor(DetectorDescriptorBase):
 
         # Run the OpenCV code.
         cv_keypoints, descriptors = opencv_obj.detectAndCompute(gray_image.value_array, image.mask)
+
+        if descriptors is None:
+            return Keypoints(coordinates=np.empty((0, 2))), np.empty((0, 128), dtype=np.float32)
 
         # Convert to GTSFM's keypoints.
         keypoints = feature_utils.cast_to_gtsfm_keypoints(cv_keypoints)
