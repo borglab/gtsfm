@@ -1,3 +1,7 @@
+defaults:
+  - classical_ba
+  - _self_
+
 # GTSFM Configuration with MegaLoc Global Descriptor
 # This config replaces NetVLAD with MegaLoc for better viewpoint invariance
 

@@ -1,3 +1,7 @@
+defaults:
+  - classical_ba
+  - _self_
+
 # Updated front-end configuration.
 
 # @package _global_
@@ -136,8 +140,6 @@ merging_options:
   metric_constructed_only: true
   ba_options:
     _target_: gtsfm.bundle.bundle_adjustment.BundleAdjustmentOptions
-    shared_calib: false
-    use_calibration_prior: false
     use_gnc: true
     gnc_loss: TLS
     use_pose_prior_all_cameras: false

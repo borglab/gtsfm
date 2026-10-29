@@ -5,7 +5,7 @@ Authors: Ayush Baid, John Lambert
 
 import shutil
 import time
-from dataclasses import asdict, dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping, Optional, TypeVar, cast
 
@@ -169,8 +169,8 @@ def _run_post_merge_retriangulation(
 
     ba_options = options.ba_options
     if options.retri_free_ba:
-        # Release pose priors for final refinement, while preserving the common camera calibration
-        # policy. GNC follows retri_free_ba_use_gnc. Injected trackless-camera poses are free here.
+        # Release pose priors for final refinement, retaining the configured calibration priors.
+        # GNC follows retri_free_ba_use_gnc. Injected trackless-camera poses are free here.
         from dataclasses import replace as _dc_replace
 
         ba_options = _dc_replace(
@@ -181,7 +181,7 @@ def _run_post_merge_retriangulation(
             factor_weight_outlier_threshold=1e-6,
         )
         logger.info(
-            "🔓 Post-merge retri BA releasing pose priors (calibration policy retained, GNC %s).",
+            "🔓 Post-merge retri BA running FREE (no pose priors; configured calibration priors retained, GNC %s).",
             "on" if options.retri_free_ba_use_gnc else "off",
         )
 
@@ -320,10 +320,7 @@ class SceneOptimizer:
         self.image_pairs_generator = image_pairs_generator
         self.graph_partitioner = graph_partitioner
         self.cluster_optimizer = cluster_optimizer
-        stage_options = merging_options or MergingOptions()
-        calibration_policy = cluster_optimizer.resolve_calibration_policy(stage_options.ba_options.calibration_policy)
-        self._merging_options = replace(stage_options, ba_options=calibration_policy.apply_to(stage_options.ba_options))
-        logger.info("Calibration policy for cluster, merge, and retriangulation BA: %s", calibration_policy)
+        self._merging_options = merging_options or MergingOptions()
         self._bridge_min_similarity = bridge_min_similarity
         self._bridge_top_k = bridge_top_k
         self._bridge_min_component_size = bridge_min_component_size
@@ -400,12 +397,6 @@ class SceneOptimizer:
 
         # Process Graph Generation: Visualize the process graph, which is a flow of data across GTSFM's modules.
         base_output_paths = prepare_output_paths(self.output_root, None)
-        # Persist the resolved policy as well as the original Hydra configuration: cluster defaults
-        # and command-line overrides may have supplied settings absent from merging_options.
-        OmegaConf.save(
-            config=OmegaConf.create(asdict(self._merging_options.ba_options.calibration_policy)),
-            f=str(base_output_paths.results / "calibration_policy.yaml"),
-        )
         config_snapshot = self._config_snapshot
         if config_snapshot is not None:
             config_path = base_output_paths.results / "config.yaml"

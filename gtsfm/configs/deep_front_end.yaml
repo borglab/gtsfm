@@ -1,3 +1,7 @@
+defaults:
+  - classical_ba
+  - _self_
+
 # Default deep front-end configuration.
 
 # @package _global_

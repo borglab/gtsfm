@@ -1,3 +1,7 @@
+defaults:
+  - classical_ba
+  - _self_
+
 # @package _global_
 _target_: gtsfm.scene_optimizer.SceneOptimizer
 

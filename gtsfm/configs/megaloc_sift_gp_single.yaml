@@ -1,3 +1,7 @@
+defaults:
+  - classical_ba
+  - _self_
+
 # Updated front-end configuration.
 
 # @package _global_

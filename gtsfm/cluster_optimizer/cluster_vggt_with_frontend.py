@@ -5,14 +5,13 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Hashable, NamedTuple, Optional
 
-import gtsam
 import numpy as np
 import torch
 from dask.delayed import delayed
 from gtsam import Point2, Point3, SfmTrack
 
 import gtsfm.common.types as gtsfm_types
-from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptions, CalibrationPolicy
+from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptions
 from gtsfm.cluster_optimizer.cluster_mvo import ClusterMVO
 from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterComputationGraph, ClusterContext
 from gtsfm.cluster_optimizer.cluster_vggt import (
@@ -33,9 +32,11 @@ from gtsfm.multi_view_optimizer import get_2d_tracks
 from gtsfm.products.visibility_graph import visibility_graph_keys
 from gtsfm.two_view_estimator import TwoViewEstimator
 from gtsfm.ui.gtsfm_process import UiMetadata
+from gtsfm.view_graph_estimator import view_graph_calibration
+import gtsam
+
 from gtsfm.utils import torch as torch_utils
 from gtsfm.utils.logger import get_logger
-from gtsfm.view_graph_estimator import view_graph_calibration
 
 logger = get_logger()
 
@@ -367,7 +368,6 @@ class ClusterVGGTWithFrontend(ClusterMVO):
             output_worker=output_worker,
         )
         self.geometry_transformer = geometry_transformer or VggtGeometryTransformer()
-        self._has_explicit_ba_options = ba_options is not None
         self.ba_options = ba_options or BundleAdjustmentOptions()
         self._pre_ba_max_reproj_error = pre_ba_max_reproj_error
         self._post_ba_max_reproj_error = post_ba_max_reproj_error
@@ -386,12 +386,6 @@ class ClusterVGGTWithFrontend(ClusterMVO):
         self._loader_kwargs, self._model_cache_key = _model_loading_plan(
             self.geometry_transformer, self._weights_path, model_cache_key, use_model_cache
         )
-
-    def resolve_calibration_policy(self, fallback: CalibrationPolicy) -> CalibrationPolicy:
-        """Use configured cluster calibration, or inherit the scene calibration."""
-        if not self._has_explicit_ba_options:
-            self.ba_options = fallback.apply_to(self.ba_options)
-        return self.ba_options.calibration_policy
 
     def __repr__(self) -> str:
         components = [

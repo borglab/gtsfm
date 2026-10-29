@@ -18,14 +18,13 @@ import gtsfm.utils.ellipsoid as ellipsoid_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.viz as viz_utils
-from gtsfm.bundle.bundle_adjustment import CalibrationPolicy
 from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterComputationGraph, ClusterContext, ClusterOptimizerBase
 from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm.common.types import create_camera
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
-from gtsfm.common.types import create_camera
 from gtsfm.densify.mvs_base import MVSBase
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
@@ -79,10 +78,6 @@ class ClusterMVO(ClusterOptimizerBase):
 
         self._save_gtsfm_data = save_gtsfm_data
         self._save_3d_viz = save_3d_viz
-
-    def resolve_calibration_policy(self, fallback: CalibrationPolicy) -> CalibrationPolicy:
-        """Use the configured multiview BA camera assumptions throughout the scene."""
-        return self.multiview_optimizer.ba_optimizer.calibration_policy
 
     @property
     def correspondence_generator(self) -> Optional[Any]:

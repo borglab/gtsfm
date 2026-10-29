@@ -1,3 +1,7 @@
+defaults:
+  - classical_ba
+  - _self_
+
 # Front-end configuration that leverages PyColmap for feature extraction and verification.
 
 # @package _global_

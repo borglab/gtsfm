@@ -1,0 +1,22 @@
+# @package _global_
+# Match the classical BA constructor defaults explicitly so Hydra can reference them.
+cluster_optimizer:
+  multiview_optimizer:
+    bundle_adjustment_module:
+      shared_calib: false
+      use_calibration_prior: true
+      calibration_prior_focal_sigma: 20.0
+      calibration_prior_dist_sigma: 0.1
+      calibration_prior_pp_sigma: 1e-05
+
+# Merge BA and final retriangulation retain the leaf calibration settings, including CLI overrides.
+# Other BA settings remain stage-specific.
+merging_options:
+  _target_: gtsfm.cluster_merging.MergingOptions
+  ba_options:
+    _target_: gtsfm.bundle.bundle_adjustment.BundleAdjustmentOptions
+    shared_calib: ${cluster_optimizer.multiview_optimizer.bundle_adjustment_module.shared_calib}
+    use_calibration_prior: ${cluster_optimizer.multiview_optimizer.bundle_adjustment_module.use_calibration_prior}
+    calibration_prior_focal_sigma: ${cluster_optimizer.multiview_optimizer.bundle_adjustment_module.calibration_prior_focal_sigma}
+    calibration_prior_dist_sigma: ${cluster_optimizer.multiview_optimizer.bundle_adjustment_module.calibration_prior_dist_sigma}
+    calibration_prior_pp_sigma: ${cluster_optimizer.multiview_optimizer.bundle_adjustment_module.calibration_prior_pp_sigma}

@@ -5,7 +5,7 @@ Authors: Xiaolong Wu, John Lambert, Ayush Baid
 
 import time
 from collections import Counter, defaultdict
-from dataclasses import asdict, dataclass, replace
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
@@ -54,33 +54,6 @@ class RobustBAMode(Enum):
     TLS = "TLS"
 
 
-@dataclass(frozen=True)
-class CalibrationPolicy:
-    """Camera assumptions retained across cluster, merge, and retriangulation BA.
-
-    Sharing and prior strengths describe the cameras, independently of a stage's
-    robust loss, pose constraints, or track filtering. Priors are centered on the
-    calibration entering each BA, so later stages refine the preceding estimate.
-    """
-
-    shared_calib: bool
-    use_calibration_prior: bool
-    calibration_prior_focal_sigma: float
-    calibration_prior_dist_sigma: float | Sequence[float]
-    calibration_prior_pp_sigma: float
-
-    def apply_to(self, options: "BundleAdjustmentOptions") -> "BundleAdjustmentOptions":
-        """Copy BA options with this calibration policy, preserving other stage settings.
-
-        Args:
-            options: Stage-specific bundle adjustment options.
-
-        Returns:
-            A new options object with the common camera assumptions.
-        """
-        return replace(options, **asdict(self))
-
-
 @dataclass
 class BundleAdjustmentOptions:
     """Shared configuration for bundle adjustment across leaf BA, merging BA, etc.
@@ -118,17 +91,6 @@ class BundleAdjustmentOptions:
     mv_retri_min_track_length: int = 3
     mv_retri_reproj_error_thresh: float = 10.0
     mv_retri_max_num_hypotheses: int = 100
-
-    @property
-    def calibration_policy(self) -> CalibrationPolicy:
-        """Return the camera assumptions independently of the solver settings."""
-        return CalibrationPolicy(
-            self.shared_calib,
-            self.use_calibration_prior,
-            self.calibration_prior_focal_sigma,
-            self.calibration_prior_dist_sigma,
-            self.calibration_prior_pp_sigma,
-        )
 
     def to_optimizer(self, **overrides) -> "BundleAdjustmentOptimizer":
         """Construct a :class:`BundleAdjustmentOptimizer` from these options.
@@ -178,17 +140,6 @@ class BundleAdjustmentOptimizer:
     Due to the process graph requiring separate classes for separate graph objects, this class is a superclass for
     TwoViewBundleAdjustment and GlobalBundleAdjustment (defined in gtsfm/bundle/).
     """
-
-    @property
-    def calibration_policy(self) -> CalibrationPolicy:
-        """Return the calibration policy actually used by this optimizer."""
-        return CalibrationPolicy(
-            self._shared_calib,
-            self._use_calibration_prior,
-            self._calibration_prior_focal_sigma,
-            self._calibration_prior_dist_sigma,
-            self._calibration_prior_pp_sigma,
-        )
 
     def __init__(
         self,
@@ -632,7 +583,9 @@ class BundleAdjustmentOptimizer:
         else:
             raise ValueError(f"Unsupported GNC loss type for CUDA Sparse LM: {self._gnc_loss}.")
         gnc_params.setAllowNonNoiseModelFactors(True)
-        verbosity = gnc_params_cls.Verbosity.SUMMARY if self._print_summary else gnc_params_cls.Verbosity.SILENT
+        verbosity = (
+            gnc_params_cls.Verbosity.SUMMARY if self._print_summary else gnc_params_cls.Verbosity.SILENT
+        )
         gnc_params.setVerbosityGNC(verbosity)
         if self._optimizer_relative_cost_tol is not None:
             gnc_params.setRelativeCostTol(self._optimizer_relative_cost_tol)
@@ -675,7 +628,9 @@ class BundleAdjustmentOptimizer:
                         "use_cuda=True was requested, but GTSAM was not built with CUDA support "
                         "(gtsam.cuda is missing)."
                     )
-                logger.warning("gtsam.cuda is not available; falling back to CPU LevenbergMarquardtOptimizer.")
+                logger.warning(
+                    "gtsam.cuda is not available; falling back to CPU LevenbergMarquardtOptimizer."
+                )
             elif self._use_gnc:
                 has_cuda_gnc = hasattr(cuda, "GncSparseLMOptimizer") and hasattr(cuda, "GncSparseLMParams")
                 if has_cuda_gnc:
@@ -691,7 +646,9 @@ class BundleAdjustmentOptimizer:
                         "use_cuda=True with use_gnc=True requires gtsam.cuda.GncSparseLMOptimizer "
                         "(upgrade to a GTSAM develop build that includes CUDA GNC Python bindings)."
                     )
-                logger.warning("gtsam.cuda.GncSparseLMOptimizer is unavailable; falling back to CPU GNC LM.")
+                logger.warning(
+                    "gtsam.cuda.GncSparseLMOptimizer is unavailable; falling back to CPU GNC LM."
+                )
             else:
                 return self.__optimize_factor_graph_cuda(
                     cuda=cuda,
@@ -1143,8 +1100,7 @@ class BundleAdjustmentOptimizer:
                 logger.info(
                     "[Retri] Multi-view retriangulation on %d 2D tracks "
                     "(min_track_len=%d, reproj_error_thresh=%.1fpx)",
-                    len(tracks_2d),
-                    self._mv_retri_min_track_length,
+                    len(tracks_2d), self._mv_retri_min_track_length,
                     self._mv_retri_reproj_error_thresh,
                 )
                 retri_data = point3d_initializer.multi_view_retriangulate_from_2d_tracks(
@@ -1163,8 +1119,7 @@ class BundleAdjustmentOptimizer:
                     )
                     logger.info(
                         "[Retri] Stage complete: %d tracks, %.1fs",
-                        filtered_result.number_tracks(),
-                        time.time() - retri_start,
+                        filtered_result.number_tracks(), time.time() - retri_start,
                     )
                 step_times.append(time.time() - retri_start)
 
