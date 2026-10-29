@@ -31,7 +31,7 @@ class RootSIFTDetectorDescriptor(SIFTDetectorDescriptor):
             Float32 descriptors of shape (N, 128), with unit L2 norm for nonzero rows.
         """
         keypoints, descriptors = super().detect_and_describe(image)
-        # Keep float32 for OpenCV matchers, including with NumPy 2 scalar promotion.
+        # Use the profiled normalization formula, then ensure float32 for OpenCV matchers.
         l1_norms = np.sum(descriptors, axis=1, keepdims=True)
-        descriptors = descriptors / (l1_norms + np.finfo(np.float32).eps)
-        return keypoints, np.sqrt(descriptors)
+        descriptors = descriptors / (l1_norms + np.finfo(float).eps)
+        return keypoints, np.sqrt(descriptors).astype(np.float32)

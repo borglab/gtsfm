@@ -31,7 +31,7 @@ class TestRootSIFT(unittest.TestCase):
         self.assertEqual(keypoints, sift_keypoints)
         # Match the normalization used in the recorded benchmark adapter.
         expected = np.sqrt(sift / (sift.sum(axis=1, keepdims=True) + np.finfo(float).eps)).astype(np.float32)
-        np.testing.assert_allclose(rootsift, expected, rtol=1e-6)
+        np.testing.assert_array_equal(rootsift, expected)
         np.testing.assert_allclose(np.linalg.norm(rootsift, axis=1), 1, atol=1e-6)
         self.assertEqual(rootsift.dtype, np.float32)
 
