@@ -1,0 +1,778 @@
+{
+  "purpose": "Full pipeline validation of shared calibration policy and finite sparse-scene alignment, stacked on RootSIFT PR #1173.",
+  "base_branch": "codex/opencv-rootsift",
+  "base_commit": "f94232f1ccc3f98e53459ab8d157da0a66c7f972",
+  "implementation_commit": "375b24ec711daa4cd0121e4e2ca5f14123e91874",
+  "latest_test_commit": "b8b49fb04096311b1a76de7bc0d873d47cf3286e",
+  "methodology": [
+    "Reran only the largest post-refinement regressions (Door, AstroVision, Gerrard Hall, Palace) and Skydio-32 (pose regression and legacy crash).",
+    "New runs use the production RootSIFTDetectorDescriptor. Legacy RootSIFT is an experiment-only adapter copied from the prior comparison, with its original float32 output cast.",
+    "Every trial preserves the previous loader, resolution, retrieval, matching, verifier, and backend settings except the two implementation fixes. Same rank-three Shonan without certification for Gerrard Hall and Palace.",
+    "Each run executes the complete pipeline, including global 2D track assembly, first BA, actual retriangulation, final BA and filtering. No COLMAP feature extractor or VLFeat was run.",
+    "Full-reference relative-pose AUC uses max(rotation error, translation-direction error) for every reference-image pair, counting missing cameras as failures. Percentages are absolute AUC values.",
+    "These are single-run comparisons; first-BA geometry can have small numerical/run-to-run differences. The earlier BA-only ablations additionally isolate the effect on identical saved input.",
+    "All selected benchmarks use SinglePartitioner. They test final retriangulation/refinement; actual multi-cluster merging is covered by the regression test, not a multi-cluster dataset rerun.",
+    "The stock dashboard shows unmodified pipeline metrics and uncontrolled runtime. Use full-reference-comparison.json for a consistent reference-image denominator."
+  ],
+  "validation": {
+    "targeted_tests_passed": 76,
+    "lint": "Exact CI flake8 with repository flags: passed",
+    "known_base_failures": "Two slow tests in tests/test_gtsfm_runner_olssonloader.py request missing loader/olsson_loader. Both fail identically on the unmodified RootSIFT base; normal CI excludes slow tests."
+  },
+  "reproduction": {
+    "runner_on_experiment_machine": "/tmp/run_merge_fix_benchmarks.py",
+    "evaluator": "scripts/evaluate_sift_comparison.py at codex/rootsift-five-benchmarks (d72f6e3b)",
+    "rank_three_rotation_solver": "scripts/benchmark_rotation_averaging.py at codex/rootsift-five-benchmarks (d72f6e3b)"
+  },
+  "executions": [
+    {
+      "dataset": "door",
+      "method": "rootsift",
+      "code_commit": "375b24ec711daa4cd0121e4e2ca5f14123e91874",
+      "previous_results": "/tmp/gtsfm-sift-door-comparison",
+      "command": [
+        "/home/dellaert/.local/share/uv/tools/gtsfm/bin/python",
+        "/tmp/gtsfm-preserve-ba-calibration/gtsfm/runner.py",
+        "--loader",
+        "olsson",
+        "--dataset_dir",
+        "/tmp/gtsfm-eth3d-sift/tests/data/set1_lund_door",
+        "--config_name",
+        "unified",
+        "--share_intrinsics",
+        "--num_workers",
+        "1",
+        "--threads_per_worker",
+        "1",
+        "--num_matched",
+        "5",
+        "--max_frame_lookahead",
+        "10",
+        "--worker_memory_limit",
+        "16GB",
+        "--output_root",
+        "/tmp/gtsfm-merge-fix-results/door/rootsift",
+        "--max_resolution",
+        "1296",
+        "cluster_optimizer.correspondence_generator.detector_descriptor.detector_descriptor_obj._target_=gtsfm.frontend.detector_descriptor.rootsift.RootSIFTDetectorDescriptor",
+        "cluster_optimizer.correspondence_generator.matcher.matcher_obj._target_=gtsfm.frontend.matcher.twoway_matcher.TwoWayMatcher",
+        "~cluster_optimizer.correspondence_generator.matcher.matcher_obj.features",
+        "+cluster_optimizer.correspondence_generator.matcher.matcher_obj.ratio_test_threshold=0.8",
+        "cluster_optimizer.dense_multiview_optimizer=null",
+        "cluster_optimizer.gaussian_splatting_optimizer=null"
+      ],
+      "PYTHONPATH": "/tmp/gtsfm-preserve-ba-calibration:/tmp:/home/dellaert/git/gtsfm/thirdparty/vggt:/home/dellaert/git/gtsfm/thirdparty/LightGlue:/home/dellaert/git/gtsfm/thirdparty/AnySplat",
+      "returncode": 0,
+      "wall_seconds": 85.80825210094918,
+      "saved_config_sha256": "81763862e82792a7169e5751774962bbaca3ccf88ed66fb4d86c9225d2b75112",
+      "input_configuration_matches_previous_except_extractor_class_path_and_output": true
+    },
+    {
+      "dataset": "astrovision",
+      "method": "rootsift",
+      "code_commit": "375b24ec711daa4cd0121e4e2ca5f14123e91874",
+      "previous_results": "/tmp/gtsfm-sift-five-results/astrovision",
+      "command": [
+        "/home/dellaert/.local/share/uv/tools/gtsfm/bin/python",
+        "/tmp/gtsfm-preserve-ba-calibration/gtsfm/runner.py",
+        "--loader",
+        "astrovision",
+        "--dataset_dir",
+        "/home/dellaert/git/gtsfm/benchmarks/2011205_rc3",
+        "--config_name",
+        "unified",
+        "--num_workers",
+        "1",
+        "--threads_per_worker",
+        "1",
+        "--num_matched",
+        "5",
+        "--max_frame_lookahead",
+        "15",
+        "--worker_memory_limit",
+        "10GB",
+        "--output_root",
+        "/tmp/gtsfm-merge-fix-results/astrovision/rootsift",
+        "--max_resolution",
+        "1024",
+        "cluster_optimizer.correspondence_generator.detector_descriptor.detector_descriptor_obj._target_=gtsfm.frontend.detector_descriptor.rootsift.RootSIFTDetectorDescriptor",
+        "cluster_optimizer.correspondence_generator.matcher.matcher_obj._target_=gtsfm.frontend.matcher.twoway_matcher.TwoWayMatcher",
+        "~cluster_optimizer.correspondence_generator.matcher.matcher_obj.features",
+        "+cluster_optimizer.correspondence_generator.matcher.matcher_obj.ratio_test_threshold=0.8",
+        "cluster_optimizer.dense_multiview_optimizer=null",
+        "cluster_optimizer.gaussian_splatting_optimizer=null",
+        "--share_intrinsics"
+      ],
+      "PYTHONPATH": "/tmp/gtsfm-preserve-ba-calibration:/tmp:/home/dellaert/git/gtsfm/thirdparty/vggt:/home/dellaert/git/gtsfm/thirdparty/LightGlue:/home/dellaert/git/gtsfm/thirdparty/AnySplat",
+      "returncode": 0,
+      "wall_seconds": 431.9251594119705,
+      "saved_config_sha256": "a9c3cb6b2841b7746a0b3a89466cb8f6c783aabe449ef87cd7a03a81b209b1a2",
+      "input_configuration_matches_previous_except_extractor_class_path_and_output": true
+    },
+    {
+      "dataset": "gerrard",
+      "method": "rootsift",
+      "code_commit": "375b24ec711daa4cd0121e4e2ca5f14123e91874",
+      "previous_results": "/tmp/gtsfm-sift-gerrard-fixed-rank",
+      "command": [
+        "/home/dellaert/.local/share/uv/tools/gtsfm/bin/python",
+        "/tmp/gtsfm-preserve-ba-calibration/gtsfm/runner.py",
+        "--loader",
+        "colmap",
+        "--dataset_dir",
+        "/home/dellaert/git/gtsfm/benchmarks/gerrard-hall/sparse",
+        "--config_name",
+        "unified",
+        "--share_intrinsics",
+        "--num_workers",
+        "1",
+        "--threads_per_worker",
+        "1",
+        "--num_matched",
+        "5",
+        "--max_frame_lookahead",
+        "10",
+        "--worker_memory_limit",
+        "16GB",
+        "--output_root",
+        "/tmp/gtsfm-merge-fix-results/gerrard/rootsift",
+        "--max_resolution",
+        "760",
+        "cluster_optimizer.correspondence_generator.detector_descriptor.detector_descriptor_obj._target_=gtsfm.frontend.detector_descriptor.rootsift.RootSIFTDetectorDescriptor",
+        "cluster_optimizer.correspondence_generator.matcher.matcher_obj._target_=gtsfm.frontend.matcher.twoway_matcher.TwoWayMatcher",
+        "~cluster_optimizer.correspondence_generator.matcher.matcher_obj.features",
+        "+cluster_optimizer.correspondence_generator.matcher.matcher_obj.ratio_test_threshold=0.8",
+        "cluster_optimizer.dense_multiview_optimizer=null",
+        "cluster_optimizer.gaussian_splatting_optimizer=null",
+        "--images_dir",
+        "/home/dellaert/git/gtsfm/benchmarks/gerrard-hall/images",
+        "cluster_optimizer.multiview_optimizer.rot_avg_module._target_=merge_benchmark_support.UncertifiedRotationAveraging"
+      ],
+      "PYTHONPATH": "/tmp/gtsfm-preserve-ba-calibration:/tmp:/home/dellaert/git/gtsfm/thirdparty/vggt:/home/dellaert/git/gtsfm/thirdparty/LightGlue:/home/dellaert/git/gtsfm/thirdparty/AnySplat",
+      "returncode": 0,
+      "wall_seconds": 599.4087835340761,
+      "saved_config_sha256": "e7d8d8f529233db265fa2f219927707b956e9ad50f514db36c39b966bdd95243",
+      "input_configuration_matches_previous_except_extractor_class_path_and_output": true
+    },
+    {
+      "dataset": "palace",
+      "method": "rootsift",
+      "code_commit": "375b24ec711daa4cd0121e4e2ca5f14123e91874",
+      "previous_results": "/tmp/gtsfm-sift-five-results/palace",
+      "command": [
+        "/home/dellaert/.local/share/uv/tools/gtsfm/bin/python",
+        "/tmp/gtsfm-preserve-ba-calibration/gtsfm/runner.py",
+        "--loader",
+        "olsson",
+        "--dataset_dir",
+        "/home/dellaert/git/gtsfm/benchmarks/palace-fine-arts-281",
+        "--config_name",
+        "unified",
+        "--num_workers",
+        "1",
+        "--threads_per_worker",
+        "1",
+        "--num_matched",
+        "5",
+        "--max_frame_lookahead",
+        "15",
+        "--worker_memory_limit",
+        "10GB",
+        "--output_root",
+        "/tmp/gtsfm-merge-fix-results/palace/rootsift",
+        "--max_resolution",
+        "320",
+        "cluster_optimizer.correspondence_generator.detector_descriptor.detector_descriptor_obj._target_=gtsfm.frontend.detector_descriptor.rootsift.RootSIFTDetectorDescriptor",
+        "cluster_optimizer.correspondence_generator.matcher.matcher_obj._target_=gtsfm.frontend.matcher.twoway_matcher.TwoWayMatcher",
+        "~cluster_optimizer.correspondence_generator.matcher.matcher_obj.features",
+        "+cluster_optimizer.correspondence_generator.matcher.matcher_obj.ratio_test_threshold=0.8",
+        "cluster_optimizer.dense_multiview_optimizer=null",
+        "cluster_optimizer.gaussian_splatting_optimizer=null",
+        "--share_intrinsics",
+        "cluster_optimizer.multiview_optimizer.rot_avg_module._target_=merge_benchmark_support.UncertifiedRotationAveraging"
+      ],
+      "PYTHONPATH": "/tmp/gtsfm-preserve-ba-calibration:/tmp:/home/dellaert/git/gtsfm/thirdparty/vggt:/home/dellaert/git/gtsfm/thirdparty/LightGlue:/home/dellaert/git/gtsfm/thirdparty/AnySplat",
+      "returncode": 0,
+      "wall_seconds": 620.6669879830442,
+      "saved_config_sha256": "17a39ce6c254d26412a79ef90e43992904e671e504ad74809d10409c3ad6bd50",
+      "input_configuration_matches_previous_except_extractor_class_path_and_output": true
+    },
+    {
+      "dataset": "skydio32",
+      "method": "rootsift",
+      "code_commit": "375b24ec711daa4cd0121e4e2ca5f14123e91874",
+      "previous_results": "/tmp/gtsfm-sift-skydio32-comparison",
+      "command": [
+        "/home/dellaert/.local/share/uv/tools/gtsfm/bin/python",
+        "/tmp/gtsfm-preserve-ba-calibration/gtsfm/runner.py",
+        "--loader",
+        "colmap",
+        "--dataset_dir",
+        "/home/dellaert/git/gtsfm/benchmarks/skydio-32/colmap_crane_mast_32imgs",
+        "--config_name",
+        "unified",
+        "--share_intrinsics",
+        "--num_workers",
+        "1",
+        "--threads_per_worker",
+        "1",
+        "--num_matched",
+        "5",
+        "--max_frame_lookahead",
+        "10",
+        "--worker_memory_limit",
+        "16GB",
+        "--output_root",
+        "/tmp/gtsfm-merge-fix-results/skydio32/rootsift",
+        "--max_resolution",
+        "760",
+        "cluster_optimizer.correspondence_generator.detector_descriptor.detector_descriptor_obj._target_=gtsfm.frontend.detector_descriptor.rootsift.RootSIFTDetectorDescriptor",
+        "cluster_optimizer.correspondence_generator.matcher.matcher_obj._target_=gtsfm.frontend.matcher.twoway_matcher.TwoWayMatcher",
+        "~cluster_optimizer.correspondence_generator.matcher.matcher_obj.features",
+        "+cluster_optimizer.correspondence_generator.matcher.matcher_obj.ratio_test_threshold=0.8",
+        "cluster_optimizer.dense_multiview_optimizer=null",
+        "cluster_optimizer.gaussian_splatting_optimizer=null",
+        "--images_dir",
+        "/home/dellaert/git/gtsfm/benchmarks/skydio-32/images"
+      ],
+      "PYTHONPATH": "/tmp/gtsfm-preserve-ba-calibration:/tmp:/home/dellaert/git/gtsfm/thirdparty/vggt:/home/dellaert/git/gtsfm/thirdparty/LightGlue:/home/dellaert/git/gtsfm/thirdparty/AnySplat",
+      "returncode": 0,
+      "wall_seconds": 106.78944397601299,
+      "saved_config_sha256": "b0ef408ac6e10606ff384662522fe543c1240f095dcde3c87d4a27ce90c9f126",
+      "input_configuration_matches_previous_except_extractor_class_path_and_output": true
+    },
+    {
+      "dataset": "skydio32",
+      "method": "rootsift_legacy",
+      "code_commit": "375b24ec711daa4cd0121e4e2ca5f14123e91874",
+      "previous_results": "/tmp/gtsfm-sift-skydio32-comparison",
+      "command": [
+        "/home/dellaert/.local/share/uv/tools/gtsfm/bin/python",
+        "/tmp/gtsfm-preserve-ba-calibration/gtsfm/runner.py",
+        "--loader",
+        "colmap",
+        "--dataset_dir",
+        "/home/dellaert/git/gtsfm/benchmarks/skydio-32/colmap_crane_mast_32imgs",
+        "--config_name",
+        "unified",
+        "--share_intrinsics",
+        "--num_workers",
+        "1",
+        "--threads_per_worker",
+        "1",
+        "--num_matched",
+        "5",
+        "--max_frame_lookahead",
+        "10",
+        "--worker_memory_limit",
+        "16GB",
+        "--output_root",
+        "/tmp/gtsfm-merge-fix-results/skydio32/rootsift_legacy",
+        "--max_resolution",
+        "760",
+        "cluster_optimizer.correspondence_generator.detector_descriptor.detector_descriptor_obj._target_=merge_benchmark_support.LegacyRootSIFTDetectorDescriptor",
+        "cluster_optimizer.correspondence_generator.matcher.matcher_obj._target_=gtsfm.frontend.matcher.twoway_matcher.TwoWayMatcher",
+        "~cluster_optimizer.correspondence_generator.matcher.matcher_obj.features",
+        "+cluster_optimizer.correspondence_generator.matcher.matcher_obj.ratio_test_threshold=0.8",
+        "cluster_optimizer.dense_multiview_optimizer=null",
+        "cluster_optimizer.gaussian_splatting_optimizer=null",
+        "--images_dir",
+        "/home/dellaert/git/gtsfm/benchmarks/skydio-32/images"
+      ],
+      "PYTHONPATH": "/tmp/gtsfm-preserve-ba-calibration:/tmp:/home/dellaert/git/gtsfm/thirdparty/vggt:/home/dellaert/git/gtsfm/thirdparty/LightGlue:/home/dellaert/git/gtsfm/thirdparty/AnySplat",
+      "returncode": 0,
+      "wall_seconds": 93.90685056790244,
+      "saved_config_sha256": "bfee3ed5e7416d710353600de516f590ea69d3a47742bd4185a20c3238e36f85",
+      "input_configuration_matches_previous_except_extractor_class_path_and_output": true
+    }
+  ],
+  "effective_calibration_policies": {
+    "door/rootsift": {
+      "shared_calib": true,
+      "use_calibration_prior": true,
+      "calibration_prior_focal_sigma": 20.0,
+      "calibration_prior_dist_sigma": 0.1,
+      "calibration_prior_pp_sigma": 1e-05
+    },
+    "astrovision/rootsift": {
+      "shared_calib": true,
+      "use_calibration_prior": true,
+      "calibration_prior_focal_sigma": 20.0,
+      "calibration_prior_dist_sigma": 0.1,
+      "calibration_prior_pp_sigma": 1e-05
+    },
+    "gerrard/rootsift": {
+      "shared_calib": true,
+      "use_calibration_prior": true,
+      "calibration_prior_focal_sigma": 20.0,
+      "calibration_prior_dist_sigma": 0.1,
+      "calibration_prior_pp_sigma": 1e-05
+    },
+    "palace/rootsift": {
+      "shared_calib": true,
+      "use_calibration_prior": true,
+      "calibration_prior_focal_sigma": 20.0,
+      "calibration_prior_dist_sigma": 0.1,
+      "calibration_prior_pp_sigma": 1e-05
+    },
+    "skydio32/rootsift": {
+      "shared_calib": true,
+      "use_calibration_prior": true,
+      "calibration_prior_focal_sigma": 20.0,
+      "calibration_prior_dist_sigma": 0.1,
+      "calibration_prior_pp_sigma": 1e-05
+    },
+    "skydio32/rootsift_legacy": {
+      "shared_calib": true,
+      "use_calibration_prior": true,
+      "calibration_prior_focal_sigma": 20.0,
+      "calibration_prior_dist_sigma": 0.1,
+      "calibration_prior_pp_sigma": 1e-05
+    }
+  },
+  "comparison": {
+    "astrovision/rootsift": {
+      "before": {
+        "ba_output": {
+          "reference_images": 65,
+          "registered_images": 65,
+          "missing_images": [],
+          "evaluated_pairs": 2080,
+          "missing_pairs": 0,
+          "auc_percent": {
+            "1.0": 94.7511,
+            "2.5": 97.9004,
+            "5.0": 98.9502,
+            "10.0": 99.4751,
+            "20.0": 99.7376
+          },
+          "tracks": 22068
+        },
+        "merged_retriangulated": {
+          "reference_images": 65,
+          "registered_images": 65,
+          "missing_images": [],
+          "evaluated_pairs": 2080,
+          "missing_pairs": 0,
+          "auc_percent": {
+            "1.0": 5.7875,
+            "2.5": 41.7172,
+            "5.0": 69.889,
+            "10.0": 84.8703,
+            "20.0": 92.4338
+          },
+          "tracks": 22138
+        }
+      },
+      "after": {
+        "ba_output": {
+          "reference_images": 65,
+          "registered_images": 65,
+          "missing_images": [],
+          "evaluated_pairs": 2080,
+          "missing_pairs": 0,
+          "auc_percent": {
+            "1.0": 96.6016,
+            "2.5": 98.6406,
+            "5.0": 99.3203,
+            "10.0": 99.6602,
+            "20.0": 99.8301
+          },
+          "tracks": 22069
+        },
+        "merged_retriangulated": {
+          "reference_images": 65,
+          "registered_images": 65,
+          "missing_images": [],
+          "evaluated_pairs": 2080,
+          "missing_pairs": 0,
+          "auc_percent": {
+            "1.0": 95.6513,
+            "2.5": 98.2605,
+            "5.0": 99.1303,
+            "10.0": 99.5651,
+            "20.0": 99.7826
+          },
+          "tracks": 22138
+        }
+      }
+    },
+    "door/rootsift": {
+      "before": {
+        "ba_output": {
+          "reference_images": 12,
+          "registered_images": 12,
+          "missing_images": [],
+          "evaluated_pairs": 66,
+          "missing_pairs": 0,
+          "auc_percent": {
+            "1.0": 84.9065,
+            "2.5": 93.9626,
+            "5.0": 96.9813,
+            "10.0": 98.4906,
+            "20.0": 99.2453
+          },
+          "tracks": 7078
+        },
+        "merged_retriangulated": {
+          "reference_images": 12,
+          "registered_images": 12,
+          "missing_images": [],
+          "evaluated_pairs": 66,
+          "missing_pairs": 0,
+          "auc_percent": {
+            "1.0": 47.1053,
+            "2.5": 73.4193,
+            "5.0": 86.1273,
+            "10.0": 93.0636,
+            "20.0": 96.5318
+          },
+          "tracks": 7094
+        }
+      },
+      "after": {
+        "ba_output": {
+          "reference_images": 12,
+          "registered_images": 12,
+          "missing_images": [],
+          "evaluated_pairs": 66,
+          "missing_pairs": 0,
+          "auc_percent": {
+            "1.0": 84.9065,
+            "2.5": 93.9626,
+            "5.0": 96.9813,
+            "10.0": 98.4906,
+            "20.0": 99.2453
+          },
+          "tracks": 7078
+        },
+        "merged_retriangulated": {
+          "reference_images": 12,
+          "registered_images": 12,
+          "missing_images": [],
+          "evaluated_pairs": 66,
+          "missing_pairs": 0,
+          "auc_percent": {
+            "1.0": 84.9185,
+            "2.5": 93.9674,
+            "5.0": 96.9837,
+            "10.0": 98.4918,
+            "20.0": 99.2459
+          },
+          "tracks": 7094
+        }
+      }
+    },
+    "gerrard/rootsift": {
+      "before": {
+        "ba_output": {
+          "reference_images": 100,
+          "registered_images": 100,
+          "missing_images": [],
+          "evaluated_pairs": 4950,
+          "missing_pairs": 0,
+          "auc_percent": {
+            "1.0": 89.6604,
+            "2.5": 95.8245,
+            "5.0": 97.9084,
+            "10.0": 98.9542,
+            "20.0": 99.4771
+          },
+          "tracks": 15013
+        },
+        "merged_retriangulated": {
+          "reference_images": 100,
+          "registered_images": 100,
+          "missing_images": [],
+          "evaluated_pairs": 4950,
+          "missing_pairs": 0,
+          "auc_percent": {
+            "1.0": 36.17,
+            "2.5": 71.4926,
+            "5.0": 85.5335,
+            "10.0": 92.6972,
+            "20.0": 96.312
+          },
+          "tracks": 15203
+        }
+      },
+      "after": {
+        "ba_output": {
+          "reference_images": 100,
+          "registered_images": 100,
+          "missing_images": [],
+          "evaluated_pairs": 4950,
+          "missing_pairs": 0,
+          "auc_percent": {
+            "1.0": 89.6615,
+            "2.5": 95.8249,
+            "5.0": 97.9086,
+            "10.0": 98.9543,
+            "20.0": 99.4771
+          },
+          "tracks": 15013
+        },
+        "merged_retriangulated": {
+          "reference_images": 100,
+          "registered_images": 100,
+          "missing_images": [],
+          "evaluated_pairs": 4950,
+          "missing_pairs": 0,
+          "auc_percent": {
+            "1.0": 91.2008,
+            "2.5": 96.4365,
+            "5.0": 98.1959,
+            "10.0": 99.0944,
+            "20.0": 99.5472
+          },
+          "tracks": 15202
+        }
+      }
+    },
+    "palace/rootsift": {
+      "before": {
+        "ba_output": {
+          "reference_images": 281,
+          "registered_images": 281,
+          "missing_images": [],
+          "evaluated_pairs": 39340,
+          "missing_pairs": 0,
+          "auc_percent": {
+            "1.0": 64.3671,
+            "2.5": 84.3179,
+            "5.0": 91.9575,
+            "10.0": 95.9443,
+            "20.0": 97.969
+          },
+          "tracks": 12829
+        },
+        "merged_retriangulated": {
+          "reference_images": 281,
+          "registered_images": 281,
+          "missing_images": [],
+          "evaluated_pairs": 39340,
+          "missing_pairs": 0,
+          "auc_percent": {
+            "1.0": 45.7819,
+            "2.5": 72.571,
+            "5.0": 84.9778,
+            "10.0": 92.1026,
+            "20.0": 95.9359
+          },
+          "tracks": 13402
+        }
+      },
+      "after": {
+        "ba_output": {
+          "reference_images": 281,
+          "registered_images": 281,
+          "missing_images": [],
+          "evaluated_pairs": 39340,
+          "missing_pairs": 0,
+          "auc_percent": {
+            "1.0": 64.0807,
+            "2.5": 84.1972,
+            "5.0": 91.8975,
+            "10.0": 95.9134,
+            "20.0": 97.953
+          },
+          "tracks": 12820
+        },
+        "merged_retriangulated": {
+          "reference_images": 281,
+          "registered_images": 281,
+          "missing_images": [],
+          "evaluated_pairs": 39340,
+          "missing_pairs": 0,
+          "auc_percent": {
+            "1.0": 60.8903,
+            "2.5": 83.0087,
+            "5.0": 91.3151,
+            "10.0": 95.6255,
+            "20.0": 97.8068
+          },
+          "tracks": 13404
+        }
+      }
+    },
+    "skydio32/rootsift": {
+      "before": {
+        "ba_output": {
+          "reference_images": 32,
+          "registered_images": 29,
+          "missing_images": [
+            "S1014644.JPG",
+            "S1014656.JPG",
+            "S1014724.JPG"
+          ],
+          "evaluated_pairs": 496,
+          "missing_pairs": 90,
+          "auc_percent": {
+            "1.0": 44.8376,
+            "2.5": 61.7765,
+            "5.0": 70.0294,
+            "10.0": 75.3127,
+            "20.0": 78.5156
+          },
+          "tracks": 1365
+        },
+        "merged_retriangulated": {
+          "reference_images": 32,
+          "registered_images": 29,
+          "missing_images": [
+            "S1014644.JPG",
+            "S1014656.JPG",
+            "S1014724.JPG"
+          ],
+          "evaluated_pairs": 496,
+          "missing_pairs": 90,
+          "auc_percent": {
+            "1.0": 37.3336,
+            "2.5": 56.0544,
+            "5.0": 65.621,
+            "10.0": 72.3417,
+            "20.0": 76.6616
+          },
+          "tracks": 1442
+        }
+      },
+      "after": {
+        "ba_output": {
+          "reference_images": 32,
+          "registered_images": 29,
+          "missing_images": [
+            "S1014644.JPG",
+            "S1014656.JPG",
+            "S1014724.JPG"
+          ],
+          "evaluated_pairs": 496,
+          "missing_pairs": 90,
+          "auc_percent": {
+            "1.0": 44.8376,
+            "2.5": 61.7765,
+            "5.0": 70.0294,
+            "10.0": 75.3127,
+            "20.0": 78.5156
+          },
+          "tracks": 1365
+        },
+        "merged_retriangulated": {
+          "reference_images": 32,
+          "registered_images": 29,
+          "missing_images": [
+            "S1014644.JPG",
+            "S1014656.JPG",
+            "S1014724.JPG"
+          ],
+          "evaluated_pairs": 496,
+          "missing_pairs": 90,
+          "auc_percent": {
+            "1.0": 50.7906,
+            "2.5": 66.3517,
+            "5.0": 73.4057,
+            "10.0": 77.5479,
+            "20.0": 79.7014
+          },
+          "tracks": 1442
+        }
+      }
+    },
+    "skydio32/rootsift_legacy": {
+      "before": {
+        "status": "failed: GTSAM input stream error during deserialization"
+      },
+      "after": {
+        "ba_output": {
+          "reference_images": 32,
+          "registered_images": 3,
+          "missing_images": [
+            "S1014644.JPG",
+            "S1014645.JPG",
+            "S1014646.JPG",
+            "S1014647.JPG",
+            "S1014648.JPG",
+            "S1014649.JPG",
+            "S1014652.JPG",
+            "S1014653.JPG",
+            "S1014654.JPG",
+            "S1014655.JPG",
+            "S1014656.JPG",
+            "S1014684.JPG",
+            "S1014685.JPG",
+            "S1014686.JPG",
+            "S1014687.JPG",
+            "S1014688.JPG",
+            "S1014689.JPG",
+            "S1014690.JPG",
+            "S1014691.JPG",
+            "S1014693.JPG",
+            "S1014694.JPG",
+            "S1014695.JPG",
+            "S1014696.JPG",
+            "S1014724.JPG",
+            "S1014725.JPG",
+            "S1014726.JPG",
+            "S1014734.JPG",
+            "S1014735.JPG",
+            "S1014736.JPG"
+          ],
+          "evaluated_pairs": 496,
+          "missing_pairs": 493,
+          "auc_percent": {
+            "1.0": 0.0,
+            "2.5": 0.0,
+            "5.0": 0.0,
+            "10.0": 0.0,
+            "20.0": 0.0
+          },
+          "tracks": 1
+        },
+        "merged_retriangulated": {
+          "reference_images": 32,
+          "registered_images": 3,
+          "missing_images": [
+            "S1014644.JPG",
+            "S1014645.JPG",
+            "S1014646.JPG",
+            "S1014647.JPG",
+            "S1014648.JPG",
+            "S1014649.JPG",
+            "S1014652.JPG",
+            "S1014653.JPG",
+            "S1014654.JPG",
+            "S1014655.JPG",
+            "S1014656.JPG",
+            "S1014684.JPG",
+            "S1014685.JPG",
+            "S1014686.JPG",
+            "S1014687.JPG",
+            "S1014688.JPG",
+            "S1014689.JPG",
+            "S1014690.JPG",
+            "S1014691.JPG",
+            "S1014693.JPG",
+            "S1014694.JPG",
+            "S1014695.JPG",
+            "S1014696.JPG",
+            "S1014724.JPG",
+            "S1014725.JPG",
+            "S1014726.JPG",
+            "S1014734.JPG",
+            "S1014735.JPG",
+            "S1014736.JPG"
+          ],
+          "evaluated_pairs": 496,
+          "missing_pairs": 493,
+          "auc_percent": {
+            "1.0": 0.0,
+            "2.5": 0.0,
+            "5.0": 0.0,
+            "10.0": 0.0,
+            "20.0": 0.0
+          },
+          "tracks": 1
+        }
+      }
+    }
+  }
+}
