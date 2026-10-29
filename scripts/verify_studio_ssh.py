@@ -44,6 +44,11 @@ def main() -> None:
     parser.add_argument("--reference", type=Path, help="A previous report from this script for exact export comparison")
     parser.add_argument("--config-name", default="vggt_sift_frontend_megaloc")
     parser.add_argument("--loader", default="olsson")
+    parser.add_argument(
+        "--correspondence-generator",
+        default="sift_brute_force",
+        help="Use the exact SIFT preset for repeatable export comparisons",
+    )
     parser.add_argument("--max-resolution", type=int, default=518)
     parser.add_argument("--repeats", type=int, default=2)
     parser.add_argument("--timeout", type=float, default=300)
@@ -70,6 +75,7 @@ def main() -> None:
                 name=f"ssh-verification-{index + 1}",
                 dataset_dir=str(dataset),
                 config_name=args.config_name,
+                correspondence_generator_config_name=args.correspondence_generator,
                 loader=args.loader,
                 max_resolution=args.max_resolution,
                 hardware=settings["remote_hardware"],

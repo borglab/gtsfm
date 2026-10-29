@@ -12,7 +12,7 @@ import hydra
 from dask import config as dask_config
 from dask.distributed import Client, LocalCluster, SSHCluster
 from hydra.utils import instantiate
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, OmegaConf
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.cluster_optimizer import Multiview
@@ -250,6 +250,7 @@ class GtsfmRunner:
                 config_name=self.parsed_args.config_name,
                 overrides=overrides,
             )
+        self._set_frontend_overwrites(main_cfg)
         log_full_configuration(main_cfg, logger)
         logger.info("⏳ Instantiating ..")
         scene_optimizer: SceneOptimizer = instantiate(main_cfg)
@@ -313,35 +314,42 @@ class GtsfmRunner:
 
         return scene_optimizer
 
+    def _set_frontend_overwrites(self, main_cfg: DictConfig) -> None:
+        """Apply selected frontend presets before constructing any cached optimizer.
+
+        Args:
+            main_cfg: Composed scene configuration, including an optional optimizer cacher.
+        """
+        optimizer_path = "cluster_optimizer"
+        if "optimizer" in main_cfg.cluster_optimizer:
+            optimizer_path += ".optimizer"
+        estimator_path = "two_view_estimator"
+        estimator = OmegaConf.select(main_cfg, f"{optimizer_path}.{estimator_path}")
+        if estimator is not None and "two_view_estimator_obj" in estimator:
+            estimator_path += ".two_view_estimator_obj"
+        for argument, module, destination, source in (
+            (
+                "correspondence_generator_config_name",
+                "correspondence",
+                "correspondence_generator",
+                "CorrespondenceGenerator",
+            ),
+            ("verifier_config_name", "verifier", f"{estimator_path}.verifier", "verifier"),
+        ):
+            name = getattr(self.parsed_args, argument)
+            if name is None:
+                continue
+            path = f"{optimizer_path}.{destination}"
+            if OmegaConf.select(main_cfg, path) is None:
+                raise ValueError(f"The selected reconstruction model does not support {argument}")
+            with hydra.initialize_config_module(config_module=f"gtsfm.configs.{module}", version_base=None):
+                preset = hydra.compose(name)
+            OmegaConf.update(main_cfg, path, preset[source], merge=False)
+            logger.info("Applying %s preset: %s", module, name)
+
     def _set_mvo_overwrites(self, scene_optimizer: "SceneOptimizer", main_cfg) -> None:
         """Set MVO-specific overwrites based on CLI flags."""
         multiview_optimizer = cast(Multiview, scene_optimizer.cluster_optimizer)
-
-        # Override correspondence generator.
-        if (correspondence_config_name := self.parsed_args.correspondence_generator_config_name) is not None:
-            with hydra.initialize_config_module(config_module="gtsfm.configs.correspondence", version_base=None):
-                correspondence_cfg = hydra.compose(correspondence_config_name)
-                logger.info(f"🔄 Applying Correspondence Override: " f"{correspondence_config_name}")
-                multiview_optimizer.correspondence_generator = instantiate(correspondence_cfg.CorrespondenceGenerator)
-                OmegaConf.update(
-                    main_cfg,
-                    "cluster_optimizer.correspondence_generator",
-                    correspondence_cfg.CorrespondenceGenerator,
-                    merge=False,
-                )
-
-        # Override verifier.
-        if (verifier_config_name := self.parsed_args.verifier_config_name) is not None:
-            with hydra.initialize_config_module(config_module="gtsfm.configs.verifier", version_base=None):
-                verifier_cfg = hydra.compose(verifier_config_name)
-                logger.info(f"🔄 Applying Verifier Override: {verifier_config_name}")
-                multiview_optimizer.two_view_estimator._verifier = instantiate(verifier_cfg.verifier)
-                OmegaConf.update(
-                    main_cfg,
-                    "cluster_optimizer.two_view_estimator.two_view_estimator_obj.verifier",
-                    verifier_cfg.verifier,
-                    merge=False,
-                )
 
         # Configure Multiview-specific toggles based on CLI flags.
         if not self.parsed_args.run_mvs:

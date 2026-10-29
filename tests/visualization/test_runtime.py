@@ -1,8 +1,10 @@
 """Tests for the installable browser workspace runtime."""
 
 import json
+import shlex
 import tarfile
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from io import BytesIO
 from pathlib import Path
 
@@ -80,6 +82,18 @@ def test_configuration_schema_defaults_to_vggt() -> None:
     assert models["vggt"]["capabilities"]["iterative_splat"] is True
     argoverse_options = {item["name"]: item for item in schema["loader_options"]["argoverse"]}
     assert argoverse_options["log_id"]["required"] is True
+
+
+def test_configuration_catalog_detects_added_and_removed_presets(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(runtime, "CONFIG_ROOT", tmp_path)
+    with TestClient(create_app(tmp_path / "results")) as client:
+        assert client.get("/api/configuration").json()["models"] == []
+        preset = tmp_path / "new_preset.yaml"
+        preset.write_text("defaults: [vggt, _self_]\n", encoding="utf-8")
+        models = client.get("/api/configuration").json()["models"]
+        assert [model["id"] for model in models] == ["new_preset"]
+        preset.unlink()
+        assert client.get("/api/configuration").json()["models"] == []
 
 
 def test_configuration_parameter_schema_follows_selected_hydra_preset() -> None:
@@ -317,10 +331,39 @@ def test_loader_specific_options_are_validated_and_forwarded(tmp_path: Path, mon
     assert "loader.stride=2" in args
 
 
+def test_startup_assets_are_compressed_and_revalidated(tmp_path: Path, monkeypatch) -> None:
+    static_root = tmp_path / "static"
+    static_root.mkdir()
+    asset = static_root / "studio.js"
+    asset.write_text("// initial asset\n" * 300, encoding="utf-8")
+    monkeypatch.setattr(app_runtime, "STATIC_ROOT", static_root)
+    with TestClient(create_app(tmp_path / "results")) as client:
+        page = client.get("/")
+        assert page.headers["cache-control"] == "no-store"
+        assert 'id="studio-startup"' in page.text
+        assert "Opening your workspace" in page.text
+        response = client.get("/static/studio.js", headers={"Accept-Encoding": "gzip"})
+        assert response.headers["cache-control"] == "no-cache"
+        assert response.headers["content-encoding"] == "gzip"
+        assert "Accept-Encoding" in response.headers["vary"]
+        assert response.text == asset.read_text(encoding="utf-8")
+        etag = response.headers["etag"]
+        cached = client.get("/static/studio.js", headers={"If-None-Match": etag})
+        assert cached.status_code == 304
+        assert not cached.content
+        # A development edit must invalidate the cache immediately.
+        asset.write_text("// changed asset, different length\n" * 300, encoding="utf-8")
+        changed = client.get("/static/studio.js", headers={"If-None-Match": etag})
+        assert changed.status_code == 200
+        assert changed.headers["etag"] != etag
+        assert changed.text == asset.read_text(encoding="utf-8")
+        assert client.get("/api/scenes").headers["cache-control"] == "no-store"
+
+
 def test_workspace_api_and_scene_discovery(tmp_path: Path) -> None:
     scene = tmp_path / "example" / "ba_output"
     scene.mkdir(parents=True)
-    (scene / "points3D.txt").write_text("# points\n", encoding="utf-8")
+    (scene / "points3D.txt").write_text("# points\n1 0 0 1 255 0 0 0\n", encoding="utf-8")
     (scene / "images.txt").write_text("# images\n", encoding="utf-8")
     client = TestClient(create_app(tmp_path))
 
@@ -394,6 +437,181 @@ def test_workspace_exports_saved_splat_as_ply(tmp_path: Path) -> None:
     assert ply_response.status_code == 200
     assert '.ply"' in ply_response.headers["content-disposition"]
     assert ply_response.content.startswith(b"ply\n")
+
+
+@pytest.mark.parametrize("saved_log", [True, False])
+def test_failure_prompt_includes_command_and_full_log(tmp_path: Path, saved_log: bool) -> None:
+    app = create_app(tmp_path)
+    manager = app.state.gtsfm_jobs
+    command = ["/env/bin/python", "-m", "gtsfm.runner", "--dataset_dir", "/data/Ravenna's photos"]
+    job = runtime.ManagedJob(
+        id="failed-job",
+        name="Ravenna",
+        status="failed",
+        created_at="",
+        updated_at="",
+        output_root=str(tmp_path / "runs" / "Ravenna"),
+        live_root="",
+        spec={},
+        command=command,
+        return_code=1,
+        error="Pipeline exited with code 1",
+        log_tail=["ModuleNotFoundError: poselib"],
+    )
+    manager._jobs[job.id] = job
+    full_log = "Early diagnostic\n" + "progress\n" * 300 + "```\nModuleNotFoundError: poselib\n"
+    if saved_log:
+        (manager.runtime_root / f"{job.id}.log").write_text(full_log, encoding="utf-8")
+    response = TestClient(app).get(f"/api/jobs/{job.id}/diagnostic-prompt")
+    assert response.status_code == 200
+    prompt = response.json()["prompt"]
+    assert "diagnose the root cause" in prompt
+    assert shlex.join(command) in prompt
+    assert "Exit code: 1" in prompt
+    assert "ModuleNotFoundError: poselib" in prompt
+    if saved_log:
+        assert full_log in prompt
+        assert "````text\n" in prompt
+    else:
+        assert "No saved log file" in prompt
+
+
+def test_retry_preserves_settings_and_history_and_rebuilds_command(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(runtime.JobManager, "_run", lambda *args: None)
+    monkeypatch.setattr(runtime, "detect_hardware", _cuda_hardware)
+    dataset = tmp_path / "dataset"
+    dataset.mkdir()
+    app = create_app(tmp_path / "results")
+    manager = app.state.gtsfm_jobs
+    client = TestClient(app)
+    spec = {
+        "name": "Ravenna",
+        "dataset_dir": str(dataset),
+        "loader": "olsson",
+        "config_name": "vggt_sift_frontend_megaloc_phototourism_16gb",
+        "hardware": "cuda:0",
+        "splat_implementation": "none",
+        "num_workers": 1,
+        "threads_per_worker": 16,
+        "worker_memory_limit": "23GB",
+        "max_resolution": 760,
+        "log": "DEBUG",
+        "hydra_overrides": {"graph_partitioner.max_cameras": "18"},
+        "advanced_overrides": ["graph_partitioner.min_cameras_to_partition=10"],
+    }
+    failed = manager.get(manager.start(spec)["id"])
+    failed.status = "failed"
+    failed.error = "Old failure"
+    failed.return_code = 1
+    failed.command = ["/old/environment/python", "stale-command"]
+    old_log = manager.runtime_root / f"{failed.id}.log"
+    old_log.write_text("original failure log", encoding="utf-8")
+    original = failed.public()
+    response = client.post(f"/api/jobs/{failed.id}/retry")
+    assert response.status_code == 202
+    retried = response.json()
+    assert retried["id"] != failed.id
+    assert retried["output_root"] != failed.output_root
+    assert retried["spec"] == spec
+    assert retried["status"] == "queued"
+    assert retried["error"] is None and retried["return_code"] is None
+    assert retried["command"][:3] == [runtime.sys.executable, "-m", "gtsfm.runner"]
+    assert retried["command"][retried["command"].index("--threads_per_worker") + 1] == "16"
+    assert retried["command"][retried["command"].index("--output_root") + 1] == retried["output_root"]
+    assert "graph_partitioner.max_cameras=18" in retried["command"]
+    assert "graph_partitioner.min_cameras_to_partition=10" in retried["command"]
+    assert failed.public() == original
+    assert old_log.read_text(encoding="utf-8") == "original failure log"
+    # Duplicate clicks from different controls/tabs reuse the active retry.
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        retries = list(pool.map(manager.retry, [failed.id] * 4))
+    assert {job["id"] for job in retries} == {retried["id"]}
+    assert len(manager.list()) == 2
+    manager.get(retried["id"]).spec["hydra_overrides"]["graph_partitioner.max_cameras"] = "19"
+    assert failed.spec["hydra_overrides"]["graph_partitioner.max_cameras"] == "18"
+    # A new attempt is possible after the previous retry itself fails.
+    manager.get(retried["id"]).status = "failed"
+    assert manager.retry(failed.id)["id"] != retried["id"]
+
+
+def test_retry_checks_auth_status_and_current_input_availability(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(runtime.JobManager, "_run_remote", lambda *args: None)
+    app = create_app(tmp_path)
+    client = TestClient(app)
+    manager = app.state.gtsfm_jobs
+    queued = manager.start(
+        {"execution_target": "remote", "remote_endpoint": "https://gpu.example", "api_key": "secret"}
+    )
+    monkeypatch.setenv("GTSFM_API_KEY", "workspace-secret")
+    assert client.post(f"/api/jobs/{queued['id']}/retry").status_code == 401
+    headers = {"Authorization": "Bearer workspace-secret"}
+    assert client.post("/api/jobs/missing/retry", headers=headers).status_code == 404
+    assert client.post(f"/api/jobs/{queued['id']}/retry", headers=headers).status_code == 400
+    job = manager.get(queued["id"])
+    job.status = "failed"
+    job.remote = None
+    job.spec = {"config_name": "vggt", "dataset_dir": str(tmp_path / "missing"), "splat_implementation": "none"}
+    response = client.post(f"/api/jobs/{job.id}/retry", headers=headers)
+    assert response.status_code == 400
+    assert "does not exist" in response.json()["error"]
+    assert len(manager.list()) == 1
+
+
+def test_remote_retry_reuses_private_credentials_without_exposing_them(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(runtime.JobManager, "_run_remote", lambda *args: None)
+    manager = runtime.JobManager(tmp_path)
+    original = manager.start({
+        "name": "remote-retry", "execution_target": "remote", "remote_endpoint": "https://gpu.example",
+        "api_key": "secret", "config_name": "vggt", "dataset_dir": "/data/original", "threads_per_worker": 16,
+    })
+    failed = manager.get(original["id"])
+    failed.status = "failed"
+    retried = manager.retry(failed.id)
+    assert retried["spec"] == original["spec"]
+    assert manager.get(retried["id"]).remote_api_key == "secret"
+    assert "secret" not in json.dumps(retried)
+
+
+def test_failure_prompt_checks_auth_and_job_id(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GTSFM_API_KEY", "test-key")
+    client = TestClient(create_app(tmp_path))
+    assert client.get("/api/jobs/missing/diagnostic-prompt").status_code == 401
+    assert client.get(
+        "/api/jobs/missing/diagnostic-prompt", headers={"Authorization": "Bearer test-key"}
+    ).status_code == 404
+
+
+def test_remote_failure_prompt_uses_remote_log(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    manager = runtime.JobManager(tmp_path)
+    manager._jobs["remote-job"] = runtime.ManagedJob(
+        id="remote-job",
+        name="Remote",
+        status="failed",
+        created_at="",
+        updated_at="",
+        output_root="",
+        live_root="",
+        spec={},
+        command=["remote", "https://gpu.example/api/jobs"],
+        remote={"endpoint": "https://gpu.example", "job_id": "upstream"},
+        remote_api_key="secret",
+    )
+
+    def remote_json(url, api_key):
+        assert url == "https://gpu.example/api/jobs/upstream/diagnostic-prompt"
+        assert api_key == "secret"
+        return {"prompt": "Remote CLI and complete log"}
+
+    monkeypatch.setattr(manager, "_remote_json", remote_json)
+    assert manager.diagnostic_prompt("remote-job") == "Remote CLI and complete log"
+
+    def unavailable(url, api_key):
+        raise TimeoutError("Remote offline")
+
+    monkeypatch.setattr(manager, "_remote_json", unavailable)
+    prompt = manager.diagnostic_prompt("remote-job")
+    assert "remote diagnostic report is unavailable" in prompt
+    assert "secret" not in prompt
 
 
 def test_completed_job_exposes_splat_download(tmp_path: Path) -> None:
@@ -682,6 +900,12 @@ def test_workspace_imports_dropped_folder(tmp_path: Path) -> None:
     assert imported.is_dir()
     assert (imported / "images" / "one.jpg").read_bytes() == image_buffer.getvalue()
     assert (imported / "cameras.txt").read_bytes() == b"camera"
+    # A fresh server discovers the upload without in-memory job state.
+    items = TestClient(create_app(tmp_path)).get("/api/uploads").json()["items"]
+    assert len(items) == 1
+    assert items[0]["path"] == str(imported)
+    assert items[0]["name"] == "example"
+    assert items[0]["analysis"]["image_count"] == 1
 
 
 def test_workspace_rejects_unsafe_upload_path(tmp_path: Path) -> None:
@@ -1066,3 +1290,50 @@ def test_job_manager_accepts_safe_caller_provided_job_id(tmp_path: Path, monkeyp
     assert job["id"] == "modal_job-123"
     with pytest.raises(ValueError, match="unsupported characters"):
         manager.start(spec, job_id="../../unsafe")
+
+
+def test_previous_uploads_find_legacy_folders_and_skip_unsafe_entries(tmp_path: Path) -> None:
+    uploads = tmp_path / ".gtsfm" / "uploads"
+    legacy = uploads / "123456abcdef" / "Ravenna71"
+    legacy.mkdir(parents=True)
+    Image.new("RGB", (12, 8)).save(legacy / "one.jpeg")
+    (uploads / "abcdef123456").mkdir()  # Incomplete/empty upload.
+    (uploads / "123456abcdef.tar").write_bytes(b"incomplete transfer")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    Image.new("RGB", (12, 8)).save(outside / "private.jpg")
+    (uploads / "111111111111").symlink_to(outside, target_is_directory=True)
+    linked = uploads / "222222222222"
+    linked.mkdir()
+    (linked / "private.jpg").symlink_to(outside / "private.jpg")
+    items = TestClient(create_app(tmp_path)).get("/api/uploads").json()["items"]
+    assert len(items) == 1
+    assert items[0]["name"] == "Ravenna71"
+    assert items[0]["path"] == str(legacy)
+    assert items[0]["file_count"] == 1
+    assert items[0]["analysis"]["image_count"] == 1
+
+
+def test_previous_uploads_preserve_archive_root_and_distinguish_duplicates(tmp_path: Path) -> None:
+    client = TestClient(create_app(tmp_path))
+    responses = [
+        client.post(
+            "/api/uploads/archive",
+            files={"archive": ("dataset.tar", _tar_upload({"images/one.jpg": b"image"}), "application/x-tar")},
+        ).json()
+        for _ in range(2)
+    ]
+    items = TestClient(create_app(tmp_path)).get("/api/uploads").json()["items"]
+    assert len(items) == 2
+    assert {item["path"] for item in items} == {item["path"] for item in responses}
+    assert len({item["id"] for item in items}) == 2
+    assert all(item["name"] == "dataset" for item in items)
+    assert items[0]["uploaded_at"] >= items[1]["uploaded_at"]
+
+
+def test_previous_uploads_require_api_key_and_handle_empty_workspace(tmp_path: Path, monkeypatch) -> None:
+    client = TestClient(create_app(tmp_path))
+    assert client.get("/api/uploads").json() == {"items": []}
+    monkeypatch.setenv("GTSFM_API_KEY", "secret")
+    assert client.get("/api/uploads").status_code == 401
+    assert client.get("/api/uploads", headers={"Authorization": "Bearer secret"}).status_code == 200

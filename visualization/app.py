@@ -26,14 +26,17 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, UnidentifiedImageError
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from starlette.background import BackgroundTask
+from starlette.middleware.gzip import GZipMiddleware
 from starlette.websockets import WebSocketDisconnect
 
-from visualization.datasets import IMAGE_SUFFIXES, extract_input_archive as _extract_input_archive
+from visualization.datasets import IMAGE_SUFFIXES
+from visualization.datasets import extract_input_archive as _extract_input_archive
 from visualization.execution import ExecutionConfiguration, ExecutionStore
 from visualization.modal_deployment import ModalDeploymentManager, modal_workspace_api_key
 from visualization.photos import ScenePhotos
+from visualization.reconstruction import point_count, result_revision, splat_count
 from visualization.runtime import (
     JobManager,
     configuration_parameter_schema,
@@ -102,6 +105,12 @@ class RunRequest(BaseModel):
     hardware: str = "cpu"
 
 
+class SplatRequest(BaseModel):
+    scene: str
+    gaussian_splatting_config_name: str = "base_gs"
+    gs_max_steps: int = Field(default=7000, ge=1)
+
+
 def analyze_image_dataset(root: Path) -> dict[str, int | float]:
     """Read image headers and return lightweight inputs for runtime estimation."""
 
@@ -135,6 +144,55 @@ def analyze_image_dataset(root: Path) -> dict[str, int | float]:
         "max_width": max_width,
         "max_height": max_height,
     }
+
+
+def _remember_upload(upload_root: Path, payload: dict[str, Any]) -> dict[str, Any]:
+    """Keep the exact selected root, including archives whose root contains only images/."""
+    metadata = {"name": payload["name"], "relative_root": Path(payload["path"]).relative_to(upload_root).as_posix()}
+    upload_root.with_suffix(".json").write_text(json.dumps(metadata), encoding="utf-8")
+    return payload
+
+
+def previous_uploads(uploads_root: Path) -> list[dict[str, Any]]:
+    """Discover durable uploads, including folders saved before the catalog existed."""
+    if not uploads_root.is_dir():
+        return []
+    items = []
+    for root in uploads_root.iterdir():
+        if root.is_symlink() or not root.is_dir() or not re.fullmatch(r"[0-9a-f]{12}", root.name):
+            continue
+        try:
+            metadata_path = root.with_suffix(".json")
+            if metadata_path.is_file() and not metadata_path.is_symlink():
+                metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+                dataset = (root / metadata["relative_root"]).resolve()
+                name = str(metadata["name"])
+            else:
+                children = list(root.iterdir())
+                dataset = children[0] if len(children) == 1 and children[0].is_dir() else root
+                name = dataset.name if dataset != root else f"Upload {root.name}"
+            if not dataset.is_dir() or not dataset.resolve().is_relative_to(root.resolve()):
+                continue
+            entries = list(dataset.rglob("*"))
+            if any(path.is_symlink() for path in entries):
+                continue
+            files = [path for path in entries if path.is_file()]
+            if not files:
+                continue
+            items.append(
+                {
+                    "id": root.name,
+                    "name": name,
+                    "path": str(dataset.resolve()),
+                    "file_count": len(files),
+                    "bytes": sum(path.stat().st_size for path in files),
+                    "uploaded_at": root.stat().st_mtime,
+                    "analysis": analyze_image_dataset(dataset),
+                }
+            )
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+    return sorted(items, key=lambda item: (item["uploaded_at"], item["id"]), reverse=True)
 
 
 async def _discover_modal_endpoint(token_id: str, token_secret: str) -> dict[str, str]:
@@ -210,22 +268,65 @@ def _find_splats_file(scene_dir: Path, base_dir: Path) -> Path | None:
     return None
 
 
-def find_scenes(base_dir: Path) -> list[dict[str, str | None]]:
-    """Recursively find COLMAP reconstructions and standalone splat files."""
+def _result_files(base_dir: Path) -> tuple[list[Path], list[Path], dict[str, float]]:
+    """Scan once, then propagate each file's modification time up its directory tree."""
+    points_files: list[Path] = []
+    splats_files: list[Path] = []
+    latest: dict[Path, float] = {}
+    for directory, children, filenames in os.walk(base_dir, followlinks=False):
+        children[:] = [name for name in children if name != ".gtsfm"]
+        parent = Path(directory)
+        for name in filenames:
+            path = parent / name
+            try:
+                modified = path.stat(follow_symlinks=False).st_mtime
+            except OSError:
+                continue  # A running job may remove a temporary file during discovery.
+            latest[parent] = max(latest.get(parent, modified), modified)
+            if name == "points3D.txt":
+                points_files.append(path)
+            elif name == "gaussian_splats.ply":
+                splats_files.append(path)
+    # Deepest directories first, including ancestors that have no files themselves.
+    for directory in sorted(latest, key=lambda path: len(path.parts), reverse=True):
+        modified = latest[directory]
+        while directory != base_dir:
+            directory = directory.parent
+            latest[directory] = max(latest.get(directory, modified), modified)
+    return (
+        points_files,
+        splats_files,
+        {path.relative_to(base_dir).as_posix(): modified for path, modified in latest.items()},
+    )
 
-    scenes: list[dict[str, str | None]] = []
+
+def discover_results(base_dir: Path) -> dict[str, Any]:
+    """Find reconstructions and modification times for their containing directories."""
+
+    scenes: list[dict[str, Any]] = []
+    photos = ScenePhotos(base_dir)
     splats_attached_to_scene: set[Path] = set()
-    if not base_dir.exists():
-        return scenes
-    for points_file in base_dir.rglob("points3D.txt"):
+    points_files, splats_files, directory_times = _result_files(base_dir)
+    for points_file in points_files:
         parent = points_file.parent
         images_file = parent / "images.txt"
         if not images_file.exists():
             continue
+        if ".gtsfm" in points_file.parts:
+            continue
+        count = point_count(parent)
+        if count == 0:
+            continue
+        try:
+            camera_count = len(photos.names(parent))
+        except (OSError, ValueError):
+            camera_count = 0
         rel = parent.relative_to(base_dir).as_posix()
         parts = rel.split("/")
         label = "/".join(parts[-3:]) if len(parts) >= 3 else rel
         splats_path = _find_splats_file(parent, base_dir)
+        if splats_path is not None and splat_count(splats_path) == 0:
+            splats_path = None
         splats_url = None
         if splats_path is not None:
             splats_attached_to_scene.add(splats_path)
@@ -235,6 +336,11 @@ def find_scenes(base_dir: Path) -> list[dict[str, str | None]]:
                 "kind": "scene",
                 "label": label,
                 "rel_path": rel,
+                "point_count": count,
+                "modified_at": points_file.stat().st_mtime,
+                "revision": result_revision([points_file, images_file, parent / "cameras.txt", splats_path]),
+                "camera_count": camera_count,
+                "can_splatify": camera_count > 0 and (parent / "cameras.txt").is_file(),
                 "points": f"/data/{quote(rel)}/points3D.txt",
                 "images": f"/data/{quote(rel)}/images.txt",
                 "cameras": f"/data/{quote(rel)}/cameras.txt" if (parent / "cameras.txt").is_file() else None,
@@ -242,13 +348,19 @@ def find_scenes(base_dir: Path) -> list[dict[str, str | None]]:
                 "splat_rel_path": splats_path.relative_to(base_dir).as_posix() if splats_path else None,
             }
         )
-    for splats_file in base_dir.rglob("gaussian_splats.ply"):
+    for splats_file in splats_files:
         if splats_file in splats_attached_to_scene or ".gtsfm" in splats_file.parts:
+            continue
+        count = splat_count(splats_file)
+        if count == 0:
             continue
         rel_splat = splats_file.relative_to(base_dir).as_posix()
         scenes.append(
             {
                 "kind": "splat",
+                "splat_count": count,
+                "modified_at": splats_file.stat().st_mtime,
+                "revision": result_revision([splats_file]),
                 "label": rel_splat,
                 "rel_path": rel_splat,
                 "points": None,
@@ -258,7 +370,17 @@ def find_scenes(base_dir: Path) -> list[dict[str, str | None]]:
             }
         )
     scenes.sort(key=lambda item: item["rel_path"] or "")
-    return scenes
+    return {
+        "base_dir": str(base_dir),
+        "count": len(scenes),
+        "items": scenes,
+        "directory_modified_at": directory_times,
+    }
+
+
+def find_scenes(base_dir: Path) -> list[dict[str, Any]]:
+    """Recursively find COLMAP reconstructions and standalone splat files."""
+    return discover_results(base_dir)["items"]
 
 
 def _download_filename(value: str) -> str:
@@ -369,7 +491,9 @@ def create_app(
     @app.middleware("http")
     async def add_response_headers(request: Request, call_next):
         response = await call_next(request)
-        response.headers.setdefault("Cache-Control", "no-store")
+        # Revalidate static assets with their ETag instead of downloading the engine on every visit.
+        cache_control = "no-cache" if request.url.path.startswith("/static/") else "no-store"
+        response.headers.setdefault("Cache-Control", cache_control)
         return response
 
     @app.exception_handler(HTTPException)
@@ -395,8 +519,22 @@ def create_app(
 
     @app.get("/api/scenes")
     def list_scenes() -> dict[str, Any]:
-        scenes = find_scenes(resolved_base)
-        return {"base_dir": str(resolved_base), "count": len(scenes), "items": scenes}
+        return discover_results(resolved_base)
+
+    @app.post("/api/scenes/splatify", status_code=202, dependencies=[Depends(require_api_key)])
+    def splatify_scene(payload: SplatRequest) -> dict[str, Any]:
+        try:
+            return manager.start(
+                {
+                    **payload.model_dump(),
+                    "name": f"{Path(payload.scene).name}-splats",
+                    "job_type": "splat",
+                    "splat_implementation": "gsplat",
+                    "execution_target": "local",
+                }
+            )
+        except (OSError, TypeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.get("/api/photos")
     def scene_photos(scene: str) -> dict[str, Any]:
@@ -485,6 +623,10 @@ def create_app(
         except SampleDownloadError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
 
+    @app.get("/api/uploads", dependencies=[Depends(require_api_key)])
+    def list_uploads() -> dict[str, Any]:
+        return {"items": previous_uploads(manager.runtime_root / "uploads")}
+
     @app.post("/api/uploads", dependencies=[Depends(require_api_key)])
     def upload_input_folder(
         files: Annotated[list[UploadFile], File()], manifest: Annotated[str, Form()] = "[]"
@@ -529,14 +671,17 @@ def create_app(
         common_root = relative_paths[0].parts[0]
         preserves_folder = all(len(path.parts) > 1 and path.parts[0] == common_root for path in relative_paths)
         dataset_root = upload_root / common_root if preserves_folder else upload_root
-        return {
-            "id": upload_id,
-            "name": common_root if preserves_folder else "Selected files",
-            "path": str(dataset_root),
-            "file_count": file_count,
-            "bytes": total_bytes,
-            "analysis": analyze_image_dataset(dataset_root),
-        }
+        return _remember_upload(
+            upload_root,
+            {
+                "id": upload_id,
+                "name": common_root if preserves_folder else "Selected files",
+                "path": str(dataset_root),
+                "file_count": file_count,
+                "bytes": total_bytes,
+                "analysis": analyze_image_dataset(dataset_root),
+            },
+        )
 
     @app.post("/api/uploads/archive", dependencies=[Depends(require_api_key)])
     def upload_input_archive(archive: Annotated[UploadFile, File()]) -> dict[str, Any]:
@@ -558,14 +703,17 @@ def create_app(
         finally:
             archive.file.close()
             archive_path.unlink(missing_ok=True)
-        return {
-            "id": upload_id,
-            "name": Path(archive.filename or "dataset").stem,
-            "path": str(upload_root),
-            "file_count": file_count,
-            "bytes": total_bytes,
-            "analysis": analyze_image_dataset(upload_root),
-        }
+        return _remember_upload(
+            upload_root,
+            {
+                "id": upload_id,
+                "name": Path(archive.filename or "dataset").stem,
+                "path": str(upload_root),
+                "file_count": file_count,
+                "bytes": total_bytes,
+                "analysis": analyze_image_dataset(upload_root),
+            },
+        )
 
     @app.post("/api/remote/inspect")
     def inspect_remote(payload: RemoteInspectRequest) -> dict[str, Any]:
@@ -718,6 +866,22 @@ def create_app(
             raise HTTPException(status_code=404, detail="Job not found")
         return job.public()
 
+    @app.get("/api/jobs/{job_id}/diagnostic-prompt", dependencies=[Depends(require_api_key)])
+    def get_diagnostic_prompt(job_id: str) -> dict[str, str]:
+        try:
+            return {"prompt": manager.diagnostic_prompt(job_id)}
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Job not found") from exc
+
+    @app.post("/api/jobs/{job_id}/retry", status_code=202, dependencies=[Depends(require_api_key)])
+    def retry_job(job_id: str) -> dict[str, Any]:
+        try:
+            return manager.retry(job_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Job not found") from exc
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     @app.post("/api/jobs/{job_id}/cancel", dependencies=[Depends(require_api_key)])
     def cancel_job(job_id: str) -> dict[str, Any]:
         try:
@@ -801,7 +965,8 @@ def create_app(
             raise HTTPException(status_code=404, detail="File not found")
         return FileResponse(path)
 
-    app.mount("/static", StaticFiles(directory=STATIC_ROOT), name="static")
+    # Compress assets only; live API streams must never wait for a compression buffer.
+    app.mount("/static", GZipMiddleware(StaticFiles(directory=STATIC_ROOT), minimum_size=1024), name="static")
     return app
 
 

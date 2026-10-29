@@ -1,0 +1,12 @@
+# Inherit the Omega pipeline, replacing only GPU matching with CPU FLANN.
+defaults:
+  - vggt_omega_sift_frontend_megaloc_phototourism
+  - _self_
+
+cluster_optimizer:
+  optimizer:
+    correspondence_generator:
+      matcher:
+        matcher_obj:
+          _target_: gtsfm.frontend.matcher.twoway_matcher.TwoWayMatcher
+          search_method: flann

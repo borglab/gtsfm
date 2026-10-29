@@ -18,9 +18,13 @@ import * as Switch from "@radix-ui/react-switch";
 import * as Tabs from "@radix-ui/react-tabs";
 import { Activity, Box, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, CircleAlert, Copy, Cpu, Database, Download, FolderUp, Github, Maximize2, Minus, MonitorCog, Play, RefreshCw, Server, SlidersHorizontal, Square, Terminal, Wrench, X } from "lucide-react";
 import "./styles.css";
-import { PhotoPanel, type PhotoState } from "./photo-panel";
+import { PhotoPanel } from "./photo-panel";
+import { useJobStream } from "./use-job-stream";
+import { ResultsBrowser, type ResultItem } from "./results-browser";
+import { ViewerCanvas, ViewerProvider, useViewerApi } from "./viewer-context";
+import { ViewControls, ViewerToolbar, ViewerLoading, SceneStats } from "./viewer-controls";
 
-type JobStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
+type JobStatus = "queued" | "running" | "completed" | "failed" | "cancelled" | "interrupted";
 type InputValue = string | number;
 type FormValue = string | number | boolean;
 type LoaderValues = Record<string, FormValue>;
@@ -316,6 +320,9 @@ interface JobEvent {
 }
 
 interface Job {
+  history_note?: string | null;
+  retry_available?: boolean;
+  created_at?: string;
   id: string;
   name: string;
   status: JobStatus;
@@ -369,6 +376,7 @@ interface UploadedFolder {
   file_count: number;
   bytes: number;
   analysis: DatasetAnalysis;
+  uploaded_at?: number;
 }
 
 interface DatasetAnalysis {
@@ -406,19 +414,6 @@ interface PreparedSample {
 interface FolderFile {
   file: File;
   relativePath: string;
-}
-
-interface ViewerApi {
-  isBusy(): boolean;
-  getPhotoState(): PhotoState;
-  selectCamera(index: number): void;
-  loadSplatsFile(input: { splatsUrl: string; label: string }): Promise<boolean | void>;
-}
-
-declare global {
-  interface Window {
-    gtsfmViewer?: ViewerApi;
-  }
 }
 
 const EMPTY_FORM: RunFormState = {
@@ -651,9 +646,6 @@ async function getJson<T>(url: string, options?: RequestInit): Promise<T> {
   return payload as T;
 }
 
-const websocketUrl = (path: string): string =>
-  `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}${path}`;
-
 function Brand({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
   return <header className="studio-header" aria-label="SfM Studio">
     <div className="brand-primary"><img className="brand-logo" src="/static/brand/sfm-logo.png" alt="SfM" /></div>
@@ -808,6 +800,23 @@ interface AdvancedMachineProfile {
   allowThreads: boolean;
   allowMemory: boolean;
   allowLocalRuntime: boolean;
+}
+
+const MACHINE_THREADS_KEY = "gtsfm-studio-machine-threads:";
+
+function storedMachineThreads(profile: AdvancedMachineProfile): number {
+  try {
+    const saved = Number(window.localStorage.getItem(MACHINE_THREADS_KEY + profile.key));
+    if (profile.allowThreads && Number.isSafeInteger(saved) && saved > 0) return saved;
+  } catch { /* storage is optional */ }
+  return profile.threadsPerWorker;
+}
+
+function rememberMachineThreads(profile: AdvancedMachineProfile, value: string): void {
+  const threads = Number(value);
+  if (!profile.allowThreads || !Number.isSafeInteger(threads) || threads < 1) return;
+  try { window.localStorage.setItem(MACHINE_THREADS_KEY + profile.key, String(threads)); }
+  catch { /* storage is optional */ }
 }
 
 const MODAL_VM_RESOURCES: Record<string, { cpu: number; memoryGiB: number }> = {
@@ -1101,7 +1110,18 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
   const [executionBusy, setExecutionBusy] = useState(false);
   const loadedExecution = useRef(false);
   const handledRemotePrompt = useRef(0);
-  const [inputMode, setInputMode] = useState<"upload" | "sample">("upload");
+  const [inputMode, setInputMode] = useState<"upload" | "sample" | "previous">("upload");
+  const [previousUploads, setPreviousUploads] = useState<UploadedFolder[]>([]);
+  const [uploadsLoading, setUploadsLoading] = useState(false);
+  const [uploadsError, setUploadsError] = useState("");
+  const [previousFolder, setPreviousFolder] = useState<UploadedFolder | null>(null);
+  const [previousImages, setPreviousImages] = useState<UploadedFolder | null>(null);
+  const refreshUploads = async () => {
+    setUploadsLoading(true); setUploadsError("");
+    try { setPreviousUploads((await getJson<{ items: UploadedFolder[] }>("/api/uploads")).items); }
+    catch (reason) { setUploadsError(errorMessage(reason)); }
+    finally { setUploadsLoading(false); }
+  };
   const [loaderOptions, setLoaderOptions] = useState<LoaderValues>({});
   const [remote, setRemote] = useState<RemoteWorkspace | null>(null);
   const [remoteMessage, setRemoteMessage] = useState("");
@@ -1130,7 +1150,7 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
   const [sampleMessage, setSampleMessage] = useState("");
   const modalDiscoverySequence = useRef(0);
   const connectionSequence = useRef(0);
-  const modalGpuEdited = useRef(false);
+  const modalGpuChosenByUser = useRef(false);
   const automaticModalEndpoint = useRef("");
   const connectionBusy = modalDiscovering || modalDeploying || remoteChecking;
   const invalidateConnection = () => {
@@ -1151,6 +1171,10 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
 
   const refreshExecutionConfigurations = async () => {
     const result = await getJson<{ items: ExecutionConfiguration[] }>("/api/execution-configurations");
+    if (!result || !Array.isArray(result.items) || !result.items.every((item) =>
+      item && typeof item.name === "string" && item.settings && typeof item.settings === "object" && !Array.isArray(item.settings))) {
+      throw new Error("Unable to load saved execution configurations: the server returned an invalid configuration list.");
+    }
     setExecutionConfigurations(result.items);
   };
   useEffect(() => { void refreshExecutionConfigurations().catch((reason) => setExecutionMessage(errorMessage(reason))); }, []);
@@ -1279,6 +1303,7 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
   const selectedSample = samples.find((item) => item.id === form.sample_id);
   const datasetAnalysis = inputMode === "sample"
     ? preparedSample?.analysis
+    : inputMode === "previous" ? previousImages?.analysis ?? previousFolder?.analysis
     : imagesFolder?.analysis?.image_count ? imagesFolder.analysis : datasetFolder?.analysis;
   const modalGpuRecommendation = recommendModalGpu(form, datasetAnalysis, selectedSample?.image_count ?? 0);
   const modalRecommendationKey = [
@@ -1327,7 +1352,7 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
 
   useEffect(() => {
     if (form.execution_target !== "remote" || form.remote_connection !== "api" || form.remote_provider !== "modal") return;
-    if (!modalGpuRecommendation || loadedExecution.current || modalGpuEdited.current || connectionBusy) return;
+    if (!modalGpuRecommendation || loadedExecution.current || modalGpuChosenByUser.current || connectionBusy) return;
     if (form.modal_gpu === modalGpuRecommendation.gpu.id) return;
     set("modal_gpu", modalGpuRecommendation.gpu.id);
     if (form.remote_endpoint) {
@@ -1336,6 +1361,16 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
       setRemoteMessage("The dataset changed the recommended VM. Update the Modal workspace to apply it, then verify readiness.");
     }
   }, [modalGpuRecommendation?.gpu.id, modalRecommendationKey, form.modal_gpu, form.remote_endpoint, form.execution_target, form.remote_connection, form.remote_provider, connectionBusy]);
+
+  useEffect(() => {
+    if (loadedExecution.current || form.dask_worker_hosts.trim() || (form.execution_target === "remote" && form.remote_connection === "ssh")) return;
+    setForm((current) => ({
+      ...current,
+      num_workers: machineProfile.workers,
+      threads_per_worker: storedMachineThreads(machineProfile),
+      worker_memory_limit: `${machineProfile.memoryPerWorkerGiB}GB`,
+    }));
+  }, [machineProfile.key]);
 
   useEffect(() => {
     if (!selectedSample || preparedSample?.path !== "") return;
@@ -1360,7 +1395,7 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
   };
 
   const updateModalGpu = (value: string) => {
-    modalGpuEdited.current = true;
+    modalGpuChosenByUser.current = true;
     set("modal_gpu", value);
     setRemote(null);
     setModalWorkspaceIssue(Boolean(form.remote_endpoint));
@@ -1645,7 +1680,8 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
   return <form id="runForm" onSubmit={submit}>
     <div className="panel-intro"><span>NEW RECONSTRUCTION</span>
       {schemaLoading ? <small className="catalog-sync"><RefreshCw className="spin" size={10}/> Syncing workspace options…</small>
-        : schemaError ? <button className="catalog-sync failed" type="button" onClick={onRetrySchema}><CircleAlert size={10}/> Options offline · Retry</button> : null}
+        : schemaError ? <button className="catalog-sync failed" type="button" onClick={onRetrySchema}><CircleAlert size={10}/> Options offline · Retry</button>
+        : <button className="catalog-sync" type="button" onClick={onRetrySchema}><RefreshCw size={10}/> Refresh options</button>}
       <p>Configure the source, pipeline, and compute target.</p>
     </div>
     <Section number="01" title="Input" subtitle="Choose the images to reconstruct">
@@ -1661,6 +1697,11 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
           setLoaderOptions(recommendations?.loader_options ?? {});
           setForm((current) => ({ ...current, sample_id: preparedSample?.sample.id ?? "", dataset_dir: preparedSample?.path ?? "", images_dir: "", loader: recommendations?.loader ?? current.loader }));
         }}><Database size={13} /> GTSFM samples</button>
+        <button type="button" className={`target-choice ${inputMode === "previous" ? "active" : ""}`} onClick={() => {
+          setInputMode("previous"); setLoaderOptions({}); setError("");
+          setForm((current) => ({ ...current, sample_id: "", dataset_dir: previousFolder?.path ?? "", images_dir: previousImages?.path ?? "", loader: inputMode === "sample" ? EMPTY_FORM.loader : current.loader }));
+          void refreshUploads();
+        }}><FolderUp size={13} /> Previous uploads</button>
       </div>
       {inputMode === "upload" ? <>
         <FolderDropField label="Dataset folder" value={datasetFolder} onError={setError} onUploaded={(folder) => {
@@ -1670,7 +1711,24 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
         <FolderDropField label="Separate images folder" optional value={imagesFolder} onError={setError} onUploaded={(folder) => {
           setImagesFolder(folder); set("images_dir", folder?.path ?? "");
         }} />
-      </> : <div className="sample-picker">
+      </> : inputMode === "previous" ? <div className="sample-picker">
+        <SelectField label="Previously uploaded folder" value={previousFolder?.id ?? ""}
+          options={previousUploads.map((folder) => ({ id: folder.id, label: `${folder.name} · ${folder.analysis.image_count} image${folder.analysis.image_count === 1 ? "" : "s"} · ${folder.uploaded_at ? new Date(folder.uploaded_at * 1000).toLocaleString() : folder.id}` }))}
+          empty={uploadsLoading ? "Loading previous uploads…" : "Choose an uploaded folder…"} disabled={uploadsLoading}
+          onChange={(id) => {
+            const folder = previousUploads.find((item) => item.id === id) ?? null;
+            setPreviousFolder(folder); setPreviousImages(null); setError("");
+            setForm((current) => ({ ...current, sample_id: "", dataset_dir: folder?.path ?? "", images_dir: "", name: folder?.name ?? current.name }));
+          }} />
+        {previousFolder && <p className="field-help">{previousFolder.file_count.toLocaleString()} file{previousFolder.file_count === 1 ? "" : "s"} · {formatBytes(previousFolder.bytes)} · Ready to reuse</p>}
+        <SelectField label="Separate uploaded images folder (optional)" value={previousImages?.id ?? ""}
+          options={previousUploads.map((folder) => ({ id: folder.id, label: `${folder.name} · ${folder.id}` }))}
+          empty="Use images from the dataset folder" disabled={uploadsLoading}
+          onChange={(id) => { const folder = previousUploads.find((item) => item.id === id) ?? null; setPreviousImages(folder); set("images_dir", folder?.path ?? ""); }} />
+        {!uploadsLoading && !uploadsError && !previousUploads.length && <p className="field-help">No previous uploads yet. Use “Upload your own” to add a folder.</p>}
+        {uploadsError && <p className="job-error" role="alert">{uploadsError}</p>}
+        <button type="button" className="text-button" disabled={uploadsLoading} onClick={() => void refreshUploads()}><RefreshCw size={12} /> Refresh uploads</button>
+      </div> : <div className="sample-picker">
         <SelectField label="Sample scene" value={form.sample_id} options={samples} empty={samplesLoading ? "Loading GTSFM samples…" : "Choose a GTSFM sample…"} onChange={chooseSample} disabled={sampleBusy || samplesLoading} />
         {form.sample_id && <div className={`sample-card ${preparedSample ? "ready" : ""}`}>
           <span className="sample-state">{sampleBusy ? <RefreshCw className="spin" size={14} /> : preparedSample ? <Check size={14} /> : <Database size={14} />}</span>
@@ -1824,11 +1882,14 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
         <div className="machine-profile-summary">
           <div><span>MACHINE PROFILE</span><strong>{machineProfile.label}</strong></div>
           <p>{machineProfile.description}</p>
-          <div className="machine-profile-specs"><span>{form.num_workers} worker{Number(form.num_workers) === 1 ? "" : "s"}</span><span>{form.threads_per_worker} threads / worker</span><span>{form.worker_memory_limit} / worker</span></div>
+          <div className="machine-profile-specs"><span>{form.num_workers} worker{Number(form.num_workers) === 1 ? "" : "s"}</span><span>{form.threads_per_worker} thread{Number(form.threads_per_worker) === 1 ? "" : "s"} / worker</span><span>{form.worker_memory_limit} / worker</span></div>
         </div>
         <div className="form-grid">
           <TextField label="Workers" type="number" min="1" value={form.num_workers} onChange={(value) => set("num_workers", value)} disabled={!machineProfile.allowWorkers} title={!machineProfile.allowWorkers ? "Fixed for the selected single-GPU machine" : undefined} />
-          <TextField label="Threads / worker" type="number" min="1" value={form.threads_per_worker} onChange={(value) => set("threads_per_worker", value)} disabled={!machineProfile.allowThreads} />
+          <TextField label="Threads / worker" type="number" min="1" value={form.threads_per_worker} onChange={(value) => {
+            set("threads_per_worker", value);
+            rememberMachineThreads(machineProfile, value);
+          }} disabled={!machineProfile.allowThreads} />
           <TextField label="Memory / worker" value={form.worker_memory_limit} onChange={(value) => set("worker_memory_limit", value)} disabled={!machineProfile.allowMemory} />
         </div>
         {!machineProfile.allowWorkers && <p className="advanced-machine-note">Worker count is locked because the selected machine exposes one GPU. Choose a CPU machine to distribute work across multiple workers.</p>}
@@ -1851,11 +1912,12 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
       </Collapsible.Content>
     </Collapsible.Root>
     <div className="form-error" role="alert">{error}</div>
-    <button className="primary-action" type="submit" disabled={busy || sampleBusy || modalDeploying || modalDiscovering || remoteChecking || (inputMode === "sample" && !preparedSample) || (form.execution_target === "remote" && (form.remote_connection === "ssh" ? !form.ssh_host || !form.ssh_workspace : !form.remote_endpoint || !form.modal_api_key || !remote?.verified))}><span>{busy ? "Starting…" : sampleBusy ? "Preparing sample…" : modalActionLabel}</span>{busy || sampleBusy || modalDeploying || modalDiscovering || remoteChecking ? <RefreshCw className="spin" size={14} /> : <Play size={14} fill="currentColor" />}</button>
+    <button className="primary-action" type="submit" disabled={busy || sampleBusy || modalDeploying || modalDiscovering || remoteChecking || (inputMode === "previous" && (!previousFolder || uploadsLoading)) || (inputMode === "sample" && !preparedSample) || (form.execution_target === "remote" && (form.remote_connection === "ssh" ? !form.ssh_host || !form.ssh_workspace : !form.remote_endpoint || !form.modal_api_key || !remote?.verified))}><span>{busy ? "Starting…" : sampleBusy ? "Preparing sample…" : modalActionLabel}</span>{busy || sampleBusy || modalDeploying || modalDiscovering || remoteChecking ? <RefreshCw className="spin" size={14} /> : <Play size={14} fill="currentColor" />}</button>
   </form>;
 }
 
-const statusLabel = (status: JobStatus): string => ({ queued: "Queued", running: "Running", completed: "Completed", failed: "Failed", cancelled: "Cancelled" })[status];
+const statusLabel = (status: JobStatus): string => ({ queued: "Queued", running: "Running", completed: "Completed", failed: "Failed", cancelled: "Cancelled", interrupted: "Interrupted" })[status];
+const canRetryJob = (job: Job): boolean => ["failed", "interrupted"].includes(job.status) && job.retry_available !== false;
 
 function SplatDownload({ jobId, compact = false }: { jobId: string; compact?: boolean }) {
   const href = `/api/jobs/${encodeURIComponent(jobId)}/splat?format=ply`;
@@ -1866,6 +1928,7 @@ function SplatDownload({ jobId, compact = false }: { jobId: string; compact?: bo
 }
 
 interface ActivityPanelProps {
+  onRetried: (job: Job) => void;
   jobs: Job[];
   activeId: string | null;
   onSelect: (id: string) => void;
@@ -1873,13 +1936,69 @@ interface ActivityPanelProps {
   onRefresh: () => void;
 }
 
-function ActivityPanel({ jobs, activeId, onSelect, onCancel, onRefresh }: ActivityPanelProps) {
+function CopyDiagnosticPrompt({ jobId }: { jobId: string }) {
+  const [state, setState] = useState<"idle" | "loading" | "copied" | "error">("idle");
+  const [error, setError] = useState("");
+  useEffect(() => {
+    if (state !== "copied") return;
+    const timer = window.setTimeout(() => setState("idle"), 2000);
+    return () => window.clearTimeout(timer);
+  }, [state]);
+
+  const copyPrompt = async () => {
+    setState("loading");
+    setError("");
+    try {
+      const { prompt } = await getJson<{ prompt: string }>(`/api/jobs/${encodeURIComponent(jobId)}/diagnostic-prompt`);
+      if (!await copyTextToClipboard(prompt)) throw new Error("Clipboard access failed. Please try copying again.");
+      setState("copied");
+    } catch (reason) {
+      setError(errorMessage(reason));
+      setState("error");
+    }
+  };
+
+  return <span className="diagnostic-prompt-action">
+    <button className="text-button" type="button" onClick={copyPrompt} disabled={state === "loading"} title="Copy a diagnosis request with the CLI command and full run log">
+      {state === "copied" ? <Check size={12}/> : <Copy size={12}/>}
+      {state === "loading" ? "Preparing prompt…" : state === "copied" ? "Copied!" : "Copy diagnostic prompt"}
+    </button>
+    {error && <span className="job-error" role="alert">{error}</span>}
+  </span>;
+}
+
+function RetryJob({ jobId, onStarted, compact = false }: { jobId: string; onStarted: (job: Job) => void; compact?: boolean }) {
+  const pending = useRef(false);
+  const [starting, setStarting] = useState(false);
+  const [error, setError] = useState("");
+  const retry = async () => {
+    if (pending.current) return;
+    pending.current = true;
+    setStarting(true); setError("");
+    try {
+      const job = await getJson<Job>(`/api/jobs/${encodeURIComponent(jobId)}/retry`, { method: "POST" });
+      onStarted(job);
+    } catch (reason) { setError(errorMessage(reason)); }
+    finally { pending.current = false; setStarting(false); }
+  };
+  return <span className="retry-job-action">
+    <button className={compact ? "secondary-action" : "text-button"} type="button" onClick={retry} disabled={starting} title="Start a new run with these settings and the current code">
+      <RefreshCw size={12} className={starting ? "spin" : undefined}/>{starting ? "Retrying…" : "Retry"}
+    </button>
+    {error && <span className="job-error" role="alert">{error}</span>}
+  </span>;
+}
+
+function ActivityPanel({ jobs, activeId, onSelect, onCancel, onRefresh, onRetried }: ActivityPanelProps) {
   return <div><div className="panel-title"><div><h3>Activity</h3><p>Running and recent jobs</p></div><button className="icon-button" title="Refresh" onClick={onRefresh}><RefreshCw size={14} /></button></div>
     <div className="job-list">{jobs.length ? jobs.map((job) => <article key={job.id} className={`job-card ${job.id === activeId ? "selected" : ""}`}>
       <div className="job-card-top"><strong>{job.name}</strong><span className={`job-status ${job.status}`}>{statusLabel(job.status)}</span></div>
       <small>{displayName(job.spec.config_name || "GTSFM")} · {displayName(job.spec.splat_implementation || "no_splats")}</small>
       {job.error && <p className="job-error">{job.error}</p>}
-      <div className="job-actions"><button className="text-button" onClick={() => onSelect(job.id)}>{job.has_final_splat ? "View splat" : ["queued", "running"].includes(job.status) ? "View progress" : "View details"}</button>
+      {job.history_note && <p className="job-history-note">{job.history_note}</p>}
+      {job.created_at && <time className="job-created" dateTime={job.created_at}>{new Date(job.created_at).toLocaleString()}</time>}
+      {job.status === "failed" && <CopyDiagnosticPrompt key={job.id} jobId={job.id} />}
+      <div className="job-actions">{canRetryJob(job) && <RetryJob jobId={job.id} onStarted={onRetried}/>}<button className="text-button" onClick={() => onSelect(job.id)}>{job.has_final_splat ? "View splat" : ["queued", "running"].includes(job.status) ? "View progress" : "View details"}</button>
         {["queued", "running"].includes(job.status) && <button className="text-button danger" onClick={() => onCancel(job.id)}><Square size={9} fill="currentColor"/> Stop</button>}
         {job.status === "completed" && (!job.remote || job.spec.remote_connection === "ssh") && job.output_root && <><a className="text-button" href={`/?view=results&run=${encodeURIComponent(job.output_root)}`}>View results</a><a className="text-button" href={`/api/jobs/${encodeURIComponent(job.id)}/results`} download>Download results</a></>}
         {job.remote?.workspace_url && <a className="text-button" href={job.remote.workspace_url} target="_blank" rel="noreferrer">Remote results ↗</a>}
@@ -1887,16 +2006,42 @@ function ActivityPanel({ jobs, activeId, onSelect, onCancel, onRefresh }: Activi
   </div>;
 }
 
-function ResultsPanel() {
+function ResultsPanel({ onStarted, refreshKey }: { onStarted: (job: Job) => void; refreshKey: string }) {
+  const [scene, setScene] = useState<ResultItem | null>(null);
+  const [steps, setSteps] = useState("7000");
+  const [starting, setStarting] = useState(false);
+  const [error, setError] = useState("");
+  const start = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!scene || starting) return;
+    setStarting(true); setError("");
+    try {
+      const job = await getJson<Job>("/api/scenes/splatify", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scene: scene.rel_path, gs_max_steps: Number(steps) }),
+      });
+      setScene(null); onStarted(job);
+    } catch (reason) { setError(errorMessage(reason)); }
+    finally { setStarting(false); }
+  };
   const runRoot = new URLSearchParams(location.search).get("run");
   return <div><div className="panel-title"><div><h3>Reconstructions</h3><p>Open a scene in the 3D viewer</p></div></div>
     {runRoot && <a className="text-button" href="/?view=results">View all results</a>}
-    <div id="info" className="info-summary" role="status"><div className="info-pill" data-role="count">—</div><div className="info-details"><div className="info-title" data-role="title">Loading reconstructions…</div><div className="info-path" data-role="path">Checking workspace…</div></div></div>
-    <input type="text" id="filter" placeholder="Filter scenes…" aria-label="Filter scenes" /><div id="sceneList" />
+    {scene && <form className="splat-result-form" onSubmit={start}>
+      <strong>Splatify this reconstruction</strong>
+      <small className="result-path">{scene.rel_path}</small>
+      <p>{(scene.point_count ?? 0).toLocaleString()} points · {(scene.camera_count ?? 0).toLocaleString()} cameras. Train Gaussian splats from the saved cameras and original photos.</p>
+      <TextField label="Training steps" type="number" min="1" value={steps} onChange={setSteps} />
+      {error && <p className="job-error" role="alert">{error}</p>}
+      <div className="job-actions"><button className="primary-action" type="submit" disabled={starting || !Number.isInteger(Number(steps)) || Number(steps) < 1}>{starting ? "Starting…" : "Start splatting"}</button><button className="text-button" type="button" disabled={starting} onClick={() => setScene(null)}>Cancel</button></div>
+    </form>}
+    <ResultsBrowser refreshKey={refreshKey} onSplatify={(item) => { setScene(item); setError(""); }}/>
+
   </div>;
 }
 
 interface StatusBarProps {
+  onRetried: (job: Job) => void;
   job: Job | null;
   live: LiveState | null;
   logsOpen: boolean;
@@ -1912,7 +2057,7 @@ interface StatusBarPosition {
   width: number;
 }
 
-function StatusBar({ job, live, logsOpen, setLogsOpen, visible, onCancel, onClose }: StatusBarProps) {
+function StatusBar({ job, live, logsOpen, setLogsOpen, visible, onCancel, onClose, onRetried }: StatusBarProps) {
   const barRef = useRef<HTMLDivElement>(null);
   const dragStart = useRef<{
     pointerX: number;
@@ -1990,17 +2135,18 @@ function StatusBar({ job, live, logsOpen, setLogsOpen, visible, onCancel, onClos
   const progress = typeof live?.progress === "number" && Number.isFinite(live.progress) ? live.progress : job.status === "completed" ? 1 : 0;
   const loss = typeof live?.loss === "number" && Number.isFinite(live.loss) ? `loss ${live.loss.toFixed(4)}` : "";
   const splatCount = typeof live?.splat_count === "number" && Number.isFinite(live.splat_count) ? `${live.splat_count.toLocaleString()} splats` : "";
-  const stage = job.status === "completed" ? "Reconstruction complete" : job.status === "failed" ? "Reconstruction failed" : job.status === "cancelled" ? "Reconstruction cancelled" : job.status === "queued" ? "Waiting to start" : live?.stage === "gaussian_splatting" ? "Optimizing Gaussian splats" : "Running reconstruction pipeline";
+  const stage = job.status === "completed" ? "Reconstruction complete" : job.status === "failed" ? "Reconstruction failed" : job.status === "cancelled" ? "Reconstruction cancelled" : job.status === "interrupted" ? "Previous run outcome unconfirmed" : job.status === "queued" ? "Waiting to start" : live?.stage === "gaussian_splatting" ? "Optimizing Gaussian splats" : "Running reconstruction pipeline";
   const style = position ? { left: position.left, top: position.top, width: position.width, right: "auto", bottom: "auto" } : undefined;
   return <div ref={barRef} className={`run-status-bar ${dragging ? "is-dragging" : ""}`} data-status={job.status} style={style} title="Drag to move run status" onPointerDown={beginDrag} onPointerMove={moveDrag} onPointerUp={finishDrag} onPointerCancel={finishDrag}>
     <div className="status-copy status-drag-handle" onDoubleClick={() => setPosition(null)}><span className="status-dot"/><div><strong>{job.name} · {statusLabel(job.status)}</strong><small>{job.error || stage}</small></div></div>
     <div className="status-metrics"><span>{live?.max_steps ? `${Number(live.step).toLocaleString()} / ${Number(live.max_steps).toLocaleString()} steps` : ""}</span><span>{loss}</span><span>{splatCount}</span></div>
-    <div className="status-actions">{job.has_final_splat && <SplatDownload jobId={job.id} />}{["queued", "running"].includes(job.status) && <button className="secondary-action stop-process" type="button" onClick={() => onCancel(job.id)}><Square size={10} fill="currentColor"/> Stop</button>}<button className="secondary-action" onClick={() => setLogsOpen(!logsOpen)}><Terminal size={13}/> Logs</button><button className="status-close" type="button" title="Close run status" aria-label="Close run status" onClick={onClose}><X size={15}/></button></div>
+    <div className="status-actions">{canRetryJob(job) && <RetryJob key={job.id} jobId={job.id} onStarted={onRetried} compact/>}{job.has_final_splat && <SplatDownload jobId={job.id} />}{["queued", "running"].includes(job.status) && <button className="secondary-action stop-process" type="button" onClick={() => onCancel(job.id)}><Square size={10} fill="currentColor"/> Stop</button>}<button className="secondary-action" onClick={() => setLogsOpen(!logsOpen)}><Terminal size={13}/> Logs</button><button className="status-close" type="button" title="Close run status" aria-label="Close run status" onClick={onClose}><X size={15}/></button></div>
     <Progress.Root className="run-progress-track" value={progress * 100}><Progress.Indicator className="run-progress-fill" style={{ transform: `translateX(-${100 - progress * 100}%)` }} /></Progress.Root>
   </div>;
 }
 
 interface ViewerProps {
+  onRetried: (job: Job) => void;
   activeJob: Job | null;
   live: LiveState | null;
   logsOpen: boolean;
@@ -2028,7 +2174,7 @@ function shellCommand(args: string[]): string {
   return args.map((arg) => /^[A-Za-z0-9_@%+=:,./-]+$/.test(arg) ? arg : `'${arg.replace(/'/g, "'\\''")}'`).join(" ");
 }
 
-function LogPanel({ open, job, onClose }: { open: boolean; job: Job | null; onClose: () => void }) {
+function LogPanel({ open, job, onClose, onRetried }: { open: boolean; job: Job | null; onClose: () => void; onRetried: (job: Job) => void }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const copyReset = useRef<number | null>(null);
   const [geometry, setGeometry] = useState<LogPanelGeometry | null>(null);
@@ -2133,9 +2279,6 @@ function LogPanel({ open, job, onClose }: { open: boolean; job: Job | null; onCl
   };
 
   if (!open) return null;
-  const logFontSize = geometry
-    ? Math.max(8, Math.min(16, 9 + (geometry.width - 420) / 140 + (geometry.height - 240) / 120))
-    : 9;
   const style = geometry ? ({
     left: geometry.left,
     top: geometry.top,
@@ -2143,12 +2286,13 @@ function LogPanel({ open, job, onClose }: { open: boolean; job: Job | null; onCl
     height: geometry.height,
     right: "auto",
     bottom: "auto",
-    "--log-font-size": `${logFontSize}px`,
   } as React.CSSProperties) : undefined;
   return <div ref={panelRef} className="log-drawer" role="dialog" aria-label="Run details" style={style}>
     {(["nw", "ne", "sw", "se"] as LogResizeCorner[]).map((corner) => <button key={corner} className={`log-resize-handle ${corner}`} type="button" title="Resize logs" aria-label={`Resize logs from ${corner}`} onPointerDown={beginResize(corner)} />)}
     <div className="log-header" onPointerDown={beginDrag}><strong><Terminal size={12}/> Run details</strong><div className="log-header-actions"><button type="button" title="Minimize run details" aria-label="Minimize run details" onClick={onClose}><Minus size={15}/></button><button type="button" title="Close run details" aria-label="Close run details" onClick={onClose}><X size={14}/></button></div></div>
     {job && <div className="run-details-summary"><strong>{job.name}</strong><span className={`job-status ${job.status}`}>{statusLabel(job.status)}</span>{job.return_code != null && <span>Exit code {job.return_code}</span>}{job.output_root && <div className="run-output-path"><span>Output</span><code>{job.output_root}</code></div>}{job.error && <p className="job-error">{job.error}</p>}</div>}
+    {job?.history_note && <p className="job-history-note run-history-note">{job.history_note}</p>}
+    {job && ["failed", "interrupted"].includes(job.status) && <div className="run-diagnostic-prompt">{canRetryJob(job) && <RetryJob key={`retry-${job.id}`} jobId={job.id} onStarted={onRetried}/>}<CopyDiagnosticPrompt key={job.id} jobId={job.id} /></div>}
     <section className="run-command" aria-label={remoteRequest ? "Remote request" : "CLI command"}>
       <div className="run-detail-heading"><strong>{remoteRequest ? "Remote request" : "CLI command"}</strong><button type="button" disabled={!command} onClick={() => copy("command")} aria-label={remoteRequest ? "Copy remote request" : "Copy command"}>{copied === "command" ? <Check size={12}/> : <Copy size={12}/>} {copied === "command" ? "Copied!" : "Copy"}</button></div>
       <pre>{command || "No command recorded for this run."}</pre>
@@ -2165,7 +2309,7 @@ function SetupPanel({ setup, refreshing, onRefresh, onSetupChange, hasActiveJob 
   onSetupChange: (setup: SetupStatus) => void;
   hasActiveJob: boolean;
 }) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const [closed, setClosed] = useState(false);
   const [installingId, setInstallingId] = useState<string | null>(null);
   const [actionErrors, setActionErrors] = useState<Record<string, string>>({});
@@ -2243,21 +2387,25 @@ function pipelineStatusMessage(job: Job, live: LiveState | null): string {
   return latestStatus?.replace(/^.*?\b(?:DEBUG|INFO|WARNING|ERROR|CRITICAL):\s*/, "") || "GTSFM: Preparing the reconstruction pipeline…";
 }
 
-function Viewer({ activeJob, live, logsOpen, setLogsOpen, statusBarOpen, setStatusBarOpen, onCancelJob, setup, setupRefreshing, onRefreshSetup, onSetupChange }: ViewerProps) {
+function Viewer({ activeJob, live, logsOpen, setLogsOpen, statusBarOpen, setStatusBarOpen, onCancelJob, onRetried, setup, setupRefreshing, onRefreshSetup, onSetupChange }: ViewerProps) {
   const closeStatus = () => { setStatusBarOpen(false); setLogsOpen(false); };
   const showDaskStats = Boolean(activeJob && ["queued", "running"].includes(activeJob.status));
   const expectsSplats = Boolean(activeJob && (activeJob.spec.splat_implementation || "none") !== "none");
   const visualizationAvailable = Boolean(live?.preview_url || live?.final_url || activeJob?.has_final_splat);
   const showPipelineWait = Boolean(activeJob && expectsSplats && ["queued", "running"].includes(activeJob.status) && !visualizationAvailable);
-  return <><main id="main-content"><StatusBar job={activeJob} live={live} logsOpen={logsOpen} setLogsOpen={setLogsOpen} visible={statusBarOpen} onCancel={onCancelJob} onClose={closeStatus} />
+  return <><main id="main-content"><StatusBar job={activeJob} live={live} logsOpen={logsOpen} setLogsOpen={setLogsOpen} visible={statusBarOpen} onCancel={onCancelJob} onClose={closeStatus} onRetried={onRetried} />
+    <div className="viewer-top-panels">
+    <SceneStats>{showDaskStats && activeJob && <DaskStats job={activeJob} live={live}/>}</SceneStats>
+    <ViewControls/>
     <SetupPanel setup={setup} refreshing={setupRefreshing} onRefresh={onRefreshSetup} onSetupChange={onSetupChange} hasActiveJob={Boolean(activeJob && statusBarOpen)} />
-    <div id="sceneStats" className={showDaskStats ? "dask-active" : undefined}><div className="stat-group" data-mode="scene"><div className="stat-pair"><span className="label">Cameras</span><span className="value" id="statCameras">0</span></div><div className="stat-pair"><span className="label">Points</span><span className="value" id="statPoints">0</span></div><div className="stat-wide"><span className="label">Image</span><span className="value" id="statImageName">—</span></div></div><div className="stat-group" data-mode="splat"><div className="stat-pair"><span className="label">Splats</span><span className="value" id="statSplats">0</span></div></div>{showDaskStats && activeJob && <DaskStats job={activeJob} live={live}/>}</div>
-    <canvas id="renderCanvas"/>
-    <div id="hud"><label className="background-control">BG <select id="backgroundSelect" defaultValue="dark" aria-label="Viewer background"><option value="dark">Dark</option><option value="graphite">Graphite</option><option value="light-gray">Light gray</option><option value="white">White</option></select></label><button id="overviewBtn" className="hud-scene-only" title="Show the reconstruction and all cameras">Overview</button><button id="prevCamBtn" className="hud-scene-only" title="Previous camera"><ChevronLeft size={14}/></button><button id="nextCamBtn" className="hud-scene-only" title="Next camera"><ChevronRight size={14}/></button><button id="toggleStats">Hide stats</button><label className="hud-scene-only"><input type="checkbox" id="toggleCams" defaultChecked/> Cameras</label><label className="hud-scene-only">Point size <input type="range" id="ptSize" min="1" max="10" defaultValue="2"/></label><button id="toggleGround" type="button" aria-pressed="false">Show plane</button><label className="plane-height-control">Plane Z <input type="range" id="groundY" min="-5" max="5" step="0.1" defaultValue="0" aria-label="Plane height along reconstruction Z"/><output id="groundYValue" htmlFor="groundY">0.0</output></label></div>
+    </div>
+    <ViewerCanvas/>
+    <div id="viewer-startup-anchor"/>
+    <ViewerToolbar/>
     <a className="viewport-github" href="https://github.com/borglab/gtsfm" target="_blank" rel="noreferrer" title="Open GTSFM on GitHub" aria-label="Open GTSFM GitHub repository"><Github size={16}/></a>
-    <LogPanel open={logsOpen} job={activeJob} onClose={() => setLogsOpen(false)} />
+    <LogPanel open={logsOpen} job={activeJob} onClose={() => setLogsOpen(false)} onRetried={onRetried} />
     {showPipelineWait && activeJob && <div className="pipeline-wait-overlay" role="status" aria-live="polite"><div className="pipeline-wait-content"><span>RECONSTRUCTION IN PROGRESS</span><strong>{pipelineStatusMessage(activeJob, live)}</strong><div className="pipeline-wait-dots" aria-hidden="true"><i/><i/><i/></div><small>The first live Gaussian preview will appear here automatically.</small></div></div>}
-    <div id="loadingOverlay" className="loading-overlay" role="status"><div className="loading-box"><span id="loadingMessage">Loading…</span><div className="loading-progress-track"><div className="loading-progress-fill" id="loadingProgress"/></div></div></div>
+    <ViewerLoading/>
   </main><PhotoPanel/></>;
 }
 
@@ -2342,10 +2490,11 @@ function storedSidebarWidth(): number {
 }
 
 function App() {
+  const { viewer } = useViewerApi();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(storedSidebarWidth);
   const [sidebarResizing, setSidebarResizing] = useState(false);
-  const sidebarResizeStart = useRef<{ pointerX: number; width: number } | null>(null);
+  const sidebarResizeStart = useRef<{ pointerX: number; width: number; pointerId: number; target: HTMLDivElement } | null>(null);
   const [tab, setTab] = useState(new URLSearchParams(location.search).get("view") === "results" ? "results" : "run");
   const [schema, setSchema] = useState<ConfigurationSchema>(BOOTSTRAP_SCHEMA);
   const [schemaLoading, setSchemaLoading] = useState(true);
@@ -2366,15 +2515,17 @@ function App() {
   const finalLoaded = useRef<string | null>(null);
 
   const finishSidebarResize = useCallback(() => {
+    const start = sidebarResizeStart.current;
     sidebarResizeStart.current = null;
     setSidebarResizing(false);
     document.body.classList.remove("sidebar-is-resizing");
+    if (start?.target.hasPointerCapture(start.pointerId)) start.target.releasePointerCapture(start.pointerId);
   }, []);
 
   const startSidebarResize = (event: React.PointerEvent<HTMLDivElement>) => {
     if (sidebarCollapsed || event.button !== 0) return;
     event.preventDefault();
-    sidebarResizeStart.current = { pointerX: event.clientX, width: sidebarWidth };
+    sidebarResizeStart.current = { pointerX: event.clientX, width: sidebarWidth, pointerId: event.pointerId, target: event.currentTarget };
     event.currentTarget.setPointerCapture(event.pointerId);
     setSidebarResizing(true);
     document.body.classList.add("sidebar-is-resizing");
@@ -2383,6 +2534,7 @@ function App() {
   const moveSidebarResize = (event: React.PointerEvent<HTMLDivElement>) => {
     const start = sidebarResizeStart.current;
     if (!start) return;
+    if (event.buttons === 0) { finishSidebarResize(); return; }
     setSidebarWidth(constrainSidebarWidth(start.width + event.clientX - start.pointerX));
   };
 
@@ -2398,6 +2550,20 @@ function App() {
   };
 
   useEffect(() => () => document.body.classList.remove("sidebar-is-resizing"), []);
+  useEffect(() => {
+    if (!sidebarResizing) return;
+    const visibilityChanged = () => { if (document.hidden) finishSidebarResize(); };
+    window.addEventListener("pointerup", finishSidebarResize, true);
+    window.addEventListener("pointercancel", finishSidebarResize, true);
+    window.addEventListener("blur", finishSidebarResize);
+    document.addEventListener("visibilitychange", visibilityChanged);
+    return () => {
+      window.removeEventListener("pointerup", finishSidebarResize, true);
+      window.removeEventListener("pointercancel", finishSidebarResize, true);
+      window.removeEventListener("blur", finishSidebarResize);
+      document.removeEventListener("visibilitychange", visibilityChanged);
+    };
+  }, [sidebarResizing, finishSidebarResize]);
   useEffect(() => {
     try { window.localStorage.setItem(SIDEBAR_WIDTH_KEY, String(sidebarWidth)); } catch { /* storage is optional */ }
   }, [sidebarWidth]);
@@ -2439,38 +2605,31 @@ function App() {
   }, []);
 
   useEffect(() => { void loadSchema(); void loadHardware(); void loadSamples(); void refreshJobs(); }, [loadSchema, loadHardware, loadSamples, refreshJobs]);
+  useEffect(() => {
+    const refresh = () => { if (!document.hidden) void loadSchema(); };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [loadSchema]);
   const activeJob = jobs.find((job) => job.id === activeId) ?? null;
 
   useEffect(() => { if (activeId) setStatusBarOpen(true); }, [activeId]);
 
-  useEffect(() => {
-    let socket: WebSocket | null = null;
-    let retry: number | null = null;
-    let stopped = false;
-    const connect = () => {
-      socket = new WebSocket(websocketUrl("/api/events/jobs"));
-      socket.onmessage = (event) => {
-        const payload = JSON.parse(event.data) as JobsResponse;
-        setJobs(payload.items || []);
-        setActiveId((current) => current || payload.items?.find((job) => ["queued", "running"].includes(job.status))?.id || null);
-      };
-      socket.onclose = () => { if (!stopped) retry = window.setTimeout(connect, 1000); };
-    };
-    connect();
-    return () => { stopped = true; if (retry !== null) clearTimeout(retry); socket?.close(); };
-  }, []);
-
-  useEffect(() => {
-    if (!activeJob) { setLive(null); return; }
-    setLive(null);
-    const socket = new WebSocket(websocketUrl(`/api/events/jobs/${encodeURIComponent(activeJob.id)}`));
-    socket.onmessage = (event) => {
-      const payload = JSON.parse(event.data) as JobEvent;
-      setJobs((current) => current.map((job) => job.id === payload.job.id ? payload.job : job));
-      setLive(payload.live);
-    };
-    return () => socket.close();
-  }, [activeJob?.id]);
+  const jobsConnection = useJobStream<JobsResponse>("/api/events/jobs", (payload) => {
+    setJobs(payload.items || []);
+    setActiveId((current) => current || payload.items?.find((job) => ["queued", "running"].includes(job.status))?.id || null);
+  });
+  useEffect(() => { setLive(null); }, [activeJob?.id]);
+  const liveConnection = useJobStream<JobEvent>(activeJob ? `/api/events/jobs/${encodeURIComponent(activeJob.id)}` : null, (payload) => {
+    setJobs((current) => current.map((job) => job.id === payload.job.id ? payload.job : job));
+    setLive(payload.live);
+  });
+  const connectionMessage = [jobsConnection, liveConnection].includes("unavailable")
+    ? "Live updates unavailable. Reload Studio to reconnect."
+    : [jobsConnection, liveConnection].includes("reconnecting") ? "Connection interrupted. Reconnecting to live updates…" : "";
 
   useEffect(() => {
     if (!activeJob || !live) return;
@@ -2490,12 +2649,11 @@ function App() {
     let loadFailures = 0;
     const tryLoad = async () => {
       if (cancelled) return;
-      const viewer = window.gtsfmViewer;
       if (!viewer || viewer.isBusy()) {
         retry = window.setTimeout(() => { void tryLoad(); }, 250);
         return;
       }
-      const loaded = await viewer.loadSplatsFile({ splatsUrl: desired.url, label: desired.label });
+      const loaded = await viewer.loadSplatsFile({ splatsUrl: desired.url, label: desired.label, streamId: activeJob.id });
       if (cancelled) return;
       if (loaded === false) {
         loadFailures += 1;
@@ -2510,7 +2668,14 @@ function App() {
       cancelled = true;
       if (retry !== null) window.clearTimeout(retry);
     };
-  }, [activeJob?.id, activeJob?.status, live?.final_url, live?.preview_url, live?.preview_version, viewerLoadRequest]);
+  }, [activeJob?.id, activeJob?.status, live?.final_url, live?.preview_url, live?.preview_version, viewerLoadRequest, viewer]);
+
+  const onRetried = (job: Job) => {
+    setJobs((current) => [job, ...current.filter((item) => item.id !== job.id)]);
+    setActiveId(job.id);
+    setStatusBarOpen(true); setLogsOpen(true); setTab("activity");
+    void refreshJobs();
+  };
 
   const cancelJob = async (id: string) => { await fetch(`/api/jobs/${encodeURIComponent(id)}/cancel`, { method: "POST" }); await refreshJobs(); };
   const activeCount = jobs.filter((job) => ["queued", "running"].includes(job.status)).length;
@@ -2519,14 +2684,15 @@ function App() {
   const useRemoteVm = () => { setTab("run"); setRemotePromptKey((current) => current + 1); };
   return <div className="app-shell"><aside id="sidebar" className={`${sidebarCollapsed ? "sidebar-collapsed" : ""} ${sidebarResizing ? "sidebar-resizing" : ""}`} style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}><Brand collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed((current) => !current)} />
     {showHardwareWarning && hardware && <HardwareWarning key={hardwareWarningContent(hardware).title} hardware={hardware} onUseRemote={useRemoteVm}/>}
+    {connectionMessage && <p className="connection-notice" role="status">{connectionMessage}</p>}
     <Tabs.Root className="workspace-tabs" value={tab} onValueChange={setTab}>
       <Tabs.List className="studio-tabs" aria-label="Workspace sections"><Tabs.Trigger className="studio-tab" value="run"><Play size={12}/> New run</Tabs.Trigger><Tabs.Trigger className="studio-tab" value="activity"><Activity size={12}/> Activity {activeCount > 0 && <span id="activeJobCount">{activeCount}</span>}</Tabs.Trigger><Tabs.Trigger className="studio-tab" value="results"><Box size={12}/> Results</Tabs.Trigger></Tabs.List>
       <Tabs.Content className="studio-panel" value="run" forceMount><RunForm schema={schema} hardware={hardware} samples={samples} samplesLoading={samplesLoading} onStarted={(job) => { setStatusBarOpen(true); setActiveId(job.id); refreshJobs(); }} onTabChange={setTab} remotePromptKey={remotePromptKey} schemaLoading={schemaLoading} schemaError={schemaError} onRetrySchema={() => { void loadSchema(); void loadSamples(); }}/></Tabs.Content>
-      <Tabs.Content className="studio-panel" value="activity" forceMount><ActivityPanel jobs={jobs} activeId={activeId} onSelect={(id) => { setStatusBarOpen(true); setLogsOpen(true); setActiveId(id); previewVersion.current = null; finalLoaded.current = null; setViewerLoadRequest((current) => current + 1); }} onCancel={cancelJob} onRefresh={refreshJobs}/></Tabs.Content>
-      <Tabs.Content className="studio-panel" value="results" forceMount><ResultsPanel /></Tabs.Content>
-    </Tabs.Root><div className="sidebar-resize-handle" role="separator" aria-label="Resize side panel" aria-orientation="vertical" aria-valuemin={SIDEBAR_MIN_WIDTH} aria-valuemax={SIDEBAR_MAX_WIDTH} aria-valuenow={sidebarWidth} tabIndex={sidebarCollapsed ? -1 : 0} title="Drag to resize side panel" onPointerDown={startSidebarResize} onPointerMove={moveSidebarResize} onPointerUp={finishSidebarResize} onPointerCancel={finishSidebarResize} onDoubleClick={() => setSidebarWidth(constrainSidebarWidth(420))} onKeyDown={resizeSidebarWithKeyboard}/></aside><Viewer activeJob={activeJob} live={live} logsOpen={logsOpen} setLogsOpen={setLogsOpen} statusBarOpen={statusBarOpen} setStatusBarOpen={setStatusBarOpen} onCancelJob={cancelJob} setup={setup} setupRefreshing={setupRefreshing} onRefreshSetup={refreshSetup} onSetupChange={setSetup}/></div>;
+      <Tabs.Content className="studio-panel" value="activity" forceMount><ActivityPanel jobs={jobs} activeId={activeId} onSelect={(id) => { setStatusBarOpen(true); setLogsOpen(true); setActiveId(id); previewVersion.current = null; finalLoaded.current = null; setViewerLoadRequest((current) => current + 1); }} onCancel={cancelJob} onRefresh={refreshJobs} onRetried={onRetried}/></Tabs.Content>
+      <Tabs.Content className="studio-panel" value="results" forceMount><ResultsPanel refreshKey={jobs.filter((job) => ["completed", "failed", "cancelled", "interrupted"].includes(job.status)).map((job) => `${job.id}:${job.status}`).join("|")} onStarted={(job) => { setStatusBarOpen(true); setActiveId(job.id); void refreshJobs(); setTab("activity"); }} /></Tabs.Content>
+    </Tabs.Root><div className="sidebar-resize-handle" role="separator" aria-label="Resize side panel" aria-orientation="vertical" aria-valuemin={SIDEBAR_MIN_WIDTH} aria-valuemax={SIDEBAR_MAX_WIDTH} aria-valuenow={sidebarWidth} tabIndex={sidebarCollapsed ? -1 : 0} title="Drag to resize side panel" onPointerDown={startSidebarResize} onPointerMove={moveSidebarResize} onPointerUp={finishSidebarResize} onPointerCancel={finishSidebarResize} onLostPointerCapture={finishSidebarResize} onDoubleClick={() => setSidebarWidth(constrainSidebarWidth(420))} onKeyDown={resizeSidebarWithKeyboard}/></aside><Viewer activeJob={activeJob} live={live} logsOpen={logsOpen} setLogsOpen={setLogsOpen} statusBarOpen={statusBarOpen} setStatusBarOpen={setStatusBarOpen} onCancelJob={cancelJob} onRetried={onRetried} setup={setup} setupRefreshing={setupRefreshing} onRefreshSetup={refreshSetup} onSetupChange={setSetup}/></div>;
 }
 
 const root = document.getElementById("root");
 if (!root) throw new Error("GTSFM Studio root element is missing");
-flushSync(() => createRoot(root).render(<App />));
+flushSync(() => createRoot(root).render(<ViewerProvider><App /></ViewerProvider>));

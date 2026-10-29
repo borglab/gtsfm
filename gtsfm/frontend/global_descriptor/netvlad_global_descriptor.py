@@ -9,6 +9,8 @@ Whereas bag-of-visual-words aggregation keeps counts of visual words, VLAD store
 Authors: John Lambert, Travis Driver
 """
 
+from threading import Lock
+
 import numpy as np
 import torch
 from torchvision.transforms import v2 as transforms  # type: ignore
@@ -25,13 +27,27 @@ class NetVLADGlobalDescriptor(GlobalDescriptorBase):
     def __init__(self) -> None:
         super().__init__()
         self._model: torch.nn.Module | None = None  # Lazy loading - only load when describe() is called
+        self._model_lock = Lock()
+
+    def __getstate__(self):
+        """Exclude the process-local lock when sending this descriptor to Dask workers."""
+        state = self.__dict__.copy()
+        state.pop("_model_lock", None)
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self._model_lock = Lock()
 
     def _ensure_model_loaded(self) -> None:
         """Lazy-load the NetVLAD model to avoid unnecessary initialization."""
-        if self._model is None:
-            logger = logger_utils.get_logger()
-            logger.info("⏳ Loading NetVLAD model weights...")
-            self._model = NetVLAD().eval()
+        with self._model_lock:
+            if self._model is None:
+                logger = logger_utils.get_logger()
+                logger.info("⏳ Loading NetVLAD model weights...")
+                device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+                # Concurrent batches may use the shared model as soon as it is published.
+                self._model = NetVLAD().eval().to(device)
 
     def get_preprocessing_transforms(self) -> tuple[ResizeTransform, BatchTransform | None]:
         """Return per-image preprocessing and optional batch transforms."""
@@ -52,8 +68,7 @@ class NetVLADGlobalDescriptor(GlobalDescriptorBase):
         self._ensure_model_loaded()
         assert self._model is not None, "Model should be loaded by now"
 
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self._model.to(device)
+        device = next(self._model.parameters()).device
         images = images.to(device)
 
         with torch.no_grad():

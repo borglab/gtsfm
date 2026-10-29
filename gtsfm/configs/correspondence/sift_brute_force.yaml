@@ -1,0 +1,9 @@
+# Exact matching for CI benchmarks; keep the application SIFT default as FLANN.
+defaults:
+  - sift
+  - _self_
+
+CorrespondenceGenerator:
+  matcher:
+    matcher_obj:
+      search_method: brute_force

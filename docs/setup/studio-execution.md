@@ -87,6 +87,10 @@ python scripts/verify_studio_ssh.py --configuration Cyber \
   --dataset /path/to/local/dataset --output /tmp/studio-ssh-verification.json
 ```
 
+The verification CLI defaults to the exact `sift_brute_force` correspondence
+preset. Use the same effective matcher in both arms; approximate FLANN matching
+can vary between repeats. Frontend presets apply to cached and uncached models.
+
 This is a functional/equivalence check. A scientific timing comparison additionally
 requires pinned inputs, source, models, seeds, cache policy, hardware, resource
 limits, repeated baseline/treatment trials, and telemetry. It must not be inferred

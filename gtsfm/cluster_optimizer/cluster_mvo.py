@@ -28,6 +28,7 @@ from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 from gtsfm.densify.mvs_base import MVSBase
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
+from gtsfm.frontend.correspondence_generator.det_desc_correspondence_generator import DetDescCorrespondenceGenerator
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.products.one_view_data import OneViewData
 from gtsfm.products.two_view_result import TwoViewResult
@@ -114,12 +115,13 @@ class ClusterMVO(ClusterOptimizerBase):
         correspondence_generator: CorrespondenceGeneratorBase,
         visibility_graph: VisibilityGraph,
         images: list[Image],
+        num_matching_threads: int = 1,
     ) -> tuple[list[Keypoints], AnnotatedGraph[np.ndarray], float]:
         """Run correspondence generation in the calling task (no nested Dask submission).
 
         ``images`` arrives materialized as a normal Dask dependency (``images[i]`` is image ``i``).
-        Detection + matching run in plain loops over the cache-backed primitives — no ``worker_client()``,
-        so the entire frontend working set is never held resident on one worker at once.
+        Detection and matching use cache-backed primitives without nested Dask submission. Descriptor
+        matching may use a bounded thread pool when the caller supplies its available thread budget.
         """
 
         logger.info("🔵 Running correspondence generation for %d pairs.", len(visibility_graph))
@@ -128,9 +130,14 @@ class ClusterMVO(ClusterOptimizerBase):
             return [], {}, 0.0
 
         start_time = time.time()
-        keypoints_list, putative_corr_idxs_dict = correspondence_generator.generate_correspondences(
-            images, visibility_graph
-        )
+        if isinstance(correspondence_generator, DetDescCorrespondenceGenerator):
+            keypoints_list, putative_corr_idxs_dict = correspondence_generator.generate_correspondences(
+                images, visibility_graph, num_matching_threads=num_matching_threads
+            )
+        else:
+            keypoints_list, putative_corr_idxs_dict = correspondence_generator.generate_correspondences(
+                images, visibility_graph
+            )
         duration_sec = time.time() - start_time
 
         return keypoints_list, putative_corr_idxs_dict, duration_sec

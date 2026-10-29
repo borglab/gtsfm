@@ -34,7 +34,6 @@ import numpy as np
 from gtsam import (
     BinaryMeasurementUnit3,
     BinaryMeasurementsUnit3,
-    KeySet,
     Point3,
     Pose3,
     Rot3,
@@ -66,22 +65,24 @@ def _build_inputs(
     observations: List[Tuple[int, int, np.ndarray]],
     noise_sigma: float,
     huber_loss_scale: float,
-) -> Tuple[BinaryMeasurementsUnit3, KeySet, KeySet]:
+) -> Tuple[BinaryMeasurementsUnit3, Set[int], Set[int]]:
     """Build direction measurements and explicit camera/landmark key sets."""
     noise_model = gtsam.noiseModel.Isotropic.Sigma(2, noise_sigma)
     huber = gtsam.noiseModel.mEstimator.Huber.Create(huber_loss_scale)
     robust_noise = gtsam.noiseModel.Robust.Create(huber, noise_model)
 
     measurements = BinaryMeasurementsUnit3()
-    camera_keys = KeySet()
-    landmark_keys = KeySet()
+    # GlobalPositioner's std::set arguments use pybind11's Python-set caster,
+    # rather than the separately wrapped gtsam.KeySet container.
+    camera_keys: Set[int] = set()
+    landmark_keys: Set[int] = set()
 
     for track_idx, cam_idx, direction in observations:
         measurements.append(BinaryMeasurementUnit3(
             C(cam_idx), L(track_idx), Unit3(Point3(*direction)), robust_noise,
         ))
-        camera_keys.insert(C(cam_idx))
-        landmark_keys.insert(L(track_idx))
+        camera_keys.add(C(cam_idx))
+        landmark_keys.add(L(track_idx))
 
     return measurements, camera_keys, landmark_keys
 
@@ -139,7 +140,7 @@ def build_and_solve_with_trace(
     logger.info("GlobalPositioner (trace): initial error = %.2f", initial_error)
 
     optimizer = gtsam.LevenbergMarquardtOptimizer(graph, initial, lm_params)
-    values_trace = [initial]
+    values_trace = [Values(initial)]
     error_trace = [initial_error]
 
     for iteration in range(1, max_iterations + 1):
@@ -147,7 +148,9 @@ def build_and_solve_with_trace(
         optimizer.iterate()
         dt = time.time() - t0
         error = optimizer.error()
-        values_trace.append(optimizer.values())
+        # values() exposes optimizer-owned state that subsequent iterations replace.
+        # Preserve an owning copy for each frame and for use after optimizer teardown.
+        values_trace.append(Values(optimizer.values()))
         error_trace.append(error)
         if iteration <= 5 or iteration % 5 == 0:
             logger.info("  iter %3d: error=%.2f  (%.2fs)", iteration, error, dt)
@@ -158,7 +161,7 @@ def build_and_solve_with_trace(
                 logger.info("  Converged at iteration %d (relative change %.2e)", iteration, relative_change)
                 break
 
-    result = optimizer.values()
+    result = Values(optimizer.values())
     cam_indices = {gtsam.Symbol(k).index() for k in camera_keys}
     track_indices = {gtsam.Symbol(k).index() for k in landmark_keys}
     logger.info("GlobalPositioner (trace): final error = %.4f (%d frames)", error_trace[-1], len(values_trace))
