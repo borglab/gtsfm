@@ -19,7 +19,7 @@ jobs:
         working-directory: visualization/frontend
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 10.18.3
       - uses: actions/setup-node@v7
