@@ -25,12 +25,12 @@ from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.outputs import OutputPaths, cluster_label, prepare_output_paths
+from gtsfm.data_association.point3d_initializer import multi_view_retriangulate_from_2d_tracks
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.evaluation.retrieval_metrics import save_retrieval_two_view_metrics
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.graph_partitioner.single_partitioner import SinglePartitioner
-from gtsfm.data_association.point3d_initializer import multi_view_retriangulate_from_2d_tracks
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.multi_view_optimizer import get_2d_tracks
 from gtsfm.products.one_view_data import OneViewData
@@ -38,10 +38,10 @@ from gtsfm.products.visibility_graph import AnnotatedGraph, VisibilityGraph, vis
 from gtsfm.retriever.image_pairs_generator import ImagePairsGenerator
 from gtsfm.two_view_estimator import TwoViewEstimator, create_v_corr_idxs, create_v_corr_idxs_futures
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
-from gtsfm.view_graph_estimator.view_graph_calibration import compute_global_view_graph_intrinsics
 from gtsfm.utils.graph import get_nodes_in_largest_connected_component
 from gtsfm.utils.tree import PreOrderIter
 from gtsfm.utils.tree_dask import submit_tree_map_with_children
+from gtsfm.view_graph_estimator.view_graph_calibration import compute_global_view_graph_intrinsics
 
 # Set matplotlib backend to "Agg" (Anti-Grain Geometry) for headless rendering
 # This must be called before importing pyplot or any other matplotlib modules
@@ -169,21 +169,19 @@ def _run_post_merge_retriangulation(
 
     ba_options = options.ba_options
     if options.retri_free_ba:
-        # Fully-free final solve: drop the calibration and pose priors that protect the incremental
-        # merges. GNC follows retri_free_ba_use_gnc and is off unless that flag is set. Injected
-        # trackless-camera poses are free in this solve.
+        # Release pose priors for final refinement, retaining the configured calibration priors.
+        # GNC follows retri_free_ba_use_gnc. Injected trackless-camera poses are free here.
         from dataclasses import replace as _dc_replace
 
         ba_options = _dc_replace(
             ba_options,
-            use_calibration_prior=False,
             use_pose_prior_all_cameras=False,
             use_gnc=options.retri_free_ba_use_gnc,
             gnc_loss="TLS",
             factor_weight_outlier_threshold=1e-6,
         )
         logger.info(
-            "🔓 Post-merge retri BA running FREE (no calib/pose priors, GNC %s).",
+            "🔓 Post-merge retri BA running FREE (no pose priors; configured calibration priors retained, GNC %s).",
             "on" if options.retri_free_ba_use_gnc else "off",
         )
 

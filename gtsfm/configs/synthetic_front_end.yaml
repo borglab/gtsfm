@@ -1,3 +1,7 @@
+defaults:
+  - classical_ba
+  - _self_
+
 # Synthetic front-end configuration specifically for the Tanks & Temples dataset.
 
 # @package _global_

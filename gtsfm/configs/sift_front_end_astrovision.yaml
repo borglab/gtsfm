@@ -1,3 +1,7 @@
+defaults:
+  - classical_ba
+  - _self_
+
 # SIFT front-end configuration tuned for AstroVision datasets: https://github.com/astrovision
 
 # @package _global_

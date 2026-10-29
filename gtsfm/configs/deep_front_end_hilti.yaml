@@ -1,3 +1,7 @@
+defaults:
+  - classical_ba
+  - _self_
+
 # @package _global_
 _target_: gtsfm.scene_optimizer.SceneOptimizer
 
@@ -97,7 +101,7 @@ cluster_optimizer:
       save_track_patches_viz: False
 
     bundle_adjustment_module:
-      _target_: gtsfm.bundle.rig_bundle_adjustment.RigBundleAdjustmentOptimizer.
+      _target_: gtsfm.bundle.rig_bundle_adjustment.RigBundleAdjustmentOptimizer
       reproj_error_thresholds: [10, 5, 3] # for (multistage) post-optimization filtering
       robust_ba_mode: "HUBER"
       shared_calib: False

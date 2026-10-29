@@ -1,3 +1,7 @@
+defaults:
+  - classical_ba
+  - _self_
+
 # MegaLoc + SIFT + Global Positioner with Single partition.
 # Based on unified_megaloc.yaml with SIFT detector/matcher swap + GP.
 

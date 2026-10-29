@@ -8,8 +8,10 @@ Authors: Kathirvel Gounder
 """
 
 import unittest
+from dataclasses import asdict
 
 import numpy as np
+import pytest
 from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Point3, Pose3, Rot3
 
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptions
@@ -79,6 +81,85 @@ class TestPostMergeRetriangulation(unittest.TestCase):
         self.assertIn(3, refined.get_valid_camera_indices())
         # The all-images metric denominator is preserved from the merged scene.
         self.assertEqual(refined.number_images(), 4)
+
+
+def _calibration_settings(options: BundleAdjustmentOptions) -> dict:
+    """Read all existing calibration fields without introducing a production policy type."""
+    return {key: value for key, value in asdict(options).items() if key == "shared_calib" or "calibration_prior" in key}
+
+
+def test_single_cluster_without_retriangulation_does_not_run_ba(monkeypatch):
+    """Passing one completed cluster through merging must preserve it without another BA."""
+    from unittest.mock import Mock
+
+    from gtsfm.cluster_merging import combine_results
+
+    scene, _, _, options = _make_setup()
+    options.plot_reprojection_histograms = False
+    optimizer_factory = Mock(side_effect=AssertionError("A single cluster was bundle-adjusted again"))
+    monkeypatch.setattr(BundleAdjustmentOptions, "to_optimizer", optimizer_factory)
+    result = combine_results(scene, (), options=options)
+    assert result.scene is scene
+    optimizer_factory.assert_not_called()
+
+
+def test_no_triangulated_tracks_skips_ba(monkeypatch):
+    """An unsuccessful retriangulation must not run BA on the original scene again."""
+    from unittest.mock import Mock
+
+    scene, _, _, options = _make_setup()
+    optimizer_factory = Mock(side_effect=AssertionError("BA ran without retriangulated tracks"))
+    monkeypatch.setattr(BundleAdjustmentOptions, "to_optimizer", optimizer_factory)
+    assert _run_post_merge_retriangulation(scene, [], options) is scene
+    optimizer_factory.assert_not_called()
+
+
+@pytest.mark.parametrize("use_calibration_prior", [True, False])
+def test_free_retriangulation_preserves_calibration_settings(monkeypatch, use_calibration_prior: bool) -> None:
+    """Releasing pose priors must retain sharing and calibration priors during actual retriangulation."""
+    scene, tracks_2d, _, options = _make_setup()
+    options.ba_options.shared_calib = True
+    options.retri_free_ba = True
+    options.ba_options.use_calibration_prior = use_calibration_prior
+    expected = _calibration_settings(options.ba_options)
+    optimizer_factory = BundleAdjustmentOptions.to_optimizer
+    policies = []
+
+    def record_options(self, **overrides):
+        policies.append(_calibration_settings(self))
+        assert not self.use_pose_prior_all_cameras
+        return optimizer_factory(self, **overrides)
+
+    monkeypatch.setattr(BundleAdjustmentOptions, "to_optimizer", record_options)
+    result = _run_post_merge_retriangulation(scene, tracks_2d, options)
+    assert result.number_tracks() > 0
+    assert policies == [expected]
+    assert options.ba_options.use_pose_prior_all_cameras
+
+
+def test_real_child_merge_and_retriangulation_use_identical_calibration(monkeypatch):
+    """An actual child merge and subsequent refinement must agree on the camera model."""
+    from gtsfm.cluster_merging import combine_results
+
+    scene, tracks_2d, _, options = _make_setup()
+    options.ba_options.shared_calib = True
+    options.plot_reprojection_histograms = False
+    reconstructed = _run_post_merge_retriangulation(scene, tracks_2d, options)
+    child = combine_results(reconstructed, (), options=options)
+    optimizer_factory = BundleAdjustmentOptions.to_optimizer
+    policies = []
+
+    def record_options(self, **overrides):
+        policies.append(_calibration_settings(self))
+        return optimizer_factory(self, **overrides)
+
+    monkeypatch.setattr(BundleAdjustmentOptions, "to_optimizer", record_options)
+    merged = combine_results(reconstructed, (child,), options=options)
+    assert merged.scene is not None
+    assert merged.scene.number_tracks() > 0
+    refined = _run_post_merge_retriangulation(merged.scene, tracks_2d, options)
+    assert refined.number_tracks() > 0
+    assert policies == [_calibration_settings(options.ba_options)] * 2
 
 
 if __name__ == "__main__":

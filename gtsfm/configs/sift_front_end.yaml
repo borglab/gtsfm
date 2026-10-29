@@ -1,3 +1,7 @@
+defaults:
+  - classical_ba
+  - _self_
+
 # Default SIFT front-end configuration.
 
 # @package _global_
