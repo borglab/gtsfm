@@ -130,3 +130,28 @@ def test_free_retriangulation_preserves_calibration_policy(monkeypatch):
     assert result.number_tracks() > 0
     assert policies == [expected]
     assert options.ba_options.use_pose_prior_all_cameras
+
+
+def test_real_child_merge_and_retriangulation_use_identical_calibration(monkeypatch):
+    """An actual child merge and subsequent refinement must agree on the camera model."""
+    from gtsfm.cluster_merging import combine_results
+
+    scene, tracks_2d, _, options = _make_setup()
+    options.ba_options.shared_calib = True
+    options.plot_reprojection_histograms = False
+    reconstructed = _run_post_merge_retriangulation(scene, tracks_2d, options)
+    child = combine_results(reconstructed, (), options=options)
+    optimizer_factory = BundleAdjustmentOptions.to_optimizer
+    policies = []
+
+    def record_options(self, **overrides):
+        policies.append(self.calibration_policy)
+        return optimizer_factory(self, **overrides)
+
+    monkeypatch.setattr(BundleAdjustmentOptions, "to_optimizer", record_options)
+    merged = combine_results(reconstructed, (child,), options=options)
+    assert merged.scene is not None
+    assert merged.scene.number_tracks() > 0
+    refined = _run_post_merge_retriangulation(merged.scene, tracks_2d, options)
+    assert refined.number_tracks() > 0
+    assert policies == [options.ba_options.calibration_policy] * 2

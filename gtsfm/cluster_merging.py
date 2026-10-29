@@ -64,6 +64,8 @@ class MergingOptions:
     # retri BA and dropped by its final filter. A recovered one joins that BA. Pose pinning follows
     # ba_options, except retri_free_ba drops use_pose_prior_all_cameras, so the injected pose is free.
     recover_trackless_cameras_in_retriangulation: bool = False
+    # SceneOptimizer replaces calibration fields with the cluster's resolved camera policy.
+    # Other fields (robust loss, pose priors, etc.) remain specific to merge/retriangulation BA.
     ba_options: BundleAdjustmentOptions = field(default_factory=BundleAdjustmentOptions)
     # Post-merge retriangulation BA mode. When retri_free_ba is True the retri BA releases pose
     # priors so the full-scene poses can improve, while retaining the scene's calibration policy.
