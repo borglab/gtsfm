@@ -17,16 +17,18 @@ from dask.delayed import Delayed
 
 import gtsfm.frontend.anysplat as anysplat_utils
 import gtsfm.utils.torch as torch_utils
+from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptions, CalibrationPolicy
 from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterComputationGraph, ClusterContext, ClusterOptimizerBase
-from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptions
 from gtsfm.cluster_optimizer.cluster_vggt import _run_cluster_ba
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
-from gtsfm.frontend.anysplat import AnySplatReconstructionResult
 from gtsfm.frontend.anysplat import (
-    batchify_unproject_depth_map_to_point_map as _anysplat_batchify_unproject,
-)  # type: ignore
+    AnySplatReconstructionResult,
+)
+from gtsfm.frontend.anysplat import (
+    batchify_unproject_depth_map_to_point_map as _anysplat_batchify_unproject,  # type: ignore
+)
 from gtsfm.ui.gtsfm_process import UiMetadata
 from gtsfm.utils import align as align_utils
 from gtsfm.utils import logger as logger_utils
@@ -85,6 +87,7 @@ class ClusterAnySplat(ClusterOptimizerBase):
         run_bundle_adjustment_on_leaf: bool | None = False,
         run_bundle_adjustment_on_parent: bool | None = True,
         plot_reprojection_histograms: bool | None = True,
+        ba_options: BundleAdjustmentOptions | None = None,
     ):
         """
         Initializes the ClusterAnySplat optimizer.
@@ -106,8 +109,11 @@ class ClusterAnySplat(ClusterOptimizerBase):
             run_bundle_adjustment_on_leaf (bool | None): optional BA operation on individual cluster (Default: False)
             run_bundle_adjustment_on_parent (bool | None): optional BA operation on after camera merging (Default: True)
             plot_reprojection_histograms (bool | None): optional plotting reprojection error histograms (Default: True)
+            ba_options: Cluster BA options; omitted calibration settings inherit the scene policy.
         """
         super().__init__()
+        self._has_explicit_ba_options = ba_options is not None
+        self.ba_options = ba_options or BundleAdjustmentOptions()
         self._model = None
         self._device = torch_utils.default_device()
         self.max_gaussians = max_num_points
@@ -167,6 +173,12 @@ class ClusterAnySplat(ClusterOptimizerBase):
         self._model = model
         if cache_key is not None:
             _MODEL_CACHE[cache_key] = model
+
+    def resolve_calibration_policy(self, fallback: CalibrationPolicy) -> CalibrationPolicy:
+        """Use configured cluster calibration, or inherit the scene calibration."""
+        if not self._has_explicit_ba_options:
+            self.ba_options = fallback.apply_to(self.ba_options)
+        return self.ba_options.calibration_policy
 
     def __repr__(self) -> str:
         """Provide a readable summary of the optimizer configuration."""
@@ -379,7 +391,7 @@ class ClusterAnySplat(ClusterOptimizerBase):
             gtsfm_data.log_scene_reprojection_error_stats()
 
         if self.run_bundle_adjustment_on_leaf:
-            post_ba_gtsfm_data, _ = _run_cluster_ba(gtsfm_data, ba_options=BundleAdjustmentOptions())
+            post_ba_gtsfm_data, _ = _run_cluster_ba(gtsfm_data, ba_options=self.ba_options)
             if post_ba_gtsfm_data is not gtsfm_data:
                 for idx in post_ba_gtsfm_data.get_valid_camera_indices():
                     info = gtsfm_data.get_image_info(idx)

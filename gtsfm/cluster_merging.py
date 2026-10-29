@@ -65,9 +65,9 @@ class MergingOptions:
     # ba_options, except retri_free_ba drops use_pose_prior_all_cameras, so the injected pose is free.
     recover_trackless_cameras_in_retriangulation: bool = False
     ba_options: BundleAdjustmentOptions = field(default_factory=BundleAdjustmentOptions)
-    # Post-merge retriangulation BA mode. When retri_free_ba is True the retri BA drops the
-    # calibration and pose priors: the priors that protect the incremental merges throttle the
-    # full-scene BA. GNC is separate and follows retri_free_ba_use_gnc (default off).
+    # Post-merge retriangulation BA mode. When retri_free_ba is True the retri BA releases pose
+    # priors so the full-scene poses can improve, while retaining the scene's calibration policy.
+    # GNC is separate and follows retri_free_ba_use_gnc (default off).
     # retri_iterations>1 alternates retriangulation with that BA. Defaults preserve existing
     # behavior (merge ba_options, single pass, GNC off).
     retri_free_ba: bool = False

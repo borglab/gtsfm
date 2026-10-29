@@ -6,7 +6,7 @@ import hashlib
 import os
 import typing
 from pathlib import Path
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 import numpy as np
 from dask.delayed import Delayed, delayed
@@ -14,6 +14,7 @@ from dask.delayed import Delayed, delayed
 import gtsfm.utils.cache as cache_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
+from gtsfm.bundle.bundle_adjustment import CalibrationPolicy
 from gtsfm.cluster_optimizer.cluster_optimizer_base import (
     ClusterComputationGraph,
     ClusterContext,
@@ -47,6 +48,13 @@ class ClusterOptimizerCacher(ClusterOptimizerBase):
         self._optimizer_hash = hashlib.sha1(repr(optimizer).encode()).hexdigest()
         self._cache_subdir = cache_subdir if cache_subdir is not None else os.getenv("GTSFM_CACHE_SUBDIR")
         self._cache_root_path = self._resolve_cache_root(self._cache_subdir)
+
+    def resolve_calibration_policy(self, fallback: CalibrationPolicy) -> CalibrationPolicy:
+        """Resolve the wrapped optimizer's policy and invalidate stale cached geometry."""
+        policy = self._optimizer.resolve_calibration_policy(fallback)
+        # Include the effective camera assumptions even if the wrapped repr omits BA options.
+        self._optimizer_hash = hashlib.sha1((repr(self._optimizer) + repr(policy)).encode()).hexdigest()
+        return policy
 
     def __repr__(self) -> str:
         return repr(self._optimizer)

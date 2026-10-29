@@ -83,3 +83,50 @@ class TestPostMergeRetriangulation(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_single_cluster_without_retriangulation_does_not_run_ba(monkeypatch):
+    """Passing one completed cluster through merging must preserve it without another BA."""
+    from unittest.mock import Mock
+
+    from gtsfm.cluster_merging import combine_results
+
+    scene, _, _, options = _make_setup()
+    options.plot_reprojection_histograms = False
+    optimizer_factory = Mock(side_effect=AssertionError("A single cluster was bundle-adjusted again"))
+    monkeypatch.setattr(BundleAdjustmentOptions, "to_optimizer", optimizer_factory)
+    result = combine_results(scene, (), options=options)
+    assert result.scene is scene
+    optimizer_factory.assert_not_called()
+
+
+def test_no_triangulated_tracks_skips_ba(monkeypatch):
+    """An unsuccessful retriangulation must not run BA on the original scene again."""
+    from unittest.mock import Mock
+
+    scene, _, _, options = _make_setup()
+    optimizer_factory = Mock(side_effect=AssertionError("BA ran without retriangulated tracks"))
+    monkeypatch.setattr(BundleAdjustmentOptions, "to_optimizer", optimizer_factory)
+    assert _run_post_merge_retriangulation(scene, [], options) is scene
+    optimizer_factory.assert_not_called()
+
+
+def test_free_retriangulation_preserves_calibration_policy(monkeypatch):
+    """Releasing pose priors must retain sharing and calibration priors during actual retriangulation."""
+    scene, tracks_2d, _, options = _make_setup()
+    options.ba_options.shared_calib = True
+    options.retri_free_ba = True
+    expected = options.ba_options.calibration_policy
+    optimizer_factory = BundleAdjustmentOptions.to_optimizer
+    policies = []
+
+    def record_options(self, **overrides):
+        policies.append(self.calibration_policy)
+        assert not self.use_pose_prior_all_cameras
+        return optimizer_factory(self, **overrides)
+
+    monkeypatch.setattr(BundleAdjustmentOptions, "to_optimizer", record_options)
+    result = _run_post_merge_retriangulation(scene, tracks_2d, options)
+    assert result.number_tracks() > 0
+    assert policies == [expected]
+    assert options.ba_options.use_pose_prior_all_cameras

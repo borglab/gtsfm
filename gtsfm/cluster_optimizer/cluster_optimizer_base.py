@@ -14,6 +14,7 @@ from dask.distributed import Client, Future, get_client
 import gtsfm.evaluation.metrics_report as metrics_report
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
+from gtsfm.bundle.bundle_adjustment import CalibrationPolicy
 from gtsfm.common.image import Image
 from gtsfm.common.outputs import OutputPaths
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
@@ -109,6 +110,20 @@ class ClusterOptimizerBase(GTSFMProcess):
         output_worker: None | str = None,
     ) -> None:
         self._output_worker = output_worker
+
+    def resolve_calibration_policy(self, fallback: CalibrationPolicy) -> CalibrationPolicy:
+        """Resolve the camera assumptions shared with merge and retriangulation BA.
+
+        Optimizers with configured BA return its policy. Optimizers whose BA was
+        not explicitly configured adopt the fallback supplied by SceneOptimizer.
+
+        Args:
+            fallback: Policy from the scene's merging options.
+
+        Returns:
+            The policy to use throughout reconstruction of this scene.
+        """
+        return fallback
 
     def _output_annotation(self):
         """Context manager routing heavy I/O to the optional output worker."""

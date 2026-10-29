@@ -15,7 +15,7 @@ from PIL import Image as PILImage
 import gtsfm.common.types as gtsfm_types
 import gtsfm.data_association.point3d_initializer as point3d_initializer
 import gtsfm.utils.metrics as metrics_utils
-from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptions
+from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptions, CalibrationPolicy
 from gtsfm.cluster_optimizer.cluster_optimizer_base import ClusterComputationGraph, ClusterContext, ClusterOptimizerBase
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.sfm_track import SfmTrack2d
@@ -124,13 +124,13 @@ def _run_cluster_ba(
         # BundleAdjustmentOptimizer._run_ba_and_evaluate.
         if use_multi_view_retriangulation and tracks_2d is not None:
             retri_data = point3d_initializer.multi_view_retriangulate_from_2d_tracks(
-                gtsfm_data_with_ba, tracks_2d, min_track_length=min_track_length,
+                gtsfm_data_with_ba,
+                tracks_2d,
+                min_track_length=min_track_length,
             )
             if retri_data.number_tracks() > 0:
                 gtsfm_data_with_ba, _ = optimizer.run_simple_ba(retri_data)
-                gtsfm_data_with_ba = gtsfm_data_with_ba.filter_landmark_measurements(
-                    post_ba_max_reproj_error
-                )
+                gtsfm_data_with_ba = gtsfm_data_with_ba.filter_landmark_measurements(post_ba_max_reproj_error)
 
         logger.info(
             "%s🔍 #valid tracks after BA: %d out of %d",
@@ -493,6 +493,7 @@ class ClusterVGGT(ClusterOptimizerBase):
         self.tracker = tracker or MultiViewTracker()
 
         # --- Cluster BA params ---
+        self._has_explicit_ba_options = ba_options is not None
         self.ba_options = ba_options or BundleAdjustmentOptions()
         self._pre_ba_max_reproj_error = pre_ba_max_reproj_error
         self._post_ba_max_reproj_error = post_ba_max_reproj_error
@@ -502,6 +503,12 @@ class ClusterVGGT(ClusterOptimizerBase):
         self._loader_kwargs, self._model_cache_key = _model_loading_plan(
             self.geometry_transformer, self._weights_path, model_cache_key, use_model_cache
         )
+
+    def resolve_calibration_policy(self, fallback: CalibrationPolicy) -> CalibrationPolicy:
+        """Use configured cluster calibration, or inherit the scene calibration."""
+        if not self._has_explicit_ba_options:
+            self.ba_options = fallback.apply_to(self.ba_options)
+        return self.ba_options.calibration_policy
 
     def __repr__(self) -> str:
         components = [
