@@ -4,6 +4,7 @@ Process is similar to Principal Component Analysis.
 
 Authors: Adi Singh
 """
+
 from typing import Tuple
 
 import numpy as np
@@ -19,6 +20,9 @@ def get_ortho_axis_alignment_transform(gtsfm_data: GtsfmData) -> Pose3:
     """Wrapper function for all the functions in ellipsoid.py. Obtains the Pose3 transformation required to align
     the GtsfmData to the x,y,z axes.
 
+    Empty scenes keep their frame. If outlier filtering leaves fewer than three points,
+    center the original cloud without estimating a rotation.
+
     Args:
         gtsfm_data: Scene data to write to transform.
 
@@ -27,11 +31,19 @@ def get_ortho_axis_alignment_transform(gtsfm_data: GtsfmData) -> Pose3:
     """
     # Iterate through each track to gather a list of 3D points forming the point cloud.
     num_pts = gtsfm_data.number_tracks()
+    if num_pts == 0:
+        return Pose3()
     point_cloud = [gtsfm_data.get_track(j).point3() for j in range(num_pts)]
     point_cloud = np.array(point_cloud)  # point_cloud has shape Nx3
+    if not np.isfinite(point_cloud).all():
+        raise ValueError("Axis alignment requires finite 3D points.")
 
     # Filter outlier points, Center point cloud, and obtain alignment rotation.
     points_filtered, inlier_mask = remove_outlier_points(point_cloud)
+    # A strict percentile cutoff can reject every point in a singleton or equal-radius cloud.
+    # Too few remaining points cannot define stable principal axes; only center the finite cloud.
+    if len(points_filtered) < 3:
+        return Pose3(Rot3(), -np.mean(point_cloud, axis=0))
     points_centered = center_point_cloud(points_filtered)
     wuprightRw = get_alignment_rotation_matrix_from_svd(points_centered)
 

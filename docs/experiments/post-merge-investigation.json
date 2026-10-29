@@ -1,0 +1,531 @@
+{
+  "purpose": "Investigate saved RootSIFT benchmark post-merge accuracy losses and Skydio-32 legacy RootSIFT serialization failure, separately from PR #1173.",
+  "diagnostic_code_commit": "adc79354",
+  "original_benchmark_code_commit": "8f21351c",
+  "methodology": {
+    "input": "Reload the identical saved rootsift/results/ba_output COLMAP-format scene separately for every BA variant. Do not rerun features, matching, triangulation, or camera registration.",
+    "optimizer": "BundleAdjustmentOptions.to_optimizer().run_simple_ba(scene)",
+    "metric": "Relative-pose AUC percentages over all reference-image pairs, max(rotation error, translation direction error); missing cameras count as failures.",
+    "door_reference": "tests/data/set1_lund_door/data.mat via OlssonLoader; 12 images, 66 pairs",
+    "astro_reference": "benchmarks/2011205_rc3 reference model; 65 images, 2080 pairs",
+    "script_on_experiment_machine": "/tmp/replay_merge_ba.py",
+    "evaluator": "scripts/evaluate_sift_comparison.py on codex/rootsift-five-benchmarks at d72f6e3b",
+    "command": "PYTHONPATH=. OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 /home/dellaert/.local/share/uv/tools/gtsfm/bin/python /tmp/replay_merge_ba.py --scene {door,astro}",
+    "default_post_ba": {
+      "shared_calib": false,
+      "use_calibration_prior": false,
+      "robust_ba_mode": "GMC",
+      "measurement_noise_sigma": 2.0,
+      "min_track_length": 2
+    },
+    "shared_and_prior": "Same default, shared_calib=True and use_calibration_prior=True",
+    "shared_only": "Same default, shared_calib=True",
+    "prior_only": "Same default, use_calibration_prior=True",
+    "leaf_like": "Same default, shared_calib=True, use_calibration_prior=True, robust_ba_mode=HUBER, measurement_noise_sigma=1.0, min_track_length=3"
+  },
+  "findings": [
+    {
+      "cause": "Leaf calibration policy is not propagated into post-merge/retriangulation BA.",
+      "code": [
+        "gtsfm/cluster_merging.py:MergingOptions.ba_options",
+        "gtsfm/scene_optimizer.py:_run_post_merge_retriangulation",
+        "gtsfm/bundle/bundle_adjustment.py:BundleAdjustmentOptions"
+      ],
+      "evidence": "These runs use SinglePartitioner: no child alignment is performed. The later BA still runs, replacing shared calibration plus priors with independent calibration and no calibration priors. Door shared-only vs prior-only ablations isolate the importance of sharing.",
+      "original_full_pipeline_auc5": {
+        "door": {
+          "first_ba": 96.9813,
+          "after_retriangulation": 86.13
+        },
+        "astro": {
+          "first_ba": 98.9502,
+          "after_retriangulation": 69.889
+        }
+      },
+      "proposed_follow_up": "Carry the intended calibration-sharing and prior policy into classical merge/retriangulation BA, while preserving explicit options for heterogeneous cameras and feedforward pipelines. Do not change shared_calib globally."
+    },
+    {
+      "cause": "Axis alignment turns a finite singleton cloud into NaN geometry and GTSAM deserialization raises input stream error.",
+      "code": [
+        "gtsfm/utils/ellipsoid.py:get_ortho_axis_alignment_transform",
+        "gtsfm/utils/ellipsoid.py:remove_outlier_points",
+        "gtsfm/cluster_optimizer/cluster_mvo.py:align_estimated_gtsfm_data"
+      ],
+      "evidence": "A strict 95th-percentile cutoff excludes every point of a singleton or equal-radius cloud. Mean of the empty inlier cloud becomes NaN without raising; the transform contaminates BA input, BA output, and GT. A finite three-camera one-point scene reproduces the exact GTSAM pickle input stream error after applying that transform.",
+      "fix_on_this_branch": "Return identity for empty scenes, center the original finite cloud without estimating rotation when fewer than three filtered points remain, and reject nonfinite input points.",
+      "regression_tests": "All four new finite-geometry/pickle regressions fail before the fix and pass afterward. Existing alignment and post-merge retriangulation tests also pass: 16 total. Exact repository CI flake8 passes."
+    }
+  ],
+  "limitations": [
+    "BA-only ablations are not reruns of full post-merge retriangulation and filtering. Their AUC values must not replace the dashboard full-pipeline results.",
+    "Calibration priors in these replays are centered on saved optimized intrinsics, rather than original image metadata intrinsics.",
+    "The saved legacy Skydio-32 leaf reconstruction already collapses from 896 tracks / 30 cameras to one track / three cameras before axis alignment. The serialization fix does not explain or repair that earlier collapse.",
+    "NaNs in exported BA input do not prove translation averaging was nonfinite: visualization applies the bad output-derived axis transform to input too.",
+    "No real multi-cluster alignment failure was reproduced by these single-cluster benchmarks.",
+    "Diagnostic results are single-run measurements on saved local scenes; COLMAP-format reference reading introduces no production COLMAP feature extractor dependency."
+  ],
+  "results": {
+    "door": {
+      "saved_input": {
+        "reference_images": 12,
+        "registered_images": 12,
+        "missing_images": [],
+        "evaluated_pairs": 66,
+        "missing_pairs": 0,
+        "auc_percent": {
+          "1.0": 84.9065,
+          "2.5": 93.9626,
+          "5.0": 96.9813,
+          "10.0": 98.4906,
+          "20.0": 99.2453
+        },
+        "tracks": 7078,
+        "intrinsics_min": [
+          2430.5451009857093,
+          2430.5451009857093,
+          628.2649953288056,
+          932.3821770809026
+        ],
+        "intrinsics_max": [
+          2430.5451009857093,
+          2430.5451009857093,
+          628.2649953288056,
+          932.3821770809026
+        ],
+        "calibration_vector_min": [
+          2430.5451009857093,
+          2430.5451009857093,
+          0.0,
+          628.2649953288056,
+          932.3821770809026
+        ],
+        "calibration_vector_max": [
+          2430.5451009857093,
+          2430.5451009857093,
+          0.0,
+          628.2649953288056,
+          932.3821770809026
+        ]
+      },
+      "default_post_ba": {
+        "reference_images": 12,
+        "registered_images": 12,
+        "missing_images": [],
+        "evaluated_pairs": 66,
+        "missing_pairs": 0,
+        "auc_percent": {
+          "1.0": 46.9523,
+          "2.5": 73.332,
+          "5.0": 86.075,
+          "10.0": 93.0375,
+          "20.0": 96.5188
+        },
+        "tracks": 7078,
+        "intrinsics_min": [
+          2424.5461206243453,
+          2424.5461206243453,
+          628.2649953288056,
+          932.3821770809026
+        ],
+        "intrinsics_max": [
+          2435.9564702878038,
+          2435.9564702878038,
+          628.2649953288056,
+          932.3821770809026
+        ],
+        "calibration_vector_min": [
+          2424.5461206243453,
+          2424.5461206243453,
+          0.0,
+          628.2649953288056,
+          932.3821770809026
+        ],
+        "calibration_vector_max": [
+          2435.9564702878038,
+          2435.9564702878038,
+          0.0,
+          628.2649953288056,
+          932.3821770809026
+        ],
+        "final_graph_error": 276.86671840621085,
+        "wall_seconds": 1.2346186030190438
+      },
+      "shared_and_prior": {
+        "reference_images": 12,
+        "registered_images": 12,
+        "missing_images": [],
+        "evaluated_pairs": 66,
+        "missing_pairs": 0,
+        "auc_percent": {
+          "1.0": 84.9277,
+          "2.5": 93.9711,
+          "5.0": 96.9855,
+          "10.0": 98.4928,
+          "20.0": 99.2464
+        },
+        "tracks": 7078,
+        "intrinsics_min": [
+          2430.4270929154222,
+          2430.4270929154222,
+          628.2649953288056,
+          932.3821770809026
+        ],
+        "intrinsics_max": [
+          2430.4270929154222,
+          2430.4270929154222,
+          628.2649953288056,
+          932.3821770809026
+        ],
+        "calibration_vector_min": [
+          2430.4270929154222,
+          2430.4270929154222,
+          0.0,
+          628.2649953288056,
+          932.3821770809026
+        ],
+        "calibration_vector_max": [
+          2430.4270929154222,
+          2430.4270929154222,
+          0.0,
+          628.2649953288056,
+          932.3821770809026
+        ],
+        "final_graph_error": 299.74498898763903,
+        "wall_seconds": 1.039156320039183
+      },
+      "leaf_like": {
+        "reference_images": 12,
+        "registered_images": 12,
+        "missing_images": [],
+        "evaluated_pairs": 66,
+        "missing_pairs": 0,
+        "auc_percent": {
+          "1.0": 84.8976,
+          "2.5": 93.959,
+          "5.0": 96.9795,
+          "10.0": 98.4898,
+          "20.0": 99.2449
+        },
+        "tracks": 7078,
+        "intrinsics_min": [
+          2430.504316094974,
+          2430.504316094974,
+          628.2649953288056,
+          932.3821770809026
+        ],
+        "intrinsics_max": [
+          2430.504316094974,
+          2430.504316094974,
+          628.2649953288056,
+          932.3821770809026
+        ],
+        "calibration_vector_min": [
+          2430.504316094974,
+          2430.504316094974,
+          0.0,
+          628.2649953288056,
+          932.3821770809026
+        ],
+        "calibration_vector_max": [
+          2430.504316094974,
+          2430.504316094974,
+          0.0,
+          628.2649953288056,
+          932.3821770809026
+        ],
+        "final_graph_error": 1281.5183392762478,
+        "wall_seconds": 0.5413970890222117
+      },
+      "shared_only": {
+        "reference_images": 12,
+        "registered_images": 12,
+        "missing_images": [],
+        "evaluated_pairs": 66,
+        "missing_pairs": 0,
+        "auc_percent": {
+          "1.0": 84.9294,
+          "2.5": 93.9718,
+          "5.0": 96.9859,
+          "10.0": 98.4929,
+          "20.0": 99.2465
+        },
+        "tracks": 7078,
+        "intrinsics_min": [
+          2430.4232780141115,
+          2430.4232780141115,
+          628.2649953288056,
+          932.3821770809026
+        ],
+        "intrinsics_max": [
+          2430.4232780141115,
+          2430.4232780141115,
+          628.2649953288056,
+          932.3821770809026
+        ],
+        "calibration_vector_min": [
+          2430.4232780141115,
+          2430.4232780141115,
+          0.0,
+          628.2649953288056,
+          932.3821770809026
+        ],
+        "calibration_vector_max": [
+          2430.4232780141115,
+          2430.4232780141115,
+          0.0,
+          628.2649953288056,
+          932.3821770809026
+        ],
+        "final_graph_error": 299.74497008421883,
+        "wall_seconds": 1.051329173031263
+      },
+      "prior_only": {
+        "reference_images": 12,
+        "registered_images": 12,
+        "missing_images": [],
+        "evaluated_pairs": 66,
+        "missing_pairs": 0,
+        "auc_percent": {
+          "1.0": 47.4189,
+          "2.5": 73.4022,
+          "5.0": 86.0954,
+          "10.0": 93.0477,
+          "20.0": 96.5238
+        },
+        "tracks": 7078,
+        "intrinsics_min": [
+          2424.482102075335,
+          2424.482102075335,
+          628.2649953288056,
+          932.3821770809026
+        ],
+        "intrinsics_max": [
+          2435.579258311353,
+          2435.579258311353,
+          628.2649953288056,
+          932.3821770809026
+        ],
+        "calibration_vector_min": [
+          2424.482102075335,
+          2424.482102075335,
+          0.0,
+          628.2649953288056,
+          932.3821770809026
+        ],
+        "calibration_vector_max": [
+          2435.579258311353,
+          2435.579258311353,
+          0.0,
+          628.2649953288056,
+          932.3821770809026
+        ],
+        "final_graph_error": 277.38772292727344,
+        "wall_seconds": 1.1991244400851429
+      }
+    },
+    "astro": {
+      "saved_input": {
+        "reference_images": 65,
+        "registered_images": 65,
+        "missing_images": [],
+        "evaluated_pairs": 2080,
+        "missing_pairs": 0,
+        "auc_percent": {
+          "1.0": 94.7511,
+          "2.5": 97.9004,
+          "5.0": 98.9502,
+          "10.0": 99.4751,
+          "20.0": 99.7376
+        },
+        "tracks": 22068,
+        "intrinsics_min": [
+          10728.580386341464,
+          10712.546989705907,
+          511.5000000000036,
+          511.5000000000002
+        ],
+        "intrinsics_max": [
+          10728.580386341464,
+          10712.546989705907,
+          511.5000000000036,
+          511.5000000000002
+        ],
+        "calibration_vector_min": [
+          10728.580386341464,
+          10712.546989705907,
+          0.0,
+          511.5000000000036,
+          511.5000000000002,
+          0.442666661523665,
+          0.002089676936323765,
+          0.0,
+          0.0
+        ],
+        "calibration_vector_max": [
+          10728.580386341464,
+          10712.546989705907,
+          0.0,
+          511.5000000000036,
+          511.5000000000002,
+          0.442666661523665,
+          0.002089676936323765,
+          0.0,
+          0.0
+        ]
+      },
+      "default_post_ba": {
+        "reference_images": 65,
+        "registered_images": 65,
+        "missing_images": [],
+        "evaluated_pairs": 2080,
+        "missing_pairs": 0,
+        "auc_percent": {
+          "1.0": 9.7477,
+          "2.5": 49.6681,
+          "5.0": 74.2115,
+          "10.0": 87.0985,
+          "20.0": 93.5493
+        },
+        "tracks": 22068,
+        "intrinsics_min": [
+          10635.701775212296,
+          10616.998016776675,
+          268.4947433172243,
+          305.76660501800995
+        ],
+        "intrinsics_max": [
+          10920.233277683652,
+          10883.351262488524,
+          818.9677263230993,
+          834.9858567291698
+        ],
+        "calibration_vector_min": [
+          10635.701775212296,
+          10616.998016776675,
+          -56.65317983656068,
+          268.4947433172243,
+          305.76660501800995,
+          -0.8842745134848565,
+          -120.00969281625667,
+          -0.012557466313427502,
+          -0.00675530364466283
+        ],
+        "calibration_vector_max": [
+          10920.233277683652,
+          10883.351262488524,
+          87.50780343967389,
+          818.9677263230993,
+          834.9858567291698,
+          1.0255200380284992,
+          255.88537903831985,
+          0.029458503016251796,
+          0.03512475658216052
+        ],
+        "final_graph_error": 1357.9947051074741,
+        "wall_seconds": 95.15328819002025
+      },
+      "shared_and_prior": {
+        "reference_images": 65,
+        "registered_images": 65,
+        "missing_images": [],
+        "evaluated_pairs": 2080,
+        "missing_pairs": 0,
+        "auc_percent": {
+          "1.0": 94.0508,
+          "2.5": 97.6203,
+          "5.0": 98.8102,
+          "10.0": 99.4051,
+          "20.0": 99.7025
+        },
+        "tracks": 22068,
+        "intrinsics_min": [
+          10732.12779715437,
+          10710.788297676474,
+          511.500000000004,
+          511.50000000000017
+        ],
+        "intrinsics_max": [
+          10732.12779715437,
+          10710.788297676474,
+          511.500000000004,
+          511.50000000000017
+        ],
+        "calibration_vector_min": [
+          10732.12779715437,
+          10710.788297676474,
+          -4.401761550860093e-14,
+          511.500000000004,
+          511.50000000000017,
+          0.43483284845606784,
+          0.0021868146053443133,
+          0.0019071539617060887,
+          0.0033958157612779907
+        ],
+        "calibration_vector_max": [
+          10732.12779715437,
+          10710.788297676474,
+          -4.401761550860093e-14,
+          511.500000000004,
+          511.50000000000017,
+          0.43483284845606784,
+          0.0021868146053443133,
+          0.0019071539617060887,
+          0.0033958157612779907
+        ],
+        "final_graph_error": 1369.0612906488666,
+        "wall_seconds": 3.5926418310264125
+      },
+      "leaf_like": {
+        "reference_images": 65,
+        "registered_images": 65,
+        "missing_images": [],
+        "evaluated_pairs": 2080,
+        "missing_pairs": 0,
+        "auc_percent": {
+          "1.0": 93.259,
+          "2.5": 97.3036,
+          "5.0": 98.6518,
+          "10.0": 99.3259,
+          "20.0": 99.6629
+        },
+        "tracks": 22068,
+        "intrinsics_min": [
+          10737.62666559156,
+          10713.126610390385,
+          511.5000000000052,
+          511.50000000000006
+        ],
+        "intrinsics_max": [
+          10737.62666559156,
+          10713.126610390385,
+          511.5000000000052,
+          511.50000000000006
+        ],
+        "calibration_vector_min": [
+          10737.62666559156,
+          10713.126610390385,
+          -1.722936367909097e-13,
+          511.5000000000052,
+          511.50000000000006,
+          0.4444273306259247,
+          0.0025868523904576525,
+          0.0021203425742482625,
+          0.0027750450888178397
+        ],
+        "calibration_vector_max": [
+          10737.62666559156,
+          10713.126610390385,
+          -1.722936367909097e-13,
+          511.5000000000052,
+          511.50000000000006,
+          0.4444273306259247,
+          0.0025868523904576525,
+          0.0021203425742482625,
+          0.0027750450888178397
+        ],
+        "final_graph_error": 6011.754721607712,
+        "wall_seconds": 2.4290959199424833
+      }
+    }
+  }
+}
