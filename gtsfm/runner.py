@@ -1,6 +1,7 @@
 """Base class for runner that executes SfM."""
 
 import argparse
+import json
 import logging
 import os
 import threading
@@ -39,6 +40,7 @@ logger = logger_utils.get_logger()
 
 DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent.parent
 _LOCAL_CLUSTER_TARGETS = {"distributed.LocalCluster", "dask.distributed.LocalCluster"}
+_SSH_CLUSTER_TARGETS = {"distributed.SSHCluster", "dask.distributed.SSHCluster"}
 
 if TYPE_CHECKING:
     from gtsfm.scene_optimizer import SceneOptimizer
@@ -547,17 +549,24 @@ class GtsfmRunner:
         if self.parsed_args.cluster_config:
             config = self._load_cluster_config(self.parsed_args.cluster_config)
             target = str(config.get("_target_") or "").strip()
-            if target in _LOCAL_CLUSTER_TARGETS:
+            if target in _LOCAL_CLUSTER_TARGETS | _SSH_CLUSTER_TARGETS:
                 # Hydra owns constructor resolution and Dask owns validation of
                 # constructor kwargs. Do not merge manual form defaults here.
-                cluster = instantiate(config)
+                cluster = instantiate(config, _convert_="all")
+                client = None
                 try:
                     client = Client(cluster)
+                    if target in _SSH_CLUSTER_TARGETS:
+                        client.wait_for_workers(1, timeout=60)
+                        self._io_worker = next(iter(client.scheduler_info()["workers"]))
+                        client.forward_logging()
                 except Exception:
+                    if client is not None:
+                        _shutdown_dask_client(client)
                     try:
                         cluster.close()
                     except Exception as cleanup_exc:
-                        logger.warning("Unable to clean up failed local Dask cluster: %s", cleanup_exc)
+                        logger.warning("Unable to clean up failed native Dask cluster: %s", cleanup_exc)
                     raise
             else:
                 # Legacy SSH and dask-cuda worker YAML remains unchanged.
@@ -609,6 +618,12 @@ class GtsfmRunner:
         try:
             logger.info("🌟 GTSFM: Constructing SceneOptimizer...")
             self.scene_optimizer = self._construct_scene_optimizer()
+            if live_dir:
+                output_root = Path(self.parsed_args.output_root)
+                output_root.mkdir(parents=True, exist_ok=True)
+                (output_root / "image_filenames.json").write_text(
+                    json.dumps(self.scene_optimizer.loader.image_filenames()), encoding="utf-8"
+                )
 
             if self._io_worker is not None:
                 self.scene_optimizer.loader._input_worker = self._io_worker

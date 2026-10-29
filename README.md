@@ -55,6 +55,9 @@ For reusable compute settings, the existing **Cluster config (YAML)** field acce
 a local Dask constructor configuration through Hydra/OmegaConf. Dask runtime policies
 use native Dask YAML and environment settings. See [Dask configuration](docs/setup/dask-configuration.md).
 
+For Mac-hosted Studio with saved UI configurations and automatic SSH execution,
+see [Studio execution configurations](docs/setup/studio-execution.md).
+
 Results open at the first reconstructed camera, with its photo selected in the
 collapsible **Photos** sidebar. Click a thumbnail (or use the camera arrows) to
 move to that camera, and use the enlarge button to inspect a larger photo.

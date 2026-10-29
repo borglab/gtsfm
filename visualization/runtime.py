@@ -21,9 +21,8 @@ import time
 import urllib.error
 import urllib.request
 import uuid
-import hydra
-from omegaconf import OmegaConf
 from dataclasses import dataclass, field
+from contextlib import ExitStack
 from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
@@ -31,10 +30,13 @@ from typing import Any, Mapping
 from urllib.parse import urljoin, urlparse
 
 import certifi
+import hydra
 import yaml
+from omegaconf import OmegaConf
 
 import gtsfm
-from visualization.datasets import resolve_relative_loader_paths
+from visualization.datasets import extract_input_archive, resolve_relative_loader_paths
+from visualization.ssh_workspace import SSHWorkspace, ssh_command
 
 PACKAGE_ROOT = Path(gtsfm.__file__).resolve().parent
 CONFIG_ROOT = PACKAGE_ROOT / "configs"
@@ -513,7 +515,7 @@ def configuration_schema() -> dict[str, Any]:
     """Describe supported form fields and choices without importing the full runner."""
 
     root_configs = _yaml_stem_options(CONFIG_ROOT)
-    excluded = {"cluster", "cluster_gpu", "local_scheduler_postgres_remote_cluster"}
+    excluded = {"cluster", "cluster_local", "cluster_gpu", "local_scheduler_postgres_remote_cluster"}
     root_configs = [name for name in root_configs if name not in excluded]
     models: list[dict[str, Any]] = []
     for name in root_configs:
@@ -1073,12 +1075,21 @@ def build_runner_args(spec: Mapping[str, Any], output_root: Path) -> tuple[list[
     args.extend(advanced_overrides)
 
     hardware = str(spec.get("hardware") or "cpu")
-    available = {item["id"]: item for item in detect_hardware()["devices"]}
-    if hardware not in available:
-        raise ValueError(f"Selected hardware is not available: {hardware}")
-    if available[hardware]["status"] != "available":
-        raise ValueError(f"Selected hardware is detected but unavailable: {available[hardware]['status']}")
-    if splat_implementation in {"gsplat", "anysplat"} and not available[hardware]["supports_gaussian_splatting"]:
+    if str(spec.get("dask_worker_hosts") or "").strip():
+        # A CPU login/control node need not expose the workers' accelerators.
+        # Dask's Nanny receives the explicit device binding below; the workers
+        # validate their CUDA runtime when the pipeline starts.
+        if hardware != "cpu" and not re.fullmatch(r"(?:cuda|rocm):\d+", hardware):
+            raise ValueError("SSH worker device must be cpu, cuda:N, or rocm:N")
+        supports_splats = hardware.startswith("cuda:")
+    else:
+        available = {item["id"]: item for item in detect_hardware()["devices"]}
+        if hardware not in available:
+            raise ValueError(f"Selected hardware is not available: {hardware}")
+        if available[hardware]["status"] != "available":
+            raise ValueError(f"Selected hardware is detected but unavailable: {available[hardware]['status']}")
+        supports_splats = available[hardware]["supports_gaussian_splatting"]
+    if splat_implementation in {"gsplat", "anysplat"} and not supports_splats:
         raise ValueError("Gaussian splatting currently requires a CUDA-capable NVIDIA GPU")
 
     env: dict[str, str] = {"GTSFM_SELECTED_DEVICE": hardware}
@@ -1109,6 +1120,7 @@ class ManagedJob:
     remote_cancel_requested: bool = field(default=False, repr=False, compare=False)
     remote_cancel_dispatched: bool = field(default=False, repr=False, compare=False)
     process: subprocess.Popen[str] | None = field(default=None, repr=False, compare=False)
+    ssh_spec: dict[str, Any] | None = field(default=None, repr=False, compare=False)
 
     def public(self) -> dict[str, Any]:
         payload = {
@@ -1140,7 +1152,11 @@ class JobManager:
         self.runtime_root = self.results_root / ".gtsfm"
         self.runtime_root.mkdir(parents=True, exist_ok=True)
         self._jobs: dict[str, ManagedJob] = {}
+        self._owned_jobs: set[str] = set()
         self._lock = threading.RLock()
+        self._threads: list[threading.Thread] = []
+        self._ssh_workspaces: dict[str, SSHWorkspace] = {}
+        self._closing = False
 
     def list(self) -> list[dict[str, Any]]:
         with self._lock:
@@ -1173,19 +1189,50 @@ class JobManager:
         if public_spec.get("splat_implementation") == "anysplat":
             public_spec["config_name"] = "anysplat"
         is_remote = str(spec.get("execution_target") or "local") == "remote"
+        is_ssh = is_remote and spec.get("remote_connection") == "ssh"
         if is_remote:
             endpoint = str(spec.get("remote_endpoint") or "").rstrip("/")
             parsed_endpoint = urlparse(endpoint)
-            if parsed_endpoint.scheme not in {"http", "https"} or not parsed_endpoint.netloc:
+            if is_ssh:
+                ssh_command(spec)
+                if not str(spec.get("ssh_workspace") or "").strip():
+                    raise ValueError("Enter the remote GTSFM checkout directory")
+            elif parsed_endpoint.scheme not in {"http", "https"} or not parsed_endpoint.netloc:
                 raise ValueError("Enter a valid http(s) URL for the remote GTSFM workspace")
             api_key = str(spec.get("api_key") or "")
-            if not api_key:
+            if not api_key and not is_ssh:
                 raise ValueError("An API key is required for a remote run")
             args: list[str] = []
             device_env: dict[str, str] = {}
-            command = ["remote", f"{endpoint}/api/jobs"]
+            command = ["ssh", str(spec["ssh_host"])] if is_ssh else ["remote", f"{endpoint}/api/jobs"]
         else:
             args, device_env = build_runner_args(spec, run_root)
+            hosts = str(spec.get("dask_worker_hosts") or "").split()
+            if hosts:
+                if spec.get("cluster_config"):
+                    raise ValueError("Choose worker hosts or an expert cluster file, not both")
+                scheduler = str(spec.get("dask_scheduler_host") or hosts[0]).strip()
+                constructor = {
+                    "_target_": "distributed.SSHCluster",
+                    "hosts": [scheduler, *hosts],
+                    "remote_python": str(spec.get("dask_worker_python") or sys.executable),
+                    "scheduler_options": {
+                        "dashboard_address": str(spec.get("dashboard_port") or "127.0.0.1:0"),
+                        "port": int(spec.get("dask_scheduler_port") or 0),
+                    },
+                    "worker_options": {
+                        "n_workers": int(spec.get("num_workers", 1)),
+                        "nthreads": int(spec.get("threads_per_worker", 1)),
+                        "memory_limit": str(spec.get("worker_memory_limit") or "32GB"),
+                        "env": device_env,
+                    },
+                }
+                if spec.get("dask_tmpdir"):
+                    constructor["worker_options"]["local_directory"] = str(spec["dask_tmpdir"])
+                cluster_file = self.runtime_root / "clusters" / f"{job_id}.yaml"
+                cluster_file.parent.mkdir(parents=True, exist_ok=True)
+                cluster_file.write_text(yaml.safe_dump(constructor), encoding="utf-8")
+                args.extend(["--cluster_config", str(cluster_file)])
             command = [sys.executable, "-m", "gtsfm.runner", *args]
         now = _utc_now()
         job = ManagedJob(
@@ -1200,14 +1247,21 @@ class JobManager:
             command=command,
             remote={"endpoint": endpoint} if is_remote else None,
             remote_api_key=api_key if is_remote else None,
+            ssh_spec=dict(spec) if is_ssh else None,
         )
         with self._lock:
+            if self._closing:
+                raise ValueError("Studio is shutting down")
             self._jobs[job_id] = job
+            self._owned_jobs.add(job_id)
 
         live_root.mkdir(parents=True, exist_ok=True)
-        if is_remote:
+        if is_ssh:
+            thread = threading.Thread(target=self._run_ssh, args=(job,), daemon=True, name=f"gtsfm-ssh-{job_id}")
+        elif is_remote:
             thread = threading.Thread(target=self._run_remote, args=(job,), daemon=True, name=f"gtsfm-remote-{job_id}")
-            thread.start()
+        if is_remote:
+            self._start_thread(thread)
             return job.public()
 
         env = os.environ.copy()
@@ -1215,11 +1269,45 @@ class JobManager:
         env["GTSFM_LIVE_DIR"] = str(live_root)
         env["GTSFM_LIVE_PREVIEW_INTERVAL"] = str(max(1, int(spec.get("live_preview_interval", 250))))
         thread = threading.Thread(target=self._run, args=(job, env), daemon=True, name=f"gtsfm-job-{job_id}")
-        thread.start()
+        self._start_thread(thread)
         return job.public()
 
+    def _start_thread(self, thread: threading.Thread) -> None:
+        with self._lock:
+            if self._closing:
+                return
+            self._threads.append(thread)
+            thread.start()
+
+    def shutdown(self) -> None:
+        """Cancel owned jobs and reap SSH transports before the Studio process exits."""
+        with self._lock:
+            self._closing = True
+            jobs = [self._jobs[job_id] for job_id in self._owned_jobs]
+        for job in jobs:
+            if job.status in {"queued", "running"}:
+                self.cancel(job.id)
+        with self._lock:
+            workspaces = list(self._ssh_workspaces.values())
+        for workspace in workspaces:
+            workspace.close()
+        for job in jobs:
+            if job.process is not None and job.process.poll() is None:
+                job.process.wait(timeout=7)
+        deadline = time.monotonic() + 15
+        for thread in list(self._threads):
+            thread.join(timeout=max(0, deadline - time.monotonic()))
+        if any(thread.is_alive() and thread.name.startswith("gtsfm-ssh-") for thread in self._threads):
+            raise RuntimeError("An SSH job did not stop during Studio shutdown")
+
     @staticmethod
-    def _remote_json(url: str, api_key: str, *, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    def _remote_json(
+        url: str,
+        api_key: str,
+        *,
+        payload: dict[str, Any] | None = None,
+        timeout: float = _REMOTE_REQUEST_TIMEOUT_SECONDS,
+    ) -> dict[str, Any]:
         body = json.dumps(payload).encode("utf-8") if payload is not None else None
         request = urllib.request.Request(
             url,
@@ -1236,9 +1324,7 @@ class JobManager:
         attempts = _REMOTE_READ_RETRIES if payload is None else 1
         for attempt in range(attempts):
             try:
-                with urllib.request.urlopen(
-                    request, timeout=_REMOTE_REQUEST_TIMEOUT_SECONDS, context=_SSL_CONTEXT
-                ) as response:
+                with urllib.request.urlopen(request, timeout=timeout, context=_SSL_CONTEXT) as response:
                     result = json.loads(response.read().decode("utf-8"))
                 break
             except (http.client.IncompleteRead, http.client.RemoteDisconnected, ConnectionError, TimeoutError):
@@ -1279,7 +1365,7 @@ class JobManager:
         archive_file.close()
         try:
             file_count = 0
-            with tarfile.open(archive_path, mode="w") as archive:
+            with tarfile.open(archive_path, mode="w", dereference=True) as archive:
                 for path in sorted(source.rglob("*")):
                     if not path.is_file():
                         continue
@@ -1335,6 +1421,59 @@ class JobManager:
         finally:
             archive_path.unlink(missing_ok=True)
 
+    def _run_ssh(self, job: ManagedJob) -> None:
+        """Start and own the remote service; reuse uploads, polling and cancellation."""
+        workspace = None
+        try:
+            with self._lock:
+                if job.status == "cancelled":
+                    return
+                job.status = "running"
+                job.log_tail.append("Connecting over SSH and starting the remote workspace…")
+            with ExitStack() as sessions:
+                for attempt in range(3):
+                    workspace = SSHWorkspace(job.ssh_spec)
+                    with self._lock:
+                        if self._closing or job.status == "cancelled":
+                            workspace.close()
+                            return
+                        self._ssh_workspaces[job.id] = workspace
+                    try:
+                        sessions.enter_context(workspace)
+                        workspace.ready(lambda url, key: self._remote_json(url, key, timeout=3))
+                        break
+                    except (OSError, ValueError, RuntimeError) as exc:
+                        workspace.close()
+                        with self._lock:
+                            if job.status == "cancelled":
+                                return
+                            job.log_tail.extend(workspace.stderr_tail.splitlines()[-30:])
+                            if attempt == 2:
+                                raise
+                            job.log_tail.append(
+                                f"SSH startup attempt {attempt + 1} failed: {exc}. Retrying before job submission…"
+                            )
+                # Only readiness is retried. Once a remote POST might have
+                # succeeded, never replay it automatically.
+                with self._lock:
+                    if job.status == "cancelled":
+                        return
+                    job.remote["endpoint"] = workspace.endpoint
+                    job.remote_api_key = workspace.api_key
+                self._run_remote(job)
+        except Exception as exc:
+            with self._lock:
+                if job.status != "cancelled":
+                    job.status = "failed"
+                    job.error = f"SSH run failed: {exc}"
+                    if workspace is not None:
+                        job.log_tail.extend(workspace.stderr_tail.splitlines()[-30:])
+                    job.updated_at = _utc_now()
+        finally:
+            job.ssh_spec = None
+            with self._lock:
+                self._ssh_workspaces.pop(job.id, None)
+
     def _run_remote(self, job: ManagedJob) -> None:
         assert job.remote is not None and job.remote_api_key is not None
         endpoint = str(job.remote["endpoint"])
@@ -1343,6 +1482,7 @@ class JobManager:
                 if job.status == "cancelled":
                     return
             remote_spec = dict(job.spec)
+            staged_roots: list[tuple[Path, str]] = []
             if remote_spec.get("sample_id"):
                 remote_spec["dataset_dir"] = ""
                 remote_spec["images_dir"] = ""
@@ -1365,12 +1505,28 @@ class JobManager:
                         self.runtime_root / "transfers",
                     )
                     remote_spec[field_name] = str(uploaded["path"])
+                    staged_roots.append((Path(local_path).expanduser().resolve(), str(uploaded["path"])))
+                loader_options = dict(remote_spec.get("loader_options") or {})
+                for name, value in loader_options.items():
+                    if not name.endswith(("_path", "_fpath")) or not isinstance(value, str):
+                        continue
+                    path = Path(value).expanduser()
+                    if not path.is_absolute():
+                        continue
+                    for source, destination in staged_roots:
+                        if path.is_relative_to(source):
+                            loader_options[name] = str(Path(destination) / path.relative_to(source))
+                            break
+                    else:
+                        raise ValueError(f"Place {name} inside the dataset folder so Studio can stage it")
+                if loader_options:
+                    remote_spec["loader_options"] = loader_options
             with self._lock:
                 if job.status == "cancelled":
                     return
                 job.status = "running"
                 job.updated_at = _utc_now()
-                job.log_tail.append("Starting the remote GPU workspace; the first run may take several minutes…")
+                job.log_tail.append("Starting the remote workspace; the first run may take several minutes…")
             remote_spec["execution_target"] = "local"
             created = self._remote_json(f"{endpoint}/api/jobs", job.remote_api_key, payload=remote_spec)
             remote_id = str(created["id"])
@@ -1383,9 +1539,10 @@ class JobManager:
                     }
                 )
                 if cancelled:
-                    job.log_tail.append("Modal accepted the job. Sending the pending cancellation request…")
+                    job.log_tail.append("Remote workspace accepted the job. Sending the pending cancellation request…")
                 if not cancelled:
-                    job.status = str(created.get("status", "queued"))
+                    created_status = str(created.get("status", "queued"))
+                    job.status = created_status if created_status in {"queued", "running"} else "running"
                 job.updated_at = _utc_now()
             if cancelled:
                 self._dispatch_remote_cancel(job, background=False)
@@ -1444,16 +1601,39 @@ class JobManager:
                     job.return_code = state.get("return_code")
                     job.updated_at = _utc_now()
             if job.status != "cancelled" and remote_status == "completed":
-                if str(job.spec.get("splat_implementation") or "none") != "none":
+                if job.ssh_spec is not None:
+                    # Keep reconstructions, metrics, and splats on the Mac so
+                    # results remain usable after the temporary tunnel closes.
+                    with tempfile.TemporaryDirectory(dir=self.runtime_root) as transfer:
+                        archive = Path(transfer) / "results.tar"
+                        include_images = "true" if job.spec.get("sample_id") else "false"
+                        self._remote_download(
+                            f"{endpoint}/api/jobs/{remote_id}/results?include_images={include_images}",
+                            job.remote_api_key,
+                            archive,
+                        )
+                        extract_input_archive(archive, Path(job.output_root))
+                    if not job.spec.get("sample_id"):
+                        locations = {
+                            key: str(Path(str(job.spec[key])).expanduser().resolve())
+                            for key in ("dataset_dir", "images_dir")
+                            if job.spec.get(key)
+                        }
+                        # Preserve the remote config as evidence, while the Mac
+                        # viewer resolves photographs from the local inputs.
+                        (Path(job.output_root) / "studio-inputs.json").write_text(json.dumps(locations))
+                    job.remote.pop("workspace_url", None)
+                elif str(job.spec.get("splat_implementation") or "none") != "none":
                     self._remote_download(
                         f"{endpoint}/api/jobs/{remote_id}/splat?format=ply",
                         job.remote_api_key,
                         Path(job.output_root) / "gaussian_splats.ply",
                     )
                 with self._lock:
-                    job.status = "completed"
-                    job.return_code = 0
-                    job.updated_at = _utc_now()
+                    if job.status != "cancelled":
+                        job.status = "completed"
+                        job.return_code = 0
+                        job.updated_at = _utc_now()
             elif job.status != "cancelled":
                 with self._lock:
                     job.status = remote_status
@@ -1619,7 +1799,8 @@ class JobManager:
                 else:
                     job.remote["cancel_status"] = "waiting_for_remote_job"
                     job.log_tail.append(
-                        "Waiting for Modal to accept the starting job; it will be cancelled immediately afterward."
+                        "Waiting for the remote workspace to accept the starting job; "
+                        "it will be cancelled immediately afterward."
                     )
             del job.log_tail[:-250]
         if process is not None and process.poll() is None:

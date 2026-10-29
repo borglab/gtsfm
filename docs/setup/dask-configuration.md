@@ -1,5 +1,9 @@
 # Dask configuration
 
+For locally saved settings edited in Studio, including automatic remote startup,
+use [Studio execution configurations](studio-execution.md). The constructor-file
+interface below is an optional expert/CLI path.
+
 Use the existing **Cluster config (YAML)** field in Studio, or the runner's
 `--cluster_config` argument, to reuse a local cluster configuration. GTSfM loads
 the file with its existing Hydra/OmegaConf dependency and instantiates Dask's

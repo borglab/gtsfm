@@ -43,7 +43,8 @@ def test_local_yaml_is_instantiated_authoritatively(tmp_path: Path, monkeypatch:
     fake_cluster = object()
     fake_client = type("FakeClient", (), {"dashboard_link": "http://127.0.0.1:1"})
 
-    def fake_instantiate(config):
+    def fake_instantiate(config, **kwargs):
+        assert kwargs == {"_convert_": "all"}
         instantiated.append(config)
         return fake_cluster
 
