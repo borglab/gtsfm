@@ -17,8 +17,6 @@ from gtsfm.frontend.matcher.image_matcher_base import ImageMatcherBase
 
 logger = logger_utils.get_logger()
 
-CACHE_ROOT_PATH = Path(__file__).resolve().parent.parent.parent.parent / "cache"
-
 
 class ImageMatcherCacher(ImageMatcherBase):
     """Cacher for matcher output on disk, keyed on the input.
@@ -39,7 +37,7 @@ class ImageMatcherCacher(ImageMatcherBase):
 
     def _get_cache_path(self, cache_key: str) -> Path:
         """Gets the file path to the cache bz2 file from the cache key."""
-        return CACHE_ROOT_PATH / "image_matcher" / "{}.pbz2".format(cache_key)
+        return cache_utils.cache_root() / "image_matcher" / "{}.pbz2".format(cache_key)
 
     def _generate_cache_key(self, image_i1: Image, image_i2: Image) -> str:
         """Generates the cache key from the two input images."""

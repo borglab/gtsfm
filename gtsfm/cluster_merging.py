@@ -57,6 +57,9 @@ class MergingOptions:
     min_track_length: int = 2
     allow_post_ba_reproj_filtering: bool = True
     metric_constructed_only: bool = False
+    # When False, only leaf clusters are reconstructed. Internal nodes align their
+    # children with shared-track Sim(3), merge those tracks, then run bundle adjustment.
+    reconstruct_internal_nodes: bool = True
     # Capture good-pose cameras dropped by the post-BA track filter on the node result (camera index ->
     # merged-frame camera), so the post-merge retriangulation can inject their poses and attempt
     # geometric recovery: retriangulation is depth-confidence independent, so a camera that lost its
@@ -748,6 +751,50 @@ def _drop_outlier_tracks(scene: GtsfmData) -> GtsfmData:
     return scene
 
 
+def _align_scenes_with_track_correspondences(
+    reference: GtsfmData,
+    other: GtsfmData,
+    *,
+    max_correspondences: int,
+    drop_if_merging_fails: bool,
+    scale_focal_length: bool,
+) -> GtsfmData:
+    """Align ``other`` into ``reference`` using 3D points of tracks that share a 2D measurement."""
+    correspondences = _select_overlapping_track_point_correspondences(
+        reference,
+        other,
+        max_correspondences=max_correspondences,
+    )
+    logger.info("Using %d shared-track correspondences for child-to-child Sim3 alignment.", len(correspondences))
+    if len(correspondences) < 3:
+        if drop_if_merging_fails:
+            logger.warning(
+                "Dropping a child because only %d shared-track correspondences were found.", len(correspondences)
+            )
+            return reference
+        reference_S_other = Similarity3()
+    else:
+        point_pairs = [
+            (
+                np.reshape(np.asarray(reference_point, dtype=float), (3, 1)),
+                np.reshape(np.asarray(other_point, dtype=float), (3, 1)),
+            )
+            for reference_point, other_point in correspondences
+        ]
+        try:
+            reference_S_other = Similarity3.Align(point_pairs)
+        except Exception as exc:
+            if drop_if_merging_fails:
+                logger.warning("Dropping a child because shared-track Sim3 alignment failed: %s", exc)
+                return reference
+            reference_S_other = Similarity3()
+    try:
+        return reference.merged_with(other, reference_S_other, scale_focal_length=scale_focal_length)
+    except Exception as exc:
+        logger.warning("Failed to merge child into reference scene: %s", exc)
+        return reference
+
+
 def _align_and_merge_results(
     result1: GtsfmData,
     result2: GtsfmData,
@@ -842,12 +889,15 @@ def combine_results(
             ),
         )
 
-    if current is None:
+    leaf_only_merge = current is None and not options.reconstruct_internal_nodes
+    if current is None and not leaf_only_merge:
         return _finalize_result(None, None)
 
-    # Log reprojection stats for the current scene and all children.
-    _log_scene_reprojection_stats(current, "Current Node", plot_histograms=options.plot_reprojection_histograms)
     valid_child_scenes = [c for c in child_scenes if c is not None]
+    if leaf_only_merge and len(valid_child_scenes) == 0:
+        return _finalize_result(None, None)
+    if not leaf_only_merge:
+        _log_scene_reprojection_stats(current, "Current Node", plot_histograms=options.plot_reprojection_histograms)
 
     logger.info("🫱🏻‍🫲🏽 Merging with %d / %d valid children ", len(valid_child_scenes), len(child_scenes))
 
@@ -858,34 +908,48 @@ def combine_results(
     if len(valid_child_scenes) == 0:
         return _finalize_result(current, None)
 
-    metadata_source = current
-
-    # Initialize the merged scene: use the current scene.
-    merged = current
-    _log_scene_reprojection_stats(merged, "Current node", plot_histograms=options.plot_reprojection_histograms)
-
-    if options.use_nonlinear_sim3_alignment:
-        merged = merge_scenes_with_sim3_nonlinear(
-            merged,
-            valid_child_scenes,
-            max_track_correspondences_for_sim3=options.max_track_correspondences_for_sim3,
-            scale_and_average_focal_length_in_merging=options.scale_and_average_focal_length,
-        )
-        _log_scene_reprojection_stats(
-            merged, "Merged with children (nonlinear alignment)", plot_histograms=options.plot_reprojection_histograms
-        )
-    else:
-        # Merge all children into the merged scene.
-        for i, child in enumerate(valid_child_scenes):
-            merged = _align_and_merge_results(
+    if leaf_only_merge:
+        merged = valid_child_scenes[0]
+        metadata_source = merged
+        for i, child in enumerate(valid_child_scenes[1:]):
+            merged = _align_scenes_with_track_correspondences(
                 merged,
                 child,
+                max_correspondences=options.max_track_correspondences_for_sim3,
                 drop_if_merging_fails=options.drop_child_if_merging_fail,
-                scale_focal_length_in_merging=options.scale_and_average_focal_length,
+                scale_focal_length=options.scale_and_average_focal_length,
             )
             _log_scene_reprojection_stats(
                 merged, f"Merged with child #{i + 1}", plot_histograms=options.plot_reprojection_histograms
             )
+    else:
+        metadata_source = current
+        merged = current
+        _log_scene_reprojection_stats(merged, "Current node", plot_histograms=options.plot_reprojection_histograms)
+
+        if options.use_nonlinear_sim3_alignment:
+            merged = merge_scenes_with_sim3_nonlinear(
+                merged,
+                valid_child_scenes,
+                max_track_correspondences_for_sim3=options.max_track_correspondences_for_sim3,
+                scale_and_average_focal_length_in_merging=options.scale_and_average_focal_length,
+            )
+            _log_scene_reprojection_stats(
+                merged,
+                "Merged with children (nonlinear alignment)",
+                plot_histograms=options.plot_reprojection_histograms,
+            )
+        else:
+            for i, child in enumerate(valid_child_scenes):
+                merged = _align_and_merge_results(
+                    merged,
+                    child,
+                    drop_if_merging_fails=options.drop_child_if_merging_fail,
+                    scale_focal_length_in_merging=options.scale_and_average_focal_length,
+                )
+                _log_scene_reprojection_stats(
+                    merged, f"Merged with child #{i + 1}", plot_histograms=options.plot_reprojection_histograms
+                )
 
     _propagate_scene_metadata(merged, metadata_source)
 

@@ -40,7 +40,7 @@ from gtsfm.two_view_estimator import TwoViewEstimator, create_v_corr_idxs, creat
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
 from gtsfm.view_graph_estimator.view_graph_calibration import compute_global_view_graph_intrinsics
 from gtsfm.utils.graph import get_nodes_in_largest_connected_component
-from gtsfm.utils.tree import PreOrderIter
+from gtsfm.utils.tree import PreOrderIter, Tree
 from gtsfm.utils.tree_dask import submit_tree_map_with_children
 
 # Set matplotlib backend to "Agg" (Anti-Grain Geometry) for headless rendering
@@ -392,6 +392,20 @@ class SceneOptimizer:
             edge_count=len(context.visibility_graph),
         )
 
+    def _schedule_cluster_tree(self, context_tree: Tree[ClusterContext]) -> Tree[ClusterExecutionHandles]:
+        """Schedule reconstruction for each node, optionally skipping internal nodes."""
+        reconstruct_internal_nodes = self._merging_options.reconstruct_internal_nodes
+
+        def visit(node: Tree[ClusterContext]) -> Tree[ClusterExecutionHandles]:
+            if reconstruct_internal_nodes or node.is_leaf():
+                handle = self._schedule_single_cluster(node.value)
+            else:
+                logger.info("Skipping reconstruction for internal cluster %s.", node.value.label)
+                handle = _empty_cluster_handles(node.value, len(node.value.visibility_graph))
+            return Tree(value=handle, children=tuple(visit(child) for child in node.children))
+
+        return visit(context_tree)
+
     def run(self, client: Client) -> None:
         """Run the SceneOptimizer."""
         start_time = time.time()
@@ -527,7 +541,7 @@ class SceneOptimizer:
 
                 # Runs reconstruction on each node of the VisibilityGraph (with context) tree.
                 # Returns handles to various outputs: reconstruction, metrics, io_barrier etc.
-                handles_tree = context_tree.map(self._schedule_single_cluster)
+                handles_tree = self._schedule_cluster_tree(context_tree)
 
                 # Get the reconstruction handle and run merging to get a tree of merged result handles.
                 reconstruction_tree = handles_tree.map(lambda handle: handle.reconstruction)

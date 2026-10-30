@@ -23,8 +23,6 @@ NUM_KEYPOINTS_TO_SAMPLE_FOR_HASH = 10
 # Number of first K correspondence indices from image pair to use to create cache key.
 NUM_CORRESPONDENCES_TO_SAMPLE_FOR_HASH = 10
 
-CACHE_ROOT_PATH = Path(__file__).resolve().parent.parent / "cache"
-
 logger = logger_utils.get_logger()
 
 
@@ -40,7 +38,7 @@ class TwoViewEstimatorCacher(TwoViewEstimator):
 
     def __get_cache_path(self, cache_key: str) -> Path:
         """Gets the file path to the cache bz2 file from the cache key."""
-        return CACHE_ROOT_PATH / "two_view_estimator" / "{}.pbz2".format(cache_key)
+        return cache_utils.cache_root() / "two_view_estimator" / "{}.pbz2".format(cache_key)
 
     def __generate_cache_key(
         self, keypoints_i1: Keypoints, keypoints_i2: Keypoints, putative_corr_idxs: np.ndarray
