@@ -1,4 +1,4 @@
-"""SSH history stays redacted while live retries retain their private identity path."""
+"""Ray SSH history stays redacted, including stale identity fields in agent requests."""
 
 import json
 from copy import deepcopy
@@ -18,7 +18,7 @@ def _wait_for_jobs(manager: runtime.JobManager) -> None:
 
 
 def _ssh_spec(identity: Path) -> dict:
-    """Build a key-auth request containing distinct values for redaction checks."""
+    """Build an agent request with stale credential fields solely for redaction checks."""
     return {
         "name": "SSH history",
         "loader": "olsson",
@@ -29,7 +29,7 @@ def _ssh_spec(identity: Path) -> dict:
         "dataset_dir": str(identity.parent),
         "config_name": "sift_front_end",
         "ssh_workspace": "/remote/gtsfm",
-        "ssh_authentication": "key",
+        "ssh_authentication": "agent",
         "ssh_private_key": str(identity),
         "api_key": "api-secret-must-not-persist",
         "modal_token_secret": "modal-secret-must-not-persist",
@@ -129,8 +129,8 @@ def test_ssh_terminal_history_excludes_private_state_and_credentials(ssh_history
         assert "modal-secret-must-not-persist" not in serialized
 
 
-def test_live_key_auth_retry_reconstructs_identity_from_volatile_state(ssh_history, monkeypatch):
-    """Retry uses the private identity field after the original ssh_spec has been discarded."""
+def test_live_retry_preserves_agent_authentication_and_keeps_history_redacted(ssh_history, monkeypatch):
+    """Agent retries retain saved connection settings while public state stays redacted."""
     manager, identity, received, _ = ssh_history
     original = manager.start(_ssh_spec(identity))
     _wait_for_jobs(manager)
@@ -141,8 +141,7 @@ def test_live_key_auth_retry_reconstructs_identity_from_volatile_state(ssh_histo
     _wait_for_jobs(manager)
     assert retried["id"] != original["id"]
     assert len(received) == 2
-    assert received[1]["ssh_authentication"] == "key"
-    assert received[1]["ssh_private_key"] == str(identity)
+    assert received[1]["ssh_authentication"] == "agent"
     assert manager.get(retried["id"]).retry_of == original["id"]
     assert manager.get(retried["id"]).ssh_identity_file == str(identity)
     assert not job_history.SECRET_FIELDS.intersection(retried["spec"])

@@ -38,8 +38,10 @@ In **New run → Compute → Remote VM → SSH**, enter:
 - Remote Ray executable, normally `~/.local/bin/ray` after the installation above.
 - Device and worker/thread/memory settings under **Machine settings**.
 
-Ray's launcher uses its own OpenSSH configuration and identity handling. A
-non-default SSH port must be configured in an OpenSSH host alias; it is rejected
+Use an existing OpenSSH host alias with its local `IdentityFile`/`IdentityAgent`,
+or the local SSH agent. Direct private-key-file submission is disabled because
+Ray's autoscaler would upload an explicit `ssh_private_key` to the head node.
+Studio does not pass that parameter. A non-default SSH port must be configured in an OpenSSH host alias; it is rejected
 as a separate port setting. Ray 2.59's launcher uses its standard host-key options,
 which differ from Studio's previous strict-known-hosts launcher. Use a trusted
 private network such as an authenticated Tailscale endpoint.

@@ -1204,6 +1204,7 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
     try {
       if (form.cluster_config) throw new Error("Clear the expert Cluster config path before saving. Saved configurations use the visible machine controls.");
       const settings: Record<string, unknown> = Object.fromEntries(EXECUTION_KEYS.map((key) => [key, form[key]]));
+      if (form.ssh_authentication === "agent") settings.ssh_private_key = "";
       for (const key of ["ssh_port", "num_workers", "threads_per_worker", "dask_scheduler_port"]) settings[key] = Number(settings[key]);
       settings.num_retry_cluster_connection = form.num_retry_cluster_connection === "" ? null : Number(form.num_retry_cluster_connection);
       const saved = await getJson<ExecutionConfiguration>("/api/execution-configurations", {
@@ -1304,8 +1305,12 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
   const hasExternalWorkers = Boolean(form.dask_worker_hosts.trim());
   const modalWorkspaceSelected = form.execution_target === "remote" && form.remote_connection === "api" && form.remote_provider === "modal";
   const selectedRemoteHardware = remote?.hardware.devices.find((item) => item.id === form.remote_hardware);
-  const sshConnectionError = form.execution_target === "remote" && form.remote_connection === "ssh" && form.ssh_wsl_distribution.trim()
-    ? "SSH execution requires a Linux SSH host. Clear the legacy WSL distribution value and use the Linux host's SSH address."
+  const sshConnectionError = form.execution_target === "remote" && form.remote_connection === "ssh"
+    ? form.ssh_wsl_distribution.trim()
+      ? "SSH execution requires a Linux SSH host. Clear the legacy WSL distribution value and use the Linux host's SSH address."
+      : form.ssh_authentication !== "agent"
+        ? "Select OpenSSH configuration / agent. Configure IdentityFile in a local SSH host alias instead of supplying a private key to Ray."
+        : ""
     : "";
   const deviceError = modalWorkspaceSelected && form.remote_hardware !== "cuda:0"
     ? "This Modal workspace runs on cuda:0. Select its GPU device before starting."
@@ -1655,6 +1660,7 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
       }
       const expertOverrides = form.advanced_overrides.split("\n");
       const payload = { ...form,
+        ssh_private_key: form.ssh_authentication === "agent" ? "" : form.ssh_private_key,
         loader: form.loader,
         hydra_overrides: modelHydraOverrides,
         advanced_overrides: expertOverrides.map((line) => line.trim()).filter(Boolean),
@@ -1884,10 +1890,13 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
             <TextField label="Port" type="number" min="1" max="65535" value={form.ssh_port} onChange={(value) => set("ssh_port", value)} />
             <TextField label="Username" value={form.ssh_username} onChange={(value) => set("ssh_username", value)} autoComplete="username" placeholder="ubuntu" />
             <SelectField label="Authentication" value={form.ssh_authentication} options={[
-              { id: "agent", label: "SSH agent" }, { id: "key", label: "Private key" },
-            ]} onChange={(value) => set("ssh_authentication", value as RunFormState["ssh_authentication"])} />
+              { id: "agent", label: "OpenSSH configuration / agent" },
+            ]} onChange={(value) => {
+              set("ssh_authentication", value as RunFormState["ssh_authentication"]);
+              setForm((current) => ({ ...current, ssh_private_key: "" }));
+            }} />
           </div>
-          {form.ssh_authentication === "key" && <TextField label="Private key path" value={form.ssh_private_key} onChange={(value) => set("ssh_private_key", value)} placeholder="/Users/you/.ssh/id_ed25519" />}
+          <p className="field-help">Use a local OpenSSH host alias for IdentityFile and other SSH settings, or your SSH agent. Private keys stay on this machine and are not supplied to Ray.</p>
           <TextField label="Remote workspace" value={form.ssh_workspace} onChange={(value) => set("ssh_workspace", value)} placeholder="~/gtsfm-workspace" />
           <TextField label="Remote Python" value={form.ssh_python} onChange={(value) => set("ssh_python", value)} placeholder=".venv/bin/python" />
           <TextField label="Remote Ray executable" value={form.ssh_ray_binary} onChange={(value) => set("ssh_ray_binary", value)} placeholder="~/.local/bin/ray" />

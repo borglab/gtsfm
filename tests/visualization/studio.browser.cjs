@@ -179,11 +179,11 @@ test('a loaded CPU configuration is preserved and blocked until its Modal GPU is
   assert.equal(await run.isEnabled(), true);
 });
 
-test('SSH configurations preserve the Ray executable and require clearing legacy WSL settings', async t => {
+test('SSH configurations preserve Ray settings and require replacing legacy WSL and key authentication', async t => {
   const page = await pageFor(t);
   const legacy = { name: 'Linux worker', settings: { execution_target: 'remote', remote_connection: 'ssh',
     ssh_host: 'linux-worker', ssh_workspace: '/workspace/gtsfm', ssh_ray_binary: '/environment/bin/ray',
-    ssh_wsl_distribution: 'ShineCompute' } };
+    ssh_wsl_distribution: 'ShineCompute', ssh_authentication: 'key', ssh_private_key: '/legacy/id_ed25519' } };
   let saved;
   await page.route('**/api/execution-configurations', route => {
     if (route.request().method() === 'PUT') {
@@ -199,11 +199,20 @@ test('SSH configurations preserve the Ray executable and require clearing legacy
   assert.equal(await check.isDisabled(), true);
   await page.getByText('SSH execution requires a Linux SSH host.', { exact: false }).waitFor();
   await page.getByLabel('WSL distribution', { exact: false }).fill('');
+  assert.equal(await check.isDisabled(), true);
+  assert.equal(await page.getByRole('button', { name: 'Run reconstruction', exact: true }).isDisabled(), true);
+  const authentication = page.getByLabel('Authentication', { exact: true });
+  assert.equal(await authentication.locator('option:checked').textContent(), 'key (unavailable)');
+  assert.equal(await page.getByLabel('Private key path', { exact: true }).count(), 0);
+  await page.getByText('Select OpenSSH configuration / agent.', { exact: false }).waitFor();
+  await authentication.selectOption({ label: 'OpenSSH configuration / agent' });
   assert.equal(await check.isEnabled(), true);
   await page.getByRole('button', { name: 'Save configuration', exact: true }).click();
   await eventually(() => !!saved);
   assert.equal(saved.settings.ssh_ray_binary, '/environment/bin/ray');
   assert.equal(saved.settings.ssh_wsl_distribution, '');
+  assert.equal(saved.settings.ssh_authentication, 'agent');
+  assert.equal(saved.settings.ssh_private_key, '');
 });
 
 test('result refresh preserves root-first ordering and reloads changed point colors', async t => {

@@ -53,6 +53,10 @@ class RayWorkspace(AbstractContextManager):
             local_ray_binary: Optional explicit local Ray CLI executable.
         """
         self.spec = dict(spec)
+        if spec.get("ssh_authentication") == "key":
+            # Stock Ray copies auth.ssh_private_key onto the head node, even
+            # without workers. Keep identity handling inside local OpenSSH.
+            raise ValueError("Use an OpenSSH host alias/SSH agent so private keys remain local.")
         host = str(spec.get("ssh_host") or "").strip()
         user = str(spec.get("ssh_username") or "").strip()
         if not re.fullmatch(r"[A-Za-z0-9_.:-]+", host) or host.startswith("-"):
@@ -79,11 +83,6 @@ class RayWorkspace(AbstractContextManager):
         root = runtime_root or Path.home() / ".cache" / "gtsfm" / "ray"
         self.config_path = root / f"{self.cluster_name}.yaml"
         auth = {"ssh_user": user}
-        if spec.get("ssh_authentication") == "key":
-            key = Path(str(spec.get("ssh_private_key") or "")).expanduser()
-            if not key.is_file():
-                raise ValueError("Choose an existing SSH private key file")
-            auth["ssh_private_key"] = str(key.resolve())
         ray_path = _remote_path(remote_ray)
         ray_temp = _remote_path(f"/tmp/gtsfm-ray-{identity}")
         start = (

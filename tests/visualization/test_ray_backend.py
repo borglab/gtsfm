@@ -424,3 +424,38 @@ def test_closing_consumer_closes_native_sdk_log_session(spec, tmp_path, native_l
         asyncio.run(consume_one())
     finally:
         result.close()
+
+
+def test_explicit_private_key_authentication_is_rejected_before_native_launcher(spec, tmp_path):
+    """Prevent stock Ray from copying a local identity into ray_bootstrap_key.pem."""
+    key = tmp_path / "identity"
+    key.write_text("fixture private key must remain local")
+    with pytest.raises(ValueError, match="OpenSSH host alias/SSH agent so private keys remain local"):
+        workspace({**spec, "ssh_authentication": "key", "ssh_private_key": str(key)}, tmp_path)
+    assert not list(tmp_path.glob("*.yaml"))
+
+
+def test_native_ray_bootstrap_never_mounts_private_key_for_agent_alias_configuration(spec, tmp_path):
+    """Exercise Ray's real bootstrap transformation to audit all files it uploads."""
+    commands = pytest.importorskip("ray.autoscaler._private.commands")
+    provider_module = pytest.importorskip("ray.autoscaler.node_provider")
+    key = tmp_path / "unused-legacy-identity"
+    key.write_text("fixture key must remain local")
+    result = workspace({**spec, "ssh_authentication": "agent", "ssh_private_key": str(key)}, tmp_path)
+    bootstrap_file = None
+    try:
+        # The local provider inherits this exact default head-config method.
+        provider = provider_module.NodeProvider(result.configuration["provider"], result.cluster_name)
+        config, bootstrap_file = commands._set_up_config_for_head_node(result.configuration, provider, no_restart=True)
+        assert config["auth"] == {"ssh_user": "researcher"}
+        assert set(config["file_mounts"]) == {"~/ray_bootstrap_config.yaml"}
+        assert str(key) not in config["file_mounts"].values()
+        uploaded_config = Path(bootstrap_file.name).read_text()
+        assert "ssh_private_key" not in uploaded_config
+        assert "ray_bootstrap_key.pem" not in uploaded_config
+        assert str(key) not in uploaded_config
+        assert json.loads(uploaded_config)["auth"] == {"ssh_user": "researcher"}
+    finally:
+        if bootstrap_file is not None:
+            bootstrap_file.close()
+        result.close()
