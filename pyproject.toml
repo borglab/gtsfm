@@ -1,15 +1,15 @@
 # ============================================================================
 # INSTALLATION INSTRUCTIONS
 # ============================================================================
-# Installation:
-#   uv tool install .
-#   gtsfm run
-# AnySplat's optional tracking stack additionally needs the platform-specific
-# torch-scatter wheel documented in docs/setup/uv-setup.md.
-#
-# System packages also required:
-#   - Linux:  sudo apt-get install nodejs npm graphviz
-#   - macOS:  brew install node graphviz
+# From the repository root, initialize submodules before installing:
+#   git submodule update --init --recursive
+# uv tool: uv tool install --python 3.12 .
+# Conda: activate a Python 3.12 environment, then python -m pip install .
+# Run Studio after either installation: gtsfm run
+# See docs/setup/uv-setup.md and docs/setup/conda-setup.md for development
+# environments, PyTorch builds, and optional AnySplat tracking dependencies.
+# Graphviz is optional for process-graph export. Node.js and a JavaScript
+# package manager are needed only for Studio frontend development.
 # ============================================================================
 
 # ============================================================================
