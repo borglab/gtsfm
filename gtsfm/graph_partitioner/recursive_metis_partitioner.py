@@ -13,6 +13,7 @@ from __future__ import annotations
 import ctypes
 import os
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -134,8 +135,13 @@ class RecursiveMetisPartitioner(GraphPartitionerBase):
             f"overlap_participates_in_cuts={self._overlap_participates_in_cuts})"
         )
 
-    def run(self, graph: VisibilityGraph) -> ClusterTree | None:
+    def run(
+        self,
+        graph: VisibilityGraph,
+        edge_weights: Mapping[tuple[int, int], int] | None = None,
+    ) -> ClusterTree | None:
         """Cluster a visibility graph into a binary tree with boundary overlap."""
+        del edge_weights  # unused; METIS cuts here are unweighted
         if len(graph) == 0:
             logger.warning("RecursiveMetisPartitioner: no visibility graph provided.")
             return None
