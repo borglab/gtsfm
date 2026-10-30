@@ -326,11 +326,12 @@ class ModalGpuJobManager(JobManager):
         should_reload = preview_version > self._preview_versions.get(job.id, 0)
         if job.status not in {"queued", "running"} and job.id not in self._terminal_reloads:
             should_reload = True
-            self._terminal_reloads.add(job.id)
         if should_reload:
             try:
                 workspace.reload()
                 self._preview_versions[job.id] = preview_version
+                if job.status not in {"queued", "running"}:
+                    self._terminal_reloads.add(job.id)
             except Exception as exc:
                 with self._lock:
                     job.log_tail.append(f"Result sync is retrying: {exc}")
@@ -351,6 +352,8 @@ class ModalGpuJobManager(JobManager):
     def start(self, spec: Mapping[str, Any], *, job_id: str | None = None) -> dict[str, Any]:
         if str(spec.get("execution_target") or "local") != "local":
             raise ValueError("The Modal control service only accepts local worker specifications")
+        if str(spec.get("hardware") or "cuda:0") != "cuda:0":
+            raise ValueError("This Modal workspace runs on cuda:0; select its GPU device before starting")
         with self._lock:
             known_jobs = list(self._jobs.values())
         active_jobs = [job for job in known_jobs if self._sync(job).status in {"queued", "running"}]
@@ -361,6 +364,7 @@ class ModalGpuJobManager(JobManager):
             raise ValueError("Job ID contains unsupported characters")
         name = re.sub(r"[^A-Za-z0-9._-]+", "-", str(spec.get("name") or "gtsfm-run")).strip("-.") or "gtsfm-run"
         public_spec = dict(spec)
+        public_spec["hardware"] = "cuda:0"
         for secret_field in (
             "api_key",
             "modal_api_key",

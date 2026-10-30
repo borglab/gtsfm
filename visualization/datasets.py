@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+import shutil
+import tarfile
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 
@@ -29,3 +31,30 @@ def resolve_relative_loader_paths(
             str((dataset_dir / image_path).resolve()) if not image_path.is_absolute() else str(image_path.resolve())
         )
     return resolved, images_dir
+
+
+def extract_input_archive(archive_path: Path, destination: Path) -> tuple[int, int]:
+    """Extract regular files from a tar archive without allowing path traversal or links."""
+
+    file_count = 0
+    total_bytes = 0
+    with tarfile.open(archive_path, mode="r:*") as archive:
+        for member in archive.getmembers():
+            relative = PurePosixPath(member.name.replace("\\", "/"))
+            if relative.is_absolute() or not relative.parts or any(part in {"", ".", ".."} for part in relative.parts):
+                raise ValueError(f"Unsafe path in uploaded archive: {member.name}")
+            target = destination.joinpath(*relative.parts)
+            if member.isdir():
+                target.mkdir(parents=True, exist_ok=True)
+                continue
+            if not member.isfile():
+                raise ValueError(f"Unsupported entry in uploaded archive: {member.name}")
+            source = archive.extractfile(member)
+            if source is None:
+                raise ValueError(f"Unable to read uploaded archive entry: {member.name}")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with target.open("wb") as output:
+                shutil.copyfileobj(source, output)
+            file_count += 1
+            total_bytes += target.stat().st_size
+    return file_count, total_bytes

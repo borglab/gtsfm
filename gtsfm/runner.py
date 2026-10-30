@@ -1,6 +1,7 @@
 """Base class for runner that executes SfM."""
 
 import argparse
+import json
 import logging
 import os
 import threading
@@ -11,7 +12,7 @@ import hydra
 from dask import config as dask_config
 from dask.distributed import Client, LocalCluster, SSHCluster
 from hydra.utils import instantiate
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, OmegaConf
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.cluster_optimizer import Multiview
@@ -19,20 +20,27 @@ from gtsfm.loader.configuration import add_loader_args, build_loader_overrides
 from gtsfm.utils.configuration import log_full_configuration
 from gtsfm.utils.dask_stats import publish as publish_dask_stats
 
-dask_config.set(
-    {
-        "distributed.scheduler.worker-ttl": None,
+# Register GTSFM's longer communication defaults without overriding an
+# explicit DASK_CONFIG/YAML/environment value loaded by Dask at startup.
+_dask_project_defaults = {
+    "distributed": {
+        "scheduler": {"worker-ttl": None},
         # Tolerate long event-loop stalls (bulk image loads, the in-process global frontend) without
         # tearing down the client<->scheduler/worker comms. With the 30s defaults these comms close
         # mid-run on large single-node scenes, surfacing as CommClosedError / "lost dependencies".
-        "distributed.comm.timeouts.connect": "300s",
-        "distributed.comm.timeouts.tcp": "300s",
+        "comm": {"timeouts": {"connect": "300s", "tcp": "300s"}},
     }
-)
+}
+# Let Dask's native collector reapply YAML/environment values after registering
+# project defaults. This preserves the complete nested configuration tree.
+dask_config.update_defaults(_dask_project_defaults)
+dask_config.update(dask_config.config, dask_config.collect())
 
 logger = logger_utils.get_logger()
 
 DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent.parent
+_LOCAL_CLUSTER_TARGETS = {"distributed.LocalCluster", "dask.distributed.LocalCluster"}
+_SSH_CLUSTER_TARGETS = {"distributed.SSHCluster", "dask.distributed.SSHCluster"}
 
 if TYPE_CHECKING:
     from gtsfm.scene_optimizer import SceneOptimizer
@@ -64,6 +72,9 @@ class GtsfmRunner:
     def __init__(self, override_args=None) -> None:
         argparser: argparse.ArgumentParser = self.construct_argparser()
         self.parsed_args, self._hydra_cli_overrides = argparser.parse_known_args(args=override_args)
+        # ``dask_tmpdir`` is a legacy manual-cluster setting. A local Hydra
+        # constructor YAML is authoritative for its worker ``local_directory``
+        # and must not be merged with this form field.
         if self.parsed_args.dask_tmpdir:
             dask_config.set({"temporary_directory": DEFAULT_OUTPUT_ROOT / self.parsed_args.dask_tmpdir})
 
@@ -239,6 +250,7 @@ class GtsfmRunner:
                 config_name=self.parsed_args.config_name,
                 overrides=overrides,
             )
+        self._set_frontend_overwrites(main_cfg)
         log_full_configuration(main_cfg, logger)
         logger.info("⏳ Instantiating ..")
         scene_optimizer: SceneOptimizer = instantiate(main_cfg)
@@ -302,35 +314,42 @@ class GtsfmRunner:
 
         return scene_optimizer
 
+    def _set_frontend_overwrites(self, main_cfg: DictConfig) -> None:
+        """Apply selected frontend presets before constructing any cached optimizer.
+
+        Args:
+            main_cfg: Composed scene configuration, including an optional optimizer cacher.
+        """
+        optimizer_path = "cluster_optimizer"
+        if "optimizer" in main_cfg.cluster_optimizer:
+            optimizer_path += ".optimizer"
+        estimator_path = "two_view_estimator"
+        estimator = OmegaConf.select(main_cfg, f"{optimizer_path}.{estimator_path}")
+        if estimator is not None and "two_view_estimator_obj" in estimator:
+            estimator_path += ".two_view_estimator_obj"
+        for argument, module, destination, source in (
+            (
+                "correspondence_generator_config_name",
+                "correspondence",
+                "correspondence_generator",
+                "CorrespondenceGenerator",
+            ),
+            ("verifier_config_name", "verifier", f"{estimator_path}.verifier", "verifier"),
+        ):
+            name = getattr(self.parsed_args, argument)
+            if name is None:
+                continue
+            path = f"{optimizer_path}.{destination}"
+            if OmegaConf.select(main_cfg, path) is None:
+                raise ValueError(f"The selected reconstruction model does not support {argument}")
+            with hydra.initialize_config_module(config_module=f"gtsfm.configs.{module}", version_base=None):
+                preset = hydra.compose(name)
+            OmegaConf.update(main_cfg, path, preset[source], merge=False)
+            logger.info("Applying %s preset: %s", module, name)
+
     def _set_mvo_overwrites(self, scene_optimizer: "SceneOptimizer", main_cfg) -> None:
         """Set MVO-specific overwrites based on CLI flags."""
         multiview_optimizer = cast(Multiview, scene_optimizer.cluster_optimizer)
-
-        # Override correspondence generator.
-        if (correspondence_config_name := self.parsed_args.correspondence_generator_config_name) is not None:
-            with hydra.initialize_config_module(config_module="gtsfm.configs.correspondence", version_base=None):
-                correspondence_cfg = hydra.compose(correspondence_config_name)
-                logger.info(f"🔄 Applying Correspondence Override: " f"{correspondence_config_name}")
-                multiview_optimizer.correspondence_generator = instantiate(correspondence_cfg.CorrespondenceGenerator)
-                OmegaConf.update(
-                    main_cfg,
-                    "cluster_optimizer.correspondence_generator",
-                    correspondence_cfg.CorrespondenceGenerator,
-                    merge=False,
-                )
-
-        # Override verifier.
-        if (verifier_config_name := self.parsed_args.verifier_config_name) is not None:
-            with hydra.initialize_config_module(config_module="gtsfm.configs.verifier", version_base=None):
-                verifier_cfg = hydra.compose(verifier_config_name)
-                logger.info(f"🔄 Applying Verifier Override: {verifier_config_name}")
-                multiview_optimizer.two_view_estimator._verifier = instantiate(verifier_cfg.verifier)
-                OmegaConf.update(
-                    main_cfg,
-                    "cluster_optimizer.two_view_estimator.two_view_estimator_obj.verifier",
-                    verifier_cfg.verifier,
-                    merge=False,
-                )
 
         # Configure Multiview-specific toggles based on CLI flags.
         if not self.parsed_args.run_mvs:
@@ -383,10 +402,58 @@ class GtsfmRunner:
                 target_optimizer.gaussian_splatting_optimizer = None
                 logger.info("🔄 Disabled Gaussian Splatting optimizer via CLI flag --run_gs=False")
 
+    @staticmethod
+    def _cluster_config_path(cluster_config: str) -> Path:
+        """Resolve a legacy config name or an explicit local YAML path."""
+        requested = Path(cluster_config).expanduser()
+        candidates = (
+            [requested]
+            if requested.is_absolute()
+            else [requested, DEFAULT_OUTPUT_ROOT / "gtsfm" / "configs" / requested]
+        )
+        for candidate in candidates:
+            if candidate.is_file():
+                return candidate.resolve()
+        raise ValueError(f"Dask cluster config was not found: {cluster_config}")
+
+    @classmethod
+    def _load_cluster_config(cls, cluster_config: str):
+        """Load one OmegaConf document and reject empty/non-mapping YAML."""
+        path = cls._cluster_config_path(cluster_config)
+        try:
+            config = OmegaConf.load(path)
+        except Exception as exc:
+            raise ValueError(f"Unable to load Dask cluster config {path}: {exc}") from exc
+        if not OmegaConf.is_dict(config):
+            raise ValueError(f"Dask cluster config must be a YAML mapping: {path}")
+        return config
+
+    @classmethod
+    def _cluster_config_target(cls, cluster_config: str | None) -> str:
+        if not str(cluster_config or "").strip():
+            return ""
+        config = cls._load_cluster_config(str(cluster_config))
+        return str(config.get("_target_") or "").strip()
+
+    @classmethod
+    def _cluster_config_is_local(cls, cluster_config: str | None) -> bool:
+        return cls._cluster_config_target(cluster_config) in _LOCAL_CLUSTER_TARGETS
+
     def setup_ssh_cluster_with_retries(self):
         """Sets up SSH Cluster allowing multiple retries upon connection failures."""
-        config = OmegaConf.load(os.path.join("gtsfm", "configs", self.parsed_args.cluster_config))
-        workers = dict(config)["workers"]
+        config = self._load_cluster_config(self.parsed_args.cluster_config)
+        target = str(config.get("_target_") or "").strip()
+        if target:
+            raise ValueError(
+                f"Unsupported Dask cluster target {target!r}; use distributed.LocalCluster for local YAML "
+                "or the legacy workers list for SSH/GPU clusters"
+            )
+        try:
+            workers = list(config["workers"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError("Legacy Dask cluster config must define a non-empty workers list") from exc
+        if not workers:
+            raise ValueError("Legacy Dask cluster config must define a non-empty workers list")
         scheduler = workers[0]
         # Detect GPU cluster configuration
         is_gpu_cluster = any("gpus" in w or "gpu_memory_pool" in w for w in workers)
@@ -488,20 +555,42 @@ class GtsfmRunner:
 
     def _create_dask_client(self):
         if self.parsed_args.cluster_config:
-            # Case 2 or 3: Distributed multi-GPU machines
-            cluster, config = self.setup_ssh_cluster_with_retries()
-            client = Client(cluster)
-
-            workers = dict(config)["workers"]
-            unique_hosts = set(w["host"] for w in workers)
-
-            if len(unique_hosts) > 1:
-                self._io_worker = list(client.scheduler_info()["workers"].keys())[0]
+            config = self._load_cluster_config(self.parsed_args.cluster_config)
+            target = str(config.get("_target_") or "").strip()
+            if target in _LOCAL_CLUSTER_TARGETS | _SSH_CLUSTER_TARGETS:
+                # Hydra owns constructor resolution and Dask owns validation of
+                # constructor kwargs. Do not merge manual form defaults here.
+                cluster = instantiate(config, _convert_="all")
+                client = None
+                try:
+                    client = Client(cluster)
+                    if target in _SSH_CLUSTER_TARGETS:
+                        client.wait_for_workers(1, timeout=60)
+                        self._io_worker = next(iter(client.scheduler_info()["workers"]))
+                        client.forward_logging()
+                except Exception:
+                    if client is not None:
+                        _shutdown_dask_client(client)
+                    try:
+                        cluster.close()
+                    except Exception as cleanup_exc:
+                        logger.warning("Unable to clean up failed native Dask cluster: %s", cleanup_exc)
+                    raise
             else:
-                logger.info("🖥️  Single-machine multi-GPU cluster")
-                logger.info("   All workers can access data locally")
+                # Legacy SSH and dask-cuda worker YAML remains unchanged.
+                cluster, config = self.setup_ssh_cluster_with_retries()
+                client = Client(cluster)
 
-            client.forward_logging()
+                workers = list(config["workers"])
+                unique_hosts = {w if isinstance(w, str) else w["host"] for w in workers}
+
+                if len(unique_hosts) > 1:
+                    self._io_worker = list(client.scheduler_info()["workers"].keys())[0]
+                else:
+                    logger.info("🖥️  Single-machine multi-GPU cluster")
+                    logger.info("   All workers can access data locally")
+
+                client.forward_logging()
         else:
             # Case 1: Single Local Machine
             local_cluster_kwargs = {
@@ -537,6 +626,12 @@ class GtsfmRunner:
         try:
             logger.info("🌟 GTSFM: Constructing SceneOptimizer...")
             self.scene_optimizer = self._construct_scene_optimizer()
+            if live_dir:
+                output_root = Path(self.parsed_args.output_root)
+                output_root.mkdir(parents=True, exist_ok=True)
+                (output_root / "image_filenames.json").write_text(
+                    json.dumps(self.scene_optimizer.loader.image_filenames()), encoding="utf-8"
+                )
 
             if self._io_worker is not None:
                 self.scene_optimizer.loader._input_worker = self._io_worker

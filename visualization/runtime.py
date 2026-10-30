@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import asyncio
 import http.client
 import importlib.util
 import json
@@ -24,8 +25,6 @@ import urllib.error
 import urllib.request
 import uuid
 from copy import deepcopy
-import hydra
-from omegaconf import OmegaConf
 from dataclasses import dataclass, field, fields
 from datetime import datetime, timezone
 from functools import lru_cache
@@ -34,11 +33,14 @@ from typing import Any, Mapping
 from urllib.parse import urljoin, urlparse
 
 import certifi
+import hydra
 import yaml
+from omegaconf import OmegaConf
 
 import gtsfm
-from visualization.datasets import resolve_relative_loader_paths
 from visualization import job_history
+from visualization.datasets import extract_input_archive, resolve_relative_loader_paths
+from visualization.ray_backend import RayWorkspace
 from visualization.reconstruction import splat_sources
 
 PACKAGE_ROOT = Path(gtsfm.__file__).resolve().parent
@@ -517,7 +519,7 @@ def configuration_schema() -> dict[str, Any]:
     """Read current config choices so newly added presets appear without a server restart."""
 
     root_configs = _yaml_stem_options(CONFIG_ROOT)
-    excluded = {"cluster", "cluster_gpu", "local_scheduler_postgres_remote_cluster"}
+    excluded = {"cluster", "cluster_local", "cluster_gpu", "local_scheduler_postgres_remote_cluster"}
     root_configs = [name for name in root_configs if name not in excluded]
     models: list[dict[str, Any]] = []
     for name in root_configs:
@@ -883,7 +885,32 @@ def _validate_advanced_hydra_overrides(config_name: str, loader: str, overrides:
         raise ValueError(f"Invalid Hydra override: {detail}") from exc
 
 
-def build_runner_args(spec: Mapping[str, Any], output_root: Path) -> tuple[list[str], dict[str, str]]:
+def _ssh_cluster_constructor(spec: Mapping[str, Any], device_env: Mapping[str, str], python: str) -> dict[str, Any]:
+    """Build the native Dask SSHCluster constructor shared by local and Ray drivers."""
+    hosts = str(spec.get("dask_worker_hosts") or "").split()
+    constructor = {
+        "_target_": "distributed.SSHCluster",
+        "hosts": [str(spec.get("dask_scheduler_host") or hosts[0]).strip(), *hosts],
+        "remote_python": str(spec.get("dask_worker_python") or python),
+        "scheduler_options": {
+            "dashboard_address": str(spec.get("dashboard_port") or "127.0.0.1:0"),
+            "port": int(spec.get("dask_scheduler_port") or 0),
+        },
+        "worker_options": {
+            "n_workers": int(spec.get("num_workers", 1)),
+            "nthreads": int(spec.get("threads_per_worker", 1)),
+            "memory_limit": str(spec.get("worker_memory_limit") or "32GB"),
+            "env": dict(device_env),
+        },
+    }
+    if spec.get("dask_tmpdir"):
+        constructor["worker_options"]["local_directory"] = str(spec["dask_tmpdir"])
+    return constructor
+
+
+def build_runner_args(
+    spec: Mapping[str, Any], output_root: Path, *, hardware_catalog: Mapping[str, Any] | None = None
+) -> tuple[list[str], dict[str, str]]:
     """Validate a UI run request and translate it to the existing runner interface."""
 
     schema = configuration_schema()
@@ -1077,12 +1104,21 @@ def build_runner_args(spec: Mapping[str, Any], output_root: Path) -> tuple[list[
     args.extend(advanced_overrides)
 
     hardware = str(spec.get("hardware") or "cpu")
-    available = {item["id"]: item for item in detect_hardware()["devices"]}
-    if hardware not in available:
-        raise ValueError(f"Selected hardware is not available: {hardware}")
-    if available[hardware]["status"] != "available":
-        raise ValueError(f"Selected hardware is detected but unavailable: {available[hardware]['status']}")
-    if splat_implementation in {"gsplat", "anysplat"} and not available[hardware]["supports_gaussian_splatting"]:
+    if str(spec.get("dask_worker_hosts") or "").strip():
+        # A CPU login/control node need not expose the workers' accelerators.
+        # Dask's Nanny receives the explicit device binding below; the workers
+        # validate their CUDA runtime when the pipeline starts.
+        if hardware != "cpu" and not re.fullmatch(r"(?:cuda|rocm):\d+", hardware):
+            raise ValueError("SSH worker device must be cpu, cuda:N, or rocm:N")
+        supports_splats = hardware.startswith("cuda:")
+    else:
+        available = {item["id"]: item for item in (hardware_catalog or detect_hardware())["devices"]}
+        if hardware not in available:
+            raise ValueError(f"Selected hardware is not available: {hardware}")
+        if available[hardware]["status"] != "available":
+            raise ValueError(f"Selected hardware is detected but unavailable: {available[hardware]['status']}")
+        supports_splats = available[hardware]["supports_gaussian_splatting"]
+    if splat_implementation in {"gsplat", "anysplat"} and not supports_splats:
         raise ValueError("Gaussian splatting currently requires a CUDA-capable NVIDIA GPU")
 
     env: dict[str, str] = {"GTSFM_SELECTED_DEVICE": hardware}
@@ -1116,6 +1152,8 @@ class ManagedJob:
     remote_cancel_requested: bool = field(default=False, repr=False, compare=False)
     remote_cancel_dispatched: bool = field(default=False, repr=False, compare=False)
     process: subprocess.Popen[str] | None = field(default=None, repr=False, compare=False)
+    ssh_spec: dict[str, Any] | None = field(default=None, repr=False, compare=False)
+    ssh_identity_file: str | None = field(default=None, repr=False, compare=False)
 
     def public(self) -> dict[str, Any]:
         payload = {
@@ -1149,8 +1187,12 @@ class JobManager:
         self.runtime_root = self.results_root / ".gtsfm"
         self.runtime_root.mkdir(parents=True, exist_ok=True)
         self._jobs: dict[str, ManagedJob] = {}
+        self._owned_jobs: set[str] = set()
         self._retry_jobs: dict[str, str] = {}
         self._lock = threading.RLock()
+        self._threads: list[threading.Thread] = []
+        self._ssh_workspaces: dict[str, RayWorkspace] = {}
+        self._closing = False
         self.history_root = self.runtime_root / "jobs"
         self._last_history_save: dict[str, float] = {}
         if restore_history:
@@ -1163,8 +1205,17 @@ class JobManager:
             if throttle and now - self._last_history_save.get(job.id, -float("inf")) < 2:
                 return
             record = {
-                item.name: getattr(job, item.name) for item in fields(ManagedJob)
-                if item.name not in {"process", "remote_api_key", "remote_cancel_requested", "remote_cancel_dispatched"}
+                item.name: getattr(job, item.name)
+                for item in fields(ManagedJob)
+                if item.name
+                not in {
+                    "process",
+                    "ssh_spec",
+                    "ssh_identity_file",
+                    "remote_api_key",
+                    "remote_cancel_requested",
+                    "remote_cancel_dispatched",
+                }
             }
             try:
                 job_history.write_record(self.history_root, record)
@@ -1180,7 +1231,12 @@ class JobManager:
         known_ids = {path.stem for path in self.history_root.glob("*.json")}
         records.extend(job_history.recover_legacy_runs(self.results_root, known_ids))
         allowed = {item.name for item in fields(ManagedJob)} - {
-            "process", "remote_api_key", "remote_cancel_requested", "remote_cancel_dispatched"
+            "process",
+            "ssh_spec",
+            "ssh_identity_file",
+            "remote_api_key",
+            "remote_cancel_requested",
+            "remote_cancel_dispatched",
         }
         for record in records:
             try:
@@ -1193,10 +1249,14 @@ class JobManager:
                 job.log_tail = tail
             if job.status in {"queued", "running"}:
                 job.status = "interrupted"
-                job.history_note = "Studio restarted before recording the outcome. This run was not automatically restarted."
+                job.history_note = (
+                    "Studio restarted before recording the outcome. This run was not automatically restarted."
+                )
             if job.remote is not None:
                 job.retry_available = False
-                job.history_note = "Remote run history restored. Re-enter remote credentials in New run to launch again."
+                job.history_note = (
+                    "Remote run history restored. Re-enter remote credentials in New run to launch again."
+                )
             self._jobs[job.id] = job
             if job.id not in known_ids:
                 self._save_job(job)
@@ -1206,7 +1266,10 @@ class JobManager:
 
     def list(self) -> list[dict[str, Any]]:
         with self._lock:
-            return [job.public() for job in sorted(self._jobs.values(), key=lambda item: (item.created_at, item.id), reverse=True)]
+            return [
+                job.public()
+                for job in sorted(self._jobs.values(), key=lambda item: (item.created_at, item.id), reverse=True)
+            ]
 
     def get(self, job_id: str) -> ManagedJob | None:
         with self._lock:
@@ -1269,6 +1332,8 @@ class JobManager:
                 raise ValueError("Only failed or interrupted runs can be retried")
             if not job.retry_available:
                 raise ValueError(job.history_note or "The original run settings are unavailable")
+            if job_id in self._ssh_workspaces:
+                raise ValueError("SSH cleanup is still in progress; retry after it finishes")
             # Multiple buttons/tabs must not launch duplicate GPU jobs for one retry.
             previous_retry = self.get(self._retry_jobs.get(job_id, ""))
             if previous_retry is not None and previous_retry.status in {"queued", "running"}:
@@ -1290,6 +1355,8 @@ class JobManager:
             spec.setdefault("name", job.name)
             if job.remote is not None:
                 spec["api_key"] = job.remote_api_key
+                if job.ssh_identity_file:
+                    spec["ssh_private_key"] = job.ssh_identity_file
             # Rebuild the command using current code/configs, rather than replaying a stale argv.
             retried = self.start(spec)
             self._retry_jobs[job_id] = retried["id"]
@@ -1322,17 +1389,22 @@ class JobManager:
         if public_spec.get("splat_implementation") == "anysplat":
             public_spec["config_name"] = "anysplat"
         is_remote = str(spec.get("execution_target") or "local") == "remote"
+        is_ssh = is_remote and spec.get("remote_connection") == "ssh"
         if is_remote:
             endpoint = str(spec.get("remote_endpoint") or "").rstrip("/")
             parsed_endpoint = urlparse(endpoint)
-            if parsed_endpoint.scheme not in {"http", "https"} or not parsed_endpoint.netloc:
+            if is_ssh:
+                if not str(spec.get("ssh_workspace") or "").strip():
+                    raise ValueError("Enter the remote GTSFM checkout directory")
+                RayWorkspace(spec, self.runtime_root / "ray").close()
+            elif parsed_endpoint.scheme not in {"http", "https"} or not parsed_endpoint.netloc:
                 raise ValueError("Enter a valid http(s) URL for the remote GTSFM workspace")
             api_key = str(spec.get("api_key") or "")
-            if not api_key:
+            if not api_key and not is_ssh:
                 raise ValueError("An API key is required for a remote run")
             args: list[str] = []
             device_env: dict[str, str] = {}
-            command = ["remote", f"{endpoint}/api/jobs"]
+            command = ["ray", "job", "submit", str(spec["ssh_host"])] if is_ssh else ["remote", f"{endpoint}/api/jobs"]
         elif spec.get("job_type") == "splat":
             scene, _ = splat_sources(self.results_root, str(spec.get("scene") or ""))
             preset = str(spec.get("gaussian_splatting_config_name") or "base_gs")
@@ -1368,6 +1440,15 @@ class JobManager:
             ]
         else:
             args, device_env = build_runner_args(spec, run_root)
+            hosts = str(spec.get("dask_worker_hosts") or "").split()
+            if hosts:
+                if spec.get("cluster_config"):
+                    raise ValueError("Choose worker hosts or an expert cluster file, not both")
+                constructor = _ssh_cluster_constructor(spec, device_env, sys.executable)
+                cluster_file = self.runtime_root / "clusters" / f"{job_id}.yaml"
+                cluster_file.parent.mkdir(parents=True, exist_ok=True)
+                cluster_file.write_text(yaml.safe_dump(constructor), encoding="utf-8")
+                args.extend(["--cluster_config", str(cluster_file)])
             command = [sys.executable, "-m", "gtsfm.runner", *args]
         now = _utc_now()
         job = ManagedJob(
@@ -1382,15 +1463,23 @@ class JobManager:
             command=command,
             remote={"endpoint": endpoint} if is_remote else None,
             remote_api_key=api_key if is_remote else None,
+            ssh_spec=dict(spec) if is_ssh else None,
+            ssh_identity_file=str(spec.get("ssh_private_key") or "") if is_ssh else None,
         )
         with self._lock:
+            if self._closing:
+                raise ValueError("Studio is shutting down")
             self._save_job(job, required=True)
             self._jobs[job_id] = job
+            self._owned_jobs.add(job_id)
 
         live_root.mkdir(parents=True, exist_ok=True)
-        if is_remote:
+        if is_ssh:
+            thread = threading.Thread(target=self._run_ssh, args=(job,), daemon=True, name=f"gtsfm-ssh-{job_id}")
+        elif is_remote:
             thread = threading.Thread(target=self._run_remote, args=(job,), daemon=True, name=f"gtsfm-remote-{job_id}")
-            thread.start()
+        if is_remote:
+            self._start_thread(thread)
             return job.public()
 
         env = os.environ.copy()
@@ -1398,11 +1487,45 @@ class JobManager:
         env["GTSFM_LIVE_DIR"] = str(live_root)
         env["GTSFM_LIVE_PREVIEW_INTERVAL"] = str(max(1, int(spec.get("live_preview_interval", 250))))
         thread = threading.Thread(target=self._run, args=(job, env), daemon=True, name=f"gtsfm-job-{job_id}")
-        thread.start()
+        self._start_thread(thread)
         return job.public()
 
+    def _start_thread(self, thread: threading.Thread) -> None:
+        with self._lock:
+            if self._closing:
+                return
+            self._threads.append(thread)
+            thread.start()
+
+    def shutdown(self) -> None:
+        """Cancel owned jobs and reap SSH transports before the Studio process exits."""
+        with self._lock:
+            self._closing = True
+            jobs = [self._jobs[job_id] for job_id in self._owned_jobs]
+        for job in jobs:
+            if job.status in {"queued", "running"}:
+                self.cancel(job.id)
+        with self._lock:
+            workspaces = list(self._ssh_workspaces.values())
+        for workspace in workspaces:
+            workspace.close()
+        for job in jobs:
+            if job.process is not None and job.process.poll() is None:
+                job.process.wait(timeout=7)
+        deadline = time.monotonic() + 15
+        for thread in list(self._threads):
+            thread.join(timeout=max(0, deadline - time.monotonic()))
+        if any(thread.is_alive() and thread.name.startswith("gtsfm-ssh-") for thread in self._threads):
+            raise RuntimeError("An SSH job did not stop during Studio shutdown")
+
     @staticmethod
-    def _remote_json(url: str, api_key: str, *, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    def _remote_json(
+        url: str,
+        api_key: str,
+        *,
+        payload: dict[str, Any] | None = None,
+        timeout: float = _REMOTE_REQUEST_TIMEOUT_SECONDS,
+    ) -> dict[str, Any]:
         body = json.dumps(payload).encode("utf-8") if payload is not None else None
         request = urllib.request.Request(
             url,
@@ -1419,9 +1542,7 @@ class JobManager:
         attempts = _REMOTE_READ_RETRIES if payload is None else 1
         for attempt in range(attempts):
             try:
-                with urllib.request.urlopen(
-                    request, timeout=_REMOTE_REQUEST_TIMEOUT_SECONDS, context=_SSL_CONTEXT
-                ) as response:
+                with urllib.request.urlopen(request, timeout=timeout, context=_SSL_CONTEXT) as response:
                     result = json.loads(response.read().decode("utf-8"))
                 break
             except (http.client.IncompleteRead, http.client.RemoteDisconnected, ConnectionError, TimeoutError):
@@ -1462,7 +1583,7 @@ class JobManager:
         archive_file.close()
         try:
             file_count = 0
-            with tarfile.open(archive_path, mode="w") as archive:
+            with tarfile.open(archive_path, mode="w", dereference=True) as archive:
                 for path in sorted(source.rglob("*")):
                     if not path.is_file():
                         continue
@@ -1518,6 +1639,223 @@ class JobManager:
         finally:
             archive_path.unlink(missing_ok=True)
 
+    @staticmethod
+    def _inspect_ray(workspace: RayWorkspace, spec: Mapping[str, Any]) -> dict[str, Any]:
+        """Inspect installed GTSFM through a short native Ray job.
+
+        Args:
+            workspace: Connected Ray launcher and Jobs client.
+            spec: Saved project interpreter and working-directory settings.
+
+        Returns:
+            The remote hardware and application configuration catalogs.
+        """
+        # Hardware discovery makes no reconstruction allocations. Inspect outside
+        # the entrypoint's zero-GPU visibility mask; real jobs retain Ray's mask.
+        script = (
+            "import os,json; os.environ.pop('CUDA_VISIBLE_DEVICES',None); "
+            "from visualization.runtime import detect_hardware,configuration_schema; "
+            "print('GTSFM_INSPECT='+json.dumps({'hardware':detect_hardware(),"
+            "'configuration':configuration_schema(),'cpu_count':os.cpu_count() or 1}))"
+        )
+        output = workspace.run_command(
+            [str(spec.get("ssh_python") or ".venv/bin/python"), "-c", script],
+            cwd=str(spec["ssh_workspace"]),
+        )
+        lines = [
+            line.removeprefix("GTSFM_INSPECT=") for line in output.splitlines() if line.startswith("GTSFM_INSPECT=")
+        ]
+        if not lines:
+            raise ValueError("Remote Ray inspection returned no application configuration")
+        result = json.loads(lines[-1])
+        # Ray chooses the physical GPU; CUDA device zero is its allocated device.
+        devices = result["hardware"]["devices"]
+        cuda = next((device for device in devices if device["id"] == "cuda:0"), None)
+        result["hardware"]["devices"] = [device for device in devices if device["id"] == "cpu"]
+        if cuda is not None:
+            cuda.update(
+                label="Ray-allocated NVIDIA GPU",
+                memory="assigned at launch",
+                details="CUDA device 0 within Ray's GPU allocation",
+            )
+            result["hardware"]["devices"].append(cuda)
+        return result
+
+    def inspect_ssh(self, spec: Mapping[str, Any]) -> dict[str, Any]:
+        """Use native Ray startup and a supervised inspection job, then close the transport."""
+        with RayWorkspace(spec, self.runtime_root / "ray") as workspace:
+            return self._inspect_ray(workspace, spec)
+
+    def _stream_ray_logs(self, workspace: RayWorkspace, job: ManagedJob, remote_id: str) -> None:
+        """Persist native incremental Ray logs and maintain a bounded browser tail."""
+
+        async def consume() -> None:
+            tail = ""
+            with (self.runtime_root / f"{job.id}.log").open("w", encoding="utf-8") as output:
+                async for chunk in workspace.tail_logs(remote_id):
+                    output.write(chunk)
+                    output.flush()
+                    tail = "".join((tail + chunk).splitlines(keepends=True)[-250:])
+                    with self._lock:
+                        job.log_tail = tail.splitlines()
+                        job.updated_at = _utc_now()
+
+        try:
+            asyncio.run(consume())
+        except Exception as exc:
+            with self._lock:
+                if job.status != "cancelled":
+                    job.log_tail.append(f"Ray log stream interrupted: {exc}")
+
+    def _run_ssh(self, job: ManagedJob) -> None:
+        """Stage inputs and supervise reconstruction using native Ray services."""
+        workspace = None
+        try:
+            spec = dict(job.ssh_spec or {})
+            workspace = RayWorkspace(spec, self.runtime_root / "ray")
+            with self._lock:
+                if self._closing or job.status == "cancelled":
+                    workspace.close()
+                    return
+                self._ssh_workspaces[job.id] = workspace
+                job.status = "running"
+                job.log_tail.append("Connecting with the Ray Cluster Launcher…")
+            with workspace:
+                inspection = self._inspect_ray(workspace, spec)
+                if spec.get("sample_id"):
+                    from visualization.samples import prepare_sample
+
+                    spec["dataset_dir"] = prepare_sample(str(spec["sample_id"]), self.runtime_root / "samples")["path"]
+                spec["hardware"] = spec.get("remote_hardware") or spec.get("hardware") or "cpu"
+                relative_output = f"results/runs/{_normalise_run_name(job.name)}-{job.id}"
+                args, env = build_runner_args(spec, Path(relative_output), hardware_catalog=inspection["hardware"])
+                remote_root = str(spec["ssh_workspace"]).rstrip("/")
+                staged_roots: list[tuple[Path, str]] = []
+                for field_name in ("dataset_dir", "images_dir"):
+                    if not spec.get(field_name):
+                        continue
+                    if job.status == "cancelled":
+                        return
+                    local = Path(str(spec[field_name])).expanduser().resolve()
+                    relative = f".gtsfm/staged/{job.id}/{field_name}"
+                    job.log_tail.append(f"Staging {field_name} with ray rsync_up…")
+                    workspace.upload_directory(local, f"{remote_root}/{relative}")
+                    args[args.index(f"--{field_name}") + 1] = relative
+                    staged_roots.append((local, relative))
+                for index, argument in enumerate(args):
+                    if not argument.startswith("loader.") or "=" not in argument:
+                        continue
+                    key, encoded = argument.split("=", 1)
+                    try:
+                        value = json.loads(encoded)
+                    except ValueError:
+                        continue
+                    if not isinstance(value, str) or not Path(value).is_absolute():
+                        continue
+                    for local, relative in staged_roots:
+                        if Path(value).is_relative_to(local):
+                            args[index] = key + "=" + json.dumps(str(Path(relative) / Path(value).relative_to(local)))
+                            break
+                    else:
+                        raise ValueError(f"Place {key} inside a staged input folder")
+                if str(spec.get("dask_worker_hosts") or "").strip():
+                    constructor = _ssh_cluster_constructor(spec, env, str(spec.get("ssh_python") or ".venv/bin/python"))
+                    with tempfile.TemporaryDirectory(dir=self.runtime_root) as directory:
+                        Path(directory, "cluster.yaml").write_text(yaml.safe_dump(constructor))
+                        remote_config = f".gtsfm/staged/{job.id}/cluster"
+                        workspace.upload_directory(Path(directory), f"{remote_root}/{remote_config}")
+                    args.extend(["--cluster_config", f"{remote_config}/cluster.yaml"])
+                # The native supervisor assigns GPU visibility; do not replace it
+                # with the Mac's device index or a physical GPU index from inspect.
+                env.pop("CUDA_VISIBLE_DEVICES", None)
+                env.update(
+                    GTSFM_LIVE_DIR=f".gtsfm/live/{job.id}",
+                    GTSFM_LIVE_PREVIEW_INTERVAL=str(spec.get("live_preview_interval") or 250),
+                )
+                command = [str(spec.get("ssh_python") or ".venv/bin/python"), "-u", "-m", "gtsfm.runner", *args]
+                gpu = spec["hardware"] == "cuda:0" and not str(spec.get("dask_worker_hosts") or "").strip()
+                with self._lock:
+                    if job.status == "cancelled":
+                        return
+                    job.log_tail.append("Submitting the reconstruction to Ray Jobs…")
+                cpus = max(1, int(spec.get("num_workers") or 1) * int(spec.get("threads_per_worker") or 1))
+                if str(spec.get("dask_worker_hosts") or "").strip():
+                    cpus = 1  # Dask's remote workers own their compute resources.
+                if inspection.get("cpu_count") and cpus > inspection["cpu_count"]:
+                    raise ValueError(
+                        f"The selected workers require {cpus} Ray CPUs; "
+                        f"the remote machine has {inspection['cpu_count']}. "
+                        "Reduce workers or threads per worker."
+                    )
+                remote_id = workspace.submit(
+                    command,
+                    env=env,
+                    cwd=remote_root,
+                    submission_id=f"gtsfm-{job.id}",
+                    num_gpus=int(gpu),
+                    num_cpus=cpus,
+                )
+                with self._lock:
+                    job.remote.update(job_id=remote_id, backend="ray")
+                log_thread = threading.Thread(
+                    target=self._stream_ray_logs,
+                    args=(workspace, job, remote_id),
+                    daemon=True,
+                    name=f"gtsfm-ray-logs-{job.id}",
+                )
+                self._start_thread(log_thread)
+                last_live = 0.0
+                while job.status != "cancelled":
+                    details = workspace.get(remote_id)
+                    status = str(details.status)
+                    with self._lock:
+                        if job.status == "cancelled":
+                            return
+                        job.status = "queued" if status == "PENDING" else "running"
+                        job.updated_at = _utc_now()
+                        self._save_job(job, throttle=True)
+                    if status in {"SUCCEEDED", "FAILED", "STOPPED"}:
+                        break
+                    if status == "RUNNING" and time.monotonic() - last_live >= 5:
+                        try:
+                            workspace.download_directory(f"{remote_root}/.gtsfm/live/{job.id}", Path(job.live_root))
+                        except RuntimeError:
+                            pass  # Preview files may not exist during model loading.
+                        last_live = time.monotonic()
+                    time.sleep(1)
+                if job.status == "cancelled":
+                    return
+                if log_thread.ident is not None:
+                    log_thread.join(timeout=3)
+                if status != "SUCCEEDED":
+                    raise RuntimeError(str(getattr(details, "message", "") or f"Ray job {status.lower()}"))
+                workspace.download_directory(f"{remote_root}/{relative_output}", Path(job.output_root))
+                if job.status == "cancelled":
+                    return
+                locations = {
+                    key: str(Path(str(spec[key])).expanduser().resolve())
+                    for key in ("dataset_dir", "images_dir")
+                    if spec.get(key)
+                }
+                (Path(job.output_root) / "studio-inputs.json").write_text(json.dumps(locations))
+                with self._lock:
+                    job.status = "completed"
+                    job.return_code = 0
+                    job.updated_at = _utc_now()
+        except Exception as exc:
+            with self._lock:
+                if job.status != "cancelled":
+                    job.status = "failed"
+                    job.error = f"Ray SSH run failed: {exc}"
+                    if workspace is not None:
+                        job.log_tail.extend(workspace.stderr_tail.splitlines()[-30:])
+                    job.updated_at = _utc_now()
+        finally:
+            job.ssh_spec = None
+            with self._lock:
+                self._ssh_workspaces.pop(job.id, None)
+            self._save_job(job)
+
     def _run_remote(self, job: ManagedJob) -> None:
         assert job.remote is not None and job.remote_api_key is not None
         endpoint = str(job.remote["endpoint"])
@@ -1526,6 +1864,7 @@ class JobManager:
                 if job.status == "cancelled":
                     return
             remote_spec = dict(job.spec)
+            staged_roots: list[tuple[Path, str]] = []
             if remote_spec.get("sample_id"):
                 remote_spec["dataset_dir"] = ""
                 remote_spec["images_dir"] = ""
@@ -1549,12 +1888,28 @@ class JobManager:
                         self.runtime_root / "transfers",
                     )
                     remote_spec[field_name] = str(uploaded["path"])
+                    staged_roots.append((Path(local_path).expanduser().resolve(), str(uploaded["path"])))
+                loader_options = dict(remote_spec.get("loader_options") or {})
+                for name, value in loader_options.items():
+                    if not name.endswith(("_path", "_fpath")) or not isinstance(value, str):
+                        continue
+                    path = Path(value).expanduser()
+                    if not path.is_absolute():
+                        continue
+                    for source, destination in staged_roots:
+                        if path.is_relative_to(source):
+                            loader_options[name] = str(Path(destination) / path.relative_to(source))
+                            break
+                    else:
+                        raise ValueError(f"Place {name} inside the dataset folder so Studio can stage it")
+                if loader_options:
+                    remote_spec["loader_options"] = loader_options
             with self._lock:
                 if job.status == "cancelled":
                     return
                 job.status = "running"
                 job.updated_at = _utc_now()
-                job.log_tail.append("Starting the remote GPU workspace; the first run may take several minutes…")
+                job.log_tail.append("Starting the remote workspace; the first run may take several minutes…")
                 self._save_job(job)
             remote_spec["execution_target"] = "local"
             created = self._remote_json(f"{endpoint}/api/jobs", job.remote_api_key, payload=remote_spec)
@@ -1568,9 +1923,10 @@ class JobManager:
                     }
                 )
                 if cancelled:
-                    job.log_tail.append("Modal accepted the job. Sending the pending cancellation request…")
+                    job.log_tail.append("Remote workspace accepted the job. Sending the pending cancellation request…")
                 if not cancelled:
-                    job.status = str(created.get("status", "queued"))
+                    created_status = str(created.get("status", "queued"))
+                    job.status = created_status if created_status in {"queued", "running"} else "running"
                 job.updated_at = _utc_now()
                 self._save_job(job)
             if cancelled:
@@ -1631,16 +1987,35 @@ class JobManager:
                     job.updated_at = _utc_now()
                     self._save_job(job, throttle=True)
             if job.status != "cancelled" and remote_status == "completed":
-                if str(job.spec.get("splat_implementation") or "none") != "none":
+                # Retrieve complete results for every provider. The local viewer
+                # then uses authenticated downloads instead of a public remote
+                # viewer that cannot attach credentials to photograph requests.
+                with tempfile.TemporaryDirectory(dir=self.runtime_root) as transfer:
+                    archive = Path(transfer) / "results.tar"
+                    include_images = "true" if job.spec.get("sample_id") else "false"
                     self._remote_download(
-                        f"{endpoint}/api/jobs/{remote_id}/splat?format=ply",
+                        f"{endpoint}/api/jobs/{remote_id}/results?include_images={include_images}",
                         job.remote_api_key,
-                        Path(job.output_root) / "gaussian_splats.ply",
+                        archive,
                     )
+                    if job.status == "cancelled":
+                        return
+                    extract_input_archive(archive, Path(job.output_root))
+                if not job.spec.get("sample_id"):
+                    locations = {
+                        key: str(Path(str(job.spec[key])).expanduser().resolve())
+                        for key in ("dataset_dir", "images_dir")
+                        if job.spec.get(key)
+                    }
+                    # Keep remote configuration as evidence and resolve photos
+                    # against the original local input directories.
+                    (Path(job.output_root) / "studio-inputs.json").write_text(json.dumps(locations))
+                job.remote.pop("workspace_url", None)
                 with self._lock:
-                    job.status = "completed"
-                    job.return_code = 0
-                    job.updated_at = _utc_now()
+                    if job.status != "cancelled":
+                        job.status = "completed"
+                        job.return_code = 0
+                        job.updated_at = _utc_now()
             elif job.status != "cancelled":
                 with self._lock:
                     job.status = remote_status
@@ -1650,6 +2025,8 @@ class JobManager:
             ValueError,
             urllib.error.URLError,
             http.client.HTTPException,
+            tarfile.TarError,
+            OSError,
             ConnectionError,
             TimeoutError,
         ) as exc:
@@ -1749,6 +2126,24 @@ class JobManager:
     def _dispatch_remote_cancel(self, job: ManagedJob, *, background: bool) -> bool:
         """Send one cancellation request to the remote workspace once its job ID exists."""
 
+        if job.spec.get("remote_connection") == "ssh":
+            with self._lock:
+                workspace = self._ssh_workspaces.get(job.id)
+            if workspace is None:
+                return False
+
+            def stop_ray() -> None:
+                workspace.close()
+                with self._lock:
+                    if job.remote is not None:
+                        job.remote["cancel_status"] = "requested"
+                self._save_job(job)
+
+            if background:
+                threading.Thread(target=stop_ray, daemon=True, name=f"gtsfm-ray-cancel-{job.id}").start()
+            else:
+                stop_ray()
+            return True
         with self._lock:
             remote = job.remote
             remote_id = str(remote.get("job_id") or "") if remote else ""
@@ -1814,7 +2209,8 @@ class JobManager:
                 else:
                     job.remote["cancel_status"] = "waiting_for_remote_job"
                     job.log_tail.append(
-                        "Waiting for Modal to accept the starting job; it will be cancelled immediately afterward."
+                        "Waiting for the remote workspace to accept the starting job; "
+                        "it will be cancelled immediately afterward."
                     )
             del job.log_tail[:-250]
             self._save_job(job)

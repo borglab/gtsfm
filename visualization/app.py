@@ -11,9 +11,11 @@ import os
 import re
 import shutil
 import tarfile
+import tempfile
 import urllib.error
 import uuid
 from collections.abc import Callable
+from contextlib import asynccontextmanager
 from pathlib import Path, PurePosixPath
 from typing import Annotated, Any
 from urllib.parse import quote, urlparse
@@ -23,12 +25,15 @@ from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
-from starlette.middleware.gzip import GZipMiddleware
 from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, ConfigDict, Field
+from starlette.background import BackgroundTask
+from starlette.middleware.gzip import GZipMiddleware
 from starlette.websockets import WebSocketDisconnect
 
 from visualization.datasets import IMAGE_SUFFIXES
+from visualization.datasets import extract_input_archive as _extract_input_archive
+from visualization.execution import ExecutionConfiguration, ExecutionStore
 from visualization.modal_deployment import ModalDeploymentManager, modal_workspace_api_key
 from visualization.photos import ScenePhotos
 from visualization.reconstruction import point_count, result_revision, splat_count
@@ -189,33 +194,6 @@ def previous_uploads(uploads_root: Path) -> list[dict[str, Any]]:
     return sorted(items, key=lambda item: (item["uploaded_at"], item["id"]), reverse=True)
 
 
-def _extract_input_archive(archive_path: Path, destination: Path) -> tuple[int, int]:
-    """Extract regular files from a tar archive without allowing path traversal or links."""
-
-    file_count = 0
-    total_bytes = 0
-    with tarfile.open(archive_path, mode="r:*") as archive:
-        for member in archive.getmembers():
-            relative = PurePosixPath(member.name.replace("\\", "/"))
-            if relative.is_absolute() or not relative.parts or any(part in {"", ".", ".."} for part in relative.parts):
-                raise ValueError(f"Unsafe path in uploaded archive: {member.name}")
-            target = destination.joinpath(*relative.parts)
-            if member.isdir():
-                target.mkdir(parents=True, exist_ok=True)
-                continue
-            if not member.isfile():
-                raise ValueError(f"Unsupported entry in uploaded archive: {member.name}")
-            source = archive.extractfile(member)
-            if source is None:
-                raise ValueError(f"Unable to read uploaded archive entry: {member.name}")
-            target.parent.mkdir(parents=True, exist_ok=True)
-            with target.open("wb") as output:
-                shutil.copyfileobj(source, output)
-            file_count += 1
-            total_bytes += target.stat().st_size
-    return file_count, total_bytes
-
-
 async def _discover_modal_endpoint(token_id: str, token_secret: str) -> dict[str, str]:
     """Find the deployed GTSFM web function in the token's default Modal environment."""
 
@@ -314,9 +292,11 @@ def _result_files(base_dir: Path) -> tuple[list[Path], list[Path], dict[str, flo
         while directory != base_dir:
             directory = directory.parent
             latest[directory] = max(latest.get(directory, modified), modified)
-    return points_files, splats_files, {
-        path.relative_to(base_dir).as_posix(): modified for path, modified in latest.items()
-    }
+    return (
+        points_files,
+        splats_files,
+        {path.relative_to(base_dir).as_posix(): modified for path, modified in latest.items()},
+    )
 
 
 def discover_results(base_dir: Path) -> dict[str, Any]:
@@ -480,11 +460,19 @@ def create_app(
     *,
     job_manager: JobManager | None = None,
     hardware_provider: Callable[[], dict[str, Any]] = detect_hardware,
+    execution_store: ExecutionStore | None = None,
 ) -> FastAPI:
     """Create an isolated FastAPI workspace for ``base_dir``."""
 
     resolved_base = Path(base_dir).expanduser().resolve()
     manager = job_manager or JobManager(resolved_base)
+    configurations = execution_store or ExecutionStore()
+
+    @asynccontextmanager
+    async def lifespan(_app):
+        yield
+        await asyncio.to_thread(manager.shutdown)
+
     modal_deployments = ModalDeploymentManager(
         lambda token_id, token_secret: asyncio.run(_discover_modal_endpoint(token_id, token_secret))
     )
@@ -492,6 +480,7 @@ def create_app(
         title="GTSFM Studio API",
         version="0.2.0",
         description="Local and remote Structure-from-Motion workspace API.",
+        lifespan=lifespan,
     )
     app.state.gtsfm_jobs = manager
     app.state.modal_deployments = modal_deployments
@@ -776,6 +765,35 @@ def create_app(
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Modal deployment not found") from exc
 
+    @app.get("/api/execution-configurations", dependencies=[Depends(require_api_key)])
+    def list_execution_configurations() -> dict:
+        try:
+            return {"items": configurations.list()}
+        except (ValueError, OSError) as exc:
+            raise HTTPException(status_code=400, detail=f"Unable to read saved configurations: {exc}") from exc
+
+    @app.put("/api/execution-configurations", dependencies=[Depends(require_api_key)])
+    def save_execution_configuration(payload: ExecutionConfiguration) -> dict:
+        try:
+            return configurations.save(payload)
+        except (ValueError, OSError) as exc:
+            raise HTTPException(status_code=400, detail=f"Unable to save configuration: {exc}") from exc
+
+    @app.delete("/api/execution-configurations/{name:path}", dependencies=[Depends(require_api_key)])
+    def delete_execution_configuration(name: str) -> dict:
+        try:
+            configurations.delete(name)
+            return {"deleted": name}
+        except (ValueError, OSError) as exc:
+            raise HTTPException(status_code=400, detail=f"Unable to delete configuration: {exc}") from exc
+
+    @app.post("/api/ssh/inspect", dependencies=[Depends(require_api_key)])
+    def inspect_ssh(payload: dict[str, Any]) -> dict:
+        try:
+            return manager.inspect_ssh(payload)
+        except (ValueError, OSError, RuntimeError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     @app.get("/api/jobs", dependencies=[Depends(require_api_key)])
     def list_jobs() -> dict[str, Any]:
         return {"items": manager.list()}
@@ -789,6 +807,38 @@ def create_app(
             return manager.start(spec)
         except (KeyError, SampleDownloadError, TypeError, ValueError) as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/api/jobs/{job_id}/results", dependencies=[Depends(require_api_key)])
+    def download_job_results(job_id: str, include_images: bool = False) -> FileResponse:
+        job = manager.get(job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail="Job not found")
+        if job.status != "completed":
+            raise HTTPException(status_code=409, detail="Results are available after the run completes")
+        temporary = Path(tempfile.mkdtemp(dir=manager.runtime_root))
+        archive_path = temporary / "results.tar"
+        try:
+            with tarfile.open(archive_path, "w") as archive:
+                root = Path(job.output_root).resolve()
+                for path in sorted(root.rglob("*")):
+                    if path.is_file() and not path.is_symlink() and path.resolve().is_relative_to(root):
+                        archive.add(path, arcname=path.relative_to(root).as_posix(), recursive=False)
+                if include_images:
+                    included = set()
+                    for model in root.rglob("images.txt"):
+                        scene = model.parent
+                        for camera_id, name in photos.records(scene):
+                            source_name = photos.source_name(scene, camera_id, name)
+                            image = photos.source(photos.roots(scene), source_name)
+                            if image is not None and source_name not in included:
+                                archive.add(image, arcname=f"source-images/{source_name}", recursive=False)
+                                included.add(source_name)
+        except BaseException:
+            shutil.rmtree(temporary)
+            raise
+        return FileResponse(
+            archive_path, filename=f"{job.name}-results.tar", background=BackgroundTask(shutil.rmtree, temporary)
+        )
 
     @app.get("/api/jobs/{job_id}/splat", dependencies=[Depends(require_api_key)])
     def download_job_splat(job_id: str, format: str = "ply") -> FileResponse:
