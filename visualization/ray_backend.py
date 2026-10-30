@@ -2,7 +2,7 @@
 
 Ray is installed once, separately from the configured GTSFM Python environment.
 The local provider requires a direct Linux SSH endpoint; Windows users can expose
-WSL through Tailscale SSH. No Studio server is started on the remote machine.
+stock OpenSSH in WSL over Tailscale. No Studio server is started on the remote machine.
 """
 
 from __future__ import annotations
@@ -56,17 +56,17 @@ class RayWorkspace(AbstractContextManager):
         if spec.get("ssh_authentication") == "key":
             # Stock Ray copies auth.ssh_private_key onto the head node, even
             # without workers. Keep identity handling inside local OpenSSH.
-            raise ValueError("Use an OpenSSH host alias/SSH agent so private keys remain local.")
+            raise ValueError("Use local OpenSSH configuration/SSH agent so private keys remain local.")
         host = str(spec.get("ssh_host") or "").strip()
         user = str(spec.get("ssh_username") or "").strip()
         if not re.fullmatch(r"[A-Za-z0-9_.:-]+", host) or host.startswith("-"):
-            raise ValueError("Enter a direct Linux SSH host or OpenSSH alias")
+            raise ValueError("Enter a direct Linux SSH hostname or IP address")
         if not re.fullmatch(r"[A-Za-z0-9_.-]+", user) or user.startswith("-"):
             raise ValueError("Enter the Linux SSH username")
         if spec.get("ssh_wsl_distribution"):
             raise ValueError("Ray requires direct Linux SSH; use the WSL Tailscale SSH host")
         if int(spec.get("ssh_port") or 22) != 22:
-            raise ValueError("Configure the SSH port in an OpenSSH host alias for Ray")
+            raise ValueError("Configure the SSH port in an OpenSSH rule matching the destination IP")
         remote_ray = str(spec.get("ssh_ray_binary") or "~/.local/bin/ray")
         environment_ray = Path(sys.executable).with_name("ray")
         self.local_ray_binary = local_ray_binary or (
@@ -136,7 +136,15 @@ class RayWorkspace(AbstractContextManager):
                         temporary.replace(self.config_path)
                     finally:
                         temporary.unlink(missing_ok=True)
-            self._run_cli("up", str(self.config_path), "-y", "--no-restart", "--disable-usage-stats", timeout=180)
+            self._run_cli(
+                "up",
+                str(self.config_path),
+                "-y",
+                "--no-restart",
+                "--disable-usage-stats",
+                "--use-normal-shells",
+                timeout=180,
+            )
             # A local-provider record survives machine reboots, while --no-restart
             # skips its start commands. Native CLI status/start recovers that case
             # without stopping a live cluster or touching another runtime.

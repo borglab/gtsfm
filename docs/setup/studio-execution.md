@@ -10,6 +10,7 @@ Studio uses Ray 2.59.0's [Cluster Launcher](https://docs.ray.io/en/latest/cluste
 dashboard forwarding and rsync commands. There is no Studio-specific remote API bootstrap or SSH tunnel
 implementation. Dask still performs the reconstruction computation inside the
 ordinary command supervised by Ray.
+Startup uses Ray's native `--use-normal-shells` option for unattended SSH commands.
 
 Install the optional local integration once:
 
@@ -26,23 +27,36 @@ uv tool install --python 3.12 'ray[default]==2.59.0'
 
 The destination must provide a **direct Linux SSH endpoint**, `rsync`, and a
 working GPU driver/CUDA environment when GPU computation is selected. For WSL,
-use its Linux Tailscale SSH address; the Windows `wsl.exe` shell adapter is no
-longer supported. Complete any Tailscale SSH identity check normally. Studio does
-not change SSH services, drivers or network policy.
+use stock OpenSSH at its Linux Tailscale address; the Windows `wsl.exe` shell
+adapter is no longer supported. Complete any Tailscale SSH identity check normally
+if using its built-in server. Studio does not change SSH services, drivers or
+network policy.
 
 In **New run → Compute → Remote VM → SSH**, enter:
 
-- Host or existing OpenSSH host alias, plus the Linux username.
+- DNS hostname or IP address, plus the Linux username.
 - Existing remote GTSFM checkout and its Python interpreter. Relative Python
   paths resolve within that checkout; remote `~/` paths are supported.
 - Remote Ray executable, normally `~/.local/bin/ray` after the installation above.
 - Device and worker/thread/memory settings under **Machine settings**.
 
-Use an existing OpenSSH host alias with its local `IdentityFile`/`IdentityAgent`,
-or the local SSH agent. Direct private-key-file submission is disabled because
+Use local OpenSSH configuration with `IdentityFile`/`IdentityAgent`, or the local
+SSH agent. Ray resolves DNS before invoking SSH, so the local `Host` rule must
+match the resolved IP as well as the DNS name. An alias known only to OpenSSH
+cannot be used as the Ray provider hostname. For example:
+
+```sshconfig
+Host gpu-box.example.com 100.64.0.10
+    User ubuntu
+    Port 2222
+    IdentityFile ~/.ssh/gpu-box
+```
+
+Direct private-key-file submission is disabled because
 Ray's autoscaler would upload an explicit `ssh_private_key` to the head node.
-Studio does not pass that parameter. A non-default SSH port must be configured in an OpenSSH host alias; it is rejected
-as a separate port setting. Ray 2.59's launcher uses its standard host-key options,
+Studio does not pass that parameter. Configure a non-default SSH port in the
+IP-matching OpenSSH rule above; it is rejected as a separate port setting.
+Ray 2.59's launcher uses its standard host-key options,
 which differ from Studio's previous strict-known-hosts launcher. Use a trusted
 private network such as an authenticated Tailscale endpoint.
 
@@ -91,6 +105,8 @@ Normal completion, cancellation and disconnection must be verified separately.
 
 Use an ordinary Modal **Starter** workspace and finish the official CLI-token
 approval after account sign-in. GPU access may require a payment method on Modal.
+Use Modal SDK 1.6.3 or newer for the 2026.10 image builder selected by new
+workspaces; `uv sync` installs the compatible SDK from this checkout's lockfile.
 Enter credentials only in the local Studio credential controls; they are not
 saved with named configurations.
 

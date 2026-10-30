@@ -1485,14 +1485,14 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
   const connectRemote = async () => {
     const sequence = connectionSequence.current;
     if (form.remote_connection !== "api") {
-      setRemoteChecking(true); setRemoteMessage("Starting a temporary workspace over SSH…");
+      setRemoteChecking(true); setRemoteMessage("Starting or connecting to Ray over SSH…");
       try {
         const workspace = await getJson<RemoteWorkspace>("/api/ssh/inspect", {
           method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form),
         });
         if (sequence !== connectionSequence.current) return;
         setRemote({ ...workspace, verified: true });
-        setRemoteMessage(`${workspace.hardware.summary}. Connection checked; the temporary service has stopped.`);
+        setRemoteMessage(`${workspace.hardware.summary}. Connection checked; Ray remains available for future runs.`);
       } catch (reason) { if (sequence === connectionSequence.current) { setRemote(null); setRemoteMessage(errorMessage(reason)); } }
       finally { if (sequence === connectionSequence.current) setRemoteChecking(false); }
       return;
@@ -1896,7 +1896,7 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
               setForm((current) => ({ ...current, ssh_private_key: "" }));
             }} />
           </div>
-          <p className="field-help">Use a local OpenSSH host alias for IdentityFile and other SSH settings, or your SSH agent. Private keys stay on this machine and are not supplied to Ray.</p>
+          <p className="field-help">Use local OpenSSH settings that match the destination IP, or your SSH agent. Ray resolves DNS before connecting. Private keys stay on this machine and are not supplied to Ray.</p>
           <TextField label="Remote workspace" value={form.ssh_workspace} onChange={(value) => set("ssh_workspace", value)} placeholder="~/gtsfm-workspace" />
           <TextField label="Remote Python" value={form.ssh_python} onChange={(value) => set("ssh_python", value)} placeholder=".venv/bin/python" />
           <TextField label="Remote Ray executable" value={form.ssh_ray_binary} onChange={(value) => set("ssh_ray_binary", value)} placeholder="~/.local/bin/ray" />
@@ -1905,7 +1905,7 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
           <p className="field-help">Windows WSL adapters are unsupported. For existing configurations, clear this value and connect directly to the Linux SSH host.</p>
           {!hasExternalWorkers && (remote ? <SelectField label="Remote hardware" value={form.remote_hardware} options={remote.hardware.devices} onChange={(value) => set("remote_hardware", value)} /> : <TextField label="Remote hardware" value={form.remote_hardware} onChange={(value) => set("remote_hardware", value)} placeholder="cpu or cuda:0" />)}
           <button type="button" className="secondary-action" disabled={remoteChecking || Boolean(sshConnectionError) || !form.ssh_host || !form.ssh_workspace} onClick={() => connectRemote()}>{remoteChecking ? "Checking SSH…" : "Check SSH connection"}</button>
-          <p className="field-help" role="status">{remoteMessage || "Uses your SSH config, known hosts and agent. The remote checkout and Python environment must be installed once. Studio starts the service, stages inputs, retrieves results and closes the connection for each run."}</p>
+          <p className="field-help" role="status">{remoteMessage || "Uses your SSH config and agent. Install the remote checkout, Python environment and Ray once. Studio starts or reuses Ray, stages inputs and retrieves results. Ray remains available after the local connection closes."}</p>
         </div>}
       </div>}
     </Section>

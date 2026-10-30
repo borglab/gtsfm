@@ -68,7 +68,7 @@ def test_launcher_config_is_stable_and_never_installs_or_stops_other_runtimes(sp
     "change, message",
     [
         ({"ssh_wsl_distribution": "Ubuntu"}, "direct Linux SSH"),
-        ({"ssh_port": 2222}, "OpenSSH host alias"),
+        ({"ssh_port": 2222}, "OpenSSH rule matching the destination IP"),
         ({"ssh_host": "-oProxyCommand=bad"}, "Linux SSH host"),
         ({"ssh_username": ""}, "Linux SSH username"),
     ],
@@ -182,6 +182,7 @@ def test_open_uses_native_cli_and_preserves_configuration(spec, tmp_path, monkey
     monkeypatch.setattr(result, "_connect", Mock())
     with result:
         assert commands.call_args_list[0].args[:4] == ("up", str(result.config_path), "-y", "--no-restart")
+        assert "--use-normal-shells" in commands.call_args_list[0].args
         assert commands.call_args_list[1].args[0] == "exec"
         assert " status --address=" in commands.call_args_list[1].args[2]
         assert " || " in commands.call_args_list[1].args[2]
@@ -289,6 +290,8 @@ def test_installed_ray_supports_native_commands_used_by_adapter(spec, tmp_path, 
         )
         assert completed.returncode == 0, completed.stdout + completed.stderr
         assert "Usage:" in completed.stdout
+        if command == "up":
+            assert "--use-normal-shells" in completed.stdout
     finally:
         result.close()
 
@@ -430,7 +433,7 @@ def test_explicit_private_key_authentication_is_rejected_before_native_launcher(
     """Prevent stock Ray from copying a local identity into ray_bootstrap_key.pem."""
     key = tmp_path / "identity"
     key.write_text("fixture private key must remain local")
-    with pytest.raises(ValueError, match="OpenSSH host alias/SSH agent so private keys remain local"):
+    with pytest.raises(ValueError, match="OpenSSH configuration/SSH agent so private keys remain local"):
         workspace({**spec, "ssh_authentication": "key", "ssh_private_key": str(key)}, tmp_path)
     assert not list(tmp_path.glob("*.yaml"))
 
