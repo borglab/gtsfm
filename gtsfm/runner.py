@@ -119,7 +119,17 @@ class GtsfmRunner:
         parser.add_argument(
             "--graph_partitioner",
             type=str,
-            choices=["single", "binary", "metis", "recursive_metis", "recursive_metis_80_20"],
+            choices=[
+                "single",
+                "binary",
+                "metis",
+                "recursive_metis",
+                "recursive_metis_80_20",
+                "recursive_metis_overlap",
+                "recursive_weighted_mincut",
+                "recursive_weighted_mincut_overlap",
+                "recursive_weighted_mincut_80_20",
+            ],
             help="Graph partitioner preset to use (see gtsfm/configs/graph_partitioner). "
             "If omitted, each config's default applies.",
         )
