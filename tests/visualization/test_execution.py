@@ -1,20 +1,24 @@
 """Acceptance checks for locally saved execution settings and SSH job routing."""
 
 import json
+import shutil
 import tarfile
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from io import BytesIO
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import yaml
 from fastapi.testclient import TestClient
+from PIL import Image
 from pydantic import ValidationError
 
 from visualization.app import create_app
 from visualization.execution import ExecutionConfiguration, ExecutionStore
+from visualization.ray_backend import RayWorkspace
 from visualization.runtime import JobManager, ManagedJob, configuration_schema
-from visualization.ssh_workspace import ssh_command
 
 
 def configuration(name="Cyber", **settings):
@@ -90,17 +94,16 @@ def test_configuration_api_is_local_and_authenticated(tmp_path, monkeypatch):
 @pytest.mark.parametrize("host", ["-oProxyCommand=bad", "host;touch x", "host\ncommand", "$(bad)"])
 def test_ssh_rejects_option_and_shell_injection(host):
     with pytest.raises(ValueError):
-        ssh_command({"ssh_host": host})
+        RayWorkspace({"ssh_host": host, "ssh_username": "user"}, local_ray_binary="/tools/ray")
 
 
-def test_ssh_preserves_alias_and_agent_settings():
-    command = ssh_command({"ssh_host": "cyber", "ssh_username": "user", "ssh_port": 2222})
-    assert command[-1] == "cyber"
-    assert command[command.index("-l") + 1] == "user"
-    assert command[command.index("-p") + 1] == "2222"
-    assert "StrictHostKeyChecking=yes" in command
-    assert "BatchMode=yes" in command
-    assert "-i" not in command
+def test_ray_preserves_alias_and_uses_native_agent_configuration(tmp_path):
+    workspace = RayWorkspace({"ssh_host": "cyber", "ssh_username": "user"}, tmp_path, local_ray_binary="/tools/ray")
+    try:
+        assert workspace.configuration["provider"]["head_ip"] == "cyber"
+        assert workspace.configuration["auth"] == {"ssh_user": "user"}
+    finally:
+        workspace.close()
 
 
 def test_ssh_job_uses_connector_without_local_runner(tmp_path, monkeypatch):
@@ -117,6 +120,7 @@ def test_ssh_job_uses_connector_without_local_runner(tmp_path, monkeypatch):
         "execution_target": "remote",
         "remote_connection": "ssh",
         "ssh_host": "cyber",
+        "ssh_username": "user",
         "ssh_workspace": "/opt/gtsfm",
         "ssh_private_key": "/secret/key",
         "loader": "olsson",
@@ -124,7 +128,7 @@ def test_ssh_job_uses_connector_without_local_runner(tmp_path, monkeypatch):
     result = manager.start(spec)
     assert event.wait(2)
     assert seen == [spec]
-    assert result["command"] == ["ssh", "cyber"]
+    assert result["command"] == ["ray", "job", "submit", "cyber"]
     assert "ssh_private_key" not in result["spec"]
     assert manager.get(result["id"]).process is None
 
@@ -228,33 +232,31 @@ def test_cancel_during_result_transfer_cannot_become_completed(tmp_path, monkeyp
     assert job.status == "cancelled"
 
 
-def test_shutdown_closes_ssh_workspace_and_joins_owning_thread(tmp_path, monkeypatch):
+def test_shutdown_closes_ray_workspace_during_startup_and_joins_thread(tmp_path, monkeypatch):
     from visualization import runtime
 
     started, closed = threading.Event(), threading.Event()
 
     class Workspace:
-        endpoint, api_key = "http://127.0.0.1:1", "private"
         stderr_tail = ""
 
-        def __init__(self, spec):
-            pass
+        def __init__(self, spec, runtime_root):
+            self.entered = False
 
         def __enter__(self):
-            return self
+            self.entered = True
+            started.set()
+            assert closed.wait(5)
+            raise RuntimeError("native launcher closed during authentication")
 
         def __exit__(self, *args):
             self.close()
 
         def close(self):
-            closed.set()
+            if self.entered:
+                closed.set()
 
-        def ready(self, read_json):
-            started.set()
-            assert closed.wait(5)
-            raise OSError("transport closed during status read")
-
-    monkeypatch.setattr(runtime, "SSHWorkspace", Workspace)
+    monkeypatch.setattr(runtime, "RayWorkspace", Workspace)
     manager = JobManager(tmp_path)
     created = manager.start(
         {"execution_target": "remote", "remote_connection": "ssh", "ssh_host": "cyber", "ssh_workspace": "/opt/gtsfm"}
@@ -265,57 +267,6 @@ def test_shutdown_closes_ssh_workspace_and_joins_owning_thread(tmp_path, monkeyp
     assert not any(thread.is_alive() for thread in manager._threads)
     assert manager.get(created["id"]).status == "cancelled"
     assert not manager._ssh_workspaces
-
-
-def test_readiness_retry_closes_failed_session_and_submits_once(tmp_path, monkeypatch):
-    from visualization import runtime
-
-    instances, submissions = [], []
-
-    class Workspace:
-        endpoint, api_key, stderr_tail = "http://127.0.0.1:1", "private", "startup failure detail"
-
-        def __init__(self, spec):
-            self.closed = False
-            instances.append(self)
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *args):
-            self.close()
-
-        def close(self):
-            self.closed = True
-
-        def ready(self, reader):
-            if len(instances) == 1:
-                raise OSError("temporary tunnel failure")
-
-    def submit(job):
-        submissions.append(job.id)
-        job.status = "completed"
-
-    monkeypatch.setattr(runtime, "SSHWorkspace", Workspace)
-    manager = JobManager(tmp_path)
-    monkeypatch.setattr(manager, "_run_remote", submit)
-    job = ManagedJob(
-        id="retry",
-        name="retry",
-        status="queued",
-        created_at="now",
-        updated_at="now",
-        output_root=str(tmp_path),
-        live_root=str(tmp_path),
-        spec={},
-        command=[],
-        remote={},
-        ssh_spec={},
-    )
-    manager._run_ssh(job)
-    assert len(instances) == 2 and all(session.closed for session in instances)
-    assert submissions == ["retry"]
-    assert job.status == "completed"
 
 
 def test_shutdown_does_not_cancel_unowned_restored_cloud_calls(tmp_path, monkeypatch):
@@ -352,3 +303,228 @@ def test_cpu_control_node_can_bind_a_gpu_on_ssh_workers(tmp_path, monkeypatch):
         tmp_path / "out",
     )
     assert env == {"CUDA_VISIBLE_DEVICES": "1", "GTSFM_SELECTED_DEVICE": "cuda:1"}
+
+
+@pytest.fixture
+def ray_execution(tmp_path, monkeypatch):
+    """Exercise real job orchestration and local files with a fake native Ray adapter."""
+    from visualization import runtime
+
+    source = tmp_path / "photos on Mac"
+    (source / "images").mkdir(parents=True)
+    Image.new("RGB", (32, 24), "red").save(source / "images" / "camera.jpg")
+    (source / "metadata.json").write_text('{"source":"mac"}')
+    remote = tmp_path / "remote"
+    uploads, submissions, stops, sessions = [], [], [], []
+    options = {"uncertain_submit": False, "cancel_download": False}
+    manager = JobManager(tmp_path / "results")
+
+    class Workspace:
+        stderr_tail = ""
+
+        def __init__(self, spec, runtime_root):
+            self.owned = []
+            self.closed = False
+
+        def __enter__(self):
+            sessions.append(self)
+            return self
+
+        def __exit__(self, *args):
+            self.close()
+
+        def close(self):
+            if not self.closed:
+                self.closed = True
+                stops.extend(self.owned)
+
+        def upload_directory(self, local, destination):
+            assert destination.startswith("/opt/gtsfm/")
+            target = remote / destination.removeprefix("/opt/gtsfm/")
+            shutil.copytree(local, target, dirs_exist_ok=True)
+            uploads.append((local, destination, target))
+
+        def submit(self, command, **kwargs):
+            submissions.append((command, kwargs))
+            self.owned.append(kwargs["submission_id"])
+            if options["uncertain_submit"]:
+                raise ConnectionError("submission response lost after acceptance")
+            output = remote / command[command.index("--output_root") + 1]
+            scene = output / "results" / "merged_retriangulated"
+            scene.mkdir(parents=True)
+            (scene / "images.txt").write_text("0 1 0 0 0 0 0 0 0 camera.jpg\n\n")
+            (scene / "cameras.txt").write_text("0 PINHOLE 32 24 20 20 16 12\n")
+            (scene / "points3D.txt").write_text("# no points in this transport fixture\n")
+            (output / "config.yaml").write_text(
+                yaml.safe_dump({"loader": {"dataset_dir": command[command.index("--dataset_dir") + 1]}})
+            )
+            return kwargs["submission_id"]
+
+        def get(self, job_id):
+            return SimpleNamespace(status="SUCCEEDED", message="")
+
+        def logs(self, job_id):
+            return "Ray-supervised pipeline completed\n"
+
+        async def tail_logs(self, job_id):
+            yield self.logs(job_id)
+
+        def download_directory(self, source, destination):
+            shutil.copytree(remote / source.removeprefix("/opt/gtsfm/"), destination, dirs_exist_ok=True)
+            if options["cancel_download"]:
+                manager.cancel("ray-flow")
+
+    monkeypatch.setattr(runtime, "RayWorkspace", Workspace)
+    catalog = {
+        "cpu_count": 8,
+        "hardware": {
+            "devices": [
+                {"id": "cpu", "status": "available", "supports_gaussian_splatting": False},
+                {"id": "cuda:0", "status": "available", "supports_gaussian_splatting": True},
+            ]
+        },
+    }
+    monkeypatch.setattr(manager, "_inspect_ray", lambda *args: catalog)
+    spec = {
+        "execution_target": "remote",
+        "remote_connection": "ssh",
+        "ssh_host": "gpu-linux",
+        "ssh_username": "researcher",
+        "ssh_workspace": "/opt/gtsfm",
+        "ssh_python": "/envs/gtsfm/bin/python",
+        "dataset_dir": str(source),
+        "config_name": "vggt_sift_frontend_megaloc",
+        "loader": "olsson",
+        "remote_hardware": "cuda:0",
+        "num_workers": 3,
+        "threads_per_worker": 2,
+        "worker_memory_limit": "7GiB",
+        "correspondence_generator_config_name": "sift_brute_force",
+        "live_preview_interval": 150,
+    }
+    yield SimpleNamespace(
+        manager=manager,
+        spec=spec,
+        source=source,
+        uploads=uploads,
+        submissions=submissions,
+        stops=stops,
+        sessions=sessions,
+        options=options,
+    )
+    manager.shutdown()
+
+
+def _finish_ray_flow(case):
+    """Start and join the real orchestration thread without remote computation."""
+    created = case.manager.start(case.spec, job_id="ray-flow")
+    for thread in case.manager._threads:
+        thread.join(timeout=5)
+        assert not thread.is_alive()
+    return case.manager.get(created["id"])
+
+
+def test_ray_stages_real_inputs_submits_saved_settings_and_serves_downloaded_photos(ray_execution):
+    """Verify the full application transfer path through results, photos, and archive APIs."""
+    case = ray_execution
+    job = _finish_ray_flow(case)
+    assert job.status == "completed", job.error
+    local, remote, staged = case.uploads[0]
+    assert local == case.source
+    assert remote == "/opt/gtsfm/.gtsfm/staged/ray-flow/dataset_dir"
+    assert (staged / "metadata.json").read_bytes() == (case.source / "metadata.json").read_bytes()
+    assert (staged / "images" / "camera.jpg").read_bytes() == (case.source / "images" / "camera.jpg").read_bytes()
+    command, settings = case.submissions[0]
+    assert command[:4] == ["/envs/gtsfm/bin/python", "-u", "-m", "gtsfm.runner"]
+    for flag, value in {
+        "--dataset_dir": ".gtsfm/staged/ray-flow/dataset_dir",
+        "--num_workers": "3",
+        "--threads_per_worker": "2",
+        "--worker_memory_limit": "7GiB",
+        "--correspondence_generator_config_name": "sift_brute_force",
+    }.items():
+        assert command[command.index(flag) + 1] == value
+    assert settings["num_gpus"] == 1 and settings["num_cpus"] == 6
+    assert settings["cwd"] == "/opt/gtsfm"
+    assert settings["submission_id"] == "gtsfm-ray-flow"
+    assert "CUDA_VISIBLE_DEVICES" not in settings["env"]
+    assert settings["env"]["GTSFM_LIVE_PREVIEW_INTERVAL"] == "150"
+    output = Path(job.output_root)
+    assert json.loads((output / "studio-inputs.json").read_text()) == {"dataset_dir": str(case.source)}
+    assert yaml.safe_load((output / "config.yaml").read_text())["loader"]["dataset_dir"].startswith(".gtsfm/staged/")
+    assert case.stops == ["gtsfm-ray-flow"]
+    with TestClient(create_app(case.manager.results_root, job_manager=case.manager)) as client:
+        scene = (output / "results" / "merged_retriangulated").relative_to(case.manager.results_root).as_posix()
+        photos = client.get("/api/photos", params={"scene": scene})
+        assert photos.status_code == 200
+        thumbnail = client.get(photos.json()["items"][0]["thumbnail"])
+        assert thumbnail.status_code == 200
+        assert Image.open(BytesIO(thumbnail.content)).size == (32, 24)
+        downloaded = client.get("/api/jobs/ray-flow/results")
+        assert downloaded.status_code == 200
+        with tarfile.open(fileobj=BytesIO(downloaded.content)) as archive:
+            assert "results/merged_retriangulated/images.txt" in archive.getnames()
+            assert archive.extractfile("studio-inputs.json").read() == (output / "studio-inputs.json").read_bytes()
+
+
+def test_ray_uncertain_submission_is_not_replayed_and_owned_job_is_cleaned_up(ray_execution):
+    """Retain one known Ray ID even if the submission response is lost."""
+    case = ray_execution
+    case.options["uncertain_submit"] = True
+    job = _finish_ray_flow(case)
+    assert job.status == "failed"
+    assert "submission response lost" in job.error
+    assert len(case.submissions) == 1
+    assert case.stops == ["gtsfm-ray-flow"]
+    assert not case.manager._ssh_workspaces
+    assert job.ssh_spec is None
+
+
+def test_ray_cancel_during_result_download_cannot_become_completed(ray_execution):
+    """A completed remote process does not override cancellation during transfer."""
+    case = ray_execution
+    case.options["cancel_download"] = True
+    job = _finish_ray_flow(case)
+    assert job.status == "cancelled"
+    assert not (Path(job.output_root) / "studio-inputs.json").exists()
+    assert case.stops == ["gtsfm-ray-flow"]
+
+
+def test_ray_stages_explicit_image_folder_and_preserves_its_local_mapping(ray_execution):
+    """Separate image and dataset settings must both survive remote path translation."""
+    case = ray_execution
+    case.spec["images_dir"] = str(case.source / "images")
+    job = _finish_ray_flow(case)
+    assert job.status == "completed", job.error
+    assert len(case.uploads) == 2
+    command, _ = case.submissions[0]
+    assert command[command.index("--images_dir") + 1] == ".gtsfm/staged/ray-flow/images_dir"
+    assert (case.uploads[1][2] / "camera.jpg").is_file()
+    mapping = json.loads((Path(job.output_root) / "studio-inputs.json").read_text())
+    assert mapping["images_dir"] == str(case.source / "images")
+
+
+def test_ray_rejects_cpu_reservations_larger_than_the_machine_before_submit(ray_execution):
+    """Avoid an indefinitely pending Ray job for an oversubscribed Dask setting."""
+    case = ray_execution
+    case.spec["num_workers"] = 5
+    job = _finish_ray_flow(case)
+    assert job.status == "failed"
+    assert "require 10 Ray CPUs" in job.error and "remote machine has 8" in job.error
+    assert case.submissions == []
+
+
+def test_ray_external_dask_workers_stage_constructor_and_reserve_only_driver_cpu(ray_execution):
+    """External workers receive their resource settings without reserving head GPUs."""
+    case = ray_execution
+    case.spec.update(dask_worker_hosts="gpu-worker", num_workers=5)
+    job = _finish_ray_flow(case)
+    assert job.status == "completed", job.error
+    command, settings = case.submissions[0]
+    assert settings["num_cpus"] == 1 and settings["num_gpus"] == 0
+    assert command[command.index("--cluster_config") + 1] == ".gtsfm/staged/ray-flow/cluster/cluster.yaml"
+    constructor = yaml.safe_load((case.uploads[-1][2] / "cluster.yaml").read_text())
+    assert constructor["_target_"] == "distributed.SSHCluster"
+    assert constructor["remote_python"] == "/envs/gtsfm/bin/python"
+    assert constructor["worker_options"]["n_workers"] == 5
+    assert constructor["worker_options"]["env"]["CUDA_VISIBLE_DEVICES"] == "0"

@@ -121,6 +121,91 @@ test('invalid saved-configuration responses show a load error without crashing t
   }
 });
 
+async function fixtureModalOnboarding(page) {
+  await page.route('**/api/modal/discover', route => route.fulfill({ status: 400,
+    json: { error: 'No deployed GTSFM web app was found in this Modal workspace.' } }));
+  await page.route('**/api/modal/deploy', route => {
+    const requested = route.request().postDataJSON();
+    return route.fulfill({ json: { id: 'fixture-deployment', status: 'completed', phase: 'ready', stage: 'Ready',
+      gpu: requested.gpu, cpu: requested.cpu, memory_mb: requested.memory_mb,
+      endpoint: 'https://fixture.modal.test', api_key: 'fixture-workspace-key', log_tail: [] } });
+  });
+  await page.route('**/api/remote/inspect', route => route.fulfill({ json: {
+    hardware: defaults['/api/hardware'], configuration: config,
+  } }));
+  await page.getByLabel('Token ID', { exact: true }).fill('ak-fixture');
+  await page.getByLabel('Token secret', { exact: true }).fill('as-fixture');
+  await page.getByText('No deployed GTSFM web app was found', { exact: false }).waitFor();
+  await page.getByRole('button', { name: 'Set up & deploy Modal workspace', exact: true }).click();
+  await page.getByRole('button', { name: 'Modal workspace ready', exact: true }).waitFor();
+}
+
+test('a fresh Modal user deploys with the GPU device displayed and submitted consistently', async t => {
+  const page = await pageFor(t);
+  await ready(page);
+  await page.getByRole('button', { name: 'GTSFM samples', exact: true }).click();
+  await page.getByLabel('Sample scene', { exact: true }).selectOption('door');
+  await page.getByLabel('Splat implementation', { exact: true }).selectOption('none');
+  await page.getByRole('button', { name: 'Remote VM', exact: true }).click();
+  await fixtureModalOnboarding(page);
+  assert.equal(await page.getByLabel('Remote hardware', { exact: true }).inputValue(), 'cuda:0');
+  let submitted;
+  await page.route('**/api/jobs', route => {
+    if (route.request().method() !== 'POST') return route.fulfill({ json: { items: [] } });
+    submitted = route.request().postDataJSON();
+    return route.fulfill({ status: 202, json: { id: 'fixture-job', name: 'Fixture', status: 'queued', spec: submitted,
+      command: [], log_tail: [] } });
+  });
+  await page.getByRole('button', { name: 'Run reconstruction', exact: true }).click();
+  await eventually(() => !!submitted);
+  assert.equal(submitted.hardware, 'cuda:0');
+});
+
+test('a loaded CPU configuration is preserved and blocked until its Modal GPU is selected', async t => {
+  const page = await pageFor(t);
+  await page.route('**/api/execution-configurations', route => route.fulfill({ json: { items: [{ name: 'Saved CPU',
+    settings: { execution_target: 'remote', remote_connection: 'api', remote_provider: 'modal', remote_hardware: 'cpu' },
+  }] } }));
+  await ready(page);
+  await page.getByLabel('Saved execution configuration', { exact: true }).selectOption('Saved CPU');
+  await fixtureModalOnboarding(page);
+  const hardware = page.getByLabel('Remote hardware', { exact: true });
+  assert.equal(await hardware.inputValue(), 'cpu');
+  assert.equal(await hardware.locator('option:checked').textContent(), 'cpu (unavailable)');
+  await page.getByText('This Modal workspace runs on cuda:0.', { exact: false }).waitFor();
+  const run = page.getByRole('button', { name: 'Run reconstruction', exact: true });
+  assert.equal(await run.isDisabled(), true);
+  await hardware.selectOption('cuda:0');
+  assert.equal(await run.isEnabled(), true);
+});
+
+test('SSH configurations preserve the Ray executable and require clearing legacy WSL settings', async t => {
+  const page = await pageFor(t);
+  const legacy = { name: 'Linux worker', settings: { execution_target: 'remote', remote_connection: 'ssh',
+    ssh_host: 'linux-worker', ssh_workspace: '/workspace/gtsfm', ssh_ray_binary: '/environment/bin/ray',
+    ssh_wsl_distribution: 'ShineCompute' } };
+  let saved;
+  await page.route('**/api/execution-configurations', route => {
+    if (route.request().method() === 'PUT') {
+      saved = route.request().postDataJSON();
+      return route.fulfill({ json: saved });
+    }
+    return route.fulfill({ json: { items: [legacy] } });
+  });
+  await ready(page);
+  await page.getByLabel('Saved execution configuration', { exact: true }).selectOption(legacy.name);
+  assert.equal(await page.getByLabel('Remote Ray executable', { exact: true }).inputValue(), '/environment/bin/ray');
+  const check = page.getByRole('button', { name: 'Check SSH connection', exact: true });
+  assert.equal(await check.isDisabled(), true);
+  await page.getByText('SSH execution requires a Linux SSH host.', { exact: false }).waitFor();
+  await page.getByLabel('WSL distribution', { exact: false }).fill('');
+  assert.equal(await check.isEnabled(), true);
+  await page.getByRole('button', { name: 'Save configuration', exact: true }).click();
+  await eventually(() => !!saved);
+  assert.equal(saved.settings.ssh_ray_binary, '/environment/bin/ray');
+  assert.equal(saved.settings.ssh_wsl_distribution, '');
+});
+
 test('result refresh preserves root-first ordering and reloads changed point colors', async t => {
   const page = await pageFor(t);
   let revision = '1', pointRequests = [];

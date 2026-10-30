@@ -3,6 +3,7 @@
 import json
 from copy import deepcopy
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -24,6 +25,9 @@ def _ssh_spec(identity: Path) -> dict:
         "execution_target": "remote",
         "remote_connection": "ssh",
         "ssh_host": "cyber",
+        "ssh_username": "researcher",
+        "dataset_dir": str(identity.parent),
+        "config_name": "sift_front_end",
         "ssh_workspace": "/remote/gtsfm",
         "ssh_authentication": "key",
         "ssh_private_key": str(identity),
@@ -34,20 +38,20 @@ def _ssh_spec(identity: Path) -> dict:
 
 @pytest.fixture
 def ssh_history(tmp_path, monkeypatch):
-    """Use real history files and job lifecycle with a mocked SSH transport."""
+    """Use real history files and job lifecycle with a mocked native Ray adapter."""
     identity = tmp_path / "private-identity-file"
     identity.write_text("test fixture, not a real private key")
     received, written = [], []
 
     class Workspace:
-        endpoint = "http://127.0.0.1:12345"
-        api_key = "temporary-service-secret"
+        terminal_status = "FAILED"
         stderr_tail = ""
 
-        def __init__(self, spec):
-            received.append(deepcopy(spec))
+        def __init__(self, spec, runtime_root):
+            self.spec = spec
 
         def __enter__(self):
+            received.append(deepcopy(self.spec))
             return self
 
         def __exit__(self, *args):
@@ -56,10 +60,34 @@ def ssh_history(tmp_path, monkeypatch):
         def close(self):
             pass
 
-        def ready(self, read_json):
-            return {"devices": []}
+        def submit(self, command, **kwargs):
+            return kwargs["submission_id"]
 
-    monkeypatch.setattr(runtime, "SSHWorkspace", Workspace)
+        def get(self, job_id):
+            return SimpleNamespace(status=self.terminal_status, message="test terminal outcome")
+
+        def logs(self, job_id):
+            return "native Ray logs"
+
+        async def tail_logs(self, job_id):
+            yield self.logs(job_id)
+
+        def upload_directory(self, local, remote):
+            pass
+
+        def download_directory(self, remote, local):
+            local.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(runtime, "RayWorkspace", Workspace)
+    monkeypatch.setattr(
+        runtime.JobManager,
+        "_inspect_ray",
+        staticmethod(
+            lambda *args: {
+                "hardware": {"devices": [{"id": "cpu", "status": "available", "supports_gaussian_splatting": False}]}
+            }
+        ),
+    )
     write_record = job_history.write_record
 
     def capture_record(directory, record):
@@ -77,11 +105,7 @@ def test_ssh_terminal_history_excludes_private_state_and_credentials(ssh_history
     """Both successful and failed SSH lifecycles persist their redacted terminal state."""
     manager, identity, received, written = ssh_history
 
-    def finish(job):
-        job.status = status
-        job.return_code = 0 if status == "completed" else 1
-
-    monkeypatch.setattr(manager, "_run_remote", finish)
+    monkeypatch.setattr(runtime.RayWorkspace, "terminal_status", "SUCCEEDED" if status == "completed" else "FAILED")
     created = manager.start(_ssh_spec(identity))
     _wait_for_jobs(manager)
     job = manager.get(created["id"])
@@ -103,13 +127,11 @@ def test_ssh_terminal_history_excludes_private_state_and_credentials(ssh_history
         assert str(identity) not in serialized
         assert "api-secret-must-not-persist" not in serialized
         assert "modal-secret-must-not-persist" not in serialized
-        assert "temporary-service-secret" not in serialized
 
 
 def test_live_key_auth_retry_reconstructs_identity_from_volatile_state(ssh_history, monkeypatch):
     """Retry uses the private identity field after the original ssh_spec has been discarded."""
     manager, identity, received, _ = ssh_history
-    monkeypatch.setattr(manager, "_run_remote", lambda job: setattr(job, "status", "failed"))
     original = manager.start(_ssh_spec(identity))
     _wait_for_jobs(manager)
     assert manager.get(original["id"]).ssh_spec is None
@@ -129,7 +151,6 @@ def test_live_key_auth_retry_reconstructs_identity_from_volatile_state(ssh_histo
 def test_retry_waits_for_the_original_ssh_cleanup(ssh_history, monkeypatch):
     """A failed state cannot start another GPU run while its old transport is still owned."""
     manager, identity, _, _ = ssh_history
-    monkeypatch.setattr(manager, "_run_remote", lambda job: setattr(job, "status", "failed"))
     original = manager.start(_ssh_spec(identity))
     _wait_for_jobs(manager)
     manager._ssh_workspaces[original["id"]] = object()
@@ -144,7 +165,6 @@ def test_retry_waits_for_the_original_ssh_cleanup(ssh_history, monkeypatch):
 def test_restored_ssh_history_never_rehydrates_private_state_or_allows_retry(ssh_history, monkeypatch, saved_status):
     """Older records cannot restore credentials or make a remote retry appear usable."""
     manager, identity, _, _ = ssh_history
-    monkeypatch.setattr(manager, "_run_remote", lambda job: setattr(job, "status", "failed"))
     created = manager.start(_ssh_spec(identity))
     _wait_for_jobs(manager)
     path = manager.history_root / f"{created['id']}.json"
@@ -181,14 +201,14 @@ def test_failed_ssh_startup_is_saved_by_terminal_finally(ssh_history, monkeypatc
     """A startup failure before any remote job exists still records its final outcome."""
     manager, identity, received, _ = ssh_history
 
-    def fail_readiness(self, read_json):
-        raise ValueError("remote Python environment is unavailable")
+    def fail_startup(self):
+        raise ValueError("native Ray launcher is unavailable")
 
-    monkeypatch.setattr(runtime.SSHWorkspace, "ready", fail_readiness)
+    monkeypatch.setattr(runtime.RayWorkspace, "__enter__", fail_startup)
     created = manager.start(_ssh_spec(identity))
     _wait_for_jobs(manager)
-    assert len(received) == 3
+    assert len(received) == 0
     record = json.loads((manager.history_root / f"{created['id']}.json").read_text())["job"]
     assert record["status"] == "failed"
-    assert "remote Python environment is unavailable" in record["error"]
+    assert "native Ray launcher is unavailable" in record["error"]
     assert "ssh_spec" not in record and "ssh_identity_file" not in record

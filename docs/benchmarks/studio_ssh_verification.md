@@ -1,5 +1,9 @@
 # Mac-hosted Studio → SSH computation verification
 
+> Historical verification of commit `d17530ee` and its previous SSH transport.
+> The current Ray replacement and Modal first-use workflow require separate live
+> acceptance. Their local tests do not inherit the GPU evidence below.
+
 ## Acceptance and observed results
 
 Studio stays on the Mac. A named execution configuration populates editable

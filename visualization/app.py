@@ -46,7 +46,6 @@ from visualization.runtime import (
     setup_status,
 )
 from visualization.samples import SampleDownloadError, prepare_sample, sample_catalog
-from visualization.ssh_workspace import SSHWorkspace
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
 STATIC_ROOT = PACKAGE_ROOT / "static"
@@ -790,18 +789,10 @@ def create_app(
 
     @app.post("/api/ssh/inspect", dependencies=[Depends(require_api_key)])
     def inspect_ssh(payload: dict[str, Any]) -> dict:
-        workspace = None
         try:
-            workspace = SSHWorkspace(payload)
-            with workspace:
-                hardware = workspace.ready(lambda url, key: manager._remote_json(url, key, timeout=3))
-                return {
-                    "hardware": hardware,
-                    "configuration": manager._remote_json(f"{workspace.endpoint}/api/configuration", workspace.api_key),
-                }
-        except (ValueError, OSError) as exc:
-            detail = workspace.stderr_tail.strip().splitlines()[-1:] if workspace is not None else []
-            raise HTTPException(status_code=400, detail=" ".join([str(exc), *detail])) from exc
+            return manager.inspect_ssh(payload)
+        except (ValueError, OSError, RuntimeError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.get("/api/jobs", dependencies=[Depends(require_api_key)])
     def list_jobs() -> dict[str, Any]:

@@ -38,6 +38,7 @@ class ExecutionSettings(BaseModel):
     ssh_private_key: str = ""
     ssh_workspace: str = ""
     ssh_python: str = ".venv/bin/python"
+    ssh_ray_binary: str = "~/.local/bin/ray"
     ssh_wsl_distribution: str = ""
     num_workers: int = Field(default=1, ge=1, le=1024)
     threads_per_worker: int = Field(default=1, ge=1, le=1024)
