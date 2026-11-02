@@ -1,0 +1,8 @@
+# Native Dask LocalCluster constructor configuration.
+# Pass this file with --cluster_config; Hydra instantiates it directly.
+_target_: distributed.LocalCluster
+n_workers: 1
+threads_per_worker: 1
+processes: true
+memory_limit: auto
+dashboard_address: ":8787"
