@@ -45,7 +45,7 @@ dependencies = [
     # Core functionality and APIs
     "hydra-core",
     "matplotlib>=3.5",
-    "modal>=1.0.0",
+    "modal>=1.6.3",  # Supports the 2026.10 image builder used by new Modal workspaces.
     "networkx",
     "numpy==2.2.6",
     "open3d",
@@ -121,6 +121,9 @@ gtsfm = "gtsfm.cli:main"
 # Optional Dependencies (Extras)
 # ============================================================================
 [project.optional-dependencies]
+# Standard SSH machine provisioning and whole-job supervision.
+ssh = ["ray[default]==2.59.0"]
+
 complete = [
     "xformers==0.0.30 ; sys_platform == 'linux'",
 ]
@@ -139,6 +142,7 @@ multi-gpu = [
 
 # All optional features combined (for power users and clusters)
 all = [
+    "ray[default]==2.59.0",
     "xformers==0.0.30 ; sys_platform == 'linux'",
     "dask-cuda>=24.8.0 ; sys_platform == 'linux'",
     "cuda-bindings~=12.0 ; sys_platform == 'linux'",  # keep in sync with multi-gpu
