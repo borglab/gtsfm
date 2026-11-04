@@ -1,82 +1,29 @@
 """Binary cluster tree from recursive METIS bisection.
 
 Each cut is a two-way ``METIS_PartGraphRecursive`` partition of the cameras in
-that node. The recursion stops at ``max_cameras``. Boundary cameras are then
-copied across each cut so both reconstructions estimate them. By default the
-copy lands on the finished leaf. ``overlap_participates_in_cuts`` instead adds
-those cameras to the child group before later cuts, and those cuts continue
-until every leaf is within ``max_cameras``.
+that node (ND-style cluster tree via graph partitioning). When inlier counts
+are supplied they are used as edge weights (``adjwgt``) so the objective is a
+weighted edge-cut. The recursion stops at ``max_cameras``. Boundary cameras
+are then copied across each cut so both reconstructions estimate them. By
+default the copy lands on the finished leaf. ``overlap_participates_in_cuts``
+instead adds those cameras to the child group before later cuts, and those
+cuts continue until every leaf is within ``max_cameras``.
 """
 
 from __future__ import annotations
 
-import ctypes
-import os
 import time
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from pathlib import Path
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
+from gtsfm.graph_partitioner.metis_bisection import bisect_graph
 from gtsfm.graph_partitioner.partition_utils import canonical_edge
 from gtsfm.products.cluster_tree import ClusterTree
 from gtsfm.products.visibility_graph import VisibilityGraph, valid_visibility_graph_or_raise, visibility_graph_keys
 
 logger = logger_utils.get_logger()
-
-_IDX = ctypes.c_int32
-_REAL = ctypes.c_float
-_METIS_OK = 1
-_METIS_NOPTIONS = 40
-_METIS_OPTION_SEED = 8
-_METIS_OPTION_CONTIG = 10
-_METIS_OPTION_NUMBERING = 17
-
-
-def _load_metis() -> ctypes.CDLL:
-    """Load the METIS shared library shipped with the GTSFM environment."""
-    candidates = []
-    env_path = os.environ.get("METIS_LIB")
-    if env_path:
-        candidates.append(Path(env_path))
-    conda_prefix = os.environ.get("CONDA_PREFIX")
-    if conda_prefix:
-        candidates.append(Path(conda_prefix) / "lib" / "libmetis.so")
-    candidates.append(Path("/usr/lib/x86_64-linux-gnu/libmetis.so"))
-    for path in candidates:
-        if path.is_file():
-            library = ctypes.CDLL(str(path))
-            library.METIS_SetDefaultOptions.argtypes = [ctypes.POINTER(_IDX)]
-            library.METIS_SetDefaultOptions.restype = ctypes.c_int
-            library.METIS_PartGraphRecursive.argtypes = [
-                ctypes.POINTER(_IDX),
-                ctypes.POINTER(_IDX),
-                ctypes.POINTER(_IDX),
-                ctypes.POINTER(_IDX),
-                ctypes.POINTER(_IDX),
-                ctypes.POINTER(_IDX),
-                ctypes.POINTER(_IDX),
-                ctypes.POINTER(_IDX),
-                ctypes.POINTER(_REAL),
-                ctypes.POINTER(_REAL),
-                ctypes.POINTER(_IDX),
-                ctypes.POINTER(_IDX),
-                ctypes.POINTER(_IDX),
-            ]
-            library.METIS_PartGraphRecursive.restype = ctypes.c_int
-            return library
-    raise RuntimeError("METIS_PartGraphRecursive requires libmetis.so. Set METIS_LIB to its path.")
-
-
-_METIS: ctypes.CDLL | None = None
-
-
-def _metis() -> ctypes.CDLL:
-    global _METIS
-    if _METIS is None:
-        _METIS = _load_metis()
-    return _METIS
 
 
 @dataclass
@@ -102,10 +49,11 @@ class RecursiveMetisPartitioner(GraphPartitionerBase):
         overlap_cameras: Boundary cameras copied from each side of a cut into the
             opposite side. Zero keeps the camera sets disjoint.
         max_part_fraction: Largest share of the cameras allowed on one side of a cut.
-            ``None`` keeps METIS's default, about a 50/50 split. ``0.8`` allows 80/20.
+            ``None`` or ``0.5`` keeps METIS's default, about a 50/50 split. ``0.8`` allows 80/20.
         overlap_participates_in_cuts: When True, copied cameras join the child group
             and take part in later cuts. Cutting continues until every leaf is within
             ``max_cameras``. When False, copies are stamped onto the finished leaves.
+        refine_kl: When True, Kernighan–Lin refines each METIS cut (side sizes kept).
     """
 
     def __init__(
@@ -114,25 +62,28 @@ class RecursiveMetisPartitioner(GraphPartitionerBase):
         overlap_cameras: int = 5,
         max_part_fraction: float | None = None,
         overlap_participates_in_cuts: bool = False,
+        refine_kl: bool = False,
     ) -> None:
         super().__init__(process_name="RecursiveMetisPartitioner")
         if max_cameras < 1:
             raise ValueError("max_cameras must be >= 1.")
         if overlap_cameras < 0:
             raise ValueError("overlap_cameras must be >= 0.")
-        if max_part_fraction is not None and not 0.5 < max_part_fraction <= 1.0:
-            raise ValueError("max_part_fraction must be in (0.5, 1].")
+        if max_part_fraction is not None and not 0.5 <= max_part_fraction <= 1.0:
+            raise ValueError("max_part_fraction must be in [0.5, 1].")
         self._max_cameras = max_cameras
         self._overlap_cameras = overlap_cameras
         self._max_part_fraction = max_part_fraction
         self._overlap_participates_in_cuts = overlap_participates_in_cuts
+        self._refine_kl = refine_kl
 
     def __repr__(self) -> str:
         return (
             "RecursiveMetisPartitioner("
             f"max_cameras={self._max_cameras}, overlap_cameras={self._overlap_cameras}, "
             f"max_part_fraction={self._max_part_fraction}, "
-            f"overlap_participates_in_cuts={self._overlap_participates_in_cuts})"
+            f"overlap_participates_in_cuts={self._overlap_participates_in_cuts}, "
+            f"refine_kl={self._refine_kl})"
         )
 
     def run(
@@ -140,8 +91,13 @@ class RecursiveMetisPartitioner(GraphPartitionerBase):
         graph: VisibilityGraph,
         edge_weights: Mapping[tuple[int, int], int] | None = None,
     ) -> ClusterTree | None:
-        """Cluster a visibility graph into a binary tree with boundary overlap."""
-        del edge_weights  # unused; METIS cuts here are unweighted
+        """Cluster a visibility graph into a binary tree with boundary overlap.
+
+        Args:
+            graph: Visibility edges with ``i < j``.
+            edge_weights: Optional positive weight per canonical edge (e.g. inlier
+                count). When set, METIS minimizes the weighted edge-cut.
+        """
         if len(graph) == 0:
             logger.warning("RecursiveMetisPartitioner: no visibility graph provided.")
             return None
@@ -149,10 +105,28 @@ class RecursiveMetisPartitioner(GraphPartitionerBase):
 
         edges = sorted({canonical_edge(i, j) for i, j in graph})
         adjacency: dict[int, set[int]] = {}
+        weights: dict[tuple[int, int], int] | None = None
+        if edge_weights is not None:
+            weights = {}
         for i, j in edges:
             adjacency.setdefault(i, set()).add(j)
             adjacency.setdefault(j, set()).add(i)
+            if weights is not None:
+                weight = int(edge_weights.get((i, j), edge_weights.get((j, i), 1)))
+                weights[(i, j)] = max(weight, 1)
         keys = tuple(sorted(visibility_graph_keys(edges)))
+        weighted = 0 if weights is None else len(weights)
+        logger.info(
+            "Recursive METIS: cameras=%d edges=%d weighted=%d/%d max_cameras=%d "
+            "overlap_cameras=%d max_part_fraction=%s",
+            len(keys),
+            len(edges),
+            weighted,
+            len(edges),
+            self._max_cameras,
+            self._overlap_cameras,
+            self._max_part_fraction,
+        )
         if self._overlap_participates_in_cuts:
             self._cut_count = 0
             self._leaf_count = 0
@@ -165,7 +139,7 @@ class RecursiveMetisPartitioner(GraphPartitionerBase):
                 self._overlap_cameras,
                 self._max_part_fraction,
             )
-            root = self._partition_with_overlap(keys, adjacency)
+            root = self._partition_with_overlap(keys, adjacency, weights)
             logger.info(
                 "Recursive METIS overlap-in-cuts done cuts=%d leaves=%d elapsed=%.1fs",
                 self._cut_count,
@@ -173,27 +147,36 @@ class RecursiveMetisPartitioner(GraphPartitionerBase):
                 time.perf_counter() - self._partition_started,
             )
         else:
-            root = self._bisect(keys, adjacency)
+            root = self._bisect(keys, adjacency, weights)
             self._assign_overlap(root, adjacency)
         return self._to_cluster_tree(root, edges)
 
-    def _bisect(self, keys: tuple[int, ...], adjacency: dict[int, set[int]]) -> _PartitionNode:
+    def _bisect(
+        self,
+        keys: tuple[int, ...],
+        adjacency: dict[int, set[int]],
+        edge_weights: Mapping[tuple[int, int], int] | None,
+    ) -> _PartitionNode:
         """Recursively split ``keys`` until every part is within the size cap."""
         if len(keys) <= self._max_cameras:
             return _PartitionNode(keys=keys)
-        parts = self._metis_parts(keys, adjacency)
+        parts = self._metis_parts(keys, adjacency, edge_weights)
         if parts is None:
             midpoint = max(1, len(keys) // 2)
             parts = (keys[:midpoint], keys[midpoint:])
         left_keys, right_keys = parts
         return _PartitionNode(
             keys=keys,
-            left=self._bisect(left_keys, adjacency),
-            right=self._bisect(right_keys, adjacency),
+            left=self._bisect(left_keys, adjacency, edge_weights),
+            right=self._bisect(right_keys, adjacency, edge_weights),
         )
 
     def _partition_with_overlap(
-        self, keys: tuple[int, ...], adjacency: dict[int, set[int]], path: str = "C"
+        self,
+        keys: tuple[int, ...],
+        adjacency: dict[int, set[int]],
+        edge_weights: Mapping[tuple[int, int], int] | None,
+        path: str = "C",
     ) -> _PartitionNode:
         """Cut ``keys``, then let copied boundary cameras join the child before later cuts.
 
@@ -215,7 +198,7 @@ class RecursiveMetisPartitioner(GraphPartitionerBase):
             )
             return _PartitionNode(keys=unique)
         metis_started = time.perf_counter()
-        parts = self._metis_parts(unique, adjacency)
+        parts = self._metis_parts(unique, adjacency, edge_weights)
         metis_seconds = time.perf_counter() - metis_started
         used_fallback = parts is None
         if parts is None:
@@ -253,8 +236,8 @@ class RecursiveMetisPartitioner(GraphPartitionerBase):
         )
         return _PartitionNode(
             keys=unique,
-            left=self._partition_with_overlap(left_keys, adjacency, f"{path}_1"),
-            right=self._partition_with_overlap(right_keys, adjacency, f"{path}_2"),
+            left=self._partition_with_overlap(left_keys, adjacency, edge_weights, f"{path}_1"),
+            right=self._partition_with_overlap(right_keys, adjacency, edge_weights, f"{path}_2"),
         )
 
     def _boundary_from_side(self, source: set[int], destination: set[int], adjacency: dict[int, set[int]]) -> list[int]:
@@ -281,63 +264,19 @@ class RecursiveMetisPartitioner(GraphPartitionerBase):
         return tuple(sorted(ordered))
 
     def _metis_parts(
-        self, keys: tuple[int, ...], adjacency: dict[int, set[int]]
+        self,
+        keys: tuple[int, ...],
+        adjacency: dict[int, set[int]],
+        edge_weights: Mapping[tuple[int, int], int] | None = None,
     ) -> tuple[tuple[int, ...], tuple[int, ...]] | None:
         """Return a balanced 2-way partition, or None when METIS cannot cut."""
-        local_index = {key: index for index, key in enumerate(keys)}
-        neighbor_lists = [
-            sorted(local_index[neighbor] for neighbor in adjacency.get(key, ()) if neighbor in local_index)
-            for key in keys
-        ]
-        if not any(neighbor_lists):
-            return None
-
-        xadj_values = [0]
-        adjncy_values: list[int] = []
-        for neighbors in neighbor_lists:
-            adjncy_values.extend(neighbors)
-            xadj_values.append(len(adjncy_values))
-
-        nvtxs = _IDX(len(keys))
-        ncon = _IDX(1)
-        nparts = _IDX(2)
-        xadj = (_IDX * len(xadj_values))(*xadj_values)
-        adjncy = (_IDX * len(adjncy_values))(*adjncy_values)
-        options = (_IDX * _METIS_NOPTIONS)()
-        if _metis().METIS_SetDefaultOptions(options) != _METIS_OK:
-            return None
-        options[_METIS_OPTION_SEED] = 0
-        options[_METIS_OPTION_CONTIG] = 1
-        options[_METIS_OPTION_NUMBERING] = 0
-        edge_cut = _IDX()
-        part = (_IDX * len(keys))()
-        # Equal targets are 1/2. ubvec 1.6 means a side may hold 0.5 * 1.6 = 80%.
-        ubvec = None
-        if self._max_part_fraction is not None:
-            ubvec = (_REAL * 1)(2.0 * self._max_part_fraction)
-        status = _metis().METIS_PartGraphRecursive(
-            ctypes.byref(nvtxs),
-            ctypes.byref(ncon),
-            xadj,
-            adjncy,
-            None,
-            None,
-            None,
-            ctypes.byref(nparts),
-            None,
-            ubvec,
-            options,
-            ctypes.byref(edge_cut),
-            part,
+        return bisect_graph(
+            keys,
+            adjacency,
+            max_part_fraction=self._max_part_fraction,
+            edge_weights=edge_weights,
+            refine_kl=self._refine_kl,
         )
-        if status != _METIS_OK:
-            logger.warning("METIS_PartGraphRecursive failed with status %s; splitting the key list.", status)
-            return None
-        left = tuple(key for key, label in zip(keys, part) if int(label) == 0)
-        right = tuple(key for key, label in zip(keys, part) if int(label) == 1)
-        if not left or not right:
-            return None
-        return left, right
 
     def _assign_overlap(self, node: _PartitionNode, adjacency: dict[int, set[int]]) -> None:
         """Copy boundary cameras into the opposite leaf that shares their edge."""

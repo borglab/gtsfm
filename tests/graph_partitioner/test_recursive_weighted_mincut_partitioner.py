@@ -1,6 +1,7 @@
 """Tests for recursive NetworkX weighted min-cut partitioning."""
 
 import unittest
+from unittest.mock import patch
 
 from gtsfm.graph_partitioner.recursive_weighted_mincut_partitioner import RecursiveWeightedMinCutPartitioner
 from gtsfm.products.cluster_tree import ClusterTree
@@ -72,9 +73,23 @@ class TestRecursiveWeightedMinCutPartitioner(unittest.TestCase):
         sides = sorted((frozenset(child.all_keys()) for child in tree.children), key=min)
         self.assertEqual(sides, [frozenset({0, 1}), frozenset({2, 3})])
 
-    def test_balance_guard_rejects_extreme_peels(self) -> None:
+    def test_default_balance_rejects_peel_and_falls_back_balanced(self) -> None:
+        # Pendant peel is the true Stoer–Wagner cut; default None (~50/50) rejects it
+        # and METIS/spectral fallback yields a balanced bipartition.
+        clique = [(i, j) for i in range(8) for j in range(i + 1, 8)]
+        edges = clique + [(0, 8)]
+        tree = RecursiveWeightedMinCutPartitioner(max_cameras=8, overlap_cameras=0).run(edges)
+        self.assertIsNotNone(tree)
+        assert tree is not None
+        self.assertEqual(len(tree.children), 2)
+        sizes = sorted(len(child.all_keys()) for child in tree.children)
+        self.assertEqual(sum(sizes), 9)
+        self.assertGreaterEqual(sizes[0], 3)
+        self.assertLessEqual(sizes[1], 5)
+
+    def test_relaxed_balance_still_rejects_extreme_peels(self) -> None:
         # A pendant node is the true min-cut; with max_part_fraction=0.8 that peel is rejected
-        # and the midpoint fallback yields a more balanced split.
+        # and METIS/spectral fallback yields a more balanced split.
         clique = [(i, j) for i in range(8) for j in range(i + 1, 8)]
         edges = clique + [(0, 8)]
         tree = RecursiveWeightedMinCutPartitioner(max_cameras=8, overlap_cameras=0, max_part_fraction=0.8).run(edges)
@@ -84,6 +99,28 @@ class TestRecursiveWeightedMinCutPartitioner(unittest.TestCase):
         sizes = sorted(len(child.all_keys()) for child in tree.children)
         self.assertGreaterEqual(sizes[0], 2)
         self.assertLessEqual(sizes[1], 7)
+
+    def test_metis_failure_falls_back_to_spectral(self) -> None:
+        # Two equal cliques joined by a light bridge. Force Stoer–Wagner and METIS to
+        # fail so spectral Fiedler recovers the natural cut.
+        clique_a = [(i, j) for i in range(4) for j in range(i + 1, 4)]
+        clique_b = [(i, j) for i in range(4, 8) for j in range(i + 1, 8)]
+        edges = clique_a + clique_b + [(3, 4)]
+        weights = {edge: 10 for edge in clique_a + clique_b}
+        weights[(3, 4)] = 1
+        with (
+            patch.object(RecursiveWeightedMinCutPartitioner, "_mincut_parts", return_value=None),
+            patch(
+                "gtsfm.graph_partitioner.recursive_weighted_mincut_partitioner.bisect_graph",
+                side_effect=RuntimeError("METIS unavailable"),
+            ),
+        ):
+            tree = RecursiveWeightedMinCutPartitioner(max_cameras=4, overlap_cameras=0).run(edges, edge_weights=weights)
+        self.assertIsNotNone(tree)
+        assert tree is not None
+        self.assertEqual(len(tree.children), 2)
+        sides = sorted((frozenset(child.all_keys()) for child in tree.children), key=min)
+        self.assertEqual(sides, [frozenset({0, 1, 2, 3}), frozenset({4, 5, 6, 7})])
 
 
 if __name__ == "__main__":

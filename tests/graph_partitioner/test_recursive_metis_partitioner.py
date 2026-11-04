@@ -85,6 +85,19 @@ class TestRecursiveMetisPartitioner(unittest.TestCase):
         self.assertLessEqual(sizes[1], 8)
         self.assertTrue(any({8, 9} <= child.all_keys() for child in tree.children))
 
+    def test_weighted_metis_prefers_light_bridge(self) -> None:
+        # Path with a uniquely light middle edge: weighted METIS's balanced cut
+        # should sever that bridge rather than a heavy neighbor.
+        edges = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
+        weights = {(0, 1): 100, (1, 2): 100, (2, 3): 1, (3, 4): 100, (4, 5): 100}
+        tree = RecursiveMetisPartitioner(max_cameras=3, overlap_cameras=0).run(edges, edge_weights=weights)
+        self.assertIsNotNone(tree)
+        assert tree is not None
+        self.assertEqual(len(tree.children), 2)
+        sides = sorted((frozenset(child.all_keys()) for child in tree.children), key=min)
+        self.assertEqual(sides, [frozenset({0, 1, 2}), frozenset({3, 4, 5})])
+        self.assertEqual(set(tree.value), {(2, 3)})
+
 
 if __name__ == "__main__":
     unittest.main()

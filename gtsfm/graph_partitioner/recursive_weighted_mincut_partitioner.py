@@ -1,26 +1,31 @@
 """Binary cluster tree from recursive NetworkX weighted min-cuts.
 
-Same recursive structure and boundary-camera overlap as
-``RecursiveMetisPartitioner``, but each bipartition is a global weighted
-min-cut (Stoer–Wagner) instead of METIS. Edge weight defaults to 1; when
-inlier counts are supplied they are used as capacities so weakly matched
+ND-style cluster tree via graph partitioning: same recursive structure and
+boundary-camera overlap as ``RecursiveMetisPartitioner``, but each bipartition
+prefers a global weighted min-cut (Stoer–Wagner). Edge weight defaults to 1;
+when inlier counts are supplied they are used as capacities so weakly matched
 pairs are preferred cut locations.
 
 Stoer–Wagner does not enforce balance. ``max_part_fraction`` rejects a cut
-whose larger side exceeds that share of the cameras, falling back to a
-midpoint key split (same fallback METIS uses when it cannot cut).
+whose larger side exceeds that share of the cameras (``None`` matches recursive
+METIS ~50/50). Fallback order: weighted METIS, spectral Fiedler, midpoint.
 """
 
 from __future__ import annotations
 
+import math
 import time
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 import networkx as nx
+import numpy as np
+from scipy import sparse
+from scipy.sparse.linalg import eigsh
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
+from gtsfm.graph_partitioner.metis_bisection import bisect_graph, refine_bisection
 from gtsfm.graph_partitioner.partition_utils import canonical_edge
 from gtsfm.products.cluster_tree import ClusterTree
 from gtsfm.products.visibility_graph import VisibilityGraph, valid_visibility_graph_or_raise, visibility_graph_keys
@@ -51,11 +56,13 @@ class RecursiveWeightedMinCutPartitioner(GraphPartitionerBase):
         overlap_cameras: Boundary cameras copied from each side of a cut into the
             opposite side. Zero keeps the camera sets disjoint.
         max_part_fraction: Largest share of cameras allowed on one side of a cut.
-            ``None`` accepts any Stoer–Wagner cut. ``0.8`` rejects cuts above 80/20
-            and falls back to a midpoint split.
+            ``None`` matches recursive METIS (~50/50): Stoer–Wagner peels are
+            rejected and weighted METIS fallback uses METIS's default balance.
+            ``0.8`` allows 80/20 like ``recursive_metis_80_20``.
         overlap_participates_in_cuts: When True, copied cameras join the child group
             and take part in later cuts until every leaf is within ``max_cameras``.
             When False, copies are stamped onto the finished leaves.
+        refine_kl: When True, Kernighan–Lin refines each accepted cut (side sizes kept).
     """
 
     def __init__(
@@ -64,25 +71,28 @@ class RecursiveWeightedMinCutPartitioner(GraphPartitionerBase):
         overlap_cameras: int = 5,
         max_part_fraction: float | None = None,
         overlap_participates_in_cuts: bool = False,
+        refine_kl: bool = False,
     ) -> None:
         super().__init__(process_name="RecursiveWeightedMinCutPartitioner")
         if max_cameras < 1:
             raise ValueError("max_cameras must be >= 1.")
         if overlap_cameras < 0:
             raise ValueError("overlap_cameras must be >= 0.")
-        if max_part_fraction is not None and not 0.5 < max_part_fraction <= 1.0:
-            raise ValueError("max_part_fraction must be in (0.5, 1].")
+        if max_part_fraction is not None and not 0.5 <= max_part_fraction <= 1.0:
+            raise ValueError("max_part_fraction must be in [0.5, 1].")
         self._max_cameras = max_cameras
         self._overlap_cameras = overlap_cameras
         self._max_part_fraction = max_part_fraction
         self._overlap_participates_in_cuts = overlap_participates_in_cuts
+        self._refine_kl = refine_kl
 
     def __repr__(self) -> str:
         return (
             "RecursiveWeightedMinCutPartitioner("
             f"max_cameras={self._max_cameras}, overlap_cameras={self._overlap_cameras}, "
             f"max_part_fraction={self._max_part_fraction}, "
-            f"overlap_participates_in_cuts={self._overlap_participates_in_cuts})"
+            f"overlap_participates_in_cuts={self._overlap_participates_in_cuts}, "
+            f"refine_kl={self._refine_kl})"
         )
 
     def run(
@@ -157,9 +167,8 @@ class RecursiveWeightedMinCutPartitioner(GraphPartitionerBase):
             return _PartitionNode(keys=keys)
         parts = self._mincut_parts(keys, weights)
         if parts is None:
-            midpoint = max(1, len(keys) // 2)
-            parts = (keys[:midpoint], keys[midpoint:])
-        left_keys, right_keys = parts
+            parts = self._fallback_parts(keys, adjacency, weights)
+        left_keys, right_keys = self._maybe_refine(parts, adjacency, weights)
         return _PartitionNode(
             keys=keys,
             left=self._bisect(left_keys, adjacency, weights),
@@ -192,9 +201,8 @@ class RecursiveWeightedMinCutPartitioner(GraphPartitionerBase):
         cut_seconds = time.perf_counter() - cut_started
         used_fallback = parts is None
         if parts is None:
-            midpoint = max(1, len(unique) // 2)
-            parts = (unique[:midpoint], unique[midpoint:])
-        left_exclusive, right_exclusive = parts
+            parts = self._fallback_parts(unique, adjacency, weights)
+        left_exclusive, right_exclusive = self._maybe_refine(parts, adjacency, weights)
         left_members = set(left_exclusive)
         right_members = set(right_exclusive)
         left_keys, right_keys = left_exclusive, right_exclusive
@@ -269,12 +277,37 @@ class RecursiveWeightedMinCutPartitioner(GraphPartitionerBase):
             return None
         return self._accept_parts(left, right, len(keys))
 
+    def _maybe_refine(
+        self,
+        parts: tuple[tuple[int, ...], tuple[int, ...]],
+        adjacency: dict[int, set[int]],
+        weights: dict[int, dict[int, int]],
+    ) -> tuple[tuple[int, ...], tuple[int, ...]]:
+        """Optionally run Kernighan–Lin on an accepted bipartition."""
+        if not self._refine_kl:
+            return parts
+        left, right = parts
+        edge_weights: dict[tuple[int, int], int] = {}
+        keyset = set(left) | set(right)
+        for key in keyset:
+            for neighbor, weight in weights.get(key, {}).items():
+                if neighbor in keyset and key < neighbor:
+                    edge_weights[(key, neighbor)] = int(weight)
+        return refine_bisection(left, right, adjacency, edge_weights=edge_weights or None)
+
+    def _balance_limit(self, parent_size: int) -> int:
+        """Largest side allowed, matching recursive METIS balance semantics."""
+        if self._max_part_fraction is None or self._max_part_fraction <= 0.5 + 1e-12:
+            return (parent_size + 1) // 2
+        return math.floor(self._max_part_fraction * parent_size + 1e-9)
+
     def _accept_parts(
         self, left: tuple[int, ...], right: tuple[int, ...], parent_size: int
     ) -> tuple[tuple[int, ...], tuple[int, ...]] | None:
-        """Reject cuts that violate ``max_part_fraction`` when that limit is set."""
+        """Reject cuts that violate the recursive-METIS-aligned balance limit."""
         larger = max(len(left), len(right))
-        if self._max_part_fraction is not None and larger > self._max_part_fraction * parent_size + 1e-9:
+        limit = self._balance_limit(parent_size)
+        if larger > limit:
             logger.info(
                 "Weighted min-cut rejected: larger side %d/%d exceeds max_part_fraction=%s",
                 larger,
@@ -283,6 +316,103 @@ class RecursiveWeightedMinCutPartitioner(GraphPartitionerBase):
             )
             return None
         return left, right
+
+    def _fallback_parts(
+        self,
+        keys: tuple[int, ...],
+        adjacency: dict[int, set[int]],
+        weights: dict[int, dict[int, int]],
+    ) -> tuple[tuple[int, ...], tuple[int, ...]]:
+        """Fallback when Stoer–Wagner is unusable: METIS → spectral → midpoint."""
+        edge_weights: dict[tuple[int, int], int] = {}
+        keyset = set(keys)
+        for key in keys:
+            for neighbor, weight in weights.get(key, {}).items():
+                if neighbor in keyset and key < neighbor:
+                    edge_weights[(key, neighbor)] = int(weight)
+
+        try:
+            parts = bisect_graph(
+                keys,
+                adjacency,
+                max_part_fraction=self._max_part_fraction,
+                edge_weights=edge_weights or None,
+                refine_kl=False,  # KL applied once in _maybe_refine after the cut.
+            )
+        except RuntimeError as exc:
+            logger.warning("Weighted min-cut fallback: METIS unavailable (%s).", exc)
+            parts = None
+        if parts is not None:
+            logger.info(
+                "Weighted min-cut fallback: METIS weighted bisection cameras=%d sizes=%d/%d",
+                len(keys),
+                len(parts[0]),
+                len(parts[1]),
+            )
+            return parts
+
+        spectral = self._spectral_parts(keys, weights)
+        if spectral is not None:
+            logger.info(
+                "Weighted min-cut fallback: spectral Fiedler bisection cameras=%d sizes=%d/%d",
+                len(keys),
+                len(spectral[0]),
+                len(spectral[1]),
+            )
+            return spectral
+
+        midpoint = max(1, len(keys) // 2)
+        logger.warning("Weighted min-cut fallback: midpoint split cameras=%d", len(keys))
+        return (keys[:midpoint], keys[midpoint:])
+
+    def _spectral_parts(
+        self, keys: tuple[int, ...], weights: dict[int, dict[int, int]]
+    ) -> tuple[tuple[int, ...], tuple[int, ...]] | None:
+        """Balanced weighted bipartition via the Fiedler vector of the normalized Laplacian."""
+        n = len(keys)
+        if n < 2:
+            return None
+        index = {key: i for i, key in enumerate(keys)}
+        rows: list[int] = []
+        cols: list[int] = []
+        vals: list[float] = []
+        for key in keys:
+            i = index[key]
+            for neighbor, weight in weights.get(key, {}).items():
+                j = index.get(neighbor)
+                if j is None or i >= j:
+                    continue
+                w = float(max(int(weight), 1))
+                rows.extend([i, j])
+                cols.extend([j, i])
+                vals.extend([w, w])
+        if not vals:
+            return None
+
+        affinity = sparse.coo_matrix((vals, (rows, cols)), shape=(n, n)).tocsr()
+        degrees = np.asarray(affinity.sum(axis=1)).ravel()
+        if np.any(degrees <= 0):
+            return None
+        d_inv_sqrt = sparse.diags(1.0 / np.sqrt(degrees))
+        laplacian = sparse.eye(n, format="csr") - d_inv_sqrt @ affinity @ d_inv_sqrt
+        try:
+            _eigvals, vecs = eigsh(laplacian, k=min(2, n - 1), which="SM")
+        except Exception as exc:
+            logger.warning("Spectral Fiedler bisection failed (%s).", exc)
+            return None
+        if vecs.shape[1] < 2:
+            return None
+        fiedler = vecs[:, 1]
+        order = np.argsort(fiedler)
+        limit = self._balance_limit(n)
+        lo = max(1, n - limit)
+        hi = min(n - 1, limit)
+        if lo > hi:
+            return None
+        best_k = min(max(n // 2, lo), hi)
+        left = tuple(sorted(keys[i] for i in order[:best_k]))
+        right = tuple(sorted(keys[i] for i in order[best_k:]))
+        return self._accept_parts(left, right, n)
 
     def _boundary_from_side(self, source: set[int], destination: set[int], adjacency: dict[int, set[int]]) -> list[int]:
         """Rank ``source`` cameras by how many neighbors they have in ``destination``."""
