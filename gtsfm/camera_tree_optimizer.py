@@ -9,6 +9,7 @@ linearizations; no reprojection factors are evaluated after condensation.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 
 import gtsam
@@ -364,66 +365,73 @@ def _condense_leaf(leaf: _LeafInput, options: CameraTreeOptions) -> LeafCameraSu
     return LeafCameraSummary(leaf.path, leaf.similarity_key, leaf.local_to_global, references, bayes_tree, factors)
 
 
-def optimize_camera_tree(scene_tree: SceneTree, options: CameraTreeOptions | None = None) -> CameraTreeResult:
-    """Fuse leaf reconstructions using camera-only information in the first leaf's frame.
-
-    Intrinsics and reprojection linearizations stay fixed. Internal reconstruction
-    payloads are ignored. A connected graph of overlaps containing two distinct
-    camera centers per link is required. This optimizes a frozen BA approximation,
-    not the original nonlinear reprojection objective.
+def _assemble_subtree(
+    value: LocalScene,
+    children: tuple[CameraSubtreeSummary, ...],
+    *,
+    inputs_by_path: dict[Path, _LeafInput],
+    options: CameraTreeOptions,
+) -> CameraSubtreeSummary:
+    """Combine child graphs once, or condense a terminal reconstruction.
 
     Args:
-        scene_tree: Hierarchy whose leaves hold named, reconstructed Cal3Bundler cameras and tracks.
-        options: Numerical settings; defaults to one-pixel observation noise.
+        value: Node path and optional reconstruction payload.
+        children: Summaries already assembled for the immediate children.
+        inputs_by_path: Validated inputs for terminal nodes.
+        options: Leaf condensation settings.
 
     Returns:
-        Camera-only scene, leaf similarities, factor tree, and final camera Bayes tree.
-
-    Raises:
-        ValueError: Camera identities, overlap, or geometric rank are insufficient.
-        RuntimeError: The root optimizer fails to converge to a finite solution.
+        All factors and leaf summaries belonging to this subtree.
     """
-    options = options or CameraTreeOptions()
-    # Match cameras across leaves by filename and initialize their shared coordinate frame.
-    leaves = _leaf_inputs(scene_tree)
-    initial = _initialize(leaves)
-    inputs_by_path = {leaf.path: leaf for leaf in leaves}
+    graph = gtsam.NonlinearFactorGraph()
+    if children:
+        # Internal nodes collect each child's evidence once, ignoring their own reconstruction.
+        for child in children:
+            graph.push_back(child.graph)
+        return CameraSubtreeSummary(graph, tuple(leaf for child in children for leaf in child.leaves))
+    # Eliminate this leaf's landmarks and express its camera evidence through a similarity.
+    summary = _condense_leaf(inputs_by_path[value[0]], options)
+    for factor in summary.factors:
+        graph.push_back(factor)
+    return CameraSubtreeSummary(graph, (summary,))
 
-    def assemble(value: LocalScene, children: tuple[CameraSubtreeSummary, ...]) -> CameraSubtreeSummary:
-        """Combine child graphs once, or condense a terminal reconstruction.
 
-        Args:
-            value: Node path and optional reconstruction payload.
-            children: Summaries already assembled for the immediate children.
+def _assemble_factor_tree(
+    scene_tree: SceneTree, leaves: tuple[_LeafInput, ...], options: CameraTreeOptions
+) -> Tree[CameraSubtreeSummary]:
+    """Assemble all leaf factors bottom-up while preserving the input hierarchy.
 
-        Returns:
-            All factors and leaf summaries belonging to this subtree.
-        """
-        graph = gtsam.NonlinearFactorGraph()
-        if children:
-            # Internal nodes collect each child's evidence once, ignoring their own reconstruction.
-            for child in children:
-                graph.push_back(child.graph)
-            return CameraSubtreeSummary(graph, tuple(leaf for child in children for leaf in child.leaves))
-        # Eliminate this leaf's landmarks and express its camera evidence through a similarity.
-        summary = _condense_leaf(inputs_by_path[value[0]], options)
-        for factor in summary.factors:
-            graph.push_back(factor)
-        return CameraSubtreeSummary(graph, (summary,))
+    Args:
+        scene_tree: Hierarchy to traverse.
+        leaves: Validated leaf reconstructions.
+        options: Leaf condensation settings.
 
-    # Assemble all leaf factors bottom-up while preserving the input hierarchy.
-    factor_tree = scene_tree.map_with_children(assemble)
-    graph = gtsam.NonlinearFactorGraph(factor_tree.value.graph)
-    # Use the first leaf's origin, orientation, and scale as the global coordinate gauge.
-    graph.push_back(gtsam.NonlinearEqualitySimilarity3(leaves[0].similarity_key, gtsam.Similarity3()))
-    # Configure the joint camera-and-similarity solve with QR for the constrained factors.
+    Returns:
+        Mirrored tree containing the accumulated camera factors at each node.
+    """
+    assemble = partial(_assemble_subtree, inputs_by_path={leaf.path: leaf for leaf in leaves}, options=options)
+    return scene_tree.map_with_children(assemble)
+
+
+def _optimize_root(
+    graph: gtsam.NonlinearFactorGraph, initial: gtsam.Values, options: CameraTreeOptions
+) -> gtsam.LevenbergMarquardtOptimizer:
+    """Optimize the joint camera-and-similarity graph once and check convergence.
+
+    Args:
+        graph: Assembled factors including the global coordinate constraint.
+        initial: Initial global poses and global-to-leaf similarities.
+        options: Root optimization settings.
+
+    Returns:
+        Completed optimizer containing the solution, objective, and iteration count.
+    """
+    # QR accommodates the exact coordinate constraints in the leaf factors.
     params = gtsam.LevenbergMarquardtParams()
     params.setLinearSolverType("MULTIFRONTAL_QR")
     params.setMaxIterations(options.max_iterations)
     params.setRelativeErrorTol(options.relative_error_tol)
     params.setAbsoluteErrorTol(options.absolute_error_tol)
-    # Optimize once at the root using the frozen leaf approximations.
-    initial_error = graph.error(initial)
     optimizer = gtsam.LevenbergMarquardtOptimizer(graph, initial, params)
     optimized = optimizer.optimize()
     final_error = graph.error(optimized)
@@ -431,6 +439,22 @@ def optimize_camera_tree(scene_tree: SceneTree, options: CameraTreeOptions | Non
         raise RuntimeError(
             f"Camera tree optimization did not converge: iterations={optimizer.iterations()}, error={final_error}."
         )
+    return optimizer
+
+
+def _final_camera_bayes_tree(
+    graph: gtsam.NonlinearFactorGraph, optimized: gtsam.Values, leaves: tuple[_LeafInput, ...]
+) -> gtsam.GaussianBayesTree:
+    """Reduce the optimized joint graph to a Gaussian Bayes tree on cameras only.
+
+    Args:
+        graph: Assembled factors including the global coordinate constraint.
+        optimized: Converged global camera and similarity values.
+        leaves: Leaf inputs identifying the similarity keys to eliminate.
+
+    Returns:
+        Camera-only Bayes tree in the chosen global gauge.
+    """
     # Remove similarity increments from the final linearization, retaining their camera information.
     similarity_ordering = gtsam.Ordering()
     for leaf in leaves:
@@ -439,9 +463,21 @@ def optimize_camera_tree(scene_tree: SceneTree, options: CameraTreeOptions | Non
         similarity_ordering, gtsam.EliminateQR
     )
     # Factor the remaining camera quadratic into the output Gaussian Bayes tree.
-    camera_bayes_tree = final_camera_graph.eliminateMultifrontal(
+    return final_camera_graph.eliminateMultifrontal(
         gtsam.Ordering.ColamdGaussianFactorGraph(final_camera_graph), gtsam.EliminateQR
     )
+
+
+def _camera_scene(leaves: tuple[_LeafInput, ...], optimized: gtsam.Values) -> GtsfmData:
+    """Build a camera-only scene from optimized poses and source metadata.
+
+    Args:
+        leaves: Leaf reconstructions providing calibration and image metadata.
+        optimized: Converged global camera and similarity values.
+
+    Returns:
+        Global cameras with image metadata and no landmarks.
+    """
     # Export each global camera once, keeping its first leaf's calibration and image metadata.
     scene = GtsfmData(number_images=sum(gtsam.Symbol(key).chr() == ord("x") for key in optimized.keys()))
     for leaf in leaves:
@@ -454,13 +490,66 @@ def optimize_camera_tree(scene_tree: SceneTree, options: CameraTreeOptions | Non
                 global_i, gtsam.PinholeCameraCal3Bundler(optimized.atPose3(X(global_i)), source.calibration())
             )
             scene.set_image_info(global_i, name=info.name, shape=info.shape)
+    return scene
+
+
+def _camera_tree_result(
+    factor_tree: Tree[CameraSubtreeSummary],
+    leaves: tuple[_LeafInput, ...],
+    graph: gtsam.NonlinearFactorGraph,
+    initial: gtsam.Values,
+    optimizer: gtsam.LevenbergMarquardtOptimizer,
+) -> CameraTreeResult:
+    """Package global cameras, leaf transforms, and the final camera quadratic.
+
+    Args:
+        factor_tree: Assembled hierarchy of leaf camera factors.
+        leaves: Validated leaf inputs and camera identity mappings.
+        graph: Root graph including the global coordinate constraint.
+        initial: Initial values for computing the starting objective.
+        optimizer: Completed root optimizer.
+
+    Returns:
+        Camera-only reconstruction and optimization summaries.
+    """
+    optimized = optimizer.values()
     # Invert the internal global-to-leaf similarities for the public leaf-to-global result.
     return CameraTreeResult(
-        scene=scene,
+        scene=_camera_scene(leaves, optimized),
         leaf_to_global={leaf.path: optimized.atSimilarity3(leaf.similarity_key).inverse() for leaf in leaves},
         factor_tree=factor_tree,
-        camera_bayes_tree=camera_bayes_tree,
-        initial_error=initial_error,
-        final_error=final_error,
+        camera_bayes_tree=_final_camera_bayes_tree(graph, optimized, leaves),
+        initial_error=graph.error(initial),
+        final_error=graph.error(optimized),
         iterations=optimizer.iterations(),
     )
+
+
+def optimize_camera_tree(scene_tree: SceneTree, options: CameraTreeOptions | None = None) -> CameraTreeResult:
+    """Fuse frozen leaf camera information in the first leaf's frame without further BA.
+
+    Intrinsics stay fixed, and internal reconstruction payloads are ignored.
+    Overlap links require two shared cameras with distinct centers.
+
+    Args:
+        scene_tree: Hierarchy with named, reconstructed Cal3Bundler cameras and tracks in its leaves.
+        options: Numerical settings; defaults to one-pixel observation noise.
+
+    Returns:
+        Camera-only scene, leaf similarities, factor tree, and final camera Bayes tree.
+
+    Raises:
+        ValueError: Camera identities, overlap, or geometric rank are insufficient.
+        RuntimeError: The root optimizer fails to converge to a finite solution.
+    """
+    options = options or CameraTreeOptions()
+    # Match cameras by filename and align overlapping leaves into an initial global frame.
+    leaves = _leaf_inputs(scene_tree)
+    initial = _initialize(leaves)
+    factor_tree = _assemble_factor_tree(scene_tree, leaves, options)
+
+    # Fix the first leaf's frame and scale before jointly optimizing cameras and similarities.
+    graph = gtsam.NonlinearFactorGraph(factor_tree.value.graph)
+    graph.push_back(gtsam.NonlinearEqualitySimilarity3(leaves[0].similarity_key, gtsam.Similarity3()))
+    optimizer = _optimize_root(graph, initial, options)
+    return _camera_tree_result(factor_tree, leaves, graph, initial, optimizer)
