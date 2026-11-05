@@ -384,6 +384,7 @@ def optimize_camera_tree(scene_tree: SceneTree, options: CameraTreeOptions | Non
         RuntimeError: The root optimizer fails to converge to a finite solution.
     """
     options = options or CameraTreeOptions()
+    # Match cameras across leaves by filename and initialize their shared coordinate frame.
     leaves = _leaf_inputs(scene_tree)
     initial = _initialize(leaves)
     inputs_by_path = {leaf.path: leaf for leaf in leaves}
@@ -400,22 +401,28 @@ def optimize_camera_tree(scene_tree: SceneTree, options: CameraTreeOptions | Non
         """
         graph = gtsam.NonlinearFactorGraph()
         if children:
+            # Internal nodes collect each child's evidence once, ignoring their own reconstruction.
             for child in children:
                 graph.push_back(child.graph)
             return CameraSubtreeSummary(graph, tuple(leaf for child in children for leaf in child.leaves))
+        # Eliminate this leaf's landmarks and express its camera evidence through a similarity.
         summary = _condense_leaf(inputs_by_path[value[0]], options)
         for factor in summary.factors:
             graph.push_back(factor)
         return CameraSubtreeSummary(graph, (summary,))
 
+    # Assemble all leaf factors bottom-up while preserving the input hierarchy.
     factor_tree = scene_tree.map_with_children(assemble)
     graph = gtsam.NonlinearFactorGraph(factor_tree.value.graph)
+    # Use the first leaf's origin, orientation, and scale as the global coordinate gauge.
     graph.push_back(gtsam.NonlinearEqualitySimilarity3(leaves[0].similarity_key, gtsam.Similarity3()))
+    # Configure the joint camera-and-similarity solve with QR for the constrained factors.
     params = gtsam.LevenbergMarquardtParams()
     params.setLinearSolverType("MULTIFRONTAL_QR")
     params.setMaxIterations(options.max_iterations)
     params.setRelativeErrorTol(options.relative_error_tol)
     params.setAbsoluteErrorTol(options.absolute_error_tol)
+    # Optimize once at the root using the frozen leaf approximations.
     initial_error = graph.error(initial)
     optimizer = gtsam.LevenbergMarquardtOptimizer(graph, initial, params)
     optimized = optimizer.optimize()
@@ -424,15 +431,18 @@ def optimize_camera_tree(scene_tree: SceneTree, options: CameraTreeOptions | Non
         raise RuntimeError(
             f"Camera tree optimization did not converge: iterations={optimizer.iterations()}, error={final_error}."
         )
+    # Remove similarity increments from the final linearization, retaining their camera information.
     similarity_ordering = gtsam.Ordering()
     for leaf in leaves:
         similarity_ordering.push_back(leaf.similarity_key)
     _, final_camera_graph = graph.linearize(optimized).eliminatePartialMultifrontal(
         similarity_ordering, gtsam.EliminateQR
     )
+    # Factor the remaining camera quadratic into the output Gaussian Bayes tree.
     camera_bayes_tree = final_camera_graph.eliminateMultifrontal(
         gtsam.Ordering.ColamdGaussianFactorGraph(final_camera_graph), gtsam.EliminateQR
     )
+    # Export each global camera once, keeping its first leaf's calibration and image metadata.
     scene = GtsfmData(number_images=sum(gtsam.Symbol(key).chr() == ord("x") for key in optimized.keys()))
     for leaf in leaves:
         for local_i, global_i in leaf.local_to_global.items():
@@ -444,6 +454,7 @@ def optimize_camera_tree(scene_tree: SceneTree, options: CameraTreeOptions | Non
                 global_i, gtsam.PinholeCameraCal3Bundler(optimized.atPose3(X(global_i)), source.calibration())
             )
             scene.set_image_info(global_i, name=info.name, shape=info.shape)
+    # Invert the internal global-to-leaf similarities for the public leaf-to-global result.
     return CameraTreeResult(
         scene=scene,
         leaf_to_global={leaf.path: optimized.atSimilarity3(leaf.similarity_key).inverse() for leaf in leaves},
