@@ -3,6 +3,7 @@
 Authors: Adi Singh
 """
 
+import pickle
 import unittest
 from pathlib import Path
 
@@ -12,6 +13,7 @@ import scipy.spatial.distance
 from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, Rot3, SfmTrack, Similarity3
 
 import gtsfm.utils.ellipsoid as ellipsoid_utils
+from gtsfm.cluster_optimizer.cluster_mvo import align_estimated_gtsfm_data
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.loader.olsson_loader import OlssonLoader
 
@@ -24,6 +26,38 @@ class TestEllipsoidUtils(unittest.TestCase):
     def setUp(self) -> None:
         self.loader = OlssonLoader(str(DATA_ROOT_PATH / "set1_lund_door"))
         assert len(self.loader)
+
+    def test_axis_alignment_rejects_empty_inlier_cloud(self) -> None:
+        """A one-point or equal-radius cloud must not produce a NaN translation."""
+        for points in (np.array([[1.0, 2.0, 4.0]]), np.eye(3)):
+            with self.subTest(points=points):
+                scene = GtsfmData(number_images=0)
+                for point in points:
+                    scene.add_track(SfmTrack(point))
+                with self.assertRaisesRegex(ValueError, "at least two inlier points"):
+                    ellipsoid_utils.get_ortho_axis_alignment_transform(scene)
+
+    def test_single_track_alignment_remains_serializable(self) -> None:
+        """The cluster's existing alignment fallback keeps a small scene finite for Dask."""
+        scene = GtsfmData(number_images=3)
+        calibration = Cal3Bundler(100, 0, 0, 0, 0)
+        poses = [Pose3(Rot3(), np.array([float(i), 0.0, 0.0])) for i in range(3)]
+        point = np.array([1.0, 2.0, 4.0])
+        track = SfmTrack(point)
+        for i, pose in enumerate(poses):
+            camera = PinholeCameraCal3Bundler(pose, calibration)
+            scene.add_camera(i, camera)
+            track.addMeasurement(i, camera.project(point))
+        scene.add_track(track)
+
+        aligned_input, aligned_output, aligned_poses = align_estimated_gtsfm_data(scene, scene, poses)
+
+        # This is the same native GTSAM round trip used when Dask transfers the scene.
+        restored = pickle.loads(pickle.dumps((aligned_input, aligned_output, aligned_poses)))
+        for aligned_scene in restored[:2]:
+            npt.assert_allclose(aligned_scene.get_track(0).point3(), point, atol=1e-9)
+            for i, pose in enumerate(poses):
+                npt.assert_allclose(aligned_scene.get_camera(i).pose().matrix(), pose.matrix(), atol=1e-9)
 
     def test_get_ortho_axis_alignment_transform(self) -> None:
         """Tests the get_ortho_axis_alignment_transform() function with a GtsfmData object containing 3 camera frustums
