@@ -6,6 +6,11 @@ on:
       - "gtsfm/visualization/**"
   workflow_dispatch:
 
+# A stacked update can synchronize both the head and base of the same PR.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     name: Unit tests and python checks
@@ -122,6 +127,9 @@ jobs:
             $DATASET_SRC
       
       - name: Run GTSFM
+        env:
+          # Torch Hub validates upstream refs through GitHub's authenticated API.
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           DATASET_NAME=${{ matrix.config_dataset_info[1] }}
           CONFIG_NAME=${{ matrix.config_dataset_info[0] }}
