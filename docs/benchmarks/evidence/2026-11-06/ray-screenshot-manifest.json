@@ -1,0 +1,15 @@
+{
+  "native_dashboard": true,
+  "head_nodes": 1,
+  "worker_nodes": 0,
+  "resources": [
+    {
+      "CPU": 16,
+      "GPU": 1
+    }
+  ],
+  "redaction": "Only host/IP text was replaced. Native resource values and status were untouched. Child process rows are Ray helpers on the same host, not additional nodes or Dask workers.",
+  "new_reconstruction_submitted": false,
+  "table_rows_include_ray_helper_processes": 17,
+  "captured_at": "2026-11-06T17:09:38.630268+00:00"
+}

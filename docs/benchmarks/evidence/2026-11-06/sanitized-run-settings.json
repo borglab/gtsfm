@@ -1,0 +1,30 @@
+[
+  {
+    "id": "1bb63ca485f1",
+    "status": "completed",
+    "settings": {
+      "num_workers": 1,
+      "threads_per_worker": 4,
+      "worker_memory_limit": "32GB",
+      "cluster_config": "",
+      "hardware": "cuda:0",
+      "execution_target": "remote",
+      "remote_connection": "api",
+      "config_name": "vggt_sift_frontend_megaloc"
+    }
+  },
+  {
+    "id": "916a75f44b4b",
+    "status": "completed",
+    "settings": {
+      "num_workers": 1,
+      "threads_per_worker": 2,
+      "worker_memory_limit": "18GiB",
+      "cluster_config": "",
+      "hardware": "cuda:0",
+      "execution_target": "remote",
+      "remote_connection": "ssh",
+      "config_name": "vggt_sift_frontend_megaloc"
+    }
+  }
+]
