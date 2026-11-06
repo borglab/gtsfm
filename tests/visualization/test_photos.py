@@ -1,5 +1,6 @@
 """Photo API tests: source association, bounded resize/cache, and path isolation."""
 
+import json
 from io import BytesIO
 from pathlib import Path
 
@@ -46,6 +47,55 @@ def test_saved_run_resolves_photos_without_live_job(photo_scene):
     assert "private" in image.headers["cache-control"]
     assert client.get(items[0]["thumbnail"], headers={"If-None-Match": image.headers["etag"]}).status_code == 304
     assert Image.open(BytesIO(client.get(items[1]["preview"]).content)).size == (600, 900)
+
+
+def test_retrieved_remote_run_uses_local_inputs_without_rewriting_evidence(photo_scene):
+    results, scene, dataset = photo_scene
+    config = scene.parent / "config.yaml"
+    original = yaml.safe_dump({"loader": {"_target_": "Mobilebrick", "dataset_dir": "/remote/staged-inputs"}})
+    config.write_text(original)
+    (scene.parent.parent / "studio-inputs.json").write_text(json.dumps({"dataset_dir": str(dataset)}))
+    manifest = ScenePhotos(results).manifest(scene.relative_to(results).as_posix())
+    assert all(item["thumbnail"] for item in manifest["items"])
+    assert config.read_text() == original
+
+
+def test_placeholder_export_uses_recorded_loader_order(photo_scene):
+    results, scene, dataset = photo_scene
+    (scene / "images.txt").write_text("0 1 0 0 0 0 0 0 0 image_000000.jpg\n\n")
+    (scene.parent.parent / "image_filenames.json").write_text(json.dumps(["first photo.jpg", "second.jpg"]))
+    client = TestClient(create_app(results))
+    manifest = client.get("/api/photos", params={"scene": scene.relative_to(results).as_posix()}).json()
+    assert manifest["items"][0]["thumbnail"]
+    assert client.get(manifest["items"][0]["thumbnail"]).status_code == 200
+
+
+def test_actual_placeholder_like_filename_does_not_map_to_another_camera(photo_scene):
+    results, scene, dataset = photo_scene
+    (dataset / "image" / "second.jpg").rename(dataset / "image" / "image_000000.jpg")
+    (scene / "images.txt").write_text("1 1 0 0 0 0 0 0 1 image_000000.jpg\n\n")
+    (scene.parent.parent / "image_filenames.json").write_text(json.dumps(["first photo.jpg", "image_000000.jpg"]))
+    store = ScenePhotos(results)
+    assert store.image_source(scene.relative_to(results).as_posix(), 0).name == "image_000000.jpg"
+
+
+def test_recorded_names_are_read_once_for_many_photos(photo_scene, monkeypatch):
+    results, scene, _ = photo_scene
+    mapping = scene.parent.parent / "image_filenames.json"
+    mapping.write_text(json.dumps(["first photo.jpg", "second.jpg"]))
+    read_text = Path.read_text
+    reads = []
+
+    def read(path, *args, **kwargs):
+        if path == mapping:
+            reads.append(path)
+        return read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", read)
+    store = ScenePhotos(results)
+    for _ in range(50):
+        assert store.source_name(scene, 0, "image_000000.jpg") == "first photo.jpg"
+    assert reads == [mapping]
 
 
 def test_explicit_image_directory_and_missing_photo(photo_scene):
