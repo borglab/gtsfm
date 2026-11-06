@@ -90,7 +90,7 @@ def test_terminal_volume_reload_retries_until_results_are_visible(
     manager = modal_app.ModalGpuJobManager(tmp_path)
 
     first = manager.get("completed")
-    assert first.status == "completed"
+    assert first.status == "running"
     assert not result.exists()
     assert "Result sync is retrying" in first.log_tail[-1]
     assert "completed" not in manager._terminal_reloads
@@ -116,3 +116,65 @@ def test_modal_rejects_device_choices_it_cannot_honor_before_spawning(
     with pytest.raises(ValueError, match="runs on cuda:0"):
         manager.start({"execution_target": "local", "hardware": device})
     assert manager._jobs == {}
+
+
+def test_gpu_terminal_state_is_published_only_after_volume_commit(monkeypatch, tmp_path):
+    """A polling control service cannot download an uncommitted terminal result."""
+    from types import SimpleNamespace
+
+    monkeypatch.setenv("MODAL_IS_REMOTE", "1")
+    for name in ("HF_HOME", "TORCH_HOME", "TORCH_EXTENSIONS_DIR", "XDG_CACHE_HOME"):
+        monkeypatch.setenv(name, str(tmp_path))
+    sys.modules.pop("visualization.modal_app", None)
+    modal_app = importlib.import_module("visualization.modal_app")
+    events = []
+    payload = {"id": "finished", "status": "completed", "live_root": str(tmp_path / "live")}
+    job = SimpleNamespace(status="completed", live_root=payload["live_root"], public=lambda: dict(payload))
+
+    class State(dict):
+        def __setitem__(self, key, value):
+            events.append(("publish", value["status"]))
+            super().__setitem__(key, value)
+
+    class Volume:
+        def commit(self):
+            events.append(("commit", None))
+
+    class Manager:
+        def start(self, spec, *, job_id):
+            assert spec["hardware"] == "cuda:0"
+
+        def get(self, job_id):
+            return job
+
+    monkeypatch.setattr(modal_app, "workspace", Volume())
+    monkeypatch.setattr(modal_app, "job_state", State())
+    monkeypatch.setattr(modal_app, "WORKSPACE_MOUNT", str(tmp_path))
+    monkeypatch.setattr(modal_app, "JobManager", lambda *args, **kwargs: Manager())
+
+    assert modal_app.gtsfm_gpu_job.local("finished", {})["status"] == "completed"
+    assert events == [("commit", None), ("publish", "completed")]
+
+
+def test_result_download_waits_for_successful_volume_reload(monkeypatch, tmp_path):
+    """Persistent volume reload failure must not produce an empty success archive."""
+    from fastapi.testclient import TestClient
+
+    from visualization.app import create_app
+
+    monkeypatch.setenv("MODAL_IS_REMOTE", "1")
+    sys.modules.pop("visualization.modal_app", None)
+    modal_app = importlib.import_module("visualization.modal_app")
+    payload = {"id": "finished", "status": "completed", "output_root": str(tmp_path / "runs" / "finished"), "spec": {}}
+
+    class Volume:
+        def reload(self):
+            raise RuntimeError("Volume is temporarily unavailable")
+
+    monkeypatch.setattr(modal_app, "workspace", Volume())
+    monkeypatch.setattr(modal_app, "job_state", {"__job_ids__": ["finished"], "finished": payload})
+    manager = modal_app.ModalGpuJobManager(tmp_path)
+    with TestClient(create_app(tmp_path, job_manager=manager)) as client:
+        response = client.get("/api/jobs/finished/results")
+        assert response.status_code == 409
+        assert "after the run completes" in response.json()["error"]
