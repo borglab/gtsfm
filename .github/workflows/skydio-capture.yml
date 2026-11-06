@@ -1,0 +1,58 @@
+name: Skydio failure capture
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ahluwalij/skydio-benchmark-fix]
+    paths:
+      - .github/workflows/skydio-capture.yml
+      - scripts/capture_skydio_ba.py
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        trial: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.9.17"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - name: Install dependencies
+        env:
+          UV_HTTP_TIMEOUT: "300"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nodejs npm graphviz
+          uv sync --locked --python 3.12
+          uv pip install torch-scatter --find-links https://data.pyg.org/whl/torch-2.7.0+cu128.html
+          bash .github/scripts/setup.sh
+      - name: Prepare original dataset
+        run: bash .github/scripts/download_single_benchmark.sh skydio-32 wget
+      - name: Capture original CPU benchmark
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PYTHONPATH: ${{ github.workspace }}
+          GTSFM_BA_CAPTURE_DIR: ${{ github.workspace }}/ba-capture
+        run: |
+          uv run python scripts/capture_skydio_ba.py --num_workers 2 \
+            --loader colmap --dataset_dir benchmarks/skydio-32/colmap_crane_mast_32imgs \
+            --images_dir benchmarks/skydio-32/images --config_name unified \
+            --correspondence_generator_config_name lightglue \
+            --max_frame_lookahead 15 --max_resolution 760 --share_intrinsics
+      - name: Retain solver inputs even on failure
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: skydio-ba-trial-${{ matrix.trial }}
+          path: ba-capture
+          if-no-files-found: warn
+          retention-days: 30
