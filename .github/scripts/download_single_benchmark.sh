@@ -84,11 +84,13 @@ retry_with_backoff() {
     
     local attempt=1
     while (( attempt <= max_attempts )); do
+        local exit_code
         if "$@"; then
             return 0
+        else
+            exit_code=$?
         fi
-        
-        local exit_code=$?
+
         if (( attempt == max_attempts )); then
             log ERROR "Command failed after $max_attempts attempts: $*"
             return $exit_code
@@ -104,9 +106,10 @@ retry_with_backoff() {
 download_file() {
     local url="$1"
     local filename="${url##*/}"
-    
+    filename="${filename%%\?*}"
+
     log INFO "Downloading $filename..."
-    retry_with_backoff 5 wget --no-verbose "$url"
+    retry_with_backoff 5 wget --no-verbose -O "$filename" "$url"
 }
 
 download_dataset_files() {
@@ -148,7 +151,7 @@ download_dataset_files() {
             download_file "https://github.com/johnwlambert/gtsfm-datasets-mirror/releases/download/palace-fine-arts-281/data.mat"
             ;;
         2011205_rc3)
-            download_file "https://www.dropbox.com/s/q02mgq1unbw068t/2011205_rc3.zip"
+            download_file "https://www.dropbox.com/s/q02mgq1unbw068t/2011205_rc3.zip?dl=1"
             download_file "https://github.com/johnwlambert/gtsfm-cache/releases/download/2011205_rc3_deep_front_end_cache/cache_rc3_deep.tar.gz"
             ;;
         *)
@@ -187,7 +190,12 @@ safe_extract_archive() {
             fi
             ;;
         *.zip)
-            unzip -qq "$archive" $extract_args && rm "$archive"
+            if unzip -qq "$archive" $extract_args; then
+                rm "$archive"
+            else
+                log ERROR "Failed to extract zip archive: $archive"
+                return 1
+            fi
             ;;
         *)
             log ERROR "Unsupported archive format: $archive"
@@ -360,13 +368,10 @@ main() {
     log INFO "Working directory: $(pwd)"
     
     # Process the dataset
-    if process_dataset "$dataset_name" "$source"; then
-        log SUCCESS "All operations completed successfully!"
-        exit 0
-    else
-        log ERROR "Dataset processing failed"
-        exit 1
-    fi
+    # Calling this in an `if` condition suppresses errexit inside its nested
+    # download/extraction functions and can report a failed archive as success.
+    process_dataset "$dataset_name" "$source"
+    log SUCCESS "All operations completed successfully!"
 }
 
 # Execute main function with all arguments
