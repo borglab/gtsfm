@@ -107,6 +107,15 @@ Frank's comments did not reject Ray; they asked where that commitment occurs.
 
   ![Native Ray dashboard: one SSH head, private addressing masked](ray-single-host.png)
 
+- The native Jobs page retains the real successful reconstruction
+  `gtsfm-916a75f44b4b`, filtered here by Submission ID. Its entrypoint and status
+  message columns are omitted from this screenshot to avoid publishing private
+  paths. This is retained single-host job history, not a new reconstruction or
+  evidence of Dask-on-Ray or multi-host scheduling. The displayed job duration is
+  not a billed cost or a speedup measurement.
+
+  ![Native Ray Jobs: retained successful GTSFM reconstruction](ray-completed-job.png)
+
 - [Real Modal result and lifecycle evidence](../2026-11-05/README.md): four-image
   upload, reconstruction, returned exports/photos, rendering, Stop and completed
   result persistence across a Studio restart.
