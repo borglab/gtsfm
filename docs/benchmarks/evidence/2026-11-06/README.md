@@ -2,8 +2,9 @@
 
 This is an infrastructure proposal for **post-CVPR review**, not a request to
 change the paper's runtime before submission. No implementation PR has been
-merged by this work. The code heads and existing implementation diffs remain
-unchanged by this clarification.
+merged by this work. The implementation anchors below record the earlier tested
+heads. A subsequent benchmark fix and fresh validation are documented below;
+the architecture clarification itself does not change runtime behavior.
 
 ## Corrections to the meeting description
 
@@ -126,16 +127,50 @@ Frank's comments did not reject Ray; they asked where that commitment occurs.
 
 ## Validation and remaining work
 
-The full 17-case matrix was attempted on each of five PRs. **84/85 cases passed**;
-all five unit/lint and browser check groups passed. Four PRs are fully green.
+On the earlier heads, the full 17-case matrix was attempted on each of five PRs.
+**84/85 cases passed**; all five unit/lint and browser check groups passed.
 The #1179 LightGlue/Skydio-32 retry reproduced a GTSAM/Dask deserialization error
 and [hit the six-hour execution limit](https://github.com/borglab/gtsfm/actions/runs/42166881576/job/127789175565).
 No benchmark skip marker, extra retry or passing-result substitution hides it.
-There is no complete green benchmark or academic no-regression claim.
+Those historical results do not validate subsequent source changes.
+
+The [two-file alignment fix](https://github.com/borglab/gtsfm/commit/d414d333ac957ded4e63e7e7e07be251c003fe19)
+now appears in all five PR heads through additive commits/merges. A one-point or
+equal-radius point cloud can lose all points under the strict outlier cutoff.
+Axis alignment then averaged an empty cloud and constructed a NaN translation;
+native GTSAM deserialization raised the same `input stream error`. A local
+one-track scene reproduced this failure without a cluster. The fix raises an
+explicit error before centering fewer than two inliers, allowing the existing
+cluster alignment fallback to preserve the finite scene. It adds 6 production
+lines (including documentation/formatting) and 34 test lines. The regression
+checks failed before the fix; all 27 relevant local tests and exact CI lint passed.
+
+[Three independent raw-image CPU trials](https://github.com/borglab/gtsfm/actions/runs/42281969753)
+passed with an explicit all-32-camera assertion. Their isolated capture harness
+verified native factor-graph equality after reconstruction, finite scene fields,
+and successful native pickle round trips. That harness is excluded from the
+implementation PRs. Its first attempt failed before optimization because a native
+factor lacks a serialization export; that invalid diagnostic attempt is retained
+at [run 42273482732](https://github.com/borglab/gtsfm/actions/runs/42273482732).
+
+| Run | BA cameras | BA tracks | 5-degree pose AUC | 10-degree pose AUC |
+| --- | ---: | ---: | ---: | ---: |
+| Earlier passing reference | 32 | 2,420 | 0.9099 | 0.9549 |
+| Trial 1 | 32 | 2,417 | 0.9097 | 0.9549 |
+| Trial 2 | 32 | 2,420 | 0.9099 | 0.9550 |
+| Trial 3 | 32 | 2,420 | 0.9099 | 0.9549 |
+
+These are observed quality comparisons, not byte equivalence or a predeclared
+accuracy acceptance threshold. The fix does not alter BA's objective, parameters
+or solver, and these healthy trials do not prove that nonlinear BA cannot collapse
+to a degenerate scene. Full CI is running on all five updated PR heads; there is
+no new complete-green or scientific no-regression claim yet. Skydio artifacts
+are also being checked for all 32 registered cameras independently of process exit.
 
 Before broader infrastructure claims, still needed:
 
-1. Resolve the remaining numerical/serialization benchmark failure.
+1. Finish the current per-head matrices and inspect Skydio camera coverage. Keep
+   nonlinear reconstruction quality separate from finite serialization.
 2. If automatic topology handling is required, choose and specify that design;
    the current whole-job launcher does not implement it.
 3. Test distinct physical hosts and GPU identities, effective Dask worker/thread/
