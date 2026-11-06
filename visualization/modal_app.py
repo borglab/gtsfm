@@ -213,11 +213,13 @@ def gtsfm_gpu_job(job_id: str, spec: dict[str, Any]) -> dict[str, Any]:
                 # job-state notification advertises this preview version.
                 workspace.commit()
                 last_committed_preview_version = preview_version
-            publish(payload)
             if job.status not in {"queued", "running"}:
+                # The control service may download results as soon as it sees
+                # completion. Publish it only after the Volume commit finishes.
                 workspace.commit()
                 publish(job.public())
                 return job.public()
+            publish(payload)
             time.sleep(1)
     except Exception as exc:
         failed = {
@@ -334,6 +336,8 @@ class ModalGpuJobManager(JobManager):
                     self._terminal_reloads.add(job.id)
             except Exception as exc:
                 with self._lock:
+                    if job.status == "completed":
+                        job.status = "running"
                     job.log_tail.append(f"Result sync is retrying: {exc}")
                     del job.log_tail[:-250]
         return job
