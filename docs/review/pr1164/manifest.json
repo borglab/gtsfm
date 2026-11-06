@@ -1,0 +1,75 @@
+{
+  "implementation_commit": "c8b5c1b69e62278974bad1ac9e6874ea29b439b9",
+  "baseline_commit": "adc793547b63374a89cd6215f7edeb901d4569e9",
+  "captured": "2026-11-02",
+  "browser": "Playwright 1.64.1 Chromium, reduced motion",
+  "fixture_capture": "Production bundle; existing studio.browser.cjs API fixtures; 1400x1800 viewport and 600px sidebar; element screenshots",
+  "real_capture": "Live local Studio, existing completed Ray run 113126d2ed30; 1600x1000 viewport; no new GPU job",
+  "images": [
+    {
+      "file": "01-before-compute.png",
+      "sha256": "5586656d2892b7d949ac2be763cb75a0bf5f68f577785bcde88477d13795a833",
+      "bytes": 10450
+    },
+    {
+      "file": "02-after-saved-local.png",
+      "sha256": "c7a3f072eb127c3f7f9d3634080f6861912f67c0a8504926f03350577d8852d6",
+      "bytes": 27360
+    },
+    {
+      "file": "03-machine-settings.png",
+      "sha256": "2e24c2d6a871d78d8735e59882b00207b6b33e9afadc7ac4ea644ed47b730fa7",
+      "bytes": 61312
+    },
+    {
+      "file": "04-external-workers.png",
+      "sha256": "7fb52c23243b7b31996dce2b9c37573b9d32c94788188f1d34b03bb56b44ddf1",
+      "bytes": 61952
+    },
+    {
+      "file": "05-ssh-native-ray.png",
+      "sha256": "b6f2f3b84e5f441337f098e6e4aa97c730d8f5bbbafb557f3c180754281ce568",
+      "bytes": 87005
+    },
+    {
+      "file": "06-modal-onboarding.png",
+      "sha256": "a50d0b2b563f415bda8c939e381ac2b40577be47056d184b3d5cbd6f07ddf2ba",
+      "bytes": 69138
+    },
+    {
+      "file": "07-legacy-ssh-blocked.png",
+      "sha256": "5e535e97bf1824f3fcbdb14ab8919704354cab8ae5c1fcc75357902d8c6e9080",
+      "bytes": 82268
+    },
+    {
+      "file": "08-legacy-error.png",
+      "sha256": "4f3e6dbabed6e63a13a34dcd90c42bcf0d75a2b7f9c54b66f4a8f3aa27d388c1",
+      "bytes": 5356
+    },
+    {
+      "file": "09-modal-device-error.png",
+      "sha256": "edc0a881002d54b6c5a62fbe1090f7641793099149fe8032d46321233f4f3f17",
+      "bytes": 4200
+    },
+    {
+      "file": "10-modal-device-unavailable.png",
+      "sha256": "2db27f2ed2158675f8b3c28beafd4cacd58801ecce77da58d59d118ee5202b36",
+      "bytes": 91305
+    },
+    {
+      "file": "11-modal-device-ready.png",
+      "sha256": "6b4fcefafc77782091d7491f2546200588319e2edaf4aeed219cda894eb943fd",
+      "bytes": 90714
+    },
+    {
+      "file": "12-completed-run-actions.png",
+      "sha256": "ed2a30b69cdb3cd1cbea32dcb688377369143bd8ba39b057d21abf72d7849850",
+      "bytes": 7573
+    },
+    {
+      "file": "13-real-ssh-results.png",
+      "sha256": "7565683ed77345fd6115578e3ee88b5298ff51e4a79878f0424ea0802bd3b572",
+      "bytes": 235707
+    }
+  ]
+}
