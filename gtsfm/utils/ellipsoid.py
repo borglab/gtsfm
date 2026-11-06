@@ -4,6 +4,7 @@ Process is similar to Principal Component Analysis.
 
 Authors: Adi Singh
 """
+
 from typing import Tuple
 
 import numpy as np
@@ -24,6 +25,9 @@ def get_ortho_axis_alignment_transform(gtsfm_data: GtsfmData) -> Pose3:
 
     Returns:
         The final transformation required to align point cloud and frustums.
+
+    Raises:
+        ValueError: Fewer than two points remain after outlier filtering.
     """
     # Iterate through each track to gather a list of 3D points forming the point cloud.
     num_pts = gtsfm_data.number_tracks()
@@ -32,6 +36,8 @@ def get_ortho_axis_alignment_transform(gtsfm_data: GtsfmData) -> Pose3:
 
     # Filter outlier points, Center point cloud, and obtain alignment rotation.
     points_filtered, inlier_mask = remove_outlier_points(point_cloud)
+    if len(points_filtered) < 2:
+        raise ValueError("Axis alignment requires at least two inlier points.")
     points_centered = center_point_cloud(points_filtered)
     wuprightRw = get_alignment_rotation_matrix_from_svd(points_centered)
 
