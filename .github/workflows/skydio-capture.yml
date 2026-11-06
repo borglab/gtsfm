@@ -48,11 +48,23 @@ jobs:
             --images_dir benchmarks/skydio-32/images --config_name unified \
             --correspondence_generator_config_name lightglue \
             --max_frame_lookahead 15 --max_resolution 760 --share_intrinsics
+      - name: Check reconstruction completeness
+        run: |
+          uv run python - <<'PY'
+          import json
+          with open("results/metrics/bundle_adjustment_metrics.json") as stream:
+              metrics = json.load(stream)["bundle_adjustment_metrics"]
+          assert metrics["number_cameras_filtered"] == 32, metrics["number_cameras_filtered"]
+          assert metrics["number_tracks_filtered"] > 0, metrics["number_tracks_filtered"]
+          print("All 32 cameras retained after BA")
+          PY
       - name: Retain solver inputs even on failure
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: skydio-ba-trial-${{ matrix.trial }}
-          path: ba-capture
+          path: |
+            ba-capture
+            results/metrics
           if-no-files-found: warn
           retention-days: 30

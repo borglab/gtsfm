@@ -16,6 +16,7 @@ from typing import Any
 
 import numpy as np
 from distributed import Client, Worker, WorkerPlugin
+from gtsam import Symbol
 
 from gtsfm.runner import GtsfmRunner
 
@@ -77,15 +78,24 @@ class CaptureBAPlugin(WorkerPlugin):
             if len(initial_data.cameras()) <= 2:
                 return original(optimizer, initial_data, graph, ordering_type)
             prefix = root / f"ba-{os.getpid()}-{time.time_ns()}"
+            graph_cameras = sorted(Symbol(key).index() for key in graph.keyVector() if chr(Symbol(key).chr()) == "x")
             payload = {
                 "initial_data": initial_data,
-                "graph": graph,
                 "optimizer_state": vars(optimizer).copy(),
                 "ordering_type": ordering_type,
+                "graph_cameras": graph_cameras,
             }
             with prefix.with_suffix(".pickle").open("wb") as stream:
                 pickle.dump(payload, stream, protocol=5)
             metadata = {"input": scene_summary(initial_data), "graph_factors": graph.size()}
+            # This benchmark has no external pose priors. Native KarcherMeanFactorPose3
+            # lacks a Boost serialization export, so rebuild and verify the graph
+            # instead of trying to pickle it. Keep the scene even if verification fails.
+            rebuilt = optimizer._BundleAdjustmentOptimizer__construct_factor_graph(graph_cameras, initial_data, [], {})
+            metadata["rebuilt_graph_matches"] = graph.equals(rebuilt, 1e-12)
+            prefix.with_suffix(".json").write_text(json.dumps(metadata, indent=2))
+            if not metadata["rebuilt_graph_matches"]:
+                raise RuntimeError("Capture graph reconstruction differs from the original graph")
             try:
                 result = original(optimizer, initial_data, graph, ordering_type)
                 metadata["output"] = scene_summary(result[0])
