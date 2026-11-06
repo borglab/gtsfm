@@ -661,6 +661,9 @@ class BundleAdjustmentOptimizer:
         params = gtsam.LevenbergMarquardtParams()
         params.setVerbosityLM("ERROR" if not self._print_summary else "SUMMARY")
         params.setOrderingType(ordering_type)
+        # Scale damping to the Hessian: poses, landmarks and calibration use different units.
+        # Identity damping can overshoot into the zero-cheirality-error minimum.
+        params.setDiagonalDamping(True)
         if self._max_iterations:
             params.setMaxIterations(self._max_iterations)
 
