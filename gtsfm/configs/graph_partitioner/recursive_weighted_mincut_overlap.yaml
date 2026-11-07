@@ -1,0 +1,6 @@
+# Recursive weighted min-cut; copied boundary cameras join the child and later cuts.
+# Leaves stay at or under max_cameras even after overlap is added.
+_target_: gtsfm.graph_partitioner.RecursiveWeightedMinCut
+max_cameras: 70
+overlap_cameras: 5
+overlap_participates_in_cuts: true

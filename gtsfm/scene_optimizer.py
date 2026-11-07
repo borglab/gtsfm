@@ -505,9 +505,18 @@ class SceneOptimizer:
             del similarity_matrix
 
         # Graph partitioning: Divide the visibility graph into clusters (runs eagerly, no delayed/futures).
+        # Inlier counts are the lengths of the verified correspondence arrays. Bridge edges added after
+        # verification are absent from this map and are weighted 1 by partitioners that use the counts.
         logger.info("🔥 GTSFM: Partitioning the view graph...")
         assert self.graph_partitioner is not None, "Graph partitioner is not set up!"
-        cluster_tree = self.graph_partitioner.run(visibility_graph)
+        edge_weights = None
+        if v_corr_idxs_dict:
+            edge_weights = {
+                (i1, i2): int(corr_idxs.shape[0])
+                for (i1, i2), corr_idxs in v_corr_idxs_dict.items()
+                if corr_idxs is not None
+            }
+        cluster_tree = self.graph_partitioner.run(visibility_graph, edge_weights=edge_weights)
         self.graph_partitioner.log_partition_details(cluster_tree, base_output_paths)
         save_retrieval_two_view_metrics(base_output_paths)
 

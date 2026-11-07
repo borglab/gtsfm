@@ -5,6 +5,8 @@ Authors: Zongyue Liu
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 import gtsfm.utils.logger as logger_utils
 from gtsfm.graph_partitioner.graph_partitioner_base import GraphPartitionerBase
 from gtsfm.products.cluster_tree import ClusterTree
@@ -32,15 +34,21 @@ class SinglePartitioner(GraphPartitionerBase):
             logger.warning("SinglePartitioner: ignoring extra init kwargs: %s", ignored_keys)
         super().__init__(process_name="SinglePartitioner")
 
-    def run(self, graph: VisibilityGraph) -> ClusterTree | None:
+    def run(
+        self,
+        graph: VisibilityGraph,
+        edge_weights: Mapping[tuple[int, int], int] | None = None,
+    ) -> ClusterTree | None:
         """Return all edges as a single-leaf cluster_tree.
 
         Args:
             graph: input visibility graph.
+            edge_weights: Ignored. This partitioner does not cut the graph.
 
         Returns:
             ClusterTree with a single leaf cluster containing all edges.
         """
+        del edge_weights  # unused
         if len(graph) == 0:
             logger.warning("SinglePartitioner: received empty visibility graph.")
             return None
