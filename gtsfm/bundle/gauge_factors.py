@@ -13,10 +13,10 @@ def add_gauge_factors(
     point_keys: Sequence[int],
     camera_keys: Sequence[int],
     *,
-    point_sigma: float = 100.0,
-    camera_y_sigma: float = 100.0,
-    camera_z_sigma: float = 10.0,
-    baseline_sigma: float = 0.01,
+    point_sigma: float = 0.1,
+    camera_y_sigma: float = 0.1,
+    camera_z_sigma: float = 0.03,
+    baseline_sigma: float = 0.001,
 ) -> None:
     """Add soft priors on landmark norms, camera-center Y/Z, and the longest initial camera baseline.
 
