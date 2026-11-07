@@ -1,0 +1,6 @@
+# Recursive METIS with a relaxed balance constraint.
+# The larger side of a cut may hold up to 80% of the cameras in that node.
+_target_: gtsfm.graph_partitioner.RecursiveMetis
+max_cameras: 40
+overlap_cameras: 5
+max_part_fraction: 0.8

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 from threading import Lock
 from typing import Any, Hashable, Optional
@@ -83,7 +84,14 @@ def _run_cluster_ba(
 
     if pre_ba_max_reproj_error > 0.0:
         num_tracks_before = gtsfm_data.number_tracks()
+        filter_started = time.perf_counter()
         gtsfm_data = gtsfm_data.filter_landmark_measurements(pre_ba_max_reproj_error, min_track_length)
+        logger.info(
+            "⏱ VGGT profile [%s] pre_ba_reproj_filter %.2fs tracks=%d",
+            cluster_label or "?",
+            time.perf_counter() - filter_started,
+            num_tracks_before,
+        )
         cluster_prefix = f"[{cluster_label}] " if cluster_label else ""
         logger.info(
             "%s🔍 #valid tracks after pre-BA reproj error filtering: %d out of %d",
@@ -124,13 +132,13 @@ def _run_cluster_ba(
         # BundleAdjustmentOptimizer._run_ba_and_evaluate.
         if use_multi_view_retriangulation and tracks_2d is not None:
             retri_data = point3d_initializer.multi_view_retriangulate_from_2d_tracks(
-                gtsfm_data_with_ba, tracks_2d, min_track_length=min_track_length,
+                gtsfm_data_with_ba,
+                tracks_2d,
+                min_track_length=min_track_length,
             )
             if retri_data.number_tracks() > 0:
                 gtsfm_data_with_ba, _ = optimizer.run_simple_ba(retri_data)
-                gtsfm_data_with_ba = gtsfm_data_with_ba.filter_landmark_measurements(
-                    post_ba_max_reproj_error
-                )
+                gtsfm_data_with_ba = gtsfm_data_with_ba.filter_landmark_measurements(post_ba_max_reproj_error)
 
         logger.info(
             "%s🔍 #valid tracks after BA: %d out of %d",
@@ -158,6 +166,7 @@ def _load_vggt_inputs(
     save_processed_image: bool = False,
     output_root: Optional[str] = None,
     image_names: Optional[tuple[str, ...]] = None,
+    cluster_label: Optional[str] = None,
 ):
     """Load and preprocess a batch of images for the geometry model.
 
@@ -166,10 +175,17 @@ def _load_vggt_inputs(
     the ``original_coords`` returned here — so the loader must match the model. ``transformer=None``
     keeps the legacy VGGT loader.
     """
+    load_started = time.perf_counter()
     if transformer is not None:
         image_batch, original_coords = transformer.load_image_batch(loader, indices, mode=mode)
     else:
         image_batch, original_coords = load_image_batch_vggt_loader(loader, indices, mode=mode)
+    logger.info(
+        "⏱ VGGT profile [%s] load_images %.2fs n=%d",
+        cluster_label or "?",
+        time.perf_counter() - load_started,
+        len(indices),
+    )
     if not save_processed_image or output_root is None or image_names is None:
         return image_batch, original_coords
     if len(image_names) != image_batch.shape[0]:
@@ -549,6 +565,7 @@ class ClusterVGGT(ClusterOptimizerBase):
             save_processed_image=self._save_processed_image,
             output_root=str(context.output_paths.results),
             image_names=image_names,
+            cluster_label=context.label,
         )
 
         # 2. Run VGGT pipeline (geometry + tracking -> GtsfmData, NO BA).

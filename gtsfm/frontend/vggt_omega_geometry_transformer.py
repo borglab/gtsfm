@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+import time
 from pathlib import Path
 from typing import Any, List, Optional, Union
 
@@ -131,9 +132,13 @@ def load_image_batch_vggt_omega_loader(
     images: list[torch.Tensor] = []
     placements: list[ImagePlacement] = []
     to_tensor = TF.ToTensor()
+    started = time.perf_counter()
+    io_seconds = 0.0
 
     for idx in indices:
+        io_started = time.perf_counter()
         image = PILImage.fromarray(loader.get_image(idx).value_array).convert("RGB")
+        io_seconds += time.perf_counter() - io_started
         loader_w, loader_h = image.size
 
         crop_x = 0
@@ -187,7 +192,16 @@ def load_image_batch_vggt_omega_loader(
             )
         )
 
-    return assemble_image_batch(images, placements)
+    batch, coords = assemble_image_batch(images, placements)
+    total_seconds = time.perf_counter() - started
+    logger.info(
+        "⏱ VGGT profile load n=%d total=%.2fs io=%.2fs preprocess=%.2fs",
+        len(indices),
+        total_seconds,
+        io_seconds,
+        total_seconds - io_seconds,
+    )
+    return batch, coords
 
 
 # ---------------------------------------------------------------------------
@@ -280,30 +294,64 @@ class VggtOmegaGeometryTransformer(GeometryTransformer):
         Returns:
             class:`GeometryTransformerOutput` with poses, depths, and dense points.
         """
+        started = time.perf_counter()
         self.resolved_device = torch_utils.default_device()
-        images = images.to(self.resolved_device, dtype=self.resolved_dtype)
         if model is None:
             model = resolve_cached_model(self.resolved_device)
         else:
             model = model.to(self.resolved_device)
             assert model is not None
             model.eval()
+        model_seconds = time.perf_counter() - started
+        images = images.to(self.resolved_device, dtype=self.resolved_dtype)
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+        h2d_seconds = time.perf_counter() - started - model_seconds
 
+        forward_started = time.perf_counter()
         with torch.inference_mode():
             predictions = model(images)
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+        forward_seconds = time.perf_counter() - forward_started
 
+        camera_started = time.perf_counter()
         extrinsics, intrinsics = encoding_to_camera(
             predictions["pose_enc"],
             predictions["images"].shape[-2:],
         )
+        camera_seconds = time.perf_counter() - camera_started
 
         depth = predictions["depth"]
         depth_conf = predictions["depth_conf"]
 
+        unproject_started = time.perf_counter()
         dense_points = unproject_depth_map_to_point_map(
             depth.squeeze(0).detach().float().cpu().numpy(),
             extrinsics.squeeze(0).detach().float().cpu().numpy(),
             intrinsics.squeeze(0).detach().float().cpu().numpy(),
+        )
+        unproject_seconds = time.perf_counter() - unproject_started
+
+        upload_started = time.perf_counter()
+        dense_points_tensor = torch.from_numpy(dense_points).to(
+            self.resolved_device,
+            dtype=self.resolved_dtype,
+        )
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+        upload_seconds = time.perf_counter() - upload_started
+        logger.info(
+            "⏱ VGGT profile [%s] omega n=%d h2d=%.2fs model=%.2fs forward=%.2fs "
+            "cameras=%.2fs unproject=%.2fs to_gpu=%.2fs",
+            kwargs.get("cluster_label") or "?",
+            images.shape[0],
+            h2d_seconds,
+            model_seconds,
+            forward_seconds,
+            camera_seconds,
+            unproject_seconds,
+            upload_seconds,
         )
 
         return GeometryTransformerOutput(
@@ -314,10 +362,7 @@ class VggtOmegaGeometryTransformer(GeometryTransformer):
             intrinsic=intrinsics.squeeze(0),
             depth_map=depth.squeeze(0).squeeze(-1),
             depth_confidence=depth_conf.squeeze(0),
-            dense_points=torch.from_numpy(dense_points).to(
-                self.resolved_device,
-                dtype=self.resolved_dtype,
-            ),
+            dense_points=dense_points_tensor,
         )
 
 
