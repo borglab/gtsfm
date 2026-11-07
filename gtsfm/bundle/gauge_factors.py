@@ -13,16 +13,17 @@ def add_gauge_factors(
     point_keys: Sequence[int],
     camera_keys: Sequence[int],
     *,
-    point_sigma: float = 0.1,
-    camera_y_sigma: float = 0.1,
-    camera_z_sigma: float = 0.03,
+    point_sigma: float = 100.0,
+    camera_y_sigma: float = 100.0,
+    camera_z_sigma: float = 10.0,
     baseline_sigma: float = 0.001,
 ) -> None:
     """Add soft priors on landmark norms, camera-center Y/Z, and the longest initial camera baseline.
 
     The point and camera priors jointly choose the origin. About that origin, the camera
     penalties favor the longest trajectory axis along X and the shortest along Z, up to sign.
-    The soft priors can perturb shape and allow some baseline shrinkage.
+    The weak defaults can leave a reprojection-converged scene near its initial frame.
+    Decreasing the unary sigmas increases the preference for alignment and can perturb scene shape.
 
     Args:
         graph: Bundle-adjustment graph to extend in place.
