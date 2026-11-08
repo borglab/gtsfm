@@ -125,7 +125,7 @@ Frank's comments did not reject Ray; they asked where that commitment occurs.
 - This evidence establishes single-host lifecycle behavior. It does not establish
   physical multi-node scaling, multi-GPU performance or a common Ray/Dask resource pool.
 
-## Validation and remaining work
+## Initial validation and investigation (November 6)
 
 On the earlier heads, the full 17-case matrix was attempted on each of five PRs.
 **84/85 cases passed**; all five unit/lint and browser check groups passed.
@@ -163,14 +163,97 @@ at [run 42273482732](https://github.com/borglab/gtsfm/actions/runs/42273482732).
 These are observed quality comparisons, not byte equivalence or a predeclared
 accuracy acceptance threshold. The fix does not alter BA's objective, parameters
 or solver, and these healthy trials do not prove that nonlinear BA cannot collapse
-to a degenerate scene. Full CI is running on all five updated PR heads; there is
-no new complete-green or scientific no-regression claim yet. Skydio artifacts
-are also being checked for all 32 registered cameras independently of process exit.
+to a degenerate scene. At this stage, full CI was running on the alignment-only
+heads, with no new complete-green or scientific no-regression claim.
+
+### Final CPU validation (verified November 8)
+
+Artifact inspection exposed a second defect despite green process-exit checks:
+the alignment-only #1181 and #1164 runs retained 32 leaf cameras but collapsed
+after post-merge BA to 9 cameras and 4 tracks (zero 5-degree pose AUC). Those
+results were rejected rather than counted as healthy reconstructions.
+
+The failure was reproduced on a captured scene by cyclically relabeling its
+tracks, without changing geometry or observations. Ordinary damping and QR both
+lost almost every positive-depth observation while reporting near-zero error.
+The [CPU LM fix](https://github.com/borglab/gtsfm/commit/5a4b16485db49ced322a0bcc2b7bb173669bae69)
+uses stock GTSAM diagonal damping to scale mixed pose/landmark/calibration units.
+It changes CPU optimization steps, not the reprojection objective or CUDA solver.
+Review it as a numerical behavior change, not infrastructure cleanup.
+
+The [150 KB frozen numeric fixture and its provenance](https://github.com/borglab/gtsfm/blob/5a4b16485db49ced322a0bcc2b7bb173669bae69/tests/data/skydio_ba_cheirality/README.md)
+make the regression reproducible without images, credentials or a GPU. The new
+regression failed before the setting changed. Local validation passed 33 tests;
+two existing CUDA timing tests skipped because this Mac's GTSAM lacks CUDA.
+Twelve captured leaf/post-merge BA inputs all retained 32 cameras with the fix.
+
+All five current PRs now have **19/19 checks passing: 85/85 benchmark cases plus
+all unit/lint and browser check groups**. Each retained 17 result archives.
+[Exact source heads, run IDs and inspected Skydio metrics](ci-results-nov8.json)
+are recorded independently of the PR descriptions.
+
+| PR | Source head | Skydio BA cameras / tracks | Final cameras / tracks | BA / final pose AUC at 5 degrees |
+| --- | --- | --- | --- | --- |
+| #1179 | `5a4b16485db4` | 32 / 2,414 | 32 / 3,332 | 0.9095 / 0.9070 |
+| #1180 | `6e0811b35d7d` | 32 / 2,414 | 32 / 3,327 | 0.9095 / 0.9069 |
+| #1181 | `2be4a0383eae` | 32 / 2,415 | 32 / 3,331 | 0.9095 / 0.9070 |
+| #1182 | `25fe4d2ee7e3` | 32 / 2,414 | 32 / 3,332 | 0.9095 / 0.9070 |
+| #1164 | `ea579b608a1e` | 32 / 2,415 | 32 / 3,331 | 0.9095 / 0.9070 |
+
+The earlier healthy reference had 2,420 BA tracks, 3,332 final tracks, BA AUC
+0.9099 and final AUC 0.9070. The numeric differences remain visible; this is not byte equivalence,
+a predeclared accuracy threshold, a speedup claim or a convergence guarantee.
+
+### Live acceptance of the updated implementation
+
+[Sanitized run IDs, source verification, export hashes and Stop observations](acceptance-nov8.json)
+record the following real operations:
+
+- Modal Starter/L4 job `fd3156dd6817` returned **4 cameras, 1,509 tracks and all
+  10 expected export files**. The local viewer loaded all four source photographs.
+  The subsequent active GPU Stop test `1ba870bd2648` observed one running input
+  before cancellation, then zero running inputs, backlog and GPU containers.
+- Native OpenSSH/Ray RTX 3080 jobs `c7cb652b450d` and `cc1eb817f38e` each returned
+  **4 cameras and 1,509 tracks**. All 10 export hashes matched between these two
+  runs. Active current-source job `90ad66c3980c` changed from Ray `RUNNING` to
+  `STOPPED` after Studio cancellation. The reusable Ray head remains intentionally
+  available for the dashboard; no reconstruction is left running.
+- Completed results from both providers remained completed after a local Studio
+  restart. Modal's GPU and control functions both reached zero runners/inputs.
+
+The SSH adapter stages inputs and constructor YAML, **not local application
+source**. Initial controller tests used the machine's older preinstalled GTSFM.
+For the final two runs, an isolated copy of `ea579b608a1e` was staged with stock
+OpenSSH, using the existing Python environment. The imported BA module's SHA-256
+was verified against the local file and its diagonal-damping setting before
+execution. The original remote installation was preserved. A named
+`RTX 3080 review ea579b60` configuration retains this isolated review source.
+Automatic source deployment and machine provisioning are not implemented.
+
+Earlier client attempts `92585157f412` and `880b399d9e22` lost their tunnels;
+their native Ray computations succeeded but those local attempts were not
+counted as passing. Host clock discontinuities were also observed. Fresh
+November 8 current-source repeats completed through download and hash checks.
+This does not establish automatic recovery from host suspension.
+
+The four-image fixture is bounded acceptance evidence, not full Door-12,
+the camera-only hierarchical experiment, a GPU speedup or physical multi-host
+scaling. Cross-provider Modal/RTX byte equivalence is not claimed.
+
+![Current Modal result rendered locally with all four source photos](modal-current-result.png)
+
+The native Ray Jobs view below shows the second verified-source run. Entrypoint
+and status-message columns are omitted from the screenshot to avoid publishing
+private paths. Its duration is not a performance comparison or a billed cost.
+
+![Native Ray Jobs: successful current-source reconstruction](ray-current-job.png)
+
+### Before broader infrastructure claims
 
 Before broader infrastructure claims, still needed:
 
-1. Finish the current per-head matrices and inspect Skydio camera coverage. Keep
-   nonlinear reconstruction quality separate from finite serialization.
+1. Keep nonlinear reconstruction quality separate from finite serialization and
+   process exit. Preserve the frozen regression and inspect benchmark geometry.
 2. If automatic topology handling is required, choose and specify that design;
    the current whole-job launcher does not implement it.
 3. Test distinct physical hosts and GPU identities, effective Dask worker/thread/

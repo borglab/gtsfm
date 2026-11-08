@@ -1,0 +1,107 @@
+{
+  "verified_at": "2026-11-08",
+  "benchmark_cases_passed": 85,
+  "checks_passed": 95,
+  "prs": [
+    {
+      "pr": 1179,
+      "sha": "5a4b16485db49ced322a0bcc2b7bb173669bae69",
+      "run": 42300349923,
+      "counts": {
+        "pass": 19
+      },
+      "artifact_count": 17,
+      "skydio": {
+        "head": "5a4b16485db49ced322a0bcc2b7bb173669bae69",
+        "artifact": 13544870393,
+        "cameras": 32.0,
+        "tracks": 2414.0,
+        "auc5": 0.9095,
+        "merged_cameras": 32.0,
+        "merged_tracks": 3332.0,
+        "full32": true,
+        "final_auc5": 0.907
+      }
+    },
+    {
+      "pr": 1180,
+      "sha": "6e0811b35d7d9e5a2df63f62295c8b125a19d2bd",
+      "run": 42300394668,
+      "counts": {
+        "pass": 19
+      },
+      "artifact_count": 17,
+      "skydio": {
+        "head": "6e0811b35d7d9e5a2df63f62295c8b125a19d2bd",
+        "artifact": 13545666875,
+        "cameras": 32.0,
+        "tracks": 2414.0,
+        "auc5": 0.9095,
+        "merged_cameras": 32.0,
+        "merged_tracks": 3327.0,
+        "full32": true,
+        "final_auc5": 0.9069
+      }
+    },
+    {
+      "pr": 1181,
+      "sha": "2be4a0383eaebdd4e86d1d9e44198e58f9d47591",
+      "run": 42300395928,
+      "counts": {
+        "pass": 19
+      },
+      "artifact_count": 17,
+      "skydio": {
+        "head": "2be4a0383eaebdd4e86d1d9e44198e58f9d47591",
+        "artifact": 13543604541,
+        "cameras": 32.0,
+        "tracks": 2415.0,
+        "auc5": 0.9095,
+        "merged_cameras": 32.0,
+        "merged_tracks": 3331.0,
+        "full32": true,
+        "final_auc5": 0.907
+      }
+    },
+    {
+      "pr": 1182,
+      "sha": "25fe4d2ee7e35691c9f0d534be31edf0e122b4b0",
+      "run": 42300406102,
+      "counts": {
+        "pass": 19
+      },
+      "artifact_count": 17,
+      "skydio": {
+        "head": "25fe4d2ee7e35691c9f0d534be31edf0e122b4b0",
+        "artifact": 13544258004,
+        "cameras": 32.0,
+        "tracks": 2414.0,
+        "auc5": 0.9095,
+        "merged_cameras": 32.0,
+        "merged_tracks": 3332.0,
+        "full32": true,
+        "final_auc5": 0.907
+      }
+    },
+    {
+      "pr": 1164,
+      "sha": "ea579b608a1e0abff414a9755b84fd34c9d5bb6e",
+      "run": 42300407656,
+      "counts": {
+        "pass": 19
+      },
+      "artifact_count": 17,
+      "skydio": {
+        "head": "ea579b608a1e0abff414a9755b84fd34c9d5bb6e",
+        "artifact": 13544682881,
+        "cameras": 32.0,
+        "tracks": 2415.0,
+        "auc5": 0.9095,
+        "merged_cameras": 32.0,
+        "merged_tracks": 3331.0,
+        "full32": true,
+        "final_auc5": 0.907
+      }
+    }
+  ]
+}

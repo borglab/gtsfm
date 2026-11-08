@@ -1,0 +1,89 @@
+{
+  "source_commit": "ea579b608a1e0abff414a9755b84fd34c9d5bb6e",
+  "ssh": {
+    "gpu": "RTX 3080",
+    "bundle_sha256_verified": "6a1fe2b1ac87b50e121bf5ad91de4345d7721d17262dbecb667ac5ca040817c0",
+    "trials": [
+      {
+        "id": "c7cb652b450d",
+        "cameras": 4,
+        "tracks": 1509,
+        "exports": {
+          "results/merged_retriangulated/cameras.txt": "7fc11dff587012ccb2f8bd551784945e54a9a0ad04d505edee20b90945ed401d",
+          "results/merged_retriangulated/images.txt": "75db246eef415b2d9a5505cef71fc48474dc3a37858934aaf6c487c85c6bd02c",
+          "results/merged_retriangulated/points3D.txt": "f92975803343c414d487c598a0cfb1c889fe7285f44bace8cc890b372a92dd8a",
+          "results/plots/similarity_named_pairs.txt": "72000710af4383c65770877a829aff2247fd4bde8f1a5270586d2e60c3be5802",
+          "results/vggt/cameras.txt": "41c231ff454e0036c64e1167f21a056434e7315d47765c59baad99f15fa9a661",
+          "results/vggt/images.txt": "729831842cf17c180ca74211e8f079764f35b5c4e9a38455a61dc4050f1eb4df",
+          "results/vggt/points3D.txt": "0e4561a61172617c9866ed23f18161191fc21ca17ef724f0b676a4993cf46b5f",
+          "results/vggt_pre_ba/cameras.txt": "cd70ca478adcc4326c6cffe63ceaeade404095265bd7e8ca18e06fdaf8987743",
+          "results/vggt_pre_ba/images.txt": "7135d83ec61625a72412dc1b23480df145f7602bbc9440313f3f6770bb507e75",
+          "results/vggt_pre_ba/points3D.txt": "3d3b5b359d2c8042c8b159b99332435adc34a1c138da3977d1783b305357a3fa"
+        }
+      },
+      {
+        "id": "cc1eb817f38e",
+        "cameras": 4,
+        "tracks": 1509,
+        "exports": {
+          "results/merged_retriangulated/cameras.txt": "7fc11dff587012ccb2f8bd551784945e54a9a0ad04d505edee20b90945ed401d",
+          "results/merged_retriangulated/images.txt": "75db246eef415b2d9a5505cef71fc48474dc3a37858934aaf6c487c85c6bd02c",
+          "results/merged_retriangulated/points3D.txt": "f92975803343c414d487c598a0cfb1c889fe7285f44bace8cc890b372a92dd8a",
+          "results/plots/similarity_named_pairs.txt": "72000710af4383c65770877a829aff2247fd4bde8f1a5270586d2e60c3be5802",
+          "results/vggt/cameras.txt": "41c231ff454e0036c64e1167f21a056434e7315d47765c59baad99f15fa9a661",
+          "results/vggt/images.txt": "729831842cf17c180ca74211e8f079764f35b5c4e9a38455a61dc4050f1eb4df",
+          "results/vggt/points3D.txt": "0e4561a61172617c9866ed23f18161191fc21ca17ef724f0b676a4993cf46b5f",
+          "results/vggt_pre_ba/cameras.txt": "cd70ca478adcc4326c6cffe63ceaeade404095265bd7e8ca18e06fdaf8987743",
+          "results/vggt_pre_ba/images.txt": "7135d83ec61625a72412dc1b23480df145f7602bbc9440313f3f6770bb507e75",
+          "results/vggt_pre_ba/points3D.txt": "3d3b5b359d2c8042c8b159b99332435adc34a1c138da3977d1783b305357a3fa"
+        }
+      }
+    ],
+    "identical_repeat_exports": true,
+    "stop": {
+      "id": "90ad66c3980c",
+      "native_id": "gtsfm-90ad66c3980c",
+      "before": "RUNNING",
+      "after": "STOPPED",
+      "passed": true
+    },
+    "source_note": "Verified isolated current source with the existing Python environment; inputs use native Ray rsync. The adapter does not deploy code automatically."
+  },
+  "modal": {
+    "gpu": "L4",
+    "workspace_plan": "Starter",
+    "job": "fd3156dd6817",
+    "cameras": 4,
+    "tracks": 1509,
+    "exports": {
+      "results/merged_retriangulated/cameras.txt": "2b09173fa48347d2b0592d5b5a4c706fa77212b1feb551ca1cdcd38a7744ca22",
+      "results/merged_retriangulated/images.txt": "bd8eedfac6e29cd18375d1b98f5afb73ea8294f430c72a009a27e181fde96469",
+      "results/merged_retriangulated/points3D.txt": "dc4fb897d825bc34ee33af53dc32b369acb6bea75f6f6879cb4c9f168fded21b",
+      "results/vggt_pre_ba/cameras.txt": "9873276ad2eb111145fa3047f1a2c27c779d1e38cb2085c3e5630e1816b36ea2",
+      "results/vggt_pre_ba/images.txt": "4695e90cc576183a7978fc87eb21aba6b02da3b4d6502dedc419bb944c18a470",
+      "results/vggt_pre_ba/points3D.txt": "3c11f04b696ddf2042e6db9340a37e20db0daa22df7fe3bb9c0622f6cea64fab",
+      "results/vggt/cameras.txt": "f364f99c8ec14bbab6f8c20768f8d2847392b38029d385e1234bad309ffbd98d",
+      "results/vggt/images.txt": "e20f3163276b59c3078f13ada1f5564fa327f8b9fa684570de503e60196135d9",
+      "results/vggt/points3D.txt": "f80d9d18a7db1faaf7053486453b55d4cf49d100aeec4a7abc776e278876608c",
+      "results/plots/similarity_named_pairs.txt": "850edbfe464eae95385fe9769bba701b0d1ee785273a3a718f0300c82057bfa3"
+    },
+    "stop": {
+      "id": "1ba870bd2648",
+      "running_before_cancel": {
+        "backlog": 0,
+        "num_total_runners": 1,
+        "num_running_inputs": 1,
+        "input_headroom": 0
+      },
+      "after": {
+        "backlog": 0,
+        "num_total_runners": 0,
+        "num_running_inputs": 0,
+        "input_headroom": 0
+      },
+      "passed": true
+    },
+    "rendered_source_photos": 4
+  },
+  "bounded_input": "Four-image Lund Door subset; not full Door-12 or multi-host scaling"
+}
