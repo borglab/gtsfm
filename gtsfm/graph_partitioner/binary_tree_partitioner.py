@@ -10,6 +10,7 @@ Authors: Shicong Ma and Frank Dellaert
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from math import ceil, log2
 from typing import Optional
 
@@ -48,8 +49,13 @@ class BinaryTreePartitioner(GraphPartitionerBase):
             parts.append(f"num_cameras_per_cluster={self._num_cameras_per_cluster}")
         return f"BinaryTreePartitioner({', '.join(parts)})"
 
-    def run(self, graph: VisibilityGraph) -> ClusterTree | None:
+    def run(
+        self,
+        graph: VisibilityGraph,
+        edge_weights: Mapping[tuple[int, int], int] | None = None,
+    ) -> ClusterTree | None:
         """Cluster a visibility graph into a binary tree of clusters."""
+        del edge_weights  # unused
         if len(graph) == 0:
             logger.warning("BinaryTreePartitioner: no visibility graph provided for cluster_tree.")
             return None

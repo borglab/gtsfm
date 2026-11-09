@@ -28,6 +28,7 @@ import json
 import logging
 import os
 import pickle
+import re
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 import itertools
@@ -74,6 +75,13 @@ def _parse_args() -> argparse.Namespace:
         type=str,
         default=None,
         help="Optional images directory override. Defaults to <dataset_dir>/images.",
+    )
+    parser.add_argument(
+        "--colmap_files_subdir",
+        type=str,
+        default=None,
+        help="COLMAP model directory relative to --dataset_dir, or an absolute path. "
+        "Image indices are mapped back to the original filenames in that model.",
     )
     parser.add_argument(
         "--output_dir",
@@ -137,10 +145,27 @@ def _node_results_dir(results_root: Path, path_str: str) -> Path:
     return results_root.joinpath(*parts)
 
 
+def _partition_cut(node: ClusterTree) -> Dict[str, List[int]] | None:
+    """Camera indices on each side of a binary partition.
+
+    ``left`` and ``right`` are exclusive to one child. ``overlap`` holds cameras borrowed into both.
+    """
+    if len(node.children) != 2:
+        return None
+    left_keys = set(node.children[0].all_keys())
+    right_keys = set(node.children[1].all_keys())
+    left_only = sorted(left_keys - right_keys)
+    right_only = sorted(right_keys - left_keys)
+    overlap = sorted(left_keys & right_keys)
+    if not left_only and not right_only and not overlap:
+        return None
+    return {"left": left_only, "right": right_only, "overlap": overlap}
+
+
 def _collect_cluster_paths(node: ClusterTree, path: Tuple[int, ...] = ()) -> List[Dict[str, Any]]:
     """Return a flat list of cluster nodes with path strings and depths."""
     path_str = "root" if len(path) == 0 else ".".join(str(p) for p in path)
-    nodes = [{"path": path_str, "depth": len(path)}]
+    nodes = [{"path": path_str, "depth": len(path), "cut": _partition_cut(node)}]
     for child_idx, child in enumerate(node.children, start=1):
         nodes.extend(_collect_cluster_paths(child, path + (child_idx,)))
     return nodes
@@ -180,8 +205,36 @@ def _fallback_shape_from_camera(gtsfm_data: GtsfmData, image_idx: int) -> Tuple[
     return (1, 1)
 
 
+_PLACEHOLDER_NAME = re.compile(r"^image_(\d+)\.jpg$")
+
+
+def _loader_index(index: int, stored_name: str | None) -> int:
+    """Recover the loader index encoded in ``image_NNNNNN.jpg`` after COLMAP reorders by name."""
+    if stored_name:
+        match = _PLACEHOLDER_NAME.match(Path(stored_name).name)
+        if match:
+            return int(match.group(1))
+    return index
+
+
+def _image_name(index: int, stored_name: str | None, index_to_filename: Dict[int, str] | None) -> str:
+    """Prefer the COLMAP loader filename when a reconstruction stored a placeholder name."""
+    source_index = _loader_index(index, stored_name)
+    if index_to_filename and source_index in index_to_filename and (
+        not stored_name or _PLACEHOLDER_NAME.match(Path(stored_name).name) is not None
+    ):
+        return index_to_filename[source_index]
+    if stored_name:
+        return stored_name
+    return f"image_{index:06d}.jpg"
+
+
 def _build_image_entries(
-    gtsfm_data: GtsfmData, images_dir: Path, *, include_file_path: bool
+    gtsfm_data: GtsfmData,
+    images_dir: Path,
+    *,
+    include_file_path: bool,
+    index_to_filename: Dict[int, str] | None = None,
 ) -> List[Dict[str, Any]]:
     entries: List[Dict[str, Any]] = []
     num_tracks = gtsfm_data.number_tracks()
@@ -192,7 +245,7 @@ def _build_image_entries(
 
     for image_idx in sorted(gtsfm_data.get_valid_camera_indices()):
         info = gtsfm_data.get_image_info(image_idx)
-        name = info.name if info.name else f"image_{image_idx:06d}.jpg"
+        name = _image_name(image_idx, info.name, index_to_filename)
         file_path = (images_dir / name).resolve()
         if not file_path.exists():
             logger.warning("Missing image file for %s (expected %s)", name, file_path)
@@ -226,7 +279,13 @@ def _build_image_entries(
     return entries
 
 
-def _load_recon_images(recon_dir: Path, images_dir: Path, cluster_path: str, recon: str) -> List[Dict[str, Any]]:
+def _load_recon_images(
+    recon_dir: Path,
+    images_dir: Path,
+    cluster_path: str,
+    recon: str,
+    index_to_filename: Dict[int, str] | None = None,
+) -> List[Dict[str, Any]]:
     if not _has_colmap_files(recon_dir):
         return []
     logger.info("Loading COLMAP data for %s (%s)", cluster_path, recon)
@@ -235,7 +294,9 @@ def _load_recon_images(recon_dir: Path, images_dir: Path, cluster_path: str, rec
     except Exception as exc:
         logger.exception("Skipping %s/%s due to error: %s", cluster_path, recon, exc)
         return []
-    return _build_image_entries(gtsfm_data, images_dir, include_file_path=True)
+    return _build_image_entries(
+        gtsfm_data, images_dir, include_file_path=True, index_to_filename=index_to_filename
+    )
 
 
 def _build_data_payload(
@@ -245,6 +306,7 @@ def _build_data_payload(
     num_workers: int,
     gt_data: GtsfmData | None = None,
     baseline_data: List[Tuple[str, GtsfmData]] | None = None,
+    index_to_filename: Dict[int, str] | None = None,
 ) -> Dict[str, Any]:
     clusters: List[Dict[str, Any]] = []
     images_by_cluster: Dict[str, Dict[str, Any]] = {}
@@ -261,6 +323,7 @@ def _build_data_payload(
             "path": path_str,
             "label": label,
             "depth": node["depth"],
+            "cut": node.get("cut"),
         }
         clusters.append(cluster_entry)
         images_by_cluster[path_str] = {}
@@ -271,7 +334,10 @@ def _build_data_payload(
     logger.info("Loading reconstructions with %d worker threads.", max_workers)
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_map = {
-            executor.submit(_load_recon_images, recon_dir, images_dir, path_str, recon): (path_str, recon)
+            executor.submit(_load_recon_images, recon_dir, images_dir, path_str, recon, index_to_filename): (
+                path_str,
+                recon,
+            )
             for path_str, recon, recon_dir in tasks
         }
         for future in concurrent.futures.as_completed(future_map):
@@ -286,7 +352,9 @@ def _build_data_payload(
         path_str = cluster["id"]
         node_dir = node_dirs[path_str]
         try:
-            pose_data = _build_pose_data_for_cluster(gt_data, node_dir, baseline_data=baseline_data)
+            pose_data = _build_pose_data_for_cluster(
+                gt_data, node_dir, baseline_data=baseline_data, index_to_filename=index_to_filename
+            )
             if pose_data:
                 poses_by_cluster[path_str] = pose_data
                 logger.info("Built pose data for cluster %s: %s", path_str, sorted(k for k in pose_data if k not in ("edges", "arrow_scale")))
@@ -303,6 +371,26 @@ def _build_data_payload(
         "baseImageUrl": None,
     }
     return result
+
+
+def _load_index_to_filename(
+    dataset_dir: Path, images_dir: Path, colmap_files_subdir: str | None
+) -> Dict[int, str] | None:
+    """Map loader indices to original filenames using the same COLMAP model the run used."""
+    if not colmap_files_subdir:
+        return None
+    from gtsfm.loader.colmap_loader import ColmapLoader
+
+    loader = ColmapLoader(
+        dataset_dir=str(dataset_dir),
+        images_dir=str(images_dir),
+        colmap_files_subdir=colmap_files_subdir,
+        use_gt_intrinsics=False,
+        use_gt_extrinsics=True,
+    )
+    mapping = {idx: loader.get_image_fname(idx) for idx in range(len(loader))}
+    logger.info("Mapped %d image indices to filenames from %s", len(mapping), colmap_files_subdir)
+    return mapping
 
 
 def _find_gt_colmap_dir(dataset_dir: Path, gt_colmap_subdir: str | None) -> Path | None:
@@ -325,15 +413,21 @@ def _find_gt_colmap_dir(dataset_dir: Path, gt_colmap_subdir: str | None) -> Path
     return None
 
 
-def _name_pose_map(data: GtsfmData) -> Dict[str, Any]:
+def _name_pose_map(data: GtsfmData, index_to_filename: Dict[int, str] | None = None) -> Dict[str, Any]:
     """Build a mapping from image name to (local_index, Pose3, rotation_matrix)."""
     result: Dict[str, Any] = {}
     for idx in data.get_valid_camera_indices():
         info = data.get_image_info(idx)
         cam = data.get_camera(idx)
-        if cam is not None and info.name:
+        name = _image_name(idx, info.name, index_to_filename)
+        if cam is not None and name:
             pose = cam.pose()
-            result[info.name] = {"idx": idx, "pose": pose, "R": pose.rotation().matrix(), "t": pose.translation()}
+            result[name] = {
+                "idx": _loader_index(idx, info.name),
+                "pose": pose,
+                "R": pose.rotation().matrix(),
+                "t": pose.translation(),
+            }
     return result
 
 
@@ -393,13 +487,16 @@ def _translation_angle_deg(t1: np.ndarray, t2: np.ndarray) -> float:
     return float(np.degrees(np.arccos(np.clip(cos_angle, -1.0, 1.0))))
 
 
-def _compute_covisibility_edges(data: GtsfmData) -> List[Dict[str, Any]]:
+def _compute_covisibility_edges(
+    data: GtsfmData, index_to_filename: Dict[int, str] | None = None
+) -> List[Dict[str, Any]]:
     """Compute covisibility edges (pairs of cameras sharing tracks) with shared track counts."""
     id_to_name: Dict[int, str] = {}
     for idx in data.get_valid_camera_indices():
         info = data.get_image_info(idx)
-        if info.name:
-            id_to_name[idx] = info.name
+        name = _image_name(idx, info.name, index_to_filename)
+        if name:
+            id_to_name[idx] = name
 
     edge_counts: Counter = Counter()
     for track_idx in range(data.number_tracks()):
@@ -418,6 +515,7 @@ def _build_pose_data_for_cluster(
     gt_data: GtsfmData | None,
     cluster_dir: Path,
     baseline_data: List[Tuple[str, GtsfmData]] | None = None,
+    index_to_filename: Dict[int, str] | None = None,
 ) -> Dict[str, Any] | None:
     """Build 2D-projected camera pose data for one cluster node."""
     # Load estimated reconstructions.
@@ -436,7 +534,7 @@ def _build_pose_data_for_cluster(
     gt_names = _name_pose_map(gt_data) if gt_data else {}
     est_names: Dict[str, Dict[str, Any]] = {}
     for rn, rd in recon_data.items():
-        est_names[rn] = _name_pose_map(rd)
+        est_names[rn] = _name_pose_map(rd, index_to_filename)
 
     # Add baseline reconstructions (only cameras that overlap with this cluster's reconstructions).
     if baseline_data:
@@ -560,7 +658,7 @@ def _build_pose_data_for_cluster(
     # Compute separate edge sets for vggt and merged.
     # vggt edges.
     vggt_ref = recon_data.get("vggt")
-    vggt_covis = _compute_covisibility_edges(vggt_ref) if vggt_ref else []
+    vggt_covis = _compute_covisibility_edges(vggt_ref, index_to_filename) if vggt_ref else []
     _add_errors_to_edges(vggt_covis)
     vggt_cam_names = set(aligned_names.get("vggt", {}).keys())
     if gt_names:
@@ -571,7 +669,7 @@ def _build_pose_data_for_cluster(
     # merged edges (if merged reconstruction exists).
     merged_ref = recon_data.get("merged")
     if merged_ref:
-        merged_covis = _compute_covisibility_edges(merged_ref)
+        merged_covis = _compute_covisibility_edges(merged_ref, index_to_filename)
         _add_errors_to_edges(merged_covis)
         merged_cam_names = set(aligned_names.get("merged", {}).keys())
         if gt_names:
@@ -983,6 +1081,7 @@ def _write_html(output_dir: Path, title: str, *, serve_mode: bool) -> None:
             <label><input type="checkbox" id="poseShowMerged" checked /> Merged</label>
             <span id="poseBaselineControls"></span>
             <label><input type="checkbox" id="poseShowEdges" checked /> Edges</label>
+            <label><input type="checkbox" id="poseShowCut" checked /> Partition</label>
             <label>Edge set
               <select id="poseEdgeSet" style="font-size:12px;">
                 <option value="covis" selected>Covisibility</option>
@@ -1008,6 +1107,11 @@ def _write_html(output_dir: Path, title: str, *, serve_mode: bool) -> None:
             <div class="pose-legend-item"><div class="pose-legend-swatch" style="background:#c084fc;"></div> Merged</div>
             <div class="pose-legend-item"><div class="pose-legend-swatch" style="background:#ef4444;"></div> X axis</div>
             <div class="pose-legend-item"><div class="pose-legend-swatch" style="background:#3b82f6;"></div> Z axis (view dir)</div>
+            <span id="poseCutLegend" style="display:contents;">
+              <div class="pose-legend-item"><div class="pose-legend-swatch" style="background:#67e8f9;"></div> Left child</div>
+              <div class="pose-legend-item"><div class="pose-legend-swatch" style="background:#fdba74;"></div> Right child</div>
+              <div class="pose-legend-item"><div class="pose-legend-swatch" style="background:#c4b5fd;"></div> Borrowed</div>
+            </span>
             <span id="poseBaselineLegend"></span>
             <div class="pose-legend-item" id="edgeColorLegend" style="display:none;gap:4px;">
               <span style="font-size:11px;color:var(--muted);">Edge err:</span>
@@ -1675,6 +1779,7 @@ def _write_html(output_dir: Path, title: str, *, serve_mode: bool) -> None:
         const showVggt = document.getElementById("poseShowVggt").checked;
         const showMerged = document.getElementById("poseShowMerged").checked;
         const showEdges = document.getElementById("poseShowEdges").checked;
+        const showCut = document.getElementById("poseShowCut").checked;
         const showLabels = document.getElementById("poseShowLabels").checked;
         const flip = document.getElementById("poseFlip").checked ? -1 : 1;
         const edgeSetKey = document.getElementById("poseEdgeSet").value;
@@ -1779,6 +1884,62 @@ def _write_html(output_dir: Path, title: str, *, serve_mode: bool) -> None:
           }
         } else {
           edgeLegend.style.display = "none";
+        }
+
+        // Voronoi cells of the camera centers, shaded by partition membership.
+        const cutLegend = document.getElementById("poseCutLegend");
+        if (cutLegend) cutLegend.style.display = showCut ? "contents" : "none";
+        if (showCut) {
+          const cluster = (data.clusters || []).find((item) => item.id === state.clusterId);
+          const cut = cluster && cluster.cut;
+          const poseSource = (showMerged && poseData.merged) || (showVggt && poseData.vggt) || poseData.merged || poseData.vggt || poseData.gt;
+          if (cut && poseSource && poseSource.length) {
+            const leftIds = new Set(cut.left || []);
+            const rightIds = new Set(cut.right || []);
+            const overlapIds = new Set(cut.overlap || []);
+            const seen = new Map();
+            const sites = poseSource.map((cam) => {
+              let sx = xS(cam.x);
+              let sy = yS(cam.y);
+              const key = sx.toFixed(2) + "," + sy.toFixed(2);
+              const n = seen.get(key) || 0;
+              seen.set(key, n + 1);
+              if (n) {
+                const ang = n * 2.399;
+                sx += Math.cos(ang) * 0.4;
+                sy += Math.sin(ang) * 0.4;
+              }
+              return { cam, sx, sy };
+            });
+            const delaunay = d3.Delaunay.from(sites, (d) => d.sx, (d) => d.sy);
+            const voronoi = delaunay.voronoi([0, 0, width, height]);
+            const cellG = g.append("g").attr("class", "partition-voronoi");
+            sites.forEach((site, i) => {
+              const idx = site.cam.idx;
+              let fill = null;
+              let label = null;
+              if (overlapIds.has(idx)) {
+                fill = "rgba(196, 181, 253, 0.34)";
+                label = "borrowed";
+              } else if (leftIds.has(idx)) {
+                fill = "rgba(103, 232, 249, 0.28)";
+                label = "left child";
+              } else if (rightIds.has(idx)) {
+                fill = "rgba(253, 186, 116, 0.28)";
+                label = "right child";
+              }
+              if (!fill) return;
+              const cell = voronoi.cellPolygon(i);
+              if (!cell) return;
+              cellG.append("path")
+                .attr("d", "M" + cell.map((p) => p[0] + "," + p[1]).join("L") + "Z")
+                .attr("fill", fill)
+                .attr("stroke", "rgba(248, 250, 252, 0.18)")
+                .attr("stroke-width", 0.6)
+                .attr("pointer-events", "none")
+                .append("title").text(idx + " " + label);
+            });
+          }
         }
 
         // Draw edges.
@@ -2327,7 +2488,7 @@ def _write_html(output_dir: Path, title: str, *, serve_mode: bool) -> None:
         document.getElementById("histLogYToggle").addEventListener("change", replotHist);
         document.getElementById("histShowCdfToggle").addEventListener("change", replotHist);
         // Pose visualization toggles.
-        ["poseShowGt", "poseShowPreBa", "poseShowVggt", "poseShowMerged", "poseShowEdges", "poseShowLabels", "poseFlip"].forEach((id) => {
+        ["poseShowGt", "poseShowPreBa", "poseShowVggt", "poseShowMerged", "poseShowEdges", "poseShowCut", "poseShowLabels", "poseFlip"].forEach((id) => {
           document.getElementById(id).addEventListener("change", renderPoseVisualization);
         });
         document.getElementById("poseEdgeMetric").addEventListener("change", renderPoseVisualization);
@@ -2372,7 +2533,9 @@ def main() -> None:
     if not cluster_tree_pkl.exists():
         raise FileNotFoundError(f"cluster_tree_pkl does not exist: {cluster_tree_pkl}")
 
-    images_dir = Path(args.images_dir).resolve() if args.images_dir else Path(args.dataset_dir).resolve() / "images"
+    dataset_dir = Path(args.dataset_dir).resolve()
+    images_dir = Path(args.images_dir).resolve() if args.images_dir else dataset_dir / "images"
+    index_to_filename = _load_index_to_filename(dataset_dir, images_dir, args.colmap_files_subdir)
     output_dir = Path(args.output_dir).resolve() if args.output_dir else results_root / "tracks_web_viz"
 
     with cluster_tree_pkl.open("rb") as f:
@@ -2385,7 +2548,6 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Load ground truth poses if available.
-    dataset_dir = Path(args.dataset_dir).resolve()
     gt_dir = _find_gt_colmap_dir(dataset_dir, args.gt_colmap_dir)
     gt_data: GtsfmData | None = None
     if gt_dir is not None:
@@ -2416,7 +2578,15 @@ def main() -> None:
             logger.warning("Could not load baseline %d from %s: %s", idx, bl_path, exc)
 
     if not args.serve:
-        payload = _build_data_payload(cluster_nodes, results_root, images_dir, num_workers, gt_data=gt_data, baseline_data=baseline_data)
+        payload = _build_data_payload(
+            cluster_nodes,
+            results_root,
+            images_dir,
+            num_workers,
+            gt_data=gt_data,
+            baseline_data=baseline_data,
+            index_to_filename=index_to_filename,
+        )
         if baseline_labels:
             payload["baselines"] = baseline_labels
         data_js = "window.TRACKS_DATA = " + json.dumps(payload) + ";"
@@ -2435,6 +2605,7 @@ def main() -> None:
             "path": node["path"],
             "label": "root" if node["path"] == "root" else f"C_{node['path'].replace('.', '_')}",
             "depth": node["depth"],
+            "cut": node.get("cut"),
         }
         for node in cluster_nodes
     ]
@@ -2503,7 +2674,10 @@ def main() -> None:
                         try:
                             gtsfm_data = GtsfmData.read_colmap(str(recon_dir))
                             cache[cache_key] = _build_image_entries(
-                                gtsfm_data, images_dir, include_file_path=False
+                                gtsfm_data,
+                                images_dir,
+                                include_file_path=False,
+                                index_to_filename=index_to_filename,
                             )
                         except Exception as exc:
                             logger.warning(
@@ -2520,7 +2694,9 @@ def main() -> None:
                     return self._send_json({})
                 node_dir = _node_results_dir(results_root, cluster)
                 try:
-                    pose_data = _build_pose_data_for_cluster(gt_data, node_dir, baseline_data=baseline_data)
+                    pose_data = _build_pose_data_for_cluster(
+                        gt_data, node_dir, baseline_data=baseline_data, index_to_filename=index_to_filename
+                    )
                     return self._send_json(pose_data or {})
                 except Exception as exc:
                     logger.warning("Pose data request failed for %s: %s", cluster, exc)

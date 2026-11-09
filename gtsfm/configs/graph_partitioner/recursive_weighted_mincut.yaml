@@ -1,0 +1,4 @@
+# Recursive NetworkX weighted min-cut (Stoer–Wagner) partitioner.
+_target_: gtsfm.graph_partitioner.RecursiveWeightedMinCut
+max_cameras: 70
+overlap_cameras: 5

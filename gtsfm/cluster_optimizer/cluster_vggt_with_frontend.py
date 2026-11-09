@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 from typing import Any, Hashable, NamedTuple, Optional
 
+import gtsam
 import numpy as np
 import torch
 from dask.delayed import delayed
@@ -32,11 +34,9 @@ from gtsfm.multi_view_optimizer import get_2d_tracks
 from gtsfm.products.visibility_graph import visibility_graph_keys
 from gtsfm.two_view_estimator import TwoViewEstimator
 from gtsfm.ui.gtsfm_process import UiMetadata
-from gtsfm.view_graph_estimator import view_graph_calibration
-import gtsam
-
 from gtsfm.utils import torch as torch_utils
 from gtsfm.utils.logger import get_logger
+from gtsfm.view_graph_estimator import view_graph_calibration
 
 logger = get_logger()
 
@@ -60,9 +60,19 @@ def _identity(x):
     return x
 
 
-def _get_image_shapes(loader, image_indices: tuple[int, ...]) -> dict[int, tuple[int, int]]:
+def _get_image_shapes(
+    loader, image_indices: tuple[int, ...], cluster_label: Optional[str] = None
+) -> dict[int, tuple[int, int]]:
     """Return original (height, width) for each requested image index."""
-    return {idx: loader.get_image(idx).value_array.shape[:2] for idx in image_indices}
+    started = time.perf_counter()
+    shapes = {idx: loader.get_image(idx).value_array.shape[:2] for idx in image_indices}
+    logger.info(
+        "⏱ VGGT profile [%s] image_shapes %.2fs n=%d",
+        cluster_label or "?",
+        time.perf_counter() - started,
+        len(image_indices),
+    )
+    return shapes
 
 
 def _run_vggt_geometry(
@@ -92,9 +102,19 @@ def _run_vggt_geometry(
         if cluster_label:
             logger.info("🔵 Running VGGT geometry on %s with %d images.", cluster_label, image_batch.shape[0])
 
+        resolve_started = time.perf_counter()
         cached_model = _resolve_vggt_model(model_cache_key, loader_kwargs)
-        geo_output = transformer.predict(image_batch, model=cached_model, weights_path=weights_path)
+        resolve_seconds = time.perf_counter() - resolve_started
+        predict_started = time.perf_counter()
+        predict_kwargs: dict[str, Any] = {"model": cached_model, "weights_path": weights_path}
+        if type(transformer).__name__ == "VggtOmegaGeometryTransformer":
+            predict_kwargs["cluster_label"] = cluster_label
+        geo_output = transformer.predict(image_batch, **predict_kwargs)
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+        predict_seconds = time.perf_counter() - predict_started
 
+        camera_started = time.perf_counter()
         original_coords_np = original_coords.to(torch.float32).cpu().numpy()
         cameras = {
             global_idx: torch_utils.camera_from_matrices(
@@ -107,7 +127,9 @@ def _run_vggt_geometry(
             )
             for local_idx, global_idx in enumerate(image_indices)
         }
+        camera_seconds = time.perf_counter() - camera_started
 
+        copy_started = time.perf_counter()
         result = VggtGeometryResult(
             cameras=cameras,
             dense_points=geo_output.dense_points.to(torch.float32).cpu().numpy(),
@@ -115,9 +137,20 @@ def _run_vggt_geometry(
             original_coords=original_coords_np,
         )
 
+        copy_seconds = time.perf_counter() - copy_started
+        cache_started = time.perf_counter()
         if geo_output.device.type == "cuda":
             del geo_output
             torch.cuda.empty_cache()
+        logger.info(
+            "⏱ VGGT profile [%s] resolve_model=%.2fs predict=%.2fs cameras=%.2fs to_cpu=%.2fs empty_cache=%.2fs",
+            cluster_label or "?",
+            resolve_seconds,
+            predict_seconds,
+            camera_seconds,
+            copy_seconds,
+            time.perf_counter() - cache_started,
+        )
 
         return result
 
@@ -168,6 +201,7 @@ def _build_gtsfm_data_from_vggt_depth(
     min_track_length: int = 2,
     refined_intrinsics: Optional[dict[int, gtsfm_types.CALIBRATION_TYPE]] = None,
     use_cal3_bundler: bool = False,
+    cluster_label: Optional[str] = None,
 ) -> GtsfmData:
     """Build GtsfmData using VGGT cameras (rescaled to original resolution) and frontend 2D tracks.
 
@@ -187,6 +221,7 @@ def _build_gtsfm_data_from_vggt_depth(
         GtsfmData with intrinsics-rescaled VGGT cameras and depth-initialised tracks whose
         2D measurements are in the original keypoint coordinate system.
     """
+    lift_started = time.perf_counter()
     cameras = vggt_result.cameras
     dense_points = vggt_result.dense_points  # (N, H_vggt, W_vggt, 3)
     depth_confidence = vggt_result.depth_confidence  # (N, H_vggt, W_vggt)
@@ -271,6 +306,14 @@ def _build_gtsfm_data_from_vggt_depth(
         if sfm_track.numberMeasurements() >= min_track_length:
             gtsfm_data.add_track(sfm_track)
 
+    logger.info(
+        "⏱ VGGT profile [%s] lift_tracks %.2fs cameras=%d tracks_in=%d tracks_out=%d",
+        cluster_label or "?",
+        time.perf_counter() - lift_started,
+        len(cameras),
+        len(tracks_2d),
+        gtsfm_data.number_tracks(),
+    )
     logger.info("Built GtsfmData with %d cameras and %d tracks.", len(cameras), gtsfm_data.number_tracks())
     return gtsfm_data
 
@@ -465,6 +508,7 @@ class ClusterVGGTWithFrontend(ClusterMVO):
             transformer=self.geometry_transformer,
             output_root=str(context.output_paths.results),
             image_names=image_names,
+            cluster_label=context.label,
         )
         vggt_result_graph = delayed(_run_vggt_geometry)(
             image_batch_graph,
@@ -479,7 +523,7 @@ class ClusterVGGTWithFrontend(ClusterMVO):
         )
 
         # Original image shapes (needed to map frontend pixel coords → VGGT pixel coords).
-        image_shapes_graph = delayed(_get_image_shapes)(context.loader, global_indices)
+        image_shapes_graph = delayed(_get_image_shapes)(context.loader, global_indices, cluster_label=context.label)
 
         # Intrinsics for the BA cameras (the model's poses are always kept). Per-camera preference:
         #   1. GLOBAL Fetzer focals (one solve over the full verified view graph, via ClusterContext)
@@ -515,6 +559,7 @@ class ClusterVGGTWithFrontend(ClusterMVO):
             min_track_length=self._min_track_length,
             refined_intrinsics=refined_intrinsics_graph,
             use_cal3_bundler=self._use_cal3_bundler,
+            cluster_label=context.label,
         )
 
         # Cluster-level BA.
