@@ -1,10 +1,11 @@
 # Merging reconstructed cameras without running bundle adjustment again
 
 [`camera_tree_optimizer.py`](camera_tree_optimizer.py) combines several small
-reconstructions into one set of camera poses. It uses the image measurements and
-3D points in each input leaf to summarize what that leaf tells us about its
-cameras. It then discards the points and optimizes only cameras and the coordinate
-transformations between reconstructions.
+reconstructions into one set of camera poses. A public Schur-complement producer
+uses image measurements and 3D points to summarize what each leaf tells us about
+its cameras. A separate camera-only optimizer consumes these summaries and
+optimizes cameras and the coordinate transformations between leaves. You can use
+the supplied producer or compute the summaries elsewhere.
 
 The inputs must already be reconstructed. This is a standalone solver; it is not
 currently part of the production scene-merging pipeline.
@@ -99,8 +100,9 @@ example, the costs `x²` and `(x - 3)²` have the same information matrix but di
 minima. The factor-graph `marginal()` method retains both the quadratic and linear
 terms, as well as any constrained noise models, which the merging solver needs.
 
-Before factoring the remaining camera graph into a Gaussian Bayes tree, the
-solver chooses local coordinates. It constrains all six coordinates of the first
+The public producer returns this camera graph without adding coordinate
+constraints (`gauge_fixed=False`). Before factoring it into a Gaussian Bayes tree,
+the camera-only consumer chooses local coordinates. It constrains all six coordinates of the first
 camera and one baseline-length direction toward the farthest camera. These seven
 exact constraints remove the local similarity gauge. GTSAM's `NonlinearEqualityPose3`
 and a constrained `RangeFactorPose3` supply these rows by linearizing once at the
@@ -109,6 +111,13 @@ QR factorization. The summary then contains
 camera conditionals and estimated camera poses, with no landmark variables. These
 poses stay fixed at the supplied leaf estimates throughout the root solve. A separate
 similarity variable will let this entire local coordinate system move globally.
+
+External producers may instead supply a graph with its coordinate gauge already
+fixed and set `gauge_fixed=True`. The consumer requires a full-rank system in
+that case and preserves those constraints without adding another gauge. Ungauged
+inputs must have exactly seven unobservable directions. Rank checks allow for
+numerical noise from rounded rotations and Hessian square roots; additional
+geometric degeneracy or an incorrect gauge declaration is rejected.
 
 ## Letting a local camera summary move and change scale
 
@@ -161,9 +170,11 @@ the similarity variables, and factors the remaining camera graph into the final
 Gaussian Bayes tree. That final tree describes the local camera quadratic in the
 chosen global gauge; it contains neither points nor similarity variables.
 
-## Using the API
+## Using reconstructed leaves
 
-Given a `SceneTree` whose leaves contain named camera reconstructions:
+Given a `SceneTree` whose leaves contain named camera reconstructions, the
+convenience wrapper computes each leaf Schur complement and delegates to the
+camera-only optimizer. It ignores internal reconstruction payloads:
 
 ```python
 from gtsfm.camera_tree_optimizer import CameraTreeOptions, optimize_camera_tree
@@ -176,6 +187,73 @@ camera_bayes_tree = result.camera_bayes_tree
 print(result.initial_error, result.final_error)
 ```
 
+## Producing and consuming camera factors separately
+
+To compute a leaf summary independently:
+
+```python
+from gtsfm.camera_tree_optimizer import compute_camera_schur_complement
+
+leaf_factors = compute_camera_schur_complement(leaf_reconstruction)
+```
+
+This call linearizes the supplied reconstruction once and eliminates its
+landmarks with QR. It runs no BA and adds no coordinate constraints. The returned
+`CameraLeafFactors` contains:
+
+- `camera_graph`: the reduced `GaussianFactorGraph`, including its linear term.
+- `estimated_camera_poses`: `Values` containing the frozen `Pose3` estimates.
+- `camera_metadata`: a dictionary of `LeafCameraMetadata` with filename, fixed
+  `Cal3Bundler` calibration, and optional image `shape`.
+- `gauge_fixed`: `False` for this producer.
+
+All three camera containers use the same keys: the input reconstruction's camera
+indices. Different leaves can reuse those keys, or use entirely different,
+noncontiguous keys. Filenames establish identity between leaves.
+
+Build a `CameraFactorTree` with the desired hierarchy and pass it to the consumer:
+
+```python
+from pathlib import Path
+
+from gtsfm.camera_tree_optimizer import CameraFactorTree, optimize_camera_factor_tree
+from gtsfm.utils.tree import Tree
+
+# These leaves must share at least two cameras with distinct centers.
+left_factors = compute_camera_schur_complement(left_reconstruction)
+right_factors = compute_camera_schur_complement(right_reconstruction)
+camera_factor_tree: CameraFactorTree = Tree(
+    (Path("root"), None),
+    children=(
+        Tree((Path("root/left"), left_factors)),
+        Tree((Path("root/right"), right_factors)),
+    ),
+)
+result = optimize_camera_factor_tree(camera_factor_tree)
+```
+
+An external producer can construct `CameraLeafFactors` directly with these same
+fields. Its factors must describe the complete reduced quadratic in GTSAM
+`Pose3` local coordinates at `estimated_camera_poses`, with six columns per camera
+and the original measurement weights. Information or covariance matrices alone
+are insufficient: the linear term is needed too. Jacobian and Hessian factors
+are accepted. Producers setting `gauge_fixed=True` must supply coordinate-fixing
+constraints, rather than geometric priors that unintentionally change the model.
+Mixed trees of gauged and ungauged leaves are supported.
+
+The consumer never reads tracks, evaluates image observations, or eliminates
+landmarks. `measurement_sigma` affects only `compute_camera_schur_complement()`;
+it does not reweight externally supplied factors. The consumer copies and rekeys
+factors with `LinearContainerFactor.rekey()`, preserving column associations,
+linear terms, and noise models without modifying caller-owned graphs or estimates.
+Invalid leaf inputs are reported with their tree paths.
+
+Both workflows preserve the input hierarchy and produce the same result for the
+same camera quadratics. This is an in-memory Python API; serialization and
+distributed execution are outside its scope.
+
+## Understanding the result
+
 `result.scene` is a `GtsfmData` containing cameras and image metadata, with zero
 tracks. Global camera indices follow sorted image filenames. Calibration and
 metadata are taken from the first occurrence of each camera.
@@ -185,6 +263,9 @@ frame into the output frame**. These are the inverses of the internal optimizati
 variables. `result.factor_tree` preserves the input hierarchy and exposes the
 assembled factors and leaf summaries. Each leaf summary includes its local-to-global
 camera index mapping, estimated camera poses, camera Bayes tree, and lifted factors.
+Those returned poses and factors use global `X(i)` keys, while the mapping retains
+the original leaf-local keys. Objective values omit additive constants discarded
+during elimination, just as in the reconstruction wrapper.
 
 ## What the tests establish, and what the approximation means
 
@@ -199,7 +280,10 @@ The tests check equivalence with explicit landmark minimization, preservation of
 the constrained camera quadratic, analytic derivatives against finite differences,
 recursive assembly, recovery of all 12 cameras, and invariance under independent
 leaf rotations, translations, and scales. They also check invalid inputs and
-verify that no BA optimizer runs and internal reconstructions are ignored.
+verify that no BA optimizer runs and internal reconstructions are ignored. Public
+producer/consumer execution is compared with the reconstruction wrapper, including
+objectives and the final camera quadratic. External-input tests cover mixed gauges,
+reused local keys, immutable inputs, and execution without reconstruction access.
 
 The current implementation supports `Cal3Bundler` cameras with fixed intrinsics.
 It rejects missing camera identities, disconnected or insufficient overlaps,

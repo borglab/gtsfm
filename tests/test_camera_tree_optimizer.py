@@ -1,5 +1,6 @@
 """Numerical and real-reconstruction tests for camera-only hierarchical fusion."""
 
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -37,7 +38,7 @@ def _synthetic_scene(camera_ids: tuple[int, ...] = (0, 1, 2), degenerate: bool =
 
 def _single_leaf(scene: GtsfmData) -> cto._LeafInput:
     """Resolve identities for a one-leaf numerical test."""
-    return cto._leaf_inputs(Tree((Path("leaf"), scene)))[0]
+    return cto._leaf_inputs(Tree((Path("leaf"), cto.compute_camera_schur_complement(scene))))[0]
 
 
 def _vector_values(keys: list[int], delta: np.ndarray) -> gtsam.VectorValues:
@@ -50,22 +51,25 @@ def _vector_values(keys: list[int], delta: np.ndarray) -> gtsam.VectorValues:
 
 def test_landmark_elimination_and_bayes_tree_preserve_quadratic() -> None:
     """Check the Schur objective against explicit minimization of all point increments."""
-    leaf = _single_leaf(_synthetic_scene())
+    scene = _synthetic_scene()
+    leaf = _single_leaf(scene)
     options = cto.CameraTreeOptions()
-    graph, estimated_camera_poses = cto._linearize_leaf(leaf, options)
-    point_ordering = gtsam.Ordering([L(j) for j in range(leaf.scene.number_tracks())])
+    graph = cto._linearize_reconstruction(scene, options)
+    estimated_camera_poses = leaf.data.estimated_camera_poses
+    point_ordering = gtsam.Ordering([L(j) for j in range(scene.number_tracks())])
     camera_keys = list(estimated_camera_poses.keys())
     full_ordering = gtsam.Ordering()
     for key in camera_keys:
         full_ordering.push_back(key)
-    for j in range(leaf.scene.number_tracks()):
+    for j in range(scene.number_tracks()):
         full_ordering.push_back(L(j))
     matrix, rhs = graph.jacobian(full_ordering)
     camera_matrix = matrix[:, : 6 * len(camera_keys)]
     point_matrix = matrix[:, 6 * len(camera_keys) :]
     _, reduced = graph.eliminatePartialMultifrontal(point_ordering, gtsam.EliminateQR)
     assert set(reduced.keyVector()) == set(camera_keys)
-    summary = cto._condense_leaf(leaf, options)
+    assert leaf.data.camera_graph.equals(reduced, 1e-8)
+    summary = cto._prepare_leaf(leaf, options)
     tree_graph = gtsam.GaussianFactorGraph(summary.camera_bayes_tree)
     zero = _vector_values(camera_keys, np.zeros(6 * len(camera_keys)))
     zero_points = np.linalg.lstsq(point_matrix, rhs, rcond=None)[0]
@@ -94,7 +98,11 @@ def test_landmark_elimination_and_bayes_tree_preserve_quadratic() -> None:
             reduced.error(vector) - reduced.error(zero), expected_difference, rtol=1e-9, atol=1e-8
         )
         np.testing.assert_allclose(
-            tree_graph.error(vector) - tree_graph.error(zero), expected_difference, rtol=1e-9, atol=1e-8
+            tree_graph.error(_vector_values([X(i) for i in camera_keys], delta))
+            - tree_graph.error(_vector_values([X(i) for i in camera_keys], np.zeros_like(delta))),
+            expected_difference,
+            rtol=1e-9,
+            atol=1e-8,
         )
 
 
@@ -296,3 +304,248 @@ def test_invalid_options(kwargs: dict) -> None:
     """Reject invalid numerical options at construction."""
     with pytest.raises(ValueError):
         cto.CameraTreeOptions(**kwargs)
+
+
+@pytest.fixture(scope="module")
+def lund_camera_factors(lund_tree: scene_tree.SceneTree) -> cto.CameraFactorTree:
+    """Construct the external input using only the public Schur producer."""
+    by_path = {node.value[0]: cto.compute_camera_schur_complement(node.value[1]) for node in lund_tree.leaves()}
+    return lund_tree.map(lambda value: (value[0], by_path.get(value[0])))
+
+
+def _assert_same_solution(actual: cto.CameraTreeResult, expected: cto.CameraTreeResult) -> None:
+    """Compare reconstructed cameras, leaf similarities, objectives, and final quadratic.
+
+    Args:
+        actual: Result from the tested input route.
+        expected: Baseline result in the same global gauge.
+    """
+    assert actual.scene.get_valid_camera_indices() == expected.scene.get_valid_camera_indices()
+    for i in actual.scene.get_valid_camera_indices():
+        assert actual.scene.get_camera(i).equals(expected.scene.get_camera(i), 1e-7)
+        assert actual.scene.get_image_info(i) == expected.scene.get_image_info(i)
+    for path in expected.leaf_to_global:
+        assert actual.leaf_to_global[path].equals(expected.leaf_to_global[path], 1e-7)
+    np.testing.assert_allclose(
+        [actual.initial_error, actual.final_error], [expected.initial_error, expected.final_error], rtol=1e-7, atol=1e-7
+    )
+    a = gtsam.GaussianFactorGraph(actual.camera_bayes_tree)
+    b = gtsam.GaussianFactorGraph(expected.camera_bayes_tree)
+    assert a.equals(b, 1e-5)
+    assert [len(n.children) for n in PreOrderIter(actual.factor_tree)] == [
+        len(n.children) for n in PreOrderIter(expected.factor_tree)
+    ]
+
+
+def test_external_camera_only_execution(
+    lund_camera_factors: cto.CameraFactorTree, lund_result: cto.CameraTreeResult
+) -> None:
+    """The external route must not reconstruct, relinearize observations, or eliminate landmarks."""
+    marginal = gtsam.GaussianFactorGraph.marginal
+    calls = []
+
+    def camera_marginal(graph, keys, *args):
+        """Only allow the final marginalization of global camera/similarity variables."""
+        assert all(gtsam.Symbol(key).chr() in (ord("x"), ord("s")) for key in graph.keyVector())
+        calls.append(list(keys))
+        return marginal(graph, keys, *args)
+
+    with (
+        patch.object(cto, "compute_camera_schur_complement", side_effect=AssertionError("Producer called")),
+        patch.object(cto, "_linearize_reconstruction", side_effect=AssertionError("Observations relinearized")),
+        patch.object(GtsfmData, "tracks", side_effect=AssertionError("Tracks accessed")),
+        patch(
+            "gtsfm.bundle.bundle_adjustment.BundleAdjustmentOptimizer.run_ba", side_effect=AssertionError("BA called")
+        ),
+        patch(
+            "gtsfm.bundle.bundle_adjustment.BundleAdjustmentOptimizer.run_simple_ba",
+            side_effect=AssertionError("BA called"),
+        ),
+        patch.object(gtsam.GaussianFactorGraph, "marginal", camera_marginal),
+    ):
+        result = cto.optimize_camera_factor_tree(lund_camera_factors, cto.CameraTreeOptions(measurement_sigma=9.0))
+    assert calls == [[X(i) for i in range(12)]]
+    _assert_same_solution(result, lund_result)
+
+
+def _gauge_fixed(data: cto.CameraLeafFactors) -> cto.CameraLeafFactors:
+    """Add the coordinate gauge externally without modifying the original graph.
+
+    Args:
+        data: Ungauged camera quadratic.
+
+    Returns:
+        Independently anchored camera input.
+    """
+    graph = data.camera_graph.clone()
+    cto._add_coordinate_gauge(graph, data.estimated_camera_poses)
+    return replace(data, camera_graph=graph, gauge_fixed=True)
+
+
+@pytest.mark.parametrize("fixed_count", [2, 4])
+def test_external_gauge_modes(
+    lund_camera_factors: cto.CameraFactorTree, lund_result: cto.CameraTreeResult, fixed_count: int
+) -> None:
+    """Accept mixed or fully anchored leaves without duplicating their coordinate constraints."""
+    by_path = {
+        node.value[0]: _gauge_fixed(node.value[1]) if i < fixed_count else node.value[1]
+        for i, node in enumerate(lund_camera_factors.leaves())
+    }
+    tree = lund_camera_factors.map(lambda value: (value[0], by_path.get(value[0])))
+    with patch.object(cto, "_add_coordinate_gauge", wraps=cto._add_coordinate_gauge) as add_gauge:
+        result = cto.optimize_camera_factor_tree(tree)
+    assert add_gauge.call_count == 4 - fixed_count
+    _assert_same_solution(result, lund_result)
+
+
+def _rekey_camera_input(data: cto.CameraLeafFactors, mapping: dict[int, int]) -> cto.CameraLeafFactors:
+    """Represent an external producer's independent camera key space.
+
+    Args:
+        data: Camera factors to copy.
+        mapping: Complete old-to-new key mapping.
+
+    Returns:
+        Equivalent input under arbitrary local camera keys.
+    """
+    graph = gtsam.GaussianFactorGraph()
+    for k in range(data.camera_graph.size()):
+        factor = data.camera_graph.at(k)
+        graph.push_back(
+            gtsam.LinearContainerFactor(factor.clone()).rekey([mapping[key] for key in factor.keys()]).factor()
+        )
+    poses = gtsam.Values()
+    for key, new_key in mapping.items():
+        poses.insert(new_key, data.estimated_camera_poses.atPose3(key))
+    return replace(
+        data,
+        camera_graph=graph,
+        estimated_camera_poses=poses,
+        camera_metadata={mapping[key]: info for key, info in data.camera_metadata.items()},
+    )
+
+
+def test_independent_keys_and_input_immutability(
+    lund_camera_factors: cto.CameraFactorTree, lund_result: cto.CameraTreeResult
+) -> None:
+    """Reused, noncontiguous keys must resolve by filename without mutating caller objects."""
+    # Deliberately reuse both camera-like and similarity-like keys with a nonmonotonic mapping.
+    keys = [S(0), 8, X(90), 1003, 2]
+    by_path = {n.value[0]: _rekey_camera_input(n.value[1], dict(enumerate(keys))) for n in lund_camera_factors.leaves()}
+    snapshots = {
+        p: (d.camera_graph.clone(), gtsam.Values(d.estimated_camera_poses), dict(d.camera_metadata))
+        for p, d in by_path.items()
+    }
+    tree = lund_camera_factors.map(lambda value: (value[0], by_path.get(value[0], object())))
+    result = cto.optimize_camera_factor_tree(tree)
+    _assert_same_solution(result, lund_result)
+    for leaf in result.factor_tree.value.leaves:
+        data = by_path[leaf.path]
+        graph, poses, metadata = snapshots[leaf.path]
+        assert data.camera_graph.equals(graph, 0)
+        assert data.estimated_camera_poses.equals(poses, 0)
+        assert data.camera_metadata == metadata
+        assert set(leaf.local_to_global) == set(keys)
+        assert set(leaf.estimated_camera_poses.keys()) == {X(i) for i in leaf.local_to_global.values()}
+
+
+def test_public_producer_is_ungauged_and_does_not_run_ba() -> None:
+    """Expose the full reduced linear term without adding gauge constraints or running BA."""
+    scene = _synthetic_scene()
+    with (
+        patch(
+            "gtsfm.bundle.bundle_adjustment.BundleAdjustmentOptimizer.run_ba", side_effect=AssertionError("BA called")
+        ),
+        patch(
+            "gtsfm.bundle.bundle_adjustment.BundleAdjustmentOptimizer.run_simple_ba",
+            side_effect=AssertionError("BA called"),
+        ),
+        patch.object(cto, "_add_coordinate_gauge", side_effect=AssertionError("Gauge added")),
+    ):
+        data = cto.compute_camera_schur_complement(scene)
+    assert data.gauge_fixed is False
+    assert (
+        set(data.camera_graph.keyVector())
+        == set(data.estimated_camera_poses.keys())
+        == set(data.camera_metadata)
+        == {0, 1, 2}
+    )
+    a, b = data.camera_graph.jacobian()
+    assert np.linalg.norm(a.T @ b) > 1
+    assert np.linalg.matrix_rank(a, tol=1e-7) == 11
+    assert all(
+        not gtsam.JacobianFactor(data.camera_graph.at(k)).isConstrained() for k in range(data.camera_graph.size())
+    )
+
+
+@pytest.fixture
+def synthetic_camera_factors() -> cto.CameraLeafFactors:
+    """Create a compact camera-only likelihood for invalid-input tests."""
+    return cto.compute_camera_schur_complement(_synthetic_scene())
+
+
+@pytest.mark.parametrize("fixed", [False, True])
+def test_incorrect_gauge_declaration(synthetic_camera_factors: cto.CameraLeafFactors, fixed: bool) -> None:
+    """Reject an ungauged graph declared fixed and a fixed graph declared ungauged."""
+    data = synthetic_camera_factors if fixed else _gauge_fixed(synthetic_camera_factors)
+    with pytest.raises(ValueError, match="Leaf invalid.*gauge_fixed"):
+        cto.optimize_camera_factor_tree(Tree((Path("invalid"), replace(data, gauge_fixed=fixed))))
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "missing_metadata",
+        "graph_keys",
+        "pose_type",
+        "dimensions",
+        "mixed_dimensions",
+        "nonfinite",
+        "calibration",
+        "filename",
+    ],
+)
+def test_invalid_external_camera_input(synthetic_camera_factors: cto.CameraLeafFactors, case: str) -> None:
+    """Validate identities and block sizes before passing malformed external graphs to the solver."""
+    data = synthetic_camera_factors
+    if case == "missing_metadata":
+        data = replace(data, camera_metadata={k: v for k, v in data.camera_metadata.items() if k != 0})
+    elif case == "graph_keys":
+        graph = data.camera_graph.clone()
+        graph.push_back(gtsam.JacobianFactor(99, np.eye(6), np.zeros(6), gtsam.noiseModel.Unit.Create(6)))
+        data = replace(data, camera_graph=graph)
+    elif case == "pose_type":
+        poses = gtsam.Values()
+        for key in data.estimated_camera_poses.keys():
+            poses.insert(key, np.zeros(6) if key == 0 else data.estimated_camera_poses.atPose3(key))
+        data = replace(data, estimated_camera_poses=poses)
+    elif case in ("dimensions", "mixed_dimensions", "nonfinite"):
+        graph = gtsam.GaussianFactorGraph()
+        dimensions = [3, 9, 6] if case == "mixed_dimensions" else [3, 3, 3] if case == "dimensions" else [6, 6, 6]
+        for key, dimension in enumerate(dimensions):
+            rhs = np.full(dimension, np.nan if case == "nonfinite" else 0.0)
+            graph.push_back(gtsam.JacobianFactor(key, np.eye(dimension), rhs, gtsam.noiseModel.Unit.Create(dimension)))
+        data = replace(data, camera_graph=graph)
+    else:
+        metadata = dict(data.camera_metadata)
+        metadata[0] = (
+            replace(metadata[0], calibration=gtsam.Cal3_S2())
+            if case == "calibration"
+            else replace(metadata[0], filename="")
+        )
+        data = replace(data, camera_metadata=metadata)
+    with pytest.raises(ValueError, match="Leaf invalid"):
+        cto.optimize_camera_factor_tree(Tree((Path("invalid"), data)))
+
+
+def test_external_hessian_factors(synthetic_camera_factors: cto.CameraLeafFactors) -> None:
+    """Accept a producer's Hessian representation without discarding its linear term."""
+    data = synthetic_camera_factors
+    graph = gtsam.GaussianFactorGraph()
+    graph.push_back(gtsam.HessianFactor(data.camera_graph))
+    result = cto.optimize_camera_factor_tree(Tree((Path("leaf"), replace(data, camera_graph=graph))))
+    expected = cto.optimize_camera_factor_tree(Tree((Path("leaf"), data)))
+    _assert_same_solution(result, expected)
+
+    with pytest.raises(ValueError, match="Leaf leaf.*gauge_fixed"):
+        cto.optimize_camera_factor_tree(Tree((Path("leaf"), replace(data, camera_graph=graph, gauge_fixed=True))))
