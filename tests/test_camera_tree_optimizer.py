@@ -52,9 +52,9 @@ def test_landmark_elimination_and_bayes_tree_preserve_quadratic() -> None:
     """Check the Schur objective against explicit minimization of all point increments."""
     leaf = _single_leaf(_synthetic_scene())
     options = cto.CameraTreeOptions()
-    graph, references = cto._linearize_leaf(leaf, options)
+    graph, estimated_camera_poses = cto._linearize_leaf(leaf, options)
     point_ordering = gtsam.Ordering([L(j) for j in range(leaf.scene.number_tracks())])
-    camera_keys = list(references.keys())
+    camera_keys = list(estimated_camera_poses.keys())
     full_ordering = gtsam.Ordering()
     for key in camera_keys:
         full_ordering.push_back(key)
@@ -71,12 +71,14 @@ def test_landmark_elimination_and_bayes_tree_preserve_quadratic() -> None:
     zero_points = np.linalg.lstsq(point_matrix, rhs, rcond=None)[0]
     zero_profile = 0.5 * np.linalg.norm(point_matrix @ zero_points - rhs) ** 2
     rng = np.random.default_rng(3)
-    anchor = references.atPose3(camera_keys[0])
+    anchor = estimated_camera_poses.atPose3(camera_keys[0])
     farthest = max(
         range(1, len(camera_keys)),
-        key=lambda i: np.linalg.norm(references.atPose3(camera_keys[i]).translation() - anchor.translation()),
+        key=lambda i: np.linalg.norm(
+            estimated_camera_poses.atPose3(camera_keys[i]).translation() - anchor.translation()
+        ),
     )
-    pose = references.atPose3(camera_keys[farthest])
+    pose = estimated_camera_poses.atPose3(camera_keys[farthest])
     direction = pose.rotation().matrix().T @ (pose.translation() - anchor.translation())
     direction /= np.linalg.norm(direction)
     for _ in range(4):
@@ -102,15 +104,15 @@ def test_similarity_factor_analytic_jacobians() -> None:
     matrix = rng.normal(size=(9, 12))
     rhs = rng.normal(size=9)
     gaussian = gtsam.JacobianFactor(X(0), matrix[:, :6], X(1), matrix[:, 6:], rhs, gtsam.noiseModel.Unit.Create(9))
-    references = gtsam.Values()
-    references.insert(X(0), gtsam.Pose3.Expmap(rng.normal(0, 0.2, 6)))
-    references.insert(X(1), gtsam.Pose3.Expmap(rng.normal(0, 0.2, 6)))
-    factor = cto._lift_conditional(gaussian, references, S(0))
+    estimated_camera_poses = gtsam.Values()
+    estimated_camera_poses.insert(X(0), gtsam.Pose3.Expmap(rng.normal(0, 0.2, 6)))
+    estimated_camera_poses.insert(X(1), gtsam.Pose3.Expmap(rng.normal(0, 0.2, 6)))
+    factor = cto._lift_conditional(gaussian, estimated_camera_poses, S(0))
     values = gtsam.Values()
     similarity = gtsam.Similarity3(gtsam.Rot3.RzRyRx(0.2, -0.3, 0.1), np.array([1.0, -2.0, 0.4]), 2.3)
     values.insert(S(0), similarity)
-    for key in references.keys():
-        pose = references.atPose3(key).retract(rng.normal(0, 0.1, 6))
+    for key in estimated_camera_poses.keys():
+        pose = estimated_camera_poses.atPose3(key).retract(rng.normal(0, 0.1, 6))
         values.insert(key, similarity.inverse().transformFrom(pose))
     linear = gtsam.JacobianFactor(factor.linearize(values))
     column = 0
@@ -218,10 +220,10 @@ def test_lund_independent_leaf_frame_invariance(
         lambda value: (value[0], value[1].transform_with_sim3(by_path[value[0]]) if value[1] is not None else None)
     )
     result = cto.optimize_camera_tree(reframed)
-    reference_frame = transforms[0].inverse()
+    reframed_to_original = transforms[0].inverse()
     for i in range(12):
         expected = lund_result.scene.get_camera(i).pose()
-        actual = reference_frame.transformFrom(result.scene.get_camera(i).pose())
+        actual = reframed_to_original.transformFrom(result.scene.get_camera(i).pose())
         np.testing.assert_allclose(expected.localCoordinates(actual), np.zeros(6), atol=2e-5)
     np.testing.assert_allclose(result.final_error, lund_result.final_error, rtol=1e-6, atol=1e-6)
 
@@ -231,7 +233,7 @@ def test_perturbed_initialization_and_ignored_internal_scenes(lund_tree: scene_t
     initialize = cto._initialize
 
     def perturb(leaves: tuple[cto._LeafInput, ...]) -> gtsam.Values:
-        """Perturb camera estimates but keep the reference similarity gauge feasible."""
+        """Perturb camera estimates but keep the first leaf's similarity gauge feasible."""
         values = initialize(leaves)
         rng = np.random.default_rng(2)
         for key in values.keys():

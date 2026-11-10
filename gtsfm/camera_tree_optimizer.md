@@ -103,7 +103,8 @@ Before factoring the remaining camera graph into a Gaussian Bayes tree, the
 solver chooses local coordinates. It constrains all six coordinates of the first
 camera and one baseline-length direction toward the farthest camera. These seven
 exact constraints remove the local similarity gauge. The summary then contains
-camera conditionals and reference poses, with no landmark variables. A separate
+camera conditionals and estimated camera poses, with no landmark variables. These
+poses stay fixed at the supplied leaf estimates throughout the root solve. A separate
 similarity variable will let this entire local coordinate system move globally.
 
 ## Letting a local camera summary move and change scale
@@ -115,13 +116,13 @@ into the leaf frame**.
 To evaluate a leaf's evidence, the solver:
 
 1. Transforms each relevant global camera pose into that leaf's frame.
-2. Measures its six-dimensional pose change from the leaf's reference pose.
+2. Measures its six-dimensional pose change from the leaf's estimated camera pose.
 3. Substitutes those changes into the stored camera conditional.
 
 In notation, a conditional's residual is
 
 ```text
-delta_i = Local(reference_leaf_pose_i, S_leaf.transformFrom(global_pose_i))
+delta_i = Local(estimated_camera_pose_i, S_leaf.transformFrom(global_pose_i))
 residual = A * concatenate(delta_i) - b.
 ```
 
@@ -180,7 +181,7 @@ metadata are taken from the first occurrence of each camera.
 frame into the output frame**. These are the inverses of the internal optimization
 variables. `result.factor_tree` preserves the input hierarchy and exposes the
 assembled factors and leaf summaries. Each leaf summary includes its local-to-global
-camera index mapping, reference poses, camera Bayes tree, and lifted factors.
+camera index mapping, estimated camera poses, camera Bayes tree, and lifted factors.
 
 ## What the tests establish, and what the approximation means
 

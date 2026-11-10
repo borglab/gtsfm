@@ -47,12 +47,12 @@ class CameraTreeOptions:
 
 @dataclass(frozen=True)
 class LeafCameraSummary:
-    """Landmark-free leaf model; reference poses are keyed by global X(i)."""
+    """Landmark-free leaf model; estimated camera poses stay fixed and are keyed by global X(i)."""
 
     path: Path
     similarity_key: int
     local_to_global: dict[int, int]
-    reference_poses: gtsam.Values
+    estimated_camera_poses: gtsam.Values
     camera_bayes_tree: gtsam.GaussianBayesTree
     factors: tuple[gtsam.CustomFactor, ...]
 
@@ -214,10 +214,10 @@ def _linearize_leaf(leaf: _LeafInput, options: CameraTreeOptions) -> tuple[gtsam
         options: Measurement noise settings.
 
     Returns:
-        Linearized graph and reference camera poses.
+        Linearized graph and estimated camera poses.
     """
     values = gtsam.Values()
-    references = gtsam.Values()
+    estimated_camera_poses = gtsam.Values()
     graph = gtsam.NonlinearFactorGraph()
     noise = gtsam.noiseModel.Isotropic.Sigma(2, options.measurement_sigma)
     for i, global_i in leaf.local_to_global.items():
@@ -229,7 +229,7 @@ def _linearize_leaf(leaf: _LeafInput, options: CameraTreeOptions) -> tuple[gtsam
             calibration.fx(), calibration.k1(), calibration.k2(), calibration.px(), calibration.py()
         )
         values.insert(X(global_i), gtsam.PinholePoseCal3Bundler(camera.pose(), held_calibration))
-        references.insert(X(global_i), camera.pose())
+        estimated_camera_poses.insert(X(global_i), camera.pose())
     for j, track in enumerate(leaf.scene.tracks()):
         measurements = [track.measurement(k) for k in range(track.numberMeasurements())]
         measurements = [(i, uv) for i, uv in measurements if i in leaf.local_to_global]
@@ -240,23 +240,24 @@ def _linearize_leaf(leaf: _LeafInput, options: CameraTreeOptions) -> tuple[gtsam
             graph.push_back(gtsam.GeneralSFMFactorPoseCal3Bundler(uv, noise, X(leaf.local_to_global[i]), L(j)))
     if graph.empty():
         raise ValueError(f"Leaf {leaf.path}: no tracks with at least two camera observations.")
-    return graph.linearize(values), references
+    return graph.linearize(values), estimated_camera_poses
 
 
-def _add_coordinate_gauge(graph: gtsam.GaussianFactorGraph, references: gtsam.Values) -> None:
+def _add_coordinate_gauge(graph: gtsam.GaussianFactorGraph, estimated_camera_poses: gtsam.Values) -> None:
     """Fix one local pose and one baseline direction using exact coordinate constraints.
 
     Args:
         graph: Camera graph to augment with seven constrained rows.
-        references: Local reference poses, keyed by global camera keys.
+        estimated_camera_poses: Local estimated camera poses, keyed by global camera keys.
     """
-    keys = list(references.keys())
+    keys = list(estimated_camera_poses.keys())
     anchor_key = keys[0]
-    anchor = references.atPose3(anchor_key)
+    anchor = estimated_camera_poses.atPose3(anchor_key)
     baseline_key = max(
-        keys[1:], key=lambda key: np.linalg.norm(references.atPose3(key).translation() - anchor.translation())
+        keys[1:],
+        key=lambda key: np.linalg.norm(estimated_camera_poses.atPose3(key).translation() - anchor.translation()),
     )
-    baseline_pose = references.atPose3(baseline_key)
+    baseline_pose = estimated_camera_poses.atPose3(baseline_key)
     direction = baseline_pose.translation() - anchor.translation()
     direction /= np.linalg.norm(direction)
     graph.push_back(gtsam.JacobianFactor(anchor_key, np.eye(6), np.zeros(6), gtsam.noiseModel.Constrained.All(6)))
@@ -272,13 +273,13 @@ def _add_coordinate_gauge(graph: gtsam.GaussianFactorGraph, references: gtsam.Va
 
 
 def _lift_conditional(
-    conditional: gtsam.GaussianFactor, references: gtsam.Values, similarity_key: int
+    conditional: gtsam.GaussianFactor, estimated_camera_poses: gtsam.Values, similarity_key: int
 ) -> gtsam.CustomFactor:
     """Evaluate a camera conditional through a global-to-leaf similarity.
 
     Args:
         conditional: Gaussian camera conditional with six columns per camera.
-        references: Frozen local reference poses.
+        estimated_camera_poses: Frozen local estimated camera poses.
         similarity_key: Key for the global-to-leaf Similarity3 variable.
 
     Returns:
@@ -288,7 +289,7 @@ def _lift_conditional(
     keys = factor.keys()
     matrix = np.array(factor.getA())
     rhs = np.array(factor.getb())
-    reference_poses = tuple(references.atPose3(key) for key in keys)
+    ordered_estimated_camera_poses = tuple(estimated_camera_poses.atPose3(key) for key in keys)
 
     def error(
         this: gtsam.CustomFactor, values: gtsam.Values, jacobians: gtsam.JacobianVector | None
@@ -307,16 +308,16 @@ def _lift_conditional(
         deltas = []
         if jacobians is not None:
             jacobians[0] = np.zeros((matrix.shape[0], 7), order="F")
-        for column, (key, reference) in enumerate(zip(keys, reference_poses)):
+        for column, (key, estimated_camera_pose) in enumerate(zip(keys, ordered_estimated_camera_poses)):
             pose = values.atPose3(key)
             if jacobians is None:
-                deltas.append(reference.localCoordinates(similarity.transformFrom(pose)))
+                deltas.append(estimated_camera_pose.localCoordinates(similarity.transformFrom(pose)))
                 continue
             h_similarity = np.zeros((6, 7), order="F")
             h_pose = np.zeros((6, 6), order="F")
             h_local = np.zeros((6, 6), order="F")
             local_pose = similarity.transformFrom(pose, h_similarity, h_pose)
-            deltas.append(reference.localCoordinates(local_pose, None, h_local))
+            deltas.append(estimated_camera_pose.localCoordinates(local_pose, None, h_local))
             block = matrix[:, 6 * column : 6 * (column + 1)] @ h_local
             jacobians[0] = jacobians[0] + block @ h_similarity
             jacobians[column + 1] = block @ h_pose
@@ -335,21 +336,21 @@ def _condense_leaf(leaf: _LeafInput, options: CameraTreeOptions) -> LeafCameraSu
     Returns:
         A summary retaining camera information and no landmark variables.
     """
-    linear_graph, references = _linearize_leaf(leaf, options)
+    linear_graph, estimated_camera_poses = _linearize_leaf(leaf, options)
     try:
         # Keep complete camera factors, including residual offsets; Marginals returns only matrices in Python.
-        camera_graph = linear_graph.marginal(list(references.keys()), gtsam.EliminateQR)
-        if set(camera_graph.keyVector()) != set(references.keys()):
+        camera_graph = linear_graph.marginal(list(estimated_camera_poses.keys()), gtsam.EliminateQR)
+        if set(camera_graph.keyVector()) != set(estimated_camera_poses.keys()):
             raise ValueError("Some cameras have no retained observations.")
         matrix, _ = camera_graph.jacobian()
         column_norms = np.linalg.norm(matrix, axis=0)
         scaled = matrix / np.where(column_norms > 0, column_norms, 1)
         singular_values = np.linalg.svd(scaled, compute_uv=False)
         rank = np.count_nonzero(singular_values > options.rank_tolerance * singular_values[0])
-        expected_rank = 6 * references.size() - 7
+        expected_rank = 6 * estimated_camera_poses.size() - 7
         if rank < expected_rank:
             raise ValueError(f"Insufficient geometric rank: {rank}, expected {expected_rank} after removing gauge.")
-        _add_coordinate_gauge(camera_graph, references)
+        _add_coordinate_gauge(camera_graph, estimated_camera_poses)
         bayes_tree = camera_graph.eliminateMultifrontal(
             gtsam.Ordering.ColamdGaussianFactorGraph(camera_graph), gtsam.EliminateQR
         )
@@ -357,9 +358,12 @@ def _condense_leaf(leaf: _LeafInput, options: CameraTreeOptions) -> LeafCameraSu
         raise ValueError(f"Leaf {leaf.path}: camera condensation failed: {exc}") from exc
     conditionals = gtsam.GaussianFactorGraph(bayes_tree)
     factors = tuple(
-        _lift_conditional(conditionals.at(k), references, leaf.similarity_key) for k in range(conditionals.size())
+        _lift_conditional(conditionals.at(k), estimated_camera_poses, leaf.similarity_key)
+        for k in range(conditionals.size())
     )
-    return LeafCameraSummary(leaf.path, leaf.similarity_key, leaf.local_to_global, references, bayes_tree, factors)
+    return LeafCameraSummary(
+        leaf.path, leaf.similarity_key, leaf.local_to_global, estimated_camera_poses, bayes_tree, factors
+    )
 
 
 def _assemble_subtree(
