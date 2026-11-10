@@ -84,13 +84,20 @@ minimize || A_camera * camera_change + A_point * point_change - b ||².
 For any proposed camera changes, we can solve for the best point changes. After
 doing that algebraically, the remaining cost depends only on camera changes.
 This is *landmark elimination*, often described using the Schur complement. The
-implementation uses GTSAM's multifrontal QR elimination instead of explicitly
-forming a Schur-complement matrix.
+implementation uses `GaussianFactorGraph.marginal(camera_keys, EliminateQR)`:
+GTSAM chooses an ordering and eliminates all variables other than the requested
+cameras, without explicitly forming a Schur-complement matrix.
 
 This step retains the camera information in the linearized problem, up to an
 additive constant that does not affect optimization. It also retains correlations:
 the evidence about one camera can depend on how another camera moves. Replacing
 the result with independent camera priors would generally lose those relations.
+
+GTSAM's Python `Marginals` interface provides joint information and covariance
+matrices, but those matrices alone do not retain the residual offset `b`. For
+example, the costs `x²` and `(x - 3)²` have the same information matrix but different
+minima. The factor-graph `marginal()` method retains both the quadratic and linear
+terms, as well as any constrained noise models, which the merging solver needs.
 
 Before factoring the remaining camera graph into a Gaussian Bayes tree, the
 solver chooses local coordinates. It constrains all six coordinates of the first

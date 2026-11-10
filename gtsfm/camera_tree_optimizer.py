@@ -206,9 +206,7 @@ def _initialize(leaves: tuple[_LeafInput, ...]) -> gtsam.Values:
     return values
 
 
-def _linearize_leaf(
-    leaf: _LeafInput, options: CameraTreeOptions
-) -> tuple[gtsam.GaussianFactorGraph, gtsam.Ordering, gtsam.Values]:
+def _linearize_leaf(leaf: _LeafInput, options: CameraTreeOptions) -> tuple[gtsam.GaussianFactorGraph, gtsam.Values]:
     """Linearize fixed-calibration observations once in the leaf's local frame.
 
     Args:
@@ -216,7 +214,7 @@ def _linearize_leaf(
         options: Measurement noise settings.
 
     Returns:
-        Linearized graph, landmark elimination order, and reference camera poses.
+        Linearized graph and reference camera poses.
     """
     values = gtsam.Values()
     references = gtsam.Values()
@@ -232,19 +230,17 @@ def _linearize_leaf(
         )
         values.insert(X(global_i), gtsam.PinholePoseCal3Bundler(camera.pose(), held_calibration))
         references.insert(X(global_i), camera.pose())
-    point_ordering = gtsam.Ordering()
     for j, track in enumerate(leaf.scene.tracks()):
         measurements = [track.measurement(k) for k in range(track.numberMeasurements())]
         measurements = [(i, uv) for i, uv in measurements if i in leaf.local_to_global]
         if len({i for i, _ in measurements}) < 2:
             continue
         values.insert(L(j), track.point3())
-        point_ordering.push_back(L(j))
         for i, uv in measurements:
             graph.push_back(gtsam.GeneralSFMFactorPoseCal3Bundler(uv, noise, X(leaf.local_to_global[i]), L(j)))
     if graph.empty():
         raise ValueError(f"Leaf {leaf.path}: no tracks with at least two camera observations.")
-    return graph.linearize(values), point_ordering, references
+    return graph.linearize(values), references
 
 
 def _add_coordinate_gauge(graph: gtsam.GaussianFactorGraph, references: gtsam.Values) -> None:
@@ -339,9 +335,10 @@ def _condense_leaf(leaf: _LeafInput, options: CameraTreeOptions) -> LeafCameraSu
     Returns:
         A summary retaining camera information and no landmark variables.
     """
-    linear_graph, point_ordering, references = _linearize_leaf(leaf, options)
+    linear_graph, references = _linearize_leaf(leaf, options)
     try:
-        _, camera_graph = linear_graph.eliminatePartialMultifrontal(point_ordering, gtsam.EliminateQR)
+        # Keep complete camera factors, including residual offsets; Marginals returns only matrices in Python.
+        camera_graph = linear_graph.marginal(list(references.keys()), gtsam.EliminateQR)
         if set(camera_graph.keyVector()) != set(references.keys()):
             raise ValueError("Some cameras have no retained observations.")
         matrix, _ = camera_graph.jacobian()
@@ -456,12 +453,8 @@ def _final_camera_bayes_tree(
         Camera-only Bayes tree in the chosen global gauge.
     """
     # Remove similarity increments from the final linearization, retaining their camera information.
-    similarity_ordering = gtsam.Ordering()
-    for leaf in leaves:
-        similarity_ordering.push_back(leaf.similarity_key)
-    _, final_camera_graph = graph.linearize(optimized).eliminatePartialMultifrontal(
-        similarity_ordering, gtsam.EliminateQR
-    )
+    camera_keys = sorted({X(i) for leaf in leaves for i in leaf.local_to_global.values()})
+    final_camera_graph = graph.linearize(optimized).marginal(camera_keys, gtsam.EliminateQR)
     # Factor the remaining camera quadratic into the output Gaussian Bayes tree.
     return final_camera_graph.eliminateMultifrontal(
         gtsam.Ordering.ColamdGaussianFactorGraph(final_camera_graph), gtsam.EliminateQR

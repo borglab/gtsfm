@@ -52,7 +52,8 @@ def test_landmark_elimination_and_bayes_tree_preserve_quadratic() -> None:
     """Check the Schur objective against explicit minimization of all point increments."""
     leaf = _single_leaf(_synthetic_scene())
     options = cto.CameraTreeOptions()
-    graph, point_ordering, references = cto._linearize_leaf(leaf, options)
+    graph, references = cto._linearize_leaf(leaf, options)
+    point_ordering = gtsam.Ordering([L(j) for j in range(leaf.scene.number_tracks())])
     camera_keys = list(references.keys())
     full_ordering = gtsam.Ordering()
     for key in camera_keys:
