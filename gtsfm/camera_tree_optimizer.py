@@ -258,18 +258,14 @@ def _add_coordinate_gauge(graph: gtsam.GaussianFactorGraph, estimated_camera_pos
         key=lambda key: np.linalg.norm(estimated_camera_poses.atPose3(key).translation() - anchor.translation()),
     )
     baseline_pose = estimated_camera_poses.atPose3(baseline_key)
-    direction = baseline_pose.translation() - anchor.translation()
-    direction /= np.linalg.norm(direction)
-    graph.push_back(gtsam.JacobianFactor(anchor_key, np.eye(6), np.zeros(6), gtsam.noiseModel.Constrained.All(6)))
-    anchor_row = np.zeros((1, 6))
-    baseline_row = np.zeros((1, 6))
-    anchor_row[0, 3:] = -direction @ anchor.rotation().matrix()
-    baseline_row[0, 3:] = direction @ baseline_pose.rotation().matrix()
-    graph.push_back(
-        gtsam.JacobianFactor(
-            anchor_key, anchor_row, baseline_key, baseline_row, np.zeros(1), gtsam.noiseModel.Constrained.All(1)
-        )
+    baseline_length = np.linalg.norm(baseline_pose.translation() - anchor.translation())
+    pose_constraint = gtsam.NonlinearEqualityPose3(anchor_key, anchor)
+    baseline_constraint = gtsam.RangeFactorPose3(
+        anchor_key, baseline_key, baseline_length, gtsam.noiseModel.Constrained.All(1)
     )
+    # Freeze the standard factors into the same local coordinates as the leaf camera quadratic.
+    graph.push_back(pose_constraint.linearize(estimated_camera_poses))
+    graph.push_back(baseline_constraint.linearize(estimated_camera_poses))
 
 
 def _lift_conditional(
@@ -351,9 +347,8 @@ def _condense_leaf(leaf: _LeafInput, options: CameraTreeOptions) -> LeafCameraSu
         if rank < expected_rank:
             raise ValueError(f"Insufficient geometric rank: {rank}, expected {expected_rank} after removing gauge.")
         _add_coordinate_gauge(camera_graph, estimated_camera_poses)
-        bayes_tree = camera_graph.eliminateMultifrontal(
-            gtsam.Ordering.ColamdGaussianFactorGraph(camera_graph), gtsam.EliminateQR
-        )
+        # Let GTSAM compute the default COLAMD ordering for QR elimination.
+        bayes_tree = camera_graph.eliminateMultifrontal(None, gtsam.EliminateQR)
     except (RuntimeError, ValueError) as exc:
         raise ValueError(f"Leaf {leaf.path}: camera condensation failed: {exc}") from exc
     conditionals = gtsam.GaussianFactorGraph(bayes_tree)
@@ -459,10 +454,8 @@ def _final_camera_bayes_tree(
     # Remove similarity increments from the final linearization, retaining their camera information.
     camera_keys = sorted({X(i) for leaf in leaves for i in leaf.local_to_global.values()})
     final_camera_graph = graph.linearize(optimized).marginal(camera_keys, gtsam.EliminateQR)
-    # Factor the remaining camera quadratic into the output Gaussian Bayes tree.
-    return final_camera_graph.eliminateMultifrontal(
-        gtsam.Ordering.ColamdGaussianFactorGraph(final_camera_graph), gtsam.EliminateQR
-    )
+    # Factor the remaining camera quadratic with GTSAM's default COLAMD ordering.
+    return final_camera_graph.eliminateMultifrontal(None, gtsam.EliminateQR)
 
 
 def _camera_scene(leaves: tuple[_LeafInput, ...], optimized: gtsam.Values) -> GtsfmData:

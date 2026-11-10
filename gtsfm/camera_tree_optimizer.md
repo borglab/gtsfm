@@ -102,7 +102,10 @@ terms, as well as any constrained noise models, which the merging solver needs.
 Before factoring the remaining camera graph into a Gaussian Bayes tree, the
 solver chooses local coordinates. It constrains all six coordinates of the first
 camera and one baseline-length direction toward the farthest camera. These seven
-exact constraints remove the local similarity gauge. The summary then contains
+exact constraints remove the local similarity gauge. GTSAM's `NonlinearEqualityPose3`
+and a constrained `RangeFactorPose3` supply these rows by linearizing once at the
+estimated camera poses. GTSAM also chooses the COLAMD ordering for the subsequent
+QR factorization. The summary then contains
 camera conditionals and estimated camera poses, with no landmark variables. These
 poses stay fixed at the supplied leaf estimates throughout the root solve. A separate
 similarity variable will let this entire local coordinate system move globally.
