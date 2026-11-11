@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerrard Hall - VGGT Squareness Layout</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            background: #f5f5f5;
+            color: #333;
+        }
+        #container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.95);
+            padding: 40px 60px;
+            border-radius: 16px;
+            border: 1px solid #e0e0e0;
+            z-index: 100;
+            text-align: center;
+            pointer-events: none;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        .spinner {
+            border: 3px solid rgba(33, 150, 243, 0.2);
+            border-top: 3px solid #2196F3;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .loading-text {
+            font-size: 14px;
+            color: #666;
+            margin-top: 10px;
+        }
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+        .title-block {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px 14px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            border: 1px solid #e0e0e0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            pointer-events: auto;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .title-block.collapsed .title-details {
+            display: none;
+        }
+        .title-block .toggle-icon {
+            display: inline-block;
+            font-size: 10px;
+            color: #999;
+            margin-left: 6px;
+            transition: transform 0.3s ease;
+        }
+        .title-block.collapsed .toggle-icon {
+            transform: rotate(-90deg);
+        }
+        h1 {
+            font-size: 16px;
+            font-weight: 500;
+            margin-bottom: 3px;
+            color: #333;
+        }
+        .subtitle {
+            font-size: 11px;
+            color: #666;
+            max-width: 320px;
+            line-height: 1.3;
+        }
+        .pipeline-tag {
+            display: inline-block;
+            background: linear-gradient(135deg, #2196F3, #1976D2);
+            color: #fff;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 9px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            margin-top: 4px;
+        }
+        .back-link {
+            pointer-events: auto;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px 15px;
+            border-radius: 8px;
+            backdrop-filter: blur(10px);
+            border: 1px solid #e0e0e0;
+            color: #666;
+            text-decoration: none;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+        .back-link:hover {
+            background: #fff;
+            color: #333;
+            border-color: #ccc;
+        }
+        #controls {
+            pointer-events: auto;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 12px 18px;
+            border-radius: 12px;
+            border: 1px solid #e0e0e0;
+            width: 420px;
+            align-self: center;
+            margin-bottom: 15px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
+        }
+        #controls.collapsed .controls-details {
+            display: none;
+        }
+        #controls .controls-toggle {
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        #controls .toggle-icon {
+            font-size: 10px;
+            color: #999;
+            transition: transform 0.3s ease;
+        }
+        #controls.collapsed .toggle-icon {
+            transform: rotate(-90deg);
+        }
+        #controls.collapsed {
+            width: 320px;
+            padding: 8px 14px;
+        }
+        .control-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .progress-container {
+            position: relative;
+            height: 6px;
+            background: #eee;
+            border-radius: 3px;
+            margin: 15px 0;
+            cursor: pointer;
+        }
+        .progress-bar {
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            background: linear-gradient(90deg, #2196F3, #64B5F6);
+            width: 0%;
+            transition: width 0.1s linear;
+            border-radius: 3px;
+        }
+        button {
+            background: #fff;
+            border: 1px solid #ddd;
+            color: #333;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+        button:hover {
+            background: #f5f5f5;
+            border-color: #ccc;
+        }
+        button.primary {
+            background: linear-gradient(135deg, #2196F3, #1976D2);
+            color: #fff;
+            border: none;
+            font-weight: 600;
+            padding: 10px 20px;
+        }
+        button.primary:hover {
+            background: linear-gradient(135deg, #42A5F5, #2196F3);
+        }
+        button.record-btn {
+            background: #fff;
+            border: 1px solid #e53935;
+            color: #e53935;
+            font-weight: 600;
+        }
+        button.record-btn:hover {
+            background: #ffebee;
+        }
+        button.record-btn.recording {
+            background: #e53935;
+            color: #fff;
+            animation: pulse-record 1.5s infinite;
+        }
+        @keyframes pulse-record {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        .stats {
+            font-family: monospace;
+            font-size: 10px;
+            color: #999;
+            margin-top: 10px;
+        }
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="canvas-container"></div>
+        
+        <div id="loading">
+            <div class="spinner"></div>
+            <div class="loading-text">Loading VGGT Point Clouds...</div>
+        </div>
+
+        <div id="ui-layer">
+            <div class="top-bar">
+                <div class="title-block" id="title-block" onclick="this.classList.toggle('collapsed')">
+                    <h1>VGGT Squareness Layout <span class="toggle-icon">&#9660;</span></h1>
+                    <div class="title-details">
+                        <div class="subtitle">Recursive rectangle subdivision with squareness-optimized cluster placement</div>
+                        <div class="pipeline-tag">VGGT PIPELINE</div>
+                    </div>
+                </div>
+                <a href="index.html" class="back-link">&larr; Back to Menu</a>
+            </div>
+
+            <div id="controls">
+                <div class="controls-toggle" onclick="document.getElementById('controls').classList.toggle('collapsed')">
+                    <span style="font-size: 10px; color: #999; text-transform: uppercase; letter-spacing: 1px;">Timeline</span>
+                    <span id="event-label" style="font-size: 11px; color: #333;">Initializing...</span>
+                    <span class="toggle-icon">&#9660;</span>
+                </div>
+                
+                <div class="controls-details">
+                    <div class="progress-container" id="timeline-track">
+                        <div class="progress-bar" id="timeline-progress"></div>
+                    </div>
+
+                    <div class="control-row" style="justify-content: center; gap: 8px;">
+                        <button id="btn-prev">Prev</button>
+                        <button id="btn-play" class="primary">Play</button>
+                        <button id="btn-next">Next</button>
+                        <button id="btn-reset">Reset</button>
+                        <button id="btn-record" class="record-btn">Record</button>
+                    </div>
+                    
+                    <div class="stats">
+                        <span id="stats-display">Clusters: 0 | Points: 0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script>
+        window.VISUALIZATION_MODE = 'hierarchy-vggt';
+        window.onerror = function(message, source, lineno, colno, error) {
+            const loadingText = document.querySelector('.loading-text');
+            if (loadingText) {
+                loadingText.innerHTML = `<span style="color: #ff4444">Error: ${message}</span><br><span style="font-size:10px">${source}:${lineno}</span>`;
+            }
+            console.error("Global Error:", message, error);
+        };
+    </script>
+
+    <script type="module" src="./js/main-hierarchy-vggt.js?v=18"></script>
+</body>
+</html>
