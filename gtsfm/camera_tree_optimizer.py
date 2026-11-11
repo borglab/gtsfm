@@ -8,6 +8,8 @@ linearizations; no reprojection factors are evaluated after condensation.
 
 from __future__ import annotations
 
+import warnings
+from collections.abc import Sequence
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
@@ -334,10 +336,104 @@ def _linearize_reconstruction(reconstruction: GtsfmData, options: CameraTreeOpti
     return graph.linearize(values)
 
 
+def _camera_marginal_keys(
+    graph: gtsam.NonlinearFactorGraph, values: gtsam.Values, camera_keys: Sequence[int] | None
+) -> list[int]:
+    """Validate the original graph and identify the camera Pose3 variables to retain.
+
+    Args:
+        graph: Original BA graph, including its gauge factors.
+        values: Estimates at which to linearize the original factors.
+        camera_keys: Explicit keys, or None to select conventional X(i) keys.
+
+    Returns:
+        Distinct camera keys, sorted for deterministic input handling.
+    """
+    graph_keys = set(graph.keyVector())
+    if not graph_keys.issubset(values.keys()):
+        raise ValueError("Values must contain every variable in the original factor graph.")
+    keys = (
+        list(camera_keys) if camera_keys is not None else [k for k in graph_keys if gtsam.Symbol(k).chr() == ord("x")]
+    )
+    if not keys or len(set(keys)) != len(keys) or not set(keys).issubset(graph_keys):
+        raise ValueError("Camera keys must be nonempty, distinct, and present in the original factor graph.")
+    for key in keys:
+        try:
+            pose = values.atPose3(key)
+        except RuntimeError as exc:
+            raise ValueError(f"Camera key {key} must contain a six-dimensional Pose3.") from exc
+        if not np.all(np.isfinite(pose.matrix())):
+            raise ValueError(f"Nonfinite camera pose at key {key}.")
+    return sorted(keys)
+
+
+def _eliminate_non_camera_variables(
+    linear_graph: gtsam.GaussianFactorGraph, camera_keys: list[int]
+) -> gtsam.GaussianFactorGraph:
+    """Eliminate landmarks and other nuisance variables before any camera.
+
+    Args:
+        linear_graph: Original graph linearized at the supplied estimates.
+        camera_keys: Pose keys to keep after Schur elimination.
+
+    Returns:
+        Complete reduced camera quadratic, before camera factorization.
+    """
+    ordering = gtsam.Ordering.ColamdConstrainedLastGaussianFactorGraph(linear_graph, camera_keys)
+    nuisance_count = ordering.size() - len(camera_keys)
+    nuisance_ordering = gtsam.Ordering([ordering.at(k) for k in range(nuisance_count)])
+    _, camera_graph = linear_graph.eliminatePartialMultifrontal(nuisance_ordering, gtsam.EliminateQR)
+    return camera_graph
+
+
+def compute_camera_marginal_factors(
+    graph: gtsam.NonlinearFactorGraph, values: gtsam.Values, camera_keys: Sequence[int] | None = None
+) -> gtsam.GaussianFactorGraph:
+    """Return compact camera marginal factors from the original BA graph and estimates.
+
+    The supplied graph must include its coordinate gauge. All non-camera variables
+    are eliminated first; camera conditionals follow METIS nested dissection.
+    Factors retain the linear term, measurement weights, and exact constraints.
+    No BA or additional gauge fixing is performed, and inputs are not modified.
+
+    Args:
+        graph: Original nonlinear graph, including its gauge and other priors.
+        values: Estimated poses, landmarks, and any other variables in the graph.
+        camera_keys: Pose3 keys to retain; defaults to the graph's X(i) keys.
+
+    Returns:
+        One Gaussian conditional per camera clique, using the supplied camera keys and
+        Pose3 local coordinates at values. Constants discarded during elimination
+        are excluded. Sparse camera connectivity is preserved up to elimination fill.
+        Use gauge_fixed=True when packaging this graph in CameraLeafFactors.
+
+    Raises:
+        ValueError: Keys, estimates, factors, or gauge are invalid, or GTSAM lacks METIS support.
+    """
+    keys = _camera_marginal_keys(graph, values, camera_keys)
+    try:
+        # Linearize the original factors once, preserving their weights and gauge.
+        camera_graph = _eliminate_non_camera_variables(graph.linearize(values), keys)
+        # Compress the Schur complement in nested-dissection order using multifrontal QR.
+        camera_ordering = gtsam.Ordering.MetisGaussianFactorGraph(camera_graph)
+        compact = gtsam.GaussianFactorGraph(camera_graph.eliminateMultifrontal(camera_ordering, gtsam.EliminateQR))
+        _validate_camera_system(compact, len(keys), True, CameraTreeOptions())
+    except (ValueError, RuntimeError) as exc:
+        raise ValueError(
+            f"Camera marginalization failed (the graph must include a full coordinate gauge): {exc}"
+        ) from exc
+    return compact
+
+
 def compute_camera_schur_complement(
     reconstruction: GtsfmData, options: CameraTreeOptions | None = None
 ) -> CameraLeafFactors:
     """Produce an ungauged camera quadratic by linearizing once and eliminating landmarks.
+
+    Warning:
+        This convenience API rebuilds observations from GtsfmData, which does not
+        retain the original BA graph, gauge, or noise models. Prefer
+        compute_camera_marginal_factors() with the original graph and estimates.
 
     Args:
         reconstruction: Named reconstructed Cal3Bundler cameras and tracks.
@@ -470,24 +566,38 @@ def _validate_camera_graph(data: CameraLeafFactors, options: CameraTreeOptions) 
         data: Complete camera quadratic and gauge declaration.
         options: Numerical rank tolerance.
     """
-    for k in range(data.camera_graph.size()):
-        factor = data.camera_graph.at(k)
+    _validate_camera_system(data.camera_graph, data.estimated_camera_poses.size(), data.gauge_fixed, options)
+
+
+def _validate_camera_system(
+    camera_graph: gtsam.GaussianFactorGraph, number_cameras: int, gauge_fixed: bool, options: CameraTreeOptions
+) -> None:
+    """Check camera blocks and rank independently of reconstruction metadata.
+
+    Args:
+        camera_graph: Reduced camera factors, including residual offsets.
+        number_cameras: Number of six-dimensional pose variables.
+        gauge_fixed: Whether coordinate constraints are already present.
+        options: Numerical rank tolerance.
+    """
+    for k in range(camera_graph.size()):
+        factor = camera_graph.at(k)
         if factor is not None:
             _validate_camera_factor(factor)
-    matrix, _ = data.camera_graph.jacobian()
+    matrix, _ = camera_graph.jacobian()
     if matrix.shape[0] == 0 or not np.all(np.isfinite(matrix)):
         raise ValueError("Camera graph must have finite, nonempty Jacobian rows.")
     column_norms = np.linalg.norm(matrix, axis=0)
     scaled = matrix / np.where(column_norms > 0, column_norms, 1)
     singular_values = np.linalg.svd(scaled, compute_uv=False)
     rank = np.count_nonzero(singular_values > options.rank_tolerance * singular_values[0])
-    expected_rank = 6 * data.estimated_camera_poses.size() - (0 if data.gauge_fixed else 7)
+    expected_rank = 6 * number_cameras - (0 if gauge_fixed else 7)
     # Rotation rounding and Hessian square roots can lift null modes by sqrt(n * epsilon).
     gauge_tolerance = max(options.rank_tolerance, np.sqrt(matrix.shape[1] * np.finfo(float).eps))
     gauge_rank = np.count_nonzero(singular_values > gauge_tolerance * singular_values[0])
-    if rank < expected_rank or (data.gauge_fixed and gauge_rank < expected_rank) or gauge_rank > expected_rank:
+    if rank < expected_rank or (gauge_fixed and gauge_rank < expected_rank) or gauge_rank > expected_rank:
         raise ValueError(
-            f"Insufficient geometric rank or incorrect gauge_fixed={data.gauge_fixed}: "
+            f"Insufficient geometric rank or incorrect gauge_fixed={gauge_fixed}: "
             f"rank {rank}, expected {expected_rank}."
         )
 
@@ -753,6 +863,11 @@ def _schur_tree_node(
 def optimize_camera_tree(scene_tree: SceneTree, options: CameraTreeOptions | None = None) -> CameraTreeResult:
     """Compute leaf Schur complements and merge their frozen camera information without BA.
 
+    Warning:
+        SceneTree reconstructs a measurement model from saved geometry; original
+        BA factors and gauges are unavailable. Prefer compute_camera_marginal_factors()
+        and optimize_camera_factor_tree() to preserve the original BA model.
+
     Args:
         scene_tree: Hierarchy with named, reconstructed Cal3Bundler cameras and tracks in its leaves.
         options: Producer and solver settings; defaults to one-pixel observation noise.
@@ -765,5 +880,12 @@ def optimize_camera_tree(scene_tree: SceneTree, options: CameraTreeOptions | Non
         RuntimeError: The root optimizer fails to converge to a finite solution.
     """
     options = options or CameraTreeOptions()
+    warnings.warn(
+        "optimize_camera_tree() rebuilds factors from reconstructions and cannot retain the original BA gauge or "
+        "noise models. Use compute_camera_marginal_factors() with the original graph and values, then "
+        "optimize_camera_factor_tree().",
+        UserWarning,
+        stacklevel=2,
+    )
     camera_factor_tree = scene_tree.map_with_children(partial(_schur_tree_node, options=options))
     return optimize_camera_factor_tree(camera_factor_tree, options)
