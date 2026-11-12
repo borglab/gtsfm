@@ -80,6 +80,9 @@ interface RunFormState {
   ssh_authentication: "agent" | "key";
   ssh_private_key: string;
   ssh_workspace: string;
+  ssh_python: string;
+  ssh_ray_binary: string;
+  ssh_wsl_distribution: string;
   remote_hardware: string;
   max_resolution: InputValue;
   num_workers: InputValue;
@@ -97,6 +100,10 @@ interface RunFormState {
   dashboard_port: string;
   input_worker: string;
   dask_tmpdir: string;
+  dask_worker_hosts: string;
+  dask_scheduler_host: string;
+  dask_scheduler_port: InputValue;
+  dask_worker_python: string;
   cluster_config: string;
   num_retry_cluster_connection: InputValue;
   advanced_overrides: string;
@@ -326,6 +333,7 @@ interface Job {
   spec: {
     config_name?: string;
     splat_implementation?: string;
+    remote_connection?: string;
   };
   error?: string;
   remote?: { workspace_url?: string };
@@ -415,11 +423,11 @@ const EMPTY_FORM: RunFormState = {
   live_preview_interval: 250, run_mvs: false, execution_target: "local", hardware: "cpu",
   remote_connection: "api", remote_provider: "modal", remote_endpoint: "", modal_api_key: "", modal_token_id: "",
   modal_token_secret: "", modal_gpu: "L40S", ssh_host: "", ssh_port: 22, ssh_username: "", ssh_authentication: "agent",
-  ssh_private_key: "", ssh_workspace: "", remote_hardware: "", max_resolution: "", num_workers: 1,
+  ssh_private_key: "", ssh_workspace: "", ssh_python: ".venv/bin/python", ssh_ray_binary: "~/.local/bin/ray", ssh_wsl_distribution: "", remote_hardware: "cpu", max_resolution: "", num_workers: 1,
   threads_per_worker: 1, worker_memory_limit: "32GB", graph_partitioner: "", global_descriptor_config_name: "",
   retriever_config_name: "", correspondence_generator_config_name: "", verifier_config_name: "",
   max_frame_lookahead: "", num_matched: "", share_intrinsics: false, log: "INFO", dashboard_port: "",
-  input_worker: "", dask_tmpdir: "", cluster_config: "", num_retry_cluster_connection: "", advanced_overrides: "",
+  input_worker: "", dask_tmpdir: "", dask_worker_hosts: "", dask_scheduler_host: "", dask_scheduler_port: 0, dask_worker_python: "", cluster_config: "", num_retry_cluster_connection: "", advanced_overrides: "",
 };
 
 // Keep the form useful on the very first paint. The full catalog is loaded from
@@ -635,7 +643,7 @@ const errorMessage = (reason: unknown): string => reason instanceof Error ? reas
 async function getJson<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, options);
   const payload = await response.json();
-  if (!response.ok) throw new Error(payload.error || `Request failed (${response.status})`);
+  if (!response.ok) throw new Error(payload.error || payload.detail || `Request failed (${response.status})`);
   return payload as T;
 }
 
@@ -670,7 +678,10 @@ interface SelectFieldProps {
 }
 
 function SelectField({ label, value, options, onChange, disabled = false, empty = null, id }: SelectFieldProps) {
-  return <Field label={label}><select id={id} value={value ?? ""} onChange={(event) => onChange(event.target.value)} disabled={disabled}>
+  const selected = value ?? "";
+  const available = (selected === "" && empty !== null) || options.some((option) => (typeof option === "string" ? option : option.id) === String(selected));
+  return <Field label={label}><select id={id} aria-label={label} aria-invalid={!available} value={selected} onChange={(event) => onChange(event.target.value)} disabled={disabled}>
+    {!available && <option value={selected} disabled>{selected ? `${selected} (unavailable)` : "Choose an option…"}</option>}
     {empty !== null && <option value="">{empty}</option>}
     {options.map((option) => {
       const item = typeof option === "string" ? { id: option, label: displayName(option) } : option;
@@ -823,6 +834,24 @@ const MODAL_VM_RESOURCES: Record<string, { cpu: number; memoryGiB: number }> = {
 };
 
 function advancedMachineProfile(form: RunFormState, hardware: HardwareCatalog | null, selected?: HardwareDevice): AdvancedMachineProfile {
+  if (form.dask_worker_hosts.trim()) {
+    return {
+      key: "ssh-workers", label: "SSH workers",
+      description: "Worker settings apply on each SSH host. The control machine can use a different device.",
+      workers: Number(form.num_workers), threadsPerWorker: Number(form.threads_per_worker),
+      memoryPerWorkerGiB: memoryGiB(form.worker_memory_limit),
+      allowWorkers: true, allowThreads: true, allowMemory: true, allowLocalRuntime: true,
+    };
+  }
+  if (form.execution_target === "remote" && form.remote_connection === "ssh") {
+    return {
+      key: "ssh", label: form.ssh_host || "SSH machine",
+      description: "These settings are sent to the remote runner. GPU selection uses its device ID. Optional scheduler and scratch settings apply on that machine.",
+      workers: Number(form.num_workers), threadsPerWorker: Number(form.threads_per_worker),
+      memoryPerWorkerGiB: memoryGiB(form.worker_memory_limit),
+      allowWorkers: true, allowThreads: true, allowMemory: true, allowLocalRuntime: true,
+    };
+  }
   if (form.execution_target === "remote") {
     if (form.remote_connection === "api" && form.remote_provider === "modal") {
       const resources = MODAL_VM_RESOURCES[form.modal_gpu] ?? MODAL_VM_RESOURCES.L40S;
@@ -842,7 +871,7 @@ function advancedMachineProfile(form: RunFormState, hardware: HardwareCatalog | 
     }
     return {
       key: `remote:${form.remote_connection}:${form.remote_provider}`,
-      label: form.remote_connection === "ssh" ? "Direct VM (coming soon)" : `${displayName(form.remote_provider)} VM`,
+      label: `${displayName(form.remote_provider)} VM`,
       description: "Machine-level tuning is unavailable until this remote provider is connected.",
       workers: 1,
       threadsPerWorker: 1,
@@ -872,7 +901,7 @@ function advancedMachineProfile(form: RunFormState, hardware: HardwareCatalog | 
     workers,
     threadsPerWorker,
     memoryPerWorkerGiB,
-    allowWorkers: !accelerator,
+    allowWorkers: Boolean(selected),
     allowThreads: Boolean(selected),
     allowMemory: Boolean(selected),
     allowLocalRuntime: true,
@@ -1051,6 +1080,15 @@ function HardwareCard({ device }: { device?: HardwareDevice }) {
   </div>;
 }
 
+const EXECUTION_KEYS = [
+  "execution_target", "hardware", "remote_connection", "remote_provider", "remote_endpoint", "remote_hardware",
+  "modal_gpu", "ssh_host", "ssh_port", "ssh_username", "ssh_authentication", "ssh_private_key", "ssh_workspace",
+  "ssh_python", "ssh_ray_binary", "ssh_wsl_distribution", "num_workers", "threads_per_worker", "worker_memory_limit",
+  "dashboard_port", "input_worker", "dask_tmpdir", "num_retry_cluster_connection",
+  "dask_worker_hosts", "dask_scheduler_host", "dask_scheduler_port", "dask_worker_python",
+] as const;
+type ExecutionConfiguration = { name: string; settings: Partial<Pick<RunFormState, typeof EXECUTION_KEYS[number]>> };
+
 interface RunFormProps {
   schema: ConfigurationSchema;
   hardware: HardwareCatalog | null;
@@ -1066,6 +1104,13 @@ interface RunFormProps {
 
 function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabChange, remotePromptKey, schemaLoading, schemaError, onRetrySchema }: RunFormProps) {
   const [form, setForm] = useState<RunFormState>(EMPTY_FORM);
+  const [executionConfigurations, setExecutionConfigurations] = useState<ExecutionConfiguration[]>([]);
+  const [executionName, setExecutionName] = useState("");
+  const [selectedExecution, setSelectedExecution] = useState("");
+  const [executionMessage, setExecutionMessage] = useState("");
+  const [executionBusy, setExecutionBusy] = useState(false);
+  const loadedExecution = useRef(false);
+  const handledRemotePrompt = useRef(0);
   const [inputMode, setInputMode] = useState<"upload" | "sample" | "previous">("upload");
   const [previousUploads, setPreviousUploads] = useState<UploadedFolder[]>([]);
   const [uploadsLoading, setUploadsLoading] = useState(false);
@@ -1105,10 +1150,83 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
   const [sampleBusy, setSampleBusy] = useState(false);
   const [sampleMessage, setSampleMessage] = useState("");
   const modalDiscoverySequence = useRef(0);
-  const automaticModalEndpoint = useRef("");
+  const connectionSequence = useRef(0);
   const modalGpuChosenByUser = useRef(false);
-  const set = <K extends keyof RunFormState>(key: K, value: RunFormState[K]) =>
+  const remoteDeviceChosenByUser = useRef(false);
+  const automaticModalEndpoint = useRef("");
+  const connectionBusy = modalDiscovering || modalDeploying || remoteChecking;
+  const invalidateConnection = () => {
+    connectionSequence.current += 1;
+    modalDiscoverySequence.current += 1;
+    setRemote(null);
+    setRemoteMessage("");
+    setModalDiscovering(false);
+    setRemoteChecking(false);
+    setModalWorkspaceIssue(false);
+  };
+  const set = <K extends keyof RunFormState>(key: K, value: RunFormState[K]) => {
+    if (key === "remote_hardware") remoteDeviceChosenByUser.current = true;
+    if (["execution_target", "remote_connection", "remote_provider", "remote_endpoint", "modal_gpu", "ssh_host", "ssh_port", "ssh_username", "ssh_authentication", "ssh_private_key", "ssh_workspace", "ssh_python", "ssh_ray_binary", "ssh_wsl_distribution"].includes(key)) {
+      invalidateConnection();
+    }
     setForm((current) => ({ ...current, [key]: value }));
+  };
+
+  const refreshExecutionConfigurations = async () => {
+    const result = await getJson<{ items: ExecutionConfiguration[] }>("/api/execution-configurations");
+    if (!result || !Array.isArray(result.items) || !result.items.every((item) =>
+      item && typeof item.name === "string" && item.settings && typeof item.settings === "object" && !Array.isArray(item.settings))) {
+      throw new Error("Unable to load saved execution configurations: the server returned an invalid configuration list.");
+    }
+    setExecutionConfigurations(result.items);
+  };
+  useEffect(() => { void refreshExecutionConfigurations().catch((reason) => setExecutionMessage(errorMessage(reason))); }, []);
+  const loadExecution = (name: string) => {
+    if (connectionBusy) return;
+    const configuration = executionConfigurations.find((item) => item.name === name);
+    setSelectedExecution(name);
+    if (!configuration) return;
+    loadedExecution.current = true;
+    invalidateConnection();
+    automaticModalEndpoint.current = "";
+    setExecutionName(name);
+    setForm((current) => {
+      const next = { ...current, ...configuration.settings };
+      const changedOrigin = ["execution_target", "remote_connection", "remote_provider", "remote_endpoint"].some((key) => current[key as keyof RunFormState] !== next[key as keyof RunFormState]);
+      return { ...next, ...(changedOrigin ? { modal_api_key: "", modal_token_id: "", modal_token_secret: "" } : {}),
+        num_retry_cluster_connection: configuration.settings.num_retry_cluster_connection ?? "", cluster_config: "" };
+    });
+    setModalTokenMessage("");
+    setExecutionMessage(`Loaded ${name}. Edits below apply to the next run; Save updates the saved copy.`);
+  };
+  const saveExecution = async () => {
+    setExecutionBusy(true);
+    try {
+      if (form.cluster_config) throw new Error("Clear the expert Cluster config path before saving. Saved configurations use the visible machine controls.");
+      const settings: Record<string, unknown> = Object.fromEntries(EXECUTION_KEYS.map((key) => [key, form[key]]));
+      if (form.ssh_authentication === "agent") settings.ssh_private_key = "";
+      for (const key of ["ssh_port", "num_workers", "threads_per_worker", "dask_scheduler_port"]) settings[key] = Number(settings[key]);
+      settings.num_retry_cluster_connection = form.num_retry_cluster_connection === "" ? null : Number(form.num_retry_cluster_connection);
+      const saved = await getJson<ExecutionConfiguration>("/api/execution-configurations", {
+        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: executionName.trim(), settings }),
+      });
+      await refreshExecutionConfigurations();
+      setSelectedExecution(saved.name);
+      setExecutionName(saved.name);
+      setExecutionMessage(`Saved ${saved.name} on this Studio host. Credentials are not stored.`);
+    } catch (reason) { setExecutionMessage(errorMessage(reason)); }
+    finally { setExecutionBusy(false); }
+  };
+  const deleteExecution = async () => {
+    setExecutionBusy(true);
+    try {
+      await getJson(`/api/execution-configurations/${encodeURIComponent(selectedExecution)}`, { method: "DELETE" });
+      await refreshExecutionConfigurations();
+      setSelectedExecution(""); setExecutionName("");
+      setExecutionMessage("Saved configuration deleted. Current controls are unchanged.");
+    } catch (reason) { setExecutionMessage(errorMessage(reason)); }
+    finally { setExecutionBusy(false); }
+  };
   const updateHydraOverride = (
     setter: Dispatch<SetStateAction<HydraOverrideMap>>,
     key: string,
@@ -1123,7 +1241,7 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
   });
 
   useEffect(() => {
-    if (!hardware) return;
+    if (!hardware || loadedExecution.current || form.dask_worker_hosts.trim()) return;
     const splatDevice = hardware.devices.find((item) => item.supports_gaussian_splatting);
     setForm((current) => ({
       ...current,
@@ -1162,7 +1280,10 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
   }, [form.config_name, form.loader, form.gaussian_splatting_config_name, form.splat_implementation, hydraParametersRevision]);
 
   useEffect(() => {
-    if (remotePromptKey < 1) return;
+    if (remotePromptKey <= handledRemotePrompt.current) return;
+    if (connectionBusy) return;
+    handledRemotePrompt.current = remotePromptKey;
+    invalidateConnection();
     setForm((current) => ({
       ...current,
       execution_target: "remote",
@@ -1181,6 +1302,28 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
   })), [schema, capabilities.iterative_splat]);
   const splatMeta = schema.splat_implementations.find((item) => item.id === form.splat_implementation);
   const selectedHardware = hardware?.devices.find((item) => item.id === form.hardware);
+  const hasExternalWorkers = Boolean(form.dask_worker_hosts.trim());
+  const modalWorkspaceSelected = form.execution_target === "remote" && form.remote_connection === "api" && form.remote_provider === "modal";
+  const selectedRemoteHardware = remote?.hardware.devices.find((item) => item.id === form.remote_hardware);
+  const sshConnectionError = form.execution_target === "remote" && form.remote_connection === "ssh"
+    ? form.ssh_wsl_distribution.trim()
+      ? "SSH execution requires a Linux SSH host. Clear the legacy WSL distribution value and use the Linux host's SSH address."
+      : form.ssh_authentication !== "agent"
+        ? "Select OpenSSH configuration / agent. Configure IdentityFile in a local SSH host alias instead of supplying a private key to Ray."
+        : ""
+    : "";
+  const deviceError = modalWorkspaceSelected && form.remote_hardware !== "cuda:0"
+    ? "This Modal workspace runs on cuda:0. Select its GPU device before starting."
+    : !hasExternalWorkers && form.execution_target === "remote" && remote && (!selectedRemoteHardware || (selectedRemoteHardware.status && selectedRemoteHardware.status !== "available"))
+      ? "Choose an available device on the remote machine before starting."
+      : !hasExternalWorkers && form.execution_target === "local" && hardware && (!selectedHardware || (selectedHardware.status && selectedHardware.status !== "available"))
+        ? "Choose an available device on this machine before starting."
+        : "";
+
+  useEffect(() => {
+    if (!modalWorkspaceSelected || loadedExecution.current || remoteDeviceChosenByUser.current) return;
+    setForm((current) => current.remote_hardware === "cuda:0" ? current : { ...current, remote_hardware: "cuda:0" });
+  }, [modalWorkspaceSelected]);
   const machineProfile = advancedMachineProfile(form, hardware, selectedHardware);
   const selectedSample = samples.find((item) => item.id === form.sample_id);
   const datasetAnalysis = inputMode === "sample"
@@ -1229,12 +1372,12 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
       },
     };
     setRemote(workspace);
-    set("remote_hardware", "cuda:0");
     return workspace;
   };
 
   useEffect(() => {
-    if (!modalGpuRecommendation || modalGpuChosenByUser.current) return;
+    if (form.execution_target !== "remote" || form.remote_connection !== "api" || form.remote_provider !== "modal") return;
+    if (!modalGpuRecommendation || loadedExecution.current || modalGpuChosenByUser.current || connectionBusy) return;
     if (form.modal_gpu === modalGpuRecommendation.gpu.id) return;
     set("modal_gpu", modalGpuRecommendation.gpu.id);
     if (form.remote_endpoint) {
@@ -1242,9 +1385,10 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
       setModalWorkspaceIssue(true);
       setRemoteMessage("The dataset changed the recommended VM. Update the Modal workspace to apply it, then verify readiness.");
     }
-  }, [modalGpuRecommendation?.gpu.id, modalRecommendationKey, form.modal_gpu, form.remote_endpoint]);
+  }, [modalGpuRecommendation?.gpu.id, modalRecommendationKey, form.modal_gpu, form.remote_endpoint, form.execution_target, form.remote_connection, form.remote_provider, connectionBusy]);
 
   useEffect(() => {
+    if (loadedExecution.current || form.dask_worker_hosts.trim() || (form.execution_target === "remote" && form.remote_connection === "ssh")) return;
     setForm((current) => ({
       ...current,
       num_workers: machineProfile.workers,
@@ -1261,9 +1405,7 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
   }, [form.execution_target, selectedSample, preparedSample?.path]);
 
   const updateModalCredential = (field: "modal_token_id" | "modal_token_secret", value: string) => {
-    modalDiscoverySequence.current += 1;
-    setModalDiscovering(false);
-    setRemoteChecking(false);
+    invalidateConnection();
     const parsed = parseModalTokenCommand(value);
     setRemote(null);
     setModalWorkspaceIssue(false);
@@ -1290,6 +1432,7 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
     if (!form.modal_token_id.startsWith("ak-") || !form.modal_token_secret.startsWith("as-")) return;
     const sequence = ++modalDiscoverySequence.current;
     const timer = window.setTimeout(async () => {
+      if (sequence !== modalDiscoverySequence.current) return;
       setModalDiscovering(true);
       setRemoteMessage("Finding your deployed GTSFM app on Modal…");
       try {
@@ -1318,7 +1461,10 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
         if (sequence === modalDiscoverySequence.current) setModalDiscovering(false);
       }
     }, 450);
-    return () => window.clearTimeout(timer);
+    return () => {
+      window.clearTimeout(timer);
+      if (sequence === modalDiscoverySequence.current) modalDiscoverySequence.current += 1;
+    };
   }, [form.execution_target, form.remote_connection, form.remote_provider, form.modal_token_id, form.modal_token_secret]);
 
   useEffect(() => {
@@ -1329,18 +1475,26 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
     if (form.share_intrinsics && model && !capabilities.share_intrinsics) set("share_intrinsics", false);
   }, [form.share_intrinsics, model, capabilities.share_intrinsics]);
 
-  async function inspectRemote(endpoint: string, apiKey: string) {
+  async function inspectRemote(endpoint: string, apiKey: string, sequence = connectionSequence.current) {
     const payload = await getJson<RemoteWorkspace>("/api/remote/inspect", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ endpoint, api_key: apiKey, remote_provider: form.remote_provider }) });
-    setRemote({ ...payload, verified: true });
-    const gsDevice = payload.hardware.devices.find((item) => item.supports_gaussian_splatting);
-    set("remote_hardware", gsDevice?.id ?? payload.hardware.devices[0]?.id ?? "");
+    if (sequence === connectionSequence.current) setRemote({ ...payload, verified: true });
     return payload;
   }
 
   const connectRemote = async () => {
+    const sequence = connectionSequence.current;
     if (form.remote_connection !== "api") {
-      setRemoteMessage("SSH connection testing is coming soon. You can finish the VM details now.");
+      setRemoteChecking(true); setRemoteMessage("Starting or connecting to Ray over SSH…");
+      try {
+        const workspace = await getJson<RemoteWorkspace>("/api/ssh/inspect", {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form),
+        });
+        if (sequence !== connectionSequence.current) return;
+        setRemote({ ...workspace, verified: true });
+        setRemoteMessage(`${workspace.hardware.summary}. Connection checked; Ray remains available for future runs.`);
+      } catch (reason) { if (sequence === connectionSequence.current) { setRemote(null); setRemoteMessage(errorMessage(reason)); } }
+      finally { if (sequence === connectionSequence.current) setRemoteChecking(false); }
       return;
     }
     if (!form.remote_endpoint || !modalBearerToken(form)) {
@@ -1352,14 +1506,17 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
     setRemote((current) => current ? { ...current, verified: false } : null);
     setRemoteMessage("Checking the lightweight Modal control service…");
     try {
-      const payload = await inspectRemote(form.remote_endpoint, modalBearerToken(form));
+      const payload = await inspectRemote(form.remote_endpoint, modalBearerToken(form), sequence);
+      if (sequence !== connectionSequence.current) return;
       setModalWorkspaceIssue(false);
       setRemoteMessage(`${payload.hardware.summary}. The control service is ready; the GPU stays off until you run a reconstruction.`);
     } catch (reason) {
-      setModalWorkspaceIssue(true);
-      setRemoteMessage(`Workspace check failed. Update the Modal workspace before running. ${errorMessage(reason)}`);
+      if (sequence === connectionSequence.current) {
+        setModalWorkspaceIssue(true);
+        setRemoteMessage(`Workspace check failed. Update the Modal workspace before running. ${errorMessage(reason)}`);
+      }
     } finally {
-      setRemoteChecking(false);
+      if (sequence === connectionSequence.current) setRemoteChecking(false);
     }
   };
 
@@ -1369,6 +1526,7 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
       return;
     }
     modalDiscoverySequence.current += 1;
+    const sequence = connectionSequence.current;
     setModalDeploying(true);
     setModalWorkspaceIssue(false);
     setRemote(null);
@@ -1385,10 +1543,12 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
           memory_mb: Math.max(4096, Math.round(memoryGiB(form.worker_memory_limit) * Math.max(1, Number(form.num_workers) || 1) * 1024)),
         }),
       });
+      if (sequence !== connectionSequence.current) return;
       setModalDeployment(deployment);
       while (["queued", "running", "cancelling"].includes(deployment.status)) {
         await new Promise((resolve) => window.setTimeout(resolve, 1000));
         deployment = await getJson<ModalDeployment>(`/api/modal/deploy/${encodeURIComponent(deployment.id)}`);
+        if (sequence !== connectionSequence.current) return;
         setModalDeployment(deployment);
       }
       if (deployment.status === "cancelled") {
@@ -1408,8 +1568,10 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
       });
       setRemoteChecking(true);
       try {
-        await inspectRemote(deployment.endpoint, deployment.api_key);
+        await inspectRemote(deployment.endpoint, deployment.api_key, sequence);
+        if (sequence !== connectionSequence.current) return;
       } catch (reason) {
+        if (sequence !== connectionSequence.current) return;
         const message = `Deployment finished, but the workspace health check failed: ${errorMessage(reason)}`;
         setRemote((current) => current ? { ...current, verified: false } : null);
         setModalWorkspaceIssue(true);
@@ -1423,7 +1585,7 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
         });
         throw new Error(message);
       } finally {
-        setRemoteChecking(false);
+        if (sequence === connectionSequence.current) setRemoteChecking(false);
       }
       setModalDeployment({
         ...deployment,
@@ -1438,6 +1600,7 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
       setModalWorkspaceIssue(false);
       setRemoteMessage(`Modal ${deployment.gpu} workspace passed its health check and is ready to run.`);
     } catch (reason) {
+      if (sequence !== connectionSequence.current) return;
       const message = errorMessage(reason);
       setModalWorkspaceIssue(true);
       setRemoteMessage(/Request failed \(404\)/.test(message)
@@ -1490,14 +1653,14 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault(); setBusy(true); setError("");
     try {
-      if (form.execution_target === "remote" && form.remote_connection === "ssh") {
-        throw new Error("SSH execution is not available yet. Choose API to run on Modal.");
-      }
-      if (form.execution_target === "remote" && form.remote_provider === "modal" && !remote?.verified) {
+      if (sshConnectionError) throw new Error(sshConnectionError);
+      if (deviceError) throw new Error(deviceError);
+      if (form.execution_target === "remote" && form.remote_connection === "api" && form.remote_provider === "modal" && !remote?.verified) {
         throw new Error("The Modal workspace must pass its health check before a reconstruction can start.");
       }
       const expertOverrides = form.advanced_overrides.split("\n");
       const payload = { ...form,
+        ssh_private_key: form.ssh_authentication === "agent" ? "" : form.ssh_private_key,
         loader: form.loader,
         hydra_overrides: modelHydraOverrides,
         advanced_overrides: expertOverrides.map((line) => line.trim()).filter(Boolean),
@@ -1515,7 +1678,6 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
     } catch (reason) { setError(errorMessage(reason)); } finally { setBusy(false); }
   };
 
-  const modalWorkspaceSelected = form.execution_target === "remote" && form.remote_connection === "api" && form.remote_provider === "modal";
   const modalWorkspaceState: ModalWorkspaceReadiness = remote?.verified
     ? "ready"
     : modalDeploying || modalDiscovering || remoteChecking
@@ -1670,57 +1832,80 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
       />}
     </Section>
     <Section number="03" title="Compute" subtitle="Run here or on a remote VM">
-      <div className="segmented" id="computeTarget" role="group" aria-label="Execution target">
-        <button type="button" className={`target-choice ${form.execution_target === "local" ? "active" : ""}`} onClick={() => set("execution_target", "local")}><Cpu size={13} /> This machine</button>
-        <button type="button" className={`target-choice ${form.execution_target === "remote" ? "active" : ""}`} onClick={() => setForm((current) => ({ ...current, execution_target: "remote", splat_implementation: current.splat_implementation === "none" ? schema.defaults.splat_implementation : current.splat_implementation }))}><Server size={13} /> Remote VM</button>
+      <SelectField label="Saved execution configuration" value={selectedExecution} options={executionConfigurations.map((item) => ({ id: item.name, label: item.name }))} empty="Current settings (unsaved)" onChange={loadExecution} disabled={executionBusy || connectionBusy} />
+      <TextField label="Configuration name" value={executionName} onChange={setExecutionName} placeholder="Mac, Cyber, or Cluster" />
+      <div className="job-actions">
+        <button type="button" className="secondary-action" disabled={executionBusy || !executionName.trim()} onClick={saveExecution}>Save configuration</button>
+        <button type="button" className="text-button" disabled={executionBusy || connectionBusy || !selectedExecution} onClick={() => loadExecution(selectedExecution)}>Reload saved</button>
+        <button type="button" className="text-button danger" disabled={executionBusy || !selectedExecution} onClick={deleteExecution}>Delete saved</button>
       </div>
+      <p className="field-help" role="status">{executionMessage || "Configurations are stored on the machine hosting Studio. Loading populates the controls; edits below are used when you run."}</p>
+      <div className="segmented" id="computeTarget" role="group" aria-label="Execution target">
+        <button type="button" disabled={connectionBusy} className={`target-choice ${form.execution_target === "local" ? "active" : ""}`} onClick={() => set("execution_target", "local")}><Cpu size={13} /> This machine</button>
+        <button type="button" disabled={connectionBusy} className={`target-choice ${form.execution_target === "remote" ? "active" : ""}`} onClick={() => set("execution_target", "remote")}><Server size={13} /> Remote VM</button>
+      </div>
+      {hasExternalWorkers && <>
+        <TextField label="Worker device" value={form.execution_target === "local" ? form.hardware : form.remote_hardware} onChange={(value) => set(form.execution_target === "local" ? "hardware" : "remote_hardware", value)} placeholder="cpu, cuda:0, or rocm:0" />
+        <p className="field-help">Select the device on each SSH worker. The control machine can be CPU-only.</p>
+      </>}
       {form.execution_target === "local" ? <>
-        {hardware ? <><SelectField label="Hardware" value={form.hardware} options={hardware.devices} onChange={(value) => set("hardware", value)} /><HardwareCard device={selectedHardware} /></> : <div className="hardware-card detecting"><RefreshCw className="spin" size={13}/><div><strong>Detecting compute devices…</strong><small>You can configure the rest of the run while this finishes.</small></div></div>}
+        {!hasExternalWorkers && (hardware ? <><SelectField label="Hardware" value={form.hardware} options={hardware.devices} onChange={(value) => set("hardware", value)} /><HardwareCard device={selectedHardware} /></> : <div className="hardware-card detecting"><RefreshCw className="spin" size={13}/><div><strong>Detecting compute devices…</strong><small>You can configure the rest of the run while this finishes.</small></div></div>)}
       </> : <div className="nested-options remote-vm-options">
         <SelectField label="Connection method" value={form.remote_connection} options={[
           { id: "api", label: "API" }, { id: "ssh", label: "SSH" },
-        ]} onChange={(value) => { set("remote_connection", value as RunFormState["remote_connection"]); setRemote(null); setRemoteMessage(""); }} />
+        ]} onChange={(value) => set("remote_connection", value as RunFormState["remote_connection"])} disabled={connectionBusy} />
         {form.remote_connection === "api" ? <>
           <SelectField label="Service" value={form.remote_provider} options={remoteProviders} onChange={(value) => { set("remote_provider", value); setRemote(null); }} />
           {form.remote_provider === "modal" && <div className="provider-panel">
             <div className="provider-heading"><span className="provider-mark">M</span><div><strong>Modal</strong><small>Connect with your Modal account token</small></div><span className="provider-status">AVAILABLE</span></div>
-            <SelectField label="Modal VM GPU" value={form.modal_gpu} options={modalGpuOptions} onChange={updateModalGpu} />
+            <SelectField label="Modal VM GPU" value={form.modal_gpu} options={modalGpuOptions} onChange={updateModalGpu} disabled={connectionBusy} />
             <ModalGpuRecommendationCard recommendation={modalGpuRecommendation} selectedGpu={form.modal_gpu} onApply={() => {
               if (modalGpuRecommendation) updateModalGpu(modalGpuRecommendation.gpu.id);
             }}/>
             <ModalCostEstimate form={form} analysis={datasetAnalysis} fallbackImageCount={selectedSample?.image_count ?? 0}/>
             <p className="field-help modal-command-help">Enter the two values separately, or paste the complete <code>modal token set --token-id … --token-secret …</code> command into either field.</p>
             <div className="form-grid">
-              <TextField label="Token ID" value={form.modal_token_id} onChange={(value) => updateModalCredential("modal_token_id", value)} autoComplete="off" spellCheck={false} placeholder="ak-…" />
-              <TextField label="Token secret" type="password" value={form.modal_token_secret} onChange={(value) => updateModalCredential("modal_token_secret", value)} autoComplete="new-password" spellCheck={false} placeholder="as-…" />
+              <TextField label="Token ID" value={form.modal_token_id} onChange={(value) => updateModalCredential("modal_token_id", value)} autoComplete="off" spellCheck={false} placeholder="ak-…" disabled={modalDeploying || remoteChecking} />
+              <TextField label="Token secret" type="password" value={form.modal_token_secret} onChange={(value) => updateModalCredential("modal_token_secret", value)} autoComplete="new-password" spellCheck={false} placeholder="as-…" disabled={modalDeploying || remoteChecking} />
             </div>
             {modalTokenMessage && <div className="credential-success"><Check size={12} /> {modalTokenMessage}</div>}
             <TextField label="GTSFM endpoint" type="url" value={form.remote_endpoint} onChange={(value) => {
               set("remote_endpoint", value);
-              setRemote(null);
-              setModalWorkspaceIssue(false);
-              setRemoteMessage("Endpoint changed. Start and verify this workspace before running.");
-            }} placeholder={modalDiscovering ? "Discovering your Modal endpoint…" : "Filled after credentials are verified"} />
+              setForm((current) => ({ ...current, modal_api_key: "", modal_token_id: "", modal_token_secret: "" }));
+              automaticModalEndpoint.current = "";
+              setModalTokenMessage("");
+              setRemoteMessage("Endpoint changed. Enter credentials for this workspace, then verify it before running.");
+            }} disabled={connectionBusy} placeholder={modalDiscovering ? "Discovering your Modal endpoint…" : "Filled after credentials are verified"} />
             <button className="modal-deploy-action full-width" type="button" onClick={deployModal} disabled={modalDiscovering || modalDeploying || !form.modal_token_id || !form.modal_token_secret}><Server size={13} /> {modalDeploying ? "Setup in progress…" : form.remote_endpoint ? "Update Modal workspace" : "Set up & deploy Modal workspace"}</button>
             {modalDeployment && <ModalDeploymentProgress deployment={modalDeployment} onCancel={stopModalDeployment} onExpand={() => setModalLogExpanded(true)}/>} 
             {modalDeployment && modalLogExpanded && <ModalDeploymentDialog deployment={modalDeployment} onCancel={stopModalDeployment} onClose={() => setModalLogExpanded(false)}/>} 
             {form.remote_endpoint && form.modal_api_key && <button className="secondary-action full-width" type="button" onClick={() => connectRemote()} disabled={modalDiscovering || modalDeploying || remoteChecking}>{remoteChecking ? <RefreshCw className="spin" size={13}/> : remote?.verified ? <Check size={13}/> : <MonitorCog size={13}/>} {remoteChecking ? "Starting & checking workspace…" : remote?.verified ? "Modal workspace ready" : "Start & verify workspace"}</button>}
             <ModalWorkspaceStatus state={modalWorkspaceState} detail={modalWorkspaceDetail}/>
-            {remote && <SelectField label="Remote hardware" value={form.remote_hardware} options={remote.hardware.devices} onChange={(value) => set("remote_hardware", value)} />}
+            {remote && !hasExternalWorkers && <SelectField label="Remote hardware" value={form.remote_hardware} options={remote.hardware.devices.filter((device) => device.id === "cuda:0")} onChange={(value) => set("remote_hardware", value)} />}
           </div>}
         </> : <div className="provider-panel">
-          <div className="provider-heading"><span className="provider-mark ssh"><Terminal size={14} /></span><div><strong>Direct VM</strong><small>Connect to a machine you control</small></div><span className="provider-status soon">COMING SOON!</span></div>
+          <div className="provider-heading"><span className="provider-mark ssh"><Terminal size={14} /></span><div><strong>SSH machine</strong><small>Start and monitor computation from this Studio</small></div></div>
           <div className="form-grid">
             <TextField label="Host" value={form.ssh_host} onChange={(value) => set("ssh_host", value)} placeholder="gpu-box.example.com" />
             <TextField label="Port" type="number" min="1" max="65535" value={form.ssh_port} onChange={(value) => set("ssh_port", value)} />
             <TextField label="Username" value={form.ssh_username} onChange={(value) => set("ssh_username", value)} autoComplete="username" placeholder="ubuntu" />
             <SelectField label="Authentication" value={form.ssh_authentication} options={[
-              { id: "agent", label: "SSH agent" }, { id: "key", label: "Private key" },
-            ]} onChange={(value) => set("ssh_authentication", value as RunFormState["ssh_authentication"])} />
+              { id: "agent", label: "OpenSSH configuration / agent" },
+            ]} onChange={(value) => {
+              set("ssh_authentication", value as RunFormState["ssh_authentication"]);
+              setForm((current) => ({ ...current, ssh_private_key: "" }));
+            }} />
           </div>
-          {form.ssh_authentication === "key" && <TextField label="Private key path" value={form.ssh_private_key} onChange={(value) => set("ssh_private_key", value)} placeholder="/Users/you/.ssh/id_ed25519" />}
+          <p className="field-help">Use local OpenSSH settings that match the destination IP, or your SSH agent. Ray resolves DNS before connecting. Private keys stay on this machine and are not supplied to Ray.</p>
           <TextField label="Remote workspace" value={form.ssh_workspace} onChange={(value) => set("ssh_workspace", value)} placeholder="~/gtsfm-workspace" />
-          <p className="field-help">SSH setup is visible now; remote execution and file transfer are the next connector step.</p>
+          <TextField label="Remote Python" value={form.ssh_python} onChange={(value) => set("ssh_python", value)} placeholder=".venv/bin/python" />
+          <TextField label="Remote Ray executable" value={form.ssh_ray_binary} onChange={(value) => set("ssh_ray_binary", value)} placeholder="~/.local/bin/ray" />
+          <p className="field-help">Uses Ray's standard SSH launcher and Jobs API on the Linux host. Set the Ray executable path installed in its remote environment.</p>
+          <TextField label="WSL distribution" optional value={form.ssh_wsl_distribution} onChange={(value) => set("ssh_wsl_distribution", value)} placeholder="Unsupported; leave empty" />
+          <p className="field-help">Windows WSL adapters are unsupported. For existing configurations, clear this value and connect directly to the Linux SSH host.</p>
+          {!hasExternalWorkers && (remote ? <SelectField label="Remote hardware" value={form.remote_hardware} options={remote.hardware.devices} onChange={(value) => set("remote_hardware", value)} /> : <TextField label="Remote hardware" value={form.remote_hardware} onChange={(value) => set("remote_hardware", value)} placeholder="cpu or cuda:0" />)}
+          <button type="button" className="secondary-action" disabled={remoteChecking || Boolean(sshConnectionError) || !form.ssh_host || !form.ssh_workspace} onClick={() => connectRemote()}>{remoteChecking ? "Checking SSH…" : "Check SSH connection"}</button>
+          <p className="field-help" role="status">{remoteMessage || "Uses your SSH config and agent. Install the remote checkout, Python environment and Ray once. Studio starts or reuses Ray, stages inputs and retrieves results. Ray remains available after the local connection closes."}</p>
         </div>}
       </div>}
     </Section>
@@ -1730,7 +1915,7 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
         <div className="machine-profile-summary">
           <div><span>MACHINE PROFILE</span><strong>{machineProfile.label}</strong></div>
           <p>{machineProfile.description}</p>
-          <div className="machine-profile-specs"><span>{machineProfile.workers} worker{machineProfile.workers === 1 ? "" : "s"}</span><span>{form.threads_per_worker} thread{Number(form.threads_per_worker) === 1 ? "" : "s"} / worker</span><span>{machineProfile.memoryPerWorkerGiB} GB / worker</span></div>
+          <div className="machine-profile-specs"><span>{form.num_workers} worker{Number(form.num_workers) === 1 ? "" : "s"}</span><span>{form.threads_per_worker} thread{Number(form.threads_per_worker) === 1 ? "" : "s"} / worker</span><span>{form.worker_memory_limit} / worker</span></div>
         </div>
         <div className="form-grid">
           <TextField label="Workers" type="number" min="1" value={form.num_workers} onChange={(value) => set("num_workers", value)} disabled={!machineProfile.allowWorkers} title={!machineProfile.allowWorkers ? "Fixed for the selected single-GPU machine" : undefined} />
@@ -1746,13 +1931,21 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
           <TextField label="Dashboard port" value={form.dashboard_port} onChange={(value) => set("dashboard_port", value)} placeholder=":8787" disabled={!machineProfile.allowLocalRuntime} />
           <TextField label="Input worker" value={form.input_worker} onChange={(value) => set("input_worker", value)} placeholder="Optional worker address" disabled={!machineProfile.allowLocalRuntime} />
           <TextField label="Dask temp folder" value={form.dask_tmpdir} onChange={(value) => set("dask_tmpdir", value)} placeholder="System default" disabled={!machineProfile.allowLocalRuntime} />
-          <TextField label="Cluster config" value={form.cluster_config} onChange={(value) => set("cluster_config", value)} placeholder="Optional YAML path" disabled={!machineProfile.allowLocalRuntime} />
+          <TextField label="Cluster config (YAML)" value={form.cluster_config} onChange={(value) => set("cluster_config", value)} placeholder="Optional YAML path" disabled={!machineProfile.allowLocalRuntime} aria-describedby={machineProfile.allowLocalRuntime ? "cluster-config-help" : undefined} />
           <TextField label="Cluster retries" type="number" min="0" value={form.num_retry_cluster_connection} onChange={(value) => set("num_retry_cluster_connection", value)} placeholder="3" disabled={!machineProfile.allowLocalRuntime} />
         </div>
+        {machineProfile.allowLocalRuntime && <p id="cluster-config-help" className="field-help">Path on this Studio host to a Dask constructor YAML or existing cluster file. A LocalCluster constructor file controls cluster options instead of the worker, thread, and memory defaults above.</p>}
+        {machineProfile.allowLocalRuntime && <>
+          <TextField label="SSH worker hosts" value={form.dask_worker_hosts} onChange={(value) => set("dask_worker_hosts", value)} placeholder="Optional: worker1 worker2" />
+          <TextField label="Scheduler host" value={form.dask_scheduler_host} onChange={(value) => set("dask_scheduler_host", value)} placeholder="First worker host" />
+          <TextField label="Scheduler port" type="number" min="0" max="65535" value={form.dask_scheduler_port} onChange={(value) => set("dask_scheduler_port", value)} placeholder="0 = automatic" />
+          <TextField label="Worker Python" value={form.dask_worker_python} onChange={(value) => set("dask_worker_python", value)} placeholder="Same Python path as the runner" />
+          <p className="field-help">Leave worker hosts empty to compute on the selected machine. With hosts set, native Dask SSHCluster starts the scheduler and workers from that machine using its SSH configuration. Nodes need the same GTSFM environment and shared input paths. Workers and memory above apply per host.</p>
+        </>}
       </Collapsible.Content>
     </Collapsible.Root>
-    <div className="form-error" role="alert">{error}</div>
-    <button className="primary-action" type="submit" disabled={busy || sampleBusy || modalDeploying || modalDiscovering || remoteChecking || (inputMode === "previous" && (!previousFolder || uploadsLoading)) || (inputMode === "sample" && !preparedSample) || (form.execution_target === "remote" && (!form.remote_endpoint || !form.modal_api_key || !remote?.verified))}><span>{busy ? "Starting…" : sampleBusy ? "Preparing sample…" : modalActionLabel}</span>{busy || sampleBusy || modalDeploying || modalDiscovering || remoteChecking ? <RefreshCw className="spin" size={14} /> : <Play size={14} fill="currentColor" />}</button>
+    <div className="form-error" role="alert">{error || sshConnectionError || deviceError}</div>
+    <button className="primary-action" type="submit" disabled={busy || sampleBusy || modalDeploying || modalDiscovering || remoteChecking || Boolean(deviceError || sshConnectionError) || (inputMode === "previous" && (!previousFolder || uploadsLoading)) || (inputMode === "sample" && !preparedSample) || (form.execution_target === "remote" && (form.remote_connection === "ssh" ? !form.ssh_host || !form.ssh_workspace : !form.remote_endpoint || !form.modal_api_key || !remote?.verified))}><span>{busy ? "Starting…" : sampleBusy ? "Preparing sample…" : modalActionLabel}</span>{busy || sampleBusy || modalDeploying || modalDiscovering || remoteChecking ? <RefreshCw className="spin" size={14} /> : <Play size={14} fill="currentColor" />}</button>
   </form>;
 }
 
@@ -1840,7 +2033,7 @@ function ActivityPanel({ jobs, activeId, onSelect, onCancel, onRefresh, onRetrie
       {job.status === "failed" && <CopyDiagnosticPrompt key={job.id} jobId={job.id} />}
       <div className="job-actions">{canRetryJob(job) && <RetryJob jobId={job.id} onStarted={onRetried}/>}<button className="text-button" onClick={() => onSelect(job.id)}>{job.has_final_splat ? "View splat" : ["queued", "running"].includes(job.status) ? "View progress" : "View details"}</button>
         {["queued", "running"].includes(job.status) && <button className="text-button danger" onClick={() => onCancel(job.id)}><Square size={9} fill="currentColor"/> Stop</button>}
-        {job.status === "completed" && !job.remote && job.output_root && <a className="text-button" href={`/?view=results&run=${encodeURIComponent(job.output_root)}`}>View results</a>}
+        {job.status === "completed" && job.output_root && <><a className="text-button" href={`/?view=results&run=${encodeURIComponent(job.output_root)}`}>View results</a><a className="text-button" href={`/api/jobs/${encodeURIComponent(job.id)}/results`} download>Download results</a></>}
         {job.remote?.workspace_url && <a className="text-button" href={job.remote.workspace_url} target="_blank" rel="noreferrer">Remote results ↗</a>}
       </div>{job.has_final_splat && <SplatDownload jobId={job.id} compact />}</article>) : <div className="empty-state"><Activity size={20} /><strong>No runs yet</strong><span>Configure your first reconstruction in New run.</span></div>}</div>
   </div>;
