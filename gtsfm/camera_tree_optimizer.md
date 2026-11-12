@@ -1,5 +1,10 @@
 # Merging reconstructed cameras without running bundle adjustment again
 
+For the joint pose/intrinsics derivation, gauge treatment, and analytic Jacobians,
+see the [technical note (PDF)](../docs/technical/camera_tree_intrinsics.pdf) and
+its [LaTeX source](../docs/technical/camera_tree_intrinsics.tex). The note also
+distinguishes joint retention from the original-graph API's pose-only marginal.
+
 [`camera_tree_optimizer.py`](camera_tree_optimizer.py) combines several small
 reconstructions into one set of camera poses and intrinsics. Two producers
 summarize what each leaf tells us about its cameras. The preferred producer,
