@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import hashlib
 import io
+import json
+import re
 import threading
 from collections import OrderedDict
 from functools import lru_cache
@@ -20,7 +22,7 @@ from PIL import Image, ImageOps
 
 
 @lru_cache(maxsize=32)
-def _image_names(path: Path, modified: int) -> tuple[str, ...]:
+def _image_records(path: Path, modified: int) -> tuple[tuple[int, str], ...]:
     del modified  # Part of the cache key: rewriting a reconstruction invalidates it.
     names = []
     pose_line = True
@@ -33,7 +35,7 @@ def _image_names(path: Path, modified: int) -> tuple[str, ...]:
             fields = line.split(maxsplit=9)
             if len(fields) != 10:
                 raise ValueError("Invalid COLMAP image record")
-            names.append(fields[9])
+            names.append((int(fields[0]), fields[9]))
         pose_line = not pose_line
     return tuple(names)
 
@@ -46,6 +48,15 @@ def _loader_config(path: Path, modified: int) -> dict[str, Any]:
     except yaml.YAMLError as exc:
         raise ValueError("Invalid saved run configuration") from exc
     return config.get("loader", {}) if isinstance(config, dict) else {}
+
+
+@lru_cache(maxsize=32)
+def _loader_image_names(path: Path, modified: int) -> tuple[str, ...]:
+    del modified
+    names = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(names, list) or not all(isinstance(name, str) for name in names):
+        raise ValueError("Invalid recorded loader image names")
+    return tuple(names)
 
 
 class ScenePhotos:
@@ -71,11 +82,25 @@ class ScenePhotos:
         return path
 
     def names(self, scene: Path) -> tuple[str, ...]:
+        return tuple(name for _, name in self.records(scene))
+
+    def records(self, scene: Path) -> tuple[tuple[int, str], ...]:
         path = scene / "images.txt"
-        return _image_names(path, path.stat().st_mtime_ns)
+        return _image_records(path, path.stat().st_mtime_ns)
 
     def roots(self, scene: Path) -> list[Path]:
         """Use the nearest run config, or adjacent images for a portable COLMAP export."""
+        locations = {}
+        for parent in (scene, *scene.parents):
+            if not parent.is_relative_to(self.root):
+                break
+            portable_images = parent / "source-images"
+            if portable_images.is_dir():
+                return [portable_images]
+            mapping = parent / "studio-inputs.json"
+            if mapping.is_file() and mapping.resolve().is_relative_to(self.root):
+                locations = json.loads(mapping.read_text(encoding="utf-8"))
+                break
         current = scene
         while current.is_relative_to(self.root):
             config = current / "config.yaml"
@@ -83,6 +108,7 @@ class ScenePhotos:
                 loader = _loader_config(config, config.stat().st_mtime_ns)
                 if not isinstance(loader, dict):
                     break
+                loader = {**loader, **locations}
                 dataset = loader.get("dataset_dir")
                 images = loader.get("images_dir")
                 dataset_root = Path(dataset).expanduser() if dataset else current
@@ -112,6 +138,22 @@ class ScenePhotos:
             current = current.parent
         return [scene / "images", scene.parent / "images"]
 
+    def source_name(self, scene: Path, camera_id: int, name: str) -> str:
+        """Resolve the exporter's placeholder by its global loader index."""
+        match = re.fullmatch(r"image_(\d{6,})\.jpg", name)
+        if match and int(match[1]) == camera_id:
+            for parent in (scene, *scene.parents):
+                if not parent.is_relative_to(self.root):
+                    break
+                mapping = parent / "image_filenames.json"
+                if mapping.is_file() and mapping.resolve().is_relative_to(self.root):
+                    names = _loader_image_names(mapping, mapping.stat().st_mtime_ns)
+                    index = int(match[1])
+                    if index < len(names) and isinstance(names[index], str):
+                        return names[index]
+                    break
+        return name
+
     @staticmethod
     def source(roots: list[Path], name: str) -> Path | None:
         relative = Path(name)
@@ -131,8 +173,8 @@ class ScenePhotos:
         scene = self.scene(relative)
         roots = self.roots(scene)
         items = []
-        for index, name in enumerate(self.names(scene)):
-            source = self.source(roots, name)
+        for index, (camera_id, name) in enumerate(self.records(scene)):
+            source = self.source(roots, self.source_name(scene, camera_id, name))
             available = source is not None
             version = self.etag(source, 256).strip('"') if source else "missing"
             query = urlencode({"scene": relative, "index": index, "v": version})
@@ -147,10 +189,11 @@ class ScenePhotos:
 
     def image_source(self, relative: str, index: int) -> Path:
         scene = self.scene(relative)
-        names = self.names(scene)
-        if index < 0 or index >= len(names):
+        records = self.records(scene)
+        if index < 0 or index >= len(records):
             raise FileNotFoundError("Unknown scene image")
-        path = self.source(self.roots(scene), names[index])
+        camera_id, name = records[index]
+        path = self.source(self.roots(scene), self.source_name(scene, camera_id, name))
         if path is None:
             raise FileNotFoundError("Original image is unavailable; restore the source dataset to its saved location")
         return path

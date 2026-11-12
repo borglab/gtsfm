@@ -1125,7 +1125,11 @@ def test_remote_job_keeps_modal_and_ssh_credentials_private(tmp_path: Path, monk
     assert "/private/key/path" not in str(job)
 
 
-def test_remote_job_transfers_local_dataset_before_submit(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("provider", ["modal", "api"])
+def test_remote_job_transfers_local_dataset_and_retrieves_complete_results(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, provider: str
+) -> None:
+    """Every HTTP provider stages inputs and returns local geometry with photo metadata."""
     dataset = tmp_path / "dataset"
     dataset.mkdir()
     (dataset / "image.jpg").write_bytes(b"image")
@@ -1146,13 +1150,25 @@ def test_remote_job_transfers_local_dataset_before_submit(tmp_path: Path, monkey
             return {}
         return {"id": "remote-job", "status": "completed", "return_code": 0, "log_tail": []}
 
+    def download_results(url: str, api_key: str, destination: Path) -> None:
+        assert url.endswith("/api/jobs/remote-job/results?include_images=false")
+        assert api_key == "secret"
+        with tarfile.open(destination, "w") as archive:
+            for name in ("cameras.txt", "images.txt", "points3D.txt"):
+                content = f"downloaded {name}".encode()
+                member = tarfile.TarInfo(f"results/merged_retriangulated/{name}")
+                member.size = len(content)
+                archive.addfile(member, BytesIO(content))
+
     monkeypatch.setattr(runtime.JobManager, "_remote_upload_directory", staticmethod(fake_upload))
     monkeypatch.setattr(runtime.JobManager, "_remote_json", staticmethod(fake_remote_json))
+    monkeypatch.setattr(runtime.JobManager, "_remote_download", staticmethod(download_results))
     manager = runtime.JobManager(tmp_path / "results")
     public = manager.start(
         {
             "name": "remote-transfer",
             "execution_target": "remote",
+            "remote_provider": provider,
             "remote_endpoint": "https://gpu.example.test",
             "api_key": "secret",
             "dataset_dir": str(dataset),
@@ -1168,6 +1184,10 @@ def test_remote_job_transfers_local_dataset_before_submit(tmp_path: Path, monkey
     assert posted["dataset_dir"] == "/mnt/gtsfm-studio/results/.gtsfm/uploads/remote-dataset"
     assert posted["execution_target"] == "local"
     assert managed.status == "completed"
+    assert "workspace_url" not in managed.remote
+    output = Path(managed.output_root)
+    assert (output / "results/merged_retriangulated/points3D.txt").read_text() == "downloaded points3D.txt"
+    assert json.loads((output / "studio-inputs.json").read_text()) == {"dataset_dir": str(dataset)}
     assert json.loads((Path(managed.live_root) / "status.json").read_text(encoding="utf-8")) == {}
 
 
