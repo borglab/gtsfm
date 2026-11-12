@@ -313,12 +313,15 @@ def lund_camera_factors(lund_tree: scene_tree.SceneTree) -> cto.CameraFactorTree
     return lund_tree.map(lambda value: (value[0], by_path.get(value[0])))
 
 
-def _assert_same_solution(actual: cto.CameraTreeResult, expected: cto.CameraTreeResult) -> None:
+def _assert_same_solution(
+    actual: cto.CameraTreeResult, expected: cto.CameraTreeResult, compare_factorization: bool = True
+) -> None:
     """Compare reconstructed cameras, leaf similarities, objectives, and final quadratic.
 
     Args:
         actual: Result from the tested input route.
         expected: Baseline result in the same global gauge.
+        compare_factorization: Whether matching numerical factorization coefficients are expected.
     """
     assert actual.scene.get_valid_camera_indices() == expected.scene.get_valid_camera_indices()
     for i in actual.scene.get_valid_camera_indices():
@@ -331,7 +334,8 @@ def _assert_same_solution(actual: cto.CameraTreeResult, expected: cto.CameraTree
     )
     a = gtsam.GaussianFactorGraph(actual.camera_bayes_tree)
     b = gtsam.GaussianFactorGraph(expected.camera_bayes_tree)
-    assert a.equals(b, 1e-5)
+    if compare_factorization:
+        assert a.equals(b, 1e-5)
     assert [len(n.children) for n in PreOrderIter(actual.factor_tree)] == [
         len(n.children) for n in PreOrderIter(expected.factor_tree)
     ]
