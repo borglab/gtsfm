@@ -1,12 +1,16 @@
 # Merging reconstructed cameras without running bundle adjustment again
 
 [`camera_tree_optimizer.py`](camera_tree_optimizer.py) combines several small
-reconstructions into one set of camera poses and intrinsics. A public
-Schur-complement producer uses image measurements and 3D points to summarize what
-each leaf tells us about its cameras. A separate camera-only optimizer consumes
-these summaries and optimizes camera poses, intrinsics, and the coordinate
-transformations between leaves. You can use the supplied producer or compute the
-summaries elsewhere.
+reconstructions into one set of camera poses and intrinsics. Two producers
+summarize what each leaf tells us about its cameras. The preferred producer,
+`compute_camera_marginal_factors()`, accepts the original nonlinear BA factor
+graph and estimated values, including the original gauge constraints and weights,
+and returns a compact camera-only Gaussian graph over camera poses. The
+`compute_camera_schur_complement()` convenience producer rebuilds observations
+from a reconstruction and, by default, also retains intrinsics. A separate
+camera-only optimizer consumes these summaries and optimizes camera poses,
+intrinsics (when retained), and the coordinate transformations between leaves.
+You can use the supplied producers or compute the summaries elsewhere.
 
 The inputs must already be reconstructed. This is a standalone solver; it is not
 currently part of the production scene-merging pipeline.
@@ -72,12 +76,18 @@ collection of such factors and the variables they connect.
 
 Reprojection is nonlinear. Around the supplied estimates, however, small changes
 in camera poses, intrinsics, and point locations have approximately linear effects
-on the image discrepancies. Building this approximation is called *linearization*.
-The solver builds it once per leaf, retaining camera poses and intrinsics as
-variables and using one-pixel isotropic measurement noise by default. Set
+on the image discrepancies. Building this local approximation is called
+*linearization*. Both producers build it once at the supplied estimates and retain
+the discrepancies there; they do not assume the input is already a perfect fit.
+
+The graph-based producer uses the original factors, noise models, and priors.
+Its camera variables are six-dimensional `Pose3` values; landmarks and any other
+non-camera variables, including variable calibration parameters, are marginalized
+out, so its output is merged with fixed calibration metadata.
+
+The reconstruction-based producer uses one-pixel isotropic measurement noise by
+default and retains camera poses and intrinsics as variables. Set
 `CameraTreeOptions(optimize_intrinsics=False)` to keep intrinsics fixed instead.
-It retains the discrepancies at the supplied estimates; it does not assume the
-input is already a perfect fit.
 
 Conceptually, the resulting least-squares problem is
 
@@ -89,12 +99,30 @@ minimize || A_pose * pose_change + A_calibration * calibration_change
 For any proposed camera changes, we can solve for the best point changes. After
 doing that algebraically, the remaining cost depends only on camera changes.
 This is *landmark elimination*, often described using the Schur complement. The
-implementation uses `GaussianFactorGraph.marginal(camera_keys, EliminateQR)`:
-GTSAM chooses an ordering and eliminates all variables other than the requested
-camera poses and calibrations, without forming a Schur-complement matrix.
-Only landmarks are eliminated. Pose–intrinsics and cross-camera correlations
-remain in the reduced graph; intrinsics are neither fixed nor marginalized in
-the default mode.
+preferred graph-based producer uses GTSAM's ordering and multifrontal QR APIs:
+
+1. `Ordering.ColamdConstrainedLastGaussianFactorGraph()` places every non-camera
+   variable before cameras. Partial multifrontal QR eliminates that prefix.
+2. `Ordering.MetisGaussianFactorGraph()` computes nested dissection on the reduced
+   camera graph, including the camera connections created by landmark elimination.
+3. Camera multifrontal QR uses that ordering to produce a Gaussian Bayes tree.
+   Its conditionals become the returned camera factor graph.
+
+This avoids explicitly forming a dense Schur-complement matrix. The returned
+graph has at most one factor per camera, usually fewer because a Bayes-tree clique
+can contain several frontal cameras. It does not retain one factor per landmark.
+Individual factors use dense blocks for their participating cameras; cameras
+outside a factor's scope are omitted. Nested dissection reduces elimination
+fill-in but cannot guarantee small cliques for inherently dense camera connectivity.
+In a test with 12 cameras and tracks spanning neighboring triples, both 100 and
+1,000 landmarks yield 7 camera factors, each involving at most 5 cameras.
+
+The reconstruction-based producer uses
+`GaussianFactorGraph.marginal(camera_keys, EliminateQR)`: GTSAM chooses an
+ordering and eliminates all variables other than the requested camera poses and
+calibrations. Only landmarks are eliminated. Pose–intrinsics and cross-camera
+correlations remain in the reduced graph; intrinsics are neither fixed nor
+marginalized in the default mode.
 
 This step retains the camera information in the linearized problem, up to an
 additive constant that does not affect optimization. It also retains correlations:
@@ -104,13 +132,17 @@ the result with independent camera priors would generally lose those relations.
 GTSAM's Python `Marginals` interface provides joint information and covariance
 matrices, but those matrices alone do not retain the residual offset `b`. For
 example, the costs `x²` and `(x - 3)²` have the same information matrix but different
-minima. The factor-graph `marginal()` method retains both the quadratic and linear
-terms, as well as any constrained noise models, which the merging solver needs.
+minima. The installed Python `Marginals` binding exposes neither an ordered constructor nor
+its internal Bayes tree or a joint marginal factor graph. The producer therefore
+uses the underlying multifrontal QR machinery directly, retaining both the
+quadratic and linear terms and any constrained noise models.
 
-The public producer returns this camera graph without adding coordinate
-constraints (`gauge_fixed=False`). Before factoring it into a Gaussian Bayes tree,
-the camera-only consumer chooses local coordinates. It constrains all six coordinates of the first
-camera and one baseline-length direction toward the farthest camera. These seven
+The graph-based producer requires the original graph to include its coordinate
+gauge and preserves those constraints. When constructing `CameraLeafFactors`,
+mark its output `gauge_fixed=True`, so the consumer does not add another gauge.
+The geometry-based convenience producer instead returns an ungauged graph;
+for those inputs the consumer chooses local coordinates. It constrains all six
+coordinates of the first camera and one baseline-length direction toward the farthest camera. These seven
 exact constraints remove the local similarity gauge. GTSAM's `NonlinearEqualityPose3`
 and a constrained `RangeFactorPose3` supply these rows by linearizing once at the
 estimated camera poses. GTSAM also chooses the COLAMD ordering for the subsequent
@@ -193,7 +225,63 @@ chosen global gauge; it retains `X(i)` poses and `K(i)` calibrations, but contai
 neither points nor similarity variables. In fixed-intrinsics mode it retains
 only `X(i)` poses. The output cameras contain the optimized intrinsics.
 
-## Using reconstructed leaves
+## Preferred API: use the original BA graph and values
+
+Immediately after leaf BA, while the nonlinear graph and optimized values are
+still available:
+
+```python
+from gtsam import Values
+from gtsam.symbol_shorthand import X
+
+from gtsfm.camera_tree_optimizer import (
+    CameraLeafFactors,
+    LeafCameraMetadata,
+    compute_camera_marginal_factors,
+)
+
+# Defaults to retaining the original graph's X(i) Pose3 camera variables.
+camera_graph = compute_camera_marginal_factors(ba_graph, optimized_values)
+
+estimated_camera_poses = Values()
+camera_metadata = {}
+for i, image in enumerate(images):
+    estimated_camera_poses.insert(X(i), optimized_values.atPose3(X(i)))
+    camera_metadata[X(i)] = LeafCameraMetadata(
+        filename=image.filename,
+        calibration=image.calibration,
+        shape=image.shape,
+    )
+leaf_factors = CameraLeafFactors(
+    camera_graph, estimated_camera_poses, camera_metadata, gauge_fixed=True
+)
+```
+
+Pass `camera_keys=[...]` explicitly if camera variables use other keys. The
+selected values must be `Pose3`, and the supplied graph must contain a complete
+coordinate gauge. No gauge is added, removed, or replaced, and no BA runs in this
+call. It preserves whatever priors are present; callers must distinguish intended
+coordinate constraints from geometric priors. Other graph variables are eliminated
+before cameras, and caller-owned inputs remain unchanged. METIS support in GTSAM
+is required; there is no silent fallback to another ordering.
+
+The graph and values must describe the original likelihood you want to preserve.
+For example, an optimizer that keeps additional robust weights outside the graph
+must incorporate those weights into the supplied graph. The producer does not
+retrieve hidden optimizer state. `measurement_sigma` does not affect this API.
+
+Place these leaf summaries into a `CameraFactorTree` and call
+`optimize_camera_factor_tree()` as shown below. The graph producer itself needs no
+`GtsfmData` or scene tree. Metadata is needed only when assembling leaves for the
+camera-tree optimizer.
+
+## Compatibility API: use reconstructed leaves
+
+> **Warning:** `GtsfmData` stores reconstructed geometry and observations, but does
+> not retain the original BA graph, gauge factors, or noise models. Prefer
+> `compute_camera_marginal_factors()` with the original graph and values, followed
+> by `optimize_camera_factor_tree()`. The SceneTree convenience wrapper emits a
+> `UserWarning` with this guidance and remains available.
 
 Given a `SceneTree` whose leaves contain named camera reconstructions, the
 convenience wrapper computes each leaf Schur complement and delegates to the
@@ -215,7 +303,8 @@ print(result.initial_error, result.final_error)
 
 ## Producing and consuming camera factors separately
 
-To compute a leaf summary independently:
+If only a saved reconstruction is available, the compatibility producer can
+rebuild a measurement model:
 
 ```python
 from gtsfm.camera_tree_optimizer import compute_camera_schur_complement
@@ -224,8 +313,11 @@ leaf_factors = compute_camera_schur_complement(leaf_reconstruction)
 ```
 
 This call linearizes the supplied reconstruction once and eliminates its
-landmarks with QR. It runs no BA and adds no coordinate constraints. The returned
-`CameraLeafFactors` contains:
+landmarks with QR using one-pixel isotropic noise by default. It runs no BA and
+adds no coordinate constraints. Unlike the preferred graph producer, it returns
+the uncompressed reduced graph, potentially one factor per landmark; the consumer
+compresses it later. It cannot recover original priors or noise models.
+The returned `CameraLeafFactors` contains:
 
 - `camera_graph`: the reduced `GaussianFactorGraph`, including its linear term
   and both pose and calibration variables in the default mode.
@@ -258,9 +350,8 @@ from pathlib import Path
 from gtsfm.camera_tree_optimizer import CameraFactorTree, optimize_camera_factor_tree
 from gtsfm.utils.tree import Tree
 
-# These leaves must share at least two cameras with distinct centers.
-left_factors = compute_camera_schur_complement(left_reconstruction)
-right_factors = compute_camera_schur_complement(right_reconstruction)
+# left_factors and right_factors are CameraLeafFactors produced above.
+# Their usable overlap must include two cameras with distinct centers.
 camera_factor_tree: CameraFactorTree = Tree(
     (Path("root"), None),
     children=(
@@ -333,9 +424,13 @@ out points in the joint pose/intrinsics system, check mixed-block and
 calibration-only derivatives and weighting, reconcile independent calibration
 estimates, and reject invalid calibration mappings and unobservable intrinsics.
 
-The implementation supports `Cal3Bundler` cameras with variable intrinsics by
+The tree optimizer supports `Cal3Bundler` cameras with variable intrinsics by
 default, with an explicit fixed-intrinsics option. Shared intrinsics across
 different images and production scene-merging integration are outside this API.
+The original-graph producer accepts Pose3 camera variables without requiring
+calibration metadata. Tests check compact factor counts, sparse scopes, exact
+and soft prior preservation, nonzero residual offsets, landmark-first ordering,
+and METIS camera ordering with multifrontal QR at both stages.
 It rejects missing camera identities, disconnected or insufficient overlaps,
 degenerate baselines, and insufficient geometric rank. A caller must arrange for
 leaf evidence not to duplicate measurements; the solver does not deduplicate
