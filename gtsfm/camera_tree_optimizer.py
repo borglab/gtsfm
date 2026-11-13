@@ -10,13 +10,13 @@ from __future__ import annotations
 
 import warnings
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
 
 import gtsam
 import numpy as np
-from gtsam.symbol_shorthand import L, S, X
+from gtsam.symbol_shorthand import K, L, S, X
 from numpy.typing import NDArray
 
 from gtsfm.common.gtsfm_data import GtsfmData
@@ -27,16 +27,19 @@ from gtsfm.utils.tree import Tree
 
 @dataclass(frozen=True)
 class CameraTreeOptions:
-    """Fusion settings; measurement_sigma is used only by the Schur-complement producer."""
+    """Fusion settings; measurement_sigma and optimize_intrinsics configure only the producer."""
 
     measurement_sigma: float = 1.0
     max_iterations: int = 100
     relative_error_tol: float = 1e-9
     absolute_error_tol: float = 1e-9
     rank_tolerance: float = 1e-9
+    optimize_intrinsics: bool = True
 
     def __post_init__(self) -> None:
         """Reject invalid noise, iteration, and numerical tolerance settings."""
+        if not isinstance(self.optimize_intrinsics, bool):
+            raise ValueError("optimize_intrinsics must be a bool.")
         if not np.isfinite(self.measurement_sigma) or self.measurement_sigma <= 0:
             raise ValueError("measurement_sigma must be finite and positive.")
         if self.max_iterations < 1:
@@ -49,7 +52,7 @@ class CameraTreeOptions:
 
 @dataclass(frozen=True)
 class LeafCameraMetadata:
-    """Camera identity and fixed calibration, independent of any reconstruction."""
+    """Camera identity and frozen calibration estimate, independent of any reconstruction."""
 
     filename: str
     calibration: gtsam.Cal3Bundler
@@ -58,17 +61,21 @@ class LeafCameraMetadata:
 
 @dataclass(frozen=True)
 class CameraLeafFactors:
-    """A complete camera quadratic in Pose3 local coordinates at fixed leaf estimates.
+    """A complete camera quadratic at frozen pose and optional calibration estimates.
 
-    All fields use the same leaf-local keys. The graph must retain its linear term
-    and measurement weighting. Set gauge_fixed only when the producer has already
-    fixed the seven coordinate freedoms without adding unintended geometric priors.
+    Poses and metadata share leaf-local pose keys. A nonempty calibration_keys maps
+    every pose key to a distinct calibration key, disjoint from the pose keys; its
+    frozen Cal3Bundler estimate is in camera_metadata. Empty means fixed intrinsics.
+    The graph retains its linear term and measurement weighting. Set gauge_fixed
+    only when the producer has fixed the seven coordinate freedoms without adding
+    unintended geometric priors.
     """
 
     camera_graph: gtsam.GaussianFactorGraph
     estimated_camera_poses: gtsam.Values
     camera_metadata: dict[int, LeafCameraMetadata]
     gauge_fixed: bool = False
+    calibration_keys: dict[int, int] = field(default_factory=dict)
 
 
 LocalCameraFactors = tuple[Path, CameraLeafFactors | None]
@@ -85,6 +92,7 @@ class LeafCameraSummary:
     estimated_camera_poses: gtsam.Values
     camera_bayes_tree: gtsam.GaussianBayesTree
     factors: tuple[gtsam.CustomFactor, ...]
+    estimated_calibrations: gtsam.Values = field(default_factory=gtsam.Values)
 
 
 @dataclass(frozen=True)
@@ -101,7 +109,9 @@ class CameraTreeResult:
 
     ``scene`` has no tracks. ``leaf_to_global`` maps each input leaf frame into
     the output frame. The final Bayes tree includes the chosen global gauge.
-    Calibration and image metadata come from the first occurrence of a camera.
+    Intrinsics are optimized when supplied as variables; otherwise calibration and
+    image metadata come from the first occurrence of a camera. camera_bayes_tree
+    retains both X(i) poses and, in variable-intrinsics mode, K(i) calibrations.
     """
 
     scene: GtsfmData
@@ -164,6 +174,8 @@ def _leaf_inputs(camera_factor_tree: CameraFactorTree) -> tuple[_LeafInput, ...]
     """
     names: set[str] = set()
     paths: set[Path] = set()
+    modes: set[bool] = set()
+    principal_points: dict[str, tuple[float, float]] = {}
     for node in camera_factor_tree.leaves():
         path, data = node.value
         if path in paths:
@@ -173,10 +185,17 @@ def _leaf_inputs(camera_factor_tree: CameraFactorTree) -> tuple[_LeafInput, ...]
             raise ValueError(f"Leaf {path}: missing camera factors.")
         try:
             _validate_camera_metadata(data.estimated_camera_poses, data.camera_metadata)
-            if set(data.camera_graph.keyVector()) != set(data.camera_metadata):
-                raise ValueError("Camera graph keys and metadata keys must match.")
+            _validate_camera_keys(data)
             if not isinstance(data.gauge_fixed, bool):
                 raise ValueError("gauge_fixed must be a bool.")
+            modes.add(bool(data.calibration_keys))
+            if len(modes) > 1:
+                raise ValueError("Cannot mix fixed-intrinsics and variable-intrinsics leaves.")
+            if data.calibration_keys:
+                for info in data.camera_metadata.values():
+                    point = (info.calibration.px(), info.calibration.py())
+                    if point != principal_points.setdefault(info.filename, point):
+                        raise ValueError(f"Inconsistent principal point for image {info.filename}.")
         except (ValueError, RuntimeError) as exc:
             raise ValueError(f"Leaf {path}: {exc}") from exc
         names.update(info.filename for info in data.camera_metadata.values())
@@ -188,6 +207,23 @@ def _leaf_inputs(camera_factor_tree: CameraFactorTree) -> tuple[_LeafInput, ...]
         mapping = {key: global_indices[info.filename] for key, info in data.camera_metadata.items()}
         inputs.append(_LeafInput(path, data, mapping, S(leaf_index)))
     return tuple(inputs)
+
+
+def _validate_camera_keys(data: CameraLeafFactors) -> None:
+    """Validate the declared variable layout without interpreting local key symbols.
+
+    Args:
+        data: Camera quadratic with pose metadata and optional calibration mapping.
+    """
+    pose_keys = set(data.camera_metadata)
+    calibration_keys = set(data.calibration_keys.values())
+    if data.calibration_keys:
+        if set(data.calibration_keys) != pose_keys:
+            raise ValueError("Calibration mapping must cover every pose key.")
+        if len(calibration_keys) != len(pose_keys) or calibration_keys & pose_keys:
+            raise ValueError("Calibration keys must be distinct and disjoint from pose keys.")
+    if set(data.camera_graph.keyVector()) != pose_keys | calibration_keys:
+        raise ValueError("Camera graph keys must match the declared pose and calibration keys.")
 
 
 def _local_poses(leaf: _LeafInput) -> dict[int, gtsam.Pose3]:
@@ -260,6 +296,10 @@ def _initialize(leaves: tuple[_LeafInput, ...]) -> gtsam.Values:
             f"Disconnected or insufficient camera overlap for leaves: {paths}. "
             "Each overlap link needs two shared cameras with distinct centers."
         )
+    for leaf in leaves:
+        for key, i in leaf.local_to_global.items():
+            if key in leaf.data.calibration_keys and not values.exists(K(i)):
+                values.insert(K(i), leaf.data.camera_metadata[key].calibration)
     return values
 
 
@@ -308,7 +348,7 @@ def _fixed_camera_values(reconstruction: GtsfmData) -> gtsam.Values:
 
 
 def _linearize_reconstruction(reconstruction: GtsfmData, options: CameraTreeOptions) -> gtsam.GaussianFactorGraph:
-    """Linearize fixed-calibration observations once without running bundle adjustment.
+    """Linearize observations once, optionally retaining intrinsics as variables.
 
     Args:
         reconstruction: Input with validated cameras and landmark estimates.
@@ -317,8 +357,15 @@ def _linearize_reconstruction(reconstruction: GtsfmData, options: CameraTreeOpti
     Returns:
         Joint camera/landmark Gaussian graph in the input frame.
     """
-    values = _fixed_camera_values(reconstruction)
-    camera_keys = set(values.keys())
+    camera_keys = set(reconstruction.get_valid_camera_indices())
+    if options.optimize_intrinsics:
+        values = gtsam.Values()
+        for i in sorted(camera_keys):
+            camera = reconstruction.get_camera(i)
+            values.insert(i, camera.pose())
+            values.insert(K(i), camera.calibration())
+    else:
+        values = _fixed_camera_values(reconstruction)
     graph = gtsam.NonlinearFactorGraph()
     noise = gtsam.noiseModel.Isotropic.Sigma(2, options.measurement_sigma)
     for j, track in enumerate(reconstruction.tracks()):
@@ -330,7 +377,10 @@ def _linearize_reconstruction(reconstruction: GtsfmData, options: CameraTreeOpti
             raise ValueError(f"Nonfinite point or measurement in track {j}.")
         values.insert(L(j), track.point3())
         for i, uv in measurements:
-            graph.push_back(gtsam.GeneralSFMFactorPoseCal3Bundler(uv, noise, i, L(j)))
+            if options.optimize_intrinsics:
+                graph.push_back(gtsam.GeneralSFMFactor2Cal3Bundler(uv, noise, i, L(j), K(i)))
+            else:
+                graph.push_back(gtsam.GeneralSFMFactorPoseCal3Bundler(uv, noise, i, L(j)))
     if graph.empty():
         raise ValueError("No tracks with at least two camera observations.")
     return graph.linearize(values)
@@ -437,10 +487,10 @@ def compute_camera_schur_complement(
 
     Args:
         reconstruction: Named reconstructed Cal3Bundler cameras and tracks.
-        options: Numerical settings; measurement_sigma defaults to one pixel.
+        options: Numerical settings and intrinsics mode; defaults to optimizing intrinsics.
 
     Returns:
-        Camera-only factors, estimated poses, and metadata keyed by input camera indices.
+        Landmark-free factors, estimated poses, metadata, and optional calibration keys.
         The complete linear term and weighting are retained; gauge_fixed is False.
 
     Raises:
@@ -452,8 +502,10 @@ def compute_camera_schur_complement(
         linear_graph = _linearize_reconstruction(reconstruction, options)
         if not set(metadata).issubset(linear_graph.keyVector()):
             raise ValueError("Some cameras have no retained observations.")
-        camera_graph = linear_graph.marginal(list(estimated_camera_poses.keys()), gtsam.EliminateQR)
-        data = CameraLeafFactors(camera_graph, estimated_camera_poses, metadata)
+        calibration_keys = {i: K(i) for i in metadata} if options.optimize_intrinsics else {}
+        retained_keys = list(estimated_camera_poses.keys()) + list(calibration_keys.values())
+        camera_graph = linear_graph.marginal(retained_keys, gtsam.EliminateQR)
+        data = CameraLeafFactors(camera_graph, estimated_camera_poses, metadata, calibration_keys=calibration_keys)
         _validate_camera_graph(data, options)
     except (RuntimeError, ValueError) as exc:
         raise ValueError(f"Camera Schur complement failed: {exc}") from exc
@@ -486,14 +538,18 @@ def _add_coordinate_gauge(graph: gtsam.GaussianFactorGraph, estimated_camera_pos
 
 
 def _lift_conditional(
-    conditional: gtsam.GaussianFactor, estimated_camera_poses: gtsam.Values, similarity_key: int
+    conditional: gtsam.GaussianFactor,
+    estimated_camera_poses: gtsam.Values,
+    similarity_key: int,
+    estimated_calibrations: gtsam.Values | None = None,
 ) -> gtsam.CustomFactor:
     """Evaluate a camera conditional through a global-to-leaf similarity.
 
     Args:
-        conditional: Gaussian camera conditional with six columns per camera.
+        conditional: Gaussian conditional with six-dimensional poses and optional three-dimensional intrinsics.
         estimated_camera_poses: Frozen local estimated camera poses.
         similarity_key: Key for the global-to-leaf Similarity3 variable.
+        estimated_calibrations: Frozen calibration estimates, unaffected by similarity transformations.
 
     Returns:
         Nonlinear factor preserving the conditional's original noise model.
@@ -502,7 +558,13 @@ def _lift_conditional(
     keys = factor.keys()
     matrix = np.array(factor.getA())
     rhs = np.array(factor.getb())
-    ordered_estimated_camera_poses = tuple(estimated_camera_poses.atPose3(key) for key in keys)
+    estimated_calibrations = estimated_calibrations if estimated_calibrations is not None else gtsam.Values()
+    is_pose = tuple(estimated_camera_poses.exists(key) for key in keys)
+    estimates = tuple(
+        estimated_camera_poses.atPose3(key) if pose else estimated_calibrations.atCal3Bundler(key)
+        for key, pose in zip(keys, is_pose)
+    )
+    offsets = np.cumsum([0, *(6 if pose else 3 for pose in is_pose)])
 
     def error(
         this: gtsam.CustomFactor, values: gtsam.Values, jacobians: gtsam.JacobianVector | None
@@ -521,17 +583,23 @@ def _lift_conditional(
         deltas = []
         if jacobians is not None:
             jacobians[0] = np.zeros((matrix.shape[0], 7), order="F")
-        for column, (key, estimated_camera_pose) in enumerate(zip(keys, ordered_estimated_camera_poses)):
+        for column, (key, estimate, pose_block) in enumerate(zip(keys, estimates, is_pose)):
+            matrix_block = matrix[:, offsets[column] : offsets[column + 1]]
+            if not pose_block:
+                deltas.append(estimate.localCoordinates(values.atCal3Bundler(key)))
+                if jacobians is not None:
+                    jacobians[column + 1] = matrix_block
+                continue
             pose = values.atPose3(key)
             if jacobians is None:
-                deltas.append(estimated_camera_pose.localCoordinates(similarity.transformFrom(pose)))
+                deltas.append(estimate.localCoordinates(similarity.transformFrom(pose)))
                 continue
             h_similarity = np.zeros((6, 7), order="F")
             h_pose = np.zeros((6, 6), order="F")
             h_local = np.zeros((6, 6), order="F")
             local_pose = similarity.transformFrom(pose, h_similarity, h_pose)
-            deltas.append(estimated_camera_pose.localCoordinates(local_pose, None, h_local))
-            block = matrix[:, 6 * column : 6 * (column + 1)] @ h_local
+            deltas.append(estimate.localCoordinates(local_pose, None, h_local))
+            block = matrix_block @ h_local
             jacobians[0] = jacobians[0] + block @ h_similarity
             jacobians[column + 1] = block @ h_pose
         return matrix @ np.concatenate(deltas) - rhs
@@ -539,18 +607,19 @@ def _lift_conditional(
     return gtsam.CustomFactor(factor.get_model(), [similarity_key, *keys], error)
 
 
-def _validate_camera_factor(factor: gtsam.GaussianFactor) -> None:
+def _validate_camera_factor(factor: gtsam.GaussianFactor, calibration_keys: set[int]) -> None:
     """Check individual block dimensions and numerical data before combining factors.
 
     Args:
         factor: A Gaussian camera factor, possibly containing exact constraints.
+        calibration_keys: Keys declaring three-dimensional calibration blocks.
     """
     # A singleton gradient reveals each block's dimension without assuming equal block sizes.
     singleton = gtsam.GaussianFactorGraph()
     singleton.push_back(factor)
     dimensions = singleton.gradientAtZero()
-    if any(dimensions.at(key).size != 6 for key in factor.keys()):
-        raise ValueError("Every camera factor block must have six dimensions.")
+    if any(dimensions.at(key).size != (3 if key in calibration_keys else 6) for key in factor.keys()):
+        raise ValueError("Camera factor blocks must have six pose or three calibration dimensions.")
     jacobian = gtsam.JacobianFactor(factor)
     if not np.all(np.isfinite(jacobian.getA())) or not np.all(np.isfinite(jacobian.getb())):
         raise ValueError("Nonfinite camera factor coefficients or residual offsets.")
@@ -566,11 +635,22 @@ def _validate_camera_graph(data: CameraLeafFactors, options: CameraTreeOptions) 
         data: Complete camera quadratic and gauge declaration.
         options: Numerical rank tolerance.
     """
-    _validate_camera_system(data.camera_graph, data.estimated_camera_poses.size(), data.gauge_fixed, options)
+    _validate_camera_keys(data)
+    _validate_camera_system(
+        data.camera_graph,
+        data.estimated_camera_poses.size(),
+        data.gauge_fixed,
+        options,
+        set(data.calibration_keys.values()),
+    )
 
 
 def _validate_camera_system(
-    camera_graph: gtsam.GaussianFactorGraph, number_cameras: int, gauge_fixed: bool, options: CameraTreeOptions
+    camera_graph: gtsam.GaussianFactorGraph,
+    number_cameras: int,
+    gauge_fixed: bool,
+    options: CameraTreeOptions,
+    calibration_keys: set[int] | None = None,
 ) -> None:
     """Check camera blocks and rank independently of reconstruction metadata.
 
@@ -579,11 +659,13 @@ def _validate_camera_system(
         number_cameras: Number of six-dimensional pose variables.
         gauge_fixed: Whether coordinate constraints are already present.
         options: Numerical rank tolerance.
+        calibration_keys: Keys of three-dimensional calibration blocks, if retained.
     """
+    calibration_keys = calibration_keys or set()
     for k in range(camera_graph.size()):
         factor = camera_graph.at(k)
         if factor is not None:
-            _validate_camera_factor(factor)
+            _validate_camera_factor(factor, calibration_keys)
     matrix, _ = camera_graph.jacobian()
     if matrix.shape[0] == 0 or not np.all(np.isfinite(matrix)):
         raise ValueError("Camera graph must have finite, nonempty Jacobian rows.")
@@ -591,7 +673,7 @@ def _validate_camera_system(
     scaled = matrix / np.where(column_norms > 0, column_norms, 1)
     singular_values = np.linalg.svd(scaled, compute_uv=False)
     rank = np.count_nonzero(singular_values > options.rank_tolerance * singular_values[0])
-    expected_rank = 6 * number_cameras - (0 if gauge_fixed else 7)
+    expected_rank = 6 * number_cameras + 3 * len(calibration_keys) - (0 if gauge_fixed else 7)
     # Rotation rounding and Hessian square roots can lift null modes by sqrt(n * epsilon).
     gauge_tolerance = max(options.rank_tolerance, np.sqrt(matrix.shape[1] * np.finfo(float).eps))
     gauge_rank = np.count_nonzero(singular_values > gauge_tolerance * singular_values[0])
@@ -602,27 +684,32 @@ def _validate_camera_system(
         )
 
 
-def _global_camera_factors(leaf: _LeafInput) -> tuple[gtsam.GaussianFactorGraph, gtsam.Values]:
+def _global_camera_factors(leaf: _LeafInput) -> tuple[gtsam.GaussianFactorGraph, gtsam.Values, gtsam.Values]:
     """Copy a leaf's factors and estimates into the shared global camera key space.
 
     Args:
         leaf: Validated camera-only input with resolved image identities.
 
     Returns:
-        Rekeyed factor graph and leaf-frame poses, without mutating the input.
+        Rekeyed factor graph, leaf-frame poses, and calibrations, without mutating the input.
     """
     graph = gtsam.GaussianFactorGraph()
+    mapping = {key: X(i) for key, i in leaf.local_to_global.items()}
+    mapping.update({cal_key: K(leaf.local_to_global[key]) for key, cal_key in leaf.data.calibration_keys.items()})
     for k in range(leaf.data.camera_graph.size()):
         factor = leaf.data.camera_graph.at(k)
         if factor is None:
             continue
-        new_keys = [X(leaf.local_to_global[key]) for key in factor.keys()]
+        new_keys = [mapping[key] for key in factor.keys()]
         container = gtsam.LinearContainerFactor(factor.clone()).rekey(new_keys)
         graph.push_back(container.factor())
     estimated_camera_poses = gtsam.Values()
+    estimated_calibrations = gtsam.Values()
     for key, global_i in leaf.local_to_global.items():
         estimated_camera_poses.insert(X(global_i), leaf.data.estimated_camera_poses.atPose3(key))
-    return graph, estimated_camera_poses
+        if key in leaf.data.calibration_keys:
+            estimated_calibrations.insert(K(global_i), leaf.data.camera_metadata[key].calibration)
+    return graph, estimated_camera_poses, estimated_calibrations
 
 
 def _prepare_leaf(leaf: _LeafInput, options: CameraTreeOptions) -> LeafCameraSummary:
@@ -637,7 +724,7 @@ def _prepare_leaf(leaf: _LeafInput, options: CameraTreeOptions) -> LeafCameraSum
     """
     try:
         _validate_camera_graph(leaf.data, options)
-        camera_graph, estimated_camera_poses = _global_camera_factors(leaf)
+        camera_graph, estimated_camera_poses, estimated_calibrations = _global_camera_factors(leaf)
         if not leaf.data.gauge_fixed:
             _add_coordinate_gauge(camera_graph, estimated_camera_poses)
         bayes_tree = camera_graph.eliminateMultifrontal(None, gtsam.EliminateQR)
@@ -645,11 +732,17 @@ def _prepare_leaf(leaf: _LeafInput, options: CameraTreeOptions) -> LeafCameraSum
         raise ValueError(f"Leaf {leaf.path}: camera preparation failed: {exc}") from exc
     conditionals = gtsam.GaussianFactorGraph(bayes_tree)
     factors = tuple(
-        _lift_conditional(conditionals.at(k), estimated_camera_poses, leaf.similarity_key)
+        _lift_conditional(conditionals.at(k), estimated_camera_poses, leaf.similarity_key, estimated_calibrations)
         for k in range(conditionals.size())
     )
     return LeafCameraSummary(
-        leaf.path, leaf.similarity_key, leaf.local_to_global, estimated_camera_poses, bayes_tree, factors
+        leaf.path,
+        leaf.similarity_key,
+        leaf.local_to_global,
+        estimated_camera_poses,
+        bayes_tree,
+        factors,
+        estimated_calibrations,
     )
 
 
@@ -745,6 +838,7 @@ def _final_camera_bayes_tree(
     """
     # Remove similarity increments from the final linearization, retaining their camera information.
     camera_keys = sorted({X(i) for leaf in leaves for i in leaf.local_to_global.values()})
+    camera_keys += sorted({K(leaf.local_to_global[key]) for leaf in leaves for key in leaf.data.calibration_keys})
     final_camera_graph = graph.linearize(optimized).marginal(camera_keys, gtsam.EliminateQR)
     # Factor the remaining camera quadratic with GTSAM's default COLAMD ordering.
     return final_camera_graph.eliminateMultifrontal(None, gtsam.EliminateQR)
@@ -760,14 +854,15 @@ def _camera_scene(leaves: tuple[_LeafInput, ...], optimized: gtsam.Values) -> Gt
     Returns:
         Global cameras with image metadata and no landmarks.
     """
-    # Export each global camera once, keeping its first leaf's calibration and image metadata.
+    # Export each global camera once, with optimized intrinsics when present.
     scene = GtsfmData(number_images=sum(gtsam.Symbol(key).chr() == ord("x") for key in optimized.keys()))
     for leaf in leaves:
         for local_i, global_i in leaf.local_to_global.items():
             if scene.get_camera(global_i) is not None:
                 continue
             info = leaf.data.camera_metadata[local_i]
-            scene.add_camera(global_i, gtsam.PinholeCameraCal3Bundler(optimized.atPose3(X(global_i)), info.calibration))
+            calibration = optimized.atCal3Bundler(K(global_i)) if leaf.data.calibration_keys else info.calibration
+            scene.add_camera(global_i, gtsam.PinholeCameraCal3Bundler(optimized.atPose3(X(global_i)), calibration))
             scene.set_image_info(global_i, name=info.filename, shape=info.shape)
     return scene
 
@@ -809,12 +904,12 @@ def optimize_camera_factor_tree(
 ) -> CameraTreeResult:
     """Fuse frozen leaf camera information in the first leaf's frame without further BA.
 
-    Intrinsics stay fixed, and internal payloads are ignored.
+    The supplied summaries determine whether intrinsics vary; internal payloads are ignored.
     Overlap links require two shared cameras with distinct centers.
 
     Args:
         camera_factor_tree: Hierarchy of camera quadratics, pose estimates, and metadata.
-        options: Solver and rank settings; measurement_sigma does not reweight supplied factors.
+        options: Solver and rank settings; measurement_sigma and optimize_intrinsics do not alter supplied factors.
 
     Returns:
         Camera-only scene, leaf similarities, factor tree, and final camera Bayes tree.

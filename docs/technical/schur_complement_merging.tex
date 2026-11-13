@@ -1,0 +1,331 @@
+% Build from the repository root (auxiliary files stay under build/):
+% mkdir -p build/camera-tree-writeup
+% latexmk -pdf -interaction=nonstopmode -halt-on-error \
+%   -outdir=build/camera-tree-writeup docs/technical/schur_complement_merging.tex
+% cp build/camera-tree-writeup/schur_complement_merging.pdf docs/technical/
+\documentclass[11pt,letterpaper]{article}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=0.9in]{geometry}
+\usepackage{amsmath,amssymb,bm,mathtools}
+\usepackage{booktabs,tabularx}
+\usepackage{microtype}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage[colorlinks=true,linkcolor=blue!45!black,urlcolor=blue!45!black]{hyperref}
+\hypersetup{pdftitle={Merging Reconstructions with Landmark Schur Complements},pdfauthor={GTSFM technical note}}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small GTSFM technical note}
+\fancyhead[R]{\small Camera-tree merging}
+\fancyfoot[C]{\thepage}
+\setlength{\headheight}{14pt}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{5pt plus 1pt}
+\setlist{nosep,leftmargin=*}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\SE}{\mathrm{SE}(3)}
+\newcommand{\Sim}{\mathrm{Sim}(3)}
+\newcommand{\Local}{\operatorname{Local}}
+\newcommand{\rank}{\operatorname{rank}}
+\newcommand{\diag}{\operatorname{diag}}
+\newcommand{\argmin}{\operatorname*{arg\,min}}
+\newcommand{\code}[1]{\texttt{\detokenize{#1}}}
+\begin{document}
+\thispagestyle{empty}
+\begin{center}
+{\LARGE\bfseries Merging Reconstructions with\\[4pt] Landmark Schur Complements\par}
+\vspace{9pt}
+{\large Joint camera poses and intrinsics across local coordinate frames}
+\end{center}
+\vspace{3pt}
+\begin{abstract}
+\noindent Independently reconstructed image clusters can be merged by summarizing
+each cluster as a joint likelihood over its cameras. We linearize the local
+reprojection problem and eliminate only landmark increments, retaining camera
+poses, intrinsics, and their correlations. Each resulting Gaussian system is
+factored into a Bayes tree and expressed in a common frame through a leaf-specific
+similarity transformation. Shared images identify common pose and calibration
+variables, and one root optimization reconciles all leaf evidence. This note
+derives the Schur reduction, coordinate constraints, similarity-aware residuals,
+analytic derivatives, and final camera information, and states the assumptions
+under which the frozen approximation is useful.
+\end{abstract}
+
+\section{Local reconstructions and shared camera variables}
+The input is a hierarchy of reconstructed image clusters. Each leaf supplies
+camera poses, intrinsics, image measurements, and 3D landmarks in its own
+coordinate frame. Overlapping leaves can contain the same image but assign it
+different local indices and different estimates. Image filenames establish
+identity across leaves. The merged state contains one global pose and calibration
+per image and one similarity transformation per leaf.
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+Symbol & Meaning \\
+\midrule
+$\ell$, $i$, $j$ & Leaf, globally identified image, and leaf-local landmark indices. \\
+$\bar T_{\ell i}\in\SE$ & Frozen camera-to-leaf pose estimate. \\
+$\bar\kappa_{\ell i}\in\R^3$ & Frozen \code{Cal3Bundler} parameters $(f,k_1,k_2)$. \\
+$\bar p_{\ell j}\in\R^3$ & Frozen landmark position in the leaf frame. \\
+$T_i,\kappa_i$ & Global camera pose and per-image calibration to optimize. \\
+$S_\ell\in\Sim$ & Similarity mapping global coordinates into leaf $\ell$. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+The observation model uses one focal length and two radial-distortion coefficients.
+For $q=T^{-1}p$, let $x=q_x/q_z$, $y=q_y/q_z$, and $r^2=x^2+y^2$. Then
+\begin{equation}
+ \pi(T,\kappa,p)=
+ \begin{bmatrix} f(1+k_1r^2+k_2r^4)x+u_0\\
+                 f(1+k_1r^2+k_2r^4)y+v_0\end{bmatrix}.
+\end{equation}
+The principal point $(u_0,v_0)$ is fixed. Occurrences of a shared image must agree
+on it. Different images have independent calibrations, while occurrences of the
+same image share one global calibration.
+
+Each leaf's reprojection model is linearized once at its supplied estimates.
+The reconstruction-based model uses isotropic pixel noise $\sigma^2 I_2$,
+with $\sigma=1$ by default, and excludes tracks observed by fewer than two distinct
+retained cameras. The resulting camera likelihood retains the weights of the
+linearized model. After landmark elimination, merging uses only that likelihood,
+the frozen camera estimates, and image identities; it does not revisit the points.
+
+\newpage
+\section{Eliminating landmarks while retaining intrinsics}
+For a leaf, collect pose increments $\delta x\in\R^{6n}$, calibration increments
+$\delta\kappa\in\R^{3n}$, and landmark increments $\delta p\in\R^{3m}$.
+Whitened linearization gives the local least-squares problem
+\begin{equation}\label{eq:linear}
+ \min_{\delta x,\delta\kappa,\delta p}
+ \frac12\left\|A_x\delta x+A_\kappa\delta\kappa+A_p\delta p-b\right\|^2,
+ \qquad b=-r(\bar T,\bar\kappa,\bar p).
+\end{equation}
+The residual offset $b$ is retained even when the supplied reconstruction is not
+at a stationary point. Set $\delta c=[\delta x^\top\;\delta\kappa^\top]^\top$
+and $A_c=[A_x\;A_\kappa]$. The normal equations have block structure
+\begin{equation}
+ \begin{bmatrix}H_{cc}&H_{cp}\\H_{pc}&H_{pp}\end{bmatrix}
+ \begin{bmatrix}\delta c\\\delta p\end{bmatrix}
+ =\begin{bmatrix}g_c\\g_p\end{bmatrix},\qquad
+ H=A^\top A,\quad g=A^\top b.
+\end{equation}
+If $H_{pp}$ is nonsingular, profiling out the points yields
+\begin{align}
+ H_{\mathrm{red}}&=H_{cc}-H_{cp}H_{pp}^{-1}H_{pc},\label{eq:schur}\\
+ g_{\mathrm{red}}&=g_c-H_{cp}H_{pp}^{-1}g_p.\label{eq:linear-term}
+\end{align}
+The pose--intrinsics block is therefore
+\begin{equation}
+ (H_{\mathrm{red}})_{x\kappa}
+ =H_{x\kappa}-H_{xp}H_{pp}^{-1}H_{p\kappa}.
+\end{equation}
+Preserving this block allows calibration changes to influence the pose solution
+and preserves correlations between images induced by shared landmarks.
+
+\subsection{Square-root reduction}
+The implementation uses QR elimination rather than explicitly forming
+Equation~\eqref{eq:schur}. Conceptually, an orthogonal transformation gives
+\begin{equation}
+ Q^\top\begin{bmatrix}A_p&A_c&b\end{bmatrix}
+ =\begin{bmatrix}R_p&B_p&d_p\\0&B&d\end{bmatrix}.
+\end{equation}
+When the landmark columns are eliminable, solving the first block for $\delta p$
+leaves the reduced cost
+\begin{equation}\label{eq:reduced}
+ E_{\mathrm{red}}(\delta c)=\tfrac12\|B\delta c-d\|^2,
+ \qquad B^\top B=H_{\mathrm{red}},\quad B^\top d=g_{\mathrm{red}}.
+\end{equation}
+Any additive constant discarded by the factor representation does not affect
+optimization. GTSAM's \code{GaussianFactorGraph.marginal(retained_keys, EliminateQR)}
+retains the pose and calibration keys and eliminates only landmark keys.
+The returned producer summary is ungauged.
+
+\subsection{The retained camera likelihood}
+The reduced state has $9n$ coordinates: six pose and three calibration coordinates
+per image. The retained likelihood includes pose--pose, calibration--calibration,
+and pose--calibration interactions. Replacing it with independent priors on each
+camera would generally lose information about how cameras can change together.
+The linear term is equally essential: $g_{\mathrm{red}}$ determines the preferred
+increment when the observations have nonzero residuals. An information matrix
+alone is insufficient, since $x^2$ and $(x-3)^2$ have the same quadratic coefficient
+but different optima. The summary therefore preserves both $B$ and $d$, or an
+equivalent collection of Gaussian factors, together with its linearization point.
+
+\newpage
+\section{Gauge constraints and leaf Bayes trees}
+An observable monocular leaf has seven similarity gauge freedoms: three
+rotations, three translations, and one scale. Intrinsics remain in the state,
+so for $n$ cameras the expected ungauged rank is $9n-7$.
+Additional self-calibration or geometric ambiguities are rejected; the code does
+not add implicit calibration priors to make such a system invertible.
+
+The consumer fixes a local coordinate chart before factoring an ungauged leaf.
+It adds six exact rows fixing the first pose at its frozen estimate and one exact
+row fixing the baseline length to the farthest camera, linearized at those
+estimates. A nonzero baseline is required. These constraints act only on poses,
+not on calibration variables. GTSAM's \code{NonlinearEqualityPose3} and constrained
+\code{RangeFactorPose3} supply the rows.
+
+The augmented graph is factored by multifrontal QR with GTSAM's default ordering.
+Its Gaussian Bayes-tree conditionals jointly represent the constrained camera
+quadratic. A conditional can contain any mixture of pose and calibration blocks;
+block widths are six and three, respectively. Conditionals preserve their linear
+terms and noise models, including exact constraints.
+
+A supplied camera summary may already include coordinate constraints. In that
+case its retained system must be full rank, and no second gauge is added.
+Gauged and ungauged leaves can coexist in the hierarchy. Rank checks normalize
+Jacobian columns and tolerate numerical perturbations of gauge null modes.
+The constraints must express a choice of coordinates rather than unintended
+geometric priors; rank alone cannot distinguish these meanings.
+
+\section{Lifting the leaf quadratic to global variables}
+A similarity variable lets each leaf's constrained local chart move within the
+global reconstruction. Let $\Phi(S,T)$ denote GTSAM's
+\code{Similarity3.transformFrom(Pose3)}. With GTSAM's stored parameters
+$S=(R_s,t_s,s)$, its action is
+\begin{equation}
+ p\longmapsto s(R_sp+t_s),\qquad
+ \Phi(S,(R,t))=(R_sR,\;s(R_st+t_s)).
+\end{equation}
+The translation parameter is inside the scale in this convention. The code uses
+the library operation and its derivatives, rather than implementing an alternate
+similarity convention.
+
+For each image in leaf $\ell$, define frozen-chart increments
+\begin{align}
+ \xi_{\ell i}(T_i,S_\ell)
+ &=\Local_{\bar T_{\ell i}}\!\left(\Phi(S_\ell,T_i)\right)\in\R^6,\\
+ \eta_{\ell i}(\kappa_i)
+ &=\Local_{\bar\kappa_{\ell i}}(\kappa_i)
+ =\kappa_i-\bar\kappa_{\ell i}\in\R^3.
+\end{align}
+For conditional $q$, concatenate the appropriate increments in its actual key
+order into $z_{\ell q}$. The lifted residual is
+\begin{equation}\label{eq:lift}
+ e_{\ell q}=A_{\ell q}z_{\ell q}-b_{\ell q}.
+\end{equation}
+Each shared image has one global calibration but may have different frozen
+calibration estimates in different leaves. Similarities affect poses only:
+neither focal length nor distortion coefficients change under a change of world
+frame or world scale. The residual is passed unwhitened to a \code{CustomFactor}
+with the conditional's original noise model, so weighting is applied exactly once.
+
+\newpage
+\section{Derivatives, root optimization, and the final reduction}
+The lifted factors use analytic derivatives in GTSAM's local retraction charts.
+For a pose block, let $A_i^x$ be its six columns in a conditional and define
+\begin{equation}
+ J_i^{\mathrm{loc}}=D_2\Local_{\bar T_{\ell i}}(\Phi(S_\ell,T_i)),\quad
+ J_i^S=D_S\Phi(S_\ell,T_i),\quad J_i^T=D_T\Phi(S_\ell,T_i).
+\end{equation}
+The chain rule gives
+\begin{align}
+ \frac{\partial e_{\ell q}}{\partial \delta T_i}
+   &=A_i^xJ_i^{\mathrm{loc}}J_i^T,\\
+ \frac{\partial e_{\ell q}}{\partial \delta S_\ell}
+   &=\sum_{i\text{ in pose blocks}}A_i^xJ_i^{\mathrm{loc}}J_i^S,\\
+ \frac{\partial e_{\ell q}}{\partial \delta\kappa_i}
+   &=A_i^\kappa.
+\end{align}
+Calibration contributes no similarity derivative. In particular, a
+calibration-only conditional has an identically zero similarity Jacobian.
+The implementation computes column offsets from the variable types; it never
+assumes that every conditional block has six columns. These formulas apply at
+nonidentity poses and nonunit similarity scales, not just at initialization.
+
+\subsection{Initialization and one global solve}
+Camera identity is resolved by filename, and sorted filenames determine the
+output indices. Pose-based similarity alignment initializes a connected graph of
+overlapping leaves. Each usable overlap link needs at least two shared cameras
+with distinct centers. Global calibrations are initialized from the first
+occurrence of each image in leaf traversal order.
+
+The input scene tree assembles the leaf evidence bottom-up, without performing
+an optimization at internal nodes. The root problem is
+\begin{equation}\label{eq:root}
+ \min_{\{T_i,\kappa_i,S_\ell\}}\ \sum_{\ell,q}
+   \tfrac12\|e_{\ell q}(T,\kappa,S_\ell)\|_{\Sigma_{\ell q}}^2,
+ \qquad S_0=I,
+\end{equation}
+Here $\|e\|_\Sigma^2=e^\top\Sigma^{-1}e$ for stochastic rows; zero-noise rows
+are exact constraints. Fixing the first leaf's similarity selects the global frame and
+scale. Levenberg--Marquardt with multifrontal QR solves this problem once at the
+root. The local pose and calibration estimates used inside the factors remain
+frozen throughout optimization. The public leaf-to-global transform is
+$S_\ell^{-1}$.
+
+\subsection{Final camera information retains calibration}
+At the converged solution, the assembled graph is linearized again with respect
+to its global camera and similarity variables. This relinearizes the lifted
+factors, not the original image measurements. The final marginalization removes
+only the similarity increments:
+\begin{equation}
+ E_{\mathrm{final}}(\delta c)
+ =\min_{\delta s} E_{\mathrm{root,lin}}(\delta c,\delta s),\qquad
+ \delta c=(\delta x,\delta\kappa).
+\end{equation}
+The resulting Gaussian Bayes tree contains global \code{X(i)} pose keys and
+\code{K(i)} calibration keys. It contains no landmarks or similarities and
+includes the chosen coordinate gauge. The returned scene has optimized poses
+and calibrations, image metadata, and zero tracks. Its quadratic describes
+local information in the frozen approximation, not the uncertainty of a newly
+optimized full bundle-adjustment problem.
+
+\newpage
+\section{The complete merging procedure}
+The algorithm separates measurement reduction from camera merging. A leaf
+summary contains the reduced Gaussian factors, frozen pose and calibration
+estimates, image identities, local key associations, and a declaration of whether
+its coordinate gauge is fixed. The global optimizer needs no landmark positions
+or image observations once these summaries have been constructed.
+
+\begin{enumerate}[itemsep=2pt]
+\item \textbf{Linearize each leaf.} Assemble the weighted local observation model
+at the supplied poses, intrinsics, and points, retaining the residual offsets.
+\item \textbf{Eliminate landmarks.} Apply QR to the point columns and retain all
+pose and calibration columns. Preserve the joint quadratic and linear term.
+\item \textbf{Choose local coordinates and factor.} For each ungauged leaf, fix
+one pose and one baseline length. Factor the retained graph into Gaussian
+Bayes-tree conditionals.
+\item \textbf{Match images and initialize frames.} Assign one global pose and
+calibration to each filename. Align overlapping leaves to initialize their
+similarities, and initialize calibration from the first occurrence of each image.
+\item \textbf{Lift and assemble.} Evaluate each conditional through its leaf's
+similarity and frozen camera charts. Collect the leaf factors bottom-up, counting
+each leaf's contribution once.
+\item \textbf{Optimize globally.} Fix the first similarity to identity and jointly
+refine all global poses, intrinsics, and remaining similarities at the root.
+\item \textbf{Return cameras and local information.} Export the optimized cameras
+and leaf-to-global similarities. Linearize the merged graph and remove the
+similarity increments to obtain the final joint camera Bayes tree.
+\end{enumerate}
+
+\subsection{The scene tree and the Bayes trees have different roles}
+The scene tree organizes which reconstructions contribute evidence and how their
+summaries are collected. Internal nodes concatenate child factor graphs; they do
+not optimize or discard additional camera variables. Each leaf's Bayes tree is
+an algebraic factorization of that leaf's reduced likelihood, and the final Bayes
+tree factors the merged camera information. Their clique structure follows
+variable connectivity and elimination ordering, not the scene hierarchy.
+
+\subsection{Assumptions and approximation limits}
+The usable overlap graph must be connected, with at least two shared cameras at
+distinct centers on each link used for initialization. Each leaf must have the
+declared geometric rank; additional self-calibration ambiguity is not repaired
+by implicit calibration priors. Image identities and fixed principal points must
+agree across shared images. Evidence must be assigned consistently across leaves:
+sharing camera variables is intentional, but counting the same observation twice
+would duplicate its information.
+
+Landmark elimination is exact for the linearized problem, up to additive constants.
+During merging, pose-chart and similarity derivatives change but the leaf
+quadratics remain fixed. Large departures from their linearization points can
+reduce accuracy. Recovering landmarks requires a subsequent step using the
+original observations. Uncertainty interpretation must respect the chosen gauge
+and the frozen-linearization approximation.
+\end{document}

@@ -7,7 +7,7 @@ from unittest.mock import patch
 import gtsam
 import numpy as np
 import pytest
-from gtsam.symbol_shorthand import L, S, X
+from gtsam.symbol_shorthand import K, L, S, X
 
 from gtsfm import camera_tree_optimizer as cto
 from gtsfm.common.gtsfm_data import GtsfmData
@@ -15,6 +15,7 @@ from gtsfm.products import scene_tree
 from gtsfm.utils.tree import PreOrderIter, Tree
 
 DATA_ROOT = Path(__file__).resolve().parent / "data"
+FIXED_OPTIONS = cto.CameraTreeOptions(optimize_intrinsics=False)
 
 
 def _synthetic_scene(camera_ids: tuple[int, ...] = (0, 1, 2), degenerate: bool = False) -> GtsfmData:
@@ -38,7 +39,7 @@ def _synthetic_scene(camera_ids: tuple[int, ...] = (0, 1, 2), degenerate: bool =
 
 def _single_leaf(scene: GtsfmData) -> cto._LeafInput:
     """Resolve identities for a one-leaf numerical test."""
-    return cto._leaf_inputs(Tree((Path("leaf"), cto.compute_camera_schur_complement(scene))))[0]
+    return cto._leaf_inputs(Tree((Path("leaf"), cto.compute_camera_schur_complement(scene, FIXED_OPTIONS))))[0]
 
 
 def _vector_values(keys: list[int], delta: np.ndarray) -> gtsam.VectorValues:
@@ -53,7 +54,7 @@ def test_landmark_elimination_and_bayes_tree_preserve_quadratic() -> None:
     """Check the Schur objective against explicit minimization of all point increments."""
     scene = _synthetic_scene()
     leaf = _single_leaf(scene)
-    options = cto.CameraTreeOptions()
+    options = FIXED_OPTIONS
     graph = cto._linearize_reconstruction(scene, options)
     estimated_camera_poses = leaf.data.estimated_camera_poses
     point_ordering = gtsam.Ordering([L(j) for j in range(scene.number_tracks())])
@@ -74,6 +75,7 @@ def test_landmark_elimination_and_bayes_tree_preserve_quadratic() -> None:
     zero = _vector_values(camera_keys, np.zeros(6 * len(camera_keys)))
     zero_points = np.linalg.lstsq(point_matrix, rhs, rcond=None)[0]
     zero_profile = 0.5 * np.linalg.norm(point_matrix @ zero_points - rhs) ** 2
+    assert np.isfinite(zero_profile)
     rng = np.random.default_rng(3)
     anchor = estimated_camera_poses.atPose3(camera_keys[0])
     farthest = max(
@@ -94,6 +96,7 @@ def test_landmark_elimination_and_bayes_tree_preserve_quadratic() -> None:
         point_delta = np.linalg.lstsq(point_matrix, rhs - camera_matrix @ delta, rcond=None)[0]
         profile = 0.5 * np.linalg.norm(camera_matrix @ delta + point_matrix @ point_delta - rhs) ** 2
         expected_difference = profile - zero_profile
+        assert np.isfinite(expected_difference)
         np.testing.assert_allclose(
             reduced.error(vector) - reduced.error(zero), expected_difference, rtol=1e-9, atol=1e-8
         )
@@ -176,8 +179,14 @@ def lund_tree() -> scene_tree.SceneTree:
     return _overlapping_lund_tree()
 
 
+@pytest.fixture(scope="module", params=[False, True], ids=["fixed", "intrinsics"])
+def lund_options(request: pytest.FixtureRequest) -> cto.CameraTreeOptions:
+    """Exercise both calibration modes on the same real reconstruction."""
+    return cto.CameraTreeOptions(optimize_intrinsics=request.param)
+
+
 @pytest.fixture(scope="module")
-def lund_result(lund_tree: scene_tree.SceneTree) -> cto.CameraTreeResult:
+def lund_result(lund_tree: scene_tree.SceneTree, lund_options: cto.CameraTreeOptions) -> cto.CameraTreeResult:
     """Solve the real reconstruction while prohibiting any BA optimizer calls."""
     with (
         patch(
@@ -188,7 +197,7 @@ def lund_result(lund_tree: scene_tree.SceneTree) -> cto.CameraTreeResult:
             side_effect=AssertionError("BA called"),
         ),
     ):
-        return cto.optimize_camera_tree(lund_tree)
+        return cto.optimize_camera_tree(lund_tree, lund_options)
 
 
 def test_lund_camera_only_merge(lund_tree: scene_tree.SceneTree, lund_result: cto.CameraTreeResult) -> None:
@@ -206,15 +215,19 @@ def test_lund_camera_only_merge(lund_tree: scene_tree.SceneTree, lund_result: ct
         assert result_node.value.graph.size() == sum(len(leaf.factors) for leaf in result_node.value.leaves)
     for leaf in result.factor_tree.value.leaves:
         keys = gtsam.GaussianFactorGraph(leaf.camera_bayes_tree).keyVector()
-        assert set(keys) == {X(i) for i in leaf.local_to_global.values()}
-    assert set(gtsam.GaussianFactorGraph(result.camera_bayes_tree).keyVector()) == {X(i) for i in range(12)}
+        assert set(keys) == {X(i) for i in leaf.local_to_global.values()} | set(leaf.estimated_calibrations.keys())
+    expected_keys = {X(i) for i in range(12)}
+    if result.factor_tree.value.leaves[0].estimated_calibrations.size():
+        expected_keys |= {K(i) for i in range(12)}
+    assert set(gtsam.GaussianFactorGraph(result.camera_bayes_tree).keyVector()) == expected_keys
     for i in range(12):
         assert result.scene.get_image_info(i).name == f"DSC_{i + 1:04}.JPG"
         assert np.all(np.isfinite(result.scene.get_camera(i).pose().matrix()))
+        assert np.all(np.isfinite(result.scene.get_camera(i).calibration().vector()))
 
 
 def test_lund_independent_leaf_frame_invariance(
-    lund_tree: scene_tree.SceneTree, lund_result: cto.CameraTreeResult
+    lund_tree: scene_tree.SceneTree, lund_result: cto.CameraTreeResult, lund_options: cto.CameraTreeOptions
 ) -> None:
     """Large independent changes of leaf gauge must preserve the fused camera solution."""
     transforms = [
@@ -227,16 +240,24 @@ def test_lund_independent_leaf_frame_invariance(
     reframed = lund_tree.map(
         lambda value: (value[0], value[1].transform_with_sim3(by_path[value[0]]) if value[1] is not None else None)
     )
-    result = cto.optimize_camera_tree(reframed)
+    result = cto.optimize_camera_tree(reframed, lund_options)
     reframed_to_original = transforms[0].inverse()
     for i in range(12):
         expected = lund_result.scene.get_camera(i).pose()
         actual = reframed_to_original.transformFrom(result.scene.get_camera(i).pose())
         np.testing.assert_allclose(expected.localCoordinates(actual), np.zeros(6), atol=2e-5)
+        np.testing.assert_allclose(
+            result.scene.get_camera(i).calibration().vector(),
+            lund_result.scene.get_camera(i).calibration().vector(),
+            rtol=1e-6,
+            atol=2e-5,
+        )
     np.testing.assert_allclose(result.final_error, lund_result.final_error, rtol=1e-6, atol=1e-6)
 
 
-def test_perturbed_initialization_and_ignored_internal_scenes(lund_tree: scene_tree.SceneTree) -> None:
+def test_perturbed_initialization_and_ignored_internal_scenes(
+    lund_tree: scene_tree.SceneTree, lund_options: cto.CameraTreeOptions
+) -> None:
     """The root solve must correct perturbations without accessing internal scene payloads."""
     initialize = cto._initialize
 
@@ -247,13 +268,15 @@ def test_perturbed_initialization_and_ignored_internal_scenes(lund_tree: scene_t
         for key in values.keys():
             if gtsam.Symbol(key).chr() == ord("x"):
                 values.update(key, values.atPose3(key).retract(rng.normal(0, 1e-4, 6)))
+            elif gtsam.Symbol(key).chr() == ord("k"):
+                values.update(key, values.atCal3Bundler(key).retract(np.array([0.1, 1e-5, -1e-5])))
             elif key != S(0):
                 values.update(key, values.atSimilarity3(key).retract(rng.normal(0, 1e-4, 7)))
         return values
 
     poisoned = lund_tree.map(lambda value: (value[0], value[1] if value[1] is not None else object()))
     with patch.object(cto, "_initialize", side_effect=perturb):
-        result = cto.optimize_camera_tree(poisoned)
+        result = cto.optimize_camera_tree(poisoned, lund_options)
     assert result.final_error < result.initial_error
     assert result.scene.number_images() == 12
 
@@ -263,7 +286,7 @@ def test_original_lund_leaves_are_unobservable() -> None:
     tree = scene_tree.read_colmap(str(DATA_ROOT / "lund_door_binary"))
     assert tree is not None
     with pytest.raises(ValueError, match="Disconnected or insufficient camera overlap.*C_1/C_1_2"):
-        cto.optimize_camera_tree(tree)
+        cto.optimize_camera_tree(tree, FIXED_OPTIONS)
 
 
 def test_one_shared_camera_is_insufficient() -> None:
@@ -273,7 +296,7 @@ def test_one_shared_camera_is_insufficient() -> None:
         (Tree((Path("a"), _synthetic_scene((0, 1, 2)))), Tree((Path("b"), _synthetic_scene((2, 3, 4))))),
     )
     with pytest.raises(ValueError, match="two shared cameras"):
-        cto.optimize_camera_tree(tree)
+        cto.optimize_camera_tree(tree, FIXED_OPTIONS)
 
 
 def test_degenerate_baseline() -> None:
@@ -299,7 +322,10 @@ def test_insufficient_geometric_rank() -> None:
         cto.optimize_camera_tree(Tree((Path("low_rank"), _synthetic_scene(degenerate=True))))
 
 
-@pytest.mark.parametrize("kwargs", [{"measurement_sigma": 0}, {"max_iterations": 0}, {"rank_tolerance": float("nan")}])
+@pytest.mark.parametrize(
+    "kwargs",
+    [{"measurement_sigma": 0}, {"max_iterations": 0}, {"rank_tolerance": float("nan")}, {"optimize_intrinsics": 1}],
+)
 def test_invalid_options(kwargs: dict) -> None:
     """Reject invalid numerical options at construction."""
     with pytest.raises(ValueError):
@@ -307,9 +333,11 @@ def test_invalid_options(kwargs: dict) -> None:
 
 
 @pytest.fixture(scope="module")
-def lund_camera_factors(lund_tree: scene_tree.SceneTree) -> cto.CameraFactorTree:
+def lund_camera_factors(lund_tree: scene_tree.SceneTree, lund_options: cto.CameraTreeOptions) -> cto.CameraFactorTree:
     """Construct the external input using only the public Schur producer."""
-    by_path = {node.value[0]: cto.compute_camera_schur_complement(node.value[1]) for node in lund_tree.leaves()}
+    by_path = {
+        node.value[0]: cto.compute_camera_schur_complement(node.value[1], lund_options) for node in lund_tree.leaves()
+    }
     return lund_tree.map(lambda value: (value[0], by_path.get(value[0])))
 
 
@@ -350,7 +378,7 @@ def test_external_camera_only_execution(
 
     def camera_marginal(graph, keys, *args):
         """Only allow the final marginalization of global camera/similarity variables."""
-        assert all(gtsam.Symbol(key).chr() in (ord("x"), ord("s")) for key in graph.keyVector())
+        assert all(gtsam.Symbol(key).chr() in (ord("x"), ord("s"), ord("k")) for key in graph.keyVector())
         calls.append(list(keys))
         return marginal(graph, keys, *args)
 
@@ -368,7 +396,10 @@ def test_external_camera_only_execution(
         patch.object(gtsam.GaussianFactorGraph, "marginal", camera_marginal),
     ):
         result = cto.optimize_camera_factor_tree(lund_camera_factors, cto.CameraTreeOptions(measurement_sigma=9.0))
-    assert calls == [[X(i) for i in range(12)]]
+    expected_keys = [X(i) for i in range(12)]
+    if lund_result.factor_tree.value.leaves[0].estimated_calibrations.size():
+        expected_keys += [K(i) for i in range(12)]
+    assert calls == [expected_keys]
     _assert_same_solution(result, lund_result)
 
 
@@ -412,6 +443,8 @@ def _rekey_camera_input(data: cto.CameraLeafFactors, mapping: dict[int, int]) ->
     Returns:
         Equivalent input under arbitrary local camera keys.
     """
+    pose_mapping = dict(mapping)
+    mapping = {**mapping, **{key: 2000 + i for i, key in enumerate(data.calibration_keys.values())}}
     graph = gtsam.GaussianFactorGraph()
     for k in range(data.camera_graph.size()):
         factor = data.camera_graph.at(k)
@@ -419,13 +452,14 @@ def _rekey_camera_input(data: cto.CameraLeafFactors, mapping: dict[int, int]) ->
             gtsam.LinearContainerFactor(factor.clone()).rekey([mapping[key] for key in factor.keys()]).factor()
         )
     poses = gtsam.Values()
-    for key, new_key in mapping.items():
+    for key, new_key in pose_mapping.items():
         poses.insert(new_key, data.estimated_camera_poses.atPose3(key))
     return replace(
         data,
         camera_graph=graph,
         estimated_camera_poses=poses,
         camera_metadata={mapping[key]: info for key, info in data.camera_metadata.items()},
+        calibration_keys={mapping[key]: mapping[cal_key] for key, cal_key in data.calibration_keys.items()},
     )
 
 
@@ -437,7 +471,12 @@ def test_independent_keys_and_input_immutability(
     keys = [S(0), 8, X(90), 1003, 2]
     by_path = {n.value[0]: _rekey_camera_input(n.value[1], dict(enumerate(keys))) for n in lund_camera_factors.leaves()}
     snapshots = {
-        p: (d.camera_graph.clone(), gtsam.Values(d.estimated_camera_poses), dict(d.camera_metadata))
+        p: (
+            d.camera_graph.clone(),
+            gtsam.Values(d.estimated_camera_poses),
+            dict(d.camera_metadata),
+            dict(d.calibration_keys),
+        )
         for p, d in by_path.items()
     }
     tree = lund_camera_factors.map(lambda value: (value[0], by_path.get(value[0], object())))
@@ -445,10 +484,11 @@ def test_independent_keys_and_input_immutability(
     _assert_same_solution(result, lund_result)
     for leaf in result.factor_tree.value.leaves:
         data = by_path[leaf.path]
-        graph, poses, metadata = snapshots[leaf.path]
+        graph, poses, metadata, calibration_keys = snapshots[leaf.path]
         assert data.camera_graph.equals(graph, 0)
         assert data.estimated_camera_poses.equals(poses, 0)
         assert data.camera_metadata == metadata
+        assert data.calibration_keys == calibration_keys
         assert set(leaf.local_to_global) == set(keys)
         assert set(leaf.estimated_camera_poses.keys()) == {X(i) for i in leaf.local_to_global.values()}
 
@@ -466,7 +506,7 @@ def test_public_producer_is_ungauged_and_does_not_run_ba() -> None:
         ),
         patch.object(cto, "_add_coordinate_gauge", side_effect=AssertionError("Gauge added")),
     ):
-        data = cto.compute_camera_schur_complement(scene)
+        data = cto.compute_camera_schur_complement(scene, FIXED_OPTIONS)
     assert data.gauge_fixed is False
     assert (
         set(data.camera_graph.keyVector())
@@ -482,10 +522,12 @@ def test_public_producer_is_ungauged_and_does_not_run_ba() -> None:
     )
 
 
-@pytest.fixture
-def synthetic_camera_factors() -> cto.CameraLeafFactors:
+@pytest.fixture(params=[False, True], ids=["fixed", "intrinsics"])
+def synthetic_camera_factors(request: pytest.FixtureRequest) -> cto.CameraLeafFactors:
     """Create a compact camera-only likelihood for invalid-input tests."""
-    return cto.compute_camera_schur_complement(_synthetic_scene())
+    if request.param:
+        return cto.compute_camera_schur_complement(_self_calibration_scene())
+    return cto.compute_camera_schur_complement(_synthetic_scene(), FIXED_OPTIONS)
 
 
 @pytest.mark.parametrize("fixed", [False, True])
@@ -553,3 +595,235 @@ def test_external_hessian_factors(synthetic_camera_factors: cto.CameraLeafFactor
 
     with pytest.raises(ValueError, match="Leaf leaf.*gauge_fixed"):
         cto.optimize_camera_factor_tree(Tree((Path("leaf"), replace(data, camera_graph=graph, gauge_fixed=True))))
+
+
+def _self_calibration_scene() -> GtsfmData:
+    """Create nonparallel cameras with observable intrinsics and nonzero residuals."""
+    scene = GtsfmData(4)
+    rng = np.random.default_rng(81)
+    for i in range(4):
+        pose = gtsam.Pose3(gtsam.Rot3.RzRyRx(*rng.normal(0, 0.15, 3)), rng.uniform(-1, 1, 3))
+        calibration = gtsam.Cal3Bundler(400 + 20 * i, 0.01, -0.005, 320, 240)
+        scene.add_camera(i, gtsam.PinholeCameraCal3Bundler(pose, calibration))
+        scene.set_image_info(i, name=f"self_cal_{i}.jpg", shape=(480, 640))
+    for _ in range(60):
+        point = rng.uniform([-2, -2, 4], [2, 2, 8])
+        track = gtsam.SfmTrack(point)
+        for i in range(4):
+            track.addMeasurement(i, scene.get_camera(i).project(point) + rng.normal(0, 0.02, 2))
+        scene.add_track(track)
+    return scene
+
+
+def test_joint_schur_preserves_pose_intrinsics_quadratic() -> None:
+    """Profile out only points and retain the full mixed camera quadratic and offsets."""
+    scene = _self_calibration_scene()
+    data = cto.compute_camera_schur_complement(scene)
+    pose_keys = list(data.estimated_camera_poses.keys())
+    calibration_keys = [data.calibration_keys[key] for key in pose_keys]
+    retained = pose_keys + calibration_keys
+    point_keys = [L(j) for j in range(scene.number_tracks())]
+    graph = cto._linearize_reconstruction(scene, cto.CameraTreeOptions())
+    matrix, rhs = graph.jacobian(gtsam.Ordering(retained + point_keys))
+    dimension = 9 * len(pose_keys)
+    camera_matrix, point_matrix = matrix[:, :dimension], matrix[:, dimension:]
+    reduced_a, reduced_b = data.camera_graph.jacobian(gtsam.Ordering(retained))
+    assert set(data.camera_graph.keyVector()) == set(retained)
+    assert np.linalg.norm(reduced_a[:, : 6 * len(pose_keys)].T @ reduced_a[:, 6 * len(pose_keys) :]) > 1
+    assert np.linalg.norm(reduced_a.T @ reduced_b) > 0.01
+    zero_points = np.linalg.lstsq(point_matrix, rhs, rcond=None)[0]
+    baseline = np.linalg.norm(point_matrix @ zero_points - rhs) ** 2
+    assert np.isfinite(baseline)
+    leaf = cto._leaf_inputs(Tree((Path("leaf"), data)))[0]
+    summary = cto._prepare_leaf(leaf, cto.CameraTreeOptions())
+    bayes_graph = gtsam.GaussianFactorGraph(summary.camera_bayes_tree)
+    global_keys = [X(leaf.local_to_global[key]) for key in pose_keys] + [
+        K(leaf.local_to_global[key]) for key in pose_keys
+    ]
+    sizes = [6] * len(pose_keys) + [3] * len(calibration_keys)
+    zero = gtsam.VectorValues()
+    for key, size in zip(global_keys, sizes):
+        zero.insert(key, np.zeros(size))
+    anchor = data.estimated_camera_poses.atPose3(pose_keys[0])
+    farthest = max(
+        pose_keys[1:],
+        key=lambda key: np.linalg.norm(data.estimated_camera_poses.atPose3(key).translation() - anchor.translation()),
+    )
+    farthest_pose = data.estimated_camera_poses.atPose3(farthest)
+    direction = farthest_pose.rotation().matrix().T @ (farthest_pose.translation() - anchor.translation())
+    direction /= np.linalg.norm(direction)
+    rng = np.random.default_rng(73)
+    for _ in range(4):
+        delta = rng.normal(0, 0.001, dimension)
+        delta[:6] = 0
+        offset = 6 * pose_keys.index(farthest) + 3
+        delta[offset : offset + 3] -= direction * (direction @ delta[offset : offset + 3])
+        points = np.linalg.lstsq(point_matrix, rhs - camera_matrix @ delta, rcond=None)[0]
+        profiled = np.linalg.norm(camera_matrix @ delta + point_matrix @ points - rhs) ** 2
+        reduced = np.linalg.norm(reduced_a @ delta - reduced_b) ** 2 - np.linalg.norm(reduced_b) ** 2
+        assert np.all(np.isfinite([profiled, reduced]))
+        np.testing.assert_allclose(reduced, profiled - baseline, rtol=1e-9, atol=1e-9)
+        vector = gtsam.VectorValues()
+        offset = 0
+        for key, size in zip(global_keys, sizes):
+            vector.insert(key, delta[offset : offset + size])
+            offset += size
+        np.testing.assert_allclose(
+            2 * (bayes_graph.error(vector) - bayes_graph.error(zero)), reduced, rtol=1e-9, atol=1e-9
+        )
+
+
+@pytest.mark.parametrize("calibration_only", [False, True])
+def test_intrinsics_factor_analytic_jacobians(calibration_only: bool) -> None:
+    """Check mixed block offsets and calibration-only conditionals away from the leaf estimate."""
+    rng = np.random.default_rng(29)
+    rows = 15
+    matrix = rng.normal(size=(rows, 12))
+    rhs = rng.normal(size=rows)
+    noise = gtsam.noiseModel.Diagonal.Sigmas(np.linspace(0.5, 2, rows))
+    gaussian = (
+        gtsam.JacobianFactor(K(0), matrix[:, :3], rhs, noise)
+        if calibration_only
+        else gtsam.JacobianFactor(K(0), matrix[:, :3], X(0), matrix[:, 3:9], K(1), matrix[:, 9:], rhs, noise)
+    )
+    poses, calibrations, values = gtsam.Values(), gtsam.Values(), gtsam.Values()
+    similarity = gtsam.Similarity3(gtsam.Rot3.RzRyRx(0.3, -0.2, 0.1), np.array([1, -2, 0.5]), 1.7)
+    values.insert(S(0), similarity)
+    for i in range(2):
+        calibration = gtsam.Cal3Bundler(400 + 20 * i, 0.01, -0.005, 320, 240)
+        calibrations.insert(K(i), calibration)
+        values.insert(K(i), calibration.retract(np.array([3, 0.001, -0.002])))
+    pose = gtsam.Pose3.Expmap(rng.normal(0, 0.2, 6))
+    poses.insert(X(0), pose)
+    values.insert(X(0), similarity.inverse().transformFrom(pose.retract(rng.normal(0, 0.1, 6))))
+    factor = cto._lift_conditional(gaussian, poses, S(0), calibrations)
+    linear = gtsam.JacobianFactor(factor.linearize(values))
+    assert factor.noiseModel().equals(noise, 0)
+    delta = gtsam.VectorValues()
+    for key in gaussian.keys():
+        delta.insert(
+            key,
+            (
+                poses.atPose3(key).localCoordinates(similarity.transformFrom(values.atPose3(key)))
+                if poses.exists(key)
+                else calibrations.atCal3Bundler(key).localCoordinates(values.atCal3Bundler(key))
+            ),
+        )
+    np.testing.assert_allclose(factor.error(values), gaussian.error(delta), rtol=1e-12)
+    column = 0
+    for key in linear.keys():
+        if key == S(0):
+            value, dimension = values.atSimilarity3(key), 7
+        elif key == X(0):
+            value, dimension = values.atPose3(key), 6
+        else:
+            value, dimension = values.atCal3Bundler(key), 3
+        numerical = np.zeros((rows, dimension))
+        for k in range(dimension):
+            step = np.zeros(dimension)
+            step[k] = 1e-5
+            plus, minus = gtsam.Values(values), gtsam.Values(values)
+            plus.update(key, value.retract(step))
+            minus.update(key, value.retract(-step))
+            numerical[:, k] = (factor.whitenedError(plus) - factor.whitenedError(minus)) / (2e-5)
+        np.testing.assert_allclose(linear.getA()[:, column : column + dimension], numerical, atol=2e-7, rtol=2e-6)
+        if calibration_only and key == S(0):
+            np.testing.assert_array_equal(numerical, 0)
+        column += dimension
+
+
+def test_shared_intrinsics_are_optimized_and_exported() -> None:
+    """Fuse independent calibration estimates for each filename instead of copying the first."""
+    scene = _self_calibration_scene()
+    data = cto.compute_camera_schur_complement(scene)
+    # Independent external likelihoods with exact pose coordinates and known calibration optima.
+    leaves = []
+    for index, change in enumerate((0.0, 4.0)):
+        graph = gtsam.GaussianFactorGraph()
+        metadata = {}
+        for key, info in data.camera_metadata.items():
+            graph.push_back(
+                gtsam.NonlinearEqualityPose3(key, data.estimated_camera_poses.atPose3(key)).linearize(
+                    data.estimated_camera_poses
+                )
+            )
+            graph.push_back(
+                gtsam.JacobianFactor(
+                    data.calibration_keys[key], np.eye(3), np.zeros(3), gtsam.noiseModel.Unit.Create(3)
+                )
+            )
+            metadata[key] = replace(info, calibration=info.calibration.retract(np.array([change, 0.002 * change, 0])))
+        leaves.append(
+            Tree((Path(str(index)), replace(data, camera_graph=graph, camera_metadata=metadata, gauge_fixed=True)))
+        )
+    tree = Tree((Path("root"), None), tuple(leaves))
+    result = cto.optimize_camera_factor_tree(tree, FIXED_OPTIONS)  # Consumer follows the input layout.
+    assert result.final_error < result.initial_error
+    for i in range(4):
+        actual = result.scene.get_camera(i).calibration()
+        expected = scene.get_camera(i).calibration().retract(np.array([2, 0.004, 0]))
+        np.testing.assert_allclose(actual.vector(), expected.vector(), atol=1e-6)
+        assert (actual.px(), actual.py()) == (320, 240)
+    graph = gtsam.GaussianFactorGraph(result.camera_bayes_tree)
+    assert set(graph.keyVector()) == {key for i in range(4) for key in (X(i), K(i))}
+    assert graph.jacobian()[0].shape[1] == 36
+    for leaf in result.factor_tree.value.leaves:
+        assert set(leaf.estimated_calibrations.keys()) == {K(i) for i in range(4)}
+
+
+@pytest.fixture
+def joint_camera_factors() -> cto.CameraLeafFactors:
+    """Produce an observable pose/intrinsics quadratic for contract tests."""
+    return cto.compute_camera_schur_complement(_self_calibration_scene())
+
+
+@pytest.mark.parametrize("case", ["partial", "duplicate", "collision", "missing", "dimension"])
+def test_invalid_calibration_mapping(joint_camera_factors: cto.CameraLeafFactors, case: str) -> None:
+    """Reject ambiguous key layouts and calibration blocks with the wrong dimension."""
+    data = joint_camera_factors
+    mapping = dict(data.calibration_keys)
+    if case == "partial":
+        del mapping[0]
+    elif case == "duplicate":
+        mapping[0] = mapping[1]
+    elif case == "collision":
+        mapping[0] = 0
+    elif case == "missing":
+        mapping[0] = 123
+    else:
+        graph = data.camera_graph.clone()
+        graph.push_back(gtsam.JacobianFactor(K(0), np.eye(6), np.zeros(6), gtsam.noiseModel.Unit.Create(6)))
+        data = replace(data, camera_graph=graph)
+    with pytest.raises(ValueError, match="Leaf invalid"):
+        cto.optimize_camera_factor_tree(Tree((Path("invalid"), replace(data, calibration_keys=mapping))))
+
+
+def test_inconsistent_principal_points(joint_camera_factors: cto.CameraLeafFactors) -> None:
+    """Principal points cannot vary across summaries of the same image."""
+    metadata = dict(joint_camera_factors.camera_metadata)
+    metadata[0] = replace(metadata[0], calibration=gtsam.Cal3Bundler(400, 0.01, -0.005, 321, 240))
+    tree = Tree(
+        (Path("root"), None),
+        (
+            Tree((Path("a"), joint_camera_factors)),
+            Tree((Path("b"), replace(joint_camera_factors, camera_metadata=metadata))),
+        ),
+    )
+    with pytest.raises(ValueError, match="Inconsistent principal point"):
+        cto.optimize_camera_factor_tree(tree)
+
+
+def test_mixed_intrinsics_modes(joint_camera_factors: cto.CameraLeafFactors) -> None:
+    """A consumer accepts legacy trees but rejects ambiguous mixed variable layouts."""
+    fixed = cto.compute_camera_schur_complement(_self_calibration_scene(), FIXED_OPTIONS)
+    tree = Tree((Path("root"), None), (Tree((Path("a"), fixed)), Tree((Path("b"), joint_camera_factors))))
+    with pytest.raises(ValueError, match="Cannot mix"):
+        cto.optimize_camera_factor_tree(tree)
+
+
+def test_unobservable_intrinsics_are_not_regularized() -> None:
+    """Parallel undistorted views have extra calibration freedoms despite observable fixed poses."""
+    scene = _synthetic_scene()
+    cto.compute_camera_schur_complement(scene, FIXED_OPTIONS)
+    with pytest.raises(ValueError, match="Insufficient geometric rank"):
+        cto.compute_camera_schur_complement(scene)

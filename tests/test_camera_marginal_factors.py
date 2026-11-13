@@ -184,7 +184,8 @@ def test_original_graph_lund_matches_reconstruction_route() -> None:
     with patch.object(cto, "compute_camera_schur_complement", side_effect=AssertionError("Reconstruction read")):
         result = cto.optimize_camera_factor_tree(tree.map(lambda value: (value[0], by_path.get(value[0]))))
     with pytest.warns(UserWarning, match="original BA gauge"):
-        expected = cto.optimize_camera_tree(tree)
+        # The original-graph producer marginalizes calibrations, so compare against fixed intrinsics.
+        expected = cto.optimize_camera_tree(tree, cto.CameraTreeOptions(optimize_intrinsics=False))
     _assert_same_solution(result, expected, compare_factorization=False)
     _assert_lund_camera_information(result, expected)
 
@@ -258,7 +259,9 @@ def test_scene_tree_wrapper_warns_and_remains_available() -> None:
     """The geometry-only convenience API directs callers to the original-graph producer."""
     tree = Tree((Path("leaf"), _synthetic_scene()))
     with pytest.warns(UserWarning, match="compute_camera_marginal_factors"):
-        assert cto.optimize_camera_tree(tree).scene.number_images() == 3
+        # Three parallel synthetic views cannot observe intrinsics; exercise the fixed-intrinsics route.
+        options = cto.CameraTreeOptions(optimize_intrinsics=False)
+        assert cto.optimize_camera_tree(tree, options).scene.number_images() == 3
 
 
 def test_original_graph_api_does_not_rebuild_or_optimize() -> None:
