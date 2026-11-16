@@ -6,6 +6,8 @@ To open a pull request, here are some steps to get you started:
 
 - [Fork the GTSFM repository](https://help.github.com/en/articles/fork-a-repo) and [clone to your machine](https://help.github.com/en/articles/cloning-a-repository).
 
+- Set up an editable installation using either the [Conda guide](setup/conda-setup.md) or the [uv development environment instructions](setup/uv-setup.md#set-up-a-development-environment), including Git submodules. For the commands below, activate the Conda environment or prefix commands with `uv run` to use `.venv`.
+
 - Create a branch for your changes.
   - `$ git checkout -b <name of your branch>`
 

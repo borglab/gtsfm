@@ -24,18 +24,57 @@ The majority of our code is governed by an MIT license and is suitable for comme
 
 ## Installation
 
-GTSfM requires no compilation, as Python wheels are provided for GTSAM.
+GTSFM requires Python 3.12.x (`>=3.12,<3.13`). Both uv and Conda provide the same GTSFM CLI and Studio interface.
 
-### Install and open GTSFM Studio
+### Prepare the checkout
 
-GTSFM now installs an application-style command. From a recursive checkout (or a published wheel), one install is enough to open the browser workspace:
+For a new checkout:
 
 ```bash
-uv tool install .
+git clone https://github.com/borglab/gtsfm.git
+cd gtsfm
+```
+
+For an existing checkout, start in its repository root. Initialize the bundled model code before installing:
+
+```bash
+git submodule update --init --recursive
+```
+
+### Choose an installation method
+
+| Method | Environment | Setup guide |
+| --- | --- | --- |
+| uv | Isolated command-line tool, or an editable `.venv` for development | [uv setup](docs/setup/uv-setup.md) |
+| Conda | Named environment with GTSFM installed using pip | [Conda setup](docs/setup/conda-setup.md) |
+
+For an isolated uv tool installation:
+
+```bash
+uv tool install --python 3.12 .
+```
+
+For a new Conda environment:
+
+```bash
+conda create -n gtsfm-v1 python=3.12 pip
+conda activate gtsfm-v1
+python -m pip install .
+```
+
+The guides cover development installation and GPU dependencies. For Conda, select the appropriate [PyTorch build](docs/setup/conda-setup.md#select-pytorch) before installing GTSFM if you need a particular CUDA or CPU build.
+
+### Run GTSFM
+
+After either installation, the commands below work with the installed `gtsfm` tool. Keep `gtsfm-v1` activated for Conda. For a uv development environment, prefix commands with `uv run`.
+
+#### Open Studio
+
+```bash
 gtsfm run
 ```
 
-You can use `pip install .` instead of `uv tool install .` inside a Python 3.12 environment. The browser opens automatically and provides dataset, model, splat implementation, hardware, and advanced configuration controls. Input can be supplied by dragging in your own folder or selecting a curated GTSFM GitHub sample; sample scenes automatically apply the matching loader and recommended settings and are cached after their first download. The workspace also manages runs, shows logs, visualizes iterative Gaussian optimization, and opens final reconstructions in the built-in 3D viewer. Completed splats can be downloaded as `.ply` files from either Activity or Results.
+The browser opens automatically and provides dataset, model, splat implementation, hardware, and advanced configuration controls. Input can be supplied by dragging in your own folder or selecting a curated GTSFM GitHub sample; sample scenes automatically apply the matching loader and recommended settings and are cached after their first download. The workspace also manages runs, shows logs, visualizes iterative Gaussian optimization, and opens final reconstructions in the built-in 3D viewer. Completed splats can be downloaded as `.ply` files from either Activity or Results.
 
 The equivalent terminal workflow remains available:
 
@@ -89,13 +128,13 @@ To submit work to a remote GPU machine, start its workspace with an API key:
 GTSFM_API_KEY=your-secret gtsfm run --host 0.0.0.0 --no-browser
 ```
 
-Choose **Remote VM** in the workspace, then select an API or SSH connection. Modal is the first hosted API option: enter its token ID and token secret separately, or paste the full `modal token set --token-id … --token-secret …` command into either field and the workspace will split it automatically.2`
+Choose **Remote VM** in the workspace, then select an API or SSH connection. Modal is the first hosted API option: enter its token ID and token secret separately, or paste the full `modal token set --token-id … --token-secret …` command into either field and the workspace will split it automatically.
 
 GTSFM sample datasets are downloaded directly by the remote workspace. User-selected folders are archived and streamed to the protected workspace before the job starts. Live preview splats and the final `.ply` result are mirrored back to the local viewer. Modal account credentials and the derived workspace API key are kept in memory and are not included in public job state. Lambda Cloud, RunPod, Vast.ai, and AWS EC2 are listed as coming soon.
 
 Use HTTPS or a trusted private network when exposing a remote workspace; the built-in server is intended for local or controlled-network use.
 
-GTSFM Studio is a strict TypeScript React application built with Vite and lightweight Radix UI primitives. Its FastAPI/Uvicorn backend publishes typed OpenAPI documentation at `/docs` and streams job, log, and live-splat state over WebSockets instead of polling the server. Release wheels contain the compiled frontend and local 3D viewer vendor assets, so Node.js and external CDNs are not required to run the installed application. To work on the interface itself, start the Python API and Vite development server in separate terminals:
+GTSFM Studio is a strict TypeScript React application built with Vite and lightweight Radix UI primitives. Its FastAPI/Uvicorn backend publishes typed OpenAPI documentation at `/docs` and streams job, log, and live-splat state over WebSockets instead of polling the server. Release wheels contain the compiled frontend and local 3D viewer vendor assets, so Node.js and external CDNs are not required to run the installed application. To work on the interface itself, use an editable installation from either setup guide, then start the Python API and Vite development server in separate terminals:
 
 ```bash
 gtsfm run --no-browser
@@ -106,25 +145,6 @@ pnpm dev       # opens the development UI on http://127.0.0.1:5174
 pnpm check     # strict TypeScript check
 pnpm build     # refresh visualization/static/studio.{js,css}
 ```
-
-### Initialize Git submodules
-
-This repository includes external repositories as Git submodules, so, unless you cloned with `git clone --recursive` you need to initialize:
-```bash
-git submodule update --init --recursive
-```
-
-GTSfM supports two installation methods. Choose the one that best fits your workflow:
-
-### Option 1: Conda Setup (Recommended for most users)
-
-For detailed Conda installation instructions, see **[conda-setup.md](docs/setup/conda-setup.md)**
-
-### Option 2: UV Setup (Fast alternative package manager)
-
-For detailed UV installation instructions, see **[uv-setup.md](docs/setup/uv-setup.md)**
-
-Both methods will allow you to run GTSfM successfully.
 
 ## Try It on Google Colab  
 
@@ -141,7 +161,7 @@ bash scripts/download_model_weights.sh
 
 ### Running SfM  
 
-GTSfM provides a unified runner that supports all dataset types through Hydra configuration.
+GTSfM provides a unified runner that supports all dataset types through Hydra configuration. These examples use the installed CLI: activate your Conda environment, use the uv-installed tool directly, or prefix commands with `uv run` for a uv development environment. The repository `./run` wrapper automatically selects uv when available, so use `gtsfm execute --` to keep the environment choice explicit.
 
 To process a dataset containing only an **image directory and EXIF metadata**, ensure your dataset follows this structure:  
 
@@ -156,7 +176,7 @@ To process a dataset containing only an **image directory and EXIF metadata**, e
 Then, run the following command:  
 
 ```bash
-./run --config_name {CONFIG_NAME} --loader olsson --dataset_dir {DATASET_DIR} --num_workers {NUM_WORKERS}
+gtsfm execute -- --config_name {CONFIG_NAME} --loader olsson --dataset_dir {DATASET_DIR} --num_workers {NUM_WORKERS}
 ```
 
 ### Loader Options
@@ -186,7 +206,7 @@ Currently, we require **EXIF data** embedded into your images. Alternatively, yo
 
 Many other dask-related arguments are available. Run 
 ```bash
-./run --help
+gtsfm execute -- --help
 ```
 for more information.
 
@@ -194,7 +214,7 @@ for more information.
 
 Example (deep front-end on Olsson, single worker):
 ```bash
-./run --dataset_dir tests/data/set1_lund_door \
+gtsfm execute -- --dataset_dir tests/data/set1_lund_door \
       --config_name deep_front_end.yaml \
       --loader olsson \
       --num_workers 1 \
@@ -203,7 +223,7 @@ Example (deep front-end on Olsson, single worker):
 
 For a dataset with metadata formatted in the COLMAP style:
 ```bash
-./run --dataset_dir datasets/gerrard-hall \
+gtsfm execute -- --dataset_dir datasets/gerrard-hall \
       --config_name deep_front_end.yaml \
       --loader colmap \
       --num_workers 5 \
@@ -219,7 +239,7 @@ You can monitor the distributed computation using the [Dask dashboard](http://lo
 To compare GTSFM output with COLMAP, use the following command:  
 
 ```bash
-./run --config_name {CONFIG_NAME} --loader colmap --dataset_dir {DATASET_DIR} --num_workers {NUM_WORKERS} --max_frame_lookahead {MAX_FRAME_LOOKAHEAD}
+gtsfm execute -- --config_name {CONFIG_NAME} --loader colmap --dataset_dir {DATASET_DIR} --num_workers {NUM_WORKERS} --max_frame_lookahead {MAX_FRAME_LOOKAHEAD}
 ```  
 
 ### Visualizing Results with Open3D  
@@ -267,7 +287,7 @@ The runner supports all loaders through `--loader`, `--dataset_dir`, and `--imag
 
 **General pattern**
 ```bash
-./run \
+gtsfm execute -- \
   --config_name <config_file> \
   --loader <loader_type> \
   --dataset_dir <path> \
@@ -293,12 +313,12 @@ The following loader types are supported:
 
 For the complete list of available arguments for each loader, run:
 ```bash
-./run --help
+gtsfm execute -- --help
 ```
 
 ### Example: Olsson Loader (images + EXIF)
 ```bash
-./run \
+gtsfm execute -- \
   --config_name sift_front_end.yaml \
   --loader olsson \
   --dataset_dir /path/to/olsson_dataset \
@@ -307,7 +327,7 @@ For the complete list of available arguments for each loader, run:
 
 ### Example: Colmap Loader (COLMAP text export)
 ```bash
-./run \
+gtsfm execute -- \
   --config_name sift_front_end.yaml \
   --loader colmap \
   --dataset_dir /path/to/colmap_dataset \
