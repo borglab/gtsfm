@@ -336,7 +336,13 @@ class GtsfmRunner:
         if not self.parsed_args.run_mvs:
             multiview_optimizer.dense_multiview_optimizer = None
             logger.info("🔄 Disabled Multiview dense MVS optimizer via CLI flag --run_mvs=False")
-            OmegaConf.update(main_cfg, "cluster_optimizer.dense_multiview_optimizer", None, merge=False)
+            OmegaConf.update(
+                main_cfg,
+                "cluster_optimizer.dense_multiview_optimizer",
+                None,
+                merge=False,
+                force_add=True,
+            )
 
     def _set_gaussian_splatting_overwrite(self, scene_optimizer: "SceneOptimizer", main_cfg) -> None:
         """Attach the selected optimizer to any reconstruction backend that supports splatting."""
@@ -377,6 +383,7 @@ class GtsfmRunner:
                         gs_optimizer_config_path,
                         gs_cfg.gaussian_splatting_optimizer,
                         merge=False,
+                        force_add=True,
                     )
         else:
             if hasattr(target_optimizer, "gaussian_splatting_optimizer"):
