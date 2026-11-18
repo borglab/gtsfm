@@ -51,11 +51,16 @@ class KeypointAggregatorDedup(KeypointAggregatorBase):
 
         for k, uv in enumerate(keypoints.coordinates):
             diff_norms = np.linalg.norm(per_image_kpt_coordinates[i] - uv, axis=1)
-            # TODO(johnwlambert,travisdriver): Use the average coordinate instead of first coordinate.
             is_duplicate = np.any(diff_norms <= self.nms_merge_radius)
             if len(per_image_kpt_coordinates[i]) > 0 and is_duplicate:
                 self.duplicates_found += 1
-                i_indices[k] = np.argmin(diff_norms)
+                img_global_kpt_idx = np.argmin(diff_norms)
+                i_indices[k] = img_global_kpt_idx
+                # Modify global keypoint coordinate to be set to average value of merged detections, instead of
+                # using the first identified coordinate.
+                updated_uv = np.mean([per_image_kpt_coordinates[i][img_global_kpt_idx], uv], axis=0)
+                per_image_kpt_coordinates[i][img_global_kpt_idx] = updated_uv
+
             else:
                 i_indices[k] = i_count
                 i_count += 1
