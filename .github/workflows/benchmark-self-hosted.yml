@@ -61,6 +61,9 @@ jobs:
       #       bash
       #     cache-environment: true
       #     post-cleanup: "all"
+      - name: Enter gtsfm directory + install it
+        run: 
+          cd $GITHUB_WORKSPACE && pip install -e .
       - name: Download third-party weights
         run: |
           ./scripts/download_model_weights.sh
