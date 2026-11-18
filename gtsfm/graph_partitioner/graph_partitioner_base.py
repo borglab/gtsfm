@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import pickle
 from abc import abstractmethod
+from collections.abc import Mapping
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.outputs import OutputPaths
@@ -51,11 +52,17 @@ class GraphPartitionerBase(GTSFMProcess):
         )
 
     @abstractmethod
-    def run(self, graph: VisibilityGraph) -> ClusterTree | None:
+    def run(
+        self,
+        graph: VisibilityGraph,
+        edge_weights: Mapping[tuple[int, int], int] | None = None,
+    ) -> ClusterTree | None:
         """Cluster a visibility graph.
 
         Args:
             graph: a visibility graph.
+            edge_weights: Optional positive weight for each canonical edge, such as an
+                inlier count. Partitioners that do not use weights ignore this.
         Returns:
             ClusterTree describing the hierarchical structure.
         """

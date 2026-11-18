@@ -20,7 +20,6 @@ from gtsfm.frontend.matcher.matcher_base import MatcherBase
 
 logger = logger_utils.get_logger()
 
-CACHE_ROOT_PATH = Path(__file__).resolve().parent.parent.parent.parent / "cache"
 NUM_KEYPOINTS_TO_SAMPLE_FOR_HASH = 10
 
 
@@ -42,7 +41,7 @@ class MatcherCacher(MatcherBase):
 
     def __get_cache_path(self, cache_key: str) -> Path:
         """Gets the file path to the cache bz2 file from the cache key."""
-        return CACHE_ROOT_PATH / "matcher" / "{}.pbz2".format(cache_key)
+        return cache_utils.cache_root() / "matcher" / "{}.pbz2".format(cache_key)
 
     def __generate_cache_key(
         self,

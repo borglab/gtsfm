@@ -4,6 +4,7 @@ Authors: Frank Dellaert"""
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 import heapq
 from math import ceil
@@ -71,8 +72,13 @@ class MetisPartitioner(GraphPartitionerBase):
         nodes_in_largest = set(get_nodes_in_largest_connected_component(graph))
         return [(i, j) for i, j in graph if i in nodes_in_largest and j in nodes_in_largest]
 
-    def run(self, graph: VisibilityGraph) -> ClusterTree | None:
+    def run(
+        self,
+        graph: VisibilityGraph,
+        edge_weights: Mapping[tuple[int, int], int] | None = None,
+    ) -> ClusterTree | None:
         """Cluster a visibility graph using the clique structure of the symbolic Bayes tree."""
+        del edge_weights  # unused
         if len(graph) == 0:
             return None
 

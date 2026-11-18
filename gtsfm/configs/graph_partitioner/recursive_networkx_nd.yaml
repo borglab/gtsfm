@@ -1,0 +1,6 @@
+# Recursive NetworkX spectral nested-dissection style cuts + KL refine.
+_target_: gtsfm.graph_partitioner.RecursiveNetworkX
+max_cameras: 70
+overlap_cameras: 5
+cutter: nested_dissection
+refine_kl: true

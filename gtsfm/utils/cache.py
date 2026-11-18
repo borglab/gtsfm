@@ -4,11 +4,24 @@ Authors: Ayush Baid
 """
 
 import hashlib
+import os
+from pathlib import Path
 
 import numpy as np
 import torch
 
 from gtsfm.common.image import Image
+
+_DEFAULT_CACHE_ROOT = Path(__file__).resolve().parent.parent.parent / "cache"
+
+
+def cache_root() -> Path:
+    """Return the cache directory, or ``GTSFM_CACHE_SUBDIR`` when that variable is set."""
+    override = os.environ.get("GTSFM_CACHE_SUBDIR")
+    if not override:
+        return _DEFAULT_CACHE_ROOT
+    path = Path(override)
+    return path if path.is_absolute() else _DEFAULT_CACHE_ROOT / path
 
 
 def generate_hash_for_image(image: Image) -> str:
